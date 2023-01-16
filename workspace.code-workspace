@@ -1,0 +1,13 @@
+{
+  "folders": [
+	{
+		"path": "."
+	},
+	{
+		"path": "../../Downloads/Starting+Files"
+	}
+],
+  "settings": {
+    "liveServer.settings.multiRootWorkspaceName": "project1_travelly"
+  }
+}
