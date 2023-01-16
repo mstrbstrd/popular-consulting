@@ -262,13 +262,18 @@ nav ul {
 
 .form-head {
   text-align: center;
-  padding: 4rem;
+  padding: 3rem;
 }
 
 .name-form,
-.email-form {
+.email-form,
+.message-form {
   text-align: center;
-  padding: 3rem;
+  padding: 1rem;
+}
+
+#message {
+  height: 100px;
 }
 
 .form-wrapper label {
