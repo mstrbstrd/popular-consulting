@@ -255,14 +255,14 @@ nav ul {
 
 .form-wrapper {
   background: rgba(19, 28, 39, 0.8);
-  width: 60%;
+  width: 40%;
   color: white;
   border-radius: 20px;
 }
 
 .form-head {
   text-align: center;
-  padding: 3rem;
+  padding: 1rem;
 }
 
 .name-form,
@@ -283,7 +283,7 @@ nav ul {
 .form-wrapper button {
   width: 100%;
   padding: 2rem;
-  margin-top: 8rem;
+  margin-top: 4rem;
   border-bottom-left-radius: 20px;
   border-bottom-right-radius: 20px;
 }
