@@ -20,7 +20,7 @@ const ContactSection = () => {
   minWidth: '500px', // Ensures that the container does not get too narrow
 }}>
                 <Typography variant="h2" gutterBottom color="common.white">
-                    Contact Us
+                    Contact
                 </Typography>
                 <form action="https://formspree.io/f/mrgvbgww" method="POST" style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                     <TextField

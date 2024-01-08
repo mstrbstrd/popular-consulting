@@ -1,6 +1,6 @@
 import React from 'react';
 import '../styles/LoadingComponent.css';
-import loaderimage from '../assets/icons/halfmoon.gif';
+import loaderimage from '../assets/icons/movingwave.gif';
 
 function LoadingComponent() {
   return (
