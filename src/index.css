@@ -164,7 +164,7 @@ nav ul {
 
 /* Locations Section */
 
-#locations {
+#bio {
   min-height: 100vh;
   background: linear-gradient(rgba(0, 0, 0, 0.5), transparent),
     url("./assets/img/locationlandingphoto.png");
@@ -190,7 +190,7 @@ nav ul {
   z-index: -1;
 }
 
-.locations-head {
+.bio-head {
   background: rgba(0, 0, 0, 0.3);
   border-radius: 15px;
   padding: 0.5rem 1rem;
@@ -200,14 +200,14 @@ nav ul {
   z-index: 1;
 }
 
-.locations-head h2 {
+.bio-head h2 {
   text-decoration: underline;
   text-decoration-thickness: 0.3rem;
   z-index: 1;
   font-size: 5rem;
 }
 
-.locations-head h3 {
+.bio-head h3 {
   padding: 2rem 0rem;
   color: white;
 }
