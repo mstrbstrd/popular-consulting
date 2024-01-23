@@ -1,24 +1,29 @@
 import React from 'react';
 import VideoSection from './VideoSection';
 import contactVideo from '../assets/video/popcon_landingpage_vid.mp4';
-import { Container, TextField, Button, Typography } from '@mui/material';
+import { Container, TextField, Button, Typography, useTheme, useMediaQuery } from '@mui/material';
 
 const ContactSection = () => {
+    const theme = useTheme();
+    const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
+    const containerStyles = {
+        backgroundColor: 'rgba(0, 0, 35, 0.5)',
+        borderRadius: '20px',
+        p: 4,
+        position: 'relative',
+        zIndex: 2,
+        margin: 'auto',
+        marginTop: '2rem',
+        marginBottom: '4rem',
+        width: '80%',
+        maxWidth: '1200px',
+        minWidth: isMobile ? '300px' : '500px', // Adjust minWidth for mobile devices
+    };
+
     return (
         <VideoSection videoSource={contactVideo} sectionId="contact" className="contact">
-            <Container sx={{
-  backgroundColor: 'rgba(0, 0, 35, 0.5)',
-  borderRadius: '20px',
-  p: 4,
-  position: 'relative',
-  zIndex: 2,
-  margin: 'auto',
-  marginTop: '2rem',
-  marginBottom: '4rem',
-  width: '80%', // Sets the base width to 80% of the parent element
-  maxWidth: '1200px', // Sets a maximum width to ensure it does not get too wide on very large screens
-  minWidth: '500px', // Ensures that the container does not get too narrow
-}}>
+            <Container sx={containerStyles}>
                 <Typography variant="h2" gutterBottom color="common.white">
                     Contact
                 </Typography>
