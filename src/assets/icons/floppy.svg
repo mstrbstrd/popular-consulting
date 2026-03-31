@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 44 48" fill="none">
+  <!-- Body with chamfered top-left corner -->
+  <path d="M14 2 L41 2 Q43 2 43 4 L43 46 Q43 48 41 48 L3 48 Q1 48 1 46 L1 15 Z"
+    stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"/>
+
+  <!-- Label area -->
+  <rect x="5" y="6" width="22" height="18" rx="1.5" stroke="currentColor" stroke-width="1.6"/>
+
+  <!-- Write-protect notch top-right -->
+  <rect x="30" y="6" width="8" height="8" rx="2" stroke="currentColor" stroke-width="1.5"/>
+
+  <!-- Shutter housing -->
+  <rect x="7" y="30" width="30" height="13" rx="2" stroke="currentColor" stroke-width="1.8"/>
+
+  <!-- Disk hub -->
+  <circle cx="22" cy="36.5" r="4.5" stroke="currentColor" stroke-width="1.6"/>
+  <circle cx="22" cy="36.5" r="1.8" fill="currentColor"/>
+</svg>

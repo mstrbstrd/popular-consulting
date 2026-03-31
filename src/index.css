@@ -1,14 +1,49 @@
+/* ─── Theme variables ───────────────────────────────────────────────────── */
+:root {
+  --bg-page:           #ffffff;
+  --text-nav:          rgba(20,20,30,0.78);
+  --text-nav-hover:    rgba(20,20,30,0.92);
+  --text-nav-active:   rgba(20,20,30,0.92);
+  --text-nav-dim:      rgba(20,20,30,0.65); /* Raised from 0.45 — WCAG AA contrast */
+  --nav-separator:     rgba(20,20,30,0.11);
+  --burger-bar:        rgba(20,20,30,0.70);
+  --mobile-overlay-bg: rgba(255,255,255,0.92);
+  --mobile-link:       rgba(20,20,30,0.75); /* Raised from 0.38 — WCAG AA contrast */
+  --mobile-link-hover: rgba(20,20,30,0.95);
+  --loading-bg:        #ffffff;
+  --nav-pill-bg:       rgba(255,255,255,0.55);
+  --focus-ring:        2px solid #6344F5; /* Consistent focus indicator */
+}
+
+[data-theme="dark"] {
+  --bg-page:           #0b0b18;
+  --text-nav:          rgba(225,225,245,0.88); /* Raised from 0.78 */
+  --text-nav-hover:    rgba(225,225,245,0.96);
+  --text-nav-active:   rgba(225,225,245,0.96);
+  --text-nav-dim:      rgba(225,225,245,0.65); /* Raised from 0.45 — WCAG AA contrast */
+  --nav-separator:     rgba(255,255,255,0.14);
+  --burger-bar:        rgba(225,225,245,0.88); /* Raised from 0.72 */
+  --mobile-overlay-bg: rgba(11,11,24,0.96);
+  --mobile-link:       rgba(225,225,245,0.82); /* Raised from 0.38 — WCAG AA contrast */
+  --mobile-link-hover: rgba(225,225,245,0.96);
+  --loading-bg:        #0b0b18;
+  --nav-pill-bg:       rgba(255,255,255,0.09);
+  --focus-ring:        2px solid #9C55FF;
+}
+
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen",
+    "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue",
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  background-color: var(--bg-page);
+  transition: background-color 0.35s ease;
 }
 
 code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+  font-family: source-code-pro, Menlo, Monaco, Consolas, "Courier New",
     monospace;
 }
 
@@ -21,10 +56,6 @@ code {
 
 html {
   font-size: 62.5%;
-}
-
-body {
-  font-family: "Poppins", sans-serif;
 }
 
 h1 {
@@ -76,56 +107,7 @@ button:hover {
   background: #b989dd;
 }
 
-/* Nav Section with HERO */
-
-.main-head {
-  background: linear-gradient(#a7acd9, #897c9a);
-  box-shadow: 0px 10px 10px rgba(0, 0, 0, 0.1), 0px 10px 10px rgba(0, 0, 0, 0.1);
-  color: white;
-  position: sticky;
-  top: 0%;
-  z-index: 5;
-}
-
-nav {
-  display: flex;
-  width: 90%;
-  margin: auto;
-  padding: 1rem;
-  min-height: 10vh;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-nav ul {
-  display: flex;
-  flex: 1 1 40rem;
-  justify-content: space-around;
-  align-items: center;
-  list-style: none;
-}
-
-#logo {
-  flex: 1 1 40rem;
-  font-family: "Poppins", sans-serif;
-  font-weight: 200;
-  font-style: italic;
-}
-
-.hero {
-  min-height: 88vh;
-  background-repeat: no-repeat;
-  background-size: cover;
-  background-position: center;
-  color: white;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  text-align: center;
-}
-
-
+/* Nav styles are self-contained in NavMenu.js */
 
 #heroVideo {
   position: absolute;
@@ -139,9 +121,11 @@ nav ul {
   z-index: -1;
 }
 
-.hero h2, .hero h3, .hero a button {
+/* .hero h2,
+.hero h3,
+.hero a button {
   z-index: 1;
-}
+} */
 
 .hero h2 {
   font-weight: bold;
@@ -151,15 +135,54 @@ nav ul {
   padding: 2rem;
 }
 
-.hero button {
-  border-radius: 5px;
+.hero {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  /* Other styles... */
 }
 
 .hero-backdrop {
-  /* background-color: rgba(0, 0, 0, 0.5); */
-  z-index: 1;
-  border-radius: 5px;
-  padding: 0;
+  /* This assumes that .hero-backdrop is the direct child of .hero, which has the flexbox settings */
+  z-index: 10;
+  color: #fff; /* or any color that contrasts well with your background */
+}
+
+/* Add this if .hero-button doesn't exist */
+.hero-button {
+  margin-top: 2rem; /* Adjust as needed */
+  align-self: center; /* This will center the button if .hero has display: flex */
+}
+
+.background-beams-hero {
+  display: flex; /* Ensures that children can be flex items */
+  justify-content: center; /* Centers children horizontally */
+  align-items: center; /* Centers children vertically */
+  position: relative; /* Allows absolute positioning inside */
+  overflow: hidden; /* Prevents content overflow */
+  height: 100vh; /* Full viewport height */
+  width: 100%; /* Full width */
+  background-size: cover; /* Cover the entire area */
+  z-index: 1; /* Set below the content */
+}
+
+/* Ensure the wavy background container is a flex container and centers its children */
+.h-screen.flex.flex-col.items-center.justify-center {
+  display: flex;
+  flex-direction: column;
+  justify-content: center; /* Align vertically */
+  align-items: center; /* Align horizontally */
+  height: 100vh; /* Set to full viewport height, adjust as needed */
+  position: relative; /* Establish a positioning context */
+}
+
+canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 0;
 }
 
 /* Locations Section */
@@ -172,10 +195,14 @@ nav ul {
   background-repeat: no-repeat;
   background-size: cover;
   background-position: center;
-  padding-top: 10rem;
+  margin: 0;
+  padding: 0;
+  margin-top: -1px !important; /* Force connection with above section */
+  border-top: 1px solid transparent; /* Create seamless border */
   align-items: center;
   position: relative;
   overflow: hidden;
+  z-index: 5; /* Lower than nav but higher than default */
 }
 
 #locationVideo {
@@ -209,7 +236,7 @@ nav ul {
 
 .bio-head h3 {
   padding: 2rem 0rem;
-  color: white;
+  color: rgba(225, 225, 245, 0.88); /* White on dark glass bg — was #000000 (invisible) */
 }
 
 /* .cloud {
@@ -261,7 +288,6 @@ nav ul {
 .benefits-head h3 {
   padding: 1rem;
 }
-
 
 .cards {
   width: 90%;
@@ -415,23 +441,110 @@ footer ul {
   align-items: center;
 }
 
-button:focus {
-  background: #1f334c;
+
+/* Basic styling reset - no snap functionality */
+html, body {
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
 }
 
-/* Media Query */
+/* Regular section styling */
+section {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  position: relative;
+}
 
-@media screen and (max-width: 932px) {
+/* Hero section */
+.hero-section {
+  height: 100vh;
+  position: relative;
+  z-index: 1;
+}
+
+/* Media Queries - Mobile First Approach */
+
+/* Small phones (up to 480px) */
+@media screen and (max-width: 480px) {
   html {
-    font-size: 45%;
+    font-size: 55%; /* Min 55% (8.8px base) — 40% caused sub-16px text (WCAG 1.4.4) */
   }
+
+  nav {
+    text-align: center;
+    padding: 0.8rem;
+  }
+
+  #logo {
+    padding: 1rem;
+    font-size: 2rem;
+  }
+
+  .form-wrapper {
+    width: 98%;
+    padding: 1rem;
+  }
+
+  .bio-head h2 {
+    font-size: 3rem;
+  }
+
+  .bio-head h3 {
+    font-size: 2.2rem;
+  }
+
+  footer ul {
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  footer h5 {
+    padding-bottom: 2rem;
+  }
+}
+
+/* Tablets and larger phones (481px to 768px) */
+@media screen and (min-width: 481px) and (max-width: 768px) {
+  html {
+    font-size: 57%; /* Raised from 45% for legibility */
+  }
+
   nav {
     text-align: center;
   }
+
   #logo {
-    padding: 2rem;
+    padding: 1.5rem;
   }
 
+  .form-wrapper {
+    width: 95%;
+  }
+
+  footer {
+    text-align: center;
+  }
+
+  footer h5 {
+    padding-bottom: 2.5rem;
+  }
+}
+
+/* Large tablets and small laptops (769px to 1024px) */
+@media screen and (min-width: 769px) and (max-width: 1024px) {
+  html {
+    font-size: 58%; /* Raised from 50% */
+  }
+
+  .form-wrapper {
+    width: 90%;
+  }
+}
+
+/* Legacy support - keep the old breakpoint for backward compatibility */
+@media screen and (max-width: 932px) {
   #heroVideo {
     width: 100%;
     height: 110vh;
@@ -441,30 +554,22 @@ button:focus {
     width: 100%;
     height: 105%;
   }
+  
   .cloud {
     height: 45rem;
     pointer-events: none;
   }
+  
   .moving-cloud-1 {
     z-index: -1;
   }
+  
   .moving-cloud-2 {
     z-index: -2;
   }
+  
   .locations-head h3 {
-    /* background: rgba(19, 28, 39, 0.2); */
     -webkit-text-fill-color: white;
     text-align: center;
-  }
-  .form-wrapper {
-    width: 95%;
-  }
-  
-  footer {
-    text-align: center;
-  }
-
-  footer h5 {
-    padding-bottom: 3rem;
   }
 }
