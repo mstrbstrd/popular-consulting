@@ -8,7 +8,7 @@ export const ThemeProvider = ({ children }) => {
       const stored = localStorage.getItem('popcon-theme');
       if (stored) return stored === 'dark';
     } catch {}
-    return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
+    return false;
   });
 
   useEffect(() => {
