@@ -93,8 +93,8 @@ const NavMenu = () => {
             </>
           )}
 
-          {/* ── Theme toggle ── */}
-          <button className="nav-theme-toggle" onClick={() => { toggleTheme(); setIsMobileMenuOpen(false); }} aria-label="Toggle dark mode">
+          {/* ── Theme toggle — hidden on mobile (lives in overlay instead) ── */}
+          <button className="nav-theme-toggle" onClick={() => { toggleTheme(); setIsMobileMenuOpen(false); }} aria-label="Toggle dark mode" style={isMobile ? { display: 'none' } : {}}>
             {isDark ? (
               // Sun icon
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
@@ -160,6 +160,23 @@ const NavMenu = () => {
               </li>
             ))}
           </ul>
+
+          <button
+            className="nav-theme-toggle nav-overlay-theme"
+            onClick={(e) => { e.stopPropagation(); toggleTheme(); }}
+            aria-label="Toggle dark mode"
+          >
+            {isDark ? (
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="1.8"/>
+                <path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+              </svg>
+            ) : (
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            )}
+          </button>
         </div>
       )}
 
@@ -380,6 +397,7 @@ const NavMenu = () => {
           inset: 0;
           z-index: 999;
           display: flex;
+          flex-direction: column;
           align-items: center;
           justify-content: center;
           background: var(--mobile-overlay-bg);
@@ -470,6 +488,21 @@ const NavMenu = () => {
           background: rgba(255,255,255,0.10);
           border-color: rgba(255,255,255,0.20);
           color: var(--text-nav);
+        }
+
+        /* ─── Theme toggle inside overlay ─────────────────────────────── */
+        .nav-overlay-theme {
+          width: 72px;
+          height: 72px;
+          margin-top: 3.2rem;
+          color: var(--mobile-link);
+          background: rgba(255,255,255,0.10);
+          border-color: rgba(255,255,255,0.20);
+        }
+        .nav-overlay-theme:hover {
+          background: rgba(99,68,245,0.12);
+          border-color: rgba(99,68,245,0.35);
+          color: rgba(99,68,245,0.9);
         }
 
         /* ─── Mobile pill adjustments ──────────────────────────────────── */

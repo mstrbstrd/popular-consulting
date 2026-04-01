@@ -118,8 +118,11 @@ const BioPhoto = ({ visible, blurred }) => {
       onMouseLeave={resetMouseEffects}
       sx={{
         flexShrink: 0,
-        display: { xs: "none", md: "block" },
+        display: "block",
         perspective: "900px",
+        mt: { xs: 2, md: 0 },
+        alignSelf: { xs: "center", md: "auto" },
+        order: { xs: 2, md: 0 },
         opacity: visible ? 1 : 0,
         transform: visible ? "translateX(0)" : "translateX(80px)",
         transition: visible
@@ -139,8 +142,8 @@ const BioPhoto = ({ visible, blurred }) => {
         ref={cardRef}
         sx={{
           position: "relative",
-          width: "clamp(220px, 24vw, 360px)",
-          height: "clamp(280px, 30vw, 460px)",
+          width: { xs: "clamp(180px, 60vw, 280px)", md: "clamp(220px, 24vw, 360px)" },
+          height: { xs: "clamp(220px, 72vw, 340px)", md: "clamp(280px, 30vw, 460px)" },
           borderRadius: "20px",
           overflow: "hidden",
           transform:
@@ -974,15 +977,26 @@ const BioSection = ({ isActive }) => {
       id="bio"
       aria-label="About"
       style={{
-        minHeight: "100vh",
+        height: "100vh",
         display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "0",
-        paddingTop: "6vh",
-        paddingBottom: "4vh",
+        flexDirection: "column",
+        overflow: "hidden",
+        paddingTop: "88px",
       }}
     >
+      <Box
+        sx={{
+          flex: 1,
+          overflowY: { xs: "auto", md: "hidden" },
+          overflowX: "hidden",
+          overscrollBehavior: "contain",
+          WebkitOverflowScrolling: "touch",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          paddingBottom: { xs: "calc(4vh + env(safe-area-inset-bottom, 0px))", md: "4vh" },
+        }}
+      >
       <Box
         sx={{
           width: "92%",
@@ -996,6 +1010,24 @@ const BioSection = ({ isActive }) => {
           transition: "opacity 0.7s ease, transform 0.7s ease",
         }}
       >
+        {/* ── Mobile-only label (order 1 on mobile, before photo) ── */}
+        <Box
+          sx={{
+            display: { xs: "flex", md: "none" },
+            alignItems: "center",
+            gap: "8px",
+            mb: 2,
+            order: { xs: 1 },
+            opacity: sectionVisible ? 1 : 0,
+            transition: "opacity 0.6s ease 0.1s",
+          }}
+        >
+          <Box sx={{ width: 8, height: 8, borderRadius: "50%", background: "linear-gradient(135deg, #6344F5, #9C55FF)" }} />
+          <Typography sx={{ fontSize: "0.85rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.12em", color: "rgba(99, 68, 245, 0.95)" }}>
+            About
+          </Typography>
+        </Box>
+
         {/* ── Text ── */}
         <Box
           ref={textColRef}
@@ -1005,12 +1037,14 @@ const BioSection = ({ isActive }) => {
             display: "flex",
             flexDirection: "column",
             alignItems: "flex-start",
+            order: { xs: 3, md: 0 },
+            mt: { xs: 4, md: 0 },
           }}
         >
-          {/* Label */}
+          {/* Label — desktop only */}
           <Box
             sx={{
-              display: "inline-flex",
+              display: { xs: "none", md: "inline-flex" },
               alignItems: "center",
               gap: "8px",
               mb: 3,
@@ -1040,7 +1074,7 @@ const BioSection = ({ isActive }) => {
           </Box>
 
           {/* Title — typewriter */}
-          <Box sx={{ position: "relative", mb: 3.5, maxWidth: "820px" }}>
+          <Box sx={{ position: "relative", mb: { xs: 1.5, md: 3.5 }, maxWidth: "820px" }}>
             <Typography
               variant="h2"
               component="h2"
@@ -1130,6 +1164,7 @@ const BioSection = ({ isActive }) => {
 
         {/* ── Photo ── */}
         <BioPhoto visible={sectionVisible} blurred={!!expandedOrigin} />
+      </Box>
       </Box>
 
       <style>{`

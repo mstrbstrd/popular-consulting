@@ -225,10 +225,18 @@ const CompactCard = ({
                 "box-shadow 0.5s ease",
               ].join(", "),
           "&.service-card--hovered": {
-            background: isDark ? "rgba(10,10,20,0.55)" : "rgba(255,255,255,0.95)",
-            backdropFilter: isDark ? "blur(40px) saturate(180%) brightness(0.85)" : "blur(40px) saturate(200%) brightness(1.08)",
-            WebkitBackdropFilter: isDark ? "blur(40px) saturate(180%) brightness(0.85)" : "blur(40px) saturate(200%) brightness(1.08)",
-            border: isDark ? "1.5px solid rgba(255,255,255,0.18)" : "1.5px solid rgba(255,255,255,1)",
+            background: isDark
+              ? "rgba(10,10,20,0.55)"
+              : "rgba(255,255,255,0.95)",
+            backdropFilter: isDark
+              ? "blur(40px) saturate(180%) brightness(0.85)"
+              : "blur(40px) saturate(200%) brightness(1.08)",
+            WebkitBackdropFilter: isDark
+              ? "blur(40px) saturate(180%) brightness(0.85)"
+              : "blur(40px) saturate(200%) brightness(1.08)",
+            border: isDark
+              ? "1.5px solid rgba(255,255,255,0.18)"
+              : "1.5px solid rgba(255,255,255,1)",
             boxShadow: isDark
               ? "0 0 0 1px rgba(99,68,245,0.3), inset 0 1px 0 rgba(255,255,255,0.1), 0 12px 40px rgba(0,0,0,0.5)"
               : "0 0 0 1px rgba(255,255,255,0.6), 0 0 40px 8px rgba(255,255,255,0.25), 0 0 80px 20px rgba(255,255,255,0.08), inset 0 1px 0 rgba(255,255,255,1), inset 0 -1px 0 rgba(255,255,255,0.4), 0 12px 40px rgba(0,0,0,0.06)",
@@ -270,9 +278,9 @@ const CompactCard = ({
             inset: 0,
             borderRadius: `${CARD_RADIUS}px`,
             boxShadow: isActive
-              ? (isDark
-                  ? "inset 0 0 40px 10px rgba(0,0,0,0.3)"
-                  : "inset 0 0 50px 12px rgba(255,255,255,0.3), inset 0 0 100px 30px rgba(255,255,255,0.07)")
+              ? isDark
+                ? "inset 0 0 40px 10px rgba(0,0,0,0.3)"
+                : "inset 0 0 50px 12px rgba(255,255,255,0.3), inset 0 0 100px 30px rgba(255,255,255,0.07)"
               : "inset 0 0 20px 5px rgba(255,255,255,0.05)",
             transition: "box-shadow 0.5s ease",
             pointerEvents: "none",
@@ -283,9 +291,9 @@ const CompactCard = ({
         <Box
           ref={iconRef}
           sx={{
-            width: featured ? { xs: 52, md: 64 } : { xs: 36, md: 44 },
-            height: featured ? { xs: 52, md: 64 } : { xs: 36, md: 44 },
-            mb: featured ? 3.5 : 2,
+            width: featured ? { xs: 52, md: 48 } : { xs: 36, md: 36 },
+            height: featured ? { xs: 52, md: 48 } : { xs: 36, md: 36 },
+            mb: featured ? 2 : 1.5,
             position: "relative",
             zIndex: 3,
             transition: "transform 0.5s cubic-bezier(0.23, 1, 0.32, 1)",
@@ -312,8 +320,12 @@ const CompactCard = ({
               : { xs: "1rem", sm: "1.05rem", md: "1.15rem" },
             fontWeight: 700,
             color: isDark
-              ? (isActive ? "rgba(225,225,245,0.92)" : "rgba(225,225,245,0.55)")
-              : (isActive ? "rgba(15,15,25,0.92)" : "rgba(15,15,25,0.55)"),
+              ? isActive
+                ? "rgba(225,225,245,0.92)"
+                : "rgba(225,225,245,0.55)"
+              : isActive
+              ? "rgba(15,15,25,0.92)"
+              : "rgba(15,15,25,0.55)",
             lineHeight: 1.25,
             letterSpacing: "-0.02em",
             mb: featured ? 2 : 1,
@@ -332,8 +344,12 @@ const CompactCard = ({
               ? { xs: "1.15rem", md: "1.25rem" }
               : { xs: "0.98rem", md: "1.02rem" },
             color: isDark
-              ? (isActive ? "rgba(225,225,245,0.75)" : "rgba(225,225,245,0.38)")
-              : (isActive ? "rgba(15,15,25,0.75)" : "rgba(15,15,25,0.35)"),
+              ? isActive
+                ? "rgba(225,225,245,0.75)"
+                : "rgba(225,225,245,0.38)"
+              : isActive
+              ? "rgba(15,15,25,0.75)"
+              : "rgba(15,15,25,0.35)",
             lineHeight: 1.65,
             fontWeight: 400,
             maxWidth: featured ? "460px" : "100%",
@@ -365,7 +381,9 @@ const CompactCard = ({
               component="span"
               sx={{
                 fontSize: "0.68rem",
-                color: isDark ? "rgba(225,225,245,0.42)" : "rgba(15,15,25,0.35)",
+                color: isDark
+                  ? "rgba(225,225,245,0.42)"
+                  : "rgba(15,15,25,0.35)",
                 fontWeight: 600,
                 letterSpacing: "0.08em",
                 textTransform: "uppercase",
@@ -386,7 +404,9 @@ const CompactCard = ({
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
                 <path
                   d="M2 6h8M7 3l3 3-3 3"
-                  stroke={isDark ? "rgba(225,225,245,0.35)" : "rgba(15,15,25,0.3)"}
+                  stroke={
+                    isDark ? "rgba(225,225,245,0.35)" : "rgba(15,15,25,0.3)"
+                  }
                   strokeWidth="1.2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -516,7 +536,10 @@ const ExpandedOverlay = ({
 
     // Measure actual rendered height (height: auto) and patch targetRect for accurate scale
     const actualHeight = motion.getBoundingClientRect().height;
-    openTargetRectRef.current = { ...openTargetRectRef.current, height: actualHeight };
+    openTargetRectRef.current = {
+      ...openTargetRectRef.current,
+      height: actualHeight,
+    };
 
     motion.style.transformOrigin = "top left";
     motion.style.transition = "none";
@@ -622,7 +645,11 @@ const ExpandedOverlay = ({
   return createPortal(
     <>
       <Box
-        onClick={(phase === "expanded" || phase === "expanding") ? handleClose : undefined}
+        onClick={
+          phase === "expanded" || phase === "expanding"
+            ? handleClose
+            : undefined
+        }
         sx={{
           position: "fixed",
           inset: 0,
@@ -631,7 +658,8 @@ const ExpandedOverlay = ({
           backdropFilter: "blur(2px)",
           WebkitBackdropFilter: "blur(2px)",
           opacity: backdropVisible ? 1 : 0,
-          pointerEvents: (phase === "expanded" || phase === "expanding") ? "auto" : "none",
+          pointerEvents:
+            phase === "expanded" || phase === "expanding" ? "auto" : "none",
           transition: "opacity 180ms ease",
         }}
       />
@@ -644,8 +672,7 @@ const ExpandedOverlay = ({
           top: targetRect.top,
           left: targetRect.left,
           width: targetRect.width,
-          height: "auto",
-          maxHeight: window.innerHeight - targetRect.top - 24,
+          height: targetRect.height,
           transformOrigin: "top left",
           willChange: "transform",
           pointerEvents: "none",
@@ -663,7 +690,7 @@ const ExpandedOverlay = ({
           sx={{
             position: "relative",
             width: "100%",
-            height: "auto",
+            height: "100%",
             borderRadius: `${CARD_RADIUS}px`,
             overflow: "hidden",
             display: "flex",
@@ -675,21 +702,29 @@ const ExpandedOverlay = ({
             backfaceVisibility: "hidden",
             willChange: "transform, background, backdrop-filter",
             background: isMoving
-              ? (isDark ? "rgba(15,15,30,0.82)" : "rgba(255,255,255,0.88)")
-              : (isDark ? "rgba(10,10,20,0.55)" : "rgba(255,255,255,0.18)"),
+              ? isDark
+                ? "rgba(15,15,30,0.82)"
+                : "rgba(255,255,255,0.88)"
+              : isDark
+              ? "rgba(10,10,20,0.55)"
+              : "rgba(255,255,255,0.18)",
             backdropFilter: isMoving
               ? "blur(14px) saturate(140%)"
-              : (isDark ? "blur(40px) saturate(180%) brightness(0.85)" : "blur(40px) saturate(200%) brightness(1.08)"),
+              : isDark
+              ? "blur(40px) saturate(180%) brightness(0.85)"
+              : "blur(40px) saturate(200%) brightness(1.08)",
             WebkitBackdropFilter: isMoving
               ? "blur(14px) saturate(140%)"
-              : (isDark ? "blur(40px) saturate(180%) brightness(0.85)" : "blur(40px) saturate(200%) brightness(1.08)"),
+              : isDark
+              ? "blur(40px) saturate(180%) brightness(0.85)"
+              : "blur(40px) saturate(200%) brightness(1.08)",
             border: isExpandedVisual
               ? "1px solid rgba(255, 255, 255, 0.75)"
               : "1px solid rgba(255, 255, 255, 0.25)",
             boxShadow: isExpandedVisual
-              ? (isDark
-                  ? "0 0 0 1px rgba(99,68,245,0.3), inset 0 1px 0 rgba(255,255,255,0.1), 0 12px 40px rgba(0,0,0,0.5)"
-                  : "0 0 0 1px rgba(255,255,255,0.6), 0 0 40px 8px rgba(255,255,255,0.25), 0 0 80px 20px rgba(255,255,255,0.08), inset 0 1px 0 rgba(255,255,255,1), inset 0 -1px 0 rgba(255,255,255,0.4), 0 12px 40px rgba(0,0,0,0.06)")
+              ? isDark
+                ? "0 0 0 1px rgba(99,68,245,0.3), inset 0 1px 0 rgba(255,255,255,0.1), 0 12px 40px rgba(0,0,0,0.5)"
+                : "0 0 0 1px rgba(255,255,255,0.6), 0 0 40px 8px rgba(255,255,255,0.25), 0 0 80px 20px rgba(255,255,255,0.08), inset 0 1px 0 rgba(255,255,255,1), inset 0 -1px 0 rgba(255,255,255,0.4), 0 12px 40px rgba(0,0,0,0.06)"
               : "0 1px 3px rgba(0,0,0,0.02)",
             transition: [
               "transform 220ms cubic-bezier(0.22, 1, 0.36, 1)",
@@ -736,9 +771,9 @@ const ExpandedOverlay = ({
               inset: 0,
               borderRadius: `${CARD_RADIUS}px`,
               boxShadow: isExpandedVisual
-                ? (isDark
-                    ? "inset 0 0 40px 10px rgba(0,0,0,0.3)"
-                    : "inset 0 0 50px 12px rgba(255,255,255,0.3), inset 0 0 100px 30px rgba(255,255,255,0.07)")
+                ? isDark
+                  ? "inset 0 0 40px 10px rgba(0,0,0,0.3)"
+                  : "inset 0 0 50px 12px rgba(255,255,255,0.3), inset 0 0 100px 30px rgba(255,255,255,0.07)"
                 : "inset 0 0 20px 5px rgba(255,255,255,0.05)",
               transition: "box-shadow 0.5s ease",
               pointerEvents: "none",
@@ -760,8 +795,12 @@ const ExpandedOverlay = ({
               justifyContent: "center",
               cursor: "pointer",
               zIndex: 10,
-              border: isDark ? "1.5px solid rgba(225,225,245,0.18)" : "1.5px solid rgba(15,15,25,0.12)",
-              background: isDark ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.6)",
+              border: isDark
+                ? "1.5px solid rgba(225,225,245,0.18)"
+                : "1.5px solid rgba(15,15,25,0.12)",
+              background: isDark
+                ? "rgba(255,255,255,0.08)"
+                : "rgba(255,255,255,0.6)",
               opacity: showContent ? 1 : 0,
               transform: showContent
                 ? "scale(1) rotate(0deg)"
@@ -824,14 +863,18 @@ const ExpandedOverlay = ({
               component="h3"
               sx={{
                 fontSize: isExpandedVisual
-                  ? { xs: "1.6rem", sm: "1.8rem", md: "2.1rem" }
+                  ? { xs: "2rem", sm: "1.8rem", md: "2.1rem" }
                   : { xs: "1rem", md: "1.15rem" },
                 fontWeight: 700,
                 lineHeight: 1.25,
                 letterSpacing: "-0.02em",
                 color: isDark
-                  ? (isExpandedVisual ? "rgba(225,225,245,0.92)" : "rgba(225,225,245,0.55)")
-                  : (isExpandedVisual ? "rgba(15,15,25,0.92)" : "rgba(15,15,25,0.55)"),
+                  ? isExpandedVisual
+                    ? "rgba(225,225,245,0.92)"
+                    : "rgba(225,225,245,0.55)"
+                  : isExpandedVisual
+                  ? "rgba(15,15,25,0.92)"
+                  : "rgba(15,15,25,0.55)",
                 mb: isExpandedVisual ? 2 : 1,
                 transition:
                   "font-size 0.35s cubic-bezier(0.22, 1, 0.36, 1), margin 0.35s cubic-bezier(0.22, 1, 0.36, 1), color 0.3s ease, transform 0.28s cubic-bezier(0.22, 1, 0.36, 1)",
@@ -843,11 +886,15 @@ const ExpandedOverlay = ({
             <Typography
               sx={{
                 fontSize: isExpandedVisual
-                  ? { xs: "1.1rem", md: "1.2rem" }
+                  ? { xs: "1.25rem", md: "1.2rem" }
                   : { xs: "0.98rem", md: "1.02rem" },
                 color: isDark
-                  ? (isExpandedVisual ? "rgba(225,225,245,0.72)" : "rgba(225,225,245,0.42)")
-                  : (isExpandedVisual ? "rgba(15,15,25,0.6)" : "rgba(15,15,25,0.35)"),
+                  ? isExpandedVisual
+                    ? "rgba(225,225,245,0.72)"
+                    : "rgba(225,225,245,0.42)"
+                  : isExpandedVisual
+                  ? "rgba(15,15,25,0.6)"
+                  : "rgba(15,15,25,0.35)",
                 lineHeight: 1.65,
                 fontWeight: isExpandedVisual ? 500 : 400,
                 fontStyle: isExpandedVisual ? "italic" : "normal",
@@ -875,14 +922,18 @@ const ExpandedOverlay = ({
 
             <Box
               sx={{
-                overflowY: "visible",
+                overflowY: "auto",
+                flex: 1,
+                minHeight: 0,
                 pr: showContent ? 0.75 : 0,
               }}
             >
               <Typography
                 sx={{
-                  fontSize: { xs: "1rem", md: "1.1rem" },
-                  color: isDark ? "rgba(225,225,245,0.70)" : "rgba(15,15,25,0.72)",
+                  fontSize: { xs: "1.15rem", md: "1.1rem" },
+                  color: isDark
+                    ? "rgba(225,225,245,0.70)"
+                    : "rgba(15,15,25,0.72)",
                   lineHeight: 1.75,
                   fontWeight: 400,
                   maxWidth: "800px",
@@ -900,8 +951,11 @@ const ExpandedOverlay = ({
                   sx={{
                     mt: 2.5,
                     opacity: showContent ? 1 : 0,
-                    transform: showContent ? "translateY(0)" : "translateY(8px)",
-                    transition: "opacity 0.35s ease 0.15s, transform 0.4s cubic-bezier(0.22,1,0.36,1) 0.15s",
+                    transform: showContent
+                      ? "translateY(0)"
+                      : "translateY(8px)",
+                    transition:
+                      "opacity 0.35s ease 0.15s, transform 0.4s cubic-bezier(0.22,1,0.36,1) 0.15s",
                   }}
                 >
                   <a
@@ -921,20 +975,29 @@ const ExpandedOverlay = ({
                       fontWeight: 600,
                       letterSpacing: "0.04em",
                       textDecoration: "none",
-                      transition: "background 0.2s ease, border-color 0.2s ease",
+                      transition:
+                        "background 0.2s ease, border-color 0.2s ease",
                     }}
-                    onMouseEnter={e => {
+                    onMouseEnter={(e) => {
                       e.currentTarget.style.background = "rgba(99,68,245,0.15)";
-                      e.currentTarget.style.borderColor = "rgba(99,68,245,0.45)";
+                      e.currentTarget.style.borderColor =
+                        "rgba(99,68,245,0.45)";
                     }}
-                    onMouseLeave={e => {
+                    onMouseLeave={(e) => {
                       e.currentTarget.style.background = "rgba(99,68,245,0.08)";
-                      e.currentTarget.style.borderColor = "rgba(99,68,245,0.22)";
+                      e.currentTarget.style.borderColor =
+                        "rgba(99,68,245,0.22)";
                     }}
                   >
                     View live example
                     <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
-                      <path d="M2 9L9 2M9 2H4M9 2V7" stroke="rgba(99,68,245,0.9)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path
+                        d="M2 9L9 2M9 2H4M9 2V7"
+                        stroke="rgba(99,68,245,0.9)"
+                        strokeWidth="1.4"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
                     </svg>
                   </a>
                 </Box>
@@ -962,6 +1025,30 @@ const ServicesSection = ({ isActive }) => {
   const [expandedIndex, setExpandedIndex] = React.useState(null);
   const [originRect, setOriginRect] = React.useState(null);
   const [targetRect, setTargetRect] = React.useState(null);
+
+  React.useLayoutEffect(() => {
+    const el = contentRef.current;
+    if (!el) return;
+
+    // Always reset scroll and lock the container immediately.
+    // This prevents swipe-momentum from the parallax gesture leaking into
+    // the inner scroller while the slide-in animation is in progress.
+    el.scrollTop = 0;
+    el.style.overflowY = "hidden";
+
+    if (!isActive) return;
+
+    // Re-enable scrolling only after the slide-in animation completes (~720 ms).
+    // 750 ms gives a small buffer over the longest enter duration.
+    const id = window.setTimeout(() => {
+      if (contentRef.current) {
+        contentRef.current.scrollTop = 0;
+        contentRef.current.style.overflowY = "auto";
+      }
+    }, 750);
+
+    return () => window.clearTimeout(id);
+  }, [isActive]);
 
   const titleContent = "AI & Software Solutions.";
   const subtitleContent =
@@ -1025,14 +1112,18 @@ const ServicesSection = ({ isActive }) => {
   const getTargetRect = React.useCallback(() => {
     const gridRect = getGridRect();
     if (!gridRect) return null;
-    // On mobile, expand card to fill viewport (grid can be taller than viewport on single-column layout)
+    // On mobile, center the card vertically in the space below the fixed nav
     if (window.innerWidth < 768) {
-      const padding = 16;
+      const navHeight = 96;
+      const side = 12;
+      const available = window.innerHeight - navHeight;
+      const cardHeight = Math.round(available * 0.65);
+      const top = navHeight + Math.round((available - cardHeight) / 2);
       return {
-        top: padding,
-        left: padding,
-        width: window.innerWidth - padding * 2,
-        height: window.innerHeight - padding * 2,
+        top,
+        left: side,
+        width: window.innerWidth - side * 2,
+        height: cardHeight,
       };
     }
     return gridRect;
@@ -1085,7 +1176,10 @@ const ServicesSection = ({ isActive }) => {
       });
       resizeObserver.observe(gridRef.current);
       const origDisconnect = resizeObserver.disconnect.bind(resizeObserver);
-      resizeObserver.disconnect = () => { cancelAnimationFrame(rafId); origDisconnect(); };
+      resizeObserver.disconnect = () => {
+        cancelAnimationFrame(rafId);
+        origDisconnect();
+      };
     }
 
     window.addEventListener("resize", updateTargetRect);
@@ -1135,13 +1229,14 @@ const ServicesSection = ({ isActive }) => {
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
+        paddingTop: "88px",
       }}
     >
       <Box
         ref={contentRef}
         sx={{
           flex: 1,
-          overflowY: { xs: "auto", md: "hidden" },
+          overflowY: "hidden",
           overflowX: "hidden",
           overscrollBehavior: "contain",
           WebkitOverflowScrolling: "touch",
@@ -1149,260 +1244,279 @@ const ServicesSection = ({ isActive }) => {
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "flex-start",
-          // paddingTop nudges content below the fixed nav on mobile (72px ≈ nav height)
-          // and provides breathing room on desktop — never centres vertically so
-          // overflow can never clip the top edge.
-          paddingTop: { xs: "72px", md: "40px" },
-          paddingBottom: { xs: "2rem", md: "1vh" },
+          mt: 0,
+          pt: 0,
+          paddingBottom: {
+            xs: "calc(4vh + env(safe-area-inset-bottom, 0px))",
+            md: "1vh",
+          },
           color: isDark ? "rgba(225,225,245,0.88)" : "#333",
         }}
       >
-      <Box sx={{
-        width: "92%",
-        maxWidth: "1120px",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "flex-start",
-      }}>
-        <Box sx={{ maxWidth: "720px", mb: { xs: 4, md: 2 } }}>
-          <Box
-            sx={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "6px",
-              mb: 1,
-              opacity: typingComplete ? 1 : 0,
-              transform: typingComplete ? "translateY(0)" : "translateY(8px)",
-              transition: "opacity 0.6s ease 0.1s, transform 0.6s ease 0.1s",
-            }}
-          >
-            <Box
-              sx={{
-                width: 8,
-                height: 8,
-                borderRadius: "50%",
-                background: "linear-gradient(135deg, #6344F5, #9C55FF)",
-              }}
-            />
-            <Typography
-              sx={{
-                fontSize: "0.72rem",
-                fontWeight: 600,
-                textTransform: "uppercase",
-                letterSpacing: "0.12em",
-                color: "rgba(99, 68, 245, 0.7)",
-              }}
-            >
-              What I Do
-            </Typography>
-          </Box>
-
-          <Box sx={{ position: "relative", mb: 1 }}>
-            <Typography
-              variant="h2"
-              component="h2"
-              aria-label="AI & Software Solutions." /* Typewriter animates visually; label always exposes full text */
-              sx={{
-                fontWeight: 800,
-                color: isDark ? "rgba(225,225,245,0.92)" : "rgba(15,15,25,0.9)",
-                letterSpacing: "-0.035em",
-                lineHeight: 1.05,
-                fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif",
-                fontSize: { xs: "2.4rem", sm: "3rem", md: "3rem" },
-                position: "relative",
-                minHeight: { xs: "3rem", sm: "3.5rem", md: "3.5rem" },
-              }}
-            >
-              <span
-                style={{ position: "relative" }}
-                className="typewriter-text"
-              >
-                {titleText}
-                {showTitleCursor && (
-                  <Box
-                    component="span"
-                    className="title-cursor-faster"
-                    sx={{
-                      display: "inline-block",
-                      width: "3px",
-                      height: "0.85em",
-                      background:
-                        "linear-gradient(to bottom, #6344F5, #9C55FF)",
-                      borderRadius: "2px",
-                      position: "absolute",
-                      bottom: "0.1em",
-                      marginLeft: "4px",
-                    }}
-                  />
-                )}
-              </span>
-
-              <span
-                style={{
-                  visibility: "hidden",
-                  position: "absolute",
-                  pointerEvents: "none",
-                  height: 0,
-                  overflow: "hidden",
-                }}
-              >
-                {titleContent}
-              </span>
-            </Typography>
-          </Box>
-
-          <Typography
-            variant="h3"
-            component="p"
-            sx={{
-              color: isDark ? "rgba(225,225,245,0.55)" : "rgba(15,15,25,0.48)",
-              fontSize: { xs: "1.05rem", sm: "1.15rem", md: "1.25rem" },
-              fontWeight: 400,
-              lineHeight: 1.6,
-              maxWidth: "560px",
-              opacity: subtitleVisible ? 1 : 0,
-              transform: subtitleVisible ? "translateY(0)" : "translateY(10px)",
-              transition: "opacity 0.8s ease, transform 0.8s ease",
-            }}
-          >
-            {subtitleContent}
-          </Typography>
-        </Box>
-
-        <Box
-          ref={gridRef}
-          sx={{
-            display: "grid",
-            position: "relative",
-            width: "100%",
-            gap: { xs: "14px", md: "10px" },
-            gridTemplateColumns: {
-              xs: "1fr",
-              sm: "1fr 1fr",
-              md: "1.15fr 1fr 1fr",
-            },
-            gridTemplateRows: { xs: "auto", md: "1fr 1fr" },
-            opacity: typingComplete ? 1 : 0,
-            transform: typingComplete ? "translateY(0)" : "translateY(24px)",
-            transition:
-              "opacity 0.9s cubic-bezier(0.23, 1, 0.32, 1), transform 0.9s cubic-bezier(0.23, 1, 0.32, 1)",
-          }}
-        >
-          {SERVICES.map((svc, i) => {
-            const isThis = expandedIndex === i;
-            const shouldHideSibling = anyExpanded && !isThis;
-
-            return (
-              <Box
-                key={svc.id}
-                ref={(el) => {
-                  cellRefs.current[i] = el;
-                }}
-                sx={{
-                  ...gridCells[i],
-                  visibility: isThis ? "hidden" : "visible",
-                  opacity: shouldHideSibling ? 0 : 1,
-                  transform: shouldHideSibling
-                    ? "scale(0.96) translateY(10px)"
-                    : "none",
-                  pointerEvents: anyExpanded ? "none" : "auto",
-                  transition:
-                    "opacity 220ms ease, transform 320ms cubic-bezier(0.22, 1, 0.36, 1)",
-                }}
-              >
-                <CompactCard
-                  {...svc}
-                  hidden={isThis || shouldHideSibling}
-                  onExpand={(rect) => handleExpand(i, rect)}
-                />
-              </Box>
-            );
-          })}
-        </Box>
-
-        {expandedIndex !== null && originRect && targetRect && (
-          <ExpandedOverlay
-            svc={SERVICES[expandedIndex]}
-            originRect={originRect}
-            targetRect={targetRect}
-            getOriginRect={() => getCellRect(expandedIndex) || originRect}
-            onClose={handleClose}
-          />
-        )}
-
         <Box
           sx={{
-            mt: { xs: 4, md: 2 },
-            opacity: typingComplete && !anyExpanded ? 1 : 0,
-            transform:
-              typingComplete && !anyExpanded
-                ? "translateY(0)"
-                : "translateY(12px)",
-            transition: "opacity 0.5s ease, transform 0.5s ease",
-            pointerEvents: anyExpanded ? "none" : "auto",
+            width: "92%",
+            maxWidth: "1120px",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "flex-start",
+            mt: 0,
+            pt: 0,
           }}
         >
-          <button
-            onClick={navigateToContact}
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              padding: 0,
-              display: "flex",
-              alignItems: "center",
-              gap: "10px",
-            }}
-          >
-            <Typography
-              component="span"
-              sx={{
-                fontSize: { xs: "0.95rem", md: "1.05rem" },
-                color: isDark ? "rgba(225,225,245,0.58)" : "rgba(15,15,25,0.5)",
-                fontWeight: 500,
-                letterSpacing: "-0.01em",
-                transition: "color 0.3s ease",
-                "button:hover &": {
-                  color: "rgba(99, 68, 245, 0.85)",
-                },
-              }}
-            >
-              Get in touch for a quote
-            </Typography>
-
+          <Box sx={{ maxWidth: "720px", mb: { xs: 2, md: 2 }, mt: 0, pt: 0 }}>
             <Box
-              component="span"
               sx={{
                 display: "inline-flex",
                 alignItems: "center",
-                justifyContent: "center",
-                width: 32,
-                height: 32,
-                borderRadius: "50%",
-                border: isDark ? "1.5px solid rgba(225,225,245,0.18)" : "1.5px solid rgba(15,15,25,0.15)",
-                transition:
-                  "border-color 0.3s ease, transform 0.3s ease, background 0.3s ease",
-                "button:hover &": {
-                  borderColor: "rgba(99, 68, 245, 0.5)",
-                  background: "rgba(99, 68, 245, 0.06)",
-                  transform: "translateX(4px)",
-                },
+                gap: "6px",
+                mb: 1,
+                opacity: typingComplete ? 1 : 0,
+                transform: typingComplete ? "translateY(0)" : "translateY(8px)",
+                transition: "opacity 0.6s ease 0.1s, transform 0.6s ease 0.1s",
               }}
             >
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                <path
-                  d="M1 7h12M8 2l5 5-5 5"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  style={{ color: isDark ? "rgba(225,225,245,0.45)" : "rgba(15,15,25,0.4)" }}
-                />
-              </svg>
+              <Box
+                sx={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: "50%",
+                  background: "linear-gradient(135deg, #6344F5, #9C55FF)",
+                }}
+              />
+              <Typography
+                sx={{
+                  fontSize: "0.72rem",
+                  fontWeight: 600,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.12em",
+                  color: "rgba(99, 68, 245, 0.7)",
+                }}
+              >
+                What I Do
+              </Typography>
             </Box>
-          </button>
+
+            <Box sx={{ position: "relative", mb: 1 }}>
+              <Typography
+                variant="h2"
+                component="h2"
+                aria-label="AI & Software Solutions." /* Typewriter animates visually; label always exposes full text */
+                sx={{
+                  fontWeight: 800,
+                  color: isDark
+                    ? "rgba(225,225,245,0.92)"
+                    : "rgba(15,15,25,0.9)",
+                  letterSpacing: "-0.035em",
+                  lineHeight: 1.05,
+                  fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif",
+                  fontSize: { xs: "2.4rem", sm: "3rem", md: "3rem" },
+                  position: "relative",
+                  minHeight: { xs: "3rem", sm: "3.5rem", md: "3.5rem" },
+                }}
+              >
+                <span
+                  style={{ position: "relative" }}
+                  className="typewriter-text"
+                >
+                  {titleText}
+                  {showTitleCursor && (
+                    <Box
+                      component="span"
+                      className="title-cursor-faster"
+                      sx={{
+                        display: "inline-block",
+                        width: "3px",
+                        height: "0.85em",
+                        background:
+                          "linear-gradient(to bottom, #6344F5, #9C55FF)",
+                        borderRadius: "2px",
+                        position: "absolute",
+                        bottom: "0.1em",
+                        marginLeft: "4px",
+                      }}
+                    />
+                  )}
+                </span>
+
+                <span
+                  style={{
+                    visibility: "hidden",
+                    position: "absolute",
+                    pointerEvents: "none",
+                    height: 0,
+                    overflow: "hidden",
+                  }}
+                >
+                  {titleContent}
+                </span>
+              </Typography>
+            </Box>
+
+            <Typography
+              variant="h3"
+              component="p"
+              sx={{
+                color: isDark
+                  ? "rgba(225,225,245,0.55)"
+                  : "rgba(15,15,25,0.48)",
+                fontSize: { xs: "0.95rem", sm: "1.1rem", md: "1.25rem" },
+                fontWeight: 400,
+                lineHeight: 1.6,
+                maxWidth: "560px",
+                opacity: subtitleVisible ? 1 : 0,
+                transform: subtitleVisible
+                  ? "translateY(0)"
+                  : "translateY(10px)",
+                transition: "opacity 0.8s ease, transform 0.8s ease",
+              }}
+            >
+              {subtitleContent}
+            </Typography>
+          </Box>
+
+          <Box
+            ref={gridRef}
+            sx={{
+              display: "grid",
+              position: "relative",
+              width: "100%",
+              gap: { xs: "14px", md: "10px" },
+              gridTemplateColumns: {
+                xs: "1fr",
+                sm: "1fr 1fr",
+                md: "1.15fr 1fr 1fr",
+              },
+              gridTemplateRows: { xs: "auto", md: "1fr 1fr" },
+              opacity: typingComplete ? 1 : 0,
+              transform: typingComplete ? "translateY(0)" : "translateY(24px)",
+              transition:
+                "opacity 0.9s cubic-bezier(0.23, 1, 0.32, 1), transform 0.9s cubic-bezier(0.23, 1, 0.32, 1)",
+            }}
+          >
+            {SERVICES.map((svc, i) => {
+              const isThis = expandedIndex === i;
+              const shouldHideSibling = anyExpanded && !isThis;
+
+              return (
+                <Box
+                  key={svc.id}
+                  ref={(el) => {
+                    cellRefs.current[i] = el;
+                  }}
+                  sx={{
+                    ...gridCells[i],
+                    visibility: isThis ? "hidden" : "visible",
+                    opacity: shouldHideSibling ? 0 : 1,
+                    transform: shouldHideSibling
+                      ? "scale(0.96) translateY(10px)"
+                      : "none",
+                    pointerEvents: anyExpanded ? "none" : "auto",
+                    transition:
+                      "opacity 220ms ease, transform 320ms cubic-bezier(0.22, 1, 0.36, 1)",
+                  }}
+                >
+                  <CompactCard
+                    {...svc}
+                    hidden={isThis || shouldHideSibling}
+                    onExpand={(rect) => handleExpand(i, rect)}
+                  />
+                </Box>
+              );
+            })}
+          </Box>
+
+          {expandedIndex !== null && originRect && targetRect && (
+            <ExpandedOverlay
+              svc={SERVICES[expandedIndex]}
+              originRect={originRect}
+              targetRect={targetRect}
+              getOriginRect={() => getCellRect(expandedIndex) || originRect}
+              onClose={handleClose}
+            />
+          )}
+
+          <Box
+            sx={{
+              mt: { xs: 3, md: 2 },
+              opacity: typingComplete && !anyExpanded ? 1 : 0,
+              transform:
+                typingComplete && !anyExpanded
+                  ? "translateY(0)"
+                  : "translateY(12px)",
+              transition: "opacity 0.5s ease, transform 0.5s ease",
+              pointerEvents: anyExpanded ? "none" : "auto",
+            }}
+          >
+            <button
+              onClick={navigateToContact}
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                padding: 0,
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+              }}
+            >
+              <Typography
+                component="span"
+                sx={{
+                  fontSize: { xs: "0.95rem", md: "1.05rem" },
+                  color: isDark
+                    ? "rgba(225,225,245,0.58)"
+                    : "rgba(15,15,25,0.5)",
+                  fontWeight: 500,
+                  letterSpacing: "-0.01em",
+                  transition: "color 0.3s ease",
+                  "button:hover &": {
+                    color: "rgba(99, 68, 245, 0.85)",
+                  },
+                }}
+              >
+                Get in touch for a quote
+              </Typography>
+
+              <Box
+                component="span"
+                sx={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: 32,
+                  height: 32,
+                  borderRadius: "50%",
+                  border: isDark
+                    ? "1.5px solid rgba(225,225,245,0.18)"
+                    : "1.5px solid rgba(15,15,25,0.15)",
+                  transition:
+                    "border-color 0.3s ease, transform 0.3s ease, background 0.3s ease",
+                  "button:hover &": {
+                    borderColor: "rgba(99, 68, 245, 0.5)",
+                    background: "rgba(99, 68, 245, 0.06)",
+                    transform: "translateX(4px)",
+                  },
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                  <path
+                    d="M1 7h12M8 2l5 5-5 5"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    style={{
+                      color: isDark
+                        ? "rgba(225,225,245,0.45)"
+                        : "rgba(15,15,25,0.4)",
+                    }}
+                  />
+                </svg>
+              </Box>
+            </button>
+          </Box>
         </Box>
-      </Box>
       </Box>
     </section>
   );
