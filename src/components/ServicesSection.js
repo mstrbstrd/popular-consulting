@@ -199,7 +199,7 @@ const CompactCard = ({
           flexDirection: "column",
           justifyContent: featured ? "center" : "flex-end",
           height: "100%",
-          padding: { xs: "1.75rem", md: featured ? "2.5rem" : "2rem" },
+          padding: { xs: "1.75rem", md: featured ? "1.75rem" : "1.25rem" },
           borderRadius: `${CARD_RADIUS}px`,
           overflow: "hidden",
           contain: "paint style",
@@ -1152,8 +1152,8 @@ const ServicesSection = ({ isActive }) => {
           // paddingTop nudges content below the fixed nav on mobile (72px ≈ nav height)
           // and provides breathing room on desktop — never centres vertically so
           // overflow can never clip the top edge.
-          paddingTop: { xs: "72px", md: "12vh" },
-          paddingBottom: { xs: "2rem", md: "4vh" },
+          paddingTop: { xs: "72px", md: "40px" },
+          paddingBottom: { xs: "2rem", md: "1vh" },
           color: isDark ? "rgba(225,225,245,0.88)" : "#333",
         }}
       >
@@ -1164,13 +1164,13 @@ const ServicesSection = ({ isActive }) => {
         flexDirection: "column",
         alignItems: "flex-start",
       }}>
-        <Box sx={{ maxWidth: "720px", mb: { xs: 4, md: 5 } }}>
+        <Box sx={{ maxWidth: "720px", mb: { xs: 4, md: 2 } }}>
           <Box
             sx={{
               display: "inline-flex",
               alignItems: "center",
               gap: "6px",
-              mb: 2,
+              mb: 1,
               opacity: typingComplete ? 1 : 0,
               transform: typingComplete ? "translateY(0)" : "translateY(8px)",
               transition: "opacity 0.6s ease 0.1s, transform 0.6s ease 0.1s",
@@ -1197,7 +1197,7 @@ const ServicesSection = ({ isActive }) => {
             </Typography>
           </Box>
 
-          <Box sx={{ position: "relative", mb: 2 }}>
+          <Box sx={{ position: "relative", mb: 1 }}>
             <Typography
               variant="h2"
               component="h2"
@@ -1208,9 +1208,9 @@ const ServicesSection = ({ isActive }) => {
                 letterSpacing: "-0.035em",
                 lineHeight: 1.05,
                 fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif",
-                fontSize: { xs: "2.4rem", sm: "3rem", md: "3.6rem" },
+                fontSize: { xs: "2.4rem", sm: "3rem", md: "3rem" },
                 position: "relative",
-                minHeight: { xs: "3rem", sm: "3.5rem", md: "4.2rem" },
+                minHeight: { xs: "3rem", sm: "3.5rem", md: "3.5rem" },
               }}
             >
               <span
@@ -1275,7 +1275,7 @@ const ServicesSection = ({ isActive }) => {
             display: "grid",
             position: "relative",
             width: "100%",
-            gap: { xs: "14px", md: "18px" },
+            gap: { xs: "14px", md: "10px" },
             gridTemplateColumns: {
               xs: "1fr",
               sm: "1fr 1fr",
@@ -1332,7 +1332,7 @@ const ServicesSection = ({ isActive }) => {
 
         <Box
           sx={{
-            mt: { xs: 4, md: 5 },
+            mt: { xs: 4, md: 2 },
             opacity: typingComplete && !anyExpanded ? 1 : 0,
             transform:
               typingComplete && !anyExpanded
