@@ -1026,6 +1026,12 @@ const ServicesSection = ({ isActive }) => {
   const [originRect, setOriginRect] = React.useState(null);
   const [targetRect, setTargetRect] = React.useState(null);
 
+  // Tell the parallax system not to navigate while a card is expanded
+  React.useEffect(() => {
+    window.__serviceCardExpanded = expandedIndex !== null;
+    return () => { window.__serviceCardExpanded = false; };
+  }, [expandedIndex]);
+
   React.useLayoutEffect(() => {
     const el = contentRef.current;
     if (!el) return;
