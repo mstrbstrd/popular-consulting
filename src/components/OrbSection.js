@@ -92,7 +92,11 @@ const onLeave = e => {
   e.currentTarget.style.transform  = 'scale(1)';
 };
 
-const OrbSection = () => {
+const OrbSection = ({ isActive }) => {
+  React.useEffect(() => {
+    if (!isActive) window.__ditherSetOrb?.();
+  }, [isActive]);
+
   // Sphere hit-test in section-relative UV space — matches R2D=0.299 in shader
   const handleClick = (e) => {
     if (e.target !== e.currentTarget) return; // ignore button clicks bubbling up
