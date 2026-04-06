@@ -826,6 +826,7 @@ const ExpandedOverlay = ({
           </Box>
 
           <Box
+            onWheel={(e) => e.stopPropagation()}
             sx={{
               position: "relative",
               zIndex: 3,
@@ -833,6 +834,10 @@ const ExpandedOverlay = ({
               flexDirection: "column",
               flex: 1,
               minHeight: 0,
+              overflowY: "auto",
+              touchAction: "pan-y",
+              WebkitOverflowScrolling: "touch",
+              pr: showContent ? 0.75 : 0,
             }}
           >
             <Box
@@ -920,15 +925,7 @@ const ExpandedOverlay = ({
               }}
             />
 
-            <Box
-              sx={{
-                overflowY: "auto",
-                flex: 1,
-                minHeight: 0,
-                pr: showContent ? 0.75 : 0,
-              }}
-            >
-              <Typography
+            <Typography
                 sx={{
                   fontSize: { xs: "1.15rem", md: "1.1rem" },
                   color: isDark
@@ -1002,7 +999,6 @@ const ExpandedOverlay = ({
                   </a>
                 </Box>
               )}
-            </Box>
           </Box>
         </Box>
       </Box>
