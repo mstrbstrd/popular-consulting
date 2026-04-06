@@ -185,6 +185,9 @@ export const ParallaxBackground = ({ children }) => {
               const atBottom = node.scrollTop + node.clientHeight >= node.scrollHeight - 2;
               const atTop    = node.scrollTop <= 0;
               if ((goingDown && !atBottom) || (!goingDown && !atTop)) return;
+              // Boundary reached mid-gesture — reset so a fresh intentional
+              // swipe is required to trigger section navigation.
+              touchStartY = e.touches[0].clientY;
               break;
             }
           }
