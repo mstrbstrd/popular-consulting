@@ -1050,7 +1050,7 @@ const BioSection = ({ isActive }) => {
         <Box
           ref={textColRef}
           sx={{
-            flex: 1,
+            flex: { xs: "none", md: 1 },
             minWidth: 0,
             display: "flex",
             flexDirection: "column",
