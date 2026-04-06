@@ -930,31 +930,6 @@ const BioSection = ({ isActive }) => {
     return () => window.clearTimeout(id);
   }, [isActive]);
 
-  // Stop touch events from reaching the window-level parallax handler when
-  // the content is mid-scroll, so swiping within Bio scrolls content instead
-  // of jumping to the next section.
-  useEffect(() => {
-    const el = contentRef.current;
-    if (!el) return;
-    let startY = 0;
-    const onStart = (e) => { startY = e.touches[0].clientY; };
-    const onMove = (e) => {
-      if (el.style.overflowY !== 'auto') return;
-      if (el.scrollHeight <= el.clientHeight + 1) return;
-      const goingDown = (startY - e.touches[0].clientY) > 0;
-      const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 2;
-      const atTop = el.scrollTop <= 0;
-      if ((goingDown && !atBottom) || (!goingDown && !atTop)) {
-        e.stopPropagation();
-      }
-    };
-    el.addEventListener('touchstart', onStart, { passive: true });
-    el.addEventListener('touchmove', onMove, { passive: true });
-    return () => {
-      el.removeEventListener('touchstart', onStart);
-      el.removeEventListener('touchmove', onMove);
-    };
-  }, []);
 
   const getTextColTargetRect = React.useCallback(() => {
     const el = textColRef.current;
@@ -1029,11 +1004,11 @@ const BioSection = ({ isActive }) => {
       <Box
         ref={contentRef}
         sx={{
-          flex: 1,
-          minHeight: 0,
+          height: "calc(100dvh - 88px)",
           overflowX: "hidden",
           overscrollBehavior: "contain",
           WebkitOverflowScrolling: "touch",
+          touchAction: "pan-y",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
@@ -1045,7 +1020,6 @@ const BioSection = ({ isActive }) => {
         sx={{
           width: "92%",
           maxWidth: "1120px",
-          flexShrink: 0,
           display: "flex",
           flexDirection: { xs: "column", md: "row" },
           alignItems: { xs: "flex-start", md: "center" },
