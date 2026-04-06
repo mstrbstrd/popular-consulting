@@ -853,10 +853,9 @@ const ExpandedOverlay = ({
                   width: "100%",
                   height: "100%",
                   objectFit: "contain",
-                  opacity: isExpandedVisual ? 1 : 0.55,
+                  opacity: 1,
                   filter:
                     "brightness(0) saturate(100%) invert(25%) sepia(60%) saturate(2000%) hue-rotate(240deg) brightness(0.9)",
-                  transition: "opacity 0.3s ease",
                 },
               }}
             >
