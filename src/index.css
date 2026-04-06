@@ -187,22 +187,10 @@ canvas {
 
 /* Locations Section */
 
+/* #bio layout is controlled entirely by BioSection.js inline styles */
 #bio {
-  min-height: 100vh;
-  background: linear-gradient(rgba(0, 0, 0, 0.5), transparent),
-    url("./assets/img/locationlandingphoto.png");
-  /* background-color: linear-gradient(#c8c9d9, #5d4257); */
-  background-repeat: no-repeat;
-  background-size: cover;
-  background-position: center;
-  margin: 0;
-  padding: 0;
-  margin-top: -1px !important; /* Force connection with above section */
-  border-top: 1px solid transparent; /* Create seamless border */
-  align-items: center;
-  position: relative;
-  overflow: hidden;
-  z-index: 5; /* Lower than nav but higher than default */
+  background: none;
+  min-height: 0;
 }
 
 #locationVideo {

@@ -700,7 +700,6 @@ const BioTextCard = ({ subtitleVisible, paraVisible, onExpand }) => {
           padding: { xs: "1.75rem", md: "2rem 2.25rem" },
           borderRadius: "20px",
           overflow: "hidden",
-          contain: "paint style",
           transformStyle: "preserve-3d",
           willChange: "transform",
           transform:
@@ -852,11 +851,11 @@ const BioTextCard = ({ subtitleVisible, paraVisible, onExpand }) => {
         {/* Explore hint */}
         <Box
           sx={{
-            display: "flex",
+            display: { xs: "none", md: "flex" },
             alignItems: "center",
             gap: "6px",
-            mt: "auto",
-            pt: 2,
+            mt: 2,
+            pt: 1,
             position: "relative",
             zIndex: 3,
             opacity: isHovered ? 0.7 : 0,
@@ -1004,6 +1003,7 @@ const BioSection = ({ isActive }) => {
       <Box
         ref={contentRef}
         sx={{
+          width: "100%",
           height: "calc(100dvh - 88px)",
           overflowX: "hidden",
           overscrollBehavior: "contain",
@@ -1052,6 +1052,7 @@ const BioSection = ({ isActive }) => {
           ref={textColRef}
           sx={{
             flex: { xs: "none", md: 1 },
+            width: { xs: "100%", md: "auto" },
             minWidth: 0,
             display: "flex",
             flexDirection: "column",
