@@ -987,6 +987,7 @@ const BioSection = ({ isActive }) => {
       <Box
         sx={{
           flex: 1,
+          minHeight: 0,
           overflowY: { xs: "auto", md: "hidden" },
           overflowX: "hidden",
           overscrollBehavior: "contain",
