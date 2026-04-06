@@ -206,6 +206,7 @@ const CompactCard = ({
           transformStyle: "preserve-3d",
           backfaceVisibility: "hidden",
           willChange: hidden ? "auto" : "transform",
+          opacity: hidden ? 0 : 1,
           background: "rgba(255,255,255,0.18)",
           backdropFilter: "blur(6px) saturate(120%)",
           WebkitBackdropFilter: "blur(6px) saturate(120%)",
