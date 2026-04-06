@@ -1023,7 +1023,6 @@ const BioSection = ({ isActive }) => {
           flexDirection: { xs: "column", md: "row" },
           alignItems: { xs: "flex-start", md: "center" },
           gap: { md: "6%" },
-          paddingBottom: { xs: "calc(4vh + env(safe-area-inset-bottom, 0px))", md: "4vh" },
           opacity: sectionVisible ? 1 : 0,
           transform: sectionVisible ? "translateY(0)" : "translateY(24px)",
           transition: "opacity 0.7s ease, transform 0.7s ease",
@@ -1146,7 +1145,7 @@ const BioSection = ({ isActive }) => {
           </Box>
 
           {/* Subtitle + Paragraph card */}
-          <Box ref={cardShellRef} sx={{ width: "100%" }}>
+          <Box ref={cardShellRef} sx={{ width: "100%", mb: { xs: "calc(6vh + env(safe-area-inset-bottom, 0px))", md: 0 } }}>
             <BioTextCard
               subtitleVisible={subtitleVisible}
               paraVisible={paraVisible}
