@@ -558,7 +558,7 @@ const ContactSection = ({ isActive }) => {
                       width: 18,
                       height: 18,
                       opacity: 0.72,
-                      filter: "invert(27%) sepia(89%) saturate(1600%) hue-rotate(234deg) brightness(95%) contrast(95%)",
+                      filter: "brightness(0) saturate(100%) invert(25%) sepia(60%) saturate(2000%) hue-rotate(240deg) brightness(0.9)",
                       transition: "opacity 0.22s ease",
                       display: "block",
                     }}
