@@ -57,7 +57,7 @@ const ContactSection = ({ isActive }) => {
           // Apply the exit animation to form
           contentEl.style.transition =
             "transform 0.8s cubic-bezier(0.2, 0.0, 0.15, 1), opacity 0.8s ease-out";
-          contentEl.style.transform = "translateY(-100vh)";
+          contentEl.style.transform = "translateY(-100dvh)";
           contentEl.style.opacity = "0";
 
           // Apply exit animation to footer (slightly faster to disappear first)
@@ -239,7 +239,7 @@ const ContactSection = ({ isActive }) => {
       id="contact"
       aria-label="Contact"
       style={{
-        height: "100vh",
+        height: "100dvh",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",

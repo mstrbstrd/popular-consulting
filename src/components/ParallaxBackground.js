@@ -62,7 +62,7 @@ export const ParallaxBackground = ({ children }) => {
             section.style.transform = "translateY(0)";
             section.style.opacity = "1";
           } else {
-            section.style.transform = i < current ? "translateY(100vh)" : "translateY(-100vh)";
+            section.style.transform = i < current ? "translateY(100dvh)" : "translateY(-100dvh)";
             section.style.opacity = "0";
           }
         });
@@ -240,13 +240,13 @@ export const ParallaxBackground = ({ children }) => {
     const current = sections[currentIdx];
     if (current) {
       current.style.transition = `transform ${exitDuration}ms ${exitEase}, opacity ${exitDuration}ms ${exitEase}`;
-      current.style.transform  = direction > 0 ? "translateY(100vh)" : "translateY(-100vh)";
+      current.style.transform  = direction > 0 ? "translateY(100dvh)" : "translateY(-100dvh)";
       current.style.opacity    = "0";
     }
 
     // ── Phase 2: after exit, glide next section in from its resting position ──
-    //   forward  nav: next was parked at translateY(-100vh)  → glides DOWN into view
-    //   backward nav: next was parked at translateY( 100vh)  → glides UP   into view
+    //   forward  nav: next was parked at translateY(-100dvh)  → glides DOWN into view
+    //   backward nav: next was parked at translateY( 100dvh)  → glides UP   into view
     setTimeout(() => {
       // Snap any non-participating sections to their correct resting positions instantly.
       // This covers skip-navigation via nav dots and ensures React style-prop values
@@ -254,7 +254,7 @@ export const ParallaxBackground = ({ children }) => {
       sections.forEach((section, i) => {
         if (i !== currentIdx && i !== nextIdx) {
           section.style.transition = "none";
-          section.style.transform  = i < nextIdx ? "translateY(100vh)" : "translateY(-100vh)";
+          section.style.transform  = i < nextIdx ? "translateY(100dvh)" : "translateY(-100dvh)";
           section.style.opacity    = "0";
         }
       });
@@ -287,7 +287,7 @@ export const ParallaxBackground = ({ children }) => {
           section.style.opacity   = "1";
         } else {
           // visited (i < nextIdx) rest BELOW; unvisited (i > nextIdx) rest ABOVE
-          section.style.transform = i < nextIdx ? "translateY(100vh)" : "translateY(-100vh)";
+          section.style.transform = i < nextIdx ? "translateY(100dvh)" : "translateY(-100dvh)";
           section.style.opacity   = "0";
         }
       });
@@ -301,14 +301,14 @@ export const ParallaxBackground = ({ children }) => {
       const isActive = index === activeSection;
 
       // Resting positions must match goToSection cleanup logic:
-      //   visited   (< active) → below  translateY(100vh)
+      //   visited   (< active) → below  translateY(100dvh)
       //   active                → centre translateY(0)
-      //   unvisited (> active) → above  translateY(-100vh)
+      //   unvisited (> active) → above  translateY(-100dvh)
       const initialTransform =
         index < activeSection
-          ? "translateY(100vh)"
+          ? "translateY(100dvh)"
           : index > activeSection
-          ? "translateY(-100vh)"
+          ? "translateY(-100dvh)"
           : "translateY(0)";
 
       return (
@@ -379,7 +379,7 @@ export const ParallaxBackground = ({ children }) => {
         .parallax-wrapper {
           position: relative;
           width: 100%;
-          height: 100vh;
+          height: 100dvh;
           overflow: hidden;
         }
 
@@ -388,7 +388,7 @@ export const ParallaxBackground = ({ children }) => {
           top: 0;
           left: 0;
           width: 100%;
-          height: 100vh;
+          height: 100dvh;
           z-index: 1;
           background: var(--bg-page);
           transition: background-color 0.35s ease;
@@ -445,7 +445,7 @@ export const ParallaxBackground = ({ children }) => {
           top: 0;
           left: 0;
           width: 100%;
-          height: 100vh;
+          height: 100dvh;
           overflow: hidden;
           z-index: 10;
         }
@@ -456,7 +456,7 @@ export const ParallaxBackground = ({ children }) => {
           top: 0;
           left: 0;
           width: 100%;
-          height: 100vh;
+          height: 100dvh;
           overflow: hidden;
           will-change: transform, opacity;
           transition: transform 0.9s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.8s ease;
@@ -636,7 +636,7 @@ export const ParallaxBackground = ({ children }) => {
 
         /* Section-level resets */
         .hero-container {
-          height: 100vh;
+          height: 100dvh;
           position: relative;
         }
 
@@ -661,7 +661,7 @@ export const ParallaxBackground = ({ children }) => {
         }
 
         section {
-          height: 100vh;
+          height: 100dvh;
           display: flex;
           flex-direction: column;
           justify-content: center;

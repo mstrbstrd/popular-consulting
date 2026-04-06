@@ -37,7 +37,7 @@ const DitherHero = () => {
       style={{
         position:   'relative',
         width:      '100%',
-        height:     '100vh',
+        height:     '100dvh',
         background: 'transparent',
         cursor:     'default',
       }}
