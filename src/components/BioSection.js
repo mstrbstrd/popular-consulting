@@ -1013,7 +1013,6 @@ const BioSection = ({ isActive }) => {
           flexDirection: "column",
           alignItems: "center",
           justifyContent: { xs: "flex-start", md: "center" },
-          paddingBottom: { xs: "calc(4vh + env(safe-area-inset-bottom, 0px))", md: "4vh" },
         }}
       >
       <Box
@@ -1024,6 +1023,7 @@ const BioSection = ({ isActive }) => {
           flexDirection: { xs: "column", md: "row" },
           alignItems: { xs: "flex-start", md: "center" },
           gap: { md: "6%" },
+          paddingBottom: { xs: "calc(4vh + env(safe-area-inset-bottom, 0px))", md: "4vh" },
           opacity: sectionVisible ? 1 : 0,
           transform: sectionVisible ? "translateY(0)" : "translateY(24px)",
           transition: "opacity 0.7s ease, transform 0.7s ease",
