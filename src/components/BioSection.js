@@ -1003,6 +1003,7 @@ const BioSection = ({ isActive }) => {
         sx={{
           width: "92%",
           maxWidth: "1120px",
+          flexShrink: 0,
           display: "flex",
           flexDirection: { xs: "column", md: "row" },
           alignItems: { xs: "flex-start", md: "center" },
