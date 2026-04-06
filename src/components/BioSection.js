@@ -1,5 +1,5 @@
 // BioSection.js
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Box, Typography } from "@mui/material";
 import mePhoto from "../assets/img/me.jpeg";
@@ -911,8 +911,24 @@ const BioSection = ({ isActive }) => {
   const [sectionVisible, setSectionVisible] = useState(false);
   const [expandedOrigin, setExpandedOrigin] = useState(null);
   const [expandedTarget, setExpandedTarget] = useState(null);
+  const contentRef = useRef(null);
   const cardShellRef = React.useRef(null);
   const textColRef = React.useRef(null);
+
+  useLayoutEffect(() => {
+    const el = contentRef.current;
+    if (!el) return;
+    el.scrollTop = 0;
+    el.style.overflowY = 'hidden';
+    if (!isActive) return;
+    const id = window.setTimeout(() => {
+      if (contentRef.current) {
+        contentRef.current.scrollTop = 0;
+        contentRef.current.style.overflowY = 'auto';
+      }
+    }, 750);
+    return () => window.clearTimeout(id);
+  }, [isActive]);
 
   const getTextColTargetRect = React.useCallback(() => {
     const el = textColRef.current;
@@ -985,10 +1001,10 @@ const BioSection = ({ isActive }) => {
       }}
     >
       <Box
+        ref={contentRef}
         sx={{
           flex: 1,
           minHeight: 0,
-          overflowY: { xs: "auto", md: "hidden" },
           overflowX: "hidden",
           overscrollBehavior: "contain",
           WebkitOverflowScrolling: "touch",
