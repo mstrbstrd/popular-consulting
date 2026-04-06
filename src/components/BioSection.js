@@ -995,6 +995,7 @@ const BioSection = ({ isActive }) => {
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
+          justifyContent: { xs: "flex-start", md: "center" },
           paddingBottom: { xs: "calc(4vh + env(safe-area-inset-bottom, 0px))", md: "4vh" },
         }}
       >
