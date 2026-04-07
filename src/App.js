@@ -8,6 +8,7 @@ import ServicesSection from "./components/ServicesSection";
 import DitherHero from "./components/DitherHero";
 import HeroLogo from "./components/HeroLogo";
 import OrbSection from "./components/OrbSection";
+import PopcornGame from "./components/PopcornGame";
 import ParallaxBackground from "./components/ParallaxBackground";
 import LoadingOverlay from "./components/LoadingOverlay";
 
@@ -60,6 +61,9 @@ const App = () => {
 
         {/* Fifth section - Orb (dither sphere / ORBE chatbot body) */}
         <OrbSection />
+
+        {/* Sixth section - Popcorn Game */}
+        <PopcornGame />
       </ParallaxBackground>
       </main>
       </div>

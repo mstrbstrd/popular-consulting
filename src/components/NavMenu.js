@@ -6,6 +6,7 @@ const NAV_LINKS = [
   { label: 'About',    section: 1 },
   { label: 'Services', section: 2 },
   { label: 'Contact',  section: 3 },
+  { label: 'Game',     section: 5 },
   { label: 'Blog ↗',   href: 'https://www.popularconsumption.xyz/' },
 ];
 

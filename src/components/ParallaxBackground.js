@@ -8,7 +8,7 @@ import React, {
 import DitherBackground from "./DitherBackground";
 import { useThemeMode } from "../contexts/ThemeContext";
 
-const SECTION_LABELS = ['Hero', 'About', 'Services', 'Contact', 'Interactive Orb'];
+const SECTION_LABELS = ['Hero', 'About', 'Services', 'Contact', 'Interactive Orb', 'Popcorn Game'];
 
 export const ParallaxBackground = ({ children }) => {
   const { isDark } = useThemeMode();
