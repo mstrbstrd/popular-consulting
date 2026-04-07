@@ -273,7 +273,7 @@ void main() {
   fragColor = vec4(finalCol, 1.0);
 }`;
 
-const BlackHoleCanvas = ({ isDark = true, visible = true, onFadeOutEnd, zoomRef }) => {
+const BlackHoleCanvas = ({ isDark = true, visible = true, onFadeOutEnd, zoomRef, currentZoomRef }) => {
   const canvasRef = useRef(null);
   const isDarkRef = useRef(isDark);
   useEffect(() => { isDarkRef.current = isDark; }, [isDark]);
@@ -383,7 +383,9 @@ const BlackHoleCanvas = ({ isDark = true, visible = true, onFadeOutEnd, zoomRef 
       gl.uniform1f(uTime,      t * 0.001);
       gl.uniform2f(uRes,       canvas.width, canvas.height);
       gl.uniform2f(uMouse,     mouse[0], mouse[1]);
-      gl.uniform1f(uZoom,      (zoomRef && zoomRef.current !== null) ? zoomRef.current : zoom);
+      const effectiveZoom = (zoomRef && zoomRef.current !== null) ? zoomRef.current : zoom;
+      if (currentZoomRef) currentZoomRef.current = effectiveZoom;
+      gl.uniform1f(uZoom, effectiveZoom);
       gl.uniform1f(uLightMode, isDarkRef.current ? 0.0 : 1.0);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
       animId = requestAnimationFrame(render);

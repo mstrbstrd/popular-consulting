@@ -100,7 +100,8 @@ const OrbSection = ({ isActive }) => {
   const [bhVisible, setBhVisible] = React.useState(false);
   const popCanvasRef = React.useRef(null);
   const popRafRef = React.useRef(null);
-  const bhZoomRef = React.useRef(null); // null = BH controls its own zoom
+  const bhZoomRef = React.useRef(null);        // null = BH controls its own zoom
+  const bhCurrentZoomRef = React.useRef(32.0); // mirrors BH's actual zoom each frame
 
   const enterBH = React.useCallback(() => {
     window.__ditherSetOrb?.();
@@ -134,7 +135,7 @@ const OrbSection = ({ isActive }) => {
 
     const COLLAPSE_DUR  = 0.65;
     const FLASH_DUR     = 0.18;
-    const ZOOM_START    = 32.0;
+    const ZOOM_START    = bhCurrentZoomRef.current;
     const ZOOM_END      = 80.0;
     bhZoomRef.current   = ZOOM_START;
     const collapseStart = now();
@@ -383,6 +384,7 @@ const OrbSection = ({ isActive }) => {
         isDark={isDark}
         visible={bhVisible}
         zoomRef={bhZoomRef}
+        currentZoomRef={bhCurrentZoomRef}
         onFadeOutEnd={() => { bhZoomRef.current = null; setBhMounted(false); }}
       />
     )}
