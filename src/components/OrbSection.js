@@ -104,11 +104,13 @@ const OrbSection = ({ isActive }) => {
 
   const enterBH = React.useCallback(() => {
     window.__ditherSetOrb?.();
+    window.__bhModeActive = true;
     setBhMounted(true);
     requestAnimationFrame(() => setBhVisible(true));
   }, []);
 
   const exitBH = React.useCallback(() => {
+    window.__bhModeActive = false;
     setBhVisible(false);
   }, []);
 
@@ -340,7 +342,10 @@ const OrbSection = ({ isActive }) => {
   }, [isActive, exitBH]);
 
   React.useEffect(() => {
-    return () => cancelAnimationFrame(popRafRef.current);
+    return () => {
+      cancelAnimationFrame(popRafRef.current);
+      window.__bhModeActive = false;
+    };
   }, []);
 
   // Sphere hit-test in section-relative UV space — matches R2D=0.299 in shader

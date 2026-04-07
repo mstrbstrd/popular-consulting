@@ -107,7 +107,7 @@ export const ParallaxBackground = ({ children }) => {
       }
 
       e.preventDefault();
-      if (isTransitioning || window.__serviceCardExpanded) return;
+      if (isTransitioning || window.__serviceCardExpanded || window.__bhModeActive) return;
 
       const now = Date.now();
       const elapsed = now - lastScrollTime;
@@ -131,7 +131,7 @@ export const ParallaxBackground = ({ children }) => {
     };
 
     const handleKeyDown = (e) => {
-      if (isTransitioning || window.__serviceCardExpanded) return;
+      if (isTransitioning || window.__serviceCardExpanded || window.__bhModeActive) return;
       // Don't intercept navigation keys when focus is inside a form element
       const tag = document.activeElement?.tagName?.toUpperCase();
       if (['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(tag)) return;
@@ -168,7 +168,7 @@ export const ParallaxBackground = ({ children }) => {
     };
 
     const handleTouchMove = (e) => {
-      if (isTransitioning || window.__serviceCardExpanded) return;
+      if (isTransitioning || window.__serviceCardExpanded || window.__bhModeActive) return;
       const now = Date.now();
       if (now - lastTransitionTime < touchCooldown) return;
       const distance = touchStartY - e.touches[0].clientY;
