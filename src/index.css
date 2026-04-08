@@ -47,6 +47,25 @@ code {
     monospace;
 }
 
+/* ─── Performance: disable backdrop-filter on touch / low-power devices ─── */
+/* backdrop-filter: blur() is GPU-composited and very expensive on mobile.   */
+/* Touch-primary devices (hover:none + pointer:coarse) and users who have    */
+/* opted into reduced-motion both benefit from skipping it entirely.          */
+/* !important is required to override Emotion-generated class rules.          */
+@media (hover: none) and (pointer: coarse), (prefers-reduced-motion: reduce) {
+  * {
+    backdrop-filter:         none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  /* Compensate: dark-mode glass pills rely on blur for legibility.           */
+  /* Give them a more opaque background so text stays readable without blur.  */
+  [data-theme="dark"] .orb-pill,
+  [data-theme="dark"] .nav-pill {
+    background: rgba(20, 15, 50, 0.82) !important;
+  }
+}
+
 /* Global Styles */
 * {
   margin: 0;

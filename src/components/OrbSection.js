@@ -409,7 +409,7 @@ const OrbSection = ({ isActive }) => {
     }}>
 
       {/* Mode toggle: Orb / CD / Black Hole */}
-      <div style={pillStyle}>
+      <div className="orb-pill" style={pillStyle}>
         <button
           onClick={() => { exitBH(); window.__ditherSetOrb?.(); }}
           title="orb mode"
@@ -451,7 +451,7 @@ const OrbSection = ({ isActive }) => {
       </div>
 
       {/* Chain sequence buttons */}
-      <div style={pillStyle}>
+      <div className="orb-pill" style={pillStyle}>
         {CHAINS.map(({ label, steps }) => (
           <button
             key={label}
