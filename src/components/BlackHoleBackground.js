@@ -348,8 +348,12 @@ const BlackHoleBackground = ({ activeSection = 0 }) => {
     const uMouse = gl.getUniformLocation(prog, 'u_mouse');
     const uZoom  = gl.getUniformLocation(prog, 'u_zoom');
 
-    // Subtle parallax — no zoom control from user (background element)
-    const mouse = [0.5, 0.35];
+    // Raw mouse target — updated on every event
+    const mouse       = [0.5, 0.35];
+    // Smoothed mouse — lerped toward raw each frame
+    const smoothMouse = [0.5, 0.35];
+    const MOUSE_LERP  = 0.035; // ~1.5 s settle; lower = lazier / dreamier
+
     const onMouseMove = (e) => {
       mouse[0] = e.clientX / window.innerWidth;
       mouse[1] = 1.0 - e.clientY / window.innerHeight;
@@ -370,9 +374,13 @@ const BlackHoleBackground = ({ activeSection = 0 }) => {
       const target = SECTION_ZOOMS[sectionRef.current] ?? 14;
       currentZoomRef.current += (target - currentZoomRef.current) * LERP_RATE;
 
+      // Smooth mouse parallax
+      smoothMouse[0] += (mouse[0] - smoothMouse[0]) * MOUSE_LERP;
+      smoothMouse[1] += (mouse[1] - smoothMouse[1]) * MOUSE_LERP;
+
       gl.uniform1f(uTime,  ts * 0.001);
       gl.uniform2f(uRes,   canvas.width, canvas.height);
-      gl.uniform2f(uMouse, mouse[0], mouse[1]);
+      gl.uniform2f(uMouse, smoothMouse[0], smoothMouse[1]);
       gl.uniform1f(uZoom,  currentZoomRef.current);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
       animId = requestAnimationFrame(render);

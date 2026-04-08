@@ -3,7 +3,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
 import App from './App';
-import reportWebVitals from './reportWebVitals';
+import { initCoreWebVitals, initSectionTiming, initLongTaskObserver } from './utils/telemetry';
 
 // ResizeObserver fires this benign warning when its callback can't deliver all
 // notifications within a single animation frame. It does not indicate a bug and
@@ -17,7 +17,6 @@ root.render(
   </React.StrictMode>
 );
 
-// If you want to start measuring performance in your app, pass a function
-// to log results (for example: reportWebVitals(console.log))
-// or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
-reportWebVitals();
+initCoreWebVitals();
+initSectionTiming();
+initLongTaskObserver();

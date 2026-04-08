@@ -241,6 +241,7 @@ export const ParallaxBackground = ({ children }) => {
       ? "cubic-bezier(0.25, 0.46, 0.45, 0.94)"  // ease-out-quad: smooth return
       : "cubic-bezier(0.22, 1, 0.36, 1)";         // spring out: dynamic forward
 
+    window.dispatchEvent(new CustomEvent('sectionChangeStart', { detail: { from: currentIdx, to: nextIdx } }));
     exitingSectionRef.current = currentIdx; // keep exiting section mounted until slide-out ends
     setIsTransitioning(true);
 
@@ -300,6 +301,7 @@ export const ParallaxBackground = ({ children }) => {
         }
       });
 
+      window.dispatchEvent(new CustomEvent('sectionChangeEnd', { detail: { index: nextIdx } }));
       exitingSectionRef.current = null; // allow dormant sections to unmount
       setIsTransitioning(false);
     }, enterDelay + enterDuration + 150);
