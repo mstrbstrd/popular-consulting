@@ -1,5 +1,5 @@
 // App.js
-import React, { useState } from "react";
+import React, { useState, lazy, Suspense } from "react";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import NavMenu from "./components/NavMenu";
 import BioSection from "./components/BioSection";
@@ -7,10 +7,12 @@ import ContactSection from "./components/ContactSection";
 import ServicesSection from "./components/ServicesSection";
 import DitherHero from "./components/DitherHero";
 import HeroLogo from "./components/HeroLogo";
-import OrbSection from "./components/OrbSection";
-import PopcornGame from "./components/PopcornGame";
 import ParallaxBackground from "./components/ParallaxBackground";
-import LoadingOverlay from "./components/LoadingOverlay";
+
+// Heavy sections — loaded only when needed
+const OrbSection     = lazy(() => import("./components/OrbSection"));
+const PopcornGame    = lazy(() => import("./components/PopcornGame"));
+const LoadingOverlay = lazy(() => import("./components/LoadingOverlay"));
 
 const App = () => {
   const [loading,     setLoading]     = useState(false);
@@ -60,19 +62,25 @@ const App = () => {
         <ContactSection />
 
         {/* Fifth section - Orb (dither sphere / ORBE chatbot body) */}
-        <OrbSection />
+        <Suspense fallback={null}>
+          <OrbSection />
+        </Suspense>
 
         {/* Sixth section - Popcorn Game */}
-        <PopcornGame />
+        <Suspense fallback={null}>
+          <PopcornGame />
+        </Suspense>
       </ParallaxBackground>
       </main>
       </div>
 
       {/* Loading overlay — replays intro reveal animation on demand */}
-      <LoadingOverlay
-        visible={loading}
-        onExitComplete={handleExitComplete}
-      />
+      <Suspense fallback={null}>
+        <LoadingOverlay
+          visible={loading}
+          onExitComplete={handleExitComplete}
+        />
+      </Suspense>
 
       {/* Global styles */}
       <style>{`

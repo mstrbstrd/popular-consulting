@@ -1128,7 +1128,12 @@ const ServicesSection = ({ isActive }) => {
         height: cardHeight,
       };
     }
-    return gridRect;
+    // Desktop: allow up to 88% of viewport height, centered vertically
+    const padding = 24;
+    const maxH    = window.innerHeight - padding * 2;
+    const h       = Math.min(maxH, gridRect.height + 160);
+    const top     = Math.max(padding, Math.round((window.innerHeight - h) / 2));
+    return { ...gridRect, top, height: h };
   }, [getGridRect]);
 
   const getCellRect = React.useCallback((index) => {
