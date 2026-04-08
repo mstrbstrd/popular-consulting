@@ -25,6 +25,9 @@ export const ParallaxBackground = ({ children }) => {
   const activeSectionRef = useRef(0);
   useEffect(() => { activeSectionRef.current = activeSection; }, [activeSection]);
 
+  // Tracks the section currently animating out — kept mounted until its slide-out finishes
+  const exitingSectionRef = useRef(null);
+
   // Populate sectionsRef on mount; on resize, re-snap all sections instantly so that
   // viewport height changes (e.g. DevTools opening) don't trigger CSS transitions or
   // leave sections at wrong positions.
@@ -238,6 +241,7 @@ export const ParallaxBackground = ({ children }) => {
       ? "cubic-bezier(0.25, 0.46, 0.45, 0.94)"  // ease-out-quad: smooth return
       : "cubic-bezier(0.22, 1, 0.36, 1)";         // spring out: dynamic forward
 
+    exitingSectionRef.current = currentIdx; // keep exiting section mounted until slide-out ends
     setIsTransitioning(true);
 
     // ── Phase 1: exit current section ──
@@ -296,6 +300,7 @@ export const ParallaxBackground = ({ children }) => {
         }
       });
 
+      exitingSectionRef.current = null; // allow dormant sections to unmount
       setIsTransitioning(false);
     }, enterDelay + enterDuration + 150);
   };
@@ -303,6 +308,13 @@ export const ParallaxBackground = ({ children }) => {
   const renderSections = () => {
     return Children.map(children, (child, index) => {
       const isActive = index === activeSection;
+
+      // Mount window: active section ± 1 neighbour (pre-loads adjacent sections so
+      // their WebGL/audio initialises before the user arrives), plus the section
+      // currently animating out (kept alive until its slide-out transition ends).
+      const isMounted =
+        Math.abs(index - activeSection) <= 1 ||
+        index === exitingSectionRef.current;
 
       // Resting positions must match goToSection cleanup logic:
       //   visited   (< active) → below  translateY(100dvh)
@@ -326,7 +338,7 @@ export const ParallaxBackground = ({ children }) => {
             zIndex: isActive ? 20 : 10 + index,
           }}
         >
-          {cloneElement(child, {
+          {isMounted && cloneElement(child, {
             isActive,
             sectionIndex: index,
             totalSections,
