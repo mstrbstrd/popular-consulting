@@ -30,6 +30,8 @@ const Z_CONTENT = 19001;
 
 const LoadingOverlay = ({ visible, onExitComplete }) => {
   const { isDark } = useThemeMode();
+  const isDarkRef  = useRef(isDark);
+  useEffect(() => { isDarkRef.current = isDark; }, [isDark]);
   const pageBg = isDark ? '#0b0b18' : '#ffffff';
   const [phase,        setPhase]        = useState('idle');
   const [logoVisible,  setLogoVisible]  = useState(false);
@@ -66,12 +68,17 @@ const LoadingOverlay = ({ visible, onExitComplete }) => {
     setOverlayAlpha(1);
     setOverlayTransition('none');
 
-    // Raise canvas above all site content, lock to hero preset, then crystallize in
-    window.__ditherRaiseCanvas?.();
-    window.__ditherLockToHero?.();
-    window.__ditherRevealIn?.();
+    if (isDarkRef.current) {
+      // Dark mode: BH background zooms in from max distance while overlay fades
+      window.__bhRevealStart?.();
+    } else {
+      // Light mode: raise dither canvas, lock to hero, crystallize in
+      window.__ditherRaiseCanvas?.();
+      window.__ditherLockToHero?.();
+      window.__ditherRevealIn?.();
+    }
 
-    // Fade white overlay → transparent, matching dither reveal pace
+    // Fade overlay → transparent, matching reveal pace
     later(() => {
       setOverlayTransition(`opacity ${INTRO_DUR}ms cubic-bezier(0.22, 1, 0.36, 1)`);
       setOverlayAlpha(0);
@@ -127,21 +134,31 @@ const LoadingOverlay = ({ visible, onExitComplete }) => {
       setLogoOpacity(0);
     }, unTypeDur);
 
-    // Step 3 — crystallize dither out + overlay fades back to white simultaneously
+    // Step 3 — fade overlay back + exit animation
     later(() => {
       setLogoVisible(false);
-      // Overlay fades to white over same duration as dither crystallize-out
       setOverlayTransition(`opacity ${INTRO_DUR}ms cubic-bezier(0.22, 1, 0.36, 1)`);
       setOverlayAlpha(1);
-      window.__ditherRevealOut?.(() => {
-        // Release lock and lower canvas back to normal stacking
-        window.__ditherUnlock?.();
-        window.__ditherLowerCanvas?.();
-        setPhase('idle');
-        setDisplayText('');
-        displayTextRef.current = '';
-        onExitComplete?.();
-      });
+
+      if (isDarkRef.current) {
+        // Dark mode: just fade to dark, no dither crystallize-out
+        later(() => {
+          setPhase('idle');
+          setDisplayText('');
+          displayTextRef.current = '';
+          onExitComplete?.();
+        }, INTRO_DUR);
+      } else {
+        // Light mode: crystallize dither out, then lower canvas
+        window.__ditherRevealOut?.(() => {
+          window.__ditherUnlock?.();
+          window.__ditherLowerCanvas?.();
+          setPhase('idle');
+          setDisplayText('');
+          displayTextRef.current = '';
+          onExitComplete?.();
+        });
+      }
     }, unTypeDur + LOGO_FADE_DUR);
   }, [clearAllTimers, later, onExitComplete]);
 

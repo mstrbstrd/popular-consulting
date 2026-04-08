@@ -6,6 +6,7 @@ import React, {
   cloneElement,
 } from "react";
 import DitherBackground from "./DitherBackground";
+import BlackHoleBackground from "./BlackHoleBackground";
 import { useThemeMode } from "../contexts/ThemeContext";
 
 const SECTION_LABELS = ['Hero', 'About', 'Services', 'Contact', 'Interactive Orb', 'Popcorn Game'];
@@ -339,9 +340,27 @@ export const ParallaxBackground = ({ children }) => {
 
   return (
     <div className="parallax-wrapper">
-      {/* Fixed background — DitherBackground persists and evolves behind all sections */}
+      {/* Fixed background — crossfades between light (dither patterns) and dark (black hole) */}
       <div className="fixed-background" ref={backgroundRef}>
-        <DitherBackground activeSection={activeSection} isDark={isDark} />
+        {/* Dither patterns — visible in light mode OR when on the orb section (section 4) */}
+        <div style={{
+          position: 'absolute', inset: 0,
+          opacity: (!isDark || activeSection === 4) ? 1 : 0,
+          transition: 'opacity 0.9s ease',
+        }}>
+          <DitherBackground activeSection={activeSection} isDark={isDark} />
+        </div>
+
+        {/* Dark-mode black hole — visible in dark mode on all sections except the orb (section 4) */}
+        <div style={{
+          position: 'absolute', inset: 0,
+          opacity: (isDark && activeSection !== 4) ? 1 : 0,
+          transition: 'opacity 0.9s ease',
+          pointerEvents: 'none',
+        }}>
+          <BlackHoleBackground activeSection={activeSection} />
+        </div>
+
         <div className="glass-overlay">
           <div className="glass-gradient"></div>
         </div>

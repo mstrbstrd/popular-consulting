@@ -24,6 +24,7 @@ const PRESETS = [
   { speed: 0.48, contrast: 2.5, warp: 0.42, rainbowSpeed: 0.75, shape: 4 }, // Services – Mandala
   { speed: 0.22, contrast: 1.55, warp: 0.18, rainbowSpeed: 0.32, shape: 0 }, // Contact  – Plasma
   { speed: 0.55, contrast: 1.1, warp: 0.0, rainbowSpeed: 1.5, shape: 7 }, // Orb      – Sphere 3D
+  { speed: 0.32, contrast: 1.9, warp: 0.28, rainbowSpeed: 0.45, shape: 3 }, // Game     – Waves (matches Bio)
 ];
 
 const FIXED = {

@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
+import { useThemeMode } from '../contexts/ThemeContext';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -436,6 +437,10 @@ function buildBgKernels(W, H, count = 28) {
 // Main component
 // ---------------------------------------------------------------------------
 const PopcornGame = ({ isActive }) => {
+  const { isDark } = useThemeMode();
+  const isDarkRef  = useRef(isDark);
+  useEffect(() => { isDarkRef.current = isDark; }, [isDark]);
+
   const canvasRef = useRef(null);
   const [phase, setPhase] = useState('idle');    // 'idle' | 'playing' | 'gameover'
   const [score, setScore] = useState(0);
@@ -626,11 +631,17 @@ const PopcornGame = ({ isActive }) => {
       ctx.clearRect(0, 0, W, H);
 
       // ---- Background ----
-      const bgGrad = ctx.createRadialGradient(W * 0.5, H * 0.45, 0, W * 0.5, H * 0.45, Math.max(W, H) * 0.75);
-      bgGrad.addColorStop(0, PASTEL_BG_CENTER);
-      bgGrad.addColorStop(1, PASTEL_BG_EDGE);
-      ctx.fillStyle = bgGrad;
-      ctx.fillRect(0, 0, W, H);
+      if (isDarkRef.current) {
+        const bgGrad = ctx.createRadialGradient(W * 0.5, H * 0.45, 0, W * 0.5, H * 0.45, Math.max(W, H) * 0.75);
+        bgGrad.addColorStop(0, 'rgba(12, 8, 32, 0.78)');
+        bgGrad.addColorStop(1, 'rgba(4, 4, 18, 0.88)');
+        ctx.fillStyle = bgGrad;
+        ctx.fillRect(0, 0, W, H);
+      } else {
+        // Semi-transparent so the Waves dither background shows through
+        ctx.fillStyle = 'rgba(255, 248, 238, 0.62)';
+        ctx.fillRect(0, 0, W, H);
+      }
 
       // ---- Decorative background kernels ----
       if (g.bgKernels.length === 0) {
@@ -812,11 +823,16 @@ const PopcornGame = ({ isActive }) => {
       ctx.clearRect(0, 0, W, H);
 
       // Background
-      const bgGrad = ctx.createRadialGradient(W * 0.5, H * 0.45, 0, W * 0.5, H * 0.45, Math.max(W, H) * 0.75);
-      bgGrad.addColorStop(0, PASTEL_BG_CENTER);
-      bgGrad.addColorStop(1, PASTEL_BG_EDGE);
-      ctx.fillStyle = bgGrad;
-      ctx.fillRect(0, 0, W, H);
+      if (isDarkRef.current) {
+        const bgGrad = ctx.createRadialGradient(W * 0.5, H * 0.45, 0, W * 0.5, H * 0.45, Math.max(W, H) * 0.75);
+        bgGrad.addColorStop(0, 'rgba(12, 8, 32, 0.78)');
+        bgGrad.addColorStop(1, 'rgba(4, 4, 18, 0.88)');
+        ctx.fillStyle = bgGrad;
+        ctx.fillRect(0, 0, W, H);
+      } else {
+        ctx.fillStyle = 'rgba(255, 248, 238, 0.62)';
+        ctx.fillRect(0, 0, W, H);
+      }
 
       // Draw remaining popped popcorns fading out
       g.kernels.forEach((k) => {
@@ -974,7 +990,7 @@ const PopcornGame = ({ isActive }) => {
         position: 'relative',
         overflow: 'hidden',
         padding: 0,
-        background: '#FFF8EE',
+        background: 'transparent',
       }}
     >
       <canvas
@@ -1019,15 +1035,15 @@ const PopcornGame = ({ isActive }) => {
             <div style={{
               fontWeight: 800,
               fontSize: '1.4rem',
-              color: '#5A3A8A',
-              textShadow: '0 1px 4px rgba(255,255,255,0.8)',
+              color: isDark ? 'rgba(210,190,255,1)' : '#5A3A8A',
+              textShadow: isDark ? '0 0 12px rgba(155,114,255,0.7)' : '0 1px 4px rgba(255,255,255,0.8)',
             }}>
               SCORE: {score}
             </div>
             {best > 0 && (
               <div style={{
                 fontSize: '0.85rem',
-                color: 'rgba(90,58,138,0.6)',
+                color: isDark ? 'rgba(180,160,255,0.7)' : 'rgba(90,58,138,0.6)',
                 fontWeight: 600,
               }}>
                 BEST: {best}
@@ -1073,11 +1089,12 @@ const PopcornGame = ({ isActive }) => {
           </div>
           <div style={{
             fontSize: 'clamp(0.9rem, 2.5vw, 1.2rem)',
-            color: 'rgba(80,40,120,0.8)',
+            color: isDark ? 'rgba(200,180,255,0.9)' : 'rgba(80,40,120,0.8)',
             fontWeight: 500,
             textAlign: 'center',
             maxWidth: 340,
             padding: '0 1rem',
+            textShadow: isDark ? '0 0 8px rgba(155,114,255,0.5)' : 'none',
           }}>
             Click the kernels before time runs out!
           </div>
@@ -1113,7 +1130,7 @@ const PopcornGame = ({ isActive }) => {
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          background: 'rgba(255,240,250,0.88)',
+          background: isDark ? 'rgba(8, 5, 24, 0.88)' : 'rgba(255,240,250,0.88)',
           backdropFilter: 'blur(8px)',
           WebkitBackdropFilter: 'blur(8px)',
           zIndex: 20,
@@ -1133,7 +1150,7 @@ const PopcornGame = ({ isActive }) => {
           <div style={{
             fontSize: 'clamp(1.5rem, 4vw, 2.5rem)',
             fontWeight: 800,
-            color: '#5A3A8A',
+            color: isDark ? 'rgba(210,190,255,1)' : '#5A3A8A',
             textAlign: 'center',
           }}>
             SCORE: {score}
@@ -1142,7 +1159,7 @@ const PopcornGame = ({ isActive }) => {
             <div style={{
               fontSize: '1.1rem',
               fontWeight: 700,
-              color: score === best ? '#FF6BAE' : 'rgba(90,58,138,0.7)',
+              color: score === best ? '#FF6BAE' : isDark ? 'rgba(180,160,255,0.7)' : 'rgba(90,58,138,0.7)',
               textAlign: 'center',
             }}>
               {score === best ? '★ NEW BEST!' : `BEST: ${best}`}
