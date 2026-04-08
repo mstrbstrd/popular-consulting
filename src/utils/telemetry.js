@@ -77,7 +77,7 @@ function beacon(sample) {
   try {
     const payload = JSON.stringify({
       ...sample,
-      url:       location.href,
+      url:       window.location.href,
       userAgent: navigator.userAgent,
       ts:        Date.now(),
     });
