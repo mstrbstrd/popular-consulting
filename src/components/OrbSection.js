@@ -54,19 +54,19 @@ const CHAINS = [
   },
 ];
 
-const pillStyle = {
+const makePillStyle = (isDark) => ({
   display: 'flex',
   alignItems: 'center',
   gap: '0.1rem',
   padding: '0.55rem 0.8rem',
-  background: 'rgba(255, 255, 255, 0.09)',
+  background: isDark ? 'rgba(6,6,16,0.82)' : 'rgba(255, 255, 255, 0.09)',
   backdropFilter: 'blur(32px) saturate(160%)',
   WebkitBackdropFilter: 'blur(32px) saturate(160%)',
   border: '1px solid rgba(255, 255, 255, 0.22)',
   borderRadius: '100px',
   boxShadow: '0 4px 24px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.06), inset 0 1px 0 rgba(255,255,255,0.30)',
   pointerEvents: 'auto',
-};
+});
 
 const btnStyle = {
   background: 'transparent',
@@ -96,6 +96,7 @@ const onLeave = e => {
 
 const OrbSection = ({ isActive }) => {
   const { isDark } = useThemeMode();
+  const pillStyle = makePillStyle(isDark);
   const [bhMounted, setBhMounted] = React.useState(false);
   const [bhVisible, setBhVisible] = React.useState(false);
   const popCanvasRef = React.useRef(null);

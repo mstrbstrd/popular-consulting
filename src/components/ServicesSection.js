@@ -207,9 +207,9 @@ const CompactCard = ({
           backfaceVisibility: "hidden",
           willChange: hidden ? "auto" : "transform",
           opacity: hidden ? 0 : 1,
-          background: "rgba(255,255,255,0.18)",
-          backdropFilter: "blur(6px) saturate(120%)",
-          WebkitBackdropFilter: "blur(6px) saturate(120%)",
+          background: isDark ? "rgba(5,5,14,0.92)" : "rgba(255,255,255,0.18)",
+          backdropFilter: isDark ? "blur(6px) saturate(80%) brightness(0.35)" : "blur(6px) saturate(120%)",
+          WebkitBackdropFilter: isDark ? "blur(6px) saturate(80%) brightness(0.35)" : "blur(6px) saturate(120%)",
           border: "1px solid rgba(255, 255, 255, 0.25)",
           boxShadow:
             "0 1px 3px rgba(0,0,0,0.02), inset 0 1px 0 rgba(255,255,255,0.3)",
@@ -227,13 +227,13 @@ const CompactCard = ({
               ].join(", "),
           "&.service-card--hovered": {
             background: isDark
-              ? "rgba(10,10,20,0.55)"
+              ? "rgba(3,3,10,0.95)"
               : "rgba(255,255,255,0.95)",
             backdropFilter: isDark
-              ? "blur(40px) saturate(180%) brightness(0.85)"
+              ? "blur(40px) saturate(100%) brightness(0.3)"
               : "blur(40px) saturate(200%) brightness(1.08)",
             WebkitBackdropFilter: isDark
-              ? "blur(40px) saturate(180%) brightness(0.85)"
+              ? "blur(40px) saturate(100%) brightness(0.3)"
               : "blur(40px) saturate(200%) brightness(1.08)",
             border: isDark
               ? "1.5px solid rgba(255,255,255,0.18)"
@@ -704,10 +704,10 @@ const ExpandedOverlay = ({
             willChange: "transform, background, backdrop-filter",
             background: isMoving
               ? isDark
-                ? "rgba(15,15,30,0.82)"
+                ? "rgba(4,4,10,0.94)"
                 : "rgba(255,255,255,0.88)"
               : isDark
-              ? "rgba(10,10,20,0.55)"
+              ? "rgba(6,6,16,0.80)"
               : "rgba(255,255,255,0.18)",
             backdropFilter: isMoving
               ? "blur(14px) saturate(140%)"

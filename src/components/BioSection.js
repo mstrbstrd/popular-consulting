@@ -378,8 +378,8 @@ const BioExpandedOverlay = ({
             backfaceVisibility: "hidden",
             willChange: "transform, background, backdrop-filter",
             background: isMoving
-              ? (isDark ? "rgba(15,15,30,0.82)" : "rgba(255,255,255,0.88)")
-              : (isDark ? "rgba(10,10,20,0.55)" : "rgba(255,255,255,0.18)"),
+              ? (isDark ? "rgba(4,4,10,0.94)" : "rgba(255,255,255,0.88)")
+              : (isDark ? "rgba(6,6,16,0.80)" : "rgba(255,255,255,0.18)"),
             backdropFilter: isMoving
               ? "blur(14px) saturate(140%)"
               : (isDark ? "blur(40px) saturate(180%) brightness(0.85)" : "blur(40px) saturate(200%) brightness(1.08)"),
@@ -704,7 +704,7 @@ const BioTextCard = ({ subtitleVisible, paraVisible, onExpand }) => {
           willChange: "transform",
           transform:
             "translate3d(0,0,0) rotateX(0deg) rotateY(0deg) scale3d(1,1,1)",
-          background: "rgba(255,255,255,0.18)",
+          background: isDark ? "rgba(5,5,14,0.90)" : "rgba(255,255,255,0.18)",
           backdropFilter: "blur(6px) saturate(120%)",
           WebkitBackdropFilter: "blur(6px) saturate(120%)",
           border: "1px solid rgba(255,255,255,0.25)",
@@ -713,7 +713,7 @@ const BioTextCard = ({ subtitleVisible, paraVisible, onExpand }) => {
           transition:
             "transform 0.5s cubic-bezier(0.23, 1, 0.32, 1), background 0.5s ease, backdrop-filter 0.5s ease, -webkit-backdrop-filter 0.5s ease, border 0.4s ease, box-shadow 0.5s ease",
           "&.bio-card--hovered": {
-            background: isDark ? "rgba(10,10,20,0.55)" : "rgba(255,255,255,0.95)",
+            background: isDark ? "rgba(3,3,10,0.95)" : "rgba(255,255,255,0.95)",
             backdropFilter: isDark ? "blur(40px) saturate(180%) brightness(0.85)" : "blur(40px) saturate(200%) brightness(1.08)",
             WebkitBackdropFilter: isDark ? "blur(40px) saturate(180%) brightness(0.85)" : "blur(40px) saturate(200%) brightness(1.08)",
             border: isDark ? "1.5px solid rgba(255,255,255,0.18)" : "1.5px solid rgba(255,255,255,1)",
