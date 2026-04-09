@@ -8,6 +8,7 @@ import React, {
 import DitherBackground from "./DitherBackground";
 import BlackHoleBackground from "./BlackHoleBackground";
 import { useThemeMode } from "../contexts/ThemeContext";
+import { isMobileTier } from "../utils/deviceTier";
 
 const SECTION_LABELS = ['Hero', 'About', 'Services', 'Contact', 'Interactive Orb', 'Popcorn Game'];
 
@@ -356,24 +357,26 @@ export const ParallaxBackground = ({ children }) => {
     <div className="parallax-wrapper">
       {/* Fixed background — crossfades between light (dither patterns) and dark (black hole) */}
       <div className="fixed-background" ref={backgroundRef}>
-        {/* Dither patterns — visible in light mode OR when on the orb section (section 4) */}
+        {/* Dither patterns — always visible on mobile; desktop: light mode or orb section */}
         <div style={{
           position: 'absolute', inset: 0,
-          opacity: (!isDark || activeSection === 4) ? 1 : 0,
+          opacity: (isMobileTier || !isDark || activeSection === 4) ? 1 : 0,
           transition: 'opacity 0.9s ease',
         }}>
           <DitherBackground activeSection={activeSection} isDark={isDark} />
         </div>
 
-        {/* Dark-mode black hole — visible in dark mode on all sections except the orb (section 4) */}
-        <div style={{
-          position: 'absolute', inset: 0,
-          opacity: (isDark && activeSection !== 4) ? 1 : 0,
-          transition: 'opacity 0.9s ease',
-          pointerEvents: 'none',
-        }}>
-          <BlackHoleBackground activeSection={activeSection} />
-        </div>
+        {/* Dark-mode black hole — desktop/high-tier only; mobile uses dither fallback */}
+        {!isMobileTier && (
+          <div style={{
+            position: 'absolute', inset: 0,
+            opacity: (isDark && activeSection !== 4) ? 1 : 0,
+            transition: 'opacity 0.9s ease',
+            pointerEvents: 'none',
+          }}>
+            <BlackHoleBackground activeSection={activeSection} />
+          </div>
+        )}
 
         <div className="glass-overlay">
           <div className="glass-gradient"></div>

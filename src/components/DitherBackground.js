@@ -15,6 +15,7 @@
 // Ripple interaction is forwarded from DitherHero via window.__addDitherRipple.
 
 import React, { useRef, useEffect } from "react";
+import { isMobileTier, MOBILE_DITHER_OVERRIDES } from "../utils/deviceTier";
 
 // Per-section targets (all params lerp at lerpFactor ≈ 0.025/frame → ~2s settle)
 // shape transitions use a linear blend over ~90 frames (~1.5s at 60fps)
@@ -1654,7 +1655,14 @@ const DitherBackground = ({ activeSection = 0, isDark = false }) => {
           : Math.min((ts - lastTRef.current) / 1000, 1 / 15);
       lastTRef.current = ts;
 
-      const target = PRESETS[lockedPresetIdxRef.current ?? targetIdxRef.current] || PRESETS[0];
+      const rawTarget = PRESETS[lockedPresetIdxRef.current ?? targetIdxRef.current] || PRESETS[0];
+      // On mobile: zero warp, lower speed/rainbowSpeed — cuts shader cost significantly
+      const target = isMobileTier ? {
+        ...rawTarget,
+        warp:         0,
+        speed:        Math.min(rawTarget.speed,        MOBILE_DITHER_OVERRIDES.speed),
+        rainbowSpeed: Math.min(rawTarget.rainbowSpeed, MOBILE_DITHER_OVERRIDES.rainbowSpeed),
+      } : rawTarget;
       const p = paramsRef.current;
 
       // Lerp continuous params toward target
@@ -1745,7 +1753,7 @@ const DitherBackground = ({ activeSection = 0, isDark = false }) => {
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, d.atlasTex);
       gl.uniform1i(d.U.u_atlas, 0);
-      gl.uniform1f(d.U.u_cellSize, FIXED.cellSize);
+      gl.uniform1f(d.U.u_cellSize, isMobileTier ? MOBILE_DITHER_OVERRIDES.cellSize : FIXED.cellSize);
       gl.uniform1i(d.U.u_charCount, CHARSET.length);
       gl.uniform1i(d.U.u_atlasCols, d.atlasCols);
       gl.uniform1i(d.U.u_atlasRows, d.atlasRows);

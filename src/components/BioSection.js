@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { Box, Typography } from "@mui/material";
 import mePhoto from "../assets/img/me.jpeg";
 import { useThemeMode } from "../contexts/ThemeContext";
+import { isMobileTier } from "../utils/deviceTier";
 
 const TITLE = "Your Technology Partner.";
 const SUBTITLE =
@@ -114,12 +115,12 @@ const BioPhoto = ({ visible, blurred }) => {
   return (
     <Box
       ref={shellRef}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={resetMouseEffects}
+      onMouseMove={isMobileTier ? undefined : handleMouseMove}
+      onMouseLeave={isMobileTier ? undefined : resetMouseEffects}
       sx={{
         flexShrink: 0,
         display: "block",
-        perspective: "900px",
+        perspective: isMobileTier ? "none" : "900px",
         mt: { xs: 2, md: 0 },
         alignSelf: { xs: "center", md: "auto" },
         order: { xs: 2, md: 0 },
@@ -359,9 +360,9 @@ const BioExpandedOverlay = ({
         <Box
           ref={surfaceRef}
           onClick={(e) => e.stopPropagation()}
-          onMouseMove={handleMouseMove}
-          onMouseEnter={() => phase === "expanded" && setIsHovered(true)}
-          onMouseLeave={resetMouseEffects}
+          onMouseMove={isMobileTier ? undefined : handleMouseMove}
+          onMouseEnter={isMobileTier ? undefined : () => phase === "expanded" && setIsHovered(true)}
+          onMouseLeave={isMobileTier ? undefined : resetMouseEffects}
           sx={{
             position: "relative",
             width: "100%",
@@ -374,7 +375,7 @@ const BioExpandedOverlay = ({
             padding: "2.5rem",
             pointerEvents: "auto",
             transform: "translate3d(0,0,0) rotateX(0deg) rotateY(0deg)",
-            transformStyle: "preserve-3d",
+            transformStyle: isMobileTier ? "flat" : "preserve-3d",
             backfaceVisibility: "hidden",
             willChange: "transform, background, backdrop-filter",
             background: isMoving
@@ -686,11 +687,11 @@ const BioTextCard = ({ subtitleVisible, paraVisible, onExpand }) => {
   return (
     <Box
       ref={shellRef}
-      onMouseMove={handleMouseMove}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={resetMouseEffects}
+      onMouseMove={isMobileTier ? undefined : handleMouseMove}
+      onMouseEnter={isMobileTier ? undefined : () => setIsHovered(true)}
+      onMouseLeave={isMobileTier ? undefined : resetMouseEffects}
       onClick={handleClick}
-      sx={{ perspective: "900px", width: "100%", mt: 2, cursor: "pointer" }}
+      sx={{ perspective: isMobileTier ? "none" : "900px", width: "100%", mt: 2, cursor: "pointer" }}
     >
       <Box
         ref={cardRef}
@@ -700,7 +701,7 @@ const BioTextCard = ({ subtitleVisible, paraVisible, onExpand }) => {
           padding: { xs: "1.75rem", md: "2rem 2.25rem" },
           borderRadius: "20px",
           overflow: "hidden",
-          transformStyle: "preserve-3d",
+          transformStyle: isMobileTier ? "flat" : "preserve-3d",
           willChange: "transform",
           transform:
             "translate3d(0,0,0) rotateX(0deg) rotateY(0deg) scale3d(1,1,1)",

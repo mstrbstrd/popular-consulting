@@ -1,5 +1,6 @@
 import React from "react";
 import { useThemeMode } from "../contexts/ThemeContext";
+import { isMobileTier } from "../utils/deviceTier";
 import { createPortal } from "react-dom";
 import { Box, Typography } from "@mui/material";
 import webdevIcon from "../assets/icons/webdev.svg";
@@ -175,17 +176,14 @@ const CompactCard = ({
   return (
     <Box
       ref={shellRef}
-      onMouseMove={handleMouseMove}
-      onMouseEnter={() => !hidden && setIsHovered(true)}
-      onMouseLeave={() => {
-        setIsHovered(false);
-        resetMouseEffects();
-      }}
+      onMouseMove={isMobileTier ? undefined : handleMouseMove}
+      onMouseEnter={isMobileTier ? undefined : () => !hidden && setIsHovered(true)}
+      onMouseLeave={isMobileTier ? undefined : () => { setIsHovered(false); resetMouseEffects(); }}
       onClick={handleClick}
       sx={{
         position: "relative",
         height: "100%",
-        perspective: "900px",
+        perspective: isMobileTier ? "none" : "900px",
         cursor: hidden ? "default" : "pointer",
         pointerEvents: hidden ? "none" : "auto",
       }}
@@ -203,7 +201,7 @@ const CompactCard = ({
           borderRadius: `${CARD_RADIUS}px`,
           overflow: "hidden",
           contain: "paint style",
-          transformStyle: "preserve-3d",
+          transformStyle: isMobileTier ? "flat" : "preserve-3d",
           backfaceVisibility: "hidden",
           willChange: hidden ? "auto" : "transform",
           opacity: hidden ? 0 : 1,
@@ -682,9 +680,9 @@ const ExpandedOverlay = ({
         <Box
           ref={surfaceRef}
           onClick={(e) => e.stopPropagation()}
-          onMouseMove={handleMouseMove}
-          onMouseEnter={() => phase === "expanded" && setIsHovered(true)}
-          onMouseLeave={() => {
+          onMouseMove={isMobileTier ? undefined : handleMouseMove}
+          onMouseEnter={isMobileTier ? undefined : () => phase === "expanded" && setIsHovered(true)}
+          onMouseLeave={isMobileTier ? undefined : () => {
             setIsHovered(false);
             resetMouseEffects();
           }}
@@ -699,7 +697,7 @@ const ExpandedOverlay = ({
             padding: "2rem",
             pointerEvents: "auto",
             transform: "translate3d(0,0,0) rotateX(0deg) rotateY(0deg)",
-            transformStyle: "preserve-3d",
+            transformStyle: isMobileTier ? "flat" : "preserve-3d",
             backfaceVisibility: "hidden",
             willChange: "transform, background, backdrop-filter",
             background: isMoving
