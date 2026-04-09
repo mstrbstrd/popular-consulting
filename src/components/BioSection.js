@@ -380,7 +380,7 @@ const BioExpandedOverlay = ({
             willChange: "transform, background, backdrop-filter",
             background: isMoving
               ? (isDark ? "rgba(4,4,10,0.94)" : "rgba(255,255,255,0.88)")
-              : (isDark ? "rgba(6,6,16,0.80)" : "rgba(255,255,255,0.18)"),
+              : (isDark ? "rgba(6,6,16,0.80)" : "rgba(255,255,255,0.72)"),
             backdropFilter: isMoving
               ? "blur(14px) saturate(140%)"
               : (isDark ? "blur(40px) saturate(180%) brightness(0.85)" : "blur(40px) saturate(200%) brightness(1.08)"),
@@ -705,9 +705,9 @@ const BioTextCard = ({ subtitleVisible, paraVisible, onExpand }) => {
           willChange: "transform",
           transform:
             "translate3d(0,0,0) rotateX(0deg) rotateY(0deg) scale3d(1,1,1)",
-          background: isDark ? "rgba(5,5,14,0.90)" : "rgba(255,255,255,0.18)",
-          backdropFilter: "blur(6px) saturate(120%)",
-          WebkitBackdropFilter: "blur(6px) saturate(120%)",
+          background: isDark ? "rgba(5,5,14,0.90)" : "rgba(255,255,255,0.58)",
+          backdropFilter: isDark ? "blur(6px) saturate(80%) brightness(0.35)" : "blur(24px) saturate(140%)",
+          WebkitBackdropFilter: isDark ? "blur(6px) saturate(80%) brightness(0.35)" : "blur(24px) saturate(140%)",
           border: "1px solid rgba(255,255,255,0.25)",
           boxShadow:
             "0 1px 3px rgba(0,0,0,0.02), inset 0 1px 0 rgba(255,255,255,0.3)",

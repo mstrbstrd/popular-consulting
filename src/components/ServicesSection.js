@@ -706,7 +706,7 @@ const ExpandedOverlay = ({
                 : "rgba(255,255,255,0.88)"
               : isDark
               ? "rgba(6,6,16,0.80)"
-              : "rgba(255,255,255,0.18)",
+              : "rgba(255,255,255,0.72)",
             backdropFilter: isMoving
               ? "blur(14px) saturate(140%)"
               : isDark
