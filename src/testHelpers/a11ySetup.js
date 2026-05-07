@@ -28,7 +28,7 @@ jest.mock('../assets/icons/webdev.svg',      () => 'webdev.svg');
 jest.mock('../assets/icons/seo.svg',         () => 'seo.svg');
 jest.mock('../assets/icons/copywrite.svg',   () => 'copywrite.svg');
 jest.mock('../assets/icons/ecommerce.svg',   () => 'ecommerce.svg');
-jest.mock('../assets/img/me.jpeg',           () => 'me.jpeg');
+jest.mock('../assets/img/me.webp',           () => 'me.webp');
 
 // ── Portal target ───────────────────────────────────────────────────────────
 // createPortal targets document.body by default; jsdom has it.

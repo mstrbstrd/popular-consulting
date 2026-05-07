@@ -15,7 +15,11 @@
 // Ripple interaction is forwarded from DitherHero via window.__addDitherRipple.
 
 import React, { useRef, useEffect } from "react";
-import { isMobileTier, MOBILE_DITHER_OVERRIDES } from "../utils/deviceTier";
+import {
+  getShaderCanvasSize,
+  isMobileTier,
+  MOBILE_DITHER_OVERRIDES,
+} from "../utils/deviceTier";
 
 // Per-section targets (all params lerp at lerpFactor ≈ 0.025/frame → ~2s settle)
 // shape transitions use a linear blend over ~90 frames (~1.5s at 60fps)
@@ -102,6 +106,8 @@ vec3 getRainbow(vec2 uv,vec2 cellID,float bv,float flowMag,vec2 grad){
     hue=mix(hue,.02,u_expressionBlend*.65);   // angry → red-orange
   else if(u_expressionId==3&&u_expressionBlend>.001)
     hue=mix(hue,.60,u_expressionBlend*.45);   // sad → cool blue
+  else if(u_expressionId==11&&u_expressionBlend>.001)
+    hue=mix(hue,.30,u_expressionBlend*.55);   // barfing → sickly green
   hue=fract(hue);
   vec3 raw=hsb2rgb(hue,1.,1.);
   float lum=dot(raw,vec3(.299,.587,.114));
@@ -480,6 +486,8 @@ float sceneSphere3D(vec2 uv,float t){
   float eyeYR=eyeYL;
   float eyeXL=.24+drift, eyeXR=.24+drift;
   float motX=0.,motY=0.,mouthAnimCurve=0.;
+  float chewBite=0.;
+  float barfHeave=0.;
 
   // Universal blink — every ~5.5s. Skipped for surprised/sleepy (own eye motion).
   float blinkT=fract(t*.32+.55);
@@ -532,6 +540,26 @@ float sceneSphere3D(vec2 uv,float t){
   } else if(u_expressionId==8){   // talking — subtle alive micro-motion, mouth driven from JS
     motX=sin(t*2.3)*.004;
     motY=sin(t*1.7)*.003+cos(t*3.1)*.002;
+  } else if(u_expressionId==9){   // chewing — ⌒ eyes + om nom nom chomping
+    // Match JS chomp phase exactly: 2.5 Hz
+    // 0.00-0.15 snap open, 0.15-0.35 hold open, 0.35-0.55 crunch shut, 0.55-1.00 rest
+    float chP=fract(t*2.5);
+    float bite=0.;
+    if(chP<0.15){ float q=chP/0.15; bite=q*q*(3.-2.*q); }
+    else if(chP<0.35){ bite=1.0; }
+    else if(chP<0.55){ float q=(chP-0.35)/0.20; bite=1.-q*q*(3.-2.*q); }
+    chewBite=bite;
+    // Stronger head bob — dips down on the crunch
+    motY=bite*.020;
+    // Subtle jaw sway
+    motX=sin(t*1.2+0.6)*.005;
+    // Eye arcs pulse up slightly on chomp peaks
+    eyeYL+=bite*.005; eyeYR+=bite*.005;
+  } else if(u_expressionId==10){  // queasy — sick jittery wobble, uneven drooping eyes
+    motX=sin(t*11.)*.020+sin(t*7.3+1.5)*.012;   // fast jittery side-to-side
+    motY=cos(t*8.5)*.014+sin(t*5.2)*.006;        // up-down bobble
+    eHL*=.72; eHR*=.58;                           // uneven droop — one eye squintier
+    eyeYR-=.012*blend;                            // right eye sags
   }
 
   // Gate motion, accumulate
@@ -544,7 +572,26 @@ float sceneSphere3D(vec2 uv,float t){
 
   // Eye shapes
   float eyes;
-  if(u_expressionId==2){
+  if(u_expressionId==9){
+    // Chewing — wide convex-up parabolic arc eyes (⌒ ⌒ like 😊 emoji)
+    float arcW=.078;                       // half-width (close to default ellipse eW)
+    float arcH=.040+chewBite*.008;         // peak height — pulses with bite
+    float arcT=.018;                       // thick stroke so arcs read clearly in dither
+    // Left eye
+    float xL=p.x+eyeXL+motX;
+    float yL=p.y-eyeYL;
+    float paraL=arcH*(1.0-(xL*xL)/(arcW*arcW));
+    float dArcL=abs(yL-paraL);
+    float maskL=step(abs(xL),arcW);
+    // Right eye
+    float xR=p.x-eyeXR-motX;
+    float yR=p.y-eyeYR;
+    float paraR=arcH*(1.0-(xR*xR)/(arcW*arcW));
+    float dArcR=abs(yR-paraR);
+    float maskR=step(abs(xR),arcW);
+    eyes=max(smoothstep(arcT,arcT*.12,dArcL)*maskL,
+             smoothstep(arcT,arcT*.12,dArcR)*maskR);
+  } else if(u_expressionId==2){
     // Excited — slowly spinning + pulsing 5-pointed star eyes (🤩 emoji style)
     float starR=.090+sin(t*8.5+.8)*.018; // pulses in sync with excited bounce
     float starRF=.38;
@@ -584,6 +631,18 @@ float sceneSphere3D(vec2 uv,float t){
     float mThick=.022+u_mouthOpen*.110;          // tall open mouth
     float mMask=smoothstep(.42,.20,abs(p.x));    // wide ear-to-ear grin
     mouth=smoothstep(mThick,mThick*.10,mDist)*mMask;
+  } else if(u_expressionId==9){
+    // Chewing — wide chomping mouth: smile when shut, big open gape on bite
+    float effMC=u_mouthCurve+mouthAnimCurve;
+    float mBaseY=-.14+floatY*.45+motY*.6;
+    // Mouth gets wider as it opens — from tight smile to wide gape
+    float mW=.22+u_mouthOpen*.06;
+    float mCurve=effMC*.15*(p.x*p.x)/(mW*mW);
+    float mDist=abs(p.y-(mBaseY+mCurve));
+    // Thickness scales strongly with mouthOpen — thin smile → fat chomp
+    float mThick=.022+u_mouthOpen*.082;
+    float mMask=smoothstep(mW,mW*.35,abs(p.x));
+    mouth=smoothstep(mThick,mThick*.12,mDist)*mMask;
   } else {
     float effMC=u_mouthCurve+mouthAnimCurve;
     float mBaseY=-.14-drift*.55+effMC*.02+floatY*.45+motY*.6;
@@ -667,7 +726,33 @@ float sceneSphere3D(vec2 uv,float t){
     }
   }
 
-  float features=max(max(eyes,mouth),max(max(brows,tear),zzz));
+  // ── Chewing cheek crescents — inverted arcs like ) ( dimples ────────────
+  float cheeks=0.;
+  if(u_expressionId==9){
+    // Crescent puffs with chewing — fuller when mouth closed, thinner when open
+    float puff=1.0-chewBite*.30;
+    float cCX=.195+(1.0-chewBite)*.010;      // push outward when puffed
+    float cCY=-.055+motY*.3;
+    float cW=.040+(1.0-chewBite)*.008;        // half-height of arc
+    float cH=.016+(1.0-chewBite)*.006;        // curve depth
+    float cT=.010+puff*.004;                  // stroke thickness
+    // Left cheek: ) shape — parabola opening rightward
+    float lx=p.x+cCX;
+    float ly=p.y-cCY;
+    float paraL=cH*(1.0-(ly*ly)/(cW*cW));
+    float dCL=abs(lx-paraL);
+    float mCL=step(abs(ly),cW);
+    // Right cheek: ( shape — parabola opening leftward (mirrored)
+    float rx=p.x-cCX;
+    float ry=p.y-cCY;
+    float paraR=-cH*(1.0-(ry*ry)/(cW*cW));
+    float dCR=abs(rx-paraR);
+    float mCR=step(abs(ry),cW);
+    cheeks=max(smoothstep(cT,cT*.12,dCL)*mCL,
+               smoothstep(cT,cT*.12,dCR)*mCR)*puff;
+  }
+
+  float features=max(max(eyes,mouth),max(max(brows,tear),max(zzz,cheeks)));
   return sphereBrightness*mix(1.,features,blend);
 }
 
@@ -924,12 +1009,19 @@ const EXPRESSIONS = {
   },
   // Talking — gentle smile, stable eyes; mouthOpen driven by speech wave in render loop
   talking: { id: 8, eyeOpen: 0.65, eyeY: 0.12, mouthCurve: 0.38, mouthOpen: 0.0 },
+  // Chewing — 😊 closed arc eyes (custom in shader), strong smile; mouth pulses via chomp wave
+  chewing: { id: 9, eyeOpen: 1.0, eyeY: 0.14, mouthCurve: 0.78, mouthOpen: 0.10 },
+  // Queasy — sick wobble, droopy uneven eyes, slight frown
+  queasy: { id: 10, eyeOpen: 0.35, eyeY: 0.08, mouthCurve: -0.55, mouthOpen: 0.18 },
 };
 
-const DitherBackground = ({ activeSection = 0, isDark = false }) => {
+const DitherBackground = ({ activeSection = 0, isDark = false, visible = true }) => {
   const canvasRef = useRef(null);
   const animFrameRef = useRef(null);
   const glDataRef = useRef(null);
+  const renderRef = useRef(null);
+  const ensureAnimatingRef = useRef(null);
+  const visibleRef = useRef(visible);
   const timeRef = useRef(0);
   const hueOffsetRef = useRef(0); // accumulated in [0,1) at hue scale — no large products in shader
   const lastTRef = useRef(0);
@@ -963,7 +1055,9 @@ const DitherBackground = ({ activeSection = 0, isDark = false }) => {
   const reanimIdxRef = useRef(0); // cycles 0→1→2→0 after each completed pop
   const postReanimFiredRef = useRef(false); // one-shot: random emote after reforming
   const isTalkingRef       = useRef(false); // talking animation active
-  const cdModeRef          = useRef(null);  // null | 'stationary' | 'spinning'
+  const isChewingRef       = useRef(false); // chewing/nom animation active
+  const isBarfStreamingRef = useRef(false); // spawning barf particles each frame
+  const barfTimersRef      = useRef([]);    // setTimeout IDs for barf sequence
   const cdBlendRef         = useRef(0);     // 0 = orb, 1 = CD (lerped)
   const cdTargetBlendRef   = useRef(0);     // target blend
   const cdSpinRef          = useRef(false); // true = spinning CD
@@ -974,7 +1068,7 @@ const DitherBackground = ({ activeSection = 0, isDark = false }) => {
 
   // Interpolated params + shape-blend state
   const introStartRef = useRef(null); // RAF timestamp of first render frame
-  const revealRef = useRef(0); // 0 = all white, 1 = fully revealed (one-shot)
+  const revealRef = useRef(1); // 0 = all white, 1 = fully revealed (replay resets this)
   const revealHidingRef        = useRef(false);
   const revealHideStartRef     = useRef(null);
   const revealHideCallbackRef  = useRef(null);
@@ -990,6 +1084,11 @@ const DitherBackground = ({ activeSection = 0, isDark = false }) => {
   });
 
   useEffect(() => { isDarkRef.current = isDark; }, [isDark]);
+
+  useEffect(() => {
+    visibleRef.current = visible;
+    if (visible) ensureAnimatingRef.current?.();
+  }, [visible]);
 
   useEffect(() => {
     targetIdxRef.current = Math.min(activeSection, PRESETS.length - 1);
@@ -1095,6 +1194,11 @@ const DitherBackground = ({ activeSection = 0, isDark = false }) => {
     // Stop everything and return to neutral (smooth fade-out).
     window.__orbStop = () => {
       clearTimers();
+      isTalkingRef.current = false;
+      isChewingRef.current = false;
+      isBarfStreamingRef.current = false;
+      barfTimersRef.current.forEach(t => clearTimeout(t));
+      barfTimersRef.current = [];
       sequenceRef.current = [];
       sequenceIndexRef.current = 0;
       pendingHoldRef.current = null;
@@ -1201,6 +1305,78 @@ const DitherBackground = ({ activeSection = 0, isDark = false }) => {
       transitionRef.current = { state: 'idle', pending: null };
     };
 
+    // Start chewing — om nom nom nom.
+    window.__orbChew = () => {
+      isChewingRef.current = true;
+      isTalkingRef.current = false;
+      clearTimers();
+      sequenceRef.current = [];
+      sequenceIndexRef.current = 0;
+      expressionIdRef.current = EXPRESSIONS.chewing.id;
+      faceTargetRef.current = { ...EXPRESSIONS.chewing, blend: 1.0 };
+      transitionRef.current = { state: 'rising', pending: null };
+      pendingHoldRef.current = null;
+    };
+
+    // Stop chewing — return to neutral.
+    window.__orbStopChew = () => {
+      isChewingRef.current = false;
+      clearTimers();
+      sequenceRef.current = [];
+      faceTargetRef.current.blend = 0.0;
+      transitionRef.current = { state: 'idle', pending: null };
+    };
+
+    // Barf sequence — queasy buildup → surprised → rainbow vomit → sad → neutral.
+    const clearBarfTimers = () => {
+      barfTimersRef.current.forEach(t => clearTimeout(t));
+      barfTimersRef.current = [];
+      isBarfStreamingRef.current = false;
+    };
+
+    window.__orbBarf = () => {
+      clearBarfTimers();
+      clearTimers();
+      isTalkingRef.current = false;
+      isChewingRef.current = false;
+      sequenceRef.current = [];
+      sequenceIndexRef.current = 0;
+
+      // Phase 1: Go queasy (sick wobble buildup)
+      expressionIdRef.current = EXPRESSIONS.queasy.id;
+      faceTargetRef.current = { ...EXPRESSIONS.queasy, blend: 1.0 };
+      transitionRef.current = { state: 'rising', pending: null };
+      pendingHoldRef.current = null;
+
+      // Phase 2: Eyes go wide — about to blow
+      barfTimersRef.current.push(setTimeout(() => {
+        expressionIdRef.current = EXPRESSIONS.surprised.id;
+        faceTargetRef.current = { ...EXPRESSIONS.surprised, blend: 1.0 };
+      }, 1800));
+
+      // Phase 3: Start the rainbow stream
+      barfTimersRef.current.push(setTimeout(() => {
+        isBarfStreamingRef.current = true;
+      }, 2200));
+
+      // Phase 4: Stop the stream
+      barfTimersRef.current.push(setTimeout(() => {
+        isBarfStreamingRef.current = false;
+      }, 3800));
+
+      // Phase 5: Sad face (post-barf regret)
+      barfTimersRef.current.push(setTimeout(() => {
+        expressionIdRef.current = EXPRESSIONS.sad.id;
+        faceTargetRef.current = { ...EXPRESSIONS.sad, blend: 1.0 };
+      }, 3600));
+
+      // Phase 6: Fade to neutral
+      barfTimersRef.current.push(setTimeout(() => {
+        faceTargetRef.current.blend = 0.0;
+        transitionRef.current = { state: 'idle', pending: null };
+      }, 5500));
+    };
+
     // Trigger a pop. No-ops if already popping.
     window.__orbPop = () => {
       if (popStateRef.current !== "idle") return;
@@ -1237,6 +1413,10 @@ const DitherBackground = ({ activeSection = 0, isDark = false }) => {
       window.__orbPop = null;
       window.__orbTalk = null;
       window.__orbStopTalk = null;
+      window.__orbChew = null;
+      window.__orbStopChew = null;
+      clearBarfTimers();
+      window.__orbBarf = null;
       window.__ditherRevealIn = null;
       window.__ditherRevealOut = null;
       window.__ditherLockToHero = null;
@@ -1269,7 +1449,10 @@ const DitherBackground = ({ activeSection = 0, isDark = false }) => {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const gl = canvas.getContext("webgl2", { antialias: false });
+    const gl = canvas.getContext("webgl2", {
+      antialias: false,
+      powerPreference: isMobileTier ? "low-power" : "high-performance",
+    });
     if (!gl) return;
 
     const mkShader = (src, type) => {
@@ -1354,12 +1537,13 @@ const DitherBackground = ({ activeSection = 0, isDark = false }) => {
     glDataRef.current = { gl, U, ripLocs, atlasTex, atlasCols, atlasRows };
 
     const resize = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
+      const size = getShaderCanvasSize(window.innerWidth, window.innerHeight);
+      canvas.width = size.width;
+      canvas.height = size.height;
       gl.viewport(0, 0, canvas.width, canvas.height);
       if (popCanvasRef.current) {
-        popCanvasRef.current.width = window.innerWidth;
-        popCanvasRef.current.height = window.innerHeight;
+        popCanvasRef.current.width = size.width;
+        popCanvasRef.current.height = size.height;
       }
     };
     window.addEventListener("resize", resize);
@@ -1532,6 +1716,40 @@ const DitherBackground = ({ activeSection = 0, isDark = false }) => {
 
     const drawParticles = (dt) => {
       if (!px2 || !popCvs) return;
+
+      // Continuous barf stream — spawn rainbow blobs from mouth each frame
+      if (isBarfStreamingRef.current) {
+        const cw = popCvs.width, ch = popCvs.height;
+        const cx = cw * 0.5, cy = ch * 0.5;
+        const sr = ch * 0.3;
+        const mouthY = cy + sr * 0.28; // mouth position in screen px
+        const now = performance.now() / 1000;
+        // Spawn 3-5 blobs per frame for a thick stream
+        const count = 3 + Math.floor(Math.random() * 3);
+        for (let i = 0; i < count; i++) {
+          const hue = Math.random() * 360;
+          const spread = (Math.random() - 0.5) * sr * 0.25;
+          const life = 1.8 + Math.random() * 1.5;
+          particlesRef.current.push({
+            type: 'drop',
+            hue,
+            life,
+            maxLife: life,
+            born: now,
+            x: cx + spread,
+            y: mouthY + Math.random() * 8,
+            vx: spread * 1.5 + (Math.random() - 0.5) * sr * 0.3,
+            vy: sr * (0.8 + Math.random() * 1.6),  // downward
+            size: 3 + Math.random() * 7,
+            isSquare: Math.random() < 0.15,
+            gravity: sr * 2.0 + Math.random() * sr * 0.8,
+            drag: 0.96 + Math.random() * 0.02,
+            spin: 0,
+            spinRate: (Math.random() - 0.5) * 10,
+          });
+        }
+      }
+
       px2.clearRect(0, 0, popCvs.width, popCvs.height);
       const parts = particlesRef.current;
       if (!parts.length) return;
@@ -1648,18 +1866,27 @@ const DitherBackground = ({ activeSection = 0, isDark = false }) => {
     const LERP = 0.025; // param lerp factor — ~2s settle
     const BLEND_STEP = 0.011; // shape blend step per frame — ~90 frames = ~1.5s
     const render = (ts) => {
-      animFrameRef.current = requestAnimationFrame(render);
+      if (!visibleRef.current || document.hidden) {
+        animFrameRef.current = null;
+        lastTRef.current = 0;
+        return;
+      }
+
       const dt =
         lastTRef.current === 0
           ? 0
           : Math.min((ts - lastTRef.current) / 1000, 1 / 15);
       lastTRef.current = ts;
 
-      const rawTarget = PRESETS[lockedPresetIdxRef.current ?? targetIdxRef.current] || PRESETS[0];
-      // On mobile: zero warp, lower speed/rainbowSpeed — cuts shader cost significantly
+      const targetIdx = lockedPresetIdxRef.current ?? targetIdxRef.current;
+      const baseTarget = PRESETS[targetIdx] || PRESETS[0];
+      const rawTarget = isDarkRef.current && targetIdx === 0
+        ? { ...baseTarget, contrast: 2.4, warp: 0.36, rainbowSpeed: 0.72, shape: 3 }
+        : baseTarget;
+      // Reduced tier: keep the signature motion, but soften warp/speed/rainbow work.
       const target = isMobileTier ? {
         ...rawTarget,
-        warp:         0,
+        warp:         Math.min(rawTarget.warp, MOBILE_DITHER_OVERRIDES.warp),
         speed:        Math.min(rawTarget.speed,        MOBILE_DITHER_OVERRIDES.speed),
         rainbowSpeed: Math.min(rawTarget.rainbowSpeed, MOBILE_DITHER_OVERRIDES.rainbowSpeed),
       } : rawTarget;
@@ -1728,7 +1955,7 @@ const DitherBackground = ({ activeSection = 0, isDark = false }) => {
       }
 
       const fg = hsb2rgb(...FIXED.fgHSB);
-      const bg = isDarkRef.current ? hsb2rgb(0, 0, 0) : hsb2rgb(...FIXED.bgHSB);
+      const bg = isDarkRef.current ? hsb2rgb(248, 58, 8) : hsb2rgb(...FIXED.bgHSB);
 
       gl.uniform1f(d.U.u_time, t % 1000.0);
       gl.uniform1f(d.U.u_hueOffset, hueOffsetRef.current);
@@ -1777,6 +2004,29 @@ const DitherBackground = ({ activeSection = 0, isDark = false }) => {
           + 0.07 * Math.cos(tc * 21.4 + 3.10);
         ft.mouthOpen = Math.max(0, Math.min(1, wave));
         fa.mouthOpen += (ft.mouthOpen - fa.mouthOpen) * 0.28; // faster lerp for crisp speech
+      } else if (isChewingRef.current) {
+        // OM NOM NOM — fast snap open, brief hold, crunch shut, rest.
+        // 2.5 Hz = snappy chomping cadence.
+        const tc = timeRef.current;
+        const phase = (tc * 2.5) % 1;
+        let m;
+        if (phase < 0.15) {
+          const p = phase / 0.15;
+          m = p * p * (3 - 2 * p);                 // snap open
+        } else if (phase < 0.35) {
+          m = 1.0;                                 // hold open — the "om"
+        } else if (phase < 0.55) {
+          const p = (phase - 0.35) / 0.20;
+          m = 1 - p * p * (3 - 2 * p);             // crunch shut — the "nom"
+        } else {
+          m = 0;                                   // rest between chomps
+        }
+        // Wide chomp — from nearly shut to gaping open
+        ft.mouthOpen  = 0.05 + m * 0.90;
+        // Smile when closed, flatter/rounder when wide open
+        ft.mouthCurve = 0.60 - m * 0.45;
+        fa.mouthOpen  += (ft.mouthOpen  - fa.mouthOpen)  * 0.55; // very snappy
+        fa.mouthCurve += (ft.mouthCurve - fa.mouthCurve) * 0.40;
       } else {
         fa.mouthOpen += (ft.mouthOpen - fa.mouthOpen) * FACE_LERP;
       }
@@ -1818,13 +2068,45 @@ const DitherBackground = ({ activeSection = 0, isDark = false }) => {
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
       drawParticles(dt);
+      animFrameRef.current = requestAnimationFrame(render);
     };
 
-    animFrameRef.current = requestAnimationFrame(render);
+    renderRef.current = render;
+    const ensureAnimating = () => {
+      if (!animFrameRef.current && visibleRef.current && !document.hidden) {
+        lastTRef.current = 0;
+        animFrameRef.current = requestAnimationFrame(render);
+      }
+    };
+    ensureAnimatingRef.current = ensureAnimating;
+
+    const handleVisibilityChange = () => {
+      if (document.hidden && animFrameRef.current) {
+        cancelAnimationFrame(animFrameRef.current);
+        animFrameRef.current = null;
+        lastTRef.current = 0;
+      } else {
+        ensureAnimating();
+      }
+    };
+    const handleContextLost = (event) => {
+      event.preventDefault();
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    canvas.addEventListener("webglcontextlost", handleContextLost, false);
+    ensureAnimating();
+
     return () => {
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
       canvas.removeEventListener("click", handleCanvasClick);
+      canvas.removeEventListener("webglcontextlost", handleContextLost);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("resize", resize);
+      ensureAnimatingRef.current = null;
+      renderRef.current = null;
       gl.deleteTexture(atlasTex);
       gl.deleteBuffer(vb);
       gl.deleteProgram(prog);

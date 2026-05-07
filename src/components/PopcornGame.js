@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useThemeMode } from '../contexts/ThemeContext';
+import { canvasDPR, isMobileTier } from '../utils/deviceTier';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -15,8 +16,6 @@ const PARTICLE_COLORS = [
   '#FF6BAE', '#9B72FF', '#52E5A0', '#FFD166',
   '#FF6B6B', '#4FC3F7', '#FFAB40', '#CE93D8',
 ];
-const PASTEL_BG_CENTER = '#FFF8EE';
-const PASTEL_BG_EDGE   = '#FFD5EC';
 
 // ---------------------------------------------------------------------------
 // Seeded random (stable per-kernel)
@@ -440,6 +439,8 @@ const PopcornGame = ({ isActive }) => {
   const { isDark } = useThemeMode();
   const isDarkRef  = useRef(isDark);
   useEffect(() => { isDarkRef.current = isDark; }, [isDark]);
+  const isActiveRef = useRef(isActive);
+  useEffect(() => { isActiveRef.current = isActive; }, [isActive]);
 
   const canvasRef = useRef(null);
   const [phase, setPhase] = useState('idle');    // 'idle' | 'playing' | 'gameover'
@@ -581,7 +582,8 @@ const PopcornGame = ({ isActive }) => {
   const spawnConfetti = useCallback(() => {
     const g = G.current;
     g.confetti = [];
-    for (let i = 0; i < 100; i++) {
+    const count = isMobileTier ? 48 : 100;
+    for (let i = 0; i < count; i++) {
       g.confetti.push({
         x: Math.random() * g.W,
         y: -20 - Math.random() * g.H * 0.5,
@@ -612,11 +614,16 @@ const PopcornGame = ({ isActive }) => {
   // Main game / render loop
   // ---------------------------------------------------------------------------
   const startLoop = useCallback(() => {
+    if (rafRef.current || !isActiveRef.current || document.hidden) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
 
     const loop = (now) => {
+      if (!isActiveRef.current || document.hidden) {
+        rafRef.current = null;
+        return;
+      }
       rafRef.current = requestAnimationFrame(loop);
       const g = G.current;
 
@@ -645,7 +652,7 @@ const PopcornGame = ({ isActive }) => {
 
       // ---- Decorative background kernels ----
       if (g.bgKernels.length === 0) {
-        g.bgKernels = buildBgKernels(W, H);
+        g.bgKernels = buildBgKernels(W, H, isMobileTier ? 16 : 28);
       }
       ctx.save();
       ctx.globalAlpha = 0.08;
@@ -813,6 +820,10 @@ const PopcornGame = ({ isActive }) => {
     const ctx = canvas.getContext('2d');
 
     const loop = (now) => {
+      if (!isActiveRef.current || document.hidden) {
+        confettiRafRef.current = null;
+        return;
+      }
       confettiRafRef.current = requestAnimationFrame(loop);
       const g = G.current;
       const dpr = g.dpr;
@@ -880,7 +891,7 @@ const PopcornGame = ({ isActive }) => {
     if (!canvas) return;
 
     const resize = () => {
-      const dpr = window.devicePixelRatio || 1;
+      const dpr = canvasDPR;
       const rect = canvas.getBoundingClientRect();
       canvas.width = rect.width * dpr;
       canvas.height = rect.height * dpr;
@@ -888,18 +899,31 @@ const PopcornGame = ({ isActive }) => {
       G.current.bgKernels = []; // rebuild on resize
     };
 
+    if (typeof ResizeObserver === 'undefined') {
+      resize();
+      window.addEventListener('resize', resize);
+      return () => window.removeEventListener('resize', resize);
+    }
+
     const ro = new ResizeObserver(resize);
     ro.observe(canvas);
     resize();
-
     return () => ro.disconnect();
   }, []);
 
   // ---------------------------------------------------------------------------
-  // Start / stop game loop on mount
+  // Start / stop game loop only while the game section is visible.
   // ---------------------------------------------------------------------------
   useEffect(() => {
-    startLoop();
+    if (isActive) {
+      startLoop();
+    } else {
+      stopLoop();
+      if (confettiRafRef.current) {
+        cancelAnimationFrame(confettiRafRef.current);
+        confettiRafRef.current = null;
+      }
+    }
     return () => {
       stopLoop();
       if (confettiRafRef.current) {
@@ -907,7 +931,27 @@ const PopcornGame = ({ isActive }) => {
         confettiRafRef.current = null;
       }
     };
-  }, [startLoop, stopLoop]);
+  }, [isActive, startLoop, stopLoop]);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        stopLoop();
+        if (confettiRafRef.current) {
+          cancelAnimationFrame(confettiRafRef.current);
+          confettiRafRef.current = null;
+        }
+      } else if (isActiveRef.current) {
+        if (phaseRef.current === 'gameover' && G.current.confetti.length > 0) {
+          startConfettiLoop();
+        } else {
+          startLoop();
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [startConfettiLoop, startLoop, stopLoop]);
 
   // ---------------------------------------------------------------------------
   // isActive effect: stop/resume music

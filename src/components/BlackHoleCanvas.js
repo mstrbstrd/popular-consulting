@@ -1,8 +1,11 @@
 // BlackHoleCanvas.js
 // Psychedelic black-hole dither — full-screen WebGL2 overlay for the Orb section.
 import React, { useEffect, useRef } from 'react';
-
-const PIXEL_SCALE = 0.35;
+import {
+  blackHolePixelScale,
+  effectFrameInterval,
+  isMobileTier,
+} from '../utils/deviceTier';
 
 const VS_SRC = `#version 300 es
 in vec2 a_pos;
@@ -276,13 +279,23 @@ void main() {
 const BlackHoleCanvas = ({ isDark = true, visible = true, onFadeOutEnd, zoomRef, currentZoomRef }) => {
   const canvasRef = useRef(null);
   const isDarkRef = useRef(isDark);
+  const visibleRef = useRef(visible);
+  const ensureAnimatingRef = useRef(null);
   useEffect(() => { isDarkRef.current = isDark; }, [isDark]);
+  useEffect(() => {
+    visibleRef.current = visible;
+    if (visible) ensureAnimatingRef.current?.();
+  }, [visible]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const gl = canvas.getContext('webgl2', { antialias: false, alpha: false });
+    const gl = canvas.getContext('webgl2', {
+      antialias: false,
+      alpha: false,
+      powerPreference: isMobileTier ? 'low-power' : 'high-performance',
+    });
     if (!gl) return;
 
     // Compile helpers
@@ -331,8 +344,8 @@ const BlackHoleCanvas = ({ isDark = true, visible = true, onFadeOutEnd, zoomRef,
     const resize = () => {
       const parent = canvas.parentElement;
       if (!parent) return;
-      canvas.width  = Math.floor(parent.clientWidth  * PIXEL_SCALE);
-      canvas.height = Math.floor(parent.clientHeight * PIXEL_SCALE);
+      canvas.width  = Math.floor(parent.clientWidth  * blackHolePixelScale);
+      canvas.height = Math.floor(parent.clientHeight * blackHolePixelScale);
       gl.viewport(0, 0, canvas.width, canvas.height);
     };
     resize();
@@ -379,7 +392,17 @@ const BlackHoleCanvas = ({ isDark = true, visible = true, onFadeOutEnd, zoomRef,
     canvas.addEventListener('touchmove', onTouchMove, { passive: false });
 
     let animId;
+    let lastDrawTs = 0;
     const render = (t) => {
+      if (!visibleRef.current || document.hidden) {
+        animId = null;
+        return;
+      }
+      if (effectFrameInterval && t - lastDrawTs < effectFrameInterval) {
+        animId = requestAnimationFrame(render);
+        return;
+      }
+      lastDrawTs = t;
       gl.uniform1f(uTime,      t * 0.001);
       gl.uniform2f(uRes,       canvas.width, canvas.height);
       gl.uniform2f(uMouse,     mouse[0], mouse[1]);
@@ -390,15 +413,39 @@ const BlackHoleCanvas = ({ isDark = true, visible = true, onFadeOutEnd, zoomRef,
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
       animId = requestAnimationFrame(render);
     };
-    animId = requestAnimationFrame(render);
+    const ensureAnimating = () => {
+      if (!animId && visibleRef.current && !document.hidden) {
+        animId = requestAnimationFrame(render);
+      }
+    };
+    ensureAnimatingRef.current = ensureAnimating;
+    const handleVisibilityChange = () => {
+      if (document.hidden && animId) {
+        cancelAnimationFrame(animId);
+        animId = null;
+      } else {
+        ensureAnimating();
+      }
+    };
+    const handleContextLost = (event) => {
+      event.preventDefault();
+      if (animId) cancelAnimationFrame(animId);
+      animId = null;
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    canvas.addEventListener('webglcontextlost', handleContextLost, false);
+    ensureAnimating();
 
     return () => {
-      cancelAnimationFrame(animId);
+      if (animId) cancelAnimationFrame(animId);
       window.removeEventListener('resize', resize);
       canvas.removeEventListener('mousemove', onMouseMove);
       canvas.removeEventListener('wheel', onWheel);
       canvas.removeEventListener('touchstart', onTouchStart);
       canvas.removeEventListener('touchmove', onTouchMove);
+      canvas.removeEventListener('webglcontextlost', handleContextLost);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      ensureAnimatingRef.current = null;
       gl.deleteProgram(prog);
       gl.deleteShader(vs);
       gl.deleteShader(fs);

@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Box, Typography } from "@mui/material";
-import mePhoto from "../assets/img/me.jpeg";
+import mePhoto from "../assets/img/me.webp";
 import { useThemeMode } from "../contexts/ThemeContext";
 import { isMobileTier } from "../utils/deviceTier";
 
@@ -159,6 +159,8 @@ const BioPhoto = ({ visible, blurred }) => {
           component="img"
           src={mePhoto}
           alt="Portrait of the consultant"
+          loading="lazy"
+          decoding="async"
           sx={{
             width: "100%",
             height: "100%",
@@ -210,7 +212,6 @@ const BioExpandedOverlay = ({
     phase === "closing";
   const isMoving =
     phase === "mounting" || phase === "expanding" || phase === "closing";
-  const backdropVis = phase === "expanding" || phase === "expanded";
 
   const updateMouseEffects = React.useCallback((x, y) => {
     const s = surfaceRef.current;

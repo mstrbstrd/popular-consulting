@@ -2,8 +2,12 @@
 // Persistent full-screen BH background for dark mode.
 // Uses the exact same shader as BlackHoleCanvas; maps section → target zoom and lerps.
 import React, { useEffect, useRef } from 'react';
+import {
+  blackHolePixelScale,
+  effectFrameInterval,
+  isMobileTier,
+} from '../utils/deviceTier';
 
-const PIXEL_SCALE = 0.35;
 const LERP_RATE   = 0.025; // ~1.5 s settle at 60 fps
 
 // Camera distance per section (smaller = more dramatic / closer)
@@ -286,13 +290,20 @@ void main() {
 }`;
 
 // ─── Component ────────────────────────────────────────────────────────────────
-const BlackHoleBackground = ({ activeSection = 0 }) => {
+const BlackHoleBackground = ({ activeSection = 0, visible = true }) => {
   const canvasRef      = useRef(null);
   const sectionRef     = useRef(activeSection);
+  const visibleRef     = useRef(visible);
+  const animRef        = useRef(null);
+  const ensureAnimatingRef = useRef(null);
   // Start at max zoom (far away) for the reveal zoom-in on load
   const currentZoomRef = useRef(80);
 
   useEffect(() => { sectionRef.current = activeSection; }, [activeSection]);
+  useEffect(() => {
+    visibleRef.current = visible;
+    if (visible) ensureAnimatingRef.current?.();
+  }, [visible]);
 
   // Expose reset so LoadingOverlay can trigger a fresh zoom-in on replay
   useEffect(() => {
@@ -304,7 +315,11 @@ const BlackHoleBackground = ({ activeSection = 0 }) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const gl = canvas.getContext('webgl2', { antialias: false, alpha: false });
+    const gl = canvas.getContext('webgl2', {
+      antialias: false,
+      alpha: false,
+      powerPreference: isMobileTier ? 'low-power' : 'high-performance',
+    });
     if (!gl) {
       console.warn('BlackHoleBackground: WebGL2 not available');
       return;
@@ -361,15 +376,32 @@ const BlackHoleBackground = ({ activeSection = 0 }) => {
     window.addEventListener('mousemove', onMouseMove, { passive: true });
 
     const resize = () => {
-      canvas.width  = Math.floor(window.innerWidth  * PIXEL_SCALE);
-      canvas.height = Math.floor(window.innerHeight * PIXEL_SCALE);
+      canvas.width  = Math.floor(window.innerWidth  * blackHolePixelScale);
+      canvas.height = Math.floor(window.innerHeight * blackHolePixelScale);
       gl.viewport(0, 0, canvas.width, canvas.height);
     };
     resize();
     window.addEventListener('resize', resize);
 
-    let animId;
+    const handleContextLost = (event) => {
+      event.preventDefault();
+      if (animRef.current) cancelAnimationFrame(animRef.current);
+      animRef.current = null;
+    };
+    canvas.addEventListener('webglcontextlost', handleContextLost, false);
+
+    let lastDrawTs = 0;
     const render = (ts) => {
+      if (!visibleRef.current || document.hidden) {
+        animRef.current = null;
+        return;
+      }
+      if (effectFrameInterval && ts - lastDrawTs < effectFrameInterval) {
+        animRef.current = requestAnimationFrame(render);
+        return;
+      }
+      lastDrawTs = ts;
+
       // Smoothly lerp toward the target zoom for the active section
       const target = SECTION_ZOOMS[sectionRef.current] ?? 14;
       currentZoomRef.current += (target - currentZoomRef.current) * LERP_RATE;
@@ -383,14 +415,32 @@ const BlackHoleBackground = ({ activeSection = 0 }) => {
       gl.uniform2f(uMouse, smoothMouse[0], smoothMouse[1]);
       gl.uniform1f(uZoom,  currentZoomRef.current);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-      animId = requestAnimationFrame(render);
+      animRef.current = requestAnimationFrame(render);
     };
-    animId = requestAnimationFrame(render);
+    const ensureAnimating = () => {
+      if (!animRef.current && visibleRef.current && !document.hidden) {
+        animRef.current = requestAnimationFrame(render);
+      }
+    };
+    ensureAnimatingRef.current = ensureAnimating;
+    const handleVisibilityChange = () => {
+      if (document.hidden && animRef.current) {
+        cancelAnimationFrame(animRef.current);
+        animRef.current = null;
+      } else {
+        ensureAnimating();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    ensureAnimating();
 
     return () => {
-      cancelAnimationFrame(animId);
+      if (animRef.current) cancelAnimationFrame(animRef.current);
       window.removeEventListener('resize', resize);
       window.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      canvas.removeEventListener('webglcontextlost', handleContextLost);
+      ensureAnimatingRef.current = null;
       gl.deleteProgram(prog);
       gl.deleteShader(vs);
       gl.deleteShader(fs);
