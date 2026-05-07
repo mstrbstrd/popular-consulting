@@ -488,33 +488,6 @@ const OrbSection = ({ isActive }) => {
         >
           🤐 shush
         </button>
-        <button
-          onClick={() => window.__orbChew?.()}
-          title="om nom nom"
-          style={{ ...btnStyle, fontSize: '0.8rem', color: 'rgba(255,220,120,0.85)' }}
-          onMouseEnter={onEnter}
-          onMouseLeave={onLeave}
-        >
-          🍔 nom
-        </button>
-        <button
-          onClick={() => window.__orbStopChew?.()}
-          title="stop chewing"
-          style={{ ...btnStyle, fontSize: '0.8rem', color: 'rgba(255,180,180,0.85)' }}
-          onMouseEnter={onEnter}
-          onMouseLeave={onLeave}
-        >
-          😌 done
-        </button>
-        <button
-          onClick={() => window.__orbBarf?.()}
-          title="queasy → rainbow barf"
-          style={{ ...btnStyle, fontSize: '0.8rem', color: 'rgba(180,255,180,0.85)' }}
-          onMouseEnter={onEnter}
-          onMouseLeave={onLeave}
-        >
-          🤮 barf
-        </button>
         {/* Divider */}
         <span style={{ width: '1px', height: '1.2rem', background: 'rgba(255,255,255,0.18)', margin: '0 0.2rem' }} />
         {/* Loading test */}

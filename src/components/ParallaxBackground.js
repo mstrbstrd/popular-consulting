@@ -6,22 +6,11 @@ import React, {
   cloneElement,
 } from "react";
 import DitherBackground from "./DitherBackground";
+import BlackHoleBackground from "./BlackHoleBackground";
 import { useThemeMode } from "../contexts/ThemeContext";
-import {
-  isMobileTier,
-  isTouchPrimaryDevice,
-  prefersReducedMotion,
-} from "../utils/deviceTier";
+import { isMobileTier } from "../utils/deviceTier";
 
-const BlackHoleBackground = React.lazy(() => import("./BlackHoleBackground"));
 const SECTION_LABELS = ['Hero', 'About', 'Services', 'Contact', 'Interactive Orb', 'Popcorn Game'];
-
-const sectionFromHash = () => {
-  if (typeof window === "undefined") return 0;
-  const match = window.location.hash.match(/^#section-(\d+)$/);
-  if (!match) return 0;
-  return Number.parseInt(match[1], 10) || 0;
-};
 
 export const ParallaxBackground = ({ children }) => {
   const { isDark } = useThemeMode();
@@ -29,13 +18,12 @@ export const ParallaxBackground = ({ children }) => {
   const contentRef = useRef(null);
   const sectionsRef = useRef([]);
 
-  const [activeSection, setActiveSection] = useState(sectionFromHash);
+  const [activeSection, setActiveSection] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const totalSections = Children.count(children) || 0;
-  const mountRadius = isMobileTier ? 0 : 1;
 
   // Stable ref so resize handler always has current activeSection without stale closure
-  const activeSectionRef = useRef(activeSection);
+  const activeSectionRef = useRef(0);
   useEffect(() => { activeSectionRef.current = activeSection; }, [activeSection]);
 
   // Tracks the section currently animating out — kept mounted until its slide-out finishes
@@ -328,7 +316,7 @@ export const ParallaxBackground = ({ children }) => {
       // their WebGL/audio initialises before the user arrives), plus the section
       // currently animating out (kept alive until its slide-out transition ends).
       const isMounted =
-        Math.abs(index - activeSection) <= mountRadius ||
+        Math.abs(index - activeSection) <= 1 ||
         index === exitingSectionRef.current;
 
       // Resting positions must match goToSection cleanup logic:
@@ -365,41 +353,28 @@ export const ParallaxBackground = ({ children }) => {
     });
   };
 
-  const ditherVisible = true;
-  const ditherOpacity = 1;
-  const showBlackHole = !isTouchPrimaryDevice && !prefersReducedMotion && isDark && activeSection > 0 && activeSection < 4;
-
   return (
     <div className="parallax-wrapper">
-      {/* Fixed background — the dither is the site's signature visual foundation in both themes. */}
+      {/* Fixed background — crossfades between light (dither patterns) and dark (black hole) */}
       <div className="fixed-background" ref={backgroundRef}>
-        {/* Dither patterns */}
+        {/* Dither patterns — always visible on mobile; desktop: light mode or orb section */}
         <div style={{
           position: 'absolute', inset: 0,
-          opacity: ditherOpacity,
+          opacity: (isMobileTier || !isDark || activeSection === 4) ? 1 : 0,
           transition: 'opacity 0.9s ease',
         }}>
-          <DitherBackground
-            activeSection={activeSection}
-            isDark={isDark}
-            visible={ditherVisible}
-          />
+          <DitherBackground activeSection={activeSection} isDark={isDark} />
         </div>
 
-        {/* Dark-mode black hole — blended over the dither on capable devices. */}
-        {showBlackHole && (
+        {/* Dark-mode black hole — desktop/high-tier only; mobile uses dither fallback */}
+        {!isMobileTier && (
           <div style={{
             position: 'absolute', inset: 0,
-            opacity: 0.28,
+            opacity: (isDark && activeSection !== 4) ? 1 : 0,
             transition: 'opacity 0.9s ease',
             pointerEvents: 'none',
           }}>
-            <React.Suspense fallback={null}>
-              <BlackHoleBackground
-                activeSection={activeSection}
-                visible={showBlackHole}
-              />
-            </React.Suspense>
+            <BlackHoleBackground activeSection={activeSection} />
           </div>
         )}
 
@@ -454,17 +429,7 @@ export const ParallaxBackground = ({ children }) => {
           width: 100%;
           height: 100dvh;
           z-index: 1;
-          background-color: ${isDark ? "#050512" : "#ffffff"};
-          background-image: ${isDark
-            ? `radial-gradient(circle at 18% 22%, rgba(245, 62, 255, 0.28), transparent 30%),
-               radial-gradient(circle at 78% 16%, rgba(36, 204, 255, 0.26), transparent 34%),
-               radial-gradient(circle at 52% 78%, rgba(93, 255, 118, 0.20), transparent 32%),
-               radial-gradient(circle at 1px 1px, rgba(255,255,255,0.16) 0 1px, transparent 1.4px)`
-            : `radial-gradient(circle at 18% 22%, rgba(255, 86, 214, 0.34), transparent 30%),
-               radial-gradient(circle at 78% 16%, rgba(77, 208, 255, 0.32), transparent 34%),
-               radial-gradient(circle at 52% 78%, rgba(118, 255, 148, 0.26), transparent 32%),
-               radial-gradient(circle at 1px 1px, rgba(40,40,70,0.12) 0 1px, transparent 1.4px)`};
-          background-size: auto, auto, auto, 6px 6px;
+          background: var(--bg-page);
           transition: background-color 0.35s ease;
         }
 
@@ -532,8 +497,7 @@ export const ParallaxBackground = ({ children }) => {
           width: 100%;
           height: 100dvh;
           overflow: hidden;
-          will-change: auto;
-          contain: layout paint style;
+          will-change: transform, opacity;
           transition: transform 0.9s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.8s ease;
           backface-visibility: hidden;
           display: block;
@@ -541,7 +505,6 @@ export const ParallaxBackground = ({ children }) => {
 
         .section-container.active {
           z-index: 20;
-          will-change: transform, opacity;
         }
 
         .section-container:not(.active) {

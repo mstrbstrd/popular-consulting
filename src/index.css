@@ -325,6 +325,21 @@ canvas {
   line-height: 2rem;
 }
 
+.card-icon1 {
+  background: linear-gradient(rgba(0, 0, 0, 0.5), transparent),
+    url("./assets/img/popcon_cardicon1.png");
+}
+
+.card-icon2 {
+  background: linear-gradient(rgba(0, 0, 0, 0.5), transparent),
+    url("./assets/img/popcon_cardicon2.png");
+}
+
+.card-icon3 {
+  background: linear-gradient(rgba(0, 0, 0, 0.5), transparent),
+    url("./assets/img/popcon_cardicon3.png");
+}
+
 #contact {
   min-height: 100vh;
   /* background: linear-gradient(rgba(0, 0, 0, 0.5), transparent),

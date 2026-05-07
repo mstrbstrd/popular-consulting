@@ -2,23 +2,17 @@
 import React, { useState, lazy, Suspense } from "react";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import NavMenu from "./components/NavMenu";
+import BioSection from "./components/BioSection";
+import ContactSection from "./components/ContactSection";
+import ServicesSection from "./components/ServicesSection";
 import DitherHero from "./components/DitherHero";
 import HeroLogo from "./components/HeroLogo";
 import ParallaxBackground from "./components/ParallaxBackground";
 
 // Heavy sections — loaded only when needed
-const BioSection     = lazy(() => import("./components/BioSection"));
-const ServicesSection = lazy(() => import("./components/ServicesSection"));
-const ContactSection = lazy(() => import("./components/ContactSection"));
 const OrbSection     = lazy(() => import("./components/OrbSection"));
 const PopcornGame    = lazy(() => import("./components/PopcornGame"));
 const LoadingOverlay = lazy(() => import("./components/LoadingOverlay"));
-
-const LazySection = ({ component: Component, ...props }) => (
-  <Suspense fallback={null}>
-    <Component {...props} />
-  </Suspense>
-);
 
 const App = () => {
   const [loading,     setLoading]     = useState(false);
@@ -59,13 +53,13 @@ const App = () => {
         <DitherHero />
 
         {/* Second section - Bio */}
-        <LazySection component={BioSection} />
+        <BioSection />
 
         {/* Third section - Services */}
-        <LazySection component={ServicesSection} />
+        <ServicesSection />
 
         {/* Fourth section - Contact with integrated footer */}
-        <LazySection component={ContactSection} />
+        <ContactSection />
 
         {/* Fifth section - Orb (dither sphere / ORBE chatbot body) */}
         <Suspense fallback={null}>
