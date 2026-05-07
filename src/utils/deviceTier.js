@@ -9,7 +9,34 @@
  *   - iPhone / Android UA
  *   - iPad UA or Macintosh + maxTouchPoints > 1 (modern iPad desktop-mode)
  *   - hardwareConcurrency ≤ 4  AND  deviceMemory ≤ 4 GB
+ *
+ * hasHardwareWebGL:
+ *   false → software/VM renderer (Hyper-V, WARP, llvmpipe, SwiftShader, VMware).
+ *   All WebGL components are skipped entirely on these machines — the CSS
+ *   gradient background is shown instead.
  */
+
+/**
+ * Returns false when the browser is using a known software or virtual-machine
+ * GPU renderer that cannot handle complex GLSL shaders without crashing.
+ * Creates a throwaway canvas/context — not stored, GC'd immediately.
+ */
+export const hasHardwareWebGL = (() => {
+  if (typeof window === 'undefined') return false;
+  try {
+    const canvas = document.createElement('canvas');
+    const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+    if (!gl) return false;
+    const ext = gl.getExtension('WEBGL_debug_renderer_info');
+    // Extension unavailable in some browsers — assume hardware and let it try.
+    if (!ext) return true;
+    const renderer = gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) || '';
+    const isSoftware = /microsoft basic render|warp|llvmpipe|swiftshader|hyper-v|vmware|virtualbox|softpipe/i.test(renderer);
+    return !isSoftware;
+  } catch (_) {
+    return false;
+  }
+})();
 
 export const isMobileTier = (() => {
   if (typeof window === 'undefined') return false;

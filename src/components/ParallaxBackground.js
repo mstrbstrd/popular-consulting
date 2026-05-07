@@ -8,7 +8,7 @@ import React, {
 import DitherBackground from "./DitherBackground";
 import BlackHoleBackground from "./BlackHoleBackground";
 import { useThemeMode } from "../contexts/ThemeContext";
-import { isMobileTier } from "../utils/deviceTier";
+import { isMobileTier, hasHardwareWebGL } from "../utils/deviceTier";
 
 const SECTION_LABELS = ['Hero', 'About', 'Services', 'Contact', 'Interactive Orb', 'Popcorn Game'];
 
@@ -355,19 +355,21 @@ export const ParallaxBackground = ({ children }) => {
 
   return (
     <div className="parallax-wrapper">
-      {/* Fixed background — crossfades between light (dither patterns) and dark (black hole) */}
+      {/* Fixed background — WebGL effects when hardware GPU present, CSS gradient fallback otherwise */}
       <div className="fixed-background" ref={backgroundRef}>
-        {/* Dither patterns — always visible on mobile; desktop: light mode or orb section */}
-        <div style={{
-          position: 'absolute', inset: 0,
-          opacity: (isMobileTier || !isDark || activeSection === 4) ? 1 : 0,
-          transition: 'opacity 0.9s ease',
-        }}>
-          <DitherBackground activeSection={activeSection} isDark={isDark} />
-        </div>
+        {/* Dither patterns — skipped entirely on software/VM renderers to prevent crashes */}
+        {hasHardwareWebGL && (
+          <div style={{
+            position: 'absolute', inset: 0,
+            opacity: (isMobileTier || !isDark || activeSection === 4) ? 1 : 0,
+            transition: 'opacity 0.9s ease',
+          }}>
+            <DitherBackground activeSection={activeSection} isDark={isDark} />
+          </div>
+        )}
 
-        {/* Dark-mode black hole — desktop/high-tier only; mobile uses dither fallback */}
-        {!isMobileTier && (
+        {/* Dark-mode black hole — desktop/high-tier with hardware GPU only */}
+        {hasHardwareWebGL && !isMobileTier && (
           <div style={{
             position: 'absolute', inset: 0,
             opacity: (isDark && activeSection !== 4) ? 1 : 0,
