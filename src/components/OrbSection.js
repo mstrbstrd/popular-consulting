@@ -5,6 +5,7 @@
 import React from 'react';
 import BlackHoleCanvas from './BlackHoleCanvas';
 import { useThemeMode } from '../contexts/ThemeContext';
+import { hasHardwareWebGL } from '../utils/deviceTier';
 
 const EMOTES = [
   { name: 'happy',     emoji: '😊' },
@@ -380,7 +381,7 @@ const OrbSection = ({ isActive }) => {
       cursor: 'crosshair',
     }}
   >
-    {bhMounted && (
+    {bhMounted && hasHardwareWebGL && (
       <BlackHoleCanvas
         isDark={isDark}
         visible={bhVisible}
@@ -388,6 +389,26 @@ const OrbSection = ({ isActive }) => {
         currentZoomRef={bhCurrentZoomRef}
         onFadeOutEnd={() => { bhZoomRef.current = null; setBhMounted(false); }}
       />
+    )}
+
+    {/* CSS orb placeholder — shown on machines without hardware WebGL */}
+    {!hasHardwareWebGL && (
+      <div style={{
+        position: 'absolute',
+        top: '50%', left: '50%',
+        transform: 'translate(-50%, -60%)',
+        width: 'min(55vw, 55vh)',
+        height: 'min(55vw, 55vh)',
+        borderRadius: '50%',
+        background: isDark
+          ? 'radial-gradient(circle at 38% 36%, #9B72FF 0%, #4338ca 30%, #1e1b4b 65%, transparent 100%)'
+          : 'radial-gradient(circle at 38% 36%, #c4b5fd 0%, #818cf8 30%, #4338ca 65%, transparent 100%)',
+        boxShadow: isDark
+          ? '0 0 80px 20px rgba(99,68,245,0.35), inset 0 0 40px rgba(155,114,255,0.2)'
+          : '0 0 80px 20px rgba(99,68,245,0.2), inset 0 0 40px rgba(196,181,253,0.3)',
+        animation: 'orbPulse 4s ease-in-out infinite',
+        pointerEvents: 'none',
+      }} />
     )}
     <canvas
       ref={popCanvasRef}
@@ -547,6 +568,10 @@ orbFocusStyle.textContent = `
     outline: 2px solid rgba(255,255,255,0.8);
     outline-offset: 2px;
     border-radius: 6px;
+  }
+  @keyframes orbPulse {
+    0%, 100% { transform: translate(-50%, -60%) scale(1);   opacity: 1; }
+    50%       { transform: translate(-50%, -60%) scale(1.04); opacity: 0.85; }
   }
 `;
 if (typeof document !== 'undefined' && !document.getElementById('orb-focus-style')) {

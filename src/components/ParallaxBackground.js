@@ -12,6 +12,25 @@ import { isMobileTier, hasHardwareWebGL } from "../utils/deviceTier";
 
 const SECTION_LABELS = ['Hero', 'About', 'Services', 'Contact', 'Interactive Orb', 'Popcorn Game'];
 
+// Per-section accent colours for the CSS fallback background (no-WebGL machines).
+// Three orbs per section: [orb0, orb1, orb2] — matches dither section personalities.
+const CSS_SECTION_DARK = [
+  ['#6344F5', '#9B72FF', '#24CCFF'], // Hero     – violet ripples
+  ['#24CCFF', '#4FC3F7', '#52E5A0'], // Bio      – teal waves
+  ['#FF56D6', '#9B72FF', '#6344F5'], // Services – magenta mandala
+  ['#FF8C42', '#FF56D6', '#9B72FF'], // Contact  – warm plasma
+  ['#24CCFF', '#52E5A0', '#6344F5'], // Orb      – blue/green sphere
+  ['#24CCFF', '#4FC3F7', '#52E5A0'], // Game     – teal (matches bio)
+];
+const CSS_SECTION_LIGHT = [
+  ['#818cf8', '#a78bfa', '#38bdf8'], // Hero
+  ['#38bdf8', '#7dd3fc', '#34d399'], // Bio
+  ['#f472b6', '#a78bfa', '#818cf8'], // Services
+  ['#fb923c', '#f472b6', '#a78bfa'], // Contact
+  ['#38bdf8', '#34d399', '#818cf8'], // Orb
+  ['#38bdf8', '#7dd3fc', '#34d399'], // Game
+];
+
 export const ParallaxBackground = ({ children }) => {
   const { isDark } = useThemeMode();
   const backgroundRef = useRef(null);
@@ -357,6 +376,53 @@ export const ParallaxBackground = ({ children }) => {
     <div className="parallax-wrapper">
       {/* Fixed background — WebGL effects when hardware GPU present, CSS gradient fallback otherwise */}
       <div className="fixed-background" ref={backgroundRef}>
+
+        {/* ── Animated CSS fallback — shown on software/VM renderers instead of WebGL ── */}
+        {!hasHardwareWebGL && (
+          <div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}
+               aria-hidden="true">
+            {/* Drifting colour orbs — positions and hues shift per section */}
+            {[
+              { top: '12%',  left: '14%',  size: '55vmax', dur: '18s', delay: '0s'   },
+              { top: '55%',  left: '68%',  size: '48vmax', dur: '22s', delay: '-6s'  },
+              { top: '72%',  left: '22%',  size: '42vmax', dur: '26s', delay: '-11s' },
+            ].map((orb, i) => (
+              <div key={i} style={{
+                position: 'absolute',
+                top: orb.top, left: orb.left,
+                width: orb.size, height: orb.size,
+                borderRadius: '50%',
+                transform: 'translate(-50%, -50%)',
+                background: isDark
+                  ? [
+                      `radial-gradient(circle, ${CSS_SECTION_DARK[activeSection]?.[i] ?? '#6344F5'}55 0%, transparent 70%)`,
+                      `radial-gradient(circle, ${CSS_SECTION_DARK[activeSection]?.[i] ?? '#24CCFF'}44 0%, transparent 70%)`,
+                      `radial-gradient(circle, ${CSS_SECTION_DARK[activeSection]?.[i] ?? '#52E5A0'}33 0%, transparent 70%)`,
+                    ][i]
+                  : [
+                      `radial-gradient(circle, ${CSS_SECTION_LIGHT[activeSection]?.[i] ?? '#818cf8'}44 0%, transparent 70%)`,
+                      `radial-gradient(circle, ${CSS_SECTION_LIGHT[activeSection]?.[i] ?? '#38bdf8'}33 0%, transparent 70%)`,
+                      `radial-gradient(circle, ${CSS_SECTION_LIGHT[activeSection]?.[i] ?? '#34d399'}22 0%, transparent 70%)`,
+                    ][i],
+                filter: 'blur(48px)',
+                animation: `cssOrbDrift${i} ${orb.dur} ease-in-out infinite`,
+                animationDelay: orb.delay,
+                transition: 'background 1.2s ease',
+                pointerEvents: 'none',
+              }} />
+            ))}
+            {/* Subtle dot grid — matches the dither background's dot pattern */}
+            <div style={{
+              position: 'absolute', inset: 0,
+              backgroundImage: isDark
+                ? 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.12) 0 1px, transparent 1.5px)'
+                : 'radial-gradient(circle at 1px 1px, rgba(40,40,90,0.10) 0 1px, transparent 1.5px)',
+              backgroundSize: '24px 24px',
+              pointerEvents: 'none',
+            }} />
+          </div>
+        )}
+
         {/* Dither patterns — skipped entirely on software/VM renderers to prevent crashes */}
         {hasHardwareWebGL && (
           <div style={{
@@ -464,6 +530,22 @@ export const ParallaxBackground = ({ children }) => {
         @keyframes fadeIn {
           from { opacity: 0; }
           to   { opacity: 1; }
+        }
+
+        /* CSS fallback background orb drift animations */
+        @keyframes cssOrbDrift0 {
+          0%,100% { transform: translate(-50%,-50%) scale(1)    rotate(0deg);   }
+          33%     { transform: translate(-38%,-62%) scale(1.12) rotate(4deg);   }
+          66%     { transform: translate(-58%,-42%) scale(0.94) rotate(-3deg);  }
+        }
+        @keyframes cssOrbDrift1 {
+          0%,100% { transform: translate(-50%,-50%) scale(1)    rotate(0deg);   }
+          33%     { transform: translate(-62%,-38%) scale(0.92) rotate(-5deg);  }
+          66%     { transform: translate(-40%,-60%) scale(1.10) rotate(3deg);   }
+        }
+        @keyframes cssOrbDrift2 {
+          0%,100% { transform: translate(-50%,-50%) scale(1)    rotate(0deg);   }
+          50%     { transform: translate(-44%,-56%) scale(1.08) rotate(6deg);   }
         }
 
         .glass-gradient {
