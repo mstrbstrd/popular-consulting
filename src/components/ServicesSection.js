@@ -1,6 +1,6 @@
 import React from "react";
 import { useThemeMode } from "../contexts/ThemeContext";
-import { isMobileTier } from "../utils/deviceTier";
+import { isMobileTier, hasHardwareWebGL } from "../utils/deviceTier";
 import { createPortal } from "react-dom";
 import { Box, Typography } from "@mui/material";
 import webdevIcon from "../assets/icons/webdev.svg";
@@ -205,9 +205,15 @@ const CompactCard = ({
           backfaceVisibility: "hidden",
           willChange: hidden ? "auto" : "transform",
           opacity: hidden ? 0 : 1,
-          background: isDark ? "rgba(5,5,14,0.92)" : "rgba(255,255,255,0.18)",
-          backdropFilter: isDark ? "blur(6px) saturate(80%) brightness(0.35)" : "blur(6px) saturate(120%)",
-          WebkitBackdropFilter: isDark ? "blur(6px) saturate(80%) brightness(0.35)" : "blur(6px) saturate(120%)",
+          background: isDark
+            ? "rgba(5,5,14,0.92)"
+            : hasHardwareWebGL ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.82)",
+          backdropFilter: isDark
+            ? "blur(6px) saturate(80%) brightness(0.35)"
+            : hasHardwareWebGL ? "blur(6px) saturate(120%)" : "blur(20px) saturate(150%)",
+          WebkitBackdropFilter: isDark
+            ? "blur(6px) saturate(80%) brightness(0.35)"
+            : hasHardwareWebGL ? "blur(6px) saturate(120%)" : "blur(20px) saturate(150%)",
           border: "1px solid rgba(255, 255, 255, 0.25)",
           boxShadow:
             "0 1px 3px rgba(0,0,0,0.02), inset 0 1px 0 rgba(255,255,255,0.3)",
@@ -703,20 +709,20 @@ const ExpandedOverlay = ({
             background: isMoving
               ? isDark
                 ? "rgba(4,4,10,0.94)"
-                : "rgba(255,255,255,0.88)"
+                : hasHardwareWebGL ? "rgba(255,255,255,0.88)" : "rgba(255,255,255,0.96)"
               : isDark
               ? "rgba(6,6,16,0.80)"
-              : "rgba(255,255,255,0.72)",
+              : hasHardwareWebGL ? "rgba(255,255,255,0.72)" : "rgba(255,255,255,0.92)",
             backdropFilter: isMoving
               ? "blur(14px) saturate(140%)"
               : isDark
               ? "blur(40px) saturate(180%) brightness(0.85)"
-              : "blur(40px) saturate(200%) brightness(1.08)",
+              : hasHardwareWebGL ? "blur(40px) saturate(200%) brightness(1.08)" : "blur(48px) saturate(200%) brightness(1.04)",
             WebkitBackdropFilter: isMoving
               ? "blur(14px) saturate(140%)"
               : isDark
               ? "blur(40px) saturate(180%) brightness(0.85)"
-              : "blur(40px) saturate(200%) brightness(1.08)",
+              : hasHardwareWebGL ? "blur(40px) saturate(200%) brightness(1.08)" : "blur(48px) saturate(200%) brightness(1.04)",
             border: isExpandedVisual
               ? "1px solid rgba(255, 255, 255, 0.75)"
               : "1px solid rgba(255, 255, 255, 0.25)",

@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { Box, Typography } from "@mui/material";
 import mePhoto from "../assets/img/me.jpeg";
 import { useThemeMode } from "../contexts/ThemeContext";
-import { isMobileTier } from "../utils/deviceTier";
+import { isMobileTier, hasHardwareWebGL } from "../utils/deviceTier";
 
 const TITLE = "Your Technology Partner.";
 const SUBTITLE =
@@ -379,14 +379,14 @@ const BioExpandedOverlay = ({
             backfaceVisibility: "hidden",
             willChange: "transform, background, backdrop-filter",
             background: isMoving
-              ? (isDark ? "rgba(4,4,10,0.94)" : "rgba(255,255,255,0.88)")
-              : (isDark ? "rgba(6,6,16,0.80)" : "rgba(255,255,255,0.72)"),
+              ? (isDark ? "rgba(4,4,10,0.94)" : hasHardwareWebGL ? "rgba(255,255,255,0.88)" : "rgba(255,255,255,0.96)")
+              : (isDark ? "rgba(6,6,16,0.80)" : hasHardwareWebGL ? "rgba(255,255,255,0.72)" : "rgba(255,255,255,0.92)"),
             backdropFilter: isMoving
               ? "blur(14px) saturate(140%)"
-              : (isDark ? "blur(40px) saturate(180%) brightness(0.85)" : "blur(40px) saturate(200%) brightness(1.08)"),
+              : (isDark ? "blur(40px) saturate(180%) brightness(0.85)" : hasHardwareWebGL ? "blur(40px) saturate(200%) brightness(1.08)" : "blur(48px) saturate(200%) brightness(1.04)"),
             WebkitBackdropFilter: isMoving
               ? "blur(14px) saturate(140%)"
-              : (isDark ? "blur(40px) saturate(180%) brightness(0.85)" : "blur(40px) saturate(200%) brightness(1.08)"),
+              : (isDark ? "blur(40px) saturate(180%) brightness(0.85)" : hasHardwareWebGL ? "blur(40px) saturate(200%) brightness(1.08)" : "blur(48px) saturate(200%) brightness(1.04)"),
             border: isExpandedVis
               ? "1px solid rgba(255,255,255,0.75)"
               : "1px solid rgba(255,255,255,0.25)",
@@ -705,9 +705,15 @@ const BioTextCard = ({ subtitleVisible, paraVisible, onExpand }) => {
           willChange: "transform",
           transform:
             "translate3d(0,0,0) rotateX(0deg) rotateY(0deg) scale3d(1,1,1)",
-          background: isDark ? "rgba(5,5,14,0.90)" : "rgba(255,255,255,0.58)",
-          backdropFilter: isDark ? "blur(6px) saturate(80%) brightness(0.35)" : "blur(24px) saturate(140%)",
-          WebkitBackdropFilter: isDark ? "blur(6px) saturate(80%) brightness(0.35)" : "blur(24px) saturate(140%)",
+          background: isDark
+            ? "rgba(5,5,14,0.90)"
+            : hasHardwareWebGL ? "rgba(255,255,255,0.58)" : "rgba(255,255,255,0.88)",
+          backdropFilter: isDark
+            ? "blur(6px) saturate(80%) brightness(0.35)"
+            : hasHardwareWebGL ? "blur(24px) saturate(140%)" : "blur(32px) saturate(160%)",
+          WebkitBackdropFilter: isDark
+            ? "blur(6px) saturate(80%) brightness(0.35)"
+            : hasHardwareWebGL ? "blur(24px) saturate(140%)" : "blur(32px) saturate(160%)",
           border: "1px solid rgba(255,255,255,0.25)",
           boxShadow:
             "0 1px 3px rgba(0,0,0,0.02), inset 0 1px 0 rgba(255,255,255,0.3)",

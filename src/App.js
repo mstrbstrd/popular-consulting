@@ -8,6 +8,7 @@ import ServicesSection from "./components/ServicesSection";
 import DitherHero from "./components/DitherHero";
 import HeroLogo from "./components/HeroLogo";
 import ParallaxBackground from "./components/ParallaxBackground";
+import { hasHardwareWebGL } from "./utils/deviceTier";
 
 // Heavy sections — loaded only when needed
 const OrbSection     = lazy(() => import("./components/OrbSection"));
@@ -61,15 +62,19 @@ const App = () => {
         {/* Fourth section - Contact with integrated footer */}
         <ContactSection />
 
-        {/* Fifth section - Orb (dither sphere / ORBE chatbot body) */}
-        <Suspense fallback={null}>
-          <OrbSection />
-        </Suspense>
+        {/* Fifth section - Orb (dither sphere / ORBE chatbot body) — WebGL only */}
+        {hasHardwareWebGL && (
+          <Suspense fallback={null}>
+            <OrbSection />
+          </Suspense>
+        )}
 
-        {/* Sixth section - Popcorn Game */}
-        <Suspense fallback={null}>
-          <PopcornGame />
-        </Suspense>
+        {/* Sixth section - Popcorn Game — WebGL only */}
+        {hasHardwareWebGL && (
+          <Suspense fallback={null}>
+            <PopcornGame />
+          </Suspense>
+        )}
       </ParallaxBackground>
       </main>
       </div>

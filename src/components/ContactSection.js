@@ -8,6 +8,7 @@ import {
   useMediaQuery,
 } from "@mui/material";
 import { useThemeMode } from "../contexts/ThemeContext";
+import { hasHardwareWebGL } from "../utils/deviceTier";
 import twitterIcon from "../assets/icons/twitter.svg";
 import instagramIcon from "../assets/icons/instagram.svg";
 import logo from "../assets/icons/popcon_png.png";
@@ -77,7 +78,7 @@ const ContactSection = ({ isActive }) => {
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
   const containerStyles = {
-    backgroundColor: isDark ? "rgba(6,6,16,0.78)" : "rgba(255,255,255,0.20)",
+    backgroundColor: isDark ? "rgba(6,6,16,0.78)" : hasHardwareWebGL ? "rgba(255,255,255,0.20)" : "rgba(255,255,255,0.85)",
     backdropFilter: "blur(20px) saturate(130%)",
     WebkitBackdropFilter: "blur(20px) saturate(130%)",
     borderRadius: "24px",
@@ -97,7 +98,7 @@ const ContactSection = ({ isActive }) => {
     "&:hover": {
       boxShadow:
         "0 8px 32px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.35)",
-      backgroundColor: isDark ? "rgba(4,4,12,0.88)" : "rgba(255,255,255,0.26)",
+      backgroundColor: isDark ? "rgba(4,4,12,0.88)" : hasHardwareWebGL ? "rgba(255,255,255,0.26)" : "rgba(255,255,255,0.90)",
     },
     "&::before": {
       // Subtle inner highlight
@@ -222,7 +223,7 @@ const ContactSection = ({ isActive }) => {
     alignItems: "center",
     gap: 0,
     padding: "0.75rem 0.75rem 0.75rem 1.6rem",
-    background: isDark ? "rgba(6,6,16,0.82)" : "rgba(255, 255, 255, 0.09)",
+    background: isDark ? "rgba(6,6,16,0.82)" : hasHardwareWebGL ? "rgba(255, 255, 255, 0.09)" : "rgba(255,255,255,0.75)",
     backdropFilter: "blur(32px) saturate(160%)",
     WebkitBackdropFilter: "blur(32px) saturate(160%)",
     border: "1px solid rgba(255, 255, 255, 0.22)",
