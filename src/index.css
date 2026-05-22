@@ -47,13 +47,11 @@ code {
     monospace;
 }
 
-/* ─── Performance: disable backdrop-filter on touch / low-power devices ─── */
-/* backdrop-filter: blur() is GPU-composited and very expensive on mobile.   */
-/* Touch-primary devices (hover:none + pointer:coarse) and users who have    */
-/* opted into reduced-motion both benefit from skipping it entirely.          */
+/* ─── Accessibility: disable backdrop-filter for reduced-motion preference ── */
+/* Users who opt into reduced-motion benefit from skipping composited blur.   */
 /* !important is required to override Emotion-generated class rules.          */
-@media (hover: none) and (pointer: coarse), (prefers-reduced-motion: reduce) {
-  * {
+@media (prefers-reduced-motion: reduce) {
+  *:not(.glass-overlay) {
     backdrop-filter:         none !important;
     -webkit-backdrop-filter: none !important;
   }
