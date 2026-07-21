@@ -457,6 +457,15 @@ const ExpandedOverlay = ({
   const backdropVisible = phase === "expanding" || phase === "expanded";
 
   const updateMouseEffects = React.useCallback((x, y) => {
+    const surface = surfaceRef.current;
+    if (surface) {
+      const cx = Math.min(85, Math.max(15, x));
+      const cy = Math.min(85, Math.max(15, y));
+      surface.style.transform = `translate3d(0,0,0) rotateX(${
+        (cy / 100 - 0.5) * -5
+      }deg) rotateY(${(cx / 100 - 0.5) * 5}deg)`;
+    }
+
     const caustics = causticsRef.current;
     if (caustics) {
       const cl = Math.min(75, Math.max(25, x));
@@ -489,6 +498,10 @@ const ExpandedOverlay = ({
   }, []);
 
   const resetMouseEffects = React.useCallback(() => {
+    if (surfaceRef.current) {
+      surfaceRef.current.style.transform =
+        "translate3d(0,0,0) rotateX(0deg) rotateY(0deg)";
+    }
     if (causticsRef.current) causticsRef.current.style.background = "";
     if (iconRef.current) iconRef.current.style.transform = "";
     if (titleRef.current) titleRef.current.style.transform = "";
@@ -683,12 +696,16 @@ const ExpandedOverlay = ({
             width: "100%",
             height: "100%",
             borderRadius: `${CARD_RADIUS}px`,
-            overflow: "hidden",
+            clipPath: `inset(0px round ${CARD_RADIUS}px)`,
+            WebkitClipPath: `inset(0px round ${CARD_RADIUS}px)`,
             display: "flex",
             flexDirection: "column",
             padding: "2rem",
             pointerEvents: "auto",
-            willChange: "background, backdrop-filter",
+            transformStyle: isMobileTier ? "flat" : "preserve-3d",
+            backfaceVisibility: "hidden",
+            willChange: "transform, background, backdrop-filter",
+            transform: "translate3d(0,0,0) rotateX(0deg) rotateY(0deg)",
             background: isMoving
               ? isDark
                 ? "rgba(4,4,10,0.94)"
@@ -715,6 +732,7 @@ const ExpandedOverlay = ({
                 : "0 0 0 1px rgba(255,255,255,0.6), 0 0 40px 8px rgba(255,255,255,0.25), 0 0 80px 20px rgba(255,255,255,0.08), inset 0 1px 0 rgba(255,255,255,1), inset 0 -1px 0 rgba(255,255,255,0.4), 0 12px 40px rgba(0,0,0,0.06)"
               : "0 1px 3px rgba(0,0,0,0.02)",
             transition: [
+              "transform 220ms cubic-bezier(0.22, 1, 0.36, 1)",
               "background 280ms ease",
               "backdrop-filter 280ms ease",
               "-webkit-backdrop-filter 280ms ease",
