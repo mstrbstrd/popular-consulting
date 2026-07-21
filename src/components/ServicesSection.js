@@ -434,7 +434,6 @@ const ExpandedOverlay = ({
 }) => {
   const { isDark } = useThemeMode();
   const motionRef = React.useRef(null);
-  const tiltRef = React.useRef(null);
   const surfaceRef = React.useRef(null);
   const causticsRef = React.useRef(null);
   const iconRef = React.useRef(null);
@@ -458,16 +457,6 @@ const ExpandedOverlay = ({
   const backdropVisible = phase === "expanding" || phase === "expanded";
 
   const updateMouseEffects = React.useCallback((x, y) => {
-    const tilt = tiltRef.current;
-    if (!tilt) return;
-
-    const cx = Math.min(85, Math.max(15, x));
-    const cy = Math.min(85, Math.max(15, y));
-
-    tilt.style.transform = `translate3d(0,0,0) rotateX(${
-      (cy / 100 - 0.5) * -5
-    }deg) rotateY(${(cx / 100 - 0.5) * 5}deg)`;
-
     const caustics = causticsRef.current;
     if (caustics) {
       const cl = Math.min(75, Math.max(25, x));
@@ -500,10 +489,6 @@ const ExpandedOverlay = ({
   }, []);
 
   const resetMouseEffects = React.useCallback(() => {
-    if (tiltRef.current) {
-      tiltRef.current.style.transform =
-        "translate3d(0,0,0) rotateX(0deg) rotateY(0deg)";
-    }
     if (causticsRef.current) causticsRef.current.style.background = "";
     if (iconRef.current) iconRef.current.style.transform = "";
     if (titleRef.current) titleRef.current.style.transform = "";
@@ -684,19 +669,6 @@ const ExpandedOverlay = ({
           pointerEvents: "none",
         }}
       >
-        <Box
-          ref={tiltRef}
-          sx={{
-            position: "relative",
-            width: "100%",
-            height: "100%",
-            transformStyle: isMobileTier ? "flat" : "preserve-3d",
-            backfaceVisibility: "hidden",
-            willChange: "transform",
-            transform: "translate3d(0,0,0) rotateX(0deg) rotateY(0deg)",
-            transition: "transform 220ms cubic-bezier(0.22, 1, 0.36, 1)",
-          }}
-        >
         <Box
           ref={surfaceRef}
           onClick={(e) => e.stopPropagation()}
@@ -1071,7 +1043,6 @@ const ExpandedOverlay = ({
                 </Box>
               )}
           </Box>
-        </Box>
         </Box>
       </Box>
     </>,
