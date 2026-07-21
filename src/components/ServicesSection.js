@@ -1036,6 +1036,9 @@ const ExpandedOverlay = ({
                 <Box
                   sx={{
                     mt: 2.5,
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: "0.6rem",
                     opacity: showContent ? 1 : 0,
                     transform: showContent
                       ? "translateY(0)"
@@ -1076,6 +1079,48 @@ const ExpandedOverlay = ({
                     }}
                   >
                     View live example: Spectrafy
+                    <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+                      <path
+                        d="M2 9L9 2M9 2H4M9 2V7"
+                        stroke="rgba(99,68,245,0.9)"
+                        strokeWidth="1.4"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </a>
+                  <a
+                    href="https://creatoros-production-6fb1.up.railway.app/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      padding: "0.45rem 1rem",
+                      borderRadius: "100px",
+                      background: "rgba(99,68,245,0.08)",
+                      border: "1px solid rgba(99,68,245,0.22)",
+                      color: "rgba(99,68,245,0.9)",
+                      fontSize: "0.8rem",
+                      fontWeight: 600,
+                      letterSpacing: "0.04em",
+                      textDecoration: "none",
+                      transition:
+                        "background 0.2s ease, border-color 0.2s ease",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = "rgba(99,68,245,0.15)";
+                      e.currentTarget.style.borderColor =
+                        "rgba(99,68,245,0.45)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = "rgba(99,68,245,0.08)";
+                      e.currentTarget.style.borderColor =
+                        "rgba(99,68,245,0.22)";
+                    }}
+                  >
+                    View live example: CreatorOS
                     <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
                       <path
                         d="M2 9L9 2M9 2H4M9 2V7"
