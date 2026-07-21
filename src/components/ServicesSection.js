@@ -301,20 +301,20 @@ const CompactCard = ({
             mb: featured ? 2 : 1.5,
             position: "relative",
             zIndex: 3,
-            transition: "transform 0.5s cubic-bezier(0.23, 1, 0.32, 1)",
-            "& img": {
-              width: "100%",
-              height: "100%",
-              objectFit: "contain",
-              opacity: isActive ? 1 : 0.55,
-              filter:
-                "brightness(0) saturate(100%) invert(25%) sepia(60%) saturate(2000%) hue-rotate(240deg) brightness(0.9)",
-              transition: "opacity 0.4s ease",
-            },
+            opacity: isActive ? 1 : 0.55,
+            transition:
+              "transform 0.5s cubic-bezier(0.23, 1, 0.32, 1), opacity 0.4s ease",
+            backgroundColor: "#6344F5",
+            WebkitMaskImage: `url(${icon})`,
+            maskImage: `url(${icon})`,
+            WebkitMaskSize: "contain",
+            maskSize: "contain",
+            WebkitMaskRepeat: "no-repeat",
+            maskRepeat: "no-repeat",
+            WebkitMaskPosition: "center",
+            maskPosition: "center",
           }}
-        >
-          <img src={icon} alt="" />
-        </Box>
+        />
 
         <Typography
           ref={titleRef}
@@ -682,30 +682,23 @@ const ExpandedOverlay = ({
           pointerEvents: "none",
         }}
       >
+        {/*
+          The glass background (backdrop-filter) must never share a
+          compositing subtree with anything that gets a per-frame JS
+          transform (the tilt below, the icon/title parallax inside it).
+          Chrome desyncs its rounded-corner clip from the blur when both
+          are present anywhere in the same subtree, ancestor or descendant
+          — that's what caused the recurring icon-clipping bug. This layer
+          is a fully static, untransformed sibling so its raster cache is
+          never invalidated by mouse movement.
+        */}
         <Box
-          ref={surfaceRef}
-          onClick={(e) => e.stopPropagation()}
-          onMouseMove={isMobileTier ? undefined : handleMouseMove}
-          onMouseEnter={isMobileTier ? undefined : () => phase === "expanded" && setIsHovered(true)}
-          onMouseLeave={isMobileTier ? undefined : () => {
-            setIsHovered(false);
-            resetMouseEffects();
-          }}
+          aria-hidden="true"
           sx={{
-            position: "relative",
-            width: "100%",
-            height: "100%",
+            position: "absolute",
+            inset: 0,
             borderRadius: `${CARD_RADIUS}px`,
-            clipPath: `inset(0px round ${CARD_RADIUS}px)`,
-            WebkitClipPath: `inset(0px round ${CARD_RADIUS}px)`,
-            display: "flex",
-            flexDirection: "column",
-            padding: "2rem",
-            pointerEvents: "auto",
-            transformStyle: isMobileTier ? "flat" : "preserve-3d",
-            backfaceVisibility: "hidden",
-            willChange: "transform, background, backdrop-filter",
-            transform: "translate3d(0,0,0) rotateX(0deg) rotateY(0deg)",
+            pointerEvents: "none",
             background: isMoving
               ? isDark
                 ? "rgba(4,4,10,0.94)"
@@ -732,13 +725,40 @@ const ExpandedOverlay = ({
                 : "0 0 0 1px rgba(255,255,255,0.6), 0 0 40px 8px rgba(255,255,255,0.25), 0 0 80px 20px rgba(255,255,255,0.08), inset 0 1px 0 rgba(255,255,255,1), inset 0 -1px 0 rgba(255,255,255,0.4), 0 12px 40px rgba(0,0,0,0.06)"
               : "0 1px 3px rgba(0,0,0,0.02)",
             transition: [
-              "transform 220ms cubic-bezier(0.22, 1, 0.36, 1)",
               "background 280ms ease",
               "backdrop-filter 280ms ease",
               "-webkit-backdrop-filter 280ms ease",
               "border 240ms ease",
               "box-shadow 280ms ease",
             ].join(", "),
+          }}
+        />
+
+        <Box
+          ref={surfaceRef}
+          onClick={(e) => e.stopPropagation()}
+          onMouseMove={isMobileTier ? undefined : handleMouseMove}
+          onMouseEnter={isMobileTier ? undefined : () => phase === "expanded" && setIsHovered(true)}
+          onMouseLeave={isMobileTier ? undefined : () => {
+            setIsHovered(false);
+            resetMouseEffects();
+          }}
+          sx={{
+            position: "relative",
+            width: "100%",
+            height: "100%",
+            borderRadius: `${CARD_RADIUS}px`,
+            clipPath: `inset(0px round ${CARD_RADIUS}px)`,
+            WebkitClipPath: `inset(0px round ${CARD_RADIUS}px)`,
+            display: "flex",
+            flexDirection: "column",
+            padding: "2rem",
+            pointerEvents: "auto",
+            transformStyle: isMobileTier ? "flat" : "preserve-3d",
+            backfaceVisibility: "hidden",
+            willChange: "transform",
+            transform: "translate3d(0,0,0) rotateX(0deg) rotateY(0deg)",
+            transition: "transform 220ms cubic-bezier(0.22, 1, 0.36, 1)",
           }}
         >
           <Box
@@ -843,6 +863,15 @@ const ExpandedOverlay = ({
               touchAction: "pan-y",
               WebkitOverflowScrolling: "touch",
               pr: showContent ? 0.75 : 0,
+              // Icon sits flush against this scroll container's top/left edges, but
+              // its hover-parallax transform (translate + scale, see
+              // updateMouseEffects) can push it up to ~8px up and ~8px left of rest
+              // position. overflowY:auto forces overflowX to compute as auto too
+              // (CSS spec — an axis can't stay visible while the other doesn't), so
+              // both edges clip that excursion without headroom here.
+              pt: "12px",
+              pl: "12px",
+              ml: "-12px",
             }}
           >
             <Box
@@ -854,18 +883,17 @@ const ExpandedOverlay = ({
                 flexShrink: 0,
                 position: "relative",
                 transition: "transform 0.28s cubic-bezier(0.22, 1, 0.36, 1)",
-                "& img": {
-                  width: "100%",
-                  height: "100%",
-                  objectFit: "contain",
-                  opacity: 1,
-                  filter:
-                    "brightness(0) saturate(100%) invert(25%) sepia(60%) saturate(2000%) hue-rotate(240deg) brightness(0.9)",
-                },
+                backgroundColor: "#6344F5",
+                WebkitMaskImage: `url(${svc.icon})`,
+                maskImage: `url(${svc.icon})`,
+                WebkitMaskSize: "contain",
+                maskSize: "contain",
+                WebkitMaskRepeat: "no-repeat",
+                maskRepeat: "no-repeat",
+                WebkitMaskPosition: "center",
+                maskPosition: "center",
               }}
-            >
-              <img src={svc.icon} alt="" />
-            </Box>
+            />
 
             <Typography
               ref={titleRef}
