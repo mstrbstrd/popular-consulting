@@ -1003,6 +1003,63 @@ const ExpandedOverlay = ({
                   </a>
                 </Box>
               )}
+
+              {svc.id === "software" && (
+                <Box
+                  sx={{
+                    mt: 2.5,
+                    opacity: showContent ? 1 : 0,
+                    transform: showContent
+                      ? "translateY(0)"
+                      : "translateY(8px)",
+                    transition:
+                      "opacity 0.35s ease 0.15s, transform 0.4s cubic-bezier(0.22,1,0.36,1) 0.15s",
+                  }}
+                >
+                  <a
+                    href="https://web-production-4b0eca.up.railway.app/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      padding: "0.45rem 1rem",
+                      borderRadius: "100px",
+                      background: "rgba(99,68,245,0.08)",
+                      border: "1px solid rgba(99,68,245,0.22)",
+                      color: "rgba(99,68,245,0.9)",
+                      fontSize: "0.8rem",
+                      fontWeight: 600,
+                      letterSpacing: "0.04em",
+                      textDecoration: "none",
+                      transition:
+                        "background 0.2s ease, border-color 0.2s ease",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = "rgba(99,68,245,0.15)";
+                      e.currentTarget.style.borderColor =
+                        "rgba(99,68,245,0.45)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = "rgba(99,68,245,0.08)";
+                      e.currentTarget.style.borderColor =
+                        "rgba(99,68,245,0.22)";
+                    }}
+                  >
+                    View live example: Spectrafy
+                    <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+                      <path
+                        d="M2 9L9 2M9 2H4M9 2V7"
+                        stroke="rgba(99,68,245,0.9)"
+                        strokeWidth="1.4"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  </a>
+                </Box>
+              )}
           </Box>
         </Box>
       </Box>
