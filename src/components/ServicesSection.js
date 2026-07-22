@@ -36,7 +36,7 @@ const SERVICES = [
     id: "training",
     title: "AI Training & Education",
     description:
-      "Hands-on, easy to understand guidance to help you and your team actually understand and use AI tools. Tailored to your industry and skill level, no technical background required.",
+      "Hands-on, easy to grasp guidance to help you and your team actually understand and use AI tools. Tailored to your industry and skill level, no technical background required.",
     detailed:
       "Whether you're a solo founder trying to figure out where AI fits, or a team lead looking to upskill your department, I build custom training programs around your actual workflows. We start with a hands-on audit of where AI can save you the most time, then work through real exercises using tools like ChatGPT, Claude, Midjourney, and custom automation pipelines. Every session is recorded, and you walk away with a playbook specific to your business. No generic slide decks, just practical skills you can use the same day.",
     icon: trainingIcon,
