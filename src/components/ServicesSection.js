@@ -36,7 +36,7 @@ const SERVICES = [
     id: "training",
     title: "AI Training & Education",
     description:
-      "Hands-on, jargon-free guidance to help you and your team actually understand and use AI tools. Tailored to your industry and skill level, no technical background required.",
+      "Hands-on, easy to understand guidance to help you and your team actually understand and use AI tools. Tailored to your industry and skill level, no technical background required.",
     detailed:
       "Whether you're a solo founder trying to figure out where AI fits, or a team lead looking to upskill your department, I build custom training programs around your actual workflows. We start with a hands-on audit of where AI can save you the most time, then work through real exercises using tools like ChatGPT, Claude, Midjourney, and custom automation pipelines. Every session is recorded, and you walk away with a playbook specific to your business. No generic slide decks, just practical skills you can use the same day.",
     icon: trainingIcon,
@@ -177,8 +177,17 @@ const CompactCard = ({
     <Box
       ref={shellRef}
       onMouseMove={isMobileTier ? undefined : handleMouseMove}
-      onMouseEnter={isMobileTier ? undefined : () => !hidden && setIsHovered(true)}
-      onMouseLeave={isMobileTier ? undefined : () => { setIsHovered(false); resetMouseEffects(); }}
+      onMouseEnter={
+        isMobileTier ? undefined : () => !hidden && setIsHovered(true)
+      }
+      onMouseLeave={
+        isMobileTier
+          ? undefined
+          : () => {
+              setIsHovered(false);
+              resetMouseEffects();
+            }
+      }
       onClick={handleClick}
       sx={{
         position: "relative",
@@ -207,13 +216,19 @@ const CompactCard = ({
           opacity: hidden ? 0 : 1,
           background: isDark
             ? "rgba(5,5,14,0.92)"
-            : hasHardwareWebGL ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.82)",
+            : hasHardwareWebGL
+            ? "rgba(255,255,255,0.18)"
+            : "rgba(255,255,255,0.82)",
           backdropFilter: isDark
             ? "blur(6px) saturate(80%) brightness(0.35)"
-            : hasHardwareWebGL ? "blur(6px) saturate(120%)" : "blur(20px) saturate(150%)",
+            : hasHardwareWebGL
+            ? "blur(6px) saturate(120%)"
+            : "blur(20px) saturate(150%)",
           WebkitBackdropFilter: isDark
             ? "blur(6px) saturate(80%) brightness(0.35)"
-            : hasHardwareWebGL ? "blur(6px) saturate(120%)" : "blur(20px) saturate(150%)",
+            : hasHardwareWebGL
+            ? "blur(6px) saturate(120%)"
+            : "blur(20px) saturate(150%)",
           border: "1px solid rgba(255, 255, 255, 0.25)",
           boxShadow:
             "0 1px 3px rgba(0,0,0,0.02), inset 0 1px 0 rgba(255,255,255,0.3)",
@@ -230,9 +245,7 @@ const CompactCard = ({
                 "box-shadow 0.5s ease",
               ].join(", "),
           "&.service-card--hovered": {
-            background: isDark
-              ? "rgba(3,3,10,0.95)"
-              : "rgba(255,255,255,0.95)",
+            background: isDark ? "rgba(3,3,10,0.95)" : "rgba(255,255,255,0.95)",
             backdropFilter: isDark
               ? "blur(40px) saturate(100%) brightness(0.3)"
               : "blur(40px) saturate(200%) brightness(1.08)",
@@ -702,20 +715,28 @@ const ExpandedOverlay = ({
             background: isMoving
               ? isDark
                 ? "rgba(4,4,10,0.94)"
-                : hasHardwareWebGL ? "rgba(255,255,255,0.88)" : "rgba(255,255,255,0.96)"
+                : hasHardwareWebGL
+                ? "rgba(255,255,255,0.88)"
+                : "rgba(255,255,255,0.96)"
               : isDark
               ? "rgba(6,6,16,0.80)"
-              : hasHardwareWebGL ? "rgba(255,255,255,0.72)" : "rgba(255,255,255,0.92)",
+              : hasHardwareWebGL
+              ? "rgba(255,255,255,0.72)"
+              : "rgba(255,255,255,0.92)",
             backdropFilter: isMoving
               ? "blur(14px) saturate(140%)"
               : isDark
               ? "blur(40px) saturate(180%) brightness(0.85)"
-              : hasHardwareWebGL ? "blur(40px) saturate(200%) brightness(1.08)" : "blur(48px) saturate(200%) brightness(1.04)",
+              : hasHardwareWebGL
+              ? "blur(40px) saturate(200%) brightness(1.08)"
+              : "blur(48px) saturate(200%) brightness(1.04)",
             WebkitBackdropFilter: isMoving
               ? "blur(14px) saturate(140%)"
               : isDark
               ? "blur(40px) saturate(180%) brightness(0.85)"
-              : hasHardwareWebGL ? "blur(40px) saturate(200%) brightness(1.08)" : "blur(48px) saturate(200%) brightness(1.04)",
+              : hasHardwareWebGL
+              ? "blur(40px) saturate(200%) brightness(1.08)"
+              : "blur(48px) saturate(200%) brightness(1.04)",
             border: isExpandedVisual
               ? "1px solid rgba(255, 255, 255, 0.75)"
               : "1px solid rgba(255, 255, 255, 0.25)",
@@ -738,11 +759,19 @@ const ExpandedOverlay = ({
           ref={surfaceRef}
           onClick={(e) => e.stopPropagation()}
           onMouseMove={isMobileTier ? undefined : handleMouseMove}
-          onMouseEnter={isMobileTier ? undefined : () => phase === "expanded" && setIsHovered(true)}
-          onMouseLeave={isMobileTier ? undefined : () => {
-            setIsHovered(false);
-            resetMouseEffects();
-          }}
+          onMouseEnter={
+            isMobileTier
+              ? undefined
+              : () => phase === "expanded" && setIsHovered(true)
+          }
+          onMouseLeave={
+            isMobileTier
+              ? undefined
+              : () => {
+                  setIsHovered(false);
+                  resetMouseEffects();
+                }
+          }
           sx={{
             position: "relative",
             width: "100%",
@@ -958,181 +987,168 @@ const ExpandedOverlay = ({
             />
 
             <Typography
+              sx={{
+                fontSize: { xs: "1.15rem", md: "1.1rem" },
+                color: isDark
+                  ? "rgba(225,225,245,0.70)"
+                  : "rgba(15,15,25,0.72)",
+                lineHeight: 1.75,
+                fontWeight: 400,
+                maxWidth: "800px",
+                opacity: showContent ? 1 : 0,
+                transform: showContent ? "translateY(0)" : "translateY(10px)",
+                transition:
+                  "opacity 0.28s ease, transform 0.34s cubic-bezier(0.22, 1, 0.36, 1)",
+              }}
+            >
+              {svc.detailed}
+            </Typography>
+
+            {svc.id === "ecommerce" && (
+              <Box
                 sx={{
-                  fontSize: { xs: "1.15rem", md: "1.1rem" },
-                  color: isDark
-                    ? "rgba(225,225,245,0.70)"
-                    : "rgba(15,15,25,0.72)",
-                  lineHeight: 1.75,
-                  fontWeight: 400,
-                  maxWidth: "800px",
+                  mt: 2.5,
                   opacity: showContent ? 1 : 0,
-                  transform: showContent ? "translateY(0)" : "translateY(10px)",
+                  transform: showContent ? "translateY(0)" : "translateY(8px)",
                   transition:
-                    "opacity 0.28s ease, transform 0.34s cubic-bezier(0.22, 1, 0.36, 1)",
+                    "opacity 0.35s ease 0.15s, transform 0.4s cubic-bezier(0.22,1,0.36,1) 0.15s",
                 }}
               >
-                {svc.detailed}
-              </Typography>
-
-              {svc.id === "ecommerce" && (
-                <Box
-                  sx={{
-                    mt: 2.5,
-                    opacity: showContent ? 1 : 0,
-                    transform: showContent
-                      ? "translateY(0)"
-                      : "translateY(8px)",
-                    transition:
-                      "opacity 0.35s ease 0.15s, transform 0.4s cubic-bezier(0.22,1,0.36,1) 0.15s",
+                <a
+                  href="https://shop.dyconcretepumps.com/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    padding: "0.45rem 1rem",
+                    borderRadius: "100px",
+                    background: "rgba(99,68,245,0.08)",
+                    border: "1px solid rgba(99,68,245,0.22)",
+                    color: "rgba(99,68,245,0.9)",
+                    fontSize: "0.8rem",
+                    fontWeight: 600,
+                    letterSpacing: "0.04em",
+                    textDecoration: "none",
+                    transition: "background 0.2s ease, border-color 0.2s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = "rgba(99,68,245,0.15)";
+                    e.currentTarget.style.borderColor = "rgba(99,68,245,0.45)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "rgba(99,68,245,0.08)";
+                    e.currentTarget.style.borderColor = "rgba(99,68,245,0.22)";
                   }}
                 >
-                  <a
-                    href="https://shop.dyconcretepumps.com/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "6px",
-                      padding: "0.45rem 1rem",
-                      borderRadius: "100px",
-                      background: "rgba(99,68,245,0.08)",
-                      border: "1px solid rgba(99,68,245,0.22)",
-                      color: "rgba(99,68,245,0.9)",
-                      fontSize: "0.8rem",
-                      fontWeight: 600,
-                      letterSpacing: "0.04em",
-                      textDecoration: "none",
-                      transition:
-                        "background 0.2s ease, border-color 0.2s ease",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = "rgba(99,68,245,0.15)";
-                      e.currentTarget.style.borderColor =
-                        "rgba(99,68,245,0.45)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = "rgba(99,68,245,0.08)";
-                      e.currentTarget.style.borderColor =
-                        "rgba(99,68,245,0.22)";
-                    }}
-                  >
-                    View live example
-                    <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
-                      <path
-                        d="M2 9L9 2M9 2H4M9 2V7"
-                        stroke="rgba(99,68,245,0.9)"
-                        strokeWidth="1.4"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </a>
-                </Box>
-              )}
+                  View live example
+                  <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+                    <path
+                      d="M2 9L9 2M9 2H4M9 2V7"
+                      stroke="rgba(99,68,245,0.9)"
+                      strokeWidth="1.4"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </a>
+              </Box>
+            )}
 
-              {svc.id === "software" && (
-                <Box
-                  sx={{
-                    mt: 2.5,
-                    display: "flex",
-                    flexWrap: "wrap",
-                    gap: "0.6rem",
-                    opacity: showContent ? 1 : 0,
-                    transform: showContent
-                      ? "translateY(0)"
-                      : "translateY(8px)",
-                    transition:
-                      "opacity 0.35s ease 0.15s, transform 0.4s cubic-bezier(0.22,1,0.36,1) 0.15s",
+            {svc.id === "software" && (
+              <Box
+                sx={{
+                  mt: 2.5,
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: "0.6rem",
+                  opacity: showContent ? 1 : 0,
+                  transform: showContent ? "translateY(0)" : "translateY(8px)",
+                  transition:
+                    "opacity 0.35s ease 0.15s, transform 0.4s cubic-bezier(0.22,1,0.36,1) 0.15s",
+                }}
+              >
+                <a
+                  href="https://web-production-4b0eca.up.railway.app/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    padding: "0.45rem 1rem",
+                    borderRadius: "100px",
+                    background: "rgba(99,68,245,0.08)",
+                    border: "1px solid rgba(99,68,245,0.22)",
+                    color: "rgba(99,68,245,0.9)",
+                    fontSize: "0.8rem",
+                    fontWeight: 600,
+                    letterSpacing: "0.04em",
+                    textDecoration: "none",
+                    transition: "background 0.2s ease, border-color 0.2s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = "rgba(99,68,245,0.15)";
+                    e.currentTarget.style.borderColor = "rgba(99,68,245,0.45)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "rgba(99,68,245,0.08)";
+                    e.currentTarget.style.borderColor = "rgba(99,68,245,0.22)";
                   }}
                 >
-                  <a
-                    href="https://web-production-4b0eca.up.railway.app/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "6px",
-                      padding: "0.45rem 1rem",
-                      borderRadius: "100px",
-                      background: "rgba(99,68,245,0.08)",
-                      border: "1px solid rgba(99,68,245,0.22)",
-                      color: "rgba(99,68,245,0.9)",
-                      fontSize: "0.8rem",
-                      fontWeight: 600,
-                      letterSpacing: "0.04em",
-                      textDecoration: "none",
-                      transition:
-                        "background 0.2s ease, border-color 0.2s ease",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = "rgba(99,68,245,0.15)";
-                      e.currentTarget.style.borderColor =
-                        "rgba(99,68,245,0.45)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = "rgba(99,68,245,0.08)";
-                      e.currentTarget.style.borderColor =
-                        "rgba(99,68,245,0.22)";
-                    }}
-                  >
-                    View live example: Spectrafy
-                    <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
-                      <path
-                        d="M2 9L9 2M9 2H4M9 2V7"
-                        stroke="rgba(99,68,245,0.9)"
-                        strokeWidth="1.4"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </a>
-                  <a
-                    href="https://creatoros-production-6fb1.up.railway.app/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "6px",
-                      padding: "0.45rem 1rem",
-                      borderRadius: "100px",
-                      background: "rgba(99,68,245,0.08)",
-                      border: "1px solid rgba(99,68,245,0.22)",
-                      color: "rgba(99,68,245,0.9)",
-                      fontSize: "0.8rem",
-                      fontWeight: 600,
-                      letterSpacing: "0.04em",
-                      textDecoration: "none",
-                      transition:
-                        "background 0.2s ease, border-color 0.2s ease",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = "rgba(99,68,245,0.15)";
-                      e.currentTarget.style.borderColor =
-                        "rgba(99,68,245,0.45)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = "rgba(99,68,245,0.08)";
-                      e.currentTarget.style.borderColor =
-                        "rgba(99,68,245,0.22)";
-                    }}
-                  >
-                    View live example: CreatorOS
-                    <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
-                      <path
-                        d="M2 9L9 2M9 2H4M9 2V7"
-                        stroke="rgba(99,68,245,0.9)"
-                        strokeWidth="1.4"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </a>
-                </Box>
-              )}
+                  View live example: Spectrafy
+                  <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+                    <path
+                      d="M2 9L9 2M9 2H4M9 2V7"
+                      stroke="rgba(99,68,245,0.9)"
+                      strokeWidth="1.4"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </a>
+                <a
+                  href="https://creatoros-production-6fb1.up.railway.app/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    padding: "0.45rem 1rem",
+                    borderRadius: "100px",
+                    background: "rgba(99,68,245,0.08)",
+                    border: "1px solid rgba(99,68,245,0.22)",
+                    color: "rgba(99,68,245,0.9)",
+                    fontSize: "0.8rem",
+                    fontWeight: 600,
+                    letterSpacing: "0.04em",
+                    textDecoration: "none",
+                    transition: "background 0.2s ease, border-color 0.2s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = "rgba(99,68,245,0.15)";
+                    e.currentTarget.style.borderColor = "rgba(99,68,245,0.45)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = "rgba(99,68,245,0.08)";
+                    e.currentTarget.style.borderColor = "rgba(99,68,245,0.22)";
+                  }}
+                >
+                  View live example: CreatorOS
+                  <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+                    <path
+                      d="M2 9L9 2M9 2H4M9 2V7"
+                      stroke="rgba(99,68,245,0.9)"
+                      strokeWidth="1.4"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                </a>
+              </Box>
+            )}
           </Box>
         </Box>
       </Box>
@@ -1159,7 +1175,9 @@ const ServicesSection = ({ isActive }) => {
   // Tell the parallax system not to navigate while a card is expanded
   React.useEffect(() => {
     window.__serviceCardExpanded = expandedIndex !== null;
-    return () => { window.__serviceCardExpanded = false; };
+    return () => {
+      window.__serviceCardExpanded = false;
+    };
   }, [expandedIndex]);
 
   React.useLayoutEffect(() => {
@@ -1264,9 +1282,9 @@ const ServicesSection = ({ isActive }) => {
     }
     // Desktop: allow up to 88% of viewport height, centered vertically
     const padding = 24;
-    const maxH    = window.innerHeight - padding * 2;
-    const h       = Math.min(maxH, gridRect.height + 160);
-    const top     = Math.max(padding, Math.round((window.innerHeight - h) / 2));
+    const maxH = window.innerHeight - padding * 2;
+    const h = Math.min(maxH, gridRect.height + 160);
+    const top = Math.max(padding, Math.round((window.innerHeight - h) / 2));
     return { ...gridRect, top, height: h };
   }, [getGridRect]);
 
