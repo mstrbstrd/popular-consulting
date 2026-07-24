@@ -1,17 +1,12 @@
+## diagnostic revision 2
 ## node --check
-check_status=0
+/tmp/popcon-copy-diagnostic/repo/scripts/apply-dual-audience-copy.mjs:282
+  const servicesPath = "src/components/ServicesSection.js";
+        ^^^^^^^^^^^^
 
-## migration
-file:///tmp/popcon-copy-diagnostic/repo/scripts/apply-dual-audience-copy.mjs:24
-    throw new Error(`${label}: expected exactly one match, found ${count}.`);
-          ^
-
-Error: Service live-link label: expected exactly one match, found 3.
-    at replaceOnce (file:///tmp/popcon-copy-diagnostic/repo/scripts/apply-dual-audience-copy.mjs:24:11)
-    at file:///tmp/popcon-copy-diagnostic/repo/scripts/apply-dual-audience-copy.mjs:546:12
-    at ModuleJob.run (node:internal/modules/esm/module_job:343:25)
-    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
-    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
+SyntaxError: Unexpected identifier 'servicesPath'
+    at checkSyntax (node:internal/main/check_syntax:74:5)
 
 Node.js v22.23.1
+check_status=1
 migration_status=1
