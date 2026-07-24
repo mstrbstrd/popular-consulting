@@ -43,7 +43,10 @@ jest.mock("./components/ParallaxBackground", () => {
   return ({ children }) =>
     ReactModule.createElement(
       "div",
-      { "data-testid": "main-section-stack" },
+      {
+        "data-testid": "main-section-stack",
+        "data-react-child-count": ReactModule.Children.count(children),
+      },
       children,
     );
 });
@@ -72,12 +75,15 @@ const resetDocumentMetadata = () => {
 };
 
 const expectCoreSectionsOnly = () => {
+  const sectionStack = screen.getByTestId("main-section-stack");
+
   expect(screen.getByTestId("main-hero")).toBeInTheDocument();
   expect(screen.getByTestId("main-about")).toBeInTheDocument();
   expect(screen.getByTestId("main-services")).toBeInTheDocument();
   expect(screen.getByTestId("main-contact")).toBeInTheDocument();
   expect(screen.queryByTestId("main-app-orb")).not.toBeInTheDocument();
-  expect(screen.getByTestId("main-section-stack").children).toHaveLength(4);
+  expect(sectionStack).toHaveAttribute("data-react-child-count", "4");
+  expect(sectionStack.children).toHaveLength(4);
 };
 
 describe("App immersive presentation", () => {
