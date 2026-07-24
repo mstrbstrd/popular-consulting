@@ -1,0 +1,67 @@
+name: Apply dual-audience copy
+
+on:
+  push:
+    branches:
+      - agent/dual-audience-copy
+    paths:
+      - "scripts/patch-parts/**"
+      - ".github/workflows/apply-dual-audience-copy.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-dual-audience-copy
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    name: Apply, test, and commit
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/dual-audience-copy
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Assemble and validate migration
+        run: |
+          cat scripts/patch-parts/*.mjs > scripts/apply-dual-audience-copy.mjs
+          node --check scripts/apply-dual-audience-copy.mjs
+          node scripts/apply-dual-audience-copy.mjs
+          rm scripts/apply-dual-audience-copy.mjs
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Run complete test suite
+        run: npm test -- --watchAll=false --runInBand
+        env:
+          CI: true
+
+      - name: Build production bundle and static route HTML
+        run: npm run build
+        env:
+          CI: true
+
+      - name: Commit generated source changes
+        run: |
+          git config user.name "openai-agent"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No generated source changes to commit."
+            exit 0
+          fi
+          git commit -m "Align business and engineering copy [skip ci]"
+          git push origin HEAD:agent/dual-audience-copy
