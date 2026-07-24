@@ -1,0 +1,96 @@
+name: Bug report
+description: Report a reproducible defect in the public website or repository tooling. Use the private security channel for vulnerabilities.
+title: "bug: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not use this form for suspected security vulnerabilities, secrets, private data, or confidential client information. Follow `SECURITY.md` instead.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: Describe the defect in one or two clear sentences.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include browser, version, operating system, device, input method, viewport, WebGL availability, and reduced-motion setting when relevant.
+      placeholder: |
+        Browser:
+        Operating system:
+        Device:
+        Input method:
+        Viewport:
+        WebGL:
+        Reduced motion:
+    validations:
+      required: true
+
+  - type: dropdown
+    id: impact
+    attributes:
+      label: Impact
+      options:
+        - Essential task is blocked
+        - Accessibility regression
+        - Crash or severe performance problem
+        - Incorrect content or broken link
+        - Visual defect with a usable fallback
+        - Development or test tooling defect
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Public-safe evidence
+      description: Add screenshots, recordings, console output, or logs after removing private data, tokens, internal URLs, and unrelated browser content.
+
+  - type: textarea
+    id: regression
+    attributes:
+      label: Regression boundary
+      description: Note the last known-good version, commit, browser, or behavior when known.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Submission checks
+      options:
+        - label: I confirmed this report contains no secret, credential, customer data, private contact detail, or confidential client information.
+          required: true
+        - label: I searched existing issues for the same defect.
+          required: true
+        - label: This is not a security vulnerability.
+          required: true
