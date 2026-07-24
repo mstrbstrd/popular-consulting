@@ -7,6 +7,7 @@ import ContactSection from "./components/ContactSection";
 import ServicesSection from "./components/ServicesSection";
 import DitherHero from "./components/DitherHero";
 import HeroLogo from "./components/HeroLogo";
+import ProfessionalHero from "./components/ProfessionalHero";
 import ParallaxBackground from "./components/ParallaxBackground";
 import { hasHardwareWebGL } from "./utils/deviceTier";
 
@@ -48,7 +49,8 @@ const App = () => {
       <HeroLogo />
 
       {/* Wrap everything except the nav in the parallax container */}
-      <main id="main-content" aria-label="Popular Consulting website">
+      <main id="main-content" aria-label="Shaedan Hawse professional portfolio and Popular Consulting website">
+      <ProfessionalHero />
       <ParallaxBackground>
         {/* First section - Hero */}
         <DitherHero />
