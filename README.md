@@ -4,11 +4,21 @@
 
 Popular Consulting is the public business and engineering portfolio platform for **Shaedan Hawse**, an **Engineering Lead | Full Stack Software Engineer | AI & Commerce Systems** based in Kelowna, British Columbia.
 
-- Original immersive website: [popcon.dev](https://popcon.dev)
+- Consulting entrance: [popcon.dev](https://popcon.dev)
 - Engineering entrance: [popcon.dev/engineering](https://popcon.dev/engineering)
 - Selected work: [popcon.dev/work](https://popcon.dev/work)
 - Business domain: [popular-consulting.com](https://popular-consulting.com)
 - Contact: [shaw@popcon.dev](mailto:shaw@popcon.dev)
+
+## Audience and copy contract
+
+The public platform uses one evidence base with distinct audience framing:
+
+- `/` speaks to businesses evaluating Popular Consulting.
+- `/engineering` speaks to hiring teams, engineering leaders, and technical peers.
+- `/work` provides conventional, public-safe project evidence for both audiences.
+
+Visible copy is defined in [`src/content/siteCopy.js`](src/content/siteCopy.js). Route metadata is defined in [`src/content/routeMetadata.json`](src/content/routeMetadata.json) and emitted as route-specific static HTML during the production build. See [the dual-audience copy architecture](docs/content/dual-audience-copy.md).
 
 ## What this repository is
 

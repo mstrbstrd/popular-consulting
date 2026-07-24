@@ -5,31 +5,7 @@ import { Box, Typography } from "@mui/material";
 import mePhoto from "../assets/img/me.jpeg";
 import { useThemeMode } from "../contexts/ThemeContext";
 import { isMobileTier, hasHardwareWebGL } from "../utils/deviceTier";
-
-const TITLE = "Your Technology Partner.";
-const SUBTITLE =
-  "From strategy to launch — websites, AI integration, and custom software built around your business.";
-const PARAGRAPH =
-  "I'm a solo consultant helping businesses establish and grow their online presence. Whether you need a polished website, AI woven into your daily workflows, or a fully custom software solution built from the ground up — Design, development, hosting, automation, and everything in between.";
-
-const BIO_SECTIONS = [
-  {
-    heading: "Background",
-    body: "I'm a self-taught developer and technologist who got into this work the same way most people do — by needing something built and not being able to find anyone to build it the right way. That turned into years of shipping real products: e-commerce platforms, internal tools, AI-powered pipelines, customer portals, and everything in between. I work alone by design, which keeps things simple, accountable, and fast.",
-  },
-  {
-    heading: "What I actually build",
-    body: "On the software side — full-stack web applications in React, .NET, Python, and Node. Clean architecture, real deployment pipelines, and code you can hand off or maintain yourself without needing me indefinitely. On the AI side — practical integrations that save time: custom GPT agents, document automation, intelligent search, workflow orchestration via Zapier or Make, and bespoke tooling when off-the-shelf doesn't cut it. On the commerce side — custom storefronts, cart systems, and checkout flows wired to Stripe or JPMorgan Chase's payment APIs, with inventory, invoicing, and post-purchase automation handled end-to-end.",
-  },
-  {
-    heading: "How I work",
-    body: "Every engagement starts with understanding your actual constraints — budget, timeline, what your team can manage after I'm gone, and what success genuinely looks like for your business. I don't upsell complexity. If a simple solution works, that's what you get. I handle scoping, design, development, deployment, hosting, and ongoing support under one roof, which keeps communication tight and decisions fast. You're never playing telephone between a designer, a developer, and a project manager.",
-  },
-  {
-    heading: "Let's talk",
-    body: "If you're trying to figure out where to start — or whether what you need is even feasible within your budget — reach out. The first conversation is always free, and I'll give you a straight answer either way.",
-  },
-];
+import { SITE_AUDIENCES, getSiteCopy } from "../content/siteCopy";
 
 const FLIP_DURATION = 560;
 const FLIP_EASE = "cubic-bezier(0.22, 1, 0.36, 1)";
@@ -49,7 +25,7 @@ const computeTargetRect = () => ({
   height: Math.round(window.innerHeight * 0.83),
 });
 
-const BioPhoto = ({ visible, blurred }) => {
+const BioPhoto = ({ visible, blurred, photoAlt }) => {
   const shellRef = React.useRef(null);
   const cardRef = React.useRef(null);
   const causticsRef = React.useRef(null);
@@ -158,7 +134,7 @@ const BioPhoto = ({ visible, blurred }) => {
         <Box
           component="img"
           src={mePhoto}
-          alt="Portrait of the consultant"
+          alt={photoAlt}
           sx={{
             width: "100%",
             height: "100%",
@@ -185,6 +161,7 @@ const BioPhoto = ({ visible, blurred }) => {
 };
 
 const BioExpandedOverlay = ({
+  copy,
   originRect,
   targetRect,
   getOriginRect,
@@ -536,7 +513,7 @@ const BioExpandedOverlay = ({
                   color: "rgba(99,68,245,0.95)",
                 }}
               >
-                About
+                {copy.label}
               </Typography>
             </Box>
 
@@ -556,10 +533,10 @@ const BioExpandedOverlay = ({
                   "opacity 0.35s ease 0.08s, transform 0.4s cubic-bezier(0.22,1,0.36,1) 0.08s",
               }}
             >
-              Your Technology Partner.
+              {copy.title}
             </Typography>
 
-            {BIO_SECTIONS.map((section, i) => (
+            {copy.sections.map((section, i) => (
               <Box
                 key={section.heading}
                 sx={{
@@ -605,7 +582,7 @@ const BioExpandedOverlay = ({
   );
 };
 
-const BioTextCard = ({ subtitleVisible, paraVisible, onExpand }) => {
+const BioTextCard = ({ subtitleVisible, paraVisible, onExpand, copy }) => {
   const { isDark } = useThemeMode();
   const shellRef = React.useRef(null);
   const cardRef = React.useRef(null);
@@ -795,7 +772,7 @@ const BioTextCard = ({ subtitleVisible, paraVisible, onExpand }) => {
               "opacity 0.8s ease, transform 0.8s ease, color 0.4s ease",
           }}
         >
-          {SUBTITLE.split("—").map((part, i, arr) => (
+          {copy.subtitle.split("—").map((part, i, arr) => (
             <React.Fragment key={i}>
               {part}
               {i < arr.length - 1 && (
@@ -842,7 +819,7 @@ const BioTextCard = ({ subtitleVisible, paraVisible, onExpand }) => {
               "opacity 0.9s ease 0.15s, transform 0.9s ease 0.15s, color 0.4s ease",
           }}
         >
-          {PARAGRAPH.split("—").map((part, i, arr) => (
+          {copy.paragraph.split("—").map((part, i, arr) => (
             <React.Fragment key={i}>
               {part}
               {i < arr.length - 1 && (
@@ -881,7 +858,7 @@ const BioTextCard = ({ subtitleVisible, paraVisible, onExpand }) => {
               textTransform: "uppercase",
             }}
           >
-            Read more
+            {copy.readMoreLabel}
           </Typography>
           <Box
             component="span"
@@ -908,8 +885,12 @@ const BioTextCard = ({ subtitleVisible, paraVisible, onExpand }) => {
   );
 };
 
-const BioSection = ({ isActive }) => {
+const BioSection = ({
+  isActive,
+  audience = SITE_AUDIENCES.BUSINESS,
+}) => {
   const { isDark } = useThemeMode();
+  const copy = getSiteCopy(audience).bio;
   const [titleText, setTitleText] = useState("");
   const [showCursor, setShowCursor] = useState(true);
   const [subtitleVisible, setSubtitleVisible] = useState(false);
@@ -974,8 +955,8 @@ const BioSection = ({ isActive }) => {
     const typeTitle = () => {
       let i = 0;
       const addChar = () => {
-        if (i <= TITLE.length) {
-          setTitleText(TITLE.substring(0, i));
+        if (i <= copy.title.length) {
+          setTitleText(copy.title.substring(0, i));
           i++;
           titleTimer = setTimeout(addChar, 45);
         } else {
@@ -998,7 +979,7 @@ const BioSection = ({ isActive }) => {
   return (
     <section
       id="bio"
-      aria-label="About"
+      aria-label={copy.sectionLabel}
       style={{
         height: "100dvh",
         display: "flex",
@@ -1050,7 +1031,7 @@ const BioSection = ({ isActive }) => {
         >
           <Box sx={{ width: 8, height: 8, borderRadius: "50%", background: "linear-gradient(135deg, #6344F5, #9C55FF)" }} />
           <Typography sx={{ fontSize: "0.85rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.12em", color: "rgba(99, 68, 245, 0.95)" }}>
-            About
+            {copy.label}
           </Typography>
         </Box>
 
@@ -1096,7 +1077,7 @@ const BioSection = ({ isActive }) => {
                 color: "rgba(99, 68, 245, 0.95)",
               }}
             >
-              About
+              {copy.label}
             </Typography>
           </Box>
 
@@ -1105,7 +1086,7 @@ const BioSection = ({ isActive }) => {
             <Typography
               variant="h2"
               component="h2"
-              aria-label={TITLE} /* Typewriter animates visually; label always exposes full text */
+              aria-label={copy.title} /* Typewriter animates visually; label always exposes full text */
               sx={{
                 fontWeight: 800,
                 color: isDark ? "rgba(225,225,245,0.95)" : "rgba(10,10,20,1)",
@@ -1148,7 +1129,7 @@ const BioSection = ({ isActive }) => {
                   overflow: "hidden",
                 }}
               >
-                {TITLE}
+                {copy.title}
               </span>
             </Typography>
           </Box>
@@ -1156,6 +1137,7 @@ const BioSection = ({ isActive }) => {
           {/* Subtitle + Paragraph card */}
           <Box ref={cardShellRef} sx={{ width: "100%", mb: { xs: "calc(6vh + env(safe-area-inset-bottom, 0px))", md: 0 } }}>
             <BioTextCard
+              copy={copy}
               subtitleVisible={subtitleVisible}
               paraVisible={paraVisible}
               onExpand={(rect) => {
@@ -1167,6 +1149,7 @@ const BioSection = ({ isActive }) => {
 
           {expandedOrigin && expandedTarget && (
             <BioExpandedOverlay
+              copy={copy}
               originRect={expandedOrigin}
               targetRect={expandedTarget}
               getOriginRect={() => {
@@ -1190,7 +1173,11 @@ const BioSection = ({ isActive }) => {
         {/* end text */}
 
         {/* ── Photo ── */}
-        <BioPhoto visible={sectionVisible} blurred={!!expandedOrigin} />
+        <BioPhoto
+          visible={sectionVisible}
+          blurred={!!expandedOrigin}
+          photoAlt={copy.photoAlt}
+        />
       </Box>
       </Box>
 

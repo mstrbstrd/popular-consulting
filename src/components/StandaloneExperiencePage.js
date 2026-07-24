@@ -3,6 +3,7 @@ import DitherBackground from "./DitherBackground";
 import BlackHoleBackground from "./BlackHoleBackground";
 import { ThemeProvider, useThemeMode } from "../contexts/ThemeContext";
 import { hasHardwareWebGL, isMobileTier } from "../utils/deviceTier";
+import routeMetadata from "../content/routeMetadata.json";
 
 const OrbSection = lazy(() => import("./OrbSection"));
 const PopcornGame = lazy(() => import("./PopcornGame"));
@@ -16,20 +17,18 @@ export const EXPERIENCE_IDS = Object.freeze({
 const EXPERIENCE_CONFIG = Object.freeze({
   [EXPERIENCE_IDS.ORB]: {
     label: "Interactive Orb Lab",
-    title: "Interactive Orb Lab | Popular Consulting",
-    description:
-      "A route-only interactive WebGL orb experiment by Popular Consulting, with expressions, morphing, animation sequences, and a complete non-WebGL fallback.",
-    canonical: "https://popcon.dev/orb",
+    title: routeMetadata.orb.title,
+    description: routeMetadata.orb.description,
+    canonical: routeMetadata.orb.canonical,
     backgroundSection: 4,
     darkColors: ["#24CCFF", "#52E5A0", "#6344F5"],
     lightColors: ["#38bdf8", "#34d399", "#818cf8"],
   },
   [EXPERIENCE_IDS.GAME]: {
     label: "Popcorn Game",
-    title: "Popcorn Game | Popular Consulting",
-    description:
-      "A route-only browser game experiment by Popular Consulting, combining a responsive canvas, pointer interaction, procedural animation, and user-initiated Web Audio.",
-    canonical: "https://popcon.dev/game",
+    title: routeMetadata.game.title,
+    description: routeMetadata.game.description,
+    canonical: routeMetadata.game.canonical,
     backgroundSection: 5,
     darkColors: ["#24CCFF", "#4FC3F7", "#52E5A0"],
     lightColors: ["#38bdf8", "#7dd3fc", "#34d399"],

@@ -396,11 +396,9 @@ const InteractionAccessibilityBridge = () => {
             const label = trigger.getAttribute("aria-label") || "";
             return dialogTitle && label.includes(dialogTitle);
           }) ||
-          (dialogTitle === "Your Technology Partner."
-            ? Array.from(enhancedTriggers.keys()).find(
-                (trigger) => trigger.dataset.a11yCardTrigger === "biography",
-              )
-            : null);
+          Array.from(enhancedTriggers.keys()).find(
+            (trigger) => trigger.dataset.a11yCardTrigger === "biography",
+          );
       }
 
       dialog.id = dialog.id || DIALOG_ID;
