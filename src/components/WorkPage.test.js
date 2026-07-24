@@ -49,6 +49,31 @@ describe("WorkPage", () => {
     expect(screen.getByText("How I reduce uncertainty.")).toBeInTheDocument();
   });
 
+  test("uses a rich decorative system without making decoration essential", () => {
+    render(<WorkPage />);
+
+    expect(document.querySelector(".work-page__ambient")).toHaveAttribute(
+      "aria-hidden",
+      "true",
+    );
+    expect(document.querySelector(".work-page__system-visual")).toHaveAttribute(
+      "aria-hidden",
+      "true",
+    );
+
+    const projectVisuals = document.querySelectorAll(
+      "figure.work-project__visual[aria-hidden='true']",
+    );
+    expect(projectVisuals).toHaveLength(4);
+
+    expect(
+      screen.getByRole("list", { name: "Engineering scope highlights" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("navigation", { name: "Work page navigation" }),
+    ).toBeInTheDocument();
+  });
+
   test("publishes public-safe links without exposing private contact data", () => {
     render(<WorkPage />);
 

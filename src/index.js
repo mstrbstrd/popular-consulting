@@ -3,6 +3,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
 import SiteRouter from './SiteRouter';
+import './components/WorkPageModes.css';
 import InteractionAccessibilityBridge from './components/InteractionAccessibilityBridge';
 import { initCoreWebVitals, initSectionTiming, initLongTaskObserver } from './utils/telemetry';
 
