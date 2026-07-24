@@ -244,5 +244,5 @@ export const PUBLIC_LINKS = Object.freeze({
   work: "/work",
   consulting: "/",
   github: "https://github.com/mstrbstrd",
-  email: "mailto:shaw@popcon.dev",
+  email: "mailto:shae@popcon.dev",
 });
