@@ -33,7 +33,7 @@ jobs:
           cat scripts/patch-parts/*.mjs > scripts/apply-dual-audience-copy.mjs
           set +e
           {
-            echo "## diagnostic revision 2"
+            echo "## diagnostic revision 3"
             echo "## node --check"
             node --check scripts/apply-dual-audience-copy.mjs
             CHECK_STATUS=$?
