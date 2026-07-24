@@ -3,6 +3,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
 import App from './App';
+import InteractionAccessibilityBridge from './components/InteractionAccessibilityBridge';
 import { initCoreWebVitals, initSectionTiming, initLongTaskObserver } from './utils/telemetry';
 
 // ResizeObserver fires this benign warning when its callback can't deliver all
@@ -13,6 +14,7 @@ import { initCoreWebVitals, initSectionTiming, initLongTaskObserver } from './ut
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
+    <InteractionAccessibilityBridge />
     <App />
   </React.StrictMode>
 );
