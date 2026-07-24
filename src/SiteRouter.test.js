@@ -3,8 +3,25 @@ import { cleanup, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import SiteRouter, { resolveSiteView } from "./SiteRouter";
 
-jest.mock("./App", () => () => <div data-testid="immersive-site">Immersive site</div>);
-jest.mock("./components/WorkPage", () => () => <div data-testid="work-page">Work page</div>);
+jest.mock("./App", () => {
+  const ReactModule = require("react");
+  return () =>
+    ReactModule.createElement(
+      "div",
+      { "data-testid": "immersive-site" },
+      "Immersive site",
+    );
+});
+
+jest.mock("./components/WorkPage", () => {
+  const ReactModule = require("react");
+  return () =>
+    ReactModule.createElement(
+      "div",
+      { "data-testid": "work-page" },
+      "Work page",
+    );
+});
 
 describe("SiteRouter", () => {
   afterEach(cleanup);
