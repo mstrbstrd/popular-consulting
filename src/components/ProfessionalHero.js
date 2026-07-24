@@ -13,7 +13,6 @@ const PROFILE = {
 
 const SECTION_INDEX = {
   about: 1,
-  work: 2,
   contact: 3,
 };
 
@@ -141,15 +140,14 @@ const ProfessionalHero = () => {
         <p className="professional-hero__summary">{PROFILE.summary}</p>
 
         <div className="professional-hero__actions" aria-label="Professional links">
-          <button
-            type="button"
+          <a
             className="professional-hero__action professional-hero__action--primary"
-            onClick={() => navigateToSection(SECTION_INDEX.work)}
+            href="/work"
             tabIndex={isInteractive ? 0 : -1}
           >
             View selected work
             <span aria-hidden="true">→</span>
-          </button>
+          </a>
 
           <button
             type="button"
