@@ -1,6 +1,8 @@
 import React from "react";
 import logo from "../assets/icons/popcon_png.png";
 import { ThemeProvider, useThemeMode } from "../contexts/ThemeContext";
+import { PUBLIC_LINKS } from "../content/siteCopy";
+import routeMetadata from "../content/routeMetadata.json";
 
 const PROJECTS = [
   {
@@ -8,7 +10,7 @@ const PROJECTS = [
     category: "Enterprise commerce",
     title: "Industrial E-Commerce Platform",
     summary:
-      "A layered .NET and Blazor commerce system connecting catalog, customer, order, payment, and operational workflows to Microsoft Dynamics NAV.",
+      "A live, layered .NET and Blazor commerce system connecting catalog, customer, order, payment, and operational workflows to Microsoft Dynamics NAV.",
     ownership:
       "Architecture, full-stack implementation, enterprise integrations, delivery automation, and production support.",
     technologies: [
@@ -27,8 +29,8 @@ const PROJECTS = [
       "Sandbox and production delivery automation with secret-backed configuration and deployment verification",
       "Current production support across checkout, caching, shipping-provider behavior, and release integrity",
     ],
-    status: "Private client system",
-    links: [],
+    status: "Live client platform",
+    links: [PUBLIC_LINKS.liveStorefront],
   },
   {
     number: "02",
@@ -103,7 +105,7 @@ const PROJECTS = [
     category: "Front-end systems",
     title: "Popular Consulting",
     summary:
-      "An interactive React business platform built around custom WebGL and GLSL effects, full-screen transitions, progressive enhancement, and a growing recruiter-facing portfolio layer.",
+      "An interactive React business and engineering platform built around custom WebGL and GLSL effects, full-screen transitions, progressive enhancement, and evidence-led professional routes.",
     ownership:
       "Creative direction, interaction engineering, accessibility, performance instrumentation, graceful degradation, testing, and deployment.",
     technologies: [
@@ -196,19 +198,18 @@ const WorkPageContent = () => {
       ogUrl: ogUrl?.getAttribute("content"),
     };
 
-    const workDescription =
-      "Selected engineering work by Shaedan Hawse across enterprise commerce, AI operations, product engineering, accessible interfaces, and production delivery.";
+    const metadata = routeMetadata.work;
 
-    document.title = "Selected Engineering Work | Shaedan Hawse";
+    document.title = metadata.title;
     document.documentElement.style.overflow = "auto";
     document.documentElement.style.height = "auto";
     document.body.style.overflow = "auto";
     document.body.style.height = "auto";
-    description?.setAttribute("content", workDescription);
-    canonical?.setAttribute("href", "https://popcon.dev/work");
-    ogTitle?.setAttribute("content", "Selected Engineering Work | Shaedan Hawse");
-    ogDescription?.setAttribute("content", workDescription);
-    ogUrl?.setAttribute("content", "https://popcon.dev/work");
+    description?.setAttribute("content", metadata.description);
+    canonical?.setAttribute("href", metadata.canonical);
+    ogTitle?.setAttribute("content", metadata.socialTitle);
+    ogDescription?.setAttribute("content", metadata.socialDescription);
+    ogUrl?.setAttribute("content", metadata.canonical);
 
     return () => {
       document.title = previous.title;
@@ -277,7 +278,8 @@ const WorkPageContent = () => {
             <a href="#selected-projects">Projects</a>
             <a href="#engineering-principles">Principles</a>
             <a href="mailto:shaw@popcon.dev">Contact</a>
-            <a href="/">Immersive home</a>
+            <a href="/engineering">Engineering home</a>
+            <a href="/">Consulting home</a>
             <button
               type="button"
               className="work-page__theme"
@@ -293,11 +295,11 @@ const WorkPageContent = () => {
       <main className="work-page__main">
         <section className="work-page__hero" aria-labelledby="work-page-title">
           <div className="work-page__hero-copy">
-            <p className="work-page__eyebrow">Shaedan Hawse | Selected engineering work</p>
-            <h1 id="work-page-title">Systems built to survive production.</h1>
+            <p className="work-page__eyebrow">Shaedan Hawse | Engineering work through Popular Consulting</p>
+            <h1 id="work-page-title">Systems built for real operations.</h1>
             <p className="work-page__lede">
-              Hands-on Engineering Lead and Full Stack Software Engineer building across AI operations,
-              commerce, payments, enterprise integrations, accessible interfaces, and delivery systems.
+              Hands-on Engineering Lead and Full Stack Software Engineer working across AI operations,
+              commerce, payments, enterprise integrations, accessible interfaces, and complete delivery systems.
             </p>
 
             <div className="work-page__hero-actions">
@@ -306,7 +308,7 @@ const WorkPageContent = () => {
                 <span aria-hidden="true">↓</span>
               </a>
               <a className="work-page__button" href="mailto:shaw@popcon.dev">
-                Discuss a role
+                Discuss a role or project
               </a>
               <a
                 className="work-page__text-link"
@@ -444,14 +446,17 @@ const WorkPageContent = () => {
         </section>
 
         <section className="work-page__contact" aria-labelledby="work-contact-title">
-          <p>Engineering leadership, full-stack product work, and difficult systems</p>
-          <h2 id="work-contact-title">Let us talk about the problem you need solved.</h2>
+          <p>Engineering roles, product partnerships, and consulting engagements</p>
+          <h2 id="work-contact-title">Let us talk about the system, team, or business problem.</h2>
           <div>
             <a className="work-page__button work-page__button--primary" href="mailto:shaw@popcon.dev">
               shaw@popcon.dev
             </a>
+            <a className="work-page__button" href="/engineering">
+              Engineering home
+            </a>
             <a className="work-page__button" href="/">
-              Enter the immersive site
+              Consulting home
             </a>
           </div>
         </section>

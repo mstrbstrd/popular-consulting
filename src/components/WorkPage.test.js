@@ -30,7 +30,7 @@ describe("WorkPage", () => {
     expect(
       screen.getByRole("heading", {
         level: 1,
-        name: "Systems built to survive production.",
+        name: "Systems built for real operations.",
       }),
     ).toBeInTheDocument();
 
@@ -44,7 +44,7 @@ describe("WorkPage", () => {
     });
 
     expect(screen.getByText("Kelowna, BC, Canada")).toBeInTheDocument();
-    expect(screen.getByText("Private client system")).toBeInTheDocument();
+    expect(screen.getByText("Live client platform")).toBeInTheDocument();
     expect(screen.getByText("Evidence over adjectives.")).toBeInTheDocument();
     expect(screen.getByText("How I reduce uncertainty.")).toBeInTheDocument();
   });
@@ -61,6 +61,16 @@ describe("WorkPage", () => {
         expect(link).toHaveAttribute("rel", "noopener noreferrer");
       }
     });
+
+    const storefront = screen.getByRole("link", {
+      name: /Open live storefront/i,
+    });
+    expect(storefront).toHaveAttribute(
+      "href",
+      "https://shop.dyconcretepumps.com",
+    );
+    expect(storefront).toHaveAttribute("target", "_blank");
+    expect(storefront).toHaveAttribute("rel", "noopener noreferrer");
 
     const creatorOs = screen.getByRole("link", { name: /Open CreatorOS/i });
     expect(creatorOs).toHaveAttribute("target", "_blank");
@@ -85,7 +95,7 @@ describe("WorkPage", () => {
     );
     expect(document.querySelector('meta[name="description"]')).toHaveAttribute(
       "content",
-      expect.stringContaining("Selected engineering work by Shaedan Hawse"),
+      expect.stringContaining("Selected software and engineering work by Shaedan Hawse"),
     );
 
     const themeButton = screen.getByRole("button", { name: "Use dark theme" });

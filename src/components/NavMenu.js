@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from "react";
 import logo from "../assets/icons/popcon_png.png";
 import { useThemeMode } from "../contexts/ThemeContext";
-import { MAIN_APP_EXPERIENCE_PLAN } from "../experiencePlacement";
+import { SITE_AUDIENCES, getSiteCopy } from "../content/siteCopy";
 
-const NAV_LINKS = MAIN_APP_EXPERIENCE_PLAN.navigationLinks;
-
-const NavMenu = () => {
+const NavMenu = ({ audience = SITE_AUDIENCES.BUSINESS }) => {
   const { isDark, toggleTheme } = useThemeMode();
+  const navigation = getSiteCopy(audience).navigation;
+  const navLinks = navigation.links;
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
@@ -50,13 +50,19 @@ const NavMenu = () => {
     const className = mobile ? "nav-overlay-link" : "nav-link";
 
     if (href) {
+      const external = /^https?:\/\//.test(href);
+
       return (
         <a
           href={href}
-          target="_blank"
-          rel="noopener noreferrer"
+          target={external ? "_blank" : undefined}
+          rel={external ? "noopener noreferrer" : undefined}
           className={className}
-          aria-label={`${label.replace(" ↗", "")} - opens in new tab`}
+          aria-label={
+            external
+              ? `${label.replace(" ↗", "")} - opens in new tab`
+              : undefined
+          }
           onClick={mobile ? () => setIsMobileMenuOpen(false) : undefined}
         >
           {label}
@@ -91,17 +97,17 @@ const NavMenu = () => {
           <button
             className="nav-brand"
             onClick={() => navigate(0)}
-            aria-label="Popular Consulting - return to home"
+            aria-label={navigation.brandAriaLabel}
           >
             <img src={logo} alt="" aria-hidden="true" className="nav-logo" />
-            <span className="nav-brand-name">Popular Consulting</span>
+            <span className="nav-brand-name">{navigation.brandLabel}</span>
           </button>
 
           {!isMobile && (
             <>
               <div className="nav-rule" aria-hidden="true" />
               <ul className="nav-links">
-                {NAV_LINKS.map((link) => (
+                {navLinks.map((link) => (
                   <li key={link.label}>{renderLink(link)}</li>
                 ))}
               </ul>
@@ -169,7 +175,7 @@ const NavMenu = () => {
             className="nav-overlay-links"
             onClick={(event) => event.stopPropagation()}
           >
-            {NAV_LINKS.map((link) => (
+            {navLinks.map((link) => (
               <li key={link.label}>{renderLink(link, true)}</li>
             ))}
           </ul>

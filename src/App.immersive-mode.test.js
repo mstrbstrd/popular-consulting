@@ -109,7 +109,7 @@ describe("App immersive presentation", () => {
     ).toBeInTheDocument();
 
     expect(document.title).toBe(
-      "Popular Consulting | AI, Software & E-Commerce",
+      "Popular Consulting | Custom Software, AI & E-Commerce",
     );
     expect(document.querySelector('link[rel="canonical"]')).toHaveAttribute(
       "href",
@@ -138,7 +138,7 @@ describe("App immersive presentation", () => {
     );
     expect(document.querySelector('meta[name="description"]')).toHaveAttribute(
       "content",
-      expect.stringContaining("Shaedan Hawse is an Engineering Lead"),
+      expect.stringContaining("Shaedan Hawse is a hands-on Engineering Lead"),
     );
     expect(document.querySelector('meta[property="og:url"]')).toHaveAttribute(
       "content",

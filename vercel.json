@@ -40,35 +40,35 @@
   "rewrites": [
     {
       "source": "/engineering",
-      "destination": "/index.html"
+      "destination": "/engineering/index.html"
     },
     {
       "source": "/engineering/:path*",
-      "destination": "/index.html"
+      "destination": "/engineering/index.html"
     },
     {
       "source": "/work",
-      "destination": "/index.html"
+      "destination": "/work/index.html"
     },
     {
       "source": "/work/:path*",
-      "destination": "/index.html"
+      "destination": "/work/index.html"
     },
     {
       "source": "/orb",
-      "destination": "/index.html"
+      "destination": "/orb/index.html"
     },
     {
       "source": "/orb/:path*",
-      "destination": "/index.html"
+      "destination": "/orb/index.html"
     },
     {
       "source": "/game",
-      "destination": "/index.html"
+      "destination": "/game/index.html"
     },
     {
       "source": "/game/:path*",
-      "destination": "/index.html"
+      "destination": "/game/index.html"
     }
   ]
 }

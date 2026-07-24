@@ -65,7 +65,7 @@ describe('Section navigation dots', () => {
     } else {
       // At least one dot should have aria-current
       const dotsWithCurrent = container.querySelectorAll('.section-dot[aria-current]');
-      expect(dotsWithCurrent.length).toBeGreaterThanOrEqual(0); // graceful — animation may not have settled
+      expect(dotsWithCurrent.length).toBeGreaterThanOrEqual(0); // graceful, animation may not have settled
     }
   });
 
@@ -103,12 +103,11 @@ describe('NavMenu ARIA attributes', () => {
     expect(wrongCurrent.length).toBe(0); // nav uses "page", not "true"
   });
 
-  test('external Blog link indicates it opens in new tab', () => {
+  test('external links indicate when they open in a new tab', () => {
     wrap(<NavMenu />);
-    // Desktop only — isMobile defaults false in non-responsive JSDOM
-    const blogLink = document.querySelector('a[target="_blank"]');
-    if (blogLink) {
-      const label = blogLink.getAttribute('aria-label') || '';
+    const externalLink = document.querySelector('a[target="_blank"]');
+    if (externalLink) {
+      const label = externalLink.getAttribute('aria-label') || '';
       expect(label.toLowerCase()).toMatch(/new tab/i);
     }
   });
@@ -161,8 +160,8 @@ describe('Mobile hamburger ARIA', () => {
 describe('Contact form ARIA', () => {
   beforeEach(() => wrap(<ContactSection isActive={true} />));
 
-  test('form has aria-label="Contact form"', () => {
-    const form = document.querySelector('form[aria-label="Contact form"]');
+  test('business form has a descriptive accessible label', () => {
+    const form = screen.getByRole('form', { name: 'Project inquiry form' });
     expect(form).toBeInTheDocument();
   });
 
@@ -178,8 +177,8 @@ describe('Contact form ARIA', () => {
     expect(emailField).toBeRequired();
   });
 
-  test('submit button has accessible name "Send Message"', () => {
-    const btn = screen.getByRole('button', { name: /send message/i });
+  test('submit button has the business inquiry accessible name', () => {
+    const btn = screen.getByRole('button', { name: /send project inquiry/i });
     expect(btn).toBeInTheDocument();
     expect(btn).toHaveAttribute('type', 'submit');
   });

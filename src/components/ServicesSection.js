@@ -7,6 +7,7 @@ import webdevIcon from "../assets/icons/webdev.svg";
 import seoIcon from "../assets/icons/seo.svg";
 import trainingIcon from "../assets/icons/copywrite.svg";
 import ecommerceIcon from "../assets/icons/ecommerce.svg";
+import { SITE_AUDIENCES, getSiteCopy } from "../content/siteCopy";
 
 const CARD_RADIUS = 20;
 const FLIP_DURATION = 560;
@@ -31,48 +32,12 @@ const getFlipTransform = (fromRect, toRect) => {
   return `translate3d(${translateX}px, ${translateY}px, 0) scale3d(${scaleX}, ${scaleY}, 1)`;
 };
 
-const SERVICES = [
-  {
-    id: "training",
-    title: "AI Training & Education",
-    description:
-      "Hands-on, easy to grasp guidance to help you and your team actually understand and use AI tools. Tailored to your industry and skill level, no technical background required.",
-    detailed:
-      "Whether you're a solo founder trying to figure out where AI fits, or a team lead looking to upskill your department, I build custom training programs around your actual workflows. We start with a hands-on audit of where AI can save you the most time, then work through real exercises using tools like ChatGPT, Claude, Midjourney, and custom automation pipelines. Every session is recorded, and you walk away with a playbook specific to your business. No generic slide decks, just practical skills you can use the same day.",
-    icon: trainingIcon,
-    featured: true,
-  },
-  {
-    id: "software",
-    title: "Custom Software Development",
-    description:
-      "Full-stack web and software solutions built specifically for your needs, from concept to deployment.",
-    detailed:
-      "I build production-grade web applications from the ground up, responsive frontends, robust APIs, database architecture, authentication, payment processing, and deployment pipelines. My stack is flexible (React, Blazor, .NET, Python, Node) and chosen to fit your project, not the other way around. Every project includes CI/CD setup, documentation, and a handoff process so you're never locked into needing me. I've shipped e-commerce platforms, internal tools, customer portals, and data dashboards, all with clean code and maintainable architecture.",
-    icon: seoIcon,
-    featured: false,
-  },
-  {
-    id: "integration",
-    title: "AI Implementation & Integration",
-    description:
-      "Seamless AI tool integration into your existing workflows, automating the repetitive stuff so you can focus on what matters.",
-    detailed:
-      "Already have systems you love? I'll plug AI into them without disrupting what works. This includes building custom GPT agents for customer support, automating document processing with OCR and NLP, setting up intelligent email triage, creating AI-powered search over your internal knowledge base, and connecting tools like Zapier, Make, or custom middleware to orchestrate it all. I handle the full lifecycle: scoping what's automatable, building the integration, testing edge cases, and monitoring post-launch to make sure it actually saves you time.",
-    icon: webdevIcon,
-    featured: false,
-  },
-  {
-    id: "ecommerce",
-    title: "E-Commerce & Payments",
-    description:
-      "End-to-end e-commerce builds with custom storefronts, checkout flows, and payment processing. Hands-on experience with Stripe and JPMorgan's payment portal, from integration to live deployment.",
-    detailed:
-      "I've built and launched full e-commerce platforms with real payment processing, not just Shopify themes. This means custom product catalogs with advanced filtering, cart systems with real-time inventory checks, checkout flows integrated with Stripe and JPMorgan Chase's payment APIs, automated invoicing, shipping label generation, and post-purchase email sequences. I handle PCI compliance considerations, fraud prevention setup, and tax calculation integration. Whether you're selling 50 SKUs or 10,000, the architecture scales.",
-    icon: ecommerceIcon,
-    featured: false,
-  },
-];
+const SERVICE_ICONS = Object.freeze({
+  training: trainingIcon,
+  software: seoIcon,
+  integration: webdevIcon,
+  ecommerce: ecommerceIcon,
+});
 
 const CompactCard = ({
   title,
@@ -1004,7 +969,7 @@ const ExpandedOverlay = ({
               {svc.detailed}
             </Typography>
 
-            {svc.id === "ecommerce" && (
+            {svc.liveLink && (
               <Box
                 sx={{
                   mt: 2.5,
@@ -1015,7 +980,7 @@ const ExpandedOverlay = ({
                 }}
               >
                 <a
-                  href="https://shop.dyconcretepumps.com/"
+                  href={svc.liveLink.href}
                   target="_blank"
                   rel="noopener noreferrer"
                   style={{
@@ -1042,7 +1007,7 @@ const ExpandedOverlay = ({
                     e.currentTarget.style.borderColor = "rgba(99,68,245,0.22)";
                   }}
                 >
-                  View live example
+                  {svc.liveLink.label}
                   <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
                     <path
                       d="M2 9L9 2M9 2H4M9 2V7"
@@ -1157,8 +1122,20 @@ const ExpandedOverlay = ({
   );
 };
 
-const ServicesSection = ({ isActive }) => {
+const ServicesSection = ({
+  isActive,
+  audience = SITE_AUDIENCES.BUSINESS,
+}) => {
   const { isDark } = useThemeMode();
+  const sectionCopy = getSiteCopy(audience).services;
+  const services = React.useMemo(
+    () =>
+      sectionCopy.cards.map((card) => ({
+        ...card,
+        icon: SERVICE_ICONS[card.id],
+      })),
+    [sectionCopy],
+  );
   const contentRef = React.useRef(null);
   const gridRef = React.useRef(null);
   const cellRefs = React.useRef([]);
@@ -1204,9 +1181,8 @@ const ServicesSection = ({ isActive }) => {
     return () => window.clearTimeout(id);
   }, [isActive]);
 
-  const titleContent = "AI & Software Solutions.";
-  const subtitleContent =
-    "Bridging the technology gap with personalized AI education and custom software development.";
+  const titleContent = sectionCopy.title;
+  const subtitleContent = sectionCopy.subtitle;
 
   React.useEffect(() => {
     let cursorTimer = null;
@@ -1382,7 +1358,7 @@ const ServicesSection = ({ isActive }) => {
   return (
     <section
       id="services"
-      aria-label="Services"
+      aria-label={sectionCopy.sectionLabel}
       style={{
         height: "100dvh",
         display: "flex",
@@ -1452,7 +1428,7 @@ const ServicesSection = ({ isActive }) => {
                   color: "rgba(99, 68, 245, 0.7)",
                 }}
               >
-                What I Do
+                {sectionCopy.label}
               </Typography>
             </Box>
 
@@ -1460,7 +1436,7 @@ const ServicesSection = ({ isActive }) => {
               <Typography
                 variant="h2"
                 component="h2"
-                aria-label="AI & Software Solutions." /* Typewriter animates visually; label always exposes full text */
+                aria-label={titleContent} /* Typewriter animates visually; label always exposes full text */
                 sx={{
                   fontWeight: 800,
                   color: isDark
@@ -1553,7 +1529,7 @@ const ServicesSection = ({ isActive }) => {
                 "opacity 0.9s cubic-bezier(0.23, 1, 0.32, 1), transform 0.9s cubic-bezier(0.23, 1, 0.32, 1)",
             }}
           >
-            {SERVICES.map((svc, i) => {
+            {services.map((svc, i) => {
               const isThis = expandedIndex === i;
               const shouldHideSibling = anyExpanded && !isThis;
 
@@ -1587,7 +1563,7 @@ const ServicesSection = ({ isActive }) => {
 
           {expandedIndex !== null && originRect && targetRect && (
             <ExpandedOverlay
-              svc={SERVICES[expandedIndex]}
+              svc={services[expandedIndex]}
               originRect={originRect}
               targetRect={targetRect}
               getOriginRect={() => getCellRect(expandedIndex) || originRect}
@@ -1634,7 +1610,7 @@ const ServicesSection = ({ isActive }) => {
                   },
                 }}
               >
-                Get in touch for a quote
+                {sectionCopy.cta}
               </Typography>
 
               <Box

@@ -51,29 +51,29 @@ describe('NavMenu landmarks', () => {
 // ── Section landmarks ─────────────────────────────────────────────────────
 
 describe('BioSection landmark', () => {
-  test('renders a <section> with aria-label="About"', () => {
+  test('renders a labelled business About section by default', () => {
     wrap(<BioSection isActive={true} />);
     const section = document.querySelector('section#bio');
     expect(section).toBeInTheDocument();
-    expect(section).toHaveAttribute('aria-label', 'About');
+    expect(section).toHaveAttribute('aria-label', 'About Popular Consulting');
   });
 });
 
 describe('ServicesSection landmark', () => {
-  test('renders a <section> with aria-label="Services"', () => {
+  test('renders a labelled business services section by default', () => {
     wrap(<ServicesSection isActive={true} />);
     const section = document.querySelector('section#services');
     expect(section).toBeInTheDocument();
-    expect(section).toHaveAttribute('aria-label', 'Services');
+    expect(section).toHaveAttribute('aria-label', 'Popular Consulting services');
   });
 });
 
 describe('ContactSection landmark', () => {
-  test('renders a <section> with aria-label="Contact"', () => {
+  test('renders a labelled business contact section by default', () => {
     wrap(<ContactSection isActive={true} />);
     const section = document.querySelector('section#contact');
     expect(section).toBeInTheDocument();
-    expect(section).toHaveAttribute('aria-label', 'Contact');
+    expect(section).toHaveAttribute('aria-label', 'Contact Popular Consulting');
   });
 });
 

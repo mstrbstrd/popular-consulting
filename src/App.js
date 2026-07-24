@@ -14,6 +14,8 @@ import {
   resolveImmersivePresentation,
 } from "./immersiveMode";
 import { MAIN_APP_EXPERIENCE_PLAN } from "./experiencePlacement";
+import routeMetadata from "./content/routeMetadata.json";
+import { SITE_AUDIENCES } from "./content/siteCopy";
 
 const OrbSection = lazy(() => import("./components/OrbSection"));
 const LoadingOverlay = lazy(() => import("./components/LoadingOverlay"));
@@ -25,26 +27,8 @@ const MainAppOrbSection = (props) => (
 );
 
 const IMMERSIVE_METADATA = {
-  [IMMERSIVE_MODES.ORIGINAL]: {
-    title: "Popular Consulting | AI, Software & E-Commerce",
-    description:
-      "Popular Consulting builds custom software, AI integrations, e-commerce systems, and interactive digital experiences from Kelowna, BC.",
-    canonical: "https://popcon.dev/",
-    socialTitle: "Popular Consulting | AI, Software & E-Commerce",
-    socialDescription:
-      "Custom software, AI integration, e-commerce systems, and interactive digital experiences from Popular Consulting.",
-  },
-  [IMMERSIVE_MODES.ENGINEERING]: {
-    title:
-      "Shaedan Hawse | Engineering Lead, Full Stack, AI & Commerce Systems",
-    description:
-      "Shaedan Hawse is an Engineering Lead and full-stack software engineer in Kelowna, BC, building AI-enabled SaaS, commerce platforms, payment integrations, accessible interfaces, and production delivery systems.",
-    canonical: "https://popcon.dev/engineering",
-    socialTitle:
-      "Shaedan Hawse | Engineering Lead, Full Stack, AI & Commerce Systems",
-    socialDescription:
-      "Engineering leadership and full-stack delivery across AI operations, commerce, payments, enterprise integrations, accessible interfaces, and production systems.",
-  },
+  [IMMERSIVE_MODES.ORIGINAL]: routeMetadata.root,
+  [IMMERSIVE_MODES.ENGINEERING]: routeMetadata.engineering,
 };
 
 const App = ({ immersiveMode = IMMERSIVE_MODES.ORIGINAL }) => {
@@ -52,6 +36,10 @@ const App = ({ immersiveMode = IMMERSIVE_MODES.ORIGINAL }) => {
   const [pageHidden, setPageHidden] = useState(false);
   const presentation = resolveImmersivePresentation(immersiveMode);
   const metadata = IMMERSIVE_METADATA[presentation.mode];
+  const audience =
+    presentation.mode === IMMERSIVE_MODES.ENGINEERING
+      ? SITE_AUDIENCES.ENGINEERING
+      : SITE_AUDIENCES.BUSINESS;
 
   React.useEffect(() => {
     const targets = {
@@ -149,9 +137,9 @@ const App = ({ immersiveMode = IMMERSIVE_MODES.ORIGINAL }) => {
   // navigation destination while the orb was configured as route-only.
   const mainAppSections = [
     <DitherHero key="hero" />,
-    <BioSection key="about" />,
-    <ServicesSection key="services" />,
-    <ContactSection key="contact" />,
+    <BioSection key="about" audience={audience} />,
+    <ServicesSection key="services" audience={audience} />,
+    <ContactSection key="contact" audience={audience} />,
   ];
 
   if (MAIN_APP_EXPERIENCE_PLAN.orbInMainApp) {
@@ -166,7 +154,7 @@ const App = ({ immersiveMode = IMMERSIVE_MODES.ORIGINAL }) => {
         </a>
 
         <div style={pageHideStyle}>
-          <NavMenu />
+          <NavMenu audience={audience} />
 
           {presentation.showAnimatedLogo && <HeroLogo />}
 

@@ -83,13 +83,13 @@ describe("ProfessionalHero", () => {
     ).toBeInTheDocument();
     expect(
       mainQueries.getByText(
-        "I design and ship production software across AI operations, commerce, payments, enterprise integrations, accessible interfaces, and delivery systems.",
+        "I lead and ship production software across AI operations, commerce, payments, enterprise integrations, accessible interfaces, and delivery systems. The work stays hands-on, evidence-led, and accountable through production.",
       ),
     ).toBeInTheDocument();
     expect(mainQueries.getByText("Kelowna, BC, Canada")).toBeInTheDocument();
 
     const workLink = mainQueries.getByRole("link", {
-      name: "View selected work",
+      name: "Review engineering work",
     });
     expect(workLink).toHaveAttribute("href", "/work");
 
@@ -114,12 +114,12 @@ describe("ProfessionalHero", () => {
 
     renderHero();
 
-    const workLink = screen.getByRole("link", { name: "View selected work" });
+    const workLink = screen.getByRole("link", { name: "Review engineering work" });
     await waitFor(() => expect(workLink).toHaveAttribute("tabindex", "0"));
     expect(workLink).toHaveAttribute("href", "/work");
 
-    fireEvent.click(screen.getByRole("button", { name: "About" }));
-    fireEvent.click(screen.getByRole("button", { name: "Contact" }));
+    fireEvent.click(screen.getByRole("button", { name: "Engineering approach" }));
+    fireEvent.click(screen.getByRole("button", { name: "Discuss a role" }));
 
     expect(aboutClick).toHaveBeenCalledTimes(1);
     expect(contactClick).toHaveBeenCalledTimes(1);
@@ -133,7 +133,7 @@ describe("ProfessionalHero", () => {
       name: "Professional introduction",
     });
     const workLink = screen.getByRole("link", {
-      name: "View selected work",
+      name: "Review engineering work",
     });
     const github = screen.getByRole("link", {
       name: "Shaedan Hawse on GitHub, opens in a new tab",

@@ -1,15 +1,12 @@
 import React from "react";
 import { useThemeMode } from "../contexts/ThemeContext";
+import {
+  PUBLIC_LINKS,
+  SITE_AUDIENCES,
+  getSiteCopy,
+} from "../content/siteCopy";
 
-const PROFILE = {
-  name: "Shaedan Hawse",
-  headline:
-    "Engineering Lead | Full Stack Software Engineer | AI & Commerce Systems",
-  summary:
-    "I design and ship production software across AI operations, commerce, payments, enterprise integrations, accessible interfaces, and delivery systems.",
-  location: "Kelowna, BC, Canada",
-  github: "https://github.com/mstrbstrd",
-};
+const PROFILE = getSiteCopy(SITE_AUDIENCES.ENGINEERING).hero;
 
 const SECTION_INDEX = {
   about: 1,
@@ -145,7 +142,7 @@ const ProfessionalHero = () => {
             href="/work"
             tabIndex={isInteractive ? 0 : -1}
           >
-            View selected work
+            {PROFILE.primaryAction}
             <span aria-hidden="true">→</span>
           </a>
 
@@ -155,7 +152,7 @@ const ProfessionalHero = () => {
             onClick={() => navigateToSection(SECTION_INDEX.about)}
             tabIndex={isInteractive ? 0 : -1}
           >
-            About
+            {PROFILE.approachAction}
           </button>
 
           <button
@@ -164,18 +161,18 @@ const ProfessionalHero = () => {
             onClick={() => navigateToSection(SECTION_INDEX.contact)}
             tabIndex={isInteractive ? 0 : -1}
           >
-            Contact
+            {PROFILE.contactAction}
           </button>
 
           <a
             className="professional-hero__github"
-            href={PROFILE.github}
+            href={PUBLIC_LINKS.github}
             target="_blank"
             rel="noopener noreferrer"
             aria-label="Shaedan Hawse on GitHub, opens in a new tab"
             tabIndex={isInteractive ? 0 : -1}
           >
-            GitHub
+            {PROFILE.githubAction}
             <span aria-hidden="true">↗</span>
           </a>
         </div>

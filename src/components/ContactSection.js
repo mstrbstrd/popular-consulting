@@ -12,9 +12,14 @@ import { hasHardwareWebGL } from "../utils/deviceTier";
 import twitterIcon from "../assets/icons/twitter.svg";
 import instagramIcon from "../assets/icons/instagram.svg";
 import logo from "../assets/icons/popcon_png.png";
+import { SITE_AUDIENCES, getSiteCopy } from "../content/siteCopy";
 
-const ContactSection = ({ isActive }) => {
+const ContactSection = ({
+  isActive,
+  audience = SITE_AUDIENCES.BUSINESS,
+}) => {
   const { isDark } = useThemeMode();
+  const copy = getSiteCopy(audience).contact;
   // Reference to main content div for animations
   const contentRef = React.useRef(null);
   const footerRef = React.useRef(null);
@@ -23,7 +28,6 @@ const ContactSection = ({ isActive }) => {
   // Handle section transition effects for both form and footer
   React.useEffect(() => {
     const initContactSection = () => {
-      console.log("Initializing ContactSection, isActive:", isActive);
 
       // Wait for DOM to be ready
       setTimeout(() => {
@@ -35,7 +39,7 @@ const ContactSection = ({ isActive }) => {
         const footerEl = footerRef.current;
 
         if (isActive) {
-          console.log("ContactSection becoming active");
+
           // Reset scroll out flag
           setScrollOutStarted(false);
 
@@ -51,7 +55,7 @@ const ContactSection = ({ isActive }) => {
           footerEl.style.transform = "translateY(0)";
           footerEl.style.opacity = "1";
         } else if (!scrollOutStarted) {
-          console.log("ContactSection becoming inactive");
+
           // EXIT ANIMATION
           setScrollOutStarted(true);
 
@@ -238,7 +242,7 @@ const ContactSection = ({ isActive }) => {
   return (
     <section
       id="contact"
-      aria-label="Contact"
+      aria-label={copy.sectionLabel}
       style={{
         height: "100dvh",
         display: "flex",
@@ -352,12 +356,29 @@ const ContactSection = ({ isActive }) => {
                 },
               }}
             >
-              Let's Talk.
+              {copy.heading}
+            </Typography>
+            <Typography
+              component="p"
+              sx={{
+                maxWidth: "640px",
+                margin: "0 auto 1.5rem",
+                textAlign: "center",
+                color: isDark
+                  ? "rgba(225,225,245,0.62)"
+                  : "rgba(20,20,30,0.62)",
+                fontSize: { xs: "0.95rem", md: "1.05rem" },
+                lineHeight: 1.6,
+                position: "relative",
+                zIndex: 2,
+              }}
+            >
+              {copy.intro}
             </Typography>
             <form
               action="https://formspree.io/f/mrgvbgww"
               method="POST"
-              aria-label="Contact form"
+              aria-label={copy.formLabel}
               style={{
                 display: "flex",
                 flexDirection: "column",
@@ -397,7 +418,7 @@ const ContactSection = ({ isActive }) => {
               ></div>
               <TextField
                 id="name"
-                label="Name"
+                label={copy.nameLabel}
                 variant="filled"
                 type="text"
                 name="name"
@@ -407,7 +428,7 @@ const ContactSection = ({ isActive }) => {
               />
               <TextField
                 id="email"
-                label="Email"
+                label={copy.emailLabel}
                 variant="filled"
                 type="email"
                 name="email"
@@ -417,7 +438,7 @@ const ContactSection = ({ isActive }) => {
               />
               <TextField
                 id="message"
-                label="Message"
+                label={copy.messageLabel}
                 variant="filled"
                 multiline
                 rows={3} // Reduced from 4
@@ -431,9 +452,9 @@ const ContactSection = ({ isActive }) => {
                 variant="contained"
                 size="large"
                 sx={buttonStyles}
-                aria-label="Send message"
+                aria-label={copy.buttonLabel}
               >
-                Send Message
+                {copy.buttonLabel}
               </Button>
             </form>
           </Container>
