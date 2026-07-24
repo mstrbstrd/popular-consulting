@@ -360,7 +360,29 @@ const WorkPageContent = () => {
               onClick={toggleTheme}
               aria-label={isDark ? "Use light theme" : "Use dark theme"}
             >
-              <span aria-hidden="true">{isDark ? "☀" : "◐"}</span>
+              <span className="work-page__theme-icon" aria-hidden="true">
+                {isDark ? (
+                  <svg viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="3.5" stroke="currentColor" strokeWidth="1.7" />
+                    <path
+                      d="M12 2.5v2M12 19.5v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2.5 12h2M19.5 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"
+                      stroke="currentColor"
+                      strokeWidth="1.7"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" fill="none">
+                    <path
+                      d="M20.5 14.2A8 8 0 0 1 9.8 3.5a8.4 8.4 0 1 0 10.7 10.7Z"
+                      stroke="currentColor"
+                      strokeWidth="1.7"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                )}
+              </span>
               <span>{isDark ? "Light" : "Dark"}</span>
             </button>
           </nav>
