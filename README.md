@@ -4,7 +4,9 @@
 
 Popular Consulting is the public business and engineering portfolio platform for **Shaedan Hawse**, an **Engineering Lead | Full Stack Software Engineer | AI & Commerce Systems** based in Kelowna, British Columbia.
 
-- Website: [popcon.dev](https://popcon.dev)
+- Original immersive website: [popcon.dev](https://popcon.dev)
+- Engineering entrance: [popcon.dev/engineering](https://popcon.dev/engineering)
+- Selected work: [popcon.dev/work](https://popcon.dev/work)
 - Business domain: [popular-consulting.com](https://popular-consulting.com)
 - Contact: [shaw@popcon.dev](mailto:shaw@popcon.dev)
 
@@ -22,6 +24,18 @@ The repository is also becoming the public source of truth for:
 - Popular Consulting's commercial services
 
 The essential portfolio content will remain readable without WebGL, animation, high-end hardware, or access to private client repositories.
+
+## Public route contract
+
+The current application intentionally separates three entry experiences:
+
+| Route | Purpose | Opening identity |
+| --- | --- | --- |
+| `/` | Original Popular Consulting immersive experience | Animated Popular Consulting logo |
+| `/engineering` | Professional immersive experience for hiring teams and engineering peers | Shaedan Hawse Engineering Lead card |
+| `/work` | Conventional, directly linkable selected-work page | Scrollable engineering portfolio |
+
+The original logo and professional card are mutually exclusive. Unknown paths fail closed to the original immersive experience.
 
 ## Engineering evidence already present
 
@@ -80,7 +94,7 @@ Focused accessibility tests live under `src/__tests__/a11y/`.
 
 ```text
 .
-├── public/                  # Static assets and page metadata
+├── public/                  # Static assets and default page metadata
 ├── src/
 │   ├── assets/              # Images, icons, and video
 │   ├── components/          # Interface and WebGL components
@@ -98,12 +112,12 @@ Focused accessibility tests live under `src/__tests__/a11y/`.
 
 ## Professional platform direction
 
-The target platform serves two audiences without creating two disconnected brands:
+The platform serves two audiences without creating two disconnected brands:
 
 1. Hiring teams should quickly understand what Shaedan builds, owns, and leads.
 2. Prospective clients should understand how Popular Consulting can solve a business problem.
 
-Planned public routes include conventional, directly linkable pages for work, case studies, engineering writing, a public resume, consulting, and contact. The immersive WebGL experience will remain available as progressive enhancement rather than the only way to reach essential information.
+The original immersive route remains the brand entrance. The engineering route provides an intentional professional entrance, and the work route provides conventional recruiter scanning. Future directly linkable pages will cover case studies, engineering writing, a public resume, consulting, and contact.
 
 The initial case-study sequence is:
 
@@ -147,4 +161,4 @@ For engineering opportunities, technical collaboration, or consulting work:
 
 - Email: [shaw@popcon.dev](mailto:shaw@popcon.dev)
 - Location: Kelowna, BC, Canada
-- Website: [popcon.dev](https://popcon.dev)
+- Engineering profile: [popcon.dev/engineering](https://popcon.dev/engineering)

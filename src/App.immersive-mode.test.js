@@ -1,0 +1,135 @@
+import React from "react";
+import { cleanup, render, screen } from "@testing-library/react";
+import "@testing-library/jest-dom";
+import App from "./App";
+import { IMMERSIVE_MODES } from "./immersiveMode";
+
+jest.mock("./contexts/ThemeContext", () => {
+  const ReactModule = require("react");
+  return {
+    ThemeProvider: ({ children }) =>
+      ReactModule.createElement(ReactModule.Fragment, null, children),
+  };
+});
+
+jest.mock("./components/NavMenu", () => () => null);
+jest.mock("./components/BioSection", () => () => null);
+jest.mock("./components/ContactSection", () => () => null);
+jest.mock("./components/ServicesSection", () => () => null);
+jest.mock("./components/DitherHero", () => () => null);
+
+jest.mock("./components/HeroLogo", () => {
+  const ReactModule = require("react");
+  return () =>
+    ReactModule.createElement("div", { "data-testid": "animated-logo" });
+});
+
+jest.mock("./components/ProfessionalHero", () => {
+  const ReactModule = require("react");
+  return () =>
+    ReactModule.createElement("div", { "data-testid": "professional-hero" });
+});
+
+jest.mock("./components/ParallaxBackground", () => {
+  const ReactModule = require("react");
+  return ({ children }) =>
+    ReactModule.createElement("div", null, children);
+});
+
+jest.mock("./components/OrbSection", () => ({
+  __esModule: true,
+  default: () => null,
+}));
+
+jest.mock("./components/PopcornGame", () => ({
+  __esModule: true,
+  default: () => null,
+}));
+
+jest.mock("./components/LoadingOverlay", () => ({
+  __esModule: true,
+  default: () => null,
+}));
+
+jest.mock("./utils/deviceTier", () => ({
+  hasHardwareWebGL: false,
+}));
+
+const resetDocumentMetadata = () => {
+  document.head.innerHTML = `
+    <title>Initial title</title>
+    <meta name="description" content="Initial description" />
+    <link rel="canonical" href="https://example.com/initial" />
+    <meta property="og:title" content="Initial social title" />
+    <meta property="og:description" content="Initial social description" />
+    <meta property="og:url" content="https://example.com/initial" />
+    <meta name="twitter:title" content="Initial Twitter title" />
+    <meta name="twitter:description" content="Initial Twitter description" />
+  `;
+};
+
+describe("App immersive presentation", () => {
+  beforeEach(() => {
+    resetDocumentMetadata();
+    document.body.innerHTML = "";
+  });
+
+  afterEach(() => {
+    cleanup();
+    document.head.innerHTML = "";
+    document.body.innerHTML = "";
+  });
+
+  test("keeps the original root opening logo-only", () => {
+    render(<App immersiveMode={IMMERSIVE_MODES.ORIGINAL} />);
+
+    expect(screen.getByTestId("animated-logo")).toBeInTheDocument();
+    expect(screen.queryByTestId("professional-hero")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("main", { name: "Popular Consulting immersive website" }),
+    ).toBeInTheDocument();
+
+    expect(document.title).toBe(
+      "Popular Consulting | AI, Software & E-Commerce",
+    );
+    expect(document.querySelector('link[rel="canonical"]')).toHaveAttribute(
+      "href",
+      "https://popcon.dev/",
+    );
+  });
+
+  test("shows the professional card without mounting the animated logo", () => {
+    render(<App immersiveMode={IMMERSIVE_MODES.ENGINEERING} />);
+
+    expect(screen.getByTestId("professional-hero")).toBeInTheDocument();
+    expect(screen.queryByTestId("animated-logo")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("main", {
+        name: "Shaedan Hawse professional portfolio and Popular Consulting website",
+      }),
+    ).toBeInTheDocument();
+
+    expect(document.title).toBe(
+      "Shaedan Hawse | Engineering Lead, Full Stack, AI & Commerce Systems",
+    );
+    expect(document.querySelector('link[rel="canonical"]')).toHaveAttribute(
+      "href",
+      "https://popcon.dev/engineering",
+    );
+    expect(document.querySelector('meta[name="description"]')).toHaveAttribute(
+      "content",
+      expect.stringContaining("Shaedan Hawse is an Engineering Lead"),
+    );
+    expect(document.querySelector('meta[property="og:url"]')).toHaveAttribute(
+      "content",
+      "https://popcon.dev/engineering",
+    );
+  });
+
+  test("unknown immersive modes fail closed to the original opening", () => {
+    render(<App immersiveMode="unexpected" />);
+
+    expect(screen.getByTestId("animated-logo")).toBeInTheDocument();
+    expect(screen.queryByTestId("professional-hero")).not.toBeInTheDocument();
+  });
+});
