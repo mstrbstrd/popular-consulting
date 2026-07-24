@@ -13,10 +13,18 @@ jest.mock("./contexts/ThemeContext", () => {
 });
 
 jest.mock("./components/NavMenu", () => () => null);
-jest.mock("./components/BioSection", () => () => null);
-jest.mock("./components/ContactSection", () => () => null);
-jest.mock("./components/ServicesSection", () => () => null);
-jest.mock("./components/DitherHero", () => () => null);
+jest.mock("./components/BioSection", () => () => (
+  <section data-testid="main-about" />
+));
+jest.mock("./components/ContactSection", () => () => (
+  <section data-testid="main-contact" />
+));
+jest.mock("./components/ServicesSection", () => () => (
+  <section data-testid="main-services" />
+));
+jest.mock("./components/DitherHero", () => () => (
+  <section data-testid="main-hero" />
+));
 
 jest.mock("./components/HeroLogo", () => {
   const ReactModule = require("react");
@@ -33,26 +41,21 @@ jest.mock("./components/ProfessionalHero", () => {
 jest.mock("./components/ParallaxBackground", () => {
   const ReactModule = require("react");
   return ({ children }) =>
-    ReactModule.createElement("div", null, children);
+    ReactModule.createElement(
+      "div",
+      { "data-testid": "main-section-stack" },
+      children,
+    );
 });
 
 jest.mock("./components/OrbSection", () => ({
   __esModule: true,
-  default: () => null,
-}));
-
-jest.mock("./components/PopcornGame", () => ({
-  __esModule: true,
-  default: () => null,
+  default: () => <section data-testid="main-app-orb" />,
 }));
 
 jest.mock("./components/LoadingOverlay", () => ({
   __esModule: true,
   default: () => null,
-}));
-
-jest.mock("./utils/deviceTier", () => ({
-  hasHardwareWebGL: false,
 }));
 
 const resetDocumentMetadata = () => {
@@ -68,6 +71,15 @@ const resetDocumentMetadata = () => {
   `;
 };
 
+const expectCoreSectionsOnly = () => {
+  expect(screen.getByTestId("main-hero")).toBeInTheDocument();
+  expect(screen.getByTestId("main-about")).toBeInTheDocument();
+  expect(screen.getByTestId("main-services")).toBeInTheDocument();
+  expect(screen.getByTestId("main-contact")).toBeInTheDocument();
+  expect(screen.queryByTestId("main-app-orb")).not.toBeInTheDocument();
+  expect(screen.getByTestId("main-section-stack").children).toHaveLength(4);
+};
+
 describe("App immersive presentation", () => {
   beforeEach(() => {
     resetDocumentMetadata();
@@ -80,11 +92,12 @@ describe("App immersive presentation", () => {
     document.body.innerHTML = "";
   });
 
-  test("keeps the original root opening logo-only", () => {
+  test("keeps the original root opening logo-only with core sections only", () => {
     render(<App immersiveMode={IMMERSIVE_MODES.ORIGINAL} />);
 
     expect(screen.getByTestId("animated-logo")).toBeInTheDocument();
     expect(screen.queryByTestId("professional-hero")).not.toBeInTheDocument();
+    expectCoreSectionsOnly();
     expect(
       screen.getByRole("main", { name: "Popular Consulting immersive website" }),
     ).toBeInTheDocument();
@@ -98,11 +111,12 @@ describe("App immersive presentation", () => {
     );
   });
 
-  test("shows the professional card without mounting the animated logo", () => {
+  test("shows the professional card without logo or route-only experiences", () => {
     render(<App immersiveMode={IMMERSIVE_MODES.ENGINEERING} />);
 
     expect(screen.getByTestId("professional-hero")).toBeInTheDocument();
     expect(screen.queryByTestId("animated-logo")).not.toBeInTheDocument();
+    expectCoreSectionsOnly();
     expect(
       screen.getByRole("main", {
         name: "Shaedan Hawse professional portfolio and Popular Consulting website",
@@ -131,5 +145,6 @@ describe("App immersive presentation", () => {
 
     expect(screen.getByTestId("animated-logo")).toBeInTheDocument();
     expect(screen.queryByTestId("professional-hero")).not.toBeInTheDocument();
+    expectCoreSectionsOnly();
   });
 });

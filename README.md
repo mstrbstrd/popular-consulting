@@ -27,15 +27,35 @@ The essential portfolio content will remain readable without WebGL, animation, h
 
 ## Public route contract
 
-The current application intentionally separates three entry experiences:
+The application separates its brand, professional, portfolio, and experimental experiences:
 
 | Route | Purpose | Opening identity |
 | --- | --- | --- |
 | `/` | Original Popular Consulting immersive experience | Animated Popular Consulting logo |
 | `/engineering` | Professional immersive experience for hiring teams and engineering peers | Shaedan Hawse Engineering Lead card |
 | `/work` | Conventional, directly linkable selected-work page | Scrollable engineering portfolio |
+| `/orb` | Unlisted, route-only interactive graphics experiment | Interactive orb controls and dedicated visual preset |
+| `/game` | Unlisted, route-only browser game | Popcorn game and dedicated visual preset |
+
+The normal `/` and `/engineering` section stacks contain only Hero, About, Services, and Contact. The orb and game are not mounted, linked, or represented by section dots in the normal application. Direct `/orb` and `/game` responses also send `X-Robots-Tag: noindex, follow`.
 
 The original logo and professional card are mutually exclusive. Unknown paths fail closed to the original immersive experience.
+
+### Restoring the orb to the main application
+
+Orb placement is intentionally reversible. In [`src/experiencePlacement.js`](src/experiencePlacement.js), change one value:
+
+```js
+orb: false,
+```
+
+to:
+
+```js
+orb: true,
+```
+
+That single switch restores the orb as the fifth main section and adds its main-navigation item. The dedicated `/orb` route remains available. No component, router, shader, or navigation refactor is required.
 
 ## Engineering evidence already present
 
@@ -97,8 +117,9 @@ Focused accessibility tests live under `src/__tests__/a11y/`.
 ├── public/                  # Static assets and default page metadata
 ├── src/
 │   ├── assets/              # Images, icons, and video
-│   ├── components/          # Interface and WebGL components
+│   ├── components/          # Interface, portfolio, and graphics components
 │   ├── contexts/            # Shared application context
+│   ├── experiencePlacement.js # One-switch orb placement contract
 │   ├── utils/               # Capability and telemetry utilities
 │   └── __tests__/a11y/      # Accessibility regression tests
 ├── docs/
@@ -117,7 +138,7 @@ The platform serves two audiences without creating two disconnected brands:
 1. Hiring teams should quickly understand what Shaedan builds, owns, and leads.
 2. Prospective clients should understand how Popular Consulting can solve a business problem.
 
-The original immersive route remains the brand entrance. The engineering route provides an intentional professional entrance, and the work route provides conventional recruiter scanning. Future directly linkable pages will cover case studies, engineering writing, a public resume, consulting, and contact.
+The original immersive route remains the brand entrance. The engineering route provides an intentional professional entrance, and the work route provides conventional recruiter scanning. The route-only experiments remain available for deliberate sharing without extending the normal business journey. Future directly linkable pages will cover case studies, engineering writing, a public resume, consulting, and contact.
 
 The initial case-study sequence is:
 

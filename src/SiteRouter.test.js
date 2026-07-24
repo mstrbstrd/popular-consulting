@@ -1,7 +1,7 @@
 import React from "react";
 import { cleanup, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom";
-import SiteRouter, { SITE_VIEWS, resolveSiteView } from "./SiteRouter";
+import SiteRouter, { resolveSiteView, SITE_VIEWS } from "./SiteRouter";
 import { IMMERSIVE_MODES } from "./immersiveMode";
 
 jest.mock("./App", () => {
@@ -9,10 +9,7 @@ jest.mock("./App", () => {
   return ({ immersiveMode }) =>
     ReactModule.createElement(
       "div",
-      {
-        "data-testid": "immersive-site",
-        "data-immersive-mode": immersiveMode,
-      },
+      { "data-testid": "immersive-site", "data-mode": immersiveMode },
       "Immersive site",
     );
 });
@@ -27,20 +24,68 @@ jest.mock("./components/WorkPage", () => {
     );
 });
 
+jest.mock("./components/StandaloneExperiencePage", () => {
+  const ReactModule = require("react");
+  const component = ({ experience }) =>
+    ReactModule.createElement(
+      "div",
+      {
+        "data-testid": "standalone-experience",
+        "data-experience": experience,
+      },
+      experience,
+    );
+
+  return {
+    __esModule: true,
+    default: component,
+    EXPERIENCE_IDS: { ORB: "orb", GAME: "game" },
+  };
+});
+
 describe("SiteRouter", () => {
   afterEach(cleanup);
 
-  test("resolves the supported routes with or without trailing slashes", () => {
-    expect(resolveSiteView("/")).toBe(SITE_VIEWS.ORIGINAL);
-    expect(resolveSiteView("/engineering")).toBe(SITE_VIEWS.ENGINEERING);
-    expect(resolveSiteView("/engineering/")).toBe(SITE_VIEWS.ENGINEERING);
-    expect(resolveSiteView("/work")).toBe(SITE_VIEWS.WORK);
-    expect(resolveSiteView("/work/")).toBe(SITE_VIEWS.WORK);
+  test.each([
+    ["/", SITE_VIEWS.ORIGINAL],
+    ["/engineering", SITE_VIEWS.ENGINEERING],
+    ["/engineering/", SITE_VIEWS.ENGINEERING],
+    ["/work", SITE_VIEWS.WORK],
+    ["/work/", SITE_VIEWS.WORK],
+    ["/orb", SITE_VIEWS.ORB],
+    ["/orb/", SITE_VIEWS.ORB],
+    ["/game", SITE_VIEWS.GAME],
+    ["/game/", SITE_VIEWS.GAME],
+  ])("resolves %s to %s", (pathname, expected) => {
+    expect(resolveSiteView(pathname)).toBe(expected);
   });
 
-  test("fails unknown paths closed to the original immersive experience", () => {
+  test("keeps the original immersive experience as the safe unknown-route fallback", () => {
     expect(resolveSiteView("/unknown")).toBe(SITE_VIEWS.ORIGINAL);
-    expect(resolveSiteView("/engineering/unknown")).toBe(SITE_VIEWS.ORIGINAL);
+    render(<SiteRouter pathname="/unknown" />);
+
+    expect(screen.getByTestId("immersive-site")).toHaveAttribute(
+      "data-mode",
+      IMMERSIVE_MODES.ORIGINAL,
+    );
+  });
+
+  test("renders the original and engineering modes without route-only experiences", () => {
+    const { rerender } = render(<SiteRouter pathname="/" />);
+
+    expect(screen.getByTestId("immersive-site")).toHaveAttribute(
+      "data-mode",
+      IMMERSIVE_MODES.ORIGINAL,
+    );
+    expect(screen.queryByTestId("standalone-experience")).not.toBeInTheDocument();
+
+    rerender(<SiteRouter pathname="/engineering" />);
+
+    expect(screen.getByTestId("immersive-site")).toHaveAttribute(
+      "data-mode",
+      IMMERSIVE_MODES.ENGINEERING,
+    );
+    expect(screen.queryByTestId("standalone-experience")).not.toBeInTheDocument();
   });
 
   test("renders the selected work page only at /work", () => {
@@ -48,34 +93,20 @@ describe("SiteRouter", () => {
 
     expect(screen.getByTestId("work-page")).toBeInTheDocument();
     expect(screen.queryByTestId("immersive-site")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("standalone-experience")).not.toBeInTheDocument();
   });
 
-  test("renders the original logo mode at the root", () => {
-    render(<SiteRouter pathname="/" />);
+  test.each([
+    ["/orb", "orb"],
+    ["/game", "game"],
+  ])("renders %s as an isolated standalone experience", (pathname, experience) => {
+    render(<SiteRouter pathname={pathname} />);
 
-    expect(screen.getByTestId("immersive-site")).toHaveAttribute(
-      "data-immersive-mode",
-      IMMERSIVE_MODES.ORIGINAL,
+    expect(screen.getByTestId("standalone-experience")).toHaveAttribute(
+      "data-experience",
+      experience,
     );
+    expect(screen.queryByTestId("immersive-site")).not.toBeInTheDocument();
     expect(screen.queryByTestId("work-page")).not.toBeInTheDocument();
-  });
-
-  test("renders professional immersive mode only at /engineering", () => {
-    render(<SiteRouter pathname="/engineering" />);
-
-    expect(screen.getByTestId("immersive-site")).toHaveAttribute(
-      "data-immersive-mode",
-      IMMERSIVE_MODES.ENGINEERING,
-    );
-    expect(screen.queryByTestId("work-page")).not.toBeInTheDocument();
-  });
-
-  test("renders unknown routes in original mode", () => {
-    render(<SiteRouter pathname="/anything-else" />);
-
-    expect(screen.getByTestId("immersive-site")).toHaveAttribute(
-      "data-immersive-mode",
-      IMMERSIVE_MODES.ORIGINAL,
-    );
   });
 });

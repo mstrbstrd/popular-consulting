@@ -1,4 +1,42 @@
 {
+  "headers": [
+    {
+      "source": "/orb",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, follow"
+        }
+      ]
+    },
+    {
+      "source": "/orb/:path*",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, follow"
+        }
+      ]
+    },
+    {
+      "source": "/game",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, follow"
+        }
+      ]
+    },
+    {
+      "source": "/game/:path*",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, follow"
+        }
+      ]
+    }
+  ],
   "rewrites": [
     {
       "source": "/engineering",
@@ -14,6 +52,22 @@
     },
     {
       "source": "/work/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/orb",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/orb/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/game",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/game/:path*",
       "destination": "/index.html"
     }
   ]
