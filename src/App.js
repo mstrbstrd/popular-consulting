@@ -144,6 +144,20 @@ const App = ({ immersiveMode = IMMERSIVE_MODES.ORIGINAL }) => {
     ? "Shaedan Hawse professional portfolio and Popular Consulting website"
     : "Popular Consulting immersive website";
 
+  // Build the section list without boolean or null placeholders. React.Children.count
+  // treats those placeholders as children, which previously created a blank final
+  // navigation destination while the orb was configured as route-only.
+  const mainAppSections = [
+    <DitherHero key="hero" />,
+    <BioSection key="about" />,
+    <ServicesSection key="services" />,
+    <ContactSection key="contact" />,
+  ];
+
+  if (MAIN_APP_EXPERIENCE_PLAN.orbInMainApp) {
+    mainAppSections.push(<MainAppOrbSection key="orb" />);
+  }
+
   return (
     <ThemeProvider>
       <div style={{ position: "relative" }}>
@@ -158,15 +172,7 @@ const App = ({ immersiveMode = IMMERSIVE_MODES.ORIGINAL }) => {
 
           <main id="main-content" aria-label={mainLabel}>
             {presentation.showProfessionalHero && <ProfessionalHero />}
-            <ParallaxBackground>
-              <DitherHero />
-              <BioSection />
-              <ServicesSection />
-              <ContactSection />
-              {MAIN_APP_EXPERIENCE_PLAN.orbInMainApp && (
-                <MainAppOrbSection />
-              )}
-            </ParallaxBackground>
+            <ParallaxBackground>{mainAppSections}</ParallaxBackground>
           </main>
         </div>
 
