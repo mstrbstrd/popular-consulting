@@ -169,9 +169,13 @@ import routeMetadata from "../content/routeMetadata.json";`,
 
   source = replaceOnce(
     source,
-    `- Website: [popcon.dev](https://popcon.dev)
+    `- Original immersive website: [popcon.dev](https://popcon.dev)
+- Engineering entrance: [popcon.dev/engineering](https://popcon.dev/engineering)
+- Selected work: [popcon.dev/work](https://popcon.dev/work)
 - Business domain: [popular-consulting.com](https://popular-consulting.com)
-- Contact: [shaw@popcon.dev](mailto:shaw@popcon.dev)`,
+- Contact: [shaw@popcon.dev](mailto:shaw@popcon.dev)
+
+## What this repository is`,
     `- Consulting entrance: [popcon.dev](https://popcon.dev)
 - Engineering entrance: [popcon.dev/engineering](https://popcon.dev/engineering)
 - Selected work: [popcon.dev/work](https://popcon.dev/work)
@@ -186,7 +190,9 @@ The public platform uses one evidence base with distinct audience framing:
 - \`/engineering\` speaks to hiring teams, engineering leaders, and technical peers.
 - \`/work\` provides conventional, public-safe project evidence for both audiences.
 
-Visible copy is defined in [\`src/content/siteCopy.js\`](src/content/siteCopy.js). Route metadata is defined in [\`src/content/routeMetadata.json\`](src/content/routeMetadata.json) and emitted as route-specific static HTML during the production build. See [the dual-audience copy architecture](docs/content/dual-audience-copy.md).`,
+Visible copy is defined in [\`src/content/siteCopy.js\`](src/content/siteCopy.js). Route metadata is defined in [\`src/content/routeMetadata.json\`](src/content/routeMetadata.json) and emitted as route-specific static HTML during the production build. See [the dual-audience copy architecture](docs/content/dual-audience-copy.md).
+
+## What this repository is`,
     "README audience contract",
   );
 
