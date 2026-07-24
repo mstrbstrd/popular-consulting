@@ -1,6 +1,14 @@
 {
   "rewrites": [
     {
+      "source": "/engineering",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/engineering/:path*",
+      "destination": "/index.html"
+    },
+    {
       "source": "/work",
       "destination": "/index.html"
     },
