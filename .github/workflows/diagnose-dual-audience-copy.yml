@@ -1,0 +1,59 @@
+name: Diagnose dual-audience copy
+
+on:
+  push:
+    branches:
+      - agent/dual-audience-copy
+    paths:
+      - ".github/workflows/diagnose-dual-audience-copy.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    name: Record migration diagnostic
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/dual-audience-copy
+          fetch-depth: 0
+
+      - name: Run migration in an isolated copy
+        shell: bash
+        run: |
+          rm -rf /tmp/popcon-copy-diagnostic
+          mkdir -p /tmp/popcon-copy-diagnostic
+          cp -a . /tmp/popcon-copy-diagnostic/repo
+          cd /tmp/popcon-copy-diagnostic/repo
+          cat scripts/patch-parts/*.mjs > scripts/apply-dual-audience-copy.mjs
+          set +e
+          {
+            echo "## node --check"
+            node --check scripts/apply-dual-audience-copy.mjs
+            CHECK_STATUS=$?
+            echo "check_status=$CHECK_STATUS"
+            if [ "$CHECK_STATUS" -eq 0 ]; then
+              echo
+              echo "## migration"
+              node scripts/apply-dual-audience-copy.mjs
+              MIGRATION_STATUS=$?
+            else
+              MIGRATION_STATUS=$CHECK_STATUS
+            fi
+            echo "migration_status=$MIGRATION_STATUS"
+          } > /tmp/popcon-copy-diagnostic/result.txt 2>&1
+          exit 0
+
+      - name: Commit diagnostic
+        run: |
+          cp /tmp/popcon-copy-diagnostic/result.txt scripts/patch-diagnostic.txt
+          git config user.name "openai-agent"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/patch-diagnostic.txt
+          git commit -m "Record copy migration diagnostic [skip ci]"
+          git push origin HEAD:agent/dual-audience-copy
