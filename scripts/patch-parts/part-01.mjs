@@ -266,8 +266,8 @@ const CompactCard`,
   );
   source = replaceOnce(
     source,
-    "                  View live example",
-    "                  {svc.liveLink.label}",
+    "                  View live example\n                  <svg",
+    "                  {svc.liveLink.label}\n                  <svg",
     "Service live-link label",
   );
 
