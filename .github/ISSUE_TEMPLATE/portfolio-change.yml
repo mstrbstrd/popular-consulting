@@ -1,0 +1,127 @@
+name: Portfolio or professional platform change
+description: Plan a portfolio, case-study, resume, content, architecture, accessibility, or platform improvement.
+title: ""
+body:
+  - type: dropdown
+    id: change-type
+    attributes:
+      label: Change type
+      options:
+        - Professional identity or biography
+        - Case study
+        - Public resume
+        - Recruiter-first route
+        - Consulting content
+        - Architecture or migration
+        - Accessibility
+        - Performance
+        - Security or privacy
+        - SEO or social metadata
+        - Documentation or governance
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Describe the current limitation or risk without prescribing the implementation.
+      placeholder: A hiring manager cannot currently...
+    validations:
+      required: true
+
+  - type: textarea
+    id: audience
+    attributes:
+      label: Audience and desired outcome
+      description: Identify who benefits and what they should be able to understand or do.
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Proposed scope
+      description: List the smallest coherent slice. Include explicit non-goals.
+      placeholder: |
+        Included:
+        -
+
+        Not included:
+        -
+    validations:
+      required: true
+
+  - type: textarea
+    id: invariants
+    attributes:
+      label: What must never happen
+      description: Define accessibility, confidentiality, security, factual, performance, compatibility, and rollback boundaries.
+      placeholder: |
+        - Never make essential content depend on WebGL.
+        - Never publish an unverified metric.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: confidentiality
+    attributes:
+      label: Highest information classification involved
+      options:
+        - Public
+        - Public after redaction or approval
+        - Private career workspace
+        - Local only
+        - Unknown and blocked pending review
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence and factual basis
+      description: Identify public-safe evidence IDs or explain what verification is still required. Do not paste confidential repository paths or private data.
+
+  - type: textarea
+    id: accessibility
+    attributes:
+      label: Accessibility impact
+      description: Consider semantics, keyboard, focus, screen reader, touch, contrast, reduced motion, and no-WebGL behavior.
+
+  - type: textarea
+    id: security
+    attributes:
+      label: Security and privacy impact
+      description: Consider data, external services, inputs, outputs, secrets, and attack-surface changes.
+
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation plan
+      description: List automated checks, manual task paths, measurements, preview checks, and rollback verification.
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: State observable conditions that make the work complete.
+      placeholder: |
+        - [ ]
+        - [ ]
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: review
+    attributes:
+      label: Review gates
+      options:
+        - label: I have not included a secret, private contact detail, customer record, or confidential source.
+          required: true
+        - label: I will not publish a metric without verification.
+          required: true
+        - label: I will preserve or document a rollback path.
+          required: true
