@@ -1,0 +1,87 @@
+name: Apply work page polish
+
+on:
+  push:
+    branches:
+      - agent/work-page-visual-refresh
+    paths:
+      - ".github/workflows/apply-work-page-polish.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    name: Apply final responsive polish
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/work-page-visual-refresh
+          fetch-depth: 0
+
+      - name: Patch the work page stylesheet
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path("src/components/WorkPage.css")
+          source = path.read_text(encoding="utf-8")
+
+          replacements = [
+              (
+                  """.work-page__theme > span:first-child {
+            font-size: 1.4rem;
+            line-height: 1;
+          }
+          """,
+                  """.work-page__theme-icon {
+            width: 1.5rem;
+            height: 1.5rem;
+            display: inline-grid;
+            place-items: center;
+            line-height: 1;
+          }
+
+          .work-page__theme-icon svg {
+            width: 100%;
+            height: 100%;
+            display: block;
+          }
+          """,
+              ),
+              (
+                  """  .work-page__nav a:nth-of-type(4),
+            .work-page__nav a:nth-of-type(5) {
+              display: none;
+            }
+          """,
+                  """  .work-page__nav a:nth-of-type(4) {
+            display: inline-flex;
+          }
+
+          .work-page__nav a:nth-of-type(5) {
+            display: none;
+          }
+          """,
+              ),
+          ]
+
+          for old, new in replacements:
+              count = source.count(old)
+              if count != 1:
+                  raise SystemExit(f"Expected one stylesheet match, found {count}: {old[:60]!r}")
+              source = source.replace(old, new, 1)
+
+          path.write_text(source, encoding="utf-8")
+
+      - name: Commit stylesheet polish
+        run: |
+          git config user.name "openai-agent"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/WorkPage.css
+          git commit -m "Polish work page theme control and mobile navigation"
+          git push origin HEAD:agent/work-page-visual-refresh
