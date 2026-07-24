@@ -351,7 +351,7 @@ const WorkPageContent = () => {
           <nav className="work-page__nav" aria-label="Work page navigation">
             <a href="#selected-projects">Projects</a>
             <a href="#engineering-principles">Principles</a>
-            <a href="mailto:shaw@popcon.dev">Contact</a>
+            <a href="mailto:shae@popcon.dev">Contact</a>
             <a href="/engineering">Engineering</a>
             <a href="/">Consulting</a>
             <button
@@ -428,7 +428,7 @@ const WorkPageContent = () => {
                   Review selected work
                   <span aria-hidden="true">↓</span>
                 </a>
-                <a className="work-page__button" href="mailto:shaw@popcon.dev">
+                <a className="work-page__button" href="mailto:shae@popcon.dev">
                   Discuss a role or project
                 </a>
                 <a
@@ -683,9 +683,9 @@ const WorkPageContent = () => {
           <div className="work-page__contact-actions">
             <a
               className="work-page__button work-page__button--primary"
-              href="mailto:shaw@popcon.dev"
+              href="mailto:shae@popcon.dev"
             >
-              shaw@popcon.dev
+              shae@popcon.dev
             </a>
             <a className="work-page__button" href="/engineering">
               Engineering home

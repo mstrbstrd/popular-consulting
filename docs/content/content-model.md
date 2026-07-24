@@ -167,7 +167,7 @@ export const identity = {
   headline:
     "Engineering Lead | Full Stack Software Engineer | AI & Commerce Systems",
   location: "Kelowna, BC, Canada",
-  publicEmail: "shaw@popcon.dev",
+  publicEmail: "shae@popcon.dev",
   canonicalDomain: "popcon.dev",
 };
 ```

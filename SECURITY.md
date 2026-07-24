@@ -8,7 +8,7 @@ Security fixes are applied to the current production code and the latest state o
 
 Do not open a public GitHub issue for a suspected vulnerability.
 
-Email **shaw@popcon.dev** with the subject:
+Email **shae@popcon.dev** with the subject:
 
 ```text
 Security report: popular-consulting

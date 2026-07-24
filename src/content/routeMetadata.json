@@ -7,7 +7,7 @@
     "socialTitle": "Popular Consulting | Custom Software, AI & E-Commerce",
     "socialDescription": "Custom software, practical AI integration, and e-commerce systems designed around real business operations.",
     "robots": "index,follow",
-    "noscript": "Popular Consulting designs and builds custom software, practical AI integrations, and e-commerce systems from Kelowna, BC. Contact shaw@popcon.dev."
+    "noscript": "Popular Consulting designs and builds custom software, practical AI integrations, and e-commerce systems from Kelowna, BC. Contact shae@popcon.dev."
   },
   "engineering": {
     "path": "/engineering",
@@ -17,7 +17,7 @@
     "socialTitle": "Shaedan Hawse | Engineering Lead, Full Stack, AI & Commerce Systems",
     "socialDescription": "Hands-on engineering leadership and full-stack delivery across AI operations, commerce, payments, enterprise integrations, accessible interfaces, and production systems.",
     "robots": "index,follow",
-    "noscript": "Shaedan Hawse is an Engineering Lead and Full Stack Software Engineer in Kelowna, BC. Review selected work at https://popcon.dev/work or contact shaw@popcon.dev."
+    "noscript": "Shaedan Hawse is an Engineering Lead and Full Stack Software Engineer in Kelowna, BC. Review selected work at https://popcon.dev/work or contact shae@popcon.dev."
   },
   "work": {
     "path": "/work",
@@ -27,7 +27,7 @@
     "socialTitle": "Selected Engineering Work | Shaedan Hawse",
     "socialDescription": "Evidence-led engineering work across commerce, AI operations, product systems, accessibility, integrations, and production delivery.",
     "robots": "index,follow",
-    "noscript": "Review selected engineering work by Shaedan Hawse at https://popcon.dev/work or contact shaw@popcon.dev."
+    "noscript": "Review selected engineering work by Shaedan Hawse at https://popcon.dev/work or contact shae@popcon.dev."
   },
   "orb": {
     "path": "/orb",
@@ -37,7 +37,7 @@
     "socialTitle": "Interactive Orb Lab | Popular Consulting",
     "socialDescription": "An interactive WebGL orb experiment with expressions, morphing, animation sequences, and a non-WebGL fallback.",
     "robots": "noindex,follow",
-    "noscript": "The Interactive Orb Lab requires JavaScript. Return to https://popcon.dev/ or contact shaw@popcon.dev."
+    "noscript": "The Interactive Orb Lab requires JavaScript. Return to https://popcon.dev/ or contact shae@popcon.dev."
   },
   "game": {
     "path": "/game",
@@ -47,6 +47,6 @@
     "socialTitle": "Popcorn Game | Popular Consulting",
     "socialDescription": "A responsive browser game experiment combining canvas interaction, procedural animation, and user-initiated Web Audio.",
     "robots": "noindex,follow",
-    "noscript": "The Popcorn Game requires JavaScript. Return to https://popcon.dev/ or contact shaw@popcon.dev."
+    "noscript": "The Popcorn Game requires JavaScript. Return to https://popcon.dev/ or contact shae@popcon.dev."
   }
 }

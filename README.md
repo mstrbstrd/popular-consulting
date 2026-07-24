@@ -8,7 +8,7 @@ Popular Consulting is the public business and engineering portfolio platform for
 - Engineering entrance: [popcon.dev/engineering](https://popcon.dev/engineering)
 - Selected work: [popcon.dev/work](https://popcon.dev/work)
 - Business domain: [popular-consulting.com](https://popular-consulting.com)
-- Contact: [shaw@popcon.dev](mailto:shaw@popcon.dev)
+- Contact: [shae@popcon.dev](mailto:shae@popcon.dev)
 
 ## Audience and copy contract
 
@@ -190,6 +190,6 @@ No open-source license is currently granted. Source code, visual assets, brandin
 
 For engineering opportunities, technical collaboration, or consulting work:
 
-- Email: [shaw@popcon.dev](mailto:shaw@popcon.dev)
+- Email: [shae@popcon.dev](mailto:shae@popcon.dev)
 - Location: Kelowna, BC, Canada
 - Engineering profile: [popcon.dev/engineering](https://popcon.dev/engineering)
