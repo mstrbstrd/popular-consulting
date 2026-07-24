@@ -1,7 +1,0 @@
-## diagnostic revision 4
-## node --check
-check_status=0
-
-## migration
-Applied dual-audience copy and static route metadata changes.
-migration_status=0
