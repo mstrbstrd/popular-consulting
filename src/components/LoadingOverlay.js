@@ -1,52 +1,41 @@
 // LoadingOverlay.js
-// Replays the site's intro reveal + logo animation on demand.
-//
-// ENTRY (mirrors site load exactly):
-//   white overlay → dither crystallizes in (u_reveal 0→1, 2500ms) →
-//   overlay fades transparent in sync → logo fades in at 1700ms →
-//   text types in at 2600ms (110ms/char)
-//
-// EXIT (strict reverse of entry):
-//   text un-types (110ms/char, right→left) →
-//   logo fades out (1000ms) →
-//   dither crystallizes back out (u_reveal 1→0, 2500ms) +
-//   overlay fades to white simultaneously →
-//   unmount
+// Replays the site's intro reveal and logo animation on demand.
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import logo from '../assets/icons/popcon_png.png';
-import { useThemeMode } from '../contexts/ThemeContext';
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import logo from "../assets/icons/popcon_png.png";
+import { useThemeMode } from "../contexts/ThemeContext";
 
-const LOADING_TEXT = 'Loading';
-const INTRO_DUR    = 2500;  // must match DitherBackground INTRO_DUR
-const CHAR_SPEED   = 110;   // ms per character (type and un-type)
-const LOGO_FADE_IN = 1700;  // ms after entry start before logo appears
-const TEXT_START   = 2600;  // ms after entry start before typing begins
-const LOGO_FADE_DUR = 1000; // ms for logo opacity transition
-
-// z-indices — above everything (NavMenu: 1000, expanded cards: 998-1000)
+const LOADING_TEXT = "Loading";
+const INTRO_DUR = 2500;
+const CHAR_SPEED = 110;
+const LOGO_FADE_IN = 1700;
+const TEXT_START = 2600;
+const LOGO_FADE_DUR = 1000;
 const Z_OVERLAY = 19000;
 const Z_CONTENT = 19001;
 
 const LoadingOverlay = ({ visible, onExitComplete }) => {
   const { isDark } = useThemeMode();
-  const isDarkRef  = useRef(isDark);
-  useEffect(() => { isDarkRef.current = isDark; }, [isDark]);
-  const pageBg = isDark ? '#0b0b18' : '#ffffff';
-  const [phase,        setPhase]        = useState('idle');
-  const [logoVisible,  setLogoVisible]  = useState(false);
-  const [logoOpacity,  setLogoOpacity]  = useState(0);
-  const [textVisible,  setTextVisible]  = useState(false);
-  const [displayText,  setDisplayText]  = useState('');
-  // Overlay alpha + its transition duration (changes between entry and exit)
-  const [overlayAlpha,       setOverlayAlpha]       = useState(1);
-  const [overlayTransition,  setOverlayTransition]  = useState('none');
+  const isDarkRef = useRef(isDark);
+  const timers = useRef([]);
+  const displayTextRef = useRef("");
 
-  const timers      = useRef([]);
-  const displayTextRef = useRef(''); // kept in sync for exit un-typing
+  const [phase, setPhase] = useState("idle");
+  const [logoVisible, setLogoVisible] = useState(false);
+  const [logoOpacity, setLogoOpacity] = useState(0);
+  const [textVisible, setTextVisible] = useState(false);
+  const [displayText, setDisplayText] = useState("");
+  const [overlayAlpha, setOverlayAlpha] = useState(1);
+  const [overlayTransition, setOverlayTransition] = useState("none");
+
+  useEffect(() => {
+    isDarkRef.current = isDark;
+  }, [isDark]);
+
+  const pageBg = isDark ? "#0b0b18" : "#ffffff";
 
   const clearAllTimers = useCallback(() => {
-    timers.current.forEach(id => clearTimeout(id));
+    timers.current.forEach((id) => clearTimeout(id));
     timers.current = [];
   }, []);
 
@@ -56,165 +45,157 @@ const LoadingOverlay = ({ visible, onExitComplete }) => {
     return id;
   }, []);
 
-  // ── Entry ────────────────────────────────────────────────────────────────────
   const enter = useCallback(() => {
     clearAllTimers();
-    setPhase('entering');
+    setPhase("entering");
     setLogoVisible(false);
     setLogoOpacity(0);
     setTextVisible(false);
-    setDisplayText('');
-    displayTextRef.current = '';
+    setDisplayText("");
+    displayTextRef.current = "";
     setOverlayAlpha(1);
-    setOverlayTransition('none');
+    setOverlayTransition("none");
 
     if (isDarkRef.current) {
-      // Dark mode: BH background zooms in from max distance while overlay fades
       window.__bhRevealStart?.();
     } else {
-      // Light mode: raise dither canvas, lock to hero, crystallize in
       window.__ditherRaiseCanvas?.();
       window.__ditherLockToHero?.();
       window.__ditherRevealIn?.();
     }
 
-    // Fade overlay → transparent, matching reveal pace
     later(() => {
-      setOverlayTransition(`opacity ${INTRO_DUR}ms cubic-bezier(0.22, 1, 0.36, 1)`);
+      setOverlayTransition(
+        `opacity ${INTRO_DUR}ms cubic-bezier(0.22, 1, 0.36, 1)`,
+      );
       setOverlayAlpha(0);
     }, 50);
 
-    // Logo fades in
     later(() => {
       setLogoVisible(true);
-      later(() => setLogoOpacity(1), 20); // small delay so transition fires
+      later(() => setLogoOpacity(1), 20);
     }, LOGO_FADE_IN);
 
-    // Typewriter
     later(() => {
       setTextVisible(true);
-      let i = 0;
-      const iv = setInterval(() => {
-        i++;
-        const t = LOADING_TEXT.slice(0, i);
-        setDisplayText(t);
-        displayTextRef.current = t;
-        if (i >= LOADING_TEXT.length) clearInterval(iv);
+      let index = 0;
+      const interval = setInterval(() => {
+        index += 1;
+        const nextText = LOADING_TEXT.slice(0, index);
+        setDisplayText(nextText);
+        displayTextRef.current = nextText;
+        if (index >= LOADING_TEXT.length) clearInterval(interval);
       }, CHAR_SPEED);
-      timers.current.push(iv);
+      timers.current.push(interval);
     }, TEXT_START);
 
-    later(() => setPhase('showing'), INTRO_DUR);
+    later(() => setPhase("showing"), INTRO_DUR);
   }, [clearAllTimers, later]);
 
-  // ── Exit (strict reverse) ────────────────────────────────────────────────────
   const exit = useCallback(() => {
     clearAllTimers();
-    setPhase('exiting');
+    setPhase("exiting");
 
-    // Step 1 — un-type text right→left
-    const currentLen = displayTextRef.current.length;
-    const unTypeDur = currentLen * CHAR_SPEED;
+    const currentLength = displayTextRef.current.length;
+    const unTypeDuration = currentLength * CHAR_SPEED;
 
-    if (currentLen > 0) {
-      let i = currentLen;
-      const iv = setInterval(() => {
-        i--;
-        const t = LOADING_TEXT.slice(0, i);
-        setDisplayText(t);
-        displayTextRef.current = t;
-        if (i <= 0) clearInterval(iv);
+    if (currentLength > 0) {
+      let index = currentLength;
+      const interval = setInterval(() => {
+        index -= 1;
+        const nextText = LOADING_TEXT.slice(0, index);
+        setDisplayText(nextText);
+        displayTextRef.current = nextText;
+        if (index <= 0) clearInterval(interval);
       }, CHAR_SPEED);
-      timers.current.push(iv);
+      timers.current.push(interval);
     }
 
-    // Step 2 — logo fades out after text is gone
     later(() => {
       setTextVisible(false);
       setLogoOpacity(0);
-    }, unTypeDur);
+    }, unTypeDuration);
 
-    // Step 3 — fade overlay back + exit animation
     later(() => {
       setLogoVisible(false);
-      setOverlayTransition(`opacity ${INTRO_DUR}ms cubic-bezier(0.22, 1, 0.36, 1)`);
+      setOverlayTransition(
+        `opacity ${INTRO_DUR}ms cubic-bezier(0.22, 1, 0.36, 1)`,
+      );
       setOverlayAlpha(1);
 
+      const finishExit = () => {
+        window.__ditherUnlock?.();
+        window.__ditherLowerCanvas?.();
+        setPhase("idle");
+        setDisplayText("");
+        displayTextRef.current = "";
+        onExitComplete?.();
+      };
+
       if (isDarkRef.current) {
-        // Dark mode: just fade to dark, no dither crystallize-out
-        later(() => {
-          setPhase('idle');
-          setDisplayText('');
-          displayTextRef.current = '';
-          onExitComplete?.();
-        }, INTRO_DUR);
-      } else {
-        // Light mode: crystallize dither out, then lower canvas
-        window.__ditherRevealOut?.(() => {
-          window.__ditherUnlock?.();
-          window.__ditherLowerCanvas?.();
-          setPhase('idle');
-          setDisplayText('');
-          displayTextRef.current = '';
-          onExitComplete?.();
-        });
+        later(finishExit, INTRO_DUR);
+        return;
       }
-    }, unTypeDur + LOGO_FADE_DUR);
+
+      if (typeof window.__ditherRevealOut === "function") {
+        window.__ditherRevealOut(finishExit);
+      } else {
+        // Route-only and low-capability experiences may intentionally omit the
+        // WebGL dither canvas. The overlay must still be able to finish.
+        later(finishExit, INTRO_DUR);
+      }
+    }, unTypeDuration + LOGO_FADE_DUR);
   }, [clearAllTimers, later, onExitComplete]);
 
-  // ── Drive from visible prop ──────────────────────────────────────────────────
   useEffect(() => {
-    if (visible  && phase === 'idle')    enter();
-    if (!visible && phase === 'showing') exit();
+    if (visible && phase === "idle") enter();
+    if (!visible && phase === "showing") exit();
   }, [visible, phase, enter, exit]);
 
   useEffect(() => () => clearAllTimers(), [clearAllTimers]);
 
-  if (phase === 'idle') return null;
+  if (phase === "idle") return null;
 
   return (
     <>
-      {/* Page-colour overlay — covers all site content; fades in/out with dither */}
       <div
         style={{
-          position:      'fixed',
-          inset:         0,
-          zIndex:        Z_OVERLAY,
-          background:    pageBg,
-          opacity:       overlayAlpha,
-          transition:    overlayTransition,
-          pointerEvents: phase === 'showing' ? 'none' : 'all',
+          position: "fixed",
+          inset: 0,
+          zIndex: Z_OVERLAY,
+          background: pageBg,
+          opacity: overlayAlpha,
+          transition: overlayTransition,
+          pointerEvents: phase === "showing" ? "none" : "all",
         }}
       />
 
-      {/* Glass vignette — mirrors hero glass-overlay from ParallaxBackground */}
       <div
         style={{
-          position:              'fixed',
-          inset:                 0,
-          zIndex:                Z_OVERLAY,
-          backdropFilter:        'blur(2px) saturate(100%)',
-          WebkitBackdropFilter:  'blur(2px) saturate(100%)',
-          pointerEvents:         'none',
-          background:            'linear-gradient(to bottom, rgba(255,255,255,0.01) 0%, rgba(255,255,255,0.005) 50%, rgba(99,68,245,0.01) 100%)',
+          position: "fixed",
+          inset: 0,
+          zIndex: Z_OVERLAY,
+          backdropFilter: "blur(2px) saturate(100%)",
+          WebkitBackdropFilter: "blur(2px) saturate(100%)",
+          pointerEvents: "none",
+          background:
+            "linear-gradient(to bottom, rgba(255,255,255,0.01) 0%, rgba(255,255,255,0.005) 50%, rgba(99,68,245,0.01) 100%)",
         }}
       />
 
-      {/* Logo + typewriter */}
       {logoVisible && (
         <div
           style={{
-            position:  'fixed',
-            top:       '50%',
-            left:      '50%',
-            transform: 'translate(-50%, -50%)',
-            zIndex:    Z_CONTENT,
+            position: "fixed",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            zIndex: Z_CONTENT,
           }}
         >
-          {/* Opacity wrapper — fades in on entry, fades out on exit */}
           <div
             style={{
-              opacity:    logoOpacity,
+              opacity: logoOpacity,
               transition: `opacity ${LOGO_FADE_DUR}ms ease-out`,
             }}
           >
@@ -222,46 +203,45 @@ const LoadingOverlay = ({ visible, onExitComplete }) => {
               src={logo}
               alt="Popular Consulting"
               style={{
-                width:     'clamp(125px, 31.25vw, 312px)',
-                height:    'auto',
-                display:   'block',
-                animation: 'ditherLogoFlip 6s ease-in-out infinite',
+                width: "clamp(125px, 31.25vw, 312px)",
+                height: "auto",
+                display: "block",
+                animation: "ditherLogoFlip 6s ease-in-out infinite",
               }}
             />
           </div>
 
-          {/* Typewriter text */}
           {textVisible && (
             <div
               style={{
-                position:      'absolute',
-                top:           '50%',
-                left:          '50%',
-                transform:     'translate(-50%, -50%)',
-                color:         'rgba(255,255,255,0.95)',
-                fontFamily:    'monospace',
-                fontSize:      'clamp(1.5625rem, 3.75vw, 2.344rem)',
-                fontWeight:    700,
-                letterSpacing: '0.18em',
-                textTransform: 'uppercase',
-                textShadow:    '0 2px 14px rgba(0,0,0,0.55)',
-                userSelect:    'none',
-                whiteSpace:    'nowrap',
-                pointerEvents: 'none',
-                opacity:       logoOpacity,
-                transition:    `opacity ${LOGO_FADE_DUR}ms ease-out`,
+                position: "absolute",
+                top: "50%",
+                left: "50%",
+                transform: "translate(-50%, -50%)",
+                color: "rgba(255,255,255,0.95)",
+                fontFamily: "monospace",
+                fontSize: "clamp(1.5625rem, 3.75vw, 2.344rem)",
+                fontWeight: 700,
+                letterSpacing: "0.18em",
+                textTransform: "uppercase",
+                textShadow: "0 2px 14px rgba(0,0,0,0.55)",
+                userSelect: "none",
+                whiteSpace: "nowrap",
+                pointerEvents: "none",
+                opacity: logoOpacity,
+                transition: `opacity ${LOGO_FADE_DUR}ms ease-out`,
               }}
             >
               {displayText}
               <span
                 style={{
-                  display:       'inline-block',
-                  width:         '2px',
-                  height:        '0.85em',
-                  background:    'rgba(255,255,255,0.85)',
-                  marginLeft:    '3px',
-                  verticalAlign: 'middle',
-                  animation:     'cursorBlink 0.7s step-end infinite',
+                  display: "inline-block",
+                  width: "2px",
+                  height: "0.85em",
+                  background: "rgba(255,255,255,0.85)",
+                  marginLeft: "3px",
+                  verticalAlign: "middle",
+                  animation: "cursorBlink 0.7s step-end infinite",
                 }}
               />
             </div>
