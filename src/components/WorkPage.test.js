@@ -88,7 +88,7 @@ describe("WorkPage", () => {
     expect(contactLinks.some((link) => link.getAttribute("href") === "mailto:shae@popcon.dev")).toBe(true);
 
     expect(document.body).toHaveTextContent("shae@popcon.dev");
-    expect(document.body).not.toHaveTextContent("shaw@popcon.dev");
+    expect(document.body).not.toHaveTextContent("shae@popcon.dev");
     expect(document.body).not.toHaveTextContent("DY Concrete Pumps");
     expect(document.body).not.toHaveTextContent("2368822411");
     expect(document.body).not.toHaveTextContent("236 882 2411");
