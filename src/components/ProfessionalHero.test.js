@@ -88,6 +88,11 @@ describe("ProfessionalHero", () => {
     ).toBeInTheDocument();
     expect(mainQueries.getByText("Kelowna, BC, Canada")).toBeInTheDocument();
 
+    const workLink = mainQueries.getByRole("link", {
+      name: "View selected work",
+    });
+    expect(workLink).toHaveAttribute("href", "/work");
+
     const github = mainQueries.getByRole("link", {
       name: "Shaedan Hawse on GitHub, opens in a new tab",
     });
@@ -96,35 +101,26 @@ describe("ProfessionalHero", () => {
     expect(github).toHaveAttribute("rel", "noopener noreferrer");
 
     await waitFor(() => {
-      expect(
-        mainQueries.getByRole("button", { name: "View selected work" }),
-      ).toHaveAttribute("tabindex", "0");
+      expect(workLink).toHaveAttribute("tabindex", "0");
     });
   });
 
-  test("routes hero actions through the existing section navigation", async () => {
+  test("links to selected work and routes in-page hero actions through section navigation", async () => {
     const dots = createSectionDots();
-    const workClick = jest.fn();
     const aboutClick = jest.fn();
     const contactClick = jest.fn();
-    dots[2].addEventListener("click", workClick);
     dots[1].addEventListener("click", aboutClick);
     dots[3].addEventListener("click", contactClick);
 
     renderHero();
 
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "View selected work" })).toHaveAttribute(
-        "tabindex",
-        "0",
-      ),
-    );
+    const workLink = screen.getByRole("link", { name: "View selected work" });
+    await waitFor(() => expect(workLink).toHaveAttribute("tabindex", "0"));
+    expect(workLink).toHaveAttribute("href", "/work");
 
-    fireEvent.click(screen.getByRole("button", { name: "View selected work" }));
     fireEvent.click(screen.getByRole("button", { name: "About" }));
     fireEvent.click(screen.getByRole("button", { name: "Contact" }));
 
-    expect(workClick).toHaveBeenCalledTimes(1);
     expect(aboutClick).toHaveBeenCalledTimes(1);
     expect(contactClick).toHaveBeenCalledTimes(1);
   });
@@ -136,14 +132,14 @@ describe("ProfessionalHero", () => {
     const region = screen.getByRole("region", {
       name: "Professional introduction",
     });
-    const workButton = screen.getByRole("button", {
+    const workLink = screen.getByRole("link", {
       name: "View selected work",
     });
     const github = screen.getByRole("link", {
       name: "Shaedan Hawse on GitHub, opens in a new tab",
     });
 
-    await waitFor(() => expect(workButton).toHaveAttribute("tabindex", "0"));
+    await waitFor(() => expect(workLink).toHaveAttribute("tabindex", "0"));
 
     fireEvent(
       window,
@@ -154,7 +150,7 @@ describe("ProfessionalHero", () => {
 
     await waitFor(() => {
       expect(region).toHaveAttribute("aria-hidden", "true");
-      expect(workButton).toHaveAttribute("tabindex", "-1");
+      expect(workLink).toHaveAttribute("tabindex", "-1");
       expect(github).toHaveAttribute("tabindex", "-1");
     });
 
@@ -167,7 +163,7 @@ describe("ProfessionalHero", () => {
 
     await waitFor(() => {
       expect(region).toHaveAttribute("aria-hidden", "false");
-      expect(workButton).toHaveAttribute("tabindex", "0");
+      expect(workLink).toHaveAttribute("tabindex", "0");
     });
   });
 });
