@@ -24,8 +24,9 @@ jobs:
           fetch-depth: 0
 
       - name: Patch reviewed stylesheet concerns
-        shell: python
+        shell: bash
         run: |
+          python - <<'PY'
           from pathlib import Path
 
           path = Path("src/components/WorkPage.css")
@@ -78,6 +79,7 @@ jobs:
           source = source.replace(old_print, new_print, 1)
 
           path.write_text(source, encoding="utf-8")
+          PY
 
       - name: Commit reviewed fixes
         run: |
