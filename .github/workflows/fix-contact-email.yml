@@ -1,0 +1,46 @@
+name: Fix public contact email
+
+on:
+  push:
+    branches:
+      - agent/work-page-visual-polish
+    paths:
+      - ".github/workflows/fix-contact-email.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  replace:
+    name: Replace incorrect public email
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/work-page-visual-polish
+          fetch-depth: 0
+
+      - name: Replace every tracked text occurrence
+        shell: bash
+        run: |
+          mapfile -t files < <(git grep -Il 'shaw@popcon.dev' || true)
+          if [ "${#files[@]}" -gt 0 ]; then
+            sed -i 's/shaw@popcon\.dev/shae@popcon.dev/g' "${files[@]}"
+          fi
+          rm .github/workflows/fix-contact-email.yml
+
+      - name: Verify and commit
+        shell: bash
+        run: |
+          if git grep -n 'shaw@popcon.dev'; then
+            echo "Incorrect email remains in tracked files."
+            exit 1
+          fi
+          git config user.name "openai-agent"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Correct public contact email"
+          git push origin HEAD:agent/work-page-visual-polish
