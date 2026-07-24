@@ -13,8 +13,16 @@ import {
   IMMERSIVE_MODES,
   resolveImmersivePresentation,
 } from "./immersiveMode";
+import { MAIN_APP_EXPERIENCE_PLAN } from "./experiencePlacement";
 
+const OrbSection = lazy(() => import("./components/OrbSection"));
 const LoadingOverlay = lazy(() => import("./components/LoadingOverlay"));
+
+const MainAppOrbSection = (props) => (
+  <Suspense fallback={null}>
+    <OrbSection {...props} />
+  </Suspense>
+);
 
 const IMMERSIVE_METADATA = {
   [IMMERSIVE_MODES.ORIGINAL]: {
@@ -155,6 +163,9 @@ const App = ({ immersiveMode = IMMERSIVE_MODES.ORIGINAL }) => {
               <BioSection />
               <ServicesSection />
               <ContactSection />
+              {MAIN_APP_EXPERIENCE_PLAN.orbInMainApp && (
+                <MainAppOrbSection />
+              )}
             </ParallaxBackground>
           </main>
         </div>
