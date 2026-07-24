@@ -9,15 +9,11 @@ import DitherHero from "./components/DitherHero";
 import HeroLogo from "./components/HeroLogo";
 import ProfessionalHero from "./components/ProfessionalHero";
 import ParallaxBackground from "./components/ParallaxBackground";
-import { hasHardwareWebGL } from "./utils/deviceTier";
 import {
   IMMERSIVE_MODES,
   resolveImmersivePresentation,
 } from "./immersiveMode";
 
-// Heavy sections are loaded only when needed.
-const OrbSection = lazy(() => import("./components/OrbSection"));
-const PopcornGame = lazy(() => import("./components/PopcornGame"));
 const LoadingOverlay = lazy(() => import("./components/LoadingOverlay"));
 
 const IMMERSIVE_METADATA = {
@@ -119,7 +115,6 @@ const App = ({ immersiveMode = IMMERSIVE_MODES.ORIGINAL }) => {
     };
   }, [metadata]);
 
-  // Expose globally so OrbSection test button can trigger it.
   React.useEffect(() => {
     window.__triggerLoading = (durationMs = 4000) => {
       setPageHidden(true);
@@ -133,7 +128,6 @@ const App = ({ immersiveMode = IMMERSIVE_MODES.ORIGINAL }) => {
 
   const handleExitComplete = () => setPageHidden(false);
 
-  // visibility:hidden lets the dither canvas override it with visibility:visible after raise.
   const pageHideStyle = pageHidden
     ? { visibility: "hidden", pointerEvents: "none" }
     : {};
@@ -161,18 +155,6 @@ const App = ({ immersiveMode = IMMERSIVE_MODES.ORIGINAL }) => {
               <BioSection />
               <ServicesSection />
               <ContactSection />
-
-              {hasHardwareWebGL && (
-                <Suspense fallback={null}>
-                  <OrbSection />
-                </Suspense>
-              )}
-
-              {hasHardwareWebGL && (
-                <Suspense fallback={null}>
-                  <PopcornGame />
-                </Suspense>
-              )}
             </ParallaxBackground>
           </main>
         </div>
