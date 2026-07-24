@@ -19,7 +19,7 @@ jobs:
   apply:
     name: Apply, test, and commit
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
 
     steps:
       - name: Check out branch
@@ -34,34 +34,73 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Assemble and validate migration
+      - name: Apply and validate without hiding failures
+        shell: bash
         run: |
-          cat scripts/patch-parts/*.mjs > scripts/apply-dual-audience-copy.mjs
-          node --check scripts/apply-dual-audience-copy.mjs
-          node scripts/apply-dual-audience-copy.mjs
-          rm scripts/apply-dual-audience-copy.mjs
+          set +e
+          RESULT=/tmp/dual-audience-copy-result.txt
+          : > "$RESULT"
+          STATUS=0
 
-      - name: Install dependencies
-        run: npm ci --no-audit --no-fund
+          {
+            echo "## apply workflow revision 2"
+            echo
+            echo "## assemble"
+            cat scripts/patch-parts/*.mjs > scripts/apply-dual-audience-copy.mjs
+            node --check scripts/apply-dual-audience-copy.mjs || STATUS=$?
 
-      - name: Run complete test suite
-        run: npm test -- --watchAll=false --runInBand
-        env:
-          CI: true
+            if [ "$STATUS" -eq 0 ]; then
+              echo
+              echo "## migrate"
+              node scripts/apply-dual-audience-copy.mjs || STATUS=$?
+            fi
 
-      - name: Build production bundle and static route HTML
-        run: npm run build
-        env:
-          CI: true
+            if [ "$STATUS" -eq 0 ]; then
+              echo
+              echo "## install"
+              npm ci --no-audit --no-fund || STATUS=$?
+            fi
 
-      - name: Commit generated source changes
+            if [ "$STATUS" -eq 0 ]; then
+              echo
+              echo "## tests"
+              CI=true npm test -- --watchAll=false --runInBand || STATUS=$?
+            fi
+
+            if [ "$STATUS" -eq 0 ]; then
+              echo
+              echo "## build"
+              CI=true npm run build || STATUS=$?
+            fi
+
+            echo
+            echo "status=$STATUS"
+          } 2>&1 | tee "$RESULT"
+
+          echo "$STATUS" > /tmp/dual-audience-copy-status.txt
+          exit 0
+
+      - name: Commit source changes or failure diagnostic
+        shell: bash
         run: |
+          STATUS=$(cat /tmp/dual-audience-copy-status.txt)
           git config user.name "openai-agent"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          if git diff --cached --quiet; then
-            echo "No generated source changes to commit."
-            exit 0
+
+          if [ "$STATUS" -eq 0 ]; then
+            rm -f scripts/apply-dual-audience-copy.mjs
+            rm -f scripts/apply-result.txt
+            git add -A
+            if git diff --cached --quiet; then
+              echo "No generated source changes to commit."
+              exit 0
+            fi
+            git commit -m "Align business and engineering copy [skip ci]"
+          else
+            git reset --hard HEAD
+            cp /tmp/dual-audience-copy-result.txt scripts/apply-result.txt
+            git add scripts/apply-result.txt
+            git commit -m "Record copy migration validation failure [skip ci]"
           fi
-          git commit -m "Align business and engineering copy [skip ci]"
+
           git push origin HEAD:agent/dual-audience-copy
