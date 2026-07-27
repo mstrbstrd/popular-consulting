@@ -1,29 +1,44 @@
 import React from "react";
 
 /* SpectralBloom — a flower grown from spectral light.
-   An original Aetheris-family backdrop: a single procedural flower sprouts
-   from the bottom-left of the viewport — stem first, then leaves folding
-   out, then a bud that blooms into a ten-petal spectral fan — over ~3.5s.
-   As the visitor scrolls down the page, petals detach one by one, flutter
-   down in viewport space, and settle into a pile at the bottom edge.
-   Petal fall is one-way by design (calm, no looping motion).
+   An original Aetheris-family backdrop rendered in DOCUMENT space: the
+   flower is rooted at the very bottom of the page, its serpentine stem
+   winds back and forth up the entire scroll height, and the bloom sits
+   near the top of the document. On load the stem sprouts into the first
+   viewport, three leaves fold out, and a bud fans open into ten spectral
+   petals (~3.5s). As the visitor scrolls, the head rises out of view and
+   the stem coils past — only stem mid-page — while petals detach from
+   their exact attached positions (no pop: same size, same angle, sway and
+   spin start at zero offset, fall speed eases in) and cascade down through
+   world space until they settle in a pile on the page-bottom ground beside
+   the root. Petal fall is one-way by design.
 
-   Rendering is a single fullscreen SDF pass: stem (sampled quadratic
-   Bézier), leaves and petals (teardrop profiles) are composited inside the
-   fragment shader, then quantized through the kit's Bayer-8 ordered dither
-   at half resolution with pixelated upscale — the family signature.
+   Rendering is a single fullscreen SDF pass. The stem is a sinusoid graph
+   x = f(worldY) with an analytic distance (cheap at any page length);
+   leaves and petals are teardrop profiles composited in-shader, then
+   quantized through the kit's Bayer-8 ordered dither at half resolution
+   with pixelated upscale — the family signature.
 
    Engineering discipline matches the styleguide's fluid-background snippet:
-   30fps cap, low-power context, pause when the tab is hidden, a single
-   static full-bloom frame under prefers-reduced-motion (repainted on theme
-   change), and the theme read from data-theme every frame. The only CPU
-   work is a 10-petal state machine (attached -> falling -> settled) fed to
-   the shader as a vec4 uniform array. */
+   30fps cap, low-power context, pause when the tab is hidden, a static
+   full-bloom frame under prefers-reduced-motion (repainted on theme change
+   and on scroll so the world stays anchored), and the theme read from
+   data-theme every frame. The only CPU work is a 10-petal state machine
+   (attached -> falling -> settled) fed to the shader as a vec4 array. */
 
 const RENDER_SCALE = 0.5;
 const FRAME_INTERVAL_MS = 1000 / 30;
 const STATIC_TIME_S = 40;
 const PETAL_COUNT = 10;
+
+/* Stem shape constants — mirrored between the shader and flowerTip() so
+   detaching petals spawn exactly where their attached twin was drawn.
+   World units: 2 per viewport height, y decreasing downward from the
+   document top; the bloom head rests at world y = 0.30. */
+const STEM_AMP = 0.18;
+const STEM_FREQ = 3.3;
+const STEM_PHASE = 2.0;
+const HEAD_Y = 0.3;
 
 /* Petals detach in a shuffled order as scroll progress crosses each
    threshold, so the flower sheds naturally instead of unzipping. */
@@ -49,9 +64,10 @@ precision mediump float;
 uniform vec2 u_res;
 uniform float u_time;
 uniform float u_light;
-uniform float u_stem;
+uniform float u_tip;
 uniform float u_leaf;
 uniform float u_bloom;
+uniform float u_scroll;
 uniform vec4 u_petals[10];
 
 float bayer2(vec2 a) {
@@ -80,14 +96,6 @@ mat2 rot2(float a) {
   return mat2(c, s, -s, c);
 }
 
-vec2 bezier(vec2 A, vec2 B, vec2 C, float t) {
-  return mix(mix(A, B, t), mix(B, C, t), t);
-}
-
-vec2 bezierTan(vec2 A, vec2 B, vec2 C, float t) {
-  return 2.0 * mix(B - A, C - B, t);
-}
-
 /* Antialiased coverage of a signed distance. */
 float cover(float d) {
 #ifdef GL_OES_standard_derivatives
@@ -112,51 +120,40 @@ void main() {
   float aspect = u_res.x / u_res.y;
   float t = u_time;
 
-  /* Stem anchors: rooted just below the bottom edge at 15% viewport width,
-     with a gentle S and a near-imperceptible idle sway. The same constants
-     are mirrored in JS to place detaching petals. */
-  vec2 A = vec2(-0.70 * aspect, -1.06);
-  vec2 B = vec2(A.x + 0.20, -0.30);
-  vec2 C = vec2(A.x + 0.04, 0.30);
-  B.x += 0.020 * sin(t * 0.60);
-  C.x += 0.030 * sin(t * 0.45 + 1.7);
+  /* World space: the document scrolls past the fixed canvas. */
+  vec2 wp = vec2(uv.x, uv.y - u_scroll);
 
-  /* Stem: closest-point search along the grown portion of the curve. */
-  float s = 0.0;
-  float dstem = 1e4;
-  vec2 prev = A;
-  for (int i = 1; i <= 24; i++) {
-    float ft = float(i) / 24.0 * u_stem;
-    vec2 q = bezier(A, B, C, ft);
-    vec2 pa = uv - prev;
-    vec2 ba = q - prev;
-    float h = clamp(dot(pa, ba) / max(dot(ba, ba), 1e-4), 0.0, 1.0);
-    float dd = length(pa - ba * h);
-    if (dd < dstem) {
-      dstem = dd;
-      s = (float(i - 1) + h) / 24.0 * u_stem;
-    }
-    prev = q;
-  }
-  float sn = s / max(u_stem, 1e-3);
-  dstem -= mix(0.017, 0.007, sn);
+  /* Serpentine stem as a graph x = f(y): rooted at 15% viewport width,
+     curving back and forth continuously down the whole page, with a
+     near-imperceptible idle sway in its phase. Constants are mirrored
+     in JS (STEM_AMP / STEM_FREQ / STEM_PHASE / HEAD_Y). */
+  float rootX = -0.70 * aspect;
+  float phase = 2.0 + 0.06 * sin(t * 0.4);
+  float sy = wp.y * 3.3 + phase;
+  float fx = rootX + 0.18 * sin(sy);
+  float fp = 0.18 * 3.3 * cos(sy);
+  float dstem = abs(wp.x - fx) / sqrt(1.0 + fp * fp);
+  dstem = max(dstem, wp.y - u_tip);
+  float taper = smoothstep(u_tip - 1.2, u_tip, wp.y);
+  dstem -= mix(0.017, 0.007, taper);
 
-  /* Leaves: three, alternating sides, each unfolding from the stem tangent
-     once the stem has grown past its node. */
+  /* Leaves: three near the top of the stem, alternating sides, each
+     unfolding from the stem tangent once the tip has grown past it. */
   float dleaf = 1e4;
   float leafShade = 1.0;
   for (int j = 0; j < 3; j++) {
     float fj = float(j);
-    float tj = 0.30 + 0.19 * fj;
+    float wyj = -0.62 + 0.31 * fj;
     float side = (mod(fj, 2.0) < 0.5) ? -1.0 : 1.0;
     float uj = clamp((u_leaf - fj * 0.16) * 1.6, 0.0, 1.0);
     uj = uj * uj * (3.0 - 2.0 * uj);
-    uj *= smoothstep(tj + 0.02, tj + 0.10, u_stem);
+    uj *= smoothstep(wyj + 0.05, wyj + 0.15, u_tip);
     if (uj > 0.001) {
-      vec2 P = bezier(A, B, C, tj);
-      vec2 tn = normalize(bezierTan(A, B, C, tj));
+      float ly = wyj * 3.3 + phase;
+      vec2 P = vec2(rootX + 0.18 * sin(ly), wyj);
+      vec2 tn = normalize(vec2(0.18 * 3.3 * cos(ly), 1.0));
       float ang = atan(tn.y, tn.x) + side * mix(0.18, 1.05, uj);
-      vec2 lp = rot2(-ang) * (uv - P);
+      vec2 lp = rot2(-ang) * (wp - P);
       float dl = sdPetalShape(lp, 0.20 * uj, 0.055 * uj);
       if (dl < dleaf) {
         dleaf = dl;
@@ -165,18 +162,19 @@ void main() {
     }
   }
 
-  vec2 H = bezier(A, B, C, u_stem);
+  /* Bloom head rides the stem tip. */
+  vec2 H = vec2(rootX + 0.18 * sin(u_tip * 3.3 + phase), u_tip);
   float bloom = clamp(u_bloom, 0.0, 1.2);
   float opened = min(bloom, 1.0);
 
   /* Composite back-to-front: glow, stem, leaves, petals, pistil. */
-  float rH = length(uv - H);
+  float rH = length(wp - H);
   vec3 colOut = spectral(0.6 + 0.05 * sin(t * 0.2));
   float aOut = exp(-rH * rH * 30.0) * 0.14 * opened;
 
   vec3 green = vec3(0.07, 0.78, 0.42);
-  float band = 0.5 + 0.5 * sin(6.2831853 * (sn * 1.6 - t * 0.30));
-  vec3 stemCol = mix(green, spectral(fract(sn * 0.5 + t * 0.02)), 0.20 * band);
+  float band = 0.5 + 0.5 * sin(6.2831853 * (wp.y * 0.8 - t * 0.3));
+  vec3 stemCol = mix(green, spectral(fract(wp.y * 0.12 + t * 0.02)), 0.20 * band);
   float cStem = cover(dstem);
   colOut = mix(colOut, stemCol, cStem);
   aOut = mix(aOut, 0.88, cStem);
@@ -196,20 +194,21 @@ void main() {
       /* Attached: bud angles cluster upward, then fan out radially. */
       if (bloom > 0.02) {
         float ang = mix(1.5708 + (phi - 3.1416) * 0.12, phi, opened);
-        vec2 pp = rot2(-ang) * (uv - H);
+        vec2 pp = rot2(-ang) * (wp - H);
         dpet = sdPetalShape(pp, mix(0.030, 0.150, bloom), mix(0.014, 0.052, opened));
       }
     } else {
-      /* Falling or settled: position, rotation come from the CPU sim. */
-      vec2 pp = rot2(-pd.z) * (uv - pd.xy);
-      dpet = sdPetalShape(pp, 0.13, 0.048);
+      /* Falling or settled: position and rotation come from the CPU sim,
+         at exactly the attached petal's size so detachment is seamless. */
+      vec2 pp = rot2(-pd.z) * (wp - pd.xy);
+      dpet = sdPetalShape(pp, 0.15, 0.052);
     }
     float cp = cover(dpet);
     colOut = mix(colOut, pCol, cp);
     aOut = mix(aOut, 0.92, cp);
   }
 
-  float dcore = length(uv - H) - 0.045 * opened;
+  float dcore = length(wp - H) - 0.045 * opened;
   float cCore = cover(dcore);
   colOut = mix(colOut, vec3(1.0, 0.90, 0.15), cCore);
   aOut = mix(aOut, 0.95, cCore);
@@ -321,9 +320,10 @@ const SpectralBloom = () => {
       res: gl.getUniformLocation(program, "u_res"),
       time: gl.getUniformLocation(program, "u_time"),
       light: gl.getUniformLocation(program, "u_light"),
-      stem: gl.getUniformLocation(program, "u_stem"),
+      tip: gl.getUniformLocation(program, "u_tip"),
       leaf: gl.getUniformLocation(program, "u_leaf"),
       bloom: gl.getUniformLocation(program, "u_bloom"),
+      scroll: gl.getUniformLocation(program, "u_scroll"),
       petals:
         gl.getUniformLocation(program, "u_petals[0]") ||
         gl.getUniformLocation(program, "u_petals"),
@@ -355,15 +355,29 @@ const SpectralBloom = () => {
     let rafId = 0;
     let lastFrameAt = 0;
     let growStartS = -1;
+    let staticRedrawQueued = false;
 
-    /* Mirrors the shader's stem-tip position so detaching petals spawn
-       exactly where their attached twin was drawn. */
+    /* Scroll offset in uv units (2 per viewport height). */
+    const scrollOffset = () =>
+      (window.scrollY / Math.max(window.innerHeight, 1)) * 2;
+
+    /* World y of the ground at the very bottom of the document. */
+    const groundY = () => {
+      const range =
+        document.documentElement.scrollHeight - window.innerHeight;
+      return -1 - (Math.max(range, 0) / Math.max(window.innerHeight, 1)) * 2;
+    };
+
+    /* Mirrors the shader's stem so detaching petals spawn exactly where
+       their attached twin was drawn (same constants, same idle sway). */
     const flowerTip = (timeS) => {
       const aspect = canvas.width / Math.max(canvas.height, 1);
-      const ax = -0.7 * aspect;
+      const phase = STEM_PHASE + 0.06 * Math.sin(timeS * 0.4);
       return {
-        x: ax + 0.04 + 0.03 * Math.sin(timeS * 0.45 + 1.7),
-        y: 0.3,
+        x:
+          -0.7 * aspect +
+          STEM_AMP * Math.sin(HEAD_Y * STEM_FREQ + phase),
+        y: HEAD_Y,
       };
     };
 
@@ -372,34 +386,45 @@ const SpectralBloom = () => {
       const tip = flowerTip(timeS);
       const phi = (i / PETAL_COUNT) * Math.PI * 2 + 0.31;
       p.mode = 1;
-      p.x0 = tip.x + 0.1 * Math.cos(phi);
-      p.x = p.x0;
-      p.y = tip.y + 0.1 * Math.sin(phi);
+      /* Fall begins at the attached petal's exact base and angle. */
+      p.x0 = tip.x;
+      p.x = tip.x;
+      p.y = tip.y;
       p.rot0 = phi;
       p.rot = phi;
       p.tFall = 0;
       p.phase = seeded(i, 1) * Math.PI * 2;
-      p.speed = 0.2 + 0.1 * seeded(i, 2);
+      p.speed = 0.4 + 0.15 * seeded(i, 2);
       p.swayW = 1.6 + 1.2 * seeded(i, 3);
-      p.restY = -0.97 + 0.022 * (settledCount % 3) + 0.012 * seeded(i, 4);
+      p.restY =
+        groundY() + 0.02 + 0.022 * (settledCount % 3) + 0.012 * seeded(i, 4);
       settledCount += 1;
     };
 
-    const updatePetals = (timeS, dt) => {
-      for (let j = 0; j < PETAL_COUNT; j++) {
-        const i = DETACH_ORDER[j];
-        const threshold = 0.12 + (0.72 * j) / (PETAL_COUNT - 1);
-        if (petals[i].mode === 0 && maxScrollProgress >= threshold) {
-          detachPetal(i, timeS);
+    const updatePetals = (timeS, dt, bloomDone) => {
+      if (bloomDone) {
+        for (let j = 0; j < PETAL_COUNT; j++) {
+          const i = DETACH_ORDER[j];
+          const threshold = 0.12 + (0.72 * j) / (PETAL_COUNT - 1);
+          if (petals[i].mode === 0 && maxScrollProgress >= threshold) {
+            detachPetal(i, timeS);
+          }
         }
       }
       for (let i = 0; i < PETAL_COUNT; i++) {
         const p = petals[i];
         if (p.mode === 1) {
           p.tFall += dt;
-          p.y -= p.speed * dt;
-          p.x = p.x0 + 0.05 * Math.sin(p.swayW * p.tFall + p.phase);
-          p.rot = p.rot0 + 0.9 * Math.sin(1.3 * p.tFall + p.phase);
+          /* Sway and spin are zero at tFall=0 and the fall speed eases
+             in, so the petal drifts away instead of popping off. */
+          const ramp = Math.min(1, p.tFall / 0.8);
+          p.y -= p.speed * ramp * dt;
+          p.x =
+            p.x0 +
+            0.06 * (Math.sin(p.swayW * p.tFall + p.phase) - Math.sin(p.phase));
+          p.rot =
+            p.rot0 +
+            0.9 * (Math.sin(1.3 * p.tFall + p.phase) - Math.sin(p.phase));
           if (p.y <= p.restY) {
             p.y = p.restY;
             p.mode = 2;
@@ -413,7 +438,7 @@ const SpectralBloom = () => {
     };
 
     const draw = (timeS, staticFrame) => {
-      let stem = 1;
+      let tip = HEAD_Y;
       let leaf = 1;
       let bloom = 1;
       if (!staticFrame) {
@@ -421,7 +446,9 @@ const SpectralBloom = () => {
           growStartS = timeS;
         }
         const tG = timeS - growStartS;
-        stem = easeOutCubic(Math.min(1, Math.max(0, tG / 1.1)));
+        tip =
+          -1.15 +
+          (HEAD_Y + 1.15) * easeOutCubic(Math.min(1, Math.max(0, tG / 1.1)));
         leaf = Math.min(1, Math.max(0, (tG - 0.9) / 1.2));
         bloom = springBloom((tG - 1.9) / 1.4);
       }
@@ -431,9 +458,10 @@ const SpectralBloom = () => {
         uniforms.light,
         document.documentElement.getAttribute("data-theme") === "light" ? 1 : 0,
       );
-      gl.uniform1f(uniforms.stem, stem);
+      gl.uniform1f(uniforms.tip, tip);
       gl.uniform1f(uniforms.leaf, leaf);
       gl.uniform1f(uniforms.bloom, bloom);
+      gl.uniform1f(uniforms.scroll, scrollOffset());
       gl.uniform4fv(uniforms.petals, petalData);
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
@@ -449,7 +477,8 @@ const SpectralBloom = () => {
       const dt = Math.min(0.1, (now - lastFrameAt) / 1000);
       lastFrameAt = now;
       const timeS = now / 1000;
-      updatePetals(timeS, dt);
+      const bloomDone = growStartS >= 0 && timeS - growStartS > 3.4;
+      updatePetals(timeS, dt, bloomDone);
       draw(timeS, false);
     };
 
@@ -484,7 +513,9 @@ const SpectralBloom = () => {
       }
     };
 
-    /* One-way petal shedding: only the maximum scroll depth matters. */
+    /* One-way petal shedding: only the maximum scroll depth matters. For
+       reduced-motion users the scene is world-anchored, so the single
+       static frame is repainted (rAF-debounced) as they scroll. */
     const onScroll = () => {
       const range =
         document.documentElement.scrollHeight - window.innerHeight;
@@ -494,13 +525,19 @@ const SpectralBloom = () => {
           Math.min(1, window.scrollY / range),
         );
       }
+      if (prefersReducedMotion() && !staticRedrawQueued) {
+        staticRedrawQueued = true;
+        window.requestAnimationFrame(() => {
+          staticRedrawQueued = false;
+          petalData.fill(0);
+          draw(STATIC_TIME_S, true);
+        });
+      }
     };
 
     resize();
     start();
-    if (!prefersReducedMotion()) {
-      window.addEventListener("scroll", onScroll, { passive: true });
-    }
+    window.addEventListener("scroll", onScroll, { passive: true });
 
     /* The loop reads the theme every frame; the observer only matters for
        reduced-motion users, whose single static frame must be repainted. */
