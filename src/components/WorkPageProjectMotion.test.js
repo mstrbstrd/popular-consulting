@@ -6,6 +6,7 @@ const indexPath = path.join(__dirname, "..", "index.js");
 
 describe("WorkPage project showcase visuals", () => {
   const css = fs.readFileSync(motionCssPath, "utf8");
+  const normalizedCss = css.toLowerCase();
   const indexSource = fs.readFileSync(indexPath, "utf8");
 
   test("loads the report-grounded showcase stylesheet after work-page mode overrides", () => {
@@ -21,18 +22,18 @@ describe("WorkPage project showcase visuals", () => {
     [
       "market isolation",
       "payment provider",
-      "NAV commit",
-      "verified Stripe webhook",
-      "PostgreSQL source of truth",
+      "nav commit",
+      "verified stripe webhook",
+      "postgresql source of truth",
       "audit + retry jobs",
       "one audio engine",
       "authorized redirect",
       "private object",
       "capability detection",
-      "CSS fallback",
+      "css fallback",
       "telemetry + a11y",
     ].forEach((concept) => {
-      expect(css).toContain(concept);
+      expect(normalizedCss).toContain(concept);
     });
   });
 
