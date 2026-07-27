@@ -69,6 +69,7 @@ const ExperienceContent = ({ experience }) => {
       title: document.title,
       htmlOverflow: document.documentElement.style.overflow,
       htmlHeight: document.documentElement.style.height,
+      htmlFontSize: document.documentElement.style.fontSize,
       bodyOverflow: document.body.style.overflow,
       bodyHeight: document.body.style.height,
       values: Object.fromEntries(
@@ -82,6 +83,9 @@ const ExperienceContent = ({ experience }) => {
     document.title = config.title;
     document.documentElement.style.overflow = "hidden";
     document.documentElement.style.height = "100%";
+    /* index.css shrinks the root to 55-58% on small screens for the
+       immersive routes; this page's rem scale assumes the 10px root. */
+    document.documentElement.style.fontSize = "62.5%";
     document.body.style.overflow = "hidden";
     document.body.style.height = "100%";
 
@@ -104,6 +108,7 @@ const ExperienceContent = ({ experience }) => {
       document.title = previous.title;
       document.documentElement.style.overflow = previous.htmlOverflow;
       document.documentElement.style.height = previous.htmlHeight;
+      document.documentElement.style.fontSize = previous.htmlFontSize;
       document.body.style.overflow = previous.bodyOverflow;
       document.body.style.height = previous.bodyHeight;
 

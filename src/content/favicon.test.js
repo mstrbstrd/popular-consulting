@@ -13,7 +13,9 @@ describe("Popular Consulting favicon branding", () => {
     );
     expect(indexHtml).toContain('<link rel="manifest" href="/manifest.json" />');
     expect(indexHtml).not.toMatch(/favicon\.ico|logo192\.png|logo512\.png/i);
+    expect(indexHtml).toContain('<link rel="apple-touch-icon" href="/apple-touch-icon.png" />');
     expect(fs.existsSync(publicPath("logo2026.png"))).toBe(true);
+    expect(fs.existsSync(publicPath("apple-touch-icon.png"))).toBe(true);
     expect(fs.existsSync(publicPath("favicon.ico"))).toBe(false);
   });
 

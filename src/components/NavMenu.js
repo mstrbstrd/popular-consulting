@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import logo from "../assets/icons/logo2026.png";
+import logo from "../assets/icons/logo2026_128.png";
 import { useThemeMode } from "../contexts/ThemeContext";
 import { SITE_AUDIENCES, getSiteCopy } from "../content/siteCopy";
 

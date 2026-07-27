@@ -112,13 +112,27 @@ const applyMetadata = (html, metadata) => {
   return next;
 };
 
+/* The base document loads only the immersive routes' font set (Poppins).
+   /work is the sole consumer of the Aetheris pairing, so its generated HTML
+   swaps the Google Fonts stylesheet instead of shipping 11 files everywhere. */
+const IMMERSIVE_FONTS_HREF =
+  "https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,200;0,600;1,100;1,200&display=swap";
+const WORK_FONTS_HREF =
+  "https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap";
+
 const writeRoute = (routeKey, destinationDirectory) => {
   const metadata = metadataByRoute[routeKey];
   if (!metadata) {
     throw new Error(`Missing route metadata for ${routeKey}.`);
   }
 
-  const html = applyMetadata(sourceHtml, metadata);
+  let html = applyMetadata(sourceHtml, metadata);
+  if (routeKey === "work") {
+    if (!html.includes(IMMERSIVE_FONTS_HREF)) {
+      throw new Error("Could not find route font stylesheet in build/index.html.");
+    }
+    html = html.replace(IMMERSIVE_FONTS_HREF, WORK_FONTS_HREF);
+  }
   const targetDirectory = path.join(buildDirectory, destinationDirectory);
   fs.mkdirSync(targetDirectory, { recursive: true });
   fs.writeFileSync(path.join(targetDirectory, "index.html"), html);

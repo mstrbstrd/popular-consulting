@@ -11,7 +11,7 @@ import { useThemeMode } from "../contexts/ThemeContext";
 import { hasHardwareWebGL } from "../utils/deviceTier";
 import twitterIcon from "../assets/icons/twitter.svg";
 import instagramIcon from "../assets/icons/instagram.svg";
-import logo from "../assets/icons/logo2026.png";
+import logo from "../assets/icons/logo2026_128.png";
 import { SITE_AUDIENCES, getSiteCopy } from "../content/siteCopy";
 
 const ContactSection = ({

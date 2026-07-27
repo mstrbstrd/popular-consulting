@@ -60,20 +60,20 @@ describe("SiteRouter", () => {
     expect(resolveSiteView(pathname)).toBe(expected);
   });
 
-  test("keeps the original immersive experience as the safe unknown-route fallback", () => {
+  test("keeps the original immersive experience as the safe unknown-route fallback", async () => {
     expect(resolveSiteView("/unknown")).toBe(SITE_VIEWS.ORIGINAL);
     render(<SiteRouter pathname="/unknown" />);
 
-    expect(screen.getByTestId("immersive-site")).toHaveAttribute(
+    expect(await screen.findByTestId("immersive-site")).toHaveAttribute(
       "data-mode",
       IMMERSIVE_MODES.ORIGINAL,
     );
   });
 
-  test("renders the original and engineering modes without route-only experiences", () => {
+  test("renders the original and engineering modes without route-only experiences", async () => {
     const { rerender } = render(<SiteRouter pathname="/" />);
 
-    expect(screen.getByTestId("immersive-site")).toHaveAttribute(
+    expect(await screen.findByTestId("immersive-site")).toHaveAttribute(
       "data-mode",
       IMMERSIVE_MODES.ORIGINAL,
     );
@@ -81,17 +81,17 @@ describe("SiteRouter", () => {
 
     rerender(<SiteRouter pathname="/engineering" />);
 
-    expect(screen.getByTestId("immersive-site")).toHaveAttribute(
+    expect(await screen.findByTestId("immersive-site")).toHaveAttribute(
       "data-mode",
       IMMERSIVE_MODES.ENGINEERING,
     );
     expect(screen.queryByTestId("standalone-experience")).not.toBeInTheDocument();
   });
 
-  test("renders the selected work page only at /work", () => {
+  test("renders the selected work page only at /work", async () => {
     render(<SiteRouter pathname="/work" />);
 
-    expect(screen.getByTestId("work-page")).toBeInTheDocument();
+    expect(await screen.findByTestId("work-page")).toBeInTheDocument();
     expect(screen.queryByTestId("immersive-site")).not.toBeInTheDocument();
     expect(screen.queryByTestId("standalone-experience")).not.toBeInTheDocument();
   });
@@ -99,10 +99,10 @@ describe("SiteRouter", () => {
   test.each([
     ["/orb", "orb"],
     ["/game", "game"],
-  ])("renders %s as an isolated standalone experience", (pathname, experience) => {
+  ])("renders %s as an isolated standalone experience", async (pathname, experience) => {
     render(<SiteRouter pathname={pathname} />);
 
-    expect(screen.getByTestId("standalone-experience")).toHaveAttribute(
+    expect(await screen.findByTestId("standalone-experience")).toHaveAttribute(
       "data-experience",
       experience,
     );

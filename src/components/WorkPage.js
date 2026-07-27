@@ -1,6 +1,6 @@
 import React from "react";
 import logo from "../assets/icons/popcon_png.png";
-import brandLogo from "../assets/icons/logo2026.png";
+import brandLogo from "../assets/icons/logo2026_128.png";
 import SpectralBloom from "./SpectralBloom";
 import useWorkPolish from "./useWorkPolish";
 import { ThemeProvider, useThemeMode } from "../contexts/ThemeContext";
@@ -218,6 +218,7 @@ const WorkPageContent = () => {
       title: document.title,
       htmlOverflow: document.documentElement.style.overflow,
       htmlHeight: document.documentElement.style.height,
+      htmlFontSize: document.documentElement.style.fontSize,
       bodyOverflow: document.body.style.overflow,
       bodyHeight: document.body.style.height,
     };
@@ -241,7 +242,12 @@ const WorkPageContent = () => {
     document.title = metadata.title;
     document.documentElement.style.overflow = "auto";
     document.documentElement.style.height = "auto";
-    document.body.style.overflow = "auto";
+    /* index.css shrinks the root to 55-58% on small screens for the
+       immersive routes; this page's rem scale assumes the 10px root. */
+    document.documentElement.style.fontSize = "62.5%";
+    /* body must NOT become a scroll container (overflow other than
+       visible would defeat the sticky header); html scrolls. */
+    document.body.style.overflow = "visible";
     document.body.style.height = "auto";
     description?.setAttribute("content", metadata.description);
     canonical?.setAttribute("href", metadata.canonical);
@@ -253,6 +259,7 @@ const WorkPageContent = () => {
       document.title = previous.title;
       document.documentElement.style.overflow = previous.htmlOverflow;
       document.documentElement.style.height = previous.htmlHeight;
+      document.documentElement.style.fontSize = previous.htmlFontSize;
       document.body.style.overflow = previous.bodyOverflow;
       document.body.style.height = previous.bodyHeight;
 

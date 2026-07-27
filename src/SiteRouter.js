@@ -1,10 +1,19 @@
 import React from "react";
-import App from "./App";
-import WorkPage from "./components/WorkPage";
-import StandaloneExperiencePage, {
-  EXPERIENCE_IDS,
-} from "./components/StandaloneExperiencePage";
 import { IMMERSIVE_MODES } from "./immersiveMode";
+
+/* Route-level code splitting: each view loads only its own chunk (the
+   immersive App bundle is heavy with WebGL + MUI; /work is mostly static
+   text). The Suspense fallback is a bare background so the swap is
+   invisible behind each route's own loading treatment. */
+const App = React.lazy(() => import("./App"));
+const WorkPage = React.lazy(() => import("./components/WorkPage"));
+const StandaloneExperiencePage = React.lazy(() =>
+  import("./components/StandaloneExperiencePage"),
+);
+
+/* Matches EXPERIENCE_IDS in StandaloneExperiencePage (string contract kept
+   local so the lazy chunk isn't pulled in for the constant). */
+const EXPERIENCES = Object.freeze({ ORB: "orb", GAME: "game" });
 
 export const SITE_VIEWS = Object.freeze({
   ORIGINAL: "original",
@@ -24,26 +33,33 @@ export const resolveSiteView = (pathname = "/") => {
   return SITE_VIEWS.ORIGINAL;
 };
 
+const routeFallback = (
+  <div aria-hidden="true" style={{ minHeight: "100vh" }} />
+);
+
 const SiteRouter = ({ pathname = window.location.pathname }) => {
   const view = resolveSiteView(pathname);
 
-  if (view === SITE_VIEWS.WORK) return <WorkPage />;
-  if (view === SITE_VIEWS.ORB) {
-    return <StandaloneExperiencePage experience={EXPERIENCE_IDS.ORB} />;
-  }
-  if (view === SITE_VIEWS.GAME) {
-    return <StandaloneExperiencePage experience={EXPERIENCE_IDS.GAME} />;
+  let page;
+  if (view === SITE_VIEWS.WORK) {
+    page = <WorkPage />;
+  } else if (view === SITE_VIEWS.ORB) {
+    page = <StandaloneExperiencePage experience={EXPERIENCES.ORB} />;
+  } else if (view === SITE_VIEWS.GAME) {
+    page = <StandaloneExperiencePage experience={EXPERIENCES.GAME} />;
+  } else {
+    page = (
+      <App
+        immersiveMode={
+          view === SITE_VIEWS.ENGINEERING
+            ? IMMERSIVE_MODES.ENGINEERING
+            : IMMERSIVE_MODES.ORIGINAL
+        }
+      />
+    );
   }
 
-  return (
-    <App
-      immersiveMode={
-        view === SITE_VIEWS.ENGINEERING
-          ? IMMERSIVE_MODES.ENGINEERING
-          : IMMERSIVE_MODES.ORIGINAL
-      }
-    />
-  );
+  return <React.Suspense fallback={routeFallback}>{page}</React.Suspense>;
 };
 
 export default SiteRouter;

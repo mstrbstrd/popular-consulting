@@ -13,6 +13,10 @@ export const ThemeProvider = ({ children }) => {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+    // Keep mobile browser chrome in step with the active theme.
+    document
+      .querySelector('meta[name="theme-color"]')
+      ?.setAttribute('content', isDark ? '#0b0b18' : '#ffffff');
     try { localStorage.setItem('popcon-theme', isDark ? 'dark' : 'light'); } catch {}
   }, [isDark]);
 
