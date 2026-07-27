@@ -2,138 +2,62 @@
 
 ## Project Overview
 
-A visually rich, interactive React business website for "Popular Consulting" with the tagline "Set Yourself Free." The standout feature is a WebGL-based dithered background that renders distinct animated shader patterns per section and transitions between them.
+A React business + engineering platform for "Popular Consulting" with five routes served from one CRA bundle, deployed on Vercel. The immersive home is a WebGL-heavy, section-snap experience; `/work` is a conventional scrollable portfolio built on the Aetheris Iridescent design system.
 
-The app lives inside the `popular-consulting/` subdirectory. All source work happens there.
+## Routes (`src/SiteRouter.js`)
 
----
+| Path | View | Notes |
+|---|---|---|
+| `/` | `App` (immersive, business audience) | Section-snap parallax, WebGL dither background |
+| `/engineering` | `App` (immersive, engineering audience) | Same shell, `ProfessionalHero` opening + engineering copy via `siteCopy` audiences |
+| `/work` | `WorkPage` | Scrollable portfolio; Aetheris design system; SpectralBloom backdrop |
+| `/orb` | `StandaloneExperiencePage` (orb) | noindex; lazy-loads `OrbSection` |
+| `/game` | `StandaloneExperiencePage` (game) | noindex; lazy-loads `PopcornGame` |
+
+Unknown paths fall back to `/`. Per-route HTML (title/meta/canonical) is generated at build time by `scripts/generate-route-html.mjs` from `src/content/routeMetadata.json`; `vercel.json` rewrites the routes to those files.
 
 ## Stack
 
-| Layer | Technology |
-|---|---|
-| Framework | React 18 (Create React App) |
-| Styling | Tailwind CSS + Emotion (CSS-in-JS) |
-| UI Components | Material-UI (MUI) v5 |
-| Animation | Framer Motion + custom CSS + WebGL |
-| Graphics | WebGL GLSL shaders, Canvas, Simplex Noise |
-| Language | JavaScript (no TypeScript) |
-| Package Manager | npm |
-
----
+- React 18 (CRA / react-scripts 5), JavaScript only (no TypeScript)
+- MUI v5 (`Box`/`Typography`/`Container`/`TextField`/`Button` in BioSection, ServicesSection, ContactSection only — removal is a planned project)
+- Custom CSS: global `src/index.css`, per-component inline `<style>` blocks, and `src/components/WorkPage.css`
+- WebGL (raw, no library): `DitherBackground` (WebGL2), `BlackHoleBackground`/`BlackHoleCanvas` (WebGL2), `SpectralBloom` (WebGL1)
+- **Not used anywhere (do not reintroduce): Tailwind, framer-motion, Emotion-direct, simplex-noise**
 
 ## Commands
 
 ```bash
-cd popular-consulting
-
 npm start       # Dev server → http://localhost:3000
-npm run build   # Production build → build/
-npm test        # Jest / React Testing Library
+npm run build   # Prod build (sourcemaps off) + route HTML generation
+npm test        # Jest / RTL / jest-axe
+npm run lint    # eslint --max-warnings 0 (CI-gated)
 ```
-
----
 
 ## Architecture
 
-### Sections (parallax scroll, 5 total)
-1. **Hero** — DitherHero + HeroLogo + typewriter effect
-2. **Bio** — BioSection with entry animations
-3. **Services** — Glass-morphism cards: "AI Education For Everyone", "Custom Software Solutions", "Implementation & Integration"
-4. **Contact** — ContactSection with form + social links
-5. **Orb** — OrbSection with interactive 3D WebGL sphere
+### Immersive home (`/`, `/engineering`)
+- `ParallaxBackground.js` — section-snap controller. Intercepts wheel/keyboard/touch (native scroll is NOT used); 4 sections: DitherHero, Bio, Services, Contact. Section dots (`.section-dot`) are the navigation contract: `document.querySelectorAll('.section-dot')[N]?.click()` navigates from anywhere.
+- `DitherBackground.js` (~1900 lines) — persistent WebGL2 dither canvas, per-section shader presets, orb face/emotions, CD/black-hole blend modes. **Touch carefully; verify visually.**
+- `experiencePlacement.js` — which sections render (orb currently disabled on the main stack).
+- `siteCopy.js` — dual-audience copy (business vs engineering); `immersiveMode.js` picks per route.
+- WebGL-unavailable fallback: `deviceTier.js` `hasHardwareWebGL` gates canvases; CSS gradient orbs render instead.
 
-### Navigation
-`ParallaxBackground.js` drives the full-screen section-based scroll. Navigation is wheel + keyboard (arrow keys, Page Up/Down) with a 1200ms cooldown. It does **not** use native browser scroll.
+### /work (Aetheris Iridescent)
+- Design tokens scoped to `.work-page` in `WorkPage.css` (spectral gradient borders, Hanken Grotesk + JetBrains Mono, glass panels). Styleguide source: https://github.com/mstrbstrd/aetheris-styleguide — follow `conventions.md` when extending.
+- `SpectralBloom.js` — WebGL1 document-space flower backdrop (stem rooted at page bottom, petals shed on scroll). Bayer-dithered; strict motion discipline (30fps idle cap, reduced-motion static frame). CSS ambient gradient is its fallback.
+- `useWorkPolish.js` — scroll parallax (`[data-depth]`) + reveal-on-scroll (`[data-reveal]`); no-ops under reduced motion / missing IntersectionObserver.
+- Motion budget pinned by `WorkPageMotion.test.js`: exactly one CSS keyframe (`work-fade-in`), zero infinite animations.
 
-Nav links: About (→ Bio), Services, Contact, Blog ↗ (external: `https://www.popularconsumption.xyz/`). The nav pill is hidden on the Hero section and slides in from the top on all other sections.
+### window.__* globals contract
+Producers null their globals on cleanup. Orb/dither: `__orbPop`, `__orbExpress`, `__orbPlaySequence`, `__orbStop`, `__orbReset`, `__orbExpressions`, `__orbTalk`, `__orbStopTalk`, `__ditherRaiseCanvas`, `__ditherLowerCanvas`, `__ditherLockToHero`, `__ditherUnlock`, `__ditherRevealIn`, `__ditherRevealOut`, `__ditherSetCD`, `__ditherSetOrb`, `__addDitherRipple` (all from DitherBackground). Others: `__bhRevealStart` (BlackHoleBackground), `__bhModeActive` (OrbSection), `__serviceCardExpanded` (ServicesSection), `__triggerLoading` (App / StandaloneExperiencePage), `__perfReport` (telemetry).
 
-### Dither Background (`DitherBackground.js` — 58KB)
-The core visual engine. Renders different GLSL shader patterns per section with cross-dissolve transitions:
+## Conventions & cautions
 
-| Section | Shape ID | Pattern |
-|---|---|---|
-| Hero | 6 | Ripples |
-| Bio | 3 | Waves |
-| Services | 4 | Mandala |
-| Contact | 0 | Plasma |
-| Orb | 7 | Sphere 3D |
-
-The sphere supports facial expressions (eye/mouth blending) and pop/reanimate sequences.
-
-### Global Orb APIs (window globals)
-```js
-window.__orbPop()
-window.__orbExpress(emotion)
-window.__orbPlaySequence(name)
-window.__orbStop()
-```
-
----
-
-## Key Files
-
-```
-popular-consulting/
-├── src/
-│   ├── App.js                      # Root component, section assembly
-│   ├── index.js                    # React entry point
-│   ├── index.css                   # Global styles (9.4KB)
-│   ├── components/
-│   │   ├── DitherBackground.js     # WebGL shader engine (58KB) — touch carefully
-│   │   ├── ParallaxBackground.js   # Scroll/navigation controller
-│   │   ├── NavMenu.js              # Responsive nav, active section tracking
-│   │   ├── DitherHero.js           # Hero click/drag ripple surface
-│   │   ├── HeroLogo.js             # Fixed logo, typewriter, 3D flip
-│   │   ├── BioSection.js           # About section
-│   │   ├── ServicesSection.js      # Service cards
-│   │   ├── ContactSection.js       # Contact form + footer
-│   │   └── OrbSection.js          # Interactive orb + emotion controls
-│   ├── assets/
-│   │   ├── icons/                  # 17 SVG/PNG/GIF icons
-│   │   ├── img/                    # 9 PNG/JPEG images
-│   │   └── video/                  # 3 MP4 videos
-│   └── utils/
-│       └── cn.js                   # clsx + tailwind-merge helper
-├── tailwind.config.js              # Dark mode (class), custom colors/z-index
-└── package.json
-```
-
----
-
-## Conventions
-
-- **No TypeScript** — all files are `.js` / `.jsx`
-- **Utility class merging** — use `cn()` from `src/utils/cn.js` when combining Tailwind classes conditionally
-- **Styling approach** — MUI `sx` prop is the primary approach for component-level theming and dynamic styles; Tailwind is used for utility classes via `cn()`; inline `<style>` tags are used in some components (e.g. NavMenu, ServicesSection) for keyframe animations and pseudo-element styles that MUI sx can't handle cleanly. Emotion is a peer dependency of MUI but not used directly.
-- **Overflow** — `overflow: hidden` on root; layout is fixed/full-screen, not document scroll
-- **Mobile** — Mobile detection is handled per-component (not a global context); check existing patterns before adding new mobile logic
-- **Animations** — Framer Motion for section entry/exit; CSS transitions for hover states; WebGL for background effects
-- **Global state** — Minimal; cross-component communication uses `window.*` globals (see Orb APIs above) and custom DOM events
-
----
-
-## Legacy / Unused Components
-
-These files exist in `src/components/` but are **not imported in `App.js`** and appear to be unused or experimental:
-
-- `BackgroundBeams.js` / `BackgroundBeamsHero.js`
-- `BackgroundRipples.js`
-- `WavyBackground.js`
-- `TextMaskReveal.js`
-- `TextRandomizer.js`
-- `VideoSection.js`
-- `HeroSection.js`
-- `LoadingComponent.js`
-
-Do not delete without confirming with the user — some may be candidates for future use.
-
----
-
-## Cautions
-
-- `DitherBackground.js` is complex WebGL/GLSL code. Make targeted edits and verify visually — the shader math is sensitive.
-- The parallax scroll system (`ParallaxBackground.js`) intercepts all wheel and keyboard events. If adding new interactive components, ensure event propagation is handled correctly.
-- `node_modules` is 843MB. Do not commit it; `.gitignore` excludes it.
-- The `build/` directory is also gitignored — don't commit build artifacts.
-- Git remote: `https://github.com/mstrbstrd/popular-consulting.git` (branch: `main`)
+- `html { font-size: 62.5% }` → 1rem = 10px, **but** `index.css` shrinks the root to 55–58% on small screens for the immersive routes; `/work` and standalone routes restore 62.5% on mount.
+- Mobile behavior branches on `isMobileTier` / `hasHardwareWebGL` from `src/utils/deviceTier.js`.
+- Timers/listeners: always capture and clear (see `useWorkPolish.js` / `LoadingOverlay.js` for the pattern).
+- `patchResizeObserver.js` must stay the first import in `src/index.js`.
+- Glass + per-frame transforms must not share a compositing subtree (Chrome clip desync) — see the comment in `ServicesSection.js` ExpandedOverlay before restructuring.
+- Tests pin many literals: `favicon.test.js` (icon/manifest), `WorkPageMotion.test.js` (keyframe budget), `SpectralBloom.test.js` (shader discipline strings), a11y suite (`src/__tests__/a11y/`, 10 files). Run the full suite after edits.
+- `git rm` over delete; never commit `node_modules` or `build/`.
+- Remote: `https://github.com/mstrbstrd/popular-consulting.git` (branch `main`); Vercel deploys from main. CI (`.github/workflows/quality.yml`): lint → test → build, all gating.

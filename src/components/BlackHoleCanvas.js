@@ -404,7 +404,8 @@ const BlackHoleCanvas = ({ isDark = true, visible = true, onFadeOutEnd, zoomRef,
       gl.deleteShader(fs);
       gl.deleteBuffer(buf);
     };
-  }, []);
+    // zoomRef/currentZoomRef are stable ref objects passed as props.
+  }, [currentZoomRef, zoomRef]);
 
   return (
     <canvas

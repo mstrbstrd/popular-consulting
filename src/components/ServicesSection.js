@@ -1235,20 +1235,22 @@ const ServicesSection = ({
           titleTimer = window.setTimeout(addChar, 45);
         } else {
           setShowTitleCursor(false);
-          window.setTimeout(() => setSubtitleVisible(true), 200);
-          window.setTimeout(() => setTypingComplete(true), 600);
+          followTimers.push(window.setTimeout(() => setSubtitleVisible(true), 200));
+          followTimers.push(window.setTimeout(() => setTypingComplete(true), 600));
         }
       };
 
       addChar();
     };
 
+    const followTimers = [];
     startTimer = window.setTimeout(typeTitle, 150);
 
     return () => {
       if (cursorTimer) window.clearInterval(cursorTimer);
       if (titleTimer) window.clearTimeout(titleTimer);
       if (startTimer) window.clearTimeout(startTimer);
+      followTimers.forEach((id) => window.clearTimeout(id));
     };
   }, [isActive, titleContent]);
 

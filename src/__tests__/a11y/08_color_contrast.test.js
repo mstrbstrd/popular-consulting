@@ -63,7 +63,7 @@ describe('CSS variable contrast values (index.css)', () => {
 describe('Mobile font-size breakpoints (index.css)', () => {
   test('font-size at max-width:480px is >= 55% (raised from 40%)', () => {
     // Find the @media block for 480px
-    const match = indexCss.match(/@media[^{]*max-width:\s*480px[^{]*\{([\s\S]+?)(?=@media|\Z)/);
+    const match = indexCss.match(/@media[^{]*max-width:\s*480px[^{]*\{([\s\S]+?)(?=@media|$)/);
     if (!match) return; // if block structure changed, skip
     const block = match[1];
     const sizeMatch = block.match(/html\s*\{[^}]*font-size:\s*([\d.]+)%/);
@@ -73,7 +73,7 @@ describe('Mobile font-size breakpoints (index.css)', () => {
   });
 
   test('font-size at 481–768px is >= 55% (raised from 45%)', () => {
-    const match = indexCss.match(/@media[^{]*min-width:\s*481px[^{]*max-width:\s*768px[^{]*\{([\s\S]+?)(?=@media|\Z)/);
+    const match = indexCss.match(/@media[^{]*min-width:\s*481px[^{]*max-width:\s*768px[^{]*\{([\s\S]+?)(?=@media|$)/);
     if (!match) return;
     const block = match[1];
     const sizeMatch = block.match(/html\s*\{[^}]*font-size:\s*([\d.]+)%/);
@@ -85,7 +85,7 @@ describe('Mobile font-size breakpoints (index.css)', () => {
 
 describe('Scroll indicator arrow color (ParallaxBackground)', () => {
   test('scroll-indicator ::after does not use #333 border color', () => {
-    const { container } = render(
+    render(
       <ThemeProvider>
         <ParallaxBackground>
           <Section id="s0" />

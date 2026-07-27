@@ -27,10 +27,11 @@ const ContactSection = ({
 
   // Handle section transition effects for both form and footer
   React.useEffect(() => {
+    let initTimer = 0;
     const initContactSection = () => {
 
       // Wait for DOM to be ready
-      setTimeout(() => {
+      initTimer = setTimeout(() => {
         // Make sure refs are valid
         if (!contentRef.current || !footerRef.current) return;
 
@@ -76,6 +77,8 @@ const ContactSection = ({
 
     // Initialize the section
     initContactSection();
+
+    return () => clearTimeout(initTimer);
   }, [isActive, scrollOutStarted]);
 
   const theme = useTheme();

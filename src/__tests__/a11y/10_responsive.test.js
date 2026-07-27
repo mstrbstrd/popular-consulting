@@ -58,9 +58,7 @@ describe('NavMenu responsive rendering', () => {
     fireEvent(window, new Event('resize'));
     // Re-query after resize event processed
     const burger = document.querySelector('.nav-burger');
-    // May or may not render depending on React state update timing
-    // We assert no error and component mounts correctly
-    expect(document.querySelector('header')).toBeInTheDocument();
+    expect(burger).toBeInTheDocument();
   });
 
   test('mobile overlay does not have href="#" internal links', () => {

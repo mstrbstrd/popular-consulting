@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Box, Typography } from "@mui/material";
-import mePhoto from "../assets/img/me.jpeg";
+import mePhoto from "../assets/img/me.webp";
 import { useThemeMode } from "../contexts/ThemeContext";
 import { isMobileTier, hasHardwareWebGL } from "../utils/deviceTier";
 import { SITE_AUDIENCES, getSiteCopy } from "../content/siteCopy";
@@ -187,7 +187,6 @@ const BioExpandedOverlay = ({
     phase === "closing";
   const isMoving =
     phase === "mounting" || phase === "expanding" || phase === "closing";
-  const backdropVis = phase === "expanding" || phase === "expanded";
 
   const updateMouseEffects = React.useCallback((x, y) => {
     const s = surfaceRef.current;
@@ -961,20 +960,22 @@ const BioSection = ({
           titleTimer = setTimeout(addChar, 45);
         } else {
           setShowCursor(false);
-          setTimeout(() => setSubtitleVisible(true), 200);
-          setTimeout(() => setParaVisible(true), 600);
+          followTimers.push(setTimeout(() => setSubtitleVisible(true), 200));
+          followTimers.push(setTimeout(() => setParaVisible(true), 600));
         }
       };
       addChar();
     };
 
-    setTimeout(typeTitle, 150);
+    const followTimers = [];
+    followTimers.push(setTimeout(typeTitle, 150));
 
     return () => {
       if (cursorTimer) clearInterval(cursorTimer);
       if (titleTimer) clearTimeout(titleTimer);
+      followTimers.forEach((id) => clearTimeout(id));
     };
-  }, [isActive]);
+  }, [isActive, copy.title]);
 
   return (
     <section

@@ -117,11 +117,6 @@ const OrbSection = ({ isActive }) => {
     setBhVisible(false);
   }, []);
 
-  React.useEffect(() => {
-    window.__ditherSetBH = enterBH;
-    return () => { window.__ditherSetBH = null; };
-  }, [enterBH]);
-
   const handleBHPop = React.useCallback(() => {
     const cvs = popCanvasRef.current;
     if (!cvs) return;

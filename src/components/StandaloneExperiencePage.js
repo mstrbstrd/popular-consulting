@@ -122,13 +122,16 @@ const ExperienceContent = ({ experience }) => {
       return undefined;
     }
 
+    let loadingTimer = 0;
     window.__triggerLoading = (durationMs = 4000) => {
       setPageHidden(true);
       setLoading(true);
-      window.setTimeout(() => setLoading(false), durationMs);
+      window.clearTimeout(loadingTimer);
+      loadingTimer = window.setTimeout(() => setLoading(false), durationMs);
     };
 
     return () => {
+      window.clearTimeout(loadingTimer);
       window.__triggerLoading = null;
     };
   }, [experience]);

@@ -18,7 +18,7 @@
 
 import '../../testHelpers/a11ySetup';
 import React from 'react';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { ThemeProvider } from '../../contexts/ThemeContext';
 import { ParallaxBackground } from '../../components/ParallaxBackground';
 import NavMenu from '../../components/NavMenu';
@@ -96,7 +96,6 @@ describe('NavMenu ARIA attributes', () => {
     wrap(<NavMenu />);
     // By default active section is 0; nav links render when not mobile
     // We check that nav-link--active item has aria-current if present
-    const activeLinks = document.querySelectorAll('[aria-current="page"]');
     // On desktop (no isMobile) or mobile, at least structure is correct
     // We assert no aria-current="true" on non-active items
     const wrongCurrent = document.querySelectorAll('[aria-current="true"]');

@@ -963,7 +963,6 @@ const DitherBackground = ({ activeSection = 0, isDark = false }) => {
   const reanimIdxRef = useRef(0); // cycles 0→1→2→0 after each completed pop
   const postReanimFiredRef = useRef(false); // one-shot: random emote after reforming
   const isTalkingRef       = useRef(false); // talking animation active
-  const cdModeRef          = useRef(null);  // null | 'stationary' | 'spinning'
   const cdBlendRef         = useRef(0);     // 0 = orb, 1 = CD (lerped)
   const cdTargetBlendRef   = useRef(0);     // target blend
   const cdSpinRef          = useRef(false); // true = spinning CD

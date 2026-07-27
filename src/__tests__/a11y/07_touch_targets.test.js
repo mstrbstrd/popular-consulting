@@ -36,7 +36,7 @@ describe('Touch target sizes — CSS structural guarantees', () => {
   });
 
   test('section-dot has a 44×44px expanded ::after hit area in CSS', () => {
-    const { container } = wrap(
+    wrap(
       <ParallaxBackground>
         <Section id="s0" />
         <Section id="s1" />
@@ -75,7 +75,7 @@ describe('Touch target DOM elements', () => {
 
 describe('Pinch-to-zoom CSS invariant', () => {
   test('body touch-action is not "none" — allows pinch-zoom', () => {
-    const { container } = wrap(
+    wrap(
       <ParallaxBackground>
         <Section id="s0" />
       </ParallaxBackground>

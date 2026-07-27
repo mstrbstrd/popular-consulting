@@ -6,10 +6,9 @@ import SiteRouter from './SiteRouter';
 import InteractionAccessibilityBridge from './components/InteractionAccessibilityBridge';
 import { initCoreWebVitals, initSectionTiming, initLongTaskObserver } from './utils/telemetry';
 
-// ResizeObserver fires this benign warning when its callback can't deliver all
-// notifications within a single animation frame. It does not indicate a bug and
-// is safe to ignore. Without this suppression, CRA's dev overlay treats it as a
-// fatal error and crashes the UI whenever DevTools or the viewport resizes.
+// ResizeObserver loop errors are prevented at the source by patchResizeObserver
+// (imported first, above): it wraps callbacks in requestAnimationFrame so
+// notifications never overflow a single frame.
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(

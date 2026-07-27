@@ -56,7 +56,7 @@ describe('BioSection images', () => {
     // The photo renders in a Box component="img"
     const imgs = document.querySelectorAll('img');
     const profilePhoto = Array.from(imgs).find(
-      img => img.src && img.src.includes('me.jpeg')
+      img => img.src && img.src.includes('me.webp')
     );
     expect(profilePhoto).toBeTruthy();
     expect(profilePhoto.alt).toBeTruthy();

@@ -31,20 +31,22 @@ const HeroLogo = () => {
       setIsHeroActive(Array.from(dots).indexOf(activeDot) === 0);
     };
 
-    // Dots may not exist yet on first render — poll until they appear
+    // Dots may not exist yet on first render — poll until they appear,
+    // with the poll timer tracked so unmount cancels it.
+    let obs = null;
+    let pollTimer = 0;
     const attach = () => {
       const dots = document.querySelectorAll('.section-dot');
-      if (!dots.length) { setTimeout(attach, 100); return; }
+      if (!dots.length) { pollTimer = setTimeout(attach, 100); return; }
       checkSection();
-      const observer = new MutationObserver(checkSection);
-      dots.forEach(d => observer.observe(d, { attributes: true }));
-      return observer;
+      obs = new MutationObserver(checkSection);
+      dots.forEach(d => obs.observe(d, { attributes: true }));
     };
 
-    let obs = null;
-    const timer = setTimeout(() => { obs = attach(); }, 300);
+    const timer = setTimeout(attach, 300);
     return () => {
       clearTimeout(timer);
+      clearTimeout(pollTimer);
       if (obs) obs.disconnect();
     };
   }, []);

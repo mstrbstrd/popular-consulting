@@ -317,27 +317,6 @@ canvas {
   box-shadow: 0px 10px 10px rgba(0, 0, 0, 0.1), 0px 20px 20px rgba(0, 0, 0, 0.1);
 }
 
-.cards img {
-  max-width: 15%;
-  margin: 2rem;
-  line-height: 2rem;
-}
-
-.card-icon1 {
-  background: linear-gradient(rgba(0, 0, 0, 0.5), transparent),
-    url("./assets/img/popcon_cardicon1.png");
-}
-
-.card-icon2 {
-  background: linear-gradient(rgba(0, 0, 0, 0.5), transparent),
-    url("./assets/img/popcon_cardicon2.png");
-}
-
-.card-icon3 {
-  background: linear-gradient(rgba(0, 0, 0, 0.5), transparent),
-    url("./assets/img/popcon_cardicon3.png");
-}
-
 #contact {
   min-height: 100vh;
   /* background: linear-gradient(rgba(0, 0, 0, 0.5), transparent),

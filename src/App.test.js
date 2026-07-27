@@ -4,6 +4,7 @@
  */
 
 import { render } from '@testing-library/react';
+import App from './App';
 
 // Mock all heavy/WebGL components so the smoke test can run in JSDOM
 jest.mock('./components/DitherBackground',   () => () => null);
@@ -21,9 +22,6 @@ jest.mock('./assets/icons/logo2026.png', () => 'logo2026.png');
 jest.mock('./assets/icons/popcon_svg.svg', () => 'popcon_svg.svg');
 jest.mock('./assets/icons/twitter.svg',    () => 'twitter.svg');
 jest.mock('./assets/icons/instagram.svg',  () => 'instagram.svg');
-
-import App from './App';
-import React from 'react';
 
 test('app mounts without crashing', () => {
   expect(() => render(<App />)).not.toThrow();

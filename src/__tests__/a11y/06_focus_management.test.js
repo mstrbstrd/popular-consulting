@@ -15,7 +15,6 @@
 import '../../testHelpers/a11ySetup';
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { ThemeProvider } from '../../contexts/ThemeContext';
 import NavMenu from '../../components/NavMenu';
 import HeroLogo from '../../components/HeroLogo';
@@ -137,7 +136,7 @@ describe('Mobile overlay nav items', () => {
 
 describe('Focus-visible CSS invariant', () => {
   test('ParallaxBackground style contains focus-visible rule for section-dot', () => {
-    const { container } = wrap(
+    wrap(
       <ParallaxBackground>
         <Section id="s0" />
       </ParallaxBackground>

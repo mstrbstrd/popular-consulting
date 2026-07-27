@@ -6,17 +6,9 @@
     "@emotion/react": "^11.11.3",
     "@emotion/styled": "^11.11.0",
     "@mui/material": "^5.15.3",
-    "@tailwindcss/aspect-ratio": "^0.4.2",
-    "@testing-library/jest-dom": "^5.17.0",
-    "@testing-library/react": "^13.4.0",
-    "@testing-library/user-event": "^13.5.0",
-    "clsx": "^2.1.0",
-    "framer-motion": "^11.0.5",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-scripts": "5.0.1",
-    "simplex-noise": "^4.0.1",
-    "tailwind-merge": "^2.2.1",
     "web-vitals": "^2.1.4"
   },
   "engines": {
@@ -24,14 +16,33 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "CI= react-scripts build && node scripts/generate-route-html.mjs",
+    "build": "GENERATE_SOURCEMAP=false react-scripts build && node scripts/generate-route-html.mjs",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "lint": "eslint --ext .js src --max-warnings 0"
   },
   "eslintConfig": {
     "extends": [
       "react-app",
       "react-app/jest"
+    ],
+    "overrides": [
+      {
+        "files": [
+          "**/*.test.js",
+          "src/testHelpers/**"
+        ],
+        "rules": {
+          "testing-library/no-node-access": "off",
+          "testing-library/no-container": "off",
+          "testing-library/prefer-screen-queries": "off",
+          "testing-library/no-render-in-setup": "off",
+          "testing-library/no-wait-for-multiple-assertions": "off",
+          "testing-library/render-result-naming-convention": "off",
+          "testing-library/no-unnecessary-act": "off",
+          "jest/no-conditional-expect": "off"
+        }
+      }
     ]
   },
   "browserslist": {
@@ -48,6 +59,9 @@
   },
   "devDependencies": {
     "@babel/plugin-proposal-private-property-in-object": "^7.21.11",
-    "jest-axe": "^10.0.0"
+    "jest-axe": "^10.0.0",
+    "@testing-library/jest-dom": "^5.17.0",
+    "@testing-library/react": "^13.4.0",
+    "@testing-library/user-event": "^13.5.0"
   }
 }

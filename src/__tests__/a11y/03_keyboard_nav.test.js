@@ -30,9 +30,6 @@ describe('Keyboard section navigation', () => {
     // Ensure body is focused (no form element)
     document.body.focus();
 
-    const dotsBefore = container.querySelectorAll('.section-dot.active');
-    const activeBefore = dotsBefore.length > 0 ? dotsBefore[0].closest('[data-section]') : null;
-
     fireEvent.keyDown(window, { key: 'ArrowDown' });
 
     // Section dots should still be rendered — no throw

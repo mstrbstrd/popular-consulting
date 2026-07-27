@@ -112,12 +112,15 @@ const App = ({ immersiveMode = IMMERSIVE_MODES.ORIGINAL }) => {
   }, [metadata]);
 
   React.useEffect(() => {
+    let loadingTimer = 0;
     window.__triggerLoading = (durationMs = 4000) => {
       setPageHidden(true);
       setLoading(true);
-      setTimeout(() => setLoading(false), durationMs);
+      clearTimeout(loadingTimer);
+      loadingTimer = setTimeout(() => setLoading(false), durationMs);
     };
     return () => {
+      clearTimeout(loadingTimer);
       window.__triggerLoading = null;
     };
   }, []);

@@ -107,139 +107,7 @@ export const ParallaxBackground = ({ children }) => {
   }, []);
 
   // Wheel + keyboard navigation
-  useEffect(() => {
-    let lastScrollTime = 0;
-    let accumulatedDelta = 0;
-    const scrollCooldown = 1200;
-
-    const handleWheel = (e) => {
-      // If the wheel is inside a scrollable element that still has room to scroll,
-      // let that element consume the event instead of switching sections.
-      let node = e.target;
-      while (node && node !== document.body) {
-        if (node.scrollHeight > node.clientHeight + 1) {
-          const overflow = window.getComputedStyle(node).overflowY;
-          if (overflow === 'auto' || overflow === 'scroll') {
-            const goingDown = e.deltaY > 0;
-            const atBottom = node.scrollTop + node.clientHeight >= node.scrollHeight - 2;
-            const atTop    = node.scrollTop <= 0;
-            if ((goingDown && !atBottom) || (!goingDown && !atTop)) return;
-            break; // at boundary — fall through to section navigation
-          }
-        }
-        node = node.parentElement;
-      }
-
-      e.preventDefault();
-      if (isTransitioning || window.__serviceCardExpanded || window.__bhModeActive) return;
-
-      const now = Date.now();
-      const elapsed = now - lastScrollTime;
-      if (elapsed < scrollCooldown) return;
-      if (elapsed > 500) accumulatedDelta = 0;
-
-      accumulatedDelta += e.deltaY;
-      accumulatedDelta = Math.max(-100, Math.min(100, accumulatedDelta));
-      if (Math.abs(accumulatedDelta) < 25) return;
-
-      const dir = Math.sign(accumulatedDelta);
-      if (dir > 0 && activeSection < totalSections - 1) {
-        goToSection(activeSection + 1);
-        lastScrollTime = now;
-        accumulatedDelta = 0;
-      } else if (dir < 0 && activeSection > 0) {
-        goToSection(activeSection - 1);
-        lastScrollTime = now;
-        accumulatedDelta = 0;
-      }
-    };
-
-    const handleKeyDown = (e) => {
-      if (isTransitioning || window.__serviceCardExpanded || window.__bhModeActive) return;
-      // Don't intercept navigation keys when focus is inside a form element
-      const tag = document.activeElement?.tagName?.toUpperCase();
-      if (['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(tag)) return;
-      if (document.activeElement?.isContentEditable) return;
-      const speed = e.shiftKey ? 0.5 : 0.8;
-      if ((e.key === "ArrowDown" || e.key === "PageDown") && activeSection < totalSections - 1) {
-        goToSection(activeSection + 1, speed);
-      } else if ((e.key === "ArrowUp" || e.key === "PageUp") && activeSection > 0) {
-        goToSection(activeSection - 1, speed);
-      } else if (e.key === "Home") {
-        goToSection(0, 1.2);
-      } else if (e.key === "End") {
-        goToSection(totalSections - 1, 1.2);
-      }
-    };
-
-    window.addEventListener("wheel", handleWheel, { passive: false });
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      window.removeEventListener("wheel", handleWheel);
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [activeSection, isTransitioning, totalSections]);
-
-  // Touch navigation
-  useEffect(() => {
-    let touchStartY = 0;
-    let lastTransitionTime = 0;
-    const touchCooldown = 1200;
-
-    const handleTouchStart = (e) => {
-      if (isTransitioning) return;
-      touchStartY = e.touches[0].clientY;
-    };
-
-    const handleTouchMove = (e) => {
-      if (isTransitioning || window.__serviceCardExpanded || window.__bhModeActive) return;
-      const now = Date.now();
-      if (now - lastTransitionTime < touchCooldown) return;
-      const distance = touchStartY - e.touches[0].clientY;
-      if (Math.abs(distance) > 40) {
-        // Same boundary check as the wheel handler: if the touch is inside a
-        // scrollable element that still has room to scroll, let that element
-        // consume the gesture instead of switching sections.
-        let node = e.touches[0].target;
-        while (node && node !== document.body) {
-          if (node.scrollHeight > node.clientHeight + 1) {
-            const overflow = window.getComputedStyle(node).overflowY;
-            if (overflow === 'auto' || overflow === 'scroll') {
-              const goingDown = distance > 0;
-              const atBottom = node.scrollTop + node.clientHeight >= node.scrollHeight - 2;
-              const atTop    = node.scrollTop <= 0;
-              if ((goingDown && !atBottom) || (!goingDown && !atTop)) return;
-              // Boundary reached mid-gesture — reset so a fresh intentional
-              // swipe is required to trigger section navigation.
-              touchStartY = e.touches[0].clientY;
-              break;
-            }
-          }
-          node = node.parentElement;
-        }
-
-        const dir = Math.sign(distance);
-        if (dir > 0 && activeSection < totalSections - 1) {
-          goToSection(activeSection + 1);
-          lastTransitionTime = now;
-          touchStartY = e.touches[0].clientY;
-        } else if (dir < 0 && activeSection > 0) {
-          goToSection(activeSection - 1);
-          lastTransitionTime = now;
-          touchStartY = e.touches[0].clientY;
-        }
-      }
-    };
-
-    window.addEventListener("touchstart", handleTouchStart, { passive: true });
-    window.addEventListener("touchmove", handleTouchMove, { passive: true });
-    return () => {
-      window.removeEventListener("touchstart", handleTouchStart);
-      window.removeEventListener("touchmove", handleTouchMove);
-    };
-  }, [activeSection, isTransitioning, totalSections]);
-
-  const goToSection = (index, transitionSpeed = 0.8) => {
+  const goToSection = React.useCallback((index, transitionSpeed = 0.8) => {
     if (index < 0 || index >= totalSections || isTransitioning) return;
     const sections = sectionsRef.current;
     if (!sections.length) return;
@@ -325,7 +193,140 @@ export const ParallaxBackground = ({ children }) => {
       exitingSectionRef.current = null; // allow dormant sections to unmount
       setIsTransitioning(false);
     }, enterDelay + enterDuration + 150);
-  };
+  }, [activeSection, isTransitioning, totalSections]);
+
+  useEffect(() => {
+    let lastScrollTime = 0;
+    let accumulatedDelta = 0;
+    const scrollCooldown = 1200;
+
+    const handleWheel = (e) => {
+      // If the wheel is inside a scrollable element that still has room to scroll,
+      // let that element consume the event instead of switching sections.
+      let node = e.target;
+      while (node && node !== document.body) {
+        if (node.scrollHeight > node.clientHeight + 1) {
+          const overflow = window.getComputedStyle(node).overflowY;
+          if (overflow === 'auto' || overflow === 'scroll') {
+            const goingDown = e.deltaY > 0;
+            const atBottom = node.scrollTop + node.clientHeight >= node.scrollHeight - 2;
+            const atTop    = node.scrollTop <= 0;
+            if ((goingDown && !atBottom) || (!goingDown && !atTop)) return;
+            break; // at boundary — fall through to section navigation
+          }
+        }
+        node = node.parentElement;
+      }
+
+      e.preventDefault();
+      if (isTransitioning || window.__serviceCardExpanded || window.__bhModeActive) return;
+
+      const now = Date.now();
+      const elapsed = now - lastScrollTime;
+      if (elapsed < scrollCooldown) return;
+      if (elapsed > 500) accumulatedDelta = 0;
+
+      accumulatedDelta += e.deltaY;
+      accumulatedDelta = Math.max(-100, Math.min(100, accumulatedDelta));
+      if (Math.abs(accumulatedDelta) < 25) return;
+
+      const dir = Math.sign(accumulatedDelta);
+      if (dir > 0 && activeSection < totalSections - 1) {
+        goToSection(activeSection + 1);
+        lastScrollTime = now;
+        accumulatedDelta = 0;
+      } else if (dir < 0 && activeSection > 0) {
+        goToSection(activeSection - 1);
+        lastScrollTime = now;
+        accumulatedDelta = 0;
+      }
+    };
+
+    const handleKeyDown = (e) => {
+      if (isTransitioning || window.__serviceCardExpanded || window.__bhModeActive) return;
+      // Don't intercept navigation keys when focus is inside a form element
+      const tag = document.activeElement?.tagName?.toUpperCase();
+      if (['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(tag)) return;
+      if (document.activeElement?.isContentEditable) return;
+      const speed = e.shiftKey ? 0.5 : 0.8;
+      if ((e.key === "ArrowDown" || e.key === "PageDown") && activeSection < totalSections - 1) {
+        goToSection(activeSection + 1, speed);
+      } else if ((e.key === "ArrowUp" || e.key === "PageUp") && activeSection > 0) {
+        goToSection(activeSection - 1, speed);
+      } else if (e.key === "Home") {
+        goToSection(0, 1.2);
+      } else if (e.key === "End") {
+        goToSection(totalSections - 1, 1.2);
+      }
+    };
+
+    window.addEventListener("wheel", handleWheel, { passive: false });
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("wheel", handleWheel);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [activeSection, isTransitioning, totalSections, goToSection]);
+
+  // Touch navigation
+  useEffect(() => {
+    let touchStartY = 0;
+    let lastTransitionTime = 0;
+    const touchCooldown = 1200;
+
+    const handleTouchStart = (e) => {
+      if (isTransitioning) return;
+      touchStartY = e.touches[0].clientY;
+    };
+
+    const handleTouchMove = (e) => {
+      if (isTransitioning || window.__serviceCardExpanded || window.__bhModeActive) return;
+      const now = Date.now();
+      if (now - lastTransitionTime < touchCooldown) return;
+      const distance = touchStartY - e.touches[0].clientY;
+      if (Math.abs(distance) > 40) {
+        // Same boundary check as the wheel handler: if the touch is inside a
+        // scrollable element that still has room to scroll, let that element
+        // consume the gesture instead of switching sections.
+        let node = e.touches[0].target;
+        while (node && node !== document.body) {
+          if (node.scrollHeight > node.clientHeight + 1) {
+            const overflow = window.getComputedStyle(node).overflowY;
+            if (overflow === 'auto' || overflow === 'scroll') {
+              const goingDown = distance > 0;
+              const atBottom = node.scrollTop + node.clientHeight >= node.scrollHeight - 2;
+              const atTop    = node.scrollTop <= 0;
+              if ((goingDown && !atBottom) || (!goingDown && !atTop)) return;
+              // Boundary reached mid-gesture — reset so a fresh intentional
+              // swipe is required to trigger section navigation.
+              touchStartY = e.touches[0].clientY;
+              break;
+            }
+          }
+          node = node.parentElement;
+        }
+
+        const dir = Math.sign(distance);
+        if (dir > 0 && activeSection < totalSections - 1) {
+          goToSection(activeSection + 1);
+          lastTransitionTime = now;
+          touchStartY = e.touches[0].clientY;
+        } else if (dir < 0 && activeSection > 0) {
+          goToSection(activeSection - 1);
+          lastTransitionTime = now;
+          touchStartY = e.touches[0].clientY;
+        }
+      }
+    };
+
+    window.addEventListener("touchstart", handleTouchStart, { passive: true });
+    window.addEventListener("touchmove", handleTouchMove, { passive: true });
+    return () => {
+      window.removeEventListener("touchstart", handleTouchStart);
+      window.removeEventListener("touchmove", handleTouchMove);
+    };
+  }, [activeSection, isTransitioning, totalSections, goToSection]);
+
 
   const renderSections = () => {
     return Children.map(children, (child, index) => {

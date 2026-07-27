@@ -15,8 +15,6 @@ const PARTICLE_COLORS = [
   '#FF6BAE', '#9B72FF', '#52E5A0', '#FFD166',
   '#FF6B6B', '#4FC3F7', '#FFAB40', '#CE93D8',
 ];
-const PASTEL_BG_CENTER = '#FFF8EE';
-const PASTEL_BG_EDGE   = '#FFD5EC';
 
 // ---------------------------------------------------------------------------
 // Seeded random (stable per-kernel)
