@@ -246,7 +246,7 @@ export const ParallaxBackground = ({ children }) => {
       }
 
       e.preventDefault();
-      if (isTransitioning || window.__serviceCardExpanded || window.__bhModeActive) return;
+      if (isTransitioning || window.__serviceCardExpanded || window.__bhModeActive || window.__cardDragging) return;
 
       const now = Date.now();
       const elapsed = now - lastScrollTime;
@@ -270,7 +270,7 @@ export const ParallaxBackground = ({ children }) => {
     };
 
     const handleKeyDown = (e) => {
-      if (isTransitioning || window.__serviceCardExpanded || window.__bhModeActive) return;
+      if (isTransitioning || window.__serviceCardExpanded || window.__bhModeActive || window.__cardDragging) return;
       // Don't intercept navigation keys when focus is inside a form element
       const tag = document.activeElement?.tagName?.toUpperCase();
       if (['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(tag)) return;
@@ -312,7 +312,7 @@ export const ParallaxBackground = ({ children }) => {
     };
 
     const handleTouchEnd = (e) => {
-      if (isTransitioning || window.__serviceCardExpanded || window.__bhModeActive) return;
+      if (isTransitioning || window.__serviceCardExpanded || window.__bhModeActive || window.__cardDragging) return;
       const state = touchStateRef.current;
       const now = Date.now();
       if (now - state.lastNavAt < touchCooldown) return;

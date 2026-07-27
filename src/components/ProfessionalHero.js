@@ -16,10 +16,21 @@ const SECTION_INDEX = {
 const getSectionDots = () =>
   Array.from(document.querySelectorAll(".section-dot"));
 
+/* Pointer-down on these starts the control's own interaction, never a drag. */
+const INTERACTIVE_SELECTOR = "a, button, input, textarea, select, [role='button']";
+
+/* How much of the card must remain on screen, so it can always be grabbed
+   back after being flung toward an edge. */
+const KEEP_VISIBLE = 80;
+
 const ProfessionalHero = () => {
   const { isDark } = useThemeMode();
   const [isHeroActive, setIsHeroActive] = React.useState(true);
   const [isRevealed, setIsRevealed] = React.useState(false);
+  const [dragOffset, setDragOffset] = React.useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = React.useState(false);
+  const panelRef = React.useRef(null);
+  const dragRef = React.useRef(null);
 
   React.useEffect(() => {
     const prefersReducedMotion =
@@ -89,6 +100,124 @@ const ProfessionalHero = () => {
   }, []);
 
   const isInteractive = isHeroActive && isRevealed;
+
+  /* ── Drag the card anywhere on screen ─────────────────────────────────
+     Pointer events cover mouse and touch alike. Drags that begin on a
+     link or button are ignored so those controls keep working, and
+     `window.__cardDragging` suppresses ParallaxBackground's section
+     navigation for the duration (same pattern as __serviceCardExpanded).
+     Double-click returns the card home — a single-pointer alternative to
+     the drag, and a way back if it is parked awkwardly. */
+
+  const clampOffset = React.useCallback((x, y, natural) => {
+    const { left, top, width, height } = natural;
+    return {
+      x: Math.min(
+        Math.max(x, KEEP_VISIBLE - left - width),
+        window.innerWidth - KEEP_VISIBLE - left,
+      ),
+      y: Math.min(
+        Math.max(y, KEEP_VISIBLE - top - height),
+        window.innerHeight - KEEP_VISIBLE - top,
+      ),
+    };
+  }, []);
+
+  const measureNatural = React.useCallback((offset) => {
+    const panel = panelRef.current;
+    if (!panel) return null;
+    const rect = panel.getBoundingClientRect();
+    return {
+      left: rect.left - offset.x,
+      top: rect.top - offset.y,
+      width: rect.width,
+      height: rect.height,
+    };
+  }, []);
+
+  const endDrag = React.useCallback((event) => {
+    const state = dragRef.current;
+    if (!state) return;
+    if (event && event.pointerId !== state.pointerId) return;
+
+    dragRef.current = null;
+    setIsDragging(false);
+    window.__cardDragging = false;
+
+    try {
+      panelRef.current?.releasePointerCapture?.(state.pointerId);
+    } catch (_) {
+      /* capture already released (e.g. pointercancel) */
+    }
+  }, []);
+
+  const handlePointerDown = React.useCallback(
+    (event) => {
+      if (!isInteractive || dragRef.current) return;
+      if (event.button !== 0 && event.pointerType === "mouse") return;
+      if (event.target.closest(INTERACTIVE_SELECTOR)) return;
+
+      const natural = measureNatural(dragOffset);
+      if (!natural) return;
+
+      dragRef.current = {
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        originX: dragOffset.x,
+        originY: dragOffset.y,
+        natural,
+      };
+
+      panelRef.current?.setPointerCapture?.(event.pointerId);
+      setIsDragging(true);
+      window.__cardDragging = true;
+    },
+    [dragOffset, isInteractive, measureNatural],
+  );
+
+  const handlePointerMove = React.useCallback(
+    (event) => {
+      const state = dragRef.current;
+      if (!state || event.pointerId !== state.pointerId) return;
+
+      setDragOffset(
+        clampOffset(
+          state.originX + (event.clientX - state.startX),
+          state.originY + (event.clientY - state.startY),
+          state.natural,
+        ),
+      );
+    },
+    [clampOffset],
+  );
+
+  const handleDoubleClick = React.useCallback((event) => {
+    if (event.target.closest(INTERACTIVE_SELECTOR)) return;
+    setDragOffset({ x: 0, y: 0 });
+  }, []);
+
+  /* A dropped card must never be left off-screen after a viewport change. */
+  React.useEffect(() => {
+    const onResize = () => {
+      setDragOffset((offset) => {
+        if (offset.x === 0 && offset.y === 0) return offset;
+        const natural = measureNatural(offset);
+        if (!natural) return offset;
+        const next = clampOffset(offset.x, offset.y, natural);
+        return next.x === offset.x && next.y === offset.y ? offset : next;
+      });
+    };
+
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [clampOffset, measureNatural]);
+
+  /* Never leave section navigation suppressed if we unmount mid-drag. */
+  React.useEffect(() => () => {
+    window.__cardDragging = false;
+  }, []);
+
   const visibilityClass = isHeroActive
     ? isRevealed
       ? "professional-hero--visible"
@@ -126,7 +255,21 @@ const ProfessionalHero = () => {
       aria-hidden={!isHeroActive}
       style={themeVariables}
     >
-      <div className="professional-hero__panel">
+      <div
+        ref={panelRef}
+        className={`professional-hero__panel${
+          isDragging ? " professional-hero__panel--dragging" : ""
+        }`}
+        style={{
+          transform: `translate3d(${dragOffset.x}px, ${dragOffset.y}px, 0)`,
+        }}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+        onLostPointerCapture={endDrag}
+        onDoubleClick={handleDoubleClick}
+      >
         <div className="professional-hero__eyebrow">
           <span className="professional-hero__signal" aria-hidden="true" />
           <span>{PROFILE.location}</span>
@@ -231,6 +374,32 @@ const ProfessionalHero = () => {
           box-shadow:
             var(--professional-hero-shadow),
             inset 0 1px 0 rgba(255, 255, 255, 0.2);
+          cursor: grab;
+          /* Single-finger moves belong to the drag; pinch-zoom stays with
+             the browser so the card never blocks zooming. */
+          touch-action: pinch-zoom;
+          transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        .professional-hero__panel--dragging {
+          cursor: grabbing;
+          /* Follow the pointer exactly — no easing while held. */
+          transition: none;
+          will-change: transform;
+          box-shadow:
+            var(--professional-hero-shadow),
+            0 0 0 1px rgba(99, 68, 245, 0.28),
+            inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        }
+
+        .professional-hero__panel :is(a, button) {
+          cursor: pointer;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .professional-hero__panel {
+            transition: none;
+          }
         }
 
         .professional-hero__panel::before {
