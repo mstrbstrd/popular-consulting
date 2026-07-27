@@ -1,12 +1,11 @@
-/* Truly distinct project showcase visuals.
-   Each project uses a separate composition, geometry, and motion model.
-   All visuals are decorative; semantic content remains in WorkPage.js. */
+/* Report-grounded project showcase visuals.
+   Each composition explains a real system boundary or invariant from its project.
+   The visuals remain decorative; semantic evidence stays in WorkPage.js. */
 
-/* Shared reset: neutralize the original orbit/map treatment before rebuilding. */
 .work-project .work-project__system-map {
   position: relative;
   isolation: isolate;
-  width: min(30rem, 82%);
+  width: min(34rem, 88%);
   height: 22rem;
   margin: auto;
   transform: none;
@@ -19,619 +18,739 @@
   box-sizing: border-box;
 }
 
-/* -------------------------------------------------------------------------- */
-/* 01 — INDUSTRIAL COMMERCE: staged transaction pipeline                     */
-/* -------------------------------------------------------------------------- */
+/* ========================================================================== */
+/* 01 — INDUSTRIAL COMMERCE                                                   */
+/* Market isolation → checkout orchestration → payment provider → NAV commit */
+/* ========================================================================== */
 
 .work-project:nth-child(1) .work-project__system-map {
-  width: min(34rem, 88%);
-  height: 19rem;
+  height: 21rem;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  align-items: center;
-  gap: 1.2rem;
-  padding: 3.6rem 1.6rem 3rem;
+  grid-template-columns: 5.8rem 1fr 6.6rem;
+  grid-template-rows: 4.2rem 1fr 4.2rem;
+  gap: 1rem;
+  padding: 1.6rem;
+  border: 1px solid rgba(var(--project-rgb), 0.24);
   border-radius: 1.8rem;
-  background:
-    linear-gradient(180deg, rgba(var(--project-rgb), 0.08), transparent 46%),
-    repeating-linear-gradient(90deg, rgba(var(--project-rgb), 0.06) 0 1px, transparent 1px 4.8rem);
   overflow: hidden;
+  background:
+    linear-gradient(90deg, rgba(var(--project-rgb), 0.05), transparent 28%, transparent 72%, rgba(var(--project-rgb), 0.05)),
+    repeating-linear-gradient(0deg, transparent 0 2.5rem, rgba(var(--project-rgb), 0.04) 2.5rem calc(2.5rem + 1px));
 }
 
 .work-project:nth-child(1) .work-project__system-map::before {
-  content: "ORDER  →  CART  →  PAYMENT  →  ERP";
-  position: absolute;
-  top: 1.15rem;
-  left: 1.6rem;
-  right: 1.6rem;
-  color: var(--project-accent);
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  white-space: nowrap;
-  opacity: 0.8;
-}
-
-.work-project:nth-child(1) .work-project__system-map::after {
-  content: "";
-  position: absolute;
-  left: 1.8rem;
-  right: 1.8rem;
-  top: 50%;
-  height: 0.45rem;
-  border-radius: 999px;
-  background:
-    linear-gradient(90deg,
-      transparent 0%,
-      var(--project-accent) 12%,
-      var(--project-secondary) 28%,
-      transparent 42%,
-      var(--project-accent) 56%,
-      var(--project-secondary) 72%,
-      transparent 88%);
-  background-size: 220% 100%;
-  filter: drop-shadow(0 0 0.7rem rgba(var(--project-rgb), 0.55));
-  animation: commerce-pipeline-flow 3.4s linear infinite;
-}
-
-.work-project:nth-child(1) .work-project__map-ring {
-  display: none;
-}
-
-.work-project:nth-child(1) .work-project__map-line {
-  position: absolute;
-  left: 1.7rem;
-  right: 1.7rem;
-  width: auto;
-  height: 1px;
-  border: 0;
-  background: rgba(var(--project-rgb), 0.22);
-  transform: none;
-  opacity: 1;
-}
-
-.work-project:nth-child(1) .work-project__map-line--one { top: 36%; }
-.work-project:nth-child(1) .work-project__map-line--two { top: 64%; }
-
-.work-project:nth-child(1) .work-project__map-core {
-  position: absolute;
-  right: 1.6rem;
-  bottom: 1.2rem;
-  width: auto;
-  min-width: 8rem;
-  height: 2.2rem;
-  border-radius: 0.6rem;
-  padding: 0 0.9rem;
+  content: "CA / CAD";
+  grid-column: 1;
+  grid-row: 1;
   display: grid;
   place-items: center;
-  border: 1px solid rgba(var(--project-rgb), 0.48);
+  border: 1px solid rgba(var(--project-rgb), 0.45);
+  border-radius: 0.8rem;
   background: rgba(var(--project-rgb), 0.12);
   color: var(--project-accent);
   font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  animation: commerce-market-ca 7.2s steps(1, end) infinite;
+}
+
+.work-project:nth-child(1) .work-project__system-map::after {
+  content: "US / USD";
+  grid-column: 1;
+  grid-row: 3;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(var(--project-rgb), 0.35);
+  border-radius: 0.8rem;
+  background: rgba(var(--project-rgb), 0.07);
+  color: var(--project-accent);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  animation: commerce-market-us 7.2s steps(1, end) infinite;
+}
+
+.work-project:nth-child(1) .work-project__map-ring {
+  position: absolute;
+  left: 8.4rem;
+  right: 8.4rem;
+  height: 1px;
+  border: 0;
+  border-radius: 0;
+  background: rgba(var(--project-rgb), 0.18);
+}
+
+.work-project:nth-child(1) .work-project__map-ring--one { top: 4.2rem; }
+.work-project:nth-child(1) .work-project__map-ring--two { bottom: 4.2rem; }
+
+.work-project:nth-child(1) .work-project__map-line {
+  position: absolute;
+  left: 7.5rem;
+  right: 7.5rem;
+  width: auto;
+  height: 0.45rem;
+  border: 0;
+  border-radius: 999px;
+  opacity: 1;
+  transform: none;
+  background: linear-gradient(90deg,
+    transparent 0 8%,
+    var(--project-accent) 14% 22%,
+    transparent 28% 44%,
+    var(--project-secondary) 50% 58%,
+    transparent 64% 78%,
+    var(--project-accent) 84% 92%,
+    transparent 100%);
+  background-size: 220% 100%;
+  filter: drop-shadow(0 0 0.6rem rgba(var(--project-rgb), 0.55));
+}
+
+.work-project:nth-child(1) .work-project__map-line--one {
+  top: 5.8rem;
+  animation: commerce-ca-transaction 7.2s linear infinite;
+}
+
+.work-project:nth-child(1) .work-project__map-line--two {
+  bottom: 5.8rem;
+  animation: commerce-us-transaction 7.2s linear infinite;
+  animation-delay: -3.6s;
+}
+
+.work-project:nth-child(1) .work-project__map-core {
+  grid-column: 2;
+  grid-row: 2;
+  position: relative;
+  inset: auto;
+  width: auto;
+  height: auto;
+  min-width: 0;
+  margin: 0;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(var(--project-rgb), 0.5);
+  border-radius: 1.2rem;
+  background:
+    linear-gradient(145deg, rgba(var(--project-rgb), 0.18), rgba(255,255,255,0.03));
+  color: var(--project-accent);
+  font-size: 0.78rem;
+  font-weight: 850;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  animation: commerce-commit-stamp 3.4s steps(1, end) infinite;
+  box-shadow: 0 0 2.6rem rgba(var(--project-rgb), 0.1);
+  animation: commerce-checkout-orchestrator 7.2s ease-in-out infinite;
+}
+
+.work-project:nth-child(1) .work-project__map-core::before {
+  content: "validated market + cart";
+  position: absolute;
+  top: 0.85rem;
+  color: rgba(255,255,255,0.62);
+  font-size: 0.58rem;
+  font-weight: 650;
+  letter-spacing: 0.05em;
+  text-transform: lowercase;
+}
+
+.work-project:nth-child(1) .work-project__map-core::after {
+  content: "checkout orchestrator";
+  position: absolute;
+  bottom: 0.85rem;
+  color: rgba(255,255,255,0.52);
+  font-size: 0.58rem;
+  font-weight: 650;
+  letter-spacing: 0.05em;
+  text-transform: lowercase;
 }
 
 .work-project:nth-child(1) .work-project__map-node {
   position: relative;
   inset: auto;
-  min-width: 0;
   width: 100%;
-  height: 6.5rem;
+  min-width: 0;
+  height: 100%;
   display: grid;
   place-items: center;
-  border-radius: 1rem;
-  border: 1px solid rgba(var(--project-rgb), 0.36);
-  background:
-    linear-gradient(180deg, rgba(255,255,255,0.08), transparent),
-    rgba(var(--project-rgb), 0.09);
-  color: var(--project-accent);
-  font-size: 0.74rem;
-  font-weight: 800;
-  letter-spacing: 0.06em;
+  border: 1px solid rgba(var(--project-rgb), 0.34);
+  border-radius: 0.9rem;
+  background: rgba(var(--project-rgb), 0.08);
+  color: transparent;
+  font-size: 0;
   transform: none;
-  animation: commerce-stage-check 6.8s ease-in-out infinite;
-  animation-delay: calc(var(--node-delay) * 3.8);
 }
 
-/* -------------------------------------------------------------------------- */
-/* 02 — CREATOROS: multi-tenant orchestration constellation                   */
-/* -------------------------------------------------------------------------- */
+.work-project:nth-child(1) .work-project__map-node::after {
+  color: var(--project-accent);
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-align: center;
+}
+
+.work-project:nth-child(1) .work-project__map-node--1 {
+  grid-column: 3;
+  grid-row: 1;
+  animation: commerce-stripe-branch 7.2s steps(1, end) infinite;
+}
+.work-project:nth-child(1) .work-project__map-node--1::after { content: "STRIPE"; }
+
+.work-project:nth-child(1) .work-project__map-node--2 {
+  grid-column: 3;
+  grid-row: 3;
+  animation: commerce-jpmorgan-branch 7.2s steps(1, end) infinite;
+}
+.work-project:nth-child(1) .work-project__map-node--2::after { content: "JPMORGAN"; }
+
+.work-project:nth-child(1) .work-project__map-node--3 {
+  position: absolute;
+  right: 1.6rem;
+  top: 50%;
+  width: 6.6rem;
+  height: 4.2rem;
+  transform: translateY(-50%);
+  animation: commerce-nav-commit 7.2s ease-in-out infinite;
+}
+.work-project:nth-child(1) .work-project__map-node--3::after { content: "NAV COMMIT"; }
+
+.work-project:nth-child(1) .work-project__map-node--4 {
+  position: absolute;
+  left: 1.6rem;
+  top: 50%;
+  width: 5.8rem;
+  height: 4.2rem;
+  transform: translateY(-50%);
+  border-style: dashed;
+  animation: commerce-cart-isolation 7.2s ease-in-out infinite;
+}
+.work-project:nth-child(1) .work-project__map-node--4::after { content: "CART RESET"; }
+
+/* ========================================================================== */
+/* 02 — CREATOROS                                                            */
+/* Verified Stripe webhook → PostgreSQL source of truth → audit + retry jobs  */
+/* ========================================================================== */
 
 .work-project:nth-child(2) .work-project__system-map {
-  width: min(30rem, 78%);
-  height: 24rem;
-  border-radius: 50%;
+  height: 23rem;
+  border-radius: 1.8rem;
   background:
-    radial-gradient(circle at center, rgba(var(--project-rgb), 0.16) 0 11%, transparent 12%),
-    radial-gradient(circle at center, transparent 0 34%, rgba(var(--project-rgb), 0.1) 35% 36%, transparent 37%),
-    radial-gradient(circle at center, transparent 0 48%, rgba(var(--project-rgb), 0.08) 49% 50%, transparent 51%);
-  animation: creator-constellation-breathe 7s ease-in-out infinite;
+    radial-gradient(circle at 50% 50%, rgba(var(--project-rgb), 0.12) 0 15%, transparent 16%),
+    linear-gradient(135deg, rgba(var(--project-rgb), 0.05), transparent 58%);
+  overflow: hidden;
 }
 
-.work-project:nth-child(2) .work-project__system-map::before,
-.work-project:nth-child(2) .work-project__system-map::after {
-  content: "";
+.work-project:nth-child(2) .work-project__system-map::before {
+  content: "SIGNED STRIPE EVENT";
   position: absolute;
-  inset: 50%;
-  width: 0.7rem;
-  height: 0.7rem;
-  margin: -0.35rem;
-  border-radius: 50%;
-  background: var(--project-secondary);
-  box-shadow:
-    4.8rem -5.8rem 0 -0.08rem var(--project-accent),
-    8.2rem 1.8rem 0 -0.12rem var(--project-secondary),
-    3.2rem 7.2rem 0 -0.1rem var(--project-accent),
-    -5.6rem 5.4rem 0 -0.06rem var(--project-secondary),
-    -8rem -1.6rem 0 -0.12rem var(--project-accent),
-    -2.4rem -7.5rem 0 -0.08rem var(--project-secondary);
-  animation: creator-queue-orbit 9s linear infinite;
+  left: 1rem;
+  top: 2rem;
+  width: 8.2rem;
+  height: 3.2rem;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(var(--project-rgb), 0.38);
+  border-radius: 0.8rem;
+  background: rgba(var(--project-rgb), 0.1);
+  color: var(--project-accent);
+  font-size: 0.62rem;
+  font-weight: 820;
+  letter-spacing: 0.06em;
+  animation: creator-webhook-ingest 8s ease-in-out infinite;
 }
 
 .work-project:nth-child(2) .work-project__system-map::after {
-  transform: scale(0.68) rotate(32deg);
-  opacity: 0.55;
-  animation-duration: 5.4s;
-  animation-direction: reverse;
+  content: "organization_id boundary";
+  position: absolute;
+  inset: 1rem;
+  border: 1px dashed rgba(var(--project-rgb), 0.25);
+  border-radius: 1.4rem;
+  color: rgba(var(--project-rgb), 0.58);
+  padding: 0.65rem;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  pointer-events: none;
+  animation: creator-tenant-boundary 8s ease-in-out infinite;
 }
 
 .work-project:nth-child(2) .work-project__map-ring {
   position: absolute;
-  inset: 14%;
   border-radius: 50%;
-  border: 1px dashed rgba(var(--project-rgb), 0.34);
-  animation: creator-ring-orbit 14s linear infinite;
+  border: 1px dashed rgba(var(--project-rgb), 0.3);
+}
+
+.work-project:nth-child(2) .work-project__map-ring--one {
+  inset: 4.5rem 7.4rem;
+  animation: creator-audit-ring 8s linear infinite;
 }
 
 .work-project:nth-child(2) .work-project__map-ring--two {
-  inset: 28%;
+  inset: 6.7rem 9.6rem;
   border-style: solid;
-  border-color: rgba(var(--project-rgb), 0.22);
-  animation-duration: 8s;
-  animation-direction: reverse;
+  border-color: rgba(var(--project-rgb), 0.16);
+  animation: creator-audit-ring 5.5s linear infinite reverse;
 }
 
 .work-project:nth-child(2) .work-project__map-line {
   position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 42%;
+  left: 8.7rem;
+  width: 8rem;
   height: 1px;
   transform-origin: left center;
-  background: linear-gradient(90deg, rgba(var(--project-rgb), 0.8), transparent);
-  animation: creator-signal-sweep 4.6s ease-in-out infinite;
+  background: linear-gradient(90deg, var(--project-accent), transparent);
+  opacity: 0.8;
 }
 
-.work-project:nth-child(2) .work-project__map-line--one { transform: rotate(28deg); }
-.work-project:nth-child(2) .work-project__map-line--two { transform: rotate(208deg); animation-delay: -2.3s; }
+.work-project:nth-child(2) .work-project__map-line--one {
+  top: 4.4rem;
+  transform: rotate(24deg);
+  animation: creator-verified-write 8s ease-in-out infinite;
+}
+
+.work-project:nth-child(2) .work-project__map-line--two {
+  top: 17.5rem;
+  transform: rotate(-24deg);
+  animation: creator-retry-dispatch 8s ease-in-out infinite;
+}
 
 .work-project:nth-child(2) .work-project__map-core {
   position: absolute;
   inset: 50% auto auto 50%;
-  width: 7.2rem;
-  height: 7.2rem;
-  margin: -3.6rem;
-  border-radius: 1.8rem;
+  width: 8.4rem;
+  height: 8.4rem;
+  margin: -4.2rem;
   display: grid;
   place-items: center;
-  border: 1px solid rgba(var(--project-rgb), 0.56);
-  background: linear-gradient(145deg, rgba(var(--project-rgb), 0.22), rgba(255,255,255,0.04));
+  border: 1px solid rgba(var(--project-rgb), 0.55);
+  border-radius: 1.5rem;
+  background:
+    linear-gradient(145deg, rgba(var(--project-rgb), 0.24), rgba(255,255,255,0.04));
+  color: transparent;
+  font-size: 0;
+  box-shadow: 0 0 3rem rgba(var(--project-rgb), 0.16);
+  animation: creator-postgres-authority 8s ease-in-out infinite;
+}
+
+.work-project:nth-child(2) .work-project__map-core::before {
+  content: "POSTGRES";
   color: var(--project-accent);
-  box-shadow: 0 0 3rem rgba(var(--project-rgb), 0.18);
-  animation: creator-model-process 3.8s ease-in-out infinite;
+  font-size: 0.82rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.work-project:nth-child(2) .work-project__map-core::after {
+  content: "source of truth";
+  position: absolute;
+  bottom: 1.25rem;
+  color: rgba(255,255,255,0.56);
+  font-size: 0.58rem;
+  font-weight: 650;
 }
 
 .work-project:nth-child(2) .work-project__map-node {
   position: absolute;
-  width: 6.5rem;
+  width: 7.5rem;
   min-width: 0;
-  height: 3.2rem;
+  height: 3.4rem;
   display: grid;
   place-items: center;
-  border-radius: 999px;
-  border: 1px solid rgba(var(--project-rgb), 0.35);
-  background: rgba(var(--project-rgb), 0.09);
-  color: var(--project-accent);
-  font-size: 0.68rem;
-  font-weight: 750;
-  animation: creator-tenant-card 5.6s ease-in-out infinite;
-  animation-delay: calc(var(--node-delay) * 3);
+  border: 1px solid rgba(var(--project-rgb), 0.32);
+  border-radius: 0.9rem;
+  background: rgba(var(--project-rgb), 0.08);
+  color: transparent;
+  font-size: 0;
 }
 
-.work-project:nth-child(2) .work-project__map-node--1 { top: 1.2rem; left: 50%; transform: translateX(-50%); }
-.work-project:nth-child(2) .work-project__map-node--2 { top: 50%; right: -0.8rem; transform: translateY(-50%); }
-.work-project:nth-child(2) .work-project__map-node--3 { bottom: 1.2rem; left: 50%; transform: translateX(-50%); }
-.work-project:nth-child(2) .work-project__map-node--4 { top: 50%; left: -0.8rem; transform: translateY(-50%); }
+.work-project:nth-child(2) .work-project__map-node::after {
+  color: var(--project-accent);
+  font-size: 0.62rem;
+  font-weight: 820;
+  letter-spacing: 0.05em;
+  text-align: center;
+}
 
-/* -------------------------------------------------------------------------- */
-/* 03 — SPECTRAFY: browser player, waveform and equalizer                     */
-/* -------------------------------------------------------------------------- */
+.work-project:nth-child(2) .work-project__map-node--1 { right: 1rem; top: 2rem; animation: creator-audit-log 8s ease-in-out infinite; }
+.work-project:nth-child(2) .work-project__map-node--1::after { content: "AUDIT LOG"; }
+.work-project:nth-child(2) .work-project__map-node--2 { right: 1rem; bottom: 2rem; animation: creator-automation-run 8s ease-in-out infinite; }
+.work-project:nth-child(2) .work-project__map-node--2::after { content: "RETRY RUN"; }
+.work-project:nth-child(2) .work-project__map-node--3 { left: 1rem; bottom: 2rem; animation: creator-downstream-effects 8s ease-in-out infinite; }
+.work-project:nth-child(2) .work-project__map-node--3::after { content: "CRM · EMAIL · SLACK"; }
+.work-project:nth-child(2) .work-project__map-node--4 { left: 50%; bottom: 0.7rem; width: 8.4rem; transform: translateX(-50%); animation: creator-celery-cycle 8s ease-in-out infinite; }
+.work-project:nth-child(2) .work-project__map-node--4::after { content: "CELERY / REDIS"; }
+
+/* ========================================================================== */
+/* 03 — SPECTRAFY                                                            */
+/* One audio engine → same-origin API → authorized redirect → private object */
+/* ========================================================================== */
 
 .work-project:nth-child(3) .work-project__system-map {
-  width: min(34rem, 88%);
-  height: 20rem;
+  height: 21rem;
+  border: 1px solid rgba(var(--project-rgb), 0.26);
   border-radius: 1.8rem;
-  padding: 2rem;
-  background:
-    linear-gradient(180deg, rgba(var(--project-rgb), 0.12), transparent 38%),
-    rgba(4, 14, 24, 0.5);
-  border: 1px solid rgba(var(--project-rgb), 0.24);
   overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(var(--project-rgb), 0.1), transparent 32%),
+    rgba(4, 14, 24, 0.55);
 }
 
 .work-project:nth-child(3) .work-project__system-map::before {
-  content: "";
+  content: "HTMLAudioElement";
   position: absolute;
-  left: 2rem;
-  right: 2rem;
-  bottom: 3.2rem;
-  height: 5.6rem;
-  background:
-    linear-gradient(to top, var(--project-accent), var(--project-secondary)) 0 100% / 4% 35% no-repeat,
-    linear-gradient(to top, var(--project-accent), var(--project-secondary)) 8% 100% / 4% 70% no-repeat,
-    linear-gradient(to top, var(--project-accent), var(--project-secondary)) 16% 100% / 4% 48% no-repeat,
-    linear-gradient(to top, var(--project-accent), var(--project-secondary)) 24% 100% / 4% 86% no-repeat,
-    linear-gradient(to top, var(--project-accent), var(--project-secondary)) 32% 100% / 4% 58% no-repeat,
-    linear-gradient(to top, var(--project-accent), var(--project-secondary)) 40% 100% / 4% 96% no-repeat,
-    linear-gradient(to top, var(--project-accent), var(--project-secondary)) 48% 100% / 4% 42% no-repeat,
-    linear-gradient(to top, var(--project-accent), var(--project-secondary)) 56% 100% / 4% 76% no-repeat,
-    linear-gradient(to top, var(--project-accent), var(--project-secondary)) 64% 100% / 4% 54% no-repeat,
-    linear-gradient(to top, var(--project-accent), var(--project-secondary)) 72% 100% / 4% 88% no-repeat,
-    linear-gradient(to top, var(--project-accent), var(--project-secondary)) 80% 100% / 4% 46% no-repeat,
-    linear-gradient(to top, var(--project-accent), var(--project-secondary)) 88% 100% / 4% 68% no-repeat,
-    linear-gradient(to top, var(--project-accent), var(--project-secondary)) 96% 100% / 4% 32% no-repeat;
-  transform-origin: bottom;
-  animation: spectrafy-equalizer 1.1s steps(6, end) infinite alternate;
-  opacity: 0.82;
+  left: 1.4rem;
+  top: 1.4rem;
+  width: 10rem;
+  height: 4rem;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(var(--project-rgb), 0.48);
+  border-radius: 1rem;
+  background: rgba(var(--project-rgb), 0.14);
+  color: var(--project-accent);
+  font-size: 0.68rem;
+  font-weight: 850;
+  letter-spacing: 0.04em;
+  animation: spectrafy-audio-engine 6.6s ease-in-out infinite;
 }
 
 .work-project:nth-child(3) .work-project__system-map::after {
-  content: "";
+  content: "00:00  ━━━━━━━━━━━━━  03:42";
   position: absolute;
-  left: 2rem;
-  right: 2rem;
-  bottom: 2rem;
-  height: 0.3rem;
-  border-radius: 999px;
-  background: rgba(var(--project-rgb), 0.18);
-  box-shadow: inset 10rem 0 0 var(--project-accent);
+  left: 1.4rem;
+  right: 1.4rem;
+  bottom: 1.3rem;
+  height: 2.6rem;
+  color: rgba(255,255,255,0.68);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  white-space: pre;
 }
 
 .work-project:nth-child(3) .work-project__map-ring--one {
   position: absolute;
-  left: 2rem;
-  top: 2rem;
-  width: 6.8rem;
-  height: 6.8rem;
+  left: 2.7rem;
+  top: 7.2rem;
+  width: 7.4rem;
+  height: 7.4rem;
+  border: 1px solid rgba(var(--project-rgb), 0.42);
   border-radius: 50%;
-  border: 0.8rem solid rgba(var(--project-rgb), 0.24);
-  border-top-color: var(--project-accent);
-  border-right-color: var(--project-secondary);
-  animation: spectrafy-disc-spin 4s linear infinite;
+  background:
+    radial-gradient(circle, rgba(4,14,24,0.8) 0 18%, var(--project-accent) 19% 21%, rgba(var(--project-rgb),0.2) 22% 48%, transparent 49%),
+    repeating-radial-gradient(circle, transparent 0 0.45rem, rgba(var(--project-rgb),0.18) 0.5rem 0.58rem);
+  animation: spectrafy-disc-spin 5.4s linear infinite;
 }
 
 .work-project:nth-child(3) .work-project__map-ring--two {
-  position: absolute;
-  left: 4.55rem;
-  top: 4.55rem;
-  width: 1.7rem;
-  height: 1.7rem;
-  border-radius: 50%;
-  border: 0;
-  background: var(--project-accent);
-  box-shadow: 0 0 1.6rem rgba(var(--project-rgb), 0.62);
-  animation: spectrafy-disc-pulse 1.6s ease-in-out infinite;
+  display: none;
 }
 
 .work-project:nth-child(3) .work-project__map-line--one {
   position: absolute;
-  left: 2rem;
-  right: 2rem;
-  top: 11rem;
+  left: 1.4rem;
+  right: 1.4rem;
+  bottom: 3.8rem;
   width: auto;
-  height: 1px;
-  background: rgba(var(--project-rgb), 0.26);
+  height: 0.38rem;
+  border: 0;
+  border-radius: 999px;
+  transform: none;
+  background:
+    linear-gradient(90deg, var(--project-accent) 0 42%, rgba(255,255,255,0.12) 42% 100%);
+  animation: spectrafy-progress 6.6s linear infinite;
 }
 
 .work-project:nth-child(3) .work-project__map-line--two {
   position: absolute;
-  left: 2rem;
-  top: 10.5rem;
-  width: 0.2rem;
-  height: 6.2rem;
-  background: var(--project-accent);
-  box-shadow: 0 0 1rem rgba(var(--project-rgb), 0.75);
-  animation: spectrafy-playhead-scan 4.8s linear infinite;
+  left: 12.8rem;
+  top: 3.6rem;
+  width: 1px;
+  height: 12rem;
+  border: 0;
+  transform: none;
+  background: linear-gradient(180deg, transparent, var(--project-accent), transparent);
+  animation: spectrafy-request-trace 6.6s ease-in-out infinite;
 }
 
 .work-project:nth-child(3) .work-project__map-core {
   position: absolute;
-  right: 2rem;
-  top: 2.2rem;
-  width: 13rem;
-  height: 4.4rem;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
+  right: 1.4rem;
+  top: 1.4rem;
+  width: 8.2rem;
+  height: 4rem;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(var(--project-rgb), 0.42);
+  border-radius: 1rem;
+  background: rgba(var(--project-rgb), 0.09);
+  color: transparent;
+  font-size: 0;
+  animation: spectrafy-session-gate 6.6s ease-in-out infinite;
+}
+
+.work-project:nth-child(3) .work-project__map-core::before {
+  content: "OPAQUE SESSION";
   color: var(--project-accent);
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  font-size: 1rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  animation: spectrafy-title-glow 2.4s ease-in-out infinite;
+  font-size: 0.62rem;
+  font-weight: 850;
+  letter-spacing: 0.05em;
 }
 
 .work-project:nth-child(3) .work-project__map-node {
   position: absolute;
+  right: 1.4rem;
+  width: 8.2rem;
   min-width: 0;
-  width: auto;
-  height: auto;
-  border: 0;
-  background: transparent;
-  color: rgba(255,255,255,0.52);
-  font-size: 0.65rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  animation: none;
+  height: 3.2rem;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(var(--project-rgb), 0.3);
+  border-radius: 0.85rem;
+  background: rgba(var(--project-rgb), 0.07);
+  color: transparent;
+  font-size: 0;
+  transform: none;
 }
 
-.work-project:nth-child(3) .work-project__map-node--1 { top: 7.6rem; left: 10rem; }
-.work-project:nth-child(3) .work-project__map-node--2 { top: 7.6rem; left: 15.5rem; }
-.work-project:nth-child(3) .work-project__map-node--3 { top: 7.6rem; left: 20.5rem; }
-.work-project:nth-child(3) .work-project__map-node--4 { top: 7.6rem; right: 2rem; }
+.work-project:nth-child(3) .work-project__map-node::after {
+  color: var(--project-accent);
+  font-size: 0.6rem;
+  font-weight: 820;
+  text-align: center;
+  letter-spacing: 0.04em;
+}
 
-/* -------------------------------------------------------------------------- */
-/* 04 — POPULAR CONSULTING: generative shader canvas                          */
-/* -------------------------------------------------------------------------- */
+.work-project:nth-child(3) .work-project__map-node--1 { top: 6.4rem; animation: spectrafy-same-origin-api 6.6s ease-in-out infinite; }
+.work-project:nth-child(3) .work-project__map-node--1::after { content: "CADDY /api PROXY"; }
+.work-project:nth-child(3) .work-project__map-node--2 { top: 10.2rem; animation: spectrafy-presigned-redirect 6.6s ease-in-out infinite; }
+.work-project:nth-child(3) .work-project__map-node--2::after { content: "6-HOUR GET REDIRECT"; }
+.work-project:nth-child(3) .work-project__map-node--3 { top: 14rem; animation: spectrafy-private-object 6.6s ease-in-out infinite; }
+.work-project:nth-child(3) .work-project__map-node--3::after { content: "PRIVATE OBJECT STORE"; }
+.work-project:nth-child(3) .work-project__map-node--4 { left: 2.3rem; bottom: 1rem; right: auto; width: 8.2rem; height: 2rem; border: 0; background: transparent; animation: spectrafy-cleanup-cron 6.6s ease-in-out infinite; }
+.work-project:nth-child(3) .work-project__map-node--4::after { content: "DAILY CLEANUP"; }
+
+/* ========================================================================== */
+/* 04 — POPULAR CONSULTING                                                   */
+/* Capability detection → enhanced WebGL or CSS fallback → telemetry + a11y  */
+/* ========================================================================== */
 
 .work-project:nth-child(4) .work-project__system-map {
-  width: min(31rem, 82%);
-  height: 23rem;
-  border-radius: 2rem;
+  height: 22rem;
+  border: 1px solid rgba(var(--project-rgb), 0.24);
+  border-radius: 1.8rem;
   overflow: hidden;
   background:
-    radial-gradient(circle at 28% 32%, rgba(var(--project-rgb), 0.38), transparent 24%),
-    radial-gradient(circle at 70% 66%, rgba(99,68,245,0.34), transparent 28%),
-    linear-gradient(135deg, rgba(177,93,255,0.16), rgba(7,7,17,0.76));
-  box-shadow: inset 0 0 0 1px rgba(var(--project-rgb), 0.24);
-  animation: popcon-canvas-breathe 8s ease-in-out infinite;
+    linear-gradient(135deg, rgba(var(--project-rgb), 0.1), transparent 40%),
+    repeating-linear-gradient(90deg, rgba(var(--project-rgb), 0.04) 0 1px, transparent 1px 2.4rem),
+    repeating-linear-gradient(0deg, rgba(var(--project-rgb), 0.04) 0 1px, transparent 1px 2.4rem);
 }
 
 .work-project:nth-child(4) .work-project__system-map::before {
-  content: "";
+  content: "CAPABILITY DETECTOR";
   position: absolute;
-  inset: -35%;
-  background:
-    repeating-conic-gradient(from 0deg at 50% 50%, transparent 0 8deg, rgba(var(--project-rgb), 0.11) 9deg 10deg),
-    repeating-radial-gradient(circle at center, transparent 0 1.8rem, rgba(255,255,255,0.04) 1.9rem 2rem);
-  animation: popcon-field-warp 13s linear infinite;
-  mix-blend-mode: screen;
+  left: 50%;
+  top: 1.2rem;
+  width: 10.8rem;
+  height: 3rem;
+  transform: translateX(-50%);
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(var(--project-rgb), 0.44);
+  border-radius: 999px;
+  background: rgba(var(--project-rgb), 0.12);
+  color: var(--project-accent);
+  font-size: 0.64rem;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  animation: popcon-capability-check 7.6s ease-in-out infinite;
 }
 
 .work-project:nth-child(4) .work-project__system-map::after {
-  content: "";
+  content: "essential content stays available";
   position: absolute;
-  inset: 0;
-  background: linear-gradient(110deg, transparent 0 42%, rgba(255,255,255,0.16) 48%, transparent 54% 100%);
-  transform: translateX(-120%);
-  animation: popcon-light-sweep 5.8s ease-in-out infinite;
+  left: 50%;
+  bottom: 0.8rem;
+  transform: translateX(-50%);
+  color: rgba(255,255,255,0.56);
+  font-size: 0.58rem;
+  font-weight: 680;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
 }
 
-.work-project:nth-child(4) .work-project__map-ring--one,
-.work-project:nth-child(4) .work-project__map-ring--two {
+.work-project:nth-child(4) .work-project__map-ring {
   position: absolute;
-  inset: 50% auto auto 50%;
-  width: 13rem;
-  height: 13rem;
-  margin: -6.5rem;
-  border: 1px solid rgba(var(--project-rgb), 0.42);
-  border-radius: 43% 57% 61% 39% / 38% 44% 56% 62%;
-  animation: popcon-blob-morph 6.6s ease-in-out infinite;
-  backdrop-filter: blur(2px);
+  border-radius: 1.4rem;
+}
+
+.work-project:nth-child(4) .work-project__map-ring--one {
+  left: 1.4rem;
+  top: 5.4rem;
+  width: 13.6rem;
+  height: 10.2rem;
+  border: 1px solid rgba(var(--project-rgb), 0.35);
+  background:
+    radial-gradient(circle at 35% 35%, var(--project-secondary), transparent 25%),
+    radial-gradient(circle at 65% 60%, var(--project-accent), transparent 32%),
+    linear-gradient(145deg, rgba(var(--project-rgb),0.18), rgba(255,255,255,0.02));
+  filter: blur(0.2px) saturate(1.2);
+  animation: popcon-webgl-field 7.6s ease-in-out infinite;
+}
+
+.work-project:nth-child(4) .work-project__map-ring--one::after {
+  content: "WEBGL / GLSL";
+  position: absolute;
+  inset: auto 0 0.8rem;
+  color: rgba(255,255,255,0.78);
+  font-size: 0.62rem;
+  font-weight: 820;
+  letter-spacing: 0.08em;
+  text-align: center;
 }
 
 .work-project:nth-child(4) .work-project__map-ring--two {
-  width: 18rem;
-  height: 18rem;
-  margin: -9rem;
-  border-color: rgba(99,68,245,0.32);
-  animation-duration: 9.2s;
-  animation-direction: reverse;
+  right: 1.4rem;
+  top: 5.4rem;
+  width: 13.6rem;
+  height: 10.2rem;
+  border: 1px dashed rgba(var(--project-rgb), 0.32);
+  background:
+    linear-gradient(135deg, rgba(var(--project-rgb),0.12), transparent 45%),
+    repeating-linear-gradient(45deg, rgba(var(--project-rgb),0.08) 0 1px, transparent 1px 0.9rem);
+  animation: popcon-css-fallback 7.6s ease-in-out infinite;
+}
+
+.work-project:nth-child(4) .work-project__map-ring--two::after {
+  content: "CSS FALLBACK";
+  position: absolute;
+  inset: auto 0 0.8rem;
+  color: rgba(255,255,255,0.72);
+  font-size: 0.62rem;
+  font-weight: 820;
+  letter-spacing: 0.08em;
+  text-align: center;
 }
 
 .work-project:nth-child(4) .work-project__map-line {
   position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 26rem;
-  height: 1px;
-  margin-left: -13rem;
-  transform-origin: center;
-  background: linear-gradient(90deg, transparent, rgba(var(--project-rgb), 0.5), transparent);
-  animation: popcon-vector-scan 7s linear infinite;
+  top: 4.2rem;
+  width: 1px;
+  height: 2.4rem;
+  border: 0;
+  transform: none;
+  background: linear-gradient(180deg, var(--project-accent), transparent);
 }
 
-.work-project:nth-child(4) .work-project__map-line--two {
-  transform: rotate(90deg);
-  animation-direction: reverse;
-  animation-duration: 5.4s;
-}
+.work-project:nth-child(4) .work-project__map-line--one { left: 8.2rem; animation: popcon-route-enhanced 7.6s ease-in-out infinite; }
+.work-project:nth-child(4) .work-project__map-line--two { right: 8.2rem; animation: popcon-route-fallback 7.6s ease-in-out infinite; }
 
 .work-project:nth-child(4) .work-project__map-core {
   position: absolute;
-  inset: 50% auto auto 50%;
-  width: 8.2rem;
-  height: 8.2rem;
-  margin: -4.1rem;
-  border: 0;
-  border-radius: 48% 52% 44% 56%;
+  left: 50%;
+  bottom: 1.8rem;
+  width: 9.2rem;
+  height: 3.2rem;
+  transform: translateX(-50%);
   display: grid;
   place-items: center;
-  background:
-    radial-gradient(circle at 35% 30%, rgba(255,255,255,0.24), transparent 34%),
-    linear-gradient(135deg, var(--project-accent), var(--project-secondary));
-  color: white;
-  box-shadow: 0 0 4rem rgba(var(--project-rgb), 0.36);
-  animation: popcon-core-liquid 5.4s ease-in-out infinite;
+  border: 1px solid rgba(var(--project-rgb), 0.38);
+  border-radius: 999px;
+  background: rgba(var(--project-rgb), 0.1);
+  color: transparent;
+  font-size: 0;
+  animation: popcon-content-baseline 7.6s ease-in-out infinite;
+}
+
+.work-project:nth-child(4) .work-project__map-core::before {
+  content: "CONTENT BASELINE";
+  color: var(--project-accent);
+  font-size: 0.62rem;
+  font-weight: 850;
+  letter-spacing: 0.06em;
 }
 
 .work-project:nth-child(4) .work-project__map-node {
   position: absolute;
+  bottom: 1.6rem;
+  width: 5.8rem;
   min-width: 0;
-  width: auto;
-  height: auto;
-  border: 1px solid rgba(255,255,255,0.2);
-  border-radius: 0.65rem;
-  padding: 0.5rem 0.75rem;
-  background: rgba(8,8,18,0.42);
-  color: rgba(255,255,255,0.72);
-  font-size: 0.62rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  backdrop-filter: blur(10px);
-  animation: popcon-ui-drift 6.2s ease-in-out infinite;
-  animation-delay: calc(var(--node-delay) * 2.4);
+  height: 2.6rem;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(var(--project-rgb), 0.28);
+  border-radius: 0.8rem;
+  background: rgba(var(--project-rgb), 0.07);
+  color: transparent;
+  font-size: 0;
+  transform: none;
 }
 
-.work-project:nth-child(4) .work-project__map-node--1 { top: 1.5rem; left: 1.4rem; }
-.work-project:nth-child(4) .work-project__map-node--2 { top: 2.8rem; right: 1.2rem; }
-.work-project:nth-child(4) .work-project__map-node--3 { bottom: 2rem; left: 2.2rem; }
-.work-project:nth-child(4) .work-project__map-node--4 { bottom: 1.4rem; right: 1.8rem; }
-
-/* -------------------------------------------------------------------------- */
-/* Motion definitions                                                         */
-/* -------------------------------------------------------------------------- */
-
-@keyframes commerce-pipeline-flow {
-  from { background-position: 120% 50%; }
-  to { background-position: -120% 50%; }
+.work-project:nth-child(4) .work-project__map-node::after {
+  color: var(--project-accent);
+  font-size: 0.56rem;
+  font-weight: 820;
+  letter-spacing: 0.04em;
+  text-align: center;
 }
 
-@keyframes commerce-commit-stamp {
-  0%, 72% { opacity: 0.45; transform: translateY(0.35rem); }
-  76%, 88% { opacity: 1; transform: translateY(0); box-shadow: 0 0 1.8rem rgba(var(--project-rgb), 0.35); }
-  92%, 100% { opacity: 0.45; transform: translateY(0.35rem); }
-}
+.work-project:nth-child(4) .work-project__map-node--1 { left: 1.4rem; animation: popcon-input-routing 7.6s ease-in-out infinite; }
+.work-project:nth-child(4) .work-project__map-node--1::after { content: "INPUT ROUTING"; }
+.work-project:nth-child(4) .work-project__map-node--2 { left: 7.6rem; animation: popcon-a11y-check 7.6s ease-in-out infinite; }
+.work-project:nth-child(4) .work-project__map-node--2::after { content: "A11Y"; }
+.work-project:nth-child(4) .work-project__map-node--3 { right: 7.6rem; animation: popcon-vitals-sample 7.6s ease-in-out infinite; }
+.work-project:nth-child(4) .work-project__map-node--3::after { content: "VITALS"; }
+.work-project:nth-child(4) .work-project__map-node--4 { right: 1.4rem; animation: popcon-failure-observe 7.6s ease-in-out infinite; }
+.work-project:nth-child(4) .work-project__map-node--4::after { content: "FALLBACK"; }
 
-@keyframes commerce-stage-check {
-  0%, 14%, 100% { opacity: 0.48; transform: translateY(0); }
-  20%, 34% { opacity: 1; transform: translateY(-0.55rem); border-color: var(--project-accent); }
-  42% { opacity: 0.62; transform: translateY(0); }
-}
+/* ========================================================================== */
+/* Animation timelines                                                        */
+/* ========================================================================== */
 
-@keyframes creator-constellation-breathe {
-  0%, 100% { transform: scale(0.98); filter: saturate(0.92); }
-  50% { transform: scale(1.03); filter: saturate(1.18); }
-}
+@keyframes commerce-ca-transaction { from { background-position: 110% 50%; } to { background-position: -110% 50%; } }
+@keyframes commerce-us-transaction { from { background-position: -110% 50%; } to { background-position: 110% 50%; } }
+@keyframes commerce-market-ca { 0%, 48%, 100% { opacity: 1; } 50%, 98% { opacity: 0.42; } }
+@keyframes commerce-market-us { 0%, 48%, 100% { opacity: 0.42; } 50%, 98% { opacity: 1; } }
+@keyframes commerce-checkout-orchestrator { 0%, 100% { box-shadow: 0 0 0 rgba(var(--project-rgb),0); } 28%, 36%, 72%, 80% { box-shadow: 0 0 2.8rem rgba(var(--project-rgb),0.28); } }
+@keyframes commerce-stripe-branch { 0%, 42%, 100% { opacity: 1; } 50%, 92% { opacity: 0.28; } }
+@keyframes commerce-jpmorgan-branch { 0%, 42%, 100% { opacity: 0.28; } 50%, 92% { opacity: 1; } }
+@keyframes commerce-nav-commit { 0%, 34%, 60%, 100% { transform: translateY(-50%) scale(0.96); opacity: 0.48; } 40%, 52%, 70%, 86% { transform: translateY(-50%) scale(1.04); opacity: 1; box-shadow: 0 0 1.6rem rgba(var(--project-rgb),0.3); } }
+@keyframes commerce-cart-isolation { 0%, 44%, 100% { opacity: 0.3; } 48%, 56% { opacity: 1; border-color: var(--project-secondary); } }
 
-@keyframes creator-queue-orbit {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
+@keyframes creator-webhook-ingest { 0%, 10%, 100% { transform: translateX(-0.6rem); opacity: 0.45; } 18%, 30% { transform: translateX(0); opacity: 1; box-shadow: 0 0 1.6rem rgba(var(--project-rgb),0.28); } 42% { opacity: 0.55; } }
+@keyframes creator-tenant-boundary { 0%, 100% { border-color: rgba(var(--project-rgb),0.18); } 32%, 68% { border-color: rgba(var(--project-rgb),0.48); } }
+@keyframes creator-audit-ring { to { transform: rotate(360deg); } }
+@keyframes creator-verified-write { 0%, 16%, 100% { opacity: 0.08; transform: rotate(24deg) scaleX(0.1); } 24%, 42% { opacity: 1; transform: rotate(24deg) scaleX(1); } 50% { opacity: 0.18; } }
+@keyframes creator-retry-dispatch { 0%, 48%, 100% { opacity: 0.08; transform: rotate(-24deg) scaleX(0.1); } 58%, 78% { opacity: 1; transform: rotate(-24deg) scaleX(1); } 88% { opacity: 0.18; } }
+@keyframes creator-postgres-authority { 0%, 100% { transform: scale(0.97); } 28%, 46% { transform: scale(1.05); box-shadow: 0 0 3.2rem rgba(var(--project-rgb),0.32); } 64%, 84% { transform: scale(1.01); } }
+@keyframes creator-audit-log { 0%, 28%, 100% { opacity: 0.35; } 34%, 56% { opacity: 1; box-shadow: 0 0 1.4rem rgba(var(--project-rgb),0.22); } }
+@keyframes creator-automation-run { 0%, 54%, 100% { opacity: 0.35; } 62%, 86% { opacity: 1; box-shadow: 0 0 1.4rem rgba(var(--project-rgb),0.22); } }
+@keyframes creator-downstream-effects { 0%, 60%, 100% { opacity: 0.35; } 68%, 90% { opacity: 1; } }
+@keyframes creator-celery-cycle { 0%, 52%, 100% { transform: translateX(-50%) scale(0.95); opacity: 0.45; } 64%, 84% { transform: translateX(-50%) scale(1.05); opacity: 1; } }
 
-@keyframes creator-ring-orbit {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
+@keyframes spectrafy-audio-engine { 0%, 100% { transform: scale(0.98); } 44%, 60% { transform: scale(1.04); box-shadow: 0 0 2rem rgba(var(--project-rgb),0.3); } }
+@keyframes spectrafy-disc-spin { to { transform: rotate(360deg); } }
+@keyframes spectrafy-progress { 0% { background: linear-gradient(90deg, var(--project-accent) 0 0%, rgba(255,255,255,0.12) 0 100%); } 100% { background: linear-gradient(90deg, var(--project-accent) 0 100%, rgba(255,255,255,0.12) 100% 100%); } }
+@keyframes spectrafy-request-trace { 0%, 18%, 100% { opacity: 0.12; transform: translateY(-1rem); } 28%, 72% { opacity: 1; transform: translateY(0); } 82% { opacity: 0.18; transform: translateY(1rem); } }
+@keyframes spectrafy-session-gate { 0%, 18%, 100% { opacity: 0.45; } 24%, 44% { opacity: 1; box-shadow: 0 0 1.4rem rgba(var(--project-rgb),0.28); } }
+@keyframes spectrafy-same-origin-api { 0%, 28%, 100% { opacity: 0.42; } 34%, 52% { opacity: 1; } }
+@keyframes spectrafy-presigned-redirect { 0%, 44%, 100% { opacity: 0.38; } 50%, 70% { opacity: 1; box-shadow: 0 0 1.4rem rgba(var(--project-rgb),0.26); } }
+@keyframes spectrafy-private-object { 0%, 60%, 100% { opacity: 0.38; } 68%, 88% { opacity: 1; } }
+@keyframes spectrafy-cleanup-cron { 0%, 82%, 100% { opacity: 0.25; } 88%, 96% { opacity: 0.9; } }
 
-@keyframes creator-signal-sweep {
-  0%, 100% { opacity: 0.12; width: 18%; }
-  50% { opacity: 0.95; width: 46%; }
-}
+@keyframes popcon-capability-check { 0%, 100% { box-shadow: 0 0 0 rgba(var(--project-rgb),0); } 18%, 30%, 58%, 70% { box-shadow: 0 0 2rem rgba(var(--project-rgb),0.3); } }
+@keyframes popcon-webgl-field { 0%, 10%, 100% { opacity: 0.35; filter: saturate(0.8); transform: scale(0.97); } 20%, 46% { opacity: 1; filter: saturate(1.35) hue-rotate(12deg); transform: scale(1.03); border-radius: 1.4rem 3rem 1.8rem 2.6rem; } 56% { opacity: 0.3; } }
+@keyframes popcon-css-fallback { 0%, 46%, 100% { opacity: 0.3; transform: scale(0.97); } 58%, 84% { opacity: 1; transform: scale(1.03); box-shadow: 0 0 2rem rgba(var(--project-rgb),0.2); } }
+@keyframes popcon-route-enhanced { 0%, 12%, 100% { opacity: 0.1; } 20%, 44% { opacity: 1; } 54% { opacity: 0.1; } }
+@keyframes popcon-route-fallback { 0%, 48%, 100% { opacity: 0.1; } 58%, 82% { opacity: 1; } 90% { opacity: 0.1; } }
+@keyframes popcon-content-baseline { 0%, 100% { opacity: 0.65; } 38%, 62% { opacity: 1; box-shadow: 0 0 1.6rem rgba(var(--project-rgb),0.25); } }
+@keyframes popcon-input-routing { 0%, 100% { opacity: 0.45; } 18%, 40% { opacity: 1; } }
+@keyframes popcon-a11y-check { 0%, 22%, 100% { opacity: 0.4; } 30%, 52% { opacity: 1; } }
+@keyframes popcon-vitals-sample { 0%, 48%, 100% { opacity: 0.4; } 56%, 76% { opacity: 1; } }
+@keyframes popcon-failure-observe { 0%, 68%, 100% { opacity: 0.4; } 76%, 92% { opacity: 1; } }
 
-@keyframes creator-model-process {
-  0%, 100% { transform: scale(0.96) rotate(-2deg); box-shadow: 0 0 1.2rem rgba(var(--project-rgb), 0.15); }
-  50% { transform: scale(1.06) rotate(2deg); box-shadow: 0 0 3rem rgba(var(--project-rgb), 0.42); }
-}
-
-@keyframes creator-tenant-card {
-  0%, 100% { opacity: 0.5; filter: brightness(0.9); }
-  36%, 58% { opacity: 1; filter: brightness(1.25); }
-}
-
-@keyframes spectrafy-equalizer {
-  0% { transform: scaleY(0.62); filter: hue-rotate(0deg); }
-  50% { transform: scaleY(1); filter: hue-rotate(8deg); }
-  100% { transform: scaleY(0.78); filter: hue-rotate(-6deg); }
-}
-
-@keyframes spectrafy-disc-spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-@keyframes spectrafy-disc-pulse {
-  0%, 100% { transform: scale(0.82); opacity: 0.65; }
-  50% { transform: scale(1.18); opacity: 1; }
-}
-
-@keyframes spectrafy-playhead-scan {
-  from { transform: translateX(0); }
-  to { transform: translateX(28rem); }
-}
-
-@keyframes spectrafy-title-glow {
-  0%, 100% { opacity: 0.62; text-shadow: 0 0 0 rgba(var(--project-rgb), 0); }
-  50% { opacity: 1; text-shadow: 0 0 1.2rem rgba(var(--project-rgb), 0.55); }
-}
-
-@keyframes popcon-canvas-breathe {
-  0%, 100% { filter: hue-rotate(0deg) saturate(1); }
-  50% { filter: hue-rotate(14deg) saturate(1.18); }
-}
-
-@keyframes popcon-field-warp {
-  from { transform: rotate(0deg) scale(0.92); }
-  50% { transform: rotate(180deg) scale(1.08); }
-  to { transform: rotate(360deg) scale(0.92); }
-}
-
-@keyframes popcon-light-sweep {
-  0%, 18% { transform: translateX(-120%); }
-  52%, 100% { transform: translateX(120%); }
-}
-
-@keyframes popcon-blob-morph {
-  0%, 100% { transform: rotate(0deg) scale(0.94); border-radius: 43% 57% 61% 39% / 38% 44% 56% 62%; }
-  33% { transform: rotate(120deg) scale(1.06); border-radius: 58% 42% 36% 64% / 54% 68% 32% 46%; }
-  66% { transform: rotate(240deg) scale(1); border-radius: 34% 66% 57% 43% / 63% 39% 61% 37%; }
-}
-
-@keyframes popcon-vector-scan {
-  from { transform: rotate(0deg) scaleX(0.72); opacity: 0.2; }
-  50% { opacity: 0.9; }
-  to { transform: rotate(360deg) scaleX(1.08); opacity: 0.2; }
-}
-
-@keyframes popcon-core-liquid {
-  0%, 100% { transform: rotate(-3deg) scale(0.96); border-radius: 48% 52% 44% 56%; }
-  40% { transform: rotate(4deg) scale(1.08); border-radius: 36% 64% 58% 42%; }
-  72% { transform: rotate(-1deg) scale(1.01); border-radius: 62% 38% 47% 53%; }
-}
-
-@keyframes popcon-ui-drift {
-  0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); opacity: 0.58; }
-  50% { transform: translate3d(0.45rem, -0.75rem, 0) rotate(1.5deg); opacity: 1; }
-}
-
-@media (max-width: 640px) {
+@media (max-width: 620px) {
   .work-project .work-project__system-map {
-    transform: scale(0.9);
-    transform-origin: center;
+    width: min(31rem, 94%);
+    transform: scale(0.92);
   }
-
-  .work-project:nth-child(3) .work-project__map-line--two {
-    animation-name: spectrafy-playhead-scan-mobile;
-  }
-}
-
-@keyframes spectrafy-playhead-scan-mobile {
-  from { transform: translateX(0); }
-  to { transform: translateX(23rem); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -639,11 +758,13 @@
   .work-project .work-project__system-map::before,
   .work-project .work-project__system-map::after,
   .work-project .work-project__map-ring,
+  .work-project .work-project__map-ring::after,
   .work-project .work-project__map-line,
   .work-project .work-project__map-core,
+  .work-project .work-project__map-core::before,
+  .work-project .work-project__map-core::after,
   .work-project .work-project__map-node {
     animation: none !important;
-    transition: none !important;
   }
 }
 
@@ -652,6 +773,7 @@
   .work-project .work-project__system-map::before,
   .work-project .work-project__system-map::after,
   .work-project .work-project__map-ring,
+  .work-project .work-project__map-ring::after,
   .work-project .work-project__map-line,
   .work-project .work-project__map-core,
   .work-project .work-project__map-node {
