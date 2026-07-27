@@ -224,6 +224,27 @@ html[data-theme="light"] .work-page {
   display: none;
 }
 
+/* Spectral Topography backdrop (WebGL contour field). Lives inside the
+   ambient layer so the static CSS gradient remains the no-WebGL fallback.
+   Inline overrides beat index.css's global `canvas` rule; pixelated upscale
+   keeps the ordered-dither cells chunky. */
+.work-page__backdrop {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  image-rendering: pixelated;
+  opacity: 0;
+  transition: opacity var(--motion-slow) var(--ease-standard);
+}
+
+.work-page__backdrop--ready {
+  opacity: 1;
+}
+
 /* ── Skip link ────────────────────────────────────────────────────────── */
 
 .work-page__skip {

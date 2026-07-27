@@ -1,5 +1,6 @@
 import React from "react";
 import logo from "../assets/icons/popcon_png.png";
+import SpectralTopography from "./SpectralTopography";
 import { ThemeProvider, useThemeMode } from "../contexts/ThemeContext";
 import { PUBLIC_LINKS } from "../content/siteCopy";
 import routeMetadata from "../content/routeMetadata.json";
@@ -272,6 +273,7 @@ const WorkPageContent = () => {
   return (
     <div className="work-page">
       <div className="work-page__ambient" aria-hidden="true">
+        <SpectralTopography />
         <span className="work-page__aurora work-page__aurora--one" />
         <span className="work-page__aurora work-page__aurora--two" />
         <span className="work-page__aurora work-page__aurora--three" />
