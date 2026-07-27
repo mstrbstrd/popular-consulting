@@ -105,10 +105,16 @@ mat2 rot2(float a) {
   return mat2(c, s, -s, c);
 }
 
-/* Antialiased coverage of a signed distance. */
+/* Antialiased coverage of a signed distance. The AA width is capped:
+   where a field jumps discontinuously (e.g. the leaf loop's candidate
+   window shifting between rows, or a sentinel meeting a real distance),
+   fwidth spikes to the jump's magnitude and an uncapped smoothstep would
+   smear ~50% coverage along the entire discontinuity row — a full-width
+   horizontal line. Normal edges have fwidth ~0.005-0.01 in field units at
+   half resolution, so the 0.02 cap never touches real silhouettes. */
 float cover(float d) {
 #ifdef GL_OES_standard_derivatives
-  float w = max(fwidth(d), 1e-4);
+  float w = clamp(fwidth(d), 1e-4, 0.02);
 #else
   float w = 0.008;
 #endif
