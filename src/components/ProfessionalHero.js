@@ -160,6 +160,11 @@ const ProfessionalHero = () => {
       const natural = measureNatural(dragOffset);
       if (!natural) return;
 
+      /* Without this the pointer sweep paints a text selection across the
+         headline and summary as the card moves. */
+      event.preventDefault();
+      window.getSelection?.()?.removeAllRanges?.();
+
       dragRef.current = {
         pointerId: event.pointerId,
         startX: event.clientX,
@@ -375,6 +380,10 @@ const ProfessionalHero = () => {
             var(--professional-hero-shadow),
             inset 0 1px 0 rgba(255, 255, 255, 0.2);
           cursor: grab;
+          /* The whole panel is a drag surface, so a sweep across it must
+             not paint a text selection. */
+          user-select: none;
+          -webkit-user-select: none;
           /* Single-finger moves belong to the drag; pinch-zoom stays with
              the browser so the card never blocks zooming. */
           touch-action: pinch-zoom;
