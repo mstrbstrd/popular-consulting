@@ -227,7 +227,7 @@ const App = ({ immersiveMode = IMMERSIVE_MODES.ORIGINAL }) => {
           }
 
           section {
-            padding: 7rem 0;
+            padding: 7rem 0 0;
             position: relative;
             margin: 0;
           }
@@ -292,31 +292,6 @@ const App = ({ immersiveMode = IMMERSIVE_MODES.ORIGINAL }) => {
             -webkit-backdrop-filter: none;
           }
 
-          .scroll-indicator {
-            position: fixed;
-            bottom: 30px;
-            left: 50%;
-            transform: translateX(-50%);
-            color: white;
-            font-size: 0.9rem;
-            text-align: center;
-            opacity: 0.7;
-            animation: bounce 2s infinite;
-            z-index: 100;
-            pointer-events: none;
-            padding: 10px;
-            backdrop-filter: blur(5px);
-            -webkit-backdrop-filter: blur(5px);
-            background: rgba(99, 68, 245, 0.1);
-            border-radius: 20px;
-            border: 1px solid rgba(156, 85, 255, 0.2);
-          }
-
-          @keyframes bounce {
-            0%, 20%, 50%, 80%, 100% { transform: translateY(0) translateX(-50%); }
-            40% { transform: translateY(-10px) translateX(-50%); }
-            60% { transform: translateY(-5px) translateX(-50%); }
-          }
         `}</style>
       </div>
     </ThemeProvider>

@@ -97,7 +97,7 @@ const ContactSection = ({
     marginBottom: "1rem", // Reduced bottom margin
     width: "80%",
     maxWidth: "1200px",
-    minWidth: isMobile ? "300px" : "500px",
+    minWidth: isMobile ? "min(300px, 100%)" : "500px",
     border: "1px solid rgba(255, 255, 255, 0.22)",
     boxShadow:
       "0 4px 24px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.30)",
@@ -300,6 +300,14 @@ const ContactSection = ({
             transform: "translateY(30px)", // Initially offset, will be animated in useEffect
             marginBottom: "1rem", // Less margin at bottom
             flex: "0 1 auto", // Don't grow, allow shrinking
+            // Short viewports (landscape phones, small laptops with the
+            // URL bar expanded) must still be able to reach the submit
+            // button — the section itself is a clipped 100dvh box.
+            maxHeight: "100%",
+            overflowY: "auto",
+            touchAction: "pan-y",
+            WebkitOverflowScrolling: "touch",
+            overscrollBehavior: "contain",
           }}
         >
           <Container
@@ -468,7 +476,7 @@ const ContactSection = ({
         <div
           style={{
             position: "absolute",
-            bottom: "2rem",
+            bottom: "max(2rem, env(safe-area-inset-bottom))",
             left: 0,
             right: 0,
             display: "flex",

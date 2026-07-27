@@ -120,8 +120,10 @@ button {
   transition: background 0.25s ease-in-out;
 }
 
-button:hover {
-  background: #b989dd;
+@media (hover: hover) {
+  button:hover {
+    background: #b989dd;
+  }
 }
 
 /* Nav styles are self-contained in NavMenu.js */
@@ -319,6 +321,7 @@ canvas {
 
 #contact {
   min-height: 100vh;
+  min-height: 100dvh;
   /* background: linear-gradient(rgba(0, 0, 0, 0.5), transparent),
     url("./img/contact-mountain.png"); */
   /* background: linear-gradient(rgba(0, 0, 0, 0.5), transparent),

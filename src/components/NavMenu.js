@@ -557,7 +557,10 @@ const NavMenu = ({ audience = SITE_AUDIENCES.BUSINESS }) => {
 
         @media (max-width: 768px) {
           .nav-header {
-            padding: 1.4rem 1.6rem;
+            padding: max(1.4rem, env(safe-area-inset-top))
+                     max(1.6rem, env(safe-area-inset-right))
+                     1.4rem
+                     max(1.6rem, env(safe-area-inset-left));
           }
 
           .nav-pill {

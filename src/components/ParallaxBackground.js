@@ -10,6 +10,16 @@ import BlackHoleBackground from "./BlackHoleBackground";
 import { useThemeMode } from "../contexts/ThemeContext";
 import { isMobileTier, hasHardwareWebGL } from "../utils/deviceTier";
 
+/* dvh in an inline style is silently dropped by engines that predate it
+   (iOS <15.4, Chrome <108) — sections would never park off-screen and
+   stack on top of each other. Fall back to innerHeight pixels there. */
+const SUPPORTS_DVH =
+  typeof CSS !== "undefined" && CSS.supports?.("height", "100dvh");
+const shiftDown = () =>
+  SUPPORTS_DVH ? shiftDown() : `translateY(${window.innerHeight}px)`;
+const shiftUp = () =>
+  SUPPORTS_DVH ? shiftUp() : `translateY(-${window.innerHeight}px)`;
+
 const SECTION_LABELS = ['Hero', 'About', 'Services', 'Contact', 'Interactive Orb', 'Popcorn Game'];
 
 // Per-section accent colours for the CSS fallback background (no-WebGL machines).
@@ -47,6 +57,7 @@ export const ParallaxBackground = ({ children }) => {
 
   // Tracks the section currently animating out — kept mounted until its slide-out finishes
   const exitingSectionRef = useRef(null);
+  const touchStateRef = useRef({ startY: 0, startX: 0, startTarget: null, lastNavAt: 0 });
 
   // Populate sectionsRef on mount; on resize, re-snap all sections instantly so that
   // viewport height changes (e.g. DevTools opening) don't trigger CSS transitions or
@@ -71,7 +82,19 @@ export const ParallaxBackground = ({ children }) => {
       });
     };
 
+    /* Debounced, and height-only changes are ignored: on mobile, the URL
+       bar collapsing (during a swipe!) and the soft keyboard both fire
+       resize with only innerHeight changed — hard-snapping then aborts the
+       in-flight transition mid-animation. dvh-based transforms already
+       track viewport-height changes without a re-snap. */
+    let resizeTimer = 0;
+    let lastWidth = window.innerWidth;
+
     const handleResize = () => {
+      if (window.innerWidth === lastWidth) return;
+      lastWidth = window.innerWidth;
+      window.clearTimeout(resizeTimer);
+      resizeTimer = window.setTimeout(() => {
       requestAnimationFrame(() => {
         const found = scanSections();
         if (!found || found.length === 0) return;
@@ -86,7 +109,7 @@ export const ParallaxBackground = ({ children }) => {
             section.style.transform = "translateY(0)";
             section.style.opacity = "1";
           } else {
-            section.style.transform = i < current ? "translateY(100dvh)" : "translateY(-100dvh)";
+            section.style.transform = i < current ? shiftDown() : shiftUp();
             section.style.opacity = "0";
           }
         });
@@ -99,11 +122,15 @@ export const ParallaxBackground = ({ children }) => {
           found.forEach((section) => { section.style.transition = ""; });
         });
       });
+      }, 150);
     };
 
     findSections();
     window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
+    return () => {
+      window.clearTimeout(resizeTimer);
+      window.removeEventListener("resize", handleResize);
+    };
   }, []);
 
   // Wheel + keyboard navigation
@@ -137,7 +164,7 @@ export const ParallaxBackground = ({ children }) => {
     const current = sections[currentIdx];
     if (current) {
       current.style.transition = `transform ${exitDuration}ms ${exitEase}, opacity ${exitDuration}ms ${exitEase}`;
-      current.style.transform  = direction > 0 ? "translateY(100dvh)" : "translateY(-100dvh)";
+      current.style.transform  = direction > 0 ? shiftDown() : shiftUp();
       current.style.opacity    = "0";
     }
 
@@ -151,7 +178,7 @@ export const ParallaxBackground = ({ children }) => {
       sections.forEach((section, i) => {
         if (i !== currentIdx && i !== nextIdx) {
           section.style.transition = "none";
-          section.style.transform  = i < nextIdx ? "translateY(100dvh)" : "translateY(-100dvh)";
+          section.style.transform  = i < nextIdx ? shiftDown() : shiftUp();
           section.style.opacity    = "0";
         }
       });
@@ -184,7 +211,7 @@ export const ParallaxBackground = ({ children }) => {
           section.style.opacity   = "1";
         } else {
           // visited (i < nextIdx) rest BELOW; unvisited (i > nextIdx) rest ABOVE
-          section.style.transform = i < nextIdx ? "translateY(100dvh)" : "translateY(-100dvh)";
+          section.style.transform = i < nextIdx ? shiftDown() : shiftUp();
           section.style.opacity   = "0";
         }
       });
@@ -268,62 +295,67 @@ export const ParallaxBackground = ({ children }) => {
     };
   }, [activeSection, isTransitioning, totalSections, goToSection]);
 
-  // Touch navigation
+  // Touch navigation. Gesture state lives in a component-level ref: this
+  // effect re-subscribes on every section change, and effect-local state
+  // would be zeroed mid-gesture (a finger still on the glass after a
+  // transition then computed a huge phantom delta and bounced the user
+  // back a section). Navigation commits on touchend, with an axis check
+  // so horizontal pans don't switch sections.
   useEffect(() => {
-    let touchStartY = 0;
-    let lastTransitionTime = 0;
     const touchCooldown = 1200;
 
     const handleTouchStart = (e) => {
-      if (isTransitioning) return;
-      touchStartY = e.touches[0].clientY;
+      const state = touchStateRef.current;
+      state.startY = e.touches[0].clientY;
+      state.startX = e.touches[0].clientX;
+      state.startTarget = e.touches[0].target;
     };
 
-    const handleTouchMove = (e) => {
+    const handleTouchEnd = (e) => {
       if (isTransitioning || window.__serviceCardExpanded || window.__bhModeActive) return;
+      const state = touchStateRef.current;
       const now = Date.now();
-      if (now - lastTransitionTime < touchCooldown) return;
-      const distance = touchStartY - e.touches[0].clientY;
-      if (Math.abs(distance) > 40) {
-        // Same boundary check as the wheel handler: if the touch is inside a
-        // scrollable element that still has room to scroll, let that element
-        // consume the gesture instead of switching sections.
-        let node = e.touches[0].target;
-        while (node && node !== document.body) {
-          if (node.scrollHeight > node.clientHeight + 1) {
-            const overflow = window.getComputedStyle(node).overflowY;
-            if (overflow === 'auto' || overflow === 'scroll') {
-              const goingDown = distance > 0;
-              const atBottom = node.scrollTop + node.clientHeight >= node.scrollHeight - 2;
-              const atTop    = node.scrollTop <= 0;
-              if ((goingDown && !atBottom) || (!goingDown && !atTop)) return;
-              // Boundary reached mid-gesture — reset so a fresh intentional
-              // swipe is required to trigger section navigation.
-              touchStartY = e.touches[0].clientY;
-              break;
-            }
-          }
-          node = node.parentElement;
-        }
+      if (now - state.lastNavAt < touchCooldown) return;
 
-        const dir = Math.sign(distance);
-        if (dir > 0 && activeSection < totalSections - 1) {
-          goToSection(activeSection + 1);
-          lastTransitionTime = now;
-          touchStartY = e.touches[0].clientY;
-        } else if (dir < 0 && activeSection > 0) {
-          goToSection(activeSection - 1);
-          lastTransitionTime = now;
-          touchStartY = e.touches[0].clientY;
+      const touch = e.changedTouches[0];
+      const dy = state.startY - touch.clientY;
+      const dx = state.startX - touch.clientX;
+      // Intentional vertical swipe only: enough travel, vertical-dominant.
+      if (Math.abs(dy) < 48 || Math.abs(dy) < Math.abs(dx) * 1.2) return;
+
+      // Same boundary check as the wheel handler: if the gesture started
+      // inside a scrollable element that still has room to scroll in the
+      // swipe direction, that element owns the gesture.
+      let node = state.startTarget;
+      while (node && node !== document.body) {
+        if (node.scrollHeight > node.clientHeight + 1) {
+          const overflow = window.getComputedStyle(node).overflowY;
+          if (overflow === 'auto' || overflow === 'scroll') {
+            const goingDown = dy > 0;
+            const atBottom = node.scrollTop + node.clientHeight >= node.scrollHeight - 2;
+            const atTop    = node.scrollTop <= 0;
+            if ((goingDown && !atBottom) || (!goingDown && !atTop)) return;
+            break;
+          }
         }
+        node = node.parentElement;
+      }
+
+      const dir = Math.sign(dy);
+      if (dir > 0 && activeSection < totalSections - 1) {
+        goToSection(activeSection + 1);
+        state.lastNavAt = now;
+      } else if (dir < 0 && activeSection > 0) {
+        goToSection(activeSection - 1);
+        state.lastNavAt = now;
       }
     };
 
     window.addEventListener("touchstart", handleTouchStart, { passive: true });
-    window.addEventListener("touchmove", handleTouchMove, { passive: true });
+    window.addEventListener("touchend", handleTouchEnd, { passive: true });
     return () => {
       window.removeEventListener("touchstart", handleTouchStart);
-      window.removeEventListener("touchmove", handleTouchMove);
+      window.removeEventListener("touchend", handleTouchEnd);
     };
   }, [activeSection, isTransitioning, totalSections, goToSection]);
 
@@ -345,9 +377,9 @@ export const ParallaxBackground = ({ children }) => {
       //   unvisited (> active) → above  translateY(-100dvh)
       const initialTransform =
         index < activeSection
-          ? "translateY(100dvh)"
+          ? shiftDown()
           : index > activeSection
-          ? "translateY(-100dvh)"
+          ? shiftUp()
           : "translateY(0)";
 
       return (
@@ -487,6 +519,7 @@ export const ParallaxBackground = ({ children }) => {
         .parallax-wrapper {
           position: relative;
           width: 100%;
+          height: 100vh;
           height: 100dvh;
           overflow: hidden;
         }
@@ -496,6 +529,7 @@ export const ParallaxBackground = ({ children }) => {
           top: 0;
           left: 0;
           width: 100%;
+          height: 100vh;
           height: 100dvh;
           z-index: 1;
           background: var(--bg-page);
@@ -569,6 +603,7 @@ export const ParallaxBackground = ({ children }) => {
           top: 0;
           left: 0;
           width: 100%;
+          height: 100vh;
           height: 100dvh;
           overflow: hidden;
           z-index: 10;
@@ -580,6 +615,7 @@ export const ParallaxBackground = ({ children }) => {
           top: 0;
           left: 0;
           width: 100%;
+          height: 100vh;
           height: 100dvh;
           overflow: hidden;
           will-change: transform, opacity;
@@ -621,12 +657,12 @@ export const ParallaxBackground = ({ children }) => {
         /* Navigation dots */
         .section-dots {
           position: fixed;
-          right: 20px;
+          right: max(20px, env(safe-area-inset-right));
           top: 50%;
           transform: translateY(-50%);
           display: flex;
           flex-direction: column;
-          gap: 15px;
+          gap: 32px;
           z-index: 100;
           pointer-events: all;
           transition: opacity 0.3s ease;
@@ -760,6 +796,7 @@ export const ParallaxBackground = ({ children }) => {
 
         /* Section-level resets */
         .hero-container {
+          height: 100vh;
           height: 100dvh;
           position: relative;
         }
@@ -785,6 +822,7 @@ export const ParallaxBackground = ({ children }) => {
         }
 
         section {
+          height: 100vh;
           height: 100dvh;
           display: flex;
           flex-direction: column;
