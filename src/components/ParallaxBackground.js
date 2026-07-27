@@ -16,9 +16,9 @@ import { isMobileTier, hasHardwareWebGL } from "../utils/deviceTier";
 const SUPPORTS_DVH =
   typeof CSS !== "undefined" && CSS.supports?.("height", "100dvh");
 const shiftDown = () =>
-  SUPPORTS_DVH ? shiftDown() : `translateY(${window.innerHeight}px)`;
+  SUPPORTS_DVH ? "translateY(100dvh)" : `translateY(${window.innerHeight}px)`;
 const shiftUp = () =>
-  SUPPORTS_DVH ? shiftUp() : `translateY(-${window.innerHeight}px)`;
+  SUPPORTS_DVH ? "translateY(-100dvh)" : `translateY(-${window.innerHeight}px)`;
 
 const SECTION_LABELS = ['Hero', 'About', 'Services', 'Contact', 'Interactive Orb', 'Popcorn Game'];
 
