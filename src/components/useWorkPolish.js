@@ -95,7 +95,7 @@ const useWorkPolish = (rootRef) => {
       const siblingIndex = parent
         ? Array.prototype.indexOf.call(parent.children, el)
         : 0;
-      const delayMs = Math.min(Math.max(siblingIndex, 0), 5) * 70;
+      const delayMs = Math.min(Math.max(siblingIndex, 0), 5) * 90;
       el.classList.add("work-reveal");
       el.style.transitionDelay = `${delayMs}ms`;
     });
@@ -115,7 +115,7 @@ const useWorkPolish = (rootRef) => {
           }
         }
       },
-      { threshold: 0.1, rootMargin: "0px 0px -5% 0px" },
+      { threshold: 0.22, rootMargin: "0px 0px -12% 0px" },
     );
     revealTargets.forEach((el) => observer.observe(el));
 

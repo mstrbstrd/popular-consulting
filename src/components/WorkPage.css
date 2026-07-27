@@ -224,10 +224,17 @@ html[data-theme="light"] .work-page {
   display: none;
 }
 
-/* Spectral Topography backdrop (WebGL contour field). Lives inside the
-   ambient layer so the static CSS gradient remains the no-WebGL fallback.
-   Inline overrides beat index.css's global `canvas` rule; pixelated upscale
-   keeps the ordered-dither cells chunky. */
+/* Spectral Bloom backdrop (WebGL). Lives inside the ambient layer so the
+   static CSS gradient remains the no-WebGL fallback. The class rule beats
+   index.css's global `canvas` rule; pixelated upscale keeps the ordered-
+   dither cells chunky. JS pins the element's width/height inline to an
+   exact multiple of the backing store — a fractional nearest-neighbor
+   upscale would smear one dither row into a visible full-width line. The
+   ambient layer clips the <=1px sizing overhang. */
+.work-page__ambient {
+  overflow: hidden;
+}
+
 .work-page__backdrop {
   position: absolute;
   top: 0;
@@ -1582,7 +1589,7 @@ html[data-theme="light"] .work-page {
 
 .work-reveal:not(.is-revealed) {
   opacity: 0;
-  transform: translateY(16px) !important;
+  transform: translateY(28px) !important;
 }
 
 /* ── Responsive ───────────────────────────────────────────────────────── */

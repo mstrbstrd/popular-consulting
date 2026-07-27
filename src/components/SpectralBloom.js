@@ -531,13 +531,21 @@ const SpectralBloom = () => {
       rafId = window.requestAnimationFrame(tick);
     };
 
+    /* The CSS size is pinned to exactly 1/RENDER_SCALE times the backing
+       store (inline style overrides the stylesheet's 100%). A fractional
+       upscale under image-rendering: pixelated would duplicate one canvas
+       row into an extra CSS pixel — a stationary full-width band of
+       stretched dither cells that reads as a line while content scrolls
+       beneath it. The <=1px overhang from ceil() is harmless (the fixed
+       ambient layer clips it). */
     const resize = () => {
-      canvas.width = Math.max(1, Math.floor(window.innerWidth * RENDER_SCALE));
-      canvas.height = Math.max(
-        1,
-        Math.floor(window.innerHeight * RENDER_SCALE),
-      );
-      gl.viewport(0, 0, canvas.width, canvas.height);
+      const w = Math.max(2, Math.ceil(window.innerWidth * RENDER_SCALE));
+      const h = Math.max(2, Math.ceil(window.innerHeight * RENDER_SCALE));
+      canvas.width = w;
+      canvas.height = h;
+      canvas.style.width = `${w / RENDER_SCALE}px`;
+      canvas.style.height = `${h / RENDER_SCALE}px`;
+      gl.viewport(0, 0, w, h);
       if (prefersReducedMotion()) {
         draw(STATIC_TIME_S, true);
       }

@@ -3,9 +3,9 @@
   "name": "Popular Consulting",
   "icons": [
     {
-      "src": "/popcon_svg.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "/logo2026.png",
+      "sizes": "512x512",
+      "type": "image/png",
       "purpose": "any"
     }
   ],

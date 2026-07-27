@@ -111,6 +111,7 @@ const applyMetadata = (html, metadata) => {
 
   return next
     .replaceAll('href="./popcon_svg.svg"', 'href="/popcon_svg.svg"')
+    .replaceAll('href="./logo2026.png"', 'href="/logo2026.png"')
     .replaceAll('href="./manifest.json"', 'href="/manifest.json"')
     .replaceAll('href="./logo192.png"', 'href="/logo192.png"');
 };

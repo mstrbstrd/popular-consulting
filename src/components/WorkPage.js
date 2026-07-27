@@ -1,5 +1,5 @@
 import React from "react";
-import logo from "../assets/icons/logo2026.png";
+import logo from "../assets/icons/popcon_png.png";
 import SpectralBloom from "./SpectralBloom";
 import useWorkPolish from "./useWorkPolish";
 import { ThemeProvider, useThemeMode } from "../contexts/ThemeContext";
@@ -348,7 +348,7 @@ const WorkPageContent = () => {
       <main className="work-page__main">
         <section className="work-page__hero" aria-labelledby="work-page-title">
           <div className="work-page__hero-panel">
-            <div className="work-page__hero-copy" data-depth="0.03">
+            <div className="work-page__hero-copy" data-depth="0.06">
               <p className="work-page__eyebrow">
                 <span aria-hidden="true" />
                 Shaedan Hawse | Engineering work through Popular Consulting
@@ -401,7 +401,7 @@ const WorkPageContent = () => {
             <aside
               className="work-page__system-card"
               aria-label="Professional profile"
-              data-depth="-0.04"
+              data-depth="-0.08"
             >
               <div className="work-page__system-visual" aria-hidden="true">
                 <span className="work-page__system-orbit work-page__system-orbit--outer" />
@@ -476,7 +476,7 @@ const WorkPageContent = () => {
           className="work-page__projects"
           aria-labelledby="selected-projects-title"
         >
-          <div className="work-page__section-heading" data-depth="0.05">
+          <div className="work-page__section-heading" data-depth="0.09">
             <p>Selected systems</p>
             <h2 id="selected-projects-title">Evidence over adjectives.</h2>
             <span>
@@ -498,7 +498,7 @@ const WorkPageContent = () => {
                     <span>{project.visual.label}</span>
                   </div>
 
-                  <div className="work-project__system-map" data-depth="0.04">
+                  <div className="work-project__system-map" data-depth="0.07">
                     <span className="work-project__map-ring work-project__map-ring--one" />
                     <span className="work-project__map-ring work-project__map-ring--two" />
                     <span className="work-project__map-line work-project__map-line--one" />
@@ -598,7 +598,7 @@ const WorkPageContent = () => {
           className="work-page__principles"
           aria-labelledby="engineering-principles-title"
         >
-          <div className="work-page__section-heading" data-depth="0.05">
+          <div className="work-page__section-heading" data-depth="0.09">
             <p>Engineering leadership</p>
             <h2 id="engineering-principles-title">How I reduce uncertainty.</h2>
             <span>
@@ -633,7 +633,7 @@ const WorkPageContent = () => {
           <div
             className="work-page__contact-mark"
             aria-hidden="true"
-            data-depth="-0.03"
+            data-depth="-0.06"
           >
             <span>
               <img src={logo} alt="" />

@@ -9,11 +9,11 @@ describe("Popular Consulting favicon branding", () => {
     const indexHtml = fs.readFileSync(publicPath("index.html"), "utf8");
 
     expect(indexHtml).toContain(
-      '<link rel="icon" type="image/svg+xml" sizes="any" href="/popcon_svg.svg?v=20260724" />',
+      '<link rel="icon" type="image/png" sizes="any" href="/logo2026.png?v=20260727" />',
     );
     expect(indexHtml).toContain('<link rel="manifest" href="/manifest.json" />');
     expect(indexHtml).not.toMatch(/favicon\.ico|logo192\.png|logo512\.png/i);
-    expect(fs.existsSync(publicPath("popcon_svg.svg"))).toBe(true);
+    expect(fs.existsSync(publicPath("logo2026.png"))).toBe(true);
     expect(fs.existsSync(publicPath("favicon.ico"))).toBe(false);
   });
 
@@ -26,9 +26,9 @@ describe("Popular Consulting favicon branding", () => {
     expect(manifest.scope).toBe("/");
     expect(manifest.icons).toEqual([
       {
-        src: "/popcon_svg.svg",
-        sizes: "any",
-        type: "image/svg+xml",
+        src: "/logo2026.png",
+        sizes: "512x512",
+        type: "image/png",
         purpose: "any",
       },
     ]);
