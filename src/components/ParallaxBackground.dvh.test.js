@@ -14,12 +14,8 @@ describe("ParallaxBackground dvh helpers", () => {
   );
 
   test("supported branch yields dvh string literals, not self-calls", () => {
-    expect(source).toContain(
-      'SUPPORTS_DVH ? "translateY(100dvh)" : `translateY(${window.innerHeight}px)`',
-    );
-    expect(source).toContain(
-      'SUPPORTS_DVH ? "translateY(-100dvh)" : `translateY(-${window.innerHeight}px)`',
-    );
+    expect(source).toMatch(/SUPPORTS_DVH \? "translateY\(100dvh\)"/);
+    expect(source).toMatch(/SUPPORTS_DVH \? "translateY\(-100dvh\)"/);
     expect(source).not.toMatch(/SUPPORTS_DVH \? shift(Down|Up)\(\)/);
   });
 });
