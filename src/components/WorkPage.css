@@ -470,7 +470,9 @@ html[data-theme="light"] .work-page {
   }
 }
 
-.work-page__main > section {
+/* Load animation is scoped to the hero; below-fold sections are revealed
+   by useWorkPolish as they scroll into view. */
+.work-page__hero {
   animation: work-fade-in var(--motion-slow) var(--ease-spring) both;
 }
 
@@ -1559,6 +1561,28 @@ html[data-theme="light"] .work-page {
   height: 1px;
   background: var(--spectral-h);
   opacity: var(--spectral-rule-opacity);
+}
+
+/* ── Reveal-on-scroll (driven by useWorkPolish) ───────────────────────────
+   The .work-reveal class is added by JS only when motion is allowed, so
+   content stays visible without JS or under reduced motion. The hidden
+   state lives on :not(.is-revealed) — once revealed, no transform is
+   declared here and card :hover transforms behave normally. This
+   transition list is a superset of the panels' own hover transitions
+   (placed after them so the shorthand wins). */
+
+.work-reveal {
+  transition:
+    opacity var(--motion-slow) var(--ease-standard),
+    transform var(--motion-slow) var(--ease-spring),
+    background var(--motion-medium) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard),
+    box-shadow var(--motion-medium) var(--ease-standard);
+}
+
+.work-reveal:not(.is-revealed) {
+  opacity: 0;
+  transform: translateY(16px) !important;
 }
 
 /* ── Responsive ───────────────────────────────────────────────────────── */

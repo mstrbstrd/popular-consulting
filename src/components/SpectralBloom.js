@@ -243,9 +243,13 @@ void main() {
 
   /* Family signature: Bayer-8 ordered dither. The lattice scrolls with
      the document in whole-cell steps so edges do not crawl during
-     scroll; quantized to a few levels. */
+     scroll. The offset is wrapped to the pattern's 8-cell period and
+     the coordinate kept strictly positive: bayer2's a.y*a.y term is
+     symmetric about zero, so a negative row range would mirror the
+     pattern and draw a full-width seam line. Quantized to a few levels. */
   float qlevels = mix(5.0, 7.0, u_light);
-  vec2 dco = gl_FragCoord.xy - vec2(0.0, floor(u_scroll * u_res.y * 0.5));
+  float dOff = mod(floor(u_scroll * u_res.y * 0.5), 8.0);
+  vec2 dco = vec2(gl_FragCoord.x, gl_FragCoord.y + 8.0 - dOff);
   float dith = bayer8(dco) - 0.5;
   colOut = clamp(colOut + dith / qlevels, 0.0, 1.0);
   colOut = floor(colOut * qlevels + 0.5) / qlevels;

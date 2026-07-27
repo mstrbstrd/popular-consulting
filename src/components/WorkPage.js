@@ -1,6 +1,7 @@
 import React from "react";
-import logo from "../assets/icons/popcon_png.png";
+import logo from "../assets/icons/logo2026.png";
 import SpectralBloom from "./SpectralBloom";
+import useWorkPolish from "./useWorkPolish";
 import { ThemeProvider, useThemeMode } from "../contexts/ThemeContext";
 import { PUBLIC_LINKS } from "../content/siteCopy";
 import routeMetadata from "../content/routeMetadata.json";
@@ -208,6 +209,8 @@ const isExternalHref = (href) => /^https?:\/\//.test(href);
 
 const WorkPageContent = () => {
   const { isDark, toggleTheme } = useThemeMode();
+  const rootRef = React.useRef(null);
+  useWorkPolish(rootRef);
 
   React.useEffect(() => {
     const previous = {
@@ -271,7 +274,7 @@ const WorkPageContent = () => {
   }, []);
 
   return (
-    <div className="work-page">
+    <div className="work-page" ref={rootRef}>
       <div className="work-page__ambient" aria-hidden="true">
         <SpectralBloom />
         <span className="work-page__aurora work-page__aurora--one" />
@@ -345,7 +348,7 @@ const WorkPageContent = () => {
       <main className="work-page__main">
         <section className="work-page__hero" aria-labelledby="work-page-title">
           <div className="work-page__hero-panel">
-            <div className="work-page__hero-copy">
+            <div className="work-page__hero-copy" data-depth="0.03">
               <p className="work-page__eyebrow">
                 <span aria-hidden="true" />
                 Shaedan Hawse | Engineering work through Popular Consulting
@@ -395,7 +398,11 @@ const WorkPageContent = () => {
               </div>
             </div>
 
-            <aside className="work-page__system-card" aria-label="Professional profile">
+            <aside
+              className="work-page__system-card"
+              aria-label="Professional profile"
+              data-depth="-0.04"
+            >
               <div className="work-page__system-visual" aria-hidden="true">
                 <span className="work-page__system-orbit work-page__system-orbit--outer" />
                 <span className="work-page__system-orbit work-page__system-orbit--inner" />
@@ -444,7 +451,11 @@ const WorkPageContent = () => {
 
         <section className="work-page__capabilities" aria-label="Engineering scope">
           {CAPABILITIES.map((capability) => (
-            <article key={capability.label} className="work-capability">
+            <article
+              key={capability.label}
+              className="work-capability"
+              data-reveal="true"
+            >
               <div className="work-capability__topline">
                 <span>{capability.number}</span>
                 <div className="work-capability__glyph" aria-hidden="true">
@@ -465,7 +476,7 @@ const WorkPageContent = () => {
           className="work-page__projects"
           aria-labelledby="selected-projects-title"
         >
-          <div className="work-page__section-heading">
+          <div className="work-page__section-heading" data-depth="0.05">
             <p>Selected systems</p>
             <h2 id="selected-projects-title">Evidence over adjectives.</h2>
             <span>
@@ -476,14 +487,18 @@ const WorkPageContent = () => {
 
           <div className="work-page__project-list">
             {PROJECTS.map((project) => (
-              <article className="work-project" key={project.title}>
+              <article
+                className="work-project"
+                key={project.title}
+                data-reveal="true"
+              >
                 <figure className="work-project__visual" aria-hidden="true">
                   <div className="work-project__visual-topline">
                     <span>{project.number}</span>
                     <span>{project.visual.label}</span>
                   </div>
 
-                  <div className="work-project__system-map">
+                  <div className="work-project__system-map" data-depth="0.04">
                     <span className="work-project__map-ring work-project__map-ring--one" />
                     <span className="work-project__map-ring work-project__map-ring--two" />
                     <span className="work-project__map-line work-project__map-line--one" />
@@ -583,7 +598,7 @@ const WorkPageContent = () => {
           className="work-page__principles"
           aria-labelledby="engineering-principles-title"
         >
-          <div className="work-page__section-heading">
+          <div className="work-page__section-heading" data-depth="0.05">
             <p>Engineering leadership</p>
             <h2 id="engineering-principles-title">How I reduce uncertainty.</h2>
             <span>
@@ -594,7 +609,7 @@ const WorkPageContent = () => {
 
           <div className="work-page__principle-grid">
             {PRINCIPLES.map((principle, index) => (
-              <article key={principle.title}>
+              <article key={principle.title} data-reveal="true">
                 <div className="work-principle__topline">
                   <span>{String(index + 1).padStart(2, "0")}</span>
                   <span className="work-principle__signal" aria-hidden="true">
@@ -610,8 +625,16 @@ const WorkPageContent = () => {
           </div>
         </section>
 
-        <section className="work-page__contact" aria-labelledby="work-contact-title">
-          <div className="work-page__contact-mark" aria-hidden="true">
+        <section
+          className="work-page__contact"
+          aria-labelledby="work-contact-title"
+          data-reveal="true"
+        >
+          <div
+            className="work-page__contact-mark"
+            aria-hidden="true"
+            data-depth="-0.03"
+          >
             <span>
               <img src={logo} alt="" />
             </span>

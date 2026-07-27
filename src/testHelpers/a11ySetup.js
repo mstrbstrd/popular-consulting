@@ -21,6 +21,7 @@ jest.mock('../components/DitherHero', () => () => (
 // ── Asset mocks (SVG / PNG / JPEG) ─────────────────────────────────────────
 
 jest.mock('../assets/icons/popcon_png.png',  () => 'popcon_png.png');
+jest.mock('../assets/icons/logo2026.png',  () => 'logo2026.png');
 jest.mock('../assets/icons/popcon_svg.svg',  () => 'popcon_svg.svg');
 jest.mock('../assets/icons/twitter.svg',     () => 'twitter.svg');
 jest.mock('../assets/icons/instagram.svg',   () => 'instagram.svg');
