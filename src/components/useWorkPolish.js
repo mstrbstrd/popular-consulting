@@ -38,13 +38,20 @@ const useWorkPolish = (rootRef) => {
 
     /* ── Parallax ──────────────────────────────────────────────────── */
 
-    const layers = Array.from(root.querySelectorAll("[data-depth]")).map(
-      (el) => ({
-        el,
-        depth: parseFloat(el.dataset.depth) || 0,
-        center: 0,
-      }),
-    );
+    /* rAF-written transforms visibly lag iOS momentum scrolling (scroll
+       events keep firing while rAF is throttled), so depth parallax is
+       desktop-only; the reveals below run everywhere. */
+    const coarsePointer =
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(pointer: coarse)").matches;
+
+    const layers = coarsePointer
+      ? []
+      : Array.from(root.querySelectorAll("[data-depth]")).map((el) => ({
+          el,
+          depth: parseFloat(el.dataset.depth) || 0,
+          center: 0,
+        }));
 
     /* Untransformed document position via the offsetParent chain —
        transforms do not affect layout, so this stays valid while the

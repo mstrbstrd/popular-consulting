@@ -1,4 +1,5 @@
 import React from "react";
+import { hasHardwareWebGL } from "../utils/deviceTier";
 
 /* SpectralBloom — a flower grown from spectral light.
    An original Aetheris-family backdrop rendered in DOCUMENT space: the
@@ -73,6 +74,7 @@ uniform float u_light;
 uniform float u_tip;
 uniform float u_bloom;
 uniform float u_scroll;
+uniform float u_amp;
 uniform vec4 u_petals[10];
 
 float bayer2(vec2 a) {
@@ -136,11 +138,11 @@ float sdPetalShape(vec2 p, float len, float wid) {
    (STEM_AMP / STEM_FREQ / STEM_PHASE / HEAD_Y / the sway term). */
 float stemX(float wy, float rootX, float tip, float t) {
   float sway = 0.02 * sin(0.6 * t + 1.0) * smoothstep(tip - 1.4, tip, wy);
-  return rootX + 0.18 * sin(wy * 3.3 + 2.0) + sway;
+  return rootX + u_amp * sin(wy * 3.3 + 2.0) + sway;
 }
 
 float stemSlope(float wy) {
-  return 0.18 * 3.3 * cos(wy * 3.3 + 2.0);
+  return u_amp * 3.3 * cos(wy * 3.3 + 2.0);
 }
 
 void main() {
@@ -182,7 +184,7 @@ void main() {
           + side * mix(0.18, 1.05, uj)
           + (h1 - 0.5) * 0.25;
         vec2 lp = rot2(-ang) * (wp - P);
-        float len = (0.17 + 0.06 * h1) * uj;
+        float len = (0.17 + 0.06 * h1) * uj * clamp(u_amp / 0.18, 0.55, 1.0);
         float dl = sdPetalShape(lp, len, 0.055 * uj);
         if (dl < dleaf) {
           dleaf = dl;
@@ -304,6 +306,10 @@ const SpectralBloom = () => {
       return undefined;
     }
 
+    if (!hasHardwareWebGL) {
+      return undefined;
+    }
+
     let gl = null;
     try {
       gl = canvas.getContext("webgl", {
@@ -360,6 +366,7 @@ const SpectralBloom = () => {
       tip: gl.getUniformLocation(program, "u_tip"),
       bloom: gl.getUniformLocation(program, "u_bloom"),
       scroll: gl.getUniformLocation(program, "u_scroll"),
+      amp: gl.getUniformLocation(program, "u_amp"),
       petals:
         gl.getUniformLocation(program, "u_petals[0]") ||
         gl.getUniformLocation(program, "u_petals"),
@@ -394,26 +401,37 @@ const SpectralBloom = () => {
     let growStartS = -1;
     let staticRedrawQueued = false;
 
+    /* Stable viewport metrics: on iOS the URL bar collapsing during
+       scroll fires resize with only innerHeight changed — reallocating
+       the GL buffer and shifting the world anchor mid-scroll. Height-only
+       changes under 25% keep the previous metrics; width/orientation
+       changes re-measure fully. */
+    let stableW = 0;
+    let stableH = 0;
+
+    /* Amplitude scales down with aspect so the serpentine (sized in
+       height units) stays inside narrow portrait viewports. */
+    const stemAmp = () =>
+      STEM_AMP * Math.min(1, stableW / Math.max(stableH, 1) / 1.25);
+
     /* Scroll offset in uv units (2 per viewport height). */
-    const scrollOffset = () =>
-      (window.scrollY / Math.max(window.innerHeight, 1)) * 2;
+    const scrollOffset = () => (window.scrollY / Math.max(stableH, 1)) * 2;
 
     /* World y of the ground at the very bottom of the document. */
     const groundY = () => {
-      const range =
-        document.documentElement.scrollHeight - window.innerHeight;
-      return -1 - (Math.max(range, 0) / Math.max(window.innerHeight, 1)) * 2;
+      const range = document.documentElement.scrollHeight - stableH;
+      return -1 - (Math.max(range, 0) / Math.max(stableH, 1)) * 2;
     };
 
     /* Mirrors the shader's stemX at the tip so detaching petals spawn
        exactly where their attached twin was drawn (same constants, same
        tip sway, which is at full strength at the tip itself). */
     const flowerTip = (timeS) => {
-      const aspect = canvas.width / Math.max(canvas.height, 1);
+      const aspect = stableW / Math.max(stableH, 1);
       return {
         x:
           -0.7 * aspect +
-          STEM_AMP * Math.sin(HEAD_Y * STEM_FREQ + STEM_PHASE) +
+          stemAmp() * Math.sin(HEAD_Y * STEM_FREQ + STEM_PHASE) +
           0.02 * Math.sin(0.6 * timeS + 1.0),
         y: HEAD_Y,
       };
@@ -502,6 +520,7 @@ const SpectralBloom = () => {
       gl.uniform1f(uniforms.tip, tip);
       gl.uniform1f(uniforms.bloom, bloom);
       gl.uniform1f(uniforms.scroll, scrollOffset());
+      gl.uniform1f(uniforms.amp, stemAmp());
       gl.uniform4fv(uniforms.petals, petalData);
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
@@ -544,9 +563,21 @@ const SpectralBloom = () => {
        stretched dither cells that reads as a line while content scrolls
        beneath it. The <=1px overhang from ceil() is harmless (the fixed
        ambient layer clips it). */
-    const resize = () => {
-      const w = Math.max(2, Math.ceil(window.innerWidth * RENDER_SCALE));
-      const h = Math.max(2, Math.ceil(window.innerHeight * RENDER_SCALE));
+    const resize = (force) => {
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      if (
+        !force &&
+        vw === stableW &&
+        stableH > 0 &&
+        Math.abs(vh - stableH) / stableH < 0.25
+      ) {
+        return; // URL-bar / keyboard height jitter — keep stable metrics
+      }
+      stableW = vw;
+      stableH = vh;
+      const w = Math.max(2, Math.ceil(vw * RENDER_SCALE));
+      const h = Math.max(2, Math.ceil(vh * RENDER_SCALE));
       canvas.width = w;
       canvas.height = h;
       canvas.style.width = `${w / RENDER_SCALE}px`;
@@ -556,6 +587,8 @@ const SpectralBloom = () => {
         draw(STATIC_TIME_S, true);
       }
     };
+
+    const onWindowResize = () => resize(false);
 
     const onVisibilityChange = () => {
       if (document.hidden) {
@@ -587,7 +620,7 @@ const SpectralBloom = () => {
       }
     };
 
-    resize();
+    resize(true);
     start();
     window.addEventListener("scroll", onScroll, { passive: true });
 
@@ -603,14 +636,14 @@ const SpectralBloom = () => {
       attributeFilter: ["data-theme"],
     });
 
-    window.addEventListener("resize", resize);
+    window.addEventListener("resize", onWindowResize);
     document.addEventListener("visibilitychange", onVisibilityChange);
     reducedMotion?.addEventListener?.("change", start);
 
     return () => {
       window.cancelAnimationFrame(rafId);
       window.removeEventListener("scroll", onScroll);
-      window.removeEventListener("resize", resize);
+      window.removeEventListener("resize", onWindowResize);
       document.removeEventListener("visibilitychange", onVisibilityChange);
       reducedMotion?.removeEventListener?.("change", start);
       themeObserver.disconnect();
