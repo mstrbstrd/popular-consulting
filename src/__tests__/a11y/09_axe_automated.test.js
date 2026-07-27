@@ -24,6 +24,9 @@ import ServicesSection from '../../components/ServicesSection';
 import ContactSection from '../../components/ContactSection';
 import OrbSection from '../../components/OrbSection';
 import { ParallaxBackground } from '../../components/ParallaxBackground';
+import WorkPage from '../../components/WorkPage';
+import ProfessionalHero from '../../components/ProfessionalHero';
+import StandaloneExperiencePage from '../../components/StandaloneExperiencePage';
 
 expect.extend(toHaveNoViolations);
 
@@ -90,6 +93,37 @@ describe('axe: ParallaxBackground (navigation structure)', () => {
         <Section id="contact"  label="Contact" />
         <Section id="orb"      label="Interactive Orb" />
       </ParallaxBackground>
+    );
+    const results = await axe(container);
+    expect(results).toHaveNoViolations();
+  });
+});
+
+// ── Route-level scans (previously uncovered: /work, /engineering, /orb) ──
+
+describe('axe: WorkPage', () => {
+  test('has no automatically detectable violations', async () => {
+    document.head.innerHTML = '<title>Popular Consulting</title>';
+    const { container } = render(<WorkPage />);
+    const results = await axe(container);
+    expect(results).toHaveNoViolations();
+  });
+});
+
+describe('axe: ProfessionalHero', () => {
+  test('has no automatically detectable violations', async () => {
+    const container = await wrap(
+      <ProfessionalHero isActive={true} onEnterExperience={() => {}} />,
+    );
+    const results = await axe(container);
+    expect(results).toHaveNoViolations();
+  });
+});
+
+describe('axe: StandaloneExperiencePage (/orb shell)', () => {
+  test('has no automatically detectable violations', async () => {
+    const container = await wrap(
+      <StandaloneExperiencePage experience="orb" />,
     );
     const results = await axe(container);
     expect(results).toHaveNoViolations();

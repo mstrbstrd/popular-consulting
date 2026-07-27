@@ -96,3 +96,44 @@ describe('Pinch-to-zoom CSS invariant', () => {
     expect(styles).toMatch(/touch-action:\s*pinch-zoom/);
   });
 });
+
+// ── /work and standalone routes: 44px invariants pinned at the source ────
+
+describe('Touch targets — /work and standalone routes', () => {
+  const fs = require('fs');
+  const path = require('path');
+
+  test('/work interactive elements declare >=4.4rem (44px at 10px root) heights', () => {
+    const css = fs.readFileSync(
+      path.join(__dirname, '../../components/WorkPage.css'),
+      'utf8',
+    );
+
+    // Nav links, theme toggle, hamburger, buttons, text/project links.
+    expect(css).toMatch(/\.work-page__nav a \{\n  height: 4\.4rem;/);
+    expect(css).toMatch(/\.work-page__theme \{[^}]*height: 4\.4rem;/);
+    expect(css).toMatch(/\.work-page__menu-toggle \{[^}]*height: 4\.4rem;/);
+    expect(css).toMatch(/\.work-page__button \{[^}]*min-height: 4\.6rem;/);
+    expect(css).toMatch(
+      /\.work-page__text-link,\n\.work-project__links a \{[^}]*min-height: 4\.4rem;/,
+    );
+    expect(css).toMatch(/\.work-page__menu a \{[^}]*min-height: 4\.4rem;/);
+
+    // The page restores the 10px root, so rem values are trustworthy.
+    const js = fs.readFileSync(
+      path.join(__dirname, '../../components/WorkPage.js'),
+      'utf8',
+    );
+    expect(js).toContain('document.documentElement.style.fontSize = "62.5%"');
+  });
+
+  test('standalone experience header declares >=4.4rem targets', () => {
+    const js = fs.readFileSync(
+      path.join(__dirname, '../../components/StandaloneExperiencePage.js'),
+      'utf8',
+    );
+    expect(js).toContain('min-height: 4.4rem');
+    expect(js).toContain('document.documentElement.style.fontSize = "62.5%"');
+  });
+});
+

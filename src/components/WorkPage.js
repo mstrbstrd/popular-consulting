@@ -484,8 +484,9 @@ const WorkPageContent = () => {
               </div>
             </div>
 
-            <aside
+            <div
               className="work-page__system-card"
+              role="group"
               aria-label="Professional profile"
               data-depth="-0.08"
             >
@@ -531,7 +532,7 @@ const WorkPageContent = () => {
                   <strong>Popular Consulting</strong>
                 </div>
               </div>
-            </aside>
+            </div>
           </div>
         </section>
 
@@ -627,7 +628,7 @@ const WorkPageContent = () => {
                     </div>
                   </div>
 
-                  <aside className="work-project__evidence-panel">
+                  <div className="work-project__evidence-panel">
                     <span className="work-project__evidence-title">
                       Implementation evidence
                     </span>
@@ -639,7 +640,7 @@ const WorkPageContent = () => {
                         <li key={item}>{item}</li>
                       ))}
                     </ul>
-                  </aside>
+                  </div>
 
                   <div className="work-project__footer">
                     <ul

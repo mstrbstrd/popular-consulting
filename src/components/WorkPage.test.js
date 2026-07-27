@@ -150,4 +150,31 @@ describe("WorkPage", () => {
       within(creatorOsArticle).getByRole("list", { name: "CreatorOS technologies" }),
     ).toBeInTheDocument();
   });
+
+
+  test("hamburger menu exposes all destinations with correct ARIA wiring", () => {
+    render(<WorkPage />);
+
+    const toggle = screen.getByRole("button", { name: /open navigation menu/i });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(toggle).toHaveAttribute("aria-controls", "work-nav-menu");
+    expect(document.getElementById("work-nav-menu")).toBeNull();
+
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    const menu = document.getElementById("work-nav-menu");
+    expect(menu).toBeInTheDocument();
+
+    ["Projects", "Principles", "Contact", "Engineering", "Consulting"].forEach(
+      (label) => {
+        expect(within(menu).getByRole("menuitem", { name: label })).toBeInTheDocument();
+      },
+    );
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(document.getElementById("work-nav-menu")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: /open navigation menu/i }),
+    ).toHaveAttribute("aria-expanded", "false");
+  });
 });
