@@ -110,7 +110,7 @@ describe('Touch targets — /work and standalone routes', () => {
     );
 
     // Nav links, theme toggle, hamburger, buttons, text/project links.
-    expect(css).toMatch(/\.work-page__nav a \{\n  height: 4\.4rem;/);
+    expect(css).toMatch(/\.work-page__nav a \{\n {2}height: 4\.4rem;/);
     expect(css).toMatch(/\.work-page__theme \{[^}]*height: 4\.4rem;/);
     expect(css).toMatch(/\.work-page__menu-toggle \{[^}]*height: 4\.4rem;/);
     expect(css).toMatch(/\.work-page__button \{[^}]*min-height: 4\.6rem;/);
