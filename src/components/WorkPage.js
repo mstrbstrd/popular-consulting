@@ -208,10 +208,50 @@ const HERO_PROOF = [
 
 const isExternalHref = (href) => /^https?:\/\//.test(href);
 
+const NAV_LINKS = [
+  { label: "Projects", href: "#selected-projects" },
+  { label: "Principles", href: "#engineering-principles" },
+  { label: "Contact", href: "mailto:shae@popcon.dev" },
+  { label: "Engineering", href: "/engineering" },
+  { label: "Consulting", href: "/" },
+];
+
 const WorkPageContent = () => {
   const { isDark, toggleTheme } = useThemeMode();
   const rootRef = React.useRef(null);
+  const menuRef = React.useRef(null);
+  const menuButtonRef = React.useRef(null);
+  const [menuOpen, setMenuOpen] = React.useState(false);
   useWorkPolish(rootRef);
+
+  React.useEffect(() => {
+    if (!menuOpen) {
+      return undefined;
+    }
+
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") {
+        setMenuOpen(false);
+        menuButtonRef.current?.focus();
+      }
+    };
+    const onPointerDown = (event) => {
+      if (
+        menuRef.current?.contains(event.target) ||
+        menuButtonRef.current?.contains(event.target)
+      ) {
+        return;
+      }
+      setMenuOpen(false);
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("pointerdown", onPointerDown);
+    };
+  }, [menuOpen]);
 
   React.useEffect(() => {
     const previous = {
@@ -313,11 +353,28 @@ const WorkPageContent = () => {
           </a>
 
           <nav className="work-page__nav" aria-label="Work page navigation">
-            <a href="#selected-projects">Projects</a>
-            <a href="#engineering-principles">Principles</a>
-            <a href="mailto:shae@popcon.dev">Contact</a>
-            <a href="/engineering">Engineering</a>
-            <a href="/">Consulting</a>
+            {NAV_LINKS.map((link) => (
+              <a key={link.label} href={link.href}>
+                {link.label}
+              </a>
+            ))}
+            <button
+              type="button"
+              ref={menuButtonRef}
+              className="work-page__menu-toggle"
+              aria-expanded={menuOpen}
+              aria-controls="work-nav-menu"
+              aria-label={
+                menuOpen ? "Close navigation menu" : "Open navigation menu"
+              }
+              onClick={() => setMenuOpen((open) => !open)}
+            >
+              <span className="work-page__menu-icon" aria-hidden="true">
+                <i />
+                <i />
+                <i />
+              </span>
+            </button>
             <button
               type="button"
               className="work-page__theme"
@@ -351,6 +408,27 @@ const WorkPageContent = () => {
             </button>
           </nav>
         </div>
+
+        {menuOpen && (
+          <div
+            id="work-nav-menu"
+            className="work-page__menu"
+            ref={menuRef}
+            role="menu"
+            aria-label="Site navigation"
+          >
+            {NAV_LINKS.map((link) => (
+              <a
+                key={link.label}
+                href={link.href}
+                role="menuitem"
+                onClick={() => setMenuOpen(false)}
+              >
+                {link.label}
+              </a>
+            ))}
+          </div>
+        )}
       </header>
 
       <main className="work-page__main">

@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useThemeMode } from '../contexts/ThemeContext';
+import { shaderDPR } from '../utils/deviceTier';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -878,7 +879,7 @@ const PopcornGame = ({ isActive }) => {
     if (!canvas) return;
 
     const resize = () => {
-      const dpr = window.devicePixelRatio || 1;
+      const dpr = shaderDPR(); // capped: 1.5 desktop / 1.0 mobile
       const rect = canvas.getBoundingClientRect();
       canvas.width = rect.width * dpr;
       canvas.height = rect.height * dpr;
@@ -993,7 +994,7 @@ const PopcornGame = ({ isActive }) => {
     >
       <canvas
         ref={canvasRef}
-        style={{ position: 'absolute', inset: 0, display: 'block', width: '100%', height: '100%' }}
+        style={{ position: 'absolute', inset: 0, display: 'block', width: '100%', height: '100%', touchAction: 'manipulation' }}
         onPointerDown={handlePointerDown}
         onWheel={(e) => e.stopPropagation()}
         aria-label="Popcorn game canvas"
@@ -1099,10 +1100,11 @@ const PopcornGame = ({ isActive }) => {
           <button
             style={{
               padding: '1rem 3rem',
+              minHeight: '4.4rem',
               background: 'linear-gradient(135deg, #FF6BAE, #9B72FF)',
               border: 'none',
               borderRadius: 100,
-              fontSize: '1.4rem',
+              fontSize: '1.6rem',
               fontWeight: 700,
               color: 'white',
               cursor: 'pointer',
@@ -1112,6 +1114,8 @@ const PopcornGame = ({ isActive }) => {
             }}
             onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.05)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
+            onPointerDown={(e) => { e.currentTarget.style.transform = 'scale(0.96)'; }}
+            onPointerUp={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
             onClick={startGame}
           >
             PLAY
@@ -1166,10 +1170,11 @@ const PopcornGame = ({ isActive }) => {
           <button
             style={{
               padding: '1rem 3rem',
+              minHeight: '4.4rem',
               background: 'linear-gradient(135deg, #FF6BAE, #9B72FF)',
               border: 'none',
               borderRadius: 100,
-              fontSize: '1.4rem',
+              fontSize: '1.6rem',
               fontWeight: 700,
               color: 'white',
               cursor: 'pointer',
@@ -1179,6 +1184,8 @@ const PopcornGame = ({ isActive }) => {
             }}
             onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.05)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
+            onPointerDown={(e) => { e.currentTarget.style.transform = 'scale(0.96)'; }}
+            onPointerUp={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
             onClick={startGame}
           >
             PLAY AGAIN

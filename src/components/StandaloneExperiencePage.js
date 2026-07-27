@@ -289,7 +289,7 @@ const ExperienceContent = ({ experience }) => {
           border-radius: 0 0 10px 10px;
           background: #6344f5;
           color: #ffffff;
-          font-size: 1rem;
+          font-size: 1.3rem;
           font-weight: 700;
           text-decoration: none;
         }
@@ -383,17 +383,17 @@ const ExperienceContent = ({ experience }) => {
         .standalone-experience__header a,
         .standalone-experience__header button,
         .standalone-experience__header-label {
-          min-height: 2.15rem;
+          min-height: 4.4rem;
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          gap: 0.35rem;
+          gap: 0.5rem;
           box-sizing: border-box;
           border-radius: 999px;
-          padding: 0.52rem 0.78rem;
+          padding: 0.8rem 1.4rem;
           color: var(--experience-nav-text);
           font-family: 'Poppins', sans-serif;
-          font-size: 0.72rem;
+          font-size: 1.3rem;
           font-weight: 600;
           line-height: 1;
           letter-spacing: 0.035em;
@@ -458,9 +458,9 @@ const ExperienceContent = ({ experience }) => {
           .standalone-experience__header a,
           .standalone-experience__header button,
           .standalone-experience__header-label {
-            min-height: 1.9rem;
-            padding: 0.42rem 0.58rem;
-            font-size: 0.62rem;
+            min-height: 4.4rem;
+            padding: 0.7rem 1.1rem;
+            font-size: 1.2rem;
           }
         }
 

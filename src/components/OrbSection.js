@@ -5,7 +5,7 @@
 import React from 'react';
 import BlackHoleCanvas from './BlackHoleCanvas';
 import { useThemeMode } from '../contexts/ThemeContext';
-import { hasHardwareWebGL } from '../utils/deviceTier';
+import { hasHardwareWebGL, isMobileTier } from '../utils/deviceTier';
 
 const EMOTES = [
   { name: 'happy',     emoji: '😊' },
@@ -58,6 +58,9 @@ const CHAINS = [
 const makePillStyle = (isDark) => ({
   display: 'flex',
   alignItems: 'center',
+  flexWrap: 'wrap',
+  justifyContent: 'center',
+  maxWidth: 'calc(100vw - 2rem)',
   gap: '0.1rem',
   padding: '0.55rem 0.8rem',
   background: isDark ? 'rgba(6,6,16,0.82)' : 'rgba(255, 255, 255, 0.09)',
@@ -74,8 +77,9 @@ const btnStyle = {
   border: 'none',
   borderRadius: '100px',
   padding: '0.35rem 0.75rem',
+  minHeight: '4.4rem',
   cursor: 'pointer',
-  fontSize: '1rem',
+  fontSize: '1.15rem',
   color: 'rgba(255,255,255,0.82)',
   fontFamily: "'Poppins', sans-serif",
   fontWeight: 300,
@@ -376,7 +380,7 @@ const OrbSection = ({ isActive }) => {
       cursor: 'crosshair',
     }}
   >
-    {bhMounted && hasHardwareWebGL && (
+    {bhMounted && hasHardwareWebGL && !isMobileTier && (
       <BlackHoleCanvas
         isDark={isDark}
         visible={bhVisible}
