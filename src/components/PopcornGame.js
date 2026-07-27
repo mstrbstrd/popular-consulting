@@ -879,7 +879,7 @@ const PopcornGame = ({ isActive }) => {
     if (!canvas) return;
 
     const resize = () => {
-      const dpr = shaderDPR(); // capped: 1.5 desktop / 1.0 mobile
+      const dpr = shaderDPR; // constant: capped 1.5 desktop / 1.0 mobile
       const rect = canvas.getBoundingClientRect();
       canvas.width = rect.width * dpr;
       canvas.height = rect.height * dpr;
