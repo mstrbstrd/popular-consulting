@@ -1,5 +1,6 @@
 import React from "react";
 import logo from "../assets/icons/popcon_png.png";
+import brandLogo from "../assets/icons/logo2026.png";
 import SpectralBloom from "./SpectralBloom";
 import useWorkPolish from "./useWorkPolish";
 import { ThemeProvider, useThemeMode } from "../contexts/ThemeContext";
@@ -296,7 +297,7 @@ const WorkPageContent = () => {
             aria-label="Popular Consulting immersive home"
           >
             <span className="work-page__brand-mark">
-              <img src={logo} alt="" aria-hidden="true" />
+              <img src={brandLogo} alt="" aria-hidden="true" />
             </span>
             <span className="work-page__brand-copy">
               <strong>Popular Consulting</strong>

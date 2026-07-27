@@ -11,6 +11,15 @@ import { SITE_AUDIENCES, getSiteCopy } from "../content/siteCopy";
 
 const CARD_RADIUS = 20;
 const FLIP_DURATION = 560;
+/* Closing runs slightly faster than opening (exits should be brisker),
+   and the last 200ms crossfades the overlay into the already-revealed
+   compact card so there is no swap pop at landing. */
+const FLIP_CLOSE_DURATION = 440;
+const FLIP_CROSSFADE = 200;
+/* How long the detail content gets to fade out before the close flight
+   starts, and how far into the open flight it begins fading in. */
+const CONTENT_FADE_OUT = 170;
+const CONTENT_REVEAL_DELAY = 280;
 const FLIP_EASE = "cubic-bezier(0.22, 1, 0.36, 1)";
 
 const rectToSerializable = (rect) => ({
@@ -409,6 +418,7 @@ const ExpandedOverlay = ({
   targetRect,
   getOriginRect,
   onClose,
+  onClosingStart,
 }) => {
   const { isDark } = useThemeMode();
   const motionRef = React.useRef(null);
@@ -424,8 +434,17 @@ const ExpandedOverlay = ({
 
   const [phase, setPhase] = React.useState("mounting");
   const [isHovered, setIsHovered] = React.useState(false);
+  /* Content reveals partway through the open flight (the spring ease has
+     the panel near full size by then), instead of popping after it. */
+  const [contentShown, setContentShown] = React.useState(false);
 
-  const showContent = phase === "expanded";
+  const showContent =
+    contentShown && (phase === "expanding" || phase === "expanded");
+  /* During close, content fades with short uniform transitions so the
+     fade completes within CONTENT_FADE_OUT instead of being cut off. */
+  const fastOut = phase === "collapsing-content" || phase === "closing";
+  const contentTransition = (slow) =>
+    fastOut ? "opacity 150ms ease, transform 160ms ease" : slow;
   const isExpandedVisual =
     phase === "expanded" ||
     phase === "collapsing-content" ||
@@ -530,16 +549,25 @@ const ExpandedOverlay = ({
       openTargetRectRef.current,
     );
 
+    let contentTimer;
+
     const openRaf = requestAnimationFrame(() => {
       setPhase("expanding");
       motion.addEventListener("transitionend", handleOpenEnd);
       motion.style.transition = `transform ${FLIP_DURATION}ms ${FLIP_EASE}`;
       motion.style.transform = "translate3d(0,0,0) scale3d(1,1,1)";
 
+      // Begin revealing the detail content while the panel finishes
+      // expanding — the flight and the content are one continuous motion.
+      contentTimer = window.setTimeout(() => {
+        setContentShown(true);
+      }, CONTENT_REVEAL_DELAY);
+
       // Fallback: if transitionend never fires (common on mobile), force advance after animation completes
       fallbackTimer = window.setTimeout(() => {
         motion.removeEventListener("transitionend", handleOpenEnd);
         setPhase((p) => (p === "expanding" ? "expanded" : p));
+        setContentShown(true);
       }, FLIP_DURATION + 150);
     });
 
@@ -547,51 +575,7 @@ const ExpandedOverlay = ({
       cancelAnimationFrame(openRaf);
       motion.removeEventListener("transitionend", handleOpenEnd);
       window.clearTimeout(fallbackTimer);
-    };
-  }, []);
-
-  React.useEffect(() => {
-    if (phase !== "expanded") return undefined;
-
-    const onKeyDown = (event) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        setIsHovered(false);
-        resetMouseEffects();
-        setPhase("collapsing-content");
-
-        closePrepTimerRef.current = window.setTimeout(() => {
-          const motion = motionRef.current;
-          if (!motion) return;
-
-          const nextOriginRect = getOriginRect?.() || originRect;
-          setPhase("closing");
-          motion.style.transition = `transform ${FLIP_DURATION}ms ${FLIP_EASE}`;
-          motion.style.transform = getFlipTransform(nextOriginRect, targetRect);
-
-          closeTimerRef.current = window.setTimeout(() => {
-            onClose();
-          }, FLIP_DURATION);
-        }, 90);
-      }
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [
-    getOriginRect,
-    onClose,
-    originRect,
-    phase,
-    resetMouseEffects,
-    targetRect,
-  ]);
-
-  React.useEffect(() => {
-    return () => {
-      cancelAnimationFrame(rafRef.current);
-      window.clearTimeout(closePrepTimerRef.current);
-      window.clearTimeout(closeTimerRef.current);
+      window.clearTimeout(contentTimer);
     };
   }, []);
 
@@ -601,26 +585,57 @@ const ExpandedOverlay = ({
 
     setIsHovered(false);
     resetMouseEffects();
+    setContentShown(false);
     setPhase("collapsing-content");
 
     closePrepTimerRef.current = window.setTimeout(() => {
       const nextOriginRect = getOriginRect?.() || originRect;
+      // Reveal the compact card beneath before the flight, then fade the
+      // overlay into it over the last stretch — no swap pop at landing.
+      onClosingStart?.();
       setPhase("closing");
-      motion.style.transition = `transform ${FLIP_DURATION}ms ${FLIP_EASE}`;
+      motion.style.transition = [
+        `transform ${FLIP_CLOSE_DURATION}ms ${FLIP_EASE}`,
+        `opacity ${FLIP_CROSSFADE}ms ease ${FLIP_CLOSE_DURATION - FLIP_CROSSFADE}ms`,
+      ].join(", ");
       motion.style.transform = getFlipTransform(nextOriginRect, targetRect);
+      motion.style.opacity = "0";
 
       closeTimerRef.current = window.setTimeout(() => {
         onClose();
-      }, FLIP_DURATION);
-    }, 90);
+      }, FLIP_CLOSE_DURATION);
+    }, CONTENT_FADE_OUT);
   }, [
     getOriginRect,
     onClose,
+    onClosingStart,
     originRect,
     phase,
     resetMouseEffects,
     targetRect,
   ]);
+
+  React.useEffect(() => {
+    if (phase !== "expanded") return undefined;
+
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        handleClose();
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [handleClose, phase]);
+
+  React.useEffect(() => {
+    return () => {
+      cancelAnimationFrame(rafRef.current);
+      window.clearTimeout(closePrepTimerRef.current);
+      window.clearTimeout(closeTimerRef.current);
+    };
+  }, []);
 
   if (typeof document === "undefined") return null;
 
@@ -825,8 +840,9 @@ const ExpandedOverlay = ({
                 ? "scale(1) rotate(0deg)"
                 : "scale(0.75) rotate(-45deg)",
               pointerEvents: showContent ? "auto" : "none",
-              transition:
+              transition: contentTransition(
                 "opacity 0.22s ease, transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), background 0.2s ease, border-color 0.2s ease",
+              ),
               "&:hover": {
                 background: "rgba(99, 68, 245, 0.08)",
                 borderColor: "rgba(99, 68, 245, 0.4)",
@@ -946,8 +962,9 @@ const ExpandedOverlay = ({
                 borderRadius: "1px",
                 my: showContent ? 3 : 0,
                 opacity: showContent ? 1 : 0,
-                transition:
-                  "width 0.35s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.22s ease, margin 0.3s ease",
+                transition: fastOut
+                  ? "width 160ms ease, opacity 140ms ease, margin 160ms ease"
+                  : "width 0.35s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.22s ease, margin 0.3s ease",
               }}
             />
 
@@ -962,8 +979,9 @@ const ExpandedOverlay = ({
                 maxWidth: "800px",
                 opacity: showContent ? 1 : 0,
                 transform: showContent ? "translateY(0)" : "translateY(10px)",
-                transition:
+                transition: contentTransition(
                   "opacity 0.28s ease, transform 0.34s cubic-bezier(0.22, 1, 0.36, 1)",
+                ),
               }}
             >
               {svc.detailed}
@@ -975,8 +993,9 @@ const ExpandedOverlay = ({
                   mt: 2.5,
                   opacity: showContent ? 1 : 0,
                   transform: showContent ? "translateY(0)" : "translateY(8px)",
-                  transition:
+                  transition: contentTransition(
                     "opacity 0.35s ease 0.15s, transform 0.4s cubic-bezier(0.22,1,0.36,1) 0.15s",
+                  ),
                 }}
               >
                 <a
@@ -1030,8 +1049,9 @@ const ExpandedOverlay = ({
                   gap: "0.6rem",
                   opacity: showContent ? 1 : 0,
                   transform: showContent ? "translateY(0)" : "translateY(8px)",
-                  transition:
+                  transition: contentTransition(
                     "opacity 0.35s ease 0.15s, transform 0.4s cubic-bezier(0.22,1,0.36,1) 0.15s",
+                  ),
                 }}
               >
                 <a
@@ -1148,6 +1168,9 @@ const ServicesSection = ({
   const [expandedIndex, setExpandedIndex] = React.useState(null);
   const [originRect, setOriginRect] = React.useState(null);
   const [targetRect, setTargetRect] = React.useState(null);
+  /* True while the overlay's close flight runs: the compact card and its
+     siblings come back underneath so the overlay crossfades into them. */
+  const [closingReveal, setClosingReveal] = React.useState(false);
 
   // Tell the parallax system not to navigate while a card is expanded
   React.useEffect(() => {
@@ -1277,6 +1300,7 @@ const ServicesSection = ({
 
       setOriginRect(cardOriginRect);
       setTargetRect(nextTargetRect);
+      setClosingReveal(false);
       setExpandedIndex(index);
     },
     [getTargetRect],
@@ -1286,6 +1310,7 @@ const ServicesSection = ({
     setExpandedIndex(null);
     setOriginRect(null);
     setTargetRect(null);
+    setClosingReveal(false);
   }, []);
 
   React.useLayoutEffect(() => {
@@ -1530,8 +1555,9 @@ const ServicesSection = ({
             }}
           >
             {services.map((svc, i) => {
-              const isThis = expandedIndex === i;
-              const shouldHideSibling = anyExpanded && !isThis;
+              const isThis = expandedIndex === i && !closingReveal;
+              const shouldHideSibling =
+                anyExpanded && expandedIndex !== i && !closingReveal;
 
               return (
                 <Box
@@ -1546,7 +1572,8 @@ const ServicesSection = ({
                     transform: shouldHideSibling
                       ? "scale(0.96) translateY(10px)"
                       : "none",
-                    pointerEvents: anyExpanded ? "none" : "auto",
+                    pointerEvents:
+                      anyExpanded && !closingReveal ? "none" : "auto",
                     transition:
                       "opacity 220ms ease, transform 320ms cubic-bezier(0.22, 1, 0.36, 1)",
                   }}
@@ -1568,19 +1595,20 @@ const ServicesSection = ({
               targetRect={targetRect}
               getOriginRect={() => getCellRect(expandedIndex) || originRect}
               onClose={handleClose}
+              onClosingStart={() => setClosingReveal(true)}
             />
           )}
 
           <Box
             sx={{
               mt: { xs: 3, md: 2 },
-              opacity: typingComplete && !anyExpanded ? 1 : 0,
+              opacity: typingComplete && (!anyExpanded || closingReveal) ? 1 : 0,
               transform:
-                typingComplete && !anyExpanded
+                typingComplete && (!anyExpanded || closingReveal)
                   ? "translateY(0)"
                   : "translateY(12px)",
               transition: "opacity 0.5s ease, transform 0.5s ease",
-              pointerEvents: anyExpanded ? "none" : "auto",
+              pointerEvents: anyExpanded && !closingReveal ? "none" : "auto",
             }}
           >
             <button
