@@ -3,15 +3,20 @@ import React from "react";
 /* SpectralBloom — a flower grown from spectral light.
    An original Aetheris-family backdrop rendered in DOCUMENT space: the
    flower is rooted at the very bottom of the page, its serpentine stem
-   winds back and forth up the entire scroll height, and the bloom sits
-   near the top of the document. On load the stem sprouts into the first
-   viewport, three leaves fold out, and a bud fans open into ten spectral
-   petals (~3.5s). As the visitor scrolls, the head rises out of view and
-   the stem coils past — only stem mid-page — while petals detach from
-   their exact attached positions (no pop: same size, same angle, sway and
-   spin start at zero offset, fall speed eases in) and cascade down through
-   world space until they settle in a pile on the page-bottom ground beside
-   the root. Petal fall is one-way by design.
+   winds back and forth up the entire scroll height with leaves at
+   intermittent nodes along the whole way, and the bloom sits near the top
+   of the document. The sprout is one continuous motion: leaves unfold as
+   the rising tip passes their node, and the bud fans open right as the
+   stem tops out (~2.3s end to end). As the visitor scrolls, the head
+   rises out of view and coils of leafed stem pass by, while petals detach
+   seamlessly from their attached positions and cascade down through world
+   space to a pile on the page-bottom ground. Petal fall is one-way.
+
+   Scroll smoothness: the 30fps idle cap is bypassed whenever the scroll
+   position changed (the stem must track native scrolling frame-perfect),
+   the idle sway lives only in the tip region so the stem body is static
+   in world space, and the Bayer lattice scrolls with the document in
+   whole-cell steps so dithered edges do not crawl during scroll.
 
    Rendering is a single fullscreen SDF pass. The stem is a sinusoid graph
    x = f(worldY) with an analytic distance (cheap at any page length);
@@ -20,11 +25,12 @@ import React from "react";
    with pixelated upscale — the family signature.
 
    Engineering discipline matches the styleguide's fluid-background snippet:
-   30fps cap, low-power context, pause when the tab is hidden, a static
-   full-bloom frame under prefers-reduced-motion (repainted on theme change
-   and on scroll so the world stays anchored), and the theme read from
-   data-theme every frame. The only CPU work is a 10-petal state machine
-   (attached -> falling -> settled) fed to the shader as a vec4 array. */
+   30fps idle cap, low-power context, pause when the tab is hidden, a
+   static full-bloom frame under prefers-reduced-motion (repainted on theme
+   change and on scroll so the world stays anchored), and the theme read
+   from data-theme every frame. The only CPU work is a 10-petal state
+   machine (attached -> falling -> settled) fed to the shader as a vec4
+   array. */
 
 const RENDER_SCALE = 0.5;
 const FRAME_INTERVAL_MS = 1000 / 30;
@@ -65,7 +71,6 @@ uniform vec2 u_res;
 uniform float u_time;
 uniform float u_light;
 uniform float u_tip;
-uniform float u_leaf;
 uniform float u_bloom;
 uniform float u_scroll;
 uniform vec4 u_petals[10];
@@ -76,6 +81,10 @@ float bayer2(vec2 a) {
 }
 #define bayer4(a) (bayer2(0.5 * (a)) * 0.25 + bayer2(a))
 #define bayer8(a) (bayer4(0.5 * (a)) * 0.25 + bayer2(a))
+
+float hash1(float n) {
+  return fract(sin(n * 127.1) * 43758.5453);
+}
 
 /* Spectral palette: cyan -> magenta -> yellow -> violet (matches CSS tokens). */
 vec3 spectral(float h) {
@@ -115,6 +124,19 @@ float sdPetalShape(vec2 p, float len, float wid) {
   return d;
 }
 
+/* Serpentine stem as a graph x = f(y). The body has a FIXED phase so it
+   is perfectly still in world space while scrolling; the only motion is
+   a gentle sway confined to the tip region. Constants are mirrored in JS
+   (STEM_AMP / STEM_FREQ / STEM_PHASE / HEAD_Y / the sway term). */
+float stemX(float wy, float rootX, float tip, float t) {
+  float sway = 0.02 * sin(0.6 * t + 1.0) * smoothstep(tip - 1.4, tip, wy);
+  return rootX + 0.18 * sin(wy * 3.3 + 2.0) + sway;
+}
+
+float stemSlope(float wy) {
+  return 0.18 * 3.3 * cos(wy * 3.3 + 2.0);
+}
+
 void main() {
   vec2 uv = (gl_FragCoord.xy * 2.0 - u_res) / u_res.y;
   float aspect = u_res.x / u_res.y;
@@ -123,47 +145,49 @@ void main() {
   /* World space: the document scrolls past the fixed canvas. */
   vec2 wp = vec2(uv.x, uv.y - u_scroll);
 
-  /* Serpentine stem as a graph x = f(y): rooted at 15% viewport width,
-     curving back and forth continuously down the whole page, with a
-     near-imperceptible idle sway in its phase. Constants are mirrored
-     in JS (STEM_AMP / STEM_FREQ / STEM_PHASE / HEAD_Y). */
   float rootX = -0.70 * aspect;
-  float phase = 2.0 + 0.06 * sin(t * 0.4);
-  float sy = wp.y * 3.3 + phase;
-  float fx = rootX + 0.18 * sin(sy);
-  float fp = 0.18 * 3.3 * cos(sy);
+
+  float fx = stemX(wp.y, rootX, u_tip, t);
+  float fp = stemSlope(wp.y);
   float dstem = abs(wp.x - fx) / sqrt(1.0 + fp * fp);
   dstem = max(dstem, wp.y - u_tip);
   float taper = smoothstep(u_tip - 1.2, u_tip, wp.y);
   dstem -= mix(0.017, 0.007, taper);
 
-  /* Leaves: three near the top of the stem, alternating sides, each
-     unfolding from the stem tangent once the tip has grown past it. */
+  /* Leaves at intermittent nodes down the ENTIRE stem (every 0.65 world
+     units, alternating sides, seeded size/angle variation). Each leaf's
+     unfold progress derives from how far the tip has grown past its node
+     — one rule that makes leaves open with the sprout during the intro
+     and stand fully open along the stem when scrolling. */
   float dleaf = 1e4;
   float leafShade = 1.0;
+  float kBase = floor((-0.1 - wp.y) / 0.65) - 1.0;
   for (int j = 0; j < 3; j++) {
-    float fj = float(j);
-    float wyj = -0.62 + 0.31 * fj;
-    float side = (mod(fj, 2.0) < 0.5) ? -1.0 : 1.0;
-    float uj = clamp((u_leaf - fj * 0.16) * 1.6, 0.0, 1.0);
-    uj = uj * uj * (3.0 - 2.0 * uj);
-    uj *= smoothstep(wyj + 0.05, wyj + 0.15, u_tip);
-    if (uj > 0.001) {
-      float ly = wyj * 3.3 + phase;
-      vec2 P = vec2(rootX + 0.18 * sin(ly), wyj);
-      vec2 tn = normalize(vec2(0.18 * 3.3 * cos(ly), 1.0));
-      float ang = atan(tn.y, tn.x) + side * mix(0.18, 1.05, uj);
-      vec2 lp = rot2(-ang) * (wp - P);
-      float dl = sdPetalShape(lp, 0.20 * uj, 0.055 * uj);
-      if (dl < dleaf) {
-        dleaf = dl;
-        leafShade = mix(0.72, 1.0, uj);
+    float k = kBase + float(j);
+    if (k >= 0.0) {
+      float nodeY = -0.1 - k * 0.65;
+      float side = (mod(k, 2.0) < 0.5) ? -1.0 : 1.0;
+      float h1 = hash1(k + 7.0);
+      float uj = smoothstep(0.12, 0.5, u_tip - nodeY);
+      if (uj > 0.001) {
+        vec2 P = vec2(stemX(nodeY, rootX, u_tip, t), nodeY);
+        vec2 tn = normalize(vec2(stemSlope(nodeY), 1.0));
+        float ang = atan(tn.y, tn.x)
+          + side * mix(0.18, 1.05, uj)
+          + (h1 - 0.5) * 0.25;
+        vec2 lp = rot2(-ang) * (wp - P);
+        float len = (0.17 + 0.06 * h1) * uj;
+        float dl = sdPetalShape(lp, len, 0.055 * uj);
+        if (dl < dleaf) {
+          dleaf = dl;
+          leafShade = mix(0.72, 1.0, uj) * (0.85 + 0.15 * h1);
+        }
       }
     }
   }
 
   /* Bloom head rides the stem tip. */
-  vec2 H = vec2(rootX + 0.18 * sin(u_tip * 3.3 + phase), u_tip);
+  vec2 H = vec2(stemX(u_tip, rootX, u_tip, t), u_tip);
   float bloom = clamp(u_bloom, 0.0, 1.2);
   float opened = min(bloom, 1.0);
 
@@ -217,9 +241,12 @@ void main() {
   colOut *= mix(1.0, 0.60, u_light);
   aOut = clamp(aOut * mix(1.0, 1.05, u_light), 0.0, 1.0);
 
-  /* Family signature: Bayer-8 ordered dither, quantized to a few levels. */
+  /* Family signature: Bayer-8 ordered dither. The lattice scrolls with
+     the document in whole-cell steps so edges do not crawl during
+     scroll; quantized to a few levels. */
   float qlevels = mix(5.0, 7.0, u_light);
-  float dith = bayer8(gl_FragCoord.xy) - 0.5;
+  vec2 dco = gl_FragCoord.xy - vec2(0.0, floor(u_scroll * u_res.y * 0.5));
+  float dith = bayer8(dco) - 0.5;
   colOut = clamp(colOut + dith / qlevels, 0.0, 1.0);
   colOut = floor(colOut * qlevels + 0.5) / qlevels;
   aOut = clamp(aOut + dith / qlevels, 0.0, 1.0);
@@ -321,7 +348,6 @@ const SpectralBloom = () => {
       time: gl.getUniformLocation(program, "u_time"),
       light: gl.getUniformLocation(program, "u_light"),
       tip: gl.getUniformLocation(program, "u_tip"),
-      leaf: gl.getUniformLocation(program, "u_leaf"),
       bloom: gl.getUniformLocation(program, "u_bloom"),
       scroll: gl.getUniformLocation(program, "u_scroll"),
       petals:
@@ -354,6 +380,7 @@ const SpectralBloom = () => {
     let maxScrollProgress = 0;
     let rafId = 0;
     let lastFrameAt = 0;
+    let lastDrawnScrollY = -1;
     let growStartS = -1;
     let staticRedrawQueued = false;
 
@@ -368,15 +395,16 @@ const SpectralBloom = () => {
       return -1 - (Math.max(range, 0) / Math.max(window.innerHeight, 1)) * 2;
     };
 
-    /* Mirrors the shader's stem so detaching petals spawn exactly where
-       their attached twin was drawn (same constants, same idle sway). */
+    /* Mirrors the shader's stemX at the tip so detaching petals spawn
+       exactly where their attached twin was drawn (same constants, same
+       tip sway, which is at full strength at the tip itself). */
     const flowerTip = (timeS) => {
       const aspect = canvas.width / Math.max(canvas.height, 1);
-      const phase = STEM_PHASE + 0.06 * Math.sin(timeS * 0.4);
       return {
         x:
           -0.7 * aspect +
-          STEM_AMP * Math.sin(HEAD_Y * STEM_FREQ + phase),
+          STEM_AMP * Math.sin(HEAD_Y * STEM_FREQ + STEM_PHASE) +
+          0.02 * Math.sin(0.6 * timeS + 1.0),
         y: HEAD_Y,
       };
     };
@@ -437,9 +465,13 @@ const SpectralBloom = () => {
       }
     };
 
+    /* One continuous sprout: the tip rises over 1.4s (leaves unfold in
+       the shader as the tip passes their node), and the bloom's spring
+       begins at 0.95s — while the tip is settling into place — so bud
+       formation overlaps the last of the growth and the flower opens
+       right as the stem finishes. */
     const draw = (timeS, staticFrame) => {
       let tip = HEAD_Y;
-      let leaf = 1;
       let bloom = 1;
       if (!staticFrame) {
         if (growStartS < 0) {
@@ -448,9 +480,8 @@ const SpectralBloom = () => {
         const tG = timeS - growStartS;
         tip =
           -1.15 +
-          (HEAD_Y + 1.15) * easeOutCubic(Math.min(1, Math.max(0, tG / 1.1)));
-        leaf = Math.min(1, Math.max(0, (tG - 0.9) / 1.2));
-        bloom = springBloom((tG - 1.9) / 1.4);
+          (HEAD_Y + 1.15) * easeOutCubic(Math.min(1, Math.max(0, tG / 1.4)));
+        bloom = springBloom((tG - 0.95) / 1.3);
       }
       gl.uniform2f(uniforms.res, canvas.width, canvas.height);
       gl.uniform1f(uniforms.time, timeS);
@@ -459,7 +490,6 @@ const SpectralBloom = () => {
         document.documentElement.getAttribute("data-theme") === "light" ? 1 : 0,
       );
       gl.uniform1f(uniforms.tip, tip);
-      gl.uniform1f(uniforms.leaf, leaf);
       gl.uniform1f(uniforms.bloom, bloom);
       gl.uniform1f(uniforms.scroll, scrollOffset());
       gl.uniform4fv(uniforms.petals, petalData);
@@ -471,13 +501,17 @@ const SpectralBloom = () => {
 
     const tick = (now) => {
       rafId = window.requestAnimationFrame(tick);
-      if (now - lastFrameAt < FRAME_INTERVAL_MS) {
+      /* The 30fps idle cap would make the world-anchored stem judder
+         against native scrolling, so scroll changes draw every frame. */
+      const scrolled = window.scrollY !== lastDrawnScrollY;
+      if (!scrolled && now - lastFrameAt < FRAME_INTERVAL_MS) {
         return;
       }
       const dt = Math.min(0.1, (now - lastFrameAt) / 1000);
       lastFrameAt = now;
+      lastDrawnScrollY = window.scrollY;
       const timeS = now / 1000;
-      const bloomDone = growStartS >= 0 && timeS - growStartS > 3.4;
+      const bloomDone = growStartS >= 0 && timeS - growStartS > 2.6;
       updatePetals(timeS, dt, bloomDone);
       draw(timeS, false);
     };
