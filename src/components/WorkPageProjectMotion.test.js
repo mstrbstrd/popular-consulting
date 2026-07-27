@@ -8,7 +8,7 @@ describe("WorkPage project showcase visuals", () => {
   const css = fs.readFileSync(motionCssPath, "utf8");
   const indexSource = fs.readFileSync(indexPath, "utf8");
 
-  test("loads the replacement showcase stylesheet after work-page mode overrides", () => {
+  test("loads the report-grounded showcase stylesheet after work-page mode overrides", () => {
     const modesImport = indexSource.indexOf("./components/WorkPageModes.css");
     const motionImport = indexSource.indexOf("./components/WorkPageProjectMotionV2.css");
 
@@ -17,19 +17,31 @@ describe("WorkPage project showcase visuals", () => {
     expect(indexSource).not.toContain("./components/WorkPageProjectMotion.css");
   });
 
-  test("builds four genuinely different visual compositions", () => {
-    expect(css).toContain("staged transaction pipeline");
-    expect(css).toContain("multi-tenant orchestration constellation");
-    expect(css).toContain("browser player, waveform and equalizer");
-    expect(css).toContain("generative shader canvas");
-
-    expect(css).toContain("grid-template-columns: repeat(4, 1fr)");
-    expect(css).toContain("creator-queue-orbit");
-    expect(css).toContain("spectrafy-equalizer");
-    expect(css).toContain("popcon-field-warp");
+  test("visualizes the technical concepts documented for every project", () => {
+    [
+      "market isolation",
+      "payment provider",
+      "NAV commit",
+      "verified Stripe webhook",
+      "PostgreSQL source of truth",
+      "audit + retry jobs",
+      "one audio engine",
+      "authorized redirect",
+      "private object",
+      "capability detection",
+      "CSS fallback",
+      "telemetry + a11y",
+    ].forEach((concept) => {
+      expect(css).toContain(concept);
+    });
   });
 
-  test("scopes every construction to its own showcase project", () => {
+  test("uses separate operational timelines instead of one generic animation", () => {
+    expect(css).toContain("commerce-ca-transaction");
+    expect(css).toContain("creator-verified-write");
+    expect(css).toContain("spectrafy-request-trace");
+    expect(css).toContain("popcon-route-fallback");
+
     [1, 2, 3, 4].forEach((projectIndex) => {
       expect(css).toContain(`.work-project:nth-child(${projectIndex})`);
     });
