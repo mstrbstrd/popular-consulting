@@ -32,9 +32,6 @@ const PROJECTS = [
     ],
     status: "Live client platform",
     links: [PUBLIC_LINKS.liveStorefront],
-    accent: "#f4c45e",
-    accentRgb: "244, 196, 94",
-    accentSecondary: "#ff8a4c",
     visual: {
       label: "Commerce operating system",
       core: "Commerce",
@@ -74,9 +71,6 @@ const PROJECTS = [
         href: "https://creatoros-production-6fb1.up.railway.app/",
       },
     ],
-    accent: "#52e5a0",
-    accentRgb: "82, 229, 160",
-    accentSecondary: "#24ccff",
     visual: {
       label: "Multi-tenant operations",
       core: "CreatorOS",
@@ -116,9 +110,6 @@ const PROJECTS = [
         href: "https://web-production-4b0eca.up.railway.app/",
       },
     ],
-    accent: "#24ccff",
-    accentRgb: "36, 204, 255",
-    accentSecondary: "#7b61ff",
     visual: {
       label: "Secure media product",
       core: "Spectrafy",
@@ -158,9 +149,6 @@ const PROJECTS = [
         href: "https://github.com/mstrbstrd/popular-consulting",
       },
     ],
-    accent: "#b15dff",
-    accentRgb: "177, 93, 255",
-    accentSecondary: "#6344f5",
     visual: {
       label: "Interaction platform",
       core: "PopCon",
@@ -281,47 +269,8 @@ const WorkPageContent = () => {
     };
   }, []);
 
-  const pageVariables = {
-    colorScheme: isDark ? "dark" : "light",
-    "--work-bg": isDark ? "#0b0b18" : "#ffffff",
-    "--work-bg-raised": isDark ? "#10101f" : "#f7f7fb",
-    "--work-accent": isDark ? "#9C55FF" : "#6344F5",
-    "--work-accent-strong": isDark ? "#8b3ef5" : "#4f33d6",
-    "--work-glass": isDark
-      ? "rgba(12, 12, 29, 0.72)"
-      : "rgba(255, 255, 255, 0.68)",
-    "--work-glass-strong": isDark
-      ? "rgba(15, 15, 34, 0.9)"
-      : "rgba(255, 255, 255, 0.9)",
-    "--work-glass-soft": isDark
-      ? "rgba(255, 255, 255, 0.045)"
-      : "rgba(255, 255, 255, 0.54)",
-    "--work-text": isDark ? "rgba(244, 243, 255, 0.98)" : "#171522",
-    "--work-muted": isDark
-      ? "rgba(226, 225, 248, 0.69)"
-      : "rgba(32, 29, 46, 0.68)",
-    "--work-soft": isDark
-      ? "rgba(226, 225, 248, 0.48)"
-      : "rgba(32, 29, 46, 0.5)",
-    "--work-border": isDark
-      ? "rgba(255, 255, 255, 0.11)"
-      : "rgba(55, 43, 99, 0.13)",
-    "--work-border-strong": isDark
-      ? "rgba(255, 255, 255, 0.18)"
-      : "rgba(255, 255, 255, 0.82)",
-    "--work-grid": isDark
-      ? "rgba(255, 255, 255, 0.045)"
-      : "rgba(55, 43, 99, 0.055)",
-    "--work-shadow": isDark
-      ? "0 32px 90px rgba(0, 0, 0, 0.42)"
-      : "0 32px 90px rgba(56, 42, 112, 0.13)",
-    "--work-shadow-soft": isDark
-      ? "0 18px 50px rgba(0, 0, 0, 0.24)"
-      : "0 18px 50px rgba(56, 42, 112, 0.08)",
-  };
-
   return (
-    <div className="work-page" style={pageVariables}>
+    <div className="work-page">
       <div className="work-page__ambient" aria-hidden="true">
         <span className="work-page__aurora work-page__aurora--one" />
         <span className="work-page__aurora work-page__aurora--two" />
@@ -525,15 +474,7 @@ const WorkPageContent = () => {
 
           <div className="work-page__project-list">
             {PROJECTS.map((project) => (
-              <article
-                className="work-project"
-                key={project.title}
-                style={{
-                  "--project-accent": project.accent,
-                  "--project-rgb": project.accentRgb,
-                  "--project-secondary": project.accentSecondary,
-                }}
-              >
+              <article className="work-project" key={project.title}>
                 <figure className="work-project__visual" aria-hidden="true">
                   <div className="work-project__visual-topline">
                     <span>{project.number}</span>
