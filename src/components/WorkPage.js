@@ -283,8 +283,10 @@ const WorkPageContent = () => {
 
   const pageVariables = {
     colorScheme: isDark ? "dark" : "light",
-    "--work-bg": isDark ? "#070711" : "#f4f3f9",
-    "--work-bg-raised": isDark ? "#0c0c1a" : "#fbfaff",
+    "--work-bg": isDark ? "#0b0b18" : "#ffffff",
+    "--work-bg-raised": isDark ? "#10101f" : "#f7f7fb",
+    "--work-accent": isDark ? "#9C55FF" : "#6344F5",
+    "--work-accent-strong": isDark ? "#8b3ef5" : "#4f33d6",
     "--work-glass": isDark
       ? "rgba(12, 12, 29, 0.72)"
       : "rgba(255, 255, 255, 0.68)",
@@ -552,7 +554,6 @@ const WorkPageContent = () => {
                           index + 1
                         }`}
                         key={node}
-                        style={{ "--node-delay": `${index * 120}ms` }}
                       >
                         {node}
                       </span>
