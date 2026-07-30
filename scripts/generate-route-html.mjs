@@ -113,12 +113,14 @@ const applyMetadata = (html, metadata) => {
 };
 
 /* The base document loads only the immersive routes' font set (Poppins).
-   /work is the sole consumer of the Aetheris pairing, so its generated HTML
-   swaps the Google Fonts stylesheet instead of shipping 11 files everywhere. */
+   /work is the sole consumer of its editorial and technical type system, so
+   generated route HTML swaps the font stylesheet and adds its scoped type CSS. */
 const IMMERSIVE_FONTS_HREF =
   "https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,200;0,600;1,100;1,200&display=swap";
 const WORK_FONTS_HREF =
-  "https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap";
+  "https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap";
+const WORK_TYPOGRAPHY_LINK =
+  '<link rel="stylesheet" href="/work-typography.css?v=20260730" />';
 
 const writeRoute = (routeKey, destinationDirectory) => {
   const metadata = metadataByRoute[routeKey];
@@ -132,6 +134,12 @@ const writeRoute = (routeKey, destinationDirectory) => {
       throw new Error("Could not find route font stylesheet in build/index.html.");
     }
     html = html.replace(IMMERSIVE_FONTS_HREF, WORK_FONTS_HREF);
+    html = replaceOnce(
+      html,
+      /<\/head>/i,
+      `${WORK_TYPOGRAPHY_LINK}</head>`,
+      "closing head tag for work typography",
+    );
   }
   const targetDirectory = path.join(buildDirectory, destinationDirectory);
   fs.mkdirSync(targetDirectory, { recursive: true });
