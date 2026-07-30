@@ -1,0 +1,499 @@
+/*
+ * Cohesive navigation treatment for the immersive shell and /work.
+ *
+ * The immersive navigation is the visual reference. This layer keeps its
+ * floating glass pill, then maps the /work header onto the same chrome,
+ * typography, spacing, and interaction language. It styles navigation only
+ * and never selects a scene, shader canvas, or authored background layer.
+ */
+
+/* Active destinations use only the existing dot. The spectral side rail is
+   reserved for pointer hover so state and interaction are not conflated. */
+
+html body .nav-link--active {
+  color: var(--aetheris-ink-2) !important;
+  background: transparent !important;
+  transform: none !important;
+}
+
+html body .nav-link--active::before,
+html body .nav-overlay-link--active::before {
+  opacity: 0 !important;
+  transform: scaleY(0.35) !important;
+}
+
+html body .nav-link--active:hover {
+  color: var(--aetheris-ink) !important;
+  background: var(--aetheris-state-layer) !important;
+  transform: translateX(2px) !important;
+}
+
+html body .nav-link--active:hover::before,
+html body .nav-overlay-link--active:hover::before {
+  opacity: 1 !important;
+  transform: scaleY(1) !important;
+}
+
+html body .nav-overlay-link--active {
+  color: var(--aetheris-ink-2) !important;
+  background: transparent !important;
+  font-weight: 500 !important;
+}
+
+html body .nav-overlay-link--active::after {
+  content: "";
+  position: absolute;
+  bottom: 0.9rem;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--aetheris-spectral);
+  box-shadow: 0 0 10px var(--aetheris-spectral-glow);
+  transform: translateX(-50%);
+}
+
+/* Theme controls are integrated nav actions, not independent call-to-action
+   buttons. A restrained spectral divider identifies the control cluster. */
+
+html body .nav-theme-toggle:not(.nav-overlay-theme) {
+  position: relative !important;
+  overflow: visible !important;
+  width: 44px !important;
+  height: 44px !important;
+  margin-left: 1.2rem !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: var(--aetheris-radius-md) !important;
+  color: var(--aetheris-ink-2) !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  transition:
+    color var(--aetheris-motion-fast) var(--aetheris-ease-standard),
+    background var(--aetheris-motion-fast) var(--aetheris-ease-standard),
+    transform var(--aetheris-motion-medium) var(--aetheris-ease-spring) !important;
+}
+
+html body .nav-theme-toggle:not(.nav-overlay-theme)::before {
+  content: "";
+  position: absolute;
+  top: 25%;
+  bottom: 25%;
+  left: -0.7rem;
+  width: 1px;
+  border-radius: var(--aetheris-radius-pill);
+  background: var(--aetheris-spectral-v);
+  opacity: 0.56;
+  pointer-events: none;
+}
+
+html body .nav-theme-toggle:not(.nav-overlay-theme):hover {
+  color: var(--aetheris-ink) !important;
+  background: var(--aetheris-state-layer) !important;
+  box-shadow: none !important;
+  transform: translateX(2px) !important;
+}
+
+html body .nav-theme-toggle svg {
+  width: 16px;
+  height: 16px;
+}
+
+html body .nav-overlay-theme {
+  width: 52px !important;
+  height: 52px !important;
+  margin: 3.2rem 0 0 !important;
+  border: 1px solid transparent !important;
+  border-radius: var(--aetheris-radius-md) !important;
+  color: var(--aetheris-ink) !important;
+  background:
+    linear-gradient(var(--aetheris-panel), var(--aetheris-panel)) padding-box,
+    var(--aetheris-spectral-border-soft) border-box !important;
+  box-shadow: 0 0 18px var(--aetheris-spectral-glow) !important;
+}
+
+html body .nav-overlay-theme::before {
+  display: none !important;
+}
+
+html body .nav-overlay-theme:hover {
+  background:
+    linear-gradient(
+      var(--aetheris-panel-raised),
+      var(--aetheris-panel-raised)
+    ) padding-box,
+    var(--aetheris-spectral) border-box !important;
+  transform: translateY(-2px) !important;
+}
+
+/* /work header adopts the immersive floating pill rather than a separate
+   full-width application bar. */
+
+html body .work-page .work-page__header {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  display: flex;
+  justify-content: center;
+  padding:
+    max(2rem, env(safe-area-inset-top))
+    max(2.4rem, env(safe-area-inset-right))
+    0
+    max(2.4rem, env(safe-area-inset-left));
+  border: 0 !important;
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html body .work-page .work-page__header::after {
+  display: none !important;
+}
+
+html body .work-page .work-page__header-shell {
+  position: relative;
+  isolation: isolate;
+  width: max-content;
+  max-width: 100%;
+  min-height: 0;
+  margin: 0;
+  gap: 0;
+  padding: 0.75rem 0.75rem 0.75rem 1.6rem;
+  border: 1px solid var(--line) !important;
+  border-radius: var(--radius-pill) !important;
+  background: var(--glass-panel) !important;
+  backdrop-filter: var(--glass-blur-chrome) !important;
+  -webkit-backdrop-filter: var(--glass-blur-chrome) !important;
+  box-shadow: var(--shadow), var(--glass-specular) !important;
+}
+
+html body .work-page .work-page__header-shell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  border-radius: inherit;
+  padding: var(--spectral-border-width);
+  pointer-events: none;
+  background: var(--glass-ring-veil), var(--spectral-border-soft);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  opacity: 0.82;
+}
+
+html body .work-page .work-page__brand {
+  position: relative;
+  z-index: 6;
+  gap: 1rem;
+  flex-shrink: 0;
+  margin-left: -1.1rem;
+  padding: 0.55rem 1.1rem;
+  border-radius: var(--radius-md);
+  transition:
+    background var(--motion-fast) var(--ease-standard),
+    transform var(--motion-medium) var(--ease-spring);
+}
+
+html body .work-page .work-page__brand:hover {
+  background: var(--nav-hover-bg);
+  transform: translateX(2px);
+}
+
+html body .work-page .work-page__brand-mark {
+  width: 26px;
+  height: 26px;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+html body .work-page .work-page__brand:hover .work-page__brand-mark {
+  transform: none;
+}
+
+html body .work-page .work-page__brand-mark img {
+  width: 26px;
+  height: 26px;
+}
+
+html body .work-page .work-page__brand-copy {
+  display: block;
+}
+
+html body .work-page .work-page__brand-copy strong {
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 1.35rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+html body .work-page .work-page__brand-copy small {
+  display: none;
+}
+
+html body .work-page .work-page__nav {
+  position: relative;
+  z-index: 6;
+  gap: 0.1rem;
+}
+
+html body .work-page .work-page__nav::before {
+  content: "";
+  width: 1px;
+  height: 1.8rem;
+  flex: 0 0 auto;
+  margin: 0 1.4rem;
+  border-radius: var(--radius-pill);
+  background: var(--spectral-v);
+  opacity: 0.62;
+}
+
+html body .work-page .work-page__nav > a {
+  position: relative;
+  overflow: hidden;
+  min-height: 3.6rem;
+  height: auto;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  padding: 0.55rem 1.1rem;
+  border-radius: var(--radius-md);
+  color: var(--ink-2) !important;
+  background: transparent;
+  font-family: var(--font-mono);
+  font-size: 1.05rem;
+  font-weight: 500;
+  letter-spacing: 0.065em;
+  text-transform: uppercase;
+  transition:
+    color var(--motion-fast) var(--ease-standard),
+    background var(--motion-fast) var(--ease-standard),
+    transform var(--motion-medium) var(--ease-spring);
+}
+
+html body .work-page .work-page__nav > a::before,
+html body .work-page .work-page__menu a::before {
+  content: "";
+  position: absolute;
+  top: 18%;
+  bottom: 18%;
+  left: 0;
+  width: 2px;
+  border-radius: var(--radius-pill);
+  background: var(--spectral-v);
+  opacity: 0;
+  transform: scaleY(0.35);
+  transition:
+    opacity var(--motion-fast) var(--ease-standard),
+    transform var(--motion-medium) var(--ease-spring);
+}
+
+html body .work-page .work-page__nav > a:hover,
+html body .work-page .work-page__menu a:hover {
+  color: var(--ink) !important;
+  background: var(--nav-hover-bg);
+  transform: translateX(2px);
+}
+
+html body .work-page .work-page__nav > a:hover::before,
+html body .work-page .work-page__menu a:hover::before {
+  opacity: 1;
+  transform: scaleY(1);
+}
+
+html body .work-page .work-page__theme {
+  position: relative;
+  overflow: visible;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  margin-left: 1.2rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  color: var(--ink-2);
+  background: transparent;
+  box-shadow: none;
+  transition:
+    color var(--motion-fast) var(--ease-standard),
+    background var(--motion-fast) var(--ease-standard),
+    transform var(--motion-medium) var(--ease-spring);
+}
+
+html body .work-page .work-page__theme::before {
+  content: "";
+  position: absolute;
+  top: 25%;
+  bottom: 25%;
+  left: -0.7rem;
+  width: 1px;
+  border-radius: var(--radius-pill);
+  background: var(--spectral-v);
+  opacity: 0.56;
+  pointer-events: none;
+}
+
+html body .work-page .work-page__theme:hover {
+  color: var(--ink);
+  background: var(--nav-hover-bg);
+  box-shadow: none;
+  transform: translateX(2px);
+}
+
+html body .work-page .work-page__theme:active {
+  box-shadow: none;
+  transform: translateY(var(--press-y)) scale(0.99);
+}
+
+html body .work-page .work-page__theme > span:last-child {
+  display: none;
+}
+
+html body .work-page .work-page__theme-icon {
+  width: 16px;
+  height: 16px;
+}
+
+html body .work-page .work-page__menu-toggle {
+  position: relative;
+  z-index: 6;
+  flex: 0 0 auto;
+  margin-left: 0.4rem;
+}
+
+html body .work-page .work-page__menu {
+  position: absolute;
+  top: calc(100% - 0.4rem);
+  right: auto;
+  left: 50%;
+  z-index: 1001;
+  isolation: isolate;
+  width: min(42rem, calc(100% - 3.2rem));
+  transform: translateX(-50%);
+  border: 1px solid var(--line) !important;
+  border-radius: var(--radius-lg);
+  background: var(--glass-panel-raised) !important;
+  backdrop-filter: var(--glass-blur-chrome) !important;
+  -webkit-backdrop-filter: var(--glass-blur-chrome) !important;
+  box-shadow: var(--shadow), var(--glass-specular) !important;
+}
+
+html body .work-page .work-page__menu::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  border-radius: inherit;
+  padding: var(--spectral-border-width);
+  pointer-events: none;
+  background: var(--glass-ring-veil), var(--spectral-border-soft);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+}
+
+html body .work-page .work-page__menu a {
+  position: relative;
+  z-index: 4;
+  overflow: hidden;
+  color: var(--ink-2) !important;
+  font-family: var(--font-mono);
+  font-size: 1.15rem;
+  font-weight: 500;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+  transition:
+    color var(--motion-fast) var(--ease-standard),
+    background var(--motion-fast) var(--ease-standard),
+    transform var(--motion-medium) var(--ease-spring);
+}
+
+@media (max-width: 900px) {
+  html body .work-page .work-page__header {
+    padding:
+      max(1.4rem, env(safe-area-inset-top))
+      max(1.2rem, env(safe-area-inset-right))
+      0
+      max(1.2rem, env(safe-area-inset-left));
+  }
+
+  html body .work-page .work-page__header-shell {
+    width: 100%;
+    max-width: none;
+    justify-content: space-between;
+    padding: 0.7rem 0.7rem 0.7rem 1.4rem;
+    border-radius: 2rem !important;
+  }
+
+  html body .work-page .work-page__nav {
+    min-width: 0;
+    flex: 1;
+    justify-content: flex-end;
+  }
+
+  html body .work-page .work-page__nav::before {
+    display: none;
+  }
+
+  html body .work-page .work-page__theme {
+    margin-left: 0;
+  }
+
+  html body .work-page .work-page__theme::before {
+    display: none;
+  }
+}
+
+@media (max-width: 680px) {
+  html body .work-page .work-page__brand-copy {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html body .nav-link--active:hover,
+  html body .nav-theme-toggle:not(.nav-overlay-theme):hover,
+  html body .work-page .work-page__brand:hover,
+  html body .work-page .work-page__nav > a:hover,
+  html body .work-page .work-page__menu a:hover,
+  html body .work-page .work-page__theme:hover {
+    transform: none !important;
+  }
+}
+
+@media (forced-colors: active) {
+  html body .nav-theme-toggle,
+  html body .work-page .work-page__header-shell,
+  html body .work-page .work-page__theme,
+  html body .work-page .work-page__menu-toggle,
+  html body .work-page .work-page__menu {
+    border: 1px solid CanvasText !important;
+    color: CanvasText !important;
+    background: Canvas !important;
+    box-shadow: none !important;
+  }
+
+  html body .work-page .work-page__header-shell::after,
+  html body .work-page .work-page__menu::after,
+  html body .nav-theme-toggle::before,
+  html body .work-page .work-page__theme::before,
+  html body .work-page .work-page__nav::before,
+  html body .work-page .work-page__nav > a::before,
+  html body .work-page .work-page__menu a::before {
+    display: none !important;
+  }
+}
