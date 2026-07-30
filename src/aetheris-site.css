@@ -1,0 +1,1370 @@
+/*
+ * Shared Aetheris Iridescent layer.
+ *
+ * The immersive shell, standalone experiences, and shared MUI surfaces predate
+ * the /work and /engineering Aetheris treatments. This file is loaded after
+ * index.css and supplies one site-wide token contract. Component-specific
+ * motion and behavior remain in their owning React files.
+ */
+
+:root {
+  color-scheme: light;
+
+  --aetheris-spectral: linear-gradient(
+    135deg,
+    #00eeff 0%,
+    #ff00ff 42%,
+    #ffee00 72%,
+    #9d00ff 100%
+  );
+  --aetheris-spectral-h: linear-gradient(
+    90deg,
+    #00eeff 0%,
+    #ff00ff 42%,
+    #ffee00 72%,
+    #9d00ff 100%
+  );
+  --aetheris-spectral-v: linear-gradient(
+    180deg,
+    #9d00ff 0%,
+    #ffee00 28%,
+    #ff00ff 58%,
+    #00eeff 100%
+  );
+  --aetheris-spectral-border-soft: linear-gradient(
+    135deg,
+    rgba(0, 126, 140, 0.72) 0%,
+    rgba(186, 0, 186, 0.62) 42%,
+    rgba(138, 90, 0, 0.62) 72%,
+    rgba(111, 0, 181, 0.7) 100%
+  );
+  --aetheris-sheen: linear-gradient(
+    110deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.16) 42%,
+    rgba(255, 255, 255, 0.52) 50%,
+    rgba(255, 255, 255, 0.16) 58%,
+    transparent 100%
+  );
+
+  --aetheris-bg: #fff8f7;
+  --aetheris-surface: #ffffff;
+  --aetheris-panel: #fdf1f2;
+  --aetheris-panel-raised: #f1e5e6;
+  --aetheris-panel-strong: #ece0e1;
+  --aetheris-ink: #201a1b;
+  --aetheris-ink-2: #4c4546;
+  --aetheris-muted: #7e7576;
+  --aetheris-line: rgba(32, 26, 27, 0.08);
+  --aetheris-line-strong: rgba(32, 26, 27, 0.15);
+  --aetheris-state-layer: rgba(32, 26, 27, 0.05);
+  --aetheris-teal: #007e8c;
+  --aetheris-teal-soft: rgba(0, 126, 140, 0.1);
+  --aetheris-focus-line: rgba(0, 126, 140, 0.55);
+  --aetheris-focus-ring: rgba(0, 126, 140, 0.12);
+  --aetheris-spectral-glow: rgba(0, 126, 140, 0.12);
+  --aetheris-spectral-glow-strong: rgba(186, 0, 186, 0.12);
+
+  --aetheris-glass-surface: rgba(255, 252, 251, 0.58);
+  --aetheris-glass-panel: rgba(255, 251, 250, 0.74);
+  --aetheris-glass-panel-raised: rgba(255, 253, 252, 0.86);
+  --aetheris-glass-blur: blur(22px) saturate(1.25);
+  --aetheris-glass-blur-chrome: blur(24px) saturate(1.3);
+  --aetheris-glass-specular:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.4),
+    inset 0 0 24px -14px rgba(255, 255, 255, 0.35),
+    inset 0 -18px 36px -22px rgba(255, 255, 255, 0.45);
+  --aetheris-glass-ring-veil: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.6),
+    rgba(255, 255, 255, 0.22)
+  );
+  --aetheris-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.08),
+    0 4px 16px rgba(0, 0, 0, 0.06);
+  --aetheris-topbar: rgba(255, 248, 247, 0.62);
+
+  --aetheris-font-sans:
+    "Hanken Grotesk", Inter, ui-sans-serif, system-ui, sans-serif;
+  --aetheris-font-mono:
+    "JetBrains Mono", "SFMono-Regular", Consolas, ui-monospace, monospace;
+
+  --aetheris-radius-sm: 6px;
+  --aetheris-radius-md: 10px;
+  --aetheris-radius-lg: 14px;
+  --aetheris-radius-xl: 18px;
+  --aetheris-radius-glass: 26px;
+  --aetheris-radius-pill: 999px;
+
+  --aetheris-motion-fast: 150ms;
+  --aetheris-motion-medium: 240ms;
+  --aetheris-motion-slow: 420ms;
+  --aetheris-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --aetheris-ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
+  --aetheris-focus-halo:
+    0 0 0 3px var(--aetheris-focus-ring),
+    0 0 0 1px var(--aetheris-focus-line),
+    0 0 26px var(--aetheris-spectral-glow);
+
+  /* Compatibility values consumed by the older immersive components. */
+  --bg-page: var(--aetheris-bg);
+  --text-nav: color-mix(in srgb, var(--aetheris-ink) 84%, transparent);
+  --text-nav-hover: var(--aetheris-ink);
+  --text-nav-active: var(--aetheris-ink);
+  --text-nav-dim: color-mix(in srgb, var(--aetheris-ink-2) 82%, transparent);
+  --nav-separator: var(--aetheris-line-strong);
+  --burger-bar: var(--aetheris-ink-2);
+  --mobile-overlay-bg: rgba(255, 248, 247, 0.94);
+  --mobile-link: var(--aetheris-ink-2);
+  --mobile-link-hover: var(--aetheris-ink);
+  --loading-bg: var(--aetheris-bg);
+  --nav-pill-bg: var(--aetheris-glass-surface);
+  --focus-ring: 2px solid var(--aetheris-teal);
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --aetheris-spectral-border-soft: linear-gradient(
+    135deg,
+    rgba(0, 238, 255, 0.78) 0%,
+    rgba(255, 0, 255, 0.72) 42%,
+    rgba(255, 238, 0, 0.72) 72%,
+    rgba(157, 0, 255, 0.78) 100%
+  );
+  --aetheris-bg: #080809;
+  --aetheris-surface: #0e0e12;
+  --aetheris-panel: #13131a;
+  --aetheris-panel-raised: #18181f;
+  --aetheris-panel-strong: #1c1c24;
+  --aetheris-ink: #ede9f0;
+  --aetheris-ink-2: #9b94a6;
+  --aetheris-muted: #5e5768;
+  --aetheris-line: rgba(255, 255, 255, 0.07);
+  --aetheris-line-strong: rgba(255, 255, 255, 0.13);
+  --aetheris-state-layer: rgba(255, 255, 255, 0.04);
+  --aetheris-teal: #00eeff;
+  --aetheris-teal-soft: rgba(0, 238, 255, 0.1);
+  --aetheris-focus-line: rgba(0, 238, 255, 0.5);
+  --aetheris-focus-ring: rgba(0, 238, 255, 0.08);
+  --aetheris-spectral-glow: rgba(0, 238, 255, 0.18);
+  --aetheris-spectral-glow-strong: rgba(255, 0, 255, 0.18);
+
+  --aetheris-glass-surface: rgba(13, 13, 18, 0.5);
+  --aetheris-glass-panel: rgba(15, 15, 20, 0.64);
+  --aetheris-glass-panel-raised: rgba(22, 22, 29, 0.74);
+  --aetheris-glass-blur: blur(22px) saturate(1.15);
+  --aetheris-glass-blur-chrome: blur(24px) saturate(1.2);
+  --aetheris-glass-specular:
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.12),
+    inset 0 0 30px -12px rgba(255, 255, 255, 0.14),
+    inset 0 -20px 40px -20px rgba(255, 255, 255, 0.2);
+  --aetheris-glass-ring-veil: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.28),
+    rgba(255, 255, 255, 0.06)
+  );
+  --aetheris-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.5),
+    0 8px 24px rgba(0, 0, 0, 0.4);
+  --aetheris-topbar: rgba(10, 10, 14, 0.58);
+
+  --bg-page: var(--aetheris-bg);
+  --text-nav: color-mix(in srgb, var(--aetheris-ink) 88%, transparent);
+  --text-nav-hover: var(--aetheris-ink);
+  --text-nav-active: var(--aetheris-ink);
+  --text-nav-dim: color-mix(in srgb, var(--aetheris-ink-2) 86%, transparent);
+  --nav-separator: var(--aetheris-line-strong);
+  --burger-bar: var(--aetheris-ink);
+  --mobile-overlay-bg: rgba(8, 8, 9, 0.95);
+  --mobile-link: var(--aetheris-ink-2);
+  --mobile-link-hover: var(--aetheris-ink);
+  --loading-bg: var(--aetheris-bg);
+  --nav-pill-bg: var(--aetheris-glass-surface);
+  --focus-ring: 2px solid var(--aetheris-teal);
+}
+
+body {
+  background: var(--aetheris-bg);
+  color: var(--aetheris-ink);
+  font-family: var(--aetheris-font-sans);
+}
+
+code,
+kbd,
+samp,
+pre {
+  font-family: var(--aetheris-font-mono);
+}
+
+/* Shared keyboard treatment. Route-specific systems can override this. */
+
+html body :where(a, button, input, textarea, select, [role="button"]):focus-visible {
+  outline: none;
+  box-shadow: var(--aetheris-focus-halo);
+}
+
+/* Skip links */
+
+html body .skip-to-content,
+html body .standalone-experience__skip {
+  border: 1px solid transparent !important;
+  border-radius: 0 0 var(--aetheris-radius-md) var(--aetheris-radius-md) !important;
+  color: var(--aetheris-ink) !important;
+  background:
+    linear-gradient(
+      var(--aetheris-panel-strong),
+      var(--aetheris-panel-strong)
+    ) padding-box,
+    var(--aetheris-spectral) border-box !important;
+  box-shadow: 0 0 22px var(--aetheris-spectral-glow) !important;
+  font-family: var(--aetheris-font-mono) !important;
+  font-size: 1.2rem !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.05em !important;
+  text-transform: uppercase;
+}
+
+/* Shared navigation */
+
+html body .nav-pill {
+  position: relative;
+  isolation: isolate;
+  border: 1px solid var(--aetheris-line) !important;
+  background: var(--aetheris-glass-surface) !important;
+  backdrop-filter: var(--aetheris-glass-blur-chrome) !important;
+  -webkit-backdrop-filter: var(--aetheris-glass-blur-chrome) !important;
+  box-shadow: var(--aetheris-shadow), var(--aetheris-glass-specular) !important;
+}
+
+html body .nav-pill::after,
+html body .standalone-experience__header::after,
+html body .orb-pill::after,
+html body #contact div[style*="border-radius: 100px"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  border-radius: inherit;
+  padding: 1px;
+  pointer-events: none;
+  background:
+    var(--aetheris-glass-ring-veil),
+    var(--aetheris-spectral-border-soft);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  opacity: 0.82;
+}
+
+html body .nav-brand {
+  border-radius: var(--aetheris-radius-md) !important;
+  transition:
+    background var(--aetheris-motion-fast) var(--aetheris-ease-standard),
+    transform var(--aetheris-motion-medium) var(--aetheris-ease-spring) !important;
+}
+
+html body .nav-brand:hover {
+  background: var(--aetheris-state-layer) !important;
+  transform: translateX(2px);
+}
+
+html body .nav-brand-name {
+  color: var(--aetheris-ink) !important;
+  font-family: var(--aetheris-font-sans) !important;
+  font-size: 1.35rem !important;
+  font-style: normal !important;
+  font-weight: 650 !important;
+  letter-spacing: -0.02em !important;
+}
+
+html body .nav-rule {
+  width: 1px !important;
+  background: var(--aetheris-spectral-v) !important;
+  opacity: 0.62;
+}
+
+html body .nav-link {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--aetheris-radius-md) !important;
+  color: var(--aetheris-ink-2) !important;
+  font-family: var(--aetheris-font-mono) !important;
+  font-size: 1.05rem !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.065em !important;
+  transition:
+    color var(--aetheris-motion-fast) var(--aetheris-ease-standard),
+    background var(--aetheris-motion-fast) var(--aetheris-ease-standard),
+    transform var(--aetheris-motion-medium) var(--aetheris-ease-spring) !important;
+}
+
+html body .nav-link::before,
+html body .nav-overlay-link::before {
+  content: "";
+  position: absolute;
+  top: 18%;
+  bottom: 18%;
+  left: 0;
+  width: 2px;
+  border-radius: var(--aetheris-radius-pill);
+  background: var(--aetheris-spectral-v);
+  opacity: 0;
+  transform: scaleY(0.35);
+  transition:
+    opacity var(--aetheris-motion-fast) var(--aetheris-ease-standard),
+    transform var(--aetheris-motion-medium) var(--aetheris-ease-spring);
+}
+
+html body .nav-link:hover,
+html body .nav-link--active {
+  color: var(--aetheris-ink) !important;
+  background: var(--aetheris-state-layer) !important;
+  transform: translateX(2px);
+}
+
+html body .nav-link:hover::before,
+html body .nav-link--active::before,
+html body .nav-overlay-link:hover::before,
+html body .nav-overlay-link--active::before {
+  opacity: 1;
+  transform: scaleY(1);
+}
+
+html body .nav-dot {
+  width: 4px !important;
+  height: 4px !important;
+  background: var(--aetheris-spectral) !important;
+  box-shadow: 0 0 10px var(--aetheris-spectral-glow) !important;
+}
+
+html body .nav-theme-toggle,
+html body .nav-burger {
+  border: 1px solid transparent !important;
+  border-radius: var(--aetheris-radius-md) !important;
+  color: var(--aetheris-ink) !important;
+  background:
+    linear-gradient(var(--aetheris-panel), var(--aetheris-panel)) padding-box,
+    var(--aetheris-spectral-border-soft) border-box !important;
+  box-shadow: none !important;
+  transition:
+    background var(--aetheris-motion-medium) var(--aetheris-ease-standard),
+    box-shadow var(--aetheris-motion-medium) var(--aetheris-ease-standard),
+    transform var(--aetheris-motion-medium) var(--aetheris-ease-spring) !important;
+}
+
+html body .nav-theme-toggle:hover,
+html body .nav-burger:hover {
+  color: var(--aetheris-ink) !important;
+  background:
+    linear-gradient(
+      var(--aetheris-panel-raised),
+      var(--aetheris-panel-raised)
+    ) padding-box,
+    var(--aetheris-spectral) border-box !important;
+  box-shadow: 0 0 20px var(--aetheris-spectral-glow) !important;
+  transform: translateY(-2px);
+}
+
+html body .nav-brand:focus-visible,
+html body .nav-link:focus-visible,
+html body .nav-theme-toggle:focus-visible,
+html body .nav-burger:focus-visible,
+html body .nav-overlay-link:focus-visible {
+  outline: none !important;
+  box-shadow: var(--aetheris-focus-halo) !important;
+}
+
+html body .nav-overlay {
+  background:
+    radial-gradient(
+      circle at 16% 8%,
+      color-mix(in srgb, var(--aetheris-teal) 10%, transparent),
+      transparent 36rem
+    ),
+    radial-gradient(
+      circle at 86% 92%,
+      color-mix(in srgb, #ff00ff 8%, transparent),
+      transparent 34rem
+    ),
+    var(--mobile-overlay-bg) !important;
+  backdrop-filter: var(--aetheris-glass-blur-chrome) !important;
+  -webkit-backdrop-filter: var(--aetheris-glass-blur-chrome) !important;
+}
+
+html body .nav-overlay-link {
+  position: relative;
+  border-radius: var(--aetheris-radius-md) !important;
+  color: var(--aetheris-ink-2) !important;
+  font-family: var(--aetheris-font-mono) !important;
+  font-size: clamp(2.2rem, 8vw, 3.6rem) !important;
+  font-style: normal !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.045em !important;
+  text-transform: uppercase;
+}
+
+html body .nav-overlay-link:hover,
+html body .nav-overlay-link--active {
+  color: var(--aetheris-ink) !important;
+  background: var(--aetheris-state-layer) !important;
+}
+
+/* Section navigation and fallback background */
+
+html body .glass-gradient,
+html body .standalone-experience__glass,
+html body #root div[style*="z-index: 19000"][style*="saturate(100%)"] {
+  background:
+    radial-gradient(
+      circle at 12% 0%,
+      color-mix(in srgb, var(--aetheris-teal) 7%, transparent),
+      transparent 34rem
+    ),
+    radial-gradient(
+      circle at 90% 100%,
+      color-mix(in srgb, #ff00ff 5%, transparent),
+      transparent 32rem
+    ),
+    linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.01),
+      rgba(255, 255, 255, 0.004) 50%,
+      transparent
+    ) !important;
+}
+
+html body .section-dot {
+  border: 1px solid transparent !important;
+  background:
+    linear-gradient(
+      var(--aetheris-panel-strong),
+      var(--aetheris-panel-strong)
+    ) padding-box,
+    var(--aetheris-spectral-border-soft) border-box !important;
+  box-shadow: none !important;
+  transition:
+    background var(--aetheris-motion-medium) var(--aetheris-ease-standard),
+    box-shadow var(--aetheris-motion-medium) var(--aetheris-ease-standard),
+    transform var(--aetheris-motion-medium) var(--aetheris-ease-spring) !important;
+}
+
+html body .section-dot::before {
+  background: radial-gradient(
+    circle,
+    var(--aetheris-teal-soft),
+    transparent 72%
+  ) !important;
+}
+
+html body .section-dot:hover,
+html body .section-dot.active {
+  background:
+    linear-gradient(
+      var(--aetheris-panel-raised),
+      var(--aetheris-panel-raised)
+    ) padding-box,
+    var(--aetheris-spectral) border-box !important;
+  box-shadow: 0 0 18px var(--aetheris-spectral-glow) !important;
+}
+
+html body .section-dot.active {
+  transform: scale(1.2);
+}
+
+html body .section-dot:focus-visible,
+html body .scroll-indicator:focus-visible {
+  outline: none !important;
+  box-shadow: var(--aetheris-focus-halo) !important;
+}
+
+html body .scroll-indicator {
+  border: 1px solid transparent !important;
+  border-radius: var(--aetheris-radius-pill) !important;
+  color: var(--aetheris-ink) !important;
+  background:
+    linear-gradient(
+      var(--aetheris-glass-panel),
+      var(--aetheris-glass-panel)
+    ) padding-box,
+    var(--aetheris-spectral-border-soft) border-box !important;
+  backdrop-filter: var(--aetheris-glass-blur) !important;
+  -webkit-backdrop-filter: var(--aetheris-glass-blur) !important;
+  box-shadow: var(--aetheris-shadow), var(--aetheris-glass-specular) !important;
+  font-family: var(--aetheris-font-mono) !important;
+}
+
+html body .scroll-indicator:hover {
+  background:
+    linear-gradient(
+      var(--aetheris-glass-panel-raised),
+      var(--aetheris-glass-panel-raised)
+    ) padding-box,
+    var(--aetheris-spectral) border-box !important;
+  box-shadow:
+    var(--aetheris-shadow),
+    var(--aetheris-glass-specular),
+    0 0 22px var(--aetheris-spectral-glow) !important;
+}
+
+html body .fixed-background > div[aria-hidden="true"] > div:nth-child(1),
+html body .standalone-experience__fallback > span:nth-child(1) {
+  background: radial-gradient(
+    circle at 42% 40%,
+    rgba(0, 238, 255, 0.34) 0%,
+    rgba(255, 0, 255, 0.16) 38%,
+    transparent 72%
+  ) !important;
+}
+
+html body .fixed-background > div[aria-hidden="true"] > div:nth-child(2),
+html body .standalone-experience__fallback > span:nth-child(2) {
+  background: radial-gradient(
+    circle at 48% 48%,
+    rgba(255, 0, 255, 0.26) 0%,
+    rgba(255, 238, 0, 0.13) 38%,
+    transparent 72%
+  ) !important;
+}
+
+html body .fixed-background > div[aria-hidden="true"] > div:nth-child(3),
+html body .standalone-experience__fallback > span:nth-child(3) {
+  background: radial-gradient(
+    circle at 52% 46%,
+    rgba(157, 0, 255, 0.25) 0%,
+    rgba(0, 238, 255, 0.13) 40%,
+    transparent 72%
+  ) !important;
+}
+
+/* Shared reading typography */
+
+html body #bio,
+html body #services,
+html body #contact {
+  color: var(--aetheris-ink);
+  font-family: var(--aetheris-font-sans);
+}
+
+html body #bio h2,
+html body #services h2,
+html body #contact h2,
+html body .service-card h3,
+html body [data-a11y-dialog] h2,
+html body [data-a11y-dialog] h3 {
+  color: var(--aetheris-ink) !important;
+  font-family: var(--aetheris-font-sans) !important;
+  font-style: normal !important;
+  letter-spacing: -0.035em !important;
+  text-shadow: none !important;
+}
+
+/* A two-child Box plus Typography pair is the section's operational label. */
+
+html body #bio .MuiBox-root:has(
+    > .MuiBox-root:first-child:nth-last-child(2)
+  ):has(> .MuiTypography-root:last-child)
+  > .MuiBox-root:first-child,
+html body #services .MuiBox-root:has(
+    > .MuiBox-root:first-child:nth-last-child(2)
+  ):has(> .MuiTypography-root:last-child)
+  > .MuiBox-root:first-child,
+html body [data-a11y-dialog] .MuiBox-root:has(
+    > .MuiBox-root:first-child:nth-last-child(2)
+  ):has(> .MuiTypography-root:last-child)
+  > .MuiBox-root:first-child {
+  background: var(--aetheris-spectral) !important;
+  box-shadow: 0 0 14px var(--aetheris-spectral-glow) !important;
+}
+
+html body #bio .MuiBox-root:has(
+    > .MuiBox-root:first-child:nth-last-child(2)
+  ):has(> .MuiTypography-root:last-child)
+  > .MuiTypography-root:last-child,
+html body #services .MuiBox-root:has(
+    > .MuiBox-root:first-child:nth-last-child(2)
+  ):has(> .MuiTypography-root:last-child)
+  > .MuiTypography-root:last-child,
+html body [data-a11y-dialog] .MuiBox-root:has(
+    > .MuiBox-root:first-child:nth-last-child(2)
+  ):has(> .MuiTypography-root:last-child)
+  > .MuiTypography-root:last-child {
+  color: var(--aetheris-teal) !important;
+  font-family: var(--aetheris-font-mono) !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.1em !important;
+  text-transform: uppercase !important;
+}
+
+html body #bio h2 .MuiBox-root,
+html body #services h2 .MuiBox-root,
+html body #services .title-cursor-faster {
+  background: var(--aetheris-spectral-v) !important;
+  box-shadow: 0 0 14px var(--aetheris-spectral-glow);
+}
+
+/* Portrait card keeps the image dominant while gaining the shared optical edge. */
+
+html body #bio .MuiBox-root:has(> img[alt]) {
+  position: relative;
+  isolation: isolate;
+  border: 1px solid var(--aetheris-line-strong) !important;
+  border-radius: var(--aetheris-radius-xl) !important;
+  box-shadow:
+    var(--aetheris-shadow),
+    0 0 24px var(--aetheris-spectral-glow) !important;
+}
+
+html body #bio .MuiBox-root:has(> img[alt])::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  border-radius: inherit;
+  padding: 1px;
+  pointer-events: none;
+  background:
+    var(--aetheris-glass-ring-veil),
+    var(--aetheris-spectral-border-soft);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  opacity: 0.8;
+}
+
+/* Compact and expanded glass cards */
+
+html body .bio-card,
+html body .service-card,
+html body .contact-form,
+html body [data-a11y-dialog] > .MuiBox-root {
+  position: relative;
+  isolation: isolate;
+  border: 1px solid var(--aetheris-line-strong) !important;
+  color: var(--aetheris-ink) !important;
+  background: var(--aetheris-glass-panel) !important;
+  backdrop-filter: var(--aetheris-glass-blur) !important;
+  -webkit-backdrop-filter: var(--aetheris-glass-blur) !important;
+  box-shadow: var(--aetheris-shadow), var(--aetheris-glass-specular) !important;
+}
+
+html body .bio-card,
+html body .service-card {
+  border-radius: var(--aetheris-radius-xl) !important;
+}
+
+html body .contact-form,
+html body [data-a11y-dialog] > .MuiBox-root {
+  border-radius: var(--aetheris-radius-glass) !important;
+}
+
+html body .bio-card::before,
+html body .service-card::before,
+html body .contact-form::before,
+html body [data-a11y-dialog] > .MuiBox-root::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      circle at 5% 0%,
+      color-mix(in srgb, var(--aetheris-teal) 10%, transparent),
+      transparent 34%
+    ),
+    radial-gradient(
+      circle at 98% 100%,
+      color-mix(in srgb, #ff00ff 7%, transparent),
+      transparent 32%
+    );
+  opacity: 0.68;
+  transition: opacity var(--aetheris-motion-medium) var(--aetheris-ease-standard);
+}
+
+html body .bio-card::after,
+html body .service-card::after,
+html body .contact-form::after,
+html body [data-a11y-dialog] > .MuiBox-root::after {
+  content: "";
+  position: absolute;
+  inset: 0 !important;
+  z-index: 7 !important;
+  border-radius: inherit !important;
+  padding: 1px;
+  pointer-events: none;
+  background:
+    var(--aetheris-glass-ring-veil),
+    var(--aetheris-spectral-border-soft) !important;
+  filter: none !important;
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  opacity: 0.76 !important;
+  transition: opacity var(--aetheris-motion-medium) var(--aetheris-ease-standard) !important;
+}
+
+html body .bio-card:hover,
+html body .bio-card--hovered,
+html body .service-card:hover,
+html body .service-card--hovered,
+html body .contact-form:hover {
+  background: var(--aetheris-glass-panel-raised) !important;
+  box-shadow:
+    var(--aetheris-shadow),
+    var(--aetheris-glass-specular),
+    0 0 28px var(--aetheris-spectral-glow) !important;
+}
+
+html body .bio-card:hover::before,
+html body .bio-card:hover::after,
+html body .bio-card--hovered::before,
+html body .bio-card--hovered::after,
+html body .service-card:hover::before,
+html body .service-card:hover::after,
+html body .service-card--hovered::before,
+html body .service-card--hovered::after,
+html body .contact-form:hover::before,
+html body .contact-form:hover::after {
+  opacity: 1 !important;
+}
+
+/* Bio card divider and service icons */
+
+html body .bio-card > .MuiBox-root:nth-of-type(4) {
+  height: 1px !important;
+  background: var(--aetheris-spectral-h) !important;
+  box-shadow: 0 0 12px var(--aetheris-spectral-glow);
+}
+
+html body .service-card > .MuiBox-root:nth-of-type(4),
+html body [data-a11y-dialog] .MuiBox-root:has(> h3)
+  > .MuiBox-root:first-child {
+  background-color: transparent !important;
+  background-image: var(--aetheris-spectral) !important;
+  filter: drop-shadow(0 0 10px var(--aetheris-spectral-glow));
+}
+
+/* Expanded dialog metadata and close control */
+
+html body [data-a11y-dialog] .MuiBox-root:has(
+    > .MuiTypography-root:first-child:nth-last-child(2)
+  )
+  > .MuiTypography-root:first-child {
+  color: var(--aetheris-teal) !important;
+  font-family: var(--aetheris-font-mono) !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.09em !important;
+  text-transform: uppercase !important;
+}
+
+html body [data-a11y-close] {
+  border: 1px solid transparent !important;
+  color: var(--aetheris-ink) !important;
+  background:
+    linear-gradient(var(--aetheris-panel), var(--aetheris-panel)) padding-box,
+    var(--aetheris-spectral-border-soft) border-box !important;
+  box-shadow: none !important;
+  transition:
+    background var(--aetheris-motion-medium) var(--aetheris-ease-standard),
+    box-shadow var(--aetheris-motion-medium) var(--aetheris-ease-standard),
+    transform var(--aetheris-motion-medium) var(--aetheris-ease-spring) !important;
+}
+
+html body [data-a11y-close]:hover {
+  background:
+    linear-gradient(
+      var(--aetheris-panel-raised),
+      var(--aetheris-panel-raised)
+    ) padding-box,
+    var(--aetheris-spectral) border-box !important;
+  box-shadow: 0 0 18px var(--aetheris-spectral-glow) !important;
+}
+
+/* Contact */
+
+html body #contact > div:first-child {
+  background:
+    radial-gradient(
+      circle at 24% 30%,
+      color-mix(in srgb, var(--aetheris-teal) 9%, transparent),
+      transparent 42%
+    ),
+    radial-gradient(
+      circle at 78% 68%,
+      color-mix(in srgb, #ff00ff 7%, transparent),
+      transparent 40%
+    ) !important;
+}
+
+html body .contact-form h2 {
+  color: var(--aetheris-ink) !important;
+  background: none !important;
+  -webkit-background-clip: border-box !important;
+  background-clip: border-box !important;
+  -webkit-text-fill-color: currentColor !important;
+  text-fill-color: currentColor !important;
+  font-family: var(--aetheris-font-sans) !important;
+  font-style: normal !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.045em !important;
+}
+
+html body .contact-form h2::after {
+  bottom: -0.8rem !important;
+  width: min(11rem, 42%) !important;
+  height: 1px !important;
+  background: var(--aetheris-spectral-h) !important;
+  box-shadow: 0 0 14px var(--aetheris-spectral-glow);
+}
+
+html body .contact-form .MuiFilledInput-root {
+  border: 1px solid var(--aetheris-line-strong) !important;
+  border-radius: var(--aetheris-radius-md) !important;
+  color: var(--aetheris-ink) !important;
+  background: color-mix(
+    in srgb,
+    var(--aetheris-panel) 72%,
+    transparent
+  ) !important;
+  backdrop-filter: blur(8px) saturate(1.1) !important;
+  -webkit-backdrop-filter: blur(8px) saturate(1.1) !important;
+  box-shadow: inset 0 1px 5px rgba(0, 0, 0, 0.05) !important;
+}
+
+html body .contact-form .MuiFilledInput-root:hover {
+  border-color: var(--aetheris-line-strong) !important;
+  background: color-mix(
+    in srgb,
+    var(--aetheris-panel-raised) 78%,
+    transparent
+  ) !important;
+}
+
+html body .contact-form .MuiFilledInput-root.Mui-focused {
+  border: 1px solid transparent !important;
+  background:
+    linear-gradient(
+      var(--aetheris-panel-raised),
+      var(--aetheris-panel-raised)
+    ) padding-box,
+    var(--aetheris-spectral) border-box !important;
+  box-shadow: var(--aetheris-focus-halo) !important;
+  transform: translateY(-1px);
+}
+
+html body .contact-form .MuiInputLabel-root {
+  color: var(--aetheris-muted) !important;
+  font-family: var(--aetheris-font-mono) !important;
+  font-size: 1.1rem !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.05em !important;
+}
+
+html body .contact-form .MuiInputLabel-root.Mui-focused {
+  color: var(--aetheris-teal) !important;
+}
+
+html body .contact-form .MuiFilledInput-input {
+  color: var(--aetheris-ink) !important;
+  font-family: var(--aetheris-font-sans) !important;
+}
+
+html body .contact-form .MuiButton-root {
+  position: relative;
+  overflow: hidden;
+  min-height: 4.6rem;
+  border: 1px solid transparent !important;
+  border-radius: var(--aetheris-radius-md) !important;
+  color: var(--aetheris-ink) !important;
+  background:
+    linear-gradient(
+      var(--aetheris-panel-strong),
+      var(--aetheris-panel-strong)
+    ) padding-box,
+    var(--aetheris-spectral-border-soft) border-box !important;
+  box-shadow: 0 0 18px var(--aetheris-spectral-glow) !important;
+  font-family: var(--aetheris-font-mono) !important;
+  font-size: 1.15rem !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.055em !important;
+  text-transform: uppercase !important;
+  transition:
+    background var(--aetheris-motion-medium) var(--aetheris-ease-standard),
+    box-shadow var(--aetheris-motion-medium) var(--aetheris-ease-standard),
+    transform var(--aetheris-motion-medium) var(--aetheris-ease-spring) !important;
+}
+
+html body .contact-form .MuiButton-root::before {
+  display: none !important;
+}
+
+html body .contact-form .MuiButton-root::after {
+  content: "";
+  position: absolute;
+  inset: -2px -48%;
+  pointer-events: none;
+  background: var(--aetheris-sheen);
+  opacity: 0;
+  transform: translateX(-34%) skewX(-14deg);
+  transition:
+    opacity var(--aetheris-motion-medium) var(--aetheris-ease-standard),
+    transform var(--aetheris-motion-slow) var(--aetheris-ease-spring);
+}
+
+html body .contact-form .MuiButton-root:hover {
+  color: var(--aetheris-ink) !important;
+  background:
+    linear-gradient(
+      var(--aetheris-panel-raised),
+      var(--aetheris-panel-raised)
+    ) padding-box,
+    var(--aetheris-spectral) border-box !important;
+  box-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.16),
+    0 0 22px var(--aetheris-spectral-glow) !important;
+  transform: translateY(-2px) !important;
+}
+
+html body .contact-form .MuiButton-root:hover::after,
+html body .contact-form .MuiButton-root:focus-visible::after {
+  opacity: 1;
+  transform: translateX(34%) skewX(-14deg);
+}
+
+html body .contact-form .MuiButton-root:active {
+  transform: translateY(1px) scale(0.99) !important;
+}
+
+html body #contact div[style*="border-radius: 100px"] {
+  position: relative !important;
+  isolation: isolate;
+  border: 1px solid var(--aetheris-line) !important;
+  background: var(--aetheris-glass-surface) !important;
+  backdrop-filter: var(--aetheris-glass-blur-chrome) !important;
+  -webkit-backdrop-filter: var(--aetheris-glass-blur-chrome) !important;
+  box-shadow: var(--aetheris-shadow), var(--aetheris-glass-specular) !important;
+}
+
+html body #contact div[style*="border-radius: 100px"] > span {
+  color: var(--aetheris-ink-2) !important;
+  font-family: var(--aetheris-font-mono) !important;
+  font-style: normal !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.035em !important;
+}
+
+html body #contact div[style*="border-radius: 100px"] > div:nth-of-type(1),
+html body #contact div[style*="border-radius: 100px"] > div:nth-of-type(2) {
+  background: var(--aetheris-spectral-v) !important;
+  opacity: 0.58;
+}
+
+html body #contact a {
+  border-radius: var(--aetheris-radius-md) !important;
+}
+
+html body #contact a:hover {
+  background: var(--aetheris-state-layer) !important;
+}
+
+[data-theme="dark"] #contact a img[aria-hidden="true"] {
+  filter: brightness(0) invert(1) !important;
+}
+
+[data-theme="light"] #contact a img[aria-hidden="true"] {
+  filter: brightness(0) saturate(100%) !important;
+}
+
+/* Standalone experience shell */
+
+html body .standalone-experience {
+  --experience-page-bg: var(--aetheris-bg) !important;
+  --experience-nav-bg: var(--aetheris-topbar) !important;
+  --experience-nav-text: var(--aetheris-ink) !important;
+  --experience-nav-muted: var(--aetheris-muted) !important;
+  background: var(--aetheris-bg) !important;
+  color: var(--aetheris-ink) !important;
+  font-family: var(--aetheris-font-sans);
+}
+
+html body .standalone-experience__header {
+  position: fixed;
+  isolation: isolate;
+  border: 1px solid var(--aetheris-line) !important;
+  background: var(--aetheris-topbar) !important;
+  backdrop-filter: var(--aetheris-glass-blur-chrome) !important;
+  -webkit-backdrop-filter: var(--aetheris-glass-blur-chrome) !important;
+  box-shadow: var(--aetheris-shadow), var(--aetheris-glass-specular) !important;
+}
+
+html body .standalone-experience__header a,
+html body .standalone-experience__header button,
+html body .standalone-experience__header-label {
+  border-radius: var(--aetheris-radius-md) !important;
+  color: var(--aetheris-ink) !important;
+  font-family: var(--aetheris-font-mono) !important;
+  font-size: 1.1rem !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.045em !important;
+  text-transform: uppercase;
+}
+
+html body .standalone-experience__header-label {
+  color: var(--aetheris-muted) !important;
+  border-color: var(--aetheris-line-strong) !important;
+}
+
+html body .standalone-experience__header a,
+html body .standalone-experience__header button {
+  border: 1px solid transparent !important;
+  background:
+    linear-gradient(transparent, transparent) padding-box,
+    linear-gradient(transparent, transparent) border-box !important;
+  transition:
+    background var(--aetheris-motion-medium) var(--aetheris-ease-standard),
+    box-shadow var(--aetheris-motion-medium) var(--aetheris-ease-standard),
+    transform var(--aetheris-motion-medium) var(--aetheris-ease-spring) !important;
+}
+
+html body .standalone-experience__header a:hover,
+html body .standalone-experience__header button:hover {
+  background:
+    linear-gradient(var(--aetheris-panel), var(--aetheris-panel)) padding-box,
+    var(--aetheris-spectral-border-soft) border-box !important;
+  box-shadow: 0 0 18px var(--aetheris-spectral-glow) !important;
+  transform: translateY(-2px);
+}
+
+html body .standalone-experience__header a:focus-visible,
+html body .standalone-experience__header button:focus-visible {
+  outline: none !important;
+  box-shadow: var(--aetheris-focus-halo) !important;
+}
+
+/* Orb controls and low-capability orb */
+
+html body .orb-pill {
+  position: relative;
+  isolation: isolate;
+  border: 1px solid var(--aetheris-line) !important;
+  border-radius: var(--aetheris-radius-pill) !important;
+  background: var(--aetheris-glass-surface) !important;
+  backdrop-filter: var(--aetheris-glass-blur-chrome) !important;
+  -webkit-backdrop-filter: var(--aetheris-glass-blur-chrome) !important;
+  box-shadow: var(--aetheris-shadow), var(--aetheris-glass-specular) !important;
+}
+
+html body .orb-pill button {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid transparent !important;
+  border-radius: var(--aetheris-radius-md) !important;
+  color: var(--aetheris-ink-2) !important;
+  background: transparent !important;
+  font-family: var(--aetheris-font-mono) !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.035em !important;
+  transition:
+    color var(--aetheris-motion-fast) var(--aetheris-ease-standard),
+    background var(--aetheris-motion-fast) var(--aetheris-ease-standard),
+    transform var(--aetheris-motion-medium) var(--aetheris-ease-spring) !important;
+}
+
+html body .orb-pill button::before {
+  content: "";
+  position: absolute;
+  top: 18%;
+  bottom: 18%;
+  left: 0;
+  width: 2px;
+  border-radius: var(--aetheris-radius-pill);
+  background: var(--aetheris-spectral-v);
+  opacity: 0;
+  transform: scaleY(0.35);
+  transition:
+    opacity var(--aetheris-motion-fast) var(--aetheris-ease-standard),
+    transform var(--aetheris-motion-medium) var(--aetheris-ease-spring);
+}
+
+html body .orb-pill button:hover {
+  color: var(--aetheris-ink) !important;
+  background: var(--aetheris-state-layer) !important;
+  transform: translateX(2px) !important;
+}
+
+html body .orb-pill button:hover::before {
+  opacity: 1;
+  transform: scaleY(1);
+}
+
+html body #orb button:focus-visible {
+  outline: none !important;
+  border-radius: var(--aetheris-radius-md) !important;
+  box-shadow: var(--aetheris-focus-halo) !important;
+}
+
+html body #orb > div[style*="55vw"] {
+  background:
+    radial-gradient(
+      circle at 36% 32%,
+      rgba(255, 255, 255, 0.82) 0%,
+      rgba(0, 238, 255, 0.66) 11%,
+      rgba(255, 0, 255, 0.48) 34%,
+      rgba(255, 238, 0, 0.3) 56%,
+      rgba(157, 0, 255, 0.2) 74%,
+      transparent 100%
+    ) !important;
+  box-shadow:
+    0 0 80px 20px var(--aetheris-spectral-glow),
+    inset 0 0 42px var(--aetheris-spectral-glow-strong) !important;
+}
+
+html body #root div[style*="z-index: 19000"][style*="opacity"] {
+  background: var(--aetheris-bg) !important;
+}
+
+/* Loading overlay typography */
+
+html body #root div[style*="letter-spacing: 0.18em"] {
+  color: var(--aetheris-ink) !important;
+  font-family: var(--aetheris-font-mono) !important;
+  font-weight: 500 !important;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.34) !important;
+}
+
+html body #root div[style*="letter-spacing: 0.18em"] > span {
+  background: var(--aetheris-spectral-v) !important;
+  box-shadow: 0 0 12px var(--aetheris-spectral-glow);
+}
+
+/* Popcorn game UI. Canvas particles remain an authored game palette. */
+
+html body #popcorn-game {
+  color: var(--aetheris-ink);
+  font-family: var(--aetheris-font-sans);
+}
+
+html body #popcorn-game > div[style*="z-index: 20"] {
+  color: var(--aetheris-ink) !important;
+  font-family: var(--aetheris-font-sans) !important;
+}
+
+html body #popcorn-game > div[style*="z-index: 20"][style*="backdrop-filter"] {
+  background: var(--aetheris-glass-panel) !important;
+  backdrop-filter: var(--aetheris-glass-blur) !important;
+  -webkit-backdrop-filter: var(--aetheris-glass-blur) !important;
+}
+
+html body #popcorn-game > div[style*="z-index: 20"] > div:first-child {
+  position: relative;
+  color: var(--aetheris-ink) !important;
+  background: none !important;
+  -webkit-background-clip: border-box !important;
+  background-clip: border-box !important;
+  -webkit-text-fill-color: currentColor !important;
+  font-family: var(--aetheris-font-sans) !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.045em;
+  text-shadow: none !important;
+}
+
+html body #popcorn-game > div[style*="z-index: 20"] > div:first-child::after {
+  content: "";
+  display: block;
+  width: min(12rem, 48%);
+  height: 1px;
+  margin: 1rem auto 0;
+  background: var(--aetheris-spectral-h);
+  box-shadow: 0 0 14px var(--aetheris-spectral-glow);
+}
+
+html body #popcorn-game > div[style*="z-index: 20"] > div:not(:first-child) {
+  color: var(--aetheris-ink-2) !important;
+  text-shadow: none !important;
+}
+
+html body #popcorn-game > div[style*="z-index: 20"] > button {
+  position: relative;
+  overflow: hidden;
+  min-height: 4.6rem !important;
+  border: 1px solid transparent !important;
+  border-radius: var(--aetheris-radius-md) !important;
+  color: var(--aetheris-ink) !important;
+  background:
+    linear-gradient(
+      var(--aetheris-panel-strong),
+      var(--aetheris-panel-strong)
+    ) padding-box,
+    var(--aetheris-spectral-border-soft) border-box !important;
+  box-shadow: 0 0 18px var(--aetheris-spectral-glow) !important;
+  font-family: var(--aetheris-font-mono) !important;
+  font-size: 1.2rem !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.055em !important;
+  text-transform: uppercase;
+  transition:
+    background var(--aetheris-motion-medium) var(--aetheris-ease-standard),
+    box-shadow var(--aetheris-motion-medium) var(--aetheris-ease-standard),
+    transform var(--aetheris-motion-medium) var(--aetheris-ease-spring) !important;
+}
+
+html body #popcorn-game > div[style*="z-index: 20"] > button:hover {
+  background:
+    linear-gradient(
+      var(--aetheris-panel-raised),
+      var(--aetheris-panel-raised)
+    ) padding-box,
+    var(--aetheris-spectral) border-box !important;
+  box-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.16),
+    0 0 22px var(--aetheris-spectral-glow) !important;
+  transform: translateY(-2px) !important;
+}
+
+html body #popcorn-game > div[style*="z-index: 20"] > button:active {
+  transform: translateY(1px) scale(0.99) !important;
+}
+
+html body #popcorn-game > div[style*="justify-content: space-between"]
+  > div:first-child
+  > div {
+  color: var(--aetheris-ink) !important;
+  font-family: var(--aetheris-font-mono) !important;
+  text-shadow: none !important;
+}
+
+/* Accessibility bridge: its runtime style is intentionally superseded here. */
+
+html body [data-a11y-card-trigger]:focus-visible,
+html body [data-a11y-close]:focus-visible,
+html body [data-a11y-dialog]:focus-visible {
+  outline: none !important;
+  outline-offset: 0 !important;
+  box-shadow: var(--aetheris-focus-halo) !important;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  :root {
+    --aetheris-glass-surface: #ffffff;
+    --aetheris-glass-panel: #fdf1f2;
+    --aetheris-glass-panel-raised: #f1e5e6;
+    --aetheris-glass-blur: none;
+    --aetheris-glass-blur-chrome: none;
+    --aetheris-topbar: rgba(255, 248, 247, 0.97);
+  }
+
+  [data-theme="dark"] {
+    --aetheris-glass-surface: #0e0e12;
+    --aetheris-glass-panel: #13131a;
+    --aetheris-glass-panel-raised: #18181f;
+    --aetheris-topbar: rgba(8, 8, 9, 0.97);
+  }
+
+  html body .nav-pill,
+  html body .nav-overlay,
+  html body .scroll-indicator,
+  html body .bio-card,
+  html body .service-card,
+  html body .contact-form,
+  html body [data-a11y-dialog] > .MuiBox-root,
+  html body .standalone-experience__header,
+  html body .orb-pill {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html body .nav-brand,
+  html body .nav-link,
+  html body .nav-theme-toggle,
+  html body .nav-burger,
+  html body .nav-overlay-link,
+  html body .section-dot,
+  html body .scroll-indicator,
+  html body .bio-card,
+  html body .service-card,
+  html body .contact-form,
+  html body [data-a11y-dialog] > .MuiBox-root,
+  html body [data-a11y-close],
+  html body .contact-form .MuiFilledInput-root,
+  html body .contact-form .MuiButton-root,
+  html body .standalone-experience__header a,
+  html body .standalone-experience__header button,
+  html body .orb-pill button {
+    transition: none !important;
+  }
+
+  html body .nav-brand:hover,
+  html body .nav-link:hover,
+  html body .nav-theme-toggle:hover,
+  html body .nav-burger:hover,
+  html body .section-dot:hover,
+  html body .scroll-indicator:hover,
+  html body .contact-form .MuiFilledInput-root.Mui-focused,
+  html body .contact-form .MuiButton-root:hover,
+  html body .contact-form .MuiButton-root:active,
+  html body .standalone-experience__header a:hover,
+  html body .standalone-experience__header button:hover,
+  html body .orb-pill button:hover {
+    transform: none !important;
+  }
+
+  html body .contact-form .MuiButton-root::after {
+    display: none;
+  }
+}
+
+@media (forced-colors: active) {
+  html body .nav-pill,
+  html body .nav-theme-toggle,
+  html body .nav-burger,
+  html body .section-dot,
+  html body .scroll-indicator,
+  html body .bio-card,
+  html body .service-card,
+  html body .contact-form,
+  html body [data-a11y-dialog] > .MuiBox-root,
+  html body [data-a11y-close],
+  html body .standalone-experience__header,
+  html body .orb-pill,
+  html body .orb-pill button {
+    border: 1px solid CanvasText !important;
+    color: CanvasText !important;
+    background: Canvas !important;
+    box-shadow: none !important;
+  }
+
+  html body .nav-pill::after,
+  html body .standalone-experience__header::after,
+  html body .orb-pill::after,
+  html body .bio-card::before,
+  html body .bio-card::after,
+  html body .service-card::before,
+  html body .service-card::after,
+  html body .contact-form::before,
+  html body .contact-form::after,
+  html body [data-a11y-dialog] > .MuiBox-root::before,
+  html body [data-a11y-dialog] > .MuiBox-root::after {
+    display: none;
+  }
+}
