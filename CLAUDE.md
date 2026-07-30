@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-A React business + engineering platform for "Popular Consulting" with five routes served from one CRA bundle, deployed on Vercel. The immersive home is a WebGL-heavy, section-snap experience; `/work` is a conventional scrollable portfolio with a minimal editorial monograph treatment layered over technical system diagrams.
+A React business + engineering platform for "Popular Consulting" with five routes served from one CRA bundle, deployed on Vercel. The immersive home is a WebGL-heavy, section-snap experience; `/work` is a conventional scrollable portfolio built on the Aetheris Iridescent design system with a route-scoped typographic composition layer.
 
 ## Routes (`src/SiteRouter.js`)
 
@@ -10,7 +10,7 @@ A React business + engineering platform for "Popular Consulting" with five route
 |---|---|---|
 | `/` | `App` (immersive, business audience) | Section-snap parallax, WebGL dither background |
 | `/engineering` | `App` (immersive, engineering audience) | Same shell, `ProfessionalHero` opening + engineering copy via `siteCopy` audiences |
-| `/work` | `WorkPage` | Scrollable portfolio; editorial monograph styling; muted `SpectralBloom` texture |
+| `/work` | `WorkPage` | Scrollable portfolio; Aetheris design system; SpectralBloom backdrop |
 | `/orb` | `StandaloneExperiencePage` (orb) | noindex; lazy-loads `OrbSection` |
 | `/game` | `StandaloneExperiencePage` (game) | noindex; lazy-loads `PopcornGame` |
 
@@ -20,7 +20,7 @@ Unknown paths fall back to `/`. Per-route HTML (title/meta/canonical) is generat
 
 - React 18 (CRA / react-scripts 5), JavaScript only (no TypeScript)
 - MUI v5 (`Box`/`Typography`/`Container`/`TextField`/`Button` in BioSection, ServicesSection, ContactSection only - removal is a planned project)
-- Custom CSS: global `src/index.css`, per-component inline `<style>` blocks, `src/components/WorkPage.css`, and the route-scoped `public/work-typography.css` editorial layer
+- Custom CSS: global `src/index.css`, per-component inline `<style>` blocks, `src/components/WorkPage.css`, and the route-scoped `public/work-typography.css` composition layer
 - WebGL (raw, no library): `DitherBackground` (WebGL2), `BlackHoleBackground`/`BlackHoleCanvas` (WebGL2), `SpectralBloom` (WebGL1)
 - **Not used anywhere (do not reintroduce): Tailwind, framer-motion, Emotion-direct, simplex-noise**
 
@@ -42,12 +42,12 @@ npm run lint    # eslint --max-warnings 0 (CI-gated)
 - `siteCopy.js` - dual-audience copy (business vs engineering); `immersiveMode.js` picks per route.
 - WebGL-unavailable fallback: `deviceTier.js` `hasHardwareWebGL` gates canvases; CSS gradient orbs render instead.
 
-### /work (Editorial Monograph)
-- `WorkPage.css` owns the semantic layout, engineering diagrams, responsive behavior, and base component recipes.
-- `public/work-typography.css` is injected only into generated `/work` HTML. It replaces the iridescent/glass presentation with warm ink and paper palettes, one accessible signal colour, square geometry, open whitespace, and an asymmetric Newsreader / Hanken Grotesk / JetBrains Mono hierarchy.
-- The hero emphasis must remain flat text. Do not restore gradient-clipped lettering, pill-heavy metadata, glow effects, or repeated card-lift interactions without an explicit design decision.
-- `scripts/generate-route-html.mjs` swaps the base Poppins stylesheet for the `/work` font set and cache-busted editorial stylesheet. Other routes must not receive these assets.
-- `SpectralBloom.js` remains the WebGL1 document-space flower backdrop, but the editorial layer renders it at very low opacity and in grayscale so it reads as texture rather than spectacle. Bayer-dithered; strict motion discipline (30fps idle cap, reduced-motion static frame). CSS ambient tone is its fallback.
+### /work (Aetheris Iridescent)
+- Design tokens and component recipes are scoped to `.work-page` in `WorkPage.css`: structural spectral gradients, Hanken Grotesk + JetBrains Mono, glass panels, the 6/10/14/26px radius hierarchy, light-derived elevation, and the shared interaction system. Styleguide source: `mstrbstrd/aetheris-styleguide`; follow `conventions.md` when extending.
+- `public/work-typography.css` is injected only into generated `/work` HTML. It may refine type scale, line length, alignment, and composition, but must not replace the Aetheris palette, spectral material, glass surfaces, shape language, motion rules, or two-font Technical-Humanist pairing.
+- Hero emphasis is flat `--ink`, not gradient-clipped text. The spectral gradient remains visible as structural rails, rules, panel rings, controls, and focus treatment.
+- `scripts/generate-route-html.mjs` swaps the base Poppins stylesheet for Hanken Grotesk + JetBrains Mono and adds the cache-busted `/work` composition stylesheet. Other routes must not receive these assets.
+- `SpectralBloom.js` - WebGL1 document-space flower backdrop (stem rooted at page bottom, petals shed on scroll). Bayer-dithered; strict motion discipline (30fps idle cap, reduced-motion static frame). CSS ambient gradient is its fallback.
 - `useWorkPolish.js` - scroll parallax (`[data-depth]`) + reveal-on-scroll (`[data-reveal]`); no-ops under reduced motion / missing IntersectionObserver.
 - Motion budget pinned by `WorkPageMotion.test.js`: exactly one CSS keyframe (`work-fade-in`), zero infinite animations.
 
