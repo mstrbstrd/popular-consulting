@@ -1,8 +1,9 @@
 /*
  * Spectral icon treatment for navigation theme controls and contact socials.
  *
- * The gradient is used as icon material and as a precise control edge. This
- * file never selects the dither scene, shader canvases, or background layers.
+ * The gradient is used as icon material. Social marks remain unframed and are
+ * separated by the footer's quiet vertical-rule language. This file never
+ * selects the dither scene, shader canvases, or background layers.
  */
 
 :root {
@@ -81,32 +82,34 @@ html body .nav-overlay-theme::after {
   height: 20px;
 }
 
-/* Twitter and Instagram become compact Aetheris controls with gradient-masked
-   marks rather than purple-filtered bitmap colour. */
+/* Twitter and Instagram retain generous touch targets, but the visible marks
+   are unframed. A single neutral rule separates them like the original footer. */
 
 html body #contact a[href*="twitter.com"],
 html body #contact a[href*="instagram.com"] {
   position: relative;
   isolation: isolate;
-  overflow: hidden;
+  overflow: visible;
   width: 44px !important;
   height: 44px !important;
   min-width: 44px;
   padding: 0 !important;
-  border: 1px solid transparent !important;
+  border: 0 !important;
   border-radius: var(--aetheris-radius-md) !important;
   color: var(--aetheris-ink) !important;
-  background:
-    linear-gradient(
-      var(--aetheris-panel),
-      var(--aetheris-panel)
-    ) padding-box,
-    var(--aetheris-spectral-border-soft) border-box !important;
-  box-shadow: 0 0 12px color-mix(in srgb, var(--spectral-icon-glow) 60%, transparent);
+  background: transparent !important;
+  box-shadow: none !important;
   transition:
-    background var(--aetheris-motion-medium) var(--aetheris-ease-standard),
-    box-shadow var(--aetheris-motion-medium) var(--aetheris-ease-standard),
-    transform var(--aetheris-motion-medium) var(--aetheris-ease-spring) !important;
+    background var(--aetheris-motion-fast) var(--aetheris-ease-standard),
+    color var(--aetheris-motion-fast) var(--aetheris-ease-standard) !important;
+}
+
+html body #contact a[href*="twitter.com"] {
+  margin-right: 0.9rem;
+}
+
+html body #contact a[href*="instagram.com"] {
+  margin-left: 0.9rem;
 }
 
 html body #contact a[href*="twitter.com"] img,
@@ -144,52 +147,29 @@ html body #contact a[href*="instagram.com"]::before {
   mask: url("./assets/icons/instagram.svg") center / contain no-repeat;
 }
 
-html body #contact a[href*="twitter.com"]::after,
-html body #contact a[href*="instagram.com"]::after {
+html body #contact a[href*="twitter.com"]::after {
   content: "";
   position: absolute;
-  inset: -2px -48%;
-  z-index: 1;
+  top: 25%;
+  right: -1rem;
+  bottom: 25%;
+  width: 1px;
+  border-radius: var(--aetheris-radius-pill);
+  background: var(--aetheris-line-strong);
   pointer-events: none;
-  background: var(--aetheris-sheen);
-  opacity: 0;
-  transform: translateX(-34%) skewX(-14deg);
-  transition:
-    opacity var(--aetheris-motion-medium) var(--aetheris-ease-standard),
-    transform var(--aetheris-motion-slow) var(--aetheris-ease-spring);
 }
 
 html body #contact a[href*="twitter.com"]:hover,
 html body #contact a[href*="instagram.com"]:hover {
-  background:
-    linear-gradient(
-      var(--aetheris-panel-raised),
-      var(--aetheris-panel-raised)
-    ) padding-box,
-    var(--spectral-icon-colorway) border-box !important;
-  box-shadow:
-    0 10px 24px rgba(0, 0, 0, 0.16),
-    0 0 20px var(--spectral-icon-glow) !important;
-  transform: translateY(-2px);
+  background: var(--aetheris-state-layer) !important;
+  box-shadow: none !important;
+  transform: none !important;
 }
 
 html body #contact a[href*="twitter.com"]:hover::before,
 html body #contact a[href*="instagram.com"]:hover::before {
   filter: drop-shadow(0 0 9px var(--spectral-icon-glow));
   transform: translate(-50%, -50%) scale(1.08);
-}
-
-html body #contact a[href*="twitter.com"]:hover::after,
-html body #contact a[href*="instagram.com"]:hover::after,
-html body #contact a[href*="twitter.com"]:focus-visible::after,
-html body #contact a[href*="instagram.com"]:focus-visible::after {
-  opacity: 1;
-  transform: translateX(34%) skewX(-14deg);
-}
-
-html body #contact a[href*="twitter.com"]:active,
-html body #contact a[href*="instagram.com"]:active {
-  transform: translateY(1px) scale(0.99);
 }
 
 html body #contact a[href*="twitter.com"]:focus-visible,
@@ -204,17 +184,8 @@ html body #contact a[href*="instagram.com"]:focus-visible {
   html body #contact a[href*="twitter.com"],
   html body #contact a[href*="instagram.com"],
   html body #contact a[href*="twitter.com"]::before,
-  html body #contact a[href*="instagram.com"]::before,
-  html body #contact a[href*="twitter.com"]::after,
-  html body #contact a[href*="instagram.com"]::after {
+  html body #contact a[href*="instagram.com"]::before {
     transition: none !important;
-  }
-
-  html body #contact a[href*="twitter.com"]:hover,
-  html body #contact a[href*="instagram.com"]:hover,
-  html body #contact a[href*="twitter.com"]:active,
-  html body #contact a[href*="instagram.com"]:active {
-    transform: none !important;
   }
 
   html body .nav-theme-toggle:hover::after,
@@ -242,8 +213,7 @@ html body #contact a[href*="instagram.com"]:focus-visible {
     box-shadow: none !important;
   }
 
-  html body #contact a[href*="twitter.com"]::after,
-  html body #contact a[href*="instagram.com"]::after {
-    display: none;
+  html body #contact a[href*="twitter.com"]::after {
+    background: CanvasText;
   }
 }
