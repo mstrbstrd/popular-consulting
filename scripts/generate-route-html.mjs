@@ -112,15 +112,15 @@ const applyMetadata = (html, metadata) => {
   return next;
 };
 
-/* The base document loads only the immersive routes' font set (Poppins).
-   /work is the sole consumer of its editorial and technical type system, so
-   generated route HTML swaps the font stylesheet and adds its scoped type CSS. */
+/* The base document loads only the immersive routes' Poppins set. /work gets
+   its editorial serif, humanist sans, mono labels, and scoped style layer in
+   generated route HTML so those assets remain isolated from every other view. */
 const IMMERSIVE_FONTS_HREF =
   "https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,200;0,600;1,100;1,200&display=swap";
 const WORK_FONTS_HREF =
-  "https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&display=swap";
+  "https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,300..600;1,6..72,300..600&display=swap";
 const WORK_TYPOGRAPHY_LINK =
-  '<link rel="stylesheet" href="/work-typography.css?v=20260730" />';
+  '<link rel="stylesheet" href="/work-typography.css?v=20260730b" />';
 
 const writeRoute = (routeKey, destinationDirectory) => {
   const metadata = metadataByRoute[routeKey];
