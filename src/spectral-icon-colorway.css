@@ -82,6 +82,48 @@ html body .nav-overlay-theme::after {
   height: 20px;
 }
 
+/* Brand clusters stay transparent. The logo rotates slightly while the
+   wordmark shifts on hover, so the response comes from motion, not a box. */
+
+html body .nav-brand,
+html body .work-page .work-page__brand,
+html body .nav-brand:hover,
+html body .work-page .work-page__brand:hover {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+html body .nav-brand:hover,
+html body .work-page .work-page__brand:hover {
+  transform: none !important;
+}
+
+html body .nav-brand .nav-logo,
+html body .work-page .work-page__brand .work-page__brand-mark {
+  transform-origin: center;
+  transition:
+    opacity var(--aetheris-motion-fast, 150ms) var(--aetheris-ease-standard, ease),
+    transform var(--aetheris-motion-medium, 240ms) var(--aetheris-ease-spring, ease) !important;
+}
+
+html body .nav-brand .nav-brand-name,
+html body .work-page .work-page__brand .work-page__brand-copy {
+  transition:
+    color var(--aetheris-motion-fast, 150ms) var(--aetheris-ease-standard, ease),
+    transform var(--aetheris-motion-medium, 240ms) var(--aetheris-ease-spring, ease) !important;
+}
+
+html body .nav-brand:hover .nav-logo,
+html body .work-page .work-page__brand:hover .work-page__brand-mark {
+  opacity: 1;
+  transform: rotate(-3deg) scale(1.04) !important;
+}
+
+html body .nav-brand:hover .nav-brand-name,
+html body .work-page .work-page__brand:hover .work-page__brand-copy {
+  transform: translateX(2px);
+}
+
 /* Twitter and Instagram retain generous touch targets, but the visible marks
    are unframed. A single neutral rule separates them like the original footer. */
 
@@ -181,6 +223,10 @@ html body #contact a[href*="instagram.com"]:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   html body .nav-theme-toggle::after,
   html body .work-page .work-page__theme::after,
+  html body .nav-brand .nav-logo,
+  html body .work-page .work-page__brand .work-page__brand-mark,
+  html body .nav-brand .nav-brand-name,
+  html body .work-page .work-page__brand .work-page__brand-copy,
   html body #contact a[href*="twitter.com"],
   html body #contact a[href*="instagram.com"],
   html body #contact a[href*="twitter.com"]::before,
@@ -193,6 +239,13 @@ html body #contact a[href*="instagram.com"]:focus-visible {
   html body #contact a[href*="twitter.com"]:hover::before,
   html body #contact a[href*="instagram.com"]:hover::before {
     transform: translate(-50%, -50%) !important;
+  }
+
+  html body .nav-brand:hover .nav-logo,
+  html body .work-page .work-page__brand:hover .work-page__brand-mark,
+  html body .nav-brand:hover .nav-brand-name,
+  html body .work-page .work-page__brand:hover .work-page__brand-copy {
+    transform: none !important;
   }
 }
 
