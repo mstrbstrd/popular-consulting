@@ -3,6 +3,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
 import './aetheris-site.css';
+import './navigation-cohesion.css';
 import SiteRouter from './SiteRouter';
 import InteractionAccessibilityBridge from './components/InteractionAccessibilityBridge';
 import { initCoreWebVitals, initSectionTiming, initLongTaskObserver } from './utils/telemetry';
