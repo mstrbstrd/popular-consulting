@@ -213,10 +213,15 @@ html body #contact a[href*="instagram.com"]:focus-visible {
   html body #contact a[href*="twitter.com"]:hover,
   html body #contact a[href*="instagram.com"]:hover,
   html body #contact a[href*="twitter.com"]:active,
-  html body #contact a[href*="instagram.com"]:active,
-  html body .nav-theme-toggle:hover::after,
-  html body .work-page .work-page__theme:hover::after {
+  html body #contact a[href*="instagram.com"]:active {
     transform: none !important;
+  }
+
+  html body .nav-theme-toggle:hover::after,
+  html body .work-page .work-page__theme:hover::after,
+  html body #contact a[href*="twitter.com"]:hover::before,
+  html body #contact a[href*="instagram.com"]:hover::before {
+    transform: translate(-50%, -50%) !important;
   }
 }
 
