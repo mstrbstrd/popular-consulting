@@ -13,10 +13,10 @@ export const ThemeProvider = ({ children }) => {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
-    // Keep mobile browser chrome in step with the active theme.
+    // Keep mobile browser chrome in step with the Aetheris page surface.
     document
       .querySelector('meta[name="theme-color"]')
-      ?.setAttribute('content', isDark ? '#0b0b18' : '#ffffff');
+      ?.setAttribute('content', isDark ? '#080809' : '#fff8f7');
     try { localStorage.setItem('popcon-theme', isDark ? 'dark' : 'light'); } catch {}
   }, [isDark]);
 
