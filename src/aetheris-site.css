@@ -1,10 +1,9 @@
 /*
- * Shared Aetheris Iridescent layer.
+ * Shared Aetheris Iridescent UI layer.
  *
- * The immersive shell, standalone experiences, and shared MUI surfaces predate
- * the /work and /engineering Aetheris treatments. This file is loaded after
- * index.css and supplies one site-wide token contract. Component-specific
- * motion and behavior remain in their owning React files.
+ * This file styles interface chrome, controls, cards, forms, and dialogs only.
+ * The authored WebGL scenes, shader canvases, section visibility logic, and
+ * low-capability visual fallbacks remain owned by their React components.
  */
 
 :root {
@@ -47,8 +46,6 @@
     transparent 100%
   );
 
-  --aetheris-bg: #fff8f7;
-  --aetheris-surface: #ffffff;
   --aetheris-panel: #fdf1f2;
   --aetheris-panel-raised: #f1e5e6;
   --aetheris-panel-strong: #ece0e1;
@@ -107,8 +104,7 @@
     0 0 0 1px var(--aetheris-focus-line),
     0 0 26px var(--aetheris-spectral-glow);
 
-  /* Compatibility values consumed by the older immersive components. */
-  --bg-page: var(--aetheris-bg);
+  /* Compatibility values for shared controls only. */
   --text-nav: color-mix(in srgb, var(--aetheris-ink) 84%, transparent);
   --text-nav-hover: var(--aetheris-ink);
   --text-nav-active: var(--aetheris-ink);
@@ -118,7 +114,6 @@
   --mobile-overlay-bg: rgba(255, 248, 247, 0.94);
   --mobile-link: var(--aetheris-ink-2);
   --mobile-link-hover: var(--aetheris-ink);
-  --loading-bg: var(--aetheris-bg);
   --nav-pill-bg: var(--aetheris-glass-surface);
   --focus-ring: 2px solid var(--aetheris-teal);
 }
@@ -133,8 +128,6 @@
     rgba(255, 238, 0, 0.72) 72%,
     rgba(157, 0, 255, 0.78) 100%
   );
-  --aetheris-bg: #080809;
-  --aetheris-surface: #0e0e12;
   --aetheris-panel: #13131a;
   --aetheris-panel-raised: #18181f;
   --aetheris-panel-strong: #1c1c24;
@@ -171,7 +164,6 @@
     0 8px 24px rgba(0, 0, 0, 0.4);
   --aetheris-topbar: rgba(10, 10, 14, 0.58);
 
-  --bg-page: var(--aetheris-bg);
   --text-nav: color-mix(in srgb, var(--aetheris-ink) 88%, transparent);
   --text-nav-hover: var(--aetheris-ink);
   --text-nav-active: var(--aetheris-ink);
@@ -181,14 +173,11 @@
   --mobile-overlay-bg: rgba(8, 8, 9, 0.95);
   --mobile-link: var(--aetheris-ink-2);
   --mobile-link-hover: var(--aetheris-ink);
-  --loading-bg: var(--aetheris-bg);
   --nav-pill-bg: var(--aetheris-glass-surface);
   --focus-ring: 2px solid var(--aetheris-teal);
 }
 
 body {
-  background: var(--aetheris-bg);
-  color: var(--aetheris-ink);
   font-family: var(--aetheris-font-sans);
 }
 
@@ -198,8 +187,6 @@ samp,
 pre {
   font-family: var(--aetheris-font-mono);
 }
-
-/* Shared keyboard treatment. Route-specific systems can override this. */
 
 html body :where(a, button, input, textarea, select, [role="button"]):focus-visible {
   outline: none;
@@ -383,18 +370,7 @@ html body .nav-overlay-link:focus-visible {
 }
 
 html body .nav-overlay {
-  background:
-    radial-gradient(
-      circle at 16% 8%,
-      color-mix(in srgb, var(--aetheris-teal) 10%, transparent),
-      transparent 36rem
-    ),
-    radial-gradient(
-      circle at 86% 92%,
-      color-mix(in srgb, #ff00ff 8%, transparent),
-      transparent 34rem
-    ),
-    var(--mobile-overlay-bg) !important;
+  background: var(--mobile-overlay-bg) !important;
   backdrop-filter: var(--aetheris-glass-blur-chrome) !important;
   -webkit-backdrop-filter: var(--aetheris-glass-blur-chrome) !important;
 }
@@ -417,29 +393,7 @@ html body .nav-overlay-link--active {
   background: var(--aetheris-state-layer) !important;
 }
 
-/* Section navigation and fallback background */
-
-html body .glass-gradient,
-html body .standalone-experience__glass,
-html body #root div[style*="z-index: 19000"][style*="saturate(100%)"] {
-  background:
-    radial-gradient(
-      circle at 12% 0%,
-      color-mix(in srgb, var(--aetheris-teal) 7%, transparent),
-      transparent 34rem
-    ),
-    radial-gradient(
-      circle at 90% 100%,
-      color-mix(in srgb, #ff00ff 5%, transparent),
-      transparent 32rem
-    ),
-    linear-gradient(
-      to bottom,
-      rgba(255, 255, 255, 0.01),
-      rgba(255, 255, 255, 0.004) 50%,
-      transparent
-    ) !important;
-}
+/* Section controls. The rendered scene behind them is never selected here. */
 
 html body .section-dot {
   border: 1px solid transparent !important;
@@ -514,36 +468,6 @@ html body .scroll-indicator:hover {
     0 0 22px var(--aetheris-spectral-glow) !important;
 }
 
-html body .fixed-background > div[aria-hidden="true"] > div:nth-child(1),
-html body .standalone-experience__fallback > span:nth-child(1) {
-  background: radial-gradient(
-    circle at 42% 40%,
-    rgba(0, 238, 255, 0.34) 0%,
-    rgba(255, 0, 255, 0.16) 38%,
-    transparent 72%
-  ) !important;
-}
-
-html body .fixed-background > div[aria-hidden="true"] > div:nth-child(2),
-html body .standalone-experience__fallback > span:nth-child(2) {
-  background: radial-gradient(
-    circle at 48% 48%,
-    rgba(255, 0, 255, 0.26) 0%,
-    rgba(255, 238, 0, 0.13) 38%,
-    transparent 72%
-  ) !important;
-}
-
-html body .fixed-background > div[aria-hidden="true"] > div:nth-child(3),
-html body .standalone-experience__fallback > span:nth-child(3) {
-  background: radial-gradient(
-    circle at 52% 46%,
-    rgba(157, 0, 255, 0.25) 0%,
-    rgba(0, 238, 255, 0.13) 40%,
-    transparent 72%
-  ) !important;
-}
-
 /* Shared reading typography */
 
 html body #bio,
@@ -566,7 +490,7 @@ html body [data-a11y-dialog] h3 {
   text-shadow: none !important;
 }
 
-/* A two-child Box plus Typography pair is the section's operational label. */
+/* A two-child Box plus Typography pair is an operational label. */
 
 html body #bio .MuiBox-root:has(
     > .MuiBox-root:first-child:nth-last-child(2)
@@ -608,40 +532,6 @@ html body #services h2 .MuiBox-root,
 html body #services .title-cursor-faster {
   background: var(--aetheris-spectral-v) !important;
   box-shadow: 0 0 14px var(--aetheris-spectral-glow);
-}
-
-/* Portrait card keeps the image dominant while gaining the shared optical edge. */
-
-html body #bio .MuiBox-root:has(> img[alt]) {
-  position: relative;
-  isolation: isolate;
-  border: 1px solid var(--aetheris-line-strong) !important;
-  border-radius: var(--aetheris-radius-xl) !important;
-  box-shadow:
-    var(--aetheris-shadow),
-    0 0 24px var(--aetheris-spectral-glow) !important;
-}
-
-html body #bio .MuiBox-root:has(> img[alt])::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 4;
-  border-radius: inherit;
-  padding: 1px;
-  pointer-events: none;
-  background:
-    var(--aetheris-glass-ring-veil),
-    var(--aetheris-spectral-border-soft);
-  -webkit-mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  mask-composite: exclude;
-  opacity: 0.8;
 }
 
 /* Compact and expanded glass cards */
@@ -735,35 +625,33 @@ html body .contact-form:hover {
 }
 
 html body .bio-card:hover::before,
-html body .bio-card:hover::after,
 html body .bio-card--hovered::before,
-html body .bio-card--hovered::after,
 html body .service-card:hover::before,
-html body .service-card:hover::after,
 html body .service-card--hovered::before,
+html body .contact-form:hover::before {
+  opacity: 1;
+}
+
+html body .bio-card:hover::after,
+html body .bio-card--hovered::after,
+html body .service-card:hover::after,
 html body .service-card--hovered::after,
-html body .contact-form:hover::before,
 html body .contact-form:hover::after {
+  background:
+    var(--aetheris-glass-ring-veil),
+    var(--aetheris-spectral) !important;
   opacity: 1 !important;
 }
 
-/* Bio card divider and service icons */
-
 html body .bio-card > .MuiBox-root:nth-of-type(4) {
-  height: 1px !important;
   background: var(--aetheris-spectral-h) !important;
-  box-shadow: 0 0 12px var(--aetheris-spectral-glow);
 }
 
 html body .service-card > .MuiBox-root:nth-of-type(4),
-html body [data-a11y-dialog] .MuiBox-root:has(> h3)
-  > .MuiBox-root:first-child {
+html body [data-a11y-dialog] .MuiBox-root:has(> h3) > .MuiBox-root:first-child {
   background-color: transparent !important;
   background-image: var(--aetheris-spectral) !important;
-  filter: drop-shadow(0 0 10px var(--aetheris-spectral-glow));
 }
-
-/* Expanded dialog metadata and close control */
 
 html body [data-a11y-dialog] .MuiBox-root:has(
     > .MuiTypography-root:first-child:nth-last-child(2)
@@ -771,8 +659,9 @@ html body [data-a11y-dialog] .MuiBox-root:has(
   > .MuiTypography-root:first-child {
   color: var(--aetheris-teal) !important;
   font-family: var(--aetheris-font-mono) !important;
+  font-size: 1.05rem !important;
   font-weight: 500 !important;
-  letter-spacing: 0.09em !important;
+  letter-spacing: 0.1em !important;
   text-transform: uppercase !important;
 }
 
@@ -783,10 +672,6 @@ html body [data-a11y-close] {
     linear-gradient(var(--aetheris-panel), var(--aetheris-panel)) padding-box,
     var(--aetheris-spectral-border-soft) border-box !important;
   box-shadow: none !important;
-  transition:
-    background var(--aetheris-motion-medium) var(--aetheris-ease-standard),
-    box-shadow var(--aetheris-motion-medium) var(--aetheris-ease-standard),
-    transform var(--aetheris-motion-medium) var(--aetheris-ease-spring) !important;
 }
 
 html body [data-a11y-close]:hover {
@@ -799,25 +684,41 @@ html body [data-a11y-close]:hover {
   box-shadow: 0 0 18px var(--aetheris-spectral-glow) !important;
 }
 
-/* Contact */
+html body [data-a11y-card-trigger]:focus-visible,
+html body [data-a11y-close]:focus-visible,
+html body [data-a11y-dialog]:focus-visible {
+  outline: none !important;
+  box-shadow: var(--aetheris-focus-halo) !important;
+}
+
+/* Contact form */
 
 html body #contact > div:first-child {
   background:
     radial-gradient(
-      circle at 24% 30%,
-      color-mix(in srgb, var(--aetheris-teal) 9%, transparent),
-      transparent 42%
-    ),
-    radial-gradient(
-      circle at 78% 68%,
-      color-mix(in srgb, #ff00ff 7%, transparent),
-      transparent 40%
+      circle,
+      color-mix(in srgb, var(--aetheris-teal) 7%, transparent) 0%,
+      color-mix(in srgb, #ff00ff 4%, transparent) 42%,
+      transparent 72%
     ) !important;
+}
+
+html body .contact-form::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 2.4rem;
+  left: 2.4rem;
+  z-index: 4 !important;
+  height: 1px !important;
+  background: var(--aetheris-spectral-h) !important;
+  box-shadow: 0 0 14px var(--aetheris-spectral-glow);
 }
 
 html body .contact-form h2 {
   color: var(--aetheris-ink) !important;
   background: none !important;
+  background-image: none !important;
   -webkit-background-clip: border-box !important;
   background-clip: border-box !important;
   -webkit-text-fill-color: currentColor !important;
@@ -826,32 +727,48 @@ html body .contact-form h2 {
   font-style: normal !important;
   font-weight: 700 !important;
   letter-spacing: -0.045em !important;
+  text-shadow: none !important;
 }
 
 html body .contact-form h2::after {
-  bottom: -0.8rem !important;
-  width: min(11rem, 42%) !important;
+  width: min(12rem, 42%) !important;
   height: 1px !important;
   background: var(--aetheris-spectral-h) !important;
   box-shadow: 0 0 14px var(--aetheris-spectral-glow);
 }
 
+html body .contact-form .MuiTypography-root,
+html body .contact-form .MuiFilledInput-input {
+  color: var(--aetheris-ink-2) !important;
+  font-family: var(--aetheris-font-sans) !important;
+}
+
+html body .contact-form .MuiInputLabel-root {
+  color: var(--aetheris-muted) !important;
+  font-family: var(--aetheris-font-mono) !important;
+  font-size: 1.1rem !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.045em !important;
+}
+
+html body .contact-form .MuiInputLabel-root.Mui-focused {
+  color: var(--aetheris-teal) !important;
+}
+
 html body .contact-form .MuiFilledInput-root {
   border: 1px solid var(--aetheris-line-strong) !important;
   border-radius: var(--aetheris-radius-md) !important;
-  color: var(--aetheris-ink) !important;
   background: color-mix(
     in srgb,
     var(--aetheris-panel) 72%,
     transparent
   ) !important;
-  backdrop-filter: blur(8px) saturate(1.1) !important;
-  -webkit-backdrop-filter: blur(8px) saturate(1.1) !important;
   box-shadow: inset 0 1px 5px rgba(0, 0, 0, 0.05) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 html body .contact-form .MuiFilledInput-root:hover {
-  border-color: var(--aetheris-line-strong) !important;
   background: color-mix(
     in srgb,
     var(--aetheris-panel-raised) 78%,
@@ -871,27 +788,10 @@ html body .contact-form .MuiFilledInput-root.Mui-focused {
   transform: translateY(-1px);
 }
 
-html body .contact-form .MuiInputLabel-root {
-  color: var(--aetheris-muted) !important;
-  font-family: var(--aetheris-font-mono) !important;
-  font-size: 1.1rem !important;
-  font-weight: 500 !important;
-  letter-spacing: 0.05em !important;
-}
-
-html body .contact-form .MuiInputLabel-root.Mui-focused {
-  color: var(--aetheris-teal) !important;
-}
-
-html body .contact-form .MuiFilledInput-input {
-  color: var(--aetheris-ink) !important;
-  font-family: var(--aetheris-font-sans) !important;
-}
-
 html body .contact-form .MuiButton-root {
   position: relative;
   overflow: hidden;
-  min-height: 4.6rem;
+  min-height: 4.4rem;
   border: 1px solid transparent !important;
   border-radius: var(--aetheris-radius-md) !important;
   color: var(--aetheris-ink) !important;
@@ -994,17 +894,7 @@ html body #contact a:hover {
   filter: brightness(0) saturate(100%) !important;
 }
 
-/* Standalone experience shell */
-
-html body .standalone-experience {
-  --experience-page-bg: var(--aetheris-bg) !important;
-  --experience-nav-bg: var(--aetheris-topbar) !important;
-  --experience-nav-text: var(--aetheris-ink) !important;
-  --experience-nav-muted: var(--aetheris-muted) !important;
-  background: var(--aetheris-bg) !important;
-  color: var(--aetheris-ink) !important;
-  font-family: var(--aetheris-font-sans);
-}
+/* Standalone experience header only. */
 
 html body .standalone-experience__header {
   position: fixed;
@@ -1060,7 +950,7 @@ html body .standalone-experience__header button:focus-visible {
   box-shadow: var(--aetheris-focus-halo) !important;
 }
 
-/* Orb controls and low-capability orb */
+/* Orb controls only. The orb visual remains owned by OrbSection. */
 
 html body .orb-pill {
   position: relative;
@@ -1122,46 +1012,7 @@ html body #orb button:focus-visible {
   box-shadow: var(--aetheris-focus-halo) !important;
 }
 
-html body #orb > div[style*="55vw"] {
-  background:
-    radial-gradient(
-      circle at 36% 32%,
-      rgba(255, 255, 255, 0.82) 0%,
-      rgba(0, 238, 255, 0.66) 11%,
-      rgba(255, 0, 255, 0.48) 34%,
-      rgba(255, 238, 0, 0.3) 56%,
-      rgba(157, 0, 255, 0.2) 74%,
-      transparent 100%
-    ) !important;
-  box-shadow:
-    0 0 80px 20px var(--aetheris-spectral-glow),
-    inset 0 0 42px var(--aetheris-spectral-glow-strong) !important;
-}
-
-html body #root div[style*="z-index: 19000"][style*="opacity"] {
-  background: var(--aetheris-bg) !important;
-}
-
-/* Loading overlay typography */
-
-html body #root div[style*="letter-spacing: 0.18em"] {
-  color: var(--aetheris-ink) !important;
-  font-family: var(--aetheris-font-mono) !important;
-  font-weight: 500 !important;
-  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.34) !important;
-}
-
-html body #root div[style*="letter-spacing: 0.18em"] > span {
-  background: var(--aetheris-spectral-v) !important;
-  box-shadow: 0 0 12px var(--aetheris-spectral-glow);
-}
-
-/* Popcorn game UI. Canvas particles remain an authored game palette. */
-
-html body #popcorn-game {
-  color: var(--aetheris-ink);
-  font-family: var(--aetheris-font-sans);
-}
+/* Popcorn HUD only. Particle rendering remains owned by the game. */
 
 html body #popcorn-game > div[style*="z-index: 20"] {
   color: var(--aetheris-ink) !important;
@@ -1199,89 +1050,26 @@ html body #popcorn-game > div[style*="z-index: 20"] > div:first-child::after {
 
 html body #popcorn-game > div[style*="z-index: 20"] > div:not(:first-child) {
   color: var(--aetheris-ink-2) !important;
-  text-shadow: none !important;
-}
-
-html body #popcorn-game > div[style*="z-index: 20"] > button {
-  position: relative;
-  overflow: hidden;
-  min-height: 4.6rem !important;
-  border: 1px solid transparent !important;
-  border-radius: var(--aetheris-radius-md) !important;
-  color: var(--aetheris-ink) !important;
-  background:
-    linear-gradient(
-      var(--aetheris-panel-strong),
-      var(--aetheris-panel-strong)
-    ) padding-box,
-    var(--aetheris-spectral-border-soft) border-box !important;
-  box-shadow: 0 0 18px var(--aetheris-spectral-glow) !important;
   font-family: var(--aetheris-font-mono) !important;
-  font-size: 1.2rem !important;
-  font-weight: 500 !important;
-  letter-spacing: 0.055em !important;
-  text-transform: uppercase;
-  transition:
-    background var(--aetheris-motion-medium) var(--aetheris-ease-standard),
-    box-shadow var(--aetheris-motion-medium) var(--aetheris-ease-standard),
-    transform var(--aetheris-motion-medium) var(--aetheris-ease-spring) !important;
-}
-
-html body #popcorn-game > div[style*="z-index: 20"] > button:hover {
-  background:
-    linear-gradient(
-      var(--aetheris-panel-raised),
-      var(--aetheris-panel-raised)
-    ) padding-box,
-    var(--aetheris-spectral) border-box !important;
-  box-shadow:
-    0 10px 24px rgba(0, 0, 0, 0.16),
-    0 0 22px var(--aetheris-spectral-glow) !important;
-  transform: translateY(-2px) !important;
-}
-
-html body #popcorn-game > div[style*="z-index: 20"] > button:active {
-  transform: translateY(1px) scale(0.99) !important;
-}
-
-html body #popcorn-game > div[style*="justify-content: space-between"]
-  > div:first-child
-  > div {
-  color: var(--aetheris-ink) !important;
-  font-family: var(--aetheris-font-mono) !important;
-  text-shadow: none !important;
-}
-
-/* Accessibility bridge: its runtime style is intentionally superseded here. */
-
-html body [data-a11y-card-trigger]:focus-visible,
-html body [data-a11y-close]:focus-visible,
-html body [data-a11y-dialog]:focus-visible {
-  outline: none !important;
-  outline-offset: 0 !important;
-  box-shadow: var(--aetheris-focus-halo) !important;
+  letter-spacing: 0.04em;
 }
 
 @media (prefers-reduced-transparency: reduce) {
   :root {
-    --aetheris-glass-surface: #ffffff;
+    --aetheris-glass-surface: #fdf1f2;
     --aetheris-glass-panel: #fdf1f2;
     --aetheris-glass-panel-raised: #f1e5e6;
     --aetheris-glass-blur: none;
     --aetheris-glass-blur-chrome: none;
-    --aetheris-topbar: rgba(255, 248, 247, 0.97);
   }
 
   [data-theme="dark"] {
-    --aetheris-glass-surface: #0e0e12;
+    --aetheris-glass-surface: #13131a;
     --aetheris-glass-panel: #13131a;
     --aetheris-glass-panel-raised: #18181f;
-    --aetheris-topbar: rgba(8, 8, 9, 0.97);
   }
 
   html body .nav-pill,
-  html body .nav-overlay,
-  html body .scroll-indicator,
   html body .bio-card,
   html body .service-card,
   html body .contact-form,
@@ -1298,16 +1086,15 @@ html body [data-a11y-dialog]:focus-visible {
   html body .nav-link,
   html body .nav-theme-toggle,
   html body .nav-burger,
-  html body .nav-overlay-link,
   html body .section-dot,
   html body .scroll-indicator,
   html body .bio-card,
   html body .service-card,
   html body .contact-form,
-  html body [data-a11y-dialog] > .MuiBox-root,
-  html body [data-a11y-close],
   html body .contact-form .MuiFilledInput-root,
   html body .contact-form .MuiButton-root,
+  html body .contact-form .MuiButton-root::after,
+  html body [data-a11y-close],
   html body .standalone-experience__header a,
   html body .standalone-experience__header button,
   html body .orb-pill button {
@@ -1319,7 +1106,7 @@ html body [data-a11y-dialog]:focus-visible {
   html body .nav-theme-toggle:hover,
   html body .nav-burger:hover,
   html body .section-dot:hover,
-  html body .scroll-indicator:hover,
+  html body .section-dot.active,
   html body .contact-form .MuiFilledInput-root.Mui-focused,
   html body .contact-form .MuiButton-root:hover,
   html body .contact-form .MuiButton-root:active,
@@ -1327,10 +1114,6 @@ html body [data-a11y-dialog]:focus-visible {
   html body .standalone-experience__header button:hover,
   html body .orb-pill button:hover {
     transform: none !important;
-  }
-
-  html body .contact-form .MuiButton-root::after {
-    display: none;
   }
 }
 
@@ -1345,9 +1128,10 @@ html body [data-a11y-dialog]:focus-visible {
   html body .contact-form,
   html body [data-a11y-dialog] > .MuiBox-root,
   html body [data-a11y-close],
+  html body .contact-form .MuiFilledInput-root,
+  html body .contact-form .MuiButton-root,
   html body .standalone-experience__header,
-  html body .orb-pill,
-  html body .orb-pill button {
+  html body .orb-pill {
     border: 1px solid CanvasText !important;
     color: CanvasText !important;
     background: Canvas !important;
@@ -1364,7 +1148,15 @@ html body [data-a11y-dialog]:focus-visible {
   html body .contact-form::before,
   html body .contact-form::after,
   html body [data-a11y-dialog] > .MuiBox-root::before,
-  html body [data-a11y-dialog] > .MuiBox-root::after {
-    display: none;
+  html body [data-a11y-dialog] > .MuiBox-root::after,
+  html body .contact-form .MuiButton-root::after,
+  html body .orb-pill button::before {
+    display: none !important;
+  }
+
+  html body :where(a, button, input, textarea, select, [role="button"]):focus-visible {
+    outline: 3px solid CanvasText !important;
+    outline-offset: 3px;
+    box-shadow: none !important;
   }
 }
