@@ -112,13 +112,17 @@ const applyMetadata = (html, metadata) => {
   return next;
 };
 
-/* The base document loads only the immersive routes' Poppins set. /work gets
-   the Aetheris Technical-Humanist pair and its scoped composition layer in
-   generated route HTML so those assets remain isolated from every other view. */
+/* The base document loads the immersive routes' Poppins set. /engineering
+   keeps Poppins for the shared immersive shell and adds the Aetheris type pair
+   plus its route-scoped card treatment. /work swaps to the pair exclusively. */
 const IMMERSIVE_FONTS_HREF =
   "https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,200;0,600;1,100;1,200&display=swap";
+const ENGINEERING_FONTS_HREF =
+  "https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Poppins:ital,wght@0,200;0,600;1,100;1,200&display=swap";
 const WORK_FONTS_HREF =
   "https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap";
+const ENGINEERING_CARD_LINK =
+  '<link rel="stylesheet" href="/engineering-card.css?v=20260730a" />';
 const WORK_TYPOGRAPHY_LINK =
   '<link rel="stylesheet" href="/work-typography.css?v=20260730c" />';
 
@@ -129,6 +133,18 @@ const writeRoute = (routeKey, destinationDirectory) => {
   }
 
   let html = applyMetadata(sourceHtml, metadata);
+  if (routeKey === "engineering") {
+    if (!html.includes(IMMERSIVE_FONTS_HREF)) {
+      throw new Error("Could not find route font stylesheet in build/index.html.");
+    }
+    html = html.replace(IMMERSIVE_FONTS_HREF, ENGINEERING_FONTS_HREF);
+    html = replaceOnce(
+      html,
+      /<\/head>/i,
+      `${ENGINEERING_CARD_LINK}</head>`,
+      "closing head tag for engineering card styles",
+    );
+  }
   if (routeKey === "work") {
     if (!html.includes(IMMERSIVE_FONTS_HREF)) {
       throw new Error("Could not find route font stylesheet in build/index.html.");
