@@ -35,16 +35,29 @@ describe("spectral icon colorway", () => {
     expect(workSource).toContain('<circle cx="12" cy="12" r="3.5"');
   });
 
-  test("gives Twitter and Instagram spectral icon material and control edges", () => {
+  test("keeps social marks spectral, unframed, and separated by one rule", () => {
     expect(css).toContain('a[href*="twitter.com"]');
     expect(css).toContain('a[href*="instagram.com"]');
     expect(css).toContain('url("./assets/icons/twitter.svg")');
     expect(css).toContain('url("./assets/icons/instagram.svg")');
-    expect(css).toContain("var(--aetheris-spectral-border-soft) border-box");
-    expect(css).toContain("var(--aetheris-sheen)");
+    expect(css).toContain('a[href*="twitter.com"]::after');
+    expect(css).toContain("background: var(--aetheris-line-strong);");
+    expect(css).toContain("border: 0 !important;");
+    expect(css).not.toContain("var(--aetheris-spectral-border-soft) border-box");
+    expect(css).not.toContain("var(--aetheris-sheen)");
 
     expect(contactSource).toContain("https://twitter.com/mstrbstrdd");
     expect(contactSource).toContain("https://instagram.com");
+  });
+
+  test("uses motion instead of a shaded box for both brand clusters", () => {
+    expect(css).toContain(".nav-brand:hover");
+    expect(css).toContain(".work-page__brand:hover");
+    expect(css).toContain("background: transparent !important;");
+    expect(css).toContain(".nav-brand:hover .nav-logo");
+    expect(css).toContain("rotate(-3deg) scale(1.04)");
+    expect(css).toContain(".nav-brand:hover .nav-brand-name");
+    expect(css).toContain("transform: translateX(2px);");
   });
 
   test("preserves accessibility modes and authored scene ownership", () => {
