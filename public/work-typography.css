@@ -1,0 +1,160 @@
+/*
+ * Editorial type direction for /work.
+ *
+ * WorkPage.css owns layout, colour, motion, and component recipes. This layer
+ * only establishes a more recognizable typographic voice: humanist body copy,
+ * technical mono labels, and an editorial serif for the page-level statements.
+ * Every selector stays under .work-page so the immersive routes remain intact.
+ */
+
+.work-page.work-page {
+  --font-display: "Instrument Serif", "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif;
+  --font-sans: "Hanken Grotesk", Inter, ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, ui-monospace, monospace;
+  font-family: var(--font-sans);
+  font-kerning: normal;
+  font-variant-numeric: proportional-nums;
+}
+
+.work-page .work-page__brand-copy strong {
+  font-family: var(--font-display);
+  font-size: 1.55rem;
+  font-weight: 400;
+  letter-spacing: -0.025em;
+  line-height: 1;
+}
+
+.work-page .work-page__hero h1,
+.work-page .work-page__section-heading h2,
+.work-page .work-page__contact-copy h2 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: -0.04em;
+  line-height: 0.98;
+}
+
+.work-page .work-page__hero h1 {
+  max-width: 15ch;
+  font-size: clamp(4.2rem, 9.4vw, 7.8rem);
+}
+
+.work-page .work-page__hero h1 > span {
+  font-family: inherit;
+  font-style: italic;
+  font-weight: 400;
+  letter-spacing: -0.055em;
+}
+
+.work-page .work-page__section-heading h2 {
+  max-width: 17ch;
+  font-size: clamp(3.4rem, 7.2vw, 5.4rem);
+}
+
+.work-page .work-page__contact-copy h2 {
+  max-width: 22ch;
+  font-size: clamp(3.1rem, 4.7vw, 4.8rem);
+}
+
+.work-page .work-page__lede {
+  max-width: 58rem;
+  font-size: clamp(1.65rem, 1.9vw, 1.95rem);
+  font-weight: 400;
+  letter-spacing: -0.012em;
+  line-height: 1.58;
+}
+
+.work-page .work-capability h2,
+.work-page .work-project h3,
+.work-page .work-page__principle-grid h3 {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+}
+
+.work-page .work-capability h2 {
+  font-size: clamp(2.25rem, 5vw, 2.85rem);
+}
+
+.work-page .work-project h3 {
+  font-size: clamp(2.7rem, 5.5vw, 3.8rem);
+}
+
+.work-page .work-page__principle-grid h3 {
+  font-size: clamp(2.1rem, 2.6vw, 2.65rem);
+}
+
+.work-page .work-page__section-heading > span,
+.work-page .work-capability > p:last-child,
+.work-page .work-project__summary,
+.work-page .work-project__ownership p,
+.work-page .work-project__evidence li,
+.work-page .work-page__principle-grid p {
+  letter-spacing: -0.008em;
+  text-wrap: pretty;
+}
+
+.work-page .work-page__section-heading > span {
+  max-width: 58ch;
+  font-size: 1.55rem;
+}
+
+.work-page .work-capability > p:last-child,
+.work-page .work-project__ownership p,
+.work-page .work-page__principle-grid p {
+  font-size: 1.45rem;
+}
+
+.work-page .work-project__summary {
+  font-size: 1.55rem;
+}
+
+.work-page .work-project__evidence li {
+  font-size: 1.35rem;
+}
+
+.work-page .work-page__identity strong {
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.work-page .work-page__eyebrow,
+.work-page .work-page__section-heading > p,
+.work-page .work-page__contact-copy > p,
+.work-page .work-capability__signal,
+.work-page .work-project__topline p,
+.work-page .work-project__visual-topline,
+.work-page .work-principle__topline {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.11em;
+}
+
+.work-page .work-page__nav a,
+.work-page .work-page__button,
+.work-page .work-page__text-link,
+.work-page .work-project__links a {
+  letter-spacing: 0.025em;
+}
+
+@media (max-width: 680px) {
+  .work-page .work-page__hero h1 {
+    max-width: 13ch;
+    font-size: clamp(4rem, 14.5vw, 5.8rem);
+  }
+
+  .work-page .work-page__section-heading h2 {
+    max-width: 14ch;
+  }
+
+  .work-page .work-page__contact-copy h2 {
+    max-width: 18ch;
+  }
+}
+
+@media print {
+  .work-page .work-page__hero h1,
+  .work-page .work-page__section-heading h2,
+  .work-page .work-page__contact-copy h2 {
+    color: #000000;
+  }
+}
