@@ -113,14 +113,14 @@ const applyMetadata = (html, metadata) => {
 };
 
 /* The base document loads only the immersive routes' Poppins set. /work gets
-   its editorial serif, humanist sans, mono labels, and scoped style layer in
+   the Aetheris Technical-Humanist pair and its scoped composition layer in
    generated route HTML so those assets remain isolated from every other view. */
 const IMMERSIVE_FONTS_HREF =
   "https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,200;0,600;1,100;1,200&display=swap";
 const WORK_FONTS_HREF =
-  "https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,300..600;1,6..72,300..600&display=swap";
+  "https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap";
 const WORK_TYPOGRAPHY_LINK =
-  '<link rel="stylesheet" href="/work-typography.css?v=20260730b" />';
+  '<link rel="stylesheet" href="/work-typography.css?v=20260730c" />';
 
 const writeRoute = (routeKey, destinationDirectory) => {
   const metadata = metadataByRoute[routeKey];
