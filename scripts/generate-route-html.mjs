@@ -112,13 +112,13 @@ const applyMetadata = (html, metadata) => {
   return next;
 };
 
-/* The base document loads the immersive routes' Poppins set. /engineering
-   keeps Poppins for the shared immersive shell and adds the Aetheris type pair
-   plus its route-scoped card treatment. /work swaps to the pair exclusively. */
+/* The shared routes load Poppins for the immersive artwork plus the Aetheris
+   Hanken Grotesk and JetBrains Mono pair for shell, card, and control content.
+   /engineering adds its scoped card treatment. /work drops Poppins because its
+   route is entirely Aetheris. */
 const IMMERSIVE_FONTS_HREF =
-  "https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,200;0,600;1,100;1,200&display=swap";
-const ENGINEERING_FONTS_HREF =
   "https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Poppins:ital,wght@0,200;0,600;1,100;1,200&display=swap";
+const ENGINEERING_FONTS_HREF = IMMERSIVE_FONTS_HREF;
 const WORK_FONTS_HREF =
   "https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap";
 const ENGINEERING_CARD_LINK =
