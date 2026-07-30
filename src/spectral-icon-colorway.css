@@ -1,0 +1,244 @@
+/*
+ * Spectral icon treatment for navigation theme controls and contact socials.
+ *
+ * The gradient is used as icon material and as a precise control edge. This
+ * file never selects the dither scene, shader canvases, or background layers.
+ */
+
+:root {
+  --spectral-icon-colorway: linear-gradient(
+    135deg,
+    #007e8c 0%,
+    #ba00ba 42%,
+    #8a5a00 72%,
+    #6f00b5 100%
+  );
+  --spectral-icon-glow: rgba(0, 126, 140, 0.2);
+}
+
+[data-theme="dark"] {
+  --spectral-icon-colorway: linear-gradient(
+    135deg,
+    #00eeff 0%,
+    #ff00ff 42%,
+    #ffee00 72%,
+    #9d00ff 100%
+  );
+  --spectral-icon-glow: rgba(0, 238, 255, 0.24);
+}
+
+/* Theme icons use the same spectral material in both navigation systems. */
+
+html body .nav-theme-toggle,
+html body .work-page .work-page__theme {
+  position: relative !important;
+  isolation: isolate;
+}
+
+html body .nav-theme-toggle svg,
+html body .work-page .work-page__theme svg {
+  opacity: 0 !important;
+}
+
+html body .nav-theme-toggle::after,
+html body .work-page .work-page__theme::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 2;
+  width: 16px;
+  height: 16px;
+  pointer-events: none;
+  background: var(--spectral-icon-colorway);
+  filter: drop-shadow(0 0 5px var(--spectral-icon-glow));
+  transform: translate(-50%, -50%);
+  transition:
+    filter var(--aetheris-motion-fast, 150ms) var(--aetheris-ease-standard, ease),
+    transform var(--aetheris-motion-medium, 240ms) var(--aetheris-ease-spring, ease);
+}
+
+html body .nav-theme-toggle:has(svg circle)::after,
+html body .work-page .work-page__theme:has(svg circle)::after {
+  -webkit-mask: url("./assets/icons/theme-sun.svg") center / contain no-repeat;
+  mask: url("./assets/icons/theme-sun.svg") center / contain no-repeat;
+}
+
+html body .nav-theme-toggle:not(:has(svg circle))::after,
+html body .work-page .work-page__theme:not(:has(svg circle))::after {
+  -webkit-mask: url("./assets/icons/theme-moon.svg") center / contain no-repeat;
+  mask: url("./assets/icons/theme-moon.svg") center / contain no-repeat;
+}
+
+html body .nav-theme-toggle:hover::after,
+html body .work-page .work-page__theme:hover::after {
+  filter: drop-shadow(0 0 8px var(--spectral-icon-glow));
+  transform: translate(-50%, -50%) scale(1.08);
+}
+
+html body .nav-overlay-theme::after {
+  width: 20px;
+  height: 20px;
+}
+
+/* Twitter and Instagram become compact Aetheris controls with gradient-masked
+   marks rather than purple-filtered bitmap colour. */
+
+html body #contact a[href*="twitter.com"],
+html body #contact a[href*="instagram.com"] {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  width: 44px !important;
+  height: 44px !important;
+  min-width: 44px;
+  padding: 0 !important;
+  border: 1px solid transparent !important;
+  border-radius: var(--aetheris-radius-md) !important;
+  color: var(--aetheris-ink) !important;
+  background:
+    linear-gradient(
+      var(--aetheris-panel),
+      var(--aetheris-panel)
+    ) padding-box,
+    var(--aetheris-spectral-border-soft) border-box !important;
+  box-shadow: 0 0 12px color-mix(in srgb, var(--spectral-icon-glow) 60%, transparent);
+  transition:
+    background var(--aetheris-motion-medium) var(--aetheris-ease-standard),
+    box-shadow var(--aetheris-motion-medium) var(--aetheris-ease-standard),
+    transform var(--aetheris-motion-medium) var(--aetheris-ease-spring) !important;
+}
+
+html body #contact a[href*="twitter.com"] img,
+html body #contact a[href*="instagram.com"] img {
+  opacity: 0 !important;
+  filter: none !important;
+  pointer-events: none;
+}
+
+html body #contact a[href*="twitter.com"]::before,
+html body #contact a[href*="instagram.com"]::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 2;
+  width: 18px;
+  height: 18px;
+  pointer-events: none;
+  background: var(--spectral-icon-colorway);
+  filter: drop-shadow(0 0 6px var(--spectral-icon-glow));
+  transform: translate(-50%, -50%);
+  transition:
+    filter var(--aetheris-motion-fast) var(--aetheris-ease-standard),
+    transform var(--aetheris-motion-medium) var(--aetheris-ease-spring);
+}
+
+html body #contact a[href*="twitter.com"]::before {
+  -webkit-mask: url("./assets/icons/twitter.svg") center / contain no-repeat;
+  mask: url("./assets/icons/twitter.svg") center / contain no-repeat;
+}
+
+html body #contact a[href*="instagram.com"]::before {
+  -webkit-mask: url("./assets/icons/instagram.svg") center / contain no-repeat;
+  mask: url("./assets/icons/instagram.svg") center / contain no-repeat;
+}
+
+html body #contact a[href*="twitter.com"]::after,
+html body #contact a[href*="instagram.com"]::after {
+  content: "";
+  position: absolute;
+  inset: -2px -48%;
+  z-index: 1;
+  pointer-events: none;
+  background: var(--aetheris-sheen);
+  opacity: 0;
+  transform: translateX(-34%) skewX(-14deg);
+  transition:
+    opacity var(--aetheris-motion-medium) var(--aetheris-ease-standard),
+    transform var(--aetheris-motion-slow) var(--aetheris-ease-spring);
+}
+
+html body #contact a[href*="twitter.com"]:hover,
+html body #contact a[href*="instagram.com"]:hover {
+  background:
+    linear-gradient(
+      var(--aetheris-panel-raised),
+      var(--aetheris-panel-raised)
+    ) padding-box,
+    var(--spectral-icon-colorway) border-box !important;
+  box-shadow:
+    0 10px 24px rgba(0, 0, 0, 0.16),
+    0 0 20px var(--spectral-icon-glow) !important;
+  transform: translateY(-2px);
+}
+
+html body #contact a[href*="twitter.com"]:hover::before,
+html body #contact a[href*="instagram.com"]:hover::before {
+  filter: drop-shadow(0 0 9px var(--spectral-icon-glow));
+  transform: translate(-50%, -50%) scale(1.08);
+}
+
+html body #contact a[href*="twitter.com"]:hover::after,
+html body #contact a[href*="instagram.com"]:hover::after,
+html body #contact a[href*="twitter.com"]:focus-visible::after,
+html body #contact a[href*="instagram.com"]:focus-visible::after {
+  opacity: 1;
+  transform: translateX(34%) skewX(-14deg);
+}
+
+html body #contact a[href*="twitter.com"]:active,
+html body #contact a[href*="instagram.com"]:active {
+  transform: translateY(1px) scale(0.99);
+}
+
+html body #contact a[href*="twitter.com"]:focus-visible,
+html body #contact a[href*="instagram.com"]:focus-visible {
+  outline: none !important;
+  box-shadow: var(--aetheris-focus-halo) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html body .nav-theme-toggle::after,
+  html body .work-page .work-page__theme::after,
+  html body #contact a[href*="twitter.com"],
+  html body #contact a[href*="instagram.com"],
+  html body #contact a[href*="twitter.com"]::before,
+  html body #contact a[href*="instagram.com"]::before,
+  html body #contact a[href*="twitter.com"]::after,
+  html body #contact a[href*="instagram.com"]::after {
+    transition: none !important;
+  }
+
+  html body #contact a[href*="twitter.com"]:hover,
+  html body #contact a[href*="instagram.com"]:hover,
+  html body #contact a[href*="twitter.com"]:active,
+  html body #contact a[href*="instagram.com"]:active,
+  html body .nav-theme-toggle:hover::after,
+  html body .work-page .work-page__theme:hover::after {
+    transform: none !important;
+  }
+}
+
+@media (forced-colors: active) {
+  html body .nav-theme-toggle::after,
+  html body .work-page .work-page__theme::after,
+  html body #contact a[href*="twitter.com"]::before,
+  html body #contact a[href*="instagram.com"]::before {
+    background: CanvasText;
+    filter: none;
+  }
+
+  html body #contact a[href*="twitter.com"],
+  html body #contact a[href*="instagram.com"] {
+    border: 1px solid CanvasText !important;
+    color: CanvasText !important;
+    background: Canvas !important;
+    box-shadow: none !important;
+  }
+
+  html body #contact a[href*="twitter.com"]::after,
+  html body #contact a[href*="instagram.com"]::after {
+    display: none;
+  }
+}
