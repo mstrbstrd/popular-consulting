@@ -1,0 +1,23 @@
+/*
+ * /work responsive invariants.
+ *
+ * The direct /work route loads public/work-typography.css after the compiled
+ * bundle. That late stylesheet intentionally has stronger composition
+ * selectors, but its desktop hero grid must never defeat the component's
+ * mobile breakpoint. These narrowly scoped rules preserve layout behavior
+ * without changing the typography, glass, spectral, or shader treatments.
+ */
+
+@media (max-width: 900px) {
+  html body .work-page .work-page__nav > a {
+    display: none;
+  }
+
+  html body .work-page .work-page__menu-toggle {
+    display: inline-flex;
+  }
+
+  html body .work-page .work-page__hero-panel {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
