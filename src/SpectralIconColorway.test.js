@@ -4,8 +4,11 @@ import path from "path";
 const readRepositoryFile = (relativePath) =>
   fs.readFileSync(path.join(process.cwd(), relativePath), "utf8");
 
+const stripCssComments = (source) => source.replace(/\/\*[\s\S]*?\*\//g, "");
+
 describe("spectral icon colorway", () => {
   const css = readRepositoryFile("src/spectral-icon-colorway.css");
+  const cssWithoutComments = stripCssComments(css);
   const indexSource = readRepositoryFile("src/index.js");
   const navSource = readRepositoryFile("src/components/NavMenu.js");
   const workSource = readRepositoryFile("src/components/WorkPage.js");
@@ -70,6 +73,8 @@ describe("spectral icon colorway", () => {
       "DitherBackground",
       "BlackHoleBackground",
       "canvas",
-    ].forEach((sceneInvariant) => expect(css).not.toContain(sceneInvariant));
+    ].forEach((sceneInvariant) =>
+      expect(cssWithoutComments).not.toContain(sceneInvariant),
+    );
   });
 });
