@@ -4,8 +4,11 @@ import path from "path";
 const readRepositoryFile = (relativePath) =>
   fs.readFileSync(path.join(process.cwd(), relativePath), "utf8");
 
+const stripCssComments = (source) => source.replace(/\/\*[\s\S]*?\*\//g, "");
+
 describe("cohesive site navigation styling", () => {
   const css = readRepositoryFile("src/navigation-cohesion.css");
+  const cssWithoutComments = stripCssComments(css);
   const indexSource = readRepositoryFile("src/index.js");
 
   test("loads after the shared Aetheris layer", () => {
@@ -51,8 +54,10 @@ describe("cohesive site navigation styling", () => {
       ".glass-gradient",
       ".standalone-experience__background",
       ".standalone-experience__fallback",
-    ].forEach((selector) => expect(css).not.toContain(selector));
+    ].forEach((selector) =>
+      expect(cssWithoutComments).not.toContain(selector),
+    );
 
-    expect(css).not.toMatch(/\bcanvas\s*(?:,|\{)/);
+    expect(cssWithoutComments).not.toMatch(/\bcanvas\s*(?:,|\{)/);
   });
 });
