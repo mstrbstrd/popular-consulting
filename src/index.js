@@ -5,6 +5,7 @@ import './index.css';
 import './aetheris-site.css';
 import './navigation-cohesion.css';
 import './spectral-icon-colorway.css';
+import './work-responsive.css';
 import SiteRouter from './SiteRouter';
 import InteractionAccessibilityBridge from './components/InteractionAccessibilityBridge';
 import { initCoreWebVitals, initSectionTiming, initLongTaskObserver } from './utils/telemetry';
