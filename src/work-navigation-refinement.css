@@ -1,0 +1,361 @@
+/*
+ * Final navigation alignment for /work.
+ *
+ * The immersive index navigation remains the source of truth. This layer
+ * reuses its shared Aetheris surface, typography, control, focus, and compact
+ * menu primitives without touching the work page's shader, cards, or content.
+ */
+
+/* Desktop and tablet chrome uses the exact shared navigation material. */
+
+html body .work-page .work-page__header-shell {
+  border-color: var(--aetheris-line) !important;
+  background: var(--aetheris-glass-surface) !important;
+  backdrop-filter: var(--aetheris-glass-blur-chrome) !important;
+  -webkit-backdrop-filter: var(--aetheris-glass-blur-chrome) !important;
+  box-shadow:
+    var(--aetheris-shadow),
+    var(--aetheris-glass-specular) !important;
+}
+
+html body .work-page .work-page__header-shell::after {
+  padding: 1px;
+  background:
+    var(--aetheris-glass-ring-veil),
+    var(--aetheris-spectral-border-soft);
+}
+
+html body .work-page .work-page__brand-mark {
+  opacity: 0.88;
+}
+
+html body .work-page .work-page__brand-mark img {
+  display: block;
+  width: 26px;
+  height: auto;
+}
+
+html body .work-page .work-page__brand-copy strong {
+  color: var(--aetheris-ink);
+  font-family: var(--aetheris-font-sans);
+  font-size: 1.35rem;
+  font-style: normal;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+html body .work-page .work-page__nav::before {
+  background: var(--aetheris-spectral-v);
+}
+
+html body .work-page .work-page__nav > a {
+  border-radius: var(--aetheris-radius-md);
+  color: var(--aetheris-ink-2) !important;
+  font-family: var(--aetheris-font-mono);
+  font-size: 1.05rem;
+  font-weight: 500;
+  letter-spacing: 0.065em;
+  line-height: 1.2;
+}
+
+html body .work-page .work-page__nav > a::before,
+html body .work-page .work-page__menu a::before {
+  border-radius: var(--aetheris-radius-pill);
+  background: var(--aetheris-spectral-v);
+}
+
+html body .work-page .work-page__nav > a:hover,
+html body .work-page .work-page__menu a:hover {
+  color: var(--aetheris-ink) !important;
+  background: var(--aetheris-state-layer);
+}
+
+html body .work-page .work-page__theme {
+  border-radius: var(--aetheris-radius-md);
+  color: var(--aetheris-ink-2);
+}
+
+html body .work-page .work-page__theme::before {
+  border-radius: var(--aetheris-radius-pill);
+  background: var(--aetheris-spectral-v);
+}
+
+html body .work-page .work-page__theme:hover {
+  color: var(--aetheris-ink);
+  background: var(--aetheris-state-layer);
+}
+
+/* The compact control now has the same dimensions, material, and motion as
+   the index burger. */
+
+html body .work-page .work-page__menu-toggle {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  margin-left: 1.2rem;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--aetheris-radius-md);
+  color: var(--aetheris-ink);
+  background:
+    linear-gradient(
+      var(--aetheris-panel),
+      var(--aetheris-panel)
+    ) padding-box,
+    var(--aetheris-spectral-border-soft) border-box;
+  box-shadow: none;
+  transition:
+    background var(--aetheris-motion-medium) var(--aetheris-ease-standard),
+    box-shadow var(--aetheris-motion-medium) var(--aetheris-ease-standard),
+    transform var(--aetheris-motion-medium) var(--aetheris-ease-spring);
+}
+
+html body .work-page .work-page__menu-toggle:hover {
+  background:
+    linear-gradient(
+      var(--aetheris-panel-raised),
+      var(--aetheris-panel-raised)
+    ) padding-box,
+    var(--aetheris-spectral) border-box;
+  box-shadow: 0 0 20px var(--aetheris-spectral-glow);
+  transform: translateY(-2px);
+}
+
+html body .work-page .work-page__menu-toggle:focus-visible {
+  outline: none;
+  box-shadow: var(--aetheris-focus-halo);
+}
+
+html body .work-page .work-page__menu-icon {
+  gap: 5px;
+}
+
+html body .work-page .work-page__menu-icon i {
+  width: 16px;
+  height: 1.5px;
+  border-radius: 2px;
+  background: var(--burger-bar, var(--aetheris-ink-2));
+  transform-origin: center;
+  transition:
+    transform 350ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 250ms ease;
+}
+
+html body .work-page .work-page__menu-toggle[aria-expanded="true"]
+  .work-page__menu-icon i:nth-child(1) {
+  transform: translateY(6.5px) rotate(45deg);
+}
+
+html body .work-page .work-page__menu-toggle[aria-expanded="true"]
+  .work-page__menu-icon i:nth-child(2) {
+  opacity: 0;
+  transform: scaleX(0);
+}
+
+html body .work-page .work-page__menu-toggle[aria-expanded="true"]
+  .work-page__menu-icon i:nth-child(3) {
+  transform: translateY(-6.5px) rotate(-45deg);
+}
+
+/* Work has one additional top-level destination, so it retains its existing
+   900px collapse point. Below that point, the interaction language matches
+   the index full-screen compact menu. */
+
+@keyframes work-navigation-overlay-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@media (max-width: 900px) {
+  html:has(.work-page .work-page__menu),
+  body:has(.work-page .work-page__menu) {
+    overflow: hidden !important;
+  }
+
+  html body .work-page .work-page__header {
+    padding:
+      max(1.4rem, env(safe-area-inset-top))
+      max(1.6rem, env(safe-area-inset-right))
+      0
+      max(1.6rem, env(safe-area-inset-left));
+  }
+
+  html body .work-page .work-page__header-shell {
+    position: relative;
+    z-index: 2;
+    width: 100%;
+    max-width: none;
+    justify-content: space-between;
+    padding: 0.7rem 0.7rem 0.7rem 1.4rem;
+    border-radius: 2rem !important;
+  }
+
+  html body .work-page .work-page__brand-copy {
+    display: block;
+  }
+
+  html body .work-page .work-page__nav {
+    min-width: 0;
+    flex: 1;
+    justify-content: flex-end;
+  }
+
+  html body .work-page .work-page__nav > a {
+    display: none;
+  }
+
+  html body .work-page .work-page__menu-toggle {
+    display: inline-flex;
+    margin-left: 0;
+  }
+
+  /* The index keeps theme selection inside its compact menu. The existing
+     work control is visually rehomed there only while the menu is open. */
+  html body .work-page .work-page__theme {
+    display: none;
+  }
+
+  html body .work-page .work-page__header:has(.work-page__menu)
+    .work-page__theme {
+    position: fixed;
+    left: 50%;
+    bottom: max(3.2rem, env(safe-area-inset-bottom));
+    z-index: 3;
+    display: inline-flex;
+    width: 52px;
+    height: 52px;
+    min-width: 52px;
+    margin: 0;
+    border: 1px solid transparent !important;
+    border-radius: var(--aetheris-radius-md);
+    background:
+      linear-gradient(
+        var(--aetheris-panel),
+        var(--aetheris-panel)
+      ) padding-box,
+      var(--aetheris-spectral-border-soft) border-box !important;
+    box-shadow: 0 0 18px var(--aetheris-spectral-glow) !important;
+    transform: translateX(-50%);
+  }
+
+  html body .work-page .work-page__header:has(.work-page__menu)
+    .work-page__theme:hover {
+    background:
+      linear-gradient(
+        var(--aetheris-panel-raised),
+        var(--aetheris-panel-raised)
+      ) padding-box,
+      var(--aetheris-spectral) border-box !important;
+    transform: translateX(-50%) translateY(-2px);
+  }
+
+  html body .work-page .work-page__header:has(.work-page__menu)
+    .work-page__theme:active {
+    transform: translateX(-50%) translateY(1px) scale(0.99);
+  }
+
+  html body .work-page .work-page__menu {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    width: 100%;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    padding:
+      max(10rem, calc(env(safe-area-inset-top) + 8rem))
+      max(2.4rem, env(safe-area-inset-right))
+      max(8rem, calc(env(safe-area-inset-bottom) + 6rem))
+      max(2.4rem, env(safe-area-inset-left));
+    border: 0 !important;
+    border-radius: 0;
+    background: var(--mobile-overlay-bg) !important;
+    backdrop-filter: var(--aetheris-glass-blur-chrome) !important;
+    -webkit-backdrop-filter: var(--aetheris-glass-blur-chrome) !important;
+    box-shadow: none !important;
+    opacity: 1;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    transform: none;
+    animation:
+      work-navigation-overlay-in 380ms var(--aetheris-ease-standard) both;
+  }
+
+  html body .work-page .work-page__menu::after {
+    display: none;
+  }
+
+  html body .work-page .work-page__menu a {
+    width: min(100%, 44rem);
+    min-height: 0;
+    justify-content: center;
+    padding: 1.6rem 4rem;
+    border-radius: var(--aetheris-radius-md);
+    color: var(--aetheris-ink-2) !important;
+    font-family: var(--aetheris-font-mono);
+    font-size: clamp(2.2rem, 8vw, 3.6rem);
+    font-style: normal;
+    font-weight: 500;
+    letter-spacing: 0.045em;
+    line-height: 1.1;
+    text-align: center;
+    text-transform: uppercase;
+  }
+
+  html body .work-page .work-page__menu a:hover {
+    color: var(--aetheris-ink) !important;
+    background: var(--aetheris-state-layer);
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html body .work-page .work-page__menu,
+  html body .work-page .work-page__menu-icon i {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  html body .work-page .work-page__menu-toggle:hover {
+    transform: none;
+  }
+
+  html body .work-page .work-page__header:has(.work-page__menu)
+    .work-page__theme:hover,
+  html body .work-page .work-page__header:has(.work-page__menu)
+    .work-page__theme:active {
+    transform: translateX(-50%) !important;
+  }
+}
+
+@media (forced-colors: active) {
+  html body .work-page .work-page__header-shell,
+  html body .work-page .work-page__menu-toggle,
+  html body .work-page .work-page__menu,
+  html body .work-page .work-page__header:has(.work-page__menu)
+    .work-page__theme {
+    border: 1px solid CanvasText !important;
+    color: CanvasText !important;
+    background: Canvas !important;
+    box-shadow: none !important;
+  }
+
+  html body .work-page .work-page__header-shell::after,
+  html body .work-page .work-page__menu::after,
+  html body .work-page .work-page__nav::before,
+  html body .work-page .work-page__nav > a::before,
+  html body .work-page .work-page__menu a::before,
+  html body .work-page .work-page__theme::before {
+    display: none !important;
+  }
+}
