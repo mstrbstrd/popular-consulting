@@ -1,0 +1,29 @@
+/*
+ * Expanded service-dialog layer invariant.
+ *
+ * ServicesSection renders the expanded card as two sibling layers:
+ *
+ * 1. an aria-hidden, untransformed glass layer for the expensive blur; and
+ * 2. an interactive surface that receives the mouse-driven tilt.
+ *
+ * The shared Aetheris dialog recipe currently gives both siblings a border,
+ * specular shadow, and masked spectral ring. When the interactive surface
+ * tilts, the static layer's duplicate frame stays behind and peeks out above
+ * the rounded card as a detached horizontal gradient line.
+ *
+ * Keep the static sibling's background and backdrop-filter intact, but let the
+ * interactive sibling be the only layer that paints the visible card frame.
+ */
+
+html body
+  [data-a11y-dialog]
+  > .MuiBox-root[aria-hidden="true"] {
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+html body
+  [data-a11y-dialog]
+  > .MuiBox-root[aria-hidden="true"]::after {
+  content: none !important;
+}
