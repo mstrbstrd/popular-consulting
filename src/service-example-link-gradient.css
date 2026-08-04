@@ -1,0 +1,113 @@
+/*
+ * Expanded service example links.
+ *
+ * The service dialog is identified by its static aria-hidden glass layer.
+ * This keeps the treatment scoped to service examples without affecting
+ * biography links or the authored background scene.
+ */
+
+html body
+  [data-a11y-dialog]:has(> .MuiBox-root[aria-hidden="true"])
+  a[target="_blank"] {
+  position: relative;
+  isolation: isolate;
+  border: 1px solid transparent !important;
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
+  background-color: transparent !important;
+  background-image:
+    var(--aetheris-spectral-h),
+    linear-gradient(
+      var(--aetheris-glass-panel),
+      var(--aetheris-glass-panel)
+    ),
+    var(--aetheris-spectral) !important;
+  background-origin: border-box !important;
+  background-clip: text, padding-box, border-box !important;
+  -webkit-background-clip: text, padding-box, border-box !important;
+  box-shadow: 0 0 14px var(--aetheris-spectral-glow);
+  transition:
+    box-shadow var(--aetheris-motion-medium) var(--aetheris-ease-standard),
+    transform var(--aetheris-motion-medium) var(--aetheris-ease-spring) !important;
+}
+
+html body
+  [data-a11y-dialog]:has(> .MuiBox-root[aria-hidden="true"])
+  a[target="_blank"] > svg {
+  display: none !important;
+}
+
+html body
+  [data-a11y-dialog]:has(> .MuiBox-root[aria-hidden="true"])
+  a[target="_blank"]::after {
+  content: "";
+  width: 11px;
+  height: 11px;
+  flex: 0 0 auto;
+  background: var(--aetheris-spectral-h);
+  -webkit-mask:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 11 11'%3E%3Cpath fill='black' d='M2.5 1H10v7.5H8.5V3.56L2.03 10 1 8.97 7.44 2.5H2.5V1Z'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  mask:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 11 11'%3E%3Cpath fill='black' d='M2.5 1H10v7.5H8.5V3.56L2.03 10 1 8.97 7.44 2.5H2.5V1Z'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+
+html body
+  [data-a11y-dialog]:has(> .MuiBox-root[aria-hidden="true"])
+  a[target="_blank"]:hover {
+  background-image:
+    var(--aetheris-spectral),
+    linear-gradient(
+      var(--aetheris-glass-panel-raised),
+      var(--aetheris-glass-panel-raised)
+    ),
+    var(--aetheris-spectral-h) !important;
+  box-shadow: 0 0 24px var(--aetheris-spectral-glow);
+  transform: translateY(-1px);
+}
+
+html body
+  [data-a11y-dialog]:has(> .MuiBox-root[aria-hidden="true"])
+  a[target="_blank"]:hover::after {
+  background: var(--aetheris-spectral);
+}
+
+html body
+  [data-a11y-dialog]:has(> .MuiBox-root[aria-hidden="true"])
+  a[target="_blank"]:focus-visible {
+  outline: none !important;
+  box-shadow: var(--aetheris-focus-halo) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html body
+    [data-a11y-dialog]:has(> .MuiBox-root[aria-hidden="true"])
+    a[target="_blank"] {
+    transition: none !important;
+  }
+
+  html body
+    [data-a11y-dialog]:has(> .MuiBox-root[aria-hidden="true"])
+    a[target="_blank"]:hover {
+    transform: none;
+  }
+}
+
+@media (forced-colors: active) {
+  html body
+    [data-a11y-dialog]:has(> .MuiBox-root[aria-hidden="true"])
+    a[target="_blank"] {
+    border: 1px solid LinkText !important;
+    color: LinkText !important;
+    -webkit-text-fill-color: LinkText !important;
+    background: Canvas !important;
+    box-shadow: none !important;
+  }
+
+  html body
+    [data-a11y-dialog]:has(> .MuiBox-root[aria-hidden="true"])
+    a[target="_blank"]::after {
+    background: LinkText;
+  }
+}
