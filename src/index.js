@@ -7,6 +7,7 @@ import './navigation-cohesion.css';
 import './spectral-icon-colorway.css';
 import './work-responsive.css';
 import './work-navigation-refinement.css';
+import './work-card-consistency.css';
 import SiteRouter from './SiteRouter';
 import InteractionAccessibilityBridge from './components/InteractionAccessibilityBridge';
 import { initCoreWebVitals, initSectionTiming, initLongTaskObserver } from './utils/telemetry';
