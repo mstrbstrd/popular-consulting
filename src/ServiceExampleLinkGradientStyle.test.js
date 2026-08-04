@@ -1,0 +1,68 @@
+import fs from "fs";
+import path from "path";
+
+const readRepositoryFile = (relativePath) =>
+  fs.readFileSync(path.join(process.cwd(), relativePath), "utf8");
+
+const stripCssComments = (source) => source.replace(/\/\*[\s\S]*?\*\//g, "");
+
+describe("service example link gradient styling", () => {
+  const css = readRepositoryFile("src/service-example-link-gradient.css");
+  const cssWithoutComments = stripCssComments(css);
+  const indexSource = readRepositoryFile("src/index.js");
+  const servicesSource = readRepositoryFile("src/components/ServicesSection.js");
+
+  test("loads after the service dialog layer correction", () => {
+    const layerFixImport = indexSource.indexOf(
+      "import './service-dialog-layer-fix.css';",
+    );
+    const exampleLinkImport = indexSource.indexOf(
+      "import './service-example-link-gradient.css';",
+    );
+
+    expect(layerFixImport).toBeGreaterThanOrEqual(0);
+    expect(exampleLinkImport).toBeGreaterThan(layerFixImport);
+  });
+
+  test("scopes the treatment to external links in expanded service dialogs", () => {
+    expect(servicesSource).toContain('target="_blank"');
+    expect(servicesSource).toContain('aria-hidden="true"');
+    expect(cssWithoutComments).toContain(
+      '[data-a11y-dialog]:has(> .MuiBox-root[aria-hidden="true"])',
+    );
+    expect(cssWithoutComments).toContain('a[target="_blank"]');
+  });
+
+  test("uses spectral gradients for border text and icon", () => {
+    expect(cssWithoutComments).toContain("border: 1px solid transparent !important;");
+    expect(cssWithoutComments).toContain("var(--aetheris-spectral-h)");
+    expect(cssWithoutComments).toContain("var(--aetheris-spectral)");
+    expect(cssWithoutComments).toContain(
+      "background-clip: text, padding-box, border-box !important;",
+    );
+    expect(cssWithoutComments).toContain(
+      "-webkit-text-fill-color: transparent !important;",
+    );
+    expect(cssWithoutComments).toContain('a[target="_blank"] > svg');
+    expect(cssWithoutComments).toContain("display: none !important;");
+    expect(cssWithoutComments).toContain('a[target="_blank"]::after');
+    expect(cssWithoutComments).toContain("-webkit-mask:");
+    expect(cssWithoutComments).toContain("mask:");
+  });
+
+  test("preserves focus forced-colors and reduced-motion behavior", () => {
+    expect(cssWithoutComments).toContain(":focus-visible");
+    expect(cssWithoutComments).toContain("var(--aetheris-focus-halo)");
+    expect(cssWithoutComments).toContain("@media (forced-colors: active)");
+    expect(cssWithoutComments).toContain("@media (prefers-reduced-motion: reduce)");
+  });
+
+  test("does not restyle compact cards or authored scenes", () => {
+    [
+      ".service-card",
+      ".bio-card",
+      ".fixed-background",
+      "canvas",
+    ].forEach((selector) => expect(cssWithoutComments).not.toContain(selector));
+  });
+});
