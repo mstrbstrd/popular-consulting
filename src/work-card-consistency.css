@@ -1,0 +1,11 @@
+/*
+ * /work card border consistency.
+ *
+ * WorkPage.css already gives the contact panel the same masked 1px spectral
+ * ring as the hero and project cards. Suppress the contact-only top rule so
+ * the final card uses that shared border treatment at every breakpoint.
+ */
+
+html body .work-page .work-page__contact::before {
+  content: none;
+}
