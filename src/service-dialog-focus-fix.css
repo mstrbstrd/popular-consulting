@@ -1,0 +1,19 @@
+/*
+ * Expanded service-dialog focus invariant.
+ *
+ * InteractionAccessibilityBridge briefly focuses the portal's FLIP motion
+ * wrapper while the close control is fading in. That wrapper has no painted
+ * rounded surface, but the shared focus treatment gives it a square halo.
+ * The halo is the detached horizontal line visible above the rounded card.
+ *
+ * The wrapper is only the dialog's structural focus target. Suppress its
+ * outline and halo while leaving the close control's visible focus treatment,
+ * the card glass, spectral ring, shadows, blur, and authored scene untouched.
+ */
+
+html body [data-a11y-dialog][role="dialog"]:focus,
+html body [data-a11y-dialog][role="dialog"]:focus-visible {
+  outline: none !important;
+  outline-offset: 0 !important;
+  box-shadow: none !important;
+}
