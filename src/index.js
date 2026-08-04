@@ -3,7 +3,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
 import './aetheris-site.css';
-import './service-dialog-ring-fix.css';
+import './service-dialog-focus-fix.css';
 import './navigation-cohesion.css';
 import './spectral-icon-colorway.css';
 import './work-responsive.css';
