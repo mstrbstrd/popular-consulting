@@ -3,7 +3,7 @@
     "path": "/",
     "title": "Popular Consulting | Custom Software, AI & E-Commerce",
     "description": "Popular Consulting designs, builds, and supports custom software, AI integrations, and e-commerce systems for businesses that need technology to fit real operations.",
-    "canonical": "https://popcon.dev/",
+    "canonical": "https://popular-consulting.com/",
     "socialTitle": "Popular Consulting | Custom Software, AI & E-Commerce",
     "socialDescription": "Custom software, practical AI integration, and e-commerce systems designed around real business operations.",
     "robots": "index,follow",
@@ -13,50 +13,50 @@
     "path": "/engineering",
     "title": "Shaedan Hawse | Engineering Lead, Full Stack, AI & Commerce Systems",
     "description": "Shaedan Hawse is a hands-on Engineering Lead and full-stack software engineer in Kelowna, BC, working across AI systems, commerce, payments, enterprise integrations, accessible interfaces, and production delivery.",
-    "canonical": "https://popcon.dev/engineering",
+    "canonical": "https://popular-consulting.com/engineering",
     "socialTitle": "Shaedan Hawse | Engineering Lead, Full Stack, AI & Commerce Systems",
     "socialDescription": "Hands-on engineering leadership and full-stack delivery across AI operations, commerce, payments, enterprise integrations, accessible interfaces, and production systems.",
     "robots": "index,follow",
-    "noscript": "Shaedan Hawse is an Engineering Lead and Full Stack Software Engineer in Kelowna, BC. Review selected work at https://popcon.dev/work or contact shae@popcon.dev."
+    "noscript": "Shaedan Hawse is an Engineering Lead and Full Stack Software Engineer in Kelowna, BC. Review selected work at https://popular-consulting.com/work or contact shae@popcon.dev."
   },
   "work": {
     "path": "/work",
     "title": "Selected Engineering Work | Shaedan Hawse",
     "description": "Selected software and engineering work by Shaedan Hawse across enterprise commerce, AI operations, product engineering, accessible interfaces, and production delivery.",
-    "canonical": "https://popcon.dev/work",
+    "canonical": "https://popular-consulting.com/work",
     "socialTitle": "Selected Engineering Work | Shaedan Hawse",
     "socialDescription": "Evidence-led engineering work across commerce, AI operations, product systems, accessibility, integrations, and production delivery.",
     "robots": "index,follow",
-    "noscript": "Review selected engineering work by Shaedan Hawse at https://popcon.dev/work or contact shae@popcon.dev."
+    "noscript": "Review selected engineering work by Shaedan Hawse at https://popular-consulting.com/work or contact shae@popcon.dev."
   },
   "orb": {
     "path": "/orb",
     "title": "Interactive Orb Lab | Popular Consulting",
     "description": "A route-only interactive WebGL orb experiment by Popular Consulting, with expressions, morphing, animation sequences, and a complete non-WebGL fallback.",
-    "canonical": "https://popcon.dev/orb",
+    "canonical": "https://popular-consulting.com/orb",
     "socialTitle": "Interactive Orb Lab | Popular Consulting",
     "socialDescription": "An interactive WebGL orb experiment with expressions, morphing, animation sequences, and a non-WebGL fallback.",
     "robots": "noindex,follow",
-    "noscript": "The Interactive Orb Lab requires JavaScript. Return to https://popcon.dev/ or contact shae@popcon.dev."
+    "noscript": "The Interactive Orb Lab requires JavaScript. Return to https://popular-consulting.com/ or contact shae@popcon.dev."
   },
   "game": {
     "path": "/game",
     "title": "Popcorn Game | Popular Consulting",
     "description": "A route-only browser game experiment by Popular Consulting, combining a responsive canvas, pointer interaction, procedural animation, and user-initiated Web Audio.",
-    "canonical": "https://popcon.dev/game",
+    "canonical": "https://popular-consulting.com/game",
     "socialTitle": "Popcorn Game | Popular Consulting",
     "socialDescription": "A responsive browser game experiment combining canvas interaction, procedural animation, and user-initiated Web Audio.",
     "robots": "noindex,follow",
-    "noscript": "The Popcorn Game requires JavaScript. Return to https://popcon.dev/ or contact shae@popcon.dev."
+    "noscript": "The Popcorn Game requires JavaScript. Return to https://popular-consulting.com/ or contact shae@popcon.dev."
   },
   "ditherCanvas": {
     "path": "/dither-canvas",
     "title": "Dither Shader Canvas | Popular Consulting",
     "description": "An unlinked WebGL canvas for exploring procedural dither scenes, motion studies, terrain-like forms, atmosphere, geometry, and interactive objects.",
-    "canonical": "https://popcon.dev/dither-canvas",
+    "canonical": "https://popular-consulting.com/dither-canvas",
     "socialTitle": "Dither Shader Canvas | Popular Consulting",
     "socialDescription": "A procedural WebGL dither canvas exploring atmosphere, terrain-like forms, geometry, motion, and interactive objects.",
     "robots": "noindex,follow",
-    "noscript": "The Dither Shader Canvas requires JavaScript and WebGL. Return to https://popcon.dev/ or contact shae@popcon.dev."
+    "noscript": "The Dither Shader Canvas requires JavaScript and WebGL. Return to https://popular-consulting.com/ or contact shae@popcon.dev."
   }
 }
