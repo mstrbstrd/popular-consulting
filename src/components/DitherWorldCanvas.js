@@ -5,7 +5,11 @@ import {
   DITHER_WORLD_VERTEX_SHADER,
 } from "./DitherWorldShader";
 
-const CHARSET = " .,:-=+*#%@";
+const NATURAL_CHARSET = " .,:-=+*#%@";
+const CLASSIC_CHARSET = " ░▒▓█▄▀■□▪";
+const NATURAL_GLYPHS = Array.from(NATURAL_CHARSET);
+const CLASSIC_GLYPHS = Array.from(CLASSIC_CHARSET);
+const GLYPHS = [...NATURAL_GLYPHS, ...CLASSIC_GLYPHS];
 const ATLAS_CELL = 32;
 const CYCLE_SECONDS = 84;
 const PHASE_REPORT_INTERVAL_MS = 240;
@@ -22,7 +26,7 @@ const shortestPhaseDelta = (from, to) => {
 
 const buildAtlas = (gl) => {
   const columns = 16;
-  const rows = Math.ceil(CHARSET.length / columns);
+  const rows = Math.ceil(GLYPHS.length / columns);
   const atlasCanvas = document.createElement("canvas");
   atlasCanvas.width = columns * ATLAS_CELL;
   atlasCanvas.height = rows * ATLAS_CELL;
@@ -36,7 +40,7 @@ const buildAtlas = (gl) => {
   context.textAlign = "center";
   context.textBaseline = "middle";
 
-  Array.from(CHARSET).forEach((character, index) => {
+  GLYPHS.forEach((character, index) => {
     context.fillText(
       character,
       (index % columns) * ATLAS_CELL + ATLAS_CELL / 2,
@@ -128,7 +132,9 @@ const createRenderer = (canvas, passMix) => {
     "u_themeMix",
     "u_atlas",
     "u_cellSize",
-    "u_charCount",
+    "u_naturalCharCount",
+    "u_classicCharCount",
+    "u_classicCharOffset",
     "u_atlasCols",
     "u_atlasRows",
     "u_intro",
@@ -338,6 +344,7 @@ const DitherWorldCanvas = ({
       lastPointerActivityRef.current = performance.now();
       stillnessRef.current = Math.max(0, stillnessRef.current - 0.34);
       wrapper.setPointerCapture?.(event.pointerId);
+      window.__addDitherRipple?.(event.clientX, event.clientY);
     };
 
     const handlePointerLeave = () => {
@@ -354,9 +361,14 @@ const DitherWorldCanvas = ({
       const { atlas, gl, passMix, program, uniforms } = renderer;
       const impulse = impulseRef.current;
       const impulseAge = localTimeRef.current - impulse.birth;
-      const cellSize = passMix > 0.5
+      const naturalCellSize = passMix > 0.5
         ? (isMobileTier ? 15.0 : 12.2)
         : (isMobileTier ? 10.8 : 7.8);
+      const classicCellSize = passMix > 0.5
+        ? (isMobileTier ? 14.5 : 9.0)
+        : (isMobileTier ? 12.0 : 6.0);
+      const cellSize = naturalCellSize
+        + (classicCellSize - naturalCellSize) * paletteMixRef.current;
 
       gl.useProgram(program);
       gl.uniform2f(uniforms.u_res, gl.canvas.width, gl.canvas.height);
@@ -373,7 +385,9 @@ const DitherWorldCanvas = ({
       gl.uniform1f(uniforms.u_paletteMix, paletteMixRef.current);
       gl.uniform1f(uniforms.u_themeMix, themeMixRef.current);
       gl.uniform1f(uniforms.u_cellSize, cellSize);
-      gl.uniform1i(uniforms.u_charCount, CHARSET.length);
+      gl.uniform1i(uniforms.u_naturalCharCount, NATURAL_GLYPHS.length);
+      gl.uniform1i(uniforms.u_classicCharCount, CLASSIC_GLYPHS.length);
+      gl.uniform1i(uniforms.u_classicCharOffset, NATURAL_GLYPHS.length);
       gl.uniform1i(uniforms.u_atlasCols, atlas.columns);
       gl.uniform1i(uniforms.u_atlasRows, atlas.rows);
       gl.uniform1f(uniforms.u_intro, introProgress);
