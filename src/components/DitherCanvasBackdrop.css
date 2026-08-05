@@ -1,167 +1,66 @@
-.dither-canvas-index-background,
-.dither-canvas-index-surface,
-.dither-canvas-index-fallback {
-  position: absolute;
-  inset: 0;
-}
-
-.dither-canvas-index-background {
+.dither-world-shell {
   z-index: 0;
-  overflow: hidden;
-  pointer-events: none;
   background: var(--bg-page);
 }
 
-.dither-canvas-index-background::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background:
-    radial-gradient(circle at 50% 45%, transparent 0%, rgba(255, 255, 255, 0.03) 58%, rgba(20, 24, 38, 0.10) 100%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 38%, rgba(19, 26, 44, 0.045));
-}
-
-[data-theme="dark"] .dither-canvas-index-background::after {
-  background:
-    radial-gradient(circle at 50% 45%, transparent 0%, rgba(4, 6, 16, 0.08) 58%, rgba(1, 2, 8, 0.34) 100%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.012), transparent 36%, rgba(99, 68, 245, 0.026));
-}
-
-.dither-canvas-index-surface {
-  animation: ditherBackdropReveal 1.05s cubic-bezier(0.22, 1, 0.36, 1) both;
+.dither-world-canvas-glow {
+  z-index: 0;
   transform: scale(1.012);
   transform-origin: 50% 50%;
+  opacity: 1;
+  filter: blur(0.12rem) saturate(108%);
 }
 
-.dither-canvas-index-surface > canvas,
-.dither-canvas-index-surface > div {
-  position: absolute !important;
-  inset: 0 !important;
-  width: 100% !important;
-  height: 100% !important;
+[data-theme="dark"] .dither-world-canvas-glow {
+  opacity: 1;
+  filter: blur(0.14rem) saturate(112%) contrast(1.03);
 }
 
-.dither-canvas-index-background.is-classic-dither .dither-canvas-index-surface {
-  opacity: 0.72;
-  filter: blur(0.10rem) saturate(88%) contrast(0.96);
-}
-
-[data-theme="dark"] .dither-canvas-index-background.is-classic-dither .dither-canvas-index-surface {
-  opacity: 0.78;
-  filter: blur(0.14rem) saturate(86%) brightness(0.72) contrast(1.04);
-}
-
-.dither-canvas-index-background.is-black-hole .dither-canvas-index-surface {
-  opacity: 0.88;
-  filter: blur(0.12rem) saturate(108%) brightness(0.78) contrast(1.04);
-}
-
-.dither-canvas-page.palette-classic .dither-canvas-index-background.is-classic-dither .dither-canvas-index-surface {
-  opacity: 0.58;
-  filter: blur(0.16rem) saturate(78%) contrast(0.94);
-}
-
-[data-theme="dark"] .dither-canvas-page.palette-classic .dither-canvas-index-background.is-classic-dither .dither-canvas-index-surface {
-  opacity: 0.66;
-  filter: blur(0.18rem) saturate(76%) brightness(0.66) contrast(1.02);
-}
-
-.dither-canvas-page.palette-classic .dither-canvas-index-background.is-black-hole .dither-canvas-index-surface {
-  opacity: 0.78;
-  filter: blur(0.16rem) saturate(102%) brightness(0.68) contrast(1.06);
-}
-
-.dither-canvas-index-fallback {
-  background:
-    radial-gradient(circle at 18% 24%, rgba(99, 68, 245, 0.28), transparent 34%),
-    radial-gradient(circle at 72% 66%, rgba(36, 204, 255, 0.22), transparent 38%),
-    radial-gradient(circle at 48% 42%, rgba(82, 229, 160, 0.16), transparent 42%),
-    linear-gradient(180deg, #fff8f7, #eef2f8);
-}
-
-[data-theme="dark"] .dither-canvas-index-fallback {
-  background:
-    radial-gradient(circle at 50% 42%, rgba(99, 68, 245, 0.30), transparent 28%),
-    radial-gradient(circle at 72% 62%, rgba(36, 204, 255, 0.18), transparent 34%),
-    radial-gradient(circle at 28% 70%, rgba(255, 86, 214, 0.16), transparent 38%),
-    linear-gradient(180deg, #090917, #02040b);
-}
-
-.dither-world-shell {
+.dither-world-canvas-main {
   z-index: 1;
+  opacity: 1;
+}
+
+.dither-canvas-page.palette-classic .dither-world-canvas-glow {
+  opacity: 1;
+  filter: blur(0.16rem) saturate(88%) contrast(0.96);
+}
+
+[data-theme="dark"] .dither-canvas-page.palette-classic .dither-world-canvas-glow {
+  opacity: 1;
+  filter: blur(0.18rem) saturate(90%) brightness(0.96) contrast(1.04);
 }
 
 .dither-canvas-glass {
   z-index: 2;
-  backdrop-filter: blur(0.36rem) saturate(108%);
-  -webkit-backdrop-filter: blur(0.36rem) saturate(108%);
+  backdrop-filter: blur(0.34rem) saturate(108%);
+  -webkit-backdrop-filter: blur(0.34rem) saturate(108%);
 }
 
 .dither-canvas-grain {
   z-index: 3;
 }
 
-.dither-world-canvas-glow {
-  opacity: 0.52;
-  filter: blur(2.25rem) saturate(112%);
-  mix-blend-mode: soft-light;
-}
-
-[data-theme="dark"] .dither-world-canvas-glow {
-  opacity: 0.68;
-  filter: blur(2.45rem) saturate(120%);
-  mix-blend-mode: screen;
-}
-
-.dither-canvas-page.palette-classic .dither-world-canvas-glow {
-  opacity: 0.38;
-  filter: blur(1.9rem) saturate(116%);
-}
-
-[data-theme="dark"] .dither-canvas-page.palette-classic .dither-world-canvas-glow {
-  opacity: 0.52;
-  filter: blur(2.1rem) saturate(124%);
-}
-
-.dither-world-canvas-main {
-  opacity: 0.98;
-}
-
-@keyframes ditherBackdropReveal {
-  from {
-    opacity: 0;
-    transform: scale(1.04);
-  }
-  to {
-    transform: scale(1.012);
-  }
-}
-
 @media (max-width: 680px) {
-  .dither-canvas-index-background.is-classic-dither .dither-canvas-index-surface {
-    opacity: 0.66;
-    filter: blur(0.12rem) saturate(84%);
-  }
-
-  [data-theme="dark"] .dither-canvas-index-background.is-classic-dither .dither-canvas-index-surface {
-    opacity: 0.72;
-    filter: blur(0.14rem) saturate(82%) brightness(0.68);
-  }
-
   .dither-world-canvas-glow {
-    opacity: 0.44;
-    filter: blur(1.65rem) saturate(108%);
+    transform: scale(1.006);
+    opacity: 1;
+    filter: blur(0.10rem) saturate(104%);
   }
 
   [data-theme="dark"] .dither-world-canvas-glow {
-    opacity: 0.58;
-    filter: blur(1.85rem) saturate(114%);
+    opacity: 1;
+    filter: blur(0.12rem) saturate(108%) contrast(1.02);
+  }
+
+  .dither-canvas-page.palette-classic .dither-world-canvas-glow {
+    opacity: 1;
+    filter: blur(0.12rem) saturate(86%) contrast(0.96);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .dither-canvas-index-surface {
-    animation: none;
+  .dither-world-canvas-glow {
+    filter: blur(0.08rem) saturate(102%);
   }
 }
