@@ -1,223 +1,680 @@
 .dither-canvas-page {
-  min-height: 100dvh;
-  position: relative;
+  --accent: #efc77f;
+  --accent-rgb: 239, 199, 127;
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
   overflow: hidden;
-  background: #050609;
-  color: #f7f7f3;
-  font-family: "Poppins", sans-serif;
   isolation: isolate;
+  background: #020305;
+  color: #f7f7f3;
+  font-family: "Hanken Grotesk", "Poppins", sans-serif;
+  overscroll-behavior: none;
+  touch-action: none;
 }
 
-.dither-canvas-stage,
-.dither-canvas-vignette {
+.dither-canvas-page.scene-moonwater {
+  --accent: #a9d7df;
+  --accent-rgb: 169, 215, 223;
+}
+
+.dither-canvas-page.scene-desert {
+  --accent: #f0a467;
+  --accent-rgb: 240, 164, 103;
+}
+
+.dither-canvas-page.scene-gate {
+  --accent: #8be2bd;
+  --accent-rgb: 139, 226, 189;
+}
+
+.dither-canvas-page.scene-bloom {
+  --accent: #d9dfa5;
+  --accent-rgb: 217, 223, 165;
+}
+
+.dither-world-renderer,
+.dither-world-canvas,
+.dither-world-fallback,
+.dither-canvas-atmosphere,
+.dither-canvas-frame {
   position: absolute;
   inset: 0;
 }
 
-.dither-canvas-stage {
+.dither-world-renderer {
   z-index: 0;
-  transition: filter 700ms ease;
+  background: #020305;
 }
 
-/*
- * DitherBackground is rainbow-first on the main site. The canvas studies are
- * intentionally palette-restrained, so each scene collapses that spectrum into
- * a controlled material treatment. This keeps the proven shader geometry and
- * motion while preventing the homepage rainbow from leaking into every study.
- */
-.tone-cool .dither-canvas-stage {
-  filter: grayscale(1) sepia(0.18) hue-rotate(165deg) saturate(1.35) brightness(0.86) contrast(1.08);
+.dither-world-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: crosshair;
 }
 
-.tone-mist .dither-canvas-stage {
-  filter: grayscale(1) sepia(0.12) hue-rotate(150deg) saturate(0.72) brightness(0.98) contrast(0.92);
+.dither-world-fallback {
+  background: #05070a;
 }
 
-.tone-green .dither-canvas-stage {
-  filter: grayscale(1) sepia(0.42) hue-rotate(82deg) saturate(1.45) brightness(0.78) contrast(1.14);
+.dither-world-renderer[data-scene="0"] .dither-world-fallback {
+  background:
+    radial-gradient(circle at 72% 31%, rgba(255, 226, 166, 0.82) 0 4%, transparent 5%),
+    linear-gradient(165deg, transparent 56%, rgba(46, 66, 77, 0.9) 57% 65%, rgba(10, 24, 31, 0.98) 66%),
+    linear-gradient(180deg, #0a1c31, #c19463 62%, #071015);
 }
 
-.tone-warm .dither-canvas-stage {
-  filter: grayscale(1) sepia(0.68) hue-rotate(338deg) saturate(1.55) brightness(0.82) contrast(1.08);
+.dither-world-renderer[data-scene="1"] .dither-world-fallback {
+  background:
+    radial-gradient(circle at 70% 28%, rgba(230, 241, 235, 0.86) 0 5%, transparent 6%),
+    linear-gradient(180deg, transparent 56%, rgba(9, 38, 53, 0.92) 57%),
+    linear-gradient(180deg, #030712, #18334a 58%, #06151f);
 }
 
-.tone-night .dither-canvas-stage {
-  filter: grayscale(1) sepia(0.24) hue-rotate(178deg) saturate(1.2) brightness(0.7) contrast(1.24);
+.dither-world-renderer[data-scene="2"] .dither-world-fallback {
+  background:
+    radial-gradient(circle at 25% 34%, rgba(255, 215, 154, 0.82) 0 5%, transparent 6%),
+    linear-gradient(166deg, transparent 55%, #8b4d33 56% 64%, #41251f 65% 74%, #100c0b 75%),
+    linear-gradient(180deg, #28373c, #d69d68 62%, #2b1714);
 }
 
-.dither-canvas-vignette {
+.dither-world-renderer[data-scene="3"] .dither-world-fallback {
+  background:
+    linear-gradient(90deg, transparent 47%, rgba(142, 236, 198, 0.8) 48% 52%, transparent 53%),
+    radial-gradient(ellipse at 61% 58%, rgba(72, 196, 157, 0.26), transparent 26%),
+    linear-gradient(180deg, #020812, #071715 58%, #020807);
+}
+
+.dither-world-renderer[data-scene="4"] .dither-world-fallback {
+  background:
+    radial-gradient(circle at 59% 47%, #f4bd63 0 3%, #b8c797 4% 10%, #416d5a 11% 20%, transparent 21%),
+    radial-gradient(circle at 59% 47%, rgba(45, 135, 102, 0.24), transparent 32%),
+    linear-gradient(180deg, #08091a, #07120f);
+}
+
+.dither-canvas-atmosphere {
   z-index: 1;
   pointer-events: none;
   background:
-    linear-gradient(90deg, rgba(3, 4, 7, 0.88) 0%, rgba(3, 4, 7, 0.52) 42%, rgba(3, 4, 7, 0.08) 75%),
-    linear-gradient(0deg, rgba(3, 4, 7, 0.7) 0%, transparent 42%);
+    linear-gradient(90deg, rgba(1, 2, 4, 0.70) 0%, rgba(1, 2, 4, 0.30) 35%, transparent 61%),
+    linear-gradient(0deg, rgba(1, 2, 4, 0.55) 0%, transparent 30%),
+    radial-gradient(circle at 50% 50%, transparent 38%, rgba(0, 0, 0, 0.26) 100%);
   transition: background 700ms ease;
 }
 
-.tone-mist .dither-canvas-vignette {
-  background: linear-gradient(90deg, rgba(8, 13, 17, 0.9), rgba(8, 13, 17, 0.46) 50%, rgba(8, 13, 17, 0.08));
+.dither-canvas-atmosphere::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.13;
+  background-image:
+    repeating-linear-gradient(0deg, transparent 0 3px, rgba(255, 255, 255, 0.025) 4px),
+    repeating-linear-gradient(90deg, transparent 0 4px, rgba(255, 255, 255, 0.015) 5px);
 }
 
-.tone-green .dither-canvas-vignette {
-  background: linear-gradient(90deg, rgba(5, 12, 10, 0.92), rgba(5, 12, 10, 0.48) 52%, rgba(5, 12, 10, 0.1));
+.dither-canvas-frame {
+  z-index: 5;
+  inset: clamp(0.65rem, 1.2vw, 1.15rem);
+  pointer-events: none;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  box-shadow:
+    inset 0 0 0 1px rgba(var(--accent-rgb), 0.035),
+    0 0 60px rgba(0, 0, 0, 0.18);
+  transition: transform 500ms cubic-bezier(0.22, 1, 0.36, 1), border-color 600ms ease, box-shadow 600ms ease;
 }
 
-.tone-warm .dither-canvas-vignette {
-  background: linear-gradient(90deg, rgba(16, 8, 5, 0.9), rgba(16, 8, 5, 0.42) 52%, rgba(16, 8, 5, 0.08));
+.dither-canvas-chrome {
+  transition:
+    opacity 480ms ease,
+    transform 480ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.dither-canvas-content {
-  position: relative;
-  z-index: 2;
-  width: min(42rem, calc(100% - 3rem));
-  min-height: 100dvh;
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 1.2rem;
-  padding: 5rem clamp(1.5rem, 6vw, 6rem);
+.dither-canvas-header {
+  position: absolute;
+  z-index: 4;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 1.5rem;
+  padding:
+    max(1.35rem, env(safe-area-inset-top))
+    clamp(1.4rem, 3vw, 3.4rem)
+    1rem;
 }
 
-.dither-canvas-kicker,
-.dither-canvas-note {
-  margin: 0;
+.dither-canvas-brand,
+.dither-canvas-actions button,
+.dither-canvas-show-interface,
+.dither-canvas-navigation button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.dither-canvas-brand {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.72rem;
+  color: rgba(255, 255, 255, 0.82);
+  text-decoration: none;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.035em;
+}
+
+.dither-canvas-brand-mark {
+  width: 0.72rem;
+  height: 0.72rem;
+  border: 1px solid rgba(var(--accent-rgb), 0.92);
+  transform: rotate(45deg);
+  box-shadow:
+    0 0 0 3px rgba(var(--accent-rgb), 0.08),
+    0 0 22px rgba(var(--accent-rgb), 0.28);
+  transition: transform 500ms cubic-bezier(0.22, 1, 0.36, 1), border-color 600ms ease, box-shadow 600ms ease;
+}
+
+.dither-canvas-brand:hover .dither-canvas-brand-mark,
+.dither-canvas-brand:focus-visible .dither-canvas-brand-mark {
+  transform: rotate(135deg);
+}
+
+.dither-canvas-series {
+  justify-self: center;
+  display: grid;
+  justify-items: center;
+  gap: 0.12rem;
   text-transform: uppercase;
   letter-spacing: 0.18em;
-  font-size: 0.7rem;
-  color: rgba(255, 255, 255, 0.58);
 }
 
-.dither-canvas-content h1 {
-  max-width: 11ch;
-  margin: 0;
-  font-size: clamp(3rem, 7vw, 6.5rem);
-  line-height: 0.92;
-  letter-spacing: -0.065em;
-  font-weight: 500;
+.dither-canvas-series span {
+  color: rgba(255, 255, 255, 0.42);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.56rem;
 }
 
-.dither-canvas-intro {
-  max-width: 39rem;
-  margin: 0;
-  color: rgba(255, 255, 255, 0.72);
-  font-size: clamp(1rem, 1.8vw, 1.2rem);
-  line-height: 1.7;
+.dither-canvas-series strong {
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 0.68rem;
+  font-weight: 600;
 }
 
-.dither-canvas-scene-copy {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 1rem;
-  align-items: start;
-  margin-top: 1rem;
-  padding-top: 1.2rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.18);
+.dither-canvas-actions {
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
 }
 
-.dither-canvas-scene-copy > span {
-  font-family: monospace;
-  color: rgba(255, 255, 255, 0.5);
-}
-
-.dither-canvas-scene-copy h2,
-.dither-canvas-scene-copy p {
-  margin: 0;
-}
-
-.dither-canvas-scene-copy h2 {
-  font-size: 1.1rem;
-  font-weight: 500;
-}
-
-.dither-canvas-scene-copy p {
-  margin-top: 0.45rem;
-  max-width: 34rem;
-  color: rgba(255, 255, 255, 0.62);
-  line-height: 1.55;
-}
-
-.dither-canvas-controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.55rem;
-  margin-top: 0.6rem;
-}
-
-.dither-canvas-controls button {
+.dither-canvas-actions button,
+.dither-canvas-show-interface {
   appearance: none;
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 999px;
-  background: rgba(5, 6, 9, 0.34);
-  color: rgba(255, 255, 255, 0.68);
-  padding: 0.65rem 0.9rem;
-  font: inherit;
-  font-size: 0.74rem;
+  background: rgba(3, 5, 8, 0.36);
+  color: rgba(255, 255, 255, 0.67);
+  padding: 0.58rem 0.78rem;
+  font: 500 0.62rem/1 "JetBrains Mono", monospace;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
   cursor: pointer;
-  backdrop-filter: blur(12px);
-  transition: border-color 180ms ease, color 180ms ease, background 180ms ease, transform 180ms ease;
+  backdrop-filter: blur(14px);
+  transition:
+    color 180ms ease,
+    border-color 180ms ease,
+    background 180ms ease,
+    transform 180ms ease;
 }
 
-.dither-canvas-controls button span {
-  margin-right: 0.45rem;
-  font-family: monospace;
-  opacity: 0.58;
-}
-
-.dither-canvas-controls button:hover,
-.dither-canvas-controls button:focus-visible {
-  border-color: rgba(255, 255, 255, 0.48);
-  color: #fff;
+.dither-canvas-actions button:hover,
+.dither-canvas-actions button:focus-visible,
+.dither-canvas-show-interface:hover,
+.dither-canvas-show-interface:focus-visible {
+  color: #ffffff;
+  border-color: rgba(var(--accent-rgb), 0.62);
+  background: rgba(var(--accent-rgb), 0.10);
   transform: translateY(-1px);
   outline: none;
 }
 
-.dither-canvas-controls button.is-active {
-  background: rgba(255, 255, 255, 0.92);
-  color: #08090c;
-  border-color: transparent;
+.dither-canvas-scene-copy {
+  position: absolute;
+  z-index: 3;
+  left: clamp(1.5rem, 5.5vw, 6rem);
+  bottom: clamp(5.2rem, 10.5vh, 8rem);
+  width: min(38rem, calc(100% - 24rem));
+  text-shadow: 0 2px 30px rgba(0, 0, 0, 0.72);
 }
 
-.dither-canvas-note {
-  margin-top: 0.4rem;
-  line-height: 1.6;
+.dither-canvas-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 0.82rem;
+  margin: 0 0 1rem;
+  color: var(--accent);
+  font: 500 0.66rem/1 "JetBrains Mono", monospace;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  transition: color 600ms ease;
 }
 
-@media (max-width: 720px) {
-  .dither-canvas-vignette {
-    background: linear-gradient(0deg, rgba(3, 4, 7, 0.9), rgba(3, 4, 7, 0.18) 78%);
+.dither-canvas-eyebrow span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.2rem;
+  min-height: 1.45rem;
+  border: 1px solid rgba(var(--accent-rgb), 0.42);
+  border-radius: 999px;
+  background: rgba(1, 2, 4, 0.28);
+}
+
+.dither-canvas-scene-copy h1 {
+  max-width: 7.4ch;
+  margin: 0;
+  color: #fbfbf6;
+  font-size: clamp(4.6rem, 8.5vw, 9.2rem);
+  font-weight: 500;
+  line-height: 0.82;
+  letter-spacing: -0.074em;
+  text-wrap: balance;
+}
+
+.dither-canvas-description {
+  max-width: 32rem;
+  margin: 1.35rem 0 0;
+  color: rgba(255, 255, 255, 0.70);
+  font-size: clamp(0.94rem, 1.3vw, 1.12rem);
+  line-height: 1.62;
+}
+
+.dither-canvas-use-case {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.9rem;
+  align-items: baseline;
+  max-width: 33rem;
+  margin: 1.15rem 0 0;
+  color: rgba(255, 255, 255, 0.52);
+  font-size: 0.76rem;
+  line-height: 1.5;
+}
+
+.dither-canvas-use-case span {
+  color: rgba(var(--accent-rgb), 0.82);
+  font: 500 0.57rem/1 "JetBrains Mono", monospace;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.dither-canvas-navigation {
+  position: absolute;
+  z-index: 4;
+  top: 50%;
+  right: clamp(1.5rem, 3.1vw, 3.6rem);
+  width: clamp(11rem, 15vw, 14rem);
+  transform: translateY(-50%);
+}
+
+.dither-canvas-navigation ol {
+  display: grid;
+  gap: 0.18rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dither-canvas-navigation li {
+  margin: 0;
+}
+
+.dither-canvas-navigation li button {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1.8rem minmax(1.1rem, 1fr) auto;
+  align-items: center;
+  gap: 0.68rem;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.42);
+  padding: 0.54rem 0;
+  font: 500 0.67rem/1 "JetBrains Mono", monospace;
+  text-align: left;
+  cursor: pointer;
+  transition: color 220ms ease;
+}
+
+.dither-canvas-navigation li button > span {
+  font-size: 0.56rem;
+}
+
+.dither-canvas-navigation li button i {
+  display: block;
+  width: 100%;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.16);
+  transform-origin: right center;
+  transition:
+    background 260ms ease,
+    transform 420ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 260ms ease;
+}
+
+.dither-canvas-navigation li button strong {
+  min-width: max-content;
+  font-weight: 500;
+}
+
+.dither-canvas-navigation li button:hover,
+.dither-canvas-navigation li button:focus-visible {
+  color: rgba(255, 255, 255, 0.86);
+  outline: none;
+}
+
+.dither-canvas-navigation li button:hover i,
+.dither-canvas-navigation li button:focus-visible i {
+  background: rgba(255, 255, 255, 0.45);
+  transform: scaleX(0.82);
+}
+
+.dither-canvas-navigation li button.is-active {
+  color: #ffffff;
+}
+
+.dither-canvas-navigation li button.is-active > span {
+  color: var(--accent);
+}
+
+.dither-canvas-navigation li button.is-active i {
+  background: var(--accent);
+  transform: scaleX(0.62);
+  box-shadow: 0 0 12px rgba(var(--accent-rgb), 0.56);
+}
+
+.dither-canvas-step-controls {
+  display: grid;
+  grid-template-columns: 2.35rem 1fr 2.35rem;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.11);
+}
+
+.dither-canvas-step-controls button {
+  width: 2.35rem;
+  height: 2.35rem;
+  display: grid;
+  place-items: center;
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 50%;
+  background: rgba(2, 4, 7, 0.30);
+  color: rgba(255, 255, 255, 0.70);
+  font-size: 0.95rem;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+  transition: color 180ms ease, border-color 180ms ease, transform 180ms ease;
+}
+
+.dither-canvas-step-controls button:hover,
+.dither-canvas-step-controls button:focus-visible {
+  color: #ffffff;
+  border-color: rgba(var(--accent-rgb), 0.58);
+  transform: scale(1.04);
+  outline: none;
+}
+
+.dither-canvas-step-controls > span {
+  color: rgba(255, 255, 255, 0.42);
+  font: 500 0.58rem/1 "JetBrains Mono", monospace;
+  letter-spacing: 0.13em;
+  text-align: center;
+}
+
+.dither-canvas-interaction {
+  position: absolute;
+  z-index: 4;
+  left: 50%;
+  bottom: max(1.5rem, env(safe-area-inset-bottom));
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.43);
+  font: 500 0.57rem/1.4 "JetBrains Mono", monospace;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.dither-canvas-interaction > span {
+  width: 0.38rem;
+  height: 0.38rem;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 12px rgba(var(--accent-rgb), 0.8);
+  animation: dither-canvas-pulse 2.4s ease-in-out infinite;
+}
+
+.dither-canvas-show-interface {
+  position: absolute;
+  z-index: 6;
+  right: max(1.5rem, env(safe-area-inset-right));
+  bottom: max(1.5rem, env(safe-area-inset-bottom));
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(0.5rem);
+}
+
+.dither-canvas-page.is-immersive .dither-canvas-chrome {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.dither-canvas-page.is-immersive .dither-canvas-header {
+  transform: translateY(-1rem);
+}
+
+.dither-canvas-page.is-immersive .dither-canvas-scene-copy {
+  transform: translateX(-1rem);
+}
+
+.dither-canvas-page.is-immersive .dither-canvas-navigation {
+  transform: translate(1rem, -50%);
+}
+
+.dither-canvas-page.is-immersive .dither-canvas-interaction {
+  transform: translate(-50%, 0.75rem);
+}
+
+.dither-canvas-page.is-immersive .dither-canvas-show-interface {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+@keyframes dither-canvas-pulse {
+  0%, 100% {
+    opacity: 0.45;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+}
+
+@media (max-width: 860px) {
+  .dither-canvas-atmosphere {
+    background:
+      linear-gradient(0deg, rgba(1, 2, 4, 0.86) 0%, rgba(1, 2, 4, 0.40) 42%, transparent 75%),
+      radial-gradient(circle at 50% 45%, transparent 40%, rgba(0, 0, 0, 0.24) 100%);
   }
 
-  .dither-canvas-content {
-    width: 100%;
-    justify-content: flex-end;
-    padding: 5rem 1.25rem 2rem;
+  .dither-canvas-header {
+    grid-template-columns: 1fr auto;
+    padding-left: max(1.25rem, env(safe-area-inset-left));
+    padding-right: max(1.25rem, env(safe-area-inset-right));
   }
 
-  .dither-canvas-content h1 {
-    font-size: clamp(2.8rem, 14vw, 4.6rem);
-  }
-
-  .dither-canvas-controls {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    padding-bottom: 0.35rem;
-    scrollbar-width: none;
-  }
-
-  .dither-canvas-controls::-webkit-scrollbar {
+  .dither-canvas-series {
     display: none;
   }
 
-  .dither-canvas-controls button {
+  .dither-canvas-actions button:first-child {
+    display: none;
+  }
+
+  .dither-canvas-actions button {
+    padding: 0.55rem 0.66rem;
+    font-size: 0.56rem;
+  }
+
+  .dither-canvas-scene-copy {
+    left: max(1.25rem, env(safe-area-inset-left));
+    right: max(1.25rem, env(safe-area-inset-right));
+    bottom: calc(max(1rem, env(safe-area-inset-bottom)) + 6.2rem);
+    width: auto;
+  }
+
+  .dither-canvas-scene-copy h1 {
+    max-width: 8ch;
+    font-size: clamp(3.25rem, 14.5vw, 5.4rem);
+    line-height: 0.86;
+  }
+
+  .dither-canvas-description {
+    max-width: 29rem;
+    margin-top: 0.9rem;
+    font-size: 0.88rem;
+    line-height: 1.52;
+  }
+
+  .dither-canvas-use-case {
+    display: none;
+  }
+
+  .dither-canvas-navigation {
+    top: auto;
+    left: max(1rem, env(safe-area-inset-left));
+    right: max(1rem, env(safe-area-inset-right));
+    bottom: max(0.8rem, env(safe-area-inset-bottom));
+    width: auto;
+    transform: none;
+  }
+
+  .dither-canvas-navigation ol {
+    display: flex;
+    gap: 0.35rem;
+    overflow-x: auto;
+    padding: 0 0 0.35rem;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+  }
+
+  .dither-canvas-navigation ol::-webkit-scrollbar {
+    display: none;
+  }
+
+  .dither-canvas-navigation li {
     flex: 0 0 auto;
+    scroll-snap-align: center;
+  }
+
+  .dither-canvas-navigation li button {
+    width: auto;
+    min-height: 2.3rem;
+    grid-template-columns: auto auto;
+    gap: 0.5rem;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 999px;
+    background: rgba(2, 4, 7, 0.36);
+    padding: 0.58rem 0.75rem;
+    backdrop-filter: blur(12px);
+  }
+
+  .dither-canvas-navigation li button i {
+    display: none;
+  }
+
+  .dither-canvas-navigation li button strong {
+    font-size: 0.58rem;
+  }
+
+  .dither-canvas-navigation li button.is-active {
+    border-color: rgba(var(--accent-rgb), 0.50);
+    background: rgba(var(--accent-rgb), 0.10);
+  }
+
+  .dither-canvas-step-controls,
+  .dither-canvas-interaction {
+    display: none;
+  }
+
+  .dither-canvas-page.is-immersive .dither-canvas-navigation {
+    transform: translateY(1rem);
+  }
+}
+
+@media (max-width: 520px) {
+  .dither-canvas-brand {
+    font-size: 0.68rem;
+  }
+
+  .dither-canvas-eyebrow {
+    margin-bottom: 0.72rem;
+  }
+
+  .dither-canvas-description {
+    max-width: 24rem;
+  }
+}
+
+@media (max-height: 660px) and (max-width: 860px) {
+  .dither-canvas-scene-copy {
+    bottom: calc(max(0.7rem, env(safe-area-inset-bottom)) + 5.3rem);
+  }
+
+  .dither-canvas-scene-copy h1 {
+    font-size: clamp(2.8rem, 12vw, 4.2rem);
+  }
+
+  .dither-canvas-description {
+    display: none;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .dither-canvas-stage,
-  .dither-canvas-controls button,
-  .dither-canvas-vignette {
+  .dither-canvas-chrome,
+  .dither-canvas-frame,
+  .dither-canvas-brand-mark,
+  .dither-canvas-navigation li button i,
+  .dither-canvas-actions button,
+  .dither-canvas-show-interface {
     transition: none;
   }
+
+  .dither-canvas-interaction > span {
+    animation: none;
+  }
+}
+
+.dither-canvas-page .visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
 }
