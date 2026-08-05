@@ -1,8 +1,12 @@
 import React, { useCallback, useMemo, useState } from "react";
 import logo from "../assets/icons/logo2026_128.png";
 import { ThemeProvider, useThemeMode } from "../contexts/ThemeContext";
+import { hasHardwareWebGL, isMobileTier } from "../utils/deviceTier";
+import BlackHoleBackground from "./BlackHoleBackground";
+import DitherBackground from "./DitherBackground";
 import DitherWorldCanvas from "./DitherWorldCanvas";
 import "./DitherCanvasPage.css";
+import "./DitherCanvasBackdrop.css";
 
 const PALETTES = Object.freeze([
   {
@@ -13,7 +17,8 @@ const PALETTES = Object.freeze([
   {
     id: "classic",
     label: "Classic",
-    description: "The same physical world translated into the site's spectral gradient language.",
+    description:
+      "The original block-glyph atlas, Bayer cutout, shimmer, glow, and vivid flow color describing the same physical world.",
   },
 ]);
 
@@ -56,6 +61,29 @@ const ThemeIcon = ({ isDark }) =>
     </svg>
   );
 
+const IndexThemeBackdrop = ({ isDark }) => {
+  const useBlackHole = hasHardwareWebGL && isDark && !isMobileTier;
+  const useDither = hasHardwareWebGL && !useBlackHole;
+  const backdropClass = useBlackHole
+    ? "is-black-hole"
+    : useDither
+      ? "is-classic-dither"
+      : "is-fallback";
+
+  return (
+    <div className={`dither-canvas-index-background ${backdropClass}`} aria-hidden="true">
+      <div
+        key={useBlackHole ? "black-hole" : isDark ? "dark-dither" : "light-dither"}
+        className="dither-canvas-index-surface"
+      >
+        {useBlackHole && <BlackHoleBackground activeSection={0} />}
+        {useDither && <DitherBackground activeSection={0} isDark={isDark} />}
+        {!hasHardwareWebGL && <div className="dither-canvas-index-fallback" />}
+      </div>
+    </div>
+  );
+};
+
 const TidalDuneExperience = () => {
   const { isDark, toggleTheme } = useThemeMode();
   const [paletteMode, setPaletteMode] = useState("natural");
@@ -77,6 +105,7 @@ const TidalDuneExperience = () => {
 
   return (
     <main className={`dither-canvas-page palette-${paletteMode}`} aria-label="Tidal Dune generative shader study">
+      <IndexThemeBackdrop isDark={isDark} />
       <DitherWorldCanvas
         initialPhase={initialPhase}
         isDark={isDark}

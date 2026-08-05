@@ -23,7 +23,9 @@ uniform float u_paletteMix;
 uniform float u_themeMix;
 uniform sampler2D u_atlas;
 uniform float u_cellSize;
-uniform int u_charCount;
+uniform int u_naturalCharCount;
+uniform int u_classicCharCount;
+uniform int u_classicCharOffset;
 uniform int u_atlasCols;
 uniform int u_atlasRows;
 uniform float u_intro;
@@ -72,10 +74,6 @@ float lineMask(float value, float width) {
   return 1.0 - smoothstep(width, width * 1.85, abs(value));
 }
 
-float ringMask(vec2 point, float radius, float width) {
-  return 1.0 - smoothstep(width, width * 1.8, abs(length(point) - radius));
-}
-
 float segmentDistance(vec2 point, vec2 start, vec2 end) {
   vec2 pointOffset = point - start;
   vec2 segment = end - start;
@@ -83,29 +81,23 @@ float segmentDistance(vec2 point, vec2 start, vec2 end) {
   return length(pointOffset - segment * amount);
 }
 
-vec3 classicPalette(float value) {
-  vec3 a = vec3(0.50);
-  vec3 b = vec3(0.56);
-  vec3 c = vec3(1.0);
-  vec3 d = vec3(0.00, 0.12, 0.32);
-  return a + b * cos(TAU * (c * value + d));
+vec3 hsb2rgb(float h, float s, float b) {
+  vec3 c = clamp(abs(mod(h * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
+  return b * mix(vec3(1.0), c, s);
 }
 
-vec3 spectralGrade(vec3 naturalColor, vec2 uv, float material, float phase) {
-  float light = saturate(luminance(naturalColor));
-  float hue = material * 0.21
-    + light * 0.48
-    + uv.x * 0.18
-    - uv.y * 0.11
-    + phase * 0.13;
-  vec3 spectral = classicPalette(hue);
-  vec3 secondary = classicPalette(hue + 0.22 + material * 0.08);
-  spectral = mix(spectral, secondary, smoothstep(0.30, 0.92, light));
-
-  float spectralLight = max(luminance(spectral), 0.08);
-  float targetLight = mix(0.20, 0.92, pow(light, 0.74));
-  spectral *= targetLight / spectralLight;
-  return clamp(spectral, 0.0, 1.25);
+vec3 classicRainbow(vec2 uv, vec2 cellId, float brightness, float flowMagnitude, vec2 gradient) {
+  float hue = atan(gradient.y, gradient.x) / TAU
+    + brightness * 0.5
+    + fract(u_time * 0.11);
+  hue = fract(hue);
+  vec3 raw = hsb2rgb(hue, 1.0, 1.0);
+  float currentLuminance = dot(raw, vec3(0.299, 0.587, 0.114));
+  float boost = 0.55 / max(currentLuminance, 0.1);
+  raw = min(raw * boost, vec3(1.0));
+  float boostedLuminance = dot(raw, vec3(0.299, 0.587, 0.114));
+  raw = mix(vec3(boostedLuminance), raw, 1.2);
+  return clamp(raw, vec3(0.0), vec3(1.0));
 }
 
 float farDuneHeight(float x) {
@@ -428,13 +420,11 @@ vec4 tidalDune(vec2 uv, float time) {
   material = mix(material, 0.34, bankMask);
   material = mix(material, 0.76, max(sunDisc, moonDisc));
 
-  vec3 spectral = spectralGrade(color, uv, material, u_phase + time * 0.004);
-  color = mix(color, spectral, u_paletteMix);
   return vec4(clamp(color, 0.0, 1.0), material);
 }
 
-vec4 sampleCharacter(int characterIndex, vec2 cellUv) {
-  characterIndex = clamp(characterIndex, 0, u_charCount - 1);
+vec4 sampleCharacter(int characterIndex, int characterOffset, int characterCount, vec2 cellUv) {
+  characterIndex = clamp(characterIndex, 0, characterCount - 1) + characterOffset;
   int column = characterIndex % u_atlasCols;
   int row = characterIndex / u_atlasCols;
   vec2 atlasUv = vec2(
@@ -454,37 +444,81 @@ float introReveal(vec2 fragCoord) {
 
 void main() {
   float cellWidth = u_cellSize;
-  float cellHeight = u_cellSize * 1.48;
+  float cellHeight = u_cellSize * 1.5;
   vec2 cellCount = max(floor(u_res / vec2(cellWidth, cellHeight)), vec2(1.0));
   vec2 cellId = floor(v_uv * cellCount);
   vec2 cellUv = fract(v_uv * cellCount);
   vec2 cellCenter = (cellId + 0.5) / cellCount;
   vec4 scene = tidalDune(cellCenter, u_time);
+  float sceneLight = saturate(luminance(scene.rgb));
 
-  float reveal = introReveal(gl_FragCoord.xy);
-  float vignette = 1.0 - 0.15 * pow(length(v_uv - 0.5), 2.0);
-
-  if (u_passMix > 0.5) {
-    vec3 glowColor = scene.rgb * (0.92 + 0.18 * luminance(scene.rgb));
-    glowColor *= mix(1.06, 0.92, u_themeMix);
-    fragColor = vec4(clamp(glowColor * vignette, 0.0, 1.0), reveal * 0.96);
-    return;
+  vec2 classicGradient = vec2(0.0);
+  float classicFlowMagnitude = saturate(length(u_motion)) * 0.8;
+  if (u_paletteMix > 0.001) {
+    float pixelLight = luminance(tidalDune(v_uv, u_time).rgb);
+    classicGradient = vec2(dFdx(pixelLight), dFdy(pixelLight)) * cellCount;
+    classicFlowMagnitude = min(
+      length(classicGradient) * 12.0
+      + saturate(length(u_motion)) * 0.8
+      + (1.0 - u_stillness) * 0.18,
+      2.0
+    );
   }
 
-  float sceneLight = saturate(luminance(scene.rgb));
-  float densityLight = mix(1.0 - sceneLight, sceneLight, u_themeMix);
-  float grain = (hash21(cellId + vec2(17.0, 41.0)) - 0.5) * 0.24;
-  float characterFloat = clamp(
-    pow(densityLight, 0.84) * float(u_charCount - 1) + grain,
+  float wave1 = sin(cellId.x * 0.4 + cellId.y * 0.3 + u_time * 1.2) * 0.5;
+  float wave2 = sin(
+    cellId.x * 0.8
+    - cellId.y * 0.6
+    + u_time * 0.7
+    + classicFlowMagnitude * 2.0
+  ) * 0.35;
+  float wave3 = sin((cellId.x + cellId.y) * 0.2 + u_time * 1.8) * 0.15;
+  float classicShimmer = (wave1 + wave2 + wave3)
+    * smoothstep(0.0, 0.3, classicFlowMagnitude);
+  float classicCharacterFloat = clamp(
+    sceneLight * float(u_classicCharCount - 1) + classicShimmer,
     0.0,
-    float(u_charCount - 1)
+    float(u_classicCharCount - 1)
   );
-  int characterA = int(floor(characterFloat));
-  int characterB = min(characterA + 1, u_charCount - 1);
-  float glyphAlpha = mix(
-    sampleCharacter(characterA, cellUv).r,
-    sampleCharacter(characterB, cellUv).r,
-    fract(characterFloat)
+  int classicCharacterA = int(floor(classicCharacterFloat));
+  int classicCharacterB = min(classicCharacterA + 1, u_classicCharCount - 1);
+  vec2 classicCellUv = clamp(
+    cellUv
+      + classicGradient * 3.5
+        * sin(u_time * 1.5 + cellId.x * 0.4 + cellId.y * 0.3)
+        * 0.15,
+    vec2(0.02),
+    vec2(0.98)
+  );
+  float classicGlyphAlpha = mix(
+    sampleCharacter(
+      classicCharacterA,
+      u_classicCharOffset,
+      u_classicCharCount,
+      classicCellUv
+    ).r,
+    sampleCharacter(
+      classicCharacterB,
+      u_classicCharOffset,
+      u_classicCharCount,
+      classicCellUv
+    ).r,
+    fract(classicCharacterFloat)
+  );
+
+  float densityLight = mix(1.0 - sceneLight, sceneLight, u_themeMix);
+  float naturalGrain = (hash21(cellId + vec2(17.0, 41.0)) - 0.5) * 0.24;
+  float naturalCharacterFloat = clamp(
+    pow(densityLight, 0.84) * float(u_naturalCharCount - 1) + naturalGrain,
+    0.0,
+    float(u_naturalCharCount - 1)
+  );
+  int naturalCharacterA = int(floor(naturalCharacterFloat));
+  int naturalCharacterB = min(naturalCharacterA + 1, u_naturalCharCount - 1);
+  float naturalGlyphAlpha = mix(
+    sampleCharacter(naturalCharacterA, 0, u_naturalCharCount, cellUv).r,
+    sampleCharacter(naturalCharacterB, 0, u_naturalCharCount, cellUv).r,
+    fract(naturalCharacterFloat)
   );
 
   ivec2 bayerCell = ivec2(mod(floor(gl_FragCoord.xy / 2.0), 4.0));
@@ -495,23 +529,66 @@ void main() {
     15, 7, 13, 5
   );
   float dither = float(bayer4[bayerCell.y * 4 + bayerCell.x]) / 16.0;
-  glyphAlpha *= step(dither * 0.34 + 0.11, glyphAlpha);
+  naturalGlyphAlpha *= step(dither * 0.34 + 0.11, naturalGlyphAlpha);
+  classicGlyphAlpha *= step(dither * 0.4 + 0.2, classicGlyphAlpha);
 
-  vec3 lightPaper = vec3(0.986, 0.973, 0.949);
-  vec3 darkPaper = vec3(0.004, 0.007, 0.014);
-  vec3 paper = mix(lightPaper, darkPaper, u_themeMix);
+  vec3 classicInk = classicRainbow(
+    v_uv,
+    cellId,
+    sceneLight,
+    classicFlowMagnitude,
+    classicGradient
+  );
+  float classicGlow = smoothstep(0.1, 0.5, sceneLight) * classicGlyphAlpha * 0.08;
+  classicInk += classicRainbow(
+    v_uv,
+    cellId,
+    1.0,
+    classicFlowMagnitude,
+    classicGradient
+  ) * classicGlow;
 
-  vec3 lightInk = mix(vec3(0.075, 0.090, 0.120), scene.rgb * 0.76, 0.48 + u_paletteMix * 0.34);
+  float reveal = introReveal(gl_FragCoord.xy);
+  float vignette = 1.0 - 0.15 * pow(length(v_uv - 0.5), 2.0);
+
+  if (u_passMix > 0.5) {
+    vec3 naturalGlowColor = scene.rgb * (0.92 + 0.18 * sceneLight);
+    vec3 classicGlowColor = classicInk * (0.90 + 0.14 * sceneLight);
+    vec3 glowColor = mix(naturalGlowColor, classicGlowColor, u_paletteMix);
+    float naturalGlowAlpha = mix(0.14, 0.24, u_themeMix)
+      + sceneLight * mix(0.08, 0.14, u_themeMix);
+    float classicGlowAlpha = mix(0.08, 0.14, u_themeMix)
+      + classicGlyphAlpha * mix(0.12, 0.18, u_themeMix);
+    float glowAlpha = mix(naturalGlowAlpha, classicGlowAlpha, u_paletteMix);
+    float outputAlpha = reveal * saturate(glowAlpha);
+    vec3 outputColor = clamp(glowColor * vignette, 0.0, 1.0);
+    fragColor = vec4(outputColor * outputAlpha, outputAlpha);
+    return;
+  }
+
+  vec3 lightInk = mix(
+    vec3(0.075, 0.090, 0.120),
+    scene.rgb * 0.76,
+    0.48
+  );
   vec3 darkInk = scene.rgb * (1.02 + 0.24 * sceneLight);
-  vec3 ink = mix(lightInk, darkInk, u_themeMix);
+  vec3 naturalInk = mix(lightInk, darkInk, u_themeMix);
+  naturalInk += scene.rgb * mix(0.018, 0.045, u_themeMix);
 
-  vec3 color = mix(paper, ink, glyphAlpha);
-  color += scene.rgb * mix(0.020, 0.050, u_themeMix);
+  float naturalFieldAlpha = mix(0.024, 0.018, u_themeMix)
+    * (0.35 + sceneLight * 0.65);
+  float naturalGlyphOpacity = mix(0.66, 0.78, u_themeMix);
+  float naturalCanvasAlpha = saturate(
+    naturalFieldAlpha + naturalGlyphAlpha * naturalGlyphOpacity
+  );
+  float classicCanvasAlpha = saturate(0.012 + classicGlyphAlpha * 0.94);
+
+  vec3 color = mix(naturalInk, classicInk, u_paletteMix);
+  float canvasAlpha = mix(naturalCanvasAlpha, classicCanvasAlpha, u_paletteMix);
   color *= vignette;
-  color += ((hash21(gl_FragCoord.xy) - 0.5) / 255.0) * 2.2;
+  color += ((hash21(gl_FragCoord.xy) - 0.5) / 255.0) * 2.0;
 
-  float fieldAlpha = mix(0.18, 0.12, u_themeMix);
-  float glyphOpacity = mix(0.76, 0.86, u_themeMix);
-  float canvasAlpha = saturate(fieldAlpha + glyphAlpha * glyphOpacity);
-  fragColor = vec4(clamp(color, 0.0, 1.0), reveal * canvasAlpha);
+  float outputAlpha = reveal * canvasAlpha;
+  vec3 outputColor = clamp(color, 0.0, 1.0);
+  fragColor = vec4(outputColor * outputAlpha, outputAlpha);
 }`;
