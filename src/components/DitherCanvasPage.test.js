@@ -3,30 +3,6 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import DitherCanvasPage from "./DitherCanvasPage";
 
-jest.mock("../utils/deviceTier", () => ({
-  hasHardwareWebGL: true,
-  isMobileTier: false,
-}));
-
-jest.mock("./BlackHoleBackground", () => {
-  const ReactModule = require("react");
-  return ({ activeSection }) =>
-    ReactModule.createElement("div", {
-      "data-testid": "black-hole-index-background",
-      "data-active-section": activeSection,
-    });
-});
-
-jest.mock("./DitherBackground", () => {
-  const ReactModule = require("react");
-  return ({ activeSection, isDark }) =>
-    ReactModule.createElement("div", {
-      "data-testid": "classic-index-background",
-      "data-active-section": activeSection,
-      "data-theme-mode": isDark ? "dark" : "light",
-    });
-});
-
 jest.mock("./DitherWorldCanvas", () => {
   const ReactModule = require("react");
   return ({ isDark, onPhaseChange, paletteMode, paused, phaseOverride }) =>
@@ -52,18 +28,18 @@ describe("DitherCanvasPage", () => {
     document.documentElement.removeAttribute("data-theme");
   });
 
-  test("layers the light index background beneath the Tidal Dune renderer", () => {
+  test("opens as one natural-light Tidal Dune study", () => {
     render(<DitherCanvasPage />);
 
     expect(screen.getByRole("heading", { name: "Tidal Dune" })).toBeInTheDocument();
-    expect(screen.getByTestId("classic-index-background")).toHaveAttribute(
-      "data-theme-mode",
-      "light",
-    );
-    expect(screen.queryByTestId("black-hole-index-background")).not.toBeInTheDocument();
+    expect(screen.getAllByTestId("dither-world-renderer")).toHaveLength(1);
     expect(screen.getByTestId("dither-world-renderer")).toHaveAttribute(
       "data-palette-mode",
       "natural",
+    );
+    expect(screen.getByTestId("dither-world-renderer")).toHaveAttribute(
+      "data-theme-mode",
+      "light",
     );
   });
 
@@ -99,16 +75,10 @@ describe("DitherCanvasPage", () => {
     );
   });
 
-  test("switches to the desktop dark index background and preserves motion controls", () => {
+  test("uses the shared site theme and motion controls", () => {
     render(<DitherCanvasPage />);
 
     fireEvent.click(screen.getByRole("button", { name: "Use dark mode" }));
-
-    expect(screen.getByTestId("black-hole-index-background")).toHaveAttribute(
-      "data-active-section",
-      "0",
-    );
-    expect(screen.queryByTestId("classic-index-background")).not.toBeInTheDocument();
     expect(screen.getByTestId("dither-world-renderer")).toHaveAttribute(
       "data-theme-mode",
       "dark",
