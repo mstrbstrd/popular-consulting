@@ -5,67 +5,187 @@ import {
   DITHER_WORLD_VERTEX_SHADER,
 } from "./DitherWorldShader";
 
-const CHARSET = " .·:+=*#%@";
+const CHARSET = " .,:-=+*#%@";
 const ATLAS_CELL = 32;
-const SCENE_COUNT = 10;
-const TRANSITION_SECONDS = 1.55;
+const CYCLE_SECONDS = 84;
+const PHASE_REPORT_INTERVAL_MS = 240;
 
-const clampSceneIndex = (value) =>
-  Math.max(0, Math.min(SCENE_COUNT - 1, Number(value) || 0));
+const clamp = (value, minimum = 0, maximum = 1) =>
+  Math.max(minimum, Math.min(maximum, value));
 
-const easeInOutCubic = (value) =>
-  value < 0.5
-    ? 4 * value * value * value
-    : 1 - Math.pow(-2 * value + 2, 3) / 2;
+const shortestPhaseDelta = (from, to) => {
+  let delta = to - from;
+  if (delta > 0.5) delta -= 1;
+  if (delta < -0.5) delta += 1;
+  return delta;
+};
 
 const buildAtlas = (gl) => {
-  const atlasColumns = 16;
-  const atlasRows = Math.ceil(CHARSET.length / atlasColumns);
+  const columns = 16;
+  const rows = Math.ceil(CHARSET.length / columns);
   const atlasCanvas = document.createElement("canvas");
-  atlasCanvas.width = atlasColumns * ATLAS_CELL;
-  atlasCanvas.height = atlasRows * ATLAS_CELL;
+  atlasCanvas.width = columns * ATLAS_CELL;
+  atlasCanvas.height = rows * ATLAS_CELL;
+
   const context = atlasCanvas.getContext("2d");
   if (!context) throw new Error("The dither atlas canvas is unavailable.");
-
-  context.fillStyle = "#000";
+  context.fillStyle = "#000000";
   context.fillRect(0, 0, atlasCanvas.width, atlasCanvas.height);
-  context.fillStyle = "#fff";
+  context.fillStyle = "#ffffff";
   context.font = `${ATLAS_CELL - 4}px monospace`;
   context.textAlign = "center";
   context.textBaseline = "middle";
+
   Array.from(CHARSET).forEach((character, index) => {
     context.fillText(
       character,
-      (index % atlasColumns) * ATLAS_CELL + ATLAS_CELL / 2,
-      Math.floor(index / atlasColumns) * ATLAS_CELL + ATLAS_CELL / 2,
+      (index % columns) * ATLAS_CELL + ATLAS_CELL / 2,
+      Math.floor(index / columns) * ATLAS_CELL + ATLAS_CELL / 2,
     );
   });
 
   const texture = gl.createTexture();
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, texture);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, atlasCanvas);
+  gl.texImage2D(
+    gl.TEXTURE_2D,
+    0,
+    gl.RGBA,
+    gl.RGBA,
+    gl.UNSIGNED_BYTE,
+    atlasCanvas,
+  );
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  return { texture, atlasColumns, atlasRows };
+
+  return { texture, columns, rows };
 };
 
-const DitherWorldCanvas = ({ sceneIndex = 0, paused = false, passive = false }) => {
-  const canvasRef = useRef(null);
-  const animationFrameRef = useRef(0);
-  const sceneTransitionRef = useRef({
-    from: clampSceneIndex(sceneIndex),
-    to: clampSceneIndex(sceneIndex),
-    progress: 0,
+const createRenderer = (canvas, passMix) => {
+  const gl = canvas.getContext("webgl2", {
+    alpha: true,
+    antialias: false,
+    depth: false,
+    powerPreference: isMobileTier ? "low-power" : "high-performance",
+    premultipliedAlpha: true,
   });
-  const pointerRef = useRef({ x: 0.5, y: 0.5 });
-  const pointerTargetRef = useRef({ x: 0.5, y: 0.5 });
-  const impulseRef = useRef({ x: 0.5, y: 0.5, birth: -1 });
-  const timeRef = useRef(0);
+  if (!gl) throw new Error("WebGL2 is unavailable.");
+
+  const compileShader = (source, type) => {
+    const shader = gl.createShader(type);
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+      const message = gl.getShaderInfoLog(shader) || "Unknown shader compile error.";
+      gl.deleteShader(shader);
+      throw new Error(message);
+    }
+    return shader;
+  };
+
+  const vertexShader = compileShader(DITHER_WORLD_VERTEX_SHADER, gl.VERTEX_SHADER);
+  const fragmentShader = compileShader(
+    DITHER_WORLD_FRAGMENT_SHADER,
+    gl.FRAGMENT_SHADER,
+  );
+  const program = gl.createProgram();
+  gl.attachShader(program, vertexShader);
+  gl.attachShader(program, fragmentShader);
+  gl.linkProgram(program);
+  gl.deleteShader(vertexShader);
+  gl.deleteShader(fragmentShader);
+
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+    const message = gl.getProgramInfoLog(program) || "Shader link failed.";
+    gl.deleteProgram(program);
+    throw new Error(message);
+  }
+
+  gl.useProgram(program);
+  const vertexBuffer = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+  gl.bufferData(
+    gl.ARRAY_BUFFER,
+    new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]),
+    gl.STATIC_DRAW,
+  );
+  const positionLocation = gl.getAttribLocation(program, "a_pos");
+  gl.enableVertexAttribArray(positionLocation);
+  gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+
+  const uniforms = {};
+  [
+    "u_res",
+    "u_time",
+    "u_phase",
+    "u_pointer",
+    "u_motion",
+    "u_stillness",
+    "u_impulse",
+    "u_paletteMix",
+    "u_themeMix",
+    "u_atlas",
+    "u_cellSize",
+    "u_charCount",
+    "u_atlasCols",
+    "u_atlasRows",
+    "u_intro",
+    "u_passMix",
+  ].forEach((name) => {
+    uniforms[name] = gl.getUniformLocation(program, name);
+  });
+
+  const atlas = buildAtlas(gl);
+
+  return {
+    atlas,
+    gl,
+    passMix,
+    program,
+    uniforms,
+    vertexBuffer,
+  };
+};
+
+const destroyRenderer = (renderer) => {
+  if (!renderer) return;
+  const { atlas, gl, program, vertexBuffer } = renderer;
+  if (atlas?.texture) gl.deleteTexture(atlas.texture);
+  if (vertexBuffer) gl.deleteBuffer(vertexBuffer);
+  if (program) gl.deleteProgram(program);
+};
+
+const DitherWorldCanvas = ({
+  initialPhase = 0.66,
+  isDark = false,
+  onPhaseChange,
+  paletteMode = "natural",
+  paused = false,
+  phaseOverride = null,
+}) => {
+  const wrapperRef = useRef(null);
+  const glowCanvasRef = useRef(null);
+  const mainCanvasRef = useRef(null);
+  const animationFrameRef = useRef(0);
+  const onPhaseChangeRef = useRef(onPhaseChange);
   const pausedRef = useRef(paused);
-  const reducedMotionRef = useRef(false);
+  const phaseOverrideRef = useRef(phaseOverride);
+  const paletteTargetRef = useRef(paletteMode === "classic" ? 1 : 0);
+  const themeTargetRef = useRef(isDark ? 1 : 0);
+  const paletteMixRef = useRef(paletteMode === "classic" ? 1 : 0);
+  const themeMixRef = useRef(isDark ? 1 : 0);
+  const localTimeRef = useRef(0);
+  const phaseRef = useRef(clamp(initialPhase));
+  const pointerRef = useRef({ x: 0.56, y: 0.38 });
+  const pointerTargetRef = useRef({ x: 0.56, y: 0.38 });
+  const pointerMotionRef = useRef({ x: 0, y: 0 });
+  const pointerMotionTargetRef = useRef({ x: 0, y: 0 });
+  const pointerSampleRef = useRef({ x: 0.56, y: 0.38, at: 0 });
+  const stillnessRef = useRef(0.8);
+  const lastPointerActivityRef = useRef(performance.now());
+  const impulseRef = useRef({ x: 0.56, y: 0.18, birth: -10 });
   const [fallback, setFallback] = useState(false);
   const [contextVersion, setContextVersion] = useState(0);
 
@@ -74,259 +194,306 @@ const DitherWorldCanvas = ({ sceneIndex = 0, paused = false, passive = false }) 
   }, [paused]);
 
   useEffect(() => {
-    const nextScene = clampSceneIndex(sceneIndex);
-    const transition = sceneTransitionRef.current;
-    const visibleScene = transition.progress >= 0.5 ? transition.to : transition.from;
-    if (nextScene === transition.to && transition.from !== transition.to) return;
-    if (nextScene === visibleScene && transition.from === transition.to) return;
-    transition.from = visibleScene;
-    transition.to = nextScene;
-    transition.progress = transition.from === transition.to ? 0 : 0.0001;
-    impulseRef.current.birth = -1;
-  }, [sceneIndex]);
+    phaseOverrideRef.current = phaseOverride;
+  }, [phaseOverride]);
 
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return undefined;
+    paletteTargetRef.current = paletteMode === "classic" ? 1 : 0;
+  }, [paletteMode]);
 
-    const mediaQuery = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+  useEffect(() => {
+    themeTargetRef.current = isDark ? 1 : 0;
+  }, [isDark]);
+
+  useEffect(() => {
+    onPhaseChangeRef.current = onPhaseChange;
+  }, [onPhaseChange]);
+
+  useEffect(() => {
+    const wrapper = wrapperRef.current;
+    const glowCanvas = glowCanvasRef.current;
+    const mainCanvas = mainCanvasRef.current;
+    if (!wrapper || !glowCanvas || !mainCanvas) return undefined;
+
+    let reducedMotion = false;
+    const motionQuery = window.matchMedia?.("(prefers-reduced-motion: reduce)");
     const syncReducedMotion = () => {
-      reducedMotionRef.current = Boolean(mediaQuery?.matches);
+      reducedMotion = Boolean(motionQuery?.matches);
     };
     syncReducedMotion();
-    mediaQuery?.addEventListener?.("change", syncReducedMotion);
+    if (motionQuery?.addEventListener) {
+      motionQuery.addEventListener("change", syncReducedMotion);
+    } else {
+      motionQuery?.addListener?.(syncReducedMotion);
+    }
+
+    let documentVisible = document.visibilityState !== "hidden";
+    const handleVisibility = () => {
+      documentVisible = document.visibilityState !== "hidden";
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    const cleanupBaseListeners = () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+      if (motionQuery?.removeEventListener) {
+        motionQuery.removeEventListener("change", syncReducedMotion);
+      } else {
+        motionQuery?.removeListener?.(syncReducedMotion);
+      }
+    };
+
+    if (!hasHardwareWebGL) {
+      setFallback(true);
+      return cleanupBaseListeners;
+    }
+
+    let glowRenderer;
+    let mainRenderer;
+    let resizeObserver;
 
     const handleContextLost = (event) => {
       event.preventDefault();
       setFallback(true);
     };
-    const handleContextRestored = () => setContextVersion((value) => value + 1);
-    canvas.addEventListener("webglcontextlost", handleContextLost);
-    canvas.addEventListener("webglcontextrestored", handleContextRestored);
+    const handleContextRestored = () => {
+      setContextVersion((value) => value + 1);
+    };
 
-    let gl;
-    let program;
-    let vertexBuffer;
-    let atlasTexture;
-    let resizeObserver;
-    let documentVisible = document.visibilityState !== "hidden";
+    glowCanvas.addEventListener("webglcontextlost", handleContextLost);
+    glowCanvas.addEventListener("webglcontextrestored", handleContextRestored);
+    mainCanvas.addEventListener("webglcontextlost", handleContextLost);
+    mainCanvas.addEventListener("webglcontextrestored", handleContextRestored);
 
     try {
-      if (!hasHardwareWebGL) throw new Error("Hardware WebGL is unavailable.");
-      gl = canvas.getContext("webgl2", {
-        alpha: false,
-        antialias: false,
-        depth: false,
-        powerPreference: isMobileTier ? "low-power" : "high-performance",
-      });
-      if (!gl) throw new Error("WebGL2 is unavailable.");
-
-      const compileShader = (source, type) => {
-        const shader = gl.createShader(type);
-        gl.shaderSource(shader, source);
-        gl.compileShader(shader);
-        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-          const log = gl.getShaderInfoLog(shader) || "Unknown shader compile error.";
-          gl.deleteShader(shader);
-          throw new Error(log);
-        }
-        return shader;
-      };
-
-      const vertexShader = compileShader(DITHER_WORLD_VERTEX_SHADER, gl.VERTEX_SHADER);
-      const fragmentShader = compileShader(DITHER_WORLD_FRAGMENT_SHADER, gl.FRAGMENT_SHADER);
-      program = gl.createProgram();
-      gl.attachShader(program, vertexShader);
-      gl.attachShader(program, fragmentShader);
-      gl.linkProgram(program);
-      gl.deleteShader(vertexShader);
-      gl.deleteShader(fragmentShader);
-      if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-        throw new Error(gl.getProgramInfoLog(program) || "Shader link failed.");
-      }
-      gl.useProgram(program);
-
-      vertexBuffer = gl.createBuffer();
-      gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
-      gl.bufferData(
-        gl.ARRAY_BUFFER,
-        new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]),
-        gl.STATIC_DRAW,
-      );
-      const positionLocation = gl.getAttribLocation(program, "a_pos");
-      gl.enableVertexAttribArray(positionLocation);
-      gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
-
-      const uniforms = {};
-      [
-        "u_res", "u_time", "u_sceneA", "u_sceneB", "u_sceneMix", "u_intro",
-        "u_pointer", "u_impulse", "u_atlas", "u_cellSize", "u_charCount",
-        "u_atlasCols", "u_atlasRows",
-      ].forEach((name) => {
-        uniforms[name] = gl.getUniformLocation(program, name);
-      });
-
-      const atlas = buildAtlas(gl);
-      atlasTexture = atlas.texture;
-
-      const resize = () => {
-        const bounds = canvas.getBoundingClientRect();
-        const renderScale = passive && isMobileTier ? 0.55 : passive ? 0.72 : 1;
-        const width = Math.max(1, Math.floor(bounds.width * shaderDPR * renderScale));
-        const height = Math.max(1, Math.floor(bounds.height * shaderDPR * renderScale));
-        if (canvas.width !== width || canvas.height !== height) {
-          canvas.width = width;
-          canvas.height = height;
-          gl.viewport(0, 0, width, height);
-        }
-      };
-      resize();
-      if (typeof ResizeObserver !== "undefined") {
-        resizeObserver = new ResizeObserver(resize);
-        resizeObserver.observe(canvas);
-      }
-      window.addEventListener("resize", resize);
-
-      const readPointer = (event) => {
-        const bounds = canvas.getBoundingClientRect();
-        return {
-          x: Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width)),
-          y: Math.max(0, Math.min(1, 1 - (event.clientY - bounds.top) / bounds.height)),
-        };
-      };
-      const handlePointerMove = (event) => {
-        pointerTargetRef.current = readPointer(event);
-      };
-      const handlePointerDown = (event) => {
-        const pointer = readPointer(event);
-        pointerTargetRef.current = pointer;
-        impulseRef.current = { ...pointer, birth: timeRef.current };
-      };
-      const handlePointerLeave = () => {
-        pointerTargetRef.current = { x: 0.5, y: 0.5 };
-      };
-      if (!passive) {
-        canvas.addEventListener("pointermove", handlePointerMove, { passive: true });
-        canvas.addEventListener("pointerdown", handlePointerDown, { passive: true });
-        canvas.addEventListener("pointerleave", handlePointerLeave, { passive: true });
-      }
-
-      const handleVisibility = () => {
-        documentVisible = document.visibilityState !== "hidden";
-      };
-      document.addEventListener("visibilitychange", handleVisibility);
-
-      let lastTimestamp = 0;
-      let introProgress = 0;
-      let lastStaticRender = 0;
-      const render = (timestamp) => {
-        animationFrameRef.current = requestAnimationFrame(render);
-        if (!documentVisible) return;
-        const delta = lastTimestamp
-          ? Math.min((timestamp - lastTimestamp) / 1000, 1 / 15)
-          : 0;
-        lastTimestamp = timestamp;
-
-        const transition = sceneTransitionRef.current;
-        const hasTransition = transition.from !== transition.to;
-        const effectivelyPaused = pausedRef.current || reducedMotionRef.current;
-        if (effectivelyPaused && !hasTransition && timestamp - lastStaticRender < 180) return;
-        lastStaticRender = timestamp;
-
-        if (!effectivelyPaused) {
-          timeRef.current += delta * (isMobileTier ? 0.72 : 1);
-        }
-        const pointer = pointerRef.current;
-        const target = pointerTargetRef.current;
-        const pointerEase = 1 - Math.pow(0.002, Math.max(delta, 1 / 120));
-        pointer.x += (target.x - pointer.x) * pointerEase;
-        pointer.y += (target.y - pointer.y) * pointerEase;
-
-        if (hasTransition) {
-          transition.progress = reducedMotionRef.current
-            ? 1
-            : Math.min(1, transition.progress + delta / TRANSITION_SECONDS);
-          if (transition.progress >= 1) {
-            transition.from = transition.to;
-            transition.progress = 0;
-          }
-        }
-        introProgress = reducedMotionRef.current
-          ? 1
-          : Math.min(1, introProgress + delta / 2.2);
-
-        resize();
-        gl.useProgram(program);
-        gl.uniform2f(uniforms.u_res, canvas.width, canvas.height);
-        gl.uniform1f(uniforms.u_time, timeRef.current % 1000);
-        gl.uniform1i(uniforms.u_sceneA, transition.from);
-        gl.uniform1i(uniforms.u_sceneB, transition.to);
-        gl.uniform1f(
-          uniforms.u_sceneMix,
-          transition.from === transition.to ? 0 : easeInOutCubic(transition.progress),
-        );
-        gl.uniform1f(uniforms.u_intro, easeInOutCubic(introProgress));
-        gl.uniform2f(uniforms.u_pointer, pointer.x, pointer.y);
-        const impulse = impulseRef.current;
-        const impulseAge = impulse.birth < 0 ? -1 : timeRef.current - impulse.birth;
-        gl.uniform4f(uniforms.u_impulse, impulse.x, impulse.y, impulseAge, 1);
-        gl.activeTexture(gl.TEXTURE0);
-        gl.bindTexture(gl.TEXTURE_2D, atlasTexture);
-        gl.uniform1i(uniforms.u_atlas, 0);
-        gl.uniform1f(
-          uniforms.u_cellSize,
-          (isMobileTier ? 10.5 : 7) * shaderDPR * (passive ? 1.18 : 1),
-        );
-        gl.uniform1i(uniforms.u_charCount, CHARSET.length);
-        gl.uniform1i(uniforms.u_atlasCols, atlas.atlasColumns);
-        gl.uniform1i(uniforms.u_atlasRows, atlas.atlasRows);
-        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-      };
-
+      glowRenderer = createRenderer(glowCanvas, 1);
+      mainRenderer = createRenderer(mainCanvas, 0);
       setFallback(false);
-      animationFrameRef.current = requestAnimationFrame(render);
-
-      return () => {
-        cancelAnimationFrame(animationFrameRef.current);
-        document.removeEventListener("visibilitychange", handleVisibility);
-        if (!passive) {
-          canvas.removeEventListener("pointermove", handlePointerMove);
-          canvas.removeEventListener("pointerdown", handlePointerDown);
-          canvas.removeEventListener("pointerleave", handlePointerLeave);
-        }
-        window.removeEventListener("resize", resize);
-        resizeObserver?.disconnect();
-        gl.deleteTexture(atlasTexture);
-        gl.deleteBuffer(vertexBuffer);
-        gl.deleteProgram(program);
-        mediaQuery?.removeEventListener?.("change", syncReducedMotion);
-        canvas.removeEventListener("webglcontextlost", handleContextLost);
-        canvas.removeEventListener("webglcontextrestored", handleContextRestored);
-      };
     } catch (error) {
-      console.error("Dither world canvas failed to initialize:", error);
+      console.error("Tidal Dune failed to initialize:", error);
       setFallback(true);
+      destroyRenderer(glowRenderer);
+      destroyRenderer(mainRenderer);
+      cleanupBaseListeners();
+      glowCanvas.removeEventListener("webglcontextlost", handleContextLost);
+      glowCanvas.removeEventListener("webglcontextrestored", handleContextRestored);
+      mainCanvas.removeEventListener("webglcontextlost", handleContextLost);
+      mainCanvas.removeEventListener("webglcontextrestored", handleContextRestored);
+      return undefined;
     }
+
+    const resize = () => {
+      const bounds = wrapper.getBoundingClientRect();
+      const mainScale = shaderDPR;
+      const glowScale = isMobileTier
+        ? Math.min(shaderDPR, 0.62)
+        : Math.min(shaderDPR, 0.82);
+
+      [
+        { canvas: glowCanvas, renderer: glowRenderer, scale: glowScale },
+        { canvas: mainCanvas, renderer: mainRenderer, scale: mainScale },
+      ].forEach(({ canvas, renderer, scale }) => {
+        const width = Math.max(1, Math.floor(bounds.width * scale));
+        const height = Math.max(1, Math.floor(bounds.height * scale));
+        if (canvas.width === width && canvas.height === height) return;
+        canvas.width = width;
+        canvas.height = height;
+        renderer.gl.viewport(0, 0, width, height);
+      });
+    };
+
+    resize();
+    if (typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(resize);
+      resizeObserver.observe(wrapper);
+    }
+    window.addEventListener("resize", resize);
+
+    const readPointer = (event) => {
+      const bounds = wrapper.getBoundingClientRect();
+      return {
+        x: clamp((event.clientX - bounds.left) / Math.max(bounds.width, 1)),
+        y: clamp(1 - (event.clientY - bounds.top) / Math.max(bounds.height, 1)),
+      };
+    };
+
+    const handlePointerMove = (event) => {
+      const next = readPointer(event);
+      const now = performance.now();
+      const sample = pointerSampleRef.current;
+      const elapsed = Math.max((now - sample.at) / 1000, 1 / 120);
+      pointerTargetRef.current = next;
+      pointerMotionTargetRef.current = {
+        x: clamp((next.x - sample.x) / elapsed * 0.08, -1, 1),
+        y: clamp((next.y - sample.y) / elapsed * 0.08, -1, 1),
+      };
+      pointerSampleRef.current = { ...next, at: now };
+      lastPointerActivityRef.current = now;
+      stillnessRef.current = Math.max(0, stillnessRef.current - 0.18);
+    };
+
+    const handlePointerDown = (event) => {
+      const pointer = readPointer(event);
+      pointerTargetRef.current = pointer;
+      impulseRef.current = { ...pointer, birth: localTimeRef.current };
+      lastPointerActivityRef.current = performance.now();
+      stillnessRef.current = Math.max(0, stillnessRef.current - 0.34);
+      wrapper.setPointerCapture?.(event.pointerId);
+    };
+
+    const handlePointerLeave = () => {
+      pointerTargetRef.current = { x: 0.56, y: 0.38 };
+      pointerMotionTargetRef.current = { x: 0, y: 0 };
+      lastPointerActivityRef.current = performance.now();
+    };
+
+    wrapper.addEventListener("pointermove", handlePointerMove, { passive: true });
+    wrapper.addEventListener("pointerdown", handlePointerDown, { passive: true });
+    wrapper.addEventListener("pointerleave", handlePointerLeave, { passive: true });
+
+    const applyUniforms = (renderer, introProgress) => {
+      const { atlas, gl, passMix, program, uniforms } = renderer;
+      const impulse = impulseRef.current;
+      const impulseAge = localTimeRef.current - impulse.birth;
+      const cellSize = passMix > 0.5
+        ? (isMobileTier ? 15.0 : 12.2)
+        : (isMobileTier ? 10.8 : 7.8);
+
+      gl.useProgram(program);
+      gl.uniform2f(uniforms.u_res, gl.canvas.width, gl.canvas.height);
+      gl.uniform1f(uniforms.u_time, localTimeRef.current % 10000);
+      gl.uniform1f(uniforms.u_phase, phaseRef.current);
+      gl.uniform2f(uniforms.u_pointer, pointerRef.current.x, pointerRef.current.y);
+      gl.uniform2f(
+        uniforms.u_motion,
+        pointerMotionRef.current.x,
+        pointerMotionRef.current.y,
+      );
+      gl.uniform1f(uniforms.u_stillness, stillnessRef.current);
+      gl.uniform4f(uniforms.u_impulse, impulse.x, impulse.y, impulseAge, impulse.y);
+      gl.uniform1f(uniforms.u_paletteMix, paletteMixRef.current);
+      gl.uniform1f(uniforms.u_themeMix, themeMixRef.current);
+      gl.uniform1f(uniforms.u_cellSize, cellSize);
+      gl.uniform1i(uniforms.u_charCount, CHARSET.length);
+      gl.uniform1i(uniforms.u_atlasCols, atlas.columns);
+      gl.uniform1i(uniforms.u_atlasRows, atlas.rows);
+      gl.uniform1f(uniforms.u_intro, introProgress);
+      gl.uniform1f(uniforms.u_passMix, passMix);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, atlas.texture);
+      gl.uniform1i(uniforms.u_atlas, 0);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    };
+
+    let lastTimestamp = 0;
+    let introProgress = 0;
+    let lastPhaseReportAt = 0;
+
+    const render = (timestamp) => {
+      animationFrameRef.current = requestAnimationFrame(render);
+      if (!documentVisible) return;
+
+      const delta = lastTimestamp
+        ? Math.min((timestamp - lastTimestamp) / 1000, 1 / 20)
+        : 0;
+      lastTimestamp = timestamp;
+
+      const effectivelyPaused = pausedRef.current || reducedMotion;
+      if (!effectivelyPaused) {
+        localTimeRef.current += delta * (isMobileTier ? 0.78 : 1);
+      }
+
+      const requestedPhase = phaseOverrideRef.current;
+      if (requestedPhase === null || requestedPhase === undefined) {
+        if (!effectivelyPaused) {
+          phaseRef.current = (phaseRef.current + delta / CYCLE_SECONDS) % 1;
+        }
+      } else if (reducedMotion) {
+        phaseRef.current = clamp(requestedPhase);
+      } else {
+        const phaseEase = 1 - Math.pow(0.0007, Math.max(delta, 1 / 120));
+        phaseRef.current = (
+          phaseRef.current
+          + shortestPhaseDelta(phaseRef.current, clamp(requestedPhase)) * phaseEase
+          + 1
+        ) % 1;
+      }
+
+      const valueEase = 1 - Math.pow(0.0015, Math.max(delta, 1 / 120));
+      paletteMixRef.current +=
+        (paletteTargetRef.current - paletteMixRef.current) * valueEase;
+      themeMixRef.current +=
+        (themeTargetRef.current - themeMixRef.current) * valueEase;
+
+      const pointerEase = 1 - Math.pow(0.002, Math.max(delta, 1 / 120));
+      pointerRef.current.x +=
+        (pointerTargetRef.current.x - pointerRef.current.x) * pointerEase;
+      pointerRef.current.y +=
+        (pointerTargetRef.current.y - pointerRef.current.y) * pointerEase;
+
+      const motionEase = 1 - Math.pow(0.0005, Math.max(delta, 1 / 120));
+      pointerMotionRef.current.x +=
+        (pointerMotionTargetRef.current.x - pointerMotionRef.current.x) * motionEase;
+      pointerMotionRef.current.y +=
+        (pointerMotionTargetRef.current.y - pointerMotionRef.current.y) * motionEase;
+      pointerMotionTargetRef.current.x *= Math.pow(0.001, Math.max(delta, 1 / 120));
+      pointerMotionTargetRef.current.y *= Math.pow(0.001, Math.max(delta, 1 / 120));
+
+      const idleFor = Math.max(0, (performance.now() - lastPointerActivityRef.current) / 1000);
+      const targetStillness = clamp((idleFor - 0.4) / 3.2);
+      stillnessRef.current += (targetStillness - stillnessRef.current) * pointerEase;
+
+      introProgress = reducedMotion
+        ? 1
+        : Math.min(1, introProgress + delta / 2.35);
+
+      resize();
+      applyUniforms(glowRenderer, introProgress);
+      applyUniforms(mainRenderer, introProgress);
+
+      if (
+        onPhaseChangeRef.current
+        && timestamp - lastPhaseReportAt >= PHASE_REPORT_INTERVAL_MS
+      ) {
+        lastPhaseReportAt = timestamp;
+        onPhaseChangeRef.current(phaseRef.current);
+      }
+    };
+
+    animationFrameRef.current = requestAnimationFrame(render);
 
     return () => {
       cancelAnimationFrame(animationFrameRef.current);
+      cleanupBaseListeners();
+      window.removeEventListener("resize", resize);
       resizeObserver?.disconnect();
-      if (gl && atlasTexture) gl.deleteTexture(atlasTexture);
-      if (gl && vertexBuffer) gl.deleteBuffer(vertexBuffer);
-      if (gl && program) gl.deleteProgram(program);
-      mediaQuery?.removeEventListener?.("change", syncReducedMotion);
-      canvas.removeEventListener("webglcontextlost", handleContextLost);
-      canvas.removeEventListener("webglcontextrestored", handleContextRestored);
+      wrapper.removeEventListener("pointermove", handlePointerMove);
+      wrapper.removeEventListener("pointerdown", handlePointerDown);
+      wrapper.removeEventListener("pointerleave", handlePointerLeave);
+      glowCanvas.removeEventListener("webglcontextlost", handleContextLost);
+      glowCanvas.removeEventListener("webglcontextrestored", handleContextRestored);
+      mainCanvas.removeEventListener("webglcontextlost", handleContextLost);
+      mainCanvas.removeEventListener("webglcontextrestored", handleContextRestored);
+      destroyRenderer(glowRenderer);
+      destroyRenderer(mainRenderer);
     };
-  }, [contextVersion, passive]);
+  }, [contextVersion]);
 
   return (
     <div
-      className={`dither-world-renderer${fallback ? " is-fallback" : ""}${passive ? " is-passive" : ""}`}
-      data-scene={clampSceneIndex(sceneIndex)}
+      ref={wrapperRef}
+      className={`dither-world-shell${fallback ? " is-fallback" : ""}`}
+      data-palette-mode={paletteMode}
+      data-theme-mode={isDark ? "dark" : "light"}
       aria-hidden="true"
     >
-      <canvas ref={canvasRef} className="dither-world-canvas" />
+      <canvas
+        ref={glowCanvasRef}
+        className="dither-world-canvas dither-world-canvas-glow"
+      />
+      <canvas
+        ref={mainCanvasRef}
+        className="dither-world-canvas dither-world-canvas-main"
+      />
       {fallback && <div className="dither-world-fallback" />}
     </div>
   );
