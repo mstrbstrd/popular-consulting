@@ -34,7 +34,7 @@ uniform float u_passMix;
 #define PI 3.14159265359
 #define TAU 6.28318530718
 
-float saturate(float value) {
+float sat(float value) {
   return clamp(value, 0.0, 1.0);
 }
 
@@ -70,67 +70,70 @@ float luminance(vec3 color) {
   return dot(color, vec3(0.2126, 0.7152, 0.0722));
 }
 
+float below(float y, float height, float softness) {
+  return 1.0 - smoothstep(height - softness, height + softness, y);
+}
+
 float lineMask(float value, float width) {
   return 1.0 - smoothstep(width, width * 1.85, abs(value));
 }
 
 float segmentDistance(vec2 point, vec2 start, vec2 end) {
-  vec2 pointOffset = point - start;
+  vec2 offset = point - start;
   vec2 segment = end - start;
-  float amount = clamp(dot(pointOffset, segment) / dot(segment, segment), 0.0, 1.0);
-  return length(pointOffset - segment * amount);
+  float amount = clamp(dot(offset, segment) / dot(segment, segment), 0.0, 1.0);
+  return length(offset - segment * amount);
 }
 
 vec3 hsb2rgb(float h, float s, float b) {
-  vec3 c = clamp(abs(mod(h * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0, 0.0, 1.0);
+  vec3 c = clamp(
+    abs(mod(h * 6.0 + vec3(0.0, 4.0, 2.0), 6.0) - 3.0) - 1.0,
+    0.0,
+    1.0
+  );
   return b * mix(vec3(1.0), c, s);
 }
 
-vec3 classicRainbow(vec2 uv, vec2 cellId, float brightness, float flowMagnitude, vec2 gradient) {
+vec3 classicRainbow(float brightness, vec2 gradient) {
   float hue = atan(gradient.y, gradient.x) / TAU
     + brightness * 0.5
-    + fract(u_time * 0.11);
+    + fract(u_time * 0.075 + u_phase * 0.12);
   hue = fract(hue);
   vec3 raw = hsb2rgb(hue, 1.0, 1.0);
   float currentLuminance = dot(raw, vec3(0.299, 0.587, 0.114));
-  float boost = 0.55 / max(currentLuminance, 0.1);
-  raw = min(raw * boost, vec3(1.0));
+  raw = min(raw * (0.55 / max(currentLuminance, 0.1)), vec3(1.0));
   float boostedLuminance = dot(raw, vec3(0.299, 0.587, 0.114));
   raw = mix(vec3(boostedLuminance), raw, 1.2);
   return clamp(raw, vec3(0.0), vec3(1.0));
 }
 
-float farDuneHeight(float x) {
+float farDune(float x) {
   return 0.43
     + 0.030 * sin(x * 5.3 + 0.7)
     + 0.052 * (fbm(vec2(x * 3.0, 2.0)) - 0.5);
 }
 
-float middleDuneHeight(float x) {
+float middleDune(float x) {
   return 0.315
     + 0.055 * sin(x * 4.7 - 1.1)
     + 0.086 * (fbm(vec2(x * 3.8, 8.2)) - 0.48);
 }
 
-float foregroundDuneHeight(float x, float cameraLift) {
+float nearDune(float x, float lift) {
   return 0.185
     + 0.046 * sin(x * 6.0 + 2.0)
     + 0.070 * (fbm(vec2(x * 5.4, 12.8)) - 0.42)
-    + cameraLift * 0.18;
+    + lift * 0.18;
 }
 
-float shorelineHeight(float x, float cameraLift, float time) {
+float shoreHeight(float x, float lift, float time) {
   return 0.235
     + 0.018 * sin(x * 8.5 + time * 0.10)
     + 0.024 * (fbm(vec2(x * 5.0 - time * 0.028, 5.4)) - 0.5)
-    + cameraLift * 0.065;
+    + lift * 0.065;
 }
 
-float belowMask(float y, float height, float softness) {
-  return 1.0 - smoothstep(height - softness, height + softness, y);
-}
-
-vec3 skyColor(vec2 uv, float day, float night, float twilight) {
+vec3 skyColor(vec2 uv, float day, float twilight) {
   vec3 dayTop = vec3(0.16, 0.42, 0.68);
   vec3 dayHorizon = vec3(0.96, 0.81, 0.60);
   vec3 duskTop = vec3(0.16, 0.12, 0.36);
@@ -142,34 +145,31 @@ vec3 skyColor(vec2 uv, float day, float night, float twilight) {
   top = mix(top, dayTop, day);
   vec3 horizon = mix(nightHorizon, duskHorizon, twilight);
   horizon = mix(horizon, dayHorizon, day);
-
-  float vertical = smoothstep(0.30, 1.0, uv.y);
-  vec3 color = mix(horizon, top, vertical);
-  color += vec3(0.05, 0.03, 0.02) * twilight * exp(-abs(uv.y - 0.48) * 5.0);
-  color -= vec3(0.012, 0.008, 0.0) * night * vertical;
+  vec3 color = mix(horizon, top, smoothstep(0.30, 1.0, uv.y));
+  color += vec3(0.05, 0.03, 0.02)
+    * twilight
+    * exp(-abs(uv.y - 0.48) * 5.0);
   return color;
 }
 
-vec3 shadeDune(
+vec3 duneShade(
   vec3 nightColor,
   vec3 dayColor,
   float x,
   float height,
-  float sampledHeightLeft,
-  float sampledHeightRight,
+  float leftHeight,
+  float rightHeight,
   vec2 lightPosition,
   float day,
-  float twilight,
-  float night
+  float twilight
 ) {
-  float slope = (sampledHeightRight - sampledHeightLeft) / 0.008;
+  float slope = (rightHeight - leftHeight) / 0.008;
   vec2 normal = normalize(vec2(-slope, 1.0));
   vec2 lightDirection = normalize(lightPosition - vec2(x, height));
   float directional = dot(normal, lightDirection) * 0.5 + 0.5;
-  float lightAmount = mix(0.24 + directional * 0.30, 0.56 + directional * 0.58, day);
-  lightAmount += twilight * directional * 0.16;
-  lightAmount += night * max(directional - 0.40, 0.0) * 0.18;
-  return mix(nightColor, dayColor, saturate(day + twilight * 0.38)) * lightAmount;
+  float brightness = mix(0.26 + directional * 0.28, 0.54 + directional * 0.60, day);
+  brightness += twilight * directional * 0.15;
+  return mix(nightColor, dayColor, sat(day + twilight * 0.38)) * brightness;
 }
 
 vec4 tidalDune(vec2 uv, float time) {
@@ -179,7 +179,7 @@ vec4 tidalDune(vec2 uv, float time) {
   float day = smoothstep(-0.10, 0.30, solarAltitude);
   float night = 1.0 - smoothstep(-0.48, 0.08, solarAltitude);
   float twilight = exp(-abs(solarAltitude) * 4.2) * (1.0 - day * 0.22);
-  float observerMotion = saturate(length(u_motion));
+  float observerMotion = sat(length(u_motion));
   float cameraShift = (u_pointer.x - 0.5) * 0.060;
   float cameraLift = (u_pointer.y - 0.5) * 0.050;
 
@@ -192,38 +192,43 @@ vec4 tidalDune(vec2 uv, float time) {
     0.51 + 0.33 * sin(solarAngle + PI)
   );
   vec2 activeLight = mix(moonPosition, sunPosition, day);
+  vec3 color = skyColor(uv, day, twilight);
 
-  vec3 color = skyColor(uv, day, night, twilight);
   float windVelocity = 0.22 + u_motion.x * 1.45 + (1.0 - u_stillness) * 0.28;
-
-  float highCloud = fbm(vec2(
+  float clouds = fbm(vec2(
     uv.x * 3.2 + time * (0.010 + windVelocity * 0.020),
     uv.y * 7.6
   ));
   float cloudBand = exp(-pow((uv.y - 0.72) / 0.17, 2.0))
-    * smoothstep(0.50, 0.72, highCloud);
+    * smoothstep(0.50, 0.72, clouds);
   vec3 cloudColor = mix(vec3(0.30, 0.34, 0.46), vec3(0.96, 0.86, 0.72), day);
   cloudColor = mix(cloudColor, vec3(0.73, 0.45, 0.42), twilight * 0.42);
   color = mix(color, cloudColor, cloudBand * (0.12 + twilight * 0.18));
 
   float sunDistance = length((uv - sunPosition) * vec2(aspect, 1.0));
-  float sunVisibility = smoothstep(-0.16, 0.06, solarAltitude);
+  float sunVisible = smoothstep(-0.16, 0.06, solarAltitude);
   float sunDisc = 1.0 - smoothstep(0.050, 0.064, sunDistance);
-  float sunHalo = exp(-sunDistance * 8.2) * sunVisibility;
-  color += vec3(1.00, 0.55, 0.18) * sunHalo * (0.18 + day * 0.26 + twilight * 0.24);
-  color = mix(color, vec3(1.0, 0.94, 0.75), sunDisc * sunVisibility);
+  color += vec3(1.00, 0.55, 0.18)
+    * exp(-sunDistance * 8.2)
+    * sunVisible
+    * (0.18 + day * 0.26 + twilight * 0.24);
+  color = mix(color, vec3(1.0, 0.94, 0.75), sunDisc * sunVisible);
 
   float moonDistance = length((uv - moonPosition) * vec2(aspect, 1.0));
-  float moonVisibility = smoothstep(-0.16, 0.06, -solarAltitude);
+  float moonVisible = smoothstep(-0.16, 0.06, -solarAltitude);
   float moonDisc = 1.0 - smoothstep(0.044, 0.057, moonDistance);
-  float moonHalo = exp(-moonDistance * 10.5) * moonVisibility;
-  color += vec3(0.34, 0.58, 0.94) * moonHalo * (0.18 + night * 0.58);
-  color = mix(color, vec3(0.91, 0.95, 0.97), moonDisc * moonVisibility);
+  color += vec3(0.34, 0.58, 0.94)
+    * exp(-moonDistance * 10.5)
+    * moonVisible
+    * (0.18 + night * 0.58);
+  color = mix(color, vec3(0.91, 0.95, 0.97), moonDisc * moonVisible);
 
   vec2 starCell = floor(uv * vec2(170.0, 102.0));
   float starHash = hash21(starCell);
-  float stars = step(0.984, starHash) * smoothstep(0.42, 1.0, uv.y);
-  stars *= night * mix(0.58, 1.0, u_stillness);
+  float stars = step(0.984, starHash)
+    * smoothstep(0.42, 1.0, uv.y)
+    * night
+    * mix(0.58, 1.0, u_stillness);
   stars *= 0.62 + 0.38 * sin(time * 1.4 + starHash * 24.0);
   color += vec3(0.72, 0.83, 0.98) * stars * 0.86;
 
@@ -237,87 +242,88 @@ vec4 tidalDune(vec2 uv, float time) {
     0.006,
     segmentDistance(meteorPoint, vec2(0.0), vec2(0.12, 0.028))
   );
-  color += vec3(0.75, 0.89, 1.0) * meteor * meteorWindow * night * u_stillness * 0.85;
+  color += vec3(0.75, 0.89, 1.0)
+    * meteor
+    * meteorWindow
+    * night
+    * u_stillness
+    * 0.85;
 
   float duneX = uv.x + cameraShift;
-  float farHeight = farDuneHeight(duneX);
-  float middleHeight = middleDuneHeight(duneX);
-  float foregroundHeight = foregroundDuneHeight(duneX, cameraLift);
-  float farMask = belowMask(uv.y, farHeight, 0.010);
-  float middleMask = belowMask(uv.y, middleHeight, 0.012);
-  float foregroundMask = belowMask(uv.y, foregroundHeight, 0.014);
+  float farHeight = farDune(duneX);
+  float middleHeight = middleDune(duneX);
+  float foregroundHeight = nearDune(duneX, cameraLift);
+  float farMask = below(uv.y, farHeight, 0.010);
+  float middleMask = below(uv.y, middleHeight, 0.012);
+  float foregroundMask = below(uv.y, foregroundHeight, 0.014);
 
-  vec3 farColor = shadeDune(
+  vec3 farColor = duneShade(
     vec3(0.100, 0.130, 0.205),
     vec3(0.54, 0.39, 0.27),
     duneX,
     farHeight,
-    farDuneHeight(duneX - 0.004),
-    farDuneHeight(duneX + 0.004),
+    farDune(duneX - 0.004),
+    farDune(duneX + 0.004),
     activeLight,
     day,
-    twilight,
-    night
+    twilight
   );
-  vec3 middleColor = shadeDune(
+  vec3 middleColor = duneShade(
     vec3(0.060, 0.082, 0.135),
     vec3(0.76, 0.52, 0.31),
     duneX,
     middleHeight,
-    middleDuneHeight(duneX - 0.004),
-    middleDuneHeight(duneX + 0.004),
+    middleDune(duneX - 0.004),
+    middleDune(duneX + 0.004),
     activeLight,
     day,
-    twilight,
-    night
+    twilight
   );
-  vec3 foregroundColor = shadeDune(
+  vec3 foregroundColor = duneShade(
     vec3(0.035, 0.050, 0.082),
     vec3(0.88, 0.64, 0.39),
     duneX,
     foregroundHeight,
-    foregroundDuneHeight(duneX - 0.004, cameraLift),
-    foregroundDuneHeight(duneX + 0.004, cameraLift),
+    nearDune(duneX - 0.004, cameraLift),
+    nearDune(duneX + 0.004, cameraLift),
     activeLight,
     day,
-    twilight,
-    night
+    twilight
   );
 
   color = mix(color, farColor, farMask * 0.88);
   color = mix(color, middleColor, middleMask * 0.96);
 
-  float middleRidges = lineMask(
+  float ridges = lineMask(
     uv.y - (middleHeight - 0.011 * sin(duneX * 22.0 + time * 0.10)),
     0.0055
   ) * middleMask;
   color = mix(
     color,
     mix(vec3(0.22, 0.28, 0.38), vec3(0.98, 0.78, 0.51), day + twilight * 0.45),
-    middleRidges * (0.12 + day * 0.12)
+    ridges * (0.12 + day * 0.12)
   );
 
-  float shoreHeight = shorelineHeight(duneX, cameraLift, time);
-  float waterMask = smoothstep(shoreHeight + 0.008, shoreHeight - 0.012, uv.y);
-  float waterDepth = saturate((shoreHeight - uv.y) / max(shoreHeight, 0.08));
+  float shore = shoreHeight(duneX, cameraLift, time);
+  float waterMask = smoothstep(shore + 0.008, shore - 0.012, uv.y);
+  float waterDepth = sat((shore - uv.y) / max(shore, 0.08));
   float roughness = mix(0.24, 1.0, 1.0 - u_stillness) + observerMotion * 0.65;
-  float waveA = sin(
+  float wave = sin(
     uv.x * (52.0 + roughness * 12.0)
     - time * (1.15 + windVelocity * 0.42)
     + sin(uv.y * 31.0 + time * 0.62) * (1.4 + roughness)
   );
-  float waveB = sin(
+  wave += sin(
     uv.x * 97.0
     - time * (0.70 + windVelocity * 0.24)
     + uv.y * 76.0
-  );
-  float wave = waveA + waveB * 0.45;
+  ) * 0.45;
 
   vec2 reflectedUv = vec2(
     uv.x + cameraShift * 0.16 + wave * 0.0018 * roughness,
-    shoreHeight + (shoreHeight - uv.y)
+    shore + (shore - uv.y)
   );
-  vec3 reflectedSky = skyColor(reflectedUv, day, night, twilight);
+  vec3 reflectedSky = skyColor(reflectedUv, day, twilight);
   vec3 waterBase = mix(vec3(0.016, 0.052, 0.115), vec3(0.035, 0.185, 0.285), day);
   waterBase = mix(waterBase, vec3(0.020, 0.080, 0.150), twilight * 0.35);
   vec3 water = mix(waterBase, reflectedSky, 0.42);
@@ -325,8 +331,10 @@ vec4 tidalDune(vec2 uv, float time) {
   water += vec3(0.018, 0.085, 0.125) * wave * 0.13 * roughness;
 
   float reflectionSharpness = mix(13.0, 29.0, u_stillness);
-  float sunReflection = exp(-abs(uv.x - sunPosition.x) * (reflectionSharpness + waterDepth * 16.0));
-  sunReflection *= smoothstep(0.01, shoreHeight, uv.y) * sunVisibility;
+  float sunReflection = exp(
+    -abs(uv.x - sunPosition.x) * (reflectionSharpness + waterDepth * 16.0)
+  );
+  sunReflection *= smoothstep(0.01, shore, uv.y) * sunVisible;
   sunReflection *= 0.50 + 0.50 * step(0.08, fract(uv.y * 91.0 + wave * 0.11));
   water = mix(
     water,
@@ -334,8 +342,10 @@ vec4 tidalDune(vec2 uv, float time) {
     sunReflection * (0.10 + day * 0.48 + twilight * 0.26)
   );
 
-  float moonReflection = exp(-abs(uv.x - moonPosition.x) * (reflectionSharpness + waterDepth * 13.0));
-  moonReflection *= smoothstep(0.01, shoreHeight, uv.y) * moonVisibility;
+  float moonReflection = exp(
+    -abs(uv.x - moonPosition.x) * (reflectionSharpness + waterDepth * 13.0)
+  );
+  moonReflection *= smoothstep(0.01, shore, uv.y) * moonVisible;
   moonReflection *= 0.48 + 0.52 * step(0.10, fract(uv.y * 83.0 - wave * 0.10));
   water = mix(
     water,
@@ -344,74 +354,68 @@ vec4 tidalDune(vec2 uv, float time) {
   );
 
   float impulseAge = u_impulse.z;
-  float impulseShore = shorelineHeight(u_impulse.x + cameraShift, cameraLift, time);
+  float impulseShore = shoreHeight(u_impulse.x + cameraShift, cameraLift, time);
   float waterImpulse = 1.0 - step(impulseShore, u_impulse.y);
   if (impulseAge >= 0.0 && impulseAge < 6.0) {
     vec2 impulsePoint = (uv - u_impulse.xy) * vec2(aspect, 1.0);
-    float rippleRadius = length(impulsePoint);
-    float ripple = sin(rippleRadius * 92.0 - impulseAge * 7.6)
+    float radius = length(impulsePoint);
+    float ripple = sin(radius * 92.0 - impulseAge * 7.6)
       * exp(-impulseAge * 0.62)
-      * exp(-rippleRadius * 4.0);
-    water += vec3(0.23, 0.58, 0.74) * max(ripple, 0.0) * waterImpulse * 0.55;
-    water -= vec3(0.03, 0.06, 0.07) * max(-ripple, 0.0) * waterImpulse * 0.22;
+      * exp(-radius * 4.0);
+    water += vec3(0.23, 0.58, 0.74)
+      * max(ripple, 0.0)
+      * waterImpulse
+      * 0.55;
   }
-
   color = mix(color, water, waterMask);
 
   float leftBank = 1.0 - smoothstep(0.20, 0.50, uv.x);
   float rightBank = smoothstep(0.72, 0.94, uv.x);
   float sandbar = exp(-pow((uv.x - 0.78) / 0.13, 2.0))
-    * belowMask(uv.y, foregroundHeight + 0.025, 0.012);
-  float bankMask = foregroundMask * saturate(max(leftBank, rightBank) + sandbar * 0.78);
+    * below(uv.y, foregroundHeight + 0.025, 0.012);
+  float bankMask = foregroundMask * sat(max(leftBank, rightBank) + sandbar * 0.78);
   color = mix(color, foregroundColor, bankMask);
 
-  float bankRipples = lineMask(
-    uv.y - (foregroundHeight - 0.010 * sin(duneX * 29.0 - time * 0.12)),
-    0.0045
-  ) * bankMask;
-  color = mix(
-    color,
-    mix(vec3(0.15, 0.20, 0.30), vec3(1.0, 0.80, 0.54), day + twilight * 0.38),
-    bankRipples * 0.17
-  );
-
-  float foam = lineMask(uv.y - shoreHeight, 0.0048)
+  float foam = lineMask(uv.y - shore, 0.0048)
     * (0.46 + 0.54 * sin(uv.x * 24.0 - time * 0.95));
   color = mix(color, vec3(0.91, 0.92, 0.87), foam * 0.17);
 
-  float windFrequency = 33.0 + observerMotion * 18.0;
-  float windStreak = sin(
-    uv.x * windFrequency
+  float wind = sin(
+    uv.x * (33.0 + observerMotion * 18.0)
     + uv.y * 11.0
     - time * (0.55 + abs(windVelocity) * 0.82)
     + fbm(uv * 6.0) * 3.1
   );
-  windStreak = smoothstep(0.83, 1.0, windStreak);
-  windStreak *= exp(-pow((uv.y - 0.48) / 0.16, 2.0));
-  windStreak *= 0.25 + (1.0 - u_stillness) * 0.75;
+  wind = smoothstep(0.83, 1.0, wind)
+    * exp(-pow((uv.y - 0.48) / 0.16, 2.0))
+    * (0.25 + (1.0 - u_stillness) * 0.75);
   color = mix(
     color,
     mix(vec3(0.38, 0.46, 0.60), vec3(0.98, 0.82, 0.61), day + twilight * 0.42),
-    windStreak * 0.17
+    wind * 0.17
   );
 
   float sandImpulse = 1.0 - waterImpulse;
   if (impulseAge >= 0.0 && impulseAge < 5.0) {
-    float gustDirection = abs(u_motion.x) > 0.08 ? sign(u_motion.x) : 1.0;
-    float gustX = u_impulse.x + gustDirection * impulseAge * 0.11;
+    float direction = abs(u_motion.x) > 0.08 ? sign(u_motion.x) : 1.0;
+    float gustX = u_impulse.x + direction * impulseAge * 0.11;
     float gust = exp(-abs(uv.x - gustX) * 13.0)
       * exp(-abs(uv.y - u_impulse.y) * 22.0)
       * exp(-impulseAge * 0.54)
       * sandImpulse;
-    color += mix(vec3(0.18, 0.26, 0.38), vec3(0.96, 0.65, 0.34), day + twilight * 0.42) * gust * 0.46;
+    color += mix(
+      vec3(0.18, 0.26, 0.38),
+      vec3(0.96, 0.65, 0.34),
+      day + twilight * 0.42
+    ) * gust * 0.46;
   }
 
-  float horizonMist = exp(-pow((uv.y - 0.30) / 0.060, 2.0))
+  float mist = exp(-pow((uv.y - 0.30) / 0.060, 2.0))
     * (0.32 + 0.68 * fbm(vec2(uv.x * 4.0 - time * 0.015, uv.y * 9.0)));
   color = mix(
     color,
     mix(vec3(0.19, 0.25, 0.34), vec3(0.70, 0.66, 0.58), day + twilight * 0.35),
-    horizonMist * (0.08 + twilight * 0.16 + night * 0.08)
+    mist * (0.08 + twilight * 0.16 + night * 0.08)
   );
 
   float material = 0.10;
@@ -419,14 +423,13 @@ vec4 tidalDune(vec2 uv, float time) {
   material = mix(material, 0.48, waterMask);
   material = mix(material, 0.34, bankMask);
   material = mix(material, 0.76, max(sunDisc, moonDisc));
-
   return vec4(clamp(color, 0.0, 1.0), material);
 }
 
-vec4 sampleCharacter(int characterIndex, int characterOffset, int characterCount, vec2 cellUv) {
-  characterIndex = clamp(characterIndex, 0, characterCount - 1) + characterOffset;
-  int column = characterIndex % u_atlasCols;
-  int row = characterIndex / u_atlasCols;
+vec4 sampleGlyph(int index, int offset, int count, vec2 cellUv) {
+  index = clamp(index, 0, count - 1) + offset;
+  int column = index % u_atlasCols;
+  int row = index / u_atlasCols;
   vec2 atlasUv = vec2(
     (float(column) + cellUv.x) / float(u_atlasCols),
     (float(row) + cellUv.y) / float(u_atlasRows)
@@ -434,91 +437,117 @@ vec4 sampleCharacter(int characterIndex, int characterOffset, int characterCount
   return texture(u_atlas, atlasUv);
 }
 
-float introReveal(vec2 fragCoord) {
-  float coarse = hash21(floor(fragCoord / 86.0));
-  float medium = hash21(floor(fragCoord / 24.0) + vec2(31.7, 14.2));
-  float fine = hash21(floor(fragCoord / 7.0) + vec2(79.1, 47.6));
+float introReveal(vec2 coordinate) {
+  float coarse = hash21(floor(coordinate / 86.0));
+  float medium = hash21(floor(coordinate / 24.0) + vec2(31.7, 14.2));
+  float fine = hash21(floor(coordinate / 7.0) + vec2(79.1, 47.6));
   float threshold = (coarse * 0.46 + medium * 0.34 + fine * 0.20) * 0.90;
   return smoothstep(threshold - 0.06, threshold + 0.06, u_intro);
 }
 
 void main() {
-  float cellWidth = u_cellSize;
   float cellHeight = u_cellSize * 1.5;
-  vec2 cellCount = max(floor(u_res / vec2(cellWidth, cellHeight)), vec2(1.0));
+  vec2 cellCount = max(floor(u_res / vec2(u_cellSize, cellHeight)), vec2(1.0));
   vec2 cellId = floor(v_uv * cellCount);
   vec2 cellUv = fract(v_uv * cellCount);
   vec2 cellCenter = (cellId + 0.5) / cellCount;
   vec4 scene = tidalDune(cellCenter, u_time);
-  float sceneLight = saturate(luminance(scene.rgb));
+  float sceneLight = sat(luminance(scene.rgb));
 
-  vec2 classicGradient = vec2(0.0);
-  float classicFlowMagnitude = saturate(length(u_motion)) * 0.8;
-  if (u_paletteMix > 0.001) {
-    float pixelLight = luminance(tidalDune(v_uv, u_time).rgb);
-    classicGradient = vec2(dFdx(pixelLight), dFdy(pixelLight)) * cellCount;
-    classicFlowMagnitude = min(
-      length(classicGradient) * 12.0
-      + saturate(length(u_motion)) * 0.8
-      + (1.0 - u_stillness) * 0.18,
-      2.0
+  float reveal = introReveal(gl_FragCoord.xy);
+  float vignette = 1.0 - 0.15 * pow(length(v_uv - 0.5), 2.0);
+
+  if (u_passMix > 0.5) {
+    vec3 lightNatural = mix(
+      scene.rgb,
+      vec3(1.0, 0.985, 0.965),
+      0.08 + (1.0 - sceneLight) * 0.05
     );
+    lightNatural = pow(max(lightNatural, vec3(0.0)), vec3(0.94));
+    vec3 darkNatural = mix(
+      vec3(0.004, 0.008, 0.018),
+      scene.rgb * (0.48 + sceneLight * 0.42),
+      0.88
+    );
+    vec3 naturalBackground = mix(lightNatural, darkNatural, u_themeMix);
+
+    vec3 lightClassic = mix(vec3(0.988, 0.988, 0.982), scene.rgb, 0.24);
+    vec3 darkClassic = mix(
+      vec3(0.004, 0.007, 0.016),
+      scene.rgb * (0.30 + sceneLight * 0.24),
+      0.54
+    );
+    vec3 classicBackground = mix(lightClassic, darkClassic, u_themeMix);
+    vec3 backgroundColor = mix(naturalBackground, classicBackground, u_paletteMix);
+    backgroundColor *= 0.985 + vignette * 0.015;
+
+    vec3 themeBase = mix(
+      vec3(1.0, 0.973, 0.969),
+      vec3(0.010, 0.010, 0.024),
+      u_themeMix
+    );
+    backgroundColor = mix(themeBase, backgroundColor, reveal);
+    fragColor = vec4(clamp(backgroundColor, 0.0, 1.0), 1.0);
+    return;
   }
 
-  float wave1 = sin(cellId.x * 0.4 + cellId.y * 0.3 + u_time * 1.2) * 0.5;
-  float wave2 = sin(
-    cellId.x * 0.8
-    - cellId.y * 0.6
-    + u_time * 0.7
-    + classicFlowMagnitude * 2.0
-  ) * 0.35;
-  float wave3 = sin((cellId.x + cellId.y) * 0.2 + u_time * 1.8) * 0.15;
-  float classicShimmer = (wave1 + wave2 + wave3)
-    * smoothstep(0.0, 0.3, classicFlowMagnitude);
-  float classicCharacterFloat = clamp(
-    sceneLight * float(u_classicCharCount - 1) + classicShimmer,
+  float density = mix(1.0 - sceneLight, sceneLight, u_themeMix);
+  float naturalValue = clamp(
+    pow(density, 0.84) * float(u_naturalCharCount - 1)
+      + (hash21(cellId + vec2(17.0, 41.0)) - 0.5) * 0.24,
+    0.0,
+    float(u_naturalCharCount - 1)
+  );
+  int naturalA = int(floor(naturalValue));
+  int naturalB = min(naturalA + 1, u_naturalCharCount - 1);
+  float naturalAlpha = mix(
+    sampleGlyph(naturalA, 0, u_naturalCharCount, cellUv).r,
+    sampleGlyph(naturalB, 0, u_naturalCharCount, cellUv).r,
+    fract(naturalValue)
+  );
+
+  float pixelLight = luminance(tidalDune(v_uv, u_time).rgb);
+  vec2 gradient = vec2(dFdx(pixelLight), dFdy(pixelLight)) * cellCount;
+  float flow = min(
+    length(gradient) * 12.0
+      + sat(length(u_motion)) * 0.8
+      + (1.0 - u_stillness) * 0.18,
+    2.0
+  );
+  float shimmer = (
+    sin(cellId.x * 0.4 + cellId.y * 0.3 + u_time * 1.2) * 0.5
+    + sin(cellId.x * 0.8 - cellId.y * 0.6 + u_time * 0.7 + flow * 2.0) * 0.35
+    + sin((cellId.x + cellId.y) * 0.2 + u_time * 1.8) * 0.15
+  ) * smoothstep(0.0, 0.3, flow);
+  float classicValue = clamp(
+    sceneLight * float(u_classicCharCount - 1) + shimmer,
     0.0,
     float(u_classicCharCount - 1)
   );
-  int classicCharacterA = int(floor(classicCharacterFloat));
-  int classicCharacterB = min(classicCharacterA + 1, u_classicCharCount - 1);
+  int classicA = int(floor(classicValue));
+  int classicB = min(classicA + 1, u_classicCharCount - 1);
   vec2 classicCellUv = clamp(
     cellUv
-      + classicGradient * 3.5
+      + gradient * 3.5
         * sin(u_time * 1.5 + cellId.x * 0.4 + cellId.y * 0.3)
         * 0.15,
     vec2(0.02),
     vec2(0.98)
   );
-  float classicGlyphAlpha = mix(
-    sampleCharacter(
-      classicCharacterA,
+  float classicAlpha = mix(
+    sampleGlyph(
+      classicA,
       u_classicCharOffset,
       u_classicCharCount,
       classicCellUv
     ).r,
-    sampleCharacter(
-      classicCharacterB,
+    sampleGlyph(
+      classicB,
       u_classicCharOffset,
       u_classicCharCount,
       classicCellUv
     ).r,
-    fract(classicCharacterFloat)
-  );
-
-  float densityLight = mix(1.0 - sceneLight, sceneLight, u_themeMix);
-  float naturalGrain = (hash21(cellId + vec2(17.0, 41.0)) - 0.5) * 0.24;
-  float naturalCharacterFloat = clamp(
-    pow(densityLight, 0.84) * float(u_naturalCharCount - 1) + naturalGrain,
-    0.0,
-    float(u_naturalCharCount - 1)
-  );
-  int naturalCharacterA = int(floor(naturalCharacterFloat));
-  int naturalCharacterB = min(naturalCharacterA + 1, u_naturalCharCount - 1);
-  float naturalGlyphAlpha = mix(
-    sampleCharacter(naturalCharacterA, 0, u_naturalCharCount, cellUv).r,
-    sampleCharacter(naturalCharacterB, 0, u_naturalCharCount, cellUv).r,
-    fract(naturalCharacterFloat)
+    fract(classicValue)
   );
 
   ivec2 bayerCell = ivec2(mod(floor(gl_FragCoord.xy / 2.0), 4.0));
@@ -529,66 +558,22 @@ void main() {
     15, 7, 13, 5
   );
   float dither = float(bayer4[bayerCell.y * 4 + bayerCell.x]) / 16.0;
-  naturalGlyphAlpha *= step(dither * 0.34 + 0.11, naturalGlyphAlpha);
-  classicGlyphAlpha *= step(dither * 0.4 + 0.2, classicGlyphAlpha);
+  naturalAlpha *= step(dither * 0.34 + 0.11, naturalAlpha);
+  classicAlpha *= step(dither * 0.40 + 0.20, classicAlpha);
 
-  vec3 classicInk = classicRainbow(
-    v_uv,
-    cellId,
-    sceneLight,
-    classicFlowMagnitude,
-    classicGradient
-  );
-  float classicGlow = smoothstep(0.1, 0.5, sceneLight) * classicGlyphAlpha * 0.08;
-  classicInk += classicRainbow(
-    v_uv,
-    cellId,
-    1.0,
-    classicFlowMagnitude,
-    classicGradient
-  ) * classicGlow;
-
-  float reveal = introReveal(gl_FragCoord.xy);
-  float vignette = 1.0 - 0.15 * pow(length(v_uv - 0.5), 2.0);
-
-  if (u_passMix > 0.5) {
-    vec3 naturalGlowColor = scene.rgb * (0.92 + 0.18 * sceneLight);
-    vec3 classicGlowColor = classicInk * (0.90 + 0.14 * sceneLight);
-    vec3 glowColor = mix(naturalGlowColor, classicGlowColor, u_paletteMix);
-    float naturalGlowAlpha = mix(0.14, 0.24, u_themeMix)
-      + sceneLight * mix(0.08, 0.14, u_themeMix);
-    float classicGlowAlpha = mix(0.08, 0.14, u_themeMix)
-      + classicGlyphAlpha * mix(0.12, 0.18, u_themeMix);
-    float glowAlpha = mix(naturalGlowAlpha, classicGlowAlpha, u_paletteMix);
-    float outputAlpha = reveal * saturate(glowAlpha);
-    vec3 outputColor = clamp(glowColor * vignette, 0.0, 1.0);
-    fragColor = vec4(outputColor * outputAlpha, outputAlpha);
-    return;
-  }
-
-  vec3 lightInk = mix(
-    vec3(0.075, 0.090, 0.120),
-    scene.rgb * 0.76,
-    0.48
-  );
-  vec3 darkInk = scene.rgb * (1.02 + 0.24 * sceneLight);
+  vec3 lightInk = mix(vec3(0.050, 0.064, 0.090), scene.rgb * 0.52, 0.34);
+  vec3 darkInk = scene.rgb * (1.02 + 0.28 * sceneLight);
   vec3 naturalInk = mix(lightInk, darkInk, u_themeMix);
-  naturalInk += scene.rgb * mix(0.018, 0.045, u_themeMix);
+  naturalInk += scene.rgb * mix(0.010, 0.032, u_themeMix);
 
-  float naturalFieldAlpha = mix(0.024, 0.018, u_themeMix)
-    * (0.35 + sceneLight * 0.65);
-  float naturalGlyphOpacity = mix(0.66, 0.78, u_themeMix);
-  float naturalCanvasAlpha = saturate(
-    naturalFieldAlpha + naturalGlyphAlpha * naturalGlyphOpacity
-  );
-  float classicCanvasAlpha = saturate(0.012 + classicGlyphAlpha * 0.94);
+  vec3 classicInk = classicRainbow(sceneLight, gradient);
+  float classicGlow = smoothstep(0.1, 0.5, sceneLight) * classicAlpha * 0.08;
+  classicInk += classicRainbow(1.0, gradient) * classicGlow;
 
-  vec3 color = mix(naturalInk, classicInk, u_paletteMix);
+  float naturalCanvasAlpha = naturalAlpha * mix(0.44, 0.62, u_themeMix);
+  float classicCanvasAlpha = classicAlpha * 0.94;
+  vec3 color = mix(naturalInk, classicInk, u_paletteMix) * vignette;
   float canvasAlpha = mix(naturalCanvasAlpha, classicCanvasAlpha, u_paletteMix);
-  color *= vignette;
-  color += ((hash21(gl_FragCoord.xy) - 0.5) / 255.0) * 2.0;
-
-  float outputAlpha = reveal * canvasAlpha;
-  vec3 outputColor = clamp(color, 0.0, 1.0);
-  fragColor = vec4(outputColor * outputAlpha, outputAlpha);
+  float outputAlpha = reveal * sat(canvasAlpha);
+  fragColor = vec4(clamp(color, 0.0, 1.0) * outputAlpha, outputAlpha);
 }`;
