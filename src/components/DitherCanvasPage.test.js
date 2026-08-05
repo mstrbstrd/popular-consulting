@@ -5,69 +5,90 @@ import DitherCanvasPage from "./DitherCanvasPage";
 
 jest.mock("./DitherWorldCanvas", () => {
   const ReactModule = require("react");
-  return ({ sceneIndex, paused, passive }) =>
-    ReactModule.createElement("div", {
-      "data-testid": "dither-world-renderer",
-      "data-scene-index": sceneIndex,
-      "data-paused": paused ? "true" : "false",
-      "data-passive": passive ? "true" : "false",
-    });
+  return ({ isDark, onPhaseChange, paletteMode, paused, phaseOverride }) =>
+    ReactModule.createElement(
+      "button",
+      {
+        type: "button",
+        "data-testid": "dither-world-renderer",
+        "data-theme-mode": isDark ? "dark" : "light",
+        "data-palette-mode": paletteMode,
+        "data-paused": paused ? "true" : "false",
+        "data-phase-override": phaseOverride ?? "auto",
+        onClick: () => onPhaseChange?.(0.75),
+      },
+      "renderer",
+    );
 });
 
-const renderers = () => screen.getAllByTestId("dither-world-renderer");
-
 describe("DitherCanvasPage", () => {
-  afterEach(cleanup);
-
-  test("opens on Alpine Dawn with both renderer layers synchronized", () => {
-    render(<DitherCanvasPage />);
-    expect(screen.getByRole("heading", { name: "Alpine Dawn" })).toBeInTheDocument();
-    expect(renderers()).toHaveLength(2);
-    renderers().forEach((renderer) => {
-      expect(renderer).toHaveAttribute("data-scene-index", "0");
-    });
-    expect(renderers()[0]).toHaveAttribute("data-passive", "true");
-    expect(renderers()[1]).toHaveAttribute("data-passive", "false");
+  afterEach(() => {
+    cleanup();
+    window.localStorage.clear();
+    document.documentElement.removeAttribute("data-theme");
   });
 
-  test("selects newly added worlds from the gallery controls", () => {
+  test("opens as one natural-light Tidal Dune study", () => {
     render(<DitherCanvasPage />);
-    fireEvent.click(screen.getByRole("button", { name: /Living Topography/ }));
-    expect(screen.getByRole("heading", { name: "Living Topography" })).toBeInTheDocument();
-    renderers().forEach((renderer) => {
-      expect(renderer).toHaveAttribute("data-scene-index", "5");
+
+    expect(screen.getByRole("heading", { name: "Tidal Dune" })).toBeInTheDocument();
+    expect(screen.getByTestId("dither-world-renderer")).toHaveAttribute(
+      "data-palette-mode",
+      "natural",
+    );
+    expect(screen.getByTestId("dither-world-renderer")).toHaveAttribute(
+      "data-theme-mode",
+      "light",
+    );
+    expect(screen.queryByRole("navigation", { name: /dither worlds/i })).not.toBeInTheDocument();
+  });
+
+  test("switches the same world into classic spectral rendering", () => {
+    render(<DitherCanvasPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Classic" }));
+
+    expect(screen.getByTestId("dither-world-renderer")).toHaveAttribute(
+      "data-palette-mode",
+      "classic",
+    );
+    expect(screen.getByText(/spectral gradient language/i)).toBeInTheDocument();
+  });
+
+  test("supports manual time painting and returning to the automatic cycle", () => {
+    render(<DitherCanvasPage />);
+
+    fireEvent.change(screen.getByRole("slider", { name: "Time of day" }), {
+      target: { value: "0.9" },
     });
-    expect(screen.getByRole("button", { name: "Auto off" })).toHaveAttribute(
-      "aria-pressed",
-      "false",
+
+    expect(screen.getByTestId("dither-world-renderer")).toHaveAttribute(
+      "data-phase-override",
+      "0.9",
+    );
+    expect(screen.getByText("21:36")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Resume cycle" }));
+    expect(screen.getByTestId("dither-world-renderer")).toHaveAttribute(
+      "data-phase-override",
+      "auto",
     );
   });
 
-  test("supports keyboard scene navigation and pauses both layers", () => {
+  test("uses the shared site theme and motion controls", () => {
     render(<DitherCanvasPage />);
-    fireEvent.keyDown(window, { key: "ArrowRight" });
-    expect(screen.getByRole("heading", { name: "Moonwater" })).toBeInTheDocument();
-    fireEvent.keyDown(window, { key: " " });
-    renderers().forEach((renderer) => {
-      expect(renderer).toHaveAttribute("data-paused", "true");
-    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Use dark mode" }));
+    expect(screen.getByTestId("dither-world-renderer")).toHaveAttribute(
+      "data-theme-mode",
+      "dark",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+    expect(screen.getByTestId("dither-world-renderer")).toHaveAttribute(
+      "data-paused",
+      "true",
+    );
     expect(screen.getByRole("button", { name: "Resume" })).toBeInTheDocument();
-  });
-
-  test("wraps from the last expanded world to the first", () => {
-    render(<DitherCanvasPage />);
-    fireEvent.click(screen.getByRole("button", { name: /Rain City/ }));
-    fireEvent.keyDown(window, { key: "ArrowRight" });
-    expect(screen.getByRole("heading", { name: "Alpine Dawn" })).toBeInTheDocument();
-  });
-
-  test("can hide and restore the interface without removing either world layer", () => {
-    render(<DitherCanvasPage />);
-    const main = screen.getByRole("main");
-    fireEvent.click(screen.getByRole("button", { name: "Hide UI" }));
-    expect(main).toHaveClass("is-immersive");
-    expect(renderers()).toHaveLength(2);
-    fireEvent.click(screen.getByRole("button", { name: "Show interface" }));
-    expect(main).not.toHaveClass("is-immersive");
   });
 });
