@@ -21,14 +21,38 @@
   opacity: 1;
 }
 
+/*
+ * Classic mode should read like the original light-mode intro: a bright paper
+ * field with crisp, high-chroma rainbow glyphs and only a faint world wash
+ * underneath. The previous full-strength underpainting turned the spectrum
+ * into a uniform pastel layer and removed the original white negative space.
+ */
+.dither-canvas-page.palette-classic {
+  --dither-panel: rgba(255, 255, 255, 0.44);
+  --dither-panel-strong: rgba(255, 255, 255, 0.60);
+}
+
+[data-theme="dark"] .dither-canvas-page.palette-classic {
+  --dither-panel: rgba(9, 10, 20, 0.50);
+  --dither-panel-strong: rgba(12, 13, 27, 0.68);
+}
+
 .dither-canvas-page.palette-classic .dither-world-canvas-glow {
-  opacity: 1;
-  filter: blur(0.16rem) saturate(88%) contrast(0.96);
+  opacity: 0.07;
+  filter: blur(0.18rem) saturate(58%) brightness(1.08) contrast(1.02);
 }
 
 [data-theme="dark"] .dither-canvas-page.palette-classic .dither-world-canvas-glow {
-  opacity: 1;
-  filter: blur(0.18rem) saturate(90%) brightness(0.96) contrast(1.04);
+  opacity: 0.16;
+  filter: blur(0.18rem) saturate(66%) brightness(0.94) contrast(1.08);
+}
+
+.dither-canvas-page.palette-classic .dither-world-canvas-main {
+  filter: saturate(195%) contrast(1.20) brightness(1.06);
+}
+
+[data-theme="dark"] .dither-canvas-page.palette-classic .dither-world-canvas-main {
+  filter: saturate(178%) contrast(1.14) brightness(1.10);
 }
 
 .dither-canvas-glass {
@@ -37,8 +61,38 @@
   -webkit-backdrop-filter: blur(0.34rem) saturate(108%);
 }
 
+.dither-canvas-page.palette-classic .dither-canvas-glass {
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.01) 0%,
+    rgba(255, 255, 255, 0.005) 50%,
+    rgba(99, 68, 245, 0.01) 100%
+  );
+  backdrop-filter: blur(0.20rem) saturate(124%);
+  -webkit-backdrop-filter: blur(0.20rem) saturate(124%);
+}
+
+[data-theme="dark"] .dither-canvas-page.palette-classic .dither-canvas-glass {
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.008) 0%,
+    rgba(255, 255, 255, 0.003) 50%,
+    rgba(99, 68, 245, 0.012) 100%
+  );
+  backdrop-filter: blur(0.20rem) saturate(120%);
+  -webkit-backdrop-filter: blur(0.20rem) saturate(120%);
+}
+
 .dither-canvas-grain {
   z-index: 3;
+}
+
+.dither-canvas-page.palette-classic .dither-canvas-grain {
+  opacity: 0.08;
+}
+
+[data-theme="dark"] .dither-canvas-page.palette-classic .dither-canvas-grain {
+  opacity: 0.12;
 }
 
 @media (max-width: 680px) {
@@ -54,13 +108,27 @@
   }
 
   .dither-canvas-page.palette-classic .dither-world-canvas-glow {
-    opacity: 1;
-    filter: blur(0.12rem) saturate(86%) contrast(0.96);
+    opacity: 0.05;
+    filter: blur(0.12rem) saturate(58%) brightness(1.08);
+  }
+
+  [data-theme="dark"] .dither-canvas-page.palette-classic .dither-world-canvas-glow {
+    opacity: 0.13;
+    filter: blur(0.12rem) saturate(64%) brightness(0.96) contrast(1.06);
+  }
+
+  .dither-canvas-page.palette-classic .dither-world-canvas-main {
+    filter: saturate(185%) contrast(1.16) brightness(1.05);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .dither-world-canvas-glow {
     filter: blur(0.08rem) saturate(102%);
+  }
+
+  .dither-canvas-page.palette-classic .dither-world-canvas-glow {
+    opacity: 0.05;
+    filter: blur(0.08rem) saturate(58%) brightness(1.06);
   }
 }
