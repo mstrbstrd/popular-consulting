@@ -7,11 +7,11 @@ import {
 
 const CHARSET = " .·:+=*#%@";
 const ATLAS_CELL = 32;
-const SCENE_COUNT = 5;
-const TRANSITION_SECONDS = 1.45;
+const SCENE_COUNT = 10;
+const TRANSITION_SECONDS = 1.55;
 
-const clampSceneIndex = (sceneIndex) =>
-  Math.max(0, Math.min(SCENE_COUNT - 1, Number(sceneIndex) || 0));
+const clampSceneIndex = (value) =>
+  Math.max(0, Math.min(SCENE_COUNT - 1, Number(value) || 0));
 
 const easeInOutCubic = (value) =>
   value < 0.5
@@ -24,16 +24,15 @@ const buildAtlas = (gl) => {
   const atlasCanvas = document.createElement("canvas");
   atlasCanvas.width = atlasColumns * ATLAS_CELL;
   atlasCanvas.height = atlasRows * ATLAS_CELL;
-
   const context = atlasCanvas.getContext("2d");
   if (!context) throw new Error("The dither atlas canvas is unavailable.");
-  context.fillStyle = "#000000";
+
+  context.fillStyle = "#000";
   context.fillRect(0, 0, atlasCanvas.width, atlasCanvas.height);
-  context.fillStyle = "#ffffff";
+  context.fillStyle = "#fff";
   context.font = `${ATLAS_CELL - 4}px monospace`;
   context.textAlign = "center";
   context.textBaseline = "middle";
-
   Array.from(CHARSET).forEach((character, index) => {
     context.fillText(
       character,
@@ -45,23 +44,15 @@ const buildAtlas = (gl) => {
   const texture = gl.createTexture();
   gl.activeTexture(gl.TEXTURE0);
   gl.bindTexture(gl.TEXTURE_2D, texture);
-  gl.texImage2D(
-    gl.TEXTURE_2D,
-    0,
-    gl.RGBA,
-    gl.RGBA,
-    gl.UNSIGNED_BYTE,
-    atlasCanvas,
-  );
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, atlasCanvas);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-
   return { texture, atlasColumns, atlasRows };
 };
 
-const DitherWorldCanvas = ({ sceneIndex = 0, paused = false }) => {
+const DitherWorldCanvas = ({ sceneIndex = 0, paused = false, passive = false }) => {
   const canvasRef = useRef(null);
   const animationFrameRef = useRef(0);
   const sceneTransitionRef = useRef({
@@ -85,14 +76,13 @@ const DitherWorldCanvas = ({ sceneIndex = 0, paused = false }) => {
   useEffect(() => {
     const nextScene = clampSceneIndex(sceneIndex);
     const transition = sceneTransitionRef.current;
-    impulseRef.current.birth = -1;
     const visibleScene = transition.progress >= 0.5 ? transition.to : transition.from;
     if (nextScene === transition.to && transition.from !== transition.to) return;
     if (nextScene === visibleScene && transition.from === transition.to) return;
-
     transition.from = visibleScene;
     transition.to = nextScene;
     transition.progress = transition.from === transition.to ? 0 : 0.0001;
+    impulseRef.current.birth = -1;
   }, [sceneIndex]);
 
   useEffect(() => {
@@ -104,19 +94,13 @@ const DitherWorldCanvas = ({ sceneIndex = 0, paused = false }) => {
       reducedMotionRef.current = Boolean(mediaQuery?.matches);
     };
     syncReducedMotion();
-    if (mediaQuery?.addEventListener) {
-      mediaQuery.addEventListener("change", syncReducedMotion);
-    } else {
-      mediaQuery?.addListener?.(syncReducedMotion);
-    }
+    mediaQuery?.addEventListener?.("change", syncReducedMotion);
 
     const handleContextLost = (event) => {
       event.preventDefault();
       setFallback(true);
     };
-    const handleContextRestored = () => {
-      setContextVersion((value) => value + 1);
-    };
+    const handleContextRestored = () => setContextVersion((value) => value + 1);
     canvas.addEventListener("webglcontextlost", handleContextLost);
     canvas.addEventListener("webglcontextrestored", handleContextRestored);
 
@@ -125,10 +109,10 @@ const DitherWorldCanvas = ({ sceneIndex = 0, paused = false }) => {
     let vertexBuffer;
     let atlasTexture;
     let resizeObserver;
+    let documentVisible = document.visibilityState !== "hidden";
 
     try {
       if (!hasHardwareWebGL) throw new Error("Hardware WebGL is unavailable.");
-
       gl = canvas.getContext("webgl2", {
         alpha: false,
         antialias: false,
@@ -157,7 +141,6 @@ const DitherWorldCanvas = ({ sceneIndex = 0, paused = false }) => {
       gl.linkProgram(program);
       gl.deleteShader(vertexShader);
       gl.deleteShader(fragmentShader);
-
       if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
         throw new Error(gl.getProgramInfoLog(program) || "Shader link failed.");
       }
@@ -176,19 +159,9 @@ const DitherWorldCanvas = ({ sceneIndex = 0, paused = false }) => {
 
       const uniforms = {};
       [
-        "u_res",
-        "u_time",
-        "u_sceneA",
-        "u_sceneB",
-        "u_sceneMix",
-        "u_intro",
-        "u_pointer",
-        "u_impulse",
-        "u_atlas",
-        "u_cellSize",
-        "u_charCount",
-        "u_atlasCols",
-        "u_atlasRows",
+        "u_res", "u_time", "u_sceneA", "u_sceneB", "u_sceneMix", "u_intro",
+        "u_pointer", "u_impulse", "u_atlas", "u_cellSize", "u_charCount",
+        "u_atlasCols", "u_atlasRows",
       ].forEach((name) => {
         uniforms[name] = gl.getUniformLocation(program, name);
       });
@@ -198,8 +171,9 @@ const DitherWorldCanvas = ({ sceneIndex = 0, paused = false }) => {
 
       const resize = () => {
         const bounds = canvas.getBoundingClientRect();
-        const width = Math.max(1, Math.floor(bounds.width * shaderDPR));
-        const height = Math.max(1, Math.floor(bounds.height * shaderDPR));
+        const renderScale = passive && isMobileTier ? 0.55 : passive ? 0.72 : 1;
+        const width = Math.max(1, Math.floor(bounds.width * shaderDPR * renderScale));
+        const height = Math.max(1, Math.floor(bounds.height * shaderDPR * renderScale));
         if (canvas.width !== width || canvas.height !== height) {
           canvas.width = width;
           canvas.height = height;
@@ -220,7 +194,6 @@ const DitherWorldCanvas = ({ sceneIndex = 0, paused = false }) => {
           y: Math.max(0, Math.min(1, 1 - (event.clientY - bounds.top) / bounds.height)),
         };
       };
-
       const handlePointerMove = (event) => {
         pointerTargetRef.current = readPointer(event);
       };
@@ -228,30 +201,27 @@ const DitherWorldCanvas = ({ sceneIndex = 0, paused = false }) => {
         const pointer = readPointer(event);
         pointerTargetRef.current = pointer;
         impulseRef.current = { ...pointer, birth: timeRef.current };
-        canvas.setPointerCapture?.(event.pointerId);
       };
       const handlePointerLeave = () => {
         pointerTargetRef.current = { x: 0.5, y: 0.5 };
       };
-      canvas.addEventListener("pointermove", handlePointerMove, { passive: true });
-      canvas.addEventListener("pointerdown", handlePointerDown, { passive: true });
-      canvas.addEventListener("pointerleave", handlePointerLeave, { passive: true });
-
-      let lastTimestamp = 0;
-      let introProgress = 0;
-      let documentVisible = document.visibilityState !== "hidden";
-      let lastStaticRender = 0;
+      if (!passive) {
+        canvas.addEventListener("pointermove", handlePointerMove, { passive: true });
+        canvas.addEventListener("pointerdown", handlePointerDown, { passive: true });
+        canvas.addEventListener("pointerleave", handlePointerLeave, { passive: true });
+      }
 
       const handleVisibility = () => {
         documentVisible = document.visibilityState !== "hidden";
-        lastTimestamp = 0;
       };
       document.addEventListener("visibilitychange", handleVisibility);
 
+      let lastTimestamp = 0;
+      let introProgress = 0;
+      let lastStaticRender = 0;
       const render = (timestamp) => {
         animationFrameRef.current = requestAnimationFrame(render);
         if (!documentVisible) return;
-
         const delta = lastTimestamp
           ? Math.min((timestamp - lastTimestamp) / 1000, 1 / 15)
           : 0;
@@ -260,20 +230,17 @@ const DitherWorldCanvas = ({ sceneIndex = 0, paused = false }) => {
         const transition = sceneTransitionRef.current;
         const hasTransition = transition.from !== transition.to;
         const effectivelyPaused = pausedRef.current || reducedMotionRef.current;
-        if (effectivelyPaused && !hasTransition && timestamp - lastStaticRender < 180) {
-          return;
-        }
+        if (effectivelyPaused && !hasTransition && timestamp - lastStaticRender < 180) return;
         lastStaticRender = timestamp;
 
         if (!effectivelyPaused) {
-          timeRef.current += delta * (isMobileTier ? 0.72 : 1.0);
+          timeRef.current += delta * (isMobileTier ? 0.72 : 1);
         }
-
         const pointer = pointerRef.current;
-        const pointerTarget = pointerTargetRef.current;
+        const target = pointerTargetRef.current;
         const pointerEase = 1 - Math.pow(0.002, Math.max(delta, 1 / 120));
-        pointer.x += (pointerTarget.x - pointer.x) * pointerEase;
-        pointer.y += (pointerTarget.y - pointer.y) * pointerEase;
+        pointer.x += (target.x - pointer.x) * pointerEase;
+        pointer.y += (target.y - pointer.y) * pointerEase;
 
         if (hasTransition) {
           transition.progress = reducedMotionRef.current
@@ -284,10 +251,9 @@ const DitherWorldCanvas = ({ sceneIndex = 0, paused = false }) => {
             transition.progress = 0;
           }
         }
-
         introProgress = reducedMotionRef.current
           ? 1
-          : Math.min(1, introProgress + delta / 2.1);
+          : Math.min(1, introProgress + delta / 2.2);
 
         resize();
         gl.useProgram(program);
@@ -301,17 +267,15 @@ const DitherWorldCanvas = ({ sceneIndex = 0, paused = false }) => {
         );
         gl.uniform1f(uniforms.u_intro, easeInOutCubic(introProgress));
         gl.uniform2f(uniforms.u_pointer, pointer.x, pointer.y);
-
         const impulse = impulseRef.current;
         const impulseAge = impulse.birth < 0 ? -1 : timeRef.current - impulse.birth;
         gl.uniform4f(uniforms.u_impulse, impulse.x, impulse.y, impulseAge, 1);
-
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, atlasTexture);
         gl.uniform1i(uniforms.u_atlas, 0);
         gl.uniform1f(
           uniforms.u_cellSize,
-          (isMobileTier ? 10.5 : 7.0) * shaderDPR,
+          (isMobileTier ? 10.5 : 7) * shaderDPR * (passive ? 1.18 : 1),
         );
         gl.uniform1i(uniforms.u_charCount, CHARSET.length);
         gl.uniform1i(uniforms.u_atlasCols, atlas.atlasColumns);
@@ -325,19 +289,17 @@ const DitherWorldCanvas = ({ sceneIndex = 0, paused = false }) => {
       return () => {
         cancelAnimationFrame(animationFrameRef.current);
         document.removeEventListener("visibilitychange", handleVisibility);
-        canvas.removeEventListener("pointermove", handlePointerMove);
-        canvas.removeEventListener("pointerdown", handlePointerDown);
-        canvas.removeEventListener("pointerleave", handlePointerLeave);
+        if (!passive) {
+          canvas.removeEventListener("pointermove", handlePointerMove);
+          canvas.removeEventListener("pointerdown", handlePointerDown);
+          canvas.removeEventListener("pointerleave", handlePointerLeave);
+        }
         window.removeEventListener("resize", resize);
         resizeObserver?.disconnect();
         gl.deleteTexture(atlasTexture);
         gl.deleteBuffer(vertexBuffer);
         gl.deleteProgram(program);
-        if (mediaQuery?.removeEventListener) {
-          mediaQuery.removeEventListener("change", syncReducedMotion);
-        } else {
-          mediaQuery?.removeListener?.(syncReducedMotion);
-        }
+        mediaQuery?.removeEventListener?.("change", syncReducedMotion);
         canvas.removeEventListener("webglcontextlost", handleContextLost);
         canvas.removeEventListener("webglcontextrestored", handleContextRestored);
       };
@@ -352,19 +314,15 @@ const DitherWorldCanvas = ({ sceneIndex = 0, paused = false }) => {
       if (gl && atlasTexture) gl.deleteTexture(atlasTexture);
       if (gl && vertexBuffer) gl.deleteBuffer(vertexBuffer);
       if (gl && program) gl.deleteProgram(program);
-      if (mediaQuery?.removeEventListener) {
-        mediaQuery.removeEventListener("change", syncReducedMotion);
-      } else {
-        mediaQuery?.removeListener?.(syncReducedMotion);
-      }
+      mediaQuery?.removeEventListener?.("change", syncReducedMotion);
       canvas.removeEventListener("webglcontextlost", handleContextLost);
       canvas.removeEventListener("webglcontextrestored", handleContextRestored);
     };
-  }, [contextVersion]);
+  }, [contextVersion, passive]);
 
   return (
     <div
-      className={`dither-world-renderer${fallback ? " is-fallback" : ""}`}
+      className={`dither-world-renderer${fallback ? " is-fallback" : ""}${passive ? " is-passive" : ""}`}
       data-scene={clampSceneIndex(sceneIndex)}
       aria-hidden="true"
     >
