@@ -15,11 +15,11 @@
 }
 
 .dither-canvas-stage {
-  z-index: -3;
+  z-index: 0;
 }
 
 .dither-canvas-vignette {
-  z-index: -2;
+  z-index: 1;
   pointer-events: none;
   background:
     linear-gradient(90deg, rgba(3, 4, 7, 0.88) 0%, rgba(3, 4, 7, 0.52) 42%, rgba(3, 4, 7, 0.08) 75%),
@@ -40,6 +40,8 @@
 }
 
 .dither-canvas-content {
+  position: relative;
+  z-index: 2;
   width: min(42rem, calc(100% - 3rem));
   min-height: 100dvh;
   box-sizing: border-box;
