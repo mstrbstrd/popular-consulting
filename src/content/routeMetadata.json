@@ -51,12 +51,12 @@
   },
   "ditherCanvas": {
     "path": "/dither-canvas",
-    "title": "Dither Shader Canvas | Popular Consulting",
-    "description": "An unlinked WebGL canvas for exploring procedural dither scenes, motion studies, terrain-like forms, atmosphere, geometry, and interactive objects.",
+    "title": "Dither Worlds | Popular Consulting",
+    "description": "Five interactive generative worlds built from procedural landscapes, architecture, water, organic forms, and a custom WebGL dither glyph renderer.",
     "canonical": "https://popular-consulting.com/dither-canvas",
-    "socialTitle": "Dither Shader Canvas | Popular Consulting",
-    "socialDescription": "A procedural WebGL dither canvas exploring atmosphere, terrain-like forms, geometry, motion, and interactive objects.",
+    "socialTitle": "Dither Worlds | Popular Consulting",
+    "socialDescription": "An immersive generative art gallery where landscapes, water, architecture, and living forms emerge from a custom WebGL dither system.",
     "robots": "noindex,follow",
-    "noscript": "The Dither Shader Canvas requires JavaScript and WebGL. Return to https://popular-consulting.com/ or contact shae@popcon.dev."
+    "noscript": "Dither Worlds requires JavaScript and WebGL. Return to https://popular-consulting.com/ or contact shae@popcon.dev."
   }
 }
