@@ -51,12 +51,12 @@
   },
   "ditherCanvas": {
     "path": "/dither-canvas",
-    "title": "Dither Worlds | Popular Consulting",
-    "description": "Five interactive generative worlds built from procedural landscapes, architecture, water, organic forms, and a custom WebGL dither glyph renderer.",
+    "title": "Tidal Dune | Popular Consulting",
+    "description": "An interactive WebGL dither landscape where desert wind meets reflective water through a continuous day-to-night cycle, natural and spectral rendering, and observer-driven motion.",
     "canonical": "https://popular-consulting.com/dither-canvas",
-    "socialTitle": "Dither Worlds | Popular Consulting",
-    "socialDescription": "An immersive generative art gallery where landscapes, water, architecture, and living forms emerge from a custom WebGL dither system.",
+    "socialTitle": "Tidal Dune | Popular Consulting",
+    "socialDescription": "A single interactive dither world combining desert wind, reflective water, light and dark presentation, and a continuous day-to-night cycle.",
     "robots": "noindex,follow",
-    "noscript": "Dither Worlds requires JavaScript and WebGL. Return to https://popular-consulting.com/ or contact shae@popcon.dev."
+    "noscript": "Tidal Dune requires JavaScript and WebGL. Return to https://popular-consulting.com/ or contact shae@popcon.dev."
   }
 }
