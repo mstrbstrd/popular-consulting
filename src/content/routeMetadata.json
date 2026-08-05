@@ -48,5 +48,15 @@
     "socialDescription": "A responsive browser game experiment combining canvas interaction, procedural animation, and user-initiated Web Audio.",
     "robots": "noindex,follow",
     "noscript": "The Popcorn Game requires JavaScript. Return to https://popcon.dev/ or contact shae@popcon.dev."
+  },
+  "ditherCanvas": {
+    "path": "/dither-canvas",
+    "title": "Dither Shader Canvas | Popular Consulting",
+    "description": "An unlinked WebGL canvas for exploring procedural dither scenes, motion studies, terrain-like forms, atmosphere, geometry, and interactive objects.",
+    "canonical": "https://popcon.dev/dither-canvas",
+    "socialTitle": "Dither Shader Canvas | Popular Consulting",
+    "socialDescription": "A procedural WebGL dither canvas exploring atmosphere, terrain-like forms, geometry, motion, and interactive objects.",
+    "robots": "noindex,follow",
+    "noscript": "The Dither Shader Canvas requires JavaScript and WebGL. Return to https://popcon.dev/ or contact shae@popcon.dev."
   }
 }

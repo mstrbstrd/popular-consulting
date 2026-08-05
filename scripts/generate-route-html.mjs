@@ -169,7 +169,8 @@ writeRoute("engineering", "engineering");
 writeRoute("work", "work");
 writeRoute("orb", "orb");
 writeRoute("game", "game");
+writeRoute("ditherCanvas", "dither-canvas");
 
 console.log(
-  "Generated route-specific HTML metadata for /, /engineering, /work, /orb, and /game.",
+  "Generated route-specific HTML metadata for /, /engineering, /work, /orb, /game, and /dither-canvas.",
 );
