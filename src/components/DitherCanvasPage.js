@@ -1,285 +1,197 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
+import logo from "../assets/icons/logo2026_128.png";
+import { ThemeProvider, useThemeMode } from "../contexts/ThemeContext";
 import DitherWorldCanvas from "./DitherWorldCanvas";
 import "./DitherCanvasPage.css";
 
-const SCENES = Object.freeze([
+const PALETTES = Object.freeze([
   {
-    id: "alpine",
-    category: "Landscape",
-    name: "Alpine Dawn",
-    description:
-      "A layered mountain basin with snow catches, tree lines, birds, moving cloud strata, valley fog, and a sunrise that drifts with your position.",
-    useCase: "Hero imagery, chapter openings, destination brands, and place-led storytelling.",
-    interaction: "Move to shift the horizon. Tap to send first light through the valley.",
+    id: "natural",
+    label: "Natural",
+    description: "Sand, reflected sky, dusk heat, and moonlit water.",
   },
   {
-    id: "moonwater",
-    category: "Atmosphere",
-    name: "Moonwater",
-    description:
-      "Moonlight fractures across deep water while stars, shoreline silhouettes, suspended mist, and layered wave bands create genuine depth.",
-    useCase: "Music, editorial stories, cinematic product states, and reflective interludes.",
-    interaction: "Tap the water to send rings through the reflected moon.",
-  },
-  {
-    id: "desert",
-    category: "Terrain",
-    name: "Desert Wind",
-    description:
-      "Sculpted dune faces, wind-carved ridges, dust veils, heat shimmer, and a distant sun build a dry landscape from luminous type.",
-    useCase: "Campaign transitions, fashion, hospitality, and calm calls to action.",
-    interaction: "Move across the field. Tap to release a travelling gust.",
-  },
-  {
-    id: "gate",
-    category: "Architecture",
-    name: "Luminous Gate",
-    description:
-      "An impossible monolith stands inside reflected fog, with engraved seams, interior depth, orbiting particles, and light spilling across the floor.",
-    useCase: "Product launches, future-facing brands, onboarding, and threshold moments.",
-    interaction: "Tap the gate to charge its inner geometry.",
-  },
-  {
-    id: "bloom",
-    category: "Living form",
-    name: "Night Bloom",
-    description:
-      "A responsive botanical organism opens in darkness, revealing veins, pollen motes, nested petals, bioluminescent edges, and a living core.",
-    useCase: "Identity systems, creative tools, wellness, and expressive loading states.",
-    interaction: "Move to guide the bloom. Tap to make it unfurl.",
-  },
-  {
-    id: "topography",
-    category: "Data landscape",
-    name: "Living Topography",
-    description:
-      "Contour lines behave like a breathing terrain map, with elevation wells, survey markers, shifting pressure, and a luminous route finding its way through.",
-    useCase: "Data storytelling, logistics, civic systems, maps, and operational dashboards.",
-    interaction: "Move to bend elevation. Tap to establish a new destination.",
-  },
-  {
-    id: "cathedral",
-    category: "Spatial light",
-    name: "Glass Cathedral",
-    description:
-      "Vaults, columns, rose-window geometry, suspended dust, and refracted bands of light form a sacred interior without using a single texture.",
-    useCase: "Luxury, cultural institutions, editorial features, and immersive brand moments.",
-    interaction: "Move the light source. Tap to ring the architecture.",
-  },
-  {
-    id: "signal",
-    category: "Information",
-    name: "Signal Garden",
-    description:
-      "Packets become fireflies, branching paths become stems, and live pulses travel through a dark network that feels grown rather than engineered.",
-    useCase: "AI systems, network health, infrastructure, and ambient status displays.",
-    interaction: "Move to attract signals. Tap to inject a pulse.",
-  },
-  {
-    id: "eclipse",
-    category: "Celestial",
-    name: "Event Horizon",
-    description:
-      "A gravitational lens bends a star field around a dark centre while accretion light, orbital debris, and time-like ripples distort the dither grid.",
-    useCase: "Research, deep-tech, keynote openings, and high-concept product reveals.",
-    interaction: "Move to alter the lens. Tap to disturb the orbit.",
-  },
-  {
-    id: "city",
-    category: "Urban system",
-    name: "Rain City",
-    description:
-      "A nocturnal skyline reflects into wet streets while window rhythms, passing lights, rain curtains, steam, and distant transit animate the scene.",
-    useCase: "Architecture, mobility, nightlife, real estate, and narrative interfaces.",
-    interaction: "Move through the street. Tap to send a light across the city.",
+    id: "classic",
+    label: "Classic",
+    description: "The same physical world translated into the site's spectral gradient language.",
   },
 ]);
 
-const wrapSceneIndex = (index) => (index + SCENES.length) % SCENES.length;
+const clampPhase = (value) => Math.max(0, Math.min(1, Number(value) || 0));
 
-const DitherCanvasPage = () => {
-  const [sceneIndex, setSceneIndex] = useState(0);
-  const [paused, setPaused] = useState(false);
-  const [touring, setTouring] = useState(true);
-  const [interfaceVisible, setInterfaceVisible] = useState(true);
-  const [reducedMotion, setReducedMotion] = useState(() =>
-    Boolean(
-      typeof window !== "undefined" &&
-        window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches,
-    ),
+const describePhase = (phase) => {
+  const totalMinutes = Math.round(clampPhase(phase) * 24 * 60) % (24 * 60);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  const time = `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+
+  let label = "Night";
+  if (hours >= 5 && hours < 8) label = "Dawn";
+  else if (hours >= 8 && hours < 17) label = "Day";
+  else if (hours >= 17 && hours < 20) label = "Dusk";
+
+  return { time, label };
+};
+
+const ThemeIcon = ({ isDark }) =>
+  isDark ? (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="1.8" />
+      <path
+        d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
+  ) : (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
-  const touchStartRef = useRef({ x: 0, y: 0 });
-  const scene = SCENES[sceneIndex];
 
-  const selectScene = useCallback((index, stopTour = true) => {
-    setSceneIndex(wrapSceneIndex(index));
-    if (stopTour) setTouring(false);
+const TidalDuneExperience = () => {
+  const { isDark, toggleTheme } = useThemeMode();
+  const [paletteMode, setPaletteMode] = useState("natural");
+  const [paused, setPaused] = useState(false);
+  const [manualPhase, setManualPhase] = useState(null);
+  const [observedPhase, setObservedPhase] = useState(() => (isDark ? 0.89 : 0.66));
+  const [initialPhase] = useState(() => (isDark ? 0.89 : 0.66));
+
+  const activePalette = useMemo(
+    () => PALETTES.find((palette) => palette.id === paletteMode) ?? PALETTES[0],
+    [paletteMode],
+  );
+  const displayedPhase = manualPhase ?? observedPhase;
+  const phaseDescription = describePhase(displayedPhase);
+
+  const handlePhaseChange = useCallback((phase) => {
+    setObservedPhase(clampPhase(phase));
   }, []);
-
-  const showPreviousScene = useCallback(() => {
-    setSceneIndex((current) => wrapSceneIndex(current - 1));
-    setTouring(false);
-  }, []);
-
-  const showNextScene = useCallback(() => {
-    setSceneIndex((current) => wrapSceneIndex(current + 1));
-    setTouring(false);
-  }, []);
-
-  useEffect(() => {
-    const previousTitle = document.title;
-    document.title = "Dither Worlds | Popular Consulting";
-    return () => {
-      document.title = previousTitle;
-    };
-  }, []);
-
-  useEffect(() => {
-    const mediaQuery = window.matchMedia?.("(prefers-reduced-motion: reduce)");
-    if (!mediaQuery) return undefined;
-    const handleChange = (event) => setReducedMotion(event.matches);
-    mediaQuery.addEventListener?.("change", handleChange);
-    return () => mediaQuery.removeEventListener?.("change", handleChange);
-  }, []);
-
-  useEffect(() => {
-    const handleKeyDown = (event) => {
-      const tagName = document.activeElement?.tagName?.toUpperCase();
-      if (["INPUT", "TEXTAREA", "SELECT"].includes(tagName)) return;
-      if (event.key === "ArrowRight" || event.key === "PageDown") {
-        event.preventDefault();
-        showNextScene();
-      } else if (event.key === "ArrowLeft" || event.key === "PageUp") {
-        event.preventDefault();
-        showPreviousScene();
-      } else if (event.key === " ") {
-        event.preventDefault();
-        setPaused((current) => !current);
-      } else if (event.key.toLowerCase() === "a") {
-        setTouring((current) => !current);
-      } else if (event.key.toLowerCase() === "h") {
-        setInterfaceVisible((current) => !current);
-      } else if (event.key === "Escape") {
-        setInterfaceVisible(true);
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [showNextScene, showPreviousScene]);
-
-  useEffect(() => {
-    if (!touring || paused || reducedMotion) return undefined;
-    const timer = window.setInterval(() => {
-      setSceneIndex((current) => wrapSceneIndex(current + 1));
-    }, 16000);
-    return () => window.clearInterval(timer);
-  }, [paused, reducedMotion, touring]);
-
-  const handleTouchStart = (event) => {
-    const touch = event.touches[0];
-    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
-  };
-
-  const handleTouchEnd = (event) => {
-    const touch = event.changedTouches[0];
-    const deltaX = touch.clientX - touchStartRef.current.x;
-    const deltaY = touch.clientY - touchStartRef.current.y;
-    if (Math.abs(deltaX) < 52 || Math.abs(deltaX) < Math.abs(deltaY) * 1.25) return;
-    if (deltaX < 0) showNextScene();
-    else showPreviousScene();
-  };
 
   return (
-    <main
-      className={`dither-canvas-page scene-${scene.id}${interfaceVisible ? "" : " is-immersive"}`}
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
-      aria-label="Dither Worlds generative art studies"
-    >
-      <div className="dither-canvas-render-stack" aria-hidden="true">
-        <div className="dither-canvas-blur-layer">
-          <DitherWorldCanvas sceneIndex={sceneIndex} paused={paused} passive />
-        </div>
-        <div className="dither-canvas-crisp-layer">
-          <DitherWorldCanvas sceneIndex={sceneIndex} paused={paused} />
-        </div>
-      </div>
-      <div className="dither-canvas-atmosphere" aria-hidden="true" />
-      <div className="dither-canvas-glass" aria-hidden="true" />
-      <div className="dither-canvas-frame" aria-hidden="true" />
+    <main className={`dither-canvas-page palette-${paletteMode}`} aria-label="Tidal Dune generative shader study">
+      <DitherWorldCanvas
+        initialPhase={initialPhase}
+        isDark={isDark}
+        onPhaseChange={handlePhaseChange}
+        paletteMode={paletteMode}
+        paused={paused}
+        phaseOverride={manualPhase}
+      />
 
-      <header className="dither-canvas-header dither-canvas-chrome">
-        <a className="dither-canvas-brand" href="/">
-          <span className="dither-canvas-brand-mark" aria-hidden="true" />
-          <span>Popular Consulting</span>
-        </a>
-        <div className="dither-canvas-series" aria-label="Experience title">
-          <span>Generative systems</span>
-          <strong>Dither Worlds</strong>
-        </div>
-        <div className="dither-canvas-actions" aria-label="Canvas controls">
-          <button type="button" onClick={() => setTouring((current) => !current)} aria-pressed={touring}>
-            {touring ? "Auto on" : "Auto off"}
-          </button>
-          <button type="button" onClick={() => setPaused((current) => !current)}>
-            {paused ? "Resume" : "Pause"}
-          </button>
-          <button type="button" onClick={() => setInterfaceVisible(false)}>Hide UI</button>
-        </div>
+      <div className="dither-canvas-glass" aria-hidden="true" />
+      <div className="dither-canvas-grain" aria-hidden="true" />
+
+      <header className="dither-canvas-header">
+        <nav className="dither-canvas-nav" aria-label="Tidal Dune controls">
+          <a className="dither-canvas-brand" href="/" aria-label="Return to Popular Consulting">
+            <img src={logo} alt="" aria-hidden="true" />
+            <span>Popular Consulting</span>
+          </a>
+
+          <span className="dither-canvas-nav-rule" aria-hidden="true" />
+
+          <div className="dither-canvas-nav-actions">
+            <button
+              type="button"
+              className="dither-canvas-icon-button"
+              onClick={toggleTheme}
+              aria-label={isDark ? "Use light mode" : "Use dark mode"}
+              title={isDark ? "Use light mode" : "Use dark mode"}
+            >
+              <ThemeIcon isDark={isDark} />
+            </button>
+            <button
+              type="button"
+              className="dither-canvas-text-button"
+              onClick={() => setPaused((value) => !value)}
+            >
+              {paused ? "Resume" : "Pause"}
+            </button>
+          </div>
+        </nav>
       </header>
 
-      <section className="dither-canvas-scene-copy dither-canvas-chrome" aria-labelledby="dither-world-title">
-        <p className="dither-canvas-eyebrow">
-          <span>{String(sceneIndex + 1).padStart(2, "0")}</span>
-          {scene.category}
+      <section className="dither-canvas-copy" aria-labelledby="dither-canvas-title">
+        <p className="dither-canvas-eyebrow">Generative study · 01</p>
+        <h1 id="dither-canvas-title">Tidal Dune</h1>
+        <p className="dither-canvas-description">
+          Desert wind crosses a shallow inland tide while the sun gives way to a moving moon.
+          Your motion stirs the air and unsettles the reflections. Stillness lets the water clear
+          and the night become visible.
         </p>
-        <h1 id="dither-world-title">{scene.name}</h1>
-        <p className="dither-canvas-description">{scene.description}</p>
-        <p className="dither-canvas-use-case"><span>Use case</span>{scene.useCase}</p>
+        <p className="dither-canvas-interaction-note">
+          Move to shape the wind. Tap sand for a gust, or water for a ripple.
+        </p>
       </section>
 
-      <nav
-        className="dither-canvas-navigation dither-canvas-chrome"
-        aria-label="Dither worlds"
-        onTouchStart={(event) => event.stopPropagation()}
-        onTouchEnd={(event) => event.stopPropagation()}
-      >
-        <ol>
-          {SCENES.map((item, index) => (
-            <li key={item.id}>
+      <section className="dither-canvas-dock" aria-label="Scene presentation controls">
+        <div className="dither-canvas-palette" aria-label="Render language">
+          <span className="dither-canvas-control-label">Render</span>
+          <div className="dither-canvas-segmented-control">
+            {PALETTES.map((palette) => (
               <button
+                key={palette.id}
                 type="button"
-                className={index === sceneIndex ? "is-active" : ""}
-                onClick={() => selectScene(index)}
-                aria-current={index === sceneIndex ? "true" : undefined}
+                className={palette.id === paletteMode ? "is-active" : ""}
+                onClick={() => setPaletteMode(palette.id)}
+                aria-pressed={palette.id === paletteMode}
               >
-                <span>{String(index + 1).padStart(2, "0")}</span>
-                <i aria-hidden="true" />
-                <strong>{item.name}</strong>
+                {palette.label}
               </button>
-            </li>
-          ))}
-        </ol>
-        <div className="dither-canvas-step-controls">
-          <button type="button" onClick={showPreviousScene} aria-label="Previous world"><span aria-hidden="true">←</span></button>
-          <span>{String(sceneIndex + 1).padStart(2, "0")} / {String(SCENES.length).padStart(2, "0")}</span>
-          <button type="button" onClick={showNextScene} aria-label="Next world"><span aria-hidden="true">→</span></button>
+            ))}
+          </div>
+          <span className="dither-canvas-palette-description">{activePalette.description}</span>
         </div>
-      </nav>
 
-      <p className="dither-canvas-interaction dither-canvas-chrome"><span aria-hidden="true" />{scene.interaction}</p>
-      <button
-        type="button"
-        className="dither-canvas-show-interface"
-        onClick={() => setInterfaceVisible(true)}
-        aria-hidden={interfaceVisible}
-        tabIndex={interfaceVisible ? -1 : 0}
-      >
-        Show interface
-      </button>
-      <p className="visually-hidden" aria-live="polite">Showing {scene.name}. {scene.description}</p>
+        <span className="dither-canvas-dock-rule" aria-hidden="true" />
+
+        <div className="dither-canvas-time-control">
+          <div className="dither-canvas-time-heading">
+            <span className="dither-canvas-control-label">Time</span>
+            <strong>{phaseDescription.time}</strong>
+            <span>{phaseDescription.label}</span>
+          </div>
+          <input
+            className={`dither-canvas-time-range${manualPhase === null ? " is-automatic" : ""}`}
+            type="range"
+            min="0"
+            max="1"
+            step="0.001"
+            value={displayedPhase}
+            onChange={(event) => setManualPhase(clampPhase(event.target.value))}
+            aria-label="Time of day"
+          />
+          <button
+            type="button"
+            className="dither-canvas-auto-button"
+            onClick={() => setManualPhase(null)}
+            aria-pressed={manualPhase === null}
+          >
+            {manualPhase === null ? "Cycling" : "Resume cycle"}
+          </button>
+        </div>
+      </section>
+
+      <p className="visually-hidden" aria-live="polite">
+        Tidal Dune is showing {phaseDescription.label.toLowerCase()} at {phaseDescription.time}
+        in {activePalette.label.toLowerCase()} render mode.
+      </p>
     </main>
   );
 };
+
+const DitherCanvasPage = () => (
+  <ThemeProvider>
+    <TidalDuneExperience />
+  </ThemeProvider>
+);
 
 export default DitherCanvasPage;
