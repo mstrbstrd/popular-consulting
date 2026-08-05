@@ -24,6 +24,16 @@ jest.mock("./components/WorkPage", () => {
     );
 });
 
+jest.mock("./components/DitherCanvasPage", () => {
+  const ReactModule = require("react");
+  return () =>
+    ReactModule.createElement(
+      "div",
+      { "data-testid": "dither-canvas-page" },
+      "Dither canvas page",
+    );
+});
+
 jest.mock("./components/StandaloneExperiencePage", () => {
   const ReactModule = require("react");
   const component = ({ experience }) =>
@@ -56,6 +66,8 @@ describe("SiteRouter", () => {
     ["/orb/", SITE_VIEWS.ORB],
     ["/game", SITE_VIEWS.GAME],
     ["/game/", SITE_VIEWS.GAME],
+    ["/dither-canvas", SITE_VIEWS.DITHER_CANVAS],
+    ["/dither-canvas/", SITE_VIEWS.DITHER_CANVAS],
   ])("resolves %s to %s", (pathname, expected) => {
     expect(resolveSiteView(pathname)).toBe(expected);
   });
@@ -94,6 +106,14 @@ describe("SiteRouter", () => {
     expect(await screen.findByTestId("work-page")).toBeInTheDocument();
     expect(screen.queryByTestId("immersive-site")).not.toBeInTheDocument();
     expect(screen.queryByTestId("standalone-experience")).not.toBeInTheDocument();
+  });
+
+  test("renders the shader canvas only at /dither-canvas", async () => {
+    render(<SiteRouter pathname="/dither-canvas" />);
+
+    expect(await screen.findByTestId("dither-canvas-page")).toBeInTheDocument();
+    expect(screen.queryByTestId("immersive-site")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("work-page")).not.toBeInTheDocument();
   });
 
   test.each([
