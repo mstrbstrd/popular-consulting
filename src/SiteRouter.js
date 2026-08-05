@@ -7,6 +7,9 @@ import { IMMERSIVE_MODES } from "./immersiveMode";
    invisible behind each route's own loading treatment. */
 const App = React.lazy(() => import("./App"));
 const WorkPage = React.lazy(() => import("./components/WorkPage"));
+const DitherCanvasPage = React.lazy(() =>
+  import("./components/DitherCanvasPage"),
+);
 const StandaloneExperiencePage = React.lazy(() =>
   import("./components/StandaloneExperiencePage"),
 );
@@ -21,6 +24,7 @@ export const SITE_VIEWS = Object.freeze({
   WORK: "work",
   ORB: "orb",
   GAME: "game",
+  DITHER_CANVAS: "dither-canvas",
 });
 
 export const resolveSiteView = (pathname = "/") => {
@@ -30,6 +34,7 @@ export const resolveSiteView = (pathname = "/") => {
   if (normalized === "/engineering") return SITE_VIEWS.ENGINEERING;
   if (normalized === "/orb") return SITE_VIEWS.ORB;
   if (normalized === "/game") return SITE_VIEWS.GAME;
+  if (normalized === "/dither-canvas") return SITE_VIEWS.DITHER_CANVAS;
   return SITE_VIEWS.ORIGINAL;
 };
 
@@ -47,6 +52,8 @@ const SiteRouter = ({ pathname = window.location.pathname }) => {
     page = <StandaloneExperiencePage experience={EXPERIENCES.ORB} />;
   } else if (view === SITE_VIEWS.GAME) {
     page = <StandaloneExperiencePage experience={EXPERIENCES.GAME} />;
+  } else if (view === SITE_VIEWS.DITHER_CANVAS) {
+    page = <DitherCanvasPage />;
   } else {
     page = (
       <App
