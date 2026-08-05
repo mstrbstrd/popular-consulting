@@ -1,108 +1,517 @@
 export const DITHER_WORLD_VERTEX_SHADER = `#version 300 es
 in vec2 a_pos;
 out vec2 v_uv;
-void main(){v_uv=a_pos*.5+.5;gl_Position=vec4(a_pos,0.,1.);}`;
+void main() {
+  v_uv = a_pos * 0.5 + 0.5;
+  gl_Position = vec4(a_pos, 0.0, 1.0);
+}`;
 
 export const DITHER_WORLD_FRAGMENT_SHADER = `#version 300 es
 precision highp float;
+
 in vec2 v_uv;
 out vec4 fragColor;
+
 uniform vec2 u_res;
 uniform float u_time;
-uniform int u_sceneA,u_sceneB;
-uniform float u_sceneMix,u_intro;
+uniform float u_phase;
 uniform vec2 u_pointer;
+uniform vec2 u_motion;
+uniform float u_stillness;
 uniform vec4 u_impulse;
+uniform float u_paletteMix;
+uniform float u_themeMix;
 uniform sampler2D u_atlas;
 uniform float u_cellSize;
-uniform int u_charCount,u_atlasCols,u_atlasRows;
+uniform int u_charCount;
+uniform int u_atlasCols;
+uniform int u_atlasRows;
+uniform float u_intro;
+uniform float u_passMix;
 
-float hash21(vec2 p){p=fract(p*vec2(123.34,456.21));p+=dot(p,p+45.32);return fract(p.x*p.y);}
-float noise2(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(hash21(i),hash21(i+vec2(1,0)),f.x),mix(hash21(i+vec2(0,1)),hash21(i+vec2(1)),f.x),f.y);}
-float fbm(vec2 p){float v=0.,a=.5;for(int i=0;i<5;i++){v+=a*noise2(p);p=p*2.03+vec2(17.1,9.2);a*=.5;}return v;}
-float sdRoundBox(vec2 p,vec2 b,float r){vec2 q=abs(p)-b+r;return min(max(q.x,q.y),0.)+length(max(q,0.))-r;}
-float segmentDistance(vec2 p,vec2 a,vec2 b){vec2 pa=p-a,ba=b-a;float h=clamp(dot(pa,ba)/dot(ba,ba),0.,1.);return length(pa-ba*h);}
-float softBelow(float y,float ridge){return 1.-smoothstep(ridge-.008,ridge+.008,y);}
-float lum(vec3 c){return dot(c,vec3(.2126,.7152,.0722));}
-vec3 grade(vec3 c,float s){float l=dot(c,vec3(.299,.587,.114));return mix(vec3(l),c,s);}
-float ring(vec2 p,float r,float w){return 1.-smoothstep(w,w*1.8,abs(length(p)-r));}
-float lineMask(float value,float width){return 1.-smoothstep(width,width*1.8,abs(value));}
+#define PI 3.14159265359
+#define TAU 6.28318530718
 
-vec4 alpineDawn(vec2 uv,float t){
- float a=u_res.x/u_res.y,px=(u_pointer.x-.5)*.045;vec3 c=mix(vec3(.80,.61,.43),vec3(.018,.045,.09),smoothstep(.35,1.,uv.y));
- float cloud=fbm(vec2(uv.x*3.+t*.012,uv.y*8.));float bands=exp(-pow((uv.y-.67)/.16,2.))*smoothstep(.48,.72,cloud);c=mix(c,vec3(.86,.79,.67),bands*.24);
- vec2 sunC=vec2(.73+px,.72);float sd=length((uv-sunC)*vec2(a,1.));c+=vec3(1.,.56,.20)*exp(-sd*8.)*.38;c=mix(c,vec3(1.,.94,.72),1.-smoothstep(.054,.066,sd));
- float x=uv.x+px;float far=.41+.035*sin(x*6.2)+.07*(fbm(vec2(x*4.,2.))- .5);float fm=softBelow(uv.y,far);c=mix(c,vec3(.27,.34,.39),fm*.9);
- float snow=lineMask(uv.y-(far-.012-.018*sin(x*21.)),.007)*fm;c=mix(c,vec3(.78,.82,.80),snow*.45);
- float mid=.32+.06*sin(x*5.-1.)+.11*(fbm(vec2(x*3.2,8.))- .48);float mm=softBelow(uv.y,mid);c=mix(c,vec3(.09,.15,.19),mm*.97);
- float near=.20+.055*sin(x*7.4+.8)+.085*(fbm(vec2(x*5.2,15.))- .43);float nm=softBelow(uv.y,near);c=mix(c,vec3(.018,.045,.055),nm);
- float trees=step(.78,hash21(vec2(floor(uv.x*180.),floor((uv.y-near)*220.))))*nm*smoothstep(near+.045,near,uv.y);c+=vec3(.02,.035,.025)*trees;
- float mist=exp(-pow((uv.y-.36)/.06,2.))*(.35+.65*fbm(vec2(uv.x*4.-t*.018,uv.y*13.)));c=mix(c,vec3(.64,.68,.66),mist*.3*(1.-nm));
- for(int i=0;i<3;i++){float fi=float(i);vec2 bp=(uv-vec2(.22+fi*.085,.77+sin(t*.3+fi)*.012))*vec2(a,1.);float bird=min(segmentDistance(bp,vec2(-.014,0),vec2(0,.007)),segmentDistance(bp,vec2(0,.007),vec2(.014,0)));c=mix(c,vec3(.02),1.-smoothstep(.002,.005,bird));}
- if(u_impulse.z>=0.&&u_impulse.z<4.){vec2 p=(uv-u_impulse.xy)*vec2(a,1.);c+=vec3(.98,.63,.28)*exp(-length(p)*16.)*exp(-u_impulse.z*1.2)*.5;}
- return vec4(clamp(c,0.,1.),1.);
+float saturate(float value) {
+  return clamp(value, 0.0, 1.0);
 }
 
-vec4 moonWater(vec2 uv,float t){
- float a=u_res.x/u_res.y,px=(u_pointer.x-.5)*.03;vec3 c=mix(vec3(.10,.19,.28),vec3(.008,.015,.045),smoothstep(.43,1.,uv.y));
- float starHash=hash21(floor(uv*vec2(170.,100.)));float stars=step(.984,starHash)*smoothstep(.47,1.,uv.y);c+=vec3(.7,.83,.92)*stars*(.45+.55*sin(t*1.7+starHash*20.));
- vec2 mc=vec2(.70+px,.74);float md=length((uv-mc)*vec2(a,1.));c+=vec3(.35,.56,.72)*exp(-md*10.)*.32;c=mix(c,vec3(.91,.95,.92),1.-smoothstep(.062,.073,md));
- float cloud=fbm(vec2(uv.x*4.-t*.01,uv.y*11.));float cloudMask=exp(-pow((uv.y-.66)/.1,2.))*smoothstep(.5,.7,cloud);c=mix(c,vec3(.25,.35,.43),cloudMask*.2);
- float horizon=.43;if(uv.y<horizon){float d=clamp((horizon-uv.y)/horizon,0.,1.);float w=sin(uv.x*60.+t*.75+sin(uv.y*37.-t*.28)*2.)+.55*sin(uv.x*105.-t*.43+uv.y*72.);vec3 water=mix(vec3(.012,.045,.075),vec3(.045,.15,.21),1.-d);water+=vec3(.02,.09,.13)*w*.14;float ref=exp(-abs(uv.x-mc.x)*(17.+d*17.))*(.42+.58*step(.08,fract(uv.y*90.+w*.12)))*smoothstep(.02,.41,uv.y);water=mix(water,vec3(.66,.80,.78),ref*.75);if(u_impulse.z>=0.&&u_impulse.z<5.){vec2 p=(uv-u_impulse.xy)*vec2(a,1.);float rr=sin(length(p)*100.-u_impulse.z*8.)*exp(-u_impulse.z*.7)*exp(-length(p)*5.);water+=vec3(.25,.6,.7)*max(rr,0.)*.55;}c=water;}
- float shore=.14+.025*sin(uv.x*9.)+.04*fbm(vec2(uv.x*7.,2.));float sm=softBelow(uv.y,shore)*smoothstep(.38,.02,uv.x);c=mix(c,vec3(.004,.012,.016),sm);
- float fog=exp(-pow((uv.y-horizon)/.028,2.))*(.3+.7*noise2(vec2(uv.x*7.-t*.015,0.)));c=mix(c,vec3(.28,.39,.43),fog*.17);return vec4(clamp(c,0.,1.),1.);
+float hash21(vec2 p) {
+  p = fract(p * vec2(123.34, 456.21));
+  p += dot(p, p + 45.32);
+  return fract(p.x * p.y);
 }
 
-vec4 desertWind(vec2 uv,float t){
- float a=u_res.x/u_res.y,px=(u_pointer.x-.5)*.055;vec3 c=mix(vec3(.91,.67,.43),vec3(.13,.20,.24),smoothstep(.46,1.,uv.y));vec2 sc=vec2(.24+px*.25,.67);float sd=length((uv-sc)*vec2(a,1.));c+=vec3(.85,.32,.12)*exp(-sd*10.)*.22;c=mix(c,vec3(.99,.84,.6),1.-smoothstep(.059,.071,sd));
- float x=uv.x+px;float b=.37+.055*sin(x*4.2+1.7)+.05*fbm(vec2(x*3.4,4.));float bm=softBelow(uv.y,b);c=mix(c,vec3(.57,.32,.23),bm*.83);float m=.27+.07*sin(x*5.1-.7)+.07*fbm(vec2(x*4.2,9.));float mm=softBelow(uv.y,m);c=mix(c,vec3(.32,.17,.15),mm*.94);float n=.14+.06*sin(x*6.5+2.)+.06*fbm(vec2(x*6.,14.));float nm=softBelow(uv.y,n);c=mix(c,vec3(.06,.045,.045),nm);
- float ridges=lineMask(uv.y-(m-.012*sin(x*23.)),.006)*mm;c=mix(c,vec3(.82,.48,.30),ridges*.28);float windBand=exp(-pow((uv.y-.54)/.15,2.));float wind=smoothstep(.82,1.,sin(uv.x*35.+uv.y*9.+t*.65+fbm(uv*6.)*3.))*windBand;c=mix(c,vec3(.97,.84,.66),wind*.2);float heat=sin(uv.y*140.+t*1.2+uv.x*6.)*exp(-pow((uv.y-.43)/.12,2.));c+=vec3(.12,.05,.02)*heat*.04;
- if(u_impulse.z>=0.&&u_impulse.z<4.){vec2 p=(uv-u_impulse.xy)*vec2(a,1.);float sweep=exp(-abs(p.y)*18.)*exp(-abs(p.x-u_impulse.z*.12)*5.)*exp(-u_impulse.z*.5);c+=vec3(.95,.59,.31)*sweep*.34;}return vec4(clamp(c,0.,1.),1.);
+float noise2(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(hash21(i), hash21(i + vec2(1.0, 0.0)), f.x),
+    mix(hash21(i + vec2(0.0, 1.0)), hash21(i + vec2(1.0, 1.0)), f.x),
+    f.y
+  );
 }
 
-vec4 luminousGate(vec2 uv,float t){
- float a=u_res.x/u_res.y;vec3 c=mix(vec3(.055,.10,.13),vec3(.003,.008,.018),smoothstep(.25,1.,uv.y));float stars=step(.991,hash21(floor(uv*vec2(140.,90.))))*smoothstep(.45,1.,uv.y);c+=vec3(.52,.72,.72)*stars*.45;
- vec2 center=vec2(.62+(u_pointer.x-.5)*.035,.49+(u_pointer.y-.5)*.02);vec2 p=(uv-center)*vec2(a,1.);float outer=sdRoundBox(p,vec2(.18,.31),.025);float inner=sdRoundBox(p,vec2(.105,.235),.018);float shell=(1.-smoothstep(.006,.014,outer))*(smoothstep(-.005,.01,inner));vec3 stone=mix(vec3(.08,.12,.14),vec3(.28,.38,.39),smoothstep(-.18,.25,p.y));c=mix(c,stone,shell);
- float seam=lineMask(abs(p.x)-.15,.006)*shell+lineMask(p.y+.12,.006)*shell;c+=vec3(.4,.6,.58)*seam*.2;float opening=1.-smoothstep(.0,.018,inner);c=mix(c,vec3(.002,.004,.009),opening);float beam=exp(-abs(p.x)*34.)*smoothstep(-.24,.2,p.y)*opening;c+=vec3(.42,.88,.77)*beam*.55;float pulse=.45+.55*sin(t*1.4-length(p)*18.);c+=vec3(.18,.65,.58)*exp(-abs(inner)*42.)*pulse*.32;
- float floorGlow=exp(-abs(p.x)*8.)*exp(-abs(p.y+.33)*22.);c+=vec3(.23,.57,.53)*floorGlow*.32;float fog=fbm(vec2(uv.x*4.-t*.012,uv.y*8.))*exp(-pow((uv.y-.22)/.13,2.));c=mix(c,vec3(.22,.36,.36),fog*.16);
- for(int i=0;i<8;i++){float fi=float(i);float ang=fi*.785+t*.12;vec2 q=p-vec2(cos(ang),sin(ang))*(.26+.015*sin(t+fi));float mote=exp(-length(q)*90.);c+=vec3(.48,.88,.76)*mote*.5;}
- if(u_impulse.z>=0.&&u_impulse.z<4.){c+=vec3(.42,.95,.78)*ring(p,.08+u_impulse.z*.10,.012)*exp(-u_impulse.z*.8)*.55;}return vec4(clamp(c,0.,1.),1.);
+float fbm(vec2 p) {
+  float value = 0.0;
+  float amplitude = 0.5;
+  for (int i = 0; i < 5; i++) {
+    value += amplitude * noise2(p);
+    p = p * 2.03 + vec2(11.2, 17.4);
+    amplitude *= 0.5;
+  }
+  return value;
 }
 
-vec4 nightBloom(vec2 uv,float t){
- float a=u_res.x/u_res.y;vec3 c=mix(vec3(.065,.11,.12),vec3(.002,.008,.014),smoothstep(.15,1.,uv.y));float motes=step(.986,hash21(floor((uv+vec2(t*.006,-t*.009))*vec2(115.,78.))));c+=vec3(.55,.76,.60)*motes*.32;vec2 center=vec2(.59+(u_pointer.x-.5)*.035,.53+(u_pointer.y-.5)*.025);vec2 p=(uv-center)*vec2(a,1.);float r=length(p),ang=atan(p.y,p.x);float open=(u_impulse.z>=0.&&u_impulse.z<4.)?exp(-u_impulse.z*.8)*.05:0.;float petal=.16+open+.085*pow(.5+.5*cos(ang*7.+sin(t*.22)*.7),1.65);float flower=1.-smoothstep(petal-.012,petal+.014,r);float inner=.105+.052*pow(.5+.5*cos(ang*7.+.45-t*.08),1.7);float innerF=1.-smoothstep(inner-.01,inner+.012,r);float veins=(.5+.5*cos(ang*14.+r*42.-t*.12))*flower*smoothstep(.04,.2,r);vec3 pet=mix(vec3(.34,.56,.47),vec3(.89,.91,.71),smoothstep(.03,.21,r));pet=mix(pet,vec3(.72,.34,.38),innerF*.42);c=mix(c,pet,flower*.94);c+=vec3(.86,.9,.66)*veins*.13;float edge=exp(-abs(r-petal)*85.)*flower;c+=vec3(.32,.85,.62)*edge*.28;float core=1.-smoothstep(.032,.06,r);c=mix(c,vec3(.98,.69,.28),core);float stem=(1.-smoothstep(.004,.009,abs(p.x+.035*sin((p.y+.2)*8.))))*smoothstep(-.3,-.02,p.y)*(1.-smoothstep(-.02,.06,p.y));c=mix(c,vec3(.16,.4,.27),stem*.7);return vec4(clamp(c,0.,1.),1.);
+float luminance(vec3 color) {
+  return dot(color, vec3(0.2126, 0.7152, 0.0722));
 }
 
-vec4 livingTopography(vec2 uv,float t){
- float a=u_res.x/u_res.y;vec3 c=mix(vec3(.035,.075,.07),vec3(.006,.015,.018),uv.y);vec2 p=(uv-.5)*vec2(a,1.);vec2 attract=(u_pointer-.5)*vec2(a,1.);float h=fbm(p*3.2+vec2(t*.02,-t*.015));h+=.35*exp(-length(p-attract)*4.);float contours=1.-smoothstep(.035,.09,abs(fract(h*11.)-.5));c=mix(c,vec3(.22,.48,.38),contours*.58);float major=1.-smoothstep(.035,.07,abs(fract(h*3.)-.5));c+=vec3(.55,.72,.49)*major*.22;float route=lineMask(p.y-.16*sin(p.x*4.+t*.22)-.06*sin(p.x*11.),.012);route*=smoothstep(-.42,.45,p.x);c+=vec3(.96,.63,.27)*route*.7;float grid=(lineMask(fract(uv.x*10.)-.5,.018)+lineMask(fract(uv.y*7.)-.5,.018))*.12;c+=vec3(.18,.35,.30)*grid;
- if(u_impulse.z>=0.&&u_impulse.z<5.){vec2 q=(uv-u_impulse.xy)*vec2(a,1.);c+=vec3(.94,.68,.3)*ring(q,.04+u_impulse.z*.09,.01)*exp(-u_impulse.z*.55)*.7;}return vec4(clamp(c,0.,1.),1.);
+float lineMask(float value, float width) {
+  return 1.0 - smoothstep(width, width * 1.85, abs(value));
 }
 
-vec4 glassCathedral(vec2 uv,float t){
- float a=u_res.x/u_res.y;vec3 c=mix(vec3(.10,.075,.11),vec3(.01,.018,.035),smoothstep(.1,1.,uv.y));vec2 p=(uv-.5)*vec2(a,1.);float floorY=-.34;float floorMask=smoothstep(floorY+.02,floorY-.02,p.y);c=mix(c,vec3(.025,.025,.035),floorMask);for(int i=-3;i<=3;i++){float fi=float(i);float x=fi*.16;float col=lineMask(p.x-x,.012)*smoothstep(-.34,.32,p.y);c+=vec3(.23,.27,.36)*col*.55;float arch=abs(length(vec2((p.x-x)/.16,(p.y-.18)/.42))-1.);c+=vec3(.32,.36,.48)*(1.-smoothstep(.012,.025,arch))*smoothstep(-.2,.5,p.y)*.45;}
- float roseR=length(p-vec2(0,.26));float rose=ring(p-vec2(0,.26),.13,.01);float spokes=(1.-smoothstep(.02,.05,abs(sin(atan(p.y-.26,p.x)*12.))))*smoothstep(.04,.15,roseR);c+=vec3(.73,.47,.58)*(rose+spokes*.35)*.5;float beam=exp(-abs(p.x-(u_pointer.x-.5)*.25)*5.)*smoothstep(-.35,.55,p.y);c+=mix(vec3(.29,.52,.65),vec3(.84,.47,.56),uv.x)*beam*.18;float dust=step(.989,hash21(floor((uv+vec2(t*.003,-t*.006))*vec2(130.,90.))));c+=vec3(.85,.78,.66)*dust*.38;
- if(u_impulse.z>=0.&&u_impulse.z<4.)c+=vec3(.85,.63,.75)*ring(p,.05+u_impulse.z*.12,.012)*exp(-u_impulse.z*.7)*.45;return vec4(clamp(c,0.,1.),1.);
+float ringMask(vec2 point, float radius, float width) {
+  return 1.0 - smoothstep(width, width * 1.8, abs(length(point) - radius));
 }
 
-vec4 signalGarden(vec2 uv,float t){
- float a=u_res.x/u_res.y;vec3 c=mix(vec3(.025,.075,.055),vec3(.002,.01,.016),uv.y);vec2 p=(uv-.5)*vec2(a,1.);for(int i=0;i<9;i++){float fi=float(i);float x=-.65+fi*.16+.025*sin(t*.2+fi);float stem=lineMask(p.x-x-.035*sin((p.y+.4)*5.+fi),.006)*smoothstep(-.4,.32,p.y);c+=vec3(.12,.42,.28)*stem*.5;for(int j=0;j<3;j++){float fj=float(j);vec2 node=vec2(x+.08*sin(fi*1.7+fj*2.),-.22+fj*.22+.03*sin(t*.4+fi));float pulse=.5+.5*sin(t*2.2-fi-fj);float glow=exp(-length(p-node)*(55.-pulse*20.));c+=mix(vec3(.18,.65,.42),vec3(.88,.75,.34),pulse)*glow*.72;}}
- float attract=exp(-length(p-(u_pointer-.5)*vec2(a,1.))*4.);c+=vec3(.16,.55,.38)*attract*.12;if(u_impulse.z>=0.&&u_impulse.z<5.){float wave=ring(p-(u_impulse.xy-.5)*vec2(a,1.),.03+u_impulse.z*.15,.012)*exp(-u_impulse.z*.55);c+=vec3(.95,.74,.3)*wave*.75;}return vec4(clamp(c,0.,1.),1.);
+float segmentDistance(vec2 point, vec2 start, vec2 end) {
+  vec2 pointOffset = point - start;
+  vec2 segment = end - start;
+  float amount = clamp(dot(pointOffset, segment) / dot(segment, segment), 0.0, 1.0);
+  return length(pointOffset - segment * amount);
 }
 
-vec4 eventHorizon(vec2 uv,float t){
- float a=u_res.x/u_res.y;vec2 center=vec2(.56+(u_pointer.x-.5)*.05,.53+(u_pointer.y-.5)*.035);vec2 p=(uv-center)*vec2(a,1.);float r=length(p),ang=atan(p.y,p.x);vec2 warped=uv+normalize(p+.0001)*(.035/max(r,.06));float stars=step(.986,hash21(floor(warped*vec2(180.,110.))));vec3 c=vec3(.004,.006,.014)+vec3(.63,.72,.88)*stars;float disc=exp(-pow((abs(p.y+.12*sin(ang+t*.2))-r*.18)/.025,2.))*smoothstep(.13,.36,r);vec3 discColor=mix(vec3(.98,.32,.12),vec3(.45,.72,1.),smoothstep(-.2,.2,p.x));c+=discColor*disc*.85;float lens=ring(p,.20,.012)+ring(p,.24,.018)*.4;c+=vec3(.35,.55,.88)*lens*.28;float hole=1.-smoothstep(.105,.13,r);c=mix(c,vec3(0.),hole);float photon=ring(p,.132,.008);c+=vec3(.95,.72,.45)*photon*.75;if(u_impulse.z>=0.&&u_impulse.z<4.){c+=vec3(.5,.72,1.)*ring(p,.15+u_impulse.z*.12,.01)*exp(-u_impulse.z*.8)*.55;}return vec4(clamp(c,0.,1.),1.);
+vec3 classicPalette(float value) {
+  vec3 a = vec3(0.50);
+  vec3 b = vec3(0.56);
+  vec3 c = vec3(1.0);
+  vec3 d = vec3(0.00, 0.12, 0.32);
+  return a + b * cos(TAU * (c * value + d));
 }
 
-vec4 rainCity(vec2 uv,float t){
- float a=u_res.x/u_res.y;vec3 c=mix(vec3(.045,.075,.11),vec3(.004,.008,.018),smoothstep(.25,1.,uv.y));float horizon=.28;for(int i=0;i<18;i++){float fi=float(i);float x=fi/18.;float w=.035+.035*hash21(vec2(fi,1.));float h=.18+.42*hash21(vec2(fi,2.));float building=step(abs(uv.x-x),w)*smoothstep(horizon,horizon+h,uv.y);vec3 bc=mix(vec3(.018,.025,.035),vec3(.05,.065,.08),hash21(vec2(fi,3.)));c=mix(c,bc,building);float windows=step(.72,hash21(floor(vec2((uv.x-x+w)/(w*2.)*5.,(uv.y-horizon)/max(h,.01)*14.))+fi))*building;c+=mix(vec3(.92,.65,.27),vec3(.25,.65,.88),step(.5,hash21(vec2(fi,5.))))*windows*.55;}
- float street=smoothstep(horizon+.01,horizon-.01,uv.y);vec3 road=mix(vec3(.018,.022,.028),vec3(.045,.055,.065),uv.y/horizon);float lane=lineMask(abs(uv.x-.5)-uv.y*.7,.012)*street;road+=vec3(.45,.36,.24)*lane*.3;float refl=step(.74,hash21(floor(vec2(uv.x*65.,uv.y*90.-t*3.))))*street;road+=vec3(.18,.42,.55)*refl*.22;c=mix(c,road,street);float rain=step(.965,hash21(floor((uv+vec2(t*.02,-t*.15))*vec2(150.,95.))));c+=vec3(.5,.65,.76)*rain*.28;float steam=fbm(vec2(uv.x*5.-t*.02,uv.y*9.+t*.015))*exp(-pow((uv.y-.31)/.08,2.));c=mix(c,vec3(.22,.28,.33),steam*.14);
- if(u_impulse.z>=0.&&u_impulse.z<4.){float light=exp(-abs(uv.x-(u_impulse.x+u_impulse.z*.16)) *18.)*exp(-abs(uv.y-.19)*25.);c+=vec3(.95,.43,.22)*light*exp(-u_impulse.z*.5)*.65;}return vec4(clamp(c,0.,1.),1.);
+vec3 spectralGrade(vec3 naturalColor, vec2 uv, float material, float phase) {
+  float light = saturate(luminance(naturalColor));
+  float hue = material * 0.21
+    + light * 0.48
+    + uv.x * 0.18
+    - uv.y * 0.11
+    + phase * 0.13;
+  vec3 spectral = classicPalette(hue);
+  vec3 secondary = classicPalette(hue + 0.22 + material * 0.08);
+  spectral = mix(spectral, secondary, smoothstep(0.30, 0.92, light));
+
+  float spectralLight = max(luminance(spectral), 0.08);
+  float targetLight = mix(0.20, 0.92, pow(light, 0.74));
+  spectral *= targetLight / spectralLight;
+  return clamp(spectral, 0.0, 1.25);
 }
 
-vec4 world(int s,vec2 uv,float t){if(s==0)return alpineDawn(uv,t);if(s==1)return moonWater(uv,t);if(s==2)return desertWind(uv,t);if(s==3)return luminousGate(uv,t);if(s==4)return nightBloom(uv,t);if(s==5)return livingTopography(uv,t);if(s==6)return glassCathedral(uv,t);if(s==7)return signalGarden(uv,t);if(s==8)return eventHorizon(uv,t);return rainCity(uv,t);}
+float farDuneHeight(float x) {
+  return 0.43
+    + 0.030 * sin(x * 5.3 + 0.7)
+    + 0.052 * (fbm(vec2(x * 3.0, 2.0)) - 0.5);
+}
 
-vec4 sampleCharacter(int idx,vec2 cellUv){idx=clamp(idx,0,u_charCount-1);int col=idx%u_atlasCols,row=idx/u_atlasCols;return texture(u_atlas,vec2((float(col)+cellUv.x)/float(u_atlasCols),(float(row)+cellUv.y)/float(u_atlasRows)));}
+float middleDuneHeight(float x) {
+  return 0.315
+    + 0.055 * sin(x * 4.7 - 1.1)
+    + 0.086 * (fbm(vec2(x * 3.8, 8.2)) - 0.48);
+}
 
-void main(){
- float cw=u_cellSize,ch=u_cellSize*1.48;vec2 count=max(floor(u_res/vec2(cw,ch)),vec2(1));vec2 id=floor(v_uv*count),cellUv=fract(v_uv*count),center=(id+.5)/count;vec4 a=world(u_sceneA,center,u_time),b=world(u_sceneB,center,u_time);float dn=hash21(id*.731+vec2(float(u_sceneA),float(u_sceneB))*19.7);float dissolve=smoothstep(dn-.16,dn+.16,u_sceneMix);vec4 scene=mix(a,b,dissolve);float light=clamp(lum(scene.rgb),0.,1.);float grain=(hash21(id+float(u_sceneA)*31.)-.5)*.32;float cf=clamp(pow(light,.82)*float(u_charCount-1)+grain,0.,float(u_charCount-1));int ca=int(floor(cf)),cb=min(ca+1,u_charCount-1);float alpha=mix(sampleCharacter(ca,cellUv).r,sampleCharacter(cb,cellUv).r,fract(cf));ivec2 bc=ivec2(mod(floor(gl_FragCoord.xy/2.),4.));const int bayer4[16]=int[16](0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5);float d=float(bayer4[bc.y*4+bc.x])/16.;alpha*=step(d*.35+.12,alpha);vec3 paper=mix(vec3(.003,.005,.008),scene.rgb*.18,.72);vec3 ink=grade(scene.rgb,1.08)*(1.04+.2*light);vec3 color=mix(paper,ink,alpha);color*=1.-.16*pow(length(v_uv-.5),2.);color+=((hash21(gl_FragCoord.xy)-.5)/255.)*3.;float introNoise=hash21(floor(gl_FragCoord.xy/18.));color*=smoothstep(introNoise-.2,introNoise+.06,u_intro);fragColor=vec4(clamp(color,0.,1.),1.);
+float foregroundDuneHeight(float x, float cameraLift) {
+  return 0.185
+    + 0.046 * sin(x * 6.0 + 2.0)
+    + 0.070 * (fbm(vec2(x * 5.4, 12.8)) - 0.42)
+    + cameraLift * 0.18;
+}
+
+float shorelineHeight(float x, float cameraLift, float time) {
+  return 0.235
+    + 0.018 * sin(x * 8.5 + time * 0.10)
+    + 0.024 * (fbm(vec2(x * 5.0 - time * 0.028, 5.4)) - 0.5)
+    + cameraLift * 0.065;
+}
+
+float belowMask(float y, float height, float softness) {
+  return 1.0 - smoothstep(height - softness, height + softness, y);
+}
+
+vec3 skyColor(vec2 uv, float day, float night, float twilight) {
+  vec3 dayTop = vec3(0.16, 0.42, 0.68);
+  vec3 dayHorizon = vec3(0.96, 0.81, 0.60);
+  vec3 duskTop = vec3(0.16, 0.12, 0.36);
+  vec3 duskHorizon = vec3(0.93, 0.46, 0.25);
+  vec3 nightTop = vec3(0.012, 0.028, 0.090);
+  vec3 nightHorizon = vec3(0.095, 0.125, 0.245);
+
+  vec3 top = mix(nightTop, duskTop, twilight);
+  top = mix(top, dayTop, day);
+  vec3 horizon = mix(nightHorizon, duskHorizon, twilight);
+  horizon = mix(horizon, dayHorizon, day);
+
+  float vertical = smoothstep(0.30, 1.0, uv.y);
+  vec3 color = mix(horizon, top, vertical);
+  color += vec3(0.05, 0.03, 0.02) * twilight * exp(-abs(uv.y - 0.48) * 5.0);
+  color -= vec3(0.012, 0.008, 0.0) * night * vertical;
+  return color;
+}
+
+vec3 shadeDune(
+  vec3 nightColor,
+  vec3 dayColor,
+  float x,
+  float height,
+  float sampledHeightLeft,
+  float sampledHeightRight,
+  vec2 lightPosition,
+  float day,
+  float twilight,
+  float night
+) {
+  float slope = (sampledHeightRight - sampledHeightLeft) / 0.008;
+  vec2 normal = normalize(vec2(-slope, 1.0));
+  vec2 lightDirection = normalize(lightPosition - vec2(x, height));
+  float directional = dot(normal, lightDirection) * 0.5 + 0.5;
+  float lightAmount = mix(0.24 + directional * 0.30, 0.56 + directional * 0.58, day);
+  lightAmount += twilight * directional * 0.16;
+  lightAmount += night * max(directional - 0.40, 0.0) * 0.18;
+  return mix(nightColor, dayColor, saturate(day + twilight * 0.38)) * lightAmount;
+}
+
+vec4 tidalDune(vec2 uv, float time) {
+  float aspect = u_res.x / u_res.y;
+  float solarAngle = (u_phase - 0.25) * TAU;
+  float solarAltitude = sin(solarAngle);
+  float day = smoothstep(-0.10, 0.30, solarAltitude);
+  float night = 1.0 - smoothstep(-0.48, 0.08, solarAltitude);
+  float twilight = exp(-abs(solarAltitude) * 4.2) * (1.0 - day * 0.22);
+  float observerMotion = saturate(length(u_motion));
+  float cameraShift = (u_pointer.x - 0.5) * 0.060;
+  float cameraLift = (u_pointer.y - 0.5) * 0.050;
+
+  vec2 sunPosition = vec2(
+    0.5 - 0.58 * cos(solarAngle) + cameraShift * 0.20,
+    0.51 + 0.35 * sin(solarAngle)
+  );
+  vec2 moonPosition = vec2(
+    0.5 - 0.58 * cos(solarAngle + PI) + cameraShift * 0.14,
+    0.51 + 0.33 * sin(solarAngle + PI)
+  );
+  vec2 activeLight = mix(moonPosition, sunPosition, day);
+
+  vec3 color = skyColor(uv, day, night, twilight);
+  float windVelocity = 0.22 + u_motion.x * 1.45 + (1.0 - u_stillness) * 0.28;
+
+  float highCloud = fbm(vec2(
+    uv.x * 3.2 + time * (0.010 + windVelocity * 0.020),
+    uv.y * 7.6
+  ));
+  float cloudBand = exp(-pow((uv.y - 0.72) / 0.17, 2.0))
+    * smoothstep(0.50, 0.72, highCloud);
+  vec3 cloudColor = mix(vec3(0.30, 0.34, 0.46), vec3(0.96, 0.86, 0.72), day);
+  cloudColor = mix(cloudColor, vec3(0.73, 0.45, 0.42), twilight * 0.42);
+  color = mix(color, cloudColor, cloudBand * (0.12 + twilight * 0.18));
+
+  float sunDistance = length((uv - sunPosition) * vec2(aspect, 1.0));
+  float sunVisibility = smoothstep(-0.16, 0.06, solarAltitude);
+  float sunDisc = 1.0 - smoothstep(0.050, 0.064, sunDistance);
+  float sunHalo = exp(-sunDistance * 8.2) * sunVisibility;
+  color += vec3(1.00, 0.55, 0.18) * sunHalo * (0.18 + day * 0.26 + twilight * 0.24);
+  color = mix(color, vec3(1.0, 0.94, 0.75), sunDisc * sunVisibility);
+
+  float moonDistance = length((uv - moonPosition) * vec2(aspect, 1.0));
+  float moonVisibility = smoothstep(-0.16, 0.06, -solarAltitude);
+  float moonDisc = 1.0 - smoothstep(0.044, 0.057, moonDistance);
+  float moonHalo = exp(-moonDistance * 10.5) * moonVisibility;
+  color += vec3(0.34, 0.58, 0.94) * moonHalo * (0.18 + night * 0.58);
+  color = mix(color, vec3(0.91, 0.95, 0.97), moonDisc * moonVisibility);
+
+  vec2 starCell = floor(uv * vec2(170.0, 102.0));
+  float starHash = hash21(starCell);
+  float stars = step(0.984, starHash) * smoothstep(0.42, 1.0, uv.y);
+  stars *= night * mix(0.58, 1.0, u_stillness);
+  stars *= 0.62 + 0.38 * sin(time * 1.4 + starHash * 24.0);
+  color += vec3(0.72, 0.83, 0.98) * stars * 0.86;
+
+  float meteorCycle = fract(time * 0.020 + 0.37);
+  float meteorWindow = (1.0 - smoothstep(0.09, 0.13, meteorCycle))
+    * smoothstep(0.0, 0.018, meteorCycle);
+  vec2 meteorHead = vec2(0.88 - meteorCycle * 2.7, 0.86 - meteorCycle * 0.62);
+  vec2 meteorPoint = (uv - meteorHead) * vec2(aspect, 1.0);
+  float meteor = 1.0 - smoothstep(
+    0.002,
+    0.006,
+    segmentDistance(meteorPoint, vec2(0.0), vec2(0.12, 0.028))
+  );
+  color += vec3(0.75, 0.89, 1.0) * meteor * meteorWindow * night * u_stillness * 0.85;
+
+  float duneX = uv.x + cameraShift;
+  float farHeight = farDuneHeight(duneX);
+  float middleHeight = middleDuneHeight(duneX);
+  float foregroundHeight = foregroundDuneHeight(duneX, cameraLift);
+  float farMask = belowMask(uv.y, farHeight, 0.010);
+  float middleMask = belowMask(uv.y, middleHeight, 0.012);
+  float foregroundMask = belowMask(uv.y, foregroundHeight, 0.014);
+
+  vec3 farColor = shadeDune(
+    vec3(0.100, 0.130, 0.205),
+    vec3(0.54, 0.39, 0.27),
+    duneX,
+    farHeight,
+    farDuneHeight(duneX - 0.004),
+    farDuneHeight(duneX + 0.004),
+    activeLight,
+    day,
+    twilight,
+    night
+  );
+  vec3 middleColor = shadeDune(
+    vec3(0.060, 0.082, 0.135),
+    vec3(0.76, 0.52, 0.31),
+    duneX,
+    middleHeight,
+    middleDuneHeight(duneX - 0.004),
+    middleDuneHeight(duneX + 0.004),
+    activeLight,
+    day,
+    twilight,
+    night
+  );
+  vec3 foregroundColor = shadeDune(
+    vec3(0.035, 0.050, 0.082),
+    vec3(0.88, 0.64, 0.39),
+    duneX,
+    foregroundHeight,
+    foregroundDuneHeight(duneX - 0.004, cameraLift),
+    foregroundDuneHeight(duneX + 0.004, cameraLift),
+    activeLight,
+    day,
+    twilight,
+    night
+  );
+
+  color = mix(color, farColor, farMask * 0.88);
+  color = mix(color, middleColor, middleMask * 0.96);
+
+  float middleRidges = lineMask(
+    uv.y - (middleHeight - 0.011 * sin(duneX * 22.0 + time * 0.10)),
+    0.0055
+  ) * middleMask;
+  color = mix(
+    color,
+    mix(vec3(0.22, 0.28, 0.38), vec3(0.98, 0.78, 0.51), day + twilight * 0.45),
+    middleRidges * (0.12 + day * 0.12)
+  );
+
+  float shoreHeight = shorelineHeight(duneX, cameraLift, time);
+  float waterMask = smoothstep(shoreHeight + 0.008, shoreHeight - 0.012, uv.y);
+  float waterDepth = saturate((shoreHeight - uv.y) / max(shoreHeight, 0.08));
+  float roughness = mix(0.24, 1.0, 1.0 - u_stillness) + observerMotion * 0.65;
+  float waveA = sin(
+    uv.x * (52.0 + roughness * 12.0)
+    - time * (1.15 + windVelocity * 0.42)
+    + sin(uv.y * 31.0 + time * 0.62) * (1.4 + roughness)
+  );
+  float waveB = sin(
+    uv.x * 97.0
+    - time * (0.70 + windVelocity * 0.24)
+    + uv.y * 76.0
+  );
+  float wave = waveA + waveB * 0.45;
+
+  vec2 reflectedUv = vec2(
+    uv.x + cameraShift * 0.16 + wave * 0.0018 * roughness,
+    shoreHeight + (shoreHeight - uv.y)
+  );
+  vec3 reflectedSky = skyColor(reflectedUv, day, night, twilight);
+  vec3 waterBase = mix(vec3(0.016, 0.052, 0.115), vec3(0.035, 0.185, 0.285), day);
+  waterBase = mix(waterBase, vec3(0.020, 0.080, 0.150), twilight * 0.35);
+  vec3 water = mix(waterBase, reflectedSky, 0.42);
+  water -= vec3(0.00, 0.010, 0.018) * waterDepth;
+  water += vec3(0.018, 0.085, 0.125) * wave * 0.13 * roughness;
+
+  float reflectionSharpness = mix(13.0, 29.0, u_stillness);
+  float sunReflection = exp(-abs(uv.x - sunPosition.x) * (reflectionSharpness + waterDepth * 16.0));
+  sunReflection *= smoothstep(0.01, shoreHeight, uv.y) * sunVisibility;
+  sunReflection *= 0.50 + 0.50 * step(0.08, fract(uv.y * 91.0 + wave * 0.11));
+  water = mix(
+    water,
+    vec3(0.98, 0.70, 0.36),
+    sunReflection * (0.10 + day * 0.48 + twilight * 0.26)
+  );
+
+  float moonReflection = exp(-abs(uv.x - moonPosition.x) * (reflectionSharpness + waterDepth * 13.0));
+  moonReflection *= smoothstep(0.01, shoreHeight, uv.y) * moonVisibility;
+  moonReflection *= 0.48 + 0.52 * step(0.10, fract(uv.y * 83.0 - wave * 0.10));
+  water = mix(
+    water,
+    vec3(0.70, 0.84, 0.93),
+    moonReflection * (0.12 + night * 0.66)
+  );
+
+  float impulseAge = u_impulse.z;
+  float impulseShore = shorelineHeight(u_impulse.x + cameraShift, cameraLift, time);
+  float waterImpulse = 1.0 - step(impulseShore, u_impulse.y);
+  if (impulseAge >= 0.0 && impulseAge < 6.0) {
+    vec2 impulsePoint = (uv - u_impulse.xy) * vec2(aspect, 1.0);
+    float rippleRadius = length(impulsePoint);
+    float ripple = sin(rippleRadius * 92.0 - impulseAge * 7.6)
+      * exp(-impulseAge * 0.62)
+      * exp(-rippleRadius * 4.0);
+    water += vec3(0.23, 0.58, 0.74) * max(ripple, 0.0) * waterImpulse * 0.55;
+    water -= vec3(0.03, 0.06, 0.07) * max(-ripple, 0.0) * waterImpulse * 0.22;
+  }
+
+  color = mix(color, water, waterMask);
+
+  float leftBank = 1.0 - smoothstep(0.20, 0.50, uv.x);
+  float rightBank = smoothstep(0.72, 0.94, uv.x);
+  float sandbar = exp(-pow((uv.x - 0.78) / 0.13, 2.0))
+    * belowMask(uv.y, foregroundHeight + 0.025, 0.012);
+  float bankMask = foregroundMask * saturate(max(leftBank, rightBank) + sandbar * 0.78);
+  color = mix(color, foregroundColor, bankMask);
+
+  float bankRipples = lineMask(
+    uv.y - (foregroundHeight - 0.010 * sin(duneX * 29.0 - time * 0.12)),
+    0.0045
+  ) * bankMask;
+  color = mix(
+    color,
+    mix(vec3(0.15, 0.20, 0.30), vec3(1.0, 0.80, 0.54), day + twilight * 0.38),
+    bankRipples * 0.17
+  );
+
+  float foam = lineMask(uv.y - shoreHeight, 0.0048)
+    * (0.46 + 0.54 * sin(uv.x * 24.0 - time * 0.95));
+  color = mix(color, vec3(0.91, 0.92, 0.87), foam * 0.17);
+
+  float windFrequency = 33.0 + observerMotion * 18.0;
+  float windStreak = sin(
+    uv.x * windFrequency
+    + uv.y * 11.0
+    - time * (0.55 + abs(windVelocity) * 0.82)
+    + fbm(uv * 6.0) * 3.1
+  );
+  windStreak = smoothstep(0.83, 1.0, windStreak);
+  windStreak *= exp(-pow((uv.y - 0.48) / 0.16, 2.0));
+  windStreak *= 0.25 + (1.0 - u_stillness) * 0.75;
+  color = mix(
+    color,
+    mix(vec3(0.38, 0.46, 0.60), vec3(0.98, 0.82, 0.61), day + twilight * 0.42),
+    windStreak * 0.17
+  );
+
+  float sandImpulse = 1.0 - waterImpulse;
+  if (impulseAge >= 0.0 && impulseAge < 5.0) {
+    float gustDirection = abs(u_motion.x) > 0.08 ? sign(u_motion.x) : 1.0;
+    float gustX = u_impulse.x + gustDirection * impulseAge * 0.11;
+    float gust = exp(-abs(uv.x - gustX) * 13.0)
+      * exp(-abs(uv.y - u_impulse.y) * 22.0)
+      * exp(-impulseAge * 0.54)
+      * sandImpulse;
+    color += mix(vec3(0.18, 0.26, 0.38), vec3(0.96, 0.65, 0.34), day + twilight * 0.42) * gust * 0.46;
+  }
+
+  float horizonMist = exp(-pow((uv.y - 0.30) / 0.060, 2.0))
+    * (0.32 + 0.68 * fbm(vec2(uv.x * 4.0 - time * 0.015, uv.y * 9.0)));
+  color = mix(
+    color,
+    mix(vec3(0.19, 0.25, 0.34), vec3(0.70, 0.66, 0.58), day + twilight * 0.35),
+    horizonMist * (0.08 + twilight * 0.16 + night * 0.08)
+  );
+
+  float material = 0.10;
+  material = mix(material, 0.26, middleMask);
+  material = mix(material, 0.48, waterMask);
+  material = mix(material, 0.34, bankMask);
+  material = mix(material, 0.76, max(sunDisc, moonDisc));
+
+  vec3 spectral = spectralGrade(color, uv, material, u_phase + time * 0.004);
+  color = mix(color, spectral, u_paletteMix);
+  return vec4(clamp(color, 0.0, 1.0), material);
+}
+
+vec4 sampleCharacter(int characterIndex, vec2 cellUv) {
+  characterIndex = clamp(characterIndex, 0, u_charCount - 1);
+  int column = characterIndex % u_atlasCols;
+  int row = characterIndex / u_atlasCols;
+  vec2 atlasUv = vec2(
+    (float(column) + cellUv.x) / float(u_atlasCols),
+    (float(row) + cellUv.y) / float(u_atlasRows)
+  );
+  return texture(u_atlas, atlasUv);
+}
+
+float introReveal(vec2 fragCoord) {
+  float coarse = hash21(floor(fragCoord / 86.0));
+  float medium = hash21(floor(fragCoord / 24.0) + vec2(31.7, 14.2));
+  float fine = hash21(floor(fragCoord / 7.0) + vec2(79.1, 47.6));
+  float threshold = (coarse * 0.46 + medium * 0.34 + fine * 0.20) * 0.90;
+  return smoothstep(threshold - 0.06, threshold + 0.06, u_intro);
+}
+
+void main() {
+  float cellWidth = u_cellSize;
+  float cellHeight = u_cellSize * 1.48;
+  vec2 cellCount = max(floor(u_res / vec2(cellWidth, cellHeight)), vec2(1.0));
+  vec2 cellId = floor(v_uv * cellCount);
+  vec2 cellUv = fract(v_uv * cellCount);
+  vec2 cellCenter = (cellId + 0.5) / cellCount;
+  vec4 scene = tidalDune(cellCenter, u_time);
+
+  float reveal = introReveal(gl_FragCoord.xy);
+  float vignette = 1.0 - 0.15 * pow(length(v_uv - 0.5), 2.0);
+
+  if (u_passMix > 0.5) {
+    vec3 glowColor = scene.rgb * (0.92 + 0.18 * luminance(scene.rgb));
+    glowColor *= mix(1.06, 0.92, u_themeMix);
+    fragColor = vec4(clamp(glowColor * vignette, 0.0, 1.0), reveal * 0.96);
+    return;
+  }
+
+  float sceneLight = saturate(luminance(scene.rgb));
+  float densityLight = mix(1.0 - sceneLight, sceneLight, u_themeMix);
+  float grain = (hash21(cellId + vec2(17.0, 41.0)) - 0.5) * 0.24;
+  float characterFloat = clamp(
+    pow(densityLight, 0.84) * float(u_charCount - 1) + grain,
+    0.0,
+    float(u_charCount - 1)
+  );
+  int characterA = int(floor(characterFloat));
+  int characterB = min(characterA + 1, u_charCount - 1);
+  float glyphAlpha = mix(
+    sampleCharacter(characterA, cellUv).r,
+    sampleCharacter(characterB, cellUv).r,
+    fract(characterFloat)
+  );
+
+  ivec2 bayerCell = ivec2(mod(floor(gl_FragCoord.xy / 2.0), 4.0));
+  const int bayer4[16] = int[16](
+    0, 8, 2, 10,
+    12, 4, 14, 6,
+    3, 11, 1, 9,
+    15, 7, 13, 5
+  );
+  float dither = float(bayer4[bayerCell.y * 4 + bayerCell.x]) / 16.0;
+  glyphAlpha *= step(dither * 0.34 + 0.11, glyphAlpha);
+
+  vec3 lightPaper = vec3(0.986, 0.973, 0.949);
+  vec3 darkPaper = vec3(0.004, 0.007, 0.014);
+  vec3 paper = mix(lightPaper, darkPaper, u_themeMix);
+
+  vec3 lightInk = mix(vec3(0.075, 0.090, 0.120), scene.rgb * 0.76, 0.48 + u_paletteMix * 0.34);
+  vec3 darkInk = scene.rgb * (1.02 + 0.24 * sceneLight);
+  vec3 ink = mix(lightInk, darkInk, u_themeMix);
+
+  vec3 color = mix(paper, ink, glyphAlpha);
+  color += scene.rgb * mix(0.020, 0.050, u_themeMix);
+  color *= vignette;
+  color += ((hash21(gl_FragCoord.xy) - 0.5) / 255.0) * 2.2;
+
+  float fieldAlpha = mix(0.18, 0.12, u_themeMix);
+  float glyphOpacity = mix(0.76, 0.86, u_themeMix);
+  float canvasAlpha = saturate(fieldAlpha + glyphAlpha * glyphOpacity);
+  fragColor = vec4(clamp(color, 0.0, 1.0), reveal * canvasAlpha);
 }`;
