@@ -16,6 +16,33 @@
 
 .dither-canvas-stage {
   z-index: 0;
+  transition: filter 700ms ease;
+}
+
+/*
+ * DitherBackground is rainbow-first on the main site. The canvas studies are
+ * intentionally palette-restrained, so each scene collapses that spectrum into
+ * a controlled material treatment. This keeps the proven shader geometry and
+ * motion while preventing the homepage rainbow from leaking into every study.
+ */
+.tone-cool .dither-canvas-stage {
+  filter: grayscale(1) sepia(0.18) hue-rotate(165deg) saturate(1.35) brightness(0.86) contrast(1.08);
+}
+
+.tone-mist .dither-canvas-stage {
+  filter: grayscale(1) sepia(0.12) hue-rotate(150deg) saturate(0.72) brightness(0.98) contrast(0.92);
+}
+
+.tone-green .dither-canvas-stage {
+  filter: grayscale(1) sepia(0.42) hue-rotate(82deg) saturate(1.45) brightness(0.78) contrast(1.14);
+}
+
+.tone-warm .dither-canvas-stage {
+  filter: grayscale(1) sepia(0.68) hue-rotate(338deg) saturate(1.55) brightness(0.82) contrast(1.08);
+}
+
+.tone-night .dither-canvas-stage {
+  filter: grayscale(1) sepia(0.24) hue-rotate(178deg) saturate(1.2) brightness(0.7) contrast(1.24);
 }
 
 .dither-canvas-vignette {
@@ -188,6 +215,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .dither-canvas-stage,
   .dither-canvas-controls button,
   .dither-canvas-vignette {
     transition: none;
