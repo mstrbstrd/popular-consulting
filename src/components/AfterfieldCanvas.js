@@ -186,11 +186,14 @@ const AfterfieldCanvas = ({
       if (angle < 0) angle += Math.PI * 2;
 
       const targetIndex = (angle / (Math.PI * 2)) * POINT_COUNT;
-      const normalizedDeltaX = deltaX / Math.max(size.width, 1);
-      const normalizedDeltaY = deltaY / Math.max(size.height, 1);
+      const magnitude = Math.hypot(deltaX, deltaY);
+      if (magnitude < 0.01) return;
+      const directionX = deltaX / magnitude;
+      const directionY = deltaY / magnitude;
       const speed = Math.min(
         1.65,
-        Math.hypot(normalizedDeltaX, normalizedDeltaY) * 36 * strength,
+        (magnitude / Math.max(Math.min(size.width, size.height) * 0.045, 1))
+          * strength,
       );
 
       for (let index = 0; index < POINT_COUNT; index += 1) {
@@ -198,9 +201,9 @@ const AfterfieldCanvas = ({
         distance = Math.min(distance, POINT_COUNT - distance);
         const weight = Math.exp(-(distance * distance) / 7.5);
         radialVelocity[index] +=
-          weight * speed * 20 * (normalizedDeltaY * 0.74 + normalizedDeltaX * 0.34);
+          weight * speed * 52 * (directionY * 0.78 + directionX * 0.22);
         tangentVelocity[index] +=
-          weight * speed * 18 * (normalizedDeltaX - normalizedDeltaY * 0.24);
+          weight * speed * 44 * (directionX - directionY * 0.18);
       }
     };
 
