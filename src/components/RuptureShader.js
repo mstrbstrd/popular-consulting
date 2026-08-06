@@ -115,55 +115,58 @@ FaultInfo sampleFault(vec2 uv) {
   vec2 aspectScale = vec2(u_res.x / max(u_res.y, 1.0), 1.0);
   vec2 point = uv * aspectScale;
 
-  for (int index = 0; index < 23; index++) {
-    if (index >= u_nodeCount - 1) break;
-
-    vec4 nodeA = u_nodes[index];
-    vec4 nodeB = u_nodes[index + 1];
-    vec2 a = nodeA.xy * aspectScale;
-    vec2 b = nodeB.xy * aspectScale;
-    vec2 segment = b - a;
-    float segmentLengthSquared = max(dot(segment, segment), 0.000001);
-    float amount = clamp(dot(point - a, segment) / segmentLengthSquared, 0.0, 1.0);
-    vec2 nearest = a + segment * amount;
-    vec2 offset = point - nearest;
-    float distanceToSegment = length(offset);
-
-    if (distanceToSegment < info.dist) {
-      vec2 tangent = normalize(segment);
-      info.dist = distanceToSegment;
-      info.signedDist = cross2(tangent, offset);
-      info.opening = mix(nodeA.z, nodeB.z, amount);
-      info.scar = mix(nodeA.w, nodeB.w, amount);
-      info.tangent = tangent;
-      info.nearest = nearest / aspectScale;
-    }
-  }
+  // The main fault is x-monotonic and its nodes are uniformly spaced, so a
+  // fragment only needs the segment directly beneath its x coordinate. The
+  // previous implementation searched all 23 segments for every pixel.
+  float faultPosition = clamp((uv.x + 0.06) / 1.12, 0.0, 0.99999)
+    * float(max(u_nodeCount - 1, 1));
+  int nodeIndex = clamp(int(floor(faultPosition)), 0, 22);
+  int nextNodeIndex = min(nodeIndex + 1, max(u_nodeCount - 1, 0));
+  vec4 nodeA = u_nodes[nodeIndex];
+  vec4 nodeB = u_nodes[nextNodeIndex];
+  vec2 a = nodeA.xy * aspectScale;
+  vec2 b = nodeB.xy * aspectScale;
+  vec2 segment = b - a;
+  float segmentLengthSquared = max(dot(segment, segment), 0.000001);
+  float amount = clamp(dot(point - a, segment) / segmentLengthSquared, 0.0, 1.0);
+  vec2 nearest = a + segment * amount;
+  vec2 offset = point - nearest;
+  vec2 tangent = normalize(segment);
+  info.dist = length(offset);
+  info.signedDist = cross2(tangent, offset);
+  info.opening = mix(nodeA.z, nodeB.z, amount);
+  info.scar = mix(nodeA.w, nodeB.w, amount);
+  info.tangent = tangent;
+  info.nearest = nearest / aspectScale;
 
   for (int index = 0; index < 4; index++) {
     vec4 branch = u_branches[index];
     vec4 meta = u_branchMeta[index];
     if (meta.z <= 0.001) continue;
 
-    vec2 a = branch.xy * aspectScale;
-    vec2 b = branch.zw * aspectScale;
-    vec2 segment = b - a;
-    float segmentLengthSquared = max(dot(segment, segment), 0.000001);
-    float amount = clamp(dot(point - a, segment) / segmentLengthSquared, 0.0, 1.0);
-    vec2 nearest = a + segment * amount;
-    vec2 offset = point - nearest;
-    float distanceToSegment = length(offset);
-    float branchWidth = meta.x * meta.z * (1.0 - amount * 0.58);
+    vec2 branchA = branch.xy * aspectScale;
+    vec2 branchB = branch.zw * aspectScale;
+    vec2 branchSegment = branchB - branchA;
+    float branchLengthSquared = max(dot(branchSegment, branchSegment), 0.000001);
+    float branchAmount = clamp(
+      dot(point - branchA, branchSegment) / branchLengthSquared,
+      0.0,
+      1.0
+    );
+    vec2 branchNearest = branchA + branchSegment * branchAmount;
+    vec2 branchOffset = point - branchNearest;
+    float distanceToBranch = length(branchOffset);
+    float branchWidth = meta.x * meta.z * (1.0 - branchAmount * 0.58);
 
-    if (distanceToSegment < info.dist) {
-      vec2 tangent = normalize(segment);
-      info.dist = distanceToSegment;
-      info.signedDist = cross2(tangent, offset);
+    if (distanceToBranch < info.dist) {
+      vec2 branchTangent = normalize(branchSegment);
+      info.dist = distanceToBranch;
+      info.signedDist = cross2(branchTangent, branchOffset);
       info.opening = branchWidth * 11.0;
       info.scar = meta.z * 0.08;
       info.branch = 1.0;
-      info.tangent = tangent;
-      info.nearest = nearest / aspectScale;
+      info.tangent = branchTangent;
+      info.nearest = branchNearest / aspectScale;
     }
   }
 
@@ -310,7 +313,11 @@ void main() {
     * step(0.0, fault.signedDist);
   surface -= mix(vec3(0.10), vec3(0.02), u_theme) * foldCrease * 0.16;
 
-  vec3 world = hiddenWorld(v_uv, fault);
+  vec3 world = vec3(0.010, 0.014, 0.045);
+  float worldRegion = sideWidth + 0.15 + fault.scar * 0.035;
+  if (fault.dist < worldRegion) {
+    world = hiddenWorld(v_uv, fault);
+  }
   float raisedSide = 0.5 + 0.5 * sign(fault.signedDist);
   float shadow = lip * mix(0.30, 0.48, u_theme) * mix(0.42, 1.0, raisedSide);
   surface *= 1.0 - shadow * 0.24;
