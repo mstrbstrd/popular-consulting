@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import logo from "../assets/icons/logo2026_128.png";
 import { ThemeProvider, useThemeMode } from "../contexts/ThemeContext";
-import AfterfieldCanvas from "./AfterfieldCanvas";
+import RuptureCanvas from "./RuptureCanvas";
 import "./DitherCanvasPage.css";
 
 const ThemeIcon = ({ isDark }) =>
@@ -27,36 +27,39 @@ const ThemeIcon = ({ isDark }) =>
     </svg>
   );
 
-const AfterfieldExperience = () => {
+const SecondSurfaceExperience = () => {
   const { isDark, toggleTheme } = useThemeMode();
   const [paused, setPaused] = useState(false);
   const [resetVersion, setResetVersion] = useState(0);
-  const [fieldState, setFieldState] = useState("braiding");
+  const [ruptureState, setRuptureState] = useState("tension");
 
   useEffect(() => {
     const previousTitle = document.title;
-    document.title = "Afterfield | Popular Consulting";
+    document.title = "Second Surface | Popular Consulting";
     return () => {
       document.title = previousTitle;
     };
   }, []);
 
   return (
-    <main className="dither-canvas-page" aria-label="Afterfield generative study">
-      <AfterfieldCanvas
+    <main
+      className={`dither-canvas-page rupture-${ruptureState}`}
+      aria-label="Second Surface generative study"
+    >
+      <RuptureCanvas
         isDark={isDark}
-        onFieldStateChange={setFieldState}
+        onRuptureStateChange={setRuptureState}
         paused={paused}
         resetVersion={resetVersion}
       />
 
-      <div className="afterfield-glass" aria-hidden="true" />
-      <div className="afterfield-grain" aria-hidden="true" />
+      <div className="rupture-glass" aria-hidden="true" />
+      <div className="rupture-grain" aria-hidden="true" />
 
-      <header className="afterfield-header">
-        <nav className="afterfield-nav" aria-label="Afterfield controls">
+      <header className="rupture-header">
+        <nav className="rupture-nav" aria-label="Second Surface controls">
           <a
-            className="afterfield-brand"
+            className="rupture-brand"
             href="/"
             aria-label="Return to Popular Consulting"
           >
@@ -64,12 +67,12 @@ const AfterfieldExperience = () => {
             <span>Popular Consulting</span>
           </a>
 
-          <span className="afterfield-nav-rule" aria-hidden="true" />
+          <span className="rupture-nav-rule" aria-hidden="true" />
 
-          <div className="afterfield-nav-actions">
+          <div className="rupture-nav-actions">
             <button
               type="button"
-              className="afterfield-icon-button"
+              className="rupture-icon-button"
               onClick={toggleTheme}
               aria-label={isDark ? "Use light mode" : "Use dark mode"}
               title={isDark ? "Use light mode" : "Use dark mode"}
@@ -78,37 +81,36 @@ const AfterfieldExperience = () => {
             </button>
             <button
               type="button"
-              className="afterfield-text-button"
+              className="rupture-text-button"
               onClick={() => setPaused((value) => !value)}
             >
               {paused ? "Resume" : "Pause"}
             </button>
             <button
               type="button"
-              className="afterfield-text-button"
+              className="rupture-text-button"
               onClick={() => setResetVersion((value) => value + 1)}
             >
-              Forget
+              Heal
             </button>
           </div>
         </nav>
       </header>
 
-      <section className="afterfield-copy" aria-labelledby="afterfield-title">
-        <p className="afterfield-eyebrow">Generative study · 01</p>
-        <h1 id="afterfield-title">Afterfield</h1>
-        <p className="afterfield-description">
-          A chromatic surface that remembers the observer. Motion unthreads it.
-          Stillness teaches it how to braid itself again.
+      <section className="rupture-copy" aria-labelledby="rupture-title">
+        <p className="rupture-eyebrow">Generative study · 01</p>
+        <h1 id="rupture-title">Second Surface</h1>
+        <p className="rupture-description">
+          The page is under tension. Motion opens it. Stillness leaves a scar.
         </p>
-        <p className="afterfield-instruction">
-          Move to write · tap to pin a singularity · wait to watch it heal
+        <p className="rupture-instruction">
+          Move to stress the surface · tap to branch the fault · wait to watch it heal
         </p>
       </section>
 
-      <p className="afterfield-state" aria-live="polite">
+      <p className="rupture-state" aria-live="polite">
         <span aria-hidden="true" />
-        {fieldState}
+        {ruptureState}
       </p>
     </main>
   );
@@ -116,7 +118,7 @@ const AfterfieldExperience = () => {
 
 const DitherCanvasPage = () => (
   <ThemeProvider>
-    <AfterfieldExperience />
+    <SecondSurfaceExperience />
   </ThemeProvider>
 );
 

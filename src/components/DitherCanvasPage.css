@@ -1,166 +1,97 @@
 .dither-canvas-page {
-  --afterfield-text: rgba(20, 20, 30, 0.94);
-  --afterfield-text-soft: rgba(37, 43, 61, 0.70);
-  --afterfield-text-muted: rgba(43, 50, 70, 0.56);
-  --afterfield-border: rgba(255, 255, 255, 0.56);
-  --afterfield-control: rgba(255, 255, 255, 0.38);
-  --afterfield-control-hover: rgba(255, 255, 255, 0.72);
-  --afterfield-shadow: 0 1.4rem 4.4rem rgba(24, 28, 44, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  --rupture-energy: 0;
+  --rupture-lift: 0px;
+  --rupture-chroma-positive: 0px;
+  --rupture-chroma-negative: 0px;
+  --rupture-text: rgba(20, 20, 30, 0.95);
+  --rupture-text-soft: rgba(38, 44, 62, 0.74);
+  --rupture-text-muted: rgba(47, 54, 74, 0.58);
+  --rupture-border: rgba(255, 255, 255, 0.58);
+  --rupture-control: rgba(255, 255, 255, 0.38);
+  --rupture-control-hover: rgba(255, 255, 255, 0.74);
+  --rupture-shadow: 0 1.4rem 4.8rem rgba(24, 28, 44, 0.13),
+    inset 0 1px 0 rgba(255, 255, 255, 0.76);
   position: fixed;
   inset: 0;
   overflow: hidden;
   isolation: isolate;
   background: var(--bg-page);
-  color: var(--afterfield-text);
+  color: var(--rupture-text);
   font-family: "Poppins", sans-serif;
 }
 
 [data-theme="dark"] .dither-canvas-page {
-  --afterfield-text: rgba(236, 238, 250, 0.95);
-  --afterfield-text-soft: rgba(218, 222, 239, 0.76);
-  --afterfield-text-muted: rgba(192, 198, 221, 0.58);
-  --afterfield-border: rgba(255, 255, 255, 0.16);
-  --afterfield-control: rgba(255, 255, 255, 0.07);
-  --afterfield-control-hover: rgba(255, 255, 255, 0.14);
-  --afterfield-shadow: 0 1.4rem 4.8rem rgba(0, 0, 0, 0.34),
+  --rupture-text: rgba(237, 239, 250, 0.96);
+  --rupture-text-soft: rgba(218, 222, 239, 0.78);
+  --rupture-text-muted: rgba(192, 198, 221, 0.60);
+  --rupture-border: rgba(255, 255, 255, 0.17);
+  --rupture-control: rgba(255, 255, 255, 0.07);
+  --rupture-control-hover: rgba(255, 255, 255, 0.14);
+  --rupture-shadow: 0 1.4rem 5.2rem rgba(0, 0, 0, 0.36),
     inset 0 1px 0 rgba(255, 255, 255, 0.16);
 }
 
-.afterfield-shell,
-.afterfield-svg,
-.afterfield-glass,
-.afterfield-grain {
+.rupture-shell,
+.rupture-canvas,
+.rupture-fallback,
+.rupture-glass,
+.rupture-grain {
   position: absolute;
   inset: 0;
 }
 
-.afterfield-shell {
+.rupture-shell {
   z-index: 0;
   overflow: hidden;
   touch-action: none;
 }
 
-.afterfield-svg {
+.rupture-canvas {
   width: 100%;
   height: 100%;
   display: block;
   cursor: crosshair;
 }
 
-.afterfield-underpaint,
-.afterfield-membrane,
-.afterfield-edge,
-.afterfield-chronology,
-.afterfield-echo,
-.afterfield-thread,
-.afterfield-anchor-ring,
-.afterfield-anchor-point {
-  vector-effect: non-scaling-stroke;
+.rupture-fallback {
+  background:
+    linear-gradient(153deg, transparent 0 42%, rgba(99, 68, 245, 0.08) 42.3% 43%, transparent 43.3%),
+    radial-gradient(ellipse at 58% 54%, rgba(36, 204, 255, 0.28), transparent 16%),
+    radial-gradient(ellipse at 64% 48%, rgba(255, 86, 214, 0.24), transparent 22%),
+    var(--bg-page);
 }
 
-.afterfield-underpaint,
-.afterfield-membrane,
-.afterfield-edge,
-.afterfield-chronology,
-.afterfield-echo,
-.afterfield-thread {
-  fill: none;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  mix-blend-mode: multiply;
-}
-
-[data-theme="dark"] .afterfield-underpaint,
-[data-theme="dark"] .afterfield-membrane,
-[data-theme="dark"] .afterfield-edge,
-[data-theme="dark"] .afterfield-chronology,
-[data-theme="dark"] .afterfield-echo,
-[data-theme="dark"] .afterfield-thread {
-  mix-blend-mode: screen;
-}
-
-.afterfield-underpaint {
-  stroke-width: clamp(7rem, 8.2vw, 11.2rem);
-  opacity: 0.12;
-}
-
-[data-theme="dark"] .afterfield-underpaint {
-  opacity: 0.20;
-}
-
-.afterfield-membrane {
-  stroke-width: clamp(4.8rem, 5.2vw, 7.2rem);
-  opacity: 0.96;
-}
-
-.afterfield-edge {
-  stroke-width: 0.32rem;
-  opacity: 0.72;
-}
-
-.afterfield-chronology {
-  stroke-width: clamp(0.75rem, 0.9vw, 1.25rem);
-  stroke-dasharray: 0.1rem 0.65rem;
-  opacity: 0.28;
-}
-
-.afterfield-echo-one {
-  stroke-width: 1rem;
-  opacity: 0.13;
-}
-
-.afterfield-echo-two {
-  stroke-width: 0.7rem;
-  opacity: 0.07;
-}
-
-.afterfield-thread {
-  stroke-width: 0.14rem;
-  stroke-dasharray: 0.2rem 0.7rem;
-}
-
-.afterfield-anchor-ring {
-  fill: none;
-  stroke-width: 0.16rem;
-}
-
-.afterfield-anchor-point {
-  fill: var(--bg-page);
-  stroke-width: 0.28rem;
-}
-
-.afterfield-glass {
+.rupture-glass {
   z-index: 2;
   pointer-events: none;
   background: linear-gradient(
     to bottom,
-    rgba(255, 255, 255, 0.012) 0%,
+    rgba(255, 255, 255, 0.010) 0%,
     rgba(255, 255, 255, 0.003) 54%,
     rgba(99, 68, 245, 0.012) 100%
   );
-  backdrop-filter: blur(0.2rem) saturate(108%);
-  -webkit-backdrop-filter: blur(0.2rem) saturate(108%);
+  backdrop-filter: blur(0.2rem) saturate(106%);
+  -webkit-backdrop-filter: blur(0.2rem) saturate(106%);
 }
 
-[data-theme="dark"] .afterfield-glass {
+[data-theme="dark"] .rupture-glass {
   background: linear-gradient(
     to bottom,
-    rgba(255, 255, 255, 0.008) 0%,
+    rgba(255, 255, 255, 0.007) 0%,
     rgba(255, 255, 255, 0.002) 54%,
     rgba(99, 68, 245, 0.014) 100%
   );
-  backdrop-filter: blur(0.2rem) saturate(112%);
-  -webkit-backdrop-filter: blur(0.2rem) saturate(112%);
+  backdrop-filter: blur(0.2rem) saturate(110%);
+  -webkit-backdrop-filter: blur(0.2rem) saturate(110%);
 }
 
-.afterfield-grain {
+.rupture-grain {
   z-index: 3;
   pointer-events: none;
-  opacity: 0.055;
+  opacity: 0.045;
   background-image: radial-gradient(
     circle at 1px 1px,
-    rgba(25, 31, 48, 0.24) 0 1px,
+    rgba(25, 31, 48, 0.22) 0 1px,
     transparent 1.5px
   );
   background-size: 2.4rem 2.4rem;
@@ -168,42 +99,52 @@
   -webkit-mask-image: linear-gradient(180deg, transparent 0%, black 18%, black 84%, transparent 100%);
 }
 
-[data-theme="dark"] .afterfield-grain {
-  opacity: 0.09;
+[data-theme="dark"] .rupture-grain {
+  opacity: 0.075;
   background-image: radial-gradient(
     circle at 1px 1px,
-    rgba(255, 255, 255, 0.15) 0 1px,
+    rgba(255, 255, 255, 0.14) 0 1px,
     transparent 1.5px
   );
 }
 
-.afterfield-header,
-.afterfield-copy,
-.afterfield-state {
+.rupture-header,
+.rupture-copy,
+.rupture-state {
   position: fixed;
   z-index: 10;
 }
 
-.afterfield-header {
+.rupture-header {
   top: max(2.4rem, env(safe-area-inset-top));
   left: 50%;
-  transform: translateX(-50%);
+  transform: translateX(-50%) translateY(var(--rupture-lift));
+  transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.afterfield-nav {
+.rupture-nav {
   display: flex;
   align-items: center;
   min-height: 6.4rem;
   padding: 0.8rem 1rem 0.8rem 1.6rem;
-  border: 1px solid var(--afterfield-border);
+  border: 1px solid var(--rupture-border);
   border-radius: 100px;
   background: var(--nav-pill-bg);
-  box-shadow: var(--afterfield-shadow);
+  box-shadow: var(--rupture-shadow);
   backdrop-filter: blur(3.2rem) saturate(160%);
   -webkit-backdrop-filter: blur(3.2rem) saturate(160%);
+  transition: border-color 320ms ease, box-shadow 320ms ease, background 320ms ease;
 }
 
-.afterfield-brand {
+.rupture-inversion .rupture-nav {
+  border-color: rgba(99, 68, 245, 0.34);
+  box-shadow:
+    var(--rupture-shadow),
+    0 0 3rem rgba(36, 204, 255, 0.14),
+    0 0 4rem rgba(255, 86, 214, 0.10);
+}
+
+.rupture-brand {
   display: flex;
   align-items: center;
   gap: 1rem;
@@ -214,18 +155,18 @@
   transition: transform 0.22s ease, color 0.22s ease;
 }
 
-.afterfield-brand:hover {
+.rupture-brand:hover {
   color: var(--text-nav-hover);
   transform: translateY(-1px);
 }
 
-.afterfield-brand img {
+.rupture-brand img {
   width: 2.6rem;
   height: auto;
   opacity: 0.92;
 }
 
-.afterfield-brand span {
+.rupture-brand span {
   font-size: 1.35rem;
   font-style: italic;
   font-weight: 300;
@@ -233,40 +174,40 @@
   white-space: nowrap;
 }
 
-.afterfield-nav-rule {
+.rupture-nav-rule {
   width: 1px;
   height: 2.8rem;
   margin: 0 1rem;
   background: var(--nav-separator);
 }
 
-.afterfield-nav-actions {
+.rupture-nav-actions {
   display: flex;
   align-items: center;
   gap: 0.55rem;
 }
 
-.afterfield-nav button {
-  border: 1px solid var(--afterfield-border);
-  background: var(--afterfield-control);
-  color: var(--afterfield-text);
+.rupture-nav button {
+  border: 1px solid var(--rupture-border);
+  background: var(--rupture-control);
+  color: var(--rupture-text);
   font-family: "Poppins", sans-serif;
   cursor: pointer;
-  transition: background 0.22s ease, transform 0.22s ease;
+  transition: background 0.22s ease, transform 0.22s ease, border-color 0.22s ease;
 }
 
-.afterfield-nav button:hover {
-  background: var(--afterfield-control-hover);
+.rupture-nav button:hover {
+  background: var(--rupture-control-hover);
   transform: translateY(-1px);
 }
 
-.afterfield-brand:focus-visible,
-.afterfield-nav button:focus-visible {
+.rupture-brand:focus-visible,
+.rupture-nav button:focus-visible {
   outline: var(--focus-ring);
   outline-offset: 0.3rem;
 }
 
-.afterfield-icon-button {
+.rupture-icon-button {
   display: grid;
   place-items: center;
   width: 4.6rem;
@@ -275,11 +216,11 @@
   border-radius: 100px;
 }
 
-.afterfield-icon-button svg {
+.rupture-icon-button svg {
   filter: drop-shadow(0 0 0.7rem rgba(99, 68, 245, 0.40));
 }
 
-.afterfield-text-button {
+.rupture-text-button {
   min-height: 4.6rem;
   padding: 0 1.55rem;
   border-radius: 100px;
@@ -288,16 +229,21 @@
   text-transform: uppercase;
 }
 
-.afterfield-copy {
+.rupture-copy {
   left: max(4.8rem, env(safe-area-inset-left));
-  bottom: max(5.6rem, env(safe-area-inset-bottom));
-  width: min(50rem, calc(100vw - 9.6rem));
-  text-shadow: 0 0.2rem 2.8rem var(--bg-page);
+  top: clamp(14rem, 20vh, 19rem);
+  width: min(51rem, calc(100vw - 9.6rem));
+  transform: translateY(var(--rupture-lift));
+  text-shadow:
+    var(--rupture-chroma-positive) 0 2.4rem rgba(36, 204, 255, 0.14),
+    var(--rupture-chroma-negative) 0 2.8rem rgba(255, 86, 214, 0.11),
+    0 0.2rem 2.8rem var(--bg-page);
+  transition: transform 300ms cubic-bezier(0.22, 1, 0.36, 1), text-shadow 300ms ease;
 }
 
-.afterfield-eyebrow {
+.rupture-eyebrow {
   margin: 0 0 1.5rem;
-  color: var(--afterfield-text-muted);
+  color: var(--rupture-text-muted);
   font-family: "JetBrains Mono", monospace;
   font-size: 1.1rem;
   font-weight: 600;
@@ -305,42 +251,48 @@
   text-transform: uppercase;
 }
 
-.afterfield-copy h1 {
+.rupture-copy h1 {
+  max-width: 6ch;
   margin: 0;
-  color: var(--afterfield-text);
-  font-size: clamp(6.4rem, 9vw, 12.6rem);
+  color: var(--rupture-text);
+  font-size: clamp(6.4rem, 8vw, 11.2rem);
   font-style: normal;
   font-weight: 200;
   line-height: 0.82;
   letter-spacing: -0.072em;
+  text-wrap: balance;
 }
 
-.afterfield-description {
-  max-width: 46rem;
+.rupture-description {
+  max-width: 45rem;
   margin: 2.5rem 0 0;
-  color: var(--afterfield-text-soft);
-  font-size: clamp(1.6rem, 1.45vw, 2rem);
-  line-height: 1.65;
+  color: var(--rupture-text-soft);
+  font-size: clamp(1.6rem, 1.4vw, 1.95rem);
+  line-height: 1.62;
 }
 
-.afterfield-instruction {
-  margin: 1.8rem 0 0;
-  color: var(--afterfield-text-muted);
+.rupture-instruction {
+  position: fixed;
+  left: max(4.8rem, env(safe-area-inset-left));
+  bottom: max(2.8rem, env(safe-area-inset-bottom));
+  max-width: 56rem;
+  margin: 0;
+  color: var(--rupture-text-muted);
   font-family: "JetBrains Mono", monospace;
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   font-weight: 500;
-  letter-spacing: 0.055em;
+  letter-spacing: 0.052em;
   line-height: 1.6;
 }
 
-.afterfield-state {
+.rupture-state {
   right: max(3.2rem, env(safe-area-inset-right));
   bottom: max(2.8rem, env(safe-area-inset-bottom));
   display: flex;
   align-items: center;
   gap: 0.8rem;
   margin: 0;
-  color: var(--afterfield-text-muted);
+  color: var(--rupture-text-muted);
   font-family: "JetBrains Mono", monospace;
   font-size: 1rem;
   font-weight: 600;
@@ -348,124 +300,135 @@
   text-transform: uppercase;
 }
 
-.afterfield-state span {
+.rupture-state span {
   width: 0.65rem;
   height: 0.65rem;
   border-radius: 50%;
   background: #61e899;
   box-shadow: 0 0 1.4rem rgba(97, 232, 153, 0.92);
+  transition: background 240ms ease, box-shadow 240ms ease;
+}
+
+.rupture-fracture .rupture-state span {
+  background: #24ccff;
+  box-shadow: 0 0 1.4rem rgba(36, 204, 255, 0.92);
+}
+
+.rupture-opening .rupture-state span {
+  background: #9b72ff;
+  box-shadow: 0 0 1.4rem rgba(155, 114, 255, 0.92);
+}
+
+.rupture-inversion .rupture-state span {
+  background: #ff56d6;
+  box-shadow: 0 0 1.8rem rgba(255, 86, 214, 0.96);
+}
+
+.rupture-healing .rupture-state span {
+  background: #f6c86f;
+  box-shadow: 0 0 1.4rem rgba(246, 200, 111, 0.86);
 }
 
 @media (max-width: 700px) {
-  .afterfield-header {
+  .rupture-header {
     top: max(1.2rem, env(safe-area-inset-top));
     width: calc(100vw - 2.4rem);
   }
 
-  .afterfield-nav {
+  .rupture-nav {
     width: 100%;
     min-height: 5.8rem;
     justify-content: space-between;
     padding: 0.65rem 0.7rem 0.65rem 1rem;
   }
 
-  .afterfield-brand {
+  .rupture-brand {
     gap: 0.75rem;
     padding-left: 0.6rem;
     padding-right: 0.6rem;
   }
 
-  .afterfield-brand img {
+  .rupture-brand img {
     width: 2.3rem;
   }
 
-  .afterfield-brand span {
+  .rupture-brand span {
     font-size: 1.2rem;
   }
 
-  .afterfield-nav-rule {
+  .rupture-nav-rule {
     display: none;
   }
 
-  .afterfield-nav-actions {
+  .rupture-nav-actions {
     gap: 0.4rem;
   }
 
-  .afterfield-icon-button {
+  .rupture-icon-button {
     width: 4.2rem;
     height: 4.2rem;
   }
 
-  .afterfield-text-button {
+  .rupture-text-button {
     min-height: 4.2rem;
     padding: 0 1rem;
     font-size: 1rem;
   }
 
-  .afterfield-copy {
+  .rupture-copy {
+    top: 9.8rem;
     left: 1.8rem;
-    bottom: max(2.4rem, env(safe-area-inset-bottom));
     width: calc(100vw - 3.6rem);
   }
 
-  .afterfield-copy h1 {
-    font-size: clamp(6rem, 18vw, 8.2rem);
+  .rupture-copy h1 {
+    max-width: 7ch;
+    font-size: clamp(5.8rem, 17vw, 8rem);
   }
 
-  .afterfield-description {
+  .rupture-description {
     max-width: 34rem;
     margin-top: 1.8rem;
-    font-size: 1.45rem;
-    line-height: 1.58;
+    font-size: 1.42rem;
+    line-height: 1.56;
   }
 
-  .afterfield-instruction {
-    margin-top: 1.4rem;
-    font-size: 0.95rem;
-  }
-
-  .afterfield-state {
+  .rupture-instruction {
     display: none;
   }
 
-  .afterfield-underpaint {
-    stroke-width: clamp(5.8rem, 18vw, 8rem);
+  .rupture-state {
+    display: none;
   }
 
-  .afterfield-membrane {
-    stroke-width: clamp(4rem, 12vw, 5.8rem);
-  }
-
-  .afterfield-chronology {
-    stroke-width: 0.7rem;
-  }
-
-  .afterfield-glass,
-  [data-theme="dark"] .afterfield-glass {
-    backdrop-filter: blur(0.16rem) saturate(106%);
-    -webkit-backdrop-filter: blur(0.16rem) saturate(106%);
+  .rupture-glass,
+  [data-theme="dark"] .rupture-glass {
+    backdrop-filter: blur(0.16rem) saturate(104%);
+    -webkit-backdrop-filter: blur(0.16rem) saturate(104%);
   }
 }
 
 @media (max-width: 440px) {
-  .afterfield-brand span {
+  .rupture-brand span {
     display: none;
   }
 
-  .afterfield-brand {
+  .rupture-brand {
     padding-right: 0.8rem;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .afterfield-brand,
-  .afterfield-nav button {
+  .rupture-brand,
+  .rupture-nav button,
+  .rupture-header,
+  .rupture-copy {
     transition: none;
   }
 
-  .afterfield-glass,
-  [data-theme="dark"] .afterfield-glass {
-    backdrop-filter: blur(0.12rem) saturate(103%);
-    -webkit-backdrop-filter: blur(0.12rem) saturate(103%);
+  .rupture-glass,
+  [data-theme="dark"] .rupture-glass {
+    backdrop-filter: blur(0.12rem) saturate(102%);
+    -webkit-backdrop-filter: blur(0.12rem) saturate(102%);
   }
 }
