@@ -1,4 +1,0 @@
-export {
-  DITHER_WORLD_FRAGMENT_SHADER,
-  DITHER_WORLD_VERTEX_SHADER,
-} from "./TidalDuneShader";
