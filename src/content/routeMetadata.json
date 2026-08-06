@@ -51,12 +51,12 @@
   },
   "ditherCanvas": {
     "path": "/dither-canvas",
-    "title": "Afterfield | Popular Consulting",
-    "description": "Afterfield is a lightweight interactive chromatic surface that remembers observer motion, carries disturbances through time, and braids itself back together during stillness.",
+    "title": "Second Surface | Popular Consulting",
+    "description": "Second Surface is an interactive rupture event where observer motion stresses the page, opens a chromatic depth beneath it, branches the fault, and leaves a slowly healing scar.",
     "canonical": "https://popular-consulting.com/dither-canvas",
-    "socialTitle": "Afterfield | Popular Consulting",
-    "socialDescription": "A responsive generative surface where motion writes memory, touch pins temporary singularities, and stillness restores a living chromatic form.",
+    "socialTitle": "Second Surface | Popular Consulting",
+    "socialDescription": "An interactive page rupture where motion reveals impossible chromatic depth and the dither boundary becomes physical material.",
     "robots": "noindex,follow",
-    "noscript": "Afterfield requires JavaScript. Return to https://popular-consulting.com/ or contact shae@popcon.dev."
+    "noscript": "Second Surface requires JavaScript and WebGL. Return to https://popular-consulting.com/ or contact shae@popcon.dev."
   }
 }
