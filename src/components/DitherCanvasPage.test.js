@@ -3,19 +3,18 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import DitherCanvasPage from "./DitherCanvasPage";
 
-jest.mock("./DitherWorldCanvas", () => {
+jest.mock("./AfterfieldCanvas", () => {
   const ReactModule = require("react");
-  return ({ isDark, onPhaseChange, paletteMode, paused, phaseOverride }) =>
+  return ({ isDark, onFieldStateChange, paused, resetVersion }) =>
     ReactModule.createElement(
       "button",
       {
         type: "button",
-        "data-testid": "dither-world-renderer",
+        "data-testid": "afterfield-renderer",
         "data-theme-mode": isDark ? "dark" : "light",
-        "data-palette-mode": paletteMode,
         "data-paused": paused ? "true" : "false",
-        "data-phase-override": phaseOverride ?? "auto",
-        onClick: () => onPhaseChange?.(0.75),
+        "data-reset-version": String(resetVersion),
+        onClick: () => onFieldStateChange?.("remembering"),
       },
       "renderer",
     );
@@ -28,67 +27,65 @@ describe("DitherCanvasPage", () => {
     document.documentElement.removeAttribute("data-theme");
   });
 
-  test("opens as one natural-light Tidal Dune study", () => {
+  test("opens as the lightweight Afterfield study", () => {
     render(<DitherCanvasPage />);
 
-    expect(screen.getByRole("heading", { name: "Tidal Dune" })).toBeInTheDocument();
-    expect(screen.getAllByTestId("dither-world-renderer")).toHaveLength(1);
-    expect(screen.getByTestId("dither-world-renderer")).toHaveAttribute(
-      "data-palette-mode",
-      "natural",
-    );
-    expect(screen.getByTestId("dither-world-renderer")).toHaveAttribute(
+    expect(screen.getByRole("heading", { name: "Afterfield" })).toBeInTheDocument();
+    expect(screen.getAllByTestId("afterfield-renderer")).toHaveLength(1);
+    expect(screen.getByTestId("afterfield-renderer")).toHaveAttribute(
       "data-theme-mode",
       "light",
     );
+    expect(screen.queryByRole("slider")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Classic" })).not.toBeInTheDocument();
   });
 
-  test("switches the same world into the original classic dither language", () => {
-    render(<DitherCanvasPage />);
-
-    fireEvent.click(screen.getByRole("button", { name: "Classic" }));
-
-    expect(screen.getByTestId("dither-world-renderer")).toHaveAttribute(
-      "data-palette-mode",
-      "classic",
-    );
-    expect(screen.getByText(/original block-glyph atlas/i)).toBeInTheDocument();
-  });
-
-  test("supports manual time painting and returning to the automatic cycle", () => {
-    render(<DitherCanvasPage />);
-
-    fireEvent.change(screen.getByRole("slider", { name: "Time of day" }), {
-      target: { value: "0.9" },
-    });
-
-    expect(screen.getByTestId("dither-world-renderer")).toHaveAttribute(
-      "data-phase-override",
-      "0.9",
-    );
-    expect(screen.getByText("21:36")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Resume cycle" }));
-    expect(screen.getByTestId("dither-world-renderer")).toHaveAttribute(
-      "data-phase-override",
-      "auto",
-    );
-  });
-
-  test("uses the shared site theme and motion controls", () => {
+  test("uses the shared site theme", () => {
     render(<DitherCanvasPage />);
 
     fireEvent.click(screen.getByRole("button", { name: "Use dark mode" }));
-    expect(screen.getByTestId("dither-world-renderer")).toHaveAttribute(
+
+    expect(screen.getByTestId("afterfield-renderer")).toHaveAttribute(
       "data-theme-mode",
       "dark",
     );
+  });
+
+  test("pauses and resumes the field", () => {
+    render(<DitherCanvasPage />);
 
     fireEvent.click(screen.getByRole("button", { name: "Pause" }));
-    expect(screen.getByTestId("dither-world-renderer")).toHaveAttribute(
+    expect(screen.getByTestId("afterfield-renderer")).toHaveAttribute(
       "data-paused",
       "true",
     );
-    expect(screen.getByRole("button", { name: "Resume" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Resume" }));
+    expect(screen.getByTestId("afterfield-renderer")).toHaveAttribute(
+      "data-paused",
+      "false",
+    );
+  });
+
+  test("forgets the accumulated field memory", () => {
+    render(<DitherCanvasPage />);
+
+    expect(screen.getByTestId("afterfield-renderer")).toHaveAttribute(
+      "data-reset-version",
+      "0",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Forget" }));
+    expect(screen.getByTestId("afterfield-renderer")).toHaveAttribute(
+      "data-reset-version",
+      "1",
+    );
+  });
+
+  test("announces field state changes", () => {
+    render(<DitherCanvasPage />);
+
+    fireEvent.click(screen.getByTestId("afterfield-renderer"));
+
+    expect(screen.getByText("remembering")).toBeInTheDocument();
   });
 });
