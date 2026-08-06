@@ -45,9 +45,7 @@ const AfterfieldCanvas = ({
 }) => {
   const rootRef = useRef(null);
   const svgRef = useRef(null);
-  const underpaintRef = useRef(null);
-  const membraneRef = useRef(null);
-  const edgeRef = useRef(null);
+  const masterPathRef = useRef(null);
   const chronologyRef = useRef(null);
   const echoOneRef = useRef(null);
   const echoTwoRef = useRef(null);
@@ -62,6 +60,7 @@ const AfterfieldCanvas = ({
   const gradientId = `afterfield-spectrum-${instanceId}`;
   const patternId = `afterfield-pattern-${instanceId}`;
   const maskId = `afterfield-mask-${instanceId}`;
+  const pathId = `afterfield-path-${instanceId}`;
 
   useEffect(() => {
     pausedRef.current = paused;
@@ -410,27 +409,26 @@ const AfterfieldCanvas = ({
 
       const points = buildPoints(timestamp);
       const path = closedPath(points);
-      underpaintRef.current?.setAttribute("d", path);
-      membraneRef.current?.setAttribute("d", path);
-      edgeRef.current?.setAttribute("d", path);
-      chronologyRef.current?.setAttribute("d", path);
+      masterPathRef.current?.setAttribute("d", path);
       chronologyRef.current?.setAttribute(
         "stroke-dashoffset",
         String(-(localTime * 18) % 120),
       );
 
       frameCounter += 1;
-      if (!pausedRef.current && frameCounter % 9 === 0) {
+      if (frameCounter === 1 || (!pausedRef.current && frameCounter % 9 === 0)) {
         echoHistory.unshift(path);
         echoHistory = echoHistory.slice(0, 3);
+        echoOneRef.current?.setAttribute("d", echoHistory[1] || path);
+        echoTwoRef.current?.setAttribute("d", echoHistory[2] || path);
       }
-      echoOneRef.current?.setAttribute("d", echoHistory[1] || path);
-      echoTwoRef.current?.setAttribute("d", echoHistory[2] || path);
-      gradientRef.current?.setAttribute(
-        "gradientTransform",
-        `rotate(${18 + Math.sin(localTime * 0.12) * 14} .5 .5)`,
-      );
-      updateAnchorElements(timestamp, points);
+      if (frameCounter % 4 === 0) {
+        gradientRef.current?.setAttribute(
+          "gradientTransform",
+          `rotate(${18 + Math.sin(localTime * 0.12) * 14} .5 .5)`,
+        );
+      }
+      if (anchors.length) updateAnchorElements(timestamp, points);
       updateState();
     };
 
@@ -509,6 +507,7 @@ const AfterfieldCanvas = ({
           >
             <rect width="100%" height="100%" fill={`url(#${patternId})`} />
           </mask>
+          <path ref={masterPathRef} id={pathId} />
         </defs>
 
         <path
@@ -521,24 +520,25 @@ const AfterfieldCanvas = ({
           className="afterfield-echo afterfield-echo-one"
           stroke={`url(#${gradientId})`}
         />
-        <path
-          ref={underpaintRef}
+        <use
+          href={`#${pathId}`}
           className="afterfield-underpaint"
           stroke={`url(#${gradientId})`}
         />
-        <path
-          ref={membraneRef}
+        <use
+          href={`#${pathId}`}
           className="afterfield-membrane"
           stroke={`url(#${gradientId})`}
           mask={`url(#${maskId})`}
         />
-        <path
-          ref={edgeRef}
+        <use
+          href={`#${pathId}`}
           className="afterfield-edge"
           stroke={`url(#${gradientId})`}
         />
-        <path
+        <use
           ref={chronologyRef}
+          href={`#${pathId}`}
           className="afterfield-chronology"
           stroke={`url(#${gradientId})`}
         />
