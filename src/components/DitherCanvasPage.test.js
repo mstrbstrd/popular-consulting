@@ -3,18 +3,18 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import DitherCanvasPage from "./DitherCanvasPage";
 
-jest.mock("./AfterfieldCanvas", () => {
+jest.mock("./RuptureCanvas", () => {
   const ReactModule = require("react");
-  return ({ isDark, onFieldStateChange, paused, resetVersion }) =>
+  return ({ isDark, onRuptureStateChange, paused, resetVersion }) =>
     ReactModule.createElement(
       "button",
       {
         type: "button",
-        "data-testid": "afterfield-renderer",
+        "data-testid": "rupture-renderer",
         "data-theme-mode": isDark ? "dark" : "light",
         "data-paused": paused ? "true" : "false",
         "data-reset-version": String(resetVersion),
-        onClick: () => onFieldStateChange?.("remembering"),
+        onClick: () => onRuptureStateChange?.("inversion"),
       },
       "renderer",
     );
@@ -27,17 +27,16 @@ describe("DitherCanvasPage", () => {
     document.documentElement.removeAttribute("data-theme");
   });
 
-  test("opens as the lightweight Afterfield study", () => {
+  test("opens as the Second Surface rupture study", () => {
     render(<DitherCanvasPage />);
 
-    expect(screen.getByRole("heading", { name: "Afterfield" })).toBeInTheDocument();
-    expect(screen.getAllByTestId("afterfield-renderer")).toHaveLength(1);
-    expect(screen.getByTestId("afterfield-renderer")).toHaveAttribute(
+    expect(screen.getByRole("heading", { name: "Second Surface" })).toBeInTheDocument();
+    expect(screen.getAllByTestId("rupture-renderer")).toHaveLength(1);
+    expect(screen.getByTestId("rupture-renderer")).toHaveAttribute(
       "data-theme-mode",
       "light",
     );
     expect(screen.queryByRole("slider")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Classic" })).not.toBeInTheDocument();
   });
 
   test("uses the shared site theme", () => {
@@ -45,47 +44,48 @@ describe("DitherCanvasPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Use dark mode" }));
 
-    expect(screen.getByTestId("afterfield-renderer")).toHaveAttribute(
+    expect(screen.getByTestId("rupture-renderer")).toHaveAttribute(
       "data-theme-mode",
       "dark",
     );
   });
 
-  test("pauses and resumes the field", () => {
+  test("pauses and resumes the rupture simulation", () => {
     render(<DitherCanvasPage />);
 
     fireEvent.click(screen.getByRole("button", { name: "Pause" }));
-    expect(screen.getByTestId("afterfield-renderer")).toHaveAttribute(
+    expect(screen.getByTestId("rupture-renderer")).toHaveAttribute(
       "data-paused",
       "true",
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Resume" }));
-    expect(screen.getByTestId("afterfield-renderer")).toHaveAttribute(
+    expect(screen.getByTestId("rupture-renderer")).toHaveAttribute(
       "data-paused",
       "false",
     );
   });
 
-  test("forgets the accumulated field memory", () => {
+  test("heals the accumulated rupture state", () => {
     render(<DitherCanvasPage />);
 
-    expect(screen.getByTestId("afterfield-renderer")).toHaveAttribute(
+    expect(screen.getByTestId("rupture-renderer")).toHaveAttribute(
       "data-reset-version",
       "0",
     );
-    fireEvent.click(screen.getByRole("button", { name: "Forget" }));
-    expect(screen.getByTestId("afterfield-renderer")).toHaveAttribute(
+    fireEvent.click(screen.getByRole("button", { name: "Heal" }));
+    expect(screen.getByTestId("rupture-renderer")).toHaveAttribute(
       "data-reset-version",
       "1",
     );
   });
 
-  test("announces field state changes", () => {
+  test("announces rupture state changes and updates the page state class", () => {
     render(<DitherCanvasPage />);
 
-    fireEvent.click(screen.getByTestId("afterfield-renderer"));
+    fireEvent.click(screen.getByTestId("rupture-renderer"));
 
-    expect(screen.getByText("remembering")).toBeInTheDocument();
+    expect(screen.getByText("inversion")).toBeInTheDocument();
+    expect(screen.getByRole("main")).toHaveClass("rupture-inversion");
   });
 });
