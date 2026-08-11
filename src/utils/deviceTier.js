@@ -98,7 +98,6 @@ export const hasHardwareWebGL = (() => {
     gl.deleteProgram(program);
     gl.deleteShader(vertexShader);
     gl.deleteShader(fragmentShader);
-    gl.getExtension('WEBGL_lose_context')?.loseContext();
 
     return linked;
   } catch (_) {
@@ -107,9 +106,9 @@ export const hasHardwareWebGL = (() => {
 })();
 
 /**
- * Permanently disables WebGL for the current tab/session after a live context
- * loss. On reload the capability probe reads this flag and the app uses the
- * CSS fallback instead of repeatedly crashing or losing the GPU context.
+ * Disables WebGL for the current tab/session after a live context loss.
+ * On reload the capability probe reads this flag and the app uses the CSS
+ * fallback instead of retrying the immersive renderer.
  */
 export const disableWebGLForSession = () => {
   try {
