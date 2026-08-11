@@ -11,32 +11,113 @@
  *   - hardwareConcurrency ≤ 4  AND  deviceMemory ≤ 4 GB
  *
  * hasHardwareWebGL:
- *   false → software/VM renderer (Hyper-V, WARP, llvmpipe, SwiftShader, VMware).
- *   All WebGL components are skipped entirely on these machines — the CSS
+ *   true only when WebGL 2 is available on a non-software renderer and a
+ *   GLSL ES 3 vertex/fragment program successfully compiles and links.
+ *   Otherwise all immersive WebGL components are skipped and the CSS
  *   gradient background is shown instead.
  */
 
+const WEBGL_DISABLED_SESSION_KEY = 'popcon-webgl-disabled';
+
+const compileShader = (gl, type, source) => {
+  const shader = gl.createShader(type);
+  if (!shader) return null;
+
+  gl.shaderSource(shader, source);
+  gl.compileShader(shader);
+
+  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+    gl.deleteShader(shader);
+    return null;
+  }
+
+  return shader;
+};
+
 /**
- * Returns false when the browser is using a known software or virtual-machine
- * GPU renderer that cannot handle complex GLSL shaders without crashing.
- * Creates a throwaway canvas/context — not stored, GC'd immediately.
+ * Returns false unless the browser can initialize the exact graphics baseline
+ * required by the immersive renderers: hardware-backed WebGL 2 + GLSL ES 3.
+ *
+ * This deliberately does not fall back to WebGL 1. The site's shaders use
+ * `#version 300 es`, so accepting WebGL 1 here would classify an unsupported
+ * browser as capable and suppress the CSS fallback.
  */
 export const hasHardwareWebGL = (() => {
-  if (typeof window === 'undefined') return false;
+  if (typeof window === 'undefined' || typeof document === 'undefined') return false;
+
   try {
+    if (window.sessionStorage?.getItem(WEBGL_DISABLED_SESSION_KEY) === '1') {
+      return false;
+    }
+
     const canvas = document.createElement('canvas');
-    const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+    const gl = canvas.getContext('webgl2', {
+      antialias: false,
+      failIfMajorPerformanceCaveat: true,
+    });
+
     if (!gl) return false;
+
     const ext = gl.getExtension('WEBGL_debug_renderer_info');
-    // Extension unavailable in some browsers — assume hardware and let it try.
-    if (!ext) return true;
-    const renderer = gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) || '';
-    const isSoftware = /microsoft basic render|warp|llvmpipe|swiftshader|hyper-v|vmware|virtualbox|softpipe/i.test(renderer);
-    return !isSoftware;
+    if (ext) {
+      const renderer = gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) || '';
+      const isSoftware = /microsoft basic render|warp|llvmpipe|swiftshader|hyper-v|vmware|virtualbox|softpipe/i.test(renderer);
+      if (isSoftware) return false;
+    }
+
+    const vertexShader = compileShader(
+      gl,
+      gl.VERTEX_SHADER,
+      '#version 300 es\nin vec2 a_pos; void main(){ gl_Position=vec4(a_pos,0.0,1.0); }',
+    );
+    const fragmentShader = compileShader(
+      gl,
+      gl.FRAGMENT_SHADER,
+      '#version 300 es\nprecision highp float; out vec4 fragColor; void main(){ fragColor=vec4(1.0); }',
+    );
+
+    if (!vertexShader || !fragmentShader) {
+      if (vertexShader) gl.deleteShader(vertexShader);
+      if (fragmentShader) gl.deleteShader(fragmentShader);
+      return false;
+    }
+
+    const program = gl.createProgram();
+    if (!program) {
+      gl.deleteShader(vertexShader);
+      gl.deleteShader(fragmentShader);
+      return false;
+    }
+
+    gl.attachShader(program, vertexShader);
+    gl.attachShader(program, fragmentShader);
+    gl.linkProgram(program);
+
+    const linked = Boolean(gl.getProgramParameter(program, gl.LINK_STATUS));
+
+    gl.deleteProgram(program);
+    gl.deleteShader(vertexShader);
+    gl.deleteShader(fragmentShader);
+    gl.getExtension('WEBGL_lose_context')?.loseContext();
+
+    return linked;
   } catch (_) {
     return false;
   }
 })();
+
+/**
+ * Permanently disables WebGL for the current tab/session after a live context
+ * loss. On reload the capability probe reads this flag and the app uses the
+ * CSS fallback instead of repeatedly crashing or losing the GPU context.
+ */
+export const disableWebGLForSession = () => {
+  try {
+    window.sessionStorage?.setItem(WEBGL_DISABLED_SESSION_KEY, '1');
+  } catch (_) {
+    // Storage can be unavailable in hardened/private browser configurations.
+  }
+};
 
 export const isMobileTier = (() => {
   if (typeof window === 'undefined') return false;
