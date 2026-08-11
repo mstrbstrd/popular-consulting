@@ -40,7 +40,7 @@ describe("deviceTier export contract", () => {
     const source = fs.readFileSync(path.join(__dirname, "deviceTier.js"), "utf8");
 
     expect(source).toContain("canvas.getContext('webgl2'");
-    expect(source).not.toMatch(/getContext\(['\"]webgl['\"]\)/);
+    expect(source).not.toMatch(/getContext\(['"]webgl['"]\)/);
     expect(source).toContain("gl.COMPILE_STATUS");
     expect(source).toContain("gl.LINK_STATUS");
     expect(source).toContain("failIfMajorPerformanceCaveat: true");
