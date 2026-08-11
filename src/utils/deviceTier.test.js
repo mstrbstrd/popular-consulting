@@ -1,6 +1,11 @@
 import fs from "fs";
 import path from "path";
-import { hasHardwareWebGL, isMobileTier, shaderDPR } from "./deviceTier";
+import {
+  disableWebGLForSession,
+  hasHardwareWebGL,
+  isMobileTier,
+  shaderDPR,
+} from "./deviceTier";
 
 /* deviceTier's exports are evaluated VALUES, not factory functions.
    Consumers that call them (`shaderDPR()`) throw "is not a function" at
@@ -13,9 +18,10 @@ describe("deviceTier export contract", () => {
     expect(Number.isFinite(shaderDPR)).toBe(true);
     expect(typeof isMobileTier).toBe("boolean");
     expect(typeof hasHardwareWebGL).toBe("boolean");
+    expect(typeof disableWebGLForSession).toBe("function");
   });
 
-  test("consumers use the exports as values", () => {
+  test("consumers use the evaluated capability exports as values", () => {
     const componentsDir = path.join(__dirname, "..", "components");
     const offenders = [];
 
@@ -28,5 +34,24 @@ describe("deviceTier export contract", () => {
     }
 
     expect(offenders).toEqual([]);
+  });
+
+  test("hardware capability requires WebGL 2 and never falls back to WebGL 1", () => {
+    const source = fs.readFileSync(path.join(__dirname, "deviceTier.js"), "utf8");
+
+    expect(source).toContain("canvas.getContext('webgl2'");
+    expect(source).not.toMatch(/getContext\(['\"]webgl['\"]\)/);
+    expect(source).toContain("gl.COMPILE_STATUS");
+    expect(source).toContain("gl.LINK_STATUS");
+    expect(source).toContain("failIfMajorPerformanceCaveat: true");
+  });
+
+  test("a live WebGL context loss can disable graphics for the session", () => {
+    const setItem = jest.spyOn(Storage.prototype, "setItem");
+
+    disableWebGLForSession();
+
+    expect(setItem).toHaveBeenCalledWith("popcon-webgl-disabled", "1");
+    setItem.mockRestore();
   });
 });
