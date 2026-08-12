@@ -1,0 +1,72 @@
+name: Diagnose scroll-driven dither narrative
+
+on:
+  push:
+    branches:
+      - agent/scroll-driven-dither-narrative
+    paths:
+      - .github/workflows/diagnose-scroll-driven-dither.yml
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/scroll-driven-dither-narrative
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Apply the same RuptureCanvas integration patch
+        shell: python
+        run: |
+          from pathlib import Path
+          import textwrap
+
+          workflow = Path(
+              ".github/workflows/apply-scroll-driven-dither.yml"
+          ).read_text(encoding="utf-8")
+          step = workflow.index(
+              "      - name: Make Second Surface page-scroll controlled"
+          )
+          run = workflow.index("        run: |\n", step) + len("        run: |\n")
+          end = workflow.index("\n\n      - name: Install dependencies", run)
+          script = textwrap.dedent(workflow[run:end])
+          exec(compile(script, "scroll-narrative-patch", "exec"))
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Capture focused test output
+        shell: bash
+        run: |
+          set +e
+          npm test -- --watchAll=false --runInBand \
+            src/components/DitherCanvasPage.test.js \
+            src/components/DitherScrollNarrative.test.js \
+            src/components/SecondSurfaceScroll.test.js \
+            > scroll-narrative-test-output.txt 2>&1
+          status=$?
+          echo "EXIT_STATUS=${status}" >> scroll-narrative-test-output.txt
+          exit 0
+        env:
+          CI: true
+
+      - name: Commit diagnostics
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scroll-narrative-test-output.txt
+          git commit -m "Capture scroll narrative test diagnostics"
+          git push origin HEAD:agent/scroll-driven-dither-narrative
