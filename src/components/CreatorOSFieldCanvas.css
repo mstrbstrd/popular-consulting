@@ -83,6 +83,23 @@
     #fff8f7;
 }
 
+.creatoros-field-mode-7 .creatoros-field-fallback {
+  background:
+    radial-gradient(ellipse at 18% 26%, rgba(0, 238, 255, 0.38), transparent 20%),
+    radial-gradient(ellipse at 42% 64%, rgba(157, 0, 255, 0.38), transparent 24%),
+    radial-gradient(ellipse at 68% 34%, rgba(255, 0, 255, 0.32), transparent 22%),
+    radial-gradient(ellipse at 88% 72%, rgba(0, 238, 255, 0.30), transparent 20%),
+    repeating-linear-gradient(0deg, transparent 0 4.3rem, rgba(0, 238, 255, 0.12) 4.42rem 4.7rem, transparent 4.82rem 8.6rem),
+    #fff8f7;
+}
+
+.rupture-propagating .rupture-state span {
+  background: #00eeff;
+  box-shadow:
+    0 0 1.4rem rgba(0, 238, 255, 0.92),
+    0 0 2.8rem rgba(255, 0, 255, 0.42);
+}
+
 [data-theme="dark"] .creatoros-field-fallback {
   background-color: #080809;
   filter: saturate(132%) contrast(110%) brightness(110%);

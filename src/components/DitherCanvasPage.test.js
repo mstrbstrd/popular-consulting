@@ -62,7 +62,7 @@ describe("DitherCanvasPage", () => {
     document.documentElement.removeAttribute("data-theme");
   });
 
-  test("opens as a nine-study field lab without replacing Second Surface", () => {
+  test("opens as a ten-study field lab without replacing Second Surface", () => {
     render(<DitherCanvasPage />);
 
     expect(screen.getByRole("heading", { name: "Second Surface" })).toBeInTheDocument();
@@ -77,7 +77,7 @@ describe("DitherCanvasPage", () => {
     const studyNavigation = screen.getByRole("navigation", {
       name: "Dither background studies",
     });
-    expect(within(studyNavigation).getAllByRole("button")).toHaveLength(9);
+    expect(within(studyNavigation).getAllByRole("button")).toHaveLength(10);
     expect(within(studyNavigation).getByRole("button", { name: /Second Surface/ })).toHaveAttribute(
       "aria-pressed",
       "true",
@@ -86,6 +86,7 @@ describe("DitherCanvasPage", () => {
     expect(within(studyNavigation).getByRole("button", { name: /Morphogen Divide/ })).toBeInTheDocument();
     expect(within(studyNavigation).getByRole("button", { name: /Quasicrystal Chorus/ })).toBeInTheDocument();
     expect(within(studyNavigation).getByRole("button", { name: /Hyperbolic Garden/ })).toBeInTheDocument();
+    expect(within(studyNavigation).getByRole("button", { name: /Forward Pass/ })).toBeInTheDocument();
     expect(screen.queryByRole("slider")).not.toBeInTheDocument();
   });
 
@@ -115,6 +116,10 @@ describe("DitherCanvasPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /Hyperbolic Garden/ }));
     expect(screen.getAllByTestId("creatoros-field-renderer")).toHaveLength(1);
     expect(screen.getByTestId("creatoros-field-renderer")).toHaveAttribute("data-mode", "6");
+
+    fireEvent.click(screen.getByRole("button", { name: /Forward Pass/ }));
+    expect(screen.getAllByTestId("creatoros-field-renderer")).toHaveLength(1);
+    expect(screen.getByTestId("creatoros-field-renderer")).toHaveAttribute("data-mode", "7");
   });
 
   test("keeps the exact CreatorOS lava lamp on its dedicated renderer", () => {

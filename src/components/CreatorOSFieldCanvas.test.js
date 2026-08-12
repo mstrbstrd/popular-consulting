@@ -40,6 +40,7 @@ describe("CreatorOSFieldCanvas", () => {
       "utf8",
     );
 
+    expect(source).toContain("const MODE_COUNT = 8");
     expect(source).toContain("const RENDER_SCALE = 0.5");
     expect(source).toContain("const FRAME_INTERVAL_MS = 1000 / 30");
     expect(source).toContain("const INTRO_DURATION_SECONDS = 3.2");
@@ -103,6 +104,7 @@ describe("CreatorOSFieldCanvas", () => {
     expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain("sceneMorphogen");
     expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain("sceneQuasicrystal");
     expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain("sceneHyperbolic");
+    expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain("sceneForwardPass");
     expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain("mobius");
     expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain("u_modeMix");
   });

@@ -134,6 +134,20 @@ const STUDIES = [
     instruction:
       "Move to relocate the geometric origin · tap to send a pulse across curved space",
   },
+  {
+    id: "forward-pass",
+    number: "10",
+    title: "Forward Pass",
+    type: "creatoros-field",
+    kind: "Transformer",
+    mode: 7,
+    initialState: "propagating",
+    resetLabel: "Reroute",
+    description:
+      "Five spectral token currents cross four fluid transformer chambers: causal context folds between lanes, gated hidden blooms expand and collapse, and every result rejoins its residual current.",
+    instruction:
+      "Move to bias the gates · tap to inject a token pulse and watch it propagate through the chambers",
+  },
 ];
 
 const ThemeIcon = ({ isDark }) =>
