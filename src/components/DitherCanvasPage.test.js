@@ -38,6 +38,23 @@ jest.mock("./SpectralDitherCanvas", () => {
     );
 });
 
+jest.mock("./CreatorOSLavaLampCanvas", () => {
+  const ReactModule = require("react");
+  return ({ isDark, onFieldStateChange, paused, resetVersion }) =>
+    ReactModule.createElement(
+      "button",
+      {
+        type: "button",
+        "data-testid": "creatoros-lava-renderer",
+        "data-theme-mode": isDark ? "dark" : "light",
+        "data-paused": paused ? "true" : "false",
+        "data-reset-version": String(resetVersion),
+        onClick: () => onFieldStateChange?.("flowing"),
+      },
+      "CreatorOS lava renderer",
+    );
+});
+
 jest.mock("./ResearchDitherCanvas", () => {
   const ReactModule = require("react");
   return ({ isDark, mode, onFieldStateChange, paused, resetVersion }) =>
@@ -69,6 +86,7 @@ describe("DitherCanvasPage", () => {
     expect(screen.getByRole("heading", { name: "Second Surface" })).toBeInTheDocument();
     expect(screen.getAllByTestId("rupture-renderer")).toHaveLength(1);
     expect(screen.queryByTestId("spectral-renderer")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("creatoros-lava-renderer")).not.toBeInTheDocument();
     expect(screen.queryByTestId("research-renderer")).not.toBeInTheDocument();
     expect(screen.getByTestId("rupture-renderer")).toHaveAttribute(
       "data-theme-mode",
@@ -112,16 +130,18 @@ describe("DitherCanvasPage", () => {
     );
   });
 
-  test("switches through one research renderer for lava and all three researched systems", () => {
+  test("uses the CreatorOS source effect for Lava Lamp and research renderer for researched systems", () => {
     render(<DitherCanvasPage />);
 
     fireEvent.click(screen.getByRole("button", { name: /Lava Lamp/ }));
     expect(screen.getByRole("heading", { name: "Lava Lamp" })).toBeInTheDocument();
-    expect(screen.getAllByTestId("research-renderer")).toHaveLength(1);
-    expect(screen.getByTestId("research-renderer")).toHaveAttribute("data-mode", "0");
+    expect(screen.getAllByTestId("creatoros-lava-renderer")).toHaveLength(1);
+    expect(screen.queryByTestId("research-renderer")).not.toBeInTheDocument();
     expect(screen.queryByTestId("spectral-renderer")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reheat" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /Morphogen Divide/ }));
+    expect(screen.queryByTestId("creatoros-lava-renderer")).not.toBeInTheDocument();
     expect(screen.getAllByTestId("research-renderer")).toHaveLength(1);
     expect(screen.getByTestId("research-renderer")).toHaveAttribute("data-mode", "1");
     expect(screen.getByText("forming")).toBeInTheDocument();
@@ -150,6 +170,12 @@ describe("DitherCanvasPage", () => {
       "dark",
     );
 
+    fireEvent.click(screen.getByRole("button", { name: /Lava Lamp/ }));
+    expect(screen.getByTestId("creatoros-lava-renderer")).toHaveAttribute(
+      "data-theme-mode",
+      "dark",
+    );
+
     fireEvent.click(screen.getByRole("button", { name: /Hyperbolic Garden/ }));
     expect(screen.getByTestId("research-renderer")).toHaveAttribute(
       "data-theme-mode",
@@ -168,6 +194,12 @@ describe("DitherCanvasPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Contour Drift/ }));
     expect(screen.getByTestId("spectral-renderer")).toHaveAttribute(
+      "data-paused",
+      "true",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Lava Lamp/ }));
+    expect(screen.getByTestId("creatoros-lava-renderer")).toHaveAttribute(
       "data-paused",
       "true",
     );
@@ -206,12 +238,20 @@ describe("DitherCanvasPage", () => {
       "2",
     );
 
+    fireEvent.click(screen.getByRole("button", { name: /Lava Lamp/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Reheat" }));
+    expect(screen.getAllByTestId("creatoros-lava-renderer")).toHaveLength(1);
+    expect(screen.getByTestId("creatoros-lava-renderer")).toHaveAttribute(
+      "data-reset-version",
+      "3",
+    );
+
     fireEvent.click(screen.getByRole("button", { name: /Morphogen Divide/ }));
     fireEvent.click(screen.getByRole("button", { name: "Reseed" }));
     expect(screen.getAllByTestId("research-renderer")).toHaveLength(1);
     expect(screen.getByTestId("research-renderer")).toHaveAttribute(
       "data-reset-version",
-      "3",
+      "4",
     );
   });
 
@@ -228,8 +268,8 @@ describe("DitherCanvasPage", () => {
     expect(screen.getByRole("main")).toHaveClass("rupture-resonance");
 
     fireEvent.click(screen.getByRole("button", { name: /Lava Lamp/ }));
-    fireEvent.click(screen.getByTestId("research-renderer"));
-    expect(screen.getByText("forming")).toBeInTheDocument();
-    expect(screen.getByRole("main")).toHaveClass("rupture-forming");
+    fireEvent.click(screen.getByTestId("creatoros-lava-renderer"));
+    expect(screen.getByText("flowing")).toBeInTheDocument();
+    expect(screen.getByRole("main")).toHaveClass("rupture-flowing");
   });
 });

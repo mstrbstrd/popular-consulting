@@ -1,0 +1,85 @@
+.creatoros-lava-shell,
+.creatoros-lava-canvas,
+.creatoros-lava-fallback {
+  position: absolute;
+  inset: 0;
+}
+
+.creatoros-lava-shell {
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: #fff8f7;
+}
+
+[data-theme="dark"] .creatoros-lava-shell {
+  background: #080809;
+}
+
+.creatoros-lava-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+.creatoros-lava-shell.is-fallback .creatoros-lava-canvas {
+  display: none;
+}
+
+.creatoros-lava-fallback {
+  background:
+    radial-gradient(ellipse at 17% 28%, rgba(0, 238, 255, 0.88) 0 8%, transparent 18%),
+    radial-gradient(ellipse at 39% 68%, rgba(255, 0, 255, 0.82) 0 10%, transparent 22%),
+    radial-gradient(ellipse at 64% 31%, rgba(255, 238, 0, 0.80) 0 9%, transparent 20%),
+    radial-gradient(ellipse at 82% 72%, rgba(157, 0, 255, 0.84) 0 11%, transparent 24%),
+    #fff8f7;
+}
+
+[data-theme="dark"] .creatoros-lava-fallback {
+  background:
+    radial-gradient(ellipse at 17% 28%, rgba(0, 238, 255, 0.84) 0 8%, transparent 18%),
+    radial-gradient(ellipse at 39% 68%, rgba(255, 0, 255, 0.78) 0 10%, transparent 22%),
+    radial-gradient(ellipse at 64% 31%, rgba(255, 238, 0, 0.76) 0 9%, transparent 20%),
+    radial-gradient(ellipse at 82% 72%, rgba(157, 0, 255, 0.80) 0 11%, transparent 24%),
+    #080809;
+}
+
+.dither-study-lava-lamp {
+  background: #fff8f7;
+}
+
+[data-theme="dark"] .dither-study-lava-lamp {
+  background: #080809;
+}
+
+/* Preserve the crisp, half-resolution Bayer cells from CreatorOS. The generic
+   full-screen glass and grain passes would otherwise soften the source effect. */
+.dither-study-lava-lamp .rupture-glass,
+[data-theme="dark"] .dither-study-lava-lamp .rupture-glass {
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.dither-study-lava-lamp .rupture-grain,
+[data-theme="dark"] .dither-study-lava-lamp .rupture-grain {
+  opacity: 0;
+}
+
+.rupture-warming .rupture-state span {
+  background: #ffee00;
+  box-shadow: 0 0 1.5rem rgba(255, 238, 0, 0.90);
+}
+
+.rupture-flowing .rupture-state span {
+  background: #00eeff;
+  box-shadow: 0 0 1.6rem rgba(0, 238, 255, 0.92);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .creatoros-lava-canvas {
+    image-rendering: pixelated;
+  }
+}

@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from "react";
 import logo from "../assets/icons/logo2026_128.png";
 import { ThemeProvider, useThemeMode } from "../contexts/ThemeContext";
+import CreatorOSLavaLampCanvas from "./CreatorOSLavaLampCanvas";
 import ResearchDitherCanvas from "./ResearchDitherCanvas";
 import RuptureCanvas from "./RuptureCanvas";
 import SpectralDitherCanvas from "./SpectralDitherCanvas";
 import "./DitherCanvasPage.css";
 import "./ResearchDitherCanvas.css";
 import "./DitherCanvasVibrance.css";
+import "./CreatorOSLavaLampCanvas.css";
 
 const STUDIES = [
   {
@@ -82,15 +84,14 @@ const STUDIES = [
     id: "lava-lamp",
     number: "06",
     title: "Lava Lamp",
-    type: "research",
-    kind: "Legacy",
-    mode: 0,
-    initialState: "drifting",
-    resetLabel: "Reseed",
+    type: "creatoros-lava",
+    kind: "CreatorOS",
+    initialState: "warming",
+    resetLabel: "Reheat",
     description:
-      "The original Spectral Display plasma returns as slow buoyant volumes, now rebuilt with richer depth, merging edges, and direct observer pressure.",
+      "The CreatorOS fluid backdrop returns intact: viscous spectral wax rises, stretches with velocity, merges, and settles into crisp Bayer-dithered colour.",
     instruction:
-      "Move to bend the buoyancy field · tap to push a wave through every floating volume",
+      "Watch the wax warm, stretch, merge, and hover · choose Reheat to restart the lamp",
   },
   {
     id: "morphogen-divide",
@@ -194,6 +195,15 @@ const DitherFieldLab = () => {
         <RuptureCanvas
           {...sharedProps}
           onRuptureStateChange={setFieldState}
+        />
+      );
+    }
+
+    if (activeStudy.type === "creatoros-lava") {
+      return (
+        <CreatorOSLavaLampCanvas
+          {...sharedProps}
+          onFieldStateChange={setFieldState}
         />
       );
     }
