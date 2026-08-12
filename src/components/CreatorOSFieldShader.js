@@ -224,65 +224,81 @@ vec4 fluidMaterial(
 }
 
 vec4 sceneMetabloom(vec2 uv, float time) {
-  uv = pointerFlow(uv, 0.082);
-  vec2 p = viscousWarp(centeredUv(uv), time, 0.42);
+  vec2 scale = aspectScale();
+  uv = pointerFlow(uv, 0.075);
+  vec2 p = (uv - 0.5) * scale;
+  p = viscousWarp(p, time, 0.08);
   p = rotate2(-0.08 + sin(time * 0.07) * 0.035) * p;
 
-  float field = 0.0;
-  vec3 tint = vec3(0.0);
+  float potential = 0.0;
+  float nearest = 10.0;
+  vec3 tintAccumulator = vec3(0.0);
 
   for (int index = 0; index < 7; index++) {
     float layer = float(index);
-    float seed = fract(layer * 0.6180339 + u_seed * 0.17) * TAU;
-    float phaseX = time * (0.105 + layer * 0.004) + seed;
-    float phaseY = time * (0.082 + layer * 0.003) + seed * 1.37;
+    float phase = time * (0.16 + layer * 0.009)
+      + layer * 1.71
+      + u_seed * 7.0;
     vec2 center = vec2(
-      sin(phaseX) * (0.34 + 0.035 * mod(layer, 3.0)),
-      cos(phaseY) * (0.28 + 0.030 * mod(layer, 4.0))
+      sin(phase * 1.13 + layer * 0.91) * (0.18 + 0.035 * layer),
+      cos(phase * 0.87 - layer * 1.27) * (0.12 + 0.028 * layer)
     );
     center += vec2(
-      sin(time * 0.061 + layer * 2.2),
-      cos(time * 0.053 - layer * 1.8)
-    ) * 0.09;
+      sin(time * 0.09 + layer * 2.2),
+      cos(time * 0.075 - layer * 1.8)
+    ) * 0.055;
 
-    vec2 velocity = vec2(
-      cos(phaseX) * (0.105 + layer * 0.004)
-        * (0.34 + 0.035 * mod(layer, 3.0)),
-      -sin(phaseY) * (0.082 + layer * 0.003)
-        * (0.28 + 0.030 * mod(layer, 4.0))
-    );
-
-    float bloom = clamp(u_intro * 1.45 - layer * 0.065, 0.0, 1.0);
+    float bloom = clamp(u_intro * 1.50 - layer * 0.070, 0.0, 1.0);
     bloom = 1.0 - pow(1.0 - bloom, 3.0);
-    center = mix(vec2(0.0, -1.55 + layer * 0.035), center, bloom);
+    center = mix(vec2(0.0, -0.82 + layer * 0.018), center, bloom);
 
-    float radius = 0.19 + 0.045 * sin(time * 0.16 + layer * 1.47);
+    float radius = 0.105 + 0.025 * sin(phase * 1.7 + layer);
     radius *= 0.35 + 0.65 * bloom;
-
     vec2 delta = p - center;
-    float speed = length(velocity);
-    vec2 axis = normalize(velocity + vec2(0.0001, 0.0002));
-    vec2 side = vec2(-axis.y, axis.x);
-    vec2 local = vec2(dot(delta, side), dot(delta, axis));
-    local.y /= 1.0 + 10.0 * speed;
-    local.x *= 1.0 + 3.8 * speed;
-    delta = side * local.x + axis * local.y;
-
-    float weight = (radius * radius) / max(dot(delta, delta), 0.00001);
-    field += weight;
-    tint += spectral(layer * 0.137 + time * 0.012 + u_seed * 0.09) * weight;
+    float distanceSquared = dot(delta, delta) + 0.007;
+    float weight = radius * radius / distanceSquared;
+    potential += weight;
+    tintAccumulator += spectral(
+      0.62 + layer * 0.137 + time * 0.012 + u_seed * 0.09
+    ) * weight;
+    nearest = min(nearest, sqrt(distanceSquared));
   }
 
-  vec2 pointer = centeredUv(u_pointer);
+  vec2 pointer = (u_pointer - 0.5) * scale;
   vec2 pointerDelta = p - pointer;
-  float pointerWeight = (0.025 + u_energy * 0.052)
-    / (dot(pointerDelta, pointerDelta) + 0.018);
+  float pointerWeight = (0.018 + u_energy * 0.035)
+    / (dot(pointerDelta, pointerDelta) + 0.012);
   float pulse = pulseField(uv);
-  field += pointerWeight + pulse * (0.72 + u_energy * 0.92);
-  tint += spectral(time * 0.017 + 0.08) * (pointerWeight + pulse * 0.8);
-  tint /= max(field, 0.0001);
+  float interaction = pointerWeight + pulse * (0.55 + u_energy * 0.85);
+  potential = min(potential + interaction, 8.0);
+  tintAccumulator += spectral(time * 0.017 + 0.08) * interaction;
 
-  return fluidMaterial(field, tint, 0.42, 0.18, 1.0);
+  float membrane = 0.5 + 0.5 * sin(
+    potential * 4.4
+      + fbm(p * 2.35 + vec2(time * 0.035, -time * 0.026)) * 4.2
+  );
+  float body = smoothstep(0.36, 2.65, potential);
+  float edge = exp(-abs(potential - 1.18) * 2.7);
+  float density = sat(body * 0.69 + membrane * body * 0.31 + edge * 0.18);
+  float baseHue = 0.70
+    + atan(p.y, p.x) / TAU * 0.22
+    + potential * 0.047
+    + time * 0.018
+    + u_seed * 0.13;
+
+  vec3 tint = tintAccumulator / max(potential, 0.0001);
+  tint = mix(tint, spectral(baseHue), 0.62);
+  float materialField = potential * (1.12 + membrane * 0.18) + edge * 0.24;
+  vec4 material = fluidMaterial(
+    materialField,
+    tint,
+    0.38 + edge * 0.10,
+    0.20 + exp(-nearest * 8.0) * 0.08,
+    0.98
+  );
+  material.rgb += spectral(baseHue + 0.08) * edge * 0.12;
+  material.a = max(material.a, density * (0.16 + membrane * 0.12));
+  return material;
 }
 
 vec4 sceneTidalWeave(vec2 uv, float time) {
