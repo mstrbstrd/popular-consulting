@@ -695,6 +695,197 @@ vec4 sceneHyperbolic(vec2 uv, float time) {
   return material;
 }
 
+vec4 sceneForwardPass(vec2 uv, float time) {
+  float aspect = u_res.x / max(u_res.y, 1.0);
+  float intro = smoothstep(0.0, 0.88, u_intro);
+  float pulse = pulseField(uv);
+  float gateBias = (u_pointer.y - 0.5) * 1.8
+    + (u_pointer.x - 0.5) * 0.6;
+  float field = 0.0;
+  float tintWeight = 0.0;
+  vec3 tintAccumulator = vec3(0.0);
+
+  // Horizontal lanes are token positions. Causal attention can pull
+  // from the same or an earlier lane, while the FFN expands each
+  // token independently before it rejoins the residual stream.
+  for (int token = 0; token < 5; token++) {
+    float tokenIndex = float(token);
+    float laneY = 0.18 + tokenIndex * 0.16;
+    float tokenHue = 0.48 + tokenIndex * 0.105 + time * 0.008;
+    float packet = pow(
+      0.5 + 0.5 * cos(
+        (uv.x * 6.0 - time * 0.16 - tokenIndex * 0.17) * TAU
+      ),
+      14.0
+    );
+    float residualStream = exp(-abs(uv.y - laneY) * 190.0)
+      * (0.20 + packet * 0.62);
+    vec3 streamTint = spectral(tokenHue);
+    field += residualStream;
+    tintAccumulator += streamTint * residualStream;
+    tintWeight += residualStream;
+
+    for (int layer = 0; layer < 4; layer++) {
+      float layerIndex = float(layer);
+      float blockStart = 0.055 + layerIndex * 0.235;
+      float blockWidth = 0.205;
+      float local = (uv.x - blockStart) / blockWidth;
+      float blockMask = smoothstep(0.0, 0.045, local)
+        * (1.0 - smoothstep(0.955, 1.0, local));
+      float layerReveal = smoothstep(
+        layerIndex * 0.16,
+        layerIndex * 0.16 + 0.36,
+        u_intro
+      );
+      float direction = mod(tokenIndex + layerIndex, 2.0) < 1.0
+        ? 1.0
+        : -1.0;
+
+      float residualCurve = laneY
+        + direction
+          * sin(PI * sat(local))
+          * (0.026 + 0.008 * sin(time * 0.11 + tokenIndex));
+      float residualBypass = exp(
+        -abs(uv.y - residualCurve) * 210.0
+      ) * blockMask * layerReveal * (0.28 + packet * 0.36);
+      vec3 residualTint = spectral(
+        tokenHue + layerIndex * 0.045 + 0.12
+      );
+      field += residualBypass;
+      tintAccumulator += residualTint * residualBypass;
+      tintWeight += residualBypass;
+
+      float causalLookback = 1.0 + mod(layerIndex, 2.0);
+      float sourceIndex = max(tokenIndex - causalLookback, 0.0);
+      float sourceY = 0.18 + sourceIndex * 0.16;
+      float attentionProgress = sat((local - 0.045) / 0.26);
+      float attentionWindow = smoothstep(0.02, 0.075, local)
+        * (1.0 - smoothstep(0.285, 0.34, local))
+        * layerReveal;
+      float attentionY = mix(sourceY, laneY, attentionProgress)
+        + direction * sin(attentionProgress * PI) * 0.018;
+      float contextPulse = pow(
+        0.5 + 0.5 * cos(
+          (local * 2.4
+            - time * 0.20
+            - tokenIndex * 0.17
+            - layerIndex * 0.09) * TAU
+        ),
+        10.0
+      );
+      float attentionMix = exp(-abs(uv.y - attentionY) * 165.0)
+        * attentionWindow
+        * (0.30 + contextPulse * 0.80);
+      vec3 attentionTint = spectral(
+        tokenHue + sourceIndex * 0.055 + layerIndex * 0.03
+      );
+      field += attentionMix;
+      tintAccumulator += attentionTint * attentionMix;
+      tintWeight += attentionMix;
+
+      float ffnProgress = sat((local - 0.34) / 0.52);
+      float ffnWindow = smoothstep(0.31, 0.37, local)
+        * (1.0 - smoothstep(0.86, 0.92, local))
+        * layerReveal;
+      float hiddenExpansion = sin(ffnProgress * PI)
+        * (0.052
+          + 0.010 * sin(
+            time * 0.13 + tokenIndex * 1.7 + layerIndex
+          ));
+      float projectionFunnel = smoothstep(0.62, 1.0, ffnProgress);
+      float laneBias = exp(-abs(u_pointer.y - laneY) * 8.0)
+        * u_energy;
+
+      for (int hidden = 0; hidden < 4; hidden++) {
+        float hiddenIndex = float(hidden);
+        float hiddenOffset = (hiddenIndex - 1.5) / 1.5;
+        float hiddenY = laneY + hiddenOffset * hiddenExpansion;
+        float valueProjection = 0.5 + 0.5 * sin(
+          time * 0.33
+            + tokenIndex * 1.31
+            + layerIndex * 0.77
+            + hiddenIndex * 1.91
+            + local * 8.0
+        );
+        float gateProjection = sat(
+          (0.5 + 0.5 * cos(
+            time * 0.29
+              - tokenIndex * 0.83
+              + layerIndex * 1.17
+              + hiddenIndex * 2.23
+              + gateBias
+          )) * 0.84
+            + laneBias * 0.52
+        );
+        float swigluGate = gateProjection
+          / (1.0 + exp(-(gateProjection * 7.0 - 3.5)));
+        float gatedActivation = sat(
+          valueProjection * swigluGate * 2.15
+        );
+        float hiddenLine = exp(-abs(uv.y - hiddenY) * 190.0)
+          * ffnWindow
+          * (0.18 + gatedActivation * 1.18)
+          * (0.82 + projectionFunnel * 0.24);
+        vec3 hiddenTint = spectral(
+          tokenHue
+            + layerIndex * 0.035
+            + hiddenIndex * 0.055
+            + gatedActivation * 0.08
+        );
+        field += hiddenLine;
+        tintAccumulator += hiddenTint * hiddenLine;
+        tintWeight += hiddenLine;
+      }
+
+      float entryNorm = exp(
+        -abs(uv.x - blockStart) * aspect * 145.0
+      ) * exp(-abs(uv.y - laneY) * 68.0) * layerReveal;
+      float ffnNorm = exp(
+        -abs(uv.x - (blockStart + blockWidth * 0.33))
+          * aspect
+          * 160.0
+      ) * exp(-abs(uv.y - laneY) * 72.0) * layerReveal;
+      float mergeNode = exp(
+        -abs(uv.x - (blockStart + blockWidth * 0.92))
+          * aspect
+          * 165.0
+      ) * exp(-abs(uv.y - laneY) * 82.0) * layerReveal;
+      float structure = entryNorm * 0.34
+        + ffnNorm * 0.40
+        + mergeNode * (0.46 + projectionFunnel * 0.38);
+      vec3 structureTint = spectral(
+        tokenHue + layerIndex * 0.06 + 0.20
+      );
+      field += structure;
+      tintAccumulator += structureTint * structure;
+      tintWeight += structure;
+    }
+  }
+
+  float promptEnvelope = 1.0 - smoothstep(2.8, 5.6, u_pulseAge);
+  float promptX = u_pulseOrigin.x + u_pulseAge * 0.13;
+  float promptFront = exp(
+    -abs(uv.x - promptX) * aspect * 88.0
+  ) * exp(-abs(uv.y - u_pulseOrigin.y) * 11.0) * promptEnvelope;
+  float promptSignal = promptFront * 1.45 + pulse * 0.32;
+  vec3 promptTint = spectral(
+    0.08 + u_pulseOrigin.y * 0.48 + time * 0.015
+  );
+  field += promptSignal;
+  tintAccumulator += promptTint * promptSignal;
+  tintWeight += promptSignal;
+
+  field *= intro;
+  vec3 tint = tintAccumulator / max(tintWeight, 0.0001);
+  tint = mix(
+    tint,
+    promptTint,
+    sat(promptFront * 0.78 + pulse * 0.24)
+  );
+  vec4 material = fluidMaterial(field, tint, 0.26, 0.22, 0.88);
+  material.a = max(material.a, sat((field - 0.12) * 0.22));
+  return material;
+}
 vec4 sampleScene(int mode, vec2 uv, float time) {
   if (mode == 0) return sceneMetabloom(uv, time);
   if (mode == 1) return sceneTidalWeave(uv, time);
@@ -702,13 +893,20 @@ vec4 sampleScene(int mode, vec2 uv, float time) {
   if (mode == 3) return sceneContourDrift(uv, time);
   if (mode == 4) return sceneMorphogen(uv, time);
   if (mode == 5) return sceneQuasicrystal(uv, time);
-  return sceneHyperbolic(uv, time);
+  if (mode == 6) return sceneHyperbolic(uv, time);
+  return sceneForwardPass(uv, time);
 }
 
 void main() {
-  vec4 sampleA = sampleScene(u_modeA, v_uv, u_time);
-  vec4 sampleB = sampleScene(u_modeB, v_uv, u_time);
-  vec4 colorSample = mix(sampleA, sampleB, smoothstep(0.0, 1.0, u_modeMix));
+  vec4 colorSample = sampleScene(u_modeA, v_uv, u_time);
+  if (u_modeA != u_modeB && u_modeMix > 0.001) {
+    vec4 incomingSample = sampleScene(u_modeB, v_uv, u_time);
+    colorSample = mix(
+      colorSample,
+      incomingSample,
+      smoothstep(0.0, 1.0, u_modeMix)
+    );
+  }
 
   float levels = mix(5.0, 7.0, u_light);
   float dither = bayer8(gl_FragCoord.xy) - 0.5;

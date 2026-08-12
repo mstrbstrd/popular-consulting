@@ -6,7 +6,7 @@ import {
   CREATOROS_REACTION_FRAGMENT_SHADER,
 } from "./CreatorOSFieldShader";
 
-const MODE_COUNT = 7;
+const MODE_COUNT = 8;
 const REACTION_MODE = 4;
 const RENDER_SCALE = 0.5;
 const FRAME_INTERVAL_MS = 1000 / 30;

@@ -52,10 +52,10 @@
   "ditherCanvas": {
     "path": "/dither-canvas",
     "title": "Dither Field Lab | Popular Consulting",
-    "description": "Dither Field Lab is a selectable collection of nine interactive WebGL studies spanning physical rupture, spectral fields, feedback chemistry, fluid quasipatterns, and conformal geometry.",
+    "description": "Dither Field Lab is a selectable collection of ten interactive WebGL studies spanning physical rupture, spectral fields, feedback chemistry, transformer computation, fluid quasipatterns, and conformal geometry.",
     "canonical": "https://popular-consulting.com/dither-canvas",
     "socialTitle": "Dither Field Lab | Popular Consulting",
-    "socialDescription": "Explore nine interactive Spectral Display studies, including the original lava lamp, live reaction-diffusion morphogenesis, twelvefold quasicrystal waves, and a hyperbolic garden.",
+    "socialDescription": "Explore ten interactive Spectral Display studies, including the CreatorOS lava lamp, a transformer forward pass, live reaction-diffusion morphogenesis, quasicrystal waves, and a hyperbolic garden.",
     "robots": "noindex,follow",
     "noscript": "The Dither Field Lab requires JavaScript and WebGL. Return to https://popular-consulting.com/ or contact shae@popcon.dev."
   }

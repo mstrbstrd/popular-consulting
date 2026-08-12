@@ -134,6 +134,20 @@ const STUDIES = [
     instruction:
       "Move to relocate the geometric origin · tap to send a pulse across curved space",
   },
+  {
+    id: "forward-pass",
+    number: "10",
+    title: "Forward Pass",
+    type: "creatoros-field",
+    kind: "Transformer",
+    mode: 7,
+    initialState: "propagating",
+    resetLabel: "Reroute",
+    description:
+      "Token states traverse repeating transformer blocks: causal context mixes, hidden channels expand through a SwiGLU gate, and each result rejoins its residual stream.",
+    instruction:
+      "Move to bias the gates · tap to inject a token pulse and follow it through the layers",
+  },
 ];
 
 const ThemeIcon = ({ isDark }) =>
