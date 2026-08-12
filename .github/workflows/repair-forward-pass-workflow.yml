@@ -27,15 +27,15 @@ jobs:
 
           path = Path(".github/workflows/apply-forward-pass-field.yml")
           text = path.read_text(encoding="utf-8")
+          block_start = text.find("          if css.count(css_marker) != 1:")
+          if block_start < 0:
+              raise SystemExit("Could not find the original CSS guard.")
 
-          old = '''          if css.count(css_marker) != 1:
-              raise SystemExit("Expected one dark fallback marker.")
-          css_path.write_text(
-              css.replace(css_marker, forward_fallback + css_marker),
-              encoding="utf-8",
-          )'''
+          block_end = text.find("\n\n          replace_once(", block_start)
+          if block_end < 0:
+              raise SystemExit("Could not find the end of the CSS write block.")
 
-          new = '''          css_index = css.find(css_marker)
+          replacement = '''          css_index = css.find(css_marker)
           if css_index < 0:
               raise SystemExit("Expected a dark fallback marker.")
           css_path.write_text(
@@ -43,10 +43,10 @@ jobs:
               encoding="utf-8",
           )'''
 
-          if text.count(old) != 1:
-              raise SystemExit("Expected exactly one CSS insertion block.")
-
-          path.write_text(text.replace(old, new), encoding="utf-8")
+          path.write_text(
+              text[:block_start] + replacement + text[block_end:],
+              encoding="utf-8",
+          )
 
       - name: Commit repair and remove helper
         run: |
