@@ -73,11 +73,11 @@ describe("StandaloneExperiencePage", () => {
 
   test("defines separate route metadata and visual presets", () => {
     expect(resolveExperienceConfig(EXPERIENCE_IDS.ORB)).toMatchObject({
-      canonical: "https://popcon.dev/orb",
+      canonical: "https://popular-consulting.com/orb",
       backgroundSection: 4,
     });
     expect(resolveExperienceConfig(EXPERIENCE_IDS.GAME)).toMatchObject({
-      canonical: "https://popcon.dev/game",
+      canonical: "https://popular-consulting.com/game",
       backgroundSection: 5,
     });
     expect(resolveExperienceConfig("unknown")).toBeNull();
@@ -105,7 +105,7 @@ describe("StandaloneExperiencePage", () => {
       expect(document.title).toBe("Interactive Orb Lab | Popular Consulting");
       expect(document.querySelector('link[rel="canonical"]')).toHaveAttribute(
         "href",
-        "https://popcon.dev/orb",
+        "https://popular-consulting.com/orb",
       );
       expect(document.querySelector('meta[name="robots"]')).toHaveAttribute(
         "content",
@@ -136,7 +136,7 @@ describe("StandaloneExperiencePage", () => {
       expect(document.title).toBe("Popcorn Game | Popular Consulting");
       expect(document.querySelector('link[rel="canonical"]')).toHaveAttribute(
         "href",
-        "https://popcon.dev/game",
+        "https://popular-consulting.com/game",
       );
       expect(document.querySelector('meta[name="robots"]')).toHaveAttribute(
         "content",
