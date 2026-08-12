@@ -51,12 +51,12 @@
   },
   "ditherCanvas": {
     "path": "/dither-canvas",
-    "title": "Second Surface | Popular Consulting",
-    "description": "Second Surface is an interactive rupture event where observer motion stresses the page, opens a chromatic depth beneath it, branches the fault, and leaves a slowly healing scar.",
+    "title": "Dither Field Lab | Popular Consulting",
+    "description": "Dither Field Lab is a selectable collection of interactive WebGL studies that turn the Spectral Display glyph, Bayer-dither, and chromatic shader language into distinct living backgrounds.",
     "canonical": "https://popular-consulting.com/dither-canvas",
-    "socialTitle": "Second Surface | Popular Consulting",
-    "socialDescription": "An interactive page rupture where motion reveals impossible chromatic depth and the dither boundary becomes physical material.",
+    "socialTitle": "Dither Field Lab | Popular Consulting",
+    "socialDescription": "Explore five interactive Spectral Display studies spanning physical rupture, metaball bloom, braided currents, moiré interference, and topographic drift.",
     "robots": "noindex,follow",
-    "noscript": "Second Surface requires JavaScript and WebGL. Return to https://popular-consulting.com/ or contact shae@popcon.dev."
+    "noscript": "The Dither Field Lab requires JavaScript and WebGL. Return to https://popular-consulting.com/ or contact shae@popcon.dev."
   }
 }
