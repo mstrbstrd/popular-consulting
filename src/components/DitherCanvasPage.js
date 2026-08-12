@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from "react";
 import logo from "../assets/icons/logo2026_128.png";
 import { ThemeProvider, useThemeMode } from "../contexts/ThemeContext";
+import ResearchDitherCanvas from "./ResearchDitherCanvas";
 import RuptureCanvas from "./RuptureCanvas";
 import SpectralDitherCanvas from "./SpectralDitherCanvas";
 import "./DitherCanvasPage.css";
+import "./ResearchDitherCanvas.css";
 import "./DitherCanvasVibrance.css";
 
 const STUDIES = [
@@ -12,6 +14,7 @@ const STUDIES = [
     number: "01",
     title: "Second Surface",
     type: "rupture",
+    kind: "Material",
     initialState: "tension",
     resetLabel: "Heal",
     description:
@@ -24,6 +27,7 @@ const STUDIES = [
     number: "02",
     title: "Metabloom",
     type: "spectral",
+    kind: "Field",
     mode: 0,
     initialState: "drifting",
     resetLabel: "Reseed",
@@ -37,6 +41,7 @@ const STUDIES = [
     number: "03",
     title: "Tidal Weave",
     type: "spectral",
+    kind: "Field",
     mode: 1,
     initialState: "drifting",
     resetLabel: "Reseed",
@@ -50,6 +55,7 @@ const STUDIES = [
     number: "04",
     title: "Moiré Halo",
     type: "spectral",
+    kind: "Field",
     mode: 2,
     initialState: "drifting",
     resetLabel: "Reseed",
@@ -63,6 +69,7 @@ const STUDIES = [
     number: "05",
     title: "Contour Drift",
     type: "spectral",
+    kind: "Field",
     mode: 3,
     initialState: "drifting",
     resetLabel: "Reseed",
@@ -70,6 +77,62 @@ const STUDIES = [
       "Procedural terrain is reduced to a drifting topographic signal, with elevation expressed through spectral glyph density.",
     instruction:
       "Move to lift the terrain · tap to push a circular depression across the map",
+  },
+  {
+    id: "lava-lamp",
+    number: "06",
+    title: "Lava Lamp",
+    type: "research",
+    kind: "Legacy",
+    mode: 0,
+    initialState: "drifting",
+    resetLabel: "Reseed",
+    description:
+      "The original Spectral Display plasma returns as slow buoyant volumes, now rebuilt with richer depth, merging edges, and direct observer pressure.",
+    instruction:
+      "Move to bend the buoyancy field · tap to push a wave through every floating volume",
+  },
+  {
+    id: "morphogen-divide",
+    number: "07",
+    title: "Morphogen Divide",
+    type: "research",
+    kind: "Feedback",
+    mode: 1,
+    initialState: "forming",
+    resetLabel: "Reseed",
+    description:
+      "A live reaction-diffusion system grows cells, fronts, and dividing islands from local chemical feedback rather than a predetermined animation.",
+    instruction:
+      "Move to feed the chemistry · tap to seed an expanding reaction front · reseed for a new organism",
+  },
+  {
+    id: "quasicrystal-chorus",
+    number: "08",
+    title: "Quasicrystal Chorus",
+    type: "research",
+    kind: "Wave",
+    mode: 2,
+    initialState: "drifting",
+    resetLabel: "Reseed",
+    description:
+      "Twelve coupled standing-wave directions assemble a fluid quasicrystal whose local symmetries shift without becoming periodic.",
+    instruction:
+      "Move to lens the wave vectors · tap to introduce a travelling phase disturbance",
+  },
+  {
+    id: "hyperbolic-garden",
+    number: "09",
+    title: "Hyperbolic Garden",
+    type: "research",
+    kind: "Space",
+    mode: 3,
+    initialState: "drifting",
+    resetLabel: "Reseed",
+    description:
+      "Geodesics grow inside a conformally warped Poincaré disk, packing more structure toward a boundary that can never be reached.",
+    instruction:
+      "Move to relocate the geometric origin · tap to send a pulse across curved space",
   },
 ];
 
@@ -119,27 +182,47 @@ const DitherFieldLab = () => {
     setFieldState(study.initialState);
   };
 
+  const renderActiveStudy = () => {
+    const sharedProps = {
+      isDark,
+      paused,
+      resetVersion,
+    };
+
+    if (activeStudy.type === "rupture") {
+      return (
+        <RuptureCanvas
+          {...sharedProps}
+          onRuptureStateChange={setFieldState}
+        />
+      );
+    }
+
+    if (activeStudy.type === "research") {
+      return (
+        <ResearchDitherCanvas
+          {...sharedProps}
+          mode={activeStudy.mode}
+          onFieldStateChange={setFieldState}
+        />
+      );
+    }
+
+    return (
+      <SpectralDitherCanvas
+        {...sharedProps}
+        mode={activeStudy.mode}
+        onFieldStateChange={setFieldState}
+      />
+    );
+  };
+
   return (
     <main
       className={`dither-canvas-page dither-study-${activeStudy.id} rupture-${fieldState}`}
       aria-label="Spectral Display dither field lab"
     >
-      {activeStudy.type === "rupture" ? (
-        <RuptureCanvas
-          isDark={isDark}
-          onRuptureStateChange={setFieldState}
-          paused={paused}
-          resetVersion={resetVersion}
-        />
-      ) : (
-        <SpectralDitherCanvas
-          isDark={isDark}
-          mode={activeStudy.mode}
-          onFieldStateChange={setFieldState}
-          paused={paused}
-          resetVersion={resetVersion}
-        />
-      )}
+      {renderActiveStudy()}
 
       <div className="rupture-glass" aria-hidden="true" />
       <div className="rupture-grain" aria-hidden="true" />
@@ -212,7 +295,7 @@ const DitherFieldLab = () => {
                 </span>
                 <span className="dither-study-title">{study.title}</span>
                 <span className="dither-study-kind" aria-hidden="true">
-                  {study.type === "rupture" ? "Material" : "Field"}
+                  {study.kind}
                 </span>
               </button>
             );
