@@ -36,155 +36,151 @@ jobs:
           path = Path("src/components/RuptureCanvas.js")
           source = path.read_text(encoding="utf-8")
 
-          replacements = []
-
-          replacements.append((
-              '''const RuptureCanvas = ({
-            isDark = false,
-            onRuptureStateChange,
-            paused = false,
-            resetVersion = 0,
-          }) => {''',
-              '''const RuptureCanvas = ({
-            isDark = false,
-            onRuptureStateChange,
-            paused = false,
-            progress: controlledProgress = null,
-            resetVersion = 0,
-          }) => {''',
-          ))
-
-          replacements.append((
-              '''  const resetSimulationRef = useRef(() => {});
-          const animationFrameRef = useRef(0);''',
-              '''  const resetSimulationRef = useRef(() => {});
-          const controlledProgressRef = useRef(
-            Number.isFinite(controlledProgress)
-              ? clamp(controlledProgress)
-              : null,
-          );
-          const syncControlledProgressRef = useRef(() => {});
-          const animationFrameRef = useRef(0);''',
-          ))
-
-          replacements.append((
-              '''  useEffect(() => {
-            resetSimulationRef.current();
-            forceRenderRef.current = true;
-          }, [resetVersion]);
-
-          useEffect(() => {''',
-              '''  useEffect(() => {
-            resetSimulationRef.current();
-            forceRenderRef.current = true;
-          }, [resetVersion]);
-
-          useEffect(() => {
-            controlledProgressRef.current = Number.isFinite(controlledProgress)
-              ? clamp(controlledProgress)
-              : null;
-            syncControlledProgressRef.current();
-            forceRenderRef.current = true;
-          }, [controlledProgress]);
-
-          useEffect(() => {''',
-          ))
-
-          replacements.append((
-              '''    const setTargetProgress = (nextProgress) => {
-            const next = clamp(nextProgress);
-            if (Math.abs(next - targetProgress) < 0.00001) return;
-            targetProgress = next;
-            forceRenderRef.current = true;
-          };
-
-          const updateOpening = (delta) => {''',
-              '''    const setTargetProgress = (nextProgress) => {
-            const next = clamp(nextProgress);
-            if (Math.abs(next - targetProgress) < 0.00001) return;
-            targetProgress = next;
-            forceRenderRef.current = true;
-          };
-
-          const syncControlledProgress = () => {
-            if (controlledProgressRef.current === null) return;
-            setTargetProgress(controlledProgressRef.current);
-          };
-          syncControlledProgressRef.current = syncControlledProgress;
-          syncControlledProgress();
-
-          const updateOpening = (delta) => {''',
-          ))
-
-          replacements.append((
-              '''      progress = 0;
-            targetProgress = 0;
-            currentEnergy = 0;''',
-              '''      const resetProgress = controlledProgressRef.current ?? 0;
-            progress = resetProgress;
-            targetProgress = resetProgress;
-            currentEnergy = smoothStep(resetProgress);''',
-          ))
-
-          replacements.append((
-              '''      stateWasReported = false;
-            reportState("sealed");''',
-              '''      stateWasReported = false;
-            reportState(stateForProgress(resetProgress));''',
-          ))
-
-          replacements.append((
-              '''    const handleWheel = (event) => {
-            const deltaPixels = normalizeWheelDelta(event, height);''',
-              '''    const handleWheel = (event) => {
-            if (controlledProgressRef.current !== null) return;
-            const deltaPixels = normalizeWheelDelta(event, height);''',
-          ))
-
-          replacements.append((
-              '''    const handlePointerDown = (event) => {
-            syncPointer(event);
-            if (event.pointerType === "mouse") return;''',
-              '''    const handlePointerDown = (event) => {
-            syncPointer(event);
-            if (controlledProgressRef.current !== null) return;
-            if (event.pointerType === "mouse") return;''',
-          ))
-
-          replacements.append((
-              '''    const handlePointerMove = (event) => {
-            syncPointer(event);
-            if (!drag.active || event.pointerId !== drag.pointerId) return;''',
-              '''    const handlePointerMove = (event) => {
-            syncPointer(event);
-            if (controlledProgressRef.current !== null) return;
-            if (!drag.active || event.pointerId !== drag.pointerId) return;''',
-          ))
-
-          replacements.append((
-              '''    const handleKeyDown = (event) => {
-            const target = event.target;''',
-              '''    const handleKeyDown = (event) => {
-            if (controlledProgressRef.current !== null) return;
-            const target = event.target;''',
-          ))
-
-          replacements.append((
-              '''      cancelAnimationFrame(animationFrameRef.current);
-            resetSimulationRef.current = () => {};
-            window.removeEventListener("wheel", handleWheel);''',
-              '''      cancelAnimationFrame(animationFrameRef.current);
-            resetSimulationRef.current = () => {};
-            syncControlledProgressRef.current = () => {};
-            window.removeEventListener("wheel", handleWheel);''',
-          ))
-
-          for old, new in replacements:
-              if source.count(old) != 1:
+          def replace_once(label, old, new):
+              global source
+              count = source.count(old)
+              if count != 1:
                   raise SystemExit(
-                      f"Expected exactly one RuptureCanvas patch target, found {source.count(old)}."
+                      f"{label}: expected exactly one patch target, found {count}."
                   )
               source = source.replace(old, new)
+
+          replace_once(
+              "controlled progress prop",
+              "  paused = false,\n  resetVersion = 0,",
+              "  paused = false,\n  progress: controlledProgress = null,\n  resetVersion = 0,",
+          )
+
+          replace_once(
+              "controlled progress refs",
+              "  const resetSimulationRef = useRef(() => {});\n"
+              "  const animationFrameRef = useRef(0);",
+              "  const resetSimulationRef = useRef(() => {});\n"
+              "  const controlledProgressRef = useRef(\n"
+              "    Number.isFinite(controlledProgress)\n"
+              "      ? clamp(controlledProgress)\n"
+              "      : null,\n"
+              "  );\n"
+              "  const syncControlledProgressRef = useRef(() => {});\n"
+              "  const animationFrameRef = useRef(0);",
+          )
+
+          replace_once(
+              "controlled progress effect",
+              "  useEffect(() => {\n"
+              "    resetSimulationRef.current();\n"
+              "    forceRenderRef.current = true;\n"
+              "  }, [resetVersion]);\n\n"
+              "  useEffect(() => {\n"
+              "    const root = rootRef.current;",
+              "  useEffect(() => {\n"
+              "    resetSimulationRef.current();\n"
+              "    forceRenderRef.current = true;\n"
+              "  }, [resetVersion]);\n\n"
+              "  useEffect(() => {\n"
+              "    controlledProgressRef.current = Number.isFinite(controlledProgress)\n"
+              "      ? clamp(controlledProgress)\n"
+              "      : null;\n"
+              "    syncControlledProgressRef.current();\n"
+              "    forceRenderRef.current = true;\n"
+              "  }, [controlledProgress]);\n\n"
+              "  useEffect(() => {\n"
+              "    const root = rootRef.current;",
+          )
+
+          replace_once(
+              "controlled progress synchronizer",
+              "    const setTargetProgress = (nextProgress) => {\n"
+              "      const next = clamp(nextProgress);\n"
+              "      if (Math.abs(next - targetProgress) < 0.00001) return;\n"
+              "      targetProgress = next;\n"
+              "      forceRenderRef.current = true;\n"
+              "    };\n\n"
+              "    const updateOpening = (delta) => {",
+              "    const setTargetProgress = (nextProgress) => {\n"
+              "      const next = clamp(nextProgress);\n"
+              "      if (Math.abs(next - targetProgress) < 0.00001) return;\n"
+              "      targetProgress = next;\n"
+              "      forceRenderRef.current = true;\n"
+              "    };\n\n"
+              "    const syncControlledProgress = () => {\n"
+              "      if (controlledProgressRef.current === null) return;\n"
+              "      setTargetProgress(controlledProgressRef.current);\n"
+              "    };\n"
+              "    syncControlledProgressRef.current = syncControlledProgress;\n"
+              "    syncControlledProgress();\n\n"
+              "    const updateOpening = (delta) => {",
+          )
+
+          replace_once(
+              "controlled reset progress",
+              "      progress = 0;\n"
+              "      targetProgress = 0;\n"
+              "      currentEnergy = 0;",
+              "      const resetProgress = controlledProgressRef.current ?? 0;\n"
+              "      progress = resetProgress;\n"
+              "      targetProgress = resetProgress;\n"
+              "      currentEnergy = smoothStep(resetProgress);",
+          )
+
+          replace_once(
+              "controlled reset state",
+              "      stateWasReported = false;\n"
+              "      reportState(\"sealed\");",
+              "      stateWasReported = false;\n"
+              "      reportState(stateForProgress(resetProgress));",
+          )
+
+          replace_once(
+              "wheel guard",
+              "    const handleWheel = (event) => {\n"
+              "      const deltaPixels = normalizeWheelDelta(event, height);",
+              "    const handleWheel = (event) => {\n"
+              "      if (controlledProgressRef.current !== null) return;\n"
+              "      const deltaPixels = normalizeWheelDelta(event, height);",
+          )
+
+          replace_once(
+              "pointer down guard",
+              "    const handlePointerDown = (event) => {\n"
+              "      syncPointer(event);\n"
+              "      if (event.pointerType === \"mouse\") return;",
+              "    const handlePointerDown = (event) => {\n"
+              "      syncPointer(event);\n"
+              "      if (controlledProgressRef.current !== null) return;\n"
+              "      if (event.pointerType === \"mouse\") return;",
+          )
+
+          replace_once(
+              "pointer move guard",
+              "    const handlePointerMove = (event) => {\n"
+              "      syncPointer(event);\n"
+              "      if (!drag.active || event.pointerId !== drag.pointerId) return;",
+              "    const handlePointerMove = (event) => {\n"
+              "      syncPointer(event);\n"
+              "      if (controlledProgressRef.current !== null) return;\n"
+              "      if (!drag.active || event.pointerId !== drag.pointerId) return;",
+          )
+
+          replace_once(
+              "keyboard guard",
+              "    const handleKeyDown = (event) => {\n"
+              "      const target = event.target;",
+              "    const handleKeyDown = (event) => {\n"
+              "      if (controlledProgressRef.current !== null) return;\n"
+              "      const target = event.target;",
+          )
+
+          replace_once(
+              "controlled cleanup",
+              "      cancelAnimationFrame(animationFrameRef.current);\n"
+              "      resetSimulationRef.current = () => {};\n"
+              "      window.removeEventListener(\"wheel\", handleWheel);",
+              "      cancelAnimationFrame(animationFrameRef.current);\n"
+              "      resetSimulationRef.current = () => {};\n"
+              "      syncControlledProgressRef.current = () => {};\n"
+              "      window.removeEventListener(\"wheel\", handleWheel);",
+          )
 
           path.write_text(source, encoding="utf-8")
 
