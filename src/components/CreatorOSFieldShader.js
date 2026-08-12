@@ -1,0 +1,568 @@
+export const CREATOROS_FIELD_VERTEX_SHADER = `#version 300 es
+in vec2 a_pos;
+out vec2 v_uv;
+
+void main() {
+  v_uv = a_pos * 0.5 + 0.5;
+  gl_Position = vec4(a_pos, 0.0, 1.0);
+}`;
+
+export const CREATOROS_REACTION_FRAGMENT_SHADER = `#version 300 es
+precision highp float;
+
+in vec2 v_uv;
+out vec4 fragColor;
+
+uniform sampler2D u_state;
+uniform vec2 u_texel;
+uniform vec2 u_pointer;
+uniform vec2 u_pulseOrigin;
+uniform float u_pulseAge;
+uniform float u_energy;
+uniform float u_time;
+uniform float u_seed;
+uniform float u_feed;
+uniform float u_kill;
+uniform float u_dt;
+
+float sat(float value) {
+  return clamp(value, 0.0, 1.0);
+}
+
+void main() {
+  vec2 center = texture(u_state, v_uv).rg;
+  vec2 north = texture(u_state, v_uv + vec2(0.0, u_texel.y)).rg;
+  vec2 south = texture(u_state, v_uv - vec2(0.0, u_texel.y)).rg;
+  vec2 east = texture(u_state, v_uv + vec2(u_texel.x, 0.0)).rg;
+  vec2 west = texture(u_state, v_uv - vec2(u_texel.x, 0.0)).rg;
+  vec2 northEast = texture(u_state, v_uv + u_texel).rg;
+  vec2 northWest = texture(u_state, v_uv + vec2(-u_texel.x, u_texel.y)).rg;
+  vec2 southEast = texture(u_state, v_uv + vec2(u_texel.x, -u_texel.y)).rg;
+  vec2 southWest = texture(u_state, v_uv - u_texel).rg;
+
+  vec2 laplacian = -center
+    + (north + south + east + west) * 0.20
+    + (northEast + northWest + southEast + southWest) * 0.05;
+
+  float u = center.r;
+  float v = center.g;
+  float reaction = u * v * v;
+  float feed = u_feed + sin(u_time * 0.037 + u_seed * 9.0) * 0.00055;
+  float kill = u_kill + cos(u_time * 0.029 - u_seed * 7.0) * 0.00045;
+
+  float du = 0.16 * laplacian.r - reaction + feed * (1.0 - u);
+  float dv = 0.08 * laplacian.g + reaction - (feed + kill) * v;
+
+  vec2 pointerDelta = v_uv - u_pointer;
+  pointerDelta.x *= 1.32;
+  float pointerBrush = exp(-dot(pointerDelta, pointerDelta) * 180.0)
+    * u_energy;
+
+  vec2 pulseDelta = v_uv - u_pulseOrigin;
+  pulseDelta.x *= 1.32;
+  float pulseRadius = u_pulseAge * 0.16;
+  float pulse = exp(-abs(length(pulseDelta) - pulseRadius) * 70.0)
+    * (1.0 - smoothstep(1.5, 4.8, u_pulseAge));
+
+  u += du * u_dt;
+  v += dv * u_dt;
+  v += pointerBrush * 0.040 + pulse * 0.026;
+  u -= pointerBrush * 0.022 + pulse * 0.014;
+
+  fragColor = vec4(sat(u), sat(v), 0.0, 1.0);
+}`;
+
+export const CREATOROS_FIELD_FRAGMENT_SHADER = `#version 300 es
+precision highp float;
+
+in vec2 v_uv;
+out vec4 fragColor;
+
+uniform vec2 u_res;
+uniform float u_time;
+uniform float u_light;
+uniform float u_intro;
+uniform float u_energy;
+uniform float u_seed;
+uniform vec2 u_pointer;
+uniform vec2 u_pulseOrigin;
+uniform float u_pulseAge;
+uniform int u_modeA;
+uniform int u_modeB;
+uniform float u_modeMix;
+uniform sampler2D u_reaction;
+uniform vec2 u_reactionTexel;
+
+#define PI 3.14159265359
+#define TAU 6.28318530718
+
+float sat(float value) {
+  return clamp(value, 0.0, 1.0);
+}
+
+float bayer2(vec2 a) {
+  a = floor(a);
+  return fract(a.x * 0.5 + a.y * a.y * 0.75);
+}
+#define bayer4(a) (bayer2(0.5 * (a)) * 0.25 + bayer2(a))
+#define bayer8(a) (bayer4(0.5 * (a)) * 0.25 + bayer2(a))
+
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x),
+    mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x),
+    u.y
+  );
+}
+
+float fbm(vec2 p) {
+  float value = 0.0;
+  float amplitude = 0.5;
+  for (int index = 0; index < 4; index++) {
+    value += amplitude * noise(p);
+    p = p * 2.03 + vec2(11.3, 7.7);
+    amplitude *= 0.5;
+  }
+  return value;
+}
+
+mat2 rotate2(float angle) {
+  float c = cos(angle);
+  float s = sin(angle);
+  return mat2(c, -s, s, c);
+}
+
+vec2 complexMultiply(vec2 a, vec2 b) {
+  return vec2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x);
+}
+
+vec2 complexDivide(vec2 a, vec2 b) {
+  float denominator = max(dot(b, b), 0.000001);
+  return vec2(
+    a.x * b.x + a.y * b.y,
+    a.y * b.x - a.x * b.y
+  ) / denominator;
+}
+
+vec2 mobius(vec2 z, vec2 focus) {
+  vec2 product = complexMultiply(vec2(focus.x, -focus.y), z);
+  return complexDivide(z - focus, vec2(1.0 - product.x, -product.y));
+}
+
+vec3 spectral(float h) {
+  vec3 cyan = vec3(0.0, 0.933, 1.0);
+  vec3 magenta = vec3(1.0, 0.0, 1.0);
+  vec3 yellow = vec3(1.0, 0.933, 0.0);
+  vec3 violet = vec3(0.616, 0.0, 1.0);
+  h = fract(h);
+  if (h < 0.25) return mix(cyan, magenta, h * 4.0);
+  if (h < 0.5) return mix(magenta, yellow, (h - 0.25) * 4.0);
+  if (h < 0.75) return mix(yellow, violet, (h - 0.5) * 4.0);
+  return mix(violet, cyan, (h - 0.75) * 4.0);
+}
+
+vec2 aspectScale() {
+  return vec2(u_res.x / max(u_res.y, 1.0), 1.0);
+}
+
+vec2 centeredUv(vec2 uv) {
+  return (uv * 2.0 - 1.0) * aspectScale();
+}
+
+float pulseField(vec2 uv) {
+  vec2 delta = (uv - u_pulseOrigin) * aspectScale();
+  float radius = length(delta);
+  float ringRadius = u_pulseAge * 0.21;
+  float envelope = 1.0 - smoothstep(3.8, 6.8, u_pulseAge);
+  return exp(-abs(radius - ringRadius) * 46.0) * envelope;
+}
+
+vec2 pointerFlow(vec2 uv, float strength) {
+  vec2 scale = aspectScale();
+  vec2 delta = (uv - u_pointer) * scale;
+  float influence = exp(-dot(delta, delta) * 4.6);
+  vec2 tangent = vec2(-delta.y, delta.x);
+  return uv + tangent / scale * influence * strength * (0.36 + u_energy * 0.84);
+}
+
+vec2 viscousWarp(vec2 p, float time, float strength) {
+  vec2 warp = vec2(
+    fbm(p * 1.7 + time * 0.05),
+    fbm(p * 1.7 - time * 0.04 + 19.7)
+  ) - 0.5;
+  return p + warp * strength;
+}
+
+vec4 fluidMaterial(
+  float field,
+  vec3 tint,
+  float rimStrength,
+  float glowStrength,
+  float alphaScale
+) {
+  float body = smoothstep(0.78, 1.18, field);
+  float glow = smoothstep(0.22, 1.02, field);
+  float core = smoothstep(1.22, 3.0, field);
+  float rim = smoothstep(0.78, 0.98, field)
+    * (1.0 - smoothstep(1.02, 1.62, field));
+
+  vec3 color = tint * (0.58 + 0.62 * core);
+  color += rim * rimStrength;
+  color += tint * glow * glowStrength;
+  color *= mix(1.0, 0.88, u_light);
+
+  float alpha = body * mix(0.88, 0.85, u_light)
+    + glow * (1.0 - body) * mix(0.22, 0.20, u_light);
+  return vec4(color, sat(alpha * alphaScale));
+}
+
+vec4 sceneMetabloom(vec2 uv, float time) {
+  uv = pointerFlow(uv, 0.082);
+  vec2 p = viscousWarp(centeredUv(uv), time, 0.42);
+  p = rotate2(-0.08 + sin(time * 0.07) * 0.035) * p;
+
+  float field = 0.0;
+  vec3 tint = vec3(0.0);
+
+  for (int index = 0; index < 7; index++) {
+    float layer = float(index);
+    float seed = fract(layer * 0.6180339 + u_seed * 0.17) * TAU;
+    float phaseX = time * (0.105 + layer * 0.004) + seed;
+    float phaseY = time * (0.082 + layer * 0.003) + seed * 1.37;
+    vec2 center = vec2(
+      sin(phaseX) * (0.34 + 0.035 * mod(layer, 3.0)),
+      cos(phaseY) * (0.28 + 0.030 * mod(layer, 4.0))
+    );
+    center += vec2(
+      sin(time * 0.061 + layer * 2.2),
+      cos(time * 0.053 - layer * 1.8)
+    ) * 0.09;
+
+    vec2 velocity = vec2(
+      cos(phaseX) * (0.105 + layer * 0.004)
+        * (0.34 + 0.035 * mod(layer, 3.0)),
+      -sin(phaseY) * (0.082 + layer * 0.003)
+        * (0.28 + 0.030 * mod(layer, 4.0))
+    );
+
+    float bloom = clamp(u_intro * 1.45 - layer * 0.065, 0.0, 1.0);
+    bloom = 1.0 - pow(1.0 - bloom, 3.0);
+    center = mix(vec2(0.0, -1.55 + layer * 0.035), center, bloom);
+
+    float radius = 0.19 + 0.045 * sin(time * 0.16 + layer * 1.47);
+    radius *= 0.35 + 0.65 * bloom;
+
+    vec2 delta = p - center;
+    float speed = length(velocity);
+    vec2 axis = normalize(velocity + vec2(0.0001, 0.0002));
+    vec2 side = vec2(-axis.y, axis.x);
+    vec2 local = vec2(dot(delta, side), dot(delta, axis));
+    local.y /= 1.0 + 10.0 * speed;
+    local.x *= 1.0 + 3.8 * speed;
+    delta = side * local.x + axis * local.y;
+
+    float weight = (radius * radius) / max(dot(delta, delta), 0.00001);
+    field += weight;
+    tint += spectral(layer * 0.137 + time * 0.012 + u_seed * 0.09) * weight;
+  }
+
+  vec2 pointer = centeredUv(u_pointer);
+  vec2 pointerDelta = p - pointer;
+  float pointerWeight = (0.025 + u_energy * 0.052)
+    / (dot(pointerDelta, pointerDelta) + 0.018);
+  float pulse = pulseField(uv);
+  field += pointerWeight + pulse * (0.72 + u_energy * 0.92);
+  tint += spectral(time * 0.017 + 0.08) * (pointerWeight + pulse * 0.8);
+  tint /= max(field, 0.0001);
+
+  return fluidMaterial(field, tint, 0.42, 0.18, 1.0);
+}
+
+vec4 sceneTidalWeave(vec2 uv, float time) {
+  uv = pointerFlow(uv, -0.060);
+  vec2 p = viscousWarp(centeredUv(uv), time, 0.30);
+  p = rotate2(-0.18 + 0.035 * sin(time * 0.09)) * p;
+
+  float phaseA = p.y
+    + 0.24 * sin(p.x * 2.4 + time * 0.39)
+    + 0.072 * sin(p.x * 6.8 - time * 0.27);
+  float phaseB = p.y
+    - 0.22 * sin(p.x * 2.2 - time * 0.33 + 1.4)
+    + 0.076 * sin(p.x * 6.1 + time * 0.24 + 2.1);
+  float bandA = exp(-abs(sin(phaseA * PI * 2.65)) * 4.3);
+  float bandB = exp(-abs(sin(phaseB * PI * 2.82)) * 4.5);
+  float crossing = bandA * bandB;
+  float overUnder = 0.5 + 0.5 * sin(p.x * 9.8 + time * 0.72);
+  float weave = mix(
+    bandA + bandB - crossing * 0.78,
+    max(bandA, bandB) + crossing * 0.38,
+    overUnder
+  );
+
+  float introSweep = smoothstep(-1.25, 0.95, p.y + u_intro * 2.25);
+  float pointerWake = exp(-length((uv - u_pointer) * aspectScale()) * 4.6)
+    * u_energy;
+  float pulse = pulseField(uv);
+  float field = (weave * 1.18 + crossing * 0.66 + pointerWake * 0.34 + pulse * 0.72)
+    * introSweep;
+
+  vec3 tintA = spectral(0.47 + phaseA * 0.18 + time * 0.012);
+  vec3 tintB = spectral(0.84 + phaseB * 0.17 - time * 0.010);
+  vec3 tint = mix(tintA, tintB, overUnder);
+  tint = mix(tint, spectral(0.12 + time * 0.016), crossing * 0.44);
+
+  return fluidMaterial(field, tint, 0.34, 0.22, 0.94);
+}
+
+vec4 sceneMoireHalo(vec2 uv, float time) {
+  vec2 p = viscousWarp(centeredUv(uv), time, 0.12);
+  vec2 pointer = centeredUv(u_pointer);
+  vec2 centerA = pointer * 0.22 + vec2(
+    sin(time * 0.17 + u_seed * 4.0),
+    cos(time * 0.13 - u_seed * 3.0)
+  ) * 0.11;
+  vec2 centerB = -pointer * 0.16 + vec2(
+    cos(time * 0.11 + 1.2),
+    sin(time * 0.19 - 0.8)
+  ) * 0.13;
+
+  float radiusA = length(p - centerA);
+  float radiusB = length(p - centerB);
+  float noiseWarp = fbm(p * 1.85 + vec2(time * 0.025, -time * 0.018));
+  float ringA = 0.5 + 0.5 * sin(radiusA * 68.0 - time * 1.15 + noiseWarp * 2.3);
+  float ringB = 0.5 + 0.5 * sin(radiusB * 74.0 + time * 1.02 - noiseWarp * 2.0);
+  float interference = pow(abs(ringA - ringB), 0.58);
+  float convergence = pow(sat(ringA * ringB), 1.65);
+  float lens = exp(-abs(radiusA - radiusB) * 8.0);
+  float spokes = 0.5 + 0.5 * sin(atan(p.y, p.x) * 9.0 + time * 0.31);
+  float pulse = pulseField(uv);
+  float bloom = smoothstep(0.0, 0.72, u_intro);
+
+  float field = (
+    0.22
+      + interference * 0.92
+      + convergence * 0.74
+      + lens * 0.58
+      + spokes * exp(-length(p) * 0.62) * 0.20
+      + pulse * 0.72
+  ) * bloom;
+  float hue = atan(p.y, p.x) / TAU
+    + (radiusA - radiusB) * 0.46
+    + interference * 0.16
+    + time * 0.014
+    + u_seed * 0.11;
+  vec3 tint = spectral(hue);
+
+  return fluidMaterial(field, tint, 0.28, 0.24, 0.78);
+}
+
+vec4 sceneContourDrift(vec2 uv, float time) {
+  uv = pointerFlow(uv, 0.032);
+  vec2 p = viscousWarp(centeredUv(uv), time, 0.24);
+  vec2 drift = vec2(time * 0.027, -time * 0.021);
+  float terrain = fbm(p * 1.48 + drift + vec2(u_seed * 3.1));
+  terrain += fbm(rotate2(0.72) * p * 3.25 - drift * 1.7 + vec2(11.0)) * 0.31;
+  terrain /= 1.31;
+
+  vec2 pointerDelta = (uv - u_pointer) * aspectScale();
+  float pointerLift = exp(-dot(pointerDelta, pointerDelta) * 7.0)
+    * (0.12 + u_energy * 0.33);
+  float pulse = pulseField(uv);
+  terrain = sat(terrain + pointerLift - pulse * 0.14);
+
+  float levels = terrain * 10.5;
+  float contourDistance = abs(fract(levels) - 0.5);
+  float contour = 1.0 - smoothstep(0.055, 0.19, contourDistance);
+  float secondary = 1.0 - smoothstep(
+    0.028,
+    0.105,
+    abs(fract(levels * 0.5 + 0.25) - 0.5)
+  );
+  float land = smoothstep(0.24, 0.78, terrain);
+  float basin = 1.0 - smoothstep(0.34, 0.62, terrain);
+  float bloom = smoothstep(0.02, 0.88, u_intro);
+  float field = (
+    contour * 1.18
+      + secondary * 0.34
+      + land * 0.38
+      + basin * 0.12
+      + pulse * 0.58
+  ) * bloom;
+  vec3 tint = spectral(
+    0.08 + terrain * 0.88 + p.x * 0.035 + time * 0.010 + u_seed * 0.14
+  );
+
+  return fluidMaterial(field, tint, 0.24, 0.18, 0.84);
+}
+
+vec4 sceneMorphogen(vec2 uv, float time) {
+  vec2 chemical = texture(u_reaction, uv).rg;
+  float v = chemical.g;
+  float u = chemical.r;
+  float north = texture(u_reaction, uv + vec2(0.0, u_reactionTexel.y)).g;
+  float south = texture(u_reaction, uv - vec2(0.0, u_reactionTexel.y)).g;
+  float east = texture(u_reaction, uv + vec2(u_reactionTexel.x, 0.0)).g;
+  float west = texture(u_reaction, uv - vec2(u_reactionTexel.x, 0.0)).g;
+  float gradient = length(vec2(east - west, north - south));
+  float pulse = pulseField(uv);
+
+  float cells = smoothstep(0.08, 0.54, v);
+  float membrane = smoothstep(0.010, 0.095, gradient);
+  float inverse = smoothstep(0.42, 0.92, u - v * 0.42);
+  float field = (
+    cells * 1.10
+      + membrane * 0.84
+      + inverse * 0.14
+      + pulse * 0.48
+  ) * smoothstep(0.0, 0.72, u_intro);
+  vec3 tint = spectral(
+    0.44 + v * 0.72 + gradient * 1.8 + sin(time * 0.045 + u_seed * 8.0) * 0.028
+  );
+
+  return fluidMaterial(field, tint, 0.30, 0.24, 0.90);
+}
+
+vec4 sceneQuasicrystal(vec2 uv, float time) {
+  uv = pointerFlow(uv, -0.038);
+  vec2 p = viscousWarp(centeredUv(uv), time, 0.14);
+  vec2 pointer = centeredUv(u_pointer);
+  float pointerLens = exp(-dot(p - pointer, p - pointer) * 2.8);
+  p *= 1.0 + pointerLens * (0.12 + u_energy * 0.15);
+  p = rotate2(time * 0.010 + sin(time * 0.07) * 0.025) * p;
+
+  float waveA = 0.0;
+  float waveB = 0.0;
+  float directional = 0.0;
+  for (int index = 0; index < 6; index++) {
+    float angle = float(index) * PI / 6.0;
+    vec2 directionA = vec2(cos(angle), sin(angle));
+    vec2 directionB = vec2(cos(angle + PI / 12.0), sin(angle + PI / 12.0));
+    float phaseA = dot(p, directionA) * 24.0
+      + time * (0.21 + float(index) * 0.013);
+    float phaseB = dot(p, directionB) * 24.0
+      - time * (0.18 + float(index) * 0.011)
+      + u_seed * 5.0;
+    waveA += cos(phaseA);
+    waveB += cos(phaseB);
+    directional += sin(phaseA * 0.5 + phaseB * 0.5);
+  }
+  waveA /= 6.0;
+  waveB /= 6.0;
+  directional /= 6.0;
+
+  float product = waveA * waveB;
+  float quasipattern = 0.5 + 0.5 * (waveA * 0.55 + waveB * 0.55 + product * 0.62);
+  float ridges = pow(sat(abs(product) * 1.42), 0.58);
+  float stars = pow(sat(1.0 - abs(waveA - waveB)), 3.4);
+  float pulse = pulseField(uv);
+  float field = (
+    quasipattern * 0.62
+      + ridges * 0.84
+      + stars * 0.56
+      + pulse * 0.64
+  ) * smoothstep(0.0, 0.72, u_intro);
+  vec3 tint = spectral(
+    atan(waveB, waveA) / TAU
+      + atan(p.y, p.x) / TAU * 0.24
+      + directional * 0.095
+      + time * 0.014
+      + u_seed * 0.11
+  );
+
+  return fluidMaterial(field, tint, 0.28, 0.22, 0.80);
+}
+
+vec4 sceneHyperbolic(vec2 uv, float time) {
+  float aspect = u_res.x / max(u_res.y, 1.0);
+  vec2 p = (uv - 0.5) * 2.0;
+  p.x *= aspect;
+  p /= max(aspect, 1.0) * 1.025;
+
+  vec2 focus = (u_pointer - 0.5) * 1.12;
+  focus.x *= aspect / max(aspect, 1.0);
+  float focusLength = length(focus);
+  if (focusLength > 0.68) focus *= 0.68 / focusLength;
+  focus *= 0.34 + u_energy * 0.34;
+
+  float originalRadius = length(p);
+  vec2 transformed = mobius(p, focus);
+  transformed = viscousWarp(transformed, time, 0.045);
+  transformed = rotate2(time * 0.024 + u_seed * 0.6) * transformed;
+  float radius = clamp(length(transformed), 0.0, 0.997);
+  float angle = atan(transformed.y, transformed.x);
+  float hyperbolicRadius = log((1.0 + radius) / max(1.0 - radius, 0.003));
+  float conformalScale = 2.0 / max(1.0 - radius * radius, 0.018);
+
+  float geodesicDistance = 10.0;
+  for (int index = 0; index < 7; index++) {
+    float familyAngle = float(index) * TAU / 7.0
+      + time * (0.008 + float(index) * 0.0006);
+    float centerRadius = 1.18 + 0.08 * sin(time * 0.045 + float(index) * 1.7);
+    vec2 center = vec2(cos(familyAngle), sin(familyAngle)) * centerRadius;
+    float circleRadius = sqrt(max(centerRadius * centerRadius - 1.0, 0.001));
+    float distanceToCircle = abs(length(transformed - center) - circleRadius);
+    geodesicDistance = min(geodesicDistance, distanceToCircle * conformalScale);
+  }
+
+  float geodesics = exp(-geodesicDistance * 3.8);
+  float sectorSize = TAU / 7.0;
+  float foldedAngle = abs(mod(angle + sectorSize * 0.5, sectorSize) - sectorSize * 0.5);
+  float spokes = exp(-foldedAngle * (8.0 + hyperbolicRadius * 2.2));
+  float rings = 0.5 + 0.5 * cos(hyperbolicRadius * 8.2 - time * 0.28);
+  float cells = 0.5 + 0.5 * cos(
+    hyperbolicRadius * 5.4
+      + foldedAngle * 31.0
+      + sin(angle * 7.0 - time * 0.19) * 1.1
+  );
+  float boundary = exp(-abs(originalRadius - 0.985) * 42.0);
+  float pulse = pulseField(uv);
+  float inside = 1.0 - smoothstep(0.985, 1.025, originalRadius);
+  float field = (
+    (geodesics * 1.06 + spokes * 0.34 + rings * 0.30 + cells * 0.42)
+      * inside
+      + boundary * 0.92
+      + pulse * 0.58
+  ) * smoothstep(0.0, 0.72, u_intro);
+  vec3 tint = spectral(
+    angle / TAU
+      + hyperbolicRadius * 0.092
+      + cells * 0.16
+      + time * 0.012
+      + u_seed * 0.10
+  );
+  vec4 material = fluidMaterial(field, tint, 0.30, 0.20, 0.84);
+  material.a *= inside + boundary * 0.74;
+  return material;
+}
+
+vec4 sampleScene(int mode, vec2 uv, float time) {
+  if (mode == 0) return sceneMetabloom(uv, time);
+  if (mode == 1) return sceneTidalWeave(uv, time);
+  if (mode == 2) return sceneMoireHalo(uv, time);
+  if (mode == 3) return sceneContourDrift(uv, time);
+  if (mode == 4) return sceneMorphogen(uv, time);
+  if (mode == 5) return sceneQuasicrystal(uv, time);
+  return sceneHyperbolic(uv, time);
+}
+
+void main() {
+  vec4 sampleA = sampleScene(u_modeA, v_uv, u_time);
+  vec4 sampleB = sampleScene(u_modeB, v_uv, u_time);
+  vec4 colorSample = mix(sampleA, sampleB, smoothstep(0.0, 1.0, u_modeMix));
+
+  float levels = mix(5.0, 7.0, u_light);
+  float dither = bayer8(gl_FragCoord.xy) - 0.5;
+  vec3 color = clamp(colorSample.rgb + dither / levels, 0.0, 1.0);
+  color = floor(color * levels + 0.5) / levels;
+  float alpha = clamp(colorSample.a + dither / levels, 0.0, 1.0);
+  alpha = floor(alpha * levels + 0.5) / levels;
+
+  fragColor = vec4(color * alpha, alpha);
+}`;
