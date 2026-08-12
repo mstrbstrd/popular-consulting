@@ -1,0 +1,58 @@
+name: Repair Forward Pass workflow
+
+on:
+  push:
+    branches:
+      - agent/forward-pass-field
+    paths:
+      - .github/workflows/repair-forward-pass-workflow.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/forward-pass-field
+          fetch-depth: 0
+
+      - name: Make the CSS insertion deterministic
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path(".github/workflows/apply-forward-pass-field.yml")
+          text = path.read_text(encoding="utf-8")
+
+          old = '''          if css.count(css_marker) != 1:
+              raise SystemExit("Expected one dark fallback marker.")
+          css_path.write_text(
+              css.replace(css_marker, forward_fallback + css_marker),
+              encoding="utf-8",
+          )'''
+
+          new = '''          css_index = css.find(css_marker)
+          if css_index < 0:
+              raise SystemExit("Expected a dark fallback marker.")
+          css_path.write_text(
+              css[:css_index] + forward_fallback + css[css_index:],
+              encoding="utf-8",
+          )'''
+
+          if text.count(old) != 1:
+              raise SystemExit("Expected exactly one CSS insertion block.")
+
+          path.write_text(text.replace(old, new), encoding="utf-8")
+
+      - name: Commit repair and remove helper
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/workflows/apply-forward-pass-field.yml
+          git rm .github/workflows/repair-forward-pass-workflow.yml
+          git commit -m "Repair Forward Pass implementation workflow"
+          git push origin HEAD:agent/forward-pass-field
