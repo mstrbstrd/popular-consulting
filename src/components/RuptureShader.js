@@ -19,25 +19,17 @@ uniform float u_theme;
 uniform float u_energy;
 uniform float u_reveal;
 uniform vec2 u_pointer;
-uniform int u_nodeCount;
-uniform vec4 u_nodes[24];
-uniform vec4 u_branches[4];
-uniform vec4 u_branchMeta[4];
 uniform sampler2D u_atlas;
 uniform float u_cellSize;
 uniform int u_charCount;
 uniform int u_atlasCols;
 uniform int u_atlasRows;
 
-#define PI 3.14159265359
 #define TAU 6.28318530718
 
 struct FaultInfo {
   float dist;
   float signedDist;
-  float opening;
-  float scar;
-  float branch;
   vec2 tangent;
   vec2 nearest;
 };
@@ -102,74 +94,31 @@ vec3 spectral(float hue, float brightness) {
   return clamp(raw * brightness, 0.0, 1.0);
 }
 
+float faultY(float x) {
+  return 0.27
+    + x * 0.43
+    + sin(x * 5.1 + 0.6) * 0.055
+    + sin(x * 11.7 - 0.4) * 0.018;
+}
+
+float faultSlope(float x) {
+  return 0.43
+    + cos(x * 5.1 + 0.6) * 0.2805
+    + cos(x * 11.7 - 0.4) * 0.2106;
+}
+
 FaultInfo sampleFault(vec2 uv) {
   FaultInfo info;
-  info.dist = 100.0;
-  info.signedDist = 100.0;
-  info.opening = 0.0;
-  info.scar = 0.0;
-  info.branch = 0.0;
-  info.tangent = vec2(1.0, 0.0);
-  info.nearest = uv;
+  float aspect = u_res.x / max(u_res.y, 1.0);
+  float surfaceY = faultY(uv.x);
+  float slope = faultSlope(uv.x) / max(aspect, 0.0001);
+  vec2 tangent = normalize(vec2(1.0, slope));
+  vec2 offset = vec2(0.0, uv.y - surfaceY);
 
-  vec2 aspectScale = vec2(u_res.x / max(u_res.y, 1.0), 1.0);
-  vec2 point = uv * aspectScale;
-
-  // The main fault is x-monotonic and its nodes are uniformly spaced, so a
-  // fragment only needs the segment directly beneath its x coordinate. The
-  // previous implementation searched all 23 segments for every pixel.
-  float faultPosition = clamp((uv.x + 0.06) / 1.12, 0.0, 0.99999)
-    * float(max(u_nodeCount - 1, 1));
-  int nodeIndex = clamp(int(floor(faultPosition)), 0, 22);
-  int nextNodeIndex = min(nodeIndex + 1, max(u_nodeCount - 1, 0));
-  vec4 nodeA = u_nodes[nodeIndex];
-  vec4 nodeB = u_nodes[nextNodeIndex];
-  vec2 a = nodeA.xy * aspectScale;
-  vec2 b = nodeB.xy * aspectScale;
-  vec2 segment = b - a;
-  float segmentLengthSquared = max(dot(segment, segment), 0.000001);
-  float amount = clamp(dot(point - a, segment) / segmentLengthSquared, 0.0, 1.0);
-  vec2 nearest = a + segment * amount;
-  vec2 offset = point - nearest;
-  vec2 tangent = normalize(segment);
-  info.dist = length(offset);
   info.signedDist = cross2(tangent, offset);
-  info.opening = mix(nodeA.z, nodeB.z, amount);
-  info.scar = mix(nodeA.w, nodeB.w, amount);
+  info.dist = abs(info.signedDist);
   info.tangent = tangent;
-  info.nearest = nearest / aspectScale;
-
-  for (int index = 0; index < 4; index++) {
-    vec4 branch = u_branches[index];
-    vec4 meta = u_branchMeta[index];
-    if (meta.z <= 0.001) continue;
-
-    vec2 branchA = branch.xy * aspectScale;
-    vec2 branchB = branch.zw * aspectScale;
-    vec2 branchSegment = branchB - branchA;
-    float branchLengthSquared = max(dot(branchSegment, branchSegment), 0.000001);
-    float branchAmount = clamp(
-      dot(point - branchA, branchSegment) / branchLengthSquared,
-      0.0,
-      1.0
-    );
-    vec2 branchNearest = branchA + branchSegment * branchAmount;
-    vec2 branchOffset = point - branchNearest;
-    float distanceToBranch = length(branchOffset);
-    float branchWidth = meta.x * meta.z * (1.0 - branchAmount * 0.58);
-
-    if (distanceToBranch < info.dist) {
-      vec2 branchTangent = normalize(branchSegment);
-      info.dist = distanceToBranch;
-      info.signedDist = cross2(branchTangent, branchOffset);
-      info.opening = branchWidth * 11.0;
-      info.scar = meta.z * 0.08;
-      info.branch = 1.0;
-      info.tangent = branchTangent;
-      info.nearest = branchNearest / aspectScale;
-    }
-  }
-
+  info.nearest = vec2(uv.x, surfaceY);
   return info;
 }
 
@@ -255,17 +204,17 @@ float revealMask(vec2 coordinate) {
 
 void main() {
   FaultInfo fault = sampleFault(v_uv);
-  float openingWidth = 0.0022
-    + fault.opening * 0.094
-    + fault.scar * 0.010
-    + u_energy * 0.005;
-  openingWidth *= 0.88 + 0.12 * sin(u_time * 0.45 + fault.nearest.x * 11.0);
+  float progress = sat(u_energy);
+  float easedProgress = progress * progress * (3.0 - 2.0 * progress);
+  float fullOpen = smoothstep(0.970, 0.999, progress);
+
+  // One continuous aperture grows from the original fault. There are no
+  // secondary branches or impact-driven breaks in this material study.
+  float openingWidth = 0.0018 + pow(easedProgress, 1.85) * 0.82;
   float apertureEnvelope = 0.72
     + 0.92 * exp(-pow((fault.nearest.x - 0.57) / 0.19, 2.0));
-  apertureEnvelope = mix(apertureEnvelope, 0.82, fault.branch);
   openingWidth *= apertureEnvelope;
   float sideScale = mix(0.66, 1.28, step(0.0, fault.signedDist));
-  sideScale = mix(sideScale, 0.82, fault.branch);
   float sideWidth = openingWidth * sideScale;
 
   float inside = 1.0 - smoothstep(
@@ -273,10 +222,14 @@ void main() {
     sideWidth * 1.03,
     fault.dist
   );
+  inside = mix(inside, 1.0, fullOpen);
+
   float outsideDistance = max(fault.dist - sideWidth, 0.0);
-  float edge = exp(-abs(fault.dist - sideWidth) * 185.0);
-  float spill = exp(-outsideDistance * 27.0) * (0.22 + u_energy * 0.78);
-  float lip = exp(-outsideDistance * 92.0);
+  float edge = exp(-abs(fault.dist - sideWidth) * 185.0) * (1.0 - fullOpen);
+  float spill = exp(-outsideDistance * 27.0)
+    * (0.12 + progress * 0.88)
+    * (1.0 - fullOpen);
+  float lip = exp(-outsideDistance * 92.0) * (1.0 - fullOpen);
 
   vec3 lightSurface = vec3(1.000, 0.985, 0.978);
   vec3 darkSurface = vec3(0.006, 0.007, 0.018);
@@ -287,16 +240,16 @@ void main() {
 
   float tension = sin(
     fault.signedDist * 210.0
-      - u_time * 1.15
+      - u_time * 0.54
       + fault.nearest.x * 16.0
   );
-  tension *= exp(-fault.dist * 24.0) * u_energy;
+  tension *= exp(-fault.dist * 24.0) * progress * (1.0 - fullOpen);
   surface += mix(vec3(0.018, 0.014, 0.026), vec3(0.05, 0.04, 0.12), u_theme)
     * tension * 0.22;
 
   float flapEnvelope = exp(-pow((fault.nearest.x - 0.57) / 0.22, 2.0))
-    * sat(u_energy * 1.28)
-    * (1.0 - fault.branch);
+    * progress
+    * (1.0 - fullOpen);
   float foldDepth = 0.018 + flapEnvelope * 0.085;
   float foldBand = smoothstep(sideWidth + foldDepth, sideWidth, fault.dist)
     * step(0.0, fault.signedDist)
@@ -314,34 +267,45 @@ void main() {
   surface -= mix(vec3(0.10), vec3(0.02), u_theme) * foldCrease * 0.16;
 
   vec3 world = vec3(0.010, 0.014, 0.045);
-  float worldRegion = sideWidth + 0.15 + fault.scar * 0.035;
+  float worldRegion = mix(sideWidth + 0.15, 10.0, fullOpen);
   if (fault.dist < worldRegion) {
     world = hiddenWorld(v_uv, fault);
   }
+
   float raisedSide = 0.5 + 0.5 * sign(fault.signedDist);
   float shadow = lip * mix(0.30, 0.48, u_theme) * mix(0.42, 1.0, raisedSide);
   surface *= 1.0 - shadow * 0.24;
 
-  vec3 spillColor = mix(world, spectral(fault.nearest.x * 0.22 + u_time * 0.03, 1.0), 0.28);
+  vec3 spillColor = mix(
+    world,
+    spectral(fault.nearest.x * 0.22 + u_time * 0.03, 1.0),
+    0.28
+  );
   surface += spillColor * spill * mix(0.26, 0.42, u_theme);
   float upperLip = edge * (0.46 + 0.54 * step(0.0, fault.signedDist));
   float lowerLip = edge * (0.46 + 0.54 * step(fault.signedDist, 0.0));
-  float cutLine = exp(-abs(fault.dist - sideWidth) * 320.0);
+  float cutLine = exp(-abs(fault.dist - sideWidth) * 320.0) * (1.0 - fullOpen);
   surface += mix(vec3(1.0), spillColor, 0.28) * upperLip * mix(0.58, 0.34, u_theme);
-  surface -= mix(vec3(0.10, 0.06, 0.16), spillColor, 0.16) * lowerLip * mix(0.12, 0.24, u_theme);
-  surface += mix(vec3(1.0), spillColor, 0.18) * cutLine * mix(0.62, 0.30, u_theme);
+  surface -= mix(vec3(0.10, 0.06, 0.16), spillColor, 0.16)
+    * lowerLip
+    * mix(0.12, 0.24, u_theme);
+  surface += mix(vec3(1.0), spillColor, 0.18)
+    * cutLine
+    * mix(0.62, 0.30, u_theme);
 
-  float innerRim = inside * exp(-max(sideWidth - fault.dist, 0.0) * 28.0);
-  world += spectral(fault.nearest.x * 0.24 - u_time * 0.025 + 0.34, 0.88) * innerRim * 0.22;
+  float innerRim = inside
+    * exp(-max(sideWidth - fault.dist, 0.0) * 28.0)
+    * (1.0 - fullOpen);
+  world += spectral(fault.nearest.x * 0.24 - u_time * 0.025 + 0.34, 0.88)
+    * innerRim
+    * 0.22;
   vec3 color = mix(surface, world, inside);
 
   vec2 cellCount = max(floor(u_res / max(u_cellSize, 1.0)), vec2(1.0));
   vec2 cellId = floor(v_uv * cellCount);
   vec2 cellUv = fract(v_uv * cellCount);
-  float edgeField = exp(-abs(fault.dist - sideWidth) * 92.0);
-  float debrisField = exp(-outsideDistance * 34.0)
-    * step(0.88 - u_energy * 0.08, hash21(cellId + floor(u_time * 0.48)));
-  float density = sat(edgeField * 1.10 + debrisField * u_energy * 0.34);
+  float edgeField = exp(-abs(fault.dist - sideWidth) * 92.0) * (1.0 - fullOpen);
+  float density = sat(edgeField * 1.10);
 
   float shimmer = (
     sin(cellId.x * 0.42 + cellId.y * 0.31 + u_time * 1.18) * 0.48
@@ -358,9 +322,9 @@ void main() {
   int characterB = min(characterA + 1, u_charCount - 1);
 
   vec2 distortion = vec2(-fault.tangent.y, fault.tangent.x)
-    * sin(u_time * 1.35 + cellId.x * 0.41 + cellId.y * 0.29)
+    * sin(u_time * 0.72 + cellId.x * 0.41 + cellId.y * 0.29)
     * density
-    * 0.12;
+    * 0.07;
   vec2 distortedCellUv = clamp(cellUv + distortion, vec2(0.02), vec2(0.98));
   float glyphAlpha = mix(
     sampleGlyph(characterA, distortedCellUv).r,
@@ -390,7 +354,7 @@ void main() {
   float vignette = 1.0 - 0.13 * pow(length(v_uv - 0.5), 2.0);
   color *= vignette;
 
-  float reveal = revealMask(gl_FragCoord.xy);
+  float reveal = max(revealMask(gl_FragCoord.xy), fullOpen);
   color = mix(surface, color, reveal);
   fragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
 }`;

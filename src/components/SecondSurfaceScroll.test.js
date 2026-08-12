@@ -1,0 +1,42 @@
+const fs = require("fs");
+const path = require("path");
+
+describe("Second Surface scroll opening", () => {
+  const canvasSource = fs.readFileSync(
+    path.join(__dirname, "RuptureCanvas.js"),
+    "utf8",
+  );
+  const shaderSource = fs.readFileSync(
+    path.join(__dirname, "RuptureShader.js"),
+    "utf8",
+  );
+
+  test("keeps opening bounded to scroll, touch drag, keyboard, and Heal", () => {
+    expect(canvasSource).toContain("const SCROLL_DISTANCE_PX");
+    expect(canvasSource).toContain(
+      'window.addEventListener("wheel", handleWheel, { passive: true })',
+    );
+    expect(canvasSource).toContain(
+      'root.addEventListener("pointermove", handlePointerMove, { passive: true })',
+    );
+    expect(canvasSource).toContain(
+      'window.addEventListener("keydown", handleKeyDown)',
+    );
+    expect(canvasSource).toContain("targetProgress = 0");
+    expect(canvasSource).toContain("progress = 0");
+    expect(canvasSource).not.toContain("autoBranchSpawned");
+    expect(canvasSource).not.toContain("branches.push");
+    expect(canvasSource).not.toContain("Math.random");
+  });
+
+  test("renders one continuous fault with an explicit fully open terminal state", () => {
+    expect(shaderSource).toContain("uniform float u_energy;");
+    expect(shaderSource).toContain("float faultY(float x)");
+    expect(shaderSource).toContain("float faultSlope(float x)");
+    expect(shaderSource).toContain("float fullOpen = smoothstep");
+    expect(shaderSource).toContain("inside = mix(inside, 1.0, fullOpen);");
+    expect(shaderSource).not.toContain("u_branches");
+    expect(shaderSource).not.toContain("u_nodes");
+    expect(shaderSource).not.toContain("debrisField");
+  });
+});
