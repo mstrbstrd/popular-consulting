@@ -1,0 +1,1259 @@
+
+> popular-consulting_react@0.1.0 test
+> react-scripts test --watchAll=false --runInBand src/components/DitherCanvasPage.test.js src/components/DitherScrollNarrative.test.js src/components/SecondSurfaceScroll.test.js
+
+FAIL src/components/DitherCanvasPage.test.js
+  ● DitherCanvasPage › opens the first surface from page scroll before advancing studies
+
+    expect(received).toBeCloseTo(expected, precision)
+
+    Expected: 0.5
+    Received: 0
+
+    Expected precision:    1
+    Expected difference: < 0.05
+    Received difference:   0.5
+
+      164 |     expect(
+      165 |       Number(screen.getByTestId("rupture-renderer").dataset.progress),
+    > 166 |     ).toBeCloseTo(0.5, 1);
+          |       ^
+      167 |     expect(
+      168 |       screen.getByRole("heading", { name: "Second Surface" }),
+      169 |     ).toBeInTheDocument();
+
+      at Object.<anonymous> (src/components/DitherCanvasPage.test.js:166:7)
+
+  ● DitherCanvasPage › field controls scroll to a study and preserve the lava lamp entrance
+
+    TestingLibraryElementError: Unable to find an accessible element with the role "heading" and name "Lava Lamp"
+
+    Here are the accessible roles:
+
+      main:
+
+      Name "Spectral Display dither field lab":
+      [36m<main[39m
+        [33maria-label[39m=[32m"Spectral Display dither field lab"[39m
+        [33mclass[39m=[32m"dither-canvas-page dither-study-second-surface dither-renderer-rupture rupture-sealed dither-transition-idle"[39m
+        [33mstyle[39m=[32m"--dither-study-progress: 0.000; --dither-copy-drift: 4.00px;"[39m
+      [36m/>[39m
+
+      --------------------------------------------------
+      banner:
+
+      Name "":
+      [36m<header[39m
+        [33mclass[39m=[32m"rupture-header"[39m
+      [36m/>[39m
+
+      --------------------------------------------------
+      navigation:
+
+      Name "Dither field controls":
+      [36m<nav[39m
+        [33maria-label[39m=[32m"Dither field controls"[39m
+        [33mclass[39m=[32m"rupture-nav"[39m
+      [36m/>[39m
+
+      Name "Dither background studies":
+      [36m<nav[39m
+        [33maria-label[39m=[32m"Dither background studies"[39m
+        [33mclass[39m=[32m"dither-study-switcher"[39m
+      [36m/>[39m
+
+      --------------------------------------------------
+      link:
+
+      Name "Return to Popular Consulting":
+      [36m<a[39m
+        [33maria-label[39m=[32m"Return to Popular Consulting"[39m
+        [33mclass[39m=[32m"rupture-brand"[39m
+        [33mhref[39m=[32m"/"[39m
+      [36m/>[39m
+
+      --------------------------------------------------
+      button:
+
+      Name "Use dark mode":
+      [36m<button[39m
+        [33maria-label[39m=[32m"Use dark mode"[39m
+        [33mclass[39m=[32m"rupture-icon-button"[39m
+        [33mtitle[39m=[32m"Use dark mode"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m/>[39m
+
+      Name "Pause":
+      [36m<button[39m
+        [33mclass[39m=[32m"rupture-text-button"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m/>[39m
+
+      Name "Heal":
+      [36m<button[39m
+        [33mclass[39m=[32m"rupture-text-button"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m/>[39m
+
+      Name "Second Surface":
+      [36m<button[39m
+        [33maria-pressed[39m=[32m"true"[39m
+        [33mclass[39m=[32m"dither-study-option is-active is-targeted"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m/>[39m
+
+      Name "Metabloom":
+      [36m<button[39m
+        [33maria-pressed[39m=[32m"false"[39m
+        [33mclass[39m=[32m"dither-study-option"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m/>[39m
+
+      Name "Tidal Weave":
+      [36m<button[39m
+        [33maria-pressed[39m=[32m"false"[39m
+        [33mclass[39m=[32m"dither-study-option"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m/>[39m
+
+      Name "Moiré Halo":
+      [36m<button[39m
+        [33maria-pressed[39m=[32m"false"[39m
+        [33mclass[39m=[32m"dither-study-option"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m/>[39m
+
+      Name "Contour Drift":
+      [36m<button[39m
+        [33maria-pressed[39m=[32m"false"[39m
+        [33mclass[39m=[32m"dither-study-option"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m/>[39m
+
+      Name "Lava Lamp":
+      [36m<button[39m
+        [33maria-pressed[39m=[32m"false"[39m
+        [33mclass[39m=[32m"dither-study-option"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m/>[39m
+
+      Name "Morphogen Divide":
+      [36m<button[39m
+        [33maria-pressed[39m=[32m"false"[39m
+        [33mclass[39m=[32m"dither-study-option"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m/>[39m
+
+      Name "Quasicrystal Chorus":
+      [36m<button[39m
+        [33maria-pressed[39m=[32m"false"[39m
+        [33mclass[39m=[32m"dither-study-option"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m/>[39m
+
+      Name "Hyperbolic Garden":
+      [36m<button[39m
+        [33maria-pressed[39m=[32m"false"[39m
+        [33mclass[39m=[32m"dither-study-option"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m/>[39m
+
+      Name "Forward Pass":
+      [36m<button[39m
+        [33maria-pressed[39m=[32m"false"[39m
+        [33mclass[39m=[32m"dither-study-option"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m/>[39m
+
+      --------------------------------------------------
+      region:
+
+      Name "Second Surface":
+      [36m<section[39m
+        [33maria-atomic[39m=[32m"true"[39m
+        [33maria-labelledby[39m=[32m"rupture-title"[39m
+        [33maria-live[39m=[32m"polite"[39m
+        [33mclass[39m=[32m"rupture-copy dither-copy is-idle"[39m
+        [33mdata-direction[39m=[32m"forward"[39m
+        [33mdata-transition[39m=[32m"second-surface"[39m
+      [36m/>[39m
+
+      --------------------------------------------------
+      heading:
+
+      Name "Second Surface":
+      [36m<h1[39m
+        [33mid[39m=[32m"rupture-title"[39m
+      [36m/>[39m
+
+      --------------------------------------------------
+
+    Ignored nodes: comments, script, style
+    [36m<body>[39m
+      [36m<div>[39m
+        [36m<main[39m
+          [33maria-label[39m=[32m"Spectral Display dither field lab"[39m
+          [33mclass[39m=[32m"dither-canvas-page dither-study-second-surface dither-renderer-rupture rupture-sealed dither-transition-idle"[39m
+          [33mstyle[39m=[32m"--dither-study-progress: 0.000; --dither-copy-drift: 4.00px;"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"dither-fixed-stage"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33maria-hidden[39m=[32m"true"[39m
+              [33mclass[39m=[32m"dither-study-scene is-idle"[39m
+              [33mdata-direction[39m=[32m"forward"[39m
+              [33mdata-transition[39m=[32m"second-surface"[39m
+            [36m>[39m
+              [36m<button[39m
+                [33mdata-paused[39m=[32m"false"[39m
+                [33mdata-progress[39m=[32m"0"[39m
+                [33mdata-reset-version[39m=[32m"0"[39m
+                [33mdata-testid[39m=[32m"rupture-renderer"[39m
+                [33mdata-theme-mode[39m=[32m"light"[39m
+                [33mtype[39m=[32m"button"[39m
+              [36m>[39m
+                [0mrupture renderer[0m
+              [36m</button>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33maria-hidden[39m=[32m"true"[39m
+              [33mclass[39m=[32m"rupture-glass"[39m
+            [36m/>[39m
+            [36m<div[39m
+              [33maria-hidden[39m=[32m"true"[39m
+              [33mclass[39m=[32m"rupture-grain"[39m
+            [36m/>[39m
+            [36m<header[39m
+              [33mclass[39m=[32m"rupture-header"[39m
+            [36m>[39m
+              [36m<nav[39m
+                [33maria-label[39m=[32m"Dither field controls"[39m
+                [33mclass[39m=[32m"rupture-nav"[39m
+              [36m>[39m
+                [36m<a[39m
+                  [33maria-label[39m=[32m"Return to Popular Consulting"[39m
+                  [33mclass[39m=[32m"rupture-brand"[39m
+                  [33mhref[39m=[32m"/"[39m
+                [36m>[39m
+                  [36m<img[39m
+                    [33malt[39m=[32m""[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33msrc[39m=[32m"logo2026_128.png"[39m
+                  [36m/>[39m
+                  [36m<span>[39m
+                    [0mPopular Consulting[0m
+                  [36m</span>[39m
+                [36m</a>[39m
+                [36m<span[39m
+                  [33maria-hidden[39m=[32m"true"[39m
+                  [33mclass[39m=[32m"rupture-nav-rule"[39m
+                [36m/>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"rupture-nav-actions"[39m
+                [36m>[39m
+                  [36m<button[39m
+                    [33maria-label[39m=[32m"Use dark mode"[39m
+                    [33mclass[39m=[32m"rupture-icon-button"[39m
+                    [33mtitle[39m=[32m"Use dark mode"[39m
+                    [33mtype[39m=[32m"button"[39m
+                  [36m>[39m
+                    [36m<svg[39m
+                      [33maria-hidden[39m=[32m"true"[39m
+                      [33mfill[39m=[32m"none"[39m
+                      [33mheight[39m=[32m"16"[39m
+                      [33mviewBox[39m=[32m"0 0 24 24"[39m
+                      [33mwidth[39m=[32m"16"[39m
+                    [36m>[39m
+                      [36m<path[39m
+                        [33md[39m=[32m"M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"[39m
+                        [33mstroke[39m=[32m"currentColor"[39m
+                        [33mstroke-linecap[39m=[32m"round"[39m
+                        [33mstroke-linejoin[39m=[32m"round"[39m
+                        [33mstroke-width[39m=[32m"1.8"[39m
+                      [36m/>[39m
+                    [36m</svg>[39m
+                  [36m</button>[39m
+                  [36m<button[39m
+                    [33mclass[39m=[32m"rupture-text-button"[39m
+                    [33mtype[39m=[32m"button"[39m
+                  [36m>[39m
+                    [0mPause[0m
+                  [36m</button>[39m
+                  [36m<button[39m
+                    [33mclass[39m=[32m"rupture-text-button"[39m
+                    [33mtype[39m=[32m"button"[39m
+                  [36m>[39m
+                    [0mHeal[0m
+                  [36m</button>[39m
+                [36m</div>[39m
+              [36m</nav>[39m
+            [36m</header>[39m
+            [36m<section[39m
+              [33maria-atomic[39m=[32m"true"[39m
+              [33maria-labelledby[39m=[32m"rupture-title"[39m
+              [33maria-live[39m=[32m"polite"[39m
+              [33mclass[39m=[32m"rupture-copy dither-copy is-idle"[39m
+              [33mdata-direction[39m=[32m"forward"[39m
+              [33mdata-transition[39m=[32m"second-surface"[39m
+            [36m>[39m
+              [36m<p[39m
+                [33mclass[39m=[32m"rupture-eyebrow"[39m
+              [36m>[39m
+                [0mSpectral Display · Study [0m
+                [0m01[0m
+              [36m</p>[39m
+              [36m<h1[39m
+                [33mid[39m=[32m"rupture-title"[39m
+              [36m>[39m
+                [0mSecond Surface[0m
+              [36m</h1>[39m
+              [36m<p[39m
+                [33mclass[39m=[32m"rupture-description"[39m
+              [36m>[39m
+                [0mA second surface waits beneath the page. Scrolling draws the seam apart until the hidden field takes over completely.[0m
+              [36m</p>[39m
+              [36m<p[39m
+                [33mclass[39m=[32m"rupture-instruction"[39m
+              [36m>[39m
+                [0mScroll to open the tear · scroll back to close it · choose Heal to seal the surface[0m
+              [36m</p>[39m
+            [36m</section>[39m
+            [36m<nav[39m
+              [33maria-label[39m=[32m"Dither background studies"[39m
+              [33mclass[39m=[32m"dither-study-switcher"[39m
+            [36m>[39m
+              [36m<p[39m
+                [33mclass[39m=[32m"dither-study-switcher-label"[39m
+              [36m>[39m
+                [0mField studies[0m
+              [36m</p>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"dither-study-options"[39m
+              [36m>[39m
+                [36m<button[39m
+                  [33maria-pressed[39m=[32m"true"[39m
+                  [33mclass[39m=[32m"dither-study-option is-active is-targeted"[39m
+                  [33mtype[39m=[32m"button"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"dither-study-number"[39m
+                  [36m>[39m
+                    [0m01[0m
+                  [36m</span>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"dither-study-title"[39m
+                  [36m>[39m
+                    [0mSecond Surface[0m
+                  [36m</span>[39m
+                  [36m<span[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"dither-study-kind"[39m
+                  [36m>[39m
+                    [0mMaterial[0m
+                  [36m</span>[39m
+                [36m</button>[39m
+                [36m<button[39m
+                  [33maria-pressed[39m=[32m"false"[39m
+                  [33mclass[39m=[32m"dither-study-option"[39m
+                  [33mtype[39m=[32m"button"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"dither-study-number"[39m
+                  [36m>[39m
+                    [0m02[0m
+                  [36m</span>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"dither-study-title"[39m
+                  [36m>[39m
+                    [0mMetabloom[0m
+                  [36m</span>[39m
+                  [36m<span[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"dither-study-kind"[39m
+                  [36m>[39m
+                    [0mFluid[0m
+                  [36m</span>[39m
+                [36m</button>[39m
+                [36m<button[39m
+                  [33maria-pressed[39m=[32m"false"[39m
+                  [33mclass[39m=[32m"dither-study-option"[39m
+                  [33mtype[39m=[32m"button"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"dither-study-number"[39m
+                  [36m>[39m
+                    [0m03[0m
+                  [36m</span>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"dither-study-title"[39m
+                  [36m>[39m
+                    [0mTidal Weave[0m
+                  [36m</span>[39m
+                  [36m<span[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"dither-study-kind"[39m
+                  [36m>[39m
+                    [0mFluid[0m
+                  [36m</span>[39m
+                [36m</button>[39m
+                [36m<button[39m
+                  [33maria-pressed[39m=[32m"false"[39m
+                  [33mclass[39m=[32m"dither-study-option"[39m
+                  [33mtype[39m=[32m"button"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"dither-study-number"[39m
+                  [36m>[39m
+                    [0m04[0m
+                  [36m</span>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"dither-study-title"[39m
+                  [36m>[39m
+                    [0mMoiré Halo[0m
+                  [36m</span>[39m
+                  [36m<span[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"dither-study-kind"[39m
+                  [36m>[39m
+                    [0mWave[0m
+                  [36m</span>[39m
+                [36m</button>[39m
+                [36m<button[39m
+                  [33maria-pressed[39m=[32m"false"[39m
+                  [33mclass[39m=[32m"dither-study-option"[39m
+                  [33mtype[39m=[32m"button"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"dither-study-number"[39m
+                  [36m>[39m
+                    [0m05[0m
+                  [36m</span>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"dither-study-title"[39m
+                  [36m>[39m
+                    [0mContour Drift[0m
+                  [36m</span>[39m
+                  [36m<span[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"dither-study-kind"[39m
+                  [36m>[39m
+                    [0mTerrain[0m
+                  [36m</span>[39m
+                [36m</button>[39m
+                [36m<button[39m
+                  [33maria-pressed[39m=[32m"false"[39m
+                  [33mclass[39m=[32m"dither-study-option"[39m
+                  [33mtype[39m=[32m"button"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"dither-study-number"[39m
+                  [36m>[39m
+                    [0m06[0m
+                  [36m</span>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"dither-study-title"[39m
+                  [36m>[39m
+                    [0mLava Lamp[0m
+                  [36m</span>[39m
+                  [36m<span[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"dither-study-kind"[39m
+                  [36m>[39m
+                    [0mCreatorOS[0m
+                  [36m</span>[39m
+                [36m</button>[39m
+                [36m<button[39m
+                  [33maria-pressed[39m=[32m"false"[39m
+                  [33mclass[39m=[32m"dither-study-option"[39m
+                  [33mtype[39m=[32m"button"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"dither-study-number"[39m
+                  [36m>[39m
+                    [0m07[0m
+                  [36m</span>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"dither-study-title"[39m
+                  [36m>[39m
+                    [0mMorphogen Divide[0m
+                  [36m</span>[39m
+                  [36m<span[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"dither-study-kind"[39m
+                  [36m>[39m
+                    [0mFeedback[0m
+                  [36m</span>[39m
+                [36m</button>[39m
+                [36m<button[39m
+                  [33maria-pressed[39m=[32m"false"[39m
+                  [33mclass[39m=[32m"dither-study-option"[39m
+                  [33mtype[39m=[32m"button"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"dither-study-number"[39m
+                  [36m>[39m
+                    [0m08[0m
+                  [36m</span>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"dither-study-title"[39m
+                  [36m>[39m
+                    [0mQuasicrystal Chorus[0m
+                  [36m</span>[39m
+                  [36m<span[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"dither-study-kind"[39m
+                  [36m>[39m
+                    [0mWave[0m
+                  [36m</span>[39m
+                [36m</button>[39m
+                [36m<button[39m
+                  [33maria-pressed[39m=[32m"false"[39m
+                  [33mclass[39m=[32m"dither-study-option"[39m
+                  [33mtype[39m=[32m"button"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"dither-study-number"[39m
+                  [36m>[39m
+                    [0m09[0m
+                  [36m</span>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"dither-study-title"[39m
+                  [36m>[39m
+                    [0mHyperbolic Garden[0m
+                  [36m</span>[39m
+                  [36m<span[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"dither-study-kind"[39m
+                  [36m>[39m
+                    [0mSpace[0m
+                  [36m</span>[39m
+                [36m</button>[39m
+                [36m<button[39m
+                  [33maria-pressed[39m=[32m"false"[39m
+                  [33mclass[39m=[32m"dither-study-option"[39m
+                  [33mtype[39m=[32m"button"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"dither-study-number"[39m
+                  [36m>[39m
+                    [0m10[0m
+                  [36m</span>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"dither-study-title"[39m
+                  [36m>[39m
+                    [0mForward Pass[0m
+                  [36m</span>[39m
+                  [36m<span[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"dither-study-kind"[39m
+                  [36m>[39m
+                    [0mTransformer[0m
+                  [36m</span>[39m
+                [36m</button>[39m
+              [36m</div>[39m
+            [36m</nav>[39m
+            [36m<p[39m
+              [33maria-live[39m=[32m"polite"[39m
+              [33mclass[39m=[32m"rupture-state"[39m
+            [36m>[39m
+              [36m<span[39m
+                [33maria-hidden[39m=[32m"true"[39m
+              [36m/>[39m
+              [0msealed[0m
+            [36m</p>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33maria-hidden[39m=[32m"true"[39m
+            [33mclass[39m=[32m"dither-scroll-sequence"[39m
+          [36m>[39m
+            [36m<section[39m
+              [33mclass[39m=[32m"dither-scroll-step is-opening-step"[39m
+              [33mdata-study-index[39m=[32m"0"[39m
+            [36m/>[39m
+            [36m<section[39m
+              [33mclass[39m=[32m"dither-scroll-step"[39m
+              [33mdata-study-index[39m=[32m"1"[39m
+            [36m/>[39m
+            [36m<section[39m
+              [33mclass[39m=[32m"dither-scroll-step"[39m
+              [33mdata-study-index[39m=[32m"2"[39m
+            [36m/>[39m
+            [36m<section[39m
+              [33mclass[39m=[32m"dither-scroll-step"[39m
+              [33mdata-study-index[39m=[32m"3"[39m
+            [36m/>[39m
+            [36m<section[39m
+              [33mclass[39m=[32m"dither-scroll-step"[39m
+              [33mdata-study-index[39m=[32m"4"[39m
+            [36m/>[39m
+            [36m<section[39m
+              [33mclass[39m=[32m"dither-scroll-step"[39m
+              [33mdata-study-index[39m=[32m"5"[39m
+            [36m/>[39m
+            [36m<section[39m
+              [33mclass[39m=[32m"dither-scroll-step"[39m
+              [33mdata-study-index[39m=[32m"6"[39m
+            [36m/>[39m
+            [36m<section[39m
+              [33mclass[39m=[32m"dither-scroll-step"[39m
+              [33mdata-study-index[39m=[32m"7"[39m
+            [36m/>[39m
+            [36m<section[39m
+              [33mclass[39m=[32m"dither-scroll-step"[39m
+              [33mdata-study-index[39m=[32m"8"[39m
+            [36m/>[39m
+            [36m<section[39m
+              [33mclass[39m=[32m"dither-scroll-step"[39m
+              [33mdata-study-index[39m=[32m"9"[39m
+            [36m/>[39m
+          [36m</div>[39m
+        [36m</main>[39m
+      [36m</div>[39m
+    [36m</body>[39m
+
+      206 |
+      207 |     expect(
+    > 208 |       screen.getByRole("heading", { name: "Lava Lamp" }),
+          |              ^
+      209 |     ).toBeInTheDocument();
+      210 |     expect(screen.getAllByTestId("creatoros-lava-renderer")).toHaveLength(1);
+      211 |     expect(screen.getByRole("main")).toHaveClass("dither-transition-idle");
+
+      at Object.getElementError (node_modules/@testing-library/react/node_modules/@testing-library/dom/dist/config.js:37:19)
+      at node_modules/@testing-library/react/node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+      at node_modules/@testing-library/react/node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+      at getByRole (node_modules/@testing-library/react/node_modules/@testing-library/dom/dist/query-helpers.js:95:19)
+      at Object.<anonymous> (src/components/DitherCanvasPage.test.js:208:14)
+
+  ● DitherCanvasPage › keeps theme, pause, state, and Forward Pass behavior across scroll changes
+
+    TestingLibraryElementError: Unable to find an accessible element with the role "heading" and name "Forward Pass"
+
+    Here are the accessible roles:
+
+      main:
+
+      Name "Spectral Display dither field lab":
+      [36m<main[39m
+        [33maria-label[39m=[32m"Spectral Display dither field lab"[39m
+        [33mclass[39m=[32m"dither-canvas-page dither-study-second-surface dither-renderer-rupture rupture-sealed dither-transition-idle"[39m
+        [33mstyle[39m=[32m"--dither-study-progress: 0.000; --dither-copy-drift: 4.00px;"[39m
+      [36m/>[39m
+
+      --------------------------------------------------
+      banner:
+
+      Name "":
+      [36m<header[39m
+        [33mclass[39m=[32m"rupture-header"[39m
+      [36m/>[39m
+
+      --------------------------------------------------
+      navigation:
+
+      Name "Dither field controls":
+      [36m<nav[39m
+        [33maria-label[39m=[32m"Dither field controls"[39m
+        [33mclass[39m=[32m"rupture-nav"[39m
+      [36m/>[39m
+
+      Name "Dither background studies":
+      [36m<nav[39m
+        [33maria-label[39m=[32m"Dither background studies"[39m
+        [33mclass[39m=[32m"dither-study-switcher"[39m
+      [36m/>[39m
+
+      --------------------------------------------------
+      link:
+
+      Name "Return to Popular Consulting":
+      [36m<a[39m
+        [33maria-label[39m=[32m"Return to Popular Consulting"[39m
+        [33mclass[39m=[32m"rupture-brand"[39m
+        [33mhref[39m=[32m"/"[39m
+      [36m/>[39m
+
+      --------------------------------------------------
+      button:
+
+      Name "Use dark mode":
+      [36m<button[39m
+        [33maria-label[39m=[32m"Use dark mode"[39m
+        [33mclass[39m=[32m"rupture-icon-button"[39m
+        [33mtitle[39m=[32m"Use dark mode"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m/>[39m
+
+      Name "Pause":
+      [36m<button[39m
+        [33mclass[39m=[32m"rupture-text-button"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m/>[39m
+
+      Name "Heal":
+      [36m<button[39m
+        [33mclass[39m=[32m"rupture-text-button"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m/>[39m
+
+      Name "Second Surface":
+      [36m<button[39m
+        [33maria-pressed[39m=[32m"true"[39m
+        [33mclass[39m=[32m"dither-study-option is-active is-targeted"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m/>[39m
+
+      Name "Metabloom":
+      [36m<button[39m
+        [33maria-pressed[39m=[32m"false"[39m
+        [33mclass[39m=[32m"dither-study-option"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m/>[39m
+
+      Name "Tidal Weave":
+      [36m<button[39m
+        [33maria-pressed[39m=[32m"false"[39m
+        [33mclass[39m=[32m"dither-study-option"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m/>[39m
+
+      Name "Moiré Halo":
+      [36m<button[39m
+        [33maria-pressed[39m=[32m"false"[39m
+        [33mclass[39m=[32m"dither-study-option"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m/>[39m
+
+      Name "Contour Drift":
+      [36m<button[39m
+        [33maria-pressed[39m=[32m"false"[39m
+        [33mclass[39m=[32m"dither-study-option"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m/>[39m
+
+      Name "Lava Lamp":
+      [36m<button[39m
+        [33maria-pressed[39m=[32m"false"[39m
+        [33mclass[39m=[32m"dither-study-option"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m/>[39m
+
+      Name "Morphogen Divide":
+      [36m<button[39m
+        [33maria-pressed[39m=[32m"false"[39m
+        [33mclass[39m=[32m"dither-study-option"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m/>[39m
+
+      Name "Quasicrystal Chorus":
+      [36m<button[39m
+        [33maria-pressed[39m=[32m"false"[39m
+        [33mclass[39m=[32m"dither-study-option"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m/>[39m
+
+      Name "Hyperbolic Garden":
+      [36m<button[39m
+        [33maria-pressed[39m=[32m"false"[39m
+        [33mclass[39m=[32m"dither-study-option"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m/>[39m
+
+      Name "Forward Pass":
+      [36m<button[39m
+        [33maria-pressed[39m=[32m"false"[39m
+        [33mclass[39m=[32m"dither-study-option"[39m
+        [33mtype[39m=[32m"button"[39m
+      [36m/>[39m
+
+      --------------------------------------------------
+      region:
+
+      Name "Second Surface":
+      [36m<section[39m
+        [33maria-atomic[39m=[32m"true"[39m
+        [33maria-labelledby[39m=[32m"rupture-title"[39m
+        [33maria-live[39m=[32m"polite"[39m
+        [33mclass[39m=[32m"rupture-copy dither-copy is-idle"[39m
+        [33mdata-direction[39m=[32m"forward"[39m
+        [33mdata-transition[39m=[32m"second-surface"[39m
+      [36m/>[39m
+
+      --------------------------------------------------
+      heading:
+
+      Name "Second Surface":
+      [36m<h1[39m
+        [33mid[39m=[32m"rupture-title"[39m
+      [36m/>[39m
+
+      --------------------------------------------------
+
+    Ignored nodes: comments, script, style
+    [36m<body>[39m
+      [36m<div>[39m
+        [36m<main[39m
+          [33maria-label[39m=[32m"Spectral Display dither field lab"[39m
+          [33mclass[39m=[32m"dither-canvas-page dither-study-second-surface dither-renderer-rupture rupture-sealed dither-transition-idle"[39m
+          [33mstyle[39m=[32m"--dither-study-progress: 0.000; --dither-copy-drift: 4.00px;"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"dither-fixed-stage"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33maria-hidden[39m=[32m"true"[39m
+              [33mclass[39m=[32m"dither-study-scene is-idle"[39m
+              [33mdata-direction[39m=[32m"forward"[39m
+              [33mdata-transition[39m=[32m"second-surface"[39m
+            [36m>[39m
+              [36m<button[39m
+                [33mdata-paused[39m=[32m"false"[39m
+                [33mdata-progress[39m=[32m"0"[39m
+                [33mdata-reset-version[39m=[32m"0"[39m
+                [33mdata-testid[39m=[32m"rupture-renderer"[39m
+                [33mdata-theme-mode[39m=[32m"light"[39m
+                [33mtype[39m=[32m"button"[39m
+              [36m>[39m
+                [0mrupture renderer[0m
+              [36m</button>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33maria-hidden[39m=[32m"true"[39m
+              [33mclass[39m=[32m"rupture-glass"[39m
+            [36m/>[39m
+            [36m<div[39m
+              [33maria-hidden[39m=[32m"true"[39m
+              [33mclass[39m=[32m"rupture-grain"[39m
+            [36m/>[39m
+            [36m<header[39m
+              [33mclass[39m=[32m"rupture-header"[39m
+            [36m>[39m
+              [36m<nav[39m
+                [33maria-label[39m=[32m"Dither field controls"[39m
+                [33mclass[39m=[32m"rupture-nav"[39m
+              [36m>[39m
+                [36m<a[39m
+                  [33maria-label[39m=[32m"Return to Popular Consulting"[39m
+                  [33mclass[39m=[32m"rupture-brand"[39m
+                  [33mhref[39m=[32m"/"[39m
+                [36m>[39m
+                  [36m<img[39m
+                    [33malt[39m=[32m""[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33msrc[39m=[32m"logo2026_128.png"[39m
+                  [36m/>[39m
+                  [36m<span>[39m
+                    [0mPopular Consulting[0m
+                  [36m</span>[39m
+                [36m</a>[39m
+                [36m<span[39m
+                  [33maria-hidden[39m=[32m"true"[39m
+                  [33mclass[39m=[32m"rupture-nav-rule"[39m
+                [36m/>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"rupture-nav-actions"[39m
+                [36m>[39m
+                  [36m<button[39m
+                    [33maria-label[39m=[32m"Use dark mode"[39m
+                    [33mclass[39m=[32m"rupture-icon-button"[39m
+                    [33mtitle[39m=[32m"Use dark mode"[39m
+                    [33mtype[39m=[32m"button"[39m
+                  [36m>[39m
+                    [36m<svg[39m
+                      [33maria-hidden[39m=[32m"true"[39m
+                      [33mfill[39m=[32m"none"[39m
+                      [33mheight[39m=[32m"16"[39m
+                      [33mviewBox[39m=[32m"0 0 24 24"[39m
+                      [33mwidth[39m=[32m"16"[39m
+                    [36m>[39m
+                      [36m<path[39m
+                        [33md[39m=[32m"M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"[39m
+                        [33mstroke[39m=[32m"currentColor"[39m
+                        [33mstroke-linecap[39m=[32m"round"[39m
+                        [33mstroke-linejoin[39m=[32m"round"[39m
+                        [33mstroke-width[39m=[32m"1.8"[39m
+                      [36m/>[39m
+                    [36m</svg>[39m
+                  [36m</button>[39m
+                  [36m<button[39m
+                    [33mclass[39m=[32m"rupture-text-button"[39m
+                    [33mtype[39m=[32m"button"[39m
+                  [36m>[39m
+                    [0mPause[0m
+                  [36m</button>[39m
+                  [36m<button[39m
+                    [33mclass[39m=[32m"rupture-text-button"[39m
+                    [33mtype[39m=[32m"button"[39m
+                  [36m>[39m
+                    [0mHeal[0m
+                  [36m</button>[39m
+                [36m</div>[39m
+              [36m</nav>[39m
+            [36m</header>[39m
+            [36m<section[39m
+              [33maria-atomic[39m=[32m"true"[39m
+              [33maria-labelledby[39m=[32m"rupture-title"[39m
+              [33maria-live[39m=[32m"polite"[39m
+              [33mclass[39m=[32m"rupture-copy dither-copy is-idle"[39m
+              [33mdata-direction[39m=[32m"forward"[39m
+              [33mdata-transition[39m=[32m"second-surface"[39m
+            [36m>[39m
+              [36m<p[39m
+                [33mclass[39m=[32m"rupture-eyebrow"[39m
+              [36m>[39m
+                [0mSpectral Display · Study [0m
+                [0m01[0m
+              [36m</p>[39m
+              [36m<h1[39m
+                [33mid[39m=[32m"rupture-title"[39m
+              [36m>[39m
+                [0mSecond Surface[0m
+              [36m</h1>[39m
+              [36m<p[39m
+                [33mclass[39m=[32m"rupture-description"[39m
+              [36m>[39m
+                [0mA second surface waits beneath the page. Scrolling draws the seam apart until the hidden field takes over completely.[0m
+              [36m</p>[39m
+              [36m<p[39m
+                [33mclass[39m=[32m"rupture-instruction"[39m
+              [36m>[39m
+                [0mScroll to open the tear · scroll back to close it · choose Heal to seal the surface[0m
+              [36m</p>[39m
+            [36m</section>[39m
+            [36m<nav[39m
+              [33maria-label[39m=[32m"Dither background studies"[39m
+              [33mclass[39m=[32m"dither-study-switcher"[39m
+            [36m>[39m
+              [36m<p[39m
+                [33mclass[39m=[32m"dither-study-switcher-label"[39m
+              [36m>[39m
+                [0mField studies[0m
+              [36m</p>[39m
+              [36m<div[39m
+                [33mclass[39m=[32m"dither-study-options"[39m
+              [36m>[39m
+                [36m<button[39m
+                  [33maria-pressed[39m=[32m"true"[39m
+                  [33mclass[39m=[32m"dither-study-option is-active is-targeted"[39m
+                  [33mtype[39m=[32m"button"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"dither-study-number"[39m
+                  [36m>[39m
+                    [0m01[0m
+                  [36m</span>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"dither-study-title"[39m
+                  [36m>[39m
+                    [0mSecond Surface[0m
+                  [36m</span>[39m
+                  [36m<span[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"dither-study-kind"[39m
+                  [36m>[39m
+                    [0mMaterial[0m
+                  [36m</span>[39m
+                [36m</button>[39m
+                [36m<button[39m
+                  [33maria-pressed[39m=[32m"false"[39m
+                  [33mclass[39m=[32m"dither-study-option"[39m
+                  [33mtype[39m=[32m"button"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"dither-study-number"[39m
+                  [36m>[39m
+                    [0m02[0m
+                  [36m</span>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"dither-study-title"[39m
+                  [36m>[39m
+                    [0mMetabloom[0m
+                  [36m</span>[39m
+                  [36m<span[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"dither-study-kind"[39m
+                  [36m>[39m
+                    [0mFluid[0m
+                  [36m</span>[39m
+                [36m</button>[39m
+                [36m<button[39m
+                  [33maria-pressed[39m=[32m"false"[39m
+                  [33mclass[39m=[32m"dither-study-option"[39m
+                  [33mtype[39m=[32m"button"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"dither-study-number"[39m
+                  [36m>[39m
+                    [0m03[0m
+                  [36m</span>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"dither-study-title"[39m
+                  [36m>[39m
+                    [0mTidal Weave[0m
+                  [36m</span>[39m
+                  [36m<span[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"dither-study-kind"[39m
+                  [36m>[39m
+                    [0mFluid[0m
+                  [36m</span>[39m
+                [36m</button>[39m
+                [36m<button[39m
+                  [33maria-pressed[39m=[32m"false"[39m
+                  [33mclass[39m=[32m"dither-study-option"[39m
+                  [33mtype[39m=[32m"button"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"dither-study-number"[39m
+                  [36m>[39m
+                    [0m04[0m
+                  [36m</span>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"dither-study-title"[39m
+                  [36m>[39m
+                    [0mMoiré Halo[0m
+                  [36m</span>[39m
+                  [36m<span[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"dither-study-kind"[39m
+                  [36m>[39m
+                    [0mWave[0m
+                  [36m</span>[39m
+                [36m</button>[39m
+                [36m<button[39m
+                  [33maria-pressed[39m=[32m"false"[39m
+                  [33mclass[39m=[32m"dither-study-option"[39m
+                  [33mtype[39m=[32m"button"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"dither-study-number"[39m
+                  [36m>[39m
+                    [0m05[0m
+                  [36m</span>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"dither-study-title"[39m
+                  [36m>[39m
+                    [0mContour Drift[0m
+                  [36m</span>[39m
+                  [36m<span[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"dither-study-kind"[39m
+                  [36m>[39m
+                    [0mTerrain[0m
+                  [36m</span>[39m
+                [36m</button>[39m
+                [36m<button[39m
+                  [33maria-pressed[39m=[32m"false"[39m
+                  [33mclass[39m=[32m"dither-study-option"[39m
+                  [33mtype[39m=[32m"button"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"dither-study-number"[39m
+                  [36m>[39m
+                    [0m06[0m
+                  [36m</span>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"dither-study-title"[39m
+                  [36m>[39m
+                    [0mLava Lamp[0m
+                  [36m</span>[39m
+                  [36m<span[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"dither-study-kind"[39m
+                  [36m>[39m
+                    [0mCreatorOS[0m
+                  [36m</span>[39m
+                [36m</button>[39m
+                [36m<button[39m
+                  [33maria-pressed[39m=[32m"false"[39m
+                  [33mclass[39m=[32m"dither-study-option"[39m
+                  [33mtype[39m=[32m"button"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"dither-study-number"[39m
+                  [36m>[39m
+                    [0m07[0m
+                  [36m</span>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"dither-study-title"[39m
+                  [36m>[39m
+                    [0mMorphogen Divide[0m
+                  [36m</span>[39m
+                  [36m<span[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"dither-study-kind"[39m
+                  [36m>[39m
+                    [0mFeedback[0m
+                  [36m</span>[39m
+                [36m</button>[39m
+                [36m<button[39m
+                  [33maria-pressed[39m=[32m"false"[39m
+                  [33mclass[39m=[32m"dither-study-option"[39m
+                  [33mtype[39m=[32m"button"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"dither-study-number"[39m
+                  [36m>[39m
+                    [0m08[0m
+                  [36m</span>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"dither-study-title"[39m
+                  [36m>[39m
+                    [0mQuasicrystal Chorus[0m
+                  [36m</span>[39m
+                  [36m<span[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"dither-study-kind"[39m
+                  [36m>[39m
+                    [0mWave[0m
+                  [36m</span>[39m
+                [36m</button>[39m
+                [36m<button[39m
+                  [33maria-pressed[39m=[32m"false"[39m
+                  [33mclass[39m=[32m"dither-study-option"[39m
+                  [33mtype[39m=[32m"button"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"dither-study-number"[39m
+                  [36m>[39m
+                    [0m09[0m
+                  [36m</span>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"dither-study-title"[39m
+                  [36m>[39m
+                    [0mHyperbolic Garden[0m
+                  [36m</span>[39m
+                  [36m<span[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"dither-study-kind"[39m
+                  [36m>[39m
+                    [0mSpace[0m
+                  [36m</span>[39m
+                [36m</button>[39m
+                [36m<button[39m
+                  [33maria-pressed[39m=[32m"false"[39m
+                  [33mclass[39m=[32m"dither-study-option"[39m
+                  [33mtype[39m=[32m"button"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"dither-study-number"[39m
+                  [36m>[39m
+                    [0m10[0m
+                  [36m</span>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"dither-study-title"[39m
+                  [36m>[39m
+                    [0mForward Pass[0m
+                  [36m</span>[39m
+                  [36m<span[39m
+                    [33maria-hidden[39m=[32m"true"[39m
+                    [33mclass[39m=[32m"dither-study-kind"[39m
+                  [36m>[39m
+                    [0mTransformer[0m
+                  [36m</span>[39m
+                [36m</button>[39m
+              [36m</div>[39m
+            [36m</nav>[39m
+            [36m<p[39m
+              [33maria-live[39m=[32m"polite"[39m
+              [33mclass[39m=[32m"rupture-state"[39m
+            [36m>[39m
+              [36m<span[39m
+                [33maria-hidden[39m=[32m"true"[39m
+              [36m/>[39m
+              [0msealed[0m
+            [36m</p>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33maria-hidden[39m=[32m"true"[39m
+            [33mclass[39m=[32m"dither-scroll-sequence"[39m
+          [36m>[39m
+            [36m<section[39m
+              [33mclass[39m=[32m"dither-scroll-step is-opening-step"[39m
+              [33mdata-study-index[39m=[32m"0"[39m
+            [36m/>[39m
+            [36m<section[39m
+              [33mclass[39m=[32m"dither-scroll-step"[39m
+              [33mdata-study-index[39m=[32m"1"[39m
+            [36m/>[39m
+            [36m<section[39m
+              [33mclass[39m=[32m"dither-scroll-step"[39m
+              [33mdata-study-index[39m=[32m"2"[39m
+            [36m/>[39m
+            [36m<section[39m
+              [33mclass[39m=[32m"dither-scroll-step"[39m
+              [33mdata-study-index[39m=[32m"3"[39m
+            [36m/>[39m
+            [36m<section[39m
+              [33mclass[39m=[32m"dither-scroll-step"[39m
+              [33mdata-study-index[39m=[32m"4"[39m
+            [36m/>[39m
+            [36m<section[39m
+              [33mclass[39m=[32m"dither-scroll-step"[39m
+              [33mdata-study-index[39m=[32m"5"[39m
+            [36m/>[39m
+            [36m<section[39m
+              [33mclass[39m=[32m"dither-scroll-step"[39m
+              [33mdata-study-index[39m=[32m"6"[39m
+            [36m/>[39m
+            [36m<section[39m
+              [33mclass[39m=[32m"dither-scroll-step"[39m
+              [33mdata-study-index[39m=[32m"7"[39m
+            [36m/>[39m
+            [36m<section[39m
+              [33mclass[39m=[32m"dither-scroll-step"[39m
+              [33mdata-study-index[39m=[32m"8"[39m
+            [36m/>[39m
+            [36m<section[39m
+              [33mclass[39m=[32m"dither-scroll-step"[39m
+              [33mdata-study-index[39m=[32m"9"[39m
+            [36m/>[39m
+          [36m</div>[39m
+        [36m</main>[39m
+      [36m</div>[39m
+    [36m</body>[39m
+
+      227 |
+      228 |     expect(
+    > 229 |       screen.getByRole("heading", { name: "Forward Pass" }),
+          |              ^
+      230 |     ).toBeInTheDocument();
+      231 |     expect(screen.getByTestId("creatoros-field-renderer")).toHaveAttribute(
+      232 |       "data-mode",
+
+      at Object.getElementError (node_modules/@testing-library/react/node_modules/@testing-library/dom/dist/config.js:37:19)
+      at node_modules/@testing-library/react/node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+      at node_modules/@testing-library/react/node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+      at getByRole (node_modules/@testing-library/react/node_modules/@testing-library/dom/dist/query-helpers.js:95:19)
+      at Object.<anonymous> (src/components/DitherCanvasPage.test.js:229:14)
+
+PASS src/components/DitherScrollNarrative.test.js
+PASS src/components/SecondSurfaceScroll.test.js
+
+Test Suites: 1 failed, 2 passed, 3 total
+Tests:       3 failed, 7 passed, 10 total
+Snapshots:   0 total
+Time:        1.482 s
+Ran all test suites matching /src\/components\/DitherCanvasPage.test.js|src\/components\/DitherScrollNarrative.test.js|src\/components\/SecondSurfaceScroll.test.js/i.
+EXIT_STATUS=1
