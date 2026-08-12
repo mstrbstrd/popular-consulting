@@ -85,10 +85,11 @@
 
 .creatoros-field-mode-7 .creatoros-field-fallback {
   background:
-    repeating-linear-gradient(90deg, transparent 0 10.5rem, rgba(0, 238, 255, 0.24) 10.7rem 11.1rem, transparent 11.3rem 21rem),
-    repeating-linear-gradient(0deg, transparent 0 4.4rem, rgba(255, 0, 255, 0.20) 4.55rem 4.85rem, transparent 5rem 8.8rem),
-    radial-gradient(circle at 18% 50%, rgba(0, 238, 255, 0.34), transparent 28%),
-    radial-gradient(circle at 82% 50%, rgba(157, 0, 255, 0.32), transparent 30%),
+    radial-gradient(ellipse at 18% 26%, rgba(0, 238, 255, 0.38), transparent 20%),
+    radial-gradient(ellipse at 42% 64%, rgba(157, 0, 255, 0.38), transparent 24%),
+    radial-gradient(ellipse at 68% 34%, rgba(255, 0, 255, 0.32), transparent 22%),
+    radial-gradient(ellipse at 88% 72%, rgba(0, 238, 255, 0.30), transparent 20%),
+    repeating-linear-gradient(0deg, transparent 0 4.3rem, rgba(0, 238, 255, 0.12) 4.42rem 4.7rem, transparent 4.82rem 8.6rem),
     #fff8f7;
 }
 

@@ -144,9 +144,9 @@ const STUDIES = [
     initialState: "propagating",
     resetLabel: "Reroute",
     description:
-      "Token states traverse repeating transformer blocks: causal context mixes, hidden channels expand through a SwiGLU gate, and each result rejoins its residual stream.",
+      "Five spectral token currents cross four fluid transformer chambers: causal context folds between lanes, gated hidden blooms expand and collapse, and every result rejoins its residual current.",
     instruction:
-      "Move to bias the gates · tap to inject a token pulse and follow it through the layers",
+      "Move to bias the gates · tap to inject a token pulse and watch it propagate through the chambers",
   },
 ];
 

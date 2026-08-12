@@ -26,6 +26,19 @@ describe("Forward Pass field", () => {
     expect(scene).toContain("float promptFront");
   });
 
+  test("expresses the architecture through the CreatorOS material language", () => {
+  expect(scene).toContain("vec2 responsiveUv = pointerFlow");
+  expect(scene).toContain("viscousWarp(");
+  expect(scene).toContain("float streamGlow");
+  expect(scene).toContain("float attentionGlow");
+  expect(scene).toContain("float activationBloom");
+  expect(scene).toContain("float chamberMembrane");
+  expect(scene).toContain("float activationEcho");
+  expect(scene).toContain(
+    "fluidMaterial(field, tint, 0.30, 0.24, 0.88)",
+  );
+});
+
   test("keeps the new field inside the existing renderer and performance budget", () => {
     const canvas = fs.readFileSync(
       path.join(__dirname, "CreatorOSFieldCanvas.js"),
