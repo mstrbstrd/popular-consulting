@@ -11,8 +11,14 @@ describe("Second Surface scroll opening", () => {
     "utf8",
   );
 
-  test("keeps opening bounded to scroll, touch drag, keyboard, and Heal", () => {
+  test("supports page-controlled opening without removing legacy inputs or Heal", () => {
     expect(canvasSource).toContain("const SCROLL_DISTANCE_PX");
+    expect(canvasSource).toContain("controlledProgressRef");
+    expect(canvasSource).toContain(
+      "const resetProgress = controlledProgressRef.current ?? 0",
+    );
+    expect(canvasSource).toContain("progress = resetProgress");
+    expect(canvasSource).toContain("targetProgress = resetProgress");
     expect(canvasSource).toContain(
       'window.addEventListener("wheel", handleWheel, { passive: true })',
     );
@@ -22,8 +28,6 @@ describe("Second Surface scroll opening", () => {
     expect(canvasSource).toContain(
       'window.addEventListener("keydown", handleKeyDown)',
     );
-    expect(canvasSource).toContain("targetProgress = 0");
-    expect(canvasSource).toContain("progress = 0");
     expect(canvasSource).not.toContain("autoBranchSpawned");
     expect(canvasSource).not.toContain("branches.push");
     expect(canvasSource).not.toContain("Math.random");
