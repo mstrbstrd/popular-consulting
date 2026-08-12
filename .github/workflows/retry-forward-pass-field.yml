@@ -1,0 +1,103 @@
+name: Retry Forward Pass field
+
+on:
+  push:
+    branches:
+      - agent/forward-pass-field
+    paths:
+      - .github/workflows/retry-forward-pass-field.yml
+
+permissions:
+  contents: write
+
+jobs:
+  implement:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/forward-pass-field
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Run the repaired implementation
+        shell: python
+        run: |
+          from pathlib import Path
+          import textwrap
+
+          workflow_path = Path(".github/workflows/apply-forward-pass-field.yml")
+          workflow = workflow_path.read_text(encoding="utf-8")
+          start_marker = "      - name: Implement the transformer field\n        shell: python\n        run: |\n"
+          end_marker = "\n      - name: Install dependencies\n"
+
+          block_start = workflow.find(start_marker)
+          if block_start < 0:
+              raise SystemExit("Could not locate the implementation script start.")
+          block_start += len(start_marker)
+          block_end = workflow.find(end_marker, block_start)
+          if block_end < 0:
+              raise SystemExit("Could not locate the implementation script end.")
+
+          script = textwrap.dedent(workflow[block_start:block_end])
+          css_guard_start = script.find("if css.count(css_marker) != 1:")
+          if css_guard_start < 0:
+              raise SystemExit("Could not locate the CSS insertion guard.")
+          css_guard_end = script.find("\n\nreplace_once(", css_guard_start)
+          if css_guard_end < 0:
+              raise SystemExit("Could not locate the end of the CSS insertion block.")
+
+          repaired_guard = '''css_index = css.find(css_marker)
+          if css_index < 0:
+              raise SystemExit("Expected a dark fallback marker.")
+          css_path.write_text(
+              css[:css_index] + forward_fallback + css[css_index:],
+              encoding="utf-8",
+          )'''
+
+          script = (
+              script[:css_guard_start]
+              + repaired_guard
+              + script[css_guard_end:]
+          )
+          exec(compile(script, "forward-pass-implementation.py", "exec"))
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Run tests
+        run: npm test -- --watchAll=false --runInBand
+        env:
+          CI: true
+
+      - name: Build production bundle
+        run: npm run build
+        env:
+          CI: true
+
+      - name: Commit implementation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/CreatorOSFieldCanvas.js \
+            src/components/CreatorOSFieldShader.js \
+            src/components/CreatorOSFieldCanvas.css \
+            src/components/DitherCanvasPage.js \
+            src/components/DitherCanvasPage.test.js \
+            src/components/CreatorOSFieldCanvas.test.js \
+            src/components/ForwardPassField.test.js \
+            src/content/routeMetadata.json \
+            CLAUDE.md
+          git commit -m "Add transformer Forward Pass field"
+          git push origin HEAD:agent/forward-pass-field
