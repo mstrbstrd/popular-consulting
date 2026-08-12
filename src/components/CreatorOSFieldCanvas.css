@@ -1,0 +1,154 @@
+.creatoros-field-shell,
+.creatoros-field-canvas,
+.creatoros-field-fallback {
+  position: absolute;
+  inset: 0;
+}
+
+.creatoros-field-shell {
+  z-index: 0;
+  overflow: hidden;
+  touch-action: none;
+  background: #fff8f7;
+}
+
+[data-theme="dark"] .creatoros-field-shell {
+  background: #080809;
+}
+
+.creatoros-field-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: crosshair;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+.creatoros-field-shell.is-fallback .creatoros-field-canvas {
+  display: none;
+}
+
+.creatoros-field-fallback {
+  background:
+    radial-gradient(ellipse at 30% 68%, rgba(0, 238, 255, 0.62), transparent 24%),
+    radial-gradient(ellipse at 58% 34%, rgba(255, 0, 255, 0.56), transparent 28%),
+    radial-gradient(ellipse at 74% 64%, rgba(157, 0, 255, 0.54), transparent 25%),
+    #fff8f7;
+}
+
+.creatoros-field-mode-1 .creatoros-field-fallback {
+  background:
+    repeating-linear-gradient(164deg, transparent 0 4.1rem, rgba(0, 238, 255, 0.24) 4.25rem 4.65rem, transparent 4.8rem 8.7rem),
+    repeating-linear-gradient(16deg, transparent 0 5.1rem, rgba(255, 0, 255, 0.20) 5.25rem 5.65rem, transparent 5.8rem 9.9rem),
+    #fff8f7;
+}
+
+.creatoros-field-mode-2 .creatoros-field-fallback {
+  background:
+    repeating-radial-gradient(circle at 43% 48%, transparent 0 1.8rem, rgba(0, 238, 255, 0.26) 1.95rem 2.2rem, transparent 2.35rem 4.3rem),
+    repeating-radial-gradient(circle at 58% 52%, transparent 0 2.1rem, rgba(255, 0, 255, 0.22) 2.25rem 2.5rem, transparent 2.65rem 4.8rem),
+    #fff8f7;
+}
+
+.creatoros-field-mode-3 .creatoros-field-fallback {
+  background:
+    repeating-radial-gradient(ellipse at 58% 44%, transparent 0 2.8rem, rgba(157, 0, 255, 0.24) 2.95rem 3.2rem, transparent 3.35rem 6.1rem),
+    radial-gradient(circle at 32% 65%, rgba(0, 238, 255, 0.28), transparent 30%),
+    #fff8f7;
+}
+
+.creatoros-field-mode-4 .creatoros-field-fallback {
+  background:
+    radial-gradient(circle at 24% 30%, rgba(0, 238, 255, 0.54) 0 2.8%, transparent 3.4%),
+    radial-gradient(circle at 56% 44%, rgba(157, 0, 255, 0.58) 0 4.5%, transparent 5.2%),
+    radial-gradient(circle at 77% 68%, rgba(255, 0, 255, 0.54) 0 3.4%, transparent 4.1%),
+    repeating-radial-gradient(circle at 54% 52%, transparent 0 2.5rem, rgba(0, 238, 255, 0.18) 2.65rem 2.9rem, transparent 3.05rem 5.8rem),
+    #fff8f7;
+}
+
+.creatoros-field-mode-5 .creatoros-field-fallback {
+  background:
+    repeating-conic-gradient(from 7.5deg at 50% 50%, rgba(0, 238, 255, 0.22) 0 2deg, transparent 2.2deg 15deg),
+    repeating-radial-gradient(circle at 50% 50%, transparent 0 2.2rem, rgba(255, 0, 255, 0.20) 2.35rem 2.6rem, transparent 2.75rem 4.9rem),
+    radial-gradient(circle at 50% 50%, rgba(157, 0, 255, 0.26), transparent 58%),
+    #fff8f7;
+}
+
+.creatoros-field-mode-6 .creatoros-field-fallback {
+  background:
+    repeating-radial-gradient(circle at 50% 50%, transparent 0 2.7rem, rgba(157, 0, 255, 0.24) 2.85rem 3.1rem, transparent 3.25rem 5.5rem),
+    repeating-conic-gradient(from 0deg at 50% 50%, rgba(0, 238, 255, 0.20) 0 1.5deg, transparent 1.8deg 25.7deg),
+    radial-gradient(circle at 50% 50%, rgba(255, 0, 255, 0.32), transparent 70%),
+    #fff8f7;
+}
+
+[data-theme="dark"] .creatoros-field-fallback {
+  background-color: #080809;
+  filter: saturate(132%) contrast(110%) brightness(110%);
+}
+
+.dither-renderer-creatoros-field {
+  background: #fff8f7;
+}
+
+[data-theme="dark"] .dither-renderer-creatoros-field {
+  background: #080809;
+}
+
+.dither-renderer-creatoros-field .rupture-glass {
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.dither-renderer-creatoros-field .rupture-grain {
+  opacity: 0;
+}
+
+.rupture-forming .rupture-state span {
+  background: #00eeff;
+  box-shadow:
+    0 0 1.4rem rgba(0, 238, 255, 0.92),
+    0 0 2.8rem rgba(157, 0, 255, 0.42);
+}
+
+@media (min-width: 1081px) {
+  .dither-study-switcher {
+    max-height: calc(100dvh - 12rem);
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--rupture-border) transparent;
+  }
+
+  .dither-study-switcher::-webkit-scrollbar {
+    width: 0.5rem;
+  }
+
+  .dither-study-switcher::-webkit-scrollbar-thumb {
+    border-radius: 100px;
+    background: var(--rupture-border);
+  }
+}
+
+@media (min-width: 1081px) and (max-height: 820px) {
+  .dither-study-switcher {
+    padding: 0.9rem;
+  }
+
+  .dither-study-switcher-label {
+    padding-bottom: 0.7rem;
+  }
+
+  .dither-study-option {
+    min-height: 4.7rem;
+    padding-top: 0.55rem;
+    padding-bottom: 0.55rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="dark"] .creatoros-field-fallback {
+    filter: saturate(120%) contrast(105%) brightness(106%);
+  }
+}
