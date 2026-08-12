@@ -16,12 +16,12 @@ const STUDIES = [
     title: "Second Surface",
     type: "rupture",
     kind: "Material",
-    initialState: "tension",
+    initialState: "sealed",
     resetLabel: "Heal",
     description:
-      "The page is under tension. Motion opens it. Stillness leaves a scar.",
+      "A second surface waits beneath the page. Scrolling draws the seam apart until the hidden field takes over completely.",
     instruction:
-      "Move to stress the surface · tap to branch the fault · wait to watch it heal",
+      "Scroll to open the tear · scroll back to close it · choose Heal to seal the surface",
   },
   {
     id: "metabloom",

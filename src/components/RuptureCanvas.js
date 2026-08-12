@@ -12,16 +12,41 @@ const MAX_BRANCHES = 4;
 const ACTIVE_NODES = isMobileTier ? 17 : 23;
 const TARGET_FRAME_MS = isMobileTier ? 42 : 32;
 const REDUCED_FRAME_MS = 84;
-const BRANCH_LIFETIME_SECONDS = 9;
+const SCROLL_DISTANCE_PX = isMobileTier ? 1800 : 2600;
 
 const clamp = (value, minimum = 0, maximum = 1) =>
   Math.max(minimum, Math.min(maximum, value));
+
+const smoothStep = (value) => value * value * (3 - 2 * value);
 
 const baseFaultY = (x) =>
   0.27
   + x * 0.43
   + Math.sin(x * 5.1 + 0.6) * 0.055
   + Math.sin(x * 11.7 - 0.4) * 0.018;
+
+const normalizeWheelDelta = (event, viewportHeight) => {
+  if (event.deltaMode === 1) return event.deltaY * 18;
+  if (event.deltaMode === 2) return event.deltaY * viewportHeight;
+  return event.deltaY;
+};
+
+const openingForProgress = (progress) => {
+  const eased = smoothStep(clamp(progress));
+
+  // The sixth-power release keeps the early tear restrained. At full progress
+  // the shader-space aperture exceeds every viewport corner, guaranteeing that
+  // the second surface replaces the first rather than stopping at a wide slit.
+  return eased * 1.1 + Math.pow(eased, 6) * 24;
+};
+
+const stateForProgress = (progress) => {
+  if (progress >= 0.995) return "open";
+  if (progress >= 0.72) return "revealing";
+  if (progress >= 0.30) return "parting";
+  if (progress >= 0.015) return "opening";
+  return "sealed";
+};
 
 const buildAtlas = (gl) => {
   const columns = 16;
@@ -153,6 +178,7 @@ const RuptureCanvas = ({
     const motionQuery = window.matchMedia?.("(prefers-reduced-motion: reduce)");
     const syncReducedMotion = () => {
       reducedMotion = Boolean(motionQuery?.matches);
+      forceRenderRef.current = true;
     };
     syncReducedMotion();
     if (motionQuery?.addEventListener) {
@@ -163,6 +189,7 @@ const RuptureCanvas = ({
 
     const handleVisibility = () => {
       documentVisible = document.visibilityState !== "hidden";
+      if (documentVisible) forceRenderRef.current = true;
     };
     document.addEventListener("visibilitychange", handleVisibility);
 
@@ -240,36 +267,32 @@ const RuptureCanvas = ({
       uniforms[name] = gl.getUniformLocation(program, name);
     });
 
-    const offsets = new Float32Array(MAX_NODES);
-    const velocities = new Float32Array(MAX_NODES);
     const openings = new Float32Array(MAX_NODES);
-    const openingVelocities = new Float32Array(MAX_NODES);
     const scars = new Float32Array(MAX_NODES);
     const nodeData = new Float32Array(MAX_NODES * 4);
-    const offsetSnapshot = new Float32Array(MAX_NODES);
-    const openingSnapshot = new Float32Array(MAX_NODES);
+
+    // These shader slots are deliberately kept at zero. Second Surface now has
+    // one continuous seam, and no pointer or timer may create branch geometry.
     const branchData = new Float32Array(MAX_BRANCHES * 4);
     const branchMeta = new Float32Array(MAX_BRANCHES * 4);
-    const branches = [];
-    const pointer = {
-      x: 0.52,
-      y: 0.52,
-      sampleX: 0.52,
-      sampleY: 0.52,
-      lastActivityAt: performance.now(),
+
+    const pointer = { x: 0.52, y: 0.52 };
+    const drag = {
+      active: false,
+      lastY: 0,
+      pointerId: null,
     };
 
     let width = 1;
     let height = 1;
     let localTime = 0;
     let reveal = 0;
-    let globalStress = 0;
+    let progress = 0;
+    let targetProgress = 0;
     let currentEnergy = 0;
     let lastFrameAt = 0;
-    let introStartedAt = performance.now();
-    let activeState = "tension";
+    let activeState = "sealed";
     let stateWasReported = false;
-    let autoBranchSpawned = false;
 
     const page = root.closest(".dither-canvas-page");
 
@@ -280,27 +303,73 @@ const RuptureCanvas = ({
       onRuptureStateChangeRef.current?.(nextState);
     };
 
+    const updatePageStyles = () => {
+      if (!page) return;
+      const chroma = currentEnergy * 0.62;
+      page.style.setProperty("--rupture-energy", currentEnergy.toFixed(3));
+      page.style.setProperty("--rupture-x", pointer.x.toFixed(3));
+      page.style.setProperty("--rupture-y", pointer.y.toFixed(3));
+      page.style.setProperty(
+        "--rupture-lift",
+        `${(-currentEnergy * 4.5).toFixed(2)}px`,
+      );
+      page.style.setProperty(
+        "--rupture-chroma-positive",
+        `${chroma.toFixed(2)}rem`,
+      );
+      page.style.setProperty(
+        "--rupture-chroma-negative",
+        `${(-chroma * 0.72).toFixed(2)}rem`,
+      );
+    };
+
+    const setTargetProgress = (nextProgress) => {
+      const next = clamp(nextProgress);
+      if (Math.abs(next - targetProgress) < 0.00001) return;
+      targetProgress = next;
+      forceRenderRef.current = true;
+    };
+
+    const updateOpening = (delta) => {
+      const response = reducedMotion || pausedRef.current
+        ? 1
+        : 1 - Math.exp(-Math.max(delta, 1 / 120) * 5.4);
+      progress += (targetProgress - progress) * response;
+      if (Math.abs(targetProgress - progress) < 0.0001) {
+        progress = targetProgress;
+      }
+
+      const easedProgress = smoothStep(progress);
+      const opening = openingForProgress(progress);
+      for (let index = 0; index < ACTIVE_NODES; index += 1) {
+        const position = index / Math.max(ACTIVE_NODES - 1, 1);
+        const center = Math.exp(-Math.pow((position - 0.57) / 0.24, 2));
+        const edgeAllowance = 0.90 + center * 0.10;
+        openings[index] = opening * edgeAllowance;
+        scars[index] = Math.min(opening, 1) * (0.08 + center * 0.11);
+      }
+
+      currentEnergy = easedProgress;
+      reportState(stateForProgress(progress));
+      updatePageStyles();
+    };
+
     const resetSimulation = () => {
-      offsets.fill(0);
-      velocities.fill(0);
       openings.fill(0);
-      openingVelocities.fill(0);
       scars.fill(0);
-      branches.length = 0;
       localTime = 0;
       reveal = reducedMotion ? 1 : 0;
-      globalStress = reducedMotion ? 0.24 : 0;
+      progress = 0;
+      targetProgress = 0;
       currentEnergy = 0;
-      autoBranchSpawned = false;
-      introStartedAt = performance.now();
-      forceRenderRef.current = true;
-      pointer.lastActivityAt = performance.now();
       pointer.x = 0.52;
       pointer.y = 0.52;
-      pointer.sampleX = pointer.x;
-      pointer.sampleY = pointer.y;
+      drag.active = false;
+      drag.pointerId = null;
       stateWasReported = false;
-      reportState("tension");
+      reportState("sealed");
+      updatePageStyles();
+      forceRenderRef.current = true;
     };
     resetSimulationRef.current = resetSimulation;
     resetSimulation();
@@ -309,7 +378,9 @@ const RuptureCanvas = ({
       const bounds = root.getBoundingClientRect();
       width = Math.max(bounds.width, 1);
       height = Math.max(bounds.height, 1);
-      const scale = isMobileTier ? 0.72 : Math.min(window.devicePixelRatio || 1, 1.0);
+      const scale = isMobileTier
+        ? 0.72
+        : Math.min(window.devicePixelRatio || 1, 1.0);
       const renderWidth = Math.max(1, Math.floor(width * scale));
       const renderHeight = Math.max(1, Math.floor(height * scale));
       if (canvas.width !== renderWidth || canvas.height !== renderHeight) {
@@ -334,218 +405,88 @@ const RuptureCanvas = ({
       };
     };
 
-    const inject = (target, offsetForce, openingForce, spread = 3.2) => {
-      for (let index = 0; index < ACTIVE_NODES; index += 1) {
-        const distance = Math.min(
-          Math.abs(index - target),
-          ACTIVE_NODES - Math.abs(index - target),
-        );
-        const weight = Math.exp(-(distance * distance) / spread);
-        velocities[index] += offsetForce * weight;
-        openingVelocities[index] += openingForce * weight;
-      }
-    };
-
-    const handlePointerMove = (event) => {
-      const next = readPointer(event);
-      const deltaX = next.x - pointer.sampleX;
-      const deltaY = next.y - pointer.sampleY;
-      const magnitude = Math.hypot(deltaX, deltaY);
-      pointer.x = next.x;
-      pointer.y = next.y;
-      pointer.sampleX = next.x;
-      pointer.sampleY = next.y;
-      pointer.lastActivityAt = performance.now();
-
-      if (magnitude > 0.0001) {
-        const target = clamp(Math.round(next.x * (ACTIVE_NODES - 1)), 0, ACTIVE_NODES - 1);
-        const signedForce = clamp(deltaY * 13 + deltaX * 4, -0.18, 0.18);
-        const openingForce = clamp(magnitude * 4.8, 0.008, 0.17);
-        inject(target, signedForce, openingForce);
-        globalStress = clamp(globalStress + magnitude * 2.8, 0, 1.35);
-        forceRenderRef.current = true;
-      }
-    };
-
-    const handlePointerDown = (event) => {
+    const syncPointer = (event) => {
       const next = readPointer(event);
       pointer.x = next.x;
       pointer.y = next.y;
-      pointer.sampleX = next.x;
-      pointer.sampleY = next.y;
-      pointer.lastActivityAt = performance.now();
-
-      const target = clamp(Math.round(next.x * (ACTIVE_NODES - 1)), 0, ACTIVE_NODES - 1);
-      inject(target, next.y > baseFaultY(next.x) ? -0.26 : 0.26, 0.34, 2.2);
-      globalStress = clamp(globalStress + 0.42, 0, 1.35);
-
-      const direction = next.y > baseFaultY(next.x) ? 1 : -1;
-      const seed = Math.random();
-      const branchLength = 0.18 + seed * 0.20;
-      const branchAngle = direction * (0.58 + seed * 0.72) + (Math.random() - 0.5) * 0.32;
-      branches.push({
-        age: 0,
-        endX: clamp(next.x + Math.cos(branchAngle) * branchLength, -0.08, 1.08),
-        endY: clamp(next.y + Math.sin(branchAngle) * branchLength, -0.08, 1.08),
-        seed,
-        startX: next.x,
-        startY: next.y,
-        strength: 1,
-      });
-      while (branches.length > MAX_BRANCHES) branches.shift();
-      root.setPointerCapture?.(event.pointerId);
       forceRenderRef.current = true;
     };
 
-    const handlePointerLeave = () => {
-      pointer.sampleX = pointer.x;
-      pointer.sampleY = pointer.y;
-    };
-
-    root.addEventListener("pointermove", handlePointerMove, { passive: true });
-    root.addEventListener("pointerdown", handlePointerDown, { passive: true });
-    root.addEventListener("pointerleave", handlePointerLeave, { passive: true });
-
-    const simulate = (delta, now) => {
-      const introAge = Math.max(0, (now - introStartedAt) / 1000);
-      const autoTension = reducedMotion
-        ? 0.30
-        : clamp((introAge - 0.55) / 2.4, 0, 1)
-          * (0.40 + 0.035 * Math.sin(localTime * 0.42));
-      const center = (ACTIVE_NODES - 1) * 0.52;
-      if (!reducedMotion && !autoBranchSpawned && introAge > 3.1) {
-        const startX = 0.60;
-        const startY = baseFaultY(startX) + offsets[Math.round(center)];
-        branches.push({
-          age: 0,
-          endX: 0.79,
-          endY: clamp(startY + 0.27, -0.08, 1.08),
-          seed: 0.28,
-          startX,
-          startY,
-          strength: 0.72,
-        });
-        inject(Math.round(center), -0.10, 0.14, 2.4);
-        globalStress = clamp(globalStress + 0.14, 0, 1.35);
-        autoBranchSpawned = true;
-      }
-      const idleSeconds = Math.max(0, (now - pointer.lastActivityAt) / 1000);
-      const healing = clamp((idleSeconds - 2.4) / 5.0, 0, 1);
-
-      offsetSnapshot.set(offsets);
-      openingSnapshot.set(openings);
-
-      for (let index = 0; index < ACTIVE_NODES; index += 1) {
-        const previous = Math.max(index - 1, 0);
-        const next = Math.min(index + 1, ACTIVE_NODES - 1);
-        const offsetLaplacian =
-          offsetSnapshot[previous] + offsetSnapshot[next] - offsetSnapshot[index] * 2;
-        const openingLaplacian =
-          openingSnapshot[previous] + openingSnapshot[next] - openingSnapshot[index] * 2;
-        const centerDistance = (index - center) / Math.max(ACTIVE_NODES * 0.22, 1);
-        const autonomousOpening = Math.exp(-centerDistance * centerDistance) * autoTension;
-        const autonomousOffset =
-          Math.sin(localTime * 0.38 + index * 0.72)
-          * Math.exp(-centerDistance * centerDistance * 0.72)
-          * 0.0025;
-
-        velocities[index] += (
-          offsetLaplacian * 22
-          - offsets[index] * 8.2
-          + autonomousOffset
-        ) * delta;
-        openingVelocities[index] += (
-          openingLaplacian * 18
-          + (autonomousOpening - openings[index]) * (3.1 + healing * 1.5)
-          - openings[index] * healing * 1.9
-        ) * delta;
-
-        const velocityDamping = Math.pow(0.80, delta * 60);
-        const openingDamping = Math.pow(0.84, delta * 60);
-        velocities[index] *= velocityDamping;
-        openingVelocities[index] *= openingDamping;
-        offsets[index] = clamp(offsets[index] + velocities[index] * delta, -0.12, 0.12);
-        openings[index] = clamp(
-          openings[index] + openingVelocities[index] * delta,
-          0,
-          1,
-        );
-        scars[index] = Math.max(
-          scars[index] * Math.pow(0.996, delta * 60),
-          openings[index] * 0.19,
-        );
-      }
-
-      globalStress *= Math.pow(idleSeconds > 1.0 ? 0.91 : 0.975, delta * 60);
-      for (let index = branches.length - 1; index >= 0; index -= 1) {
-        branches[index].age += delta;
-        branches[index].strength = clamp(
-          1 - branches[index].age / BRANCH_LIFETIME_SECONDS,
-        );
-        if (branches[index].strength <= 0.001) branches.splice(index, 1);
-      }
-
-      let openingPeak = 0;
-      let openingAverage = 0;
-      for (let index = 0; index < ACTIVE_NODES; index += 1) {
-        openingPeak = Math.max(openingPeak, openings[index]);
-        openingAverage += openings[index];
-      }
-      openingAverage /= ACTIVE_NODES;
-      const branchEnergy = branches.reduce(
-        (sum, branch) => sum + branch.strength,
-        0,
-      ) / MAX_BRANCHES;
-      currentEnergy = clamp(
-        openingPeak * 0.68
-          + openingAverage * 0.72
-          + globalStress * 0.32
-          + branchEnergy * 0.28,
+    const handleWheel = (event) => {
+      const deltaPixels = normalizeWheelDelta(event, height);
+      if (Math.abs(deltaPixels) < 0.01) return;
+      setTargetProgress(
+        targetProgress + deltaPixels / SCROLL_DISTANCE_PX,
       );
+    };
 
-      let nextState = "tension";
-      if (healing > 0.18 && currentEnergy < 0.55) nextState = "healing";
-      else if (currentEnergy >= 0.78) nextState = "inversion";
-      else if (currentEnergy >= 0.48) nextState = "opening";
-      else if (currentEnergy >= 0.20) nextState = "fracture";
-      reportState(nextState);
+    const handlePointerDown = (event) => {
+      syncPointer(event);
+      if (event.pointerType === "mouse") return;
+      drag.active = true;
+      drag.lastY = event.clientY;
+      drag.pointerId = event.pointerId;
+      root.setPointerCapture?.(event.pointerId);
+    };
 
-      if (page) {
-        const chroma = currentEnergy * 0.62;
-        page.style.setProperty("--rupture-energy", currentEnergy.toFixed(3));
-        page.style.setProperty("--rupture-x", pointer.x.toFixed(3));
-        page.style.setProperty("--rupture-y", pointer.y.toFixed(3));
-        page.style.setProperty("--rupture-lift", `${(-currentEnergy * 4.5).toFixed(2)}px`);
-        page.style.setProperty("--rupture-chroma-positive", `${chroma.toFixed(2)}rem`);
-        page.style.setProperty("--rupture-chroma-negative", `${(-chroma * 0.72).toFixed(2)}rem`);
+    const handlePointerMove = (event) => {
+      syncPointer(event);
+      if (!drag.active || event.pointerId !== drag.pointerId) return;
+      const deltaPixels = drag.lastY - event.clientY;
+      drag.lastY = event.clientY;
+      setTargetProgress(
+        targetProgress + deltaPixels / Math.max(height * 2.4, 1),
+      );
+    };
+
+    const finishPointerDrag = (event) => {
+      if (event.pointerId !== drag.pointerId) return;
+      drag.active = false;
+      drag.pointerId = null;
+      if (root.hasPointerCapture?.(event.pointerId)) {
+        root.releasePointerCapture(event.pointerId);
       }
     };
+
+    const handleKeyDown = (event) => {
+      const target = event.target;
+      if (
+        target instanceof Element
+        && target.closest("a, button, input, select, textarea, [contenteditable='true']")
+      ) {
+        return;
+      }
+
+      if (event.key === "End") setTargetProgress(1);
+      else if (event.key === "Home") setTargetProgress(0);
+      else if (event.key === "PageDown" || event.key === " ") {
+        setTargetProgress(targetProgress + 0.18);
+      } else if (event.key === "PageUp") {
+        setTargetProgress(targetProgress - 0.18);
+      } else if (event.key === "ArrowDown") {
+        setTargetProgress(targetProgress + 0.045);
+      } else if (event.key === "ArrowUp") {
+        setTargetProgress(targetProgress - 0.045);
+      }
+    };
+
+    window.addEventListener("wheel", handleWheel, { passive: true });
+    root.addEventListener("pointerdown", handlePointerDown, { passive: true });
+    root.addEventListener("pointermove", handlePointerMove, { passive: true });
+    root.addEventListener("pointerup", finishPointerDrag, { passive: true });
+    root.addEventListener("pointercancel", finishPointerDrag, { passive: true });
+    window.addEventListener("keydown", handleKeyDown);
 
     const uploadGeometry = () => {
       for (let index = 0; index < MAX_NODES; index += 1) {
         const sourceIndex = Math.min(index, ACTIVE_NODES - 1);
         const x = -0.06 + (sourceIndex / (ACTIVE_NODES - 1)) * 1.12;
-        const y = baseFaultY(x) + offsets[sourceIndex];
         const offset = index * 4;
         nodeData[offset] = x;
-        nodeData[offset + 1] = y;
+        nodeData[offset + 1] = baseFaultY(x);
         nodeData[offset + 2] = openings[sourceIndex];
         nodeData[offset + 3] = scars[sourceIndex];
       }
-
-      branchData.fill(0);
-      branchMeta.fill(0);
-      branches.forEach((branch, index) => {
-        const offset = index * 4;
-        branchData[offset] = branch.startX;
-        branchData[offset + 1] = branch.startY;
-        branchData[offset + 2] = branch.endX;
-        branchData[offset + 3] = branch.endY;
-        branchMeta[offset] = 0.012 + branch.seed * 0.009;
-        branchMeta[offset + 1] = branch.age;
-        branchMeta[offset + 2] = branch.strength;
-        branchMeta[offset + 3] = branch.seed;
-      });
     };
 
     const draw = () => {
@@ -574,7 +515,8 @@ const RuptureCanvas = ({
     const render = (timestamp) => {
       animationFrameRef.current = requestAnimationFrame(render);
       if (!documentVisible) return;
-      const shouldOnlyRefresh = pausedRef.current;
+
+      const shouldOnlyRefresh = pausedRef.current || reducedMotion;
       if (shouldOnlyRefresh && !forceRenderRef.current) return;
 
       const minimumFrameMs = reducedMotion ? REDUCED_FRAME_MS : TARGET_FRAME_MS;
@@ -583,11 +525,15 @@ const RuptureCanvas = ({
         ? Math.min((timestamp - lastFrameAt) / 1000, 1 / 18)
         : 0;
       lastFrameAt = timestamp;
-      if (!shouldOnlyRefresh) {
-        localTime += delta * (reducedMotion ? 0.30 : 1);
-        reveal = reducedMotion ? 1 : Math.min(1, reveal + delta / 1.9);
-        simulate(delta, performance.now());
+
+      if (!pausedRef.current && !reducedMotion) {
+        localTime += delta;
+        reveal = Math.min(1, reveal + delta / 1.9);
+      } else if (reducedMotion) {
+        reveal = 1;
       }
+
+      updateOpening(delta);
       updateSize();
       draw();
       forceRenderRef.current = false;
@@ -598,9 +544,12 @@ const RuptureCanvas = ({
     return () => {
       cancelAnimationFrame(animationFrameRef.current);
       resetSimulationRef.current = () => {};
-      root.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("wheel", handleWheel);
       root.removeEventListener("pointerdown", handlePointerDown);
-      root.removeEventListener("pointerleave", handlePointerLeave);
+      root.removeEventListener("pointermove", handlePointerMove);
+      root.removeEventListener("pointerup", finishPointerDrag);
+      root.removeEventListener("pointercancel", finishPointerDrag);
+      window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("resize", updateSize);
       resizeObserver?.disconnect();
       cleanupBase();
@@ -624,7 +573,11 @@ const RuptureCanvas = ({
       className={`rupture-shell${fallback ? " is-fallback" : ""}`}
       aria-hidden="true"
     >
-      <canvas ref={canvasRef} className="rupture-canvas" />
+      <canvas
+        ref={canvasRef}
+        className="rupture-canvas"
+        style={{ cursor: "ns-resize" }}
+      />
       {fallback && <div className="rupture-fallback" />}
     </div>
   );
