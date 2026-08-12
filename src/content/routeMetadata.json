@@ -52,10 +52,10 @@
   "ditherCanvas": {
     "path": "/dither-canvas",
     "title": "Dither Field Lab | Popular Consulting",
-    "description": "Dither Field Lab is a selectable collection of interactive WebGL studies that turn the Spectral Display glyph, Bayer-dither, and chromatic shader language into distinct living backgrounds.",
+    "description": "Dither Field Lab is a selectable collection of nine interactive WebGL studies spanning physical rupture, spectral fields, feedback chemistry, fluid quasipatterns, and conformal geometry.",
     "canonical": "https://popular-consulting.com/dither-canvas",
     "socialTitle": "Dither Field Lab | Popular Consulting",
-    "socialDescription": "Explore five interactive Spectral Display studies spanning physical rupture, metaball bloom, braided currents, moiré interference, and topographic drift.",
+    "socialDescription": "Explore nine interactive Spectral Display studies, including the original lava lamp, live reaction-diffusion morphogenesis, twelvefold quasicrystal waves, and a hyperbolic garden.",
     "robots": "noindex,follow",
     "noscript": "The Dither Field Lab requires JavaScript and WebGL. Return to https://popular-consulting.com/ or contact shae@popcon.dev."
   }
