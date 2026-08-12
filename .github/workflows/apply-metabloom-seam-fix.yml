@@ -28,17 +28,16 @@ jobs:
           shader_path = Path("src/components/CreatorOSFieldShader.js")
           shader = shader_path.read_text(encoding="utf-8")
 
-          old = """  float baseHue = 0.70
-            + atan(p.y, p.x) / TAU * 0.22
-            + potential * 0.047
-            + time * 0.018
-            + u_seed * 0.13;
+          scene_start = shader.index("vec4 sceneMetabloom")
+          scene_end = shader.index("vec4 sceneTidalWeave", scene_start)
+          hue_start = shader.index("  float baseHue = 0.70", scene_start, scene_end)
+          material_start = shader.index(
+              "  float materialField",
+              hue_start,
+              scene_end,
+          )
 
-          vec3 tint = tintAccumulator / max(potential, 0.0001);
-          tint = mix(tint, spectral(baseHue), 0.62);
-          """
-
-          new = """  // A polar angle introduces a branch ray that Bayer quantization makes visible.
+          replacement = """  // A polar angle introduces a branch ray that Bayer quantization makes visible.
           // Build hue from continuous Cartesian and noise fields instead.
           float colorFlow = fbm(
             rotate2(0.48) * p * 1.42
@@ -66,10 +65,10 @@ jobs:
           tint = mix(tint, flowTint, sat(flowDominance));
           """
 
-          if shader.count(old) != 1:
-              raise SystemExit("Expected exactly one Metabloom polar hue block.")
-
-          shader_path.write_text(shader.replace(old, new), encoding="utf-8")
+          shader_path.write_text(
+              shader[:hue_start] + replacement + shader[material_start:],
+              encoding="utf-8",
+          )
 
       - name: Commit shader correction
         run: |
