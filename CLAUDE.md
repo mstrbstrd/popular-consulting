@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-A React business + engineering platform for "Popular Consulting" with five routes served from one CRA bundle, deployed on Vercel. The immersive home is a WebGL-heavy, section-snap experience; `/engineering` adds an Aetheris Iridescent professional profile card; `/work` is a conventional scrollable portfolio built on the same design system with a route-scoped typographic composition layer.
+A React business + engineering platform for "Popular Consulting" with six routes served from one CRA bundle, deployed on Vercel. The immersive home is a WebGL-heavy, section-snap experience; `/engineering` adds an Aetheris Iridescent professional profile card; `/work` is a conventional scrollable portfolio built on the same design system with a route-scoped typographic composition layer; `/dither-canvas` is a route-only generative field lab.
 
 ## Routes (`src/SiteRouter.js`)
 
@@ -13,6 +13,7 @@ A React business + engineering platform for "Popular Consulting" with five route
 | `/work` | `WorkPage` | Scrollable portfolio; Aetheris design system; SpectralBloom backdrop |
 | `/orb` | `StandaloneExperiencePage` (orb) | noindex; lazy-loads `OrbSection` |
 | `/game` | `StandaloneExperiencePage` (game) | noindex; lazy-loads `PopcornGame` |
+| `/dither-canvas` | `DitherCanvasPage` | noindex; nine-study CreatorOS-derived field lab |
 
 Unknown paths fall back to `/`. Per-route HTML (title/meta/canonical) is generated at build time by `scripts/generate-route-html.mjs` from `src/content/routeMetadata.json`; `vercel.json` rewrites the routes to those files.
 
@@ -21,7 +22,7 @@ Unknown paths fall back to `/`. Per-route HTML (title/meta/canonical) is generat
 - React 18 (CRA / react-scripts 5), JavaScript only (no TypeScript)
 - MUI v5 (`Box`/`Typography`/`Container`/`TextField`/`Button` in BioSection, ServicesSection, ContactSection only - removal is a planned project)
 - Custom CSS: global `src/index.css`, per-component inline `<style>` blocks, route-scoped `public/engineering-card.css`, `src/components/WorkPage.css`, and route-scoped `public/work-typography.css`
-- WebGL (raw, no library): `DitherBackground` (WebGL2), `BlackHoleBackground`/`BlackHoleCanvas` (WebGL2), `SpectralBloom` (WebGL1)
+- WebGL (raw, no library): `DitherBackground` (WebGL2), `BlackHoleBackground`/`BlackHoleCanvas` (WebGL2), `SpectralBloom` (WebGL1), `CreatorOSLavaLampCanvas` (WebGL1), `CreatorOSFieldCanvas` (WebGL2)
 - **Not used anywhere (do not reintroduce): Tailwind, framer-motion, Emotion-direct, simplex-noise**
 
 ## Commands
@@ -53,6 +54,15 @@ npm run lint    # eslint --max-warnings 0 (CI-gated)
 - `SpectralBloom.js` - WebGL1 document-space flower backdrop (stem rooted at page bottom, petals shed on scroll). Bayer-dithered; strict motion discipline (30fps idle cap, reduced-motion static frame). CSS ambient gradient is its fallback.
 - `useWorkPolish.js` - scroll parallax (`[data-depth]`) + reveal-on-scroll (`[data-reveal]`); no-ops under reduced motion / missing IntersectionObserver.
 - Motion budget pinned by `WorkPageMotion.test.js`: exactly one CSS keyframe (`work-fade-in`), zero infinite animations.
+
+### /dither-canvas (CreatorOS field lab)
+- `DitherCanvasPage.js` owns the nine-study selector and guarantees that only one visible renderer family is mounted at a time.
+- `CreatorOSLavaLampCanvas.js` is the direct port of `mstrbstrd/CreatorOS/apps/web/components/fluid-background.tsx`. Preserve its half-resolution WebGL1 canvas, 30fps cap, Bayer-8 quantization, exact spectral palette, transparent premultiplied output, viscous wax deformation, velocity stretch/pinch, and 3.2 second warm-up.
+- `CreatorOSFieldCanvas.js` is the shared WebGL2 renderer for Metabloom, Tidal Weave, Moiré Halo, Contour Drift, Morphogen Divide, Quasicrystal Chorus, and Hyperbolic Garden. It carries the same CreatorOS rendering contract while preserving each study's independent scene mathematics.
+- Morphogen Divide owns two RGBA8 ping-pong textures. It must never sample from the texture attached to the framebuffer currently being written.
+- CreatorOS-derived fields render at 0.5 CSS resolution, upscale with `image-rendering: pixelated`, use transparent premultiplied alpha over `#080809` / `#fff8f7`, and disable the route's full-screen blur and grain so Bayer cells remain crisp.
+- Hidden tabs stop rendering. Reduced-motion users receive one settled static frame. Pause, theme, reset, context restoration, CSS fallback, pointer interaction, and explicit GPU cleanup are required invariants.
+- `RuptureCanvas.js` remains isolated as the Second Surface material study and must not be folded into the fluid renderer.
 
 ### window.__* globals contract
 Producers null their globals on cleanup. Orb/dither: `__orbPop`, `__orbExpress`, `__orbPlaySequence`, `__orbStop`, `__orbReset`, `__orbExpressions`, `__orbTalk`, `__orbStopTalk`, `__ditherRaiseCanvas`, `__ditherLowerCanvas`, `__ditherLockToHero`, `__ditherUnlock`, `__ditherRevealIn`, `__ditherRevealOut`, `__ditherSetCD`, `__ditherSetOrb`, `__addDitherRipple` (all from DitherBackground). Others: `__bhRevealStart` (BlackHoleBackground), `__bhModeActive` (OrbSection), `__serviceCardExpanded` (ServicesSection), `__triggerLoading` (App / StandaloneExperiencePage), `__perfReport` (telemetry).

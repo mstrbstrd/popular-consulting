@@ -1,18 +1,19 @@
 import React, { useEffect, useRef, useState } from "react";
 import { isMobileTier } from "../utils/deviceTier";
 import {
-  REACTION_DIFFUSION_FRAGMENT_SHADER,
-  RESEARCH_DITHER_FRAGMENT_SHADER,
-  RESEARCH_DITHER_VERTEX_SHADER,
-} from "./ResearchDitherShader";
+  CREATOROS_FIELD_FRAGMENT_SHADER,
+  CREATOROS_FIELD_VERTEX_SHADER,
+  CREATOROS_REACTION_FRAGMENT_SHADER,
+} from "./CreatorOSFieldShader";
 
-const GLYPHS = Array.from(" ░▒▓█▄▀■□▪");
-const ATLAS_CELL = 32;
-const MODE_COUNT = 4;
-const TARGET_FRAME_MS = isMobileTier ? 42 : 32;
-const REDUCED_FRAME_MS = 96;
-const MODE_TRANSITION_SECONDS = 0.95;
+const MODE_COUNT = 7;
+const REACTION_MODE = 4;
+const RENDER_SCALE = 0.5;
+const FRAME_INTERVAL_MS = 1000 / 30;
+const STATIC_TIME_SECONDS = 40;
+const INTRO_DURATION_SECONDS = 3.2;
 const PULSE_LIFETIME_SECONDS = 6.8;
+const MODE_TRANSITION_SECONDS = 0.95;
 const REACTION_SIZE = isMobileTier ? 128 : 192;
 const REACTION_STEPS = isMobileTier ? 1 : 2;
 const REACTION_WARMUP_STEPS = isMobileTier ? 18 : 32;
@@ -34,76 +35,27 @@ const createRandom = (seed) => {
   };
 };
 
-const buildAtlas = (gl) => {
-  const columns = 16;
-  const rows = Math.ceil(GLYPHS.length / columns);
-  const atlasCanvas = document.createElement("canvas");
-  atlasCanvas.width = columns * ATLAS_CELL;
-  atlasCanvas.height = rows * ATLAS_CELL;
-
-  const context = atlasCanvas.getContext("2d");
-  if (!context) throw new Error("The research glyph atlas is unavailable.");
-  context.fillStyle = "#000000";
-  context.fillRect(0, 0, atlasCanvas.width, atlasCanvas.height);
-  context.fillStyle = "#ffffff";
-  context.font = `${ATLAS_CELL - 4}px monospace`;
-  context.textAlign = "center";
-  context.textBaseline = "middle";
-
-  GLYPHS.forEach((character, index) => {
-    context.fillText(
-      character,
-      (index % columns) * ATLAS_CELL + ATLAS_CELL / 2,
-      Math.floor(index / columns) * ATLAS_CELL + ATLAS_CELL / 2,
-    );
-  });
-
-  const texture = gl.createTexture();
-  if (!texture) throw new Error("The research glyph texture is unavailable.");
-  gl.activeTexture(gl.TEXTURE0);
-  gl.bindTexture(gl.TEXTURE_2D, texture);
-  gl.texImage2D(
-    gl.TEXTURE_2D,
-    0,
-    gl.RGBA,
-    gl.RGBA,
-    gl.UNSIGNED_BYTE,
-    atlasCanvas,
-  );
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-
-  return { columns, rows, texture };
-};
-
 const compileShader = (gl, source, type) => {
   const shader = gl.createShader(type);
-  if (!shader) throw new Error("The browser could not create a shader.");
+  if (!shader) throw new Error("The browser could not create a field shader.");
+
   gl.shaderSource(shader, source);
   gl.compileShader(shader);
-
   if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
     const message = gl.getShaderInfoLog(shader) || "Unknown shader compile error.";
     gl.deleteShader(shader);
     throw new Error(message);
   }
-
   return shader;
 };
 
 const createProgram = (gl, fragmentSource, label) => {
   const vertexShader = compileShader(
     gl,
-    RESEARCH_DITHER_VERTEX_SHADER,
+    CREATOROS_FIELD_VERTEX_SHADER,
     gl.VERTEX_SHADER,
   );
-  const fragmentShader = compileShader(
-    gl,
-    fragmentSource,
-    gl.FRAGMENT_SHADER,
-  );
+  const fragmentShader = compileShader(gl, fragmentSource, gl.FRAGMENT_SHADER);
   const program = gl.createProgram();
 
   if (!program) {
@@ -125,6 +77,25 @@ const createProgram = (gl, fragmentSource, label) => {
   }
 
   return program;
+};
+
+const configurePosition = (gl, program, buffer) => {
+  gl.useProgram(program);
+  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+  const positionLocation = gl.getAttribLocation(program, "a_pos");
+  if (positionLocation < 0) {
+    throw new Error("The CreatorOS field position input is missing.");
+  }
+  gl.enableVertexAttribArray(positionLocation);
+  gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+};
+
+const collectUniforms = (gl, program, names) => {
+  const uniforms = {};
+  names.forEach((name) => {
+    uniforms[name] = gl.getUniformLocation(program, name);
+  });
+  return uniforms;
 };
 
 const buildReactionSeed = (size, seed) => {
@@ -174,7 +145,7 @@ const createReactionTargets = (gl, size, seed) => {
     const texture = gl.createTexture();
     const framebuffer = gl.createFramebuffer();
     if (!texture || !framebuffer) {
-      throw new Error("The morphogen feedback buffers are unavailable.");
+      throw new Error("The CreatorOS morphogen buffers are unavailable.");
     }
 
     gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -203,7 +174,7 @@ const createReactionTargets = (gl, size, seed) => {
       0,
     );
     if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
-      throw new Error("The morphogen framebuffer is incomplete.");
+      throw new Error("The CreatorOS morphogen framebuffer is incomplete.");
     }
 
     textures.push(texture);
@@ -240,24 +211,7 @@ const destroyReactionTargets = (gl, targets) => {
   targets?.framebuffers?.forEach((framebuffer) => gl.deleteFramebuffer(framebuffer));
 };
 
-const collectUniforms = (gl, program, names) => {
-  const uniforms = {};
-  names.forEach((name) => {
-    uniforms[name] = gl.getUniformLocation(program, name);
-  });
-  return uniforms;
-};
-
-const configurePosition = (gl, program, buffer) => {
-  gl.useProgram(program);
-  gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-  const positionLocation = gl.getAttribLocation(program, "a_pos");
-  if (positionLocation < 0) throw new Error("The shader position input is missing.");
-  gl.enableVertexAttribArray(positionLocation);
-  gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
-};
-
-const ResearchDitherCanvas = ({
+const CreatorOSFieldCanvas = ({
   isDark = false,
   mode = 0,
   onFieldStateChange,
@@ -267,28 +221,27 @@ const ResearchDitherCanvas = ({
   const rootRef = useRef(null);
   const canvasRef = useRef(null);
   const pausedRef = useRef(paused);
-  const themeRef = useRef(isDark ? 1 : 0);
+  const lightRef = useRef(isDark ? 0 : 1);
   const modeRef = useRef(clampMode(mode));
   const onFieldStateChangeRef = useRef(onFieldStateChange);
-  const resetSimulationRef = useRef(() => {});
-  const animationFrameRef = useRef(0);
-  const forceRenderRef = useRef(true);
+  const restartRef = useRef(true);
+  const redrawRef = useRef(() => {});
   const [fallback, setFallback] = useState(false);
   const [contextVersion, setContextVersion] = useState(0);
 
   useEffect(() => {
     pausedRef.current = paused;
-    forceRenderRef.current = true;
+    redrawRef.current();
   }, [paused]);
 
   useEffect(() => {
-    themeRef.current = isDark ? 1 : 0;
-    forceRenderRef.current = true;
+    lightRef.current = isDark ? 0 : 1;
+    redrawRef.current();
   }, [isDark]);
 
   useEffect(() => {
     modeRef.current = clampMode(mode);
-    forceRenderRef.current = true;
+    redrawRef.current();
   }, [mode]);
 
   useEffect(() => {
@@ -296,8 +249,8 @@ const ResearchDitherCanvas = ({
   }, [onFieldStateChange]);
 
   useEffect(() => {
-    resetSimulationRef.current();
-    forceRenderRef.current = true;
+    restartRef.current = true;
+    redrawRef.current();
   }, [resetVersion]);
 
   useEffect(() => {
@@ -308,99 +261,108 @@ const ResearchDitherCanvas = ({
     let gl;
     let displayProgram;
     let reactionProgram;
-    let buffer;
-    let atlas;
+    let positionBuffer;
     let reactionTargets;
     let resizeObserver;
+    let rafId = 0;
+    let lastFrameAt = 0;
+    let localTime = 0;
+    let introElapsed = 0;
+    let seed = Math.random();
+    let energy = 0;
+    let pulseAge = PULSE_LIFETIME_SECONDS + 1;
     let documentVisible = document.visibilityState !== "hidden";
     let reducedMotion = false;
+    let forceRender = true;
+    let currentMode = modeRef.current;
+    let incomingMode = currentMode;
+    let modeMix = 1;
+    let activeState = currentMode === REACTION_MODE ? "forming" : "drifting";
+    let reactionStepsTaken = 0;
+    let reactionWarmupRemaining =
+      currentMode === REACTION_MODE ? REACTION_WARMUP_STEPS : 0;
+
+    const pointer = {
+      x: 0.52,
+      y: 0.52,
+      sampleX: 0.52,
+      sampleY: 0.52,
+      lastActivityAt: performance.now(),
+    };
+    const pulseOrigin = { x: 0.52, y: 0.52 };
+    const page = root.closest(".dither-canvas-page");
+
+    const reportState = (nextState) => {
+      if (nextState === activeState) return;
+      activeState = nextState;
+      onFieldStateChangeRef.current?.(nextState);
+    };
 
     const motionQuery = window.matchMedia?.("(prefers-reduced-motion: reduce)");
     const syncReducedMotion = () => {
       reducedMotion = Boolean(motionQuery?.matches);
-      forceRenderRef.current = true;
     };
     syncReducedMotion();
-    if (motionQuery?.addEventListener) {
-      motionQuery.addEventListener("change", syncReducedMotion);
-    } else {
-      motionQuery?.addListener?.(syncReducedMotion);
-    }
-
-    const handleVisibility = () => {
-      documentVisible = document.visibilityState !== "hidden";
-      forceRenderRef.current = true;
-    };
-    document.addEventListener("visibilitychange", handleVisibility);
-
-    const reportFallback = () => {
-      setFallback(true);
-      onFieldStateChangeRef.current?.("fallback");
-    };
 
     const handleContextLost = (event) => {
       event.preventDefault();
-      reportFallback();
+      window.cancelAnimationFrame(rafId);
+      setFallback(true);
+      onFieldStateChangeRef.current?.("fallback");
     };
     const handleContextRestored = () => {
       setContextVersion((value) => value + 1);
     };
+
     canvas.addEventListener("webglcontextlost", handleContextLost);
     canvas.addEventListener("webglcontextrestored", handleContextRestored);
 
-    const cleanupBase = () => {
-      document.removeEventListener("visibilitychange", handleVisibility);
-      canvas.removeEventListener("webglcontextlost", handleContextLost);
-      canvas.removeEventListener("webglcontextrestored", handleContextRestored);
-      if (motionQuery?.removeEventListener) {
-        motionQuery.removeEventListener("change", syncReducedMotion);
-      } else {
-        motionQuery?.removeListener?.(syncReducedMotion);
-      }
-    };
-
     try {
       gl = canvas.getContext("webgl2", {
-        alpha: false,
+        alpha: true,
+        premultipliedAlpha: true,
         antialias: false,
         depth: false,
+        stencil: false,
         failIfMajorPerformanceCaveat: true,
-        powerPreference: isMobileTier ? "low-power" : "high-performance",
+        powerPreference: "low-power",
       });
       if (!gl) throw new Error("WebGL2 is unavailable.");
 
       displayProgram = createProgram(
         gl,
-        RESEARCH_DITHER_FRAGMENT_SHADER,
-        "research display",
+        CREATOROS_FIELD_FRAGMENT_SHADER,
+        "CreatorOS field",
       );
       reactionProgram = createProgram(
         gl,
-        REACTION_DIFFUSION_FRAGMENT_SHADER,
-        "reaction diffusion",
+        CREATOROS_REACTION_FRAGMENT_SHADER,
+        "CreatorOS reaction diffusion",
       );
 
-      buffer = gl.createBuffer();
-      if (!buffer) throw new Error("The research canvas buffer is unavailable.");
-      gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+      positionBuffer = gl.createBuffer();
+      if (!positionBuffer) {
+        throw new Error("The CreatorOS field buffer is unavailable.");
+      }
+      gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
       gl.bufferData(
         gl.ARRAY_BUFFER,
-        new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]),
+        new Float32Array([-1, -1, 3, -1, -1, 3]),
         gl.STATIC_DRAW,
       );
-      configurePosition(gl, displayProgram, buffer);
-      configurePosition(gl, reactionProgram, buffer);
+      configurePosition(gl, displayProgram, positionBuffer);
+      configurePosition(gl, reactionProgram, positionBuffer);
 
-      atlas = buildAtlas(gl);
-      reactionTargets = createReactionTargets(gl, REACTION_SIZE, Math.random());
+      reactionTargets = createReactionTargets(gl, REACTION_SIZE, seed);
       setFallback(false);
     } catch (error) {
-      console.error("Research dither study failed to initialize:", error);
-      reportFallback();
-      cleanupBase();
-      if (atlas?.texture && gl) gl.deleteTexture(atlas.texture);
+      console.error("CreatorOS field study failed to initialize:", error);
+      setFallback(true);
+      onFieldStateChangeRef.current?.("fallback");
+      canvas.removeEventListener("webglcontextlost", handleContextLost);
+      canvas.removeEventListener("webglcontextrestored", handleContextRestored);
       destroyReactionTargets(gl, reactionTargets);
-      if (buffer && gl) gl.deleteBuffer(buffer);
+      if (positionBuffer && gl) gl.deleteBuffer(positionBuffer);
       if (displayProgram && gl) gl.deleteProgram(displayProgram);
       if (reactionProgram && gl) gl.deleteProgram(reactionProgram);
       return undefined;
@@ -409,9 +371,9 @@ const ResearchDitherCanvas = ({
     const displayUniforms = collectUniforms(gl, displayProgram, [
       "u_res",
       "u_time",
-      "u_theme",
+      "u_light",
+      "u_intro",
       "u_energy",
-      "u_reveal",
       "u_seed",
       "u_pointer",
       "u_pulseOrigin",
@@ -419,13 +381,8 @@ const ResearchDitherCanvas = ({
       "u_modeA",
       "u_modeB",
       "u_modeMix",
-      "u_atlas",
       "u_reaction",
       "u_reactionTexel",
-      "u_cellSize",
-      "u_charCount",
-      "u_atlasCols",
-      "u_atlasRows",
     ]);
     const reactionUniforms = collectUniforms(gl, reactionProgram, [
       "u_state",
@@ -441,87 +398,16 @@ const ResearchDitherCanvas = ({
       "u_dt",
     ]);
 
-    const pointer = {
-      x: 0.52,
-      y: 0.52,
-      sampleX: 0.52,
-      sampleY: 0.52,
-      lastActivityAt: performance.now(),
-    };
-    const pulseOrigin = { x: 0.52, y: 0.52 };
-
-    let width = 1;
-    let height = 1;
-    let localTime = 0;
-    let reveal = 0;
-    let seed = Math.random();
-    let energy = 0;
-    let pulseAge = PULSE_LIFETIME_SECONDS + 1;
-    let lastFrameAt = 0;
-    let currentMode = modeRef.current;
-    let incomingMode = currentMode;
-    let modeMix = 1;
-    let activeState = "drifting";
-    let stateWasReported = false;
-    let reactionStepsTaken = 0;
-    let reactionWarmupRemaining = currentMode === 1 ? REACTION_WARMUP_STEPS : 0;
-
-    const page = root.closest(".dither-canvas-page");
-
-    const reportState = (nextState) => {
-      if (nextState === activeState && stateWasReported) return;
-      activeState = nextState;
-      stateWasReported = true;
-      onFieldStateChangeRef.current?.(nextState);
-    };
-
-    const resetSimulation = () => {
-      localTime = 0;
-      reveal = reducedMotion ? 1 : 0;
-      seed = Math.random();
-      energy = 0;
-      pulseAge = PULSE_LIFETIME_SECONDS + 1;
-      pulseOrigin.x = 0.52;
-      pulseOrigin.y = 0.52;
-      pointer.x = 0.52;
-      pointer.y = 0.52;
-      pointer.sampleX = 0.52;
-      pointer.sampleY = 0.52;
-      pointer.lastActivityAt = performance.now();
-      currentMode = modeRef.current;
-      incomingMode = currentMode;
-      modeMix = 1;
-      reactionStepsTaken = 0;
-      reactionWarmupRemaining = currentMode === 1 ? REACTION_WARMUP_STEPS : 0;
-      resetReactionTargets(gl, reactionTargets, seed);
-      stateWasReported = false;
-      reportState(currentMode === 1 ? "forming" : "drifting");
-      forceRenderRef.current = true;
-    };
-    resetSimulationRef.current = resetSimulation;
-    resetSimulation();
-
     const updateSize = () => {
       const bounds = root.getBoundingClientRect();
-      width = Math.max(bounds.width, 1);
-      height = Math.max(bounds.height, 1);
-      const scale = isMobileTier
-        ? 0.72
-        : Math.min(window.devicePixelRatio || 1, 1.0);
-      const renderWidth = Math.max(1, Math.floor(width * scale));
-      const renderHeight = Math.max(1, Math.floor(height * scale));
-      if (canvas.width !== renderWidth || canvas.height !== renderHeight) {
-        canvas.width = renderWidth;
-        canvas.height = renderHeight;
-        forceRenderRef.current = true;
+      const width = Math.max(1, Math.floor(bounds.width * RENDER_SCALE));
+      const height = Math.max(1, Math.floor(bounds.height * RENDER_SCALE));
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
+        forceRender = true;
       }
     };
-    updateSize();
-    if (typeof ResizeObserver !== "undefined") {
-      resizeObserver = new ResizeObserver(updateSize);
-      resizeObserver.observe(root);
-    }
-    window.addEventListener("resize", updateSize);
 
     const readPointer = (event) => {
       const bounds = root.getBoundingClientRect();
@@ -543,7 +429,7 @@ const ResearchDitherCanvas = ({
       pointer.sampleY = next.y;
       pointer.lastActivityAt = performance.now();
       energy = clamp(energy + magnitude * 4.4);
-      forceRenderRef.current = true;
+      forceRender = true;
     };
 
     const handlePointerDown = (event) => {
@@ -558,7 +444,7 @@ const ResearchDitherCanvas = ({
       pulseAge = 0;
       energy = 1;
       root.setPointerCapture?.(event.pointerId);
-      forceRenderRef.current = true;
+      forceRender = true;
     };
 
     const handlePointerLeave = () => {
@@ -570,14 +456,51 @@ const ResearchDitherCanvas = ({
     root.addEventListener("pointerdown", handlePointerDown, { passive: true });
     root.addEventListener("pointerleave", handlePointerLeave, { passive: true });
 
+    const resetSimulation = () => {
+      restartRef.current = false;
+      localTime = 0;
+      introElapsed = reducedMotion ? INTRO_DURATION_SECONDS : 0;
+      seed = Math.random();
+      energy = 0;
+      pulseAge = PULSE_LIFETIME_SECONDS + 1;
+      pulseOrigin.x = 0.52;
+      pulseOrigin.y = 0.52;
+      pointer.x = 0.52;
+      pointer.y = 0.52;
+      pointer.sampleX = 0.52;
+      pointer.sampleY = 0.52;
+      pointer.lastActivityAt = performance.now();
+      currentMode = modeRef.current;
+      incomingMode = currentMode;
+      modeMix = 1;
+      reactionStepsTaken = 0;
+      reactionWarmupRemaining =
+        currentMode === REACTION_MODE ? REACTION_WARMUP_STEPS : 0;
+      resetReactionTargets(gl, reactionTargets, seed);
+      activeState = currentMode === REACTION_MODE ? "forming" : "drifting";
+      onFieldStateChangeRef.current?.(activeState);
+      forceRender = true;
+      lastFrameAt = 0;
+    };
+
+    const applyRestart = () => {
+      if (!restartRef.current) return;
+      resetSimulation();
+    };
+
     const beginModeTransition = (desiredMode) => {
       if (desiredMode === incomingMode) return;
-      const reactionWasVisible = currentMode === 1 || incomingMode === 1;
+      const reactionWasVisible =
+        currentMode === REACTION_MODE || incomingMode === REACTION_MODE;
       if (modeMix >= 0.5) currentMode = incomingMode;
       incomingMode = desiredMode;
       modeMix = reducedMotion ? 1 : 0;
       if (reducedMotion) currentMode = incomingMode;
-      if (desiredMode === 1 && !reactionWasVisible && reactionStepsTaken === 0) {
+      if (
+        desiredMode === REACTION_MODE
+        && !reactionWasVisible
+        && reactionStepsTaken === 0
+      ) {
         reactionWarmupRemaining = REACTION_WARMUP_STEPS;
       }
     };
@@ -596,7 +519,10 @@ const ResearchDitherCanvas = ({
 
       let nextState = "drifting";
       if (currentMode !== incomingMode) nextState = "crossfading";
-      else if (currentMode === 1 && reactionStepsTaken < REACTION_WARMUP_STEPS) {
+      else if (
+        currentMode === REACTION_MODE
+        && reactionStepsTaken < REACTION_WARMUP_STEPS
+      ) {
         nextState = "forming";
       } else if (pulseAge < 1.4 || energy >= 0.62) nextState = "resonance";
       else if (energy >= 0.18) nextState = "responding";
@@ -617,7 +543,7 @@ const ResearchDitherCanvas = ({
       }
     };
 
-    const drawReactionStep = () => {
+    const drawReactionStep = (timeStep = 1.0) => {
       const writeIndex = 1 - reactionTargets.readIndex;
       gl.bindFramebuffer(
         gl.FRAMEBUFFER,
@@ -625,12 +551,12 @@ const ResearchDitherCanvas = ({
       );
       gl.viewport(0, 0, reactionTargets.size, reactionTargets.size);
       gl.useProgram(reactionProgram);
-      gl.activeTexture(gl.TEXTURE1);
+      gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(
         gl.TEXTURE_2D,
         reactionTargets.textures[reactionTargets.readIndex],
       );
-      gl.uniform1i(reactionUniforms.u_state, 1);
+      gl.uniform1i(reactionUniforms.u_state, 0);
       gl.uniform2f(
         reactionUniforms.u_texel,
         1 / reactionTargets.size,
@@ -648,14 +574,15 @@ const ResearchDitherCanvas = ({
       gl.uniform1f(reactionUniforms.u_seed, seed);
       gl.uniform1f(reactionUniforms.u_feed, 0.0367);
       gl.uniform1f(reactionUniforms.u_kill, 0.0649);
-      gl.uniform1f(reactionUniforms.u_dt, reducedMotion ? 0.62 : 1.0);
-      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      gl.uniform1f(reactionUniforms.u_dt, timeStep);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
       reactionTargets.readIndex = writeIndex;
       reactionStepsTaken += 1;
     };
 
     const advanceReaction = () => {
-      const reactionVisible = currentMode === 1 || incomingMode === 1;
+      const reactionVisible =
+        currentMode === REACTION_MODE || incomingMode === REACTION_MODE;
       if (!reactionVisible && reactionWarmupRemaining <= 0) return;
 
       let steps = reducedMotion ? 1 : REACTION_STEPS;
@@ -669,7 +596,7 @@ const ResearchDitherCanvas = ({
       }
 
       for (let index = 0; index < steps; index += 1) {
-        drawReactionStep();
+        drawReactionStep(reducedMotion ? 0.62 : 1.0);
       }
     };
 
@@ -679,9 +606,12 @@ const ResearchDitherCanvas = ({
       gl.useProgram(displayProgram);
       gl.uniform2f(displayUniforms.u_res, canvas.width, canvas.height);
       gl.uniform1f(displayUniforms.u_time, localTime);
-      gl.uniform1f(displayUniforms.u_theme, themeRef.current);
+      gl.uniform1f(displayUniforms.u_light, lightRef.current);
+      gl.uniform1f(
+        displayUniforms.u_intro,
+        Math.min(1, introElapsed / INTRO_DURATION_SECONDS),
+      );
       gl.uniform1f(displayUniforms.u_energy, energy);
-      gl.uniform1f(displayUniforms.u_reveal, reveal);
       gl.uniform1f(displayUniforms.u_seed, seed);
       gl.uniform2f(displayUniforms.u_pointer, pointer.x, pointer.y);
       gl.uniform2f(
@@ -695,42 +625,60 @@ const ResearchDitherCanvas = ({
       gl.uniform1f(displayUniforms.u_modeMix, modeMix);
 
       gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, atlas.texture);
-      gl.uniform1i(displayUniforms.u_atlas, 0);
-      gl.activeTexture(gl.TEXTURE1);
       gl.bindTexture(
         gl.TEXTURE_2D,
         reactionTargets.textures[reactionTargets.readIndex],
       );
-      gl.uniform1i(displayUniforms.u_reaction, 1);
+      gl.uniform1i(displayUniforms.u_reaction, 0);
       gl.uniform2f(
         displayUniforms.u_reactionTexel,
         1 / reactionTargets.size,
         1 / reactionTargets.size,
       );
-      gl.uniform1f(displayUniforms.u_cellSize, isMobileTier ? 12 : 7);
-      gl.uniform1i(displayUniforms.u_charCount, GLYPHS.length);
-      gl.uniform1i(displayUniforms.u_atlasCols, atlas.columns);
-      gl.uniform1i(displayUniforms.u_atlasRows, atlas.rows);
-      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+      gl.clearColor(0, 0, 0, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
     };
 
-    const render = (timestamp) => {
-      animationFrameRef.current = requestAnimationFrame(render);
-      if (!documentVisible) return;
-      const shouldOnlyRefresh = pausedRef.current;
-      if (shouldOnlyRefresh && !forceRenderRef.current) return;
+    const drawStatic = () => {
+      applyRestart();
+      currentMode = modeRef.current;
+      incomingMode = currentMode;
+      modeMix = 1;
+      localTime = STATIC_TIME_SECONDS;
+      introElapsed = INTRO_DURATION_SECONDS;
 
-      const minimumFrameMs = reducedMotion ? REDUCED_FRAME_MS : TARGET_FRAME_MS;
-      if (timestamp - lastFrameAt < minimumFrameMs) return;
+      if (currentMode === REACTION_MODE && reactionStepsTaken === 0) {
+        for (let index = 0; index < REACTION_WARMUP_STEPS; index += 1) {
+          drawReactionStep(0.62);
+        }
+      }
+
+      updateSize();
+      draw();
+      reportState("settled");
+      forceRender = false;
+    };
+
+    const tick = (now) => {
+      rafId = window.requestAnimationFrame(tick);
+      if (!documentVisible || reducedMotion) return;
+      if (now - lastFrameAt < FRAME_INTERVAL_MS) return;
+
       const delta = lastFrameAt
-        ? Math.min((timestamp - lastFrameAt) / 1000, 1 / 18)
+        ? Math.min((now - lastFrameAt) / 1000, 0.1)
         : 0;
-      lastFrameAt = timestamp;
+      lastFrameAt = now;
+      applyRestart();
 
-      if (!shouldOnlyRefresh) {
-        localTime += delta * (reducedMotion ? 0.22 : 1);
-        reveal = reducedMotion ? 1 : Math.min(1, reveal + delta / 1.55);
+      if (pausedRef.current && !forceRender) return;
+      if (!pausedRef.current) {
+        localTime += delta;
+        introElapsed = Math.min(
+          INTRO_DURATION_SECONDS,
+          introElapsed + delta,
+        );
         simulate(delta, performance.now());
         advanceReaction();
       } else {
@@ -741,20 +689,74 @@ const ResearchDitherCanvas = ({
 
       updateSize();
       draw();
-      forceRenderRef.current = false;
+      forceRender = false;
     };
 
-    animationFrameRef.current = requestAnimationFrame(render);
+    const start = () => {
+      window.cancelAnimationFrame(rafId);
+      applyRestart();
+      if (reducedMotion) {
+        drawStatic();
+        return;
+      }
+      forceRender = true;
+      rafId = window.requestAnimationFrame(tick);
+    };
+
+    const handleVisibility = () => {
+      documentVisible = document.visibilityState !== "hidden";
+      if (!documentVisible) {
+        window.cancelAnimationFrame(rafId);
+      } else {
+        start();
+      }
+    };
+
+    const handleMotionChange = () => {
+      syncReducedMotion();
+      start();
+    };
+
+    redrawRef.current = () => {
+      forceRender = true;
+      if (reducedMotion) drawStatic();
+    };
+
+    updateSize();
+    if (typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(() => {
+        updateSize();
+        if (reducedMotion) drawStatic();
+      });
+      resizeObserver.observe(root);
+    }
+    window.addEventListener("resize", updateSize);
+    document.addEventListener("visibilitychange", handleVisibility);
+    if (motionQuery?.addEventListener) {
+      motionQuery.addEventListener("change", handleMotionChange);
+    } else {
+      motionQuery?.addListener?.(handleMotionChange);
+    }
+
+    resetSimulation();
+    start();
 
     return () => {
-      cancelAnimationFrame(animationFrameRef.current);
-      resetSimulationRef.current = () => {};
+      window.cancelAnimationFrame(rafId);
+      redrawRef.current = () => {};
       root.removeEventListener("pointermove", handlePointerMove);
       root.removeEventListener("pointerdown", handlePointerDown);
       root.removeEventListener("pointerleave", handlePointerLeave);
       window.removeEventListener("resize", updateSize);
+      document.removeEventListener("visibilitychange", handleVisibility);
+      if (motionQuery?.removeEventListener) {
+        motionQuery.removeEventListener("change", handleMotionChange);
+      } else {
+        motionQuery?.removeListener?.(handleMotionChange);
+      }
       resizeObserver?.disconnect();
-      cleanupBase();
+      canvas.removeEventListener("webglcontextlost", handleContextLost);
+      canvas.removeEventListener("webglcontextrestored", handleContextRestored);
       if (page) {
         page.style.removeProperty("--rupture-energy");
         page.style.removeProperty("--rupture-x");
@@ -763,9 +765,8 @@ const ResearchDitherCanvas = ({
         page.style.removeProperty("--rupture-chroma-positive");
         page.style.removeProperty("--rupture-chroma-negative");
       }
-      if (atlas?.texture) gl.deleteTexture(atlas.texture);
       destroyReactionTargets(gl, reactionTargets);
-      if (buffer) gl.deleteBuffer(buffer);
+      if (positionBuffer) gl.deleteBuffer(positionBuffer);
       if (displayProgram) gl.deleteProgram(displayProgram);
       if (reactionProgram) gl.deleteProgram(reactionProgram);
     };
@@ -774,15 +775,15 @@ const ResearchDitherCanvas = ({
   return (
     <div
       ref={rootRef}
-      className={`research-dither-shell research-dither-mode-${clampMode(mode)}${
+      className={`creatoros-field-shell creatoros-field-mode-${clampMode(mode)}${
         fallback ? " is-fallback" : ""
       }`}
       aria-hidden="true"
     >
-      <canvas ref={canvasRef} className="research-dither-canvas" />
-      {fallback && <div className="research-dither-fallback" />}
+      <canvas ref={canvasRef} className="creatoros-field-canvas" />
+      {fallback && <div className="creatoros-field-fallback" />}
     </div>
   );
 };
 
-export default ResearchDitherCanvas;
+export default CreatorOSFieldCanvas;
