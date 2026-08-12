@@ -1,0 +1,214 @@
+name: Apply scroll-driven dither narrative
+
+on:
+  push:
+    branches:
+      - agent/scroll-driven-dither-narrative
+    paths:
+      - .github/workflows/apply-scroll-driven-dither.yml
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/scroll-driven-dither-narrative
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Make Second Surface page-scroll controlled
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path("src/components/RuptureCanvas.js")
+          source = path.read_text(encoding="utf-8")
+
+          replacements = []
+
+          replacements.append((
+              '''const RuptureCanvas = ({
+            isDark = false,
+            onRuptureStateChange,
+            paused = false,
+            resetVersion = 0,
+          }) => {''',
+              '''const RuptureCanvas = ({
+            isDark = false,
+            onRuptureStateChange,
+            paused = false,
+            progress: controlledProgress = null,
+            resetVersion = 0,
+          }) => {''',
+          ))
+
+          replacements.append((
+              '''  const resetSimulationRef = useRef(() => {});
+          const animationFrameRef = useRef(0);''',
+              '''  const resetSimulationRef = useRef(() => {});
+          const controlledProgressRef = useRef(
+            Number.isFinite(controlledProgress)
+              ? clamp(controlledProgress)
+              : null,
+          );
+          const syncControlledProgressRef = useRef(() => {});
+          const animationFrameRef = useRef(0);''',
+          ))
+
+          replacements.append((
+              '''  useEffect(() => {
+            resetSimulationRef.current();
+            forceRenderRef.current = true;
+          }, [resetVersion]);
+
+          useEffect(() => {''',
+              '''  useEffect(() => {
+            resetSimulationRef.current();
+            forceRenderRef.current = true;
+          }, [resetVersion]);
+
+          useEffect(() => {
+            controlledProgressRef.current = Number.isFinite(controlledProgress)
+              ? clamp(controlledProgress)
+              : null;
+            syncControlledProgressRef.current();
+            forceRenderRef.current = true;
+          }, [controlledProgress]);
+
+          useEffect(() => {''',
+          ))
+
+          replacements.append((
+              '''    const setTargetProgress = (nextProgress) => {
+            const next = clamp(nextProgress);
+            if (Math.abs(next - targetProgress) < 0.00001) return;
+            targetProgress = next;
+            forceRenderRef.current = true;
+          };
+
+          const updateOpening = (delta) => {''',
+              '''    const setTargetProgress = (nextProgress) => {
+            const next = clamp(nextProgress);
+            if (Math.abs(next - targetProgress) < 0.00001) return;
+            targetProgress = next;
+            forceRenderRef.current = true;
+          };
+
+          const syncControlledProgress = () => {
+            if (controlledProgressRef.current === null) return;
+            setTargetProgress(controlledProgressRef.current);
+          };
+          syncControlledProgressRef.current = syncControlledProgress;
+          syncControlledProgress();
+
+          const updateOpening = (delta) => {''',
+          ))
+
+          replacements.append((
+              '''      progress = 0;
+            targetProgress = 0;
+            currentEnergy = 0;''',
+              '''      const resetProgress = controlledProgressRef.current ?? 0;
+            progress = resetProgress;
+            targetProgress = resetProgress;
+            currentEnergy = smoothStep(resetProgress);''',
+          ))
+
+          replacements.append((
+              '''      stateWasReported = false;
+            reportState("sealed");''',
+              '''      stateWasReported = false;
+            reportState(stateForProgress(resetProgress));''',
+          ))
+
+          replacements.append((
+              '''    const handleWheel = (event) => {
+            const deltaPixels = normalizeWheelDelta(event, height);''',
+              '''    const handleWheel = (event) => {
+            if (controlledProgressRef.current !== null) return;
+            const deltaPixels = normalizeWheelDelta(event, height);''',
+          ))
+
+          replacements.append((
+              '''    const handlePointerDown = (event) => {
+            syncPointer(event);
+            if (event.pointerType === "mouse") return;''',
+              '''    const handlePointerDown = (event) => {
+            syncPointer(event);
+            if (controlledProgressRef.current !== null) return;
+            if (event.pointerType === "mouse") return;''',
+          ))
+
+          replacements.append((
+              '''    const handlePointerMove = (event) => {
+            syncPointer(event);
+            if (!drag.active || event.pointerId !== drag.pointerId) return;''',
+              '''    const handlePointerMove = (event) => {
+            syncPointer(event);
+            if (controlledProgressRef.current !== null) return;
+            if (!drag.active || event.pointerId !== drag.pointerId) return;''',
+          ))
+
+          replacements.append((
+              '''    const handleKeyDown = (event) => {
+            const target = event.target;''',
+              '''    const handleKeyDown = (event) => {
+            if (controlledProgressRef.current !== null) return;
+            const target = event.target;''',
+          ))
+
+          replacements.append((
+              '''      cancelAnimationFrame(animationFrameRef.current);
+            resetSimulationRef.current = () => {};
+            window.removeEventListener("wheel", handleWheel);''',
+              '''      cancelAnimationFrame(animationFrameRef.current);
+            resetSimulationRef.current = () => {};
+            syncControlledProgressRef.current = () => {};
+            window.removeEventListener("wheel", handleWheel);''',
+          ))
+
+          for old, new in replacements:
+              if source.count(old) != 1:
+                  raise SystemExit(
+                      f"Expected exactly one RuptureCanvas patch target, found {source.count(old)}."
+                  )
+              source = source.replace(old, new)
+
+          path.write_text(source, encoding="utf-8")
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Run tests
+        run: npm test -- --watchAll=false --runInBand
+        env:
+          CI: true
+
+      - name: Build production bundle
+        run: npm run build
+        env:
+          CI: true
+
+      - name: Commit the integrated narrative
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/RuptureCanvas.js
+          git rm .github/workflows/apply-scroll-driven-dither.yml
+          git commit -m "Integrate scroll-driven dither narrative"
+          git push origin HEAD:agent/scroll-driven-dither-narrative
