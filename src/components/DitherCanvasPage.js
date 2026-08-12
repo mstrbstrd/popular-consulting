@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import logo from "../assets/icons/logo2026_128.png";
 import { ThemeProvider, useThemeMode } from "../contexts/ThemeContext";
 import CreatorOSFieldCanvas from "./CreatorOSFieldCanvas";
@@ -8,6 +8,7 @@ import "./DitherCanvasPage.css";
 import "./DitherCanvasVibrance.css";
 import "./CreatorOSLavaLampCanvas.css";
 import "./CreatorOSFieldCanvas.css";
+import "./DitherScrollNarrative.css";
 
 const STUDIES = [
   {
@@ -150,6 +151,60 @@ const STUDIES = [
   },
 ];
 
+const FIRST_STUDY_SCROLL_UNITS = 1.35;
+const RUPTURE_OPEN_SCROLL_UNITS = 0.92;
+const STUDY_SCROLL_UNITS = 1;
+const STUDY_ACTIVATION_LEAD_UNITS = 0.16;
+const EXIT_DURATION_MS = 420;
+const ENTER_DURATION_MS = 620;
+
+const STUDY_TRANSITIONS = {
+  "second-surface": { enter: "second-surface", exit: "second-surface" },
+  metabloom: { enter: "metabloom", exit: "metabloom" },
+  "tidal-weave": { enter: "tidal-weave", exit: "tidal-weave" },
+  "moire-halo": { enter: "moire-halo", exit: "moire-halo" },
+  "contour-drift": { enter: "contour-drift", exit: "contour-drift" },
+  "lava-lamp": { enter: "native", exit: "lava-lamp" },
+  "morphogen-divide": {
+    enter: "morphogen-divide",
+    exit: "morphogen-divide",
+  },
+  "quasicrystal-chorus": {
+    enter: "quasicrystal-chorus",
+    exit: "quasicrystal-chorus",
+  },
+  "hyperbolic-garden": {
+    enter: "hyperbolic-garden",
+    exit: "hyperbolic-garden",
+  },
+  "forward-pass": { enter: "forward-pass", exit: "forward-pass" },
+};
+
+const clamp = (value, minimum = 0, maximum = 1) =>
+  Math.max(minimum, Math.min(maximum, value));
+
+const scrollUnitsForStudy = (index) =>
+  index === 0
+    ? 0
+    : FIRST_STUDY_SCROLL_UNITS + (index - 1) * STUDY_SCROLL_UNITS;
+
+const studyIndexForScrollUnits = (units) => {
+  if (units < FIRST_STUDY_SCROLL_UNITS - STUDY_ACTIVATION_LEAD_UNITS) {
+    return 0;
+  }
+
+  return clamp(
+    1
+      + Math.floor(
+        units
+          - FIRST_STUDY_SCROLL_UNITS
+          + STUDY_ACTIVATION_LEAD_UNITS,
+      ),
+    1,
+    STUDIES.length - 1,
+  );
+};
+
 const ThemeIcon = ({ isDark }) =>
   isDark ? (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -175,12 +230,22 @@ const ThemeIcon = ({ isDark }) =>
 
 const DitherFieldLab = () => {
   const { isDark, toggleTheme } = useThemeMode();
-  const [activeStudyId, setActiveStudyId] = useState(STUDIES[0].id);
+  const pageRef = useRef(null);
+  const scrollFrameRef = useRef(0);
+  const reducedMotionRef = useRef(false);
+  const [displayStudyIndex, setDisplayStudyIndex] = useState(0);
+  const [requestedStudyIndex, setRequestedStudyIndex] = useState(0);
+  const [transitionTargetIndex, setTransitionTargetIndex] = useState(null);
+  const [transitionPhase, setTransitionPhase] = useState("idle");
+  const [transitionStyle, setTransitionStyle] = useState(
+    STUDY_TRANSITIONS[STUDIES[0].id].enter,
+  );
+  const [transitionDirection, setTransitionDirection] = useState("forward");
+  const [firstSurfaceProgress, setFirstSurfaceProgress] = useState(0);
   const [paused, setPaused] = useState(false);
   const [resetVersion, setResetVersion] = useState(0);
   const [fieldState, setFieldState] = useState(STUDIES[0].initialState);
-  const activeStudy =
-    STUDIES.find((study) => study.id === activeStudyId) || STUDIES[0];
+  const activeStudy = STUDIES[displayStudyIndex];
 
   useEffect(() => {
     const previousTitle = document.title;
@@ -190,10 +255,160 @@ const DitherFieldLab = () => {
     };
   }, []);
 
-  const selectStudy = (study) => {
-    if (study.id === activeStudy.id) return;
-    setActiveStudyId(study.id);
-    setFieldState(study.initialState);
+  useEffect(() => {
+    const motionQuery = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+    const syncMotionPreference = () => {
+      reducedMotionRef.current = Boolean(motionQuery?.matches);
+    };
+
+    syncMotionPreference();
+    if (motionQuery?.addEventListener) {
+      motionQuery.addEventListener("change", syncMotionPreference);
+    } else {
+      motionQuery?.addListener?.(syncMotionPreference);
+    }
+
+    return () => {
+      if (motionQuery?.removeEventListener) {
+        motionQuery.removeEventListener("change", syncMotionPreference);
+      } else {
+        motionQuery?.removeListener?.(syncMotionPreference);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const syncScrollPosition = () => {
+      scrollFrameRef.current = 0;
+      const page = pageRef.current;
+      if (!page) return;
+
+      const viewportHeight = Math.max(window.innerHeight, 1);
+      const pageTop = page.getBoundingClientRect().top + window.scrollY;
+      const maximumUnits = scrollUnitsForStudy(STUDIES.length - 1);
+      const scrollUnits = clamp(
+        (window.scrollY - pageTop) / viewportHeight,
+        0,
+        maximumUnits,
+      );
+      const nextStudyIndex = studyIndexForScrollUnits(scrollUnits);
+      const studyStart = scrollUnitsForStudy(nextStudyIndex);
+      const localProgress = clamp(
+        (scrollUnits - studyStart) / STUDY_SCROLL_UNITS,
+      );
+      const ruptureProgress = clamp(
+        scrollUnits / RUPTURE_OPEN_SCROLL_UNITS,
+      );
+
+      setRequestedStudyIndex(nextStudyIndex);
+      setFirstSurfaceProgress((previousProgress) =>
+        Math.abs(previousProgress - ruptureProgress) >= 0.002
+          ? ruptureProgress
+          : previousProgress,
+      );
+      page.style.setProperty(
+        "--dither-study-progress",
+        localProgress.toFixed(3),
+      );
+      page.style.setProperty(
+        "--dither-copy-drift",
+        `${((0.5 - localProgress) * 8).toFixed(2)}px`,
+      );
+    };
+
+    const handleScroll = () => {
+      if (scrollFrameRef.current) return;
+      scrollFrameRef.current = window.requestAnimationFrame(syncScrollPosition);
+    };
+
+    syncScrollPosition();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("resize", handleScroll);
+
+    return () => {
+      window.cancelAnimationFrame(scrollFrameRef.current);
+      window.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("resize", handleScroll);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (
+      transitionPhase !== "idle"
+      || requestedStudyIndex === displayStudyIndex
+    ) {
+      return;
+    }
+
+    if (reducedMotionRef.current) {
+      const nextStudy = STUDIES[requestedStudyIndex];
+      setDisplayStudyIndex(requestedStudyIndex);
+      setFieldState(nextStudy.initialState);
+      setTransitionStyle(STUDY_TRANSITIONS[nextStudy.id].enter);
+      return;
+    }
+
+    setTransitionTargetIndex(requestedStudyIndex);
+    setTransitionDirection(
+      requestedStudyIndex > displayStudyIndex ? "forward" : "backward",
+    );
+    setTransitionStyle(STUDY_TRANSITIONS[activeStudy.id].exit);
+    setTransitionPhase("exiting");
+  }, [activeStudy.id, displayStudyIndex, requestedStudyIndex, transitionPhase]);
+
+  useEffect(() => {
+    if (transitionPhase !== "exiting" || transitionTargetIndex === null) {
+      return undefined;
+    }
+
+    const timer = window.setTimeout(() => {
+      const nextStudy = STUDIES[transitionTargetIndex];
+      const entranceStyle = STUDY_TRANSITIONS[nextStudy.id].enter;
+      setDisplayStudyIndex(transitionTargetIndex);
+      setFieldState(nextStudy.initialState);
+
+      if (entranceStyle === "native") {
+        setTransitionStyle("native");
+        setTransitionPhase("idle");
+        setTransitionTargetIndex(null);
+        return;
+      }
+
+      setTransitionStyle(entranceStyle);
+      setTransitionPhase("entering");
+    }, EXIT_DURATION_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [transitionPhase, transitionTargetIndex]);
+
+  useEffect(() => {
+    if (transitionPhase !== "entering") return undefined;
+
+    const timer = window.setTimeout(() => {
+      setTransitionPhase("idle");
+      setTransitionTargetIndex(null);
+    }, ENTER_DURATION_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [transitionPhase]);
+
+  const scrollToStudy = (index) => {
+    const page = pageRef.current;
+    const viewportHeight = Math.max(window.innerHeight, 1);
+    const pageTop = page
+      ? page.getBoundingClientRect().top + window.scrollY
+      : 0;
+    const top = pageTop + scrollUnitsForStudy(index) * viewportHeight;
+
+    window.scrollTo({
+      top,
+      behavior: reducedMotionRef.current ? "auto" : "smooth",
+    });
+  };
+
+  const resetActiveStudy = () => {
+    if (displayStudyIndex === 0) scrollToStudy(0);
+    setResetVersion((value) => value + 1);
   };
 
   const renderActiveStudy = () => {
@@ -207,6 +422,7 @@ const DitherFieldLab = () => {
       return (
         <RuptureCanvas
           {...sharedProps}
+          progress={firstSurfaceProgress}
           onRuptureStateChange={setFieldState}
         />
       );
@@ -232,94 +448,124 @@ const DitherFieldLab = () => {
 
   return (
     <main
-      className={`dither-canvas-page dither-study-${activeStudy.id} dither-renderer-${activeStudy.type} rupture-${fieldState}`}
+      ref={pageRef}
+      className={`dither-canvas-page dither-study-${activeStudy.id} dither-renderer-${activeStudy.type} rupture-${fieldState} dither-transition-${transitionPhase}`}
       aria-label="Spectral Display dither field lab"
     >
-      {renderActiveStudy()}
+      <div className="dither-fixed-stage">
+        <div
+          key={activeStudy.id}
+          className={`dither-study-scene is-${transitionPhase}`}
+          data-transition={transitionStyle}
+          data-direction={transitionDirection}
+          aria-hidden="true"
+        >
+          {renderActiveStudy()}
+        </div>
 
-      <div className="rupture-glass" aria-hidden="true" />
-      <div className="rupture-grain" aria-hidden="true" />
+        <div className="rupture-glass" aria-hidden="true" />
+        <div className="rupture-grain" aria-hidden="true" />
 
-      <header className="rupture-header">
-        <nav className="rupture-nav" aria-label="Dither field controls">
-          <a
-            className="rupture-brand"
-            href="/"
-            aria-label="Return to Popular Consulting"
-          >
-            <img src={logo} alt="" aria-hidden="true" />
-            <span>Popular Consulting</span>
-          </a>
-
-          <span className="rupture-nav-rule" aria-hidden="true" />
-
-          <div className="rupture-nav-actions">
-            <button
-              type="button"
-              className="rupture-icon-button"
-              onClick={toggleTheme}
-              aria-label={isDark ? "Use light mode" : "Use dark mode"}
-              title={isDark ? "Use light mode" : "Use dark mode"}
+        <header className="rupture-header">
+          <nav className="rupture-nav" aria-label="Dither field controls">
+            <a
+              className="rupture-brand"
+              href="/"
+              aria-label="Return to Popular Consulting"
             >
-              <ThemeIcon isDark={isDark} />
-            </button>
-            <button
-              type="button"
-              className="rupture-text-button"
-              onClick={() => setPaused((value) => !value)}
-            >
-              {paused ? "Resume" : "Pause"}
-            </button>
-            <button
-              type="button"
-              className="rupture-text-button"
-              onClick={() => setResetVersion((value) => value + 1)}
-            >
-              {activeStudy.resetLabel}
-            </button>
+              <img src={logo} alt="" aria-hidden="true" />
+              <span>Popular Consulting</span>
+            </a>
+
+            <span className="rupture-nav-rule" aria-hidden="true" />
+
+            <div className="rupture-nav-actions">
+              <button
+                type="button"
+                className="rupture-icon-button"
+                onClick={toggleTheme}
+                aria-label={isDark ? "Use light mode" : "Use dark mode"}
+                title={isDark ? "Use light mode" : "Use dark mode"}
+              >
+                <ThemeIcon isDark={isDark} />
+              </button>
+              <button
+                type="button"
+                className="rupture-text-button"
+                onClick={() => setPaused((value) => !value)}
+              >
+                {paused ? "Resume" : "Pause"}
+              </button>
+              <button
+                type="button"
+                className="rupture-text-button"
+                onClick={resetActiveStudy}
+              >
+                {activeStudy.resetLabel}
+              </button>
+            </div>
+          </nav>
+        </header>
+
+        <section
+          key={`copy-${activeStudy.id}`}
+          className={`rupture-copy dither-copy is-${transitionPhase}`}
+          data-transition={transitionStyle}
+          data-direction={transitionDirection}
+          aria-labelledby="rupture-title"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          <p className="rupture-eyebrow">
+            Spectral Display · Study {activeStudy.number}
+          </p>
+          <h1 id="rupture-title">{activeStudy.title}</h1>
+          <p className="rupture-description">{activeStudy.description}</p>
+          <p className="rupture-instruction">{activeStudy.instruction}</p>
+        </section>
+
+        <nav className="dither-study-switcher" aria-label="Dither background studies">
+          <p className="dither-study-switcher-label">Field studies</p>
+          <div className="dither-study-options">
+            {STUDIES.map((study, index) => {
+              const isActive = index === displayStudyIndex;
+              const isTargeted = index === requestedStudyIndex;
+              return (
+                <button
+                  key={study.id}
+                  type="button"
+                  className={`dither-study-option${isActive ? " is-active" : ""}${isTargeted ? " is-targeted" : ""}`}
+                  onClick={() => scrollToStudy(index)}
+                  aria-pressed={isActive}
+                >
+                  <span className="dither-study-number" aria-hidden="true">
+                    {study.number}
+                  </span>
+                  <span className="dither-study-title">{study.title}</span>
+                  <span className="dither-study-kind" aria-hidden="true">
+                    {study.kind}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </nav>
-      </header>
 
-      <section className="rupture-copy" aria-labelledby="rupture-title">
-        <p className="rupture-eyebrow">
-          Spectral Display · Study {activeStudy.number}
+        <p className="rupture-state" aria-live="polite">
+          <span aria-hidden="true" />
+          {fieldState}
         </p>
-        <h1 id="rupture-title">{activeStudy.title}</h1>
-        <p className="rupture-description">{activeStudy.description}</p>
-        <p className="rupture-instruction">{activeStudy.instruction}</p>
-      </section>
+      </div>
 
-      <nav className="dither-study-switcher" aria-label="Dither background studies">
-        <p className="dither-study-switcher-label">Field studies</p>
-        <div className="dither-study-options">
-          {STUDIES.map((study) => {
-            const isActive = study.id === activeStudy.id;
-            return (
-              <button
-                key={study.id}
-                type="button"
-                className={`dither-study-option${isActive ? " is-active" : ""}`}
-                onClick={() => selectStudy(study)}
-                aria-pressed={isActive}
-              >
-                <span className="dither-study-number" aria-hidden="true">
-                  {study.number}
-                </span>
-                <span className="dither-study-title">{study.title}</span>
-                <span className="dither-study-kind" aria-hidden="true">
-                  {study.kind}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </nav>
-
-      <p className="rupture-state" aria-live="polite">
-        <span aria-hidden="true" />
-        {fieldState}
-      </p>
+      <div className="dither-scroll-sequence" aria-hidden="true">
+        {STUDIES.map((study, index) => (
+          <section
+            key={`scroll-${study.id}`}
+            className={`dither-scroll-step${index === 0 ? " is-opening-step" : ""}`}
+            data-study-index={index}
+          />
+        ))}
+      </div>
     </main>
   );
 };
