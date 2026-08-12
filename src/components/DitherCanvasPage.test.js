@@ -38,6 +38,24 @@ jest.mock("./SpectralDitherCanvas", () => {
     );
 });
 
+jest.mock("./ResearchDitherCanvas", () => {
+  const ReactModule = require("react");
+  return ({ isDark, mode, onFieldStateChange, paused, resetVersion }) =>
+    ReactModule.createElement(
+      "button",
+      {
+        type: "button",
+        "data-testid": "research-renderer",
+        "data-mode": String(mode),
+        "data-theme-mode": isDark ? "dark" : "light",
+        "data-paused": paused ? "true" : "false",
+        "data-reset-version": String(resetVersion),
+        onClick: () => onFieldStateChange?.("forming"),
+      },
+      "research renderer",
+    );
+});
+
 describe("DitherCanvasPage", () => {
   afterEach(() => {
     cleanup();
@@ -45,12 +63,13 @@ describe("DitherCanvasPage", () => {
     document.documentElement.removeAttribute("data-theme");
   });
 
-  test("opens as a five-study field lab without replacing Second Surface", () => {
+  test("opens as a nine-study field lab without replacing Second Surface", () => {
     render(<DitherCanvasPage />);
 
     expect(screen.getByRole("heading", { name: "Second Surface" })).toBeInTheDocument();
     expect(screen.getAllByTestId("rupture-renderer")).toHaveLength(1);
     expect(screen.queryByTestId("spectral-renderer")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("research-renderer")).not.toBeInTheDocument();
     expect(screen.getByTestId("rupture-renderer")).toHaveAttribute(
       "data-theme-mode",
       "light",
@@ -59,15 +78,19 @@ describe("DitherCanvasPage", () => {
     const studyNavigation = screen.getByRole("navigation", {
       name: "Dither background studies",
     });
-    expect(within(studyNavigation).getAllByRole("button")).toHaveLength(5);
+    expect(within(studyNavigation).getAllByRole("button")).toHaveLength(9);
     expect(within(studyNavigation).getByRole("button", { name: /Second Surface/ })).toHaveAttribute(
       "aria-pressed",
       "true",
     );
+    expect(within(studyNavigation).getByRole("button", { name: /Lava Lamp/ })).toBeInTheDocument();
+    expect(within(studyNavigation).getByRole("button", { name: /Morphogen Divide/ })).toBeInTheDocument();
+    expect(within(studyNavigation).getByRole("button", { name: /Quasicrystal Chorus/ })).toBeInTheDocument();
+    expect(within(studyNavigation).getByRole("button", { name: /Hyperbolic Garden/ })).toBeInTheDocument();
     expect(screen.queryByRole("slider")).not.toBeInTheDocument();
   });
 
-  test("switches among the new shader studies through one spectral renderer", () => {
+  test("switches among the original shader studies through one spectral renderer", () => {
     render(<DitherCanvasPage />);
 
     fireEvent.click(screen.getByRole("button", { name: /Metabloom/ }));
@@ -89,7 +112,30 @@ describe("DitherCanvasPage", () => {
     );
   });
 
-  test("uses the shared site theme for either renderer", () => {
+  test("switches through one research renderer for lava and all three researched systems", () => {
+    render(<DitherCanvasPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Lava Lamp/ }));
+    expect(screen.getByRole("heading", { name: "Lava Lamp" })).toBeInTheDocument();
+    expect(screen.getAllByTestId("research-renderer")).toHaveLength(1);
+    expect(screen.getByTestId("research-renderer")).toHaveAttribute("data-mode", "0");
+    expect(screen.queryByTestId("spectral-renderer")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Morphogen Divide/ }));
+    expect(screen.getAllByTestId("research-renderer")).toHaveLength(1);
+    expect(screen.getByTestId("research-renderer")).toHaveAttribute("data-mode", "1");
+    expect(screen.getByText("forming")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Quasicrystal Chorus/ }));
+    expect(screen.getAllByTestId("research-renderer")).toHaveLength(1);
+    expect(screen.getByTestId("research-renderer")).toHaveAttribute("data-mode", "2");
+
+    fireEvent.click(screen.getByRole("button", { name: /Hyperbolic Garden/ }));
+    expect(screen.getAllByTestId("research-renderer")).toHaveLength(1);
+    expect(screen.getByTestId("research-renderer")).toHaveAttribute("data-mode", "3");
+  });
+
+  test("uses the shared site theme for every renderer family", () => {
     render(<DitherCanvasPage />);
 
     fireEvent.click(screen.getByRole("button", { name: "Use dark mode" }));
@@ -103,9 +149,15 @@ describe("DitherCanvasPage", () => {
       "data-theme-mode",
       "dark",
     );
+
+    fireEvent.click(screen.getByRole("button", { name: /Hyperbolic Garden/ }));
+    expect(screen.getByTestId("research-renderer")).toHaveAttribute(
+      "data-theme-mode",
+      "dark",
+    );
   });
 
-  test("pauses and resumes the active study", () => {
+  test("pauses and resumes the active study across renderer families", () => {
     render(<DitherCanvasPage />);
 
     fireEvent.click(screen.getByRole("button", { name: "Pause" }));
@@ -120,14 +172,20 @@ describe("DitherCanvasPage", () => {
       "true",
     );
 
+    fireEvent.click(screen.getByRole("button", { name: /Morphogen Divide/ }));
+    expect(screen.getByTestId("research-renderer")).toHaveAttribute(
+      "data-paused",
+      "true",
+    );
+
     fireEvent.click(screen.getByRole("button", { name: "Resume" }));
-    expect(screen.getByTestId("spectral-renderer")).toHaveAttribute(
+    expect(screen.getByTestId("research-renderer")).toHaveAttribute(
       "data-paused",
       "false",
     );
   });
 
-  test("resets the active renderer without remounting a second canvas", () => {
+  test("resets the active renderer without mounting a second canvas", () => {
     render(<DitherCanvasPage />);
 
     expect(screen.getByTestId("rupture-renderer")).toHaveAttribute(
@@ -147,9 +205,17 @@ describe("DitherCanvasPage", () => {
       "data-reset-version",
       "2",
     );
+
+    fireEvent.click(screen.getByRole("button", { name: /Morphogen Divide/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Reseed" }));
+    expect(screen.getAllByTestId("research-renderer")).toHaveLength(1);
+    expect(screen.getByTestId("research-renderer")).toHaveAttribute(
+      "data-reset-version",
+      "3",
+    );
   });
 
-  test("announces renderer state changes and updates the page state class", () => {
+  test("announces state changes and updates the page state class", () => {
     render(<DitherCanvasPage />);
 
     fireEvent.click(screen.getByTestId("rupture-renderer"));
@@ -160,5 +226,10 @@ describe("DitherCanvasPage", () => {
     fireEvent.click(screen.getByTestId("spectral-renderer"));
     expect(screen.getByText("resonance")).toBeInTheDocument();
     expect(screen.getByRole("main")).toHaveClass("rupture-resonance");
+
+    fireEvent.click(screen.getByRole("button", { name: /Lava Lamp/ }));
+    fireEvent.click(screen.getByTestId("research-renderer"));
+    expect(screen.getByText("forming")).toBeInTheDocument();
+    expect(screen.getByRole("main")).toHaveClass("rupture-forming");
   });
 });
