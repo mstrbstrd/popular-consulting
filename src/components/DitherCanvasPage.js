@@ -4,6 +4,7 @@ import { ThemeProvider, useThemeMode } from "../contexts/ThemeContext";
 import RuptureCanvas from "./RuptureCanvas";
 import SpectralDitherCanvas from "./SpectralDitherCanvas";
 import "./DitherCanvasPage.css";
+import "./DitherCanvasVibrance.css";
 
 const STUDIES = [
   {
