@@ -1,14 +1,13 @@
 import React, { useEffect, useState } from "react";
 import logo from "../assets/icons/logo2026_128.png";
 import { ThemeProvider, useThemeMode } from "../contexts/ThemeContext";
+import CreatorOSFieldCanvas from "./CreatorOSFieldCanvas";
 import CreatorOSLavaLampCanvas from "./CreatorOSLavaLampCanvas";
-import ResearchDitherCanvas from "./ResearchDitherCanvas";
 import RuptureCanvas from "./RuptureCanvas";
-import SpectralDitherCanvas from "./SpectralDitherCanvas";
 import "./DitherCanvasPage.css";
-import "./ResearchDitherCanvas.css";
 import "./DitherCanvasVibrance.css";
 import "./CreatorOSLavaLampCanvas.css";
+import "./CreatorOSFieldCanvas.css";
 
 const STUDIES = [
   {
@@ -28,13 +27,13 @@ const STUDIES = [
     id: "metabloom",
     number: "02",
     title: "Metabloom",
-    type: "spectral",
-    kind: "Field",
+    type: "creatoros-field",
+    kind: "Fluid",
     mode: 0,
     initialState: "drifting",
     resetLabel: "Reseed",
     description:
-      "Lava-lamp motion becomes a living membrane of orbiting forms that merge, divide, and bend around the observer.",
+      "CreatorOS wax physics become an orbital organism: viscous bodies merge, stretch along their motion, and bloom around the observer.",
     instruction:
       "Move to bend the bloom · tap to send a pressure ring through the field",
   },
@@ -42,13 +41,13 @@ const STUDIES = [
     id: "tidal-weave",
     number: "03",
     title: "Tidal Weave",
-    type: "spectral",
-    kind: "Field",
+    type: "creatoros-field",
+    kind: "Fluid",
     mode: 1,
     initialState: "drifting",
     resetLabel: "Reseed",
     description:
-      "Counterflowing ribbons braid into an over-under textile, continuously exchanging depth as the current turns.",
+      "Two viscous ribbon systems braid into an over-under textile, exchanging depth as the current folds and refracts.",
     instruction:
       "Move to redirect the current · tap to disturb every crossing at once",
   },
@@ -56,13 +55,13 @@ const STUDIES = [
     id: "moire-halo",
     number: "04",
     title: "Moiré Halo",
-    type: "spectral",
-    kind: "Field",
+    type: "creatoros-field",
+    kind: "Wave",
     mode: 2,
     initialState: "drifting",
     resetLabel: "Reseed",
     description:
-      "Two migrating wavefronts interfere into lenses, rings, and impossible radial structures that never quite repeat.",
+      "Migrating wavefronts interfere as liquid pigment, forming lenses, rings, and Bayer-quantized radial structures that never settle.",
     instruction:
       "Move to separate the wave origins · tap to launch a third interference ring",
   },
@@ -70,13 +69,13 @@ const STUDIES = [
     id: "contour-drift",
     number: "05",
     title: "Contour Drift",
-    type: "spectral",
-    kind: "Field",
+    type: "creatoros-field",
+    kind: "Terrain",
     mode: 3,
     initialState: "drifting",
     resetLabel: "Reseed",
     description:
-      "Procedural terrain is reduced to a drifting topographic signal, with elevation expressed through spectral glyph density.",
+      "Procedural terrain flows like suspended pigment, with elevation expressed through viscous spectral contour bands and crisp Bayer cells.",
     instruction:
       "Move to lift the terrain · tap to push a circular depression across the map",
   },
@@ -97,13 +96,13 @@ const STUDIES = [
     id: "morphogen-divide",
     number: "07",
     title: "Morphogen Divide",
-    type: "research",
+    type: "creatoros-field",
     kind: "Feedback",
-    mode: 1,
+    mode: 4,
     initialState: "forming",
     resetLabel: "Reseed",
     description:
-      "A live reaction-diffusion system grows cells, fronts, and dividing islands from local chemical feedback rather than a predetermined animation.",
+      "A live reaction-diffusion system grows cells, fronts, and dividing islands, now rendered as translucent CreatorOS pigment rather than glyphs.",
     instruction:
       "Move to feed the chemistry · tap to seed an expanding reaction front · reseed for a new organism",
   },
@@ -111,13 +110,13 @@ const STUDIES = [
     id: "quasicrystal-chorus",
     number: "08",
     title: "Quasicrystal Chorus",
-    type: "research",
+    type: "creatoros-field",
     kind: "Wave",
-    mode: 2,
+    mode: 5,
     initialState: "drifting",
     resetLabel: "Reseed",
     description:
-      "Twelve coupled standing-wave directions assemble a fluid quasicrystal whose local symmetries shift without becoming periodic.",
+      "Twelve coupled standing-wave directions assemble a fluid quasicrystal whose spectral ridges shift without becoming periodic.",
     instruction:
       "Move to lens the wave vectors · tap to introduce a travelling phase disturbance",
   },
@@ -125,13 +124,13 @@ const STUDIES = [
     id: "hyperbolic-garden",
     number: "09",
     title: "Hyperbolic Garden",
-    type: "research",
+    type: "creatoros-field",
     kind: "Space",
-    mode: 3,
+    mode: 6,
     initialState: "drifting",
     resetLabel: "Reseed",
     description:
-      "Geodesics grow inside a conformally warped Poincaré disk, packing more structure toward a boundary that can never be reached.",
+      "Geodesics grow as translucent pigment inside a conformally warped Poincaré disk, packing more structure toward an unreachable boundary.",
     instruction:
       "Move to relocate the geometric origin · tap to send a pulse across curved space",
   },
@@ -208,18 +207,8 @@ const DitherFieldLab = () => {
       );
     }
 
-    if (activeStudy.type === "research") {
-      return (
-        <ResearchDitherCanvas
-          {...sharedProps}
-          mode={activeStudy.mode}
-          onFieldStateChange={setFieldState}
-        />
-      );
-    }
-
     return (
-      <SpectralDitherCanvas
+      <CreatorOSFieldCanvas
         {...sharedProps}
         mode={activeStudy.mode}
         onFieldStateChange={setFieldState}
@@ -229,7 +218,7 @@ const DitherFieldLab = () => {
 
   return (
     <main
-      className={`dither-canvas-page dither-study-${activeStudy.id} rupture-${fieldState}`}
+      className={`dither-canvas-page dither-study-${activeStudy.id} dither-renderer-${activeStudy.type} rupture-${fieldState}`}
       aria-label="Spectral Display dither field lab"
     >
       {renderActiveStudy()}
