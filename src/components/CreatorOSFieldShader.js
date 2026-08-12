@@ -367,14 +367,32 @@ vec4 sceneMetabloom(vec2 uv, float time) {
   float body = smoothstep(0.36, 2.65, potential);
   float edge = exp(-abs(potential - 1.18) * 2.7);
   float density = sat(body * 0.69 + membrane * body * 0.31 + edge * 0.18);
-  float baseHue = 0.70
-    + atan(p.y, p.x) / TAU * 0.22
-    + potential * 0.047
-    + time * 0.018
-    + u_seed * 0.13;
+  // A polar angle introduces a branch ray that Bayer quantization makes visible.
+// Build hue from continuous Cartesian and noise fields instead.
+float colorFlow = fbm(
+  rotate2(0.48) * p * 1.42
+    + vec2(time * 0.022, -time * 0.017)
+    + vec2(u_seed * 4.1, -u_seed * 3.7)
+);
+float secondaryFlow = fbm(
+  rotate2(-0.71) * p * 2.18
+    + vec2(-time * 0.014, time * 0.019)
+    + vec2(13.4, 7.9)
+);
+float baseHue = 0.70
+  + p.x * 0.080
+  + p.y * 0.135
+  + (colorFlow - 0.5) * 0.26
+  + (secondaryFlow - 0.5) * 0.10
+  + potential * 0.040
+  + membrane * 0.035
+  + time * 0.018
+  + u_seed * 0.13;
 
-  vec3 tint = tintAccumulator / max(potential, 0.0001);
-  tint = mix(tint, spectral(baseHue), 0.62);
+vec3 tint = tintAccumulator / max(potential, 0.0001);
+vec3 flowTint = spectral(baseHue);
+float flowDominance = 0.76 + membrane * 0.10;
+tint = mix(tint, flowTint, sat(flowDominance));
   float materialField = potential * (1.12 + membrane * 0.18) + edge * 0.24;
   vec4 material = fluidMaterial(
     materialField,
