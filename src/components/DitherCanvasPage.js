@@ -231,6 +231,7 @@ const ThemeIcon = ({ isDark }) =>
 const DitherFieldLab = () => {
   const { isDark, toggleTheme } = useThemeMode();
   const pageRef = useRef(null);
+  const pageTopRef = useRef(0);
   const scrollFrameRef = useRef(0);
   const reducedMotionRef = useRef(false);
   const [displayStudyIndex, setDisplayStudyIndex] = useState(0);
@@ -284,7 +285,7 @@ const DitherFieldLab = () => {
       if (!page) return;
 
       const viewportHeight = Math.max(window.innerHeight, 1);
-      const pageTop = page.getBoundingClientRect().top + window.scrollY;
+      const pageTop = pageTopRef.current;
       const maximumUnits = scrollUnitsForStudy(STUDIES.length - 1);
       const scrollUnits = clamp(
         (window.scrollY - pageTop) / viewportHeight,
@@ -316,19 +317,31 @@ const DitherFieldLab = () => {
       );
     };
 
+    const measurePageTop = () => {
+      const page = pageRef.current;
+      if (!page) return;
+      pageTopRef.current = page.getBoundingClientRect().top + window.scrollY;
+    };
+
     const handleScroll = () => {
       if (scrollFrameRef.current) return;
       scrollFrameRef.current = window.requestAnimationFrame(syncScrollPosition);
     };
 
+    const handleResize = () => {
+      measurePageTop();
+      handleScroll();
+    };
+
+    measurePageTop();
     syncScrollPosition();
     window.addEventListener("scroll", handleScroll, { passive: true });
-    window.addEventListener("resize", handleScroll);
+    window.addEventListener("resize", handleResize);
 
     return () => {
       window.cancelAnimationFrame(scrollFrameRef.current);
       window.removeEventListener("scroll", handleScroll);
-      window.removeEventListener("resize", handleScroll);
+      window.removeEventListener("resize", handleResize);
     };
   }, []);
 
@@ -395,9 +408,7 @@ const DitherFieldLab = () => {
   const scrollToStudy = (index) => {
     const page = pageRef.current;
     const viewportHeight = Math.max(window.innerHeight, 1);
-    const pageTop = page
-      ? page.getBoundingClientRect().top + window.scrollY
-      : 0;
+    const pageTop = page ? pageTopRef.current : 0;
     const top = pageTop + scrollUnitsForStudy(index) * viewportHeight;
 
     window.scrollTo({

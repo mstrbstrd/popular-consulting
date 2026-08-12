@@ -130,6 +130,7 @@ const RuptureCanvas = ({
   isDark = false,
   onRuptureStateChange,
   paused = false,
+  progress: controlledProgress = null,
   resetVersion = 0,
 }) => {
   const rootRef = useRef(null);
@@ -138,6 +139,12 @@ const RuptureCanvas = ({
   const themeRef = useRef(isDark ? 1 : 0);
   const onRuptureStateChangeRef = useRef(onRuptureStateChange);
   const resetSimulationRef = useRef(() => {});
+  const controlledProgressRef = useRef(
+    Number.isFinite(controlledProgress)
+      ? clamp(controlledProgress)
+      : null,
+  );
+  const syncControlledProgressRef = useRef(() => {});
   const animationFrameRef = useRef(0);
   const forceRenderRef = useRef(true);
   const [fallback, setFallback] = useState(false);
@@ -161,6 +168,14 @@ const RuptureCanvas = ({
     resetSimulationRef.current();
     forceRenderRef.current = true;
   }, [resetVersion]);
+
+  useEffect(() => {
+    controlledProgressRef.current = Number.isFinite(controlledProgress)
+      ? clamp(controlledProgress)
+      : null;
+    syncControlledProgressRef.current();
+    forceRenderRef.current = true;
+  }, [controlledProgress]);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -330,6 +345,13 @@ const RuptureCanvas = ({
       forceRenderRef.current = true;
     };
 
+    const syncControlledProgress = () => {
+      if (controlledProgressRef.current === null) return;
+      setTargetProgress(controlledProgressRef.current);
+    };
+    syncControlledProgressRef.current = syncControlledProgress;
+    syncControlledProgress();
+
     const updateOpening = (delta) => {
       const response = reducedMotion || pausedRef.current
         ? 1
@@ -359,15 +381,16 @@ const RuptureCanvas = ({
       scars.fill(0);
       localTime = 0;
       reveal = reducedMotion ? 1 : 0;
-      progress = 0;
-      targetProgress = 0;
-      currentEnergy = 0;
+      const resetProgress = controlledProgressRef.current ?? 0;
+      progress = resetProgress;
+      targetProgress = resetProgress;
+      currentEnergy = smoothStep(resetProgress);
       pointer.x = 0.52;
       pointer.y = 0.52;
       drag.active = false;
       drag.pointerId = null;
       stateWasReported = false;
-      reportState("sealed");
+      reportState(stateForProgress(resetProgress));
       updatePageStyles();
       forceRenderRef.current = true;
     };
@@ -413,6 +436,7 @@ const RuptureCanvas = ({
     };
 
     const handleWheel = (event) => {
+      if (controlledProgressRef.current !== null) return;
       const deltaPixels = normalizeWheelDelta(event, height);
       if (Math.abs(deltaPixels) < 0.01) return;
       setTargetProgress(
@@ -422,6 +446,7 @@ const RuptureCanvas = ({
 
     const handlePointerDown = (event) => {
       syncPointer(event);
+      if (controlledProgressRef.current !== null) return;
       if (event.pointerType === "mouse") return;
       drag.active = true;
       drag.lastY = event.clientY;
@@ -431,6 +456,7 @@ const RuptureCanvas = ({
 
     const handlePointerMove = (event) => {
       syncPointer(event);
+      if (controlledProgressRef.current !== null) return;
       if (!drag.active || event.pointerId !== drag.pointerId) return;
       const deltaPixels = drag.lastY - event.clientY;
       drag.lastY = event.clientY;
@@ -449,6 +475,7 @@ const RuptureCanvas = ({
     };
 
     const handleKeyDown = (event) => {
+      if (controlledProgressRef.current !== null) return;
       const target = event.target;
       if (
         target instanceof Element
@@ -544,6 +571,7 @@ const RuptureCanvas = ({
     return () => {
       cancelAnimationFrame(animationFrameRef.current);
       resetSimulationRef.current = () => {};
+      syncControlledProgressRef.current = () => {};
       window.removeEventListener("wheel", handleWheel);
       root.removeEventListener("pointerdown", handlePointerDown);
       root.removeEventListener("pointermove", handlePointerMove);
