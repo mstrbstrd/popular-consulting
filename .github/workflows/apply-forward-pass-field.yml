@@ -1,0 +1,539 @@
+name: Apply Forward Pass field
+
+on:
+  push:
+    branches:
+      - agent/forward-pass-field
+    paths:
+      - .github/workflows/apply-forward-pass-field.yml
+
+permissions:
+  contents: write
+
+jobs:
+  implement:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/forward-pass-field
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Implement the transformer field
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace_once(path_value, old, new):
+              path = Path(path_value)
+              text = path.read_text(encoding="utf-8")
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(
+                      f"Expected one match in {path_value}, found {count}: {old[:80]!r}"
+                  )
+              path.write_text(text.replace(old, new), encoding="utf-8")
+
+          replace_once(
+              "src/components/CreatorOSFieldCanvas.js",
+              "const MODE_COUNT = 7;",
+              "const MODE_COUNT = 8;",
+          )
+
+          hyperbolic_study = '''  {
+              id: "hyperbolic-garden",
+              number: "09",
+              title: "Hyperbolic Garden",
+              type: "creatoros-field",
+              kind: "Space",
+              mode: 6,
+              initialState: "drifting",
+              resetLabel: "Reseed",
+              description:
+                "Geodesics grow as translucent pigment inside a conformally warped Poincaré disk, packing more structure toward an unreachable boundary.",
+              instruction:
+                "Move to relocate the geometric origin · tap to send a pulse across curved space",
+            },
+          ];'''
+
+          forward_study = '''  {
+              id: "hyperbolic-garden",
+              number: "09",
+              title: "Hyperbolic Garden",
+              type: "creatoros-field",
+              kind: "Space",
+              mode: 6,
+              initialState: "drifting",
+              resetLabel: "Reseed",
+              description:
+                "Geodesics grow as translucent pigment inside a conformally warped Poincaré disk, packing more structure toward an unreachable boundary.",
+              instruction:
+                "Move to relocate the geometric origin · tap to send a pulse across curved space",
+            },
+            {
+              id: "forward-pass",
+              number: "10",
+              title: "Forward Pass",
+              type: "creatoros-field",
+              kind: "Transformer",
+              mode: 7,
+              initialState: "propagating",
+              resetLabel: "Reroute",
+              description:
+                "Token states traverse repeating transformer blocks: causal context mixes, hidden channels expand through a SwiGLU gate, and each result rejoins its residual stream.",
+              instruction:
+                "Move to bias the gates · tap to inject a token pulse and follow it through the layers",
+            },
+          ];'''
+
+          replace_once(
+              "src/components/DitherCanvasPage.js",
+              hyperbolic_study,
+              forward_study,
+          )
+
+          shader_path = Path("src/components/CreatorOSFieldShader.js")
+          shader = shader_path.read_text(encoding="utf-8")
+          scene_marker = "\nvec4 sampleScene(int mode, vec2 uv, float time) {"
+          if shader.count(scene_marker) != 1:
+              raise SystemExit("Expected exactly one sampleScene marker.")
+
+          forward_scene = r'''
+          vec4 sceneForwardPass(vec2 uv, float time) {
+            float aspect = u_res.x / max(u_res.y, 1.0);
+            float intro = smoothstep(0.0, 0.88, u_intro);
+            float pulse = pulseField(uv);
+            float gateBias = (u_pointer.y - 0.5) * 1.8
+              + (u_pointer.x - 0.5) * 0.6;
+            float field = 0.0;
+            float tintWeight = 0.0;
+            vec3 tintAccumulator = vec3(0.0);
+
+            // Horizontal lanes are token positions. Causal attention can pull
+            // from the same or an earlier lane, while the FFN expands each
+            // token independently before it rejoins the residual stream.
+            for (int token = 0; token < 5; token++) {
+              float tokenIndex = float(token);
+              float laneY = 0.18 + tokenIndex * 0.16;
+              float tokenHue = 0.48 + tokenIndex * 0.105 + time * 0.008;
+              float packet = pow(
+                0.5 + 0.5 * cos(
+                  (uv.x * 6.0 - time * 0.16 - tokenIndex * 0.17) * TAU
+                ),
+                14.0
+              );
+              float residualStream = exp(-abs(uv.y - laneY) * 190.0)
+                * (0.20 + packet * 0.62);
+              vec3 streamTint = spectral(tokenHue);
+              field += residualStream;
+              tintAccumulator += streamTint * residualStream;
+              tintWeight += residualStream;
+
+              for (int layer = 0; layer < 4; layer++) {
+                float layerIndex = float(layer);
+                float blockStart = 0.055 + layerIndex * 0.235;
+                float blockWidth = 0.205;
+                float local = (uv.x - blockStart) / blockWidth;
+                float blockMask = smoothstep(0.0, 0.045, local)
+                  * (1.0 - smoothstep(0.955, 1.0, local));
+                float layerReveal = smoothstep(
+                  layerIndex * 0.16,
+                  layerIndex * 0.16 + 0.36,
+                  u_intro
+                );
+                float direction = mod(tokenIndex + layerIndex, 2.0) < 1.0
+                  ? 1.0
+                  : -1.0;
+
+                float residualCurve = laneY
+                  + direction
+                    * sin(PI * sat(local))
+                    * (0.026 + 0.008 * sin(time * 0.11 + tokenIndex));
+                float residualBypass = exp(
+                  -abs(uv.y - residualCurve) * 210.0
+                ) * blockMask * layerReveal * (0.28 + packet * 0.36);
+                vec3 residualTint = spectral(
+                  tokenHue + layerIndex * 0.045 + 0.12
+                );
+                field += residualBypass;
+                tintAccumulator += residualTint * residualBypass;
+                tintWeight += residualBypass;
+
+                float causalLookback = 1.0 + mod(layerIndex, 2.0);
+                float sourceIndex = max(tokenIndex - causalLookback, 0.0);
+                float sourceY = 0.18 + sourceIndex * 0.16;
+                float attentionProgress = sat((local - 0.045) / 0.26);
+                float attentionWindow = smoothstep(0.02, 0.075, local)
+                  * (1.0 - smoothstep(0.285, 0.34, local))
+                  * layerReveal;
+                float attentionY = mix(sourceY, laneY, attentionProgress)
+                  + direction * sin(attentionProgress * PI) * 0.018;
+                float contextPulse = pow(
+                  0.5 + 0.5 * cos(
+                    (local * 2.4
+                      - time * 0.20
+                      - tokenIndex * 0.17
+                      - layerIndex * 0.09) * TAU
+                  ),
+                  10.0
+                );
+                float attentionMix = exp(-abs(uv.y - attentionY) * 165.0)
+                  * attentionWindow
+                  * (0.30 + contextPulse * 0.80);
+                vec3 attentionTint = spectral(
+                  tokenHue + sourceIndex * 0.055 + layerIndex * 0.03
+                );
+                field += attentionMix;
+                tintAccumulator += attentionTint * attentionMix;
+                tintWeight += attentionMix;
+
+                float ffnProgress = sat((local - 0.34) / 0.52);
+                float ffnWindow = smoothstep(0.31, 0.37, local)
+                  * (1.0 - smoothstep(0.86, 0.92, local))
+                  * layerReveal;
+                float hiddenExpansion = sin(ffnProgress * PI)
+                  * (0.052
+                    + 0.010 * sin(
+                      time * 0.13 + tokenIndex * 1.7 + layerIndex
+                    ));
+                float projectionFunnel = smoothstep(0.62, 1.0, ffnProgress);
+                float laneBias = exp(-abs(u_pointer.y - laneY) * 8.0)
+                  * u_energy;
+
+                for (int hidden = 0; hidden < 4; hidden++) {
+                  float hiddenIndex = float(hidden);
+                  float hiddenOffset = (hiddenIndex - 1.5) / 1.5;
+                  float hiddenY = laneY + hiddenOffset * hiddenExpansion;
+                  float valueProjection = 0.5 + 0.5 * sin(
+                    time * 0.33
+                      + tokenIndex * 1.31
+                      + layerIndex * 0.77
+                      + hiddenIndex * 1.91
+                      + local * 8.0
+                  );
+                  float gateProjection = sat(
+                    (0.5 + 0.5 * cos(
+                      time * 0.29
+                        - tokenIndex * 0.83
+                        + layerIndex * 1.17
+                        + hiddenIndex * 2.23
+                        + gateBias
+                    )) * 0.84
+                      + laneBias * 0.52
+                  );
+                  float swigluGate = gateProjection
+                    / (1.0 + exp(-(gateProjection * 7.0 - 3.5)));
+                  float gatedActivation = sat(
+                    valueProjection * swigluGate * 2.15
+                  );
+                  float hiddenLine = exp(-abs(uv.y - hiddenY) * 190.0)
+                    * ffnWindow
+                    * (0.18 + gatedActivation * 1.18)
+                    * (0.82 + projectionFunnel * 0.24);
+                  vec3 hiddenTint = spectral(
+                    tokenHue
+                      + layerIndex * 0.035
+                      + hiddenIndex * 0.055
+                      + gatedActivation * 0.08
+                  );
+                  field += hiddenLine;
+                  tintAccumulator += hiddenTint * hiddenLine;
+                  tintWeight += hiddenLine;
+                }
+
+                float entryNorm = exp(
+                  -abs(uv.x - blockStart) * aspect * 145.0
+                ) * exp(-abs(uv.y - laneY) * 68.0) * layerReveal;
+                float ffnNorm = exp(
+                  -abs(uv.x - (blockStart + blockWidth * 0.33))
+                    * aspect
+                    * 160.0
+                ) * exp(-abs(uv.y - laneY) * 72.0) * layerReveal;
+                float mergeNode = exp(
+                  -abs(uv.x - (blockStart + blockWidth * 0.92))
+                    * aspect
+                    * 165.0
+                ) * exp(-abs(uv.y - laneY) * 82.0) * layerReveal;
+                float structure = entryNorm * 0.34
+                  + ffnNorm * 0.40
+                  + mergeNode * (0.46 + projectionFunnel * 0.38);
+                vec3 structureTint = spectral(
+                  tokenHue + layerIndex * 0.06 + 0.20
+                );
+                field += structure;
+                tintAccumulator += structureTint * structure;
+                tintWeight += structure;
+              }
+            }
+
+            float promptEnvelope = 1.0 - smoothstep(2.8, 5.6, u_pulseAge);
+            float promptX = u_pulseOrigin.x + u_pulseAge * 0.13;
+            float promptFront = exp(
+              -abs(uv.x - promptX) * aspect * 88.0
+            ) * exp(-abs(uv.y - u_pulseOrigin.y) * 11.0) * promptEnvelope;
+            float promptSignal = promptFront * 1.45 + pulse * 0.32;
+            vec3 promptTint = spectral(
+              0.08 + u_pulseOrigin.y * 0.48 + time * 0.015
+            );
+            field += promptSignal;
+            tintAccumulator += promptTint * promptSignal;
+            tintWeight += promptSignal;
+
+            field *= intro;
+            vec3 tint = tintAccumulator / max(tintWeight, 0.0001);
+            tint = mix(
+              tint,
+              promptTint,
+              sat(promptFront * 0.78 + pulse * 0.24)
+            );
+            vec4 material = fluidMaterial(field, tint, 0.26, 0.22, 0.88);
+            material.a = max(material.a, sat((field - 0.12) * 0.22));
+            return material;
+          }
+          '''
+
+          shader = shader.replace(scene_marker, "\n" + forward_scene.strip() + scene_marker)
+
+          old_sample_scene = '''vec4 sampleScene(int mode, vec2 uv, float time) {
+            if (mode == 0) return sceneMetabloom(uv, time);
+            if (mode == 1) return sceneTidalWeave(uv, time);
+            if (mode == 2) return sceneMoireHalo(uv, time);
+            if (mode == 3) return sceneContourDrift(uv, time);
+            if (mode == 4) return sceneMorphogen(uv, time);
+            if (mode == 5) return sceneQuasicrystal(uv, time);
+            return sceneHyperbolic(uv, time);
+          }'''
+          new_sample_scene = '''vec4 sampleScene(int mode, vec2 uv, float time) {
+            if (mode == 0) return sceneMetabloom(uv, time);
+            if (mode == 1) return sceneTidalWeave(uv, time);
+            if (mode == 2) return sceneMoireHalo(uv, time);
+            if (mode == 3) return sceneContourDrift(uv, time);
+            if (mode == 4) return sceneMorphogen(uv, time);
+            if (mode == 5) return sceneQuasicrystal(uv, time);
+            if (mode == 6) return sceneHyperbolic(uv, time);
+            return sceneForwardPass(uv, time);
+          }'''
+          if shader.count(old_sample_scene) != 1:
+              raise SystemExit("Expected exactly one original sampleScene block.")
+          shader = shader.replace(old_sample_scene, new_sample_scene)
+
+          old_main_sample = '''  vec4 sampleA = sampleScene(u_modeA, v_uv, u_time);
+            vec4 sampleB = sampleScene(u_modeB, v_uv, u_time);
+            vec4 colorSample = mix(sampleA, sampleB, smoothstep(0.0, 1.0, u_modeMix));'''
+          new_main_sample = '''  vec4 colorSample = sampleScene(u_modeA, v_uv, u_time);
+            if (u_modeA != u_modeB && u_modeMix > 0.001) {
+              vec4 incomingSample = sampleScene(u_modeB, v_uv, u_time);
+              colorSample = mix(
+                colorSample,
+                incomingSample,
+                smoothstep(0.0, 1.0, u_modeMix)
+              );
+            }'''
+          if shader.count(old_main_sample) != 1:
+              raise SystemExit("Expected exactly one original scene crossfade block.")
+          shader = shader.replace(old_main_sample, new_main_sample)
+          shader_path.write_text(shader, encoding="utf-8")
+
+          css_marker = '''[data-theme="dark"] .creatoros-field-fallback {'''
+          forward_fallback = '''.creatoros-field-mode-7 .creatoros-field-fallback {
+            background:
+              repeating-linear-gradient(90deg, transparent 0 10.5rem, rgba(0, 238, 255, 0.24) 10.7rem 11.1rem, transparent 11.3rem 21rem),
+              repeating-linear-gradient(0deg, transparent 0 4.4rem, rgba(255, 0, 255, 0.20) 4.55rem 4.85rem, transparent 5rem 8.8rem),
+              radial-gradient(circle at 18% 50%, rgba(0, 238, 255, 0.34), transparent 28%),
+              radial-gradient(circle at 82% 50%, rgba(157, 0, 255, 0.32), transparent 30%),
+              #fff8f7;
+          }
+
+          .rupture-propagating .rupture-state span {
+            background: #00eeff;
+            box-shadow:
+              0 0 1.4rem rgba(0, 238, 255, 0.92),
+              0 0 2.8rem rgba(255, 0, 255, 0.42);
+          }
+
+          '''
+          css_path = Path("src/components/CreatorOSFieldCanvas.css")
+          css = css_path.read_text(encoding="utf-8")
+          if css.count(css_marker) != 1:
+              raise SystemExit("Expected one dark fallback marker.")
+          css_path.write_text(
+              css.replace(css_marker, forward_fallback + css_marker),
+              encoding="utf-8",
+          )
+
+          replace_once(
+              "src/components/DitherCanvasPage.test.js",
+              'test("opens as a nine-study field lab without replacing Second Surface", () => {',
+              'test("opens as a ten-study field lab without replacing Second Surface", () => {',
+          )
+          replace_once(
+              "src/components/DitherCanvasPage.test.js",
+              'expect(within(studyNavigation).getAllByRole("button")).toHaveLength(9);',
+              'expect(within(studyNavigation).getAllByRole("button")).toHaveLength(10);',
+          )
+          replace_once(
+              "src/components/DitherCanvasPage.test.js",
+              '''    expect(within(studyNavigation).getByRole("button", { name: /Hyperbolic Garden/ })).toBeInTheDocument();
+              expect(screen.queryByRole("slider")).not.toBeInTheDocument();''',
+              '''    expect(within(studyNavigation).getByRole("button", { name: /Hyperbolic Garden/ })).toBeInTheDocument();
+              expect(within(studyNavigation).getByRole("button", { name: /Forward Pass/ })).toBeInTheDocument();
+              expect(screen.queryByRole("slider")).not.toBeInTheDocument();''',
+          )
+          replace_once(
+              "src/components/DitherCanvasPage.test.js",
+              '''    fireEvent.click(screen.getByRole("button", { name: /Hyperbolic Garden/ }));
+              expect(screen.getAllByTestId("creatoros-field-renderer")).toHaveLength(1);
+              expect(screen.getByTestId("creatoros-field-renderer")).toHaveAttribute("data-mode", "6");
+            });''',
+              '''    fireEvent.click(screen.getByRole("button", { name: /Hyperbolic Garden/ }));
+              expect(screen.getAllByTestId("creatoros-field-renderer")).toHaveLength(1);
+              expect(screen.getByTestId("creatoros-field-renderer")).toHaveAttribute("data-mode", "6");
+
+              fireEvent.click(screen.getByRole("button", { name: /Forward Pass/ }));
+              expect(screen.getAllByTestId("creatoros-field-renderer")).toHaveLength(1);
+              expect(screen.getByTestId("creatoros-field-renderer")).toHaveAttribute("data-mode", "7");
+            });''',
+          )
+
+          replace_once(
+              "src/components/CreatorOSFieldCanvas.test.js",
+              'expect(source).toContain("const RENDER_SCALE = 0.5");',
+              'expect(source).toContain("const MODE_COUNT = 8");\n    expect(source).toContain("const RENDER_SCALE = 0.5");',
+          )
+          replace_once(
+              "src/components/CreatorOSFieldCanvas.test.js",
+              '''    expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain("sceneHyperbolic");
+              expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain("mobius");''',
+              '''    expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain("sceneHyperbolic");
+              expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain("sceneForwardPass");
+              expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain("mobius");''',
+          )
+
+          forward_test = '''const fs = require("fs");
+          const path = require("path");
+          const {
+            CREATOROS_FIELD_FRAGMENT_SHADER,
+          } = require("./CreatorOSFieldShader");
+
+          describe("Forward Pass field", () => {
+            const start = CREATOROS_FIELD_FRAGMENT_SHADER.indexOf(
+              "vec4 sceneForwardPass",
+            );
+            const end = CREATOROS_FIELD_FRAGMENT_SHADER.indexOf(
+              "vec4 sampleScene",
+              start,
+            );
+            const scene = CREATOROS_FIELD_FRAGMENT_SHADER.slice(start, end);
+
+            test("maps the decoder-only transformer stages into one continuous field", () => {
+              expect(start).toBeGreaterThanOrEqual(0);
+              expect(end).toBeGreaterThan(start);
+              expect(scene).toContain("float causalLookback");
+              expect(scene).toContain("float attentionMix");
+              expect(scene).toContain("float hiddenExpansion");
+              expect(scene).toContain("float swigluGate");
+              expect(scene).toContain("float projectionFunnel");
+              expect(scene).toContain("float residualBypass");
+              expect(scene).toContain("float promptFront");
+            });
+
+            test("keeps the new field inside the existing renderer and performance budget", () => {
+              const canvas = fs.readFileSync(
+                path.join(__dirname, "CreatorOSFieldCanvas.js"),
+                "utf8",
+              );
+              const page = fs.readFileSync(
+                path.join(__dirname, "DitherCanvasPage.js"),
+                "utf8",
+              );
+              const css = fs.readFileSync(
+                path.join(__dirname, "CreatorOSFieldCanvas.css"),
+                "utf8",
+              );
+
+              expect(canvas).toContain("const MODE_COUNT = 8");
+              expect(page).toContain('id: "forward-pass"');
+              expect(page).toContain("mode: 7");
+              expect(css).toContain(".creatoros-field-mode-7");
+              expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain(
+                "if (u_modeA != u_modeB && u_modeMix > 0.001)",
+              );
+              expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain(
+                "return sceneForwardPass(uv, time)",
+              );
+            });
+          });
+          '''
+          Path("src/components/ForwardPassField.test.js").write_text(
+              forward_test,
+              encoding="utf-8",
+          )
+
+          replace_once(
+              "src/content/routeMetadata.json",
+              '"description": "Dither Field Lab is a selectable collection of nine interactive WebGL studies spanning physical rupture, spectral fields, feedback chemistry, fluid quasipatterns, and conformal geometry.",',
+              '"description": "Dither Field Lab is a selectable collection of ten interactive WebGL studies spanning physical rupture, spectral fields, feedback chemistry, transformer computation, fluid quasipatterns, and conformal geometry.",',
+          )
+          replace_once(
+              "src/content/routeMetadata.json",
+              '"socialDescription": "Explore nine interactive Spectral Display studies, including the original lava lamp, live reaction-diffusion morphogenesis, twelvefold quasicrystal waves, and a hyperbolic garden.",',
+              '"socialDescription": "Explore ten interactive Spectral Display studies, including the CreatorOS lava lamp, a transformer forward pass, live reaction-diffusion morphogenesis, quasicrystal waves, and a hyperbolic garden.",',
+          )
+
+          replace_once(
+              "CLAUDE.md",
+              "| `/dither-canvas` | `DitherCanvasPage` | noindex; nine-study CreatorOS-derived field lab |",
+              "| `/dither-canvas` | `DitherCanvasPage` | noindex; ten-study CreatorOS-derived field lab |",
+          )
+          replace_once(
+              "CLAUDE.md",
+              "- `DitherCanvasPage.js` owns the nine-study selector and guarantees that only one visible renderer family is mounted at a time.",
+              "- `DitherCanvasPage.js` owns the ten-study selector and guarantees that only one visible renderer family is mounted at a time.",
+          )
+          replace_once(
+              "CLAUDE.md",
+              "- `CreatorOSFieldCanvas.js` is the shared WebGL2 renderer for Metabloom, Tidal Weave, Moiré Halo, Contour Drift, Morphogen Divide, Quasicrystal Chorus, and Hyperbolic Garden. It carries the same CreatorOS rendering contract while preserving each study's independent scene mathematics.",
+              "- `CreatorOSFieldCanvas.js` is the shared WebGL2 renderer for Metabloom, Tidal Weave, Moiré Halo, Contour Drift, Morphogen Divide, Quasicrystal Chorus, Hyperbolic Garden, and Forward Pass. It carries the same CreatorOS rendering contract while preserving each study's independent scene mathematics.",
+          )
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Run tests
+        run: npm test -- --watchAll=false --runInBand
+        env:
+          CI: true
+
+      - name: Build production bundle
+        run: npm run build
+        env:
+          CI: true
+
+      - name: Commit implementation and remove workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/CreatorOSFieldCanvas.js \
+            src/components/CreatorOSFieldShader.js \
+            src/components/CreatorOSFieldCanvas.css \
+            src/components/DitherCanvasPage.js \
+            src/components/DitherCanvasPage.test.js \
+            src/components/CreatorOSFieldCanvas.test.js \
+            src/components/ForwardPassField.test.js \
+            src/content/routeMetadata.json \
+            CLAUDE.md
+          git rm .github/workflows/apply-forward-pass-field.yml
+          git commit -m "Add transformer Forward Pass field"
+          git push origin HEAD:agent/forward-pass-field
