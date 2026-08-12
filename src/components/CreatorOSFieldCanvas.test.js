@@ -51,7 +51,7 @@ describe("CreatorOSFieldCanvas", () => {
     expect(css).toContain("backdrop-filter: none");
   });
 
-  test("uses the exact CreatorOS palette, Bayer-8 output, and viscous material model", () => {
+  test("uses the exact CreatorOS palette, Bayer-8 output, and fluid material model", () => {
     expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain("#define bayer8");
     expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain("vec3(0.0, 0.933, 1.0)");
     expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain("vec3(1.0, 0.0, 1.0)");
@@ -60,16 +60,39 @@ describe("CreatorOSFieldCanvas", () => {
     expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain("viscousWarp");
     expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain("fluidMaterial");
     expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain(
-      "local.y /= 1.0 + 10.0 * speed",
-    );
-    expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain(
-      "local.x *= 1.0 + 3.8 * speed",
-    );
-    expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain(
       "fragColor = vec4(color * alpha, alpha)",
     );
     expect(CREATOROS_FIELD_FRAGMENT_SHADER).not.toContain("u_atlas");
     expect(CREATOROS_FIELD_FRAGMENT_SHADER).not.toContain("sampleGlyph");
+  });
+
+  test("restores Metabloom's compact merging and dividing topology", () => {
+    expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain("float potential = 0.0");
+    expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain(
+      "time * (0.16 + layer * 0.009)",
+    );
+    expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain(
+      "p = viscousWarp(p, time, 0.08)",
+    );
+    expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain("potential * 4.4");
+    expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain("float materialField");
+    expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain(
+      "smoothstep(0.36, 2.65, potential)",
+    );
+  });
+
+  test("gives Morphogen Divide autonomous transport, recurrent fronts, and visible activity", () => {
+    expect(CREATOROS_REACTION_FRAGMENT_SHADER).toContain("vortexFlow");
+    expect(CREATOROS_REACTION_FRAGMENT_SHADER).toContain("sampleUv = clamp");
+    expect(CREATOROS_REACTION_FRAGMENT_SHADER).toContain("float heartbeat");
+    expect(CREATOROS_REACTION_FRAGMENT_SHADER).toContain("float migratingSeed");
+    expect(CREATOROS_REACTION_FRAGMENT_SHADER).toContain("centerState.b");
+    expect(CREATOROS_REACTION_FRAGMENT_SHADER).toContain(
+      "fragColor = vec4(sat(u), sat(v), activity, 1.0)",
+    );
+    expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain("float activity = chemical.b");
+    expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain("float cleavage");
+    expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain("float transport");
   });
 
   test("keeps every refined study distinct inside one renderer", () => {

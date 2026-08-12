@@ -25,20 +25,62 @@ uniform float u_feed;
 uniform float u_kill;
 uniform float u_dt;
 
+#define PI 3.14159265359
+#define TAU 6.28318530718
+
 float sat(float value) {
   return clamp(value, 0.0, 1.0);
 }
 
+vec2 vortexFlow(vec2 uv, vec2 center, float spin) {
+  vec2 delta = uv - center;
+  float falloff = exp(-dot(delta, delta) * 18.0);
+  return vec2(-delta.y, delta.x) * falloff * spin;
+}
+
 void main() {
-  vec2 center = texture(u_state, v_uv).rg;
-  vec2 north = texture(u_state, v_uv + vec2(0.0, u_texel.y)).rg;
-  vec2 south = texture(u_state, v_uv - vec2(0.0, u_texel.y)).rg;
-  vec2 east = texture(u_state, v_uv + vec2(u_texel.x, 0.0)).rg;
-  vec2 west = texture(u_state, v_uv - vec2(u_texel.x, 0.0)).rg;
-  vec2 northEast = texture(u_state, v_uv + u_texel).rg;
-  vec2 northWest = texture(u_state, v_uv + vec2(-u_texel.x, u_texel.y)).rg;
-  vec2 southEast = texture(u_state, v_uv + vec2(u_texel.x, -u_texel.y)).rg;
-  vec2 southWest = texture(u_state, v_uv - u_texel).rg;
+  float flowPhase = u_time * 0.055 + u_seed * TAU;
+  vec2 vortexA = vec2(0.5) + vec2(
+    cos(flowPhase),
+    sin(flowPhase * 1.13)
+  ) * 0.21;
+  vec2 vortexB = vec2(0.5) + vec2(
+    sin(-flowPhase * 0.79 + 1.7),
+    cos(flowPhase * 0.91 - 0.8)
+  ) * 0.27;
+  vec2 flow = vortexFlow(v_uv, vortexA, 0.82)
+    + vortexFlow(v_uv, vortexB, -0.68);
+
+  vec2 pointerDeltaFlow = v_uv - u_pointer;
+  float pointerFalloff = exp(-dot(pointerDeltaFlow, pointerDeltaFlow) * 22.0);
+  flow += vec2(-pointerDeltaFlow.y, pointerDeltaFlow.x)
+    * pointerFalloff
+    * u_energy
+    * 0.92;
+
+  vec2 edge = u_texel * 2.0;
+  vec2 sampleUv = clamp(
+    v_uv - flow * u_texel * (2.0 + u_energy * 2.6),
+    edge,
+    vec2(1.0) - edge
+  );
+
+  vec4 centerState = texture(u_state, sampleUv);
+  vec2 center = centerState.rg;
+  vec2 north = texture(u_state, sampleUv + vec2(0.0, u_texel.y)).rg;
+  vec2 south = texture(u_state, sampleUv - vec2(0.0, u_texel.y)).rg;
+  vec2 east = texture(u_state, sampleUv + vec2(u_texel.x, 0.0)).rg;
+  vec2 west = texture(u_state, sampleUv - vec2(u_texel.x, 0.0)).rg;
+  vec2 northEast = texture(u_state, sampleUv + u_texel).rg;
+  vec2 northWest = texture(
+    u_state,
+    sampleUv + vec2(-u_texel.x, u_texel.y)
+  ).rg;
+  vec2 southEast = texture(
+    u_state,
+    sampleUv + vec2(u_texel.x, -u_texel.y)
+  ).rg;
+  vec2 southWest = texture(u_state, sampleUv - u_texel).rg;
 
   vec2 laplacian = -center
     + (north + south + east + west) * 0.20
@@ -46,9 +88,21 @@ void main() {
 
   float u = center.r;
   float v = center.g;
+  float previousV = v;
   float reaction = u * v * v;
-  float feed = u_feed + sin(u_time * 0.037 + u_seed * 9.0) * 0.00055;
-  float kill = u_kill + cos(u_time * 0.029 - u_seed * 7.0) * 0.00045;
+  float cycle = 0.5 + 0.5 * sin(u_time * 0.063 + u_seed * 8.0);
+  float spatialCycle = sin(
+    (v_uv.x * 0.82 + v_uv.y * 1.17) * TAU
+      - u_time * 0.041
+      + u_seed * 5.0
+  );
+  float feed = u_feed
+    + (cycle - 0.5) * 0.0028
+    + spatialCycle * 0.00034;
+  float kill = u_kill
+    - 0.00105
+    - (cycle - 0.5) * 0.0018
+    + cos(flowPhase + v_uv.x * TAU) * 0.00028;
 
   float du = 0.16 * laplacian.r - reaction + feed * (1.0 - u);
   float dv = 0.08 * laplacian.g + reaction - (feed + kill) * v;
@@ -64,12 +118,45 @@ void main() {
   float pulse = exp(-abs(length(pulseDelta) - pulseRadius) * 70.0)
     * (1.0 - smoothstep(1.5, 4.8, u_pulseAge));
 
+  float beatPhase = fract(u_time * 0.086 + u_seed * 0.61);
+  vec2 beatCenter = vec2(0.5) + vec2(
+    cos(flowPhase * 0.57),
+    sin(flowPhase * 0.73)
+  ) * 0.12;
+  vec2 beatDelta = (v_uv - beatCenter) * vec2(1.24, 1.0);
+  float heartbeat = exp(
+    -abs(length(beatDelta) - beatPhase * 0.72) * 76.0
+  ) * sin(PI * beatPhase);
+
+  vec2 migratingCenter = vec2(0.5) + vec2(
+    sin(u_time * 0.071 + u_seed * 7.0),
+    cos(u_time * 0.053 - u_seed * 5.0)
+  ) * vec2(0.31, 0.24);
+  vec2 migratingDelta = (v_uv - migratingCenter) * vec2(1.18, 1.0);
+  float migratingSeed = exp(-dot(migratingDelta, migratingDelta) * 250.0);
+
   u += du * u_dt;
   v += dv * u_dt;
-  v += pointerBrush * 0.040 + pulse * 0.026;
-  u -= pointerBrush * 0.022 + pulse * 0.014;
+  v += pointerBrush * 0.040
+    + pulse * 0.026
+    + heartbeat * 0.0048
+    + migratingSeed * 0.0054;
+  u -= pointerBrush * 0.022
+    + pulse * 0.014
+    + heartbeat * 0.0026
+    + migratingSeed * 0.0030;
 
-  fragColor = vec4(sat(u), sat(v), 0.0, 1.0);
+  float activityTarget = sat(
+    abs(v - previousV) * 34.0
+      + reaction * 4.2
+      + heartbeat * 0.58
+      + migratingSeed * 0.72
+      + pointerBrush * 0.82
+      + pulse * 0.76
+  );
+  float activity = max(centerState.b * 0.972, activityTarget);
+
+  fragColor = vec4(sat(u), sat(v), activity, 1.0);
 }`;
 
 export const CREATOROS_FIELD_FRAGMENT_SHADER = `#version 300 es
@@ -224,65 +311,81 @@ vec4 fluidMaterial(
 }
 
 vec4 sceneMetabloom(vec2 uv, float time) {
-  uv = pointerFlow(uv, 0.082);
-  vec2 p = viscousWarp(centeredUv(uv), time, 0.42);
+  vec2 scale = aspectScale();
+  uv = pointerFlow(uv, 0.075);
+  vec2 p = (uv - 0.5) * scale;
+  p = viscousWarp(p, time, 0.08);
   p = rotate2(-0.08 + sin(time * 0.07) * 0.035) * p;
 
-  float field = 0.0;
-  vec3 tint = vec3(0.0);
+  float potential = 0.0;
+  float nearest = 10.0;
+  vec3 tintAccumulator = vec3(0.0);
 
   for (int index = 0; index < 7; index++) {
     float layer = float(index);
-    float seed = fract(layer * 0.6180339 + u_seed * 0.17) * TAU;
-    float phaseX = time * (0.105 + layer * 0.004) + seed;
-    float phaseY = time * (0.082 + layer * 0.003) + seed * 1.37;
+    float phase = time * (0.16 + layer * 0.009)
+      + layer * 1.71
+      + u_seed * 7.0;
     vec2 center = vec2(
-      sin(phaseX) * (0.34 + 0.035 * mod(layer, 3.0)),
-      cos(phaseY) * (0.28 + 0.030 * mod(layer, 4.0))
+      sin(phase * 1.13 + layer * 0.91) * (0.18 + 0.035 * layer),
+      cos(phase * 0.87 - layer * 1.27) * (0.12 + 0.028 * layer)
     );
     center += vec2(
-      sin(time * 0.061 + layer * 2.2),
-      cos(time * 0.053 - layer * 1.8)
-    ) * 0.09;
+      sin(time * 0.09 + layer * 2.2),
+      cos(time * 0.075 - layer * 1.8)
+    ) * 0.055;
 
-    vec2 velocity = vec2(
-      cos(phaseX) * (0.105 + layer * 0.004)
-        * (0.34 + 0.035 * mod(layer, 3.0)),
-      -sin(phaseY) * (0.082 + layer * 0.003)
-        * (0.28 + 0.030 * mod(layer, 4.0))
-    );
-
-    float bloom = clamp(u_intro * 1.45 - layer * 0.065, 0.0, 1.0);
+    float bloom = clamp(u_intro * 1.50 - layer * 0.070, 0.0, 1.0);
     bloom = 1.0 - pow(1.0 - bloom, 3.0);
-    center = mix(vec2(0.0, -1.55 + layer * 0.035), center, bloom);
+    center = mix(vec2(0.0, -0.82 + layer * 0.018), center, bloom);
 
-    float radius = 0.19 + 0.045 * sin(time * 0.16 + layer * 1.47);
+    float radius = 0.105 + 0.025 * sin(phase * 1.7 + layer);
     radius *= 0.35 + 0.65 * bloom;
-
     vec2 delta = p - center;
-    float speed = length(velocity);
-    vec2 axis = normalize(velocity + vec2(0.0001, 0.0002));
-    vec2 side = vec2(-axis.y, axis.x);
-    vec2 local = vec2(dot(delta, side), dot(delta, axis));
-    local.y /= 1.0 + 10.0 * speed;
-    local.x *= 1.0 + 3.8 * speed;
-    delta = side * local.x + axis * local.y;
-
-    float weight = (radius * radius) / max(dot(delta, delta), 0.00001);
-    field += weight;
-    tint += spectral(layer * 0.137 + time * 0.012 + u_seed * 0.09) * weight;
+    float distanceSquared = dot(delta, delta) + 0.007;
+    float weight = radius * radius / distanceSquared;
+    potential += weight;
+    tintAccumulator += spectral(
+      0.62 + layer * 0.137 + time * 0.012 + u_seed * 0.09
+    ) * weight;
+    nearest = min(nearest, sqrt(distanceSquared));
   }
 
-  vec2 pointer = centeredUv(u_pointer);
+  vec2 pointer = (u_pointer - 0.5) * scale;
   vec2 pointerDelta = p - pointer;
-  float pointerWeight = (0.025 + u_energy * 0.052)
-    / (dot(pointerDelta, pointerDelta) + 0.018);
+  float pointerWeight = (0.018 + u_energy * 0.035)
+    / (dot(pointerDelta, pointerDelta) + 0.012);
   float pulse = pulseField(uv);
-  field += pointerWeight + pulse * (0.72 + u_energy * 0.92);
-  tint += spectral(time * 0.017 + 0.08) * (pointerWeight + pulse * 0.8);
-  tint /= max(field, 0.0001);
+  float interaction = pointerWeight + pulse * (0.55 + u_energy * 0.85);
+  potential = min(potential + interaction, 8.0);
+  tintAccumulator += spectral(time * 0.017 + 0.08) * interaction;
 
-  return fluidMaterial(field, tint, 0.42, 0.18, 1.0);
+  float membrane = 0.5 + 0.5 * sin(
+    potential * 4.4
+      + fbm(p * 2.35 + vec2(time * 0.035, -time * 0.026)) * 4.2
+  );
+  float body = smoothstep(0.36, 2.65, potential);
+  float edge = exp(-abs(potential - 1.18) * 2.7);
+  float density = sat(body * 0.69 + membrane * body * 0.31 + edge * 0.18);
+  float baseHue = 0.70
+    + atan(p.y, p.x) / TAU * 0.22
+    + potential * 0.047
+    + time * 0.018
+    + u_seed * 0.13;
+
+  vec3 tint = tintAccumulator / max(potential, 0.0001);
+  tint = mix(tint, spectral(baseHue), 0.62);
+  float materialField = potential * (1.12 + membrane * 0.18) + edge * 0.24;
+  vec4 material = fluidMaterial(
+    materialField,
+    tint,
+    0.38 + edge * 0.10,
+    0.20 + exp(-nearest * 8.0) * 0.08,
+    0.98
+  );
+  material.rgb += spectral(baseHue + 0.08) * edge * 0.12;
+  material.a = max(material.a, density * (0.16 + membrane * 0.12));
+  return material;
 }
 
 vec4 sceneTidalWeave(vec2 uv, float time) {
@@ -403,30 +506,62 @@ vec4 sceneContourDrift(vec2 uv, float time) {
 }
 
 vec4 sceneMorphogen(vec2 uv, float time) {
-  vec2 chemical = texture(u_reaction, uv).rg;
+  vec4 chemical = texture(u_reaction, uv);
   float v = chemical.g;
   float u = chemical.r;
+  float activity = chemical.b;
   float north = texture(u_reaction, uv + vec2(0.0, u_reactionTexel.y)).g;
   float south = texture(u_reaction, uv - vec2(0.0, u_reactionTexel.y)).g;
   float east = texture(u_reaction, uv + vec2(u_reactionTexel.x, 0.0)).g;
   float west = texture(u_reaction, uv - vec2(u_reactionTexel.x, 0.0)).g;
-  float gradient = length(vec2(east - west, north - south));
+  vec2 gradientVector = vec2(east - west, north - south);
+  float gradient = length(gradientVector);
+  float curvature = abs(north + south + east + west - 4.0 * v);
   float pulse = pulseField(uv);
 
-  float cells = smoothstep(0.08, 0.54, v);
-  float membrane = smoothstep(0.010, 0.095, gradient);
-  float inverse = smoothstep(0.42, 0.92, u - v * 0.42);
-  float field = (
-    cells * 1.10
-      + membrane * 0.84
-      + inverse * 0.14
-      + pulse * 0.48
-  ) * smoothstep(0.0, 0.72, u_intro);
-  vec3 tint = spectral(
-    0.44 + v * 0.72 + gradient * 1.8 + sin(time * 0.045 + u_seed * 8.0) * 0.028
+  float cells = smoothstep(0.055, 0.52, v);
+  float membrane = smoothstep(0.006, 0.078, gradient);
+  float cleavage = smoothstep(0.010, 0.095, curvature)
+    * smoothstep(0.10, 0.58, v);
+  float interior = smoothstep(0.12, 0.60, v)
+    * (1.0 - smoothstep(0.68, 0.94, v));
+  float transport = 0.5 + 0.5 * sin(
+    time * 0.62
+      + activity * 5.0
+      + v * 10.0
+      + atan(gradientVector.y, gradientVector.x) * 1.6
   );
+  float field = (
+    cells * 0.78
+      + membrane * 1.18
+      + cleavage * 0.82
+      + interior * 0.24
+      + activity * (0.58 + transport * 0.28)
+      + pulse * 0.58
+  ) * smoothstep(0.0, 0.72, u_intro);
 
-  return fluidMaterial(field, tint, 0.30, 0.24, 0.90);
+  float edgeAngle = atan(gradientVector.y, gradientVector.x) / TAU;
+  vec3 interiorTint = spectral(0.56 + v * 0.58 + time * 0.011);
+  vec3 edgeTint = spectral(
+    0.82 + edgeAngle + time * 0.020 + activity * 0.16
+  );
+  vec3 activityTint = spectral(0.08 + activity * 0.56 - time * 0.014);
+  vec3 tint = mix(
+    interiorTint,
+    edgeTint,
+    sat(membrane * 0.82 + cleavage * 0.72)
+  );
+  tint = mix(tint, activityTint, activity * 0.42);
+
+  vec4 material = fluidMaterial(field, tint, 0.34, 0.26, 0.91);
+  material.rgb += edgeTint * (membrane * 0.12 + activity * 0.08);
+  material.a = max(
+    material.a,
+    (membrane * 0.48 + cleavage * 0.34 + activity * 0.28)
+      * smoothstep(0.0, 0.72, u_intro)
+  );
+  material.a *= 0.76 + membrane * 0.18 + activity * 0.10;
+  return material;
 }
 
 vec4 sceneQuasicrystal(vec2 uv, float time) {
