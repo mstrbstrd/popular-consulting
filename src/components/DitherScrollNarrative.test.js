@@ -45,7 +45,10 @@ describe("Dither scroll narrative", () => {
       '"lava-lamp": { enter: "native", exit: "lava-lamp" }',
     );
     expect(narrativeStyles).not.toContain(
-      'is-entering[data-transition="lava-lamp"]',
+      '.dither-study-scene.is-entering[data-transition="lava-lamp"]',
+    );
+    expect(narrativeStyles).toContain(
+      '.dither-copy.is-entering[data-transition="lava-lamp"]',
     );
   });
 
