@@ -116,7 +116,7 @@ describe("WorkPage", () => {
     expect(document.title).toBe("Selected Engineering Work | Shaedan Hawse");
     expect(document.querySelector('link[rel="canonical"]')).toHaveAttribute(
       "href",
-      "https://popcon.dev/work",
+      "https://popular-consulting.com/work",
     );
     expect(document.querySelector('meta[name="description"]')).toHaveAttribute(
       "content",

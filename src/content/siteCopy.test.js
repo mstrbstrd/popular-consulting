@@ -65,13 +65,13 @@ describe("dual-audience public copy", () => {
 
   test("defines static metadata for every public route", () => {
     expect(Object.keys(routeMetadata).sort()).toEqual(
-      ["engineering", "game", "orb", "root", "work"].sort(),
+      ["ditherCanvas", "engineering", "game", "orb", "root", "work"].sort(),
     );
 
     Object.values(routeMetadata).forEach((metadata) => {
       expect(metadata.title).toBeTruthy();
       expect(metadata.description).toBeTruthy();
-      expect(metadata.canonical).toMatch(/^https:\/\/popcon\.dev/);
+      expect(metadata.canonical).toMatch(/^https:\/\/popular-consulting\.com/);
       expect(metadata.robots).toMatch(/^(index|noindex),follow$/);
     });
   });

@@ -113,7 +113,7 @@ describe("App immersive presentation", () => {
     );
     expect(document.querySelector('link[rel="canonical"]')).toHaveAttribute(
       "href",
-      "https://popcon.dev/",
+      "https://popular-consulting.com/",
     );
   });
 
@@ -134,7 +134,7 @@ describe("App immersive presentation", () => {
     );
     expect(document.querySelector('link[rel="canonical"]')).toHaveAttribute(
       "href",
-      "https://popcon.dev/engineering",
+      "https://popular-consulting.com/engineering",
     );
     expect(document.querySelector('meta[name="description"]')).toHaveAttribute(
       "content",
@@ -142,7 +142,7 @@ describe("App immersive presentation", () => {
     );
     expect(document.querySelector('meta[property="og:url"]')).toHaveAttribute(
       "content",
-      "https://popcon.dev/engineering",
+      "https://popular-consulting.com/engineering",
     );
   });
 
