@@ -1,5 +1,6 @@
 name: Apply scroll-driven dither narrative
 
+# One-shot integration workflow. It removes itself after all checks pass.
 on:
   push:
     branches:
