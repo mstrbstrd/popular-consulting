@@ -1,0 +1,147 @@
+name: Finalize scroll-driven dither narrative
+
+on:
+  push:
+    branches:
+      - agent/scroll-driven-dither-narrative
+    paths:
+      - .github/workflows/finalize-scroll-driven-dither.yml
+
+permissions:
+  contents: write
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/scroll-driven-dither-narrative
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Apply the RuptureCanvas integration patch
+        shell: python
+        run: |
+          from pathlib import Path
+          import textwrap
+
+          workflow = Path(
+              ".github/workflows/apply-scroll-driven-dither.yml"
+          ).read_text(encoding="utf-8")
+          step = workflow.index(
+              "      - name: Make Second Surface page-scroll controlled"
+          )
+          run = workflow.index("        run: |\n", step) + len("        run: |\n")
+          end = workflow.index("\n\n      - name: Install dependencies", run)
+          script = textwrap.dedent(workflow[run:end])
+          exec(compile(script, "scroll-narrative-patch", "exec"))
+
+      - name: Stabilize the narrative scroll origin
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path("src/components/DitherCanvasPage.js")
+          source = path.read_text(encoding="utf-8")
+
+          replacements = [
+              (
+                  "  const pageRef = useRef(null);\n"
+                  "  const scrollFrameRef = useRef(0);",
+                  "  const pageRef = useRef(null);\n"
+                  "  const pageTopRef = useRef(0);\n"
+                  "  const scrollFrameRef = useRef(0);",
+              ),
+              (
+                  "      const pageTop = page.getBoundingClientRect().top + window.scrollY;",
+                  "      const pageTop = pageTopRef.current;",
+              ),
+              (
+                  "    const handleScroll = () => {\n"
+                  "      if (scrollFrameRef.current) return;\n"
+                  "      scrollFrameRef.current = window.requestAnimationFrame(syncScrollPosition);\n"
+                  "    };\n\n"
+                  "    syncScrollPosition();\n"
+                  "    window.addEventListener(\"scroll\", handleScroll, { passive: true });\n"
+                  "    window.addEventListener(\"resize\", handleScroll);",
+                  "    const measurePageTop = () => {\n"
+                  "      const page = pageRef.current;\n"
+                  "      if (!page) return;\n"
+                  "      pageTopRef.current = page.getBoundingClientRect().top + window.scrollY;\n"
+                  "    };\n\n"
+                  "    const handleScroll = () => {\n"
+                  "      if (scrollFrameRef.current) return;\n"
+                  "      scrollFrameRef.current = window.requestAnimationFrame(syncScrollPosition);\n"
+                  "    };\n\n"
+                  "    const handleResize = () => {\n"
+                  "      measurePageTop();\n"
+                  "      handleScroll();\n"
+                  "    };\n\n"
+                  "    measurePageTop();\n"
+                  "    syncScrollPosition();\n"
+                  "    window.addEventListener(\"scroll\", handleScroll, { passive: true });\n"
+                  "    window.addEventListener(\"resize\", handleResize);",
+              ),
+              (
+                  "      window.removeEventListener(\"scroll\", handleScroll);\n"
+                  "      window.removeEventListener(\"resize\", handleScroll);",
+                  "      window.removeEventListener(\"scroll\", handleScroll);\n"
+                  "      window.removeEventListener(\"resize\", handleResize);",
+              ),
+              (
+                  "    const pageTop = page\n"
+                  "      ? page.getBoundingClientRect().top + window.scrollY\n"
+                  "      : 0;",
+                  "    const pageTop = page ? pageTopRef.current : 0;",
+              ),
+          ]
+
+          for old, new in replacements:
+              count = source.count(old)
+              if count != 1:
+                  raise SystemExit(
+                      f"Expected one scroll-origin patch target, found {count}."
+                  )
+              source = source.replace(old, new)
+
+          path.write_text(source, encoding="utf-8")
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Run tests
+        run: npm test -- --watchAll=false --runInBand
+        env:
+          CI: true
+
+      - name: Build production bundle
+        run: npm run build
+        env:
+          CI: true
+
+      - name: Commit the finished narrative
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            src/components/DitherCanvasPage.js \
+            src/components/RuptureCanvas.js
+          git rm \
+            .github/workflows/apply-scroll-driven-dither.yml \
+            .github/workflows/diagnose-scroll-driven-dither.yml \
+            .github/workflows/finalize-scroll-driven-dither.yml \
+            scroll-narrative-test-output.txt
+          git commit -m "Complete scroll-driven dither narrative"
+          git push origin HEAD:agent/scroll-driven-dither-narrative
