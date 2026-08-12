@@ -37,12 +37,12 @@ describe("Dither scroll narrative", () => {
       "hyperbolic-garden",
       "forward-pass",
     ].forEach((studyId) => {
-      expect(pageSource).toContain(`\"${studyId}\"`);
-      expect(narrativeStyles).toContain(`data-transition=\"${studyId}\"`);
+      expect(pageSource).toContain(`"${studyId}"`);
+      expect(narrativeStyles).toContain(`data-transition="${studyId}"`);
     });
 
     expect(pageSource).toContain(
-      '\"lava-lamp\": { enter: \"native\", exit: \"lava-lamp\" }',
+      '"lava-lamp": { enter: "native", exit: "lava-lamp" }',
     );
     expect(narrativeStyles).not.toContain(
       'is-entering[data-transition="lava-lamp"]',
@@ -50,8 +50,12 @@ describe("Dither scroll narrative", () => {
   });
 
   test("animates copy independently and keeps instructions in document flow", () => {
-    expect(pageSource).toContain("dither-copy is-${transitionPhase}");
-    expect(narrativeStyles).toContain(".rupture-instruction {\n  position: static");
+    expect(pageSource).toContain(
+      "className={`rupture-copy dither-copy is-",
+    );
+    expect(narrativeStyles).toContain(
+      ".rupture-instruction {\n  position: static",
+    );
     expect(narrativeStyles).toContain("max-width: min(10.5ch, 100%)");
     expect(narrativeStyles).toContain("dither-copy-forward-enter");
     expect(narrativeStyles).toContain("dither-copy-hyperbolic-exit");
@@ -61,7 +65,11 @@ describe("Dither scroll narrative", () => {
     expect(ruptureSource).toContain("controlledProgressRef");
     expect(ruptureSource).toContain("syncControlledProgressRef");
     expect(ruptureSource).toContain("controlledProgressRef.current !== null");
-    expect(ruptureSource).toContain('window.addEventListener("wheel", handleWheel');
-    expect(ruptureSource).toContain('window.addEventListener("keydown", handleKeyDown)');
+    expect(ruptureSource).toContain(
+      'window.addEventListener("wheel", handleWheel',
+    );
+    expect(ruptureSource).toContain(
+      'window.addEventListener("keydown", handleKeyDown)',
+    );
   });
 });
