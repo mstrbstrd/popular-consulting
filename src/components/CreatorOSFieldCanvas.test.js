@@ -117,6 +117,14 @@ describe("CreatorOSFieldCanvas", () => {
       tidalStart,
       tidalEnd,
     );
+  const outlineStart = tidalScene.indexOf(
+    "// Keep a continuous spectral gradient",
+  );
+  const outlineEnd = tidalScene.indexOf(
+    "\nvec3 tint = mix(",
+    outlineStart,
+  );
+  const tidalOutline = tidalScene.slice(outlineStart, outlineEnd);
 
     expect(source).toContain('tidalPalette = "water"');
     expect(source).toContain("resolveTidalPaletteMix");
@@ -143,6 +151,16 @@ describe("CreatorOSFieldCanvas", () => {
     expect(tidalScene).toContain("vec3(1.340, 1.370, 1.350)");
     expect(tidalScene).toContain("fwidth(bandA)");
     expect(tidalScene).toContain("fwidth(bandB)");
+  expect(tidalScene).toContain("float outlineLevel = 0.72");
+  expect(tidalScene).not.toContain("abs(bandA - 0.30)");
+  expect(tidalScene).toContain("vec3 outlineSpectralA");
+  expect(tidalScene).toContain("vec3 outlineSpectralB");
+  expect(tidalScene).toContain("p.x * 0.120");
+  expect(tidalScene).toContain("outlineTintA * outlineA");
+  expect(tidalScene).toContain("outlineTintB * outlineB");
+  expect(outlineStart).toBeGreaterThanOrEqual(0);
+  expect(outlineEnd).toBeGreaterThan(outlineStart);
+  expect(tidalOutline).not.toContain("crossing *");
     expect(tidalScene).toContain("float spectralOutline");
     expect(tidalScene).toContain("vec3 spectralOutlineTint");
     expect(tidalScene).toContain("float outlineChroma");
