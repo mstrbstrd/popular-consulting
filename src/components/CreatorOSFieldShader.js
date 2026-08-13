@@ -812,39 +812,40 @@ vec4 sceneContourDrift(vec2 uv, float time) {
       + time * 0.006
       + u_seed * 0.10
   );
-  float contourChroma = mix(0.264, 0.192, u_light);
-  vec3 spectralContourEdge = mix(
-    contourCoreTint,
-    contourSpectrum,
-    contourChroma
-  );
-  spectralContourEdge = max(
-    spectralContourEdge,
-    contourCoreTint * 0.74
-  );
-  terrainTint = mix(
-    terrainTint,
-    spectralContourEdge,
-    sat(contourEdge * 1.104)
+  // Match the visible Tidal Weave edge composition. The previous pass
+  // applied the white core after the spectral rim, so anti-aliased overlap
+  // erased nearly all chroma before the five-to-seven-level Bayer pass.
+  float contourChroma = mix(0.48, 0.42, u_light);
+  float contourSpectralFloor = mix(0.70, 0.78, u_light);
+  vec3 spectralContourEdge = max(
+    mix(vec3(0.96), contourSpectrum, contourChroma),
+    vec3(contourSpectralFloor)
   );
   terrainTint = mix(
     terrainTint,
     lineCoreTint,
     contourCore
   );
+  terrainTint = mix(
+    terrainTint,
+    spectralContourEdge,
+    sat(contourEdge * 1.08)
+  );
 
   float terrainPaletteWeight = 1.0 - paletteMix;
   vec3 tint = mix(terrainTint, spectralTint, paletteMix);
   vec4 material = fluidMaterial(field, tint, 0.24, 0.18, 0.84);
-  material.rgb = mix(
-    material.rgb,
-    max(material.rgb, spectralContourEdge * 0.96),
-    terrainPaletteWeight * contourEdge * 0.864
-  );
+  // Compose the white center first and the spectral edge last. This keeps
+  // the rim visible instead of allowing the core to paint over it.
   material.rgb = mix(
     material.rgb,
     max(material.rgb, lineCoreTint * 0.96),
     terrainPaletteWeight * contourCore * 0.88
+  );
+  material.rgb = mix(
+    material.rgb,
+    max(material.rgb, spectralContourEdge * 1.02),
+    terrainPaletteWeight * contourEdge * 0.96
   );
   material.a = max(
     material.a,
