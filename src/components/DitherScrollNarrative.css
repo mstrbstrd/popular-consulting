@@ -1,0 +1,667 @@
+.dither-canvas-page {
+  position: relative;
+  inset: auto;
+  min-height: 100dvh;
+  overflow: clip;
+}
+
+.dither-fixed-stage {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.dither-study-scene {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  transform-origin: center;
+  will-change: opacity, transform, filter, clip-path;
+}
+
+.dither-scroll-sequence {
+  position: relative;
+  z-index: -1;
+  width: 1px;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.dither-scroll-step {
+  height: 100dvh;
+  min-height: 48rem;
+}
+
+.dither-scroll-step.is-opening-step {
+  height: 135dvh;
+}
+
+.dither-canvas-page .rupture-shell,
+.dither-canvas-page .creatoros-field-shell {
+  touch-action: pan-y;
+}
+
+.dither-study-scene[data-direction="forward"],
+.dither-copy[data-direction="forward"] {
+  --dither-direction: 1;
+}
+
+.dither-study-scene[data-direction="backward"],
+.dither-copy[data-direction="backward"] {
+  --dither-direction: -1;
+}
+
+.dither-study-scene.is-exiting {
+  pointer-events: none;
+  animation-duration: 420ms;
+  animation-fill-mode: both;
+  animation-timing-function: cubic-bezier(0.7, 0, 0.84, 0);
+}
+
+.dither-study-scene.is-entering {
+  animation-duration: 620ms;
+  animation-fill-mode: both;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dither-copy.is-exiting {
+  pointer-events: none;
+  animation-duration: 420ms;
+  animation-fill-mode: both;
+  animation-timing-function: cubic-bezier(0.7, 0, 0.84, 0);
+}
+
+.dither-copy.is-entering {
+  animation-duration: 620ms;
+  animation-fill-mode: both;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Second Surface closes along the same material seam that introduced it. */
+.dither-study-scene.is-exiting[data-transition="second-surface"] {
+  animation-name: dither-surface-exit;
+}
+
+.dither-study-scene.is-entering[data-transition="second-surface"] {
+  animation-name: dither-surface-enter;
+}
+
+.dither-copy.is-exiting[data-transition="second-surface"] {
+  animation-name: dither-copy-surface-exit;
+}
+
+.dither-copy.is-entering[data-transition="second-surface"] {
+  animation-name: dither-copy-surface-enter;
+}
+
+/* Metabloom condenses and expands like one continuous organism. */
+.dither-study-scene.is-exiting[data-transition="metabloom"] {
+  animation-name: dither-bloom-exit;
+}
+
+.dither-study-scene.is-entering[data-transition="metabloom"] {
+  animation-name: dither-bloom-enter;
+}
+
+.dither-copy.is-exiting[data-transition="metabloom"] {
+  animation-name: dither-copy-bloom-exit;
+}
+
+.dither-copy.is-entering[data-transition="metabloom"] {
+  animation-name: dither-copy-bloom-enter;
+}
+
+/* Tidal Weave shears across the screen like crossing ribbons. */
+.dither-study-scene.is-exiting[data-transition="tidal-weave"] {
+  animation-name: dither-weave-exit;
+}
+
+.dither-study-scene.is-entering[data-transition="tidal-weave"] {
+  animation-name: dither-weave-enter;
+}
+
+.dither-copy.is-exiting[data-transition="tidal-weave"] {
+  animation-name: dither-copy-weave-exit;
+}
+
+.dither-copy.is-entering[data-transition="tidal-weave"] {
+  animation-name: dither-copy-weave-enter;
+}
+
+/* Moire Halo arrives and departs through a radial aperture. */
+.dither-study-scene.is-exiting[data-transition="moire-halo"] {
+  animation-name: dither-halo-exit;
+}
+
+.dither-study-scene.is-entering[data-transition="moire-halo"] {
+  animation-name: dither-halo-enter;
+}
+
+.dither-copy.is-exiting[data-transition="moire-halo"] {
+  animation-name: dither-copy-halo-exit;
+}
+
+.dither-copy.is-entering[data-transition="moire-halo"] {
+  animation-name: dither-copy-halo-enter;
+}
+
+/* Contour Drift is scanned into and out of the viewport as terrain bands. */
+.dither-study-scene.is-exiting[data-transition="contour-drift"] {
+  animation-name: dither-contour-exit;
+}
+
+.dither-study-scene.is-entering[data-transition="contour-drift"] {
+  animation-name: dither-contour-enter;
+}
+
+.dither-copy.is-exiting[data-transition="contour-drift"] {
+  animation-name: dither-copy-contour-exit;
+}
+
+.dither-copy.is-entering[data-transition="contour-drift"] {
+  animation-name: dither-copy-contour-enter;
+}
+
+/* Lava Lamp keeps its native warm-up entrance. Only its exit is authored here. */
+.dither-study-scene.is-exiting[data-transition="lava-lamp"] {
+  animation-name: dither-lava-exit;
+}
+
+.dither-copy.is-exiting[data-transition="lava-lamp"] {
+  animation-name: dither-copy-lava-exit;
+}
+
+/* Morphogen Divide separates like a living membrane. */
+.dither-study-scene.is-exiting[data-transition="morphogen-divide"] {
+  animation-name: dither-morphogen-exit;
+}
+
+.dither-study-scene.is-entering[data-transition="morphogen-divide"] {
+  animation-name: dither-morphogen-enter;
+}
+
+.dither-copy.is-exiting[data-transition="morphogen-divide"] {
+  animation-name: dither-copy-morphogen-exit;
+}
+
+.dither-copy.is-entering[data-transition="morphogen-divide"] {
+  animation-name: dither-copy-morphogen-enter;
+}
+
+/* Quasicrystal Chorus rotates through a non-periodic crystalline reveal. */
+.dither-study-scene.is-exiting[data-transition="quasicrystal-chorus"] {
+  animation-name: dither-quasicrystal-exit;
+}
+
+.dither-study-scene.is-entering[data-transition="quasicrystal-chorus"] {
+  animation-name: dither-quasicrystal-enter;
+}
+
+.dither-copy.is-exiting[data-transition="quasicrystal-chorus"] {
+  animation-name: dither-copy-quasicrystal-exit;
+}
+
+.dither-copy.is-entering[data-transition="quasicrystal-chorus"] {
+  animation-name: dither-copy-quasicrystal-enter;
+}
+
+/* Hyperbolic Garden folds through the Poincare disk boundary. */
+.dither-study-scene.is-exiting[data-transition="hyperbolic-garden"] {
+  animation-name: dither-hyperbolic-exit;
+}
+
+.dither-study-scene.is-entering[data-transition="hyperbolic-garden"] {
+  animation-name: dither-hyperbolic-enter;
+}
+
+.dither-copy.is-exiting[data-transition="hyperbolic-garden"] {
+  animation-name: dither-copy-hyperbolic-exit;
+}
+
+.dither-copy.is-entering[data-transition="hyperbolic-garden"] {
+  animation-name: dither-copy-hyperbolic-enter;
+}
+
+/* Forward Pass propagates horizontally with the token current. */
+.dither-study-scene.is-exiting[data-transition="forward-pass"] {
+  animation-name: dither-forward-exit;
+}
+
+.dither-study-scene.is-entering[data-transition="forward-pass"] {
+  animation-name: dither-forward-enter;
+}
+
+.dither-copy.is-exiting[data-transition="forward-pass"] {
+  animation-name: dither-copy-forward-exit;
+}
+
+.dither-copy.is-entering[data-transition="forward-pass"] {
+  animation-name: dither-copy-forward-enter;
+}
+
+.rupture-copy {
+  top: clamp(11rem, 16dvh, 15.5rem);
+  left: clamp(2.8rem, 4vw, 5.2rem);
+  width: min(52rem, calc(100vw - 40rem));
+  max-height: calc(100dvh - 21rem);
+  display: grid;
+  align-content: start;
+  overflow: visible;
+  transform: translateY(
+    calc(var(--rupture-lift, 0px) + var(--dither-copy-drift, 0px))
+  );
+}
+
+.rupture-copy h1 {
+  max-width: min(10.5ch, 100%);
+  font-size: clamp(4.8rem, 6.1vw, 9.2rem);
+  line-height: 0.94;
+  letter-spacing: -0.058em;
+  text-wrap: balance;
+}
+
+.rupture-eyebrow {
+  margin-bottom: 1.3rem;
+}
+
+.rupture-description {
+  max-width: 44rem;
+  margin-top: 1.8rem;
+  font-size: clamp(1.42rem, 1.18vw, 1.78rem);
+  line-height: 1.52;
+  text-wrap: pretty;
+}
+
+.rupture-instruction {
+  position: static;
+  left: auto;
+  bottom: auto;
+  max-width: 43rem;
+  margin: 1.35rem 0 0;
+  padding-left: 1.15rem;
+  border-left: 1px solid var(--rupture-border);
+  font-size: 0.98rem;
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+
+@media (min-width: 1081px) {
+  .dither-study-switcher {
+    width: min(27rem, calc(100vw - 6.4rem));
+    max-height: calc(100dvh - 10rem);
+    padding: 0.9rem;
+  }
+
+  .dither-study-switcher-label {
+    padding: 0.4rem 0.8rem 0.7rem;
+  }
+
+  .dither-study-option {
+    grid-template-columns: 3rem minmax(0, 1fr) auto;
+    min-height: 4.5rem;
+    padding: 0.55rem 0.8rem 0.55rem 1rem;
+  }
+
+  .dither-study-title {
+    font-size: 1.18rem;
+  }
+}
+
+@media (max-width: 1080px) {
+  .rupture-copy {
+    top: clamp(10.5rem, 15dvh, 14rem);
+    width: min(55rem, calc(100vw - 5.6rem));
+    max-height: calc(100dvh - 18rem);
+  }
+
+  .dither-study-switcher {
+    right: max(1.8rem, env(safe-area-inset-right));
+    bottom: max(1.8rem, env(safe-area-inset-bottom));
+    left: max(1.8rem, env(safe-area-inset-left));
+    width: auto;
+    padding: 0.7rem;
+    border-radius: 2rem;
+  }
+
+  .dither-study-switcher-label {
+    display: none;
+  }
+
+  .dither-study-options {
+    display: flex;
+    gap: 0.55rem;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    scroll-snap-type: x proximity;
+  }
+
+  .dither-study-options::-webkit-scrollbar {
+    display: none;
+  }
+
+  .dither-study-option {
+    flex: 0 0 auto;
+    grid-template-columns: 2.8rem minmax(9rem, 1fr);
+    min-width: 15.5rem;
+    min-height: 4.8rem;
+    padding: 0.65rem 0.9rem 0.65rem 1.1rem;
+    scroll-snap-align: center;
+  }
+
+  .dither-study-kind {
+    display: none;
+  }
+}
+
+@media (max-width: 700px) {
+  .rupture-copy {
+    top: 8.8rem;
+    left: 1.8rem;
+    width: calc(100vw - 3.6rem);
+    max-height: calc(100dvh - 17rem);
+  }
+
+  .rupture-copy h1 {
+    max-width: 10.5ch;
+    font-size: clamp(4rem, 12vw, 6.4rem);
+    line-height: 0.96;
+    letter-spacing: -0.052em;
+  }
+
+  .rupture-eyebrow {
+    margin-bottom: 0.9rem;
+    font-size: 0.9rem;
+  }
+
+  .rupture-description {
+    max-width: 34rem;
+    margin-top: 1.25rem;
+    font-size: 1.28rem;
+    line-height: 1.46;
+  }
+
+  .rupture-instruction {
+    max-width: 33rem;
+    margin-top: 1rem;
+    padding-left: 0.9rem;
+    font-size: 0.86rem;
+    line-height: 1.45;
+  }
+
+  .dither-study-switcher {
+    right: max(1.2rem, env(safe-area-inset-right));
+    bottom: max(1.2rem, env(safe-area-inset-bottom));
+    left: max(1.2rem, env(safe-area-inset-left));
+  }
+}
+
+@media (max-width: 440px) {
+  .rupture-copy {
+    top: 8.2rem;
+  }
+
+  .rupture-copy h1 {
+    font-size: clamp(3.7rem, 11.5vw, 5.6rem);
+  }
+
+  .rupture-description {
+    font-size: 1.2rem;
+  }
+}
+
+@media (max-height: 760px) and (min-width: 701px) {
+  .rupture-copy {
+    top: 9.6rem;
+    max-height: calc(100dvh - 14rem);
+  }
+
+  .rupture-copy h1 {
+    font-size: clamp(4.2rem, 5.5vw, 7rem);
+  }
+
+  .rupture-description {
+    margin-top: 1.2rem;
+    font-size: 1.34rem;
+    line-height: 1.42;
+  }
+
+  .rupture-instruction {
+    margin-top: 0.9rem;
+  }
+}
+
+@media (max-height: 720px) and (max-width: 700px) {
+  .rupture-description {
+    display: block;
+    margin-top: 0.9rem;
+    font-size: 1.12rem;
+    line-height: 1.38;
+  }
+
+  .rupture-instruction {
+    display: none;
+  }
+
+  .rupture-copy h1 {
+    font-size: clamp(3.6rem, 10.5vw, 5.2rem);
+  }
+}
+
+@keyframes dither-surface-exit {
+  0% {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+    filter: brightness(1);
+  }
+  58% {
+    opacity: 1;
+    filter: brightness(1.22) saturate(1.2);
+  }
+  100% {
+    opacity: 0;
+    clip-path: inset(49% 0 49% 0);
+    filter: brightness(1.45) saturate(1.4);
+  }
+}
+
+@keyframes dither-surface-enter {
+  0% {
+    opacity: 0;
+    clip-path: inset(49% 0 49% 0);
+    filter: brightness(1.4) saturate(1.35);
+  }
+  100% {
+    opacity: 1;
+    clip-path: inset(0 0 0 0);
+    filter: brightness(1);
+  }
+}
+
+@keyframes dither-bloom-exit {
+  0% { opacity: 1; transform: scale(1); filter: blur(0) saturate(1); }
+  100% { opacity: 0; transform: scale(1.22); filter: blur(1.8rem) saturate(1.35); }
+}
+
+@keyframes dither-bloom-enter {
+  0% { opacity: 0; transform: scale(0.72); filter: blur(2.2rem) saturate(1.5); }
+  72% { opacity: 1; transform: scale(1.035); filter: blur(0.2rem) saturate(1.15); }
+  100% { opacity: 1; transform: scale(1); filter: blur(0) saturate(1); }
+}
+
+@keyframes dither-weave-exit {
+  0% { opacity: 1; transform: translateX(0) skewX(0); clip-path: inset(0); }
+  100% { opacity: 0; transform: translateX(calc(var(--dither-direction) * 16%)) skewX(calc(var(--dither-direction) * -9deg)); clip-path: polygon(0 0, 72% 0, 100% 100%, 28% 100%); }
+}
+
+@keyframes dither-weave-enter {
+  0% { opacity: 0; transform: translateX(calc(var(--dither-direction) * -18%)) skewX(calc(var(--dither-direction) * 10deg)); clip-path: polygon(0 0, 28% 0, 72% 100%, 0 100%); }
+  100% { opacity: 1; transform: translateX(0) skewX(0); clip-path: inset(0); }
+}
+
+@keyframes dither-halo-exit {
+  0% { opacity: 1; clip-path: circle(78% at 50% 50%); transform: scale(1); }
+  100% { opacity: 0; clip-path: circle(0% at 50% 50%); transform: scale(1.08); }
+}
+
+@keyframes dither-halo-enter {
+  0% { opacity: 0; clip-path: circle(0% at 50% 50%); transform: scale(0.84); }
+  100% { opacity: 1; clip-path: circle(78% at 50% 50%); transform: scale(1); }
+}
+
+@keyframes dither-contour-exit {
+  0% { opacity: 1; clip-path: inset(0 0 0 0); transform: translateY(0); }
+  100% { opacity: 0; clip-path: inset(0 0 100% 0); transform: translateY(-4%); }
+}
+
+@keyframes dither-contour-enter {
+  0% { opacity: 0; clip-path: inset(100% 0 0 0); transform: translateY(5%); }
+  100% { opacity: 1; clip-path: inset(0 0 0 0); transform: translateY(0); }
+}
+
+@keyframes dither-lava-exit {
+  0% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+  100% { opacity: 0; transform: translateY(18%) scale(0.92); filter: blur(1.2rem); }
+}
+
+@keyframes dither-morphogen-exit {
+  0% { opacity: 1; transform: scaleX(1); clip-path: ellipse(82% 82% at 50% 50%); filter: blur(0); }
+  100% { opacity: 0; transform: scaleX(0.36); clip-path: ellipse(9% 76% at 50% 50%); filter: blur(1rem) hue-rotate(24deg); }
+}
+
+@keyframes dither-morphogen-enter {
+  0% { opacity: 0; transform: scaleX(0.3); clip-path: ellipse(8% 74% at 50% 50%); filter: blur(1.2rem) hue-rotate(-24deg); }
+  72% { opacity: 1; transform: scaleX(1.04); clip-path: ellipse(84% 84% at 50% 50%); filter: blur(0.1rem); }
+  100% { opacity: 1; transform: scaleX(1); clip-path: ellipse(82% 82% at 50% 50%); filter: blur(0); }
+}
+
+@keyframes dither-quasicrystal-exit {
+  0% { opacity: 1; transform: rotate(0) scale(1); filter: contrast(1); }
+  100% { opacity: 0; transform: rotate(calc(var(--dither-direction) * 8deg)) scale(0.78); filter: contrast(1.55) saturate(1.3); }
+}
+
+@keyframes dither-quasicrystal-enter {
+  0% { opacity: 0; transform: rotate(calc(var(--dither-direction) * -11deg)) scale(0.72); filter: contrast(1.7) saturate(1.4); }
+  100% { opacity: 1; transform: rotate(0) scale(1); filter: contrast(1); }
+}
+
+@keyframes dither-hyperbolic-exit {
+  0% { opacity: 1; clip-path: circle(76% at 50% 50%); transform: scale(1); }
+  100% { opacity: 0; clip-path: circle(5% at 50% 50%); transform: scale(0.52) rotate(calc(var(--dither-direction) * 5deg)); }
+}
+
+@keyframes dither-hyperbolic-enter {
+  0% { opacity: 0; clip-path: circle(4% at 50% 50%); transform: scale(0.46) rotate(calc(var(--dither-direction) * -6deg)); }
+  100% { opacity: 1; clip-path: circle(76% at 50% 50%); transform: scale(1) rotate(0); }
+}
+
+@keyframes dither-forward-exit {
+  0% { opacity: 1; clip-path: inset(0 0 0 0); transform: translateX(0) skewX(0); }
+  100% { opacity: 0; clip-path: inset(0 0 0 100%); transform: translateX(12%) skewX(-5deg); }
+}
+
+@keyframes dither-forward-enter {
+  0% { opacity: 0; clip-path: inset(0 100% 0 0); transform: translateX(-12%) skewX(5deg); }
+  100% { opacity: 1; clip-path: inset(0 0 0 0); transform: translateX(0) skewX(0); }
+}
+
+@keyframes dither-copy-surface-exit {
+  to { opacity: 0; transform: translateY(-2.8rem) scaleY(0.84); filter: blur(0.7rem); }
+}
+
+@keyframes dither-copy-surface-enter {
+  from { opacity: 0; transform: translateY(2.8rem) scaleY(0.84); filter: blur(0.7rem); }
+  to { opacity: 1; transform: translateY(var(--dither-copy-drift, 0px)) scaleY(1); filter: blur(0); }
+}
+
+@keyframes dither-copy-bloom-exit {
+  to { opacity: 0; transform: scale(1.12); filter: blur(0.9rem); }
+}
+
+@keyframes dither-copy-bloom-enter {
+  from { opacity: 0; transform: scale(0.86); filter: blur(1rem); }
+  to { opacity: 1; transform: scale(1); filter: blur(0); }
+}
+
+@keyframes dither-copy-weave-exit {
+  to { opacity: 0; transform: translateX(calc(var(--dither-direction) * 5rem)) skewX(calc(var(--dither-direction) * -8deg)); }
+}
+
+@keyframes dither-copy-weave-enter {
+  from { opacity: 0; transform: translateX(calc(var(--dither-direction) * -5rem)) skewX(calc(var(--dither-direction) * 8deg)); }
+  to { opacity: 1; transform: translateX(0) skewX(0); }
+}
+
+@keyframes dither-copy-halo-exit {
+  to { opacity: 0; transform: scale(0.72); filter: blur(0.6rem); }
+}
+
+@keyframes dither-copy-halo-enter {
+  from { opacity: 0; transform: scale(1.24); filter: blur(0.8rem); }
+  to { opacity: 1; transform: scale(1); filter: blur(0); }
+}
+
+@keyframes dither-copy-contour-exit {
+  to { opacity: 0; transform: translateY(-5rem); clip-path: inset(0 0 100% 0); }
+}
+
+@keyframes dither-copy-contour-enter {
+  from { opacity: 0; transform: translateY(5rem); clip-path: inset(100% 0 0 0); }
+  to { opacity: 1; transform: translateY(var(--dither-copy-drift, 0px)); clip-path: inset(0); }
+}
+
+@keyframes dither-copy-lava-exit {
+  to { opacity: 0; transform: translateY(5rem) scale(0.94); filter: blur(0.7rem); }
+}
+
+@keyframes dither-copy-morphogen-exit {
+  to { opacity: 0; transform: scaleX(0.48); filter: blur(0.8rem); }
+}
+
+@keyframes dither-copy-morphogen-enter {
+  from { opacity: 0; transform: scaleX(0.42); filter: blur(0.9rem); }
+  to { opacity: 1; transform: scaleX(1); filter: blur(0); }
+}
+
+@keyframes dither-copy-quasicrystal-exit {
+  to { opacity: 0; transform: rotate(calc(var(--dither-direction) * 5deg)) scale(0.82); filter: blur(0.5rem); }
+}
+
+@keyframes dither-copy-quasicrystal-enter {
+  from { opacity: 0; transform: rotate(calc(var(--dither-direction) * -7deg)) scale(0.76); filter: blur(0.6rem); }
+  to { opacity: 1; transform: rotate(0) scale(1); filter: blur(0); }
+}
+
+@keyframes dither-copy-hyperbolic-exit {
+  to { opacity: 0; transform: scale(0.58) rotate(calc(var(--dither-direction) * 4deg)); filter: blur(0.8rem); }
+}
+
+@keyframes dither-copy-hyperbolic-enter {
+  from { opacity: 0; transform: scale(1.32) rotate(calc(var(--dither-direction) * -4deg)); filter: blur(0.9rem); }
+  to { opacity: 1; transform: scale(1) rotate(0); filter: blur(0); }
+}
+
+@keyframes dither-copy-forward-exit {
+  to { opacity: 0; transform: translateX(7rem) skewX(-5deg); filter: blur(0.4rem); }
+}
+
+@keyframes dither-copy-forward-enter {
+  from { opacity: 0; transform: translateX(-7rem) skewX(5deg); filter: blur(0.4rem); }
+  to { opacity: 1; transform: translateX(0) skewX(0); filter: blur(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dither-study-scene,
+  .dither-copy {
+    animation: none !important;
+    clip-path: none !important;
+    filter: none !important;
+  }
+
+  .rupture-copy {
+    transform: none;
+  }
+}
