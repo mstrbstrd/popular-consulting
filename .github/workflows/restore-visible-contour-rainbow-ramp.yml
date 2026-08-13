@@ -28,14 +28,14 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Give the contour edges a visible travelling spectral ramp
-        shell: python
+      - name: Give contour edges a visible travelling spectral ramp
+        shell: bash
         run: |
+          python - <<'PY'
           from pathlib import Path
 
           shader_path = Path("src/components/CreatorOSFieldShader.js")
           shader = shader_path.read_text(encoding="utf-8")
-
           scene_start = shader.index("vec4 sceneContourDrift")
           scene_end = shader.index("vec4 sceneMorphogen", scene_start)
 
@@ -49,7 +49,6 @@ jobs:
               color_start,
               scene_end,
           )
-
           color_block = '''  // Elevation is constant along a contour, so using terrain as the main
             // hue coordinate made each line read as one nearly neutral pastel. Drive
             // the spectrum across map space and a slow flow field instead, giving the
@@ -69,8 +68,7 @@ jobs:
             vec3 contourSpectrum = spectral(contourHueFlow);
 
             // Keep the edge pale enough to belong to the map while retaining channel
-            // separation large enough to survive the Bayer-8 quantization in both
-            // themes. This remains confined to the outer rim, not the white core.
+            // separation large enough to survive Bayer-8 quantization in both themes.
             float contourChroma = mix(0.66, 0.58, u_light);
             float contourSpectralFloor = mix(0.56, 0.64, u_light);
             vec3 spectralContourEdge = max(
@@ -91,7 +89,6 @@ jobs:
               spectralContourEdge,
               spectralContourMask * 0.98
             );'''
-
           shader = shader[:color_start] + color_block + shader[color_end:]
 
           material_start = shader.index(
@@ -104,10 +101,9 @@ jobs:
               material_start,
               scene_end,
           )
-
           material_block = '''  // Compose the white centre first, then directly replace the thin rim
-            // with the spectral colour. Using max() here could only raise channels, so
-            // the already-bright white line won and collapsed the rim back to grey.
+            // with spectral colour. max() could only raise channels, so the already
+            // bright white line collapsed the previous rim back to neutral grey.
             material.rgb = mix(
               material.rgb,
               max(material.rgb, lineCoreTint * 0.96),
@@ -121,7 +117,6 @@ jobs:
               terrainPaletteWeight * spectralContourMask * 0.96
             );
 '''
-
           shader = (
               shader[:material_start]
               + material_block
@@ -140,7 +135,6 @@ jobs:
               '\n\n  test("preserves motion, interaction, and the original spectral alternate"',
               test_start,
           )
-
           replacement_test = '''  test("keeps a pale core and a visible travelling spectral rim", () => {
             expect(scene).toContain("float minorEdge");
             expect(scene).toContain("float indexEdge");
@@ -181,13 +175,13 @@ jobs:
             expect(postCore).toBeGreaterThanOrEqual(0);
             expect(postSpectrum).toBeGreaterThan(postCore);
           });'''
-
           test_source = (
               test_source[:test_start]
               + replacement_test
               + test_source[test_end:]
           )
           test_path.write_text(test_source, encoding="utf-8")
+          PY
 
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
@@ -205,7 +199,7 @@ jobs:
         env:
           CI: true
 
-      - name: Commit and push the correction
+      - name: Commit and push correction
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
