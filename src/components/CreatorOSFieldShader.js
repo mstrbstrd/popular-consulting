@@ -804,23 +804,36 @@ vec4 sceneContourDrift(vec2 uv, float time) {
     contourCoreTint * 1.06,
     indexCore
   );
-  vec3 contourSpectrum = spectral(
-    0.60
-      + terrain * 0.34
-      + p.x * 0.055
-      - p.y * 0.035
-      + time * 0.006
-      + u_seed * 0.10
-  );
-  // Match the visible Tidal Weave edge composition. The previous pass
-  // applied the white core after the spectral rim, so anti-aliased overlap
-  // erased nearly all chroma before the five-to-seven-level Bayer pass.
-  float contourChroma = mix(0.48, 0.42, u_light);
-  float contourSpectralFloor = mix(0.70, 0.78, u_light);
+  // Elevation is constant along a contour, so using terrain as the main
+  // hue coordinate made each line read as one nearly neutral pastel. Drive
+  // the spectrum across map space and a slow flow field instead, giving the
+  // complete contour network a visible travelling rainbow ramp.
+  float contourHueFlow = p.x * 0.34
+    - p.y * 0.24
+    + (
+      fbm(
+        rotate2(-0.42) * p * 0.72
+          + drift * 0.48
+          + vec2(7.2, 13.1)
+      ) - 0.5
+    ) * 0.34
+    + terrain * 0.10
+    + time * 0.008
+    + u_seed * 0.10;
+  vec3 contourSpectrum = spectral(contourHueFlow);
+
+  // Keep the edge pale enough to belong to the map while retaining channel
+  // separation large enough to survive Bayer-8 quantization in both themes.
+  float contourChroma = mix(0.66, 0.58, u_light);
+  float contourSpectralFloor = mix(0.56, 0.64, u_light);
   vec3 spectralContourEdge = max(
-    mix(vec3(0.96), contourSpectrum, contourChroma),
+    mix(vec3(0.95), contourSpectrum, contourChroma),
     vec3(contourSpectralFloor)
   );
+  float spectralContourMask = sat(
+    max(minorEdge, indexEdge) * 1.22
+  );
+
   terrainTint = mix(
     terrainTint,
     lineCoreTint,
@@ -829,23 +842,26 @@ vec4 sceneContourDrift(vec2 uv, float time) {
   terrainTint = mix(
     terrainTint,
     spectralContourEdge,
-    sat(contourEdge * 1.08)
+    spectralContourMask * 0.98
   );
 
   float terrainPaletteWeight = 1.0 - paletteMix;
   vec3 tint = mix(terrainTint, spectralTint, paletteMix);
   vec4 material = fluidMaterial(field, tint, 0.24, 0.18, 0.84);
-  // Compose the white center first and the spectral edge last. This keeps
-  // the rim visible instead of allowing the core to paint over it.
+  // Compose the white centre first, then directly replace the thin rim
+  // with spectral colour. max() could only raise channels, so the already
+  // bright white line collapsed the previous rim back to neutral grey.
   material.rgb = mix(
     material.rgb,
     max(material.rgb, lineCoreTint * 0.96),
     terrainPaletteWeight * contourCore * 0.88
   );
+  vec3 postMaterialSpectralEdge = spectralContourEdge
+    * mix(1.04, 1.00, u_light);
   material.rgb = mix(
     material.rgb,
-    max(material.rgb, spectralContourEdge * 1.02),
-    terrainPaletteWeight * contourEdge * 0.96
+    postMaterialSpectralEdge,
+    terrainPaletteWeight * spectralContourMask * 0.96
   );
   material.a = max(
     material.a,
