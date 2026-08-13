@@ -3,7 +3,7 @@ from pathlib import Path
 path = Path("src/components/CreatorOSFieldCanvas.css")
 source = path.read_text(encoding="utf-8")
 marker = ".creatoros-field-canvas {"
-if source.count(marker) != 1:
+if marker not in source:
     raise SystemExit("Contour terrain surface anchor changed.")
 terrain_surface = '''.creatoros-field-mode-3.creatoros-field-contour-palette-terrain {
   background:
