@@ -1,0 +1,111 @@
+name: Materialize Forward Pass refinement
+
+on:
+  push:
+    branches:
+      - agent/refine-forward-pass-clarity
+    paths:
+      - .github/workflows/materialize-forward-pass-refinement.yml
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/refine-forward-pass-clarity
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Fold the refined scene back into the shader module
+        shell: python
+        run: |
+          from pathlib import Path
+
+          shader_path = Path("src/components/CreatorOSFieldShader.js")
+          base_path = Path("src/components/CreatorOSFieldShaderBase.js")
+          wrapper = shader_path.read_text(encoding="utf-8")
+          base = base_path.read_text(encoding="utf-8")
+
+          refined_start_marker = "const REFINED_FORWARD_PASS = `"
+          refined_end_marker = "`;\n\nexport {"
+          refined_start = wrapper.index(refined_start_marker) + len(
+              refined_start_marker
+          )
+          refined_end = wrapper.index(refined_end_marker, refined_start)
+          refined_scene = wrapper[refined_start:refined_end]
+
+          scene_start_marker = "vec4 sceneForwardPass(vec2 uv, float time) {"
+          scene_end_marker = "\nvec4 sampleScene"
+          if base.count(scene_start_marker) != 1:
+              raise SystemExit(
+                  "Expected exactly one Forward Pass scene in the base shader."
+              )
+          scene_start = base.index(scene_start_marker)
+          scene_end = base.index(scene_end_marker, scene_start)
+
+          materialized = (
+              base[:scene_start]
+              + refined_scene
+              + base[scene_end:]
+          )
+          required_markers = (
+              "float passX",
+              "float tokenCarrier",
+              "float attentionRail",
+              "float gateSplit",
+              "float mergeFlash",
+          )
+          missing = [
+              marker for marker in required_markers
+              if marker not in materialized
+          ]
+          if missing:
+              raise SystemExit(
+                  f"Materialized shader is missing markers: {missing}"
+              )
+          if "CreatorOSFieldShaderBase" in materialized:
+              raise SystemExit("Materialized shader retained the temporary wrapper.")
+
+          shader_path.write_text(materialized, encoding="utf-8")
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Run tests
+        run: npm test -- --watchAll=false --runInBand
+        env:
+          CI: true
+
+      - name: Build production bundle
+        run: npm run build
+        env:
+          CI: true
+
+      - name: Commit the finished refinement
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            src/components/CreatorOSFieldShader.js \
+            src/components/MetabloomColorField.test.js \
+            src/components/ForwardPassClarity.test.js
+          git rm \
+            src/components/CreatorOSFieldShaderBase.js \
+            .github/workflows/materialize-forward-pass-refinement.yml
+          git commit -m "Polish Forward Pass visual hierarchy"
+          git push origin HEAD:agent/refine-forward-pass-clarity
