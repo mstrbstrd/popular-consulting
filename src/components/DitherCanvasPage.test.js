@@ -37,6 +37,7 @@ jest.mock("./RuptureCanvas", () => {
 jest.mock("./CreatorOSFieldCanvas", () => {
   const ReactModule = require("react");
   return ({
+    contourPalette = "terrain",
     isDark,
     mode,
     onFieldStateChange,
@@ -49,6 +50,7 @@ jest.mock("./CreatorOSFieldCanvas", () => {
         type: "button",
         "data-testid": "creatoros-field-renderer",
         "data-mode": String(mode),
+        "data-contour-palette": contourPalette,
         "data-tidal-palette": tidalPalette,
         "data-theme-mode": isDark ? "dark" : "light",
         "data-paused": paused ? "true" : "false",
@@ -322,6 +324,45 @@ describe("DitherCanvasPage", () => {
       "spectral",
     );
     expect(waterOption).toHaveAttribute("aria-pressed", "false");
+    expect(spectralOption).toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("defaults Contour Drift to terrain and keeps spectral as a color-only option", () => {
+    render(<DitherCanvasPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Contour Drift/ }));
+    flushScrollFrame();
+    finishStudyTransition();
+
+    expect(
+      screen.getByRole("heading", { name: "Contour Drift" }),
+    ).toBeInTheDocument();
+    const renderer = screen.getByTestId("creatoros-field-renderer");
+    expect(renderer).toHaveAttribute("data-mode", "3");
+    expect(renderer).toHaveAttribute("data-contour-palette", "terrain");
+
+    const paletteGroup = screen.getByRole("group", {
+      name: "Contour Drift color scheme",
+    });
+    const terrainOption = within(paletteGroup).getByRole("button", {
+      name: "Use terrain colors for Contour Drift",
+    });
+    const spectralOption = within(paletteGroup).getByRole("button", {
+      name: "Use spectral colors for Contour Drift",
+    });
+    expect(terrainOption).toHaveAttribute("aria-pressed", "true");
+    expect(spectralOption).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(spectralOption);
+    expect(screen.getByTestId("creatoros-field-renderer")).toHaveAttribute(
+      "data-mode",
+      "3",
+    );
+    expect(screen.getByTestId("creatoros-field-renderer")).toHaveAttribute(
+      "data-contour-palette",
+      "spectral",
+    );
+    expect(terrainOption).toHaveAttribute("aria-pressed", "false");
     expect(spectralOption).toHaveAttribute("aria-pressed", "true");
   });
 

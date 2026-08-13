@@ -76,7 +76,7 @@ const STUDIES = [
     initialState: "drifting",
     resetLabel: "Reseed",
     description:
-      "Procedural terrain flows like suspended pigment, with elevation expressed through viscous spectral contour bands and crisp Bayer cells.",
+      "A living relief map drifts beneath pale topographic lines: teal basins, green lowlands, stone ridges, and light summits gain depth through hillshade while spectral color clings subtly to each contour edge.",
     instruction:
       "Move to lift the terrain · tap to push a circular depression across the map",
   },
@@ -172,6 +172,8 @@ const STUDY_TARGET_PADDING_UNITS = 0.04;
 const VIEWPORT_WIDTH_CHANGE_THRESHOLD = 48;
 const TIDAL_PALETTE_WATER = "water";
 const TIDAL_PALETTE_SPECTRAL = "spectral";
+const CONTOUR_PALETTE_TERRAIN = "terrain";
+const CONTOUR_PALETTE_SPECTRAL = "spectral";
 const EXIT_DURATION_MS = 420;
 const ENTER_DURATION_MS = 620;
 
@@ -285,6 +287,9 @@ const DitherFieldLab = () => {
   const [resetVersion, setResetVersion] = useState(0);
   const [fieldState, setFieldState] = useState(STUDIES[0].initialState);
   const [tidalPalette, setTidalPalette] = useState(TIDAL_PALETTE_WATER);
+  const [contourPalette, setContourPalette] = useState(
+    CONTOUR_PALETTE_TERRAIN,
+  );
   const activeStudy = STUDIES[displayStudyIndex];
   displayStudyIndexRef.current = displayStudyIndex;
 
@@ -557,6 +562,7 @@ const DitherFieldLab = () => {
       <CreatorOSFieldCanvas
         {...sharedProps}
         mode={activeStudy.mode}
+        contourPalette={contourPalette}
         tidalPalette={tidalPalette}
         onFieldStateChange={setFieldState}
       />
@@ -671,6 +677,39 @@ const DitherFieldLab = () => {
                 onClick={() => setTidalPalette(TIDAL_PALETTE_SPECTRAL)}
                 aria-pressed={tidalPalette === TIDAL_PALETTE_SPECTRAL}
                 aria-label="Use spectral colors for Tidal Weave"
+              >
+                Spectral
+              </button>
+            </div>
+          )}
+          {activeStudy.id === "contour-drift" && (
+            <div
+              className="contour-palette-selector"
+              role="group"
+              aria-label="Contour Drift color scheme"
+            >
+              <span className="contour-palette-selector-label">Color</span>
+              <button
+                type="button"
+                className={`contour-palette-option${
+                  contourPalette === CONTOUR_PALETTE_TERRAIN ? " is-active" : ""
+                }`}
+                data-palette="terrain"
+                onClick={() => setContourPalette(CONTOUR_PALETTE_TERRAIN)}
+                aria-pressed={contourPalette === CONTOUR_PALETTE_TERRAIN}
+                aria-label="Use terrain colors for Contour Drift"
+              >
+                Terrain
+              </button>
+              <button
+                type="button"
+                className={`contour-palette-option${
+                  contourPalette === CONTOUR_PALETTE_SPECTRAL ? " is-active" : ""
+                }`}
+                data-palette="spectral"
+                onClick={() => setContourPalette(CONTOUR_PALETTE_SPECTRAL)}
+                aria-pressed={contourPalette === CONTOUR_PALETTE_SPECTRAL}
+                aria-label="Use spectral colors for Contour Drift"
               >
                 Spectral
               </button>

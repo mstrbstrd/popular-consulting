@@ -30,6 +30,12 @@ const normalizeTidalPalette = (palette) =>
 const resolveTidalPaletteMix = (palette) =>
   normalizeTidalPalette(palette) === "spectral" ? 1 : 0;
 
+const normalizeContourPalette = (palette) =>
+  palette === "spectral" ? "spectral" : "terrain";
+
+const resolveContourPaletteMix = (palette) =>
+  normalizeContourPalette(palette) === "spectral" ? 1 : 0;
+
 const createRandom = (seed) => {
   let state = Math.max(1, Math.floor(seed * 0xffffffff)) >>> 0;
   return () => {
@@ -218,6 +224,7 @@ const destroyReactionTargets = (gl, targets) => {
 };
 
 const CreatorOSFieldCanvas = ({
+  contourPalette = "terrain",
   isDark = false,
   mode = 0,
   onFieldStateChange,
@@ -230,6 +237,9 @@ const CreatorOSFieldCanvas = ({
   const pausedRef = useRef(paused);
   const lightRef = useRef(isDark ? 0 : 1);
   const modeRef = useRef(clampMode(mode));
+  const contourPaletteRef = useRef(
+    resolveContourPaletteMix(contourPalette),
+  );
   const tidalPaletteRef = useRef(resolveTidalPaletteMix(tidalPalette));
   const onFieldStateChangeRef = useRef(onFieldStateChange);
   const restartRef = useRef(true);
@@ -251,6 +261,11 @@ const CreatorOSFieldCanvas = ({
     modeRef.current = clampMode(mode);
     redrawRef.current();
   }, [mode]);
+
+  useEffect(() => {
+    contourPaletteRef.current = resolveContourPaletteMix(contourPalette);
+    redrawRef.current();
+  }, [contourPalette]);
 
   useEffect(() => {
     tidalPaletteRef.current = resolveTidalPaletteMix(tidalPalette);
@@ -394,6 +409,7 @@ const CreatorOSFieldCanvas = ({
       "u_modeA",
       "u_modeB",
       "u_modeMix",
+      "u_contourPaletteMix",
       "u_tidalPaletteMix",
       "u_reaction",
       "u_reactionTexel",
@@ -638,6 +654,10 @@ const CreatorOSFieldCanvas = ({
       gl.uniform1i(displayUniforms.u_modeB, incomingMode);
       gl.uniform1f(displayUniforms.u_modeMix, modeMix);
       gl.uniform1f(
+        displayUniforms.u_contourPaletteMix,
+        contourPaletteRef.current,
+      );
+      gl.uniform1f(
         displayUniforms.u_tidalPaletteMix,
         tidalPaletteRef.current,
       );
@@ -793,7 +813,7 @@ const CreatorOSFieldCanvas = ({
   return (
     <div
       ref={rootRef}
-      className={`creatoros-field-shell creatoros-field-mode-${clampMode(mode)} creatoros-field-palette-${normalizeTidalPalette(tidalPalette)}${
+      className={`creatoros-field-shell creatoros-field-mode-${clampMode(mode)} creatoros-field-palette-${normalizeTidalPalette(tidalPalette)} creatoros-field-contour-palette-${normalizeContourPalette(contourPalette)}${
         fallback ? " is-fallback" : ""
       }`}
       aria-hidden="true"
