@@ -30,13 +30,30 @@ describe("Contour Drift functional topography", () => {
     expect(scene).toContain("vec3 contourCoreTint");
     expect(scene).toContain("vec3 lineCoreTint");
     expect(scene).toContain("vec3 spectralContourEdge");
-    expect(scene).toContain("mix(0.264, 0.192, u_light)");
-    expect(scene).toContain("sat(contourEdge * 1.104)");
-    expect(scene).toContain("spectralContourEdge * 0.96");
+    expect(scene).toContain("mix(0.48, 0.42, u_light)");
+    expect(scene).toContain("float contourSpectralFloor");
+    expect(scene).toContain("sat(contourEdge * 1.08)");
+    expect(scene).toContain("spectralContourEdge * 1.02");
     expect(scene).toContain(
-      "terrainPaletteWeight * contourEdge * 0.864",
+      "terrainPaletteWeight * contourEdge * 0.96",
     );
     expect(scene).toContain("terrainPaletteWeight * contourCore * 0.88");
+    const preCore = scene.indexOf(
+    "terrainTint = mix(\n    terrainTint,\n    lineCoreTint",
+  );
+  const preSpectrum = scene.indexOf(
+    "terrainTint = mix(\n    terrainTint,\n    spectralContourEdge",
+  );
+  const postCore = scene.indexOf(
+    "max(material.rgb, lineCoreTint * 0.96)",
+  );
+  const postSpectrum = scene.indexOf(
+    "max(material.rgb, spectralContourEdge * 1.02)",
+  );
+  expect(preCore).toBeGreaterThanOrEqual(0);
+  expect(preSpectrum).toBeGreaterThan(preCore);
+  expect(postCore).toBeGreaterThanOrEqual(0);
+  expect(postSpectrum).toBeGreaterThan(postCore);
     expect(scene).not.toContain("crossing *");
   });
 
