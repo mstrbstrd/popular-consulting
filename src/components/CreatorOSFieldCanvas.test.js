@@ -145,10 +145,18 @@ describe("CreatorOSFieldCanvas", () => {
     expect(tidalScene).toContain("fwidth(bandB)");
     expect(tidalScene).toContain("float spectralOutline");
     expect(tidalScene).toContain("vec3 spectralOutlineTint");
+    expect(tidalScene).toContain("float outlineChroma");
+    expect(tidalScene).toContain("mix(0.48, 0.42, u_light)");
+    expect(tidalScene).toContain("float outlineFloor");
+    expect(tidalScene).toContain("mix(0.70, 0.78, u_light)");
+    expect(tidalScene).toContain("float spectralOutlineStrength");
+    expect(tidalScene).toContain("mix(0.92, 0.90, u_light)");
+    expect(tidalScene).toContain(
+      "spectralOutline * spectralOutlineStrength",
+    );
     expect(tidalScene).toContain(
       "waterTint = mix(causticGray, refractedLight, causticLift)",
     );
-    expect(tidalScene).toContain("spectralOutline * 0.78");
     expect(tidalScene).toContain("weave * 1.18");
     expect(tidalScene).toContain(
       "return fluidMaterial(field, tint, 0.34, 0.22, 0.94)",

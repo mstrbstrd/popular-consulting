@@ -513,12 +513,25 @@ float outlineB = 1.0 - smoothstep(
   abs(bandB - 0.30)
 );
 float spectralOutline = sat(max(outlineA, outlineB));
-vec3 spectralOutlineTint = causticGray * 0.70
-  + spectralTint * 0.58;
+// Increase the outline by roughly fifteen percent while keeping every
+// channel above a pale-gray floor. Dark mode receives a slightly
+// stronger chroma and blend so the rainbow remains visible there.
+float outlineChroma = mix(0.48, 0.42, u_light);
+float outlineFloor = mix(0.70, 0.78, u_light);
+vec3 spectralOutlineTint = mix(
+  vec3(0.96),
+  spectralTint,
+  outlineChroma
+);
+spectralOutlineTint = max(
+  spectralOutlineTint,
+  vec3(outlineFloor)
+);
+float spectralOutlineStrength = mix(0.92, 0.90, u_light);
 waterTint = mix(
   waterTint,
   spectralOutlineTint,
-  spectralOutline * 0.78
+  spectralOutline * spectralOutlineStrength
 );
 
 vec3 tint = mix(
