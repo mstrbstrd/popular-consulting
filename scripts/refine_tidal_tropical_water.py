@@ -172,4 +172,35 @@ page_css_path.write_text(page_css, encoding="utf-8")
 
 
 canvas_test_path = Path("src/components/CreatorOSFieldCanvas.test.js")
-canvas_test = canvas_test_path.read_text(encoding="utf-8")n
+canvas_test = canvas_test_path.read_text(encoding="utf-8")
+canvas_test = replace_exact(
+    canvas_test,
+    '''    expect(tidalScene).toContain(
+      "mix(waterTint, spectralTint, sat(u_tidalPaletteMix))",
+    );''',
+    '''    expect(tidalScene).toContain("vec3 tint = mix(");
+    expect(tidalScene).toContain("waterTint,");
+    expect(tidalScene).toContain("spectralTint,");
+    expect(tidalScene).toContain("sat(u_tidalPaletteMix)");
+    expect(tidalScene).toContain("float causticLines");
+    expect(tidalScene).toContain("vec3 refractedLight");
+    expect(tidalScene).toContain(
+      "waterTint = mix(waterTint, refractedLight, causticAmount)",
+    );''',
+    "Tidal palette multiline shader assertion",
+)
+canvas_test = replace_exact(
+    canvas_test,
+    '''    expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain(
+      "vec3 tidalWaterPalette",
+    );''',
+    '''    expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain(
+      "vec3 tidalWaterPalette",
+    );
+    expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain("vec3 deepTropical");
+    expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain("vec3 lagoonTeal");
+    expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain("vec3 turquoise");
+    expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain("vec3 crystalAqua");''',
+    "Tidal tropical color contract assertions",
+)
+canvas_test_path.write_text(canvas_test, encoding="utf-8")
