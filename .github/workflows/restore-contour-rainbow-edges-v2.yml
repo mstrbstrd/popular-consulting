@@ -1,0 +1,197 @@
+name: Restore visible Contour Drift rainbow edges
+
+on:
+  push:
+    branches:
+      - agent/fix-contour-rainbow-visibility
+    paths:
+      - .github/workflows/restore-contour-rainbow-edges-v2.yml
+
+permissions:
+  contents: write
+
+jobs:
+  correct-and-validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/fix-contour-rainbow-visibility
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Keep the spectral rim visible through the white core and Bayer pass
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace_once(source, old, new, label):
+              count = source.count(old)
+              if count != 1:
+                  raise SystemExit(
+                      f"{label}: expected exactly one source block, found {count}."
+                  )
+              return source.replace(old, new)
+
+          shader_path = Path("src/components/CreatorOSFieldShader.js")
+          shader = shader_path.read_text(encoding="utf-8")
+
+          old_color_block = '''  float contourChroma = mix(0.264, 0.192, u_light);
+            vec3 spectralContourEdge = mix(
+              contourCoreTint,
+              contourSpectrum,
+              contourChroma
+            );
+            spectralContourEdge = max(
+              spectralContourEdge,
+              contourCoreTint * 0.74
+            );
+            terrainTint = mix(
+              terrainTint,
+              spectralContourEdge,
+              sat(contourEdge * 1.104)
+            );
+            terrainTint = mix(
+              terrainTint,
+              lineCoreTint,
+              contourCore
+            );'''
+
+          new_color_block = '''  // Match the visible Tidal Weave edge composition. The previous pass
+            // applied the white core after the spectral rim, so anti-aliased overlap
+            // erased nearly all chroma before the five-to-seven-level Bayer pass.
+            float contourChroma = mix(0.48, 0.42, u_light);
+            float contourSpectralFloor = mix(0.70, 0.78, u_light);
+            vec3 spectralContourEdge = max(
+              mix(vec3(0.96), contourSpectrum, contourChroma),
+              vec3(contourSpectralFloor)
+            );
+            terrainTint = mix(
+              terrainTint,
+              lineCoreTint,
+              contourCore
+            );
+            terrainTint = mix(
+              terrainTint,
+              spectralContourEdge,
+              sat(contourEdge * 1.08)
+            );'''
+
+          shader = replace_once(
+              shader,
+              old_color_block,
+              new_color_block,
+              "Contour Drift pre-material edge composition",
+          )
+
+          old_material_block = '''  material.rgb = mix(
+              material.rgb,
+              max(material.rgb, spectralContourEdge * 0.96),
+              terrainPaletteWeight * contourEdge * 0.864
+            );
+            material.rgb = mix(
+              material.rgb,
+              max(material.rgb, lineCoreTint * 0.96),
+              terrainPaletteWeight * contourCore * 0.88
+            );'''
+
+          new_material_block = '''  // Compose the white center first and the spectral edge last. This keeps
+            // the rim visible instead of allowing the core to paint over it.
+            material.rgb = mix(
+              material.rgb,
+              max(material.rgb, lineCoreTint * 0.96),
+              terrainPaletteWeight * contourCore * 0.88
+            );
+            material.rgb = mix(
+              material.rgb,
+              max(material.rgb, spectralContourEdge * 1.02),
+              terrainPaletteWeight * contourEdge * 0.96
+            );'''
+
+          shader = replace_once(
+              shader,
+              old_material_block,
+              new_material_block,
+              "Contour Drift post-material edge composition",
+          )
+          shader_path.write_text(shader, encoding="utf-8")
+
+          test_path = Path("src/components/ContourDriftFunctionalTopography.test.js")
+          test_source = test_path.read_text(encoding="utf-8")
+
+          old_test = '''    expect(scene).toContain("vec3 spectralContourEdge");
+            expect(scene).toContain("contourChroma = mix(0.264, 0.192, u_light)");
+            expect(scene).toContain("sat(contourEdge * 1.104)");
+            expect(scene).toContain("spectralContourEdge * 0.96");
+            expect(scene).toContain("terrainPaletteWeight * contourEdge * 0.864");
+            expect(scene).toContain("terrainPaletteWeight * contourCore * 0.88");
+            expect(scene).not.toContain("crossing *");'''
+
+          new_test = '''    expect(scene).toContain("vec3 spectralContourEdge");
+            expect(scene).toContain("contourChroma = mix(0.48, 0.42, u_light)");
+            expect(scene).toContain("float contourSpectralFloor");
+            expect(scene).toContain("sat(contourEdge * 1.08)");
+            expect(scene).toContain("spectralContourEdge * 1.02");
+            expect(scene).toContain("terrainPaletteWeight * contourEdge * 0.96");
+            expect(scene).toContain("terrainPaletteWeight * contourCore * 0.88");
+
+            const preCore = scene.indexOf(
+              "terrainTint = mix(\\n    terrainTint,\\n    lineCoreTint",
+            );
+            const preSpectrum = scene.indexOf(
+              "terrainTint = mix(\\n    terrainTint,\\n    spectralContourEdge",
+            );
+            const postCore = scene.indexOf(
+              "max(material.rgb, lineCoreTint * 0.96)",
+            );
+            const postSpectrum = scene.indexOf(
+              "max(material.rgb, spectralContourEdge * 1.02)",
+            );
+            expect(preCore).toBeGreaterThanOrEqual(0);
+            expect(preSpectrum).toBeGreaterThan(preCore);
+            expect(postCore).toBeGreaterThanOrEqual(0);
+            expect(postSpectrum).toBeGreaterThan(postCore);
+            expect(scene).not.toContain("crossing *");'''
+
+          test_source = replace_once(
+              test_source,
+              old_test,
+              new_test,
+              "Contour Drift rainbow visibility regression test",
+          )
+          test_path.write_text(test_source, encoding="utf-8")
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Run tests
+        run: npm test -- --watchAll=false --runInBand
+        env:
+          CI: true
+
+      - name: Build production bundle
+        run: npm run build
+        env:
+          CI: true
+
+      - name: Commit and push the correction
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            src/components/CreatorOSFieldShader.js \
+            src/components/ContourDriftFunctionalTopography.test.js
+          git rm .github/workflows/restore-contour-rainbow-edges-v2.yml
+          git commit -m "Keep Contour Drift rainbow edges visible"
+          git push origin HEAD:agent/fix-contour-rainbow-visibility
