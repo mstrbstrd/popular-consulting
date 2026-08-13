@@ -38,6 +38,8 @@ jobs:
 
           start_marker = "// Isolate the site palette to a very thin iso-line around each caustic."
           end_marker = "\nvec3 tint = mix("
+          if shader.count(start_marker) != 1:
+              raise SystemExit("Expected one existing Tidal Weave outline block.")
           start = shader.index(start_marker)
           end = shader.index(end_marker, start)
 
@@ -105,15 +107,13 @@ jobs:
           test_path = Path("src/components/CreatorOSFieldCanvas.test.js")
           test_source = test_path.read_text(encoding="utf-8")
 
-          old_setup = '''    const tidalScene = CREATOROS_FIELD_FRAGMENT_SHADER.slice(
+          setup_start_marker = '''    const tidalScene = CREATOROS_FIELD_FRAGMENT_SHADER.slice(
               tidalStart,
               tidalEnd,
-            );
-          '''
-          new_setup = '''    const tidalScene = CREATOROS_FIELD_FRAGMENT_SHADER.slice(
-              tidalStart,
-              tidalEnd,
-            );
+            );'''
+          if setup_start_marker not in test_source:
+              raise SystemExit("Tidal Weave test setup marker was not found.")
+          setup_insertion = '''
             const outlineStart = tidalScene.indexOf(
               "// Keep a continuous spectral gradient",
             );
@@ -121,19 +121,17 @@ jobs:
               "\\nvec3 tint = mix(",
               outlineStart,
             );
-            const tidalOutline = tidalScene.slice(outlineStart, outlineEnd);
-          '''
-          if test_source.count(old_setup) != 1:
-              raise SystemExit("Expected one Tidal Weave test setup block.")
-          test_source = test_source.replace(old_setup, new_setup)
+            const tidalOutline = tidalScene.slice(outlineStart, outlineEnd);'''
+          test_source = test_source.replace(
+              setup_start_marker,
+              setup_start_marker + setup_insertion,
+              1,
+          )
 
-          old_assertions = '''    expect(tidalScene).toContain("fwidth(bandA)");
-            expect(tidalScene).toContain("fwidth(bandB)");
-            expect(tidalScene).toContain("float spectralOutline");
-            expect(tidalScene).toContain("vec3 spectralOutlineTint");
-          '''
-          new_assertions = '''    expect(tidalScene).toContain("fwidth(bandA)");
-            expect(tidalScene).toContain("fwidth(bandB)");
+          assertion_anchor = '''    expect(tidalScene).toContain("fwidth(bandB)");'''
+          if test_source.count(assertion_anchor) != 1:
+              raise SystemExit("Tidal Weave outline assertion anchor changed.")
+          assertion_insertion = '''
             expect(tidalScene).toContain("float outlineLevel = 0.72");
             expect(tidalScene).not.toContain("abs(bandA - 0.30)");
             expect(tidalScene).toContain("vec3 outlineSpectralA");
@@ -141,18 +139,15 @@ jobs:
             expect(tidalScene).toContain("p.x * 0.120");
             expect(tidalScene).toContain("outlineTintA * outlineA");
             expect(tidalScene).toContain("outlineTintB * outlineB");
-            expect(tidalScene).toContain("float spectralOutline");
-            expect(tidalScene).toContain("vec3 spectralOutlineTint");
             expect(outlineStart).toBeGreaterThanOrEqual(0);
             expect(outlineEnd).toBeGreaterThan(outlineStart);
-            expect(tidalOutline).not.toContain("crossing");
-          '''
-          if test_source.count(old_assertions) != 1:
-              raise SystemExit("Expected one Tidal Weave outline assertion block.")
-          test_path.write_text(
-              test_source.replace(old_assertions, new_assertions),
-              encoding="utf-8",
+            expect(tidalOutline).not.toContain("crossing");'''
+          test_source = test_source.replace(
+              assertion_anchor,
+              assertion_anchor + assertion_insertion,
+              1,
           )
+          test_path.write_text(test_source, encoding="utf-8")
 
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
