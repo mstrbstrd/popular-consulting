@@ -95,13 +95,28 @@ describe("Dither scroll narrative", () => {
     expect(narrativeStyles).toContain(`@keyframes ${animationName}`);
   };
 
-  test("maps native page scroll through all ten studies", () => {
-    expect(pageSource).toContain("const FIRST_STUDY_SCROLL_UNITS = 1.35");
-    expect(pageSource).toContain("const RUPTURE_OPEN_SCROLL_UNITS = 0.92");
+  test("maps native page scroll through paced desktop and mobile profiles", () => {
+    expect(pageSource).toContain("const DESKTOP_SCROLL_PROFILE");
+    expect(pageSource).toContain("openingUnits: 1.55");
+    expect(pageSource).toContain("studyUnits: 1.18");
+    expect(pageSource).toContain("const MOBILE_SCROLL_PROFILE");
+    expect(pageSource).toContain("openingUnits: 1.95");
+    expect(pageSource).toContain("studyUnits: 1.55");
+    expect(pageSource).toContain("limitMomentum: true");
+    expect(pageSource).toContain('window.matchMedia?.("(pointer: coarse)")');
+    expect(pageSource).toContain("VIEWPORT_WIDTH_CHANGE_THRESHOLD");
+    expect(pageSource).toContain("viewportHeightRef");
+    expect(pageSource).toContain("directNavigationTargetRef");
     expect(pageSource).toContain("studyIndexForScrollUnits");
     expect(pageSource).toContain('window.addEventListener("scroll", handleScroll');
     expect(pageSource).toContain('className="dither-scroll-sequence"');
     expect(pageSource).toContain("progress={firstSurfaceProgress}");
+    expect(narrativeStyles).toContain(
+      "height: var(--dither-study-scroll-height, 118dvh)",
+    );
+    expect(narrativeStyles).toContain(
+      "height: var(--dither-opening-scroll-height, 155dvh)",
+    );
   });
 
   test("gives every authored study a unique entrance and exit", () => {

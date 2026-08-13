@@ -31,12 +31,13 @@
 }
 
 .dither-scroll-step {
-  height: 100dvh;
-  min-height: 48rem;
+  height: var(--dither-study-scroll-height, 118dvh);
+  min-height: var(--dither-study-scroll-height, 118dvh);
 }
 
 .dither-scroll-step.is-opening-step {
-  height: 135dvh;
+  height: var(--dither-opening-scroll-height, 155dvh);
+  min-height: var(--dither-opening-scroll-height, 155dvh);
 }
 
 .dither-canvas-page .rupture-shell,
