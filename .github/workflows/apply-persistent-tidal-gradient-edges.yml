@@ -107,12 +107,9 @@ jobs:
           test_path = Path("src/components/CreatorOSFieldCanvas.test.js")
           test_source = test_path.read_text(encoding="utf-8")
 
-          setup_start_marker = '''    const tidalScene = CREATOROS_FIELD_FRAGMENT_SHADER.slice(
-              tidalStart,
-              tidalEnd,
-            );'''
-          if setup_start_marker not in test_source:
-              raise SystemExit("Tidal Weave test setup marker was not found.")
+          setup_anchor = "const tidalScene = CREATOROS_FIELD_FRAGMENT_SHADER.slice("
+          setup_start = test_source.index(setup_anchor)
+          setup_end = test_source.index(");", setup_start) + 2
           setup_insertion = '''
             const outlineStart = tidalScene.indexOf(
               "// Keep a continuous spectral gradient",
@@ -122,15 +119,14 @@ jobs:
               outlineStart,
             );
             const tidalOutline = tidalScene.slice(outlineStart, outlineEnd);'''
-          test_source = test_source.replace(
-              setup_start_marker,
-              setup_start_marker + setup_insertion,
-              1,
+          test_source = (
+              test_source[:setup_end]
+              + setup_insertion
+              + test_source[setup_end:]
           )
 
-          assertion_anchor = '''    expect(tidalScene).toContain("fwidth(bandB)");'''
-          if test_source.count(assertion_anchor) != 1:
-              raise SystemExit("Tidal Weave outline assertion anchor changed.")
+          assertion_anchor = 'expect(tidalScene).toContain("fwidth(bandB)");'
+          assertion_end = test_source.index(assertion_anchor) + len(assertion_anchor)
           assertion_insertion = '''
             expect(tidalScene).toContain("float outlineLevel = 0.72");
             expect(tidalScene).not.toContain("abs(bandA - 0.30)");
@@ -142,10 +138,10 @@ jobs:
             expect(outlineStart).toBeGreaterThanOrEqual(0);
             expect(outlineEnd).toBeGreaterThan(outlineStart);
             expect(tidalOutline).not.toContain("crossing");'''
-          test_source = test_source.replace(
-              assertion_anchor,
-              assertion_anchor + assertion_insertion,
-              1,
+          test_source = (
+              test_source[:assertion_end]
+              + assertion_insertion
+              + test_source[assertion_end:]
           )
           test_path.write_text(test_source, encoding="utf-8")
 
