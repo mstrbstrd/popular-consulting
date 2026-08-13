@@ -170,6 +170,8 @@ const MOBILE_SCROLL_PROFILE = Object.freeze({
 const MOBILE_SCROLL_MAX_WIDTH = 820;
 const STUDY_TARGET_PADDING_UNITS = 0.04;
 const VIEWPORT_WIDTH_CHANGE_THRESHOLD = 48;
+const TIDAL_PALETTE_WATER = "water";
+const TIDAL_PALETTE_SPECTRAL = "spectral";
 const EXIT_DURATION_MS = 420;
 const ENTER_DURATION_MS = 620;
 
@@ -282,6 +284,7 @@ const DitherFieldLab = () => {
   const [paused, setPaused] = useState(false);
   const [resetVersion, setResetVersion] = useState(0);
   const [fieldState, setFieldState] = useState(STUDIES[0].initialState);
+  const [tidalPalette, setTidalPalette] = useState(TIDAL_PALETTE_WATER);
   const activeStudy = STUDIES[displayStudyIndex];
   displayStudyIndexRef.current = displayStudyIndex;
 
@@ -554,6 +557,7 @@ const DitherFieldLab = () => {
       <CreatorOSFieldCanvas
         {...sharedProps}
         mode={activeStudy.mode}
+        tidalPalette={tidalPalette}
         onFieldStateChange={setFieldState}
       />
     );
@@ -639,6 +643,39 @@ const DitherFieldLab = () => {
 
         <nav className="dither-study-switcher" aria-label="Dither background studies">
           <p className="dither-study-switcher-label">Field studies</p>
+          {activeStudy.id === "tidal-weave" && (
+            <div
+              className="tidal-palette-selector"
+              role="group"
+              aria-label="Tidal Weave color scheme"
+            >
+              <span className="tidal-palette-selector-label">Color</span>
+              <button
+                type="button"
+                className={`tidal-palette-option${
+                  tidalPalette === TIDAL_PALETTE_WATER ? " is-active" : ""
+                }`}
+                data-palette="water"
+                onClick={() => setTidalPalette(TIDAL_PALETTE_WATER)}
+                aria-pressed={tidalPalette === TIDAL_PALETTE_WATER}
+                aria-label="Use water colors for Tidal Weave"
+              >
+                Water
+              </button>
+              <button
+                type="button"
+                className={`tidal-palette-option${
+                  tidalPalette === TIDAL_PALETTE_SPECTRAL ? " is-active" : ""
+                }`}
+                data-palette="spectral"
+                onClick={() => setTidalPalette(TIDAL_PALETTE_SPECTRAL)}
+                aria-pressed={tidalPalette === TIDAL_PALETTE_SPECTRAL}
+                aria-label="Use spectral colors for Tidal Weave"
+              >
+                Spectral
+              </button>
+            </div>
+          )}
           <div className="dither-study-options">
             {STUDIES.map((study, index) => {
               const isActive = index === displayStudyIndex;

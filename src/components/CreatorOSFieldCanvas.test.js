@@ -96,6 +96,60 @@ describe("CreatorOSFieldCanvas", () => {
     expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain("float transport");
   });
 
+  test("defaults Tidal Weave to water and preserves spectral as a palette-only option", () => {
+    const fs = require("fs");
+    const path = require("path");
+    const source = fs.readFileSync(
+      path.join(__dirname, "CreatorOSFieldCanvas.js"),
+      "utf8",
+    );
+    const css = fs.readFileSync(
+      path.join(__dirname, "CreatorOSFieldCanvas.css"),
+      "utf8",
+    );
+    const tidalStart = CREATOROS_FIELD_FRAGMENT_SHADER.indexOf(
+      "vec4 sceneTidalWeave",
+    );
+    const tidalEnd = CREATOROS_FIELD_FRAGMENT_SHADER.indexOf(
+      "vec4 sceneMoireHalo",
+    );
+    const tidalScene = CREATOROS_FIELD_FRAGMENT_SHADER.slice(
+      tidalStart,
+      tidalEnd,
+    );
+
+    expect(source).toContain('tidalPalette = "water"');
+    expect(source).toContain("resolveTidalPaletteMix");
+    expect(source).toContain('"u_tidalPaletteMix"');
+    expect(source).toContain("creatoros-field-palette-");
+    expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain(
+      "uniform float u_tidalPaletteMix",
+    );
+    expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain(
+      "vec3 tidalWaterPalette",
+    );
+    expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain("vec3 deepTropical");
+    expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain("vec3 lagoonTeal");
+    expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain("vec3 turquoise");
+    expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain("vec3 crystalAqua");
+    expect(tidalScene).toContain("vec3 tint = mix(");
+    expect(tidalScene).toContain("waterTint,");
+    expect(tidalScene).toContain("spectralTint,");
+    expect(tidalScene).toContain("sat(u_tidalPaletteMix)");
+    expect(tidalScene).toContain("float causticLines");
+    expect(tidalScene).toContain("vec3 refractedLight");
+    expect(tidalScene).toContain(
+      "waterTint = mix(waterTint, refractedLight, causticAmount)",
+    );
+    expect(tidalScene).toContain("weave * 1.18");
+    expect(tidalScene).toContain(
+      "return fluidMaterial(field, tint, 0.34, 0.22, 0.94)",
+    );
+    expect(css).toContain(
+      ".creatoros-field-mode-1.creatoros-field-palette-spectral",
+    );
+  });
+
   test("keeps every refined study distinct inside one renderer", () => {
     expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain("sceneMetabloom");
     expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain("sceneTidalWeave");

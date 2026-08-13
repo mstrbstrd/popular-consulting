@@ -36,13 +36,20 @@ jest.mock("./RuptureCanvas", () => {
 
 jest.mock("./CreatorOSFieldCanvas", () => {
   const ReactModule = require("react");
-  return ({ isDark, mode, onFieldStateChange, paused, resetVersion }) =>
-    ReactModule.createElement(
+  return ({
+    isDark,
+    mode,
+    onFieldStateChange,
+    paused,
+    resetVersion,
+    tidalPalette = "water",
+  }) => ReactModule.createElement(
       "button",
       {
         type: "button",
         "data-testid": "creatoros-field-renderer",
         "data-mode": String(mode),
+        "data-tidal-palette": tidalPalette,
         "data-theme-mode": isDark ? "dark" : "light",
         "data-paused": paused ? "true" : "false",
         "data-reset-version": String(resetVersion),
@@ -277,6 +284,45 @@ describe("DitherCanvasPage", () => {
     expect(
       screen.queryByRole("heading", { name: "Forward Pass" }),
     ).not.toBeInTheDocument();
+  });
+
+  test("defaults Tidal Weave to water and keeps spectral as a color-only option", () => {
+    render(<DitherCanvasPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Tidal Weave/ }));
+    flushScrollFrame();
+    finishStudyTransition();
+
+    expect(
+      screen.getByRole("heading", { name: "Tidal Weave" }),
+    ).toBeInTheDocument();
+    const renderer = screen.getByTestId("creatoros-field-renderer");
+    expect(renderer).toHaveAttribute("data-mode", "1");
+    expect(renderer).toHaveAttribute("data-tidal-palette", "water");
+
+    const paletteGroup = screen.getByRole("group", {
+      name: "Tidal Weave color scheme",
+    });
+    const waterOption = within(paletteGroup).getByRole("button", {
+      name: "Use water colors for Tidal Weave",
+    });
+    const spectralOption = within(paletteGroup).getByRole("button", {
+      name: "Use spectral colors for Tidal Weave",
+    });
+    expect(waterOption).toHaveAttribute("aria-pressed", "true");
+    expect(spectralOption).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(spectralOption);
+    expect(screen.getByTestId("creatoros-field-renderer")).toHaveAttribute(
+      "data-mode",
+      "1",
+    );
+    expect(screen.getByTestId("creatoros-field-renderer")).toHaveAttribute(
+      "data-tidal-palette",
+      "spectral",
+    );
+    expect(waterOption).toHaveAttribute("aria-pressed", "false");
+    expect(spectralOption).toHaveAttribute("aria-pressed", "true");
   });
 
   test("keeps theme, pause, state, and Forward Pass behavior across scroll changes", () => {
