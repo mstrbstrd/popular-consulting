@@ -497,36 +497,54 @@ float causticLift = sat(
 );
 vec3 waterTint = mix(causticGray, refractedLight, causticLift);
 
-// Isolate the site palette to a very thin iso-line around each caustic.
-// Mixing it over the bright gray floor preserves hue without allowing
-// violet or blue channels to create dark sections in dark mode.
-float outlineWidthA = max(fwidth(bandA) * 0.55, 0.008);
-float outlineWidthB = max(fwidth(bandB) * 0.55, 0.008);
+// Keep a continuous spectral gradient on both edges of every caustic.
+// The previous 0.30 iso-line lived mostly in the transparent glow, so it
+// became visible chiefly where two bands crossed. This contour sits just
+// inside the visible line body and is calculated independently per band.
+float outlineLevel = 0.72;
+float outlineWidthA = max(fwidth(bandA) * 0.72, 0.010);
+float outlineWidthB = max(fwidth(bandB) * 0.72, 0.010);
 float outlineA = 1.0 - smoothstep(
   outlineWidthA,
-  outlineWidthA * 2.15,
-  abs(bandA - 0.30)
+  outlineWidthA * 1.90,
+  abs(bandA - outlineLevel)
 );
 float outlineB = 1.0 - smoothstep(
   outlineWidthB,
-  outlineWidthB * 2.15,
-  abs(bandB - 0.30)
+  outlineWidthB * 1.90,
+  abs(bandB - outlineLevel)
 );
-float spectralOutline = sat(max(outlineA, outlineB));
-// Increase the outline by roughly fifteen percent while keeping every
-// channel above a pale-gray floor. Dark mode receives a slightly
-// stronger chroma and blend so the rainbow remains visible there.
+
+// Give each ribbon its own travelling hue so the border remains a true
+// gradient along the full line instead of borrowing color from crossings.
+vec3 outlineSpectralA = spectral(
+  0.47
+    + phaseA * 0.18
+    + p.x * 0.120
+    + time * 0.012
+);
+vec3 outlineSpectralB = spectral(
+  0.84
+    + phaseB * 0.17
+    - p.x * 0.120
+    - time * 0.010
+);
 float outlineChroma = mix(0.48, 0.42, u_light);
 float outlineFloor = mix(0.70, 0.78, u_light);
-vec3 spectralOutlineTint = mix(
-  vec3(0.96),
-  spectralTint,
-  outlineChroma
-);
-spectralOutlineTint = max(
-  spectralOutlineTint,
+vec3 outlineTintA = max(
+  mix(vec3(0.96), outlineSpectralA, outlineChroma),
   vec3(outlineFloor)
 );
+vec3 outlineTintB = max(
+  mix(vec3(0.96), outlineSpectralB, outlineChroma),
+  vec3(outlineFloor)
+);
+float outlineWeight = outlineA + outlineB;
+vec3 spectralOutlineTint = (
+  outlineTintA * outlineA
+    + outlineTintB * outlineB
+) / max(outlineWeight, 0.0001);
+float spectralOutline = sat(max(outlineA, outlineB));
 float spectralOutlineStrength = mix(0.92, 0.90, u_light);
 waterTint = mix(
   waterTint,
