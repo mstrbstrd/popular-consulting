@@ -248,6 +248,7 @@
 .rupture-brand:focus-visible,
 .rupture-nav button:focus-visible,
 .tidal-palette-option:focus-visible,
+.contour-palette-option:focus-visible,
 .dither-study-option:focus-visible {
   outline: var(--focus-ring);
   outline-offset: 0.3rem;
@@ -276,7 +277,8 @@
 }
 
 
-.tidal-palette-selector {
+.tidal-palette-selector,
+.contour-palette-selector {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr);
   align-items: center;
@@ -288,7 +290,8 @@
   background: var(--rupture-control);
 }
 
-.tidal-palette-selector-label {
+.tidal-palette-selector-label,
+.contour-palette-selector-label {
   padding: 0 0.55rem;
   color: var(--rupture-text-muted);
   font-family: "JetBrains Mono", monospace;
@@ -298,7 +301,8 @@
   text-transform: uppercase;
 }
 
-.tidal-palette-option {
+.tidal-palette-option,
+.contour-palette-option {
   min-height: 3.5rem;
   padding: 0 0.9rem;
   border: 1px solid transparent;
@@ -314,7 +318,8 @@
   transition: background 220ms ease, border-color 220ms ease, color 220ms ease, box-shadow 220ms ease, transform 220ms ease;
 }
 
-.tidal-palette-option:hover {
+.tidal-palette-option:hover,
+.contour-palette-option:hover {
   border-color: var(--rupture-border);
   color: var(--rupture-text);
   transform: translateY(-1px);
@@ -334,7 +339,22 @@
     0 0 1.8rem rgba(70, 227, 207, 0.24);
 }
 
-.tidal-palette-option.is-active[data-palette="spectral"] {
+.contour-palette-option.is-active[data-palette="terrain"] {
+  border-color: rgba(187, 215, 156, 0.64);
+  background: linear-gradient(
+    135deg,
+    rgba(30, 79, 59, 0.94),
+    rgba(105, 132, 76, 0.88) 52%,
+    rgba(179, 156, 104, 0.86)
+  );
+  color: rgba(249, 252, 239, 0.99);
+  box-shadow:
+    inset 0 1px 0 rgba(244, 250, 226, 0.40),
+    0 0 1.8rem rgba(145, 177, 109, 0.22);
+}
+
+.tidal-palette-option.is-active[data-palette="spectral"],
+.contour-palette-option.is-active[data-palette="spectral"] {
   border-color: rgba(99, 68, 245, 0.54);
   background: linear-gradient(
     135deg,
@@ -676,17 +696,20 @@
     display: none;
   }
 
-  .tidal-palette-selector {
+  .tidal-palette-selector,
+.contour-palette-selector {
     margin: 0 0 0.55rem;
     padding: 0.35rem;
   }
 
-  .tidal-palette-selector-label {
+  .tidal-palette-selector-label,
+.contour-palette-selector-label {
     padding: 0 0.4rem;
     font-size: 0.78rem;
   }
 
-  .tidal-palette-option {
+  .tidal-palette-option,
+.contour-palette-option {
     min-height: 3.35rem;
     padding: 0 0.65rem;
     font-size: 0.84rem;

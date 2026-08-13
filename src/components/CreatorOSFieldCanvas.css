@@ -30,6 +30,20 @@
     linear-gradient(145deg, #021a22 0%, #005a66 49%, #00a99f 100%);
 }
 
+.creatoros-field-mode-3.creatoros-field-contour-palette-terrain {
+  background:
+    radial-gradient(ellipse at 72% 20%, rgba(246, 244, 224, 0.42), transparent 29%),
+    radial-gradient(ellipse at 24% 76%, rgba(75, 138, 102, 0.24), transparent 39%),
+    linear-gradient(145deg, #b8d4c7 0%, #8fb47d 40%, #8b7659 72%, #d9d5c8 100%);
+}
+
+[data-theme="dark"] .creatoros-field-mode-3.creatoros-field-contour-palette-terrain {
+  background:
+    radial-gradient(ellipse at 72% 20%, rgba(221, 223, 190, 0.12), transparent 30%),
+    radial-gradient(ellipse at 24% 76%, rgba(73, 133, 96, 0.16), transparent 40%),
+    linear-gradient(145deg, #071719 0%, #173425 42%, #493b2c 74%, #77776d 100%);
+}
+
 .creatoros-field-canvas {
   width: 100%;
   height: 100%;
@@ -74,7 +88,21 @@
     #fff8f7;
 }
 
-.creatoros-field-mode-3 .creatoros-field-fallback {
+.creatoros-field-mode-3.creatoros-field-contour-palette-terrain .creatoros-field-fallback {
+  background:
+    repeating-radial-gradient(ellipse at 58% 44%, transparent 0 2.8rem, rgba(243, 244, 226, 0.52) 2.95rem 3.18rem, transparent 3.34rem 6.1rem),
+    radial-gradient(circle at 32% 65%, rgba(73, 139, 99, 0.30), transparent 30%),
+    linear-gradient(145deg, #a9cbbd 0%, #84aa74 45%, #8a7557 76%, #d8d3c5 100%);
+}
+
+[data-theme="dark"] .creatoros-field-mode-3.creatoros-field-contour-palette-terrain .creatoros-field-fallback {
+  background:
+    repeating-radial-gradient(ellipse at 58% 44%, transparent 0 2.8rem, rgba(221, 225, 201, 0.34) 2.95rem 3.18rem, transparent 3.34rem 6.1rem),
+    radial-gradient(circle at 32% 65%, rgba(64, 126, 89, 0.24), transparent 30%),
+    linear-gradient(145deg, #071719 0%, #173425 45%, #493b2c 76%, #737369 100%);
+}
+
+.creatoros-field-mode-3.creatoros-field-contour-palette-spectral .creatoros-field-fallback {
   background:
     repeating-radial-gradient(ellipse at 58% 44%, transparent 0 2.8rem, rgba(157, 0, 255, 0.24) 2.95rem 3.2rem, transparent 3.35rem 6.1rem),
     radial-gradient(circle at 32% 65%, rgba(0, 238, 255, 0.28), transparent 30%),
