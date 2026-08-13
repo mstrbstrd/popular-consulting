@@ -126,24 +126,38 @@ jobs:
 
           test_path = Path("src/components/ContourDriftFunctionalTopography.test.js")
           test_source = test_path.read_text(encoding="utf-8")
+          test_replacements = [
+              (
+                  '    expect(scene).toContain("mix(0.264, 0.192, u_light)");',
+                  '    expect(scene).toContain("mix(0.48, 0.42, u_light)");\n'
+                  '    expect(scene).toContain("float contourSpectralFloor");',
+                  "Contour chroma expectation",
+              ),
+              (
+                  '    expect(scene).toContain("sat(contourEdge * 1.104)");',
+                  '    expect(scene).toContain("sat(contourEdge * 1.08)");',
+                  "Contour pre-material strength expectation",
+              ),
+              (
+                  '    expect(scene).toContain("spectralContourEdge * 0.96");',
+                  '    expect(scene).toContain("spectralContourEdge * 1.02");',
+                  "Contour post-material highlight expectation",
+              ),
+              (
+                  '    expect(scene).toContain(\n'
+                  '      "terrainPaletteWeight * contourEdge * 0.864",\n'
+                  '    );',
+                  '    expect(scene).toContain(\n'
+                  '      "terrainPaletteWeight * contourEdge * 0.96",\n'
+                  '    );',
+                  "Contour post-material weight expectation",
+              ),
+          ]
+          for old, new, label in test_replacements:
+              test_source = replace_once(test_source, old, new, label)
 
-          old_test = '''    expect(scene).toContain("vec3 spectralContourEdge");
-            expect(scene).toContain("contourChroma = mix(0.264, 0.192, u_light)");
-            expect(scene).toContain("sat(contourEdge * 1.104)");
-            expect(scene).toContain("spectralContourEdge * 0.96");
-            expect(scene).toContain("terrainPaletteWeight * contourEdge * 0.864");
-            expect(scene).toContain("terrainPaletteWeight * contourCore * 0.88");
-            expect(scene).not.toContain("crossing *");'''
-
-          new_test = '''    expect(scene).toContain("vec3 spectralContourEdge");
-            expect(scene).toContain("contourChroma = mix(0.48, 0.42, u_light)");
-            expect(scene).toContain("float contourSpectralFloor");
-            expect(scene).toContain("sat(contourEdge * 1.08)");
-            expect(scene).toContain("spectralContourEdge * 1.02");
-            expect(scene).toContain("terrainPaletteWeight * contourEdge * 0.96");
-            expect(scene).toContain("terrainPaletteWeight * contourCore * 0.88");
-
-            const preCore = scene.indexOf(
+          order_marker = '    expect(scene).not.toContain("crossing *");'
+          order_assertions = '''    const preCore = scene.indexOf(
               "terrainTint = mix(\\n    terrainTint,\\n    lineCoreTint",
             );
             const preSpectrum = scene.indexOf(
@@ -159,13 +173,12 @@ jobs:
             expect(preSpectrum).toBeGreaterThan(preCore);
             expect(postCore).toBeGreaterThanOrEqual(0);
             expect(postSpectrum).toBeGreaterThan(postCore);
-            expect(scene).not.toContain("crossing *");'''
-
+          '''
           test_source = replace_once(
               test_source,
-              old_test,
-              new_test,
-              "Contour Drift rainbow visibility regression test",
+              order_marker,
+              order_assertions + order_marker,
+              "Contour composition-order assertions",
           )
           test_path.write_text(test_source, encoding="utf-8")
 
