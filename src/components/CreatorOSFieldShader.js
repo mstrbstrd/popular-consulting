@@ -812,7 +812,7 @@ vec4 sceneContourDrift(vec2 uv, float time) {
       + time * 0.006
       + u_seed * 0.10
   );
-  float contourChroma = mix(0.22, 0.16, u_light);
+  float contourChroma = mix(0.264, 0.192, u_light);
   vec3 spectralContourEdge = mix(
     contourCoreTint,
     contourSpectrum,
@@ -825,7 +825,7 @@ vec4 sceneContourDrift(vec2 uv, float time) {
   terrainTint = mix(
     terrainTint,
     spectralContourEdge,
-    contourEdge * 0.92
+    sat(contourEdge * 1.104)
   );
   terrainTint = mix(
     terrainTint,
@@ -838,8 +838,8 @@ vec4 sceneContourDrift(vec2 uv, float time) {
   vec4 material = fluidMaterial(field, tint, 0.24, 0.18, 0.84);
   material.rgb = mix(
     material.rgb,
-    max(material.rgb, spectralContourEdge * 0.92),
-    terrainPaletteWeight * contourEdge * 0.72
+    max(material.rgb, spectralContourEdge * 0.96),
+    terrainPaletteWeight * contourEdge * 0.864
   );
   material.rgb = mix(
     material.rgb,

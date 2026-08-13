@@ -30,7 +30,12 @@ describe("Contour Drift functional topography", () => {
     expect(scene).toContain("vec3 contourCoreTint");
     expect(scene).toContain("vec3 lineCoreTint");
     expect(scene).toContain("vec3 spectralContourEdge");
-    expect(scene).toContain("contourEdge * 0.92");
+    expect(scene).toContain("mix(0.264, 0.192, u_light)");
+    expect(scene).toContain("sat(contourEdge * 1.104)");
+    expect(scene).toContain("spectralContourEdge * 0.96");
+    expect(scene).toContain(
+      "terrainPaletteWeight * contourEdge * 0.864",
+    );
     expect(scene).toContain("terrainPaletteWeight * contourCore * 0.88");
     expect(scene).not.toContain("crossing *");
   });
