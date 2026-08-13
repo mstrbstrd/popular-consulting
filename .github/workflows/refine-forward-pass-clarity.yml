@@ -1,0 +1,647 @@
+name: Refine Forward Pass clarity
+
+on:
+  push:
+    branches:
+      - agent/refine-forward-pass-clarity
+    paths:
+      - .github/workflows/refine-forward-pass-clarity.yml
+
+permissions:
+  contents: write
+
+jobs:
+  refine:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/refine-forward-pass-clarity
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Clarify the transformer forward pass
+        shell: python
+        run: |
+          from pathlib import Path
+
+          shader_path = Path("src/components/CreatorOSFieldShader.js")
+          shader = shader_path.read_text(encoding="utf-8")
+
+          def replace_once(label, old, new):
+              global shader
+              count = shader.count(old)
+              if count != 1:
+                  raise SystemExit(
+                      f"{label}: expected exactly one patch target, found {count}."
+                  )
+              shader = shader.replace(old, new)
+
+          replace_once(
+              "forward pass hierarchy",
+              '''  vec2 warpedPosition = viscousWarp(
+            centeredUv(responsiveUv),
+            time,
+            0.12
+          );
+          vec2 fieldUv = warpedPosition / scale * 0.5 + 0.5;
+          float intro = smoothstep(0.0, 0.88, u_intro);
+          float pulse = pulseField(uv);
+          float gateBias = (u_pointer.y - 0.5) * 1.8
+            + (u_pointer.x - 0.5) * 0.6;
+          float field = 0.0;
+          float tintWeight = 0.0;
+          float activationEcho = 0.0;
+          vec3 tintAccumulator = vec3(0.0);
+
+          // The architecture stays legible, but every stage is expressed as
+          // translucent spectral material rather than a literal diagram.
+          for (int token = 0; token < 5; token++) {''',
+              '''  vec2 warpedPosition = viscousWarp(
+            centeredUv(responsiveUv),
+            time,
+            0.085
+          );
+          vec2 fieldUv = warpedPosition / scale * 0.5 + 0.5;
+          float intro = smoothstep(0.0, 0.88, u_intro);
+          float pulse = pulseField(uv);
+          float gateBias = (u_pointer.y - 0.5) * 1.8
+            + (u_pointer.x - 0.5) * 0.6;
+          float passPhase = fract(time * 0.048 + u_seed * 0.19);
+          float passX = mix(-0.10, 1.10, passPhase);
+          float passFront = exp(
+            -abs(fieldUv.x - passX) * aspect * 38.0
+          );
+          float passWake = smoothstep(
+            passX - 0.18,
+            passX - 0.035,
+            fieldUv.x
+          ) * (1.0 - smoothstep(
+            passX + 0.015,
+            passX + 0.105,
+            fieldUv.x
+          ));
+          float field = 0.0;
+          float tintWeight = 0.0;
+          float activationEcho = 0.0;
+          vec3 tintAccumulator = vec3(0.0);
+
+          // Repeated stage membranes clarify the decoder block without
+          // turning the field into a literal node diagram.
+          float architectureField = 0.0;
+          float architectureWeight = 0.0;
+          vec3 architectureTint = vec3(0.0);
+          float architectureWindow = smoothstep(0.09, 0.15, fieldUv.y)
+            * (1.0 - smoothstep(0.84, 0.91, fieldUv.y));
+          float laneComb = pow(
+            0.5 + 0.5 * cos((fieldUv.y - 0.18) / 0.16 * TAU),
+            18.0
+          );
+
+          for (int layer = 0; layer < 4; layer++) {
+            float layerIndex = float(layer);
+            float blockStart = 0.055 + layerIndex * 0.235;
+            float blockWidth = 0.205;
+            float layerReveal = smoothstep(
+              layerIndex * 0.16,
+              layerIndex * 0.16 + 0.36,
+              u_intro
+            );
+            float inputRail = exp(
+              -abs(fieldUv.x - blockStart) * aspect * 190.0
+            );
+            float attentionRail = exp(
+              -abs(fieldUv.x - (blockStart + blockWidth * 0.30))
+                * aspect
+                * 170.0
+            );
+            float gateRail = exp(
+              -abs(fieldUv.x - (blockStart + blockWidth * 0.60))
+                * aspect
+                * 180.0
+            );
+            float mergeRail = exp(
+              -abs(fieldUv.x - (blockStart + blockWidth * 0.92))
+                * aspect
+                * 200.0
+            );
+            float stageRails = (
+              inputRail * 0.10
+                + attentionRail * 0.16
+                + gateRail * 0.20
+                + mergeRail * 0.26
+            ) * architectureWindow
+              * (0.22 + laneComb * 0.78)
+              * (0.60 + passFront * 0.72 + passWake * 0.20)
+              * layerReveal;
+            vec3 railTint = spectral(0.78 + layerIndex * 0.055);
+            railTint = mix(
+              railTint,
+              spectral(0.23 + layerIndex * 0.028),
+              attentionRail * 0.48
+            );
+            railTint = mix(
+              railTint,
+              spectral(0.43 + layerIndex * 0.018),
+              gateRail * 0.54
+            );
+            railTint = mix(railTint, vec3(1.0), mergeRail * 0.24);
+            architectureField += stageRails;
+            architectureTint += railTint * stageRails;
+            architectureWeight += stageRails;
+          }
+
+          field += architectureField;
+          tintAccumulator += architectureTint;
+          tintWeight += architectureWeight;
+
+          // The architecture stays legible, but every stage is expressed as
+          // translucent spectral material rather than a literal diagram.
+          for (int token = 0; token < 5; token++) {''',
+          )
+
+          replace_once(
+              "token carriers",
+              '''    float tokenIndex = float(token);
+            float laneY = 0.18 + tokenIndex * 0.16;
+            laneY += sin(
+              fieldUv.x * TAU * 0.72
+                + time * 0.11
+                + tokenIndex * 1.33
+            ) * 0.008;
+            float tokenHue = 0.69 + tokenIndex * 0.074 + time * 0.008;
+            float packet = pow(
+              0.5 + 0.5 * cos(
+                (fieldUv.x * 5.8 - time * 0.16 - tokenIndex * 0.17) * TAU
+              ),
+              14.0
+            );
+            float streamDistance = abs(fieldUv.y - laneY);
+            float streamCore = exp(-streamDistance * 145.0);
+            float streamGlow = exp(-streamDistance * 30.0) * 0.13;
+            float residualStream = streamCore * (0.20 + packet * 0.68)
+              + streamGlow;''',
+              '''    float tokenIndex = float(token);
+            float laneY = 0.18 + tokenIndex * 0.16;
+            laneY += sin(
+              fieldUv.x * TAU * 0.72
+                + time * 0.11
+                + tokenIndex * 1.33
+            ) * 0.006;
+            float tokenHue = 0.69 + tokenIndex * 0.074 + time * 0.008;
+            float carrierX = passX - tokenIndex * 0.010;
+            float carrierDelta = (fieldUv.x - carrierX) * aspect;
+            float tokenCarrier = exp(
+              -carrierDelta * carrierDelta * 980.0
+            );
+            float packetTrain = pow(
+              0.5 + 0.5 * cos(
+                (fieldUv.x * 5.8 - time * 0.16 - tokenIndex * 0.17) * TAU
+              ),
+              16.0
+            );
+            float packet = sat(packetTrain * 0.55 + tokenCarrier * 1.35);
+            float streamDistance = abs(fieldUv.y - laneY);
+            float streamCore = exp(-streamDistance * 145.0);
+            float streamGlow = exp(-streamDistance * 30.0) * 0.095;
+            float carrierHalo = exp(-streamDistance * 44.0)
+              * tokenCarrier
+              * 0.30;
+            float residualStream = streamCore * (0.16 + packet * 0.84)
+              + streamGlow
+              + carrierHalo;''',
+          )
+
+          replace_once(
+              "stage activation",
+              '''      float direction = mod(tokenIndex + layerIndex, 2.0) < 1.0
+                ? 1.0
+                : -1.0;
+
+              float residualCurve = laneY''',
+              '''      float direction = mod(tokenIndex + layerIndex, 2.0) < 1.0
+                ? 1.0
+                : -1.0;
+              float stageFront = exp(
+                -abs(fieldUv.x - passX) * aspect * 22.0
+              ) * blockMask;
+              float stageWake = passWake * blockMask;
+              float stageActivation = sat(
+                stageFront * 0.92 + stageWake * 0.34
+              );
+
+              float residualCurve = laneY''',
+          )
+
+          replace_once(
+              "attention hierarchy",
+              '''      float contextPulse = pow(
+                0.5 + 0.5 * cos(
+                  (local * 2.4
+                    - time * 0.20
+                    - tokenIndex * 0.17
+                    - layerIndex * 0.09) * TAU
+                ),
+                10.0
+              );
+              float attentionDistance = abs(fieldUv.y - attentionY);
+              float attentionCore = exp(-attentionDistance * 150.0);
+              float attentionGlow = exp(-attentionDistance * 34.0) * 0.15;
+              float attentionMix = (
+                attentionCore * (0.24 + contextPulse * 0.86)
+                  + attentionGlow
+              ) * attentionWindow;
+              vec3 attentionTint = spectral(
+                tokenHue + sourceIndex * 0.035 + layerIndex * 0.03 + 0.05
+              );''',
+              '''      float contextWave = pow(
+                0.5 + 0.5 * cos(
+                  (local * 2.4
+                    - time * 0.20
+                    - tokenIndex * 0.17
+                    - layerIndex * 0.09) * TAU
+                ),
+                10.0
+              );
+              float contextPulse = sat(
+                contextWave * 0.56 + stageActivation * 0.92
+              );
+              float attentionDistance = abs(fieldUv.y - attentionY);
+              float attentionCore = exp(-attentionDistance * 150.0);
+              float attentionGlow = exp(-attentionDistance * 34.0) * 0.11;
+              float attentionMix = (
+                attentionCore * (0.12 + contextPulse * 1.02)
+                  + attentionGlow * (0.64 + stageActivation * 0.78)
+              ) * attentionWindow;
+              vec3 attentionTint = mix(
+                spectral(
+                  tokenHue + sourceIndex * 0.035 + layerIndex * 0.03 + 0.05
+                ),
+                spectral(
+                  0.23 + layerIndex * 0.028 + sourceIndex * 0.012
+                ),
+                0.54
+              );''',
+          )
+
+          replace_once(
+              "hidden expansion",
+              '''      float hiddenExpansion = sin(ffnProgress * PI)
+                * (0.064
+                  + 0.012 * sin(
+                    time * 0.13 + tokenIndex * 1.7 + layerIndex
+                  ));''',
+              '''      float hiddenExpansion = sin(ffnProgress * PI)
+                * (0.070
+                  + 0.010 * sin(
+                    time * 0.13 + tokenIndex * 1.7 + layerIndex
+                  ));''',
+          )
+
+          replace_once(
+              "gated hidden state",
+              '''        float gatedActivation = sat(
+                  valueProjection * swigluGate * 2.15
+                );
+                float hiddenDistance = abs(fieldUv.y - hiddenY);
+                float hiddenCore = exp(-hiddenDistance * 165.0);
+                float hiddenGlow = exp(-hiddenDistance * 34.0) * 0.12;
+                float hiddenLine = (
+                  hiddenCore * (0.16 + gatedActivation * 1.16)
+                    + hiddenGlow
+                ) * ffnWindow * (0.78 + projectionFunnel * 0.28);
+
+                float activationX = blockStart
+                  + blockWidth * (0.59 + hiddenOffset * 0.015);
+                vec2 activationDelta = vec2(
+                  (fieldUv.x - activationX) * aspect,
+                  fieldUv.y - hiddenY
+                );
+                float activationBloom = exp(
+                  -dot(activationDelta, activationDelta)
+                    * (620.0 + hiddenIndex * 70.0)
+                ) * ffnWindow * (0.16 + gatedActivation * 1.25);
+                float hiddenMaterial = hiddenLine + activationBloom;
+                vec3 hiddenTint = spectral(
+                  tokenHue
+                    + 0.10
+                    + layerIndex * 0.035
+                    + hiddenIndex * 0.045
+                    + gatedActivation * 0.07
+                );
+                vec3 activationTint = mix(
+                  hiddenTint,
+                  spectral(
+                    0.34
+                      + layerIndex * 0.025
+                      + gatedActivation * 0.08
+                  ),
+                  gatedActivation * 0.32
+                );
+                field += hiddenMaterial;
+                tintAccumulator += hiddenTint * hiddenLine
+                  + activationTint * activationBloom;
+                tintWeight += hiddenMaterial;
+                activationEcho += activationBloom * gatedActivation;''',
+              '''        float gatedActivation = sat(
+                  valueProjection * swigluGate * 2.0
+                    + stageActivation * 0.18
+                );
+                float gateSeparation = (
+                  1.0 - smoothstep(0.18, 0.58, ffnProgress)
+                ) * (0.0065 + abs(hiddenOffset) * 0.0020);
+                float valueY = hiddenY - gateSeparation;
+                float gateY = hiddenY + gateSeparation;
+                float splitEnvelope = smoothstep(0.02, 0.10, ffnProgress)
+                  * (1.0 - smoothstep(0.48, 0.68, ffnProgress))
+                  * ffnWindow;
+                float valueBranch = exp(
+                  -abs(fieldUv.y - valueY) * 205.0
+                ) * splitEnvelope * (0.05 + valueProjection * 0.28);
+                float gateBranch = exp(
+                  -abs(fieldUv.y - gateY) * 205.0
+                ) * splitEnvelope * (0.05 + gateProjection * 0.34);
+                float gateSplit = valueBranch + gateBranch;
+                float hiddenDistance = abs(fieldUv.y - hiddenY);
+                float hiddenCore = exp(-hiddenDistance * 165.0);
+                float hiddenGlow = exp(-hiddenDistance * 34.0) * 0.085;
+                float hiddenLine = (
+                  hiddenCore * (0.14 + gatedActivation * 1.10)
+                    + hiddenGlow
+                ) * ffnWindow * (0.78 + projectionFunnel * 0.28);
+
+                float activationX = blockStart
+                  + blockWidth * (0.59 + hiddenOffset * 0.012);
+                vec2 activationDelta = vec2(
+                  (fieldUv.x - activationX) * aspect,
+                  fieldUv.y - hiddenY
+                );
+                float activationBloom = exp(
+                  -dot(activationDelta, activationDelta)
+                    * (650.0 + hiddenIndex * 72.0)
+                ) * ffnWindow
+                  * (0.12 + gatedActivation * 1.34)
+                  * (0.84 + stageActivation * 0.32);
+                float hiddenMaterial = hiddenLine
+                  + gateSplit
+                  + activationBloom;
+                vec3 hiddenTint = spectral(
+                  tokenHue
+                    + 0.10
+                    + layerIndex * 0.035
+                    + hiddenIndex * 0.045
+                    + gatedActivation * 0.07
+                );
+                vec3 gateTint = spectral(
+                  0.43 + layerIndex * 0.018 + hiddenIndex * 0.010
+                );
+                vec3 activationTint = mix(
+                  gateTint,
+                  vec3(1.0),
+                  0.10 + gatedActivation * 0.18
+                );
+                field += hiddenMaterial;
+                tintAccumulator += hiddenTint * (hiddenLine + valueBranch)
+                  + gateTint * gateBranch
+                  + activationTint * activationBloom;
+                tintWeight += hiddenMaterial;
+                activationEcho += activationBloom * gatedActivation
+                  + gateSplit * stageActivation * 0.24;''',
+          )
+
+          replace_once(
+              "residual merge",
+              '''      vec2 mergeDelta = vec2(
+                (fieldUv.x - (blockStart + blockWidth * 0.92)) * aspect,
+                fieldUv.y - laneY
+              );
+              float entryNode = exp(-dot(entryDelta, entryDelta) * 1450.0)
+                + exp(-dot(entryDelta, entryDelta) * 180.0) * 0.12;
+              float ffnNode = exp(-dot(ffnDelta, ffnDelta) * 1550.0)
+                + exp(-dot(ffnDelta, ffnDelta) * 190.0) * 0.13;
+              float mergeNode = exp(-dot(mergeDelta, mergeDelta) * 1350.0)
+                + exp(-dot(mergeDelta, mergeDelta) * 165.0) * 0.16;
+              float structure = (
+                entryNode * 0.32
+                  + ffnNode * 0.38
+                  + mergeNode * (0.44 + projectionFunnel * 0.42)
+              ) * layerReveal;
+              vec3 structureTint = spectral(
+                tokenHue + layerIndex * 0.06 + 0.18
+              );
+              field += structure;
+              tintAccumulator += structureTint * structure;
+              tintWeight += structure;''',
+              '''      float mergeX = blockStart + blockWidth * 0.92;
+              vec2 mergeDelta = vec2(
+                (fieldUv.x - mergeX) * aspect,
+                fieldUv.y - laneY
+              );
+              float entryNode = exp(-dot(entryDelta, entryDelta) * 1450.0)
+                + exp(-dot(entryDelta, entryDelta) * 180.0) * 0.12;
+              float ffnNode = exp(-dot(ffnDelta, ffnDelta) * 1550.0)
+                + exp(-dot(ffnDelta, ffnDelta) * 190.0) * 0.13;
+              float mergeNode = exp(-dot(mergeDelta, mergeDelta) * 1350.0)
+                + exp(-dot(mergeDelta, mergeDelta) * 165.0) * 0.16;
+              float mergeFlash = exp(
+                -abs(passX - mergeX) * aspect * 34.0
+              );
+              float structure = (
+                entryNode * 0.30
+                  + ffnNode * 0.36
+                  + mergeNode * (
+                    0.42
+                      + projectionFunnel * 0.38
+                      + mergeFlash * 0.98
+                  )
+              ) * layerReveal;
+              vec3 structureTint = spectral(
+                tokenHue + layerIndex * 0.06 + 0.18
+              );
+              structureTint = mix(
+                structureTint,
+                vec3(1.0),
+                sat(mergeFlash * 0.42)
+              );
+              field += structure;
+              tintAccumulator += structureTint * structure;
+              tintWeight += structure;
+              activationEcho += mergeNode * mergeFlash * 0.18;''',
+          )
+
+          replace_once(
+              "material finish",
+              '''  vec4 material = fluidMaterial(field, tint, 0.30, 0.24, 0.88);
+            material.rgb += spectral(0.34 + time * 0.012)
+              * sat(activationEcho)
+              * 0.09;
+            material.a = max(material.a, sat((field - 0.10) * 0.24));''',
+              '''  vec4 material = fluidMaterial(field, tint, 0.34, 0.19, 0.92);
+            material.rgb += spectral(0.43 + time * 0.010)
+              * sat(activationEcho)
+              * 0.11;
+            material.a = max(material.a, sat((field - 0.09) * 0.27));''',
+          )
+
+          shader_path.write_text(shader, encoding="utf-8")
+
+          page_path = Path("src/components/DitherCanvasPage.js")
+          page = page_path.read_text(encoding="utf-8")
+          old_description = (
+              '      "Five spectral token currents cross four fluid transformer chambers: causal context folds between lanes, '
+              'gated hidden blooms expand and collapse, and every result rejoins its residual current.",'
+          )
+          new_description = (
+              '      "Five token currents move left to right through four repeated transformer chambers. Magenta context filaments '
+              'reach only into earlier lanes, warm gated blooms expand the hidden state, and pale merge flashes return each result to its residual current.",'
+          )
+          old_instruction = (
+              '      "Move to bias the gates · tap to inject a token pulse and watch it propagate through the chambers",'
+          )
+          new_instruction = (
+              '      "Move to bias the warm gates · tap to launch a bright token front through context, expansion, and residual merge",'
+          )
+          if page.count(old_description) != 1 or page.count(old_instruction) != 1:
+              raise SystemExit("Forward Pass copy changed unexpectedly.")
+          page_path.write_text(
+              page.replace(old_description, new_description).replace(
+                  old_instruction,
+                  new_instruction,
+              ),
+              encoding="utf-8",
+          )
+
+          test_path = Path("src/components/ForwardPassField.test.js")
+          test_path.write_text(
+              '''const fs = require("fs");
+          const path = require("path");
+          const {
+            CREATOROS_FIELD_FRAGMENT_SHADER,
+          } = require("./CreatorOSFieldShader");
+
+          describe("Forward Pass field", () => {
+            const start = CREATOROS_FIELD_FRAGMENT_SHADER.indexOf(
+              "vec4 sceneForwardPass",
+            );
+            const end = CREATOROS_FIELD_FRAGMENT_SHADER.indexOf(
+              "vec4 sampleScene",
+              start,
+            );
+            const scene = CREATOROS_FIELD_FRAGMENT_SHADER.slice(start, end);
+
+            test("maps the decoder-only transformer stages into one continuous field", () => {
+              expect(start).toBeGreaterThanOrEqual(0);
+              expect(end).toBeGreaterThan(start);
+              expect(scene).toContain("float causalLookback");
+              expect(scene).toContain("float attentionMix");
+              expect(scene).toContain("float hiddenExpansion");
+              expect(scene).toContain("float swigluGate");
+              expect(scene).toContain("float projectionFunnel");
+              expect(scene).toContain("float residualBypass");
+              expect(scene).toContain("float promptFront");
+            });
+
+            test("makes the left-to-right computation and repeated stages legible", () => {
+              expect(scene).toContain("float passPhase");
+              expect(scene).toContain("float passX");
+              expect(scene).toContain("float tokenCarrier");
+              expect(scene).toContain("float architectureWindow");
+              expect(scene).toContain("float inputRail");
+              expect(scene).toContain("float attentionRail");
+              expect(scene).toContain("float gateRail");
+              expect(scene).toContain("float mergeRail");
+              expect(scene).toContain("float stageActivation");
+              expect(scene).toContain("float mergeFlash");
+            });
+
+            test("separates context, gating, activation, and residual merge", () => {
+              expect(scene).toContain("float contextWave");
+              expect(scene).toContain("float valueBranch");
+              expect(scene).toContain("float gateBranch");
+              expect(scene).toContain("float gateSplit");
+              expect(scene).toContain("vec3 gateTint");
+              expect(scene).toContain("vec3 activationTint");
+              expect(scene).toContain("vec3 structureTint");
+              expect(scene).toContain("vec3(1.0)");
+            });
+
+            test("expresses the architecture through the CreatorOS material language", () => {
+              expect(scene).toContain("vec2 responsiveUv = pointerFlow");
+              expect(scene).toContain("viscousWarp(");
+              expect(scene).toContain("float streamGlow");
+              expect(scene).toContain("float attentionGlow");
+              expect(scene).toContain("float activationBloom");
+              expect(scene).toContain("float chamberMembrane");
+              expect(scene).toContain("float activationEcho");
+              expect(scene).toContain(
+                "fluidMaterial(field, tint, 0.34, 0.19, 0.92)",
+              );
+            });
+
+            test("keeps the refined field inside the existing performance budget", () => {
+              const canvas = fs.readFileSync(
+                path.join(__dirname, "CreatorOSFieldCanvas.js"),
+                "utf8",
+              );
+              const page = fs.readFileSync(
+                path.join(__dirname, "DitherCanvasPage.js"),
+                "utf8",
+              );
+              const css = fs.readFileSync(
+                path.join(__dirname, "CreatorOSFieldCanvas.css"),
+                "utf8",
+              );
+
+              expect(canvas).toContain("const MODE_COUNT = 8");
+              expect(page).toContain('id: "forward-pass"');
+              expect(page).toContain("mode: 7");
+              expect(page).toContain("Five token currents move left to right");
+              expect(page).toContain("warm gated blooms expand the hidden state");
+              expect(css).toContain(".creatoros-field-mode-7");
+              expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain(
+                "if (u_modeA != u_modeB && u_modeMix > 0.001)",
+              );
+              expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain(
+                "return sceneForwardPass(uv, time)",
+              );
+            });
+          });
+          '''.replace("          ", ""),
+              encoding="utf-8",
+          )
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Run tests
+        run: npm test -- --watchAll=false --runInBand
+        env:
+          CI: true
+
+      - name: Build production bundle
+        run: npm run build
+        env:
+          CI: true
+
+      - name: Commit the refined Forward Pass
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            src/components/CreatorOSFieldShader.js \
+            src/components/DitherCanvasPage.js \
+            src/components/ForwardPassField.test.js
+          git rm .github/workflows/refine-forward-pass-clarity.yml
+          git commit -m "Refine Forward Pass clarity"
+          git push origin HEAD:agent/refine-forward-pass-clarity
