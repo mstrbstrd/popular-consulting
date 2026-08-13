@@ -1,11 +1,9 @@
-const fs = require("fs");
-const path = require("path");
+const {
+  CREATOROS_FIELD_FRAGMENT_SHADER,
+} = require("./CreatorOSFieldShader");
 
 describe("Metabloom color field", () => {
-  const shader = fs.readFileSync(
-    path.join(__dirname, "CreatorOSFieldShader.js"),
-    "utf8",
-  );
+  const shader = CREATOROS_FIELD_FRAGMENT_SHADER;
   const sceneStart = shader.indexOf("vec4 sceneMetabloom");
   const sceneEnd = shader.indexOf("vec4 sceneTidalWeave");
   const metabloom = shader.slice(sceneStart, sceneEnd);
