@@ -473,40 +473,60 @@ vec4 sceneTidalWeave(vec2 uv, float time) {
     crossing * 0.44
   );
 
-  vec3 waterTintA = tidalWaterPalette(
-    0.60 + phaseA * 0.16 + p.x * 0.024 + time * 0.006
-  );
-  vec3 waterTintB = tidalWaterPalette(
-    0.18 + phaseB * 0.15 - p.x * 0.020 - time * 0.005
-  );
-  vec3 waterTint = mix(waterTintA, waterTintB, overUnder);
+  // Keep every visible caustic pale, even over the dark water surface.
+// The tropical depth now lives beneath the transparent field rather than
+// darkening the reflected-light lines themselves.
+float causticSignal = sat(max(bandA, bandB));
+float crossingCrystal = pow(sat(crossing), 0.72);
+vec3 causticGray = mix(
+  vec3(1.280, 1.320, 1.300),
+  vec3(1.340, 1.370, 1.350),
+  u_light
+);
+vec3 refractedLight = mix(
+  vec3(1.480, 1.540, 1.510),
+  vec3(1.550, 1.590, 1.570),
+  u_light
+);
+float causticLift = sat(
+  0.10
+    + causticSignal * 0.38
+    + crossingCrystal * 0.34
+    + pointerWake * 0.08
+    + pulse * 0.10
+);
+vec3 waterTint = mix(causticGray, refractedLight, causticLift);
 
-  // The existing weave lines become sunlight caustics. Only their color
-  // changes: geometry, timing, interaction, and field density stay intact.
-  float causticLines = sat(
-    max(bandA, bandB) * 0.48
-      + crossing * 0.38
-  );
-  float refractedSpark = pow(sat(crossing), 0.72);
-  vec3 refractedLight = mix(
-    vec3(0.610, 1.000, 0.940),
-    vec3(0.905, 1.000, 0.975),
-    u_light
-  );
-  float causticAmount = sat(
-    causticLines * 0.52
-      + refractedSpark * 0.26
-      + pointerWake * 0.08
-      + pulse * 0.10
-  );
-  waterTint = mix(waterTint, refractedLight, causticAmount);
+// Isolate the site palette to a very thin iso-line around each caustic.
+// Mixing it over the bright gray floor preserves hue without allowing
+// violet or blue channels to create dark sections in dark mode.
+float outlineWidthA = max(fwidth(bandA) * 0.55, 0.008);
+float outlineWidthB = max(fwidth(bandB) * 0.55, 0.008);
+float outlineA = 1.0 - smoothstep(
+  outlineWidthA,
+  outlineWidthA * 2.15,
+  abs(bandA - 0.30)
+);
+float outlineB = 1.0 - smoothstep(
+  outlineWidthB,
+  outlineWidthB * 2.15,
+  abs(bandB - 0.30)
+);
+float spectralOutline = sat(max(outlineA, outlineB));
+vec3 spectralOutlineTint = causticGray * 0.70
+  + spectralTint * 0.58;
+waterTint = mix(
+  waterTint,
+  spectralOutlineTint,
+  spectralOutline * 0.78
+);
 
-  vec3 tint = mix(
-    waterTint,
-    spectralTint,
-    sat(u_tidalPaletteMix)
-  );
-  return fluidMaterial(field, tint, 0.34, 0.22, 0.94);
+vec3 tint = mix(
+  waterTint,
+  spectralTint,
+  sat(u_tidalPaletteMix)
+);
+return fluidMaterial(field, tint, 0.34, 0.22, 0.94);
 }
 
 vec4 sceneMoireHalo(vec2 uv, float time) {
