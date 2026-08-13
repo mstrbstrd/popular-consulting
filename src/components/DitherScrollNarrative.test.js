@@ -15,6 +15,86 @@ describe("Dither scroll narrative", () => {
     "utf8",
   );
 
+  const transitionContracts = [
+    {
+      id: "second-surface",
+      sceneEnter: "dither-surface-enter",
+      sceneExit: "dither-surface-exit",
+      copyEnter: "dither-copy-surface-enter",
+      copyExit: "dither-copy-surface-exit",
+    },
+    {
+      id: "metabloom",
+      sceneEnter: "dither-bloom-enter",
+      sceneExit: "dither-bloom-exit",
+      copyEnter: "dither-copy-bloom-enter",
+      copyExit: "dither-copy-bloom-exit",
+    },
+    {
+      id: "tidal-weave",
+      sceneEnter: "dither-weave-enter",
+      sceneExit: "dither-weave-exit",
+      copyEnter: "dither-copy-weave-enter",
+      copyExit: "dither-copy-weave-exit",
+    },
+    {
+      id: "moire-halo",
+      sceneEnter: "dither-halo-enter",
+      sceneExit: "dither-halo-exit",
+      copyEnter: "dither-copy-halo-enter",
+      copyExit: "dither-copy-halo-exit",
+    },
+    {
+      id: "contour-drift",
+      sceneEnter: "dither-contour-enter",
+      sceneExit: "dither-contour-exit",
+      copyEnter: "dither-copy-contour-enter",
+      copyExit: "dither-copy-contour-exit",
+    },
+    {
+      id: "lava-lamp",
+      sceneEnter: null,
+      sceneExit: "dither-lava-exit",
+      copyEnter: null,
+      copyExit: "dither-copy-lava-exit",
+    },
+    {
+      id: "morphogen-divide",
+      sceneEnter: "dither-morphogen-enter",
+      sceneExit: "dither-morphogen-exit",
+      copyEnter: "dither-copy-morphogen-enter",
+      copyExit: "dither-copy-morphogen-exit",
+    },
+    {
+      id: "quasicrystal-chorus",
+      sceneEnter: "dither-quasicrystal-enter",
+      sceneExit: "dither-quasicrystal-exit",
+      copyEnter: "dither-copy-quasicrystal-enter",
+      copyExit: "dither-copy-quasicrystal-exit",
+    },
+    {
+      id: "hyperbolic-garden",
+      sceneEnter: "dither-hyperbolic-enter",
+      sceneExit: "dither-hyperbolic-exit",
+      copyEnter: "dither-copy-hyperbolic-enter",
+      copyExit: "dither-copy-hyperbolic-exit",
+    },
+    {
+      id: "forward-pass",
+      sceneEnter: "dither-forward-enter",
+      sceneExit: "dither-forward-exit",
+      copyEnter: "dither-copy-forward-enter",
+      copyExit: "dither-copy-forward-exit",
+    },
+  ];
+
+  const expectAnimationSelector = (layer, phase, id, animationName) => {
+    expect(narrativeStyles).toContain(
+      `.${layer}.is-${phase}[data-transition="${id}"] {\n  animation-name: ${animationName};`,
+    );
+    expect(narrativeStyles).toContain(`@keyframes ${animationName}`);
+  };
+
   test("maps native page scroll through all ten studies", () => {
     expect(pageSource).toContain("const FIRST_STUDY_SCROLL_UNITS = 1.35");
     expect(pageSource).toContain("const RUPTURE_OPEN_SCROLL_UNITS = 0.92");
@@ -24,31 +104,75 @@ describe("Dither scroll narrative", () => {
     expect(pageSource).toContain("progress={firstSurfaceProgress}");
   });
 
-  test("gives every study a distinct transition contract", () => {
-    [
-      "second-surface",
-      "metabloom",
-      "tidal-weave",
-      "moire-halo",
-      "contour-drift",
-      "lava-lamp",
-      "morphogen-divide",
-      "quasicrystal-chorus",
-      "hyperbolic-garden",
-      "forward-pass",
-    ].forEach((studyId) => {
-      expect(pageSource).toContain(`"${studyId}"`);
-      expect(narrativeStyles).toContain(`data-transition="${studyId}"`);
+  test("gives every authored study a unique entrance and exit", () => {
+    transitionContracts.forEach((contract) => {
+      expect(pageSource).toContain(`"${contract.id}"`);
+      expectAnimationSelector(
+        "dither-study-scene",
+        "exiting",
+        contract.id,
+        contract.sceneExit,
+      );
+      expectAnimationSelector(
+        "dither-copy",
+        "exiting",
+        contract.id,
+        contract.copyExit,
+      );
+
+      if (contract.sceneEnter) {
+        expectAnimationSelector(
+          "dither-study-scene",
+          "entering",
+          contract.id,
+          contract.sceneEnter,
+        );
+      }
+
+      if (contract.copyEnter) {
+        expectAnimationSelector(
+          "dither-copy",
+          "entering",
+          contract.id,
+          contract.copyEnter,
+        );
+      }
     });
 
+    const authoredSceneEntrances = transitionContracts
+      .map(({ sceneEnter }) => sceneEnter)
+      .filter(Boolean);
+    const sceneExits = transitionContracts.map(({ sceneExit }) => sceneExit);
+    const authoredCopyEntrances = transitionContracts
+      .map(({ copyEnter }) => copyEnter)
+      .filter(Boolean);
+    const copyExits = transitionContracts.map(({ copyExit }) => copyExit);
+
+    expect(new Set(authoredSceneEntrances).size).toBe(
+      authoredSceneEntrances.length,
+    );
+    expect(new Set(sceneExits).size).toBe(sceneExits.length);
+    expect(new Set(authoredCopyEntrances).size).toBe(
+      authoredCopyEntrances.length,
+    );
+    expect(new Set(copyExits).size).toBe(copyExits.length);
+  });
+
+  test("preserves the Lava Lamp native entrance and adds only its exits", () => {
     expect(pageSource).toContain(
       '"lava-lamp": { enter: "native", exit: "lava-lamp" }',
     );
     expect(narrativeStyles).not.toContain(
       '.dither-study-scene.is-entering[data-transition="lava-lamp"]',
     );
-    expect(narrativeStyles).toContain(
+    expect(narrativeStyles).not.toContain(
       '.dither-copy.is-entering[data-transition="lava-lamp"]',
+    );
+    expect(narrativeStyles).toContain(
+      '.dither-study-scene.is-exiting[data-transition="lava-lamp"]',
+    );
+    expect(narrativeStyles).toContain(
+      '.dither-copy.is-exiting[data-transition="lava-lamp"]',
     );
   });
 
