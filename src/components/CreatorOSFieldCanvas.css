@@ -16,6 +16,20 @@
   background: #080809;
 }
 
+.creatoros-field-mode-1.creatoros-field-palette-water {
+  background:
+    radial-gradient(ellipse at 34% 28%, rgba(242, 255, 252, 0.48), transparent 27%),
+    radial-gradient(ellipse at 72% 72%, rgba(87, 240, 215, 0.24), transparent 39%),
+    linear-gradient(145deg, #bdfcf0 0%, #45dfd0 49%, #0aa3ad 100%);
+}
+
+[data-theme="dark"] .creatoros-field-mode-1.creatoros-field-palette-water {
+  background:
+    radial-gradient(ellipse at 34% 28%, rgba(155, 255, 235, 0.18), transparent 29%),
+    radial-gradient(ellipse at 72% 72%, rgba(0, 204, 190, 0.18), transparent 40%),
+    linear-gradient(145deg, #021a22 0%, #005a66 49%, #00a99f 100%);
+}
+
 .creatoros-field-canvas {
   width: 100%;
   height: 100%;

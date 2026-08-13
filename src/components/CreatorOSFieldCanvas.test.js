@@ -146,6 +146,11 @@ describe("CreatorOSFieldCanvas", () => {
       "return fluidMaterial(field, tint, 0.34, 0.22, 0.94)",
     );
     expect(css).toContain(
+      ".creatoros-field-mode-1.creatoros-field-palette-water",
+    );
+    expect(css).toContain("linear-gradient(145deg, #bdfcf0");
+    expect(css).toContain("linear-gradient(145deg, #021a22");
+    expect(css).toContain(
       ".creatoros-field-mode-1.creatoros-field-palette-spectral",
     );
   });
