@@ -24,6 +24,12 @@ const clamp = (value, minimum = 0, maximum = 1) =>
 const clampMode = (mode) =>
   Math.max(0, Math.min(MODE_COUNT - 1, Number.isFinite(mode) ? mode : 0));
 
+const normalizeTidalPalette = (palette) =>
+  palette === "spectral" ? "spectral" : "water";
+
+const resolveTidalPaletteMix = (palette) =>
+  normalizeTidalPalette(palette) === "spectral" ? 1 : 0;
+
 const createRandom = (seed) => {
   let state = Math.max(1, Math.floor(seed * 0xffffffff)) >>> 0;
   return () => {
@@ -217,12 +223,14 @@ const CreatorOSFieldCanvas = ({
   onFieldStateChange,
   paused = false,
   resetVersion = 0,
+  tidalPalette = "water",
 }) => {
   const rootRef = useRef(null);
   const canvasRef = useRef(null);
   const pausedRef = useRef(paused);
   const lightRef = useRef(isDark ? 0 : 1);
   const modeRef = useRef(clampMode(mode));
+  const tidalPaletteRef = useRef(resolveTidalPaletteMix(tidalPalette));
   const onFieldStateChangeRef = useRef(onFieldStateChange);
   const restartRef = useRef(true);
   const redrawRef = useRef(() => {});
@@ -243,6 +251,11 @@ const CreatorOSFieldCanvas = ({
     modeRef.current = clampMode(mode);
     redrawRef.current();
   }, [mode]);
+
+  useEffect(() => {
+    tidalPaletteRef.current = resolveTidalPaletteMix(tidalPalette);
+    redrawRef.current();
+  }, [tidalPalette]);
 
   useEffect(() => {
     onFieldStateChangeRef.current = onFieldStateChange;
@@ -381,6 +394,7 @@ const CreatorOSFieldCanvas = ({
       "u_modeA",
       "u_modeB",
       "u_modeMix",
+      "u_tidalPaletteMix",
       "u_reaction",
       "u_reactionTexel",
     ]);
@@ -623,6 +637,10 @@ const CreatorOSFieldCanvas = ({
       gl.uniform1i(displayUniforms.u_modeA, currentMode);
       gl.uniform1i(displayUniforms.u_modeB, incomingMode);
       gl.uniform1f(displayUniforms.u_modeMix, modeMix);
+      gl.uniform1f(
+        displayUniforms.u_tidalPaletteMix,
+        tidalPaletteRef.current,
+      );
 
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(
@@ -775,7 +793,7 @@ const CreatorOSFieldCanvas = ({
   return (
     <div
       ref={rootRef}
-      className={`creatoros-field-shell creatoros-field-mode-${clampMode(mode)}${
+      className={`creatoros-field-shell creatoros-field-mode-${clampMode(mode)} creatoros-field-palette-${normalizeTidalPalette(tidalPalette)}${
         fallback ? " is-fallback" : ""
       }`}
       aria-hidden="true"

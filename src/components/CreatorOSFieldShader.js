@@ -177,6 +177,7 @@ uniform float u_pulseAge;
 uniform int u_modeA;
 uniform int u_modeB;
 uniform float u_modeMix;
+uniform float u_tidalPaletteMix;
 uniform sampler2D u_reaction;
 uniform vec2 u_reactionTexel;
 
@@ -253,6 +254,35 @@ vec3 spectral(float h) {
   if (h < 0.5) return mix(magenta, yellow, (h - 0.25) * 4.0);
   if (h < 0.75) return mix(yellow, violet, (h - 0.5) * 4.0);
   return mix(violet, cyan, (h - 0.75) * 4.0);
+}
+
+vec3 tidalWaterPalette(float h) {
+  float current = 0.5 + 0.5 * sin(h * TAU);
+  float shallow = smoothstep(0.06, 0.58, current);
+  float crystal = smoothstep(0.56, 1.0, current);
+  vec3 deepTropical = mix(
+    vec3(0.000, 0.120, 0.145),
+    vec3(0.018, 0.365, 0.390),
+    u_light
+  );
+  vec3 lagoonTeal = mix(
+    vec3(0.000, 0.490, 0.535),
+    vec3(0.000, 0.680, 0.660),
+    u_light
+  );
+  vec3 turquoise = mix(
+    vec3(0.000, 0.850, 0.805),
+    vec3(0.190, 0.905, 0.820),
+    u_light
+  );
+  vec3 crystalAqua = mix(
+    vec3(0.450, 0.985, 0.925),
+    vec3(0.690, 0.985, 0.925),
+    u_light
+  );
+  vec3 color = mix(deepTropical, lagoonTeal, shallow);
+  color = mix(color, turquoise, crystal);
+  return mix(color, crystalAqua, crystal * crystal * 0.34);
 }
 
 vec2 aspectScale() {
@@ -434,11 +464,48 @@ vec4 sceneTidalWeave(vec2 uv, float time) {
   float field = (weave * 1.18 + crossing * 0.66 + pointerWake * 0.34 + pulse * 0.72)
     * introSweep;
 
-  vec3 tintA = spectral(0.47 + phaseA * 0.18 + time * 0.012);
-  vec3 tintB = spectral(0.84 + phaseB * 0.17 - time * 0.010);
-  vec3 tint = mix(tintA, tintB, overUnder);
-  tint = mix(tint, spectral(0.12 + time * 0.016), crossing * 0.44);
+  vec3 spectralTintA = spectral(0.47 + phaseA * 0.18 + time * 0.012);
+  vec3 spectralTintB = spectral(0.84 + phaseB * 0.17 - time * 0.010);
+  vec3 spectralTint = mix(spectralTintA, spectralTintB, overUnder);
+  spectralTint = mix(
+    spectralTint,
+    spectral(0.12 + time * 0.016),
+    crossing * 0.44
+  );
 
+  vec3 waterTintA = tidalWaterPalette(
+    0.60 + phaseA * 0.16 + p.x * 0.024 + time * 0.006
+  );
+  vec3 waterTintB = tidalWaterPalette(
+    0.18 + phaseB * 0.15 - p.x * 0.020 - time * 0.005
+  );
+  vec3 waterTint = mix(waterTintA, waterTintB, overUnder);
+
+  // The existing weave lines become sunlight caustics. Only their color
+  // changes: geometry, timing, interaction, and field density stay intact.
+  float causticLines = sat(
+    max(bandA, bandB) * 0.48
+      + crossing * 0.38
+  );
+  float refractedSpark = pow(sat(crossing), 0.72);
+  vec3 refractedLight = mix(
+    vec3(0.610, 1.000, 0.940),
+    vec3(0.905, 1.000, 0.975),
+    u_light
+  );
+  float causticAmount = sat(
+    causticLines * 0.52
+      + refractedSpark * 0.26
+      + pointerWake * 0.08
+      + pulse * 0.10
+  );
+  waterTint = mix(waterTint, refractedLight, causticAmount);
+
+  vec3 tint = mix(
+    waterTint,
+    spectralTint,
+    sat(u_tidalPaletteMix)
+  );
   return fluidMaterial(field, tint, 0.34, 0.22, 0.94);
 }
 
