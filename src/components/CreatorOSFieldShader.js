@@ -633,7 +633,9 @@ vec4 sceneContourDrift(vec2 uv, float time) {
   vec2 p = viscousWarp(centeredUv(uv), time, 0.24);
   vec2 drift = vec2(time * 0.027, -time * 0.021);
   float terrain = fbm(p * 1.48 + drift + vec2(u_seed * 3.1));
-  terrain += fbm(rotate2(0.72) * p * 3.25 - drift * 1.7 + vec2(11.0)) * 0.31;
+  terrain += fbm(
+    rotate2(0.72) * p * 3.25 - drift * 1.7 + vec2(11.0)
+  ) * 0.31;
   terrain /= 1.31;
 
   vec2 pointerDelta = (uv - u_pointer) * aspectScale();
@@ -642,6 +644,8 @@ vec4 sceneContourDrift(vec2 uv, float time) {
   float pulse = pulseField(uv);
   terrain = sat(terrain + pointerLift - pulse * 0.14);
 
+  // Preserve the original spectral field exactly for the alternate
+  // palette while the default terrain map gains functional contour logic.
   float levels = terrain * 10.5;
   float contourDistance = abs(fract(levels) - 0.5);
   float contour = 1.0 - smoothstep(0.055, 0.19, contourDistance);
@@ -652,140 +656,204 @@ vec4 sceneContourDrift(vec2 uv, float time) {
   );
   float land = smoothstep(0.24, 0.78, terrain);
   float basin = 1.0 - smoothstep(0.34, 0.62, terrain);
+  float spectralField = contour * 1.18
+    + secondary * 0.34
+    + land * 0.38
+    + basin * 0.12
+    + pulse * 0.58;
+
+  // Eighteen minor intervals with every fifth interval indexed creates
+  // the hierarchy expected from a functional elevation map.
+  float contourCoordinate = terrain * 18.0;
+  float minorDistance = abs(
+    fract(contourCoordinate + 0.5) - 0.5
+  );
+  float indexDistance = abs(
+    fract(contourCoordinate / 5.0 + 0.5) - 0.5
+  );
+  float minorAA = clamp(fwidth(contourCoordinate), 0.012, 0.070);
+  float indexAA = clamp(
+    fwidth(contourCoordinate / 5.0),
+    0.003,
+    0.020
+  );
+  float minorCore = 1.0 - smoothstep(
+    minorAA * 0.35,
+    minorAA * 0.92,
+    minorDistance
+  );
+  float minorEnvelope = 1.0 - smoothstep(
+    minorAA * 0.35,
+    minorAA * 1.85,
+    minorDistance
+  );
+  float indexCore = 1.0 - smoothstep(
+    indexAA * 0.28,
+    indexAA * 1.20,
+    indexDistance
+  );
+  float indexEnvelope = 1.0 - smoothstep(
+    indexAA * 0.28,
+    indexAA * 2.35,
+    indexDistance
+  );
+  float minorEdge = sat(minorEnvelope - minorCore);
+  float indexEdge = sat(indexEnvelope - indexCore);
+  float contourCore = max(minorCore * 0.76, indexCore);
+  float contourEnvelope = max(minorEnvelope * 0.74, indexEnvelope);
+  float contourEdge = max(minorEdge * 0.74, indexEdge);
+
+  float terrainSurface = 0.68 + land * 0.18 + basin * 0.08;
+  float terrainField = terrainSurface
+    + contourEnvelope * 0.92
+    + indexCore * 0.28
+    + pulse * 0.58;
+  float paletteMix = sat(u_contourPaletteMix);
   float bloom = smoothstep(0.02, 0.88, u_intro);
-  float field = (
-    contour * 1.18
-      + secondary * 0.34
-      + land * 0.38
-      + basin * 0.12
-      + pulse * 0.58
-  ) * bloom;
+  float field = mix(terrainField, spectralField, paletteMix) * bloom;
+
   vec3 spectralTint = spectral(
-    0.08 + terrain * 0.88 + p.x * 0.035 + time * 0.010 + u_seed * 0.14
+    0.08
+      + terrain * 0.88
+      + p.x * 0.035
+      + time * 0.010
+      + u_seed * 0.14
   );
 
-  // Hypsometric tones give the field the hierarchy of a relief map.
+  // Discrete hypsometric elevation bands make the terrain readable as
+  // a map rather than a continuous painterly color field.
+  float elevationBand = floor(sat(terrain) * 8.999) / 8.0;
+  float mappedElevation = mix(terrain, elevationBand, 0.78);
   vec3 basinTone = mix(
-    vec3(0.035, 0.155, 0.170),
-    vec3(0.480, 0.720, 0.690),
+    vec3(0.028, 0.118, 0.145),
+    vec3(0.620, 0.790, 0.810),
     u_light
   );
   vec3 lowlandTone = mix(
-    vec3(0.095, 0.285, 0.190),
-    vec3(0.430, 0.660, 0.430),
+    vec3(0.105, 0.285, 0.190),
+    vec3(0.520, 0.710, 0.480),
     u_light
   );
   vec3 uplandTone = mix(
-    vec3(0.290, 0.360, 0.190),
-    vec3(0.650, 0.690, 0.410),
+    vec3(0.300, 0.370, 0.185),
+    vec3(0.730, 0.720, 0.420),
     u_light
   );
   vec3 ridgeTone = mix(
-    vec3(0.460, 0.360, 0.260),
-    vec3(0.730, 0.610, 0.440),
+    vec3(0.470, 0.350, 0.245),
+    vec3(0.780, 0.610, 0.410),
     u_light
   );
   vec3 summitTone = mix(
-    vec3(0.820, 0.825, 0.770),
-    vec3(0.960, 0.945, 0.890),
+    vec3(0.830, 0.830, 0.780),
+    vec3(0.970, 0.955, 0.900),
     u_light
   );
   vec3 terrainTint = mix(
     basinTone,
     lowlandTone,
-    smoothstep(0.16, 0.35, terrain)
+    smoothstep(0.16, 0.30, mappedElevation)
   );
   terrainTint = mix(
     terrainTint,
     uplandTone,
-    smoothstep(0.34, 0.57, terrain)
+    smoothstep(0.34, 0.50, mappedElevation)
   );
   terrainTint = mix(
     terrainTint,
     ridgeTone,
-    smoothstep(0.56, 0.76, terrain)
+    smoothstep(0.55, 0.72, mappedElevation)
   );
   terrainTint = mix(
     terrainTint,
     summitTone,
-    smoothstep(0.75, 0.94, terrain)
+    smoothstep(0.76, 0.92, mappedElevation)
   );
 
-  // Screen-space slope becomes a pseudo normal for hillshade. The terrain
-  // field, contour geometry, timing, and interaction remain unchanged.
+  // Screen-space slope supplies a restrained hillshade. Quantizing part
+  // of the light response gives the relief a cartographic 3D read.
   vec2 terrainSlope = vec2(dFdx(terrain), dFdy(terrain));
   vec3 terrainNormal = normalize(vec3(
-    -terrainSlope.x * 18.0,
-    -terrainSlope.y * 18.0,
+    -terrainSlope.x * 24.0,
+    -terrainSlope.y * 24.0,
     1.0
   ));
-  vec3 reliefLight = normalize(vec3(-0.48, 0.58, 0.66));
+  vec3 reliefLight = normalize(vec3(-0.58, 0.48, 0.66));
   float hillshade = 0.5 + 0.5 * dot(terrainNormal, reliefLight);
-  float reliefValue = smoothstep(0.08, 0.96, hillshade);
-  terrainTint *= mix(0.72, 1.16, reliefValue);
-  terrainTint += summitTone * pow(reliefValue, 5.0) * 0.055;
+  float reliefValue = smoothstep(0.05, 0.98, hillshade);
+  float steppedRelief = floor(reliefValue * 5.999) / 5.0;
+  reliefValue = mix(reliefValue, steppedRelief, 0.34);
+  float slopeShade = smoothstep(
+    0.012,
+    0.070,
+    length(terrainSlope)
+  );
+  terrainTint *= mix(0.70, 1.18, reliefValue);
+  terrainTint *= mix(1.0, 0.90, slopeShade * 0.46);
+  terrainTint += summitTone * pow(reliefValue, 5.0) * 0.045;
 
-  vec3 contourInk = mix(
-    vec3(0.960, 0.985, 0.940),
-    vec3(1.080, 1.065, 1.000),
+  // Match Tidal Weave's successful line language: a bright pale core
+  // with a continuous, extremely thin spectral gradient on both edges.
+  vec3 contourCoreTint = mix(
+    vec3(1.160, 1.180, 1.140),
+    vec3(1.240, 1.220, 1.160),
     u_light
   );
-  float contourLine = sat(contour * 0.72 + secondary * 0.24);
-  terrainTint = mix(terrainTint, contourInk, contourLine);
-
-  // A low-chroma spectral film stays on both edges of every contour.
-  float contourEdgeWidth = max(fwidth(contour) * 0.70, 0.009);
-  float contourEdge = 1.0 - smoothstep(
-    contourEdgeWidth,
-    contourEdgeWidth * 1.95,
-    abs(contour - 0.58)
+  vec3 lineCoreTint = mix(
+    contourCoreTint,
+    contourCoreTint * 1.06,
+    indexCore
   );
-  float secondaryEdgeWidth = max(fwidth(secondary) * 0.58, 0.008);
-  float secondaryEdge = 1.0 - smoothstep(
-    secondaryEdgeWidth,
-    secondaryEdgeWidth * 1.90,
-    abs(secondary - 0.56)
-  );
-  float spectralEdge = sat(contourEdge + secondaryEdge * 0.20);
   vec3 contourSpectrum = spectral(
-    0.62
-      + terrain * 0.38
-      + p.x * 0.050
-      - p.y * 0.030
+    0.60
+      + terrain * 0.34
+      + p.x * 0.055
+      - p.y * 0.035
       + time * 0.006
       + u_seed * 0.10
   );
-  float contourChroma = mix(0.14, 0.10, u_light);
+  float contourChroma = mix(0.22, 0.16, u_light);
   vec3 spectralContourEdge = mix(
-    contourInk,
+    contourCoreTint,
     contourSpectrum,
     contourChroma
   );
   spectralContourEdge = max(
     spectralContourEdge,
-    contourInk * 0.82
+    contourCoreTint * 0.74
   );
   terrainTint = mix(
     terrainTint,
     spectralContourEdge,
-    spectralEdge * 0.64
+    contourEdge * 0.92
+  );
+  terrainTint = mix(
+    terrainTint,
+    lineCoreTint,
+    contourCore
   );
 
-  float terrainPaletteWeight = 1.0 - sat(u_contourPaletteMix);
-  vec3 tint = mix(
-    terrainTint,
-    spectralTint,
-    sat(u_contourPaletteMix)
-  );
+  float terrainPaletteWeight = 1.0 - paletteMix;
+  vec3 tint = mix(terrainTint, spectralTint, paletteMix);
   vec4 material = fluidMaterial(field, tint, 0.24, 0.18, 0.84);
   material.rgb = mix(
     material.rgb,
-    max(material.rgb, contourInk * 0.72),
-    terrainPaletteWeight * contourLine * 0.34
+    max(material.rgb, spectralContourEdge * 0.92),
+    terrainPaletteWeight * contourEdge * 0.72
+  );
+  material.rgb = mix(
+    material.rgb,
+    max(material.rgb, lineCoreTint * 0.96),
+    terrainPaletteWeight * contourCore * 0.88
+  );
+  material.a = max(
+    material.a,
+    terrainPaletteWeight
+      * bloom
+      * (0.34 + contourEnvelope * 0.38)
   );
   return material;
 }
-
 vec4 sceneMorphogen(vec2 uv, float time) {
   vec4 chemical = texture(u_reaction, uv);
   float v = chemical.g;
