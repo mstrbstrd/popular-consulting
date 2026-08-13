@@ -103,6 +103,11 @@ describe("DitherCanvasPage", () => {
       value: 1000,
       writable: true,
     });
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      value: 1024,
+      writable: true,
+    });
     Object.defineProperty(window, "scrollY", {
       configurable: true,
       get: () => scrollPosition,
@@ -160,7 +165,7 @@ describe("DitherCanvasPage", () => {
   test("opens the first surface from page scroll before advancing studies", () => {
     render(<DitherCanvasPage />);
 
-    moveScrollTo(460);
+    moveScrollTo(540);
     expect(
       Number(screen.getByTestId("rupture-renderer").dataset.progress),
     ).toBeCloseTo(0.5, 1);
@@ -168,7 +173,15 @@ describe("DitherCanvasPage", () => {
       screen.getByRole("heading", { name: "Second Surface" }),
     ).toBeInTheDocument();
 
-    moveScrollTo(1200);
+    moveScrollTo(1500);
+    expect(
+      screen.getByRole("heading", { name: "Second Surface" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("main")).toHaveClass(
+      "dither-transition-idle",
+    );
+
+    moveScrollTo(1620);
     expect(screen.getByRole("main")).toHaveClass(
       "dither-transition-exiting",
     );
@@ -197,10 +210,9 @@ describe("DitherCanvasPage", () => {
     render(<DitherCanvasPage />);
 
     fireEvent.click(screen.getByRole("button", { name: /Lava Lamp/ }));
-    expect(window.scrollTo).toHaveBeenCalledWith({
-      top: 5350,
-      behavior: "smooth",
-    });
+    const scrollOptions = window.scrollTo.mock.calls[0][0];
+    expect(scrollOptions.behavior).toBe("smooth");
+    expect(scrollOptions.top).toBeCloseTo(6370, 0);
     flushScrollFrame();
     finishStudyTransition();
 
@@ -216,6 +228,55 @@ describe("DitherCanvasPage", () => {
       "data-reset-version",
       "1",
     );
+  });
+
+  test("slows coarse mobile scrolling and keeps toolbar resizing stable", () => {
+    window.innerWidth = 390;
+    window.innerHeight = 800;
+    window.matchMedia = jest.fn().mockImplementation((query) => ({
+      matches: query === "(pointer: coarse)",
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+      addListener: jest.fn(),
+      removeListener: jest.fn(),
+    }));
+
+    render(<DitherCanvasPage />);
+
+    const main = screen.getByRole("main");
+    expect(
+      main.style.getPropertyValue("--dither-opening-scroll-height"),
+    ).toBe("1560px");
+    expect(
+      main.style.getPropertyValue("--dither-study-scroll-height"),
+    ).toBe("1240px");
+
+    moveScrollTo(1600);
+    expect(
+      screen.getByRole("heading", { name: "Second Surface" }),
+    ).toBeInTheDocument();
+
+    window.innerHeight = 700;
+    act(() => {
+      window.dispatchEvent(new Event("resize"));
+    });
+    flushScrollFrame();
+    expect(
+      main.style.getPropertyValue("--dither-opening-scroll-height"),
+    ).toBe("1560px");
+    expect(
+      main.style.getPropertyValue("--dither-study-scroll-height"),
+    ).toBe("1240px");
+
+    moveScrollTo(7000);
+    expect(main).toHaveClass("dither-transition-exiting");
+    finishStudyTransition();
+    expect(
+      screen.getByRole("heading", { name: "Metabloom" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Forward Pass" }),
+    ).not.toBeInTheDocument();
   });
 
   test("keeps theme, pause, state, and Forward Pass behavior across scroll changes", () => {

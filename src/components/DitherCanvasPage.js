@@ -151,10 +151,25 @@ const STUDIES = [
   },
 ];
 
-const FIRST_STUDY_SCROLL_UNITS = 1.35;
-const RUPTURE_OPEN_SCROLL_UNITS = 0.92;
-const STUDY_SCROLL_UNITS = 1;
-const STUDY_ACTIVATION_LEAD_UNITS = 0.16;
+const DESKTOP_SCROLL_PROFILE = Object.freeze({
+  openingUnits: 1.55,
+  ruptureOpenUnits: 1.08,
+  studyUnits: 1.18,
+  activationOffsetUnits: 0.06,
+  limitMomentum: false,
+});
+
+const MOBILE_SCROLL_PROFILE = Object.freeze({
+  openingUnits: 1.95,
+  ruptureOpenUnits: 1.35,
+  studyUnits: 1.55,
+  activationOffsetUnits: 0.12,
+  limitMomentum: true,
+});
+
+const MOBILE_SCROLL_MAX_WIDTH = 820;
+const STUDY_TARGET_PADDING_UNITS = 0.04;
+const VIEWPORT_WIDTH_CHANGE_THRESHOLD = 48;
 const EXIT_DURATION_MS = 420;
 const ENTER_DURATION_MS = 620;
 
@@ -183,23 +198,39 @@ const STUDY_TRANSITIONS = {
 const clamp = (value, minimum = 0, maximum = 1) =>
   Math.max(minimum, Math.min(maximum, value));
 
-const scrollUnitsForStudy = (index) =>
+const resolveScrollProfile = () => {
+  if (typeof window === "undefined") return DESKTOP_SCROLL_PROFILE;
+
+  const hasCoarsePointer = Boolean(
+    window.matchMedia?.("(pointer: coarse)")?.matches,
+  );
+  return hasCoarsePointer || window.innerWidth <= MOBILE_SCROLL_MAX_WIDTH
+    ? MOBILE_SCROLL_PROFILE
+    : DESKTOP_SCROLL_PROFILE;
+};
+
+const scrollUnitsForStudy = (index, profile) =>
   index === 0
     ? 0
-    : FIRST_STUDY_SCROLL_UNITS + (index - 1) * STUDY_SCROLL_UNITS;
+    : profile.openingUnits + (index - 1) * profile.studyUnits;
 
-const studyIndexForScrollUnits = (units) => {
-  if (units < FIRST_STUDY_SCROLL_UNITS - STUDY_ACTIVATION_LEAD_UNITS) {
-    return 0;
-  }
+const totalScrollUnits = (profile) =>
+  profile.openingUnits + (STUDIES.length - 1) * profile.studyUnits;
+
+const scrollTargetUnitsForStudy = (index, profile) =>
+  index === 0
+    ? 0
+    : scrollUnitsForStudy(index, profile)
+      + profile.activationOffsetUnits
+      + STUDY_TARGET_PADDING_UNITS;
+
+const studyIndexForScrollUnits = (units, profile) => {
+  const firstActivation =
+    profile.openingUnits + profile.activationOffsetUnits;
+  if (units < firstActivation) return 0;
 
   return clamp(
-    1
-      + Math.floor(
-        units
-          - FIRST_STUDY_SCROLL_UNITS
-          + STUDY_ACTIVATION_LEAD_UNITS,
-      ),
+    1 + Math.floor((units - firstActivation) / profile.studyUnits),
     1,
     STUDIES.length - 1,
   );
@@ -234,6 +265,11 @@ const DitherFieldLab = () => {
   const pageTopRef = useRef(0);
   const scrollFrameRef = useRef(0);
   const reducedMotionRef = useRef(false);
+  const scrollProfileRef = useRef(DESKTOP_SCROLL_PROFILE);
+  const viewportHeightRef = useRef(0);
+  const viewportWidthRef = useRef(0);
+  const displayStudyIndexRef = useRef(0);
+  const directNavigationTargetRef = useRef(null);
   const [displayStudyIndex, setDisplayStudyIndex] = useState(0);
   const [requestedStudyIndex, setRequestedStudyIndex] = useState(0);
   const [transitionTargetIndex, setTransitionTargetIndex] = useState(null);
@@ -247,6 +283,7 @@ const DitherFieldLab = () => {
   const [resetVersion, setResetVersion] = useState(0);
   const [fieldState, setFieldState] = useState(STUDIES[0].initialState);
   const activeStudy = STUDIES[displayStudyIndex];
+  displayStudyIndexRef.current = displayStudyIndex;
 
   useEffect(() => {
     const previousTitle = document.title;
@@ -279,26 +316,79 @@ const DitherFieldLab = () => {
   }, []);
 
   useEffect(() => {
+    const updateScrollGeometry = ({ forceViewportHeight = false } = {}) => {
+      const page = pageRef.current;
+      if (!page) return;
+
+      const previousProfile = scrollProfileRef.current;
+      const nextProfile = resolveScrollProfile();
+      const nextWidth = Math.max(window.innerWidth || 0, 1);
+      const nextHeight = Math.max(window.innerHeight || 0, 1);
+      const widthChanged =
+        viewportWidthRef.current === 0
+        || Math.abs(nextWidth - viewportWidthRef.current)
+          >= VIEWPORT_WIDTH_CHANGE_THRESHOLD;
+      const profileChanged = previousProfile !== nextProfile;
+      const shouldRefreshViewportHeight =
+        forceViewportHeight
+        || viewportHeightRef.current === 0
+        || !nextProfile.limitMomentum
+        || widthChanged
+        || profileChanged;
+
+      if (shouldRefreshViewportHeight) {
+        viewportHeightRef.current = nextHeight;
+      }
+      viewportWidthRef.current = nextWidth;
+      scrollProfileRef.current = nextProfile;
+      pageTopRef.current = page.getBoundingClientRect().top + window.scrollY;
+      page.style.setProperty(
+        "--dither-opening-scroll-height",
+        `${Math.round(
+          nextProfile.openingUnits * viewportHeightRef.current,
+        )}px`,
+      );
+      page.style.setProperty(
+        "--dither-study-scroll-height",
+        `${Math.round(
+          nextProfile.studyUnits * viewportHeightRef.current,
+        )}px`,
+      );
+    };
+
     const syncScrollPosition = () => {
       scrollFrameRef.current = 0;
       const page = pageRef.current;
       if (!page) return;
 
-      const viewportHeight = Math.max(window.innerHeight, 1);
+      const profile = scrollProfileRef.current;
+      const viewportHeight = Math.max(viewportHeightRef.current, 1);
       const pageTop = pageTopRef.current;
-      const maximumUnits = scrollUnitsForStudy(STUDIES.length - 1);
       const scrollUnits = clamp(
         (window.scrollY - pageTop) / viewportHeight,
         0,
-        maximumUnits,
+        totalScrollUnits(profile),
       );
-      const nextStudyIndex = studyIndexForScrollUnits(scrollUnits);
-      const studyStart = scrollUnitsForStudy(nextStudyIndex);
+      const rawStudyIndex = studyIndexForScrollUnits(
+        scrollUnits,
+        profile,
+      );
+      const directTarget = directNavigationTargetRef.current;
+      const currentIndex = displayStudyIndexRef.current;
+      const nextStudyIndex = directTarget !== null
+        ? directTarget
+        : profile.limitMomentum
+          ? clamp(rawStudyIndex, currentIndex - 1, currentIndex + 1)
+          : rawStudyIndex;
+      const studyStart = scrollUnitsForStudy(nextStudyIndex, profile);
+      const studySpan = nextStudyIndex === 0
+        ? profile.openingUnits
+        : profile.studyUnits;
       const localProgress = clamp(
-        (scrollUnits - studyStart) / STUDY_SCROLL_UNITS,
+        (scrollUnits - studyStart) / studySpan,
       );
       const ruptureProgress = clamp(
-        scrollUnits / RUPTURE_OPEN_SCROLL_UNITS,
+        scrollUnits / profile.ruptureOpenUnits,
       );
 
       setRequestedStudyIndex(nextStudyIndex);
@@ -317,23 +407,19 @@ const DitherFieldLab = () => {
       );
     };
 
-    const measurePageTop = () => {
-      const page = pageRef.current;
-      if (!page) return;
-      pageTopRef.current = page.getBoundingClientRect().top + window.scrollY;
-    };
-
     const handleScroll = () => {
       if (scrollFrameRef.current) return;
-      scrollFrameRef.current = window.requestAnimationFrame(syncScrollPosition);
+      scrollFrameRef.current = window.requestAnimationFrame(
+        syncScrollPosition,
+      );
     };
 
     const handleResize = () => {
-      measurePageTop();
+      updateScrollGeometry();
       handleScroll();
     };
 
-    measurePageTop();
+    updateScrollGeometry({ forceViewportHeight: true });
     syncScrollPosition();
     window.addEventListener("scroll", handleScroll, { passive: true });
     window.addEventListener("resize", handleResize);
@@ -405,12 +491,28 @@ const DitherFieldLab = () => {
     return () => window.clearTimeout(timer);
   }, [transitionPhase]);
 
+  useEffect(() => {
+    if (
+      transitionPhase === "idle"
+      && directNavigationTargetRef.current === displayStudyIndex
+    ) {
+      directNavigationTargetRef.current = null;
+    }
+  }, [displayStudyIndex, transitionPhase]);
+
   const scrollToStudy = (index) => {
     const page = pageRef.current;
-    const viewportHeight = Math.max(window.innerHeight, 1);
+    const profile = scrollProfileRef.current;
+    const viewportHeight = Math.max(
+      viewportHeightRef.current || window.innerHeight,
+      1,
+    );
     const pageTop = page ? pageTopRef.current : 0;
-    const top = pageTop + scrollUnitsForStudy(index) * viewportHeight;
+    const targetUnits = scrollTargetUnitsForStudy(index, profile);
+    const top = pageTop + targetUnits * viewportHeight;
 
+    directNavigationTargetRef.current =
+      index === displayStudyIndexRef.current ? null : index;
     window.scrollTo({
       top,
       behavior: reducedMotionRef.current ? "auto" : "smooth",
