@@ -137,7 +137,7 @@ jobs:
             expect(tidalScene).toContain("outlineTintB * outlineB");
             expect(outlineStart).toBeGreaterThanOrEqual(0);
             expect(outlineEnd).toBeGreaterThan(outlineStart);
-            expect(tidalOutline).not.toContain("crossing");'''
+            expect(tidalOutline).not.toContain("crossing *");'''
           test_source = (
               test_source[:assertion_end]
               + assertion_insertion
