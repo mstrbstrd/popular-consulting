@@ -544,6 +544,31 @@ vec3 spectralOutlineTint = (
   outlineTintA * outlineA
     + outlineTintB * outlineB
 ) / max(outlineWeight, 0.0001);
+
+// Two pale spectral edges should combine like refracted light, not
+// like stacked pigment. Lift only their overlap onto the existing
+// crystal-light value while retaining a subtle spectral separation.
+float outlineOverlap = smoothstep(
+  0.08,
+  0.46,
+  outlineA * outlineB
+);
+float outlineLuma = dot(
+  spectralOutlineTint,
+  vec3(0.2126, 0.7152, 0.0722)
+);
+vec3 intersectionSpectralTint = refractedLight
+  + (spectralOutlineTint - vec3(outlineLuma)) * 0.24;
+intersectionSpectralTint = max(
+  intersectionSpectralTint,
+  refractedLight * 0.96
+);
+spectralOutlineTint = mix(
+  spectralOutlineTint,
+  intersectionSpectralTint,
+  outlineOverlap
+);
+
 float spectralOutline = sat(max(outlineA, outlineB));
 float spectralOutlineStrength = mix(0.92, 0.90, u_light);
 waterTint = mix(
