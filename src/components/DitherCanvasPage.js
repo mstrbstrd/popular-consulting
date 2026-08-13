@@ -76,7 +76,7 @@ const STUDIES = [
     initialState: "drifting",
     resetLabel: "Reseed",
     description:
-      "A living relief map drifts beneath pale topographic lines: teal basins, green lowlands, stone ridges, and light summits gain depth through hillshade while spectral color clings subtly to each contour edge.",
+      "A functional relief map drifts beneath indexed white contour lines. Hypsometric elevation bands and hillshade reveal the terrain, while a hairline spectral gradient traces every contour edge.",
     instruction:
       "Move to lift the terrain · tap to push a circular depression across the map",
   },
