@@ -1,5 +1,6 @@
 name: Apply dither hover-through-copy refinement
 
+# Retry after aligning the existing Second Surface input contract with page-level hover.
 on:
   push:
     branches:
