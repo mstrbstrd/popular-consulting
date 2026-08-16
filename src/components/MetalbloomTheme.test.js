@@ -49,7 +49,7 @@ describe("Metalbloom material theme", () => {
     expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain(
       "uniform float u_metabloomPaletteMix",
     );
-    expect(scene).toContain("vec2 metalSlope = vec2(dFdx(materialField)");
+    expect(scene).toContain("vec2 metalSlope = vec2(");
     expect(scene).toContain("vec3 metalNormal = normalize");
     expect(scene).toContain("reflect(-viewDirection, metalNormal)");
     expect(scene).toContain("float keySpecular");
@@ -68,6 +68,34 @@ describe("Metalbloom material theme", () => {
     expect(scene).toContain("vec3(1.580, 1.620, 1.690)");
     expect(scene).toContain("metalTint * (1.02 + mirrorLevel * 0.32)");
     expect(scene).toContain("vec4 metalMaterial = fluidMaterial");
+  });
+
+  test("softens the inner contour into a broad mirrored reflection", () => {
+    expect(scene).toContain(
+      "float metalSurfaceField = potential * 1.12 + edge * 0.10",
+    );
+    expect(scene).toContain("dFdx(metalSurfaceField)");
+    expect(scene).toContain("dFdy(metalSurfaceField)");
+    expect(scene).toContain(
+      "float darkReflectionDistance = reflectedDirection.y + 0.12",
+    );
+    expect(scene).toContain(
+      "-darkReflectionDistance * darkReflectionDistance * 10.0",
+    );
+    expect(scene).toContain("float darkReflectionSheen = sat(");
+    expect(scene).toContain("+ darkReflectionSheen * 0.12");
+    expect(scene).toContain("- darkReflectionBand * 0.20");
+    expect(scene).toContain("darkReflectionBand * 0.07");
+    expect(scene).toContain("darkReflectionSheen * 0.30");
+    expect(scene).toContain("darkReflectionSheen * 0.08");
+    expect(scene).toContain("0.38 + edge * 0.10");
+    expect(scene).toContain(
+      "float metalBody = smoothstep(0.68, 1.16, metalSurfaceField)",
+    );
+    expect(scene).not.toContain(
+      "-abs(reflectedDirection.y + 0.12) * 7.6",
+    );
+    expect(scene).not.toContain("0.72 + edge * 0.16");
   });
 
   test("threads white and spectral colour through every bright reflection", () => {
@@ -93,7 +121,7 @@ describe("Metalbloom material theme", () => {
 
   test("keeps a continuous pale spectral rim and preserves topology", () => {
     expect(scene).toContain("float metalEdgeLevel = 0.98");
-    expect(scene).toContain("fwidth(materialField) * 0.68");
+    expect(scene).toContain("fwidth(metalSurfaceField) * 0.68");
     expect(scene).toContain("float spectralEdgeMask = 1.0 - smoothstep");
     expect(scene).toContain("p.x * 0.22");
     expect(scene).toContain("- p.y * 0.17");
