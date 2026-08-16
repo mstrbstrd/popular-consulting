@@ -31,6 +31,9 @@ jobs:
       - name: Apply focused Metalbloom silver refinement
         run: python scripts/apply_metalbloom_silver_reflections.py
 
+      - name: Correct multiline regression assertion
+        run: python scripts/fix_metalbloom_silver_reflection_test.py
+
       - name: Verify patch whitespace
         run: git diff --check
 
@@ -59,6 +62,7 @@ jobs:
             src/components/MetalbloomTheme.test.js
           git rm -f \
             .github/workflows/apply-metalbloom-silver-reflections.yml \
-            scripts/apply_metalbloom_silver_reflections.py
+            scripts/apply_metalbloom_silver_reflections.py \
+            scripts/fix_metalbloom_silver_reflection_test.py
           git commit -m "Refine Metalbloom silver prismatic reflections"
           git push origin HEAD:agent/silver-prismatic-metalbloom-reflections
