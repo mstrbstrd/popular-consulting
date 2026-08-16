@@ -43,7 +43,7 @@ describe("Metalbloom material theme", () => {
     );
   });
 
-  test("renders mercury through normals, reflected studio light, and Fresnel", () => {
+  test("renders mercury through high-contrast mirror reflections and Fresnel", () => {
     expect(sceneStart).toBeGreaterThanOrEqual(0);
     expect(sceneEnd).toBeGreaterThan(sceneStart);
     expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain(
@@ -53,8 +53,12 @@ describe("Metalbloom material theme", () => {
     expect(scene).toContain("vec3 metalNormal = normalize");
     expect(scene).toContain("reflect(-viewDirection, metalNormal)");
     expect(scene).toContain("float keySpecular");
-    expect(scene).toContain("float studioHorizon");
-    expect(scene).toContain("float studioStrip");
+    expect(scene).toContain("float horizonStrip");
+    expect(scene).toContain("float verticalStrip");
+    expect(scene).toContain("float counterStrip");
+    expect(scene).toContain("float darkReflectionBand");
+    expect(scene).toContain("float mirrorRaw");
+    expect(scene).toContain("float mirrorLevel = smoothstep(0.04, 0.92, mirrorRaw)");
     expect(scene).toContain("float metalFresnel");
     expect(scene).toContain("vec3 mercuryShadow");
     expect(scene).toContain("vec3 mercuryMid");
@@ -62,11 +66,22 @@ describe("Metalbloom material theme", () => {
     expect(scene).toContain("vec4 metalMaterial = fluidMaterial");
   });
 
-  test("keeps the rainbow as a restrained accent and preserves topology", () => {
-    expect(scene).toContain("float metalAccentHue");
+  test("keeps a continuous pale spectral rim and preserves topology", () => {
+    expect(scene).toContain("float metalEdgeLevel = 0.98");
+    expect(scene).toContain("fwidth(materialField) * 0.68");
+    expect(scene).toContain("float spectralEdgeMask = 1.0 - smoothstep");
+    expect(scene).toContain("p.x * 0.22");
+    expect(scene).toContain("- p.y * 0.17");
     expect(scene).toContain("vec3 metalAccentSpectrum");
-    expect(scene).toContain("float metalAccentMask");
-    expect(scene).toContain("metalAccentMask * mix(0.30, 0.26, u_light)");
+    expect(scene).toContain("vec3 prismaticEdge");
+    expect(scene).toContain(
+      "spectralEdgeMask * mix(0.78, 0.70, u_light)",
+    );
+    expect(scene).toContain(
+      "spectralEdgeMask * mix(0.74, 0.68, u_light)",
+    );
+    expect(scene).not.toContain("float metalAccentMask");
+    expect(scene).not.toContain("max(metalMaterial.rgb, prismaticEdge");
     expect(scene).toContain("spectralMaterial");
     expect(scene).toContain("metalMaterial");
     expect(scene).toContain("sat(u_metabloomPaletteMix)");
@@ -78,12 +93,37 @@ describe("Metalbloom material theme", () => {
     expect(scene).toContain("smoothstep(0.36, 2.65, potential)");
   });
 
-  test("keeps the selector and fallback inside the site visual language", () => {
-    expect(fieldStyles).toContain(
-      ".creatoros-field-mode-0.creatoros-field-metabloom-palette-metalbloom",
+  test("keeps the original light and dark page backgrounds", () => {
+    const lightShellOverride =
+      ".creatoros-field-mode-0.creatoros-field-metabloom-palette-metalbloom {\n  background:";
+    const darkShellOverride =
+      "[data-theme=\"dark\"] .creatoros-field-mode-0.creatoros-field-metabloom-palette-metalbloom {\n  background:";
+    const lightFallbackStart = fieldStyles.indexOf(
+      ".creatoros-field-mode-0.creatoros-field-metabloom-palette-metalbloom .creatoros-field-fallback",
     );
-    expect(fieldStyles).toContain("linear-gradient(145deg, #d8dde1");
-    expect(fieldStyles).toContain("linear-gradient(145deg, #020305");
+    const darkFallbackStart = fieldStyles.indexOf(
+      "[data-theme=\"dark\"] .creatoros-field-mode-0.creatoros-field-metabloom-palette-metalbloom .creatoros-field-fallback",
+      lightFallbackStart,
+    );
+    const nextFallbackStart = fieldStyles.indexOf(
+      ".creatoros-field-mode-1 .creatoros-field-fallback",
+      darkFallbackStart,
+    );
+    const metalFallbackStyles = fieldStyles.slice(
+      lightFallbackStart,
+      nextFallbackStart,
+    );
+
+    expect(fieldStyles).toContain("background: #fff8f7");
+    expect(fieldStyles).toContain("background: #080809");
+    expect(fieldStyles).not.toContain(lightShellOverride);
+    expect(fieldStyles).not.toContain(darkShellOverride);
+    expect(lightFallbackStart).toBeGreaterThanOrEqual(0);
+    expect(darkFallbackStart).toBeGreaterThan(lightFallbackStart);
+    expect(nextFallbackStart).toBeGreaterThan(darkFallbackStart);
+    expect(metalFallbackStyles).toContain("#fff8f7;");
+    expect(metalFallbackStyles).toContain("#080809;");
+    expect(metalFallbackStyles).not.toContain("linear-gradient(145deg");
     expect(pageStyles).toContain(".metabloom-palette-selector");
     expect(pageStyles).toContain(
       '.metabloom-palette-option.is-active[data-palette="metalbloom"]',
@@ -91,5 +131,6 @@ describe("Metalbloom material theme", () => {
     expect(pageStyles).toContain(
       '.metabloom-palette-option.is-active[data-palette="spectral"]',
     );
+
   });
 });

@@ -16,22 +16,6 @@
   background: #080809;
 }
 
-.creatoros-field-mode-0.creatoros-field-metabloom-palette-metalbloom {
-  background:
-    radial-gradient(ellipse at 26% 18%, rgba(255, 255, 255, 0.88), transparent 24%),
-    radial-gradient(ellipse at 74% 72%, rgba(99, 68, 245, 0.10), transparent 36%),
-    radial-gradient(ellipse at 54% 46%, rgba(255, 86, 214, 0.06), transparent 42%),
-    linear-gradient(145deg, #d8dde1 0%, #737b86 48%, #edf0f2 100%);
-}
-
-[data-theme="dark"] .creatoros-field-mode-0.creatoros-field-metabloom-palette-metalbloom {
-  background:
-    radial-gradient(ellipse at 26% 18%, rgba(255, 255, 255, 0.18), transparent 25%),
-    radial-gradient(ellipse at 74% 72%, rgba(0, 238, 255, 0.08), transparent 36%),
-    radial-gradient(ellipse at 54% 46%, rgba(255, 86, 214, 0.07), transparent 42%),
-    linear-gradient(145deg, #020305 0%, #11161c 48%, #303741 100%);
-}
-
 .creatoros-field-mode-1.creatoros-field-palette-water {
   background:
     radial-gradient(ellipse at 34% 28%, rgba(242, 255, 252, 0.48), transparent 27%),
@@ -87,7 +71,7 @@
     radial-gradient(ellipse at 58% 34%, rgba(58, 66, 76, 0.84), transparent 29%),
     radial-gradient(ellipse at 74% 64%, rgba(218, 226, 232, 0.88), transparent 26%),
     radial-gradient(ellipse at 54% 46%, rgba(99, 68, 245, 0.12), transparent 42%),
-    linear-gradient(145deg, #c8ced3 0%, #505862 52%, #e5e9ec 100%);
+    #fff8f7;
 }
 
 [data-theme="dark"] .creatoros-field-mode-0.creatoros-field-metabloom-palette-metalbloom .creatoros-field-fallback {
@@ -96,7 +80,7 @@
     radial-gradient(ellipse at 58% 34%, rgba(8, 12, 17, 0.94), transparent 29%),
     radial-gradient(ellipse at 74% 64%, rgba(176, 187, 197, 0.62), transparent 26%),
     radial-gradient(ellipse at 54% 46%, rgba(255, 86, 214, 0.10), transparent 42%),
-    linear-gradient(145deg, #020305 0%, #11161c 52%, #343b45 100%);
+    #080809;
 }
 
 .creatoros-field-mode-1 .creatoros-field-fallback {
