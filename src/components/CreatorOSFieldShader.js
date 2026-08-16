@@ -475,15 +475,15 @@ float verticalStrip = exp(-abs(reflectedDirection.x + 0.28) * 14.0);
 float counterStrip = exp(-abs(reflectedDirection.x - 0.36) * 17.0);
 float ceilingStrip = exp(-abs(reflectedDirection.y - 0.58) * 10.0);
 float floorReflection = exp(-abs(reflectedDirection.y + 0.52) * 8.0);
-float darkReflectionDistance = reflectedDirection.y + 0.12;
-float darkReflectionBand = exp(
-  -darkReflectionDistance * darkReflectionDistance * 10.0
+float innerReflectionDistance = reflectedDirection.y + 0.12;
+float innerReflectionBand = exp(
+  -innerReflectionDistance * innerReflectionDistance * 5.4
 );
-float darkReflectionShoulderA = darkReflectionDistance - 0.26;
-float darkReflectionShoulderB = darkReflectionDistance + 0.26;
-float darkReflectionSheen = sat(
-  exp(-darkReflectionShoulderA * darkReflectionShoulderA * 48.0)
-    + exp(-darkReflectionShoulderB * darkReflectionShoulderB * 48.0)
+float innerReflectionShoulderA = innerReflectionDistance - 0.30;
+float innerReflectionShoulderB = innerReflectionDistance + 0.30;
+float innerReflectionSheen = sat(
+  exp(-innerReflectionShoulderA * innerReflectionShoulderA * 28.0)
+    + exp(-innerReflectionShoulderB * innerReflectionShoulderB * 28.0)
 );
 float environmentReflection = fbm(
   rotate2(-0.36) * (p + reflectedDirection.xy * 0.38) * 1.22
@@ -501,8 +501,8 @@ float mirrorRaw = sat(
     + fillSpecular * 0.52
     + rimSpecular * 0.22
     + (environmentReflection - 0.50) * 0.30
-    + darkReflectionSheen * 0.12
-    - darkReflectionBand * 0.20
+    + innerReflectionBand * 0.035
+    + innerReflectionSheen * 0.08
 );
 float mirrorLevel = smoothstep(0.04, 0.92, mirrorRaw);
 float metalFresnel = pow(1.0 - sat(metalNormal.z), 3.8);
@@ -518,8 +518,8 @@ vec3 mercuryMid = mix(
   u_light
 );
 vec3 mercuryHighlight = mix(
-  vec3(1.580, 1.620, 1.690),
-  vec3(1.470, 1.505, 1.570),
+  vec3(1.520, 1.560, 1.630),
+  vec3(1.420, 1.455, 1.515),
   u_light
 );
 vec3 metalTint = mix(
@@ -534,17 +534,32 @@ metalTint = mix(
 );
 float reflectedDepth = smoothstep(0.88, 2.8, potential)
   * (1.0 - smoothstep(0.16, 0.78, mirrorLevel))
-  * (0.12 + metalFresnel * 0.16);
+  * (0.075 + metalFresnel * 0.095);
+vec3 mercuryInnerReflection = mix(
+  mercuryMid,
+  mercuryShadow,
+  mix(0.24, 0.16, u_light)
+);
 metalTint = mix(
   metalTint,
-  mercuryShadow * 0.50,
-  sat(reflectedDepth * 0.84 + darkReflectionBand * 0.07)
+  mercuryInnerReflection,
+  sat(reflectedDepth * 0.34)
+);
+vec3 innerReflectionTint = mix(
+  mercuryMid,
+  mercuryHighlight,
+  mix(0.20, 0.16, u_light)
+);
+metalTint = mix(
+  metalTint,
+  innerReflectionTint,
+  innerReflectionBand * mix(0.10, 0.08, u_light)
 );
 metalTint += mercuryHighlight * (
-  keySpecular * 0.24
-    + fillSpecular * 0.09
-    + rimSpecular * 0.07
-    + darkReflectionSheen * 0.08
+  keySpecular * 0.22
+    + fillSpecular * 0.08
+    + rimSpecular * 0.06
+    + innerReflectionSheen * 0.055
 );
 
 // Bright studio reflections carry a white-hot centre and a restrained
@@ -556,7 +571,8 @@ float reflectionPrismMask = sat(
     + counterStrip * 0.42
     + ceilingStrip * 0.32
     + floorReflection * 0.22
-    + darkReflectionSheen * 0.30
+    + innerReflectionBand * 0.10
+    + innerReflectionSheen * 0.22
     + keySpecular * 1.00
     + fillSpecular * 0.48
     + rimSpecular * 0.30
@@ -570,11 +586,12 @@ float reflectionHue = baseHue
   + environmentReflection * 0.10
   + time * 0.016;
 vec3 reflectionSpectrum = spectral(reflectionHue);
-float reflectionLuma = mix(1.28, 1.36, u_light)
-  + keySpecular * 0.18
-  + horizonStrip * 0.10
-  + verticalStrip * 0.07
-  + darkReflectionSheen * 0.08;
+float reflectionLuma = mix(1.22, 1.30, u_light)
+  + keySpecular * 0.16
+  + horizonStrip * 0.09
+  + verticalStrip * 0.06
+  + innerReflectionBand * 0.035
+  + innerReflectionSheen * 0.05;
 float reflectionChroma = mix(0.36, 0.31, u_light);
 float reflectionFloor = mix(0.72, 0.80, u_light);
 vec3 prismaticReflection = max(
@@ -620,15 +637,15 @@ vec4 metalMaterial = fluidMaterial(
 float metalBody = smoothstep(0.68, 1.16, metalSurfaceField);
 metalMaterial.rgb = mix(
   metalMaterial.rgb,
-  metalTint * (1.02 + mirrorLevel * 0.32),
+  metalTint * (1.00 + mirrorLevel * 0.28),
   metalBody * 0.90
 );
 metalMaterial.rgb += mercuryHighlight * (
-  keySpecular * 0.24
-    + fillSpecular * 0.09
-    + rimSpecular * 0.07
-    + metalFresnel * edge * 0.07
-    + darkReflectionSheen * 0.06
+  keySpecular * 0.22
+    + fillSpecular * 0.08
+    + rimSpecular * 0.06
+    + metalFresnel * edge * 0.06
+    + innerReflectionSheen * 0.045
 );
 metalMaterial.rgb = mix(
   metalMaterial.rgb,
