@@ -439,10 +439,14 @@ spectralMaterial.a = max(
   density * (0.16 + membrane * 0.12)
 );
 
-// Metalbloom keeps the exact same field topology and derives a pseudo-normal
-// from its screen-space slope. High-contrast reflected studio bands, dark
-// environment bands, and sharper specular turns create mirror-fluid mercury.
-vec2 metalSlope = vec2(dFdx(materialField), dFdy(materialField));
+// Metalbloom keeps the exact same field topology while separating its
+// optical surface from the oscillating membrane field. This prevents internal
+// material contours from reading as carved grooves while preserving the motion.
+float metalSurfaceField = potential * 1.12 + edge * 0.10;
+vec2 metalSlope = vec2(
+  dFdx(metalSurfaceField),
+  dFdy(metalSurfaceField)
+);
 float metalSlopeMagnitude = length(metalSlope);
 vec3 metalNormal = normalize(vec3(
   -metalSlope.x * 0.92,
@@ -471,8 +475,15 @@ float verticalStrip = exp(-abs(reflectedDirection.x + 0.28) * 14.0);
 float counterStrip = exp(-abs(reflectedDirection.x - 0.36) * 17.0);
 float ceilingStrip = exp(-abs(reflectedDirection.y - 0.58) * 10.0);
 float floorReflection = exp(-abs(reflectedDirection.y + 0.52) * 8.0);
+float darkReflectionDistance = reflectedDirection.y + 0.12;
 float darkReflectionBand = exp(
-  -abs(reflectedDirection.y + 0.12) * 7.6
+  -darkReflectionDistance * darkReflectionDistance * 10.0
+);
+float darkReflectionShoulderA = darkReflectionDistance - 0.26;
+float darkReflectionShoulderB = darkReflectionDistance + 0.26;
+float darkReflectionSheen = sat(
+  exp(-darkReflectionShoulderA * darkReflectionShoulderA * 48.0)
+    + exp(-darkReflectionShoulderB * darkReflectionShoulderB * 48.0)
 );
 float environmentReflection = fbm(
   rotate2(-0.36) * (p + reflectedDirection.xy * 0.38) * 1.22
@@ -490,7 +501,8 @@ float mirrorRaw = sat(
     + fillSpecular * 0.52
     + rimSpecular * 0.22
     + (environmentReflection - 0.50) * 0.30
-    - darkReflectionBand * 0.38
+    + darkReflectionSheen * 0.12
+    - darkReflectionBand * 0.20
 );
 float mirrorLevel = smoothstep(0.04, 0.92, mirrorRaw);
 float metalFresnel = pow(1.0 - sat(metalNormal.z), 3.8);
@@ -526,12 +538,13 @@ float reflectedDepth = smoothstep(0.88, 2.8, potential)
 metalTint = mix(
   metalTint,
   mercuryShadow * 0.50,
-  sat(reflectedDepth + darkReflectionBand * 0.18)
+  sat(reflectedDepth * 0.84 + darkReflectionBand * 0.07)
 );
 metalTint += mercuryHighlight * (
   keySpecular * 0.24
     + fillSpecular * 0.09
     + rimSpecular * 0.07
+    + darkReflectionSheen * 0.08
 );
 
 // Bright studio reflections carry a white-hot centre and a restrained
@@ -543,6 +556,7 @@ float reflectionPrismMask = sat(
     + counterStrip * 0.42
     + ceilingStrip * 0.32
     + floorReflection * 0.22
+    + darkReflectionSheen * 0.30
     + keySpecular * 1.00
     + fillSpecular * 0.48
     + rimSpecular * 0.30
@@ -559,7 +573,8 @@ vec3 reflectionSpectrum = spectral(reflectionHue);
 float reflectionLuma = mix(1.28, 1.36, u_light)
   + keySpecular * 0.18
   + horizonStrip * 0.10
-  + verticalStrip * 0.07;
+  + verticalStrip * 0.07
+  + darkReflectionSheen * 0.08;
 float reflectionChroma = mix(0.36, 0.31, u_light);
 float reflectionFloor = mix(0.72, 0.80, u_light);
 vec3 prismaticReflection = max(
@@ -577,14 +592,14 @@ metalTint = mix(
 // so a pale rainbow gradient remains visible around the full object at all times.
 float metalEdgeLevel = 0.98;
 float metalEdgeWidth = clamp(
-  fwidth(materialField) * 0.68,
+  fwidth(metalSurfaceField) * 0.68,
   0.010,
   0.060
 );
 float spectralEdgeMask = 1.0 - smoothstep(
   metalEdgeWidth,
   metalEdgeWidth * 2.10,
-  abs(materialField - metalEdgeLevel)
+  abs(metalSurfaceField - metalEdgeLevel)
 );
 float metalAccentHue = baseHue
   + p.x * 0.22
@@ -596,13 +611,13 @@ float metalAccentHue = baseHue
 vec3 metalAccentSpectrum = spectral(metalAccentHue);
 
 vec4 metalMaterial = fluidMaterial(
-  materialField,
+  metalSurfaceField,
   metalTint,
-  0.72 + edge * 0.16,
+  0.38 + edge * 0.10,
   0.035 + horizonStrip * 0.045 + verticalStrip * 0.025,
   0.99
 );
-float metalBody = smoothstep(0.68, 1.16, materialField);
+float metalBody = smoothstep(0.68, 1.16, metalSurfaceField);
 metalMaterial.rgb = mix(
   metalMaterial.rgb,
   metalTint * (1.02 + mirrorLevel * 0.32),
@@ -613,6 +628,7 @@ metalMaterial.rgb += mercuryHighlight * (
     + fillSpecular * 0.09
     + rimSpecular * 0.07
     + metalFresnel * edge * 0.07
+    + darkReflectionSheen * 0.06
 );
 metalMaterial.rgb = mix(
   metalMaterial.rgb,
