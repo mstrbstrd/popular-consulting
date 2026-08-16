@@ -55,6 +55,34 @@ jobs:
       - name: Apply the Metalbloom material theme
         run: python scripts/apply_metalbloom_theme.py
 
+      - name: Preserve the existing Metabloom color-field contract
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/components/CreatorOSFieldShader.js")
+          source = path.read_text(encoding="utf-8")
+          replacements = (
+              (
+                  "vec3 spectralTint = tintAccumulator / max(potential, 0.0001);",
+                  "vec3 tint = tintAccumulator / max(potential, 0.0001);",
+              ),
+              (
+                  "spectralTint = mix(spectralTint, flowTint, sat(flowDominance));",
+                  "tint = mix(tint, flowTint, sat(flowDominance));",
+              ),
+              (
+                  "  spectralTint,\n  0.38 + edge * 0.10,",
+                  "  tint,\n  0.38 + edge * 0.10,",
+              ),
+          )
+          for old, new in replacements:
+              if source.count(old) != 1:
+                  raise SystemExit(f"Metabloom color contract anchor not unique: {old}")
+              source = source.replace(old, new, 1)
+          path.write_text(source, encoding="utf-8")
+          PY
+
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
 
