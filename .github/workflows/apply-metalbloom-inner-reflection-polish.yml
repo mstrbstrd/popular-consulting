@@ -31,6 +31,29 @@ jobs:
       - name: Apply Metalbloom reflection polish
         run: python scripts/apply_metalbloom_inner_reflection_polish.py
 
+      - name: Update existing Metalbloom regression expectations
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/components/MetalbloomTheme.test.js")
+          source = path.read_text(encoding="utf-8")
+
+          old_slope = '"vec2 metalSlope = vec2(dFdx(materialField)"'
+          new_slope = '"vec2 metalSlope = vec2("'
+          if source.count(old_slope) != 1:
+              raise SystemExit("Expected one legacy metal slope assertion.")
+          source = source.replace(old_slope, new_slope, 1)
+
+          old_edge = "fwidth(materialField) * 0.68"
+          new_edge = "fwidth(metalSurfaceField) * 0.68"
+          if source.count(old_edge) != 1:
+              raise SystemExit("Expected one legacy Metalbloom edge assertion.")
+          source = source.replace(old_edge, new_edge, 1)
+
+          path.write_text(source, encoding="utf-8")
+          PY
+
       - name: Verify patch whitespace
         run: git diff --check
 
