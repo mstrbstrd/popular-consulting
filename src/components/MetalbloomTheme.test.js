@@ -63,7 +63,32 @@ describe("Metalbloom material theme", () => {
     expect(scene).toContain("vec3 mercuryShadow");
     expect(scene).toContain("vec3 mercuryMid");
     expect(scene).toContain("vec3 mercuryHighlight");
+    expect(scene).toContain("vec3(0.480, 0.505, 0.545)");
+    expect(scene).toContain("vec3(0.655, 0.675, 0.710)");
+    expect(scene).toContain("vec3(1.580, 1.620, 1.690)");
+    expect(scene).toContain("metalTint * (1.02 + mirrorLevel * 0.32)");
     expect(scene).toContain("vec4 metalMaterial = fluidMaterial");
+  });
+
+  test("threads white and spectral colour through every bright reflection", () => {
+    expect(scene).toContain("float reflectionPrismMask = sat(");
+    expect(scene).toContain("horizonStrip * 0.72");
+    expect(scene).toContain("verticalStrip * 0.56");
+    expect(scene).toContain("counterStrip * 0.42");
+    expect(scene).toContain("keySpecular * 1.00");
+    expect(scene).toContain("vec3 reflectionSpectrum = spectral(reflectionHue)");
+    expect(scene).toContain("float reflectionLuma = mix(1.28, 1.36, u_light)");
+    expect(scene).toContain("float reflectionChroma = mix(0.36, 0.31, u_light)");
+    expect(scene).toContain("vec3 prismaticReflection = max(");
+    expect(scene).toContain(
+      "reflectionPrismMask * mix(0.34, 0.30, u_light)",
+    );
+    expect(scene).toContain(
+      "reflectionPrismMask * mix(0.28, 0.24, u_light)",
+    );
+    expect(scene).toContain(`prismaticReflection
+  * reflectionPrismMask
+  * 0.055`);
   });
 
   test("keeps a continuous pale spectral rim and preserves topology", () => {
