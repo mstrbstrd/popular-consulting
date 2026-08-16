@@ -1,0 +1,64 @@
+name: Apply Metalbloom dark-ridge polish
+
+on:
+  push:
+    branches:
+      - agent/remove-metalbloom-dark-inner-ridge
+    paths:
+      - .github/workflows/apply-metalbloom-dark-ridge-polish.yml
+
+permissions:
+  contents: write
+
+jobs:
+  refine-and-validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/remove-metalbloom-dark-inner-ridge
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Apply Metalbloom dark-ridge polish
+        run: python scripts/apply_metalbloom_dark_ridge_polish.py
+
+      - name: Verify patch whitespace
+        run: git diff --check
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Run tests
+        run: npm test -- --watchAll=false --runInBand
+        env:
+          CI: true
+
+      - name: Build production bundle
+        run: npm run build
+        env:
+          CI: true
+
+      - name: Commit and push the refinement
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            src/components/CreatorOSFieldShader.js \
+            src/components/MetalbloomTheme.test.js
+          git rm -f \
+            .github/workflows/apply-metalbloom-dark-ridge-polish.yml \
+            scripts/apply_metalbloom_dark_ridge_polish.py
+          git commit -m "Remove Metalbloom dark inner ridge"
+          git push origin HEAD:agent/remove-metalbloom-dark-inner-ridge
