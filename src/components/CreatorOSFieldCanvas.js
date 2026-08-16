@@ -24,6 +24,12 @@ const clamp = (value, minimum = 0, maximum = 1) =>
 const clampMode = (mode) =>
   Math.max(0, Math.min(MODE_COUNT - 1, Number.isFinite(mode) ? mode : 0));
 
+const normalizeMetabloomPalette = (palette) =>
+  palette === "metalbloom" ? "metalbloom" : "spectral";
+
+const resolveMetabloomPaletteMix = (palette) =>
+  normalizeMetabloomPalette(palette) === "metalbloom" ? 1 : 0;
+
 const normalizeTidalPalette = (palette) =>
   palette === "spectral" ? "spectral" : "water";
 
@@ -226,6 +232,7 @@ const destroyReactionTargets = (gl, targets) => {
 const CreatorOSFieldCanvas = ({
   contourPalette = "terrain",
   isDark = false,
+  metabloomPalette = "spectral",
   mode = 0,
   onFieldStateChange,
   paused = false,
@@ -237,6 +244,9 @@ const CreatorOSFieldCanvas = ({
   const pausedRef = useRef(paused);
   const lightRef = useRef(isDark ? 0 : 1);
   const modeRef = useRef(clampMode(mode));
+  const metabloomPaletteRef = useRef(
+    resolveMetabloomPaletteMix(metabloomPalette),
+  );
   const contourPaletteRef = useRef(
     resolveContourPaletteMix(contourPalette),
   );
@@ -261,6 +271,13 @@ const CreatorOSFieldCanvas = ({
     modeRef.current = clampMode(mode);
     redrawRef.current();
   }, [mode]);
+
+  useEffect(() => {
+    metabloomPaletteRef.current = resolveMetabloomPaletteMix(
+      metabloomPalette,
+    );
+    redrawRef.current();
+  }, [metabloomPalette]);
 
   useEffect(() => {
     contourPaletteRef.current = resolveContourPaletteMix(contourPalette);
@@ -409,6 +426,7 @@ const CreatorOSFieldCanvas = ({
       "u_modeA",
       "u_modeB",
       "u_modeMix",
+      "u_metabloomPaletteMix",
       "u_contourPaletteMix",
       "u_tidalPaletteMix",
       "u_reaction",
@@ -654,6 +672,10 @@ const CreatorOSFieldCanvas = ({
       gl.uniform1i(displayUniforms.u_modeB, incomingMode);
       gl.uniform1f(displayUniforms.u_modeMix, modeMix);
       gl.uniform1f(
+        displayUniforms.u_metabloomPaletteMix,
+        metabloomPaletteRef.current,
+      );
+      gl.uniform1f(
         displayUniforms.u_contourPaletteMix,
         contourPaletteRef.current,
       );
@@ -813,7 +835,7 @@ const CreatorOSFieldCanvas = ({
   return (
     <div
       ref={rootRef}
-      className={`creatoros-field-shell creatoros-field-mode-${clampMode(mode)} creatoros-field-palette-${normalizeTidalPalette(tidalPalette)} creatoros-field-contour-palette-${normalizeContourPalette(contourPalette)}${
+      className={`creatoros-field-shell creatoros-field-mode-${clampMode(mode)} creatoros-field-metabloom-palette-${normalizeMetabloomPalette(metabloomPalette)} creatoros-field-palette-${normalizeTidalPalette(tidalPalette)} creatoros-field-contour-palette-${normalizeContourPalette(contourPalette)}${
         fallback ? " is-fallback" : ""
       }`}
       aria-hidden="true"

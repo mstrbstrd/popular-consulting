@@ -177,6 +177,7 @@ uniform float u_pulseAge;
 uniform int u_modeA;
 uniform int u_modeB;
 uniform float u_modeMix;
+uniform float u_metabloomPaletteMix;
 uniform float u_contourPaletteMix;
 uniform float u_tidalPaletteMix;
 uniform sampler2D u_reaction;
@@ -424,17 +425,142 @@ vec3 tint = tintAccumulator / max(potential, 0.0001);
 vec3 flowTint = spectral(baseHue);
 float flowDominance = 0.76 + membrane * 0.10;
 tint = mix(tint, flowTint, sat(flowDominance));
-  float materialField = potential * (1.12 + membrane * 0.18) + edge * 0.24;
-  vec4 material = fluidMaterial(
-    materialField,
-    tint,
-    0.38 + edge * 0.10,
-    0.20 + exp(-nearest * 8.0) * 0.08,
-    0.98
-  );
-  material.rgb += spectral(baseHue + 0.08) * edge * 0.12;
-  material.a = max(material.a, density * (0.16 + membrane * 0.12));
-  return material;
+float materialField = potential * (1.12 + membrane * 0.18) + edge * 0.24;
+vec4 spectralMaterial = fluidMaterial(
+  materialField,
+  tint,
+  0.38 + edge * 0.10,
+  0.20 + exp(-nearest * 8.0) * 0.08,
+  0.98
+);
+spectralMaterial.rgb += spectral(baseHue + 0.08) * edge * 0.12;
+spectralMaterial.a = max(
+  spectralMaterial.a,
+  density * (0.16 + membrane * 0.12)
+);
+
+// Metalbloom keeps the exact same field topology and derives a pseudo-normal
+// from its screen-space slope. A pair of virtual studio lights and reflected
+// environment bands create the mirror-like silver response of liquid mercury.
+vec2 metalSlope = vec2(dFdx(materialField), dFdy(materialField));
+float metalSlopeMagnitude = length(metalSlope);
+vec3 metalNormal = normalize(vec3(
+  -metalSlope.x * 0.72,
+  -metalSlope.y * 0.72,
+  0.54 + 0.18 / (1.0 + metalSlopeMagnitude * 3.0)
+));
+vec3 viewDirection = vec3(0.0, 0.0, 1.0);
+vec3 reflectedDirection = reflect(-viewDirection, metalNormal);
+vec3 keyDirection = normalize(vec3(-0.52, 0.46, 0.72));
+vec3 fillDirection = normalize(vec3(0.68, -0.24, 0.69));
+float keySpecular = pow(sat(dot(metalNormal, keyDirection)), 26.0);
+float fillSpecular = pow(sat(dot(metalNormal, fillDirection)), 10.0);
+float studioHorizon = exp(-abs(reflectedDirection.y - 0.12) * 5.8);
+float studioStrip = exp(-abs(reflectedDirection.x + 0.34) * 11.0);
+float environmentReflection = fbm(
+  rotate2(-0.36) * (p + reflectedDirection.xy * 0.34) * 1.18
+    + vec2(u_seed * 3.3, -u_seed * 2.4)
+);
+float mirrorLevel = sat(
+  0.05
+    + studioHorizon * 0.50
+    + studioStrip * 0.26
+    + keySpecular * 1.18
+    + fillSpecular * 0.42
+    + (environmentReflection - 0.42) * 0.24
+    + membrane * 0.06
+);
+float metalFresnel = pow(1.0 - sat(metalNormal.z), 3.2);
+
+vec3 mercuryShadow = mix(
+  vec3(0.020, 0.026, 0.034),
+  vec3(0.110, 0.125, 0.145),
+  u_light
+);
+vec3 mercuryMid = mix(
+  vec3(0.290, 0.325, 0.370),
+  vec3(0.460, 0.490, 0.535),
+  u_light
+);
+vec3 mercuryHighlight = mix(
+  vec3(1.300, 1.340, 1.390),
+  vec3(1.190, 1.220, 1.260),
+  u_light
+);
+vec3 metalTint = mix(
+  mercuryShadow,
+  mercuryMid,
+  smoothstep(0.04, 0.58, mirrorLevel)
+);
+metalTint = mix(
+  metalTint,
+  mercuryHighlight,
+  smoothstep(0.48, 0.96, mirrorLevel)
+);
+float reflectedDepth = smoothstep(0.85, 2.8, potential)
+  * (1.0 - smoothstep(0.18, 0.92, mirrorLevel))
+  * (0.10 + metalFresnel * 0.12);
+metalTint = mix(metalTint, mercuryShadow * 0.62, reflectedDepth);
+metalTint += mercuryHighlight * keySpecular * 0.18;
+
+// The Spectral Display identity appears as a restrained prismatic film on
+// the mercury rim and strongest reflection turns, never replacing the silver.
+float metalAccentHue = baseHue
+  + reflectedDirection.x * 0.12
+  - reflectedDirection.y * 0.08
+  + environmentReflection * 0.08;
+vec3 metalAccentSpectrum = spectral(metalAccentHue);
+float metalAccentChroma = mix(0.42, 0.34, u_light);
+float metalLuma = dot(metalTint, vec3(0.2126, 0.7152, 0.0722));
+vec3 prismaticSilver = mix(
+  vec3(max(metalLuma, 0.58)),
+  metalAccentSpectrum,
+  metalAccentChroma
+);
+prismaticSilver = max(
+  prismaticSilver,
+  vec3(mix(0.34, 0.46, u_light))
+);
+float metalAccentMask = sat(
+  edge * 0.48
+    + metalFresnel * 0.32
+    + studioStrip * 0.08
+    + abs(membrane - 0.5) * 0.06
+);
+metalTint = mix(
+  metalTint,
+  prismaticSilver,
+  metalAccentMask * mix(0.30, 0.26, u_light)
+);
+
+vec4 metalMaterial = fluidMaterial(
+  materialField,
+  metalTint,
+  0.58 + edge * 0.12,
+  0.06 + studioHorizon * 0.04,
+  0.99
+);
+float metalBody = smoothstep(0.68, 1.16, materialField);
+metalMaterial.rgb = mix(
+  metalMaterial.rgb,
+  metalTint * (0.90 + mirrorLevel * 0.16),
+  metalBody * 0.76
+);
+metalMaterial.rgb += mercuryHighlight * (
+  keySpecular * 0.18
+    + fillSpecular * 0.06
+    + edge * metalFresnel * 0.05
+);
+metalMaterial.a = max(
+  metalMaterial.a,
+  density * (0.24 + membrane * 0.10)
+);
+
+return mix(
+  spectralMaterial,
+  metalMaterial,
+  sat(u_metabloomPaletteMix)
+);
 }
 
 vec4 sceneTidalWeave(vec2 uv, float time) {
