@@ -310,6 +310,7 @@ const RuptureCanvas = ({
     let stateWasReported = false;
 
     const page = root.closest(".dither-canvas-page");
+    const pointerSurface = page || root;
 
     const reportState = (nextState) => {
       if (nextState === activeState && stateWasReported) return;
@@ -456,6 +457,9 @@ const RuptureCanvas = ({
 
     const handlePointerMove = (event) => {
       syncPointer(event);
+    };
+
+    const handlePointerDrag = (event) => {
       if (controlledProgressRef.current !== null) return;
       if (!drag.active || event.pointerId !== drag.pointerId) return;
       const deltaPixels = drag.lastY - event.clientY;
@@ -498,8 +502,11 @@ const RuptureCanvas = ({
     };
 
     window.addEventListener("wheel", handleWheel, { passive: true });
+    pointerSurface.addEventListener("pointermove", handlePointerMove, {
+      passive: true,
+    });
     root.addEventListener("pointerdown", handlePointerDown, { passive: true });
-    root.addEventListener("pointermove", handlePointerMove, { passive: true });
+    root.addEventListener("pointermove", handlePointerDrag, { passive: true });
     root.addEventListener("pointerup", finishPointerDrag, { passive: true });
     root.addEventListener("pointercancel", finishPointerDrag, { passive: true });
     window.addEventListener("keydown", handleKeyDown);
@@ -573,8 +580,9 @@ const RuptureCanvas = ({
       resetSimulationRef.current = () => {};
       syncControlledProgressRef.current = () => {};
       window.removeEventListener("wheel", handleWheel);
+      pointerSurface.removeEventListener("pointermove", handlePointerMove);
       root.removeEventListener("pointerdown", handlePointerDown);
-      root.removeEventListener("pointermove", handlePointerMove);
+      root.removeEventListener("pointermove", handlePointerDrag);
       root.removeEventListener("pointerup", finishPointerDrag);
       root.removeEventListener("pointercancel", finishPointerDrag);
       window.removeEventListener("keydown", handleKeyDown);
