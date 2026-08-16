@@ -22,8 +22,12 @@ describe("Second Surface scroll opening", () => {
     expect(canvasSource).toContain(
       'window.addEventListener("wheel", handleWheel, { passive: true })',
     );
+    expect(canvasSource).toContain("const pointerSurface = page || root");
     expect(canvasSource).toContain(
-      'root.addEventListener("pointermove", handlePointerMove, { passive: true })',
+      'pointerSurface.addEventListener("pointermove", handlePointerMove',
+    );
+    expect(canvasSource).toContain(
+      'root.addEventListener("pointermove", handlePointerDrag',
     );
     expect(canvasSource).toContain(
       'window.addEventListener("keydown", handleKeyDown)',

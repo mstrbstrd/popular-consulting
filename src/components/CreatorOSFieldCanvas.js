@@ -336,6 +336,7 @@ const CreatorOSFieldCanvas = ({
     };
     const pulseOrigin = { x: 0.52, y: 0.52 };
     const page = root.closest(".dither-canvas-page");
+    const pointerSurface = page || root;
 
     const reportState = (nextState) => {
       if (nextState === activeState) return;
@@ -500,9 +501,13 @@ const CreatorOSFieldCanvas = ({
       pointer.sampleY = pointer.y;
     };
 
-    root.addEventListener("pointermove", handlePointerMove, { passive: true });
+    pointerSurface.addEventListener("pointermove", handlePointerMove, {
+      passive: true,
+    });
     root.addEventListener("pointerdown", handlePointerDown, { passive: true });
-    root.addEventListener("pointerleave", handlePointerLeave, { passive: true });
+    pointerSurface.addEventListener("pointerleave", handlePointerLeave, {
+      passive: true,
+    });
 
     const resetSimulation = () => {
       restartRef.current = false;
@@ -804,9 +809,9 @@ const CreatorOSFieldCanvas = ({
     return () => {
       window.cancelAnimationFrame(rafId);
       redrawRef.current = () => {};
-      root.removeEventListener("pointermove", handlePointerMove);
+      pointerSurface.removeEventListener("pointermove", handlePointerMove);
       root.removeEventListener("pointerdown", handlePointerDown);
-      root.removeEventListener("pointerleave", handlePointerLeave);
+      pointerSurface.removeEventListener("pointerleave", handlePointerLeave);
       window.removeEventListener("resize", updateSize);
       document.removeEventListener("visibilitychange", handleVisibility);
       if (motionQuery?.removeEventListener) {
