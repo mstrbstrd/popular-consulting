@@ -111,7 +111,7 @@ jobs:
             src/components/DitherCanvasPage.css \
             src/components/DitherCanvasPage.test.js \
             src/components/MetalbloomTheme.test.js
-          git rm \
+          git rm -f \
             .github/workflows/apply-metalbloom-theme.yml \
             scripts/apply_metalbloom_theme.py
           git commit -m "Add the Metalbloom liquid-metal theme"
