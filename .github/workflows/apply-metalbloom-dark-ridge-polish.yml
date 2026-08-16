@@ -31,6 +31,23 @@ jobs:
       - name: Apply Metalbloom dark-ridge polish
         run: python scripts/apply_metalbloom_dark_ridge_polish.py
 
+      - name: Update existing mirror gain expectation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/components/MetalbloomTheme.test.js")
+          source = path.read_text(encoding="utf-8")
+          old = '    expect(scene).toContain("metalTint * (1.02 + mirrorLevel * 0.32)");'
+          new = '    expect(scene).toContain("metalTint * (1.00 + mirrorLevel * 0.28)");'
+          count = source.count(old)
+          if count != 1:
+              raise SystemExit(
+                  f"mirror gain expectation: expected one match, found {count}."
+              )
+          path.write_text(source.replace(old, new, 1), encoding="utf-8")
+          PY
+
       - name: Verify patch whitespace
         run: git diff --check
 
