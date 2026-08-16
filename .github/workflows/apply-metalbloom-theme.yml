@@ -28,6 +28,30 @@ jobs:
           node-version: 20
           cache: npm
 
+      - name: Make insertion anchors duplicate-safe
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("scripts/apply_metalbloom_theme.py")
+          source = path.read_text(encoding="utf-8")
+          old = '''    count = source.count(old)
+              if count != 1:
+                  raise SystemExit(
+                      f"{label}: expected exactly one source block, found {count}."
+                  )
+              return source.replace(old, new)'''
+          new = '''    count = source.count(old)
+              if count < 1:
+                  raise SystemExit(
+                      f"{label}: source block was not found."
+                  )
+              return source.replace(old, new, 1)'''
+          if old not in source:
+              raise SystemExit("Patch helper source was not found.")
+          path.write_text(source.replace(old, new, 1), encoding="utf-8")
+          PY
+
       - name: Apply the Metalbloom material theme
         run: python scripts/apply_metalbloom_theme.py
 
