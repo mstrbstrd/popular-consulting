@@ -56,7 +56,7 @@ describe("Metalbloom material theme", () => {
     expect(scene).toContain("float horizonStrip");
     expect(scene).toContain("float verticalStrip");
     expect(scene).toContain("float counterStrip");
-    expect(scene).toContain("float darkReflectionBand");
+    expect(scene).toContain("float innerReflectionBand");
     expect(scene).toContain("float mirrorRaw");
     expect(scene).toContain("float mirrorLevel = smoothstep(0.04, 0.92, mirrorRaw)");
     expect(scene).toContain("float metalFresnel");
@@ -65,36 +65,42 @@ describe("Metalbloom material theme", () => {
     expect(scene).toContain("vec3 mercuryHighlight");
     expect(scene).toContain("vec3(0.480, 0.505, 0.545)");
     expect(scene).toContain("vec3(0.655, 0.675, 0.710)");
-    expect(scene).toContain("vec3(1.580, 1.620, 1.690)");
-    expect(scene).toContain("metalTint * (1.02 + mirrorLevel * 0.32)");
+    expect(scene).toContain("vec3(1.520, 1.560, 1.630)");
+    expect(scene).toContain("metalTint * (1.00 + mirrorLevel * 0.28)");
     expect(scene).toContain("vec4 metalMaterial = fluidMaterial");
   });
 
-  test("softens the inner contour into a broad mirrored reflection", () => {
+  test("removes the dark inner ridge while retaining a soft silver reflection", () => {
     expect(scene).toContain(
       "float metalSurfaceField = potential * 1.12 + edge * 0.10",
     );
     expect(scene).toContain("dFdx(metalSurfaceField)");
     expect(scene).toContain("dFdy(metalSurfaceField)");
     expect(scene).toContain(
-      "float darkReflectionDistance = reflectedDirection.y + 0.12",
+      "float innerReflectionDistance = reflectedDirection.y + 0.12",
     );
     expect(scene).toContain(
-      "-darkReflectionDistance * darkReflectionDistance * 10.0",
+      "-innerReflectionDistance * innerReflectionDistance * 5.4",
     );
-    expect(scene).toContain("float darkReflectionSheen = sat(");
-    expect(scene).toContain("+ darkReflectionSheen * 0.12");
-    expect(scene).toContain("- darkReflectionBand * 0.20");
-    expect(scene).toContain("darkReflectionBand * 0.07");
-    expect(scene).toContain("darkReflectionSheen * 0.30");
-    expect(scene).toContain("darkReflectionSheen * 0.08");
+    expect(scene).toContain("float innerReflectionSheen = sat(");
+    expect(scene).toContain("+ innerReflectionBand * 0.035");
+    expect(scene).toContain("+ innerReflectionSheen * 0.08");
+    expect(scene).toContain("vec3 mercuryInnerReflection = mix(");
+    expect(scene).toContain("sat(reflectedDepth * 0.34)");
+    expect(scene).toContain("vec3 innerReflectionTint = mix(");
+    expect(scene).toContain(
+      "innerReflectionBand * mix(0.10, 0.08, u_light)",
+    );
+    expect(scene).toContain("innerReflectionBand * 0.10");
+    expect(scene).toContain("innerReflectionSheen * 0.22");
     expect(scene).toContain("0.38 + edge * 0.10");
     expect(scene).toContain(
       "float metalBody = smoothstep(0.68, 1.16, metalSurfaceField)",
     );
-    expect(scene).not.toContain(
-      "-abs(reflectedDirection.y + 0.12) * 7.6",
-    );
+    expect(scene).toContain("metalTint * (1.00 + mirrorLevel * 0.28)");
+    expect(scene).not.toContain("- innerReflectionBand *");
+    expect(scene).not.toContain("mercuryShadow * 0.50");
+    expect(scene).not.toContain("darkReflectionBand");
     expect(scene).not.toContain("0.72 + edge * 0.16");
   });
 
@@ -105,7 +111,7 @@ describe("Metalbloom material theme", () => {
     expect(scene).toContain("counterStrip * 0.42");
     expect(scene).toContain("keySpecular * 1.00");
     expect(scene).toContain("vec3 reflectionSpectrum = spectral(reflectionHue)");
-    expect(scene).toContain("float reflectionLuma = mix(1.28, 1.36, u_light)");
+    expect(scene).toContain("float reflectionLuma = mix(1.22, 1.30, u_light)");
     expect(scene).toContain("float reflectionChroma = mix(0.36, 0.31, u_light)");
     expect(scene).toContain("vec3 prismaticReflection = max(");
     expect(scene).toContain(
