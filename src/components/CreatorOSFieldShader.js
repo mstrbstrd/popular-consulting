@@ -496,18 +496,18 @@ float mirrorLevel = smoothstep(0.04, 0.92, mirrorRaw);
 float metalFresnel = pow(1.0 - sat(metalNormal.z), 3.8);
 
 vec3 mercuryShadow = mix(
-  vec3(0.012, 0.016, 0.022),
-  vec3(0.075, 0.085, 0.100),
+  vec3(0.010, 0.014, 0.020),
+  vec3(0.070, 0.078, 0.090),
   u_light
 );
 vec3 mercuryMid = mix(
-  vec3(0.300, 0.330, 0.380),
-  vec3(0.450, 0.480, 0.530),
+  vec3(0.480, 0.505, 0.545),
+  vec3(0.655, 0.675, 0.710),
   u_light
 );
 vec3 mercuryHighlight = mix(
-  vec3(1.380, 1.420, 1.480),
-  vec3(1.280, 1.310, 1.360),
+  vec3(1.580, 1.620, 1.690),
+  vec3(1.470, 1.505, 1.570),
   u_light
 );
 vec3 metalTint = mix(
@@ -532,6 +532,44 @@ metalTint += mercuryHighlight * (
   keySpecular * 0.24
     + fillSpecular * 0.09
     + rimSpecular * 0.07
+);
+
+// Bright studio reflections carry a white-hot centre and a restrained
+// travelling spectrum, matching the prismatic light treatment used by Tidal
+// Weave and Contour Drift without turning the mercury into coloured plastic.
+float reflectionPrismMask = sat(
+  horizonStrip * 0.72
+    + verticalStrip * 0.56
+    + counterStrip * 0.42
+    + ceilingStrip * 0.32
+    + floorReflection * 0.22
+    + keySpecular * 1.00
+    + fillSpecular * 0.48
+    + rimSpecular * 0.30
+    + metalFresnel * 0.16
+);
+float reflectionHue = baseHue
+  + p.x * 0.19
+  - p.y * 0.13
+  + reflectedDirection.x * 0.16
+  - reflectedDirection.y * 0.12
+  + environmentReflection * 0.10
+  + time * 0.016;
+vec3 reflectionSpectrum = spectral(reflectionHue);
+float reflectionLuma = mix(1.28, 1.36, u_light)
+  + keySpecular * 0.18
+  + horizonStrip * 0.10
+  + verticalStrip * 0.07;
+float reflectionChroma = mix(0.36, 0.31, u_light);
+float reflectionFloor = mix(0.72, 0.80, u_light);
+vec3 prismaticReflection = max(
+  mix(vec3(reflectionLuma), reflectionSpectrum, reflectionChroma),
+  vec3(reflectionFloor)
+);
+metalTint = mix(
+  metalTint,
+  prismaticReflection,
+  reflectionPrismMask * mix(0.34, 0.30, u_light)
 );
 
 // The spectral accent is a dedicated, continuous iso-band around the visible
@@ -567,15 +605,23 @@ vec4 metalMaterial = fluidMaterial(
 float metalBody = smoothstep(0.68, 1.16, materialField);
 metalMaterial.rgb = mix(
   metalMaterial.rgb,
-  metalTint * (0.92 + mirrorLevel * 0.24),
-  metalBody * 0.84
+  metalTint * (1.02 + mirrorLevel * 0.32),
+  metalBody * 0.90
 );
 metalMaterial.rgb += mercuryHighlight * (
-  keySpecular * 0.22
-    + fillSpecular * 0.08
-    + rimSpecular * 0.06
-    + metalFresnel * edge * 0.06
+  keySpecular * 0.24
+    + fillSpecular * 0.09
+    + rimSpecular * 0.07
+    + metalFresnel * edge * 0.07
 );
+metalMaterial.rgb = mix(
+  metalMaterial.rgb,
+  prismaticReflection,
+  reflectionPrismMask * mix(0.28, 0.24, u_light)
+);
+metalMaterial.rgb += prismaticReflection
+  * reflectionPrismMask
+  * 0.055;
 
 // Compose the spectral rim last. Direct colour blending is required here:
 // channel-wise maxima against silver would neutralize the gradient back to white.
