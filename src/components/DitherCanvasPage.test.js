@@ -39,6 +39,7 @@ jest.mock("./CreatorOSFieldCanvas", () => {
   return ({
     contourPalette = "terrain",
     isDark,
+    metabloomPalette = "spectral",
     mode,
     onFieldStateChange,
     paused,
@@ -50,6 +51,7 @@ jest.mock("./CreatorOSFieldCanvas", () => {
         type: "button",
         "data-testid": "creatoros-field-renderer",
         "data-mode": String(mode),
+        "data-metabloom-palette": metabloomPalette,
         "data-contour-palette": contourPalette,
         "data-tidal-palette": tidalPalette,
         "data-theme-mode": isDark ? "dark" : "light",
@@ -286,6 +288,45 @@ describe("DitherCanvasPage", () => {
     expect(
       screen.queryByRole("heading", { name: "Forward Pass" }),
     ).not.toBeInTheDocument();
+  });
+
+  test("keeps spectral Metabloom by default and offers a liquid-metal finish", () => {
+    render(<DitherCanvasPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Metabloom/ }));
+    flushScrollFrame();
+    finishStudyTransition();
+
+    expect(
+      screen.getByRole("heading", { name: "Metabloom" }),
+    ).toBeInTheDocument();
+    const renderer = screen.getByTestId("creatoros-field-renderer");
+    expect(renderer).toHaveAttribute("data-mode", "0");
+    expect(renderer).toHaveAttribute("data-metabloom-palette", "spectral");
+
+    const paletteGroup = screen.getByRole("group", {
+      name: "Metabloom material finish",
+    });
+    const spectralOption = within(paletteGroup).getByRole("button", {
+      name: "Use spectral fluid for Metabloom",
+    });
+    const metalbloomOption = within(paletteGroup).getByRole("button", {
+      name: "Use liquid metal for Metabloom",
+    });
+    expect(spectralOption).toHaveAttribute("aria-pressed", "true");
+    expect(metalbloomOption).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(metalbloomOption);
+    expect(screen.getByTestId("creatoros-field-renderer")).toHaveAttribute(
+      "data-mode",
+      "0",
+    );
+    expect(screen.getByTestId("creatoros-field-renderer")).toHaveAttribute(
+      "data-metabloom-palette",
+      "metalbloom",
+    );
+    expect(spectralOption).toHaveAttribute("aria-pressed", "false");
+    expect(metalbloomOption).toHaveAttribute("aria-pressed", "true");
   });
 
   test("defaults Tidal Weave to water and keeps spectral as a color-only option", () => {

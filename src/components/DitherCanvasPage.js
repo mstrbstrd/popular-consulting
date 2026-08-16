@@ -34,7 +34,7 @@ const STUDIES = [
     initialState: "drifting",
     resetLabel: "Reseed",
     description:
-      "CreatorOS wax physics become an orbital organism: viscous bodies merge, stretch along their motion, and bloom around the observer.",
+      "CreatorOS wax physics become an orbital organism: spectral pigment or mirror-bright liquid metal merges, stretches, and blooms around the observer.",
     instruction:
       "Move to bend the bloom · tap to send a pressure ring through the field",
   },
@@ -170,6 +170,8 @@ const MOBILE_SCROLL_PROFILE = Object.freeze({
 const MOBILE_SCROLL_MAX_WIDTH = 820;
 const STUDY_TARGET_PADDING_UNITS = 0.04;
 const VIEWPORT_WIDTH_CHANGE_THRESHOLD = 48;
+const METABLOOM_PALETTE_SPECTRAL = "spectral";
+const METABLOOM_PALETTE_METALBLOOM = "metalbloom";
 const TIDAL_PALETTE_WATER = "water";
 const TIDAL_PALETTE_SPECTRAL = "spectral";
 const CONTOUR_PALETTE_TERRAIN = "terrain";
@@ -286,6 +288,9 @@ const DitherFieldLab = () => {
   const [paused, setPaused] = useState(false);
   const [resetVersion, setResetVersion] = useState(0);
   const [fieldState, setFieldState] = useState(STUDIES[0].initialState);
+  const [metabloomPalette, setMetabloomPalette] = useState(
+    METABLOOM_PALETTE_SPECTRAL,
+  );
   const [tidalPalette, setTidalPalette] = useState(TIDAL_PALETTE_WATER);
   const [contourPalette, setContourPalette] = useState(
     CONTOUR_PALETTE_TERRAIN,
@@ -562,6 +567,7 @@ const DitherFieldLab = () => {
       <CreatorOSFieldCanvas
         {...sharedProps}
         mode={activeStudy.mode}
+        metabloomPalette={metabloomPalette}
         contourPalette={contourPalette}
         tidalPalette={tidalPalette}
         onFieldStateChange={setFieldState}
@@ -649,6 +655,45 @@ const DitherFieldLab = () => {
 
         <nav className="dither-study-switcher" aria-label="Dither background studies">
           <p className="dither-study-switcher-label">Field studies</p>
+          {activeStudy.id === "metabloom" && (
+            <div
+              className="metabloom-palette-selector"
+              role="group"
+              aria-label="Metabloom material finish"
+            >
+              <span className="metabloom-palette-selector-label">Finish</span>
+              <button
+                type="button"
+                className={`metabloom-palette-option${
+                  metabloomPalette === METABLOOM_PALETTE_SPECTRAL
+                    ? " is-active"
+                    : ""
+                }`}
+                data-palette="spectral"
+                onClick={() => setMetabloomPalette(METABLOOM_PALETTE_SPECTRAL)}
+                aria-pressed={metabloomPalette === METABLOOM_PALETTE_SPECTRAL}
+                aria-label="Use spectral fluid for Metabloom"
+              >
+                Spectral
+              </button>
+              <button
+                type="button"
+                className={`metabloom-palette-option${
+                  metabloomPalette === METABLOOM_PALETTE_METALBLOOM
+                    ? " is-active"
+                    : ""
+                }`}
+                data-palette="metalbloom"
+                onClick={() => setMetabloomPalette(METABLOOM_PALETTE_METALBLOOM)}
+                aria-pressed={
+                  metabloomPalette === METABLOOM_PALETTE_METALBLOOM
+                }
+                aria-label="Use liquid metal for Metabloom"
+              >
+                Metalbloom
+              </button>
+            </div>
+          )}
           {activeStudy.id === "tidal-weave" && (
             <div
               className="tidal-palette-selector"
