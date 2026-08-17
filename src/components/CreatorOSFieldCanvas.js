@@ -4,6 +4,7 @@ import {
   CREATOROS_FIELD_FRAGMENT_SHADER,
   CREATOROS_FIELD_VERTEX_SHADER,
   CREATOROS_REACTION_FRAGMENT_SHADER,
+  CREATOROS_REACTION_PAINT_FRAGMENT_SHADER,
 } from "./CreatorOSFieldShader";
 
 const MODE_COUNT = 8;
@@ -436,6 +437,7 @@ const CreatorOSFieldCanvas = ({
     let gl;
     let displayProgram;
     let reactionProgram;
+    let paintReactionProgram;
     let positionBuffer;
     let reactionTargets;
     let resizeObserver;
@@ -540,7 +542,12 @@ const CreatorOSFieldCanvas = ({
       reactionProgram = createProgram(
         gl,
         CREATOROS_REACTION_FRAGMENT_SHADER,
-        "CreatorOS reaction diffusion",
+        "CreatorOS original reaction diffusion",
+      );
+      paintReactionProgram = createProgram(
+        gl,
+        CREATOROS_REACTION_PAINT_FRAGMENT_SHADER,
+        "CreatorOS sand paint reaction diffusion",
       );
 
       positionBuffer = gl.createBuffer();
@@ -555,6 +562,7 @@ const CreatorOSFieldCanvas = ({
       );
       configurePosition(gl, displayProgram, positionBuffer);
       configurePosition(gl, reactionProgram, positionBuffer);
+      configurePosition(gl, paintReactionProgram, positionBuffer);
 
       reactionTargets = createReactionTargets(
         gl,
@@ -573,6 +581,7 @@ const CreatorOSFieldCanvas = ({
       if (positionBuffer && gl) gl.deleteBuffer(positionBuffer);
       if (displayProgram && gl) gl.deleteProgram(displayProgram);
       if (reactionProgram && gl) gl.deleteProgram(reactionProgram);
+      if (paintReactionProgram && gl) gl.deleteProgram(paintReactionProgram);
       return undefined;
     }
 
@@ -601,7 +610,7 @@ const CreatorOSFieldCanvas = ({
       "u_reaction",
       "u_reactionTexel",
     ]);
-    const reactionUniforms = collectUniforms(gl, reactionProgram, [
+    const reactionUniformNames = [
       "u_state",
       "u_texel",
       "u_pointer",
@@ -610,16 +619,28 @@ const CreatorOSFieldCanvas = ({
       "u_energy",
       "u_time",
       "u_seed",
-      "u_paintMode",
-      "u_brushActive",
-      "u_brushErase",
-      "u_brushRadius",
-      "u_brushFrom",
-      "u_brushTo",
       "u_feed",
       "u_kill",
       "u_dt",
-    ]);
+    ];
+    const reactionUniforms = collectUniforms(
+      gl,
+      reactionProgram,
+      reactionUniformNames,
+    );
+    const paintReactionUniforms = collectUniforms(
+      gl,
+      paintReactionProgram,
+      [
+        ...reactionUniformNames,
+        "u_paintMode",
+        "u_brushActive",
+        "u_brushErase",
+        "u_brushRadius",
+        "u_brushFrom",
+        "u_brushTo",
+      ],
+    );
 
     const updateSize = () => {
       const bounds = root.getBoundingClientRect();
@@ -871,9 +892,16 @@ const CreatorOSFieldCanvas = ({
     const drawReactionStep = (timeStep = 1.0, allowBrush = true) => {
       const writeIndex = 1 - reactionTargets.readIndex;
       const paintMode = morphogenPaintRef.current;
+      const usePaintProgram = paintMode >= 0.5;
+      const activeReactionProgram = usePaintProgram
+        ? paintReactionProgram
+        : reactionProgram;
+      const activeReactionUniforms = usePaintProgram
+        ? paintReactionUniforms
+        : reactionUniforms;
       const brushActive =
         allowBrush
-        && paintMode >= 0.5
+        && usePaintProgram
         && (brush.down || brush.pending)
           ? 1
           : 0;
@@ -883,51 +911,55 @@ const CreatorOSFieldCanvas = ({
         reactionTargets.framebuffers[writeIndex],
       );
       gl.viewport(0, 0, reactionTargets.size, reactionTargets.size);
-      gl.useProgram(reactionProgram);
+      gl.useProgram(activeReactionProgram);
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(
         gl.TEXTURE_2D,
         reactionTargets.textures[reactionTargets.readIndex],
       );
-      gl.uniform1i(reactionUniforms.u_state, 0);
+      gl.uniform1i(activeReactionUniforms.u_state, 0);
       gl.uniform2f(
-        reactionUniforms.u_texel,
+        activeReactionUniforms.u_texel,
         1 / reactionTargets.size,
         1 / reactionTargets.size,
       );
-      gl.uniform2f(reactionUniforms.u_pointer, pointer.x, pointer.y);
+      gl.uniform2f(activeReactionUniforms.u_pointer, pointer.x, pointer.y);
       gl.uniform2f(
-        reactionUniforms.u_pulseOrigin,
+        activeReactionUniforms.u_pulseOrigin,
         pulseOrigin.x,
         pulseOrigin.y,
       );
-      gl.uniform1f(reactionUniforms.u_pulseAge, pulseAge);
-      gl.uniform1f(reactionUniforms.u_energy, energy);
-      gl.uniform1f(reactionUniforms.u_time, localTime);
-      gl.uniform1f(reactionUniforms.u_seed, seed);
-      gl.uniform1f(reactionUniforms.u_paintMode, paintMode);
-      gl.uniform1f(reactionUniforms.u_brushActive, brushActive);
-      gl.uniform1f(
-        reactionUniforms.u_brushErase,
-        morphogenToolRef.current,
-      );
-      gl.uniform1f(
-        reactionUniforms.u_brushRadius,
-        morphogenBrushRadiusRef.current,
-      );
-      gl.uniform2f(
-        reactionUniforms.u_brushFrom,
-        brush.fromX,
-        brush.fromY,
-      );
-      gl.uniform2f(
-        reactionUniforms.u_brushTo,
-        brush.toX,
-        brush.toY,
-      );
-      gl.uniform1f(reactionUniforms.u_feed, 0.0367);
-      gl.uniform1f(reactionUniforms.u_kill, 0.0649);
-      gl.uniform1f(reactionUniforms.u_dt, timeStep);
+      gl.uniform1f(activeReactionUniforms.u_pulseAge, pulseAge);
+      gl.uniform1f(activeReactionUniforms.u_energy, energy);
+      gl.uniform1f(activeReactionUniforms.u_time, localTime);
+      gl.uniform1f(activeReactionUniforms.u_seed, seed);
+
+      if (usePaintProgram) {
+        gl.uniform1f(paintReactionUniforms.u_paintMode, 1);
+        gl.uniform1f(paintReactionUniforms.u_brushActive, brushActive);
+        gl.uniform1f(
+          paintReactionUniforms.u_brushErase,
+          morphogenToolRef.current,
+        );
+        gl.uniform1f(
+          paintReactionUniforms.u_brushRadius,
+          morphogenBrushRadiusRef.current,
+        );
+        gl.uniform2f(
+          paintReactionUniforms.u_brushFrom,
+          brush.fromX,
+          brush.fromY,
+        );
+        gl.uniform2f(
+          paintReactionUniforms.u_brushTo,
+          brush.toX,
+          brush.toY,
+        );
+      }
+
+      gl.uniform1f(activeReactionUniforms.u_feed, 0.0367);
+      gl.uniform1f(activeReactionUniforms.u_kill, 0.0649);
+      gl.uniform1f(activeReactionUniforms.u_dt, timeStep);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
       reactionTargets.readIndex = writeIndex;
       reactionStepsTaken += 1;
@@ -1202,6 +1234,7 @@ const CreatorOSFieldCanvas = ({
       if (positionBuffer) gl.deleteBuffer(positionBuffer);
       if (displayProgram) gl.deleteProgram(displayProgram);
       if (reactionProgram) gl.deleteProgram(reactionProgram);
+      if (paintReactionProgram) gl.deleteProgram(paintReactionProgram);
     };
   }, [contextVersion]);
 

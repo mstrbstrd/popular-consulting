@@ -1,8 +1,10 @@
+const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const {
   CREATOROS_FIELD_FRAGMENT_SHADER,
   CREATOROS_REACTION_FRAGMENT_SHADER,
+  CREATOROS_REACTION_PAINT_FRAGMENT_SHADER,
 } = require("./CreatorOSFieldShader");
 
 const pageSource = fs.readFileSync(
@@ -21,6 +23,11 @@ const fieldStyles = fs.readFileSync(
   path.join(__dirname, "CreatorOSFieldCanvas.css"),
   "utf8",
 );
+
+const sha256 = (value) =>
+  crypto.createHash("sha256").update(value).digest("hex");
+const ORIGINAL_REACTION_SHADER_SHA256 = "45d5a61e1bc84f765b0ffe5ffe5d37bd55f8a95bacbb672462c5801bdf3d9fec";
+const ORIGINAL_MORPHOGEN_SCENE_SHA256 = "ec2f0fbaeb7ad6463341d72d9937b56a2b1842cb9dc0a108bea18844ce6f2150";
 
 describe("Morphogen Divide sand paint option", () => {
   test("keeps Organism as the default and exposes a complete paint tray", () => {
@@ -43,20 +50,44 @@ describe("Morphogen Divide sand paint option", () => {
     expect(pageSource).toContain('"Clear"');
   });
 
-  test("restores the original organism default without removing Sand Paint", () => {
+  test("preserves the exact pre-paint organism renderer and keeps Sand Paint opt-in", () => {
     expect(pageSource).toMatch(
       /const \[morphogenExperience, setMorphogenExperience\] = useState\(\s*MORPHOGEN_EXPERIENCE_ORGANISM,\s*\);/,
     );
     expect(pageSource).toContain('activeStudy.id !== "morphogen-divide"');
-    expect(pageSource).toContain(
-      "setMorphogenExperience(MORPHOGEN_EXPERIENCE_ORGANISM)",
-    );
     expect(canvasSource).toContain('morphogenExperience = "organism"');
+    expect(canvasSource).toContain("paintReactionProgram");
+    expect(canvasSource).toContain("activeReactionProgram");
     expect(canvasSource).toContain(
-      "data[offset + 3] = paintMode ? 0 : 255",
+      "const activeReactionProgram = usePaintProgram",
     );
+    expect(CREATOROS_REACTION_FRAGMENT_SHADER).not.toContain("u_paintMode");
+    expect(CREATOROS_REACTION_FRAGMENT_SHADER).not.toContain("u_brushActive");
     expect(CREATOROS_REACTION_FRAGMENT_SHADER).toContain(
-      "float outputAlpha = mix(1.0, sat(paint), paintMode)",
+      "fragColor = vec4(sat(u), sat(v), activity, 1.0)",
+    );
+    expect(sha256(CREATOROS_REACTION_FRAGMENT_SHADER)).toBe(
+      ORIGINAL_REACTION_SHADER_SHA256,
+    );
+
+    const organismStart = CREATOROS_FIELD_FRAGMENT_SHADER.indexOf(
+      "vec4 sceneMorphogenOrganism",
+    );
+    const paintStart = CREATOROS_FIELD_FRAGMENT_SHADER.indexOf(
+      "vec4 sceneMorphogenPaint",
+      organismStart,
+    );
+    const organismScene = CREATOROS_FIELD_FRAGMENT_SHADER.slice(
+      organismStart,
+      paintStart - 2,
+    );
+    expect(sha256(organismScene)).toBe(ORIGINAL_MORPHOGEN_SCENE_SHA256);
+    expect(organismScene).not.toContain("paint");
+    expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain(
+      "if (u_morphogenPaintMix < 0.5)",
+    );
+    expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain(
+      "return sceneMorphogenOrganism(uv, time)",
     );
     expect(pageSource).toContain(
       "setMorphogenExperience(MORPHOGEN_EXPERIENCE_PAINT)",
@@ -88,31 +119,31 @@ describe("Morphogen Divide sand paint option", () => {
   });
 
   test("draws continuous granular strokes and supports erasing", () => {
-    expect(CREATOROS_REACTION_FRAGMENT_SHADER).toContain(
+    expect(CREATOROS_REACTION_PAINT_FRAGMENT_SHADER).toContain(
       "uniform float u_brushActive",
     );
-    expect(CREATOROS_REACTION_FRAGMENT_SHADER).toContain(
+    expect(CREATOROS_REACTION_PAINT_FRAGMENT_SHADER).toContain(
       "uniform vec2 u_brushFrom",
     );
-    expect(CREATOROS_REACTION_FRAGMENT_SHADER).toContain(
+    expect(CREATOROS_REACTION_PAINT_FRAGMENT_SHADER).toContain(
       "uniform vec2 u_brushTo",
     );
-    expect(CREATOROS_REACTION_FRAGMENT_SHADER).toContain(
+    expect(CREATOROS_REACTION_PAINT_FRAGMENT_SHADER).toContain(
       "float segmentDistance",
     );
-    expect(CREATOROS_REACTION_FRAGMENT_SHADER).toContain(
+    expect(CREATOROS_REACTION_PAINT_FRAGMENT_SHADER).toContain(
       "float paintDeposit",
     );
-    expect(CREATOROS_REACTION_FRAGMENT_SHADER).toContain(
+    expect(CREATOROS_REACTION_PAINT_FRAGMENT_SHADER).toContain(
       "float paintErase",
     );
-    expect(CREATOROS_REACTION_FRAGMENT_SHADER).toContain(
+    expect(CREATOROS_REACTION_PAINT_FRAGMENT_SHADER).toContain(
       "paintLaplacian",
     );
-    expect(CREATOROS_REACTION_FRAGMENT_SHADER).toContain(
+    expect(CREATOROS_REACTION_PAINT_FRAGMENT_SHADER).toContain(
       "float outputAlpha = mix(1.0, sat(paint), paintMode)",
     );
-    expect(CREATOROS_REACTION_FRAGMENT_SHADER).toContain(
+    expect(CREATOROS_REACTION_PAINT_FRAGMENT_SHADER).toContain(
       "fragColor = vec4(sat(u), sat(v), activity, outputAlpha)",
     );
     expect(canvasSource).toContain("handlePaintPointerDown");
@@ -151,7 +182,7 @@ describe("Morphogen Divide sand paint option", () => {
       "float flowGradient = 0.5 + 0.5 * sin(sandFlowPhase * TAU)",
     );
     expect(morphogenScene).not.toContain("float flowGradient = fract(");
-    expect(CREATOROS_REACTION_FRAGMENT_SHADER).toContain(
+    expect(CREATOROS_REACTION_PAINT_FRAGMENT_SHADER).toContain(
       "float paintDeposit = sat(",
     );
     expect(morphogenScene).toContain("float linearGradient");

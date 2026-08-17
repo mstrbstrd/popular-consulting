@@ -88,11 +88,11 @@ describe("CreatorOSFieldCanvas", () => {
     expect(CREATOROS_REACTION_FRAGMENT_SHADER).toContain("float heartbeat");
     expect(CREATOROS_REACTION_FRAGMENT_SHADER).toContain("float migratingSeed");
     expect(CREATOROS_REACTION_FRAGMENT_SHADER).toContain("centerState.b");
-    expect(CREATOROS_REACTION_FRAGMENT_SHADER).toContain(
-      "float outputAlpha = mix(1.0, sat(paint), paintMode)",
+    expect(CREATOROS_REACTION_FRAGMENT_SHADER).not.toContain(
+      "u_paintMode",
     );
     expect(CREATOROS_REACTION_FRAGMENT_SHADER).toContain(
-      "fragColor = vec4(sat(u), sat(v), activity, outputAlpha)",
+      "fragColor = vec4(sat(u), sat(v), activity, 1.0)",
     );
     expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain("float activity = chemical.b");
     expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain("float cleavage");
@@ -216,6 +216,9 @@ describe("CreatorOSFieldCanvas", () => {
     expect(CREATOROS_REACTION_FRAGMENT_SHADER).toContain("u * v * v");
     expect(CREATOROS_REACTION_FRAGMENT_SHADER).toContain("laplacian");
     expect(source).toContain("createReactionTargets");
+    expect(source).toContain("paintReactionProgram");
+    expect(source).toContain("paintReactionUniforms");
+    expect(source).toContain("activeReactionProgram");
     expect(source).toContain("reactionTargets.readIndex");
     expect(source).toContain("gl.FRAMEBUFFER_COMPLETE");
     expect(source).toContain("prefers-reduced-motion: reduce");
