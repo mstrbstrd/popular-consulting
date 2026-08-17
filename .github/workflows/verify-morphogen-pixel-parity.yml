@@ -6,6 +6,7 @@ on:
       - agent/restore-byte-identical-morphogen-default
     paths:
       - .github/workflows/verify-morphogen-pixel-parity.yml
+      - scripts/verify_morphogen_pixel_parity.mjs
 
 permissions:
   contents: write
