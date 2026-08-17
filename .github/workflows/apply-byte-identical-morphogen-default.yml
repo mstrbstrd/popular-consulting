@@ -1,0 +1,65 @@
+name: Apply byte-identical Morphogen restoration
+
+on:
+  push:
+    branches:
+      - agent/restore-byte-identical-morphogen-default
+    paths:
+      - .github/workflows/apply-byte-identical-morphogen-default.yml
+
+permissions:
+  contents: write
+
+jobs:
+  restore-and-validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/restore-byte-identical-morphogen-default
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Restore byte-identical Morphogen default
+        run: python scripts/restore_byte_identical_morphogen_default.py
+
+      - name: Verify patch whitespace
+        run: git diff --check
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Run tests
+        run: npm test -- --watchAll=false --runInBand
+        env:
+          CI: true
+
+      - name: Build production bundle
+        run: npm run build
+        env:
+          CI: true
+
+      - name: Commit and push restoration
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            src/components/CreatorOSFieldShader.js \
+            src/components/CreatorOSFieldCanvas.js \
+            src/components/MorphogenPaintMode.test.js
+          git rm -f \
+            .github/workflows/apply-byte-identical-morphogen-default.yml \
+            scripts/restore_byte_identical_morphogen_default.py
+          git commit -m "Restore byte-identical Morphogen default"
+          git push origin HEAD:agent/restore-byte-identical-morphogen-default
