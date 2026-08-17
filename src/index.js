@@ -10,8 +10,10 @@ import './spectral-icon-colorway.css';
 import './work-responsive.css';
 import './work-navigation-refinement.css';
 import './work-card-consistency.css';
+import './orb-metalbloom.css';
 import SiteRouter from './SiteRouter';
 import InteractionAccessibilityBridge from './components/InteractionAccessibilityBridge';
+import OrbMetalbloomPass from './components/OrbMetalbloomPass';
 import { disableWebGLForSession } from './utils/deviceTier';
 import { initCoreWebVitals, initSectionTiming, initLongTaskObserver } from './utils/telemetry';
 
@@ -38,6 +40,7 @@ root.render(
   <React.StrictMode>
     <InteractionAccessibilityBridge />
     <SiteRouter />
+    <OrbMetalbloomPass />
   </React.StrictMode>
 );
 
