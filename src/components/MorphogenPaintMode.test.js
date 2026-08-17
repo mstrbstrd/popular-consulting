@@ -3,6 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const {
   CREATOROS_FIELD_FRAGMENT_SHADER,
+  CREATOROS_FIELD_PAINT_FRAGMENT_SHADER,
   CREATOROS_REACTION_FRAGMENT_SHADER,
   CREATOROS_REACTION_PAINT_FRAGMENT_SHADER,
 } = require("./CreatorOSFieldShader");
@@ -27,7 +28,7 @@ const fieldStyles = fs.readFileSync(
 const sha256 = (value) =>
   crypto.createHash("sha256").update(value).digest("hex");
 const ORIGINAL_REACTION_SHADER_SHA256 = "45d5a61e1bc84f765b0ffe5ffe5d37bd55f8a95bacbb672462c5801bdf3d9fec";
-const ORIGINAL_MORPHOGEN_SCENE_SHA256 = "ec2f0fbaeb7ad6463341d72d9937b56a2b1842cb9dc0a108bea18844ce6f2150";
+const ORIGINAL_FIELD_SHADER_SHA256 = "b6a9a6c403ac5d544e7209b56619ce4258aede17a44ffa7c0dae98037ebd1619";
 
 describe("Morphogen Divide sand paint option", () => {
   test("keeps Organism as the default and exposes a complete paint tray", () => {
@@ -50,17 +51,20 @@ describe("Morphogen Divide sand paint option", () => {
     expect(pageSource).toContain('"Clear"');
   });
 
-  test("preserves the exact pre-paint organism renderer and keeps Sand Paint opt-in", () => {
+  test("runs the byte-identical pre-paint renderer for Organism and keeps Sand Paint opt-in", () => {
     expect(pageSource).toMatch(
       /const \[morphogenExperience, setMorphogenExperience\] = useState\(\s*MORPHOGEN_EXPERIENCE_ORGANISM,\s*\);/,
     );
     expect(pageSource).toContain('activeStudy.id !== "morphogen-divide"');
     expect(canvasSource).toContain('morphogenExperience = "organism"');
+    expect(canvasSource).toContain("paintDisplayProgram");
+    expect(canvasSource).toContain("activeDisplayProgram");
+    expect(canvasSource).toContain(
+      "const usePaintDisplayProgram =",
+    );
     expect(canvasSource).toContain("paintReactionProgram");
     expect(canvasSource).toContain("activeReactionProgram");
-    expect(canvasSource).toContain(
-      "const activeReactionProgram = usePaintProgram",
-    );
+
     expect(CREATOROS_REACTION_FRAGMENT_SHADER).not.toContain("u_paintMode");
     expect(CREATOROS_REACTION_FRAGMENT_SHADER).not.toContain("u_brushActive");
     expect(CREATOROS_REACTION_FRAGMENT_SHADER).toContain(
@@ -70,24 +74,27 @@ describe("Morphogen Divide sand paint option", () => {
       ORIGINAL_REACTION_SHADER_SHA256,
     );
 
-    const organismStart = CREATOROS_FIELD_FRAGMENT_SHADER.indexOf(
-      "vec4 sceneMorphogenOrganism",
+    expect(CREATOROS_FIELD_FRAGMENT_SHADER).not.toContain(
+      "u_morphogenPaintMix",
     );
-    const paintStart = CREATOROS_FIELD_FRAGMENT_SHADER.indexOf(
+    expect(CREATOROS_FIELD_FRAGMENT_SHADER).not.toContain(
+      "sceneMorphogenPaint",
+    );
+    expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain(
+      "vec4 sceneMorphogen(vec2 uv, float time)",
+    );
+    expect(sha256(CREATOROS_FIELD_FRAGMENT_SHADER)).toBe(
+      ORIGINAL_FIELD_SHADER_SHA256,
+    );
+
+    expect(CREATOROS_FIELD_PAINT_FRAGMENT_SHADER).toContain(
+      "uniform float u_morphogenPaintMix",
+    );
+    expect(CREATOROS_FIELD_PAINT_FRAGMENT_SHADER).toContain(
       "vec4 sceneMorphogenPaint",
-      organismStart,
     );
-    const organismScene = CREATOROS_FIELD_FRAGMENT_SHADER.slice(
-      organismStart,
-      paintStart - 2,
-    );
-    expect(sha256(organismScene)).toBe(ORIGINAL_MORPHOGEN_SCENE_SHA256);
-    expect(organismScene).not.toContain("paint");
-    expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain(
-      "if (u_morphogenPaintMix < 0.5)",
-    );
-    expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain(
-      "return sceneMorphogenOrganism(uv, time)",
+    expect(CREATOROS_FIELD_PAINT_FRAGMENT_SHADER).toContain(
+      "return sceneMorphogenPaint(uv, time)",
     );
     expect(pageSource).toContain(
       "setMorphogenExperience(MORPHOGEN_EXPERIENCE_PAINT)",
@@ -163,13 +170,13 @@ describe("Morphogen Divide sand paint option", () => {
   });
 
   test("renders custom two-color gradients as reaction-diffusion sand", () => {
-    const morphogenStart = CREATOROS_FIELD_FRAGMENT_SHADER.indexOf(
-      "vec4 sceneMorphogen",
+    const morphogenStart = CREATOROS_FIELD_PAINT_FRAGMENT_SHADER.indexOf(
+      "vec4 sceneMorphogenPaint",
     );
-    const morphogenEnd = CREATOROS_FIELD_FRAGMENT_SHADER.indexOf(
+    const morphogenEnd = CREATOROS_FIELD_PAINT_FRAGMENT_SHADER.indexOf(
       "vec4 sceneQuasicrystal",
     );
-    const morphogenScene = CREATOROS_FIELD_FRAGMENT_SHADER.slice(
+    const morphogenScene = CREATOROS_FIELD_PAINT_FRAGMENT_SHADER.slice(
       morphogenStart,
       morphogenEnd,
     );
@@ -212,5 +219,8 @@ describe("Morphogen Divide sand paint option", () => {
     expect(canvasSource).toContain("morphogenPaintRef.current >= 0.5");
     expect(canvasSource).toContain("gl.deleteFramebuffer");
     expect(canvasSource).toContain("gl.deleteTexture");
+    expect(canvasSource).toContain(
+      "gl.deleteProgram(paintDisplayProgram)",
+    );
   });
 });

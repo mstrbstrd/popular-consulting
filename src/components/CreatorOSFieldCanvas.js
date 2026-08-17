@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { isMobileTier } from "../utils/deviceTier";
 import {
   CREATOROS_FIELD_FRAGMENT_SHADER,
+  CREATOROS_FIELD_PAINT_FRAGMENT_SHADER,
   CREATOROS_FIELD_VERTEX_SHADER,
   CREATOROS_REACTION_FRAGMENT_SHADER,
   CREATOROS_REACTION_PAINT_FRAGMENT_SHADER,
@@ -436,6 +437,7 @@ const CreatorOSFieldCanvas = ({
 
     let gl;
     let displayProgram;
+    let paintDisplayProgram;
     let reactionProgram;
     let paintReactionProgram;
     let positionBuffer;
@@ -537,7 +539,12 @@ const CreatorOSFieldCanvas = ({
       displayProgram = createProgram(
         gl,
         CREATOROS_FIELD_FRAGMENT_SHADER,
-        "CreatorOS field",
+        "CreatorOS original field",
+      );
+      paintDisplayProgram = createProgram(
+        gl,
+        CREATOROS_FIELD_PAINT_FRAGMENT_SHADER,
+        "CreatorOS sand paint field",
       );
       reactionProgram = createProgram(
         gl,
@@ -561,6 +568,7 @@ const CreatorOSFieldCanvas = ({
         gl.STATIC_DRAW,
       );
       configurePosition(gl, displayProgram, positionBuffer);
+      configurePosition(gl, paintDisplayProgram, positionBuffer);
       configurePosition(gl, reactionProgram, positionBuffer);
       configurePosition(gl, paintReactionProgram, positionBuffer);
 
@@ -580,12 +588,13 @@ const CreatorOSFieldCanvas = ({
       destroyReactionTargets(gl, reactionTargets);
       if (positionBuffer && gl) gl.deleteBuffer(positionBuffer);
       if (displayProgram && gl) gl.deleteProgram(displayProgram);
+      if (paintDisplayProgram && gl) gl.deleteProgram(paintDisplayProgram);
       if (reactionProgram && gl) gl.deleteProgram(reactionProgram);
       if (paintReactionProgram && gl) gl.deleteProgram(paintReactionProgram);
       return undefined;
     }
 
-    const displayUniforms = collectUniforms(gl, displayProgram, [
+    const displayUniformNames = [
       "u_res",
       "u_time",
       "u_light",
@@ -601,15 +610,27 @@ const CreatorOSFieldCanvas = ({
       "u_metabloomPaletteMix",
       "u_contourPaletteMix",
       "u_tidalPaletteMix",
-      "u_morphogenPaintMix",
-      "u_morphogenColorA",
-      "u_morphogenColorB",
-      "u_morphogenGradientMode",
-      "u_morphogenBrushRadius",
-      "u_morphogenBrushErase",
       "u_reaction",
       "u_reactionTexel",
-    ]);
+    ];
+    const displayUniforms = collectUniforms(
+      gl,
+      displayProgram,
+      displayUniformNames,
+    );
+    const paintDisplayUniforms = collectUniforms(
+      gl,
+      paintDisplayProgram,
+      [
+        ...displayUniformNames,
+        "u_morphogenPaintMix",
+        "u_morphogenColorA",
+        "u_morphogenColorB",
+        "u_morphogenGradientMode",
+        "u_morphogenBrushRadius",
+        "u_morphogenBrushErase",
+      ],
+    );
     const reactionUniformNames = [
       "u_state",
       "u_texel",
@@ -992,80 +1013,93 @@ const CreatorOSFieldCanvas = ({
     };
 
     const draw = () => {
+      const morphogenVisible =
+        currentMode === REACTION_MODE || incomingMode === REACTION_MODE;
+      const usePaintDisplayProgram =
+        morphogenPaintRef.current >= 0.5 && morphogenVisible;
+      const activeDisplayProgram = usePaintDisplayProgram
+        ? paintDisplayProgram
+        : displayProgram;
+      const activeDisplayUniforms = usePaintDisplayProgram
+        ? paintDisplayUniforms
+        : displayUniforms;
+
       gl.bindFramebuffer(gl.FRAMEBUFFER, null);
       gl.viewport(0, 0, canvas.width, canvas.height);
-      gl.useProgram(displayProgram);
-      gl.uniform2f(displayUniforms.u_res, canvas.width, canvas.height);
-      gl.uniform1f(displayUniforms.u_time, localTime);
-      gl.uniform1f(displayUniforms.u_light, lightRef.current);
+      gl.useProgram(activeDisplayProgram);
+      gl.uniform2f(activeDisplayUniforms.u_res, canvas.width, canvas.height);
+      gl.uniform1f(activeDisplayUniforms.u_time, localTime);
+      gl.uniform1f(activeDisplayUniforms.u_light, lightRef.current);
       gl.uniform1f(
-        displayUniforms.u_intro,
+        activeDisplayUniforms.u_intro,
         Math.min(1, introElapsed / INTRO_DURATION_SECONDS),
       );
-      gl.uniform1f(displayUniforms.u_energy, energy);
-      gl.uniform1f(displayUniforms.u_seed, seed);
-      gl.uniform2f(displayUniforms.u_pointer, pointer.x, pointer.y);
+      gl.uniform1f(activeDisplayUniforms.u_energy, energy);
+      gl.uniform1f(activeDisplayUniforms.u_seed, seed);
+      gl.uniform2f(activeDisplayUniforms.u_pointer, pointer.x, pointer.y);
       gl.uniform2f(
-        displayUniforms.u_pulseOrigin,
+        activeDisplayUniforms.u_pulseOrigin,
         pulseOrigin.x,
         pulseOrigin.y,
       );
-      gl.uniform1f(displayUniforms.u_pulseAge, pulseAge);
-      gl.uniform1i(displayUniforms.u_modeA, currentMode);
-      gl.uniform1i(displayUniforms.u_modeB, incomingMode);
-      gl.uniform1f(displayUniforms.u_modeMix, modeMix);
+      gl.uniform1f(activeDisplayUniforms.u_pulseAge, pulseAge);
+      gl.uniform1i(activeDisplayUniforms.u_modeA, currentMode);
+      gl.uniform1i(activeDisplayUniforms.u_modeB, incomingMode);
+      gl.uniform1f(activeDisplayUniforms.u_modeMix, modeMix);
       gl.uniform1f(
-        displayUniforms.u_metabloomPaletteMix,
+        activeDisplayUniforms.u_metabloomPaletteMix,
         metabloomPaletteRef.current,
       );
       gl.uniform1f(
-        displayUniforms.u_contourPaletteMix,
+        activeDisplayUniforms.u_contourPaletteMix,
         contourPaletteRef.current,
       );
       gl.uniform1f(
-        displayUniforms.u_tidalPaletteMix,
+        activeDisplayUniforms.u_tidalPaletteMix,
         tidalPaletteRef.current,
       );
-      const morphogenColorAValue = morphogenColorARef.current;
-      const morphogenColorBValue = morphogenColorBRef.current;
-      gl.uniform1f(
-        displayUniforms.u_morphogenPaintMix,
-        morphogenPaintRef.current,
-      );
-      gl.uniform3f(
-        displayUniforms.u_morphogenColorA,
-        morphogenColorAValue[0],
-        morphogenColorAValue[1],
-        morphogenColorAValue[2],
-      );
-      gl.uniform3f(
-        displayUniforms.u_morphogenColorB,
-        morphogenColorBValue[0],
-        morphogenColorBValue[1],
-        morphogenColorBValue[2],
-      );
-      gl.uniform1f(
-        displayUniforms.u_morphogenGradientMode,
-        morphogenGradientRef.current,
-      );
-      gl.uniform1f(
-        displayUniforms.u_morphogenBrushRadius,
-        morphogenBrushRadiusRef.current,
-      );
-      gl.uniform1f(
-        displayUniforms.u_morphogenBrushErase,
-        morphogenToolRef.current,
-      );
 
+      if (usePaintDisplayProgram) {
+        const morphogenColorAValue = morphogenColorARef.current;
+        const morphogenColorBValue = morphogenColorBRef.current;
+        gl.uniform1f(
+          paintDisplayUniforms.u_morphogenPaintMix,
+          morphogenPaintRef.current,
+        );
+        gl.uniform3f(
+          paintDisplayUniforms.u_morphogenColorA,
+          morphogenColorAValue[0],
+          morphogenColorAValue[1],
+          morphogenColorAValue[2],
+        );
+        gl.uniform3f(
+          paintDisplayUniforms.u_morphogenColorB,
+          morphogenColorBValue[0],
+          morphogenColorBValue[1],
+          morphogenColorBValue[2],
+        );
+        gl.uniform1f(
+          paintDisplayUniforms.u_morphogenGradientMode,
+          morphogenGradientRef.current,
+        );
+        gl.uniform1f(
+          paintDisplayUniforms.u_morphogenBrushRadius,
+          morphogenBrushRadiusRef.current,
+        );
+        gl.uniform1f(
+          paintDisplayUniforms.u_morphogenBrushErase,
+          morphogenToolRef.current,
+        );
+      }
 
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(
         gl.TEXTURE_2D,
         reactionTargets.textures[reactionTargets.readIndex],
       );
-      gl.uniform1i(displayUniforms.u_reaction, 0);
+      gl.uniform1i(activeDisplayUniforms.u_reaction, 0);
       gl.uniform2f(
-        displayUniforms.u_reactionTexel,
+        activeDisplayUniforms.u_reactionTexel,
         1 / reactionTargets.size,
         1 / reactionTargets.size,
       );
@@ -1233,6 +1267,7 @@ const CreatorOSFieldCanvas = ({
       destroyReactionTargets(gl, reactionTargets);
       if (positionBuffer) gl.deleteBuffer(positionBuffer);
       if (displayProgram) gl.deleteProgram(displayProgram);
+      if (paintDisplayProgram) gl.deleteProgram(paintDisplayProgram);
       if (reactionProgram) gl.deleteProgram(reactionProgram);
       if (paintReactionProgram) gl.deleteProgram(paintReactionProgram);
     };
