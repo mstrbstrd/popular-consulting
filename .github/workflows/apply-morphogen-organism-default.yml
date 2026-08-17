@@ -28,6 +28,23 @@ jobs:
           node-version: 20
           cache: npm
 
+      - name: Correct legacy test expectation in patch helper
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("scripts/restore_morphogen_organism_default.py")
+          source = path.read_text(encoding="utf-8")
+          old = '      "fragColor = vec4(sat(u), sat(v), activity, 1.0)",'
+          new = '      "fragColor = vec4(sat(u), sat(v), activity, sat(paint))",'
+          count = source.count(old)
+          if count != 1:
+              raise SystemExit(
+                  f"legacy test expectation: expected one match, found {count}."
+              )
+          path.write_text(source.replace(old, new, 1), encoding="utf-8")
+          PY
+
       - name: Restore original Morphogen default
         run: python scripts/restore_morphogen_organism_default.py
 
