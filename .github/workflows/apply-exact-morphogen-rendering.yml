@@ -31,6 +31,29 @@ jobs:
       - name: Restore exact original Morphogen rendering path
         run: python scripts/restore_exact_morphogen_rendering.py
 
+      - name: Correct formatted program-selection assertion
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/components/MorphogenPaintMode.test.js")
+          source = path.read_text(encoding="utf-8")
+          old = '''    expect(canvasSource).toContain(
+              "usePaintProgram ? paintReactionProgram : reactionProgram",
+            );'''
+          new = '''    expect(canvasSource).toContain(
+              "const activeReactionProgram = usePaintProgram",
+            );
+            expect(canvasSource).toContain("? paintReactionProgram");
+            expect(canvasSource).toContain(": reactionProgram");'''
+          count = source.count(old)
+          if count != 1:
+              raise SystemExit(
+                  f"program-selection assertion: expected one match, found {count}."
+              )
+          path.write_text(source.replace(old, new, 1), encoding="utf-8")
+          PY
+
       - name: Verify patch whitespace
         run: git diff --check
 
