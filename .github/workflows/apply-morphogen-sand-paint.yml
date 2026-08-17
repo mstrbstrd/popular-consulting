@@ -1,0 +1,73 @@
+name: Apply Morphogen sand paint
+
+on:
+  push:
+    branches:
+      - agent/morphogen-sand-paint
+    paths:
+      - .github/workflows/apply-morphogen-sand-paint.yml
+
+permissions:
+  contents: write
+
+jobs:
+  implement-and-validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/morphogen-sand-paint
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Decode and apply Morphogen paint implementation
+        run: |
+          base64 --decode scripts/apply_morphogen_sand_paint.py.gz.b64 \
+            | gzip --decompress \
+            > /tmp/apply_morphogen_sand_paint.py
+          python /tmp/apply_morphogen_sand_paint.py
+
+      - name: Verify patch whitespace
+        run: git diff --check
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Run tests
+        run: npm test -- --watchAll=false --runInBand
+        env:
+          CI: true
+
+      - name: Build production bundle
+        run: npm run build
+        env:
+          CI: true
+
+      - name: Commit and push Morphogen paint
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            src/components/DitherCanvasPage.js \
+            src/components/CreatorOSFieldCanvas.js \
+            src/components/CreatorOSFieldShader.js \
+            src/components/DitherCanvasPage.css \
+            src/components/CreatorOSFieldCanvas.css \
+            src/components/CreatorOSFieldCanvas.test.js \
+            src/components/MorphogenPaintMode.test.js
+          git rm -f \
+            .github/workflows/apply-morphogen-sand-paint.yml \
+            scripts/apply_morphogen_sand_paint.py.gz.b64
+          git commit -m "Add Morphogen sand paint mode"
+          git push origin HEAD:agent/morphogen-sand-paint
