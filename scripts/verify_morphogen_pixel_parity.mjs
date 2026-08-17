@@ -95,10 +95,6 @@ const capture = async (url, filename) => {
     { timeout: 30000 },
   );
 
-  await new Promise((resolve) => setTimeout(resolve, 900));
-  const canvas = await page.$(".creatoros-field-canvas");
-  if (!canvas) throw new Error("CreatorOS field canvas was not found.");
-
   const organismSelection = await page.evaluate(() => {
     const button = Array.from(document.querySelectorAll("button")).find(
       (candidate) => candidate.textContent?.trim() === "Organism",
@@ -109,6 +105,20 @@ const capture = async (url, filename) => {
     throw new Error(`Organism was not selected by default at ${url}.`);
   }
 
+  // Element screenshots include anything composited over the canvas bounds.
+  // Remove the page chrome before capture so the comparison measures only the
+  // WebGL output, not the extra Organism/Paint controls introduced by PR #66.
+  await page.evaluate(() => {
+    document.querySelectorAll(
+      ".rupture-header, .rupture-copy, .dither-study-switcher, .morphogen-paint-toolbar, .rupture-state",
+    ).forEach((element) => {
+      element.style.display = "none";
+    });
+  });
+  await new Promise((resolve) => setTimeout(resolve, 100));
+
+  const canvas = await page.$(".creatoros-field-canvas");
+  if (!canvas) throw new Error("CreatorOS field canvas was not found.");
   const destination = path.join(outputDirectory, filename);
   await canvas.screenshot({ path: destination, type: "png" });
   await page.close();
