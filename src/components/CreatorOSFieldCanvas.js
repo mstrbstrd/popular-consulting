@@ -207,7 +207,9 @@ const buildReactionSeed = (size, seed, paintMode = false) => {
       data[offset] = Math.round(u * 255);
       data[offset + 1] = Math.round(clamp(v) * 255);
       data[offset + 2] = 0;
-      data[offset + 3] = 0;
+      // Organism retains the original opaque reaction texture. Paint alone
+      // owns alpha as its persistent pigment channel.
+      data[offset + 3] = paintMode ? 0 : 255;
     }
   }
 
