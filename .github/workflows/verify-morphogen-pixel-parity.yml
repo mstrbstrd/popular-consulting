@@ -1,0 +1,93 @@
+name: Verify Morphogen pixel parity
+
+on:
+  push:
+    branches:
+      - agent/restore-byte-identical-morphogen-default
+    paths:
+      - .github/workflows/verify-morphogen-pixel-parity.yml
+
+permissions:
+  contents: write
+
+jobs:
+  compare-canvas-output:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: agent/restore-byte-identical-morphogen-default
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install current dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Install visual comparison tools
+        run: npm install --no-save --no-audit --no-fund puppeteer-core@24.16.0 pixelmatch@6.0.0 pngjs@7.0.0
+
+      - name: Build current implementation
+        run: npm run build
+        env:
+          CI: true
+
+      - name: Create and build pre-paint baseline worktree
+        run: |
+          git worktree add /tmp/popular-consulting-morphogen-baseline daf3b3045f7e3f7fdc600068705d6c517884d47d
+          ln -s "$GITHUB_WORKSPACE/node_modules" /tmp/popular-consulting-morphogen-baseline/node_modules
+          cd /tmp/popular-consulting-morphogen-baseline
+          npm run build
+        env:
+          CI: true
+
+      - name: Start static servers
+        run: |
+          nohup python3 -m http.server 4173 --directory /tmp/popular-consulting-morphogen-baseline/build >/tmp/morphogen-baseline-server.log 2>&1 &
+          nohup python3 -m http.server 4174 --directory "$GITHUB_WORKSPACE/build" >/tmp/morphogen-current-server.log 2>&1 &
+          for port in 4173 4174; do
+            for attempt in $(seq 1 30); do
+              if curl --fail --silent "http://127.0.0.1:${port}/dither-canvas/" >/dev/null; then
+                break
+              fi
+              if [ "$attempt" -eq 30 ]; then
+                echo "Server on port ${port} did not become ready."
+                exit 1
+              fi
+              sleep 1
+            done
+          done
+
+      - name: Compare deterministic Morphogen canvases
+        run: |
+          node scripts/verify_morphogen_pixel_parity.mjs \
+            http://127.0.0.1:4173/dither-canvas/ \
+            http://127.0.0.1:4174/dither-canvas/ \
+            /tmp/morphogen-pixel-parity
+
+      - name: Upload comparison images
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: morphogen-pixel-parity
+          path: /tmp/morphogen-pixel-parity
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Remove temporary verification files
+        if: success()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -f \
+            .github/workflows/verify-morphogen-pixel-parity.yml \
+            scripts/verify_morphogen_pixel_parity.mjs
+          git commit -m "Verify Morphogen pixel parity"
+          git push origin HEAD:agent/restore-byte-identical-morphogen-default
