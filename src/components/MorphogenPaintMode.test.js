@@ -43,6 +43,26 @@ describe("Morphogen Divide sand paint option", () => {
     expect(pageSource).toContain('"Clear"');
   });
 
+  test("restores the original organism default without removing Sand Paint", () => {
+    expect(pageSource).toMatch(
+      /const \[morphogenExperience, setMorphogenExperience\] = useState\(\s*MORPHOGEN_EXPERIENCE_ORGANISM,\s*\);/,
+    );
+    expect(pageSource).toContain('activeStudy.id !== "morphogen-divide"');
+    expect(pageSource).toContain(
+      "setMorphogenExperience(MORPHOGEN_EXPERIENCE_ORGANISM)",
+    );
+    expect(canvasSource).toContain('morphogenExperience = "organism"');
+    expect(canvasSource).toContain(
+      "data[offset + 3] = paintMode ? 0 : 255",
+    );
+    expect(CREATOROS_REACTION_FRAGMENT_SHADER).toContain(
+      "float outputAlpha = mix(1.0, sat(paint), paintMode)",
+    );
+    expect(pageSource).toContain(
+      "setMorphogenExperience(MORPHOGEN_EXPERIENCE_PAINT)",
+    );
+  });
+
   test("threads paint controls into the existing WebGL renderer without remounting it", () => {
     expect(pageSource).toContain(
       "morphogenExperience={morphogenExperience}",
@@ -90,7 +110,10 @@ describe("Morphogen Divide sand paint option", () => {
       "paintLaplacian",
     );
     expect(CREATOROS_REACTION_FRAGMENT_SHADER).toContain(
-      "fragColor = vec4(sat(u), sat(v), activity, sat(paint))",
+      "float outputAlpha = mix(1.0, sat(paint), paintMode)",
+    );
+    expect(CREATOROS_REACTION_FRAGMENT_SHADER).toContain(
+      "fragColor = vec4(sat(u), sat(v), activity, outputAlpha)",
     );
     expect(canvasSource).toContain("handlePaintPointerDown");
     expect(canvasSource).toContain("finishPaintStroke");

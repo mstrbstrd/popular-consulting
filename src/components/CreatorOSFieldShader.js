@@ -255,7 +255,9 @@ void main() {
   );
   float activity = max(centerState.b * 0.972, activityTarget);
 
-  fragColor = vec4(sat(u), sat(v), activity, sat(paint));
+  // Preserve the pre-paint opaque reaction state in Organism mode.
+  float outputAlpha = mix(1.0, sat(paint), paintMode);
+  fragColor = vec4(sat(u), sat(v), activity, outputAlpha);
 }`;
 
 export const CREATOROS_FIELD_FRAGMENT_SHADER = `#version 300 es

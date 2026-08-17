@@ -338,6 +338,17 @@ const DitherFieldLab = () => {
     : activeStudy.resetLabel;
   displayStudyIndexRef.current = displayStudyIndex;
 
+  // Sand Paint is opt-in for the current Morphogen visit. Leaving the study
+  // restores the original autonomous organism while preserving paint settings.
+  useEffect(() => {
+    if (
+      activeStudy.id !== "morphogen-divide"
+      && morphogenExperience !== MORPHOGEN_EXPERIENCE_ORGANISM
+    ) {
+      setMorphogenExperience(MORPHOGEN_EXPERIENCE_ORGANISM);
+    }
+  }, [activeStudy.id, morphogenExperience]);
+
   useEffect(() => {
     const previousTitle = document.title;
     document.title = "Dither Field Lab | Popular Consulting";

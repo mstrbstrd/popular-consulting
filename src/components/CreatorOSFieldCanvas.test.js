@@ -89,7 +89,10 @@ describe("CreatorOSFieldCanvas", () => {
     expect(CREATOROS_REACTION_FRAGMENT_SHADER).toContain("float migratingSeed");
     expect(CREATOROS_REACTION_FRAGMENT_SHADER).toContain("centerState.b");
     expect(CREATOROS_REACTION_FRAGMENT_SHADER).toContain(
-      "fragColor = vec4(sat(u), sat(v), activity, sat(paint))",
+      "float outputAlpha = mix(1.0, sat(paint), paintMode)",
+    );
+    expect(CREATOROS_REACTION_FRAGMENT_SHADER).toContain(
+      "fragColor = vec4(sat(u), sat(v), activity, outputAlpha)",
     );
     expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain("float activity = chemical.b");
     expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain("float cleavage");
