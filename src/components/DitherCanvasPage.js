@@ -176,6 +176,18 @@ const TIDAL_PALETTE_WATER = "water";
 const TIDAL_PALETTE_SPECTRAL = "spectral";
 const CONTOUR_PALETTE_TERRAIN = "terrain";
 const CONTOUR_PALETTE_SPECTRAL = "spectral";
+const MORPHOGEN_EXPERIENCE_ORGANISM = "organism";
+const MORPHOGEN_EXPERIENCE_PAINT = "paint";
+const MORPHOGEN_TOOL_DRAW = "draw";
+const MORPHOGEN_TOOL_ERASE = "erase";
+const MORPHOGEN_BRUSH_FINE = "fine";
+const MORPHOGEN_BRUSH_MEDIUM = "medium";
+const MORPHOGEN_BRUSH_BROAD = "broad";
+const MORPHOGEN_GRADIENT_FLOW = "flow";
+const MORPHOGEN_GRADIENT_LINEAR = "linear";
+const MORPHOGEN_GRADIENT_RADIAL = "radial";
+const MORPHOGEN_COLOR_A_DEFAULT = "#24ccff";
+const MORPHOGEN_COLOR_B_DEFAULT = "#ff56d6";
 const EXIT_DURATION_MS = 420;
 const ENTER_DURATION_MS = 620;
 
@@ -295,7 +307,35 @@ const DitherFieldLab = () => {
   const [contourPalette, setContourPalette] = useState(
     CONTOUR_PALETTE_TERRAIN,
   );
+  const [morphogenExperience, setMorphogenExperience] = useState(
+    MORPHOGEN_EXPERIENCE_ORGANISM,
+  );
+  const [morphogenTool, setMorphogenTool] = useState(MORPHOGEN_TOOL_DRAW);
+  const [morphogenBrushSize, setMorphogenBrushSize] = useState(
+    MORPHOGEN_BRUSH_MEDIUM,
+  );
+  const [morphogenGradient, setMorphogenGradient] = useState(
+    MORPHOGEN_GRADIENT_FLOW,
+  );
+  const [morphogenColorA, setMorphogenColorA] = useState(
+    MORPHOGEN_COLOR_A_DEFAULT,
+  );
+  const [morphogenColorB, setMorphogenColorB] = useState(
+    MORPHOGEN_COLOR_B_DEFAULT,
+  );
   const activeStudy = STUDIES[displayStudyIndex];
+  const isMorphogenPaintMode =
+    activeStudy.id === "morphogen-divide"
+    && morphogenExperience === MORPHOGEN_EXPERIENCE_PAINT;
+  const activeDescription = isMorphogenPaintMode
+    ? "A living sand canvas turns reaction-diffusion pigment into a drawable material. Every stroke settles, diffuses, and glints with the colors you choose."
+    : activeStudy.description;
+  const activeInstruction = isMorphogenPaintMode
+    ? "Drag anywhere to paint · switch to erase for corrections · choose two colors and a gradient · Clear starts fresh"
+    : activeStudy.instruction;
+  const activeResetLabel = isMorphogenPaintMode
+    ? "Clear"
+    : activeStudy.resetLabel;
   displayStudyIndexRef.current = displayStudyIndex;
 
   useEffect(() => {
@@ -570,6 +610,12 @@ const DitherFieldLab = () => {
         metabloomPalette={metabloomPalette}
         contourPalette={contourPalette}
         tidalPalette={tidalPalette}
+        morphogenExperience={morphogenExperience}
+        morphogenTool={morphogenTool}
+        morphogenBrushSize={morphogenBrushSize}
+        morphogenGradient={morphogenGradient}
+        morphogenColorA={morphogenColorA}
+        morphogenColorB={morphogenColorB}
         onFieldStateChange={setFieldState}
       />
     );
@@ -578,7 +624,7 @@ const DitherFieldLab = () => {
   return (
     <main
       ref={pageRef}
-      className={`dither-canvas-page dither-study-${activeStudy.id} dither-renderer-${activeStudy.type} rupture-${fieldState} dither-transition-${transitionPhase}`}
+      className={`dither-canvas-page dither-study-${activeStudy.id} dither-renderer-${activeStudy.type} rupture-${fieldState} dither-transition-${transitionPhase}${isMorphogenPaintMode ? " dither-morphogen-paint" : ""}`}
       aria-label="Spectral Display dither field lab"
     >
       <div className="dither-fixed-stage">
@@ -630,7 +676,7 @@ const DitherFieldLab = () => {
                 className="rupture-text-button"
                 onClick={resetActiveStudy}
               >
-                {activeStudy.resetLabel}
+                {activeResetLabel}
               </button>
             </div>
           </nav>
@@ -649,8 +695,8 @@ const DitherFieldLab = () => {
             Spectral Display · Study {activeStudy.number}
           </p>
           <h1 id="rupture-title">{activeStudy.title}</h1>
-          <p className="rupture-description">{activeStudy.description}</p>
-          <p className="rupture-instruction">{activeStudy.instruction}</p>
+          <p className="rupture-description">{activeDescription}</p>
+          <p className="rupture-instruction">{activeInstruction}</p>
         </section>
 
         <nav className="dither-study-switcher" aria-label="Dither background studies">
@@ -691,6 +737,53 @@ const DitherFieldLab = () => {
                 aria-label="Use liquid metal for Metabloom"
               >
                 Metalbloom
+              </button>
+            </div>
+          )}
+          {activeStudy.id === "morphogen-divide" && (
+            <div
+              className="morphogen-experience-selector"
+              role="group"
+              aria-label="Morphogen Divide experience"
+            >
+              <span className="morphogen-experience-selector-label">
+                Experience
+              </span>
+              <button
+                type="button"
+                className={`morphogen-experience-option${
+                  morphogenExperience === MORPHOGEN_EXPERIENCE_ORGANISM
+                    ? " is-active"
+                    : ""
+                }`}
+                data-experience="organism"
+                onClick={() =>
+                  setMorphogenExperience(MORPHOGEN_EXPERIENCE_ORGANISM)
+                }
+                aria-pressed={
+                  morphogenExperience === MORPHOGEN_EXPERIENCE_ORGANISM
+                }
+                aria-label="Use autonomous organism mode for Morphogen Divide"
+              >
+                Organism
+              </button>
+              <button
+                type="button"
+                className={`morphogen-experience-option${
+                  morphogenExperience === MORPHOGEN_EXPERIENCE_PAINT
+                    ? " is-active"
+                    : ""
+                }`}
+                data-experience="paint"
+                onClick={() =>
+                  setMorphogenExperience(MORPHOGEN_EXPERIENCE_PAINT)
+                }
+                aria-pressed={
+                  morphogenExperience === MORPHOGEN_EXPERIENCE_PAINT
+                }
+                aria-label="Use sand paint mode for Morphogen Divide"
+              >
+                Paint
               </button>
             </div>
           )}
@@ -784,6 +877,123 @@ const DitherFieldLab = () => {
             })}
           </div>
         </nav>
+
+        {isMorphogenPaintMode && (
+          <aside
+            className="morphogen-paint-toolbar"
+            role="toolbar"
+            aria-label="Morphogen sand paint tools"
+          >
+            <div
+              className="morphogen-paint-group"
+              role="group"
+              aria-label="Paint tool"
+            >
+              <span className="morphogen-paint-group-label">Tool</span>
+              <button
+                type="button"
+                className={`morphogen-paint-option${
+                  morphogenTool === MORPHOGEN_TOOL_DRAW ? " is-active" : ""
+                }`}
+                data-tool="draw"
+                onClick={() => setMorphogenTool(MORPHOGEN_TOOL_DRAW)}
+                aria-pressed={morphogenTool === MORPHOGEN_TOOL_DRAW}
+              >
+                Draw
+              </button>
+              <button
+                type="button"
+                className={`morphogen-paint-option${
+                  morphogenTool === MORPHOGEN_TOOL_ERASE ? " is-active" : ""
+                }`}
+                data-tool="erase"
+                onClick={() => setMorphogenTool(MORPHOGEN_TOOL_ERASE)}
+                aria-pressed={morphogenTool === MORPHOGEN_TOOL_ERASE}
+              >
+                Erase
+              </button>
+            </div>
+
+            <div
+              className="morphogen-paint-group"
+              role="group"
+              aria-label="Brush size"
+            >
+              <span className="morphogen-paint-group-label">Brush</span>
+              {[
+                [MORPHOGEN_BRUSH_FINE, "S", "Fine brush"],
+                [MORPHOGEN_BRUSH_MEDIUM, "M", "Medium brush"],
+                [MORPHOGEN_BRUSH_BROAD, "L", "Broad brush"],
+              ].map(([value, label, ariaLabel]) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={`morphogen-paint-option is-compact${
+                    morphogenBrushSize === value ? " is-active" : ""
+                  }`}
+                  data-brush={value}
+                  onClick={() => setMorphogenBrushSize(value)}
+                  aria-pressed={morphogenBrushSize === value}
+                  aria-label={ariaLabel}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <div
+              className="morphogen-paint-group"
+              role="group"
+              aria-label="Sand gradient"
+            >
+              <span className="morphogen-paint-group-label">Gradient</span>
+              {[
+                [MORPHOGEN_GRADIENT_FLOW, "Flow"],
+                [MORPHOGEN_GRADIENT_LINEAR, "Linear"],
+                [MORPHOGEN_GRADIENT_RADIAL, "Radial"],
+              ].map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={`morphogen-paint-option${
+                    morphogenGradient === value ? " is-active" : ""
+                  }`}
+                  data-gradient={value}
+                  onClick={() => setMorphogenGradient(value)}
+                  aria-pressed={morphogenGradient === value}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <div
+              className="morphogen-color-group"
+              role="group"
+              aria-label="Sand colors"
+            >
+              <span className="morphogen-paint-group-label">Colors</span>
+              <label className="morphogen-color-control">
+                <span>A</span>
+                <input
+                  type="color"
+                  value={morphogenColorA}
+                  onChange={(event) => setMorphogenColorA(event.target.value)}
+                  aria-label="Choose first sand color"
+                />
+              </label>
+              <label className="morphogen-color-control">
+                <span>B</span>
+                <input
+                  type="color"
+                  value={morphogenColorB}
+                  onChange={(event) => setMorphogenColorB(event.target.value)}
+                  aria-label="Choose second sand color"
+                />
+              </label>
+            </div>
+          </aside>
+        )}
 
         <p className="rupture-state" aria-live="polite">
           <span aria-hidden="true" />

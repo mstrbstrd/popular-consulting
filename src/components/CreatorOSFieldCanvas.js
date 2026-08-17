@@ -17,6 +17,20 @@ const MODE_TRANSITION_SECONDS = 0.95;
 const REACTION_SIZE = isMobileTier ? 128 : 192;
 const REACTION_STEPS = isMobileTier ? 1 : 2;
 const REACTION_WARMUP_STEPS = isMobileTier ? 18 : 32;
+const MORPHOGEN_EXPERIENCE_PAINT = "paint";
+const MORPHOGEN_TOOL_ERASE = "erase";
+const MORPHOGEN_DEFAULT_COLOR_A = "#24ccff";
+const MORPHOGEN_DEFAULT_COLOR_B = "#ff56d6";
+const MORPHOGEN_BRUSH_RADII = Object.freeze({
+  fine: 0.018,
+  medium: 0.032,
+  broad: 0.056,
+});
+const MORPHOGEN_GRADIENT_MODES = Object.freeze({
+  flow: 0,
+  linear: 1,
+  radial: 2,
+});
 
 const clamp = (value, minimum = 0, maximum = 1) =>
   Math.max(minimum, Math.min(maximum, value));
@@ -41,6 +55,48 @@ const normalizeContourPalette = (palette) =>
 
 const resolveContourPaletteMix = (palette) =>
   normalizeContourPalette(palette) === "spectral" ? 1 : 0;
+
+const normalizeMorphogenExperience = (experience) =>
+  experience === MORPHOGEN_EXPERIENCE_PAINT ? "paint" : "organism";
+
+const resolveMorphogenPaintMix = (experience) =>
+  normalizeMorphogenExperience(experience) === "paint" ? 1 : 0;
+
+const normalizeMorphogenTool = (tool) =>
+  tool === MORPHOGEN_TOOL_ERASE ? "erase" : "draw";
+
+const resolveMorphogenBrushErase = (tool) =>
+  normalizeMorphogenTool(tool) === "erase" ? 1 : 0;
+
+const normalizeMorphogenBrushSize = (size) =>
+  Object.prototype.hasOwnProperty.call(MORPHOGEN_BRUSH_RADII, size)
+    ? size
+    : "medium";
+
+const resolveMorphogenBrushRadius = (size) =>
+  MORPHOGEN_BRUSH_RADII[normalizeMorphogenBrushSize(size)];
+
+const normalizeMorphogenGradient = (gradient) =>
+  Object.prototype.hasOwnProperty.call(MORPHOGEN_GRADIENT_MODES, gradient)
+    ? gradient
+    : "flow";
+
+const resolveMorphogenGradientMode = (gradient) =>
+  MORPHOGEN_GRADIENT_MODES[normalizeMorphogenGradient(gradient)];
+
+const normalizeMorphogenColor = (color, fallback) =>
+  typeof color === "string" && /^#[0-9a-f]{6}$/i.test(color)
+    ? color.toLowerCase()
+    : fallback;
+
+const morphogenColorToRgb = (color, fallback) => {
+  const normalized = normalizeMorphogenColor(color, fallback);
+  return [
+    Number.parseInt(normalized.slice(1, 3), 16) / 255,
+    Number.parseInt(normalized.slice(3, 5), 16) / 255,
+    Number.parseInt(normalized.slice(5, 7), 16) / 255,
+  ];
+};
 
 const createRandom = (seed) => {
   let state = Math.max(1, Math.floor(seed * 0xffffffff)) >>> 0;
@@ -116,21 +172,23 @@ const collectUniforms = (gl, program, names) => {
   return uniforms;
 };
 
-const buildReactionSeed = (size, seed) => {
+const buildReactionSeed = (size, seed, paintMode = false) => {
   const random = createRandom(seed);
-  const circles = Array.from({ length: isMobileTier ? 9 : 13 }, () => ({
-    x: 0.08 + random() * 0.84,
-    y: 0.08 + random() * 0.84,
-    radius: 0.020 + random() * 0.048,
-    strength: 0.42 + random() * 0.42,
-  }));
+  const circles = paintMode
+    ? []
+    : Array.from({ length: isMobileTier ? 9 : 13 }, () => ({
+        x: 0.08 + random() * 0.84,
+        y: 0.08 + random() * 0.84,
+        radius: 0.020 + random() * 0.048,
+        strength: 0.42 + random() * 0.42,
+      }));
   const data = new Uint8Array(size * size * 4);
 
   for (let y = 0; y < size; y += 1) {
     for (let x = 0; x < size; x += 1) {
       const uvX = (x + 0.5) / size;
       const uvY = (y + 0.5) / size;
-      let v = random() * 0.018;
+      let v = paintMode ? 0 : random() * 0.018;
 
       circles.forEach((circle) => {
         const deltaX = uvX - circle.x;
@@ -142,22 +200,24 @@ const buildReactionSeed = (size, seed) => {
         }
       });
 
-      const u = clamp(0.98 - v * 0.62 + (random() - 0.5) * 0.025);
+      const u = paintMode
+        ? 1
+        : clamp(0.98 - v * 0.62 + (random() - 0.5) * 0.025);
       const offset = (y * size + x) * 4;
       data[offset] = Math.round(u * 255);
       data[offset + 1] = Math.round(clamp(v) * 255);
       data[offset + 2] = 0;
-      data[offset + 3] = 255;
+      data[offset + 3] = 0;
     }
   }
 
   return data;
 };
 
-const createReactionTargets = (gl, size, seed) => {
+const createReactionTargets = (gl, size, seed, paintMode = false) => {
   const textures = [];
   const framebuffers = [];
-  const data = buildReactionSeed(size, seed);
+  const data = buildReactionSeed(size, seed, paintMode);
 
   for (let index = 0; index < 2; index += 1) {
     const texture = gl.createTexture();
@@ -204,8 +264,8 @@ const createReactionTargets = (gl, size, seed) => {
   return { framebuffers, readIndex: 0, size, textures };
 };
 
-const resetReactionTargets = (gl, targets, seed) => {
-  const data = buildReactionSeed(targets.size, seed);
+const resetReactionTargets = (gl, targets, seed, paintMode = false) => {
+  const data = buildReactionSeed(targets.size, seed, paintMode);
   targets.textures.forEach((texture) => {
     gl.bindTexture(gl.TEXTURE_2D, texture);
     gl.texImage2D(
@@ -234,6 +294,12 @@ const CreatorOSFieldCanvas = ({
   isDark = false,
   metabloomPalette = "spectral",
   mode = 0,
+  morphogenBrushSize = "medium",
+  morphogenColorA = MORPHOGEN_DEFAULT_COLOR_A,
+  morphogenColorB = MORPHOGEN_DEFAULT_COLOR_B,
+  morphogenExperience = "organism",
+  morphogenGradient = "flow",
+  morphogenTool = "draw",
   onFieldStateChange,
   paused = false,
   resetVersion = 0,
@@ -251,6 +317,24 @@ const CreatorOSFieldCanvas = ({
     resolveContourPaletteMix(contourPalette),
   );
   const tidalPaletteRef = useRef(resolveTidalPaletteMix(tidalPalette));
+  const morphogenPaintRef = useRef(
+    resolveMorphogenPaintMix(morphogenExperience),
+  );
+  const morphogenToolRef = useRef(
+    resolveMorphogenBrushErase(morphogenTool),
+  );
+  const morphogenBrushRadiusRef = useRef(
+    resolveMorphogenBrushRadius(morphogenBrushSize),
+  );
+  const morphogenGradientRef = useRef(
+    resolveMorphogenGradientMode(morphogenGradient),
+  );
+  const morphogenColorARef = useRef(
+    morphogenColorToRgb(morphogenColorA, MORPHOGEN_DEFAULT_COLOR_A),
+  );
+  const morphogenColorBRef = useRef(
+    morphogenColorToRgb(morphogenColorB, MORPHOGEN_DEFAULT_COLOR_B),
+  );
   const onFieldStateChangeRef = useRef(onFieldStateChange);
   const restartRef = useRef(true);
   const redrawRef = useRef(() => {});
@@ -290,6 +374,50 @@ const CreatorOSFieldCanvas = ({
   }, [tidalPalette]);
 
   useEffect(() => {
+    const nextPaintMix = resolveMorphogenPaintMix(morphogenExperience);
+    if (nextPaintMix !== morphogenPaintRef.current) {
+      morphogenPaintRef.current = nextPaintMix;
+      restartRef.current = true;
+    }
+    redrawRef.current();
+  }, [morphogenExperience]);
+
+  useEffect(() => {
+    morphogenToolRef.current = resolveMorphogenBrushErase(morphogenTool);
+    redrawRef.current();
+  }, [morphogenTool]);
+
+  useEffect(() => {
+    morphogenBrushRadiusRef.current = resolveMorphogenBrushRadius(
+      morphogenBrushSize,
+    );
+    redrawRef.current();
+  }, [morphogenBrushSize]);
+
+  useEffect(() => {
+    morphogenGradientRef.current = resolveMorphogenGradientMode(
+      morphogenGradient,
+    );
+    redrawRef.current();
+  }, [morphogenGradient]);
+
+  useEffect(() => {
+    morphogenColorARef.current = morphogenColorToRgb(
+      morphogenColorA,
+      MORPHOGEN_DEFAULT_COLOR_A,
+    );
+    redrawRef.current();
+  }, [morphogenColorA]);
+
+  useEffect(() => {
+    morphogenColorBRef.current = morphogenColorToRgb(
+      morphogenColorB,
+      MORPHOGEN_DEFAULT_COLOR_B,
+    );
+    redrawRef.current();
+  }, [morphogenColorB]);
+
+  useEffect(() => {
     onFieldStateChangeRef.current = onFieldStateChange;
   }, [onFieldStateChange]);
 
@@ -322,10 +450,16 @@ const CreatorOSFieldCanvas = ({
     let currentMode = modeRef.current;
     let incomingMode = currentMode;
     let modeMix = 1;
-    let activeState = currentMode === REACTION_MODE ? "forming" : "drifting";
+    let activeState = currentMode === REACTION_MODE
+      ? morphogenPaintRef.current >= 0.5
+        ? "ready"
+        : "forming"
+      : "drifting";
     let reactionStepsTaken = 0;
     let reactionWarmupRemaining =
-      currentMode === REACTION_MODE ? REACTION_WARMUP_STEPS : 0;
+      currentMode === REACTION_MODE && morphogenPaintRef.current < 0.5
+        ? REACTION_WARMUP_STEPS
+        : 0;
 
     const pointer = {
       x: 0.52,
@@ -335,6 +469,15 @@ const CreatorOSFieldCanvas = ({
       lastActivityAt: performance.now(),
     };
     const pulseOrigin = { x: 0.52, y: 0.52 };
+    const brush = {
+      down: false,
+      fromX: 0.52,
+      fromY: 0.52,
+      pending: false,
+      pointerId: null,
+      toX: 0.52,
+      toY: 0.52,
+    };
     const page = root.closest(".dither-canvas-page");
     const pointerSurface = page || root;
 
@@ -343,6 +486,18 @@ const CreatorOSFieldCanvas = ({
       activeState = nextState;
       onFieldStateChangeRef.current?.(nextState);
     };
+
+    const isMorphogenPaintActive = () =>
+      modeRef.current === REACTION_MODE
+      && morphogenPaintRef.current >= 0.5;
+
+    const isInteractiveTarget = (target) =>
+      target instanceof Element
+      && Boolean(
+        target.closest(
+          "button, a, input, select, textarea, label, [role='button'], [role='slider'], [role='toolbar'], .dither-study-switcher, .rupture-header",
+        ),
+      );
 
     const motionQuery = window.matchMedia?.("(prefers-reduced-motion: reduce)");
     const syncReducedMotion = () => {
@@ -399,7 +554,12 @@ const CreatorOSFieldCanvas = ({
       configurePosition(gl, displayProgram, positionBuffer);
       configurePosition(gl, reactionProgram, positionBuffer);
 
-      reactionTargets = createReactionTargets(gl, REACTION_SIZE, seed);
+      reactionTargets = createReactionTargets(
+        gl,
+        REACTION_SIZE,
+        seed,
+        morphogenPaintRef.current >= 0.5,
+      );
       setFallback(false);
     } catch (error) {
       console.error("CreatorOS field study failed to initialize:", error);
@@ -430,6 +590,12 @@ const CreatorOSFieldCanvas = ({
       "u_metabloomPaletteMix",
       "u_contourPaletteMix",
       "u_tidalPaletteMix",
+      "u_morphogenPaintMix",
+      "u_morphogenColorA",
+      "u_morphogenColorB",
+      "u_morphogenGradientMode",
+      "u_morphogenBrushRadius",
+      "u_morphogenBrushErase",
       "u_reaction",
       "u_reactionTexel",
     ]);
@@ -442,6 +608,12 @@ const CreatorOSFieldCanvas = ({
       "u_energy",
       "u_time",
       "u_seed",
+      "u_paintMode",
+      "u_brushActive",
+      "u_brushErase",
+      "u_brushRadius",
+      "u_brushFrom",
+      "u_brushTo",
       "u_feed",
       "u_kill",
       "u_dt",
@@ -477,11 +649,25 @@ const CreatorOSFieldCanvas = ({
       pointer.sampleX = next.x;
       pointer.sampleY = next.y;
       pointer.lastActivityAt = performance.now();
-      energy = clamp(energy + magnitude * 4.4);
+
+      if (brush.down && isMorphogenPaintActive()) {
+        brush.fromX = brush.toX;
+        brush.fromY = brush.toY;
+        brush.toX = next.x;
+        brush.toY = next.y;
+        brush.pending = true;
+        energy = 1;
+      } else {
+        energy = clamp(energy + magnitude * 4.4);
+      }
+
       forceRender = true;
+      redrawRef.current();
     };
 
     const handlePointerDown = (event) => {
+      if (isMorphogenPaintActive()) return;
+
       const next = readPointer(event);
       pointer.x = next.x;
       pointer.y = next.y;
@@ -494,6 +680,60 @@ const CreatorOSFieldCanvas = ({
       energy = 1;
       root.setPointerCapture?.(event.pointerId);
       forceRender = true;
+      redrawRef.current();
+    };
+
+    const handlePaintPointerDown = (event) => {
+      if (
+        !isMorphogenPaintActive()
+        || isInteractiveTarget(event.target)
+        || event.button > 0
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      const next = readPointer(event);
+      pointer.x = next.x;
+      pointer.y = next.y;
+      pointer.sampleX = next.x;
+      pointer.sampleY = next.y;
+      pointer.lastActivityAt = performance.now();
+      brush.down = true;
+      brush.fromX = next.x;
+      brush.fromY = next.y;
+      brush.toX = next.x;
+      brush.toY = next.y;
+      brush.pending = true;
+      brush.pointerId = event.pointerId;
+      energy = 1;
+      pointerSurface.setPointerCapture?.(event.pointerId);
+      reportState(morphogenToolRef.current >= 0.5 ? "erasing" : "painting");
+      forceRender = true;
+      redrawRef.current();
+    };
+
+    const finishPaintStroke = (event) => {
+      if (!brush.down || event.pointerId !== brush.pointerId) return;
+
+      if (Number.isFinite(event.clientX) && Number.isFinite(event.clientY)) {
+        const next = readPointer(event);
+        brush.fromX = brush.toX;
+        brush.fromY = brush.toY;
+        brush.toX = next.x;
+        brush.toY = next.y;
+        brush.pending = true;
+        pointer.x = next.x;
+        pointer.y = next.y;
+      }
+      brush.down = false;
+      brush.pointerId = null;
+      if (pointerSurface.hasPointerCapture?.(event.pointerId)) {
+        pointerSurface.releasePointerCapture(event.pointerId);
+      }
+      reportState("ready");
+      forceRender = true;
+      redrawRef.current();
     };
 
     const handlePointerLeave = () => {
@@ -502,6 +742,15 @@ const CreatorOSFieldCanvas = ({
     };
 
     pointerSurface.addEventListener("pointermove", handlePointerMove, {
+      passive: true,
+    });
+    pointerSurface.addEventListener("pointerdown", handlePaintPointerDown, {
+      passive: false,
+    });
+    pointerSurface.addEventListener("pointerup", finishPaintStroke, {
+      passive: true,
+    });
+    pointerSurface.addEventListener("pointercancel", finishPaintStroke, {
       passive: true,
     });
     root.addEventListener("pointerdown", handlePointerDown, { passive: true });
@@ -523,14 +772,32 @@ const CreatorOSFieldCanvas = ({
       pointer.sampleX = 0.52;
       pointer.sampleY = 0.52;
       pointer.lastActivityAt = performance.now();
+      brush.down = false;
+      brush.fromX = 0.52;
+      brush.fromY = 0.52;
+      brush.pending = false;
+      brush.pointerId = null;
+      brush.toX = 0.52;
+      brush.toY = 0.52;
       currentMode = modeRef.current;
       incomingMode = currentMode;
       modeMix = 1;
       reactionStepsTaken = 0;
       reactionWarmupRemaining =
-        currentMode === REACTION_MODE ? REACTION_WARMUP_STEPS : 0;
-      resetReactionTargets(gl, reactionTargets, seed);
-      activeState = currentMode === REACTION_MODE ? "forming" : "drifting";
+        currentMode === REACTION_MODE && morphogenPaintRef.current < 0.5
+          ? REACTION_WARMUP_STEPS
+          : 0;
+      resetReactionTargets(
+        gl,
+        reactionTargets,
+        seed,
+        morphogenPaintRef.current >= 0.5,
+      );
+      activeState = currentMode === REACTION_MODE
+        ? morphogenPaintRef.current >= 0.5
+          ? "ready"
+          : "forming"
+        : "drifting";
       onFieldStateChangeRef.current?.(activeState);
       forceRender = true;
       lastFrameAt = 0;
@@ -551,6 +818,7 @@ const CreatorOSFieldCanvas = ({
       if (reducedMotion) currentMode = incomingMode;
       if (
         desiredMode === REACTION_MODE
+        && morphogenPaintRef.current < 0.5
         && !reactionWasVisible
         && reactionStepsTaken === 0
       ) {
@@ -571,7 +839,13 @@ const CreatorOSFieldCanvas = ({
       if (pulseAge < 1.2) energy = Math.max(energy, 1 - pulseAge / 1.2);
 
       let nextState = "drifting";
+      const paintActive =
+        currentMode === REACTION_MODE
+        && morphogenPaintRef.current >= 0.5;
       if (currentMode !== incomingMode) nextState = "crossfading";
+      else if (paintActive && (brush.down || brush.pending)) {
+        nextState = morphogenToolRef.current >= 0.5 ? "erasing" : "painting";
+      } else if (paintActive) nextState = "ready";
       else if (
         currentMode === REACTION_MODE
         && reactionStepsTaken < REACTION_WARMUP_STEPS
@@ -596,8 +870,16 @@ const CreatorOSFieldCanvas = ({
       }
     };
 
-    const drawReactionStep = (timeStep = 1.0) => {
+    const drawReactionStep = (timeStep = 1.0, allowBrush = true) => {
       const writeIndex = 1 - reactionTargets.readIndex;
+      const paintMode = morphogenPaintRef.current;
+      const brushActive =
+        allowBrush
+        && paintMode >= 0.5
+        && (brush.down || brush.pending)
+          ? 1
+          : 0;
+
       gl.bindFramebuffer(
         gl.FRAMEBUFFER,
         reactionTargets.framebuffers[writeIndex],
@@ -625,12 +907,38 @@ const CreatorOSFieldCanvas = ({
       gl.uniform1f(reactionUniforms.u_energy, energy);
       gl.uniform1f(reactionUniforms.u_time, localTime);
       gl.uniform1f(reactionUniforms.u_seed, seed);
+      gl.uniform1f(reactionUniforms.u_paintMode, paintMode);
+      gl.uniform1f(reactionUniforms.u_brushActive, brushActive);
+      gl.uniform1f(
+        reactionUniforms.u_brushErase,
+        morphogenToolRef.current,
+      );
+      gl.uniform1f(
+        reactionUniforms.u_brushRadius,
+        morphogenBrushRadiusRef.current,
+      );
+      gl.uniform2f(
+        reactionUniforms.u_brushFrom,
+        brush.fromX,
+        brush.fromY,
+      );
+      gl.uniform2f(
+        reactionUniforms.u_brushTo,
+        brush.toX,
+        brush.toY,
+      );
       gl.uniform1f(reactionUniforms.u_feed, 0.0367);
       gl.uniform1f(reactionUniforms.u_kill, 0.0649);
       gl.uniform1f(reactionUniforms.u_dt, timeStep);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
       reactionTargets.readIndex = writeIndex;
       reactionStepsTaken += 1;
+
+      if (brushActive >= 0.5) {
+        brush.fromX = brush.toX;
+        brush.fromY = brush.toY;
+        brush.pending = brush.down;
+      }
     };
 
     const advanceReaction = () => {
@@ -649,7 +957,7 @@ const CreatorOSFieldCanvas = ({
       }
 
       for (let index = 0; index < steps; index += 1) {
-        drawReactionStep(reducedMotion ? 0.62 : 1.0);
+        drawReactionStep(reducedMotion ? 0.62 : 1.0, index === 0);
       }
     };
 
@@ -688,6 +996,37 @@ const CreatorOSFieldCanvas = ({
         displayUniforms.u_tidalPaletteMix,
         tidalPaletteRef.current,
       );
+      const morphogenColorAValue = morphogenColorARef.current;
+      const morphogenColorBValue = morphogenColorBRef.current;
+      gl.uniform1f(
+        displayUniforms.u_morphogenPaintMix,
+        morphogenPaintRef.current,
+      );
+      gl.uniform3f(
+        displayUniforms.u_morphogenColorA,
+        morphogenColorAValue[0],
+        morphogenColorAValue[1],
+        morphogenColorAValue[2],
+      );
+      gl.uniform3f(
+        displayUniforms.u_morphogenColorB,
+        morphogenColorBValue[0],
+        morphogenColorBValue[1],
+        morphogenColorBValue[2],
+      );
+      gl.uniform1f(
+        displayUniforms.u_morphogenGradientMode,
+        morphogenGradientRef.current,
+      );
+      gl.uniform1f(
+        displayUniforms.u_morphogenBrushRadius,
+        morphogenBrushRadiusRef.current,
+      );
+      gl.uniform1f(
+        displayUniforms.u_morphogenBrushErase,
+        morphogenToolRef.current,
+      );
+
 
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(
@@ -714,9 +1053,19 @@ const CreatorOSFieldCanvas = ({
       localTime = STATIC_TIME_SECONDS;
       introElapsed = INTRO_DURATION_SECONDS;
 
-      if (currentMode === REACTION_MODE && reactionStepsTaken === 0) {
+      if (
+        currentMode === REACTION_MODE
+        && morphogenPaintRef.current >= 0.5
+        && (brush.down || brush.pending)
+      ) {
+        drawReactionStep(0.62, true);
+      } else if (
+        currentMode === REACTION_MODE
+        && morphogenPaintRef.current < 0.5
+        && reactionStepsTaken === 0
+      ) {
         for (let index = 0; index < REACTION_WARMUP_STEPS; index += 1) {
-          drawReactionStep(0.62);
+          drawReactionStep(0.62, false);
         }
       }
 
@@ -737,7 +1086,10 @@ const CreatorOSFieldCanvas = ({
       lastFrameAt = now;
       applyRestart();
 
-      if (pausedRef.current && !forceRender) return;
+      const paintBrushPending =
+        isMorphogenPaintActive()
+        && (brush.down || brush.pending);
+      if (pausedRef.current && !forceRender && !paintBrushPending) return;
       if (!pausedRef.current) {
         localTime += delta;
         introElapsed = Math.min(
@@ -750,6 +1102,9 @@ const CreatorOSFieldCanvas = ({
         currentMode = modeRef.current;
         incomingMode = currentMode;
         modeMix = 1;
+        if (paintBrushPending) {
+          drawReactionStep(0.62, true);
+        }
       }
 
       updateSize();
@@ -810,6 +1165,12 @@ const CreatorOSFieldCanvas = ({
       window.cancelAnimationFrame(rafId);
       redrawRef.current = () => {};
       pointerSurface.removeEventListener("pointermove", handlePointerMove);
+      pointerSurface.removeEventListener(
+        "pointerdown",
+        handlePaintPointerDown,
+      );
+      pointerSurface.removeEventListener("pointerup", finishPaintStroke);
+      pointerSurface.removeEventListener("pointercancel", finishPaintStroke);
       root.removeEventListener("pointerdown", handlePointerDown);
       pointerSurface.removeEventListener("pointerleave", handlePointerLeave);
       window.removeEventListener("resize", updateSize);
@@ -840,7 +1201,7 @@ const CreatorOSFieldCanvas = ({
   return (
     <div
       ref={rootRef}
-      className={`creatoros-field-shell creatoros-field-mode-${clampMode(mode)} creatoros-field-metabloom-palette-${normalizeMetabloomPalette(metabloomPalette)} creatoros-field-palette-${normalizeTidalPalette(tidalPalette)} creatoros-field-contour-palette-${normalizeContourPalette(contourPalette)}${
+      className={`creatoros-field-shell creatoros-field-mode-${clampMode(mode)} creatoros-field-metabloom-palette-${normalizeMetabloomPalette(metabloomPalette)} creatoros-field-palette-${normalizeTidalPalette(tidalPalette)} creatoros-field-contour-palette-${normalizeContourPalette(contourPalette)} creatoros-field-morphogen-${normalizeMorphogenExperience(morphogenExperience)} creatoros-field-morphogen-tool-${normalizeMorphogenTool(morphogenTool)}${
         fallback ? " is-fallback" : ""
       }`}
       aria-hidden="true"

@@ -24,12 +24,30 @@ uniform float u_seed;
 uniform float u_feed;
 uniform float u_kill;
 uniform float u_dt;
+uniform float u_paintMode;
+uniform float u_brushActive;
+uniform float u_brushErase;
+uniform float u_brushRadius;
+uniform vec2 u_brushFrom;
+uniform vec2 u_brushTo;
 
 #define PI 3.14159265359
 #define TAU 6.28318530718
 
 float sat(float value) {
   return clamp(value, 0.0, 1.0);
+}
+
+float reactionHash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
+}
+
+float segmentDistance(vec2 p, vec2 a, vec2 b) {
+  vec2 pa = p - a;
+  vec2 ba = b - a;
+  float denominator = max(dot(ba, ba), 0.000001);
+  float position = clamp(dot(pa, ba) / denominator, 0.0, 1.0);
+  return length(pa - ba * position);
 }
 
 vec2 vortexFlow(vec2 uv, vec2 center, float spin) {
@@ -40,6 +58,7 @@ vec2 vortexFlow(vec2 uv, vec2 center, float spin) {
 
 void main() {
   float flowPhase = u_time * 0.055 + u_seed * TAU;
+  float paintMode = sat(u_paintMode);
   vec2 vortexA = vec2(0.5) + vec2(
     cos(flowPhase),
     sin(flowPhase * 1.13)
@@ -56,7 +75,9 @@ void main() {
   flow += vec2(-pointerDeltaFlow.y, pointerDeltaFlow.x)
     * pointerFalloff
     * u_energy
-    * 0.92;
+    * 0.92
+    * (1.0 - paintMode);
+  flow *= mix(1.0, 0.18, paintMode);
 
   vec2 edge = u_texel * 2.0;
   vec2 sampleUv = clamp(
@@ -66,25 +87,60 @@ void main() {
   );
 
   vec4 centerState = texture(u_state, sampleUv);
-  vec2 center = centerState.rg;
-  vec2 north = texture(u_state, sampleUv + vec2(0.0, u_texel.y)).rg;
-  vec2 south = texture(u_state, sampleUv - vec2(0.0, u_texel.y)).rg;
-  vec2 east = texture(u_state, sampleUv + vec2(u_texel.x, 0.0)).rg;
-  vec2 west = texture(u_state, sampleUv - vec2(u_texel.x, 0.0)).rg;
-  vec2 northEast = texture(u_state, sampleUv + u_texel).rg;
-  vec2 northWest = texture(
+  vec4 northState = texture(
+    u_state,
+    sampleUv + vec2(0.0, u_texel.y)
+  );
+  vec4 southState = texture(
+    u_state,
+    sampleUv - vec2(0.0, u_texel.y)
+  );
+  vec4 eastState = texture(
+    u_state,
+    sampleUv + vec2(u_texel.x, 0.0)
+  );
+  vec4 westState = texture(
+    u_state,
+    sampleUv - vec2(u_texel.x, 0.0)
+  );
+  vec4 northEastState = texture(u_state, sampleUv + u_texel);
+  vec4 northWestState = texture(
     u_state,
     sampleUv + vec2(-u_texel.x, u_texel.y)
-  ).rg;
-  vec2 southEast = texture(
+  );
+  vec4 southEastState = texture(
     u_state,
     sampleUv + vec2(u_texel.x, -u_texel.y)
-  ).rg;
-  vec2 southWest = texture(u_state, sampleUv - u_texel).rg;
+  );
+  vec4 southWestState = texture(u_state, sampleUv - u_texel);
+
+  vec2 center = centerState.rg;
+  vec2 north = northState.rg;
+  vec2 south = southState.rg;
+  vec2 east = eastState.rg;
+  vec2 west = westState.rg;
+  vec2 northEast = northEastState.rg;
+  vec2 northWest = northWestState.rg;
+  vec2 southEast = southEastState.rg;
+  vec2 southWest = southWestState.rg;
 
   vec2 laplacian = -center
     + (north + south + east + west) * 0.20
     + (northEast + northWest + southEast + southWest) * 0.05;
+  float paint = centerState.a;
+  float paintLaplacian = -paint
+    + (
+      northState.a
+        + southState.a
+        + eastState.a
+        + westState.a
+    ) * 0.20
+    + (
+      northEastState.a
+        + northWestState.a
+        + southEastState.a
+        + southWestState.a
+    ) * 0.05;
 
   float u = center.r;
   float v = center.g;
@@ -110,7 +166,28 @@ void main() {
   vec2 pointerDelta = v_uv - u_pointer;
   pointerDelta.x *= 1.32;
   float pointerBrush = exp(-dot(pointerDelta, pointerDelta) * 180.0)
-    * u_energy;
+    * u_energy
+    * (1.0 - paintMode);
+
+  vec2 brushScale = vec2(1.32, 1.0);
+  float brushDistance = segmentDistance(
+    v_uv * brushScale,
+    u_brushFrom * brushScale,
+    u_brushTo * brushScale
+  );
+  float activeBrushRadius = max(u_brushRadius, 0.006);
+  float brushEnvelope = 1.0 - smoothstep(
+    activeBrushRadius * 0.62,
+    activeBrushRadius,
+    brushDistance
+  );
+  float brushNoise = 0.72 + reactionHash(
+    floor(v_uv / max(u_texel, vec2(0.0001)))
+      + vec2(u_seed * 91.0)
+  ) * 0.42;
+  float paintBrush = brushEnvelope * u_brushActive * paintMode;
+  float paintDeposit = paintBrush * (1.0 - u_brushErase) * brushNoise;
+  float paintErase = paintBrush * u_brushErase;
 
   vec2 pulseDelta = v_uv - u_pulseOrigin;
   pulseDelta.x *= 1.32;
@@ -135,28 +212,48 @@ void main() {
   vec2 migratingDelta = (v_uv - migratingCenter) * vec2(1.18, 1.0);
   float migratingSeed = exp(-dot(migratingDelta, migratingDelta) * 250.0);
 
-  u += du * u_dt;
-  v += dv * u_dt;
+  float reactionScale = mix(1.0, 0.38, paintMode);
+  float autonomousChemistry = 1.0 - paintMode;
+  u += du * u_dt * reactionScale;
+  v += dv * u_dt * reactionScale;
   v += pointerBrush * 0.040
-    + pulse * 0.026
-    + heartbeat * 0.0048
-    + migratingSeed * 0.0054;
+    + pulse * 0.026 * autonomousChemistry
+    + heartbeat * 0.0048 * autonomousChemistry
+    + migratingSeed * 0.0054 * autonomousChemistry;
   u -= pointerBrush * 0.022
-    + pulse * 0.014
-    + heartbeat * 0.0026
-    + migratingSeed * 0.0030;
+    + pulse * 0.014 * autonomousChemistry
+    + heartbeat * 0.0026 * autonomousChemistry
+    + migratingSeed * 0.0030 * autonomousChemistry;
+
+  paint = sat(
+    paint
+      + paintLaplacian * u_dt * 0.018 * paintMode
+  );
+  paint *= mix(1.0, 0.9997, paintMode);
+  paint = max(
+    paint,
+    paintDeposit * (0.78 + v * 0.18)
+  );
+  paint *= 1.0 - paintErase * 0.94;
+
+  v = mix(v, max(v, 0.68 + brushNoise * 0.18), paintDeposit * 0.86);
+  u = mix(u, min(u, 0.18 + brushNoise * 0.04), paintDeposit * 0.72);
+  v = mix(v, 0.0, paintErase * 0.94);
+  u = mix(u, 1.0, paintErase * 0.94);
 
   float activityTarget = sat(
     abs(v - previousV) * 34.0
       + reaction * 4.2
-      + heartbeat * 0.58
-      + migratingSeed * 0.72
+      + heartbeat * 0.58 * autonomousChemistry
+      + migratingSeed * 0.72 * autonomousChemistry
       + pointerBrush * 0.82
-      + pulse * 0.76
+      + pulse * 0.76 * autonomousChemistry
+      + paintDeposit * 0.94
+      + paintErase * 0.72
   );
   float activity = max(centerState.b * 0.972, activityTarget);
 
-  fragColor = vec4(sat(u), sat(v), activity, 1.0);
+  fragColor = vec4(sat(u), sat(v), activity, sat(paint));
 }`;
 
 export const CREATOROS_FIELD_FRAGMENT_SHADER = `#version 300 es
@@ -180,6 +277,12 @@ uniform float u_modeMix;
 uniform float u_metabloomPaletteMix;
 uniform float u_contourPaletteMix;
 uniform float u_tidalPaletteMix;
+uniform float u_morphogenPaintMix;
+uniform vec3 u_morphogenColorA;
+uniform vec3 u_morphogenColorB;
+uniform float u_morphogenGradientMode;
+uniform float u_morphogenBrushRadius;
+uniform float u_morphogenBrushErase;
 uniform sampler2D u_reaction;
 uniform vec2 u_reactionTexel;
 
@@ -1125,17 +1228,40 @@ vec4 sceneContourDrift(vec2 uv, float time) {
 }
 vec4 sceneMorphogen(vec2 uv, float time) {
   vec4 chemical = texture(u_reaction, uv);
+  vec4 northState = texture(
+    u_reaction,
+    uv + vec2(0.0, u_reactionTexel.y)
+  );
+  vec4 southState = texture(
+    u_reaction,
+    uv - vec2(0.0, u_reactionTexel.y)
+  );
+  vec4 eastState = texture(
+    u_reaction,
+    uv + vec2(u_reactionTexel.x, 0.0)
+  );
+  vec4 westState = texture(
+    u_reaction,
+    uv - vec2(u_reactionTexel.x, 0.0)
+  );
   float v = chemical.g;
   float u = chemical.r;
   float activity = chemical.b;
-  float north = texture(u_reaction, uv + vec2(0.0, u_reactionTexel.y)).g;
-  float south = texture(u_reaction, uv - vec2(0.0, u_reactionTexel.y)).g;
-  float east = texture(u_reaction, uv + vec2(u_reactionTexel.x, 0.0)).g;
-  float west = texture(u_reaction, uv - vec2(u_reactionTexel.x, 0.0)).g;
+  float paint = chemical.a;
+  float north = northState.g;
+  float south = southState.g;
+  float east = eastState.g;
+  float west = westState.g;
   vec2 gradientVector = vec2(east - west, north - south);
+  vec2 paintGradientVector = vec2(
+    eastState.a - westState.a,
+    northState.a - southState.a
+  );
   float gradient = length(gradientVector);
+  float paintGradient = length(paintGradientVector);
   float curvature = abs(north + south + east + west - 4.0 * v);
   float pulse = pulseField(uv);
+  float intro = smoothstep(0.0, 0.72, u_intro);
 
   float cells = smoothstep(0.055, 0.52, v);
   float membrane = smoothstep(0.006, 0.078, gradient);
@@ -1149,14 +1275,14 @@ vec4 sceneMorphogen(vec2 uv, float time) {
       + v * 10.0
       + atan(gradientVector.y, gradientVector.x) * 1.6
   );
-  float field = (
+  float organismField = (
     cells * 0.78
       + membrane * 1.18
       + cleavage * 0.82
       + interior * 0.24
       + activity * (0.58 + transport * 0.28)
       + pulse * 0.58
-  ) * smoothstep(0.0, 0.72, u_intro);
+  ) * intro;
 
   float edgeAngle = atan(gradientVector.y, gradientVector.x) / TAU;
   vec3 interiorTint = spectral(0.56 + v * 0.58 + time * 0.011);
@@ -1164,22 +1290,146 @@ vec4 sceneMorphogen(vec2 uv, float time) {
     0.82 + edgeAngle + time * 0.020 + activity * 0.16
   );
   vec3 activityTint = spectral(0.08 + activity * 0.56 - time * 0.014);
-  vec3 tint = mix(
+  vec3 organismTint = mix(
     interiorTint,
     edgeTint,
     sat(membrane * 0.82 + cleavage * 0.72)
   );
-  tint = mix(tint, activityTint, activity * 0.42);
-
-  vec4 material = fluidMaterial(field, tint, 0.34, 0.26, 0.91);
-  material.rgb += edgeTint * (membrane * 0.12 + activity * 0.08);
-  material.a = max(
-    material.a,
-    (membrane * 0.48 + cleavage * 0.34 + activity * 0.28)
-      * smoothstep(0.0, 0.72, u_intro)
+  organismTint = mix(
+    organismTint,
+    activityTint,
+    activity * 0.42
   );
-  material.a *= 0.76 + membrane * 0.18 + activity * 0.10;
-  return material;
+
+  vec4 organismMaterial = fluidMaterial(
+    organismField,
+    organismTint,
+    0.34,
+    0.26,
+    0.91
+  );
+  organismMaterial.rgb += edgeTint
+    * (membrane * 0.12 + activity * 0.08);
+  organismMaterial.a = max(
+    organismMaterial.a,
+    (membrane * 0.48 + cleavage * 0.34 + activity * 0.28)
+      * intro
+  );
+  organismMaterial.a *= 0.76 + membrane * 0.18 + activity * 0.10;
+
+  // Paint mode treats the fourth reaction channel as persistent pigment.
+  // The pigment keeps the Gray-Scott motion inside each stroke, while a
+  // stable granular mask and Bayer output make it feel like poured sand.
+  float sandBody = smoothstep(0.012, 0.34, paint);
+  float sandEdge = smoothstep(0.008, 0.12, paintGradient);
+  float reactionBloom = smoothstep(0.045, 0.56, v) * sandBody;
+  float sandGrain = 0.66 + hash(
+    floor(gl_FragCoord.xy * 0.5)
+      + vec2(u_seed * 137.0)
+  ) * 0.52;
+  float sandSparkle = pow(
+    hash(
+      floor(gl_FragCoord.xy)
+        + vec2(u_seed * 211.0)
+    ),
+    10.0
+  ) * sandBody;
+  float sandField = (
+    sandBody * (0.86 + sandGrain * 0.24)
+      + sandEdge * 0.72
+      + reactionBloom * 0.36
+      + activity * sandBody * 0.24
+  ) * intro;
+
+  float flowGradient = fract(
+    uv.x * 0.34
+      + uv.y * 0.28
+      + fbm(
+        centeredUv(uv) * 1.18
+          + vec2(time * 0.008, -time * 0.006)
+          + vec2(u_seed * 4.0)
+      ) * 0.52
+      + time * 0.004
+  );
+  float linearGradient = sat(
+    uv.x * 0.72
+      + (1.0 - uv.y) * 0.28
+  );
+  vec2 radialDelta = (uv - 0.5) * aspectScale();
+  float radialGradient = sat(length(radialDelta) * 0.82);
+  float gradientFactor = flowGradient;
+  if (u_morphogenGradientMode > 0.5) {
+    gradientFactor = linearGradient;
+  }
+  if (u_morphogenGradientMode > 1.5) {
+    gradientFactor = radialGradient;
+  }
+
+  vec3 sandTint = mix(
+    u_morphogenColorA,
+    u_morphogenColorB,
+    smoothstep(0.04, 0.96, gradientFactor)
+  );
+  vec3 spectralSandGlint = spectral(
+    gradientFactor
+      + atan(paintGradientVector.y, paintGradientVector.x) / TAU * 0.16
+      + time * 0.006
+  );
+  sandTint = mix(
+    sandTint,
+    spectralSandGlint,
+    sat(sandEdge * 0.14 + sandSparkle * 0.08)
+  );
+  sandTint *= mix(1.14, 0.86, u_light);
+
+  vec4 sandMaterial = fluidMaterial(
+    sandField,
+    sandTint,
+    0.18,
+    0.14,
+    0.96
+  );
+  sandMaterial.rgb *= 0.76 + sandGrain * 0.34;
+  sandMaterial.rgb += mix(
+    vec3(1.0),
+    spectralSandGlint,
+    0.35
+  ) * sandSparkle * 0.24;
+  sandMaterial.a = max(
+    sandMaterial.a,
+    sandBody * (0.68 + sandGrain * 0.18)
+  );
+
+  // A shader-side brush ring keeps the full-screen canvas readable even
+  // when the pointer is over page copy rather than the canvas element.
+  vec2 previewDelta = (uv - u_pointer) * vec2(1.32, 1.0);
+  float previewDistance = length(previewDelta);
+  float previewWidth = max(fwidth(previewDistance) * 1.5, 0.0025);
+  float brushPreview = 1.0 - smoothstep(
+    previewWidth,
+    previewWidth * 2.4,
+    abs(previewDistance - u_morphogenBrushRadius)
+  );
+  vec3 previewTint = mix(
+    mix(u_morphogenColorA, u_morphogenColorB, 0.5),
+    vec3(0.96),
+    u_morphogenBrushErase
+  );
+  sandMaterial.rgb = mix(
+    sandMaterial.rgb,
+    previewTint,
+    brushPreview * 0.76
+  );
+  sandMaterial.a = max(
+    sandMaterial.a,
+    brushPreview * 0.68
+  );
+
+  return mix(
+    organismMaterial,
+    sandMaterial,
+    sat(u_morphogenPaintMix)
+  );
 }
 
 vec4 sceneQuasicrystal(vec2 uv, float time) {
