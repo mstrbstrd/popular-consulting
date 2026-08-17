@@ -53,6 +53,16 @@
   image-rendering: crisp-edges;
 }
 
+.creatoros-field-mode-4.creatoros-field-morphogen-paint
+  .creatoros-field-canvas {
+  cursor: crosshair;
+}
+
+.creatoros-field-mode-4.creatoros-field-morphogen-paint.creatoros-field-morphogen-tool-erase
+  .creatoros-field-canvas {
+  cursor: cell;
+}
+
 .creatoros-field-shell.is-fallback .creatoros-field-canvas {
   display: none;
 }
@@ -136,6 +146,16 @@
     #fff8f7;
 }
 
+.creatoros-field-mode-4.creatoros-field-morphogen-paint
+  .creatoros-field-fallback {
+  background:
+    radial-gradient(circle at 26% 34%, rgba(36, 204, 255, 0.72) 0 1.2%, transparent 1.8%),
+    radial-gradient(circle at 52% 48%, rgba(99, 68, 245, 0.62) 0 1.4%, transparent 2%),
+    radial-gradient(circle at 74% 64%, rgba(255, 86, 214, 0.68) 0 1.1%, transparent 1.7%),
+    repeating-radial-gradient(circle at 50% 50%, transparent 0 0.7rem, rgba(99, 68, 245, 0.07) 0.8rem 0.95rem, transparent 1.05rem 1.7rem),
+    #fff8f7;
+}
+
 .creatoros-field-mode-5 .creatoros-field-fallback {
   background:
     repeating-conic-gradient(from 7.5deg at 50% 50%, rgba(0, 238, 255, 0.22) 0 2deg, transparent 2.2deg 15deg),
@@ -197,6 +217,25 @@
   box-shadow:
     0 0 1.4rem rgba(0, 238, 255, 0.92),
     0 0 2.8rem rgba(157, 0, 255, 0.42);
+}
+
+.rupture-ready .rupture-state span {
+  background: #ffd887;
+  box-shadow:
+    0 0 1.4rem rgba(255, 216, 135, 0.88),
+    0 0 2.4rem rgba(99, 68, 245, 0.28);
+}
+
+.rupture-painting .rupture-state span {
+  background: #24ccff;
+  box-shadow:
+    0 0 1.4rem rgba(36, 204, 255, 0.94),
+    0 0 2.8rem rgba(255, 86, 214, 0.44);
+}
+
+.rupture-erasing .rupture-state span {
+  background: #e7edf3;
+  box-shadow: 0 0 1.5rem rgba(231, 237, 243, 0.88);
 }
 
 @media (min-width: 1081px) {
