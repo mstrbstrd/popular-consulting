@@ -651,8 +651,6 @@ const CreatorOSFieldCanvas = ({
       pointer.lastActivityAt = performance.now();
 
       if (brush.down && isMorphogenPaintActive()) {
-        brush.fromX = brush.toX;
-        brush.fromY = brush.toY;
         brush.toX = next.x;
         brush.toY = next.y;
         brush.pending = true;
@@ -718,8 +716,6 @@ const CreatorOSFieldCanvas = ({
 
       if (Number.isFinite(event.clientX) && Number.isFinite(event.clientY)) {
         const next = readPointer(event);
-        brush.fromX = brush.toX;
-        brush.fromY = brush.toY;
         brush.toX = next.x;
         brush.toY = next.y;
         brush.pending = true;
@@ -1071,7 +1067,16 @@ const CreatorOSFieldCanvas = ({
 
       updateSize();
       draw();
-      reportState("settled");
+      reportState(
+        currentMode === REACTION_MODE
+          && morphogenPaintRef.current >= 0.5
+          ? brush.down || brush.pending
+            ? morphogenToolRef.current >= 0.5
+              ? "erasing"
+              : "painting"
+            : "ready"
+          : "settled",
+      );
       forceRender = false;
     };
 

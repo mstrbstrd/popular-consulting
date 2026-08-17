@@ -428,6 +428,10 @@
     0 0 1.8rem rgba(99, 68, 245, 0.18);
 }
 
+.dither-morphogen-paint {
+  touch-action: none;
+}
+
 .dither-morphogen-paint .dither-study-scene,
 .dither-morphogen-paint .rupture-copy {
   touch-action: none;

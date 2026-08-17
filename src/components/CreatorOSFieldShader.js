@@ -186,7 +186,9 @@ void main() {
       + vec2(u_seed * 91.0)
   ) * 0.42;
   float paintBrush = brushEnvelope * u_brushActive * paintMode;
-  float paintDeposit = paintBrush * (1.0 - u_brushErase) * brushNoise;
+  float paintDeposit = sat(
+    paintBrush * (1.0 - u_brushErase) * brushNoise
+  );
   float paintErase = paintBrush * u_brushErase;
 
   vec2 pulseDelta = v_uv - u_pulseOrigin;
@@ -1341,16 +1343,15 @@ vec4 sceneMorphogen(vec2 uv, float time) {
       + activity * sandBody * 0.24
   ) * intro;
 
-  float flowGradient = fract(
-    uv.x * 0.34
-      + uv.y * 0.28
-      + fbm(
-        centeredUv(uv) * 1.18
-          + vec2(time * 0.008, -time * 0.006)
-          + vec2(u_seed * 4.0)
-      ) * 0.52
-      + time * 0.004
-  );
+  float sandFlowPhase = uv.x * 0.34
+    + uv.y * 0.28
+    + fbm(
+      centeredUv(uv) * 1.18
+        + vec2(time * 0.008, -time * 0.006)
+        + vec2(u_seed * 4.0)
+    ) * 0.52
+    + time * 0.004;
+  float flowGradient = 0.5 + 0.5 * sin(sandFlowPhase * TAU);
   float linearGradient = sat(
     uv.x * 0.72
       + (1.0 - uv.y) * 0.28

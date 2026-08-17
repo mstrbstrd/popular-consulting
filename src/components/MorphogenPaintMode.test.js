@@ -95,6 +95,16 @@ describe("Morphogen Divide sand paint option", () => {
     expect(canvasSource).toContain("handlePaintPointerDown");
     expect(canvasSource).toContain("finishPaintStroke");
     expect(canvasSource).toContain("brush.pending = brush.down");
+    const pointerMove = canvasSource.slice(
+      canvasSource.indexOf("const handlePointerMove"),
+      canvasSource.indexOf("const handlePointerDown"),
+    );
+    const pointerFinish = canvasSource.slice(
+      canvasSource.indexOf("const finishPaintStroke"),
+      canvasSource.indexOf("const handlePointerLeave"),
+    );
+    expect(pointerMove).not.toContain("brush.fromX = brush.toX");
+    expect(pointerFinish).not.toContain("brush.fromX = brush.toX");
     expect(canvasSource).toContain("isInteractiveTarget(event.target)");
   });
 
@@ -113,7 +123,14 @@ describe("Morphogen Divide sand paint option", () => {
     expect(morphogenScene).toContain("float paint = chemical.a");
     expect(morphogenScene).toContain("float sandGrain");
     expect(morphogenScene).toContain("float sandSparkle");
-    expect(morphogenScene).toContain("float flowGradient");
+    expect(morphogenScene).toContain("float sandFlowPhase");
+    expect(morphogenScene).toContain(
+      "float flowGradient = 0.5 + 0.5 * sin(sandFlowPhase * TAU)",
+    );
+    expect(morphogenScene).not.toContain("float flowGradient = fract(");
+    expect(CREATOROS_REACTION_FRAGMENT_SHADER).toContain(
+      "float paintDeposit = sat(",
+    );
     expect(morphogenScene).toContain("float linearGradient");
     expect(morphogenScene).toContain("float radialGradient");
     expect(morphogenScene).toContain("u_morphogenColorA");
@@ -129,6 +146,9 @@ describe("Morphogen Divide sand paint option", () => {
     expect(pageStyles).toContain(".morphogen-paint-toolbar");
     expect(pageStyles).toContain(".morphogen-color-control input");
     expect(pageStyles).toContain(".dither-morphogen-paint");
+    expect(pageStyles).toContain(
+      ".dither-morphogen-paint {\n  touch-action: none;",
+    );
     expect(fieldStyles).toContain(
       ".creatoros-field-mode-4.creatoros-field-morphogen-paint",
     );
