@@ -75,7 +75,7 @@ const capture = async (url, filename) => {
     target.click();
   });
   await page.waitForFunction(
-    () => document.querySelector(".rupture-title")?.textContent?.includes(
+    () => document.querySelector("#rupture-title")?.textContent?.includes(
       "Morphogen Divide",
     ),
     { timeout: 30000 },
