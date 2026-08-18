@@ -8,12 +8,12 @@ A React business + engineering platform for "Popular Consulting" with six routes
 
 | Path | View | Notes |
 |---|---|---|
-| `/` | `App` (immersive, business audience) | Section-snap parallax, WebGL dither background |
+| `/` | `App` (immersive, business audience) | Section-snap parallax, managed WebGL dither or CSS-safe background |
 | `/engineering` | `App` (immersive, engineering audience) | Shared immersive shell plus draggable Aetheris `ProfessionalHero` and engineering copy via `siteCopy` audiences |
 | `/work` | `WorkPage` | Scrollable portfolio; Aetheris design system; SpectralBloom backdrop |
-| `/orb` | `StandaloneExperiencePage` (orb) | noindex; lazy-loads `OrbSection` |
+| `/orb` | `StandaloneExperiencePage` (orb) | noindex; lazy-loads `OrbSection`; managed Dither plus bounded analytic Black Hole |
 | `/game` | `StandaloneExperiencePage` (game) | noindex; lazy-loads `PopcornGame` |
-| `/dither-canvas` | `DitherCanvasPage` | noindex; ten-study CreatorOS-derived field lab |
+| `/dither-canvas` | `DitherCanvasPage` or `GraphicsFallbackPage` | noindex; field lab is WebGL-policy gated |
 
 Unknown paths fall back to `/`. Per-route HTML (title/meta/canonical) is generated at build time by `scripts/generate-route-html.mjs` from `src/content/routeMetadata.json`; `vercel.json` rewrites the routes to those files.
 
@@ -22,7 +22,7 @@ Unknown paths fall back to `/`. Per-route HTML (title/meta/canonical) is generat
 - React 18 (CRA / react-scripts 5), JavaScript only (no TypeScript)
 - MUI v5 (`Box`/`Typography`/`Container`/`TextField`/`Button` in BioSection, ServicesSection, ContactSection only - removal is a planned project)
 - Custom CSS: global `src/index.css`, per-component inline `<style>` blocks, route-scoped `public/engineering-card.css`, `src/components/WorkPage.css`, and route-scoped `public/work-typography.css`
-- WebGL (raw, no library): `DitherBackground` (WebGL2), `BlackHoleBackground`/`BlackHoleCanvas` (WebGL2), `SpectralBloom` (WebGL1), `CreatorOSLavaLampCanvas` (WebGL1), `CreatorOSFieldCanvas` (WebGL2)
+- WebGL (raw, no library): managed `DitherBackground` (WebGL2), bounded `BlackHoleCanvas` (WebGL2), `SpectralBloom` (WebGL1), `CreatorOSLavaLampCanvas` (WebGL1), `CreatorOSFieldCanvas` (WebGL2)
 - **Not used anywhere (do not reintroduce): Tailwind, framer-motion, Emotion-direct, simplex-noise**
 
 ## Commands
@@ -34,17 +34,29 @@ npm test        # Jest / RTL / jest-axe
 npm run lint    # eslint --max-warnings 0 (CI-gated)
 ```
 
+## Graphics safety architecture
+
+- `src/utils/graphicsPolicy.js` is the fail-closed policy boundary. It supports `?graphics=css`, `?graphics=webgl`, and `?graphics=auto`, persists runtime failures for the session, and defaults Windows automatic sessions to CSS until real hardware validation is complete.
+- `src/utils/deviceTier.js` performs the WebGL2 capability probe only when policy allows it, rejects known software renderers, compiles the actual GLSL ES 3 baseline, and releases the detached probe context.
+- `src/utils/graphicsContextGovernor.js` is installed before React mounts. It only governs canvases explicitly marked by `ManagedDitherBackground`, bounding their drawing buffer before the first draw and capping the legacy single-pass draw rate.
+- `src/utils/graphicsRuntimeBoundary.js` catches unmanaged WebGL context loss, hides the failed canvas, records the failure, clears exclusive Orb ownership, and never reloads the document.
+- `ManagedDitherBackground.js` owns Dither lifecycle. Hidden tabs, reduced motion, context loss, disabled policy, and exclusive Orb Black Hole ownership unmount the live renderer and reveal the CSS fallback.
+- `BlackHoleCanvas.js` is the only black-hole implementation. It is a loop-free analytic screen-space shader with a 420,000-pixel ceiling, 30fps ceiling, reduced-motion static frame, hidden/invisible suspension, low-power context request, explicit GPU cleanup, and fail-closed recovery.
+- `BlackHoleBackground.js` was removed. Never recreate or reintroduce the persistent 200-step RK4 background renderer.
+- Essential copy, navigation, forms, and route access must remain fully usable with WebGL disabled.
+- `window.__graphicsReport()` returns the current graphics policy, the last failure, and bounded session breadcrumbs.
+
 ## Architecture
 
 ### Immersive home (`/`, `/engineering`)
 - `ParallaxBackground.js` - section-snap controller. Intercepts wheel/keyboard/touch (native scroll is NOT used); 4 sections: DitherHero, Bio, Services, Contact. Section dots (`.section-dot`) are the navigation contract: `document.querySelectorAll('.section-dot')[N]?.click()` navigates from anywhere.
-- `DitherBackground.js` (~1900 lines) - persistent WebGL2 dither canvas, per-section shader presets, orb face/emotions, CD/black-hole blend modes. **Touch carefully; verify visually.**
+- `DitherBackground.js` (~1900 lines) - legacy persistent WebGL2 dither canvas, per-section shader presets, orb face/emotions, and CD blend modes. It must only be mounted through `ManagedDitherBackground`; direct imports into route code are prohibited. **Touch carefully; verify visually.**
 - `experiencePlacement.js` - which sections render (orb currently disabled on the main stack).
 - `siteCopy.js` - dual-audience copy (business vs engineering); `immersiveMode.js` picks per route.
 - `ProfessionalHero.js` owns the `/engineering` card's reveal state, section-action routing, pointer capture, viewport clamping, drag suppression, and double-click reset. Do not move those invariants into presentation code or replace its inline transform.
 - `public/engineering-card.css` is injected only into generated `/engineering` HTML. It maps the card to the Aetheris contract: Hanken Grotesk + JetBrains Mono, structural spectral edges, masked glass ring, specular elevation, shared radii, focus halo, calm hover/press states, and dark/light/reduced-transparency parity. Filled gradient text and filled rainbow action buttons are prohibited.
 - `scripts/generate-route-html.mjs` keeps Poppins for the shared `/engineering` shell, adds Hanken Grotesk + JetBrains Mono for the card, and injects the cache-busted card stylesheet. The root, orb, and game routes must not receive those card assets.
-- WebGL-unavailable fallback: `deviceTier.js` `hasHardwareWebGL` gates canvases; CSS gradient orbs render instead.
+- WebGL-unavailable or policy-disabled fallback: CSS gradient orbs remain mounted beneath the managed canvas and preserve the complete content path.
 
 ### /work (Aetheris Iridescent)
 - Design tokens and component recipes are scoped to `.work-page` in `WorkPage.css`: structural spectral gradients, Hanken Grotesk + JetBrains Mono, glass panels, the 6/10/14/26px radius hierarchy, light-derived elevation, and the shared interaction system. Styleguide source: `mstrbstrd/aetheris-styleguide`; follow `conventions.md` when extending.
@@ -57,6 +69,7 @@ npm run lint    # eslint --max-warnings 0 (CI-gated)
 
 ### /dither-canvas (CreatorOS field lab)
 - `DitherCanvasPage.js` owns the ten-study selector and guarantees that only one visible renderer family is mounted at a time.
+- `GraphicsFallbackPage.js` is the intentional policy-disabled route. It explains safe mode and provides explicit enhanced-graphics opt-in without making WebGL mandatory.
 - `CreatorOSLavaLampCanvas.js` is the direct port of `mstrbstrd/CreatorOS/apps/web/components/fluid-background.tsx`. Preserve its half-resolution WebGL1 canvas, 30fps cap, Bayer-8 quantization, exact spectral palette, transparent premultiplied output, viscous wax deformation, velocity stretch/pinch, and 3.2 second warm-up.
 - `CreatorOSFieldCanvas.js` is the shared WebGL2 renderer for Metabloom, Tidal Weave, Moiré Halo, Contour Drift, Morphogen Divide, Quasicrystal Chorus, Hyperbolic Garden, and Forward Pass. It carries the same CreatorOS rendering contract while preserving each study's independent scene mathematics.
 - Morphogen Divide owns two RGBA8 ping-pong textures. It must never sample from the texture attached to the framebuffer currently being written.
@@ -65,7 +78,7 @@ npm run lint    # eslint --max-warnings 0 (CI-gated)
 - `RuptureCanvas.js` remains isolated as the Second Surface material study and must not be folded into the fluid renderer.
 
 ### window.__* globals contract
-Producers null their globals on cleanup. Orb/dither: `__orbPop`, `__orbExpress`, `__orbPlaySequence`, `__orbStop`, `__orbReset`, `__orbExpressions`, `__orbTalk`, `__orbStopTalk`, `__ditherRaiseCanvas`, `__ditherLowerCanvas`, `__ditherLockToHero`, `__ditherUnlock`, `__ditherRevealIn`, `__ditherRevealOut`, `__ditherSetCD`, `__ditherSetOrb`, `__addDitherRipple` (all from DitherBackground). Others: `__bhRevealStart` (BlackHoleBackground), `__bhModeActive` (OrbSection), `__serviceCardExpanded` (ServicesSection), `__triggerLoading` (App / StandaloneExperiencePage), `__perfReport` (telemetry).
+Producers null their globals on cleanup. Orb/dither: `__orbPop`, `__orbExpress`, `__orbPlaySequence`, `__orbStop`, `__orbReset`, `__orbExpressions`, `__orbTalk`, `__orbStopTalk`, `__ditherRaiseCanvas`, `__ditherLowerCanvas`, `__ditherLockToHero`, `__ditherUnlock`, `__ditherRevealIn`, `__ditherRevealOut`, `__ditherSetCD`, `__ditherSetOrb`, `__addDitherRipple` (all from DitherBackground). Others: `__bhModeActive` (OrbSection, synchronously bridged by `rendererOwnership.js`), `__serviceCardExpanded` (ServicesSection), `__triggerLoading` (App / StandaloneExperiencePage), `__perfReport` (telemetry), `__graphicsReport` (graphics policy diagnostics).
 
 ## Conventions & cautions
 
@@ -74,6 +87,7 @@ Producers null their globals on cleanup. Orb/dither: `__orbPop`, `__orbExpress`,
 - Timers/listeners: always capture and clear (see `useWorkPolish.js` / `LoadingOverlay.js` for the pattern).
 - `patchResizeObserver.js` must stay the first import in `src/index.js`.
 - Glass + per-frame transforms must not share a compositing subtree (Chrome clip desync) - see the comment in `ServicesSection.js` ExpandedOverlay before restructuring.
-- Tests pin many literals: `favicon.test.js` (icon/manifest), `WorkPageMotion.test.js` (keyframe budget), `ProfessionalHeroStyle.test.js` (Aetheris card and route isolation), `SpectralBloom.test.js` (shader discipline strings), a11y suite (`src/__tests__/a11y/`, 10 files). Run the full suite after edits.
+- Tests pin many literals: `favicon.test.js` (icon/manifest), `WorkPageMotion.test.js` (keyframe budget), `ProfessionalHeroStyle.test.js` (Aetheris card and route isolation), `SpectralBloom.test.js` (shader discipline strings), graphics policy/governor/runtime tests, and the a11y suite (`src/__tests__/a11y/`, 10 files). Run the full suite after edits.
 - `git rm` over delete; never commit `node_modules` or `build/`.
-- Remote: `https://github.com/mstrbstrd/popular-consulting.git` (branch `main`); Vercel deploys from main. CI (`.github/workflows/quality.yml`): lint -> test -> build, all gating.
+- Remote: `https://github.com/mstrbstrd/popular-consulting.git` (branch `main`); Vercel deploys from main.
+- CI (`.github/workflows/quality.yml`) gates lint, tests, and build on Ubuntu plus the complete test suite and build on `windows-latest`. Windows CI validates policy and platform behavior in a VM; it is not a substitute for real Intel/AMD/NVIDIA hardware validation.
