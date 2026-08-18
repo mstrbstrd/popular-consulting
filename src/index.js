@@ -10,10 +10,8 @@ import './spectral-icon-colorway.css';
 import './work-responsive.css';
 import './work-navigation-refinement.css';
 import './work-card-consistency.css';
-import './orb-metabloom-body.css';
 import SiteRouter from './SiteRouter';
 import InteractionAccessibilityBridge from './components/InteractionAccessibilityBridge';
-import OrbMetabloomBody from './components/OrbMetabloomBody';
 import { initCoreWebVitals, initSectionTiming, initLongTaskObserver } from './utils/telemetry';
 
 // ResizeObserver loop errors are prevented at the source by patchResizeObserver
@@ -29,7 +27,6 @@ root.render(
   <React.StrictMode>
     <InteractionAccessibilityBridge />
     <SiteRouter />
-    <OrbMetabloomBody />
   </React.StrictMode>
 );
 
