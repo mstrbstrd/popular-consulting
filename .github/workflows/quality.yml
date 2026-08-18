@@ -46,7 +46,7 @@ jobs:
           CI: true
 
   windows-test-and-build:
-    name: Windows test and build
+    name: Windows test, build, and Edge smoke
     runs-on: windows-latest
     timeout-minutes: 25
 
@@ -72,3 +72,6 @@ jobs:
         run: npm run build
         env:
           CI: true
+
+      - name: Run built routes in Microsoft Edge
+        run: node scripts/windows-browser-smoke.mjs
