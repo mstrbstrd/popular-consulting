@@ -17,6 +17,8 @@ const mockGetShaderCanvasSize = jest.fn();
 jest.mock("../utils/deviceTier", () => ({
   disableWebGLForSession: (...args) => mockDisableWebGLForSession(...args),
   getShaderCanvasSize: (...args) => mockGetShaderCanvasSize(...args),
+  MAX_SHADER_PIXELS: 1_000_000,
+  TARGET_SHADER_FRAME_MS: 1000 / 30,
 }));
 
 jest.mock("../utils/graphicsPolicy", () => ({
@@ -71,7 +73,7 @@ describe("ManagedDitherBackground", () => {
     setVisibility("visible");
   });
 
-  test("mounts one live renderer only while enabled and visible", async () => {
+  test("mounts one governed live renderer only while enabled and visible", async () => {
     const { container } = render(
       <ManagedDitherBackground
         activeSection={2}
@@ -81,13 +83,20 @@ describe("ManagedDitherBackground", () => {
       />,
     );
 
+    const renderer = container.querySelector(
+      "[data-renderer-id='main-dither']",
+    );
     expect(screen.getByTestId("dither-canvas")).toHaveAttribute(
       "data-section",
       "2",
     );
-    expect(
-      container.querySelector("[data-renderer-state='running']"),
-    ).toBeInTheDocument();
+    expect(renderer).toHaveAttribute("data-renderer-state", "running");
+    expect(renderer).toHaveAttribute("data-graphics-governor", "true");
+    expect(renderer).toHaveAttribute("data-graphics-single-pass", "true");
+    expect(renderer).toHaveAttribute("data-max-shader-pixels", "1000000");
+    expect(Number(renderer.getAttribute("data-shader-frame-interval"))).toBeCloseTo(
+      1000 / 30,
+    );
 
     await waitFor(() => {
       expect(screen.getByTestId("dither-canvas").width).toBe(320);
