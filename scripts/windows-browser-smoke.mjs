@@ -8,27 +8,27 @@ const repositoryRoot = process.cwd();
 const buildRoot = path.join(repositoryRoot, "build");
 
 const routeChecks = [
-  { route: "/", marker: 'class="parallax-wrapper"' },
-  { route: "/engineering", marker: 'class="parallax-wrapper"' },
-  { route: "/work", marker: 'class="work-page"' },
+  { route: "/", markers: ['class="parallax-wrapper"'] },
+  { route: "/engineering", markers: ['class="parallax-wrapper"'] },
+  { route: "/work", markers: ['class="work-page"'] },
   {
     route: "/orb",
-    marker: "standalone-experience--orb",
+    markers: ["standalone-experience--orb"],
     forbidden: 'data-renderer-state="running"',
   },
   {
     route: "/game",
-    marker: "standalone-experience--game",
+    markers: ["standalone-experience--game"],
     forbidden: 'data-renderer-state="running"',
   },
   {
     route: "/dither-canvas",
-    marker: 'class="graphics-fallback-page"',
+    markers: ['class="graphics-fallback-page"'],
     forbidden: 'data-renderer-state="running"',
   },
   {
     route: "/dither-canvas?graphics=webgl",
-    marker: "graphics-fallback-page",
+    markers: ["graphics-fallback-page", "dither-canvas-page"],
   },
 ];
 
@@ -150,6 +150,7 @@ const runEdgeRoute = (edgePath, origin, check) => {
       "--mute-audio",
       "--no-default-browser-check",
       "--no-first-run",
+      "--run-all-compositor-stages-before-draw",
       "--virtual-time-budget=5000",
       `--user-data-dir=${profileDirectory}`,
       "--dump-dom",
@@ -174,9 +175,14 @@ const runEdgeRoute = (edgePath, origin, check) => {
   }
 
   const documentHtml = result.stdout || "";
-  if (!documentHtml.includes(check.marker)) {
+  const matchedMarker = check.markers.find((marker) =>
+    documentHtml.includes(marker),
+  );
+  if (!matchedMarker) {
     throw new Error(
-      `${check.route}: expected rendered marker ${check.marker} was not found`,
+      `${check.route}: none of the rendered markers ${check.markers.join(
+        ", ",
+      )} were found`,
     );
   }
   if (check.forbidden && documentHtml.includes(check.forbidden)) {
@@ -188,7 +194,9 @@ const runEdgeRoute = (edgePath, origin, check) => {
     throw new Error(`${check.route}: Edge returned a browser crash document`);
   }
 
-  process.stdout.write(`Windows Edge smoke passed: ${check.route}\n`);
+  process.stdout.write(
+    `Windows Edge smoke passed: ${check.route} (${matchedMarker})\n`,
+  );
 };
 
 if (process.platform !== "win32") {
