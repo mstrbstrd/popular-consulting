@@ -6,26 +6,34 @@ import StandaloneExperiencePage, {
   resolveExperienceConfig,
 } from "./StandaloneExperiencePage";
 
+let mockIsDark = false;
+
 jest.mock("../contexts/ThemeContext", () => {
   const ReactModule = require("react");
   return {
     ThemeProvider: ({ children }) =>
       ReactModule.createElement(ReactModule.Fragment, null, children),
-    useThemeMode: () => ({ isDark: false, toggleTheme: jest.fn() }),
+    useThemeMode: () => ({ isDark: mockIsDark, toggleTheme: jest.fn() }),
   };
 });
 
 jest.mock("../utils/deviceTier", () => ({
   hasHardwareWebGL: true,
   isMobileTier: false,
+  disableWebGLForSession: jest.fn(),
+  getShaderCanvasSize: () => ({ width: 640, height: 360, scale: 1 }),
 }));
 
-jest.mock("./DitherBackground", () => ({ activeSection }) => (
-  <div data-testid="dither-background" data-preset={activeSection} />
-));
+jest.mock("../utils/graphicsPolicy", () => ({
+  recordGraphicsEvent: jest.fn(),
+}));
 
-jest.mock("./BlackHoleBackground", () => ({ activeSection }) => (
-  <div data-testid="black-hole-background" data-preset={activeSection} />
+jest.mock("./DitherBackground", () => ({ activeSection, isDark }) => (
+  <div
+    data-testid="dither-background"
+    data-preset={activeSection}
+    data-dark={String(isDark)}
+  />
 ));
 
 jest.mock("./OrbSection", () => ({
@@ -63,7 +71,10 @@ const resetDocument = () => {
 };
 
 describe("StandaloneExperiencePage", () => {
-  beforeEach(resetDocument);
+  beforeEach(() => {
+    mockIsDark = false;
+    resetDocument();
+  });
 
   afterEach(() => {
     cleanup();
@@ -83,8 +94,10 @@ describe("StandaloneExperiencePage", () => {
     expect(resolveExperienceConfig("unknown")).toBeNull();
   });
 
-  test("renders the orb by itself with the orb background preset", async () => {
-    render(<StandaloneExperiencePage experience={EXPERIENCE_IDS.ORB} />);
+  test("renders the orb by itself with the managed orb preset", async () => {
+    const { container } = render(
+      <StandaloneExperiencePage experience={EXPERIENCE_IDS.ORB} />,
+    );
 
     expect(await screen.findByTestId("orb-experience")).toHaveAttribute(
       "data-active",
@@ -95,11 +108,20 @@ describe("StandaloneExperiencePage", () => {
       "data-preset",
       "4",
     );
-    expect(screen.getByRole("main", { name: "Interactive Orb Lab" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Return to Popular Consulting home" })).toHaveAttribute(
-      "href",
-      "/",
-    );
+    expect(
+      container.querySelector("[data-renderer-id='orb-dither']"),
+    ).toHaveAttribute("data-renderer-state", "running");
+    expect(
+      container.querySelector(".standalone-experience__fallback"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("main", { name: "Interactive Orb Lab" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", {
+        name: "Return to Popular Consulting home",
+      }),
+    ).toHaveAttribute("href", "/");
 
     await waitFor(() => {
       expect(document.title).toBe("Interactive Orb Lab | Popular Consulting");
@@ -114,7 +136,18 @@ describe("StandaloneExperiencePage", () => {
     });
   });
 
-  test("renders the game by itself with the game background preset", async () => {
+  test("keeps the orb renderer available in dark mode", async () => {
+    mockIsDark = true;
+    render(<StandaloneExperiencePage experience={EXPERIENCE_IDS.ORB} />);
+
+    expect(await screen.findByTestId("orb-experience")).toBeInTheDocument();
+    expect(screen.getByTestId("dither-background")).toHaveAttribute(
+      "data-dark",
+      "true",
+    );
+  });
+
+  test("renders the game with one managed background preset", async () => {
     render(<StandaloneExperiencePage experience={EXPERIENCE_IDS.GAME} />);
 
     expect(await screen.findByTestId("game-experience")).toHaveAttribute(
@@ -126,11 +159,10 @@ describe("StandaloneExperiencePage", () => {
       "data-preset",
       "5",
     );
-    expect(screen.getByTestId("black-hole-background")).toHaveAttribute(
-      "data-preset",
-      "5",
-    );
-    expect(screen.getByRole("main", { name: "Popcorn Game" })).toBeInTheDocument();
+    expect(screen.queryByTestId("black-hole-background")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("main", { name: "Popcorn Game" }),
+    ).toBeInTheDocument();
 
     await waitFor(() => {
       expect(document.title).toBe("Popcorn Game | Popular Consulting");
@@ -143,6 +175,22 @@ describe("StandaloneExperiencePage", () => {
         "noindex,follow",
       );
     });
+  });
+
+  test("uses the CSS fallback instead of a hidden live renderer for the dark game", async () => {
+    mockIsDark = true;
+    const { container } = render(
+      <StandaloneExperiencePage experience={EXPERIENCE_IDS.GAME} />,
+    );
+
+    expect(await screen.findByTestId("game-experience")).toBeInTheDocument();
+    expect(screen.queryByTestId("dither-background")).not.toBeInTheDocument();
+    expect(
+      container.querySelector("[data-renderer-id='game-dither']"),
+    ).toHaveAttribute("data-renderer-state", "disabled");
+    expect(
+      container.querySelector(".standalone-experience__fallback"),
+    ).toBeInTheDocument();
   });
 
   test("does not publish private contact data on either route", async () => {
