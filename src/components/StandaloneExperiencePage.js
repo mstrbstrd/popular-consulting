@@ -1,5 +1,5 @@
 import React, { lazy, Suspense } from "react";
-import DitherBackground from "./DitherBackground";
+import ManagedDitherBackground from "./ManagedDitherBackground";
 import { ThemeProvider, useThemeMode } from "../contexts/ThemeContext";
 import { hasHardwareWebGL } from "../utils/deviceTier";
 import routeMetadata from "../content/routeMetadata.json";
@@ -44,6 +44,12 @@ const METADATA_SELECTORS = {
   twitterTitle: 'meta[name="twitter:title"]',
   twitterDescription: 'meta[name="twitter:description"]',
 };
+
+const fallbackOrbs = [
+  { top: "12%", left: "14%", size: "55vmax", duration: "18s" },
+  { top: "55%", left: "68%", size: "48vmax", duration: "22s" },
+  { top: "72%", left: "22%", size: "42vmax", duration: "26s" },
+];
 
 export const resolveExperienceConfig = (experience) =>
   EXPERIENCE_CONFIG[experience] || null;
@@ -110,7 +116,11 @@ const ExperienceContent = ({ experience }) => {
       document.body.style.height = previous.bodyHeight;
 
       Object.entries(targets).forEach(([key, target]) => {
-        restore(target, key === "canonical" ? "href" : "content", previous.values[key]);
+        restore(
+          target,
+          key === "canonical" ? "href" : "content",
+          previous.values[key],
+        );
       });
     };
   }, [config]);
@@ -134,10 +144,18 @@ const ExperienceContent = ({ experience }) => {
 
   if (!config) return null;
 
-  const ExperienceComponent = experience === EXPERIENCE_IDS.ORB ? OrbSection : PopcornGame;
+  const ExperienceComponent =
+    experience === EXPERIENCE_IDS.ORB ? OrbSection : PopcornGame;
   const colors = isDark ? config.darkColors : config.lightColors;
-  const useDitherBackground = hasHardwareWebGL && !isDark;
-  const pageHideStyle = pageHidden ? { visibility: "hidden", pointerEvents: "none" } : undefined;
+  const isOrbExperience = experience === EXPERIENCE_IDS.ORB;
+  const useDitherBackground =
+    hasHardwareWebGL && (isOrbExperience || !isDark);
+  const pageHideStyle = pageHidden
+    ? { visibility: "hidden", pointerEvents: "none" }
+    : undefined;
+  const orbFallback = isOrbExperience ? (
+    <div className="standalone-experience__orb-fallback" aria-hidden="true" />
+  ) : null;
 
   return (
     <div
@@ -161,38 +179,33 @@ const ExperienceContent = ({ experience }) => {
 
       <div style={pageHideStyle}>
         <div className="standalone-experience__background" aria-hidden="true">
-          {!useDitherBackground && (
-            <div className="standalone-experience__fallback">
-              {[
-                { top: "12%", left: "14%", size: "55vmax", duration: "18s" },
-                { top: "55%", left: "68%", size: "48vmax", duration: "22s" },
-                { top: "72%", left: "22%", size: "42vmax", duration: "26s" },
-              ].map((orb, index) => (
-                <span
-                  key={index}
-                  style={{
-                    top: orb.top,
-                    left: orb.left,
-                    width: orb.size,
-                    height: orb.size,
-                    background: `radial-gradient(circle, ${colors[index]}55 0%, transparent 70%)`,
-                    animationDuration: orb.duration,
-                    animationDelay: `${index * -4}s`,
-                  }}
-                />
-              ))}
-              <div className="standalone-experience__grid" />
-            </div>
-          )}
-
-          {useDitherBackground && (
-            <div className="standalone-experience__dither">
-              <DitherBackground
-                activeSection={config.backgroundSection}
-                isDark={isDark}
+          <div className="standalone-experience__fallback">
+            {fallbackOrbs.map((orb, index) => (
+              <span
+                key={index}
+                style={{
+                  top: orb.top,
+                  left: orb.left,
+                  width: orb.size,
+                  height: orb.size,
+                  background: `radial-gradient(circle, ${colors[index]}55 0%, transparent 70%)`,
+                  animationDuration: orb.duration,
+                  animationDelay: `${index * -4}s`,
+                }}
               />
-            </div>
-          )}
+            ))}
+            <div className="standalone-experience__grid" />
+          </div>
+
+          <div className="standalone-experience__dither">
+            <ManagedDitherBackground
+              activeSection={config.backgroundSection}
+              enabled={useDitherBackground}
+              fallback={orbFallback}
+              isDark={isDark}
+              rendererId={`${experience}-dither`}
+            />
+          </div>
 
           <div className="standalone-experience__glass" />
         </div>
@@ -231,7 +244,7 @@ const ExperienceContent = ({ experience }) => {
         </main>
       </div>
 
-      {experience === EXPERIENCE_IDS.ORB && (
+      {isOrbExperience && (
         <Suspense fallback={null}>
           <LoadingOverlay
             visible={loading}
@@ -305,7 +318,11 @@ const ExperienceContent = ({ experience }) => {
           inset: 0;
           background-image: radial-gradient(
             circle at 1px 1px,
-            ${isDark ? "rgba(255,255,255,0.12)" : "rgba(40,40,90,0.10)"} 0 1px,
+            ${
+              isDark
+                ? "rgba(255,255,255,0.12)"
+                : "rgba(40,40,90,0.10)"
+            } 0 1px,
             transparent 1.5px
           );
           background-size: 24px 24px;
@@ -313,6 +330,27 @@ const ExperienceContent = ({ experience }) => {
 
         .standalone-experience__dither {
           pointer-events: none;
+        }
+
+        .standalone-experience__orb-fallback {
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          width: min(55vw, 55vh);
+          height: min(55vw, 55vh);
+          border-radius: 50%;
+          transform: translate(-50%, -60%);
+          background: ${
+            isDark
+              ? "radial-gradient(circle at 36% 32%, #d7ccff 0%, #9b72ff 12%, #4338ca 42%, #17133f 72%, transparent 100%)"
+              : "radial-gradient(circle at 36% 32%, #ffffff 0%, #c4b5fd 14%, #818cf8 42%, #4338ca 72%, transparent 100%)"
+          };
+          box-shadow: ${
+            isDark
+              ? "0 0 90px 24px rgba(99,68,245,0.34), inset 0 0 44px rgba(215,204,255,0.26)"
+              : "0 0 90px 24px rgba(99,68,245,0.18), inset 0 0 44px rgba(255,255,255,0.42)"
+          };
+          animation: standaloneOrbPulse 4s ease-in-out infinite;
         }
 
         .standalone-experience__glass {
@@ -393,12 +431,24 @@ const ExperienceContent = ({ experience }) => {
           50% { transform: translate(-44%, -56%) scale(1.08) rotate(6deg); }
         }
 
+        @keyframes standaloneOrbPulse {
+          0%, 100% { transform: translate(-50%, -60%) scale(1); }
+          50% { transform: translate(-50%, -60%) scale(1.035); }
+        }
+
         @media (max-width: 720px) {
           .standalone-experience__header {
             grid-template-columns: 1fr auto;
           }
           .standalone-experience__header-label {
             display: none;
+          }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .standalone-experience__fallback > span,
+          .standalone-experience__orb-fallback {
+            animation: none !important;
           }
         }
       `}</style>
