@@ -12,11 +12,7 @@ import ManagedDitherBackground from "./ManagedDitherBackground";
 
 const mockDisableWebGLForSession = jest.fn();
 const mockRecordGraphicsEvent = jest.fn();
-const mockGetShaderCanvasSize = jest.fn(() => ({
-  width: 320,
-  height: 180,
-  scale: 0.5,
-}));
+const mockGetShaderCanvasSize = jest.fn();
 
 jest.mock("../utils/deviceTier", () => ({
   disableWebGLForSession: (...args) => mockDisableWebGLForSession(...args),
@@ -58,7 +54,12 @@ describe("ManagedDitherBackground", () => {
   beforeEach(() => {
     mockDisableWebGLForSession.mockClear();
     mockRecordGraphicsEvent.mockClear();
-    mockGetShaderCanvasSize.mockClear();
+    mockGetShaderCanvasSize.mockReset();
+    mockGetShaderCanvasSize.mockImplementation(() => ({
+      width: 320,
+      height: 180,
+      scale: 0.5,
+    }));
     window.__bhModeActive = false;
     setVisibility("visible");
     setReducedMotion(false);
