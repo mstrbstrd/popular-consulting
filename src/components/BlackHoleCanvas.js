@@ -226,6 +226,7 @@ const BlackHoleCanvas = ({
   const canvasRef = useRef(null);
   const isDarkRef = useRef(isDark);
   const visibleRef = useRef(visible);
+  const onFadeOutEndRef = useRef(onFadeOutEnd);
   const ensureAnimatingRef = useRef(null);
   const [failed, setFailed] = useState(false);
 
@@ -239,6 +240,10 @@ const BlackHoleCanvas = ({
   }, [visible]);
 
   useEffect(() => {
+    onFadeOutEndRef.current = onFadeOutEnd;
+  }, [onFadeOutEnd]);
+
+  useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || failed) return undefined;
 
@@ -250,13 +255,28 @@ const BlackHoleCanvas = ({
     let program = null;
     let buffer = null;
 
+    const releaseResources = () => {
+      const context = gl;
+      if (buffer && context) context.deleteBuffer(buffer);
+      if (program && context) context.deleteProgram(program);
+      buffer = null;
+      program = null;
+      gl = null;
+      try {
+        context?.getExtension("WEBGL_lose_context")?.loseContext();
+      } catch (_) {}
+    };
+
     const failRenderer = (reason) => {
       if (disposed) return;
+      if (animationFrame) window.cancelAnimationFrame(animationFrame);
+      animationFrame = 0;
       recordGraphicsEvent("black-hole-failed", { reason });
       disableWebGLForSession(`black-hole:${reason}`);
       window.__bhModeActive = false;
+      releaseResources();
       setFailed(true);
-      onFadeOutEnd?.();
+      onFadeOutEndRef.current?.();
     };
 
     try {
@@ -322,7 +342,7 @@ const BlackHoleCanvas = ({
 
     const resize = () => {
       const parent = canvas.parentElement;
-      if (!parent || !gl) return;
+      if (!parent || !gl) return false;
 
       const bounds = parent.getBoundingClientRect();
       const target = getShaderCanvasSize(
@@ -331,6 +351,17 @@ const BlackHoleCanvas = ({
         BLACK_HOLE_MAX_PIXELS,
       );
 
+      if (
+        !target ||
+        !Number.isFinite(target.width) ||
+        !Number.isFinite(target.height) ||
+        target.width < 1 ||
+        target.height < 1
+      ) {
+        failRenderer("canvas-size-invalid");
+        return false;
+      }
+
       if (canvas.width !== target.width || canvas.height !== target.height) {
         canvas.width = target.width;
         canvas.height = target.height;
@@ -338,6 +369,8 @@ const BlackHoleCanvas = ({
         canvas.dataset.renderWidth = String(target.width);
         canvas.dataset.renderHeight = String(target.height);
       }
+
+      return true;
     };
 
     const readPointer = (clientX, clientY) => {
@@ -386,15 +419,12 @@ const BlackHoleCanvas = ({
 
     const handleContextLost = (event) => {
       event.preventDefault();
-      if (animationFrame) window.cancelAnimationFrame(animationFrame);
-      animationFrame = 0;
       failRenderer("context-lost");
     };
 
     const draw = (timestamp) => {
-      if (!gl || !program) return;
+      if (!gl || !program || !resize()) return;
 
-      resize();
       const effectiveZoom =
         zoomRef && zoomRef.current !== null ? zoomRef.current : internalZoom;
       if (currentZoomRef) currentZoomRef.current = effectiveZoom;
@@ -439,7 +469,7 @@ const BlackHoleCanvas = ({
       lastFrameAt = timestamp;
       draw(timestamp);
 
-      if (!reducedMotion?.matches) {
+      if (!reducedMotion?.matches && gl) {
         animationFrame = window.requestAnimationFrame(render);
       }
     };
@@ -448,6 +478,7 @@ const BlackHoleCanvas = ({
       if (
         disposed ||
         animationFrame ||
+        !gl ||
         !visibleRef.current ||
         document.visibilityState === "hidden"
       ) {
@@ -484,9 +515,13 @@ const BlackHoleCanvas = ({
     canvas.addEventListener("webglcontextlost", handleContextLost, false);
     window.addEventListener("resize", resize);
     document.addEventListener("visibilitychange", handleVisibility);
-    reducedMotion?.addEventListener?.("change", handleMotionChange);
+    if (reducedMotion?.addEventListener) {
+      reducedMotion.addEventListener("change", handleMotionChange);
+    } else {
+      reducedMotion?.addListener?.(handleMotionChange);
+    }
 
-    resize();
+    if (!resize()) return undefined;
     recordGraphicsEvent("black-hole-mounted", {
       frameInterval: BLACK_HOLE_FRAME_INTERVAL_MS,
       maxPixels: BLACK_HOLE_MAX_PIXELS,
@@ -504,15 +539,15 @@ const BlackHoleCanvas = ({
       canvas.removeEventListener("webglcontextlost", handleContextLost);
       window.removeEventListener("resize", resize);
       document.removeEventListener("visibilitychange", handleVisibility);
-      reducedMotion?.removeEventListener?.("change", handleMotionChange);
-      if (buffer && gl) gl.deleteBuffer(buffer);
-      if (program && gl) gl.deleteProgram(program);
-      try {
-        gl?.getExtension("WEBGL_lose_context")?.loseContext();
-      } catch (_) {}
+      if (reducedMotion?.removeEventListener) {
+        reducedMotion.removeEventListener("change", handleMotionChange);
+      } else {
+        reducedMotion?.removeListener?.(handleMotionChange);
+      }
+      releaseResources();
       recordGraphicsEvent("black-hole-unmounted");
     };
-  }, [currentZoomRef, failed, onFadeOutEnd, zoomRef]);
+  }, [currentZoomRef, failed, zoomRef]);
 
   if (failed) return null;
 
@@ -521,7 +556,7 @@ const BlackHoleCanvas = ({
       ref={canvasRef}
       data-renderer-id="black-hole-orb"
       onTransitionEnd={() => {
-        if (!visible) onFadeOutEnd?.();
+        if (!visible) onFadeOutEndRef.current?.();
       }}
       style={{
         position: "absolute",
