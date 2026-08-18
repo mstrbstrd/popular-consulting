@@ -55,7 +55,7 @@ describe("BlackHoleCanvas safety invariants", () => {
     expect(BLACK_HOLE_FRAME_INTERVAL_MS).toBeGreaterThanOrEqual(1000 / 30);
   });
 
-  test("retains visibility, context-loss, and cleanup ownership", () => {
+  test("retains visibility, context-loss, and explicit cleanup ownership", () => {
     const source = fs.readFileSync(
       path.join(process.cwd(), "src/components/BlackHoleCanvas.js"),
       "utf8",
@@ -65,7 +65,9 @@ describe("BlackHoleCanvas safety invariants", () => {
     expect(source).toContain('powerPreference: "low-power"');
     expect(source).toContain('document.addEventListener("visibilitychange"');
     expect(source).toContain('canvas.addEventListener("webglcontextlost"');
-    expect(source).toContain('getExtension("WEBGL_lose_context")');
+    expect(source).toContain("gl.deleteBuffer(buffer)");
+    expect(source).toContain("gl.deleteProgram(program)");
+    expect(source).not.toContain('getExtension("WEBGL_lose_context")');
     expect(source).toContain("getShaderCanvasSize(");
   });
 
