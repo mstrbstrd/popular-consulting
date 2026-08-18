@@ -49,31 +49,10 @@
   .orb-metabloom-body {
     display: none;
   }
-
-  .standalone-experience--orb #orb::before {
-    content: "";
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    width: min(58vw, 58vh);
-    height: min(58vw, 58vh);
-    transform: translate(-50%, -58%);
-    border-radius: 46% 54% 52% 48% / 51% 44% 56% 49%;
-    pointer-events: none;
-    background:
-      radial-gradient(circle at 34% 28%, rgba(255,255,255,0.92) 0 4%, transparent 15%),
-      radial-gradient(circle at 64% 62%, rgba(130,236,255,0.36) 0 12%, transparent 30%),
-      radial-gradient(circle at 44% 48%, rgba(191,156,255,0.34), rgba(93,113,140,0.68) 42%, rgba(26,30,37,0.90) 72%);
-    box-shadow:
-      inset 18px -16px 30px rgba(0,0,0,0.30),
-      inset -12px 10px 28px rgba(255,255,255,0.22),
-      0 0 70px rgba(123,204,255,0.20);
-    opacity: 0.96;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .standalone-experience--orb #orb::before {
-    animation: none !important;
+  .orb-metabloom-body {
+    image-rendering: auto;
   }
 }
