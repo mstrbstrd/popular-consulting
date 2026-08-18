@@ -128,8 +128,7 @@ export const initGraphicsContextGovernor = () => {
   }
 
   const originalGetContext = HTMLCanvasElement.prototype.getContext;
-
-  HTMLCanvasElement.prototype.getContext = function getGovernedContext(
+  const governedGetContext = function getGovernedContext(
     contextType,
     ...args
   ) {
@@ -142,13 +141,19 @@ export const initGraphicsContextGovernor = () => {
     return root ? governContext(this, context, root) : context;
   };
 
-  cleanupContextGovernor = () => {
-    if (HTMLCanvasElement.prototype.getContext === originalGetContext) {
-      cleanupContextGovernor = null;
-      return;
-    }
+  try {
+    HTMLCanvasElement.prototype.getContext = governedGetContext;
+  } catch (_) {
+    recordGraphicsEvent("context-governor-unavailable", {
+      reason: "prototype-readonly",
+    });
+    return () => {};
+  }
 
-    HTMLCanvasElement.prototype.getContext = originalGetContext;
+  cleanupContextGovernor = () => {
+    if (HTMLCanvasElement.prototype.getContext === governedGetContext) {
+      HTMLCanvasElement.prototype.getContext = originalGetContext;
+    }
     cleanupContextGovernor = null;
   };
 
