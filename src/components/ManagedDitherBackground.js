@@ -29,9 +29,15 @@ const ManagedDitherBackground = ({
   );
   const [reducedMotion, setReducedMotion] = React.useState(readReducedMotion);
   const [runtimeFailed, setRuntimeFailed] = React.useState(false);
+  const [exclusiveRendererActive, setExclusiveRendererActive] =
+    React.useState(false);
 
   const shouldRender =
-    enabled && documentVisible && !reducedMotion && !runtimeFailed;
+    enabled &&
+    documentVisible &&
+    !reducedMotion &&
+    !runtimeFailed &&
+    !exclusiveRendererActive;
 
   React.useEffect(() => {
     const handleVisibility = () => {
@@ -67,6 +73,23 @@ const ManagedDitherBackground = ({
       }
     };
   }, []);
+
+  React.useEffect(() => {
+    if (rendererId !== "orb-dither") {
+      setExclusiveRendererActive(false);
+      return undefined;
+    }
+
+    const syncExclusiveRenderer = () => {
+      setExclusiveRendererActive(Boolean(window.__bhModeActive));
+    };
+
+    syncExclusiveRenderer();
+    const timer = window.setInterval(syncExclusiveRenderer, 50);
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [rendererId]);
 
   React.useEffect(() => {
     const root = rootRef.current;
@@ -144,7 +167,9 @@ const ManagedDitherBackground = ({
         ? "hidden"
         : reducedMotion
           ? "reduced-motion"
-          : "running";
+          : exclusiveRendererActive
+            ? "exclusive-suspended"
+            : "running";
 
   return (
     <div
