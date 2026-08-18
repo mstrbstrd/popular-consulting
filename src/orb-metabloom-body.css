@@ -1,0 +1,79 @@
+.orb-metabloom-body {
+  position: fixed;
+  inset: 0;
+  z-index: 7;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+}
+
+.standalone-experience--orb .standalone-experience__dither {
+  z-index: 6;
+}
+
+.standalone-experience--orb .standalone-experience__glass {
+  opacity: 0.18;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.standalone-experience--orb #orb .orb-pill {
+  position: relative;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.035)) padding-box,
+    linear-gradient(115deg, rgba(244,247,255,0.72), rgba(126,249,255,0.38), rgba(197,159,255,0.42), rgba(255,255,255,0.48)) border-box !important;
+  border: 1px solid transparent !important;
+  box-shadow:
+    0 12px 42px rgba(0,0,0,0.18),
+    inset 0 1px 0 rgba(255,255,255,0.26),
+    inset 0 -1px 0 rgba(255,255,255,0.06) !important;
+}
+
+[data-theme="dark"] .standalone-experience--orb #orb .orb-pill {
+  background:
+    linear-gradient(180deg, rgba(10,12,16,0.78), rgba(4,5,8,0.58)) padding-box,
+    linear-gradient(115deg, rgba(242,247,255,0.60), rgba(101,232,255,0.34), rgba(178,134,255,0.40), rgba(255,255,255,0.34)) border-box !important;
+}
+
+.standalone-experience--orb #orb button:hover {
+  background: rgba(255,255,255,0.10) !important;
+}
+
+.standalone-experience--orb #orb button:focus-visible {
+  outline-color: rgba(226, 238, 255, 0.92) !important;
+  box-shadow: 0 0 0 3px rgba(126, 215, 255, 0.18);
+}
+
+@media (max-width: 900px) {
+  .orb-metabloom-body {
+    display: none;
+  }
+
+  .standalone-experience--orb #orb::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: min(58vw, 58vh);
+    height: min(58vw, 58vh);
+    transform: translate(-50%, -58%);
+    border-radius: 46% 54% 52% 48% / 51% 44% 56% 49%;
+    pointer-events: none;
+    background:
+      radial-gradient(circle at 34% 28%, rgba(255,255,255,0.92) 0 4%, transparent 15%),
+      radial-gradient(circle at 64% 62%, rgba(130,236,255,0.36) 0 12%, transparent 30%),
+      radial-gradient(circle at 44% 48%, rgba(191,156,255,0.34), rgba(93,113,140,0.68) 42%, rgba(26,30,37,0.90) 72%);
+    box-shadow:
+      inset 18px -16px 30px rgba(0,0,0,0.30),
+      inset -12px 10px 28px rgba(255,255,255,0.22),
+      0 0 70px rgba(123,204,255,0.20);
+    opacity: 0.96;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .standalone-experience--orb #orb::before {
+    animation: none !important;
+  }
+}
