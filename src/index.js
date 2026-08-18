@@ -14,26 +14,15 @@ import './orb-metabloom-body.css';
 import SiteRouter from './SiteRouter';
 import InteractionAccessibilityBridge from './components/InteractionAccessibilityBridge';
 import OrbMetabloomBody from './components/OrbMetabloomBody';
-import { disableWebGLForSession } from './utils/deviceTier';
 import { initCoreWebVitals, initSectionTiming, initLongTaskObserver } from './utils/telemetry';
 
 // ResizeObserver loop errors are prevented at the source by patchResizeObserver
 // (imported first, above): it wraps callbacks in requestAnimationFrame so
 // notifications never overflow a single frame.
-
-// A GPU reset or driver failure can invalidate a WebGL context after the initial
-// capability probe has succeeded. Fail closed for the rest of this tab/session,
-// then reload once so ParallaxBackground mounts the CSS fallback instead of
-// repeatedly attempting the immersive renderer.
-let recoveringFromWebGLLoss = false;
-document.addEventListener('webglcontextlost', (event) => {
-  event.preventDefault();
-  if (recoveringFromWebGLLoss) return;
-
-  recoveringFromWebGLLoss = true;
-  disableWebGLForSession();
-  window.location.reload();
-}, true);
+//
+// WebGL context loss is handled inside each renderer. The previous global
+// recovery path force-reloaded the whole document, which converted a recoverable
+// graphics fault on Windows into an apparent site crash or reload loop.
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
