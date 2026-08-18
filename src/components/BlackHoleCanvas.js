@@ -5,6 +5,7 @@ import {
   TARGET_SHADER_FRAME_MS,
 } from "../utils/deviceTier";
 import { recordGraphicsEvent } from "../utils/graphicsPolicy";
+import { setOrbBlackHoleModeActive } from "../utils/rendererOwnership";
 
 export const BLACK_HOLE_MAX_PIXELS = 420_000;
 export const BLACK_HOLE_FRAME_INTERVAL_MS = Math.max(
@@ -251,6 +252,7 @@ const BlackHoleCanvas = ({
     let animationFrame = 0;
     let lastFrameAt = 0;
     let firstFramePending = true;
+    let resizeObserver = null;
     let gl = null;
     let program = null;
     let buffer = null;
@@ -269,7 +271,7 @@ const BlackHoleCanvas = ({
       animationFrame = 0;
       recordGraphicsEvent("black-hole-failed", { reason });
       disableWebGLForSession(`black-hole:${reason}`);
-      window.__bhModeActive = false;
+      setOrbBlackHoleModeActive(false);
       releaseResources();
       setFailed(true);
       onFadeOutEndRef.current?.();
@@ -419,7 +421,7 @@ const BlackHoleCanvas = ({
     };
 
     const draw = (timestamp) => {
-      if (!gl || !program || !resize()) return;
+      if (!gl || !program) return;
 
       const effectiveZoom =
         zoomRef && zoomRef.current !== null ? zoomRef.current : internalZoom;
@@ -519,6 +521,12 @@ const BlackHoleCanvas = ({
       reducedMotion?.addListener?.(handleMotionChange);
     }
 
+    const parent = canvas.parentElement;
+    if (typeof ResizeObserver !== "undefined" && parent) {
+      resizeObserver = new ResizeObserver(resize);
+      resizeObserver.observe(parent);
+    }
+
     recordGraphicsEvent("black-hole-mounted", {
       frameInterval: BLACK_HOLE_FRAME_INTERVAL_MS,
       maxPixels: BLACK_HOLE_MAX_PIXELS,
@@ -541,6 +549,7 @@ const BlackHoleCanvas = ({
       } else {
         reducedMotion?.removeListener?.(handleMotionChange);
       }
+      resizeObserver?.disconnect();
       releaseResources();
       recordGraphicsEvent("black-hole-unmounted");
     };
