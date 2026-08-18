@@ -1,8 +1,7 @@
 import React, { lazy, Suspense } from "react";
 import DitherBackground from "./DitherBackground";
-import BlackHoleBackground from "./BlackHoleBackground";
 import { ThemeProvider, useThemeMode } from "../contexts/ThemeContext";
-import { hasHardwareWebGL, isMobileTier } from "../utils/deviceTier";
+import { hasHardwareWebGL } from "../utils/deviceTier";
 import routeMetadata from "../content/routeMetadata.json";
 
 const OrbSection = lazy(() => import("./OrbSection"));
@@ -35,9 +34,6 @@ const EXPERIENCE_CONFIG = Object.freeze({
   },
 });
 
-export const resolveExperienceConfig = (experience) =>
-  EXPERIENCE_CONFIG[experience] || null;
-
 const METADATA_SELECTORS = {
   description: 'meta[name="description"]',
   robots: 'meta[name="robots"]',
@@ -48,6 +44,9 @@ const METADATA_SELECTORS = {
   twitterTitle: 'meta[name="twitter:title"]',
   twitterDescription: 'meta[name="twitter:description"]',
 };
+
+export const resolveExperienceConfig = (experience) =>
+  EXPERIENCE_CONFIG[experience] || null;
 
 const ExperienceContent = ({ experience }) => {
   const config = resolveExperienceConfig(experience);
@@ -83,8 +82,6 @@ const ExperienceContent = ({ experience }) => {
     document.title = config.title;
     document.documentElement.style.overflow = "hidden";
     document.documentElement.style.height = "100%";
-    /* index.css shrinks the root to 55-58% on small screens for the
-       immersive routes; this page's rem scale assumes the 10px root. */
     document.documentElement.style.fontSize = "62.5%";
     document.body.style.overflow = "hidden";
     document.body.style.height = "100%";
@@ -113,19 +110,13 @@ const ExperienceContent = ({ experience }) => {
       document.body.style.height = previous.bodyHeight;
 
       Object.entries(targets).forEach(([key, target]) => {
-        restore(
-          target,
-          key === "canonical" ? "href" : "content",
-          previous.values[key],
-        );
+        restore(target, key === "canonical" ? "href" : "content", previous.values[key]);
       });
     };
   }, [config]);
 
   React.useEffect(() => {
-    if (experience !== EXPERIENCE_IDS.ORB) {
-      return undefined;
-    }
+    if (experience !== EXPERIENCE_IDS.ORB) return undefined;
 
     let loadingTimer = 0;
     window.__triggerLoading = (durationMs = 4000) => {
@@ -143,19 +134,10 @@ const ExperienceContent = ({ experience }) => {
 
   if (!config) return null;
 
-  const ExperienceComponent =
-    experience === EXPERIENCE_IDS.ORB ? OrbSection : PopcornGame;
+  const ExperienceComponent = experience === EXPERIENCE_IDS.ORB ? OrbSection : PopcornGame;
   const colors = isDark ? config.darkColors : config.lightColors;
-  const ditherVisible =
-    isMobileTier || !isDark || config.backgroundSection === 4;
-  const blackHoleVisible =
-    hasHardwareWebGL &&
-    !isMobileTier &&
-    isDark &&
-    config.backgroundSection !== 4;
-  const pageHideStyle = pageHidden
-    ? { visibility: "hidden", pointerEvents: "none" }
-    : undefined;
+  const useDitherBackground = hasHardwareWebGL && !isDark;
+  const pageHideStyle = pageHidden ? { visibility: "hidden", pointerEvents: "none" } : undefined;
 
   return (
     <div
@@ -179,7 +161,7 @@ const ExperienceContent = ({ experience }) => {
 
       <div style={pageHideStyle}>
         <div className="standalone-experience__background" aria-hidden="true">
-          {!hasHardwareWebGL && (
+          {!useDitherBackground && (
             <div className="standalone-experience__fallback">
               {[
                 { top: "12%", left: "14%", size: "55vmax", duration: "18s" },
@@ -203,24 +185,12 @@ const ExperienceContent = ({ experience }) => {
             </div>
           )}
 
-          {hasHardwareWebGL && (
-            <div
-              className="standalone-experience__dither"
-              style={{ opacity: ditherVisible ? 1 : 0 }}
-            >
+          {useDitherBackground && (
+            <div className="standalone-experience__dither">
               <DitherBackground
                 activeSection={config.backgroundSection}
                 isDark={isDark}
               />
-            </div>
-          )}
-
-          {hasHardwareWebGL && !isMobileTier && (
-            <div
-              className="standalone-experience__black-hole"
-              style={{ opacity: blackHoleVisible ? 1 : 0 }}
-            >
-              <BlackHoleBackground activeSection={config.backgroundSection} />
             </div>
           )}
 
@@ -303,7 +273,6 @@ const ExperienceContent = ({ experience }) => {
         .standalone-experience__background,
         .standalone-experience__fallback,
         .standalone-experience__dither,
-        .standalone-experience__black-hole,
         .standalone-experience__glass {
           position: fixed;
           inset: 0;
@@ -316,6 +285,7 @@ const ExperienceContent = ({ experience }) => {
 
         .standalone-experience__fallback {
           overflow: hidden;
+          background: var(--experience-page-bg);
         }
 
         .standalone-experience__fallback > span {
@@ -341,142 +311,94 @@ const ExperienceContent = ({ experience }) => {
           background-size: 24px 24px;
         }
 
-        .standalone-experience__dither,
-        .standalone-experience__black-hole {
-          transition: opacity 0.9s ease;
+        .standalone-experience__dither {
+          pointer-events: none;
         }
 
         .standalone-experience__glass {
           z-index: 3;
           pointer-events: none;
-          opacity: 0.5;
           backdrop-filter: blur(2px) saturate(100%);
           -webkit-backdrop-filter: blur(2px) saturate(100%);
-          background: linear-gradient(
-            to bottom,
-            rgba(255,255,255,0.01),
-            rgba(255,255,255,0.005) 50%,
-            rgba(99,68,245,0.01)
-          );
         }
 
         .standalone-experience__header {
           position: fixed;
-          top: max(0.75rem, env(safe-area-inset-top, 0px));
-          left: 50%;
-          z-index: 1500;
-          display: flex;
+          top: max(1.6rem, env(safe-area-inset-top));
+          left: max(1.6rem, env(safe-area-inset-left));
+          right: max(1.6rem, env(safe-area-inset-right));
+          z-index: 50;
+          display: grid;
+          grid-template-columns: 1fr auto 1fr;
           align-items: center;
-          gap: 0.45rem;
-          max-width: calc(100vw - 1.2rem);
-          padding: 0.42rem;
-          transform: translateX(-50%);
-          border: 1px solid rgba(255,255,255,0.22);
+          gap: 1.6rem;
+          min-height: 4.4rem;
+          padding: 0.6rem 1rem;
+          border: 1px solid rgba(255,255,255,0.18);
           border-radius: 999px;
           background: var(--experience-nav-bg);
-          backdrop-filter: blur(26px) saturate(155%);
-          -webkit-backdrop-filter: blur(26px) saturate(155%);
-          box-shadow: 0 8px 32px rgba(0,0,0,0.16), inset 0 1px 0 rgba(255,255,255,0.22);
-          white-space: nowrap;
-        }
-
-        .standalone-experience__header a,
-        .standalone-experience__header button,
-        .standalone-experience__header-label {
-          min-height: 4.4rem;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          gap: 0.5rem;
-          box-sizing: border-box;
-          border-radius: 999px;
-          padding: 0.8rem 1.4rem;
-          color: var(--experience-nav-text);
-          font-family: 'Poppins', sans-serif;
-          font-size: 1.3rem;
-          font-weight: 600;
-          line-height: 1;
-          letter-spacing: 0.035em;
-          text-decoration: none !important;
+          backdrop-filter: blur(18px) saturate(140%);
+          -webkit-backdrop-filter: blur(18px) saturate(140%);
         }
 
         .standalone-experience__header a,
         .standalone-experience__header button {
-          border: 1px solid transparent;
+          min-height: 44px;
+          border: 0;
           background: transparent;
+          color: var(--experience-nav-text);
+          font: inherit;
+          font-size: 1.3rem;
+          font-weight: 700;
+          text-decoration: none;
           cursor: pointer;
-          transition: background 180ms ease, border-color 180ms ease, transform 180ms ease;
         }
 
-        .standalone-experience__header a:hover,
-        .standalone-experience__header button:hover {
-          border-color: rgba(99,68,245,0.34);
-          background: rgba(99,68,245,0.12);
-          transform: translateY(-1px);
+        .standalone-experience__header a {
+          display: inline-flex;
+          align-items: center;
+          gap: 0.7rem;
         }
 
-        .standalone-experience__header a:focus-visible,
-        .standalone-experience__header button:focus-visible {
-          outline: 2px solid #9c55ff;
-          outline-offset: 2px;
+        .standalone-experience__header button {
+          justify-self: end;
+          padding: 0 1.2rem;
         }
 
         .standalone-experience__header-label {
           color: var(--experience-nav-muted);
-          border-left: 1px solid rgba(255,255,255,0.14);
-          border-right: 1px solid rgba(255,255,255,0.14);
+          font-size: 1.2rem;
+          font-weight: 700;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          white-space: nowrap;
         }
 
         .standalone-experience__content {
-          position: fixed;
-          inset: 0;
+          position: relative;
           z-index: 10;
-          overflow: hidden;
         }
 
         .standalone-experience__loading {
-          position: fixed;
-          inset: 0;
           display: grid;
+          min-height: 100vh;
+          min-height: 100dvh;
           place-items: center;
           color: var(--experience-nav-text);
-          font-size: 1rem;
-          font-weight: 700;
+          font-size: 1.6rem;
         }
 
         @keyframes standaloneExperienceDrift {
-          0%, 100% { transform: translate(-50%, -50%) scale(1); }
-          50% { transform: translate(-44%, -56%) scale(1.08); }
+          0%, 100% { transform: translate(-50%, -50%) scale(1) rotate(0deg); }
+          50% { transform: translate(-44%, -56%) scale(1.08) rotate(6deg); }
         }
 
-        @media (max-width: 560px) {
+        @media (max-width: 720px) {
           .standalone-experience__header {
-            gap: 0.2rem;
-            padding: 0.3rem;
+            grid-template-columns: 1fr auto;
           }
-
-          .standalone-experience__header a,
-          .standalone-experience__header button,
-          .standalone-experience__header-label {
-            min-height: 4.4rem;
-            padding: 0.7rem 1.1rem;
-            font-size: 1.2rem;
-          }
-        }
-
-        @media (max-width: 390px) {
           .standalone-experience__header-label {
             display: none;
-          }
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-          .standalone-experience__fallback > span,
-          .standalone-experience__header a,
-          .standalone-experience__header button {
-            animation: none !important;
-            transition: none !important;
-            transform: none;
           }
         }
       `}</style>
