@@ -77,8 +77,8 @@ describe("shared Aetheris site styling", () => {
     expect(parallaxSource).toContain("<ManagedDitherBackground");
     expect(parallaxSource).toContain('rendererId="main-dither"');
     expect(standaloneSource).toContain("<ManagedDitherBackground");
-    expect(standaloneSource).toContain(
-      'rendererId={`${experience}-dither`}',
+    expect(standaloneSource).toMatch(
+      /rendererId=\{`\$\{experience\}-dither`\}/,
     );
     expect(managedRendererSource).toContain("<DitherBackground");
     expect(managedRendererSource).toContain("fallback");
