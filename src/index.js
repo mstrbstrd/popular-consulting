@@ -12,13 +12,15 @@ import './work-navigation-refinement.css';
 import './work-card-consistency.css';
 import SiteRouter from './SiteRouter';
 import InteractionAccessibilityBridge from './components/InteractionAccessibilityBridge';
+import { initGraphicsContextGovernor } from './utils/graphicsContextGovernor';
 import { initGraphicsRuntimeBoundary } from './utils/graphicsRuntimeBoundary';
 import { initCoreWebVitals, initSectionTiming, initLongTaskObserver } from './utils/telemetry';
 
-// ResizeObserver loop errors are prevented at the source by patchResizeObserver
-// (imported first, above): it wraps callbacks in requestAnimationFrame so
-// notifications never overflow a single frame.
-//
+// The context governor is installed before React mounts any renderer. It only
+// touches canvases explicitly marked by ManagedDitherBackground, bounding their
+// drawing buffer before the first draw and suppressing over-budget draw calls.
+initGraphicsContextGovernor();
+
 // Graphics failures degrade locally. The runtime boundary records context loss,
 // hides the failed canvas, releases exclusive renderer ownership, and never
 // reloads the document.
