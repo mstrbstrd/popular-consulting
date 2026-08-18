@@ -59,12 +59,14 @@ describe("ManagedDitherBackground", () => {
     disableWebGLForSession.mockClear();
     recordGraphicsEvent.mockClear();
     getShaderCanvasSize.mockClear();
+    window.__bhModeActive = false;
     setVisibility("visible");
     setReducedMotion(false);
   });
 
   afterEach(() => {
     cleanup();
+    window.__bhModeActive = false;
     setVisibility("visible");
   });
 
@@ -126,6 +128,39 @@ describe("ManagedDitherBackground", () => {
     expect(
       container.querySelector("[data-renderer-state='reduced-motion']"),
     ).toBeInTheDocument();
+  });
+
+  test("suspends the dither while the exclusive orb black-hole renderer is active", async () => {
+    const { container } = render(
+      <ManagedDitherBackground
+        enabled={true}
+        fallback={<div data-testid="graphics-fallback" />}
+        rendererId="orb-dither"
+      />,
+    );
+
+    expect(screen.getByTestId("dither-canvas")).toBeInTheDocument();
+
+    act(() => {
+      window.__bhModeActive = true;
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("dither-canvas")).not.toBeInTheDocument();
+      expect(
+        container.querySelector(
+          "[data-renderer-state='exclusive-suspended']",
+        ),
+      ).toBeInTheDocument();
+    });
+
+    act(() => {
+      window.__bhModeActive = false;
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("dither-canvas")).toBeInTheDocument();
+    });
   });
 
   test("fails closed locally after WebGL context loss", () => {
