@@ -6,6 +6,10 @@ import {
   getShaderCanvasSize,
 } from "../utils/deviceTier";
 import { recordGraphicsEvent } from "../utils/graphicsPolicy";
+import {
+  isOrbBlackHoleModeActive,
+  ORB_BLACK_HOLE_MODE_EVENT,
+} from "../utils/rendererOwnership";
 
 const readReducedMotion = () =>
   Boolean(
@@ -31,7 +35,9 @@ const ManagedDitherBackground = ({
   const [reducedMotion, setReducedMotion] = React.useState(readReducedMotion);
   const [runtimeFailed, setRuntimeFailed] = React.useState(false);
   const [exclusiveRendererActive, setExclusiveRendererActive] =
-    React.useState(false);
+    React.useState(() =>
+      rendererId === "orb-dither" && isOrbBlackHoleModeActive(),
+    );
 
   const shouldRender =
     enabled &&
@@ -81,14 +87,20 @@ const ManagedDitherBackground = ({
       return undefined;
     }
 
-    const syncExclusiveRenderer = () => {
-      setExclusiveRendererActive(Boolean(window.__bhModeActive));
+    const handleOwnershipChange = (event) => {
+      setExclusiveRendererActive(Boolean(event.detail?.active));
     };
 
-    syncExclusiveRenderer();
-    const timer = window.setInterval(syncExclusiveRenderer, 50);
+    setExclusiveRendererActive(isOrbBlackHoleModeActive());
+    window.addEventListener(
+      ORB_BLACK_HOLE_MODE_EVENT,
+      handleOwnershipChange,
+    );
     return () => {
-      window.clearInterval(timer);
+      window.removeEventListener(
+        ORB_BLACK_HOLE_MODE_EVENT,
+        handleOwnershipChange,
+      );
     };
   }, [rendererId]);
 
