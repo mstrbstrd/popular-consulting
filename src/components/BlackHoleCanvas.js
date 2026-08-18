@@ -256,15 +256,11 @@ const BlackHoleCanvas = ({
     let buffer = null;
 
     const releaseResources = () => {
-      const context = gl;
-      if (buffer && context) context.deleteBuffer(buffer);
-      if (program && context) context.deleteProgram(program);
+      if (buffer && gl) gl.deleteBuffer(buffer);
+      if (program && gl) gl.deleteProgram(program);
       buffer = null;
       program = null;
       gl = null;
-      try {
-        context?.getExtension("WEBGL_lose_context")?.loseContext();
-      } catch (_) {}
     };
 
     const failRenderer = (reason) => {
@@ -507,6 +503,8 @@ const BlackHoleCanvas = ({
       ensureAnimating();
     };
 
+    if (!resize()) return undefined;
+
     ensureAnimatingRef.current = ensureAnimating;
     canvas.addEventListener("mousemove", handleMouseMove, { passive: true });
     canvas.addEventListener("wheel", handleWheel, { passive: false });
@@ -521,7 +519,6 @@ const BlackHoleCanvas = ({
       reducedMotion?.addListener?.(handleMotionChange);
     }
 
-    if (!resize()) return undefined;
     recordGraphicsEvent("black-hole-mounted", {
       frameInterval: BLACK_HOLE_FRAME_INTERVAL_MS,
       maxPixels: BLACK_HOLE_MAX_PIXELS,
