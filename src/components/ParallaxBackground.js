@@ -5,7 +5,7 @@ import React, {
   Children,
   cloneElement,
 } from "react";
-import DitherBackground from "./DitherBackground";
+import ManagedDitherBackground from "./ManagedDitherBackground";
 import { useThemeMode } from "../contexts/ThemeContext";
 import { hasHardwareWebGL } from "../utils/deviceTier";
 
@@ -54,7 +54,12 @@ export const ParallaxBackground = ({ children }) => {
   const contentRef = useRef(null);
   const sectionsRef = useRef([]);
   const exitingSectionRef = useRef(null);
-  const touchStateRef = useRef({ startY: 0, startX: 0, startTarget: null, lastNavAt: 0 });
+  const touchStateRef = useRef({
+    startY: 0,
+    startX: 0,
+    startTarget: null,
+    lastNavAt: 0,
+  });
 
   const [activeSection, setActiveSection] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
@@ -62,7 +67,6 @@ export const ParallaxBackground = ({ children }) => {
   const activeSectionRef = useRef(0);
 
   const shouldUseDither = hasHardwareWebGL && !isDark;
-  const shouldUseCssFallback = !shouldUseDither;
   const fallbackColors = isDark ? CSS_SECTION_DARK : CSS_SECTION_LIGHT;
 
   useEffect(() => {
@@ -73,7 +77,9 @@ export const ParallaxBackground = ({ children }) => {
     const scanSections = () => {
       if (!contentRef.current) return null;
       return Array.from(contentRef.current.children || []).filter(
-        (el) => el.tagName === "DIV" && el.className.includes("section-container"),
+        (element) =>
+          element.tagName === "DIV" &&
+          element.className.includes("section-container"),
       );
     };
 
@@ -109,14 +115,17 @@ export const ParallaxBackground = ({ children }) => {
               section.style.transform = "translateY(0)";
               section.style.opacity = "1";
             } else {
-              section.style.transform = index < current ? shiftDown() : shiftUp();
+              section.style.transform =
+                index < current ? shiftDown() : shiftUp();
               section.style.opacity = "0";
             }
           });
 
           setIsTransitioning(false);
           requestAnimationFrame(() => {
-            found.forEach((section) => { section.style.transition = ""; });
+            found.forEach((section) => {
+              section.style.transition = "";
+            });
           });
         });
       }, 150);
@@ -130,71 +139,94 @@ export const ParallaxBackground = ({ children }) => {
     };
   }, []);
 
-  const goToSection = React.useCallback((index, transitionSpeed = 0.8) => {
-    if (index < 0 || index >= totalSections || isTransitioning) return;
-    const sections = sectionsRef.current;
-    if (!sections.length) return;
+  const goToSection = React.useCallback(
+    (index, transitionSpeed = 0.8) => {
+      if (index < 0 || index >= totalSections || isTransitioning) return;
+      const sections = sectionsRef.current;
+      if (!sections.length) return;
 
-    const direction = index > activeSection ? 1 : -1;
-    const currentIdx = activeSection;
-    const nextIdx = index;
-    const isBackward = direction < 0;
-    const exitDuration = isBackward ? Math.round(transitionSpeed * 600) : 90;
-    const enterDelay = isBackward ? 30 : exitDuration + 20;
-    const enterDuration = Math.round(transitionSpeed * (isBackward ? 680 : 900));
-    const enterOpacityDur = Math.round(enterDuration * 0.65);
-    const exitEase = isBackward ? "cubic-bezier(0.4, 0, 0.6, 1)" : "ease-in";
-    const enterEase = isBackward
-      ? "cubic-bezier(0.25, 0.46, 0.45, 0.94)"
-      : "cubic-bezier(0.22, 1, 0.36, 1)";
+      const direction = index > activeSection ? 1 : -1;
+      const currentIndex = activeSection;
+      const nextIndex = index;
+      const isBackward = direction < 0;
+      const exitDuration = isBackward
+        ? Math.round(transitionSpeed * 600)
+        : 90;
+      const enterDelay = isBackward ? 30 : exitDuration + 20;
+      const enterDuration = Math.round(
+        transitionSpeed * (isBackward ? 680 : 900),
+      );
+      const enterOpacityDuration = Math.round(enterDuration * 0.65);
+      const exitEase = isBackward
+        ? "cubic-bezier(0.4, 0, 0.6, 1)"
+        : "ease-in";
+      const enterEase = isBackward
+        ? "cubic-bezier(0.25, 0.46, 0.45, 0.94)"
+        : "cubic-bezier(0.22, 1, 0.36, 1)";
 
-    window.dispatchEvent(new CustomEvent("sectionChangeStart", { detail: { from: currentIdx, to: nextIdx } }));
-    exitingSectionRef.current = currentIdx;
-    setIsTransitioning(true);
+      window.dispatchEvent(
+        new CustomEvent("sectionChangeStart", {
+          detail: { from: currentIndex, to: nextIndex },
+        }),
+      );
+      exitingSectionRef.current = currentIndex;
+      setIsTransitioning(true);
 
-    const current = sections[currentIdx];
-    if (current) {
-      current.style.transition = `transform ${exitDuration}ms ${exitEase}, opacity ${exitDuration}ms ${exitEase}`;
-      current.style.transform = direction > 0 ? shiftDown() : shiftUp();
-      current.style.opacity = "0";
-    }
-
-    setTimeout(() => {
-      sections.forEach((section, sectionIndex) => {
-        if (sectionIndex !== currentIdx && sectionIndex !== nextIdx) {
-          section.style.transition = "none";
-          section.style.transform = sectionIndex < nextIdx ? shiftDown() : shiftUp();
-          section.style.opacity = "0";
-        }
-      });
-
-      setActiveSection(nextIdx);
-      const next = sections[nextIdx];
-      if (next) {
-        next.style.transition = `transform ${enterDuration}ms ${enterEase}, opacity ${enterOpacityDur}ms ease-out`;
-        void next.offsetWidth;
-        next.style.transform = "translateY(0)";
-        next.style.opacity = "1";
+      const current = sections[currentIndex];
+      if (current) {
+        current.style.transition = `transform ${exitDuration}ms ${exitEase}, opacity ${exitDuration}ms ${exitEase}`;
+        current.style.transform = direction > 0 ? shiftDown() : shiftUp();
+        current.style.opacity = "0";
       }
-    }, enterDelay);
 
-    setTimeout(() => {
-      try { window.history.pushState({}, "", `#section-${nextIdx}`); } catch (_) {}
-      sections.forEach((section, sectionIndex) => {
-        section.style.transition = "";
-        if (sectionIndex === nextIdx) {
-          section.style.transform = "translateY(0)";
-          section.style.opacity = "1";
-        } else {
-          section.style.transform = sectionIndex < nextIdx ? shiftDown() : shiftUp();
-          section.style.opacity = "0";
+      setTimeout(() => {
+        sections.forEach((section, sectionIndex) => {
+          if (sectionIndex !== currentIndex && sectionIndex !== nextIndex) {
+            section.style.transition = "none";
+            section.style.transform =
+              sectionIndex < nextIndex ? shiftDown() : shiftUp();
+            section.style.opacity = "0";
+          }
+        });
+
+        setActiveSection(nextIndex);
+        const next = sections[nextIndex];
+        if (next) {
+          next.style.transition = `transform ${enterDuration}ms ${enterEase}, opacity ${enterOpacityDuration}ms ease-out`;
+          void next.offsetWidth;
+          next.style.transform = "translateY(0)";
+          next.style.opacity = "1";
         }
-      });
-      window.dispatchEvent(new CustomEvent("sectionChangeEnd", { detail: { index: nextIdx } }));
-      exitingSectionRef.current = null;
-      setIsTransitioning(false);
-    }, enterDelay + enterDuration + 150);
-  }, [activeSection, isTransitioning, totalSections]);
+      }, enterDelay);
+
+      setTimeout(() => {
+        try {
+          window.history.pushState({}, "", `#section-${nextIndex}`);
+        } catch (_) {}
+
+        sections.forEach((section, sectionIndex) => {
+          section.style.transition = "";
+          if (sectionIndex === nextIndex) {
+            section.style.transform = "translateY(0)";
+            section.style.opacity = "1";
+          } else {
+            section.style.transform =
+              sectionIndex < nextIndex ? shiftDown() : shiftUp();
+            section.style.opacity = "0";
+          }
+        });
+
+        window.dispatchEvent(
+          new CustomEvent("sectionChangeEnd", {
+            detail: { index: nextIndex },
+          }),
+        );
+        exitingSectionRef.current = null;
+        setIsTransitioning(false);
+      }, enterDelay + enterDuration + 150);
+    },
+    [activeSection, isTransitioning, totalSections],
+  );
 
   useEffect(() => {
     let lastScrollTime = 0;
@@ -208,7 +240,8 @@ export const ParallaxBackground = ({ children }) => {
           const overflow = window.getComputedStyle(node).overflowY;
           if (overflow === "auto" || overflow === "scroll") {
             const goingDown = event.deltaY > 0;
-            const atBottom = node.scrollTop + node.clientHeight >= node.scrollHeight - 2;
+            const atBottom =
+              node.scrollTop + node.clientHeight >= node.scrollHeight - 2;
             const atTop = node.scrollTop <= 0;
             if ((goingDown && !atBottom) || (!goingDown && !atTop)) return;
             break;
@@ -218,7 +251,14 @@ export const ParallaxBackground = ({ children }) => {
       }
 
       event.preventDefault();
-      if (isTransitioning || window.__serviceCardExpanded || window.__bhModeActive || window.__cardDragging) return;
+      if (
+        isTransitioning ||
+        window.__serviceCardExpanded ||
+        window.__bhModeActive ||
+        window.__cardDragging
+      ) {
+        return;
+      }
 
       const now = Date.now();
       const elapsed = now - lastScrollTime;
@@ -242,15 +282,29 @@ export const ParallaxBackground = ({ children }) => {
     };
 
     const handleKeyDown = (event) => {
-      if (isTransitioning || window.__serviceCardExpanded || window.__bhModeActive || window.__cardDragging) return;
+      if (
+        isTransitioning ||
+        window.__serviceCardExpanded ||
+        window.__bhModeActive ||
+        window.__cardDragging
+      ) {
+        return;
+      }
+
       const tag = document.activeElement?.tagName?.toUpperCase();
       if (["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(tag)) return;
       if (document.activeElement?.isContentEditable) return;
 
       const speed = event.shiftKey ? 0.5 : 0.8;
-      if ((event.key === "ArrowDown" || event.key === "PageDown") && activeSection < totalSections - 1) {
+      if (
+        (event.key === "ArrowDown" || event.key === "PageDown") &&
+        activeSection < totalSections - 1
+      ) {
         goToSection(activeSection + 1, speed);
-      } else if ((event.key === "ArrowUp" || event.key === "PageUp") && activeSection > 0) {
+      } else if (
+        (event.key === "ArrowUp" || event.key === "PageUp") &&
+        activeSection > 0
+      ) {
         goToSection(activeSection - 1, speed);
       } else if (event.key === "Home") {
         goToSection(0, 1.2);
@@ -278,23 +332,37 @@ export const ParallaxBackground = ({ children }) => {
     };
 
     const handleTouchEnd = (event) => {
-      if (isTransitioning || window.__serviceCardExpanded || window.__bhModeActive || window.__cardDragging) return;
+      if (
+        isTransitioning ||
+        window.__serviceCardExpanded ||
+        window.__bhModeActive ||
+        window.__cardDragging
+      ) {
+        return;
+      }
+
       const state = touchStateRef.current;
       const now = Date.now();
       if (now - state.lastNavAt < touchCooldown) return;
 
       const touch = event.changedTouches[0];
-      const dy = state.startY - touch.clientY;
-      const dx = state.startX - touch.clientX;
-      if (Math.abs(dy) < 48 || Math.abs(dy) < Math.abs(dx) * 1.2) return;
+      const deltaY = state.startY - touch.clientY;
+      const deltaX = state.startX - touch.clientX;
+      if (
+        Math.abs(deltaY) < 48 ||
+        Math.abs(deltaY) < Math.abs(deltaX) * 1.2
+      ) {
+        return;
+      }
 
       let node = state.startTarget;
       while (node && node !== document.body) {
         if (node.scrollHeight > node.clientHeight + 1) {
           const overflow = window.getComputedStyle(node).overflowY;
           if (overflow === "auto" || overflow === "scroll") {
-            const goingDown = dy > 0;
-            const atBottom = node.scrollTop + node.clientHeight >= node.scrollHeight - 2;
+            const goingDown = deltaY > 0;
+            const atBottom =
+              node.scrollTop + node.clientHeight >= node.scrollHeight - 2;
             const atTop = node.scrollTop <= 0;
             if ((goingDown && !atBottom) || (!goingDown && !atTop)) return;
             break;
@@ -303,7 +371,7 @@ export const ParallaxBackground = ({ children }) => {
         node = node.parentElement;
       }
 
-      const direction = Math.sign(dy);
+      const direction = Math.sign(deltaY);
       if (direction > 0 && activeSection < totalSections - 1) {
         goToSection(activeSection + 1);
         state.lastNavAt = now;
@@ -321,64 +389,75 @@ export const ParallaxBackground = ({ children }) => {
     };
   }, [activeSection, isTransitioning, totalSections, goToSection]);
 
-  const renderSections = () => Children.map(children, (child, index) => {
-    const isActive = index === activeSection;
-    const isMounted = Math.abs(index - activeSection) <= 1 || index === exitingSectionRef.current;
-    const initialTransform = index < activeSection
-      ? shiftDown()
-      : index > activeSection
-        ? shiftUp()
-        : "translateY(0)";
+  const renderSections = () =>
+    Children.map(children, (child, index) => {
+      const isActive = index === activeSection;
+      const isMounted =
+        Math.abs(index - activeSection) <= 1 ||
+        index === exitingSectionRef.current;
+      const initialTransform =
+        index < activeSection
+          ? shiftDown()
+          : index > activeSection
+            ? shiftUp()
+            : "translateY(0)";
 
-    return (
-      <div
-        className={`section-container ${isActive ? "active" : ""}`}
-        data-section={index}
-        aria-hidden={!isActive}
-        style={{
-          transform: initialTransform,
-          opacity: isActive ? 1 : 0,
-          zIndex: isActive ? 20 : 10 + index,
-        }}
-      >
-        {isMounted && cloneElement(child, {
-          isActive,
-          sectionIndex: index,
-          totalSections,
-          enterDirection: index > activeSection ? "up" : "down",
-          exitDirection: index > activeSection ? "down" : "up",
-        })}
-      </div>
-    );
-  });
+      return (
+        <div
+          className={`section-container ${isActive ? "active" : ""}`}
+          data-section={index}
+          aria-hidden={!isActive}
+          style={{
+            transform: initialTransform,
+            opacity: isActive ? 1 : 0,
+            zIndex: isActive ? 20 : 10 + index,
+          }}
+        >
+          {isMounted &&
+            cloneElement(child, {
+              isActive,
+              sectionIndex: index,
+              totalSections,
+              enterDirection: index > activeSection ? "up" : "down",
+              exitDirection: index > activeSection ? "down" : "up",
+            })}
+        </div>
+      );
+    });
 
   return (
     <div className="parallax-wrapper">
       <div className="fixed-background" ref={backgroundRef}>
-        {shouldUseCssFallback && (
-          <div className="background-css-fallback" aria-hidden="true">
-            {fallbackOrbs.map((orb, index) => (
-              <div
-                key={index}
-                className={`background-css-orb background-css-orb-${index}`}
-                style={{
-                  top: orb.top,
-                  left: orb.left,
-                  width: orb.size,
-                  height: orb.size,
-                  background: `radial-gradient(circle, ${fallbackColors[activeSection]?.[index] ?? fallbackColors[0][index]}55 0%, transparent 70%)`,
-                  animation: `cssOrbDrift${index} ${orb.dur} ease-in-out infinite`,
-                  animationDelay: orb.delay,
-                }}
-              />
-            ))}
-            <div className="background-css-grid" />
-          </div>
-        )}
+        <div className="background-css-fallback" aria-hidden="true">
+          {fallbackOrbs.map((orb, index) => (
+            <div
+              key={index}
+              className={`background-css-orb background-css-orb-${index}`}
+              style={{
+                top: orb.top,
+                left: orb.left,
+                width: orb.size,
+                height: orb.size,
+                background: `radial-gradient(circle, ${
+                  fallbackColors[activeSection]?.[index] ??
+                  fallbackColors[0][index]
+                }55 0%, transparent 70%)`,
+                animation: `cssOrbDrift${index} ${orb.dur} ease-in-out infinite`,
+                animationDelay: orb.delay,
+              }}
+            />
+          ))}
+          <div className="background-css-grid" />
+        </div>
 
         {shouldUseDither && (
           <div className="background-dither-live">
-            <DitherBackground activeSection={activeSection} isDark={isDark} />
+            <ManagedDitherBackground
+              activeSection={activeSection}
+              enabled={shouldUseDither}
+              isDark={isDark}
+              rendererId="main-dither"
+            />
           </div>
         )}
 
@@ -391,18 +470,24 @@ export const ParallaxBackground = ({ children }) => {
         {renderSections()}
 
         <nav className="section-dots" aria-label="Section navigation">
-          {Array(totalSections).fill(0).map((_, index) => {
-            const label = SECTION_LABELS[index] || `Section ${index + 1}`;
-            return (
-              <button
-                key={index}
-                className={`section-dot ${index === activeSection ? "active" : ""}`}
-                onClick={() => goToSection(index)}
-                aria-label={`Navigate to ${label}`}
-                aria-current={index === activeSection ? "true" : undefined}
-              />
-            );
-          })}
+          {Array(totalSections)
+            .fill(0)
+            .map((_, index) => {
+              const label = SECTION_LABELS[index] || `Section ${index + 1}`;
+              return (
+                <button
+                  key={index}
+                  className={`section-dot ${
+                    index === activeSection ? "active" : ""
+                  }`}
+                  onClick={() => goToSection(index)}
+                  aria-label={`Navigate to ${label}`}
+                  aria-current={
+                    index === activeSection ? "true" : undefined
+                  }
+                />
+              );
+            })}
         </nav>
 
         {activeSection === 0 && (
@@ -461,9 +546,11 @@ export const ParallaxBackground = ({ children }) => {
         .background-css-grid {
           position: absolute;
           inset: 0;
-          background-image: ${isDark
-            ? "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.12) 0 1px, transparent 1.5px)"
-            : "radial-gradient(circle at 1px 1px, rgba(40,40,90,0.10) 0 1px, transparent 1.5px)"};
+          background-image: ${
+            isDark
+              ? "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.12) 0 1px, transparent 1.5px)"
+              : "radial-gradient(circle at 1px 1px, rgba(40,40,90,0.10) 0 1px, transparent 1.5px)"
+          };
           background-size: 24px 24px;
           pointer-events: none;
         }
@@ -522,9 +609,19 @@ export const ParallaxBackground = ({ children }) => {
 
         .section-container .service-card,
         .section-container .contact-form {
-          backdrop-filter: ${isDark ? "blur(6px) saturate(80%) brightness(0.35)" : "blur(24px) saturate(140%)"};
-          -webkit-backdrop-filter: ${isDark ? "blur(6px) saturate(80%) brightness(0.35)" : "blur(24px) saturate(140%)"};
-          background: ${isDark ? "rgba(5,5,14,0.92)" : "rgba(255, 255, 255, 0.58)"};
+          backdrop-filter: ${
+            isDark
+              ? "blur(6px) saturate(80%) brightness(0.35)"
+              : "blur(24px) saturate(140%)"
+          };
+          -webkit-backdrop-filter: ${
+            isDark
+              ? "blur(6px) saturate(80%) brightness(0.35)"
+              : "blur(24px) saturate(140%)"
+          };
+          background: ${
+            isDark ? "rgba(5,5,14,0.92)" : "rgba(255, 255, 255, 0.58)"
+          };
           border: 1px solid rgba(255, 255, 255, 0.22);
           box-shadow: 0 4px 24px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.30);
           transition: all 0.3s ease-out;
@@ -673,6 +770,15 @@ export const ParallaxBackground = ({ children }) => {
             right: max(12px, env(safe-area-inset-right));
             gap: 24px;
           }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .background-css-orb,
+          .glass-overlay,
+          .scroll-indicator {
+            animation: none !important;
+          }
+          .glass-overlay { opacity: 1; }
         }
       `}</style>
     </div>
