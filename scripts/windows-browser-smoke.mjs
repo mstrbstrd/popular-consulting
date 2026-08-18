@@ -158,12 +158,18 @@ const runEdgeRoute = (edgePath, origin, check) => {
     ],
     {
       encoding: "utf8",
+      maxBuffer: 10 * 1024 * 1024,
       timeout: 30_000,
       windowsHide: true,
     },
   );
 
-  fs.rmSync(profileDirectory, { force: true, recursive: true });
+  fs.rmSync(profileDirectory, {
+    force: true,
+    maxRetries: 5,
+    recursive: true,
+    retryDelay: 200,
+  });
 
   if (result.error) {
     throw new Error(`${check.route}: Edge failed to start: ${result.error.message}`);
