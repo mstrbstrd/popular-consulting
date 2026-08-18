@@ -6,6 +6,9 @@ import {
 
 export { disableWebGLForSession };
 
+const IS_TEST_RUNTIME =
+  typeof process !== "undefined" && process.env.NODE_ENV === "test";
+
 const compileShader = (gl, type, source) => {
   const shader = gl.createShader(type);
   if (!shader) return null;
@@ -31,6 +34,7 @@ const releaseProbeContext = (gl) => {
 
 const probeHardwareWebGL = () => {
   if (
+    IS_TEST_RUNTIME ||
     typeof window === "undefined" ||
     typeof document === "undefined" ||
     !shouldAttemptWebGL
