@@ -6,13 +6,9 @@ import React, {
   cloneElement,
 } from "react";
 import DitherBackground from "./DitherBackground";
-import BlackHoleBackground from "./BlackHoleBackground";
 import { useThemeMode } from "../contexts/ThemeContext";
-import { isMobileTier, hasHardwareWebGL } from "../utils/deviceTier";
+import { hasHardwareWebGL } from "../utils/deviceTier";
 
-/* dvh in an inline style is silently dropped by engines that predate it
-   (iOS <15.4, Chrome <108) — sections would never park off-screen and
-   stack on top of each other. Fall back to innerHeight pixels there. */
 const SUPPORTS_DVH =
   typeof CSS !== "undefined" && CSS.supports?.("height", "100dvh");
 const shiftDown = () =>
@@ -20,25 +16,36 @@ const shiftDown = () =>
 const shiftUp = () =>
   SUPPORTS_DVH ? "translateY(-100dvh)" : `translateY(-${window.innerHeight}px)`;
 
-const SECTION_LABELS = ['Hero', 'About', 'Services', 'Contact', 'Interactive Orb', 'Popcorn Game'];
+const SECTION_LABELS = [
+  "Hero",
+  "About",
+  "Services",
+  "Contact",
+  "Interactive Orb",
+  "Popcorn Game",
+];
 
-// Per-section accent colours for the CSS fallback background (no-WebGL machines).
-// Three orbs per section: [orb0, orb1, orb2] — matches dither section personalities.
 const CSS_SECTION_DARK = [
-  ['#6344F5', '#9B72FF', '#24CCFF'], // Hero     – violet ripples
-  ['#24CCFF', '#4FC3F7', '#52E5A0'], // Bio      – teal waves
-  ['#FF56D6', '#9B72FF', '#6344F5'], // Services – magenta mandala
-  ['#FF8C42', '#FF56D6', '#9B72FF'], // Contact  – warm plasma
-  ['#24CCFF', '#52E5A0', '#6344F5'], // Orb      – blue/green sphere
-  ['#24CCFF', '#4FC3F7', '#52E5A0'], // Game     – teal (matches bio)
+  ["#6344F5", "#9B72FF", "#24CCFF"],
+  ["#24CCFF", "#4FC3F7", "#52E5A0"],
+  ["#FF56D6", "#9B72FF", "#6344F5"],
+  ["#FF8C42", "#FF56D6", "#9B72FF"],
+  ["#24CCFF", "#52E5A0", "#6344F5"],
+  ["#24CCFF", "#4FC3F7", "#52E5A0"],
 ];
 const CSS_SECTION_LIGHT = [
-  ['#818cf8', '#a78bfa', '#38bdf8'], // Hero
-  ['#38bdf8', '#7dd3fc', '#34d399'], // Bio
-  ['#f472b6', '#a78bfa', '#818cf8'], // Services
-  ['#fb923c', '#f472b6', '#a78bfa'], // Contact
-  ['#38bdf8', '#34d399', '#818cf8'], // Orb
-  ['#38bdf8', '#7dd3fc', '#34d399'], // Game
+  ["#818cf8", "#a78bfa", "#38bdf8"],
+  ["#38bdf8", "#7dd3fc", "#34d399"],
+  ["#f472b6", "#a78bfa", "#818cf8"],
+  ["#fb923c", "#f472b6", "#a78bfa"],
+  ["#38bdf8", "#34d399", "#818cf8"],
+  ["#38bdf8", "#7dd3fc", "#34d399"],
+];
+
+const fallbackOrbs = [
+  { top: "12%", left: "14%", size: "55vmax", dur: "18s", delay: "0s" },
+  { top: "55%", left: "68%", size: "48vmax", dur: "22s", delay: "-6s" },
+  { top: "72%", left: "22%", size: "42vmax", dur: "26s", delay: "-11s" },
 ];
 
 export const ParallaxBackground = ({ children }) => {
@@ -46,27 +53,27 @@ export const ParallaxBackground = ({ children }) => {
   const backgroundRef = useRef(null);
   const contentRef = useRef(null);
   const sectionsRef = useRef([]);
+  const exitingSectionRef = useRef(null);
+  const touchStateRef = useRef({ startY: 0, startX: 0, startTarget: null, lastNavAt: 0 });
 
   const [activeSection, setActiveSection] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const totalSections = Children.count(children) || 0;
-
-  // Stable ref so resize handler always has current activeSection without stale closure
   const activeSectionRef = useRef(0);
-  useEffect(() => { activeSectionRef.current = activeSection; }, [activeSection]);
 
-  // Tracks the section currently animating out — kept mounted until its slide-out finishes
-  const exitingSectionRef = useRef(null);
-  const touchStateRef = useRef({ startY: 0, startX: 0, startTarget: null, lastNavAt: 0 });
+  const shouldUseDither = hasHardwareWebGL && !isDark;
+  const shouldUseCssFallback = !shouldUseDither;
+  const fallbackColors = isDark ? CSS_SECTION_DARK : CSS_SECTION_LIGHT;
 
-  // Populate sectionsRef on mount; on resize, re-snap all sections instantly so that
-  // viewport height changes (e.g. DevTools opening) don't trigger CSS transitions or
-  // leave sections at wrong positions.
+  useEffect(() => {
+    activeSectionRef.current = activeSection;
+  }, [activeSection]);
+
   useEffect(() => {
     const scanSections = () => {
       if (!contentRef.current) return null;
       return Array.from(contentRef.current.children || []).filter(
-        (el) => el.tagName === "DIV" && el.className.includes("section-container")
+        (el) => el.tagName === "DIV" && el.className.includes("section-container"),
       );
     };
 
@@ -82,11 +89,6 @@ export const ParallaxBackground = ({ children }) => {
       });
     };
 
-    /* Debounced, and height-only changes are ignored: on mobile, the URL
-       bar collapsing (during a swipe!) and the soft keyboard both fire
-       resize with only innerHeight changed — hard-snapping then aborts the
-       in-flight transition mid-animation. dvh-based transforms already
-       track viewport-height changes without a re-snap. */
     let resizeTimer = 0;
     let lastWidth = window.innerWidth;
 
@@ -95,33 +97,28 @@ export const ParallaxBackground = ({ children }) => {
       lastWidth = window.innerWidth;
       window.clearTimeout(resizeTimer);
       resizeTimer = window.setTimeout(() => {
-      requestAnimationFrame(() => {
-        const found = scanSections();
-        if (!found || found.length === 0) return;
-        sectionsRef.current = found;
-
-        const current = activeSectionRef.current;
-
-        // Disable transitions, snap all sections to their correct resting positions
-        found.forEach((section, i) => {
-          section.style.transition = "none";
-          if (i === current) {
-            section.style.transform = "translateY(0)";
-            section.style.opacity = "1";
-          } else {
-            section.style.transform = i < current ? shiftDown() : shiftUp();
-            section.style.opacity = "0";
-          }
-        });
-
-        // Release any stuck navigation lock from an interrupted transition
-        setIsTransitioning(false);
-
-        // Re-enable transitions after the browser has painted the snapped positions
         requestAnimationFrame(() => {
-          found.forEach((section) => { section.style.transition = ""; });
+          const found = scanSections();
+          if (!found || found.length === 0) return;
+          sectionsRef.current = found;
+          const current = activeSectionRef.current;
+
+          found.forEach((section, index) => {
+            section.style.transition = "none";
+            if (index === current) {
+              section.style.transform = "translateY(0)";
+              section.style.opacity = "1";
+            } else {
+              section.style.transform = index < current ? shiftDown() : shiftUp();
+              section.style.opacity = "0";
+            }
+          });
+
+          setIsTransitioning(false);
+          requestAnimationFrame(() => {
+            found.forEach((section) => { section.style.transition = ""; });
+          });
         });
-      });
       }, 150);
     };
 
@@ -133,91 +130,68 @@ export const ParallaxBackground = ({ children }) => {
     };
   }, []);
 
-  // Wheel + keyboard navigation
   const goToSection = React.useCallback((index, transitionSpeed = 0.8) => {
     if (index < 0 || index >= totalSections || isTransitioning) return;
     const sections = sectionsRef.current;
     if (!sections.length) return;
 
-    const direction   = index > activeSection ? 1 : -1;
-    const currentIdx  = activeSection;
-    const nextIdx     = index;
-    const isBackward  = direction < 0;
-
-    // Direction-aware timing:
-    //   Forward:  fast snap exit reveals DitherBackground → spring entrance feels dynamic
-    //   Backward: near-simultaneous crossfade-slide → smooth deceleration feels like "returning"
-    const exitDuration    = isBackward ? Math.round(transitionSpeed * 600) : 90;
-    const enterDelay      = isBackward ? 30 : exitDuration + 20;
-    const enterDuration   = Math.round(transitionSpeed * (isBackward ? 680 : 900));
+    const direction = index > activeSection ? 1 : -1;
+    const currentIdx = activeSection;
+    const nextIdx = index;
+    const isBackward = direction < 0;
+    const exitDuration = isBackward ? Math.round(transitionSpeed * 600) : 90;
+    const enterDelay = isBackward ? 30 : exitDuration + 20;
+    const enterDuration = Math.round(transitionSpeed * (isBackward ? 680 : 900));
     const enterOpacityDur = Math.round(enterDuration * 0.65);
-    const exitEase        = isBackward ? "cubic-bezier(0.4, 0, 0.6, 1)" : "ease-in";
-    const enterEase       = isBackward
-      ? "cubic-bezier(0.25, 0.46, 0.45, 0.94)"  // ease-out-quad: smooth return
-      : "cubic-bezier(0.22, 1, 0.36, 1)";         // spring out: dynamic forward
+    const exitEase = isBackward ? "cubic-bezier(0.4, 0, 0.6, 1)" : "ease-in";
+    const enterEase = isBackward
+      ? "cubic-bezier(0.25, 0.46, 0.45, 0.94)"
+      : "cubic-bezier(0.22, 1, 0.36, 1)";
 
-    window.dispatchEvent(new CustomEvent('sectionChangeStart', { detail: { from: currentIdx, to: nextIdx } }));
-    exitingSectionRef.current = currentIdx; // keep exiting section mounted until slide-out ends
+    window.dispatchEvent(new CustomEvent("sectionChangeStart", { detail: { from: currentIdx, to: nextIdx } }));
+    exitingSectionRef.current = currentIdx;
     setIsTransitioning(true);
 
-    // ── Phase 1: exit current section ──
     const current = sections[currentIdx];
     if (current) {
       current.style.transition = `transform ${exitDuration}ms ${exitEase}, opacity ${exitDuration}ms ${exitEase}`;
-      current.style.transform  = direction > 0 ? shiftDown() : shiftUp();
-      current.style.opacity    = "0";
+      current.style.transform = direction > 0 ? shiftDown() : shiftUp();
+      current.style.opacity = "0";
     }
 
-    // ── Phase 2: after exit, glide next section in from its resting position ──
-    //   forward  nav: next was parked at translateY(-100dvh)  → glides DOWN into view
-    //   backward nav: next was parked at translateY( 100dvh)  → glides UP   into view
     setTimeout(() => {
-      // Snap any non-participating sections to their correct resting positions instantly.
-      // This covers skip-navigation via nav dots and ensures React style-prop values
-      // match the JS-set transforms when setActiveSection triggers a re-render below.
-      sections.forEach((section, i) => {
-        if (i !== currentIdx && i !== nextIdx) {
+      sections.forEach((section, sectionIndex) => {
+        if (sectionIndex !== currentIdx && sectionIndex !== nextIdx) {
           section.style.transition = "none";
-          section.style.transform  = i < nextIdx ? shiftDown() : shiftUp();
-          section.style.opacity    = "0";
+          section.style.transform = sectionIndex < nextIdx ? shiftDown() : shiftUp();
+          section.style.opacity = "0";
         }
       });
 
-      // Fire isActive on the entering section at slide-in START (not after it settles).
-      // React re-renders with new activeSection; initialTransform values will match
-      // whatever JS has already set, so no DOM transform changes occur mid-animation.
-      // Child content animations (typewriter, fade-in, etc.) now run in parallel with
-      // the section sliding in — the "immediate and in-between" feel requested.
       setActiveSection(nextIdx);
-
       const next = sections[nextIdx];
       if (next) {
         next.style.transition = `transform ${enterDuration}ms ${enterEase}, opacity ${enterOpacityDur}ms ease-out`;
-        void next.offsetWidth; // flush so transition fires from resting position
-        next.style.transform  = "translateY(0)";
-        next.style.opacity    = "1";
+        void next.offsetWidth;
+        next.style.transform = "translateY(0)";
+        next.style.opacity = "1";
       }
     }, enterDelay);
 
-    // ── Phase 3: after entrance settles — clear inline transitions, release nav lock ──
-    // (activeSection was already updated in Phase 2; no need to call setActiveSection again)
     setTimeout(() => {
       try { window.history.pushState({}, "", `#section-${nextIdx}`); } catch (_) {}
-
-      sections.forEach((section, i) => {
-        section.style.transition = ""; // restore CSS-class transition
-        if (i === nextIdx) {
+      sections.forEach((section, sectionIndex) => {
+        section.style.transition = "";
+        if (sectionIndex === nextIdx) {
           section.style.transform = "translateY(0)";
-          section.style.opacity   = "1";
+          section.style.opacity = "1";
         } else {
-          // visited (i < nextIdx) rest BELOW; unvisited (i > nextIdx) rest ABOVE
-          section.style.transform = i < nextIdx ? shiftDown() : shiftUp();
-          section.style.opacity   = "0";
+          section.style.transform = sectionIndex < nextIdx ? shiftDown() : shiftUp();
+          section.style.opacity = "0";
         }
       });
-
-      window.dispatchEvent(new CustomEvent('sectionChangeEnd', { detail: { index: nextIdx } }));
-      exitingSectionRef.current = null; // allow dormant sections to unmount
+      window.dispatchEvent(new CustomEvent("sectionChangeEnd", { detail: { index: nextIdx } }));
+      exitingSectionRef.current = null;
       setIsTransitioning(false);
     }, enterDelay + enterDuration + 150);
   }, [activeSection, isTransitioning, totalSections]);
@@ -227,25 +201,23 @@ export const ParallaxBackground = ({ children }) => {
     let accumulatedDelta = 0;
     const scrollCooldown = 1200;
 
-    const handleWheel = (e) => {
-      // If the wheel is inside a scrollable element that still has room to scroll,
-      // let that element consume the event instead of switching sections.
-      let node = e.target;
+    const handleWheel = (event) => {
+      let node = event.target;
       while (node && node !== document.body) {
         if (node.scrollHeight > node.clientHeight + 1) {
           const overflow = window.getComputedStyle(node).overflowY;
-          if (overflow === 'auto' || overflow === 'scroll') {
-            const goingDown = e.deltaY > 0;
+          if (overflow === "auto" || overflow === "scroll") {
+            const goingDown = event.deltaY > 0;
             const atBottom = node.scrollTop + node.clientHeight >= node.scrollHeight - 2;
-            const atTop    = node.scrollTop <= 0;
+            const atTop = node.scrollTop <= 0;
             if ((goingDown && !atBottom) || (!goingDown && !atTop)) return;
-            break; // at boundary — fall through to section navigation
+            break;
           }
         }
         node = node.parentElement;
       }
 
-      e.preventDefault();
+      event.preventDefault();
       if (isTransitioning || window.__serviceCardExpanded || window.__bhModeActive || window.__cardDragging) return;
 
       const now = Date.now();
@@ -253,36 +225,36 @@ export const ParallaxBackground = ({ children }) => {
       if (elapsed < scrollCooldown) return;
       if (elapsed > 500) accumulatedDelta = 0;
 
-      accumulatedDelta += e.deltaY;
+      accumulatedDelta += event.deltaY;
       accumulatedDelta = Math.max(-100, Math.min(100, accumulatedDelta));
       if (Math.abs(accumulatedDelta) < 25) return;
 
-      const dir = Math.sign(accumulatedDelta);
-      if (dir > 0 && activeSection < totalSections - 1) {
+      const direction = Math.sign(accumulatedDelta);
+      if (direction > 0 && activeSection < totalSections - 1) {
         goToSection(activeSection + 1);
         lastScrollTime = now;
         accumulatedDelta = 0;
-      } else if (dir < 0 && activeSection > 0) {
+      } else if (direction < 0 && activeSection > 0) {
         goToSection(activeSection - 1);
         lastScrollTime = now;
         accumulatedDelta = 0;
       }
     };
 
-    const handleKeyDown = (e) => {
+    const handleKeyDown = (event) => {
       if (isTransitioning || window.__serviceCardExpanded || window.__bhModeActive || window.__cardDragging) return;
-      // Don't intercept navigation keys when focus is inside a form element
       const tag = document.activeElement?.tagName?.toUpperCase();
-      if (['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(tag)) return;
+      if (["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(tag)) return;
       if (document.activeElement?.isContentEditable) return;
-      const speed = e.shiftKey ? 0.5 : 0.8;
-      if ((e.key === "ArrowDown" || e.key === "PageDown") && activeSection < totalSections - 1) {
+
+      const speed = event.shiftKey ? 0.5 : 0.8;
+      if ((event.key === "ArrowDown" || event.key === "PageDown") && activeSection < totalSections - 1) {
         goToSection(activeSection + 1, speed);
-      } else if ((e.key === "ArrowUp" || e.key === "PageUp") && activeSection > 0) {
+      } else if ((event.key === "ArrowUp" || event.key === "PageUp") && activeSection > 0) {
         goToSection(activeSection - 1, speed);
-      } else if (e.key === "Home") {
+      } else if (event.key === "Home") {
         goToSection(0, 1.2);
-      } else if (e.key === "End") {
+      } else if (event.key === "End") {
         goToSection(totalSections - 1, 1.2);
       }
     };
@@ -295,45 +267,35 @@ export const ParallaxBackground = ({ children }) => {
     };
   }, [activeSection, isTransitioning, totalSections, goToSection]);
 
-  // Touch navigation. Gesture state lives in a component-level ref: this
-  // effect re-subscribes on every section change, and effect-local state
-  // would be zeroed mid-gesture (a finger still on the glass after a
-  // transition then computed a huge phantom delta and bounced the user
-  // back a section). Navigation commits on touchend, with an axis check
-  // so horizontal pans don't switch sections.
   useEffect(() => {
     const touchCooldown = 1200;
 
-    const handleTouchStart = (e) => {
+    const handleTouchStart = (event) => {
       const state = touchStateRef.current;
-      state.startY = e.touches[0].clientY;
-      state.startX = e.touches[0].clientX;
-      state.startTarget = e.touches[0].target;
+      state.startY = event.touches[0].clientY;
+      state.startX = event.touches[0].clientX;
+      state.startTarget = event.touches[0].target;
     };
 
-    const handleTouchEnd = (e) => {
+    const handleTouchEnd = (event) => {
       if (isTransitioning || window.__serviceCardExpanded || window.__bhModeActive || window.__cardDragging) return;
       const state = touchStateRef.current;
       const now = Date.now();
       if (now - state.lastNavAt < touchCooldown) return;
 
-      const touch = e.changedTouches[0];
+      const touch = event.changedTouches[0];
       const dy = state.startY - touch.clientY;
       const dx = state.startX - touch.clientX;
-      // Intentional vertical swipe only: enough travel, vertical-dominant.
       if (Math.abs(dy) < 48 || Math.abs(dy) < Math.abs(dx) * 1.2) return;
 
-      // Same boundary check as the wheel handler: if the gesture started
-      // inside a scrollable element that still has room to scroll in the
-      // swipe direction, that element owns the gesture.
       let node = state.startTarget;
       while (node && node !== document.body) {
         if (node.scrollHeight > node.clientHeight + 1) {
           const overflow = window.getComputedStyle(node).overflowY;
-          if (overflow === 'auto' || overflow === 'scroll') {
+          if (overflow === "auto" || overflow === "scroll") {
             const goingDown = dy > 0;
             const atBottom = node.scrollTop + node.clientHeight >= node.scrollHeight - 2;
-            const atTop    = node.scrollTop <= 0;
+            const atTop = node.scrollTop <= 0;
             if ((goingDown && !atBottom) || (!goingDown && !atTop)) return;
             break;
           }
@@ -341,11 +303,11 @@ export const ParallaxBackground = ({ children }) => {
         node = node.parentElement;
       }
 
-      const dir = Math.sign(dy);
-      if (dir > 0 && activeSection < totalSections - 1) {
+      const direction = Math.sign(dy);
+      if (direction > 0 && activeSection < totalSections - 1) {
         goToSection(activeSection + 1);
         state.lastNavAt = now;
-      } else if (dir < 0 && activeSection > 0) {
+      } else if (direction < 0 && activeSection > 0) {
         goToSection(activeSection - 1);
         state.lastNavAt = now;
       }
@@ -359,136 +321,75 @@ export const ParallaxBackground = ({ children }) => {
     };
   }, [activeSection, isTransitioning, totalSections, goToSection]);
 
+  const renderSections = () => Children.map(children, (child, index) => {
+    const isActive = index === activeSection;
+    const isMounted = Math.abs(index - activeSection) <= 1 || index === exitingSectionRef.current;
+    const initialTransform = index < activeSection
+      ? shiftDown()
+      : index > activeSection
+        ? shiftUp()
+        : "translateY(0)";
 
-  const renderSections = () => {
-    return Children.map(children, (child, index) => {
-      const isActive = index === activeSection;
-
-      // Mount window: active section ± 1 neighbour (pre-loads adjacent sections so
-      // their WebGL/audio initialises before the user arrives), plus the section
-      // currently animating out (kept alive until its slide-out transition ends).
-      const isMounted =
-        Math.abs(index - activeSection) <= 1 ||
-        index === exitingSectionRef.current;
-
-      // Resting positions must match goToSection cleanup logic:
-      //   visited   (< active) → below  translateY(100dvh)
-      //   active                → centre translateY(0)
-      //   unvisited (> active) → above  translateY(-100dvh)
-      const initialTransform =
-        index < activeSection
-          ? shiftDown()
-          : index > activeSection
-          ? shiftUp()
-          : "translateY(0)";
-
-      return (
-        <div
-          className={`section-container ${isActive ? "active" : ""}`}
-          data-section={index}
-          aria-hidden={!isActive}
-          style={{
-            transform: initialTransform,
-            opacity: isActive ? 1 : 0,
-            zIndex: isActive ? 20 : 10 + index,
-          }}
-        >
-          {isMounted && cloneElement(child, {
-            isActive,
-            sectionIndex: index,
-            totalSections,
-            enterDirection: index > activeSection ? "up" : "down",
-            exitDirection: index > activeSection ? "down" : "up",
-          })}
-        </div>
-      );
-    });
-  };
+    return (
+      <div
+        className={`section-container ${isActive ? "active" : ""}`}
+        data-section={index}
+        aria-hidden={!isActive}
+        style={{
+          transform: initialTransform,
+          opacity: isActive ? 1 : 0,
+          zIndex: isActive ? 20 : 10 + index,
+        }}
+      >
+        {isMounted && cloneElement(child, {
+          isActive,
+          sectionIndex: index,
+          totalSections,
+          enterDirection: index > activeSection ? "up" : "down",
+          exitDirection: index > activeSection ? "down" : "up",
+        })}
+      </div>
+    );
+  });
 
   return (
     <div className="parallax-wrapper">
-      {/* Fixed background — WebGL effects when hardware GPU present, CSS gradient fallback otherwise */}
       <div className="fixed-background" ref={backgroundRef}>
-
-        {/* ── Animated CSS fallback — shown on software/VM renderers instead of WebGL ── */}
-        {!hasHardwareWebGL && (
-          <div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}
-               aria-hidden="true">
-            {/* Drifting colour orbs — positions and hues shift per section */}
-            {[
-              { top: '12%',  left: '14%',  size: '55vmax', dur: '18s', delay: '0s'   },
-              { top: '55%',  left: '68%',  size: '48vmax', dur: '22s', delay: '-6s'  },
-              { top: '72%',  left: '22%',  size: '42vmax', dur: '26s', delay: '-11s' },
-            ].map((orb, i) => (
-              <div key={i} style={{
-                position: 'absolute',
-                top: orb.top, left: orb.left,
-                width: orb.size, height: orb.size,
-                borderRadius: '50%',
-                transform: 'translate(-50%, -50%)',
-                background: isDark
-                  ? [
-                      `radial-gradient(circle, ${CSS_SECTION_DARK[activeSection]?.[i] ?? '#6344F5'}55 0%, transparent 70%)`,
-                      `radial-gradient(circle, ${CSS_SECTION_DARK[activeSection]?.[i] ?? '#24CCFF'}44 0%, transparent 70%)`,
-                      `radial-gradient(circle, ${CSS_SECTION_DARK[activeSection]?.[i] ?? '#52E5A0'}33 0%, transparent 70%)`,
-                    ][i]
-                  : [
-                      `radial-gradient(circle, ${CSS_SECTION_LIGHT[activeSection]?.[i] ?? '#818cf8'}44 0%, transparent 70%)`,
-                      `radial-gradient(circle, ${CSS_SECTION_LIGHT[activeSection]?.[i] ?? '#38bdf8'}33 0%, transparent 70%)`,
-                      `radial-gradient(circle, ${CSS_SECTION_LIGHT[activeSection]?.[i] ?? '#34d399'}22 0%, transparent 70%)`,
-                    ][i],
-                filter: 'blur(48px)',
-                animation: `cssOrbDrift${i} ${orb.dur} ease-in-out infinite`,
-                animationDelay: orb.delay,
-                transition: 'background 1.2s ease',
-                pointerEvents: 'none',
-              }} />
+        {shouldUseCssFallback && (
+          <div className="background-css-fallback" aria-hidden="true">
+            {fallbackOrbs.map((orb, index) => (
+              <div
+                key={index}
+                className={`background-css-orb background-css-orb-${index}`}
+                style={{
+                  top: orb.top,
+                  left: orb.left,
+                  width: orb.size,
+                  height: orb.size,
+                  background: `radial-gradient(circle, ${fallbackColors[activeSection]?.[index] ?? fallbackColors[0][index]}55 0%, transparent 70%)`,
+                  animation: `cssOrbDrift${index} ${orb.dur} ease-in-out infinite`,
+                  animationDelay: orb.delay,
+                }}
+              />
             ))}
-            {/* Subtle dot grid — matches the dither background's dot pattern */}
-            <div style={{
-              position: 'absolute', inset: 0,
-              backgroundImage: isDark
-                ? 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.12) 0 1px, transparent 1.5px)'
-                : 'radial-gradient(circle at 1px 1px, rgba(40,40,90,0.10) 0 1px, transparent 1.5px)',
-              backgroundSize: '24px 24px',
-              pointerEvents: 'none',
-            }} />
+            <div className="background-css-grid" />
           </div>
         )}
 
-        {/* Dither patterns — skipped entirely on software/VM renderers to prevent crashes */}
-        {hasHardwareWebGL && (
-          <div style={{
-            position: 'absolute', inset: 0,
-            opacity: (isMobileTier || !isDark || activeSection === 4) ? 1 : 0,
-            transition: 'opacity 0.9s ease',
-          }}>
+        {shouldUseDither && (
+          <div className="background-dither-live">
             <DitherBackground activeSection={activeSection} isDark={isDark} />
           </div>
         )}
 
-        {/* Dark-mode black hole — desktop/high-tier with hardware GPU only */}
-        {hasHardwareWebGL && !isMobileTier && (
-          <div style={{
-            position: 'absolute', inset: 0,
-            opacity: (isDark && activeSection !== 4) ? 1 : 0,
-            transition: 'opacity 0.9s ease',
-            pointerEvents: 'none',
-          }}>
-            <BlackHoleBackground activeSection={activeSection} />
-          </div>
-        )}
-
         <div className="glass-overlay">
-          <div className="glass-gradient"></div>
+          <div className="glass-gradient" />
         </div>
       </div>
 
-      {/* Section content */}
       <div className="sections-content" ref={contentRef}>
         {renderSections()}
 
-        {/* Navigation dots */}
         <nav className="section-dots" aria-label="Section navigation">
           {Array(totalSections).fill(0).map((_, index) => {
             const label = SECTION_LABELS[index] || `Section ${index + 1}`;
@@ -504,13 +405,17 @@ export const ParallaxBackground = ({ children }) => {
           })}
         </nav>
 
-        {/* Scroll indicator — only shown on hero */}
         {activeSection === 0 && (
           <button
             className="scroll-indicator"
             onClick={() => goToSection(1)}
             aria-label="Scroll to About section"
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); goToSection(1); } }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                goToSection(1);
+              }
+            }}
           />
         )}
       </div>
@@ -524,35 +429,50 @@ export const ParallaxBackground = ({ children }) => {
           overflow: hidden;
         }
 
-        .fixed-background {
+        .fixed-background,
+        .background-css-fallback,
+        .background-dither-live,
+        .glass-overlay,
+        .glass-gradient {
           position: fixed;
-          top: 0;
-          left: 0;
-          width: 100%;
-          height: 100vh;
-          height: 100dvh;
+          inset: 0;
+        }
+
+        .fixed-background {
           z-index: 1;
           background: var(--bg-page);
           transition: background-color 0.35s ease;
         }
 
-        .background-overlay {
+        .background-css-fallback {
+          overflow: hidden;
+          background: ${isDark ? "#080809" : "#fff8f7"};
+        }
+
+        .background-css-orb {
           position: absolute;
-          top: 0;
-          left: 0;
-          width: 100%;
-          height: 100%;
-          background: none;
-          z-index: 2;
+          border-radius: 50%;
+          transform: translate(-50%, -50%);
+          filter: blur(48px);
+          pointer-events: none;
+          transition: background 1.2s ease;
+        }
+
+        .background-css-grid {
+          position: absolute;
+          inset: 0;
+          background-image: ${isDark
+            ? "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.12) 0 1px, transparent 1.5px)"
+            : "radial-gradient(circle at 1px 1px, rgba(40,40,90,0.10) 0 1px, transparent 1.5px)"};
+          background-size: 24px 24px;
+          pointer-events: none;
+        }
+
+        .background-dither-live {
           pointer-events: none;
         }
 
         .glass-overlay {
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
           z-index: 3;
           backdrop-filter: blur(2px) saturate(100%);
           -webkit-backdrop-filter: blur(2px) saturate(100%);
@@ -562,40 +482,13 @@ export const ParallaxBackground = ({ children }) => {
           animation: fadeIn 0.9s ease-out 2.1s forwards;
         }
 
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to   { opacity: 1; }
-        }
-
-        /* CSS fallback background orb drift animations */
-        @keyframes cssOrbDrift0 {
-          0%,100% { transform: translate(-50%,-50%) scale(1)    rotate(0deg);   }
-          33%     { transform: translate(-38%,-62%) scale(1.12) rotate(4deg);   }
-          66%     { transform: translate(-58%,-42%) scale(0.94) rotate(-3deg);  }
-        }
-        @keyframes cssOrbDrift1 {
-          0%,100% { transform: translate(-50%,-50%) scale(1)    rotate(0deg);   }
-          33%     { transform: translate(-62%,-38%) scale(0.92) rotate(-5deg);  }
-          66%     { transform: translate(-40%,-60%) scale(1.10) rotate(3deg);   }
-        }
-        @keyframes cssOrbDrift2 {
-          0%,100% { transform: translate(-50%,-50%) scale(1)    rotate(0deg);   }
-          50%     { transform: translate(-44%,-56%) scale(1.08) rotate(6deg);   }
-        }
-
         .glass-gradient {
-          position: absolute;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
           background: linear-gradient(
             to bottom,
-            rgba(255, 255, 255, 0.01)  0%,
+            rgba(255, 255, 255, 0.01) 0%,
             rgba(255, 255, 255, 0.005) 50%,
-            rgba(99, 68, 245, 0.01)    100%
+            rgba(99, 68, 245, 0.01) 100%
           );
-          pointer-events: none;
         }
 
         .sections-content {
@@ -609,7 +502,6 @@ export const ParallaxBackground = ({ children }) => {
           z-index: 10;
         }
 
-        /* No !important on transform or transition — JS must be able to override them */
         .section-container {
           position: absolute;
           top: 0;
@@ -624,17 +516,9 @@ export const ParallaxBackground = ({ children }) => {
           display: block;
         }
 
-        .section-container.active {
-          z-index: 20;
-        }
-
-        .section-container:not(.active) {
-          pointer-events: none;
-        }
-
-        .section-container > * {
-          position: relative;
-        }
+        .section-container.active { z-index: 20; }
+        .section-container:not(.active) { pointer-events: none; }
+        .section-container > * { position: relative; }
 
         .section-container .service-card,
         .section-container .contact-form {
@@ -654,7 +538,6 @@ export const ParallaxBackground = ({ children }) => {
           box-shadow: none;
         }
 
-        /* Navigation dots */
         .section-dots {
           position: fixed;
           right: max(20px, env(safe-area-inset-right));
@@ -684,9 +567,9 @@ export const ParallaxBackground = ({ children }) => {
           transition: all 0.4s cubic-bezier(0.25, 1, 0.5, 1);
           padding: 0;
           position: relative;
-          /* Expanded hit area for touch — WCAG 2.5.5 (44×44px minimum) */
           -webkit-tap-highlight-color: transparent;
         }
+
         .section-dot::after {
           content: '';
           position: absolute;
@@ -696,6 +579,7 @@ export const ParallaxBackground = ({ children }) => {
           width: 44px;
           height: 44px;
         }
+
         .section-dot:focus-visible {
           outline: var(--focus-ring, 2px solid #6344F5);
           outline-offset: 4px;
@@ -715,27 +599,18 @@ export const ParallaxBackground = ({ children }) => {
           z-index: -1;
         }
 
-        .section-dot:hover::before {
-          width: 24px;
-          height: 24px;
-        }
-
+        .section-dot:hover::before { width: 24px; height: 24px; }
         .section-dot.active {
           background: #6344F5;
           transform: scale(1.2);
           box-shadow: 0 0 10px rgba(99, 68, 245, 0.5);
         }
-
         .section-dot:hover {
           background: rgba(99, 68, 245, 0.7);
           transform: scale(1.1);
         }
+        .section-dot.active:hover { transform: scale(1.3); }
 
-        .section-dot.active:hover {
-          transform: scale(1.3);
-        }
-
-        /* Scroll-down indicator on hero */
         .scroll-indicator {
           position: absolute;
           bottom: 30px;
@@ -758,95 +633,46 @@ export const ParallaxBackground = ({ children }) => {
           gap: 8px;
         }
 
-        .scroll-indicator:hover {
-          background: rgba(99, 68, 245, 0.25);
-          transform: translateX(-50%) scale(1.05);
-          box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+        .scroll-indicator::before {
+          content: '';
+          width: 18px;
+          height: 18px;
+          border-right: 2px solid #6344F5;
+          border-bottom: 2px solid #6344F5;
+          transform: rotate(45deg);
         }
 
-        .scroll-indicator::after {
-          content: '';
-          width: 10px;
-          height: 10px;
-          border-right: 2px solid rgba(255, 255, 255, 0.85);
-          border-bottom: 2px solid rgba(255, 255, 255, 0.85);
-          transform: rotate(45deg);
-          margin-top: 5px;
-          animation: arrowPulse 2s infinite;
-        }
         .scroll-indicator:focus-visible {
           outline: var(--focus-ring, 2px solid #6344F5);
           outline-offset: 4px;
         }
 
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes cssOrbDrift0 {
+          0%, 100% { transform: translate(-50%, -50%) scale(1) rotate(0deg); }
+          33% { transform: translate(-38%, -62%) scale(1.12) rotate(4deg); }
+          66% { transform: translate(-58%, -42%) scale(0.94) rotate(-3deg); }
+        }
+        @keyframes cssOrbDrift1 {
+          0%, 100% { transform: translate(-50%, -50%) scale(1) rotate(0deg); }
+          33% { transform: translate(-62%, -38%) scale(0.92) rotate(-5deg); }
+          66% { transform: translate(-40%, -60%) scale(1.10) rotate(3deg); }
+        }
+        @keyframes cssOrbDrift2 {
+          0%, 100% { transform: translate(-50%, -50%) scale(1) rotate(0deg); }
+          50% { transform: translate(-44%, -56%) scale(1.08) rotate(6deg); }
+        }
         @keyframes scrollFadeInBounce {
-          0%   { opacity: 0;   transform: translateY(10px)  translateX(-50%); }
-          10%  { opacity: 0.8; transform: translateY(0)     translateX(-50%); }
-          50%  { opacity: 0.8; }
-          60%  { opacity: 0.9; transform: translateY(-10px) translateX(-50%); }
-          70%  {               transform: translateY(-5px)  translateX(-50%); }
-          80%  {               transform: translateY(0)     translateX(-50%); }
-          100% { opacity: 0.8; transform: translateY(0)     translateX(-50%); }
+          0% { opacity: 0; transform: translateX(-50%) translateY(0); }
+          20%, 100% { opacity: 0.85; transform: translateX(-50%) translateY(0); }
+          50% { opacity: 1; transform: translateX(-50%) translateY(8px); }
         }
 
-        @keyframes arrowPulse {
-          0%, 100% { opacity: 0.5; transform: rotate(45deg) scale(1);   }
-          50%       { opacity: 1;   transform: rotate(45deg) scale(1.2); }
-        }
-
-        /* Section-level resets */
-        .hero-container {
-          height: 100vh;
-          height: 100dvh;
-          position: relative;
-        }
-
-        #bio, #services, #contact, footer {
-          background: transparent !important;
-          backdrop-filter: none !important;
-          -webkit-backdrop-filter: none !important;
-        }
-
-        .bio-head, .service-card, .contact-form {
-          backdrop-filter: ${isDark ? "blur(6px) saturate(80%) brightness(0.35)" : "blur(24px) saturate(140%)"};
-          -webkit-backdrop-filter: ${isDark ? "blur(6px) saturate(80%) brightness(0.35)" : "blur(24px) saturate(140%)"};
-          background: ${isDark ? "rgba(5,5,14,0.92)" : "rgba(255, 255, 255, 0.58)"};
-          border: 1px solid rgba(255, 255, 255, 0.22);
-          box-shadow: 0 4px 24px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.30);
-          transition: all 0.3s ease-out;
-        }
-
-        .bio-head:hover, .service-card:hover, .contact-form:hover {
-          background: ${isDark ? "rgba(3,3,10,0.95)" : "rgba(255, 255, 255, 0.75)"};
-          box-shadow: 0 8px 32px rgba(0,0,0,0.18), inset 0 1px 0 rgba(255,255,255,0.35);
-        }
-
-        section {
-          height: 100vh;
-          height: 100dvh;
-          display: flex;
-          flex-direction: column;
-          justify-content: center;
-          align-items: center;
-        }
-
-        body {
-          overflow: hidden !important;
-          overscroll-behavior: none;
-          -webkit-overflow-scrolling: auto;
-          touch-action: pinch-zoom; /* Allow pinch-zoom (WCAG 1.4.4); custom swipe handled in JS */
-        }
-
-        html {
-          overflow: hidden !important;
-          height: 100%;
-          overscroll-behavior: none;
-          scroll-behavior: smooth;
-        }
-
-        *, *::before, *::after {
-          -webkit-font-smoothing: antialiased;
-          -moz-osx-font-smoothing: grayscale;
+        @media (max-width: 768px) {
+          .section-dots {
+            right: max(12px, env(safe-area-inset-right));
+            gap: 24px;
+          }
         }
       `}</style>
     </div>
