@@ -1,5 +1,6 @@
 import React from "react";
 import DitherBackground from "./DitherBackground";
+import "./graphicsRuntimeStyle";
 import {
   disableWebGLForSession,
   getShaderCanvasSize,
