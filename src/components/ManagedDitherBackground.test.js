@@ -10,21 +10,21 @@ import {
 import "@testing-library/jest-dom";
 import ManagedDitherBackground from "./ManagedDitherBackground";
 
-const disableWebGLForSession = jest.fn();
-const recordGraphicsEvent = jest.fn();
-const getShaderCanvasSize = jest.fn(() => ({
+const mockDisableWebGLForSession = jest.fn();
+const mockRecordGraphicsEvent = jest.fn();
+const mockGetShaderCanvasSize = jest.fn(() => ({
   width: 320,
   height: 180,
   scale: 0.5,
 }));
 
 jest.mock("../utils/deviceTier", () => ({
-  disableWebGLForSession: (...args) => disableWebGLForSession(...args),
-  getShaderCanvasSize: (...args) => getShaderCanvasSize(...args),
+  disableWebGLForSession: (...args) => mockDisableWebGLForSession(...args),
+  getShaderCanvasSize: (...args) => mockGetShaderCanvasSize(...args),
 }));
 
 jest.mock("../utils/graphicsPolicy", () => ({
-  recordGraphicsEvent: (...args) => recordGraphicsEvent(...args),
+  recordGraphicsEvent: (...args) => mockRecordGraphicsEvent(...args),
 }));
 
 jest.mock("./DitherBackground", () => ({ activeSection, isDark }) => (
@@ -56,9 +56,9 @@ const setReducedMotion = (matches) => {
 
 describe("ManagedDitherBackground", () => {
   beforeEach(() => {
-    disableWebGLForSession.mockClear();
-    recordGraphicsEvent.mockClear();
-    getShaderCanvasSize.mockClear();
+    mockDisableWebGLForSession.mockClear();
+    mockRecordGraphicsEvent.mockClear();
+    mockGetShaderCanvasSize.mockClear();
     window.__bhModeActive = false;
     setVisibility("visible");
     setReducedMotion(false);
@@ -182,7 +182,7 @@ describe("ManagedDitherBackground", () => {
     });
 
     expect(contextLoss.defaultPrevented).toBe(true);
-    expect(disableWebGLForSession).toHaveBeenCalledWith(
+    expect(mockDisableWebGLForSession).toHaveBeenCalledWith(
       "context-lost:orb-dither",
     );
     expect(screen.queryByTestId("dither-canvas")).not.toBeInTheDocument();
