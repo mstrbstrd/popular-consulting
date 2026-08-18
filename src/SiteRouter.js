@@ -1,21 +1,19 @@
 import React from "react";
 import { IMMERSIVE_MODES } from "./immersiveMode";
+import { hasHardwareWebGL } from "./utils/deviceTier";
 
-/* Route-level code splitting: each view loads only its own chunk (the
-   immersive App bundle is heavy with WebGL + MUI; /work is mostly static
-   text). The Suspense fallback is a bare background so the swap is
-   invisible behind each route's own loading treatment. */
 const App = React.lazy(() => import("./App"));
 const WorkPage = React.lazy(() => import("./components/WorkPage"));
 const DitherCanvasPage = React.lazy(() =>
   import("./components/DitherCanvasPage"),
 );
+const GraphicsFallbackPage = React.lazy(() =>
+  import("./components/GraphicsFallbackPage"),
+);
 const StandaloneExperiencePage = React.lazy(() =>
   import("./components/StandaloneExperiencePage"),
 );
 
-/* Matches EXPERIENCE_IDS in StandaloneExperiencePage (string contract kept
-   local so the lazy chunk isn't pulled in for the constant). */
 const EXPERIENCES = Object.freeze({ ORB: "orb", GAME: "game" });
 
 export const SITE_VIEWS = Object.freeze({
@@ -53,7 +51,7 @@ const SiteRouter = ({ pathname = window.location.pathname }) => {
   } else if (view === SITE_VIEWS.GAME) {
     page = <StandaloneExperiencePage experience={EXPERIENCES.GAME} />;
   } else if (view === SITE_VIEWS.DITHER_CANVAS) {
-    page = <DitherCanvasPage />;
+    page = hasHardwareWebGL ? <DitherCanvasPage /> : <GraphicsFallbackPage />;
   } else {
     page = (
       <App

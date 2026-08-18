@@ -1,23 +1,13 @@
-/**
- * deviceTier.js
- *
- * Synchronous device capability detection — evaluated once at module load.
- * 'low'  → phones, iPads, low-RAM/low-core devices  → reduced shader effects
- * 'high' → desktop, iPad Pro with plenty of cores    → full effects
- *
- * Detection signals (any one is sufficient for 'low'):
- *   - iPhone / Android UA
- *   - iPad UA or Macintosh + maxTouchPoints > 1 (modern iPad desktop-mode)
- *   - hardwareConcurrency ≤ 4  AND  deviceMemory ≤ 4 GB
- *
- * hasHardwareWebGL:
- *   true only when WebGL 2 is available on a non-software renderer and a
- *   GLSL ES 3 vertex/fragment program successfully compiles and links.
- *   Otherwise all immersive WebGL components are skipped and the CSS
- *   gradient background is shown instead.
- */
+import {
+  disableWebGLForSession,
+  recordGraphicsEvent,
+  shouldAttemptWebGL,
+} from "./graphicsPolicy";
 
-const WEBGL_DISABLED_SESSION_KEY = 'popcon-webgl-disabled';
+export { disableWebGLForSession };
+
+const IS_TEST_RUNTIME =
+  typeof process !== "undefined" && process.env.NODE_ENV === "test";
 
 const compileShader = (gl, type, source) => {
   const shader = gl.createShader(type);
@@ -34,58 +24,75 @@ const compileShader = (gl, type, source) => {
   return shader;
 };
 
-/**
- * Returns false unless the browser can initialize the exact graphics baseline
- * required by the immersive renderers: hardware-backed WebGL 2 + GLSL ES 3.
- *
- * This deliberately does not fall back to WebGL 1. The site's shaders use
- * `#version 300 es`, so accepting WebGL 1 here would classify an unsupported
- * browser as capable and suppress the CSS fallback.
- */
-export const hasHardwareWebGL = (() => {
-  if (typeof window === 'undefined' || typeof document === 'undefined') return false;
+const releaseProbeContext = (gl) => {
+  try {
+    gl.getExtension("WEBGL_lose_context")?.loseContext();
+  } catch (_) {
+    // The probe context is detached and can still be reclaimed by the browser.
+  }
+};
+
+const probeHardwareWebGL = () => {
+  if (
+    IS_TEST_RUNTIME ||
+    typeof window === "undefined" ||
+    typeof document === "undefined" ||
+    !shouldAttemptWebGL
+  ) {
+    return false;
+  }
+
+  let gl = null;
+  let vertexShader = null;
+  let fragmentShader = null;
+  let program = null;
 
   try {
-    if (window.sessionStorage?.getItem(WEBGL_DISABLED_SESSION_KEY) === '1') {
+    const canvas = document.createElement("canvas");
+    gl = canvas.getContext('webgl2', {
+      antialias: false,
+      failIfMajorPerformanceCaveat: true,
+      powerPreference: "low-power",
+    });
+
+    if (!gl) {
+      recordGraphicsEvent("probe-rejected", { reason: "webgl2-unavailable" });
       return false;
     }
 
-    const canvas = document.createElement('canvas');
-    const gl = canvas.getContext('webgl2', {
-      antialias: false,
-      failIfMajorPerformanceCaveat: true,
-    });
-
-    if (!gl) return false;
-
-    const ext = gl.getExtension('WEBGL_debug_renderer_info');
-    if (ext) {
-      const renderer = gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) || '';
-      const isSoftware = /microsoft basic render|warp|llvmpipe|swiftshader|hyper-v|vmware|virtualbox|softpipe/i.test(renderer);
-      if (isSoftware) return false;
+    const rendererInfo = gl.getExtension("WEBGL_debug_renderer_info");
+    if (rendererInfo) {
+      const renderer =
+        gl.getParameter(rendererInfo.UNMASKED_RENDERER_WEBGL) || "";
+      const softwareRenderer =
+        /microsoft basic render|warp|llvmpipe|swiftshader|hyper-v|vmware|virtualbox|softpipe/i.test(
+          renderer,
+        );
+      if (softwareRenderer) {
+        recordGraphicsEvent("probe-rejected", { reason: "software-renderer" });
+        return false;
+      }
     }
 
-    const vertexShader = compileShader(
+    vertexShader = compileShader(
       gl,
       gl.VERTEX_SHADER,
-      '#version 300 es\nin vec2 a_pos; void main(){ gl_Position=vec4(a_pos,0.0,1.0); }',
+      "#version 300 es\nin vec2 a_pos; void main(){ gl_Position=vec4(a_pos,0.0,1.0); }",
     );
-    const fragmentShader = compileShader(
+    fragmentShader = compileShader(
       gl,
       gl.FRAGMENT_SHADER,
-      '#version 300 es\nprecision highp float; out vec4 fragColor; void main(){ fragColor=vec4(1.0); }',
+      "#version 300 es\nprecision highp float; out vec4 fragColor; void main(){ fragColor=vec4(1.0); }",
     );
 
     if (!vertexShader || !fragmentShader) {
-      if (vertexShader) gl.deleteShader(vertexShader);
-      if (fragmentShader) gl.deleteShader(fragmentShader);
+      recordGraphicsEvent("probe-rejected", { reason: "shader-compile" });
       return false;
     }
 
-    const program = gl.createProgram();
+    program = gl.createProgram();
     if (!program) {
-      gl.deleteShader(vertexShader);
-      gl.deleteShader(fragmentShader);
+      recordGraphicsEvent("probe-rejected", { reason: "program-create" });
       return false;
     }
 
@@ -94,60 +101,74 @@ export const hasHardwareWebGL = (() => {
     gl.linkProgram(program);
 
     const linked = Boolean(gl.getProgramParameter(program, gl.LINK_STATUS));
-
-    gl.deleteProgram(program);
-    gl.deleteShader(vertexShader);
-    gl.deleteShader(fragmentShader);
-
+    recordGraphicsEvent(linked ? "probe-passed" : "probe-rejected", {
+      reason: linked ? "baseline-supported" : "program-link",
+    });
     return linked;
   } catch (_) {
+    recordGraphicsEvent("probe-rejected", { reason: "probe-exception" });
     return false;
-  }
-})();
-
-/**
- * Disables WebGL for the current tab/session after a live context loss.
- * On reload the capability probe reads this flag and the app uses the CSS
- * fallback instead of retrying the immersive renderer.
- */
-export const disableWebGLForSession = () => {
-  try {
-    window.sessionStorage?.setItem(WEBGL_DISABLED_SESSION_KEY, '1');
-  } catch (_) {
-    // Storage can be unavailable in hardened/private browser configurations.
+  } finally {
+    if (gl) {
+      if (program) gl.deleteProgram(program);
+      if (vertexShader) gl.deleteShader(vertexShader);
+      if (fragmentShader) gl.deleteShader(fragmentShader);
+      releaseProbeContext(gl);
+    }
   }
 };
 
+export const hasHardwareWebGL = probeHardwareWebGL();
+
 export const isMobileTier = (() => {
-  if (typeof window === 'undefined') return false;
-  const ua = navigator.userAgent;
-  const mobileUA  = /iPhone|Android/i.test(ua);
-  const iPadUA    = /iPad/i.test(ua) ||
-    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  const lowCores  = (navigator.hardwareConcurrency || 8) <= 4;
-  const lowMem    = (navigator.deviceMemory    || 8) <= 4;
-  return mobileUA || iPadUA || (lowCores && lowMem);
+  if (typeof window === "undefined" || typeof navigator === "undefined") {
+    return false;
+  }
+
+  const userAgent = navigator.userAgent || "";
+  const mobileUserAgent = /iPhone|Android/i.test(userAgent);
+  const iPadUserAgent =
+    /iPad/i.test(userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const lowCoreCount = (navigator.hardwareConcurrency || 8) <= 4;
+  const lowMemory = (navigator.deviceMemory || 8) <= 4;
+
+  return mobileUserAgent || iPadUserAgent || (lowCoreCount && lowMemory);
 })();
 
-/**
- * Maximum devicePixelRatio to use when sizing shader canvases.
- * Desktop: capped at 1.5  (2x Retina → 1.5x saves 44% pixels vs 2x)
- * Mobile:  capped at 1.0  (native-CSS pixels only — 9x saving on 3x screens)
- */
 export const shaderDPR = Math.min(
-  typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1,
-  isMobileTier ? 1.0 : 1.5,
+  typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1,
+  isMobileTier ? 1 : 1.5,
 );
 
-/**
- * DitherBackground section presets — mobile variants.
- * Larger cellSize = fewer ASCII characters to shade per frame.
- * warp: 0 skips the entire warp distortion pass.
- * speed/rainbowSpeed: reduced to lower per-frame GPU work.
- */
+export const MAX_SHADER_PIXELS = isMobileTier ? 600_000 : 1_000_000;
+export const TARGET_SHADER_FRAME_MS = isMobileTier ? 1000 / 24 : 1000 / 30;
+
+export const getShaderCanvasSize = (
+  cssWidth,
+  cssHeight,
+  maxPixels = MAX_SHADER_PIXELS,
+) => {
+  const width = Math.max(1, Number(cssWidth) || 1);
+  const height = Math.max(1, Number(cssHeight) || 1);
+  const safeBudget = Math.max(1, Number(maxPixels) || MAX_SHADER_PIXELS);
+  const requestedPixels = width * height * shaderDPR * shaderDPR;
+  const budgetScale =
+    requestedPixels > safeBudget
+      ? Math.sqrt(safeBudget / requestedPixels)
+      : 1;
+  const scale = Math.max(0.25, shaderDPR * budgetScale);
+
+  return {
+    width: Math.max(1, Math.floor(width * scale)),
+    height: Math.max(1, Math.floor(height * scale)),
+    scale,
+  };
+};
+
 export const MOBILE_DITHER_OVERRIDES = {
-  cellSize:     12,
-  warp:          0,
-  speed:         0.18,
-  rainbowSpeed:  0.25,
+  cellSize: 12,
+  warp: 0,
+  speed: 0.18,
+  rainbowSpeed: 0.25,
 };

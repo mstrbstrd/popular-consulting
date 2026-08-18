@@ -1,0 +1,195 @@
+import React from "react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import "@testing-library/jest-dom";
+import ManagedDitherBackground from "./ManagedDitherBackground";
+
+const mockDisableWebGLForSession = jest.fn();
+const mockRecordGraphicsEvent = jest.fn();
+const mockGetShaderCanvasSize = jest.fn();
+
+jest.mock("../utils/deviceTier", () => ({
+  disableWebGLForSession: (...args) => mockDisableWebGLForSession(...args),
+  getShaderCanvasSize: (...args) => mockGetShaderCanvasSize(...args),
+}));
+
+jest.mock("../utils/graphicsPolicy", () => ({
+  recordGraphicsEvent: (...args) => mockRecordGraphicsEvent(...args),
+}));
+
+jest.mock("./DitherBackground", () => ({ activeSection, isDark }) => (
+  <canvas
+    data-testid="dither-canvas"
+    data-section={activeSection}
+    data-dark={String(isDark)}
+    width="640"
+    height="360"
+  />
+));
+
+const setVisibility = (value) => {
+  Object.defineProperty(document, "visibilityState", {
+    configurable: true,
+    value,
+  });
+};
+
+const setReducedMotion = (matches) => {
+  window.matchMedia = jest.fn().mockReturnValue({
+    matches,
+    addEventListener: jest.fn(),
+    removeEventListener: jest.fn(),
+    addListener: jest.fn(),
+    removeListener: jest.fn(),
+  });
+};
+
+describe("ManagedDitherBackground", () => {
+  beforeEach(() => {
+    mockDisableWebGLForSession.mockClear();
+    mockRecordGraphicsEvent.mockClear();
+    mockGetShaderCanvasSize.mockReset();
+    mockGetShaderCanvasSize.mockImplementation(() => ({
+      width: 320,
+      height: 180,
+      scale: 0.5,
+    }));
+    window.__bhModeActive = false;
+    setVisibility("visible");
+    setReducedMotion(false);
+  });
+
+  afterEach(() => {
+    cleanup();
+    window.__bhModeActive = false;
+    setVisibility("visible");
+  });
+
+  test("mounts one live renderer only while enabled and visible", async () => {
+    const { container } = render(
+      <ManagedDitherBackground
+        activeSection={2}
+        enabled={true}
+        isDark={false}
+        rendererId="main-dither"
+      />,
+    );
+
+    expect(screen.getByTestId("dither-canvas")).toHaveAttribute(
+      "data-section",
+      "2",
+    );
+    expect(
+      container.querySelector("[data-renderer-state='running']"),
+    ).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("dither-canvas").width).toBe(320);
+      expect(screen.getByTestId("dither-canvas").height).toBe(180);
+    });
+  });
+
+  test("unmounts the renderer while the document is hidden", () => {
+    render(
+      <ManagedDitherBackground
+        enabled={true}
+        fallback={<div data-testid="graphics-fallback" />}
+      />,
+    );
+
+    expect(screen.getByTestId("dither-canvas")).toBeInTheDocument();
+
+    act(() => {
+      setVisibility("hidden");
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+
+    expect(screen.queryByTestId("dither-canvas")).not.toBeInTheDocument();
+    expect(screen.getByTestId("graphics-fallback")).toBeInTheDocument();
+  });
+
+  test("uses the static fallback for reduced-motion users", () => {
+    setReducedMotion(true);
+
+    const { container } = render(
+      <ManagedDitherBackground
+        enabled={true}
+        fallback={<div data-testid="graphics-fallback" />}
+      />,
+    );
+
+    expect(screen.queryByTestId("dither-canvas")).not.toBeInTheDocument();
+    expect(screen.getByTestId("graphics-fallback")).toBeInTheDocument();
+    expect(
+      container.querySelector("[data-renderer-state='reduced-motion']"),
+    ).toBeInTheDocument();
+  });
+
+  test("suspends the dither while the exclusive orb black-hole renderer is active", async () => {
+    const { container } = render(
+      <ManagedDitherBackground
+        enabled={true}
+        fallback={<div data-testid="graphics-fallback" />}
+        rendererId="orb-dither"
+      />,
+    );
+
+    expect(screen.getByTestId("dither-canvas")).toBeInTheDocument();
+
+    act(() => {
+      window.__bhModeActive = true;
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("dither-canvas")).not.toBeInTheDocument();
+      expect(
+        container.querySelector(
+          "[data-renderer-state='exclusive-suspended']",
+        ),
+      ).toBeInTheDocument();
+    });
+
+    act(() => {
+      window.__bhModeActive = false;
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("dither-canvas")).toBeInTheDocument();
+    });
+  });
+
+  test("fails closed locally after WebGL context loss", () => {
+    const { container } = render(
+      <ManagedDitherBackground
+        enabled={true}
+        fallback={<div data-testid="graphics-fallback" />}
+        rendererId="orb-dither"
+      />,
+    );
+
+    const contextLoss = new Event("webglcontextlost", {
+      bubbles: true,
+      cancelable: true,
+    });
+
+    act(() => {
+      fireEvent(screen.getByTestId("dither-canvas"), contextLoss);
+    });
+
+    expect(contextLoss.defaultPrevented).toBe(true);
+    expect(mockDisableWebGLForSession).toHaveBeenCalledWith(
+      "context-lost:orb-dither",
+    );
+    expect(screen.queryByTestId("dither-canvas")).not.toBeInTheDocument();
+    expect(screen.getByTestId("graphics-fallback")).toBeInTheDocument();
+    expect(
+      container.querySelector("[data-renderer-state='failed']"),
+    ).toBeInTheDocument();
+  });
+});

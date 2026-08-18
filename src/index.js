@@ -12,15 +12,17 @@ import './work-navigation-refinement.css';
 import './work-card-consistency.css';
 import SiteRouter from './SiteRouter';
 import InteractionAccessibilityBridge from './components/InteractionAccessibilityBridge';
+import { initGraphicsRuntimeBoundary } from './utils/graphicsRuntimeBoundary';
 import { initCoreWebVitals, initSectionTiming, initLongTaskObserver } from './utils/telemetry';
 
 // ResizeObserver loop errors are prevented at the source by patchResizeObserver
 // (imported first, above): it wraps callbacks in requestAnimationFrame so
 // notifications never overflow a single frame.
 //
-// WebGL context loss is handled inside each renderer. The previous global
-// recovery path force-reloaded the whole document, which converted a recoverable
-// graphics fault on Windows into an apparent site crash or reload loop.
+// Graphics failures degrade locally. The runtime boundary records context loss,
+// hides the failed canvas, releases exclusive renderer ownership, and never
+// reloads the document.
+initGraphicsRuntimeBoundary();
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
