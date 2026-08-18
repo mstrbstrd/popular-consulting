@@ -69,6 +69,8 @@ describe("BlackHoleCanvas safety invariants", () => {
     expect(source).toContain("gl.deleteProgram(program)");
     expect(source).not.toContain('getExtension("WEBGL_lose_context")');
     expect(source).toContain("getShaderCanvasSize(");
+    expect(source).toContain("new ResizeObserver(resize)");
+    expect(source).not.toContain("if (!gl || !program || !resize())");
   });
 
   test("fails closed when WebGL2 cannot be created", async () => {
