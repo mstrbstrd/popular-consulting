@@ -125,6 +125,17 @@ const ManagedDitherBackground = ({
       const cssHeight = bounds.height || window.innerHeight || 1;
       const target = getShaderCanvasSize(cssWidth, cssHeight);
 
+      if (
+        !target ||
+        !Number.isFinite(target.width) ||
+        !Number.isFinite(target.height) ||
+        target.width < 1 ||
+        target.height < 1
+      ) {
+        recordGraphicsEvent("renderer-budget-rejected", { rendererId });
+        return;
+      }
+
       root.querySelectorAll("canvas").forEach((canvas) => {
         if (canvas.width !== target.width || canvas.height !== target.height) {
           canvas.width = target.width;
