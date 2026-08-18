@@ -17,6 +17,9 @@ describe("shared Aetheris site styling", () => {
   const standaloneSource = readRepositoryFile(
     "src/components/StandaloneExperiencePage.js",
   );
+  const managedRendererSource = readRepositoryFile(
+    "src/components/ManagedDitherBackground.js",
+  );
 
   test("loads the shared layer after the legacy global stylesheet", () => {
     const legacyImport = indexSource.indexOf("import './index.css';");
@@ -71,10 +74,14 @@ describe("shared Aetheris site styling", () => {
   });
 
   test("never overrides the authored scene or low-capability visuals", () => {
-    expect(parallaxSource).toContain(
-      "<DitherBackground activeSection={activeSection} isDark={isDark} />",
+    expect(parallaxSource).toContain("<ManagedDitherBackground");
+    expect(parallaxSource).toContain('rendererId="main-dither"');
+    expect(standaloneSource).toContain("<ManagedDitherBackground");
+    expect(standaloneSource).toContain(
+      'rendererId={`${experience}-dither`}',
     );
-    expect(standaloneSource).toContain("<DitherBackground");
+    expect(managedRendererSource).toContain("<DitherBackground");
+    expect(managedRendererSource).toContain("fallback");
 
     [
       ".fixed-background",
