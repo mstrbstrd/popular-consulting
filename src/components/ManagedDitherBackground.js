@@ -4,6 +4,8 @@ import "./graphicsRuntimeStyle";
 import {
   disableWebGLForSession,
   getShaderCanvasSize,
+  MAX_SHADER_PIXELS,
+  TARGET_SHADER_FRAME_MS,
 } from "../utils/deviceTier";
 import { recordGraphicsEvent } from "../utils/graphicsPolicy";
 import {
@@ -201,6 +203,10 @@ const ManagedDitherBackground = ({
       className="managed-dither-background"
       data-renderer-id={rendererId}
       data-renderer-state={rendererState}
+      data-graphics-governor="true"
+      data-graphics-single-pass="true"
+      data-max-shader-pixels={MAX_SHADER_PIXELS}
+      data-shader-frame-interval={TARGET_SHADER_FRAME_MS}
       style={{ position: "absolute", inset: 0 }}
       aria-hidden="true"
     >
