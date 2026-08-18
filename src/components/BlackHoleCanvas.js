@@ -1,21 +1,32 @@
-// BlackHoleCanvas.js
-// Psychedelic black-hole dither — full-screen WebGL2 overlay for the Orb section.
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from "react";
+import {
+  disableWebGLForSession,
+  getShaderCanvasSize,
+  TARGET_SHADER_FRAME_MS,
+} from "../utils/deviceTier";
+import { recordGraphicsEvent } from "../utils/graphicsPolicy";
+import { setOrbBlackHoleModeActive } from "../utils/rendererOwnership";
 
-const PIXEL_SCALE = 0.35;
+export const BLACK_HOLE_MAX_PIXELS = 420_000;
+export const BLACK_HOLE_FRAME_INTERVAL_MS = Math.max(
+  TARGET_SHADER_FRAME_MS,
+  1000 / 30,
+);
 
-const VS_SRC = `#version 300 es
+export const BLACK_HOLE_VERTEX_SHADER = `#version 300 es
 in vec2 a_pos;
-out vec2 vUv;
-void main(){
-  vUv = a_pos * 0.5 + 0.5;
+out vec2 v_uv;
+void main() {
+  v_uv = a_pos * 0.5 + 0.5;
   gl_Position = vec4(a_pos, 0.0, 1.0);
 }`;
 
-const FS_SRC = `#version 300 es
+export const BLACK_HOLE_FRAGMENT_SHADER = `#version 300 es
 precision highp float;
-in vec2 vUv;
+
+in vec2 v_uv;
 out vec4 fragColor;
+
 uniform float u_time;
 uniform vec2 u_res;
 uniform vec2 u_mouse;
@@ -24,403 +35,546 @@ uniform float u_lightMode;
 
 #define PI 3.14159265359
 #define TAU 6.28318530718
-#define BH_MASS 1.0
-#define SCHWARZSCHILD_R (2.0 * BH_MASS)
-#define PHOTON_SPHERE_R (1.5 * SCHWARZSCHILD_R)
-#define ISCO_R (3.0 * SCHWARZSCHILD_R)
-#define DISK_INNER 2.8
-#define DISK_OUTER 12.0
-#define NUM_STEPS 200
-#define STEP_SIZE 0.08
+
+float sat(float value) {
+  return clamp(value, 0.0, 1.0);
+}
+
+mat2 rot(float angle) {
+  float c = cos(angle);
+  float s = sin(angle);
+  return mat2(c, -s, s, c);
+}
+
+float hash21(vec2 p) {
+  p = fract(p * vec2(123.34, 456.21));
+  p += dot(p, p + 45.32);
+  return fract(p.x * p.y);
+}
+
+float starLayer(vec2 p, float scale, float threshold, float time) {
+  vec2 cell = floor(p * scale);
+  vec2 local = fract(p * scale) - 0.5;
+  float seed = hash21(cell);
+  float radius = mix(0.020, 0.080, seed);
+  float star = 1.0 - smoothstep(radius * 0.35, radius, length(local));
+  float twinkle = 0.68 + 0.32 * sin(time * (1.2 + seed * 2.4) + seed * 70.0);
+  return star * step(threshold, seed) * twinkle;
+}
+
+vec3 spectral(float hue) {
+  vec3 phase = vec3(0.0, 0.333333, 0.666667);
+  vec3 wave = 0.5 + 0.5 * cos(TAU * (hue + phase));
+  return pow(wave, vec3(0.72));
+}
 
 float bayer4(vec2 p) {
-  ivec2 ip = ivec2(mod(p, 4.0));
-  int b[16] = int[16](
+  ivec2 ip = ivec2(mod(floor(p), 4.0));
+  int matrix[16] = int[16](
      0, 8, 2,10,
     12, 4,14, 6,
      3,11, 1, 9,
     15, 7,13, 5
   );
-  return float(b[ip.x + ip.y * 4]) / 16.0;
-}
-
-mat2 rot(float a) {
-  float c = cos(a), s = sin(a);
-  return mat2(c, -s, s, c);
-}
-
-float hash2(vec2 p) {
-  vec3 p3 = fract(vec3(p.xyx) * 0.1031);
-  p3 += dot(p3, p3.yzx + 33.33);
-  return fract((p3.x + p3.y) * p3.z);
-}
-
-float hash3(vec3 p) {
-  p = fract(p * 0.3183099 + 0.1);
-  p *= 17.0;
-  return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
-}
-
-float noise3d(vec3 p) {
-  vec3 i = floor(p);
-  vec3 f = fract(p);
-  f = f * f * (3.0 - 2.0 * f);
-  return mix(
-    mix(mix(hash3(i), hash3(i+vec3(1,0,0)), f.x),
-        mix(hash3(i+vec3(0,1,0)), hash3(i+vec3(1,1,0)), f.x), f.y),
-    mix(mix(hash3(i+vec3(0,0,1)), hash3(i+vec3(1,0,1)), f.x),
-        mix(hash3(i+vec3(0,1,1)), hash3(i+vec3(1,1,1)), f.x), f.y),
-    f.z
-  );
-}
-
-float fbm(vec3 p) {
-  float v = 0.0, a = 0.5;
-  for (int i = 0; i < 5; i++) {
-    v += a * noise3d(p);
-    p *= 2.1; a *= 0.48;
-  }
-  return v;
-}
-
-vec3 psychePalette(float t, float shift) {
-  vec3 a = vec3(0.5);
-  vec3 b = vec3(0.6);
-  vec3 c = vec3(1.0);
-  vec3 d = vec3(0.00, 0.15, 0.40);
-  return a + b * cos(TAU * (c * t + d + shift));
-}
-
-vec3 schwarzschildAccel(vec3 pos, vec3 vel) {
-  float r = length(pos);
-  if (r < 0.5) return vec3(0.0);
-  float r2 = r * r;
-  vec3 L = cross(pos, vel);
-  float L2 = dot(L, L);
-  return -BH_MASS / (r2 * r) * pos * (1.0 + 3.0 * L2 / r2);
-}
-
-void rk4Step(inout vec3 pos, inout vec3 vel, float h) {
-  vec3 k1v = schwarzschildAccel(pos, vel);
-  vec3 k1x = vel;
-  vec3 p2 = pos + 0.5*h*k1x; vec3 v2 = vel + 0.5*h*k1v;
-  vec3 k2v = schwarzschildAccel(p2, v2); vec3 k2x = v2;
-  vec3 p3 = pos + 0.5*h*k2x; vec3 v3 = vel + 0.5*h*k2v;
-  vec3 k3v = schwarzschildAccel(p3, v3); vec3 k3x = v3;
-  vec3 p4 = pos + h*k3x; vec3 v4 = vel + h*k3v;
-  vec3 k4v = schwarzschildAccel(p4, v4); vec3 k4x = v4;
-  pos += (h/6.0) * (k1x + 2.0*k2x + 2.0*k3x + k4x);
-  vel += (h/6.0) * (k1v + 2.0*k2v + 2.0*k3v + k4v);
-  vel = normalize(vel);
-}
-
-vec3 stars(vec3 rd, float t) {
-  vec2 sp = vec2(atan(rd.z, rd.x), asin(clamp(rd.y, -1.0, 1.0)));
-  vec3 col = vec3(0.0);
-  vec2 grid1 = floor(sp * 120.0);
-  float h1 = hash2(grid1);
-  if (h1 > 0.95) {
-    float b = pow((h1 - 0.95) / 0.05, 0.4);
-    b *= 0.6 + 0.4 * sin(t * 2.5 + h1 * 80.0);
-    col += psychePalette(h1 * 4.0 + t * 0.03, 0.0) * b;
-  }
-  vec2 grid2 = floor(sp * 40.0);
-  float h2 = hash2(grid2 + 99.0);
-  if (h2 > 0.985) {
-    float b = pow((h2 - 0.985) / 0.015, 0.3) * 1.5;
-    b *= 0.7 + 0.3 * sin(t * 1.8 + h2 * 60.0);
-    col += psychePalette(h2 * 6.0 + t * 0.05, 0.2) * b;
-  }
-  float neb = fbm(rd * 3.0 + t * 0.01);
-  neb = smoothstep(0.45, 0.75, neb) * 0.08;
-  col += psychePalette(rd.x + rd.y + t * 0.02, 0.4) * neb;
-  return col;
-}
-
-vec3 diskColor(vec3 hitPos, vec3 camPos, float t) {
-  float r = length(hitPos.xz);
-  if (r < DISK_INNER || r > DISK_OUTER) return vec3(0.0);
-  float angle = atan(hitPos.z, hitPos.x);
-  float v_orb = sqrt(BH_MASS / r);
-  vec3 velDir = normalize(vec3(-sin(angle), 0.0, cos(angle)));
-  vec3 velocity = velDir * v_orb;
-  vec3 toCamera = normalize(camPos - hitPos);
-  float v_los = dot(velocity, toCamera);
-  float gamma = 1.0 / sqrt(1.0 - min(v_orb * v_orb, 0.99));
-  float doppler = 1.0 / (gamma * (1.0 - v_los));
-  doppler = clamp(doppler, 0.3, 3.5);
-  float g_redshift = sqrt(max(1.0 - SCHWARZSCHILD_R / r, 0.01));
-  float totalShift = doppler * g_redshift;
-  float radialNorm = (r - DISK_INNER) / (DISK_OUTER - DISK_INNER);
-  float temperature = pow(1.0 - radialNorm, 1.8);
-  float rotSpeed = 1.0 / pow(r, 1.5);
-  float rotAngle = angle + rotSpeed * t * 2.0;
-  float spiral1 = sin(rotAngle * 4.0 - log(r) * 5.0);
-  float spiral2 = sin(rotAngle * 7.0 + log(r) * 3.0);
-  float turb = fbm(vec3(hitPos.xz * 0.8, t * 0.15));
-  float density = 0.55 + 0.25 * spiral1 + 0.15 * spiral2 + turb * 0.3;
-  density *= smoothstep(DISK_INNER, DISK_INNER + 0.8, r);
-  density *= smoothstep(DISK_OUTER, DISK_OUTER - 1.5, r);
-  float hue = angle / TAU + 0.5;
-  hue += r * 0.05 + t * 0.08;
-  hue += (totalShift - 1.0) * 0.3;
-  vec3 col = psychePalette(hue, 0.0);
-  vec3 hotCol = psychePalette(hue + 0.15, 0.25) * 2.5;
-  col = mix(col, hotCol, temperature * 0.7);
-  float beaming = pow(totalShift, 3.5);
-  float iscoGlow = exp(-(r - DISK_INNER) * 2.0);
-  vec3 plasmaCol = psychePalette(t * 0.2 + angle / TAU, 0.1) * 3.5;
-  col += plasmaCol * iscoGlow;
-  col *= density * beaming * (0.5 + temperature * 1.2);
-  return col;
+  return float(matrix[ip.x + ip.y * 4]) / 16.0;
 }
 
 void main() {
-  vec2 uv = (gl_FragCoord.xy - u_res * 0.5) / min(u_res.x, u_res.y);
-  float t = u_time;
-  float aberr = 0.006 + 0.003 * sin(t * 1.8);
-  float camAngle = t * 0.06;
-  vec2 ms = u_mouse * 2.0 - 1.0;
-  camAngle += ms.x * 1.0;
-  float camElev = 0.35 + ms.y * 0.5 + 0.1 * sin(t * 0.05);
-  vec3 ro = vec3(
-    u_zoom * cos(camAngle) * cos(camElev),
-    u_zoom * sin(camElev),
-    u_zoom * sin(camAngle) * cos(camElev)
+  float minResolution = max(min(u_res.x, u_res.y), 1.0);
+  vec2 uv = (gl_FragCoord.xy * 2.0 - u_res) / minResolution;
+  vec2 mouse = u_mouse * 2.0 - 1.0;
+  float zoomMix = sat((u_zoom - 4.0) / 76.0);
+  float viewScale = mix(1.05, 2.75, zoomMix);
+
+  vec2 p = uv * viewScale;
+  p -= vec2(mouse.x * 0.055, mouse.y * 0.035);
+
+  float radius = length(p);
+  float angle = atan(p.y, p.x);
+  vec2 radialDirection = radius > 0.0001 ? p / radius : vec2(1.0, 0.0);
+
+  // Analytic lensing bends the background once in screen space. This keeps the
+  // apparent gravitational distortion without tracing hundreds of ray steps.
+  float lensStrength = 0.105 / (radius + 0.105);
+  vec2 lensed = radialDirection * (radius + lensStrength);
+  lensed = rot(u_time * 0.012 + mouse.x * 0.08) * lensed;
+
+  float fineStars = starLayer(lensed + 11.7, 34.0, 0.965, u_time);
+  float brightStars = starLayer(lensed * 0.58 - 7.1, 18.0, 0.985, u_time * 0.8);
+  float nebula = 0.5 + 0.5 * sin(
+    lensed.x * 3.2 + sin(lensed.y * 2.4 - u_time * 0.035) * 1.15
   );
-  vec3 ta = vec3(0.0);
-  vec3 ww = normalize(ta - ro);
-  vec3 uu = normalize(cross(ww, vec3(0.0, 1.0, 0.0)));
-  vec3 vv = cross(uu, ww);
-  vec3 finalCol = vec3(0.0);
+  nebula *= 0.5 + 0.5 * sin(lensed.y * 2.7 + u_time * 0.028);
 
-  for (int ch = 0; ch < 3; ch++) {
-    float chOff = (ch == 0) ? aberr : (ch == 2) ? -aberr : 0.0;
-    vec3 rd = normalize((uv.x + chOff) * uu + uv.y * vv + 1.4 * ww);
-    vec3 pos = ro;
-    vec3 vel = rd;
-    vec3 accumulated = vec3(0.0);
-    float alpha = 0.0;
-    bool absorbed = false;
-    float minR = 100.0;
+  vec3 backgroundHue = spectral(fract(angle / TAU + u_time * 0.008));
+  vec3 color = backgroundHue * nebula * 0.055;
+  color += vec3(0.84, 0.92, 1.0) * fineStars * 0.72;
+  color += spectral(fract(angle / TAU + 0.18)) * brightStars * 1.45;
 
-    for (int i = 0; i < NUM_STEPS; i++) {
-      float r = length(pos);
-      minR = min(minR, r);
-      if (r < SCHWARZSCHILD_R * 0.48) { absorbed = true; break; }
-      float prevY = pos.y;
-      float adaptiveH = STEP_SIZE * clamp(r * 0.3, 0.3, 4.0);
-      rk4Step(pos, vel, adaptiveH);
-      float currY = pos.y;
-      if (prevY * currY < 0.0 && alpha < 0.95) {
-        float frac = abs(prevY) / (abs(prevY) + abs(currY) + 0.0001);
-        vec3 hitP = pos - vel * adaptiveH * (1.0 - frac);
-        float hitR = length(hitP.xz);
-        if (hitR > DISK_INNER && hitR < DISK_OUTER) {
-          vec3 dCol = diskColor(hitP, ro, t);
-          float hitAlpha = clamp(length(dCol) * 0.7, 0.0, 0.9);
-          accumulated += dCol * (1.0 - alpha) * hitAlpha;
-          alpha += hitAlpha * (1.0 - alpha);
-        }
-      }
-      if (r > 120.0) break;
-    }
+  float diskTilt = mix(0.22, 0.38, sat(u_mouse.y));
+  vec2 diskPoint = rot(-0.20 - mouse.x * 0.24) * p;
+  diskPoint.y /= diskTilt;
+  float diskRadius = length(diskPoint);
+  float diskAngle = atan(diskPoint.y, diskPoint.x);
+  float diskBand = exp(-pow((diskRadius - 0.50) * 9.2, 2.0));
+  float diskEdge = smoothstep(0.20, 0.29, diskRadius)
+    * (1.0 - smoothstep(0.72, 0.92, diskRadius));
+  float spiral = 0.62
+    + 0.23 * sin(diskAngle * 7.0 - u_time * 1.45 + diskRadius * 13.0)
+    + 0.15 * sin(diskAngle * 3.0 + u_time * 0.72 - diskRadius * 8.0);
+  float doppler = mix(0.58, 1.45, sat(diskPoint.x / max(diskRadius, 0.001) * 0.5 + 0.5));
+  float disk = diskBand * diskEdge * max(spiral, 0.0) * doppler;
+  vec3 diskColor = spectral(fract(diskAngle / TAU + diskRadius * 0.28 + u_time * 0.035));
+  diskColor = mix(diskColor, vec3(1.0, 0.82, 0.52), 0.24);
+  color += diskColor * disk * 1.75;
 
-    vec3 c;
-    if (absorbed) {
-      float glow = exp(-(minR - SCHWARZSCHILD_R * 0.48) * 4.0);
-      c = psychePalette(t * 0.15, 0.0) * glow * 0.15;
-    } else {
-      c = stars(normalize(vel), t);
-    }
-    c = mix(c, accumulated / max(alpha, 0.001), alpha);
-    float ringDist = abs(minR - PHOTON_SPHERE_R);
-    float ringGlow = exp(-ringDist * ringDist * 8.0) * 0.8;
-    float nearOrbit = exp(-ringDist * 20.0) * 1.5;
-    vec3 ringCol = psychePalette(t * 0.12 + minR * 0.3, 0.15);
-    c += ringCol * (ringGlow + nearOrbit);
-    if (minR < PHOTON_SPHERE_R * 1.3 && !absorbed) {
-      float lensAmp = 1.0 + 2.0 * exp(-(minR - PHOTON_SPHERE_R) * 3.0);
-      c *= lensAmp;
-    }
-    if (ch == 0) finalCol.r = c.r;
-    else if (ch == 1) finalCol.g = c.g;
-    else finalCol.b = c.b;
+  float horizonRadius = 0.205;
+  float horizon = 1.0 - smoothstep(horizonRadius - 0.012, horizonRadius + 0.012, radius);
+  float photonRing = exp(-pow((radius - 0.248) * 48.0, 2.0));
+  float outerGlow = exp(-pow((radius - 0.295) * 18.0, 2.0));
+  vec3 ringColor = spectral(fract(angle / TAU + u_time * 0.018 + 0.12));
+
+  color *= 1.0 - horizon;
+  color += ringColor * photonRing * 1.55;
+  color += ringColor * outerGlow * 0.22;
+
+  float lensArc = exp(-pow((radius - 0.37) * 15.0, 2.0));
+  lensArc *= 0.45 + 0.55 * pow(abs(cos(angle - mouse.x * 0.4)), 3.0);
+  color += spectral(fract(angle / TAU + 0.62)) * lensArc * 0.16;
+
+  color = color / (color + vec3(0.72));
+  float gray = dot(color, vec3(0.299, 0.587, 0.114));
+  color = mix(vec3(gray), color, 1.26);
+
+  float dither = bayer4(gl_FragCoord.xy) - 0.5;
+  float levels = 5.0;
+  color = floor(clamp(color + dither / levels, 0.0, 1.0) * levels + 0.5) / levels;
+
+  float scanline = 0.92 + 0.08 * sin(gl_FragCoord.y * PI);
+  color *= scanline;
+
+  vec2 vignettePoint = v_uv * 2.0 - 1.0;
+  color *= 1.0 - 0.24 * dot(vignettePoint, vignettePoint);
+
+  if (u_lightMode > 0.5) {
+    color = mix(vec3(0.98, 0.97, 1.0), vec3(1.0) - color, 0.82);
   }
 
-  finalCol = finalCol / (finalCol + 0.65);
-  float gray = dot(finalCol, vec3(0.299, 0.587, 0.114));
-  finalCol = mix(vec3(gray), finalCol, 1.3);
-
-  float threshold = bayer4(gl_FragCoord.xy);
-  float levels = 3.0;
-  finalCol = floor(finalCol * levels + threshold) / levels;
-
-  float scanline = 0.78 + 0.22 * sin(gl_FragCoord.y * PI * 2.0);
-  finalCol *= scanline;
-  float interference = 0.96 + 0.04 * sin(gl_FragCoord.y * 0.5 + t * 14.0);
-  finalCol *= interference;
-
-  vec2 cv = vUv * 2.0 - 1.0;
-  float curv = 1.0 - 0.35 * dot(cv * cv, cv * cv);
-  finalCol *= clamp(curv, 0.0, 1.0);
-
-  float lum = dot(finalCol, vec3(0.299, 0.587, 0.114));
-  finalCol += finalCol * smoothstep(0.4, 1.0, lum) * 0.3;
-
-  if (u_lightMode > 0.5) finalCol = 1.0 - finalCol;
-
-  fragColor = vec4(finalCol, 1.0);
+  fragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
 }`;
 
-const BlackHoleCanvas = ({ isDark = true, visible = true, onFadeOutEnd, zoomRef, currentZoomRef }) => {
+const compileShader = (gl, type, source) => {
+  const shader = gl.createShader(type);
+  if (!shader) return null;
+
+  gl.shaderSource(shader, source);
+  gl.compileShader(shader);
+
+  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+    gl.deleteShader(shader);
+    return null;
+  }
+
+  return shader;
+};
+
+const createProgram = (gl) => {
+  const vertex = compileShader(
+    gl,
+    gl.VERTEX_SHADER,
+    BLACK_HOLE_VERTEX_SHADER,
+  );
+  const fragment = compileShader(
+    gl,
+    gl.FRAGMENT_SHADER,
+    BLACK_HOLE_FRAGMENT_SHADER,
+  );
+
+  if (!vertex || !fragment) {
+    if (vertex) gl.deleteShader(vertex);
+    if (fragment) gl.deleteShader(fragment);
+    return null;
+  }
+
+  const program = gl.createProgram();
+  if (!program) {
+    gl.deleteShader(vertex);
+    gl.deleteShader(fragment);
+    return null;
+  }
+
+  gl.attachShader(program, vertex);
+  gl.attachShader(program, fragment);
+  gl.linkProgram(program);
+  gl.deleteShader(vertex);
+  gl.deleteShader(fragment);
+
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+    gl.deleteProgram(program);
+    return null;
+  }
+
+  return program;
+};
+
+const BlackHoleCanvas = ({
+  isDark = true,
+  visible = true,
+  onFadeOutEnd,
+  zoomRef,
+  currentZoomRef,
+}) => {
   const canvasRef = useRef(null);
   const isDarkRef = useRef(isDark);
-  useEffect(() => { isDarkRef.current = isDark; }, [isDark]);
+  const visibleRef = useRef(visible);
+  const onFadeOutEndRef = useRef(onFadeOutEnd);
+  const ensureAnimatingRef = useRef(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    isDarkRef.current = isDark;
+  }, [isDark]);
+
+  useEffect(() => {
+    visibleRef.current = visible;
+    if (visible) ensureAnimatingRef.current?.();
+  }, [visible]);
+
+  useEffect(() => {
+    onFadeOutEndRef.current = onFadeOutEnd;
+  }, [onFadeOutEnd]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || failed) return undefined;
 
-    const gl = canvas.getContext('webgl2', { antialias: false, alpha: false });
-    if (!gl) return;
+    let disposed = false;
+    let animationFrame = 0;
+    let lastFrameAt = 0;
+    let firstFramePending = true;
+    let resizeObserver = null;
+    let gl = null;
+    let program = null;
+    let buffer = null;
 
-    // Compile helpers
-    const compileShader = (type, src) => {
-      const s = gl.createShader(type);
-      gl.shaderSource(s, src);
-      gl.compileShader(s);
-      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
-        console.error('BH shader error:', gl.getShaderInfoLog(s));
-        return null;
-      }
-      return s;
+    const releaseResources = () => {
+      if (buffer && gl) gl.deleteBuffer(buffer);
+      if (program && gl) gl.deleteProgram(program);
+      buffer = null;
+      program = null;
+      gl = null;
     };
 
-    const vs = compileShader(gl.VERTEX_SHADER, VS_SRC);
-    const fs = compileShader(gl.FRAGMENT_SHADER, FS_SRC);
-    if (!vs || !fs) return;
+    const failRenderer = (reason) => {
+      if (disposed) return;
+      if (animationFrame) window.cancelAnimationFrame(animationFrame);
+      animationFrame = 0;
+      recordGraphicsEvent("black-hole-failed", { reason });
+      disableWebGLForSession(`black-hole:${reason}`);
+      setOrbBlackHoleModeActive(false);
+      releaseResources();
+      setFailed(true);
+      onFadeOutEndRef.current?.();
+    };
 
-    const prog = gl.createProgram();
-    gl.attachShader(prog, vs);
-    gl.attachShader(prog, fs);
-    gl.linkProgram(prog);
-    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
-      console.error('BH program link error:', gl.getProgramInfoLog(prog));
-      return;
+    try {
+      gl = canvas.getContext("webgl2", {
+        antialias: false,
+        alpha: false,
+        depth: false,
+        stencil: false,
+        failIfMajorPerformanceCaveat: true,
+        powerPreference: "low-power",
+      });
+    } catch (_) {
+      gl = null;
     }
-    gl.useProgram(prog);
 
-    const buf = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
-    const aPos = gl.getAttribLocation(prog, 'a_pos');
-    gl.enableVertexAttribArray(aPos);
-    gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+    if (!gl) {
+      failRenderer("context-unavailable");
+      return undefined;
+    }
 
-    const uTime      = gl.getUniformLocation(prog, 'u_time');
-    const uRes       = gl.getUniformLocation(prog, 'u_res');
-    const uMouse     = gl.getUniformLocation(prog, 'u_mouse');
-    const uZoom      = gl.getUniformLocation(prog, 'u_zoom');
-    const uLightMode = gl.getUniformLocation(prog, 'u_lightMode');
+    program = createProgram(gl);
+    if (!program) {
+      failRenderer("shader-initialization");
+      return undefined;
+    }
 
-    const mouse = [0.5, 0.5];
-    let zoom = 32.0;
-    const ZOOM_MIN = 4.0, ZOOM_MAX = 80.0;
+    buffer = gl.createBuffer();
+    if (!buffer) {
+      failRenderer("buffer-unavailable");
+      return undefined;
+    }
+
+    gl.useProgram(program);
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(
+      gl.ARRAY_BUFFER,
+      new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]),
+      gl.STATIC_DRAW,
+    );
+
+    const position = gl.getAttribLocation(program, "a_pos");
+    if (position < 0) {
+      failRenderer("position-input-missing");
+      return undefined;
+    }
+    gl.enableVertexAttribArray(position);
+    gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
+
+    const uniforms = {
+      time: gl.getUniformLocation(program, "u_time"),
+      resolution: gl.getUniformLocation(program, "u_res"),
+      mouse: gl.getUniformLocation(program, "u_mouse"),
+      zoom: gl.getUniformLocation(program, "u_zoom"),
+      lightMode: gl.getUniformLocation(program, "u_lightMode"),
+    };
+
+    const pointer = [0.5, 0.5];
+    let internalZoom = 32;
+    let lastPinchDistance = 0;
+    const reducedMotion = window.matchMedia?.(
+      "(prefers-reduced-motion: reduce)",
+    );
 
     const resize = () => {
       const parent = canvas.parentElement;
-      if (!parent) return;
-      canvas.width  = Math.floor(parent.clientWidth  * PIXEL_SCALE);
-      canvas.height = Math.floor(parent.clientHeight * PIXEL_SCALE);
-      gl.viewport(0, 0, canvas.width, canvas.height);
-    };
-    resize();
-    window.addEventListener('resize', resize);
+      if (!parent || !gl) return false;
 
-    const onMouseMove = (e) => {
+      const bounds = parent.getBoundingClientRect();
+      const target = getShaderCanvasSize(
+        bounds.width || parent.clientWidth || window.innerWidth,
+        bounds.height || parent.clientHeight || window.innerHeight,
+        BLACK_HOLE_MAX_PIXELS,
+      );
+
+      if (
+        !target ||
+        !Number.isFinite(target.width) ||
+        !Number.isFinite(target.height) ||
+        target.width < 1 ||
+        target.height < 1
+      ) {
+        failRenderer("canvas-size-invalid");
+        return false;
+      }
+
+      if (canvas.width !== target.width || canvas.height !== target.height) {
+        canvas.width = target.width;
+        canvas.height = target.height;
+        gl.viewport(0, 0, target.width, target.height);
+        canvas.dataset.renderWidth = String(target.width);
+        canvas.dataset.renderHeight = String(target.height);
+      }
+
+      return true;
+    };
+
+    const readPointer = (clientX, clientY) => {
       const rect = canvas.getBoundingClientRect();
-      mouse[0] = (e.clientX - rect.left) / rect.width;
-      mouse[1] = 1.0 - (e.clientY - rect.top) / rect.height;
-    };
-    const onWheel = (e) => {
-      e.preventDefault();
-      zoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom + e.deltaY * 0.02));
+      pointer[0] = (clientX - rect.left) / Math.max(rect.width, 1);
+      pointer[1] = 1 - (clientY - rect.top) / Math.max(rect.height, 1);
     };
 
-    let lastPinchDist = 0;
-    const onTouchStart = (e) => {
-      if (e.touches.length === 2) {
-        lastPinchDist = Math.hypot(
-          e.touches[0].clientX - e.touches[1].clientX,
-          e.touches[0].clientY - e.touches[1].clientY
+    const handleMouseMove = (event) => {
+      readPointer(event.clientX, event.clientY);
+    };
+
+    const handleWheel = (event) => {
+      event.preventDefault();
+      internalZoom = Math.min(
+        80,
+        Math.max(4, internalZoom + event.deltaY * 0.02),
+      );
+    };
+
+    const handleTouchStart = (event) => {
+      if (event.touches.length === 2) {
+        lastPinchDistance = Math.hypot(
+          event.touches[0].clientX - event.touches[1].clientX,
+          event.touches[0].clientY - event.touches[1].clientY,
         );
       }
     };
-    const onTouchMove = (e) => {
-      e.preventDefault();
-      if (e.touches.length === 2) {
-        const dist = Math.hypot(
-          e.touches[0].clientX - e.touches[1].clientX,
-          e.touches[0].clientY - e.touches[1].clientY
+
+    const handleTouchMove = (event) => {
+      event.preventDefault();
+      if (event.touches.length === 2) {
+        const distance = Math.hypot(
+          event.touches[0].clientX - event.touches[1].clientX,
+          event.touches[0].clientY - event.touches[1].clientY,
         );
-        zoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom + (lastPinchDist - dist) * 0.06));
-        lastPinchDist = dist;
-      } else if (e.touches.length === 1) {
-        const rect = canvas.getBoundingClientRect();
-        mouse[0] = (e.touches[0].clientX - rect.left) / rect.width;
-        mouse[1] = 1.0 - (e.touches[0].clientY - rect.top) / rect.height;
+        internalZoom = Math.min(
+          80,
+          Math.max(4, internalZoom + (lastPinchDistance - distance) * 0.06),
+        );
+        lastPinchDistance = distance;
+      } else if (event.touches.length === 1) {
+        readPointer(event.touches[0].clientX, event.touches[0].clientY);
       }
     };
 
-    canvas.addEventListener('mousemove', onMouseMove);
-    canvas.addEventListener('wheel', onWheel, { passive: false });
-    canvas.addEventListener('touchstart', onTouchStart, { passive: true });
-    canvas.addEventListener('touchmove', onTouchMove, { passive: false });
+    const handleContextLost = (event) => {
+      event.preventDefault();
+      failRenderer("context-lost");
+    };
 
-    let animId;
-    const render = (t) => {
-      gl.uniform1f(uTime,      t * 0.001);
-      gl.uniform2f(uRes,       canvas.width, canvas.height);
-      gl.uniform2f(uMouse,     mouse[0], mouse[1]);
-      const effectiveZoom = (zoomRef && zoomRef.current !== null) ? zoomRef.current : zoom;
+    const draw = (timestamp) => {
+      if (!gl || !program) return;
+
+      const effectiveZoom =
+        zoomRef && zoomRef.current !== null ? zoomRef.current : internalZoom;
       if (currentZoomRef) currentZoomRef.current = effectiveZoom;
-      gl.uniform1f(uZoom, effectiveZoom);
-      gl.uniform1f(uLightMode, isDarkRef.current ? 0.0 : 1.0);
+
+      const time = reducedMotion?.matches ? 8 : timestamp * 0.001;
+      gl.useProgram(program);
+      gl.uniform1f(uniforms.time, time);
+      gl.uniform2f(uniforms.resolution, canvas.width, canvas.height);
+      gl.uniform2f(uniforms.mouse, pointer[0], pointer[1]);
+      gl.uniform1f(uniforms.zoom, effectiveZoom);
+      gl.uniform1f(uniforms.lightMode, isDarkRef.current ? 0 : 1);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-      animId = requestAnimationFrame(render);
+
+      if (firstFramePending) {
+        firstFramePending = false;
+        recordGraphicsEvent("black-hole-first-frame", {
+          width: canvas.width,
+          height: canvas.height,
+        });
+      }
     };
-    animId = requestAnimationFrame(render);
+
+    const render = (timestamp) => {
+      animationFrame = 0;
+      if (
+        disposed ||
+        failed ||
+        !visibleRef.current ||
+        document.visibilityState === "hidden"
+      ) {
+        return;
+      }
+
+      if (
+        !reducedMotion?.matches &&
+        timestamp - lastFrameAt < BLACK_HOLE_FRAME_INTERVAL_MS
+      ) {
+        animationFrame = window.requestAnimationFrame(render);
+        return;
+      }
+
+      lastFrameAt = timestamp;
+      draw(timestamp);
+
+      if (!reducedMotion?.matches && gl) {
+        animationFrame = window.requestAnimationFrame(render);
+      }
+    };
+
+    const ensureAnimating = () => {
+      if (
+        disposed ||
+        animationFrame ||
+        !gl ||
+        !visibleRef.current ||
+        document.visibilityState === "hidden"
+      ) {
+        return;
+      }
+
+      if (reducedMotion?.matches) {
+        draw(performance.now());
+      } else {
+        animationFrame = window.requestAnimationFrame(render);
+      }
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        if (animationFrame) window.cancelAnimationFrame(animationFrame);
+        animationFrame = 0;
+      } else {
+        ensureAnimating();
+      }
+    };
+
+    const handleMotionChange = () => {
+      if (animationFrame) window.cancelAnimationFrame(animationFrame);
+      animationFrame = 0;
+      ensureAnimating();
+    };
+
+    if (!resize()) return undefined;
+
+    ensureAnimatingRef.current = ensureAnimating;
+    canvas.addEventListener("mousemove", handleMouseMove, { passive: true });
+    canvas.addEventListener("wheel", handleWheel, { passive: false });
+    canvas.addEventListener("touchstart", handleTouchStart, { passive: true });
+    canvas.addEventListener("touchmove", handleTouchMove, { passive: false });
+    canvas.addEventListener("webglcontextlost", handleContextLost, false);
+    window.addEventListener("resize", resize);
+    document.addEventListener("visibilitychange", handleVisibility);
+    if (reducedMotion?.addEventListener) {
+      reducedMotion.addEventListener("change", handleMotionChange);
+    } else {
+      reducedMotion?.addListener?.(handleMotionChange);
+    }
+
+    const parent = canvas.parentElement;
+    if (typeof ResizeObserver !== "undefined" && parent) {
+      resizeObserver = new ResizeObserver(resize);
+      resizeObserver.observe(parent);
+    }
+
+    recordGraphicsEvent("black-hole-mounted", {
+      frameInterval: BLACK_HOLE_FRAME_INTERVAL_MS,
+      maxPixels: BLACK_HOLE_MAX_PIXELS,
+    });
+    ensureAnimating();
 
     return () => {
-      cancelAnimationFrame(animId);
-      window.removeEventListener('resize', resize);
-      canvas.removeEventListener('mousemove', onMouseMove);
-      canvas.removeEventListener('wheel', onWheel);
-      canvas.removeEventListener('touchstart', onTouchStart);
-      canvas.removeEventListener('touchmove', onTouchMove);
-      gl.deleteProgram(prog);
-      gl.deleteShader(vs);
-      gl.deleteShader(fs);
-      gl.deleteBuffer(buf);
+      disposed = true;
+      if (animationFrame) window.cancelAnimationFrame(animationFrame);
+      ensureAnimatingRef.current = null;
+      canvas.removeEventListener("mousemove", handleMouseMove);
+      canvas.removeEventListener("wheel", handleWheel);
+      canvas.removeEventListener("touchstart", handleTouchStart);
+      canvas.removeEventListener("touchmove", handleTouchMove);
+      canvas.removeEventListener("webglcontextlost", handleContextLost);
+      window.removeEventListener("resize", resize);
+      document.removeEventListener("visibilitychange", handleVisibility);
+      if (reducedMotion?.removeEventListener) {
+        reducedMotion.removeEventListener("change", handleMotionChange);
+      } else {
+        reducedMotion?.removeListener?.(handleMotionChange);
+      }
+      resizeObserver?.disconnect();
+      releaseResources();
+      recordGraphicsEvent("black-hole-unmounted");
     };
-    // zoomRef/currentZoomRef are stable ref objects passed as props.
-  }, [currentZoomRef, zoomRef]);
+  }, [currentZoomRef, failed, zoomRef]);
+
+  if (failed) return null;
 
   return (
     <canvas
       ref={canvasRef}
-      onTransitionEnd={() => { if (!visible) onFadeOutEnd?.(); }}
+      data-renderer-id="black-hole-orb"
+      onTransitionEnd={() => {
+        if (!visible) onFadeOutEndRef.current?.();
+      }}
       style={{
-        position: 'absolute',
+        position: "absolute",
         inset: 0,
-        width: '100%',
-        height: '100%',
-        imageRendering: 'pixelated',
+        width: "100%",
+        height: "100%",
+        imageRendering: "pixelated",
         zIndex: 5,
-        display: 'block',
+        display: "block",
         opacity: visible ? 1 : 0,
-        transition: 'opacity 1.2s ease',
+        transition: "opacity 1.2s ease",
+        touchAction: "none",
       }}
     />
   );
