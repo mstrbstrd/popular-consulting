@@ -5,7 +5,6 @@ import {
   tickBlackHolePipeline,
 } from "./blackHoleFramePump";
 import {
-  BLACK_HOLE_RENDER_SCHEDULES,
   BLACK_HOLE_SCHEDULE_SESSION_KEY,
   chooseBlackHoleRenderSchedule,
   createBlackHoleTiles,
