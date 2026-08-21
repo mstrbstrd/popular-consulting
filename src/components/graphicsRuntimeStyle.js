@@ -5,6 +5,11 @@ const GRAPHICS_RUNTIME_CSS = `
     touch-action: pinch-zoom;
   }
 
+  html[data-live-background-renderer] .background-css-orb,
+  html[data-live-background-renderer] .standalone-experience__fallback > span {
+    animation-play-state: paused !important;
+  }
+
   .scroll-indicator::before {
     display: none;
   }

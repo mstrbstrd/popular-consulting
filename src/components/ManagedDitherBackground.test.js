@@ -9,6 +9,10 @@ import {
 } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import ManagedDitherBackground from "./ManagedDitherBackground";
+import {
+  getLiveBackgroundRenderers,
+  resetLiveBackgroundRenderers,
+} from "../utils/rendererOwnership";
 
 const mockDisableWebGLForSession = jest.fn();
 const mockRecordGraphicsEvent = jest.fn();
@@ -65,6 +69,7 @@ describe("ManagedDitherBackground", () => {
       scale: 0.5,
     }));
     window.__bhModeActive = false;
+    resetLiveBackgroundRenderers();
     setVisibility("visible");
     setReducedMotion(false);
   });
@@ -72,6 +77,7 @@ describe("ManagedDitherBackground", () => {
   afterEach(() => {
     cleanup();
     window.__bhModeActive = false;
+    resetLiveBackgroundRenderers();
     setVisibility("visible");
   });
 
@@ -104,6 +110,33 @@ describe("ManagedDitherBackground", () => {
       expect(screen.getByTestId("dither-canvas").width).toBe(320);
       expect(screen.getByTestId("dither-canvas").height).toBe(180);
     });
+  });
+
+  test("claims live ownership only while its renderer is running", () => {
+    const { rerender } = render(
+      <ManagedDitherBackground
+        enabled={true}
+        rendererId="main-dither"
+      />,
+    );
+
+    expect(getLiveBackgroundRenderers()).toEqual(["main-dither"]);
+    expect(document.documentElement).toHaveAttribute(
+      "data-live-background-renderer",
+      "main-dither",
+    );
+
+    rerender(
+      <ManagedDitherBackground
+        enabled={false}
+        rendererId="main-dither"
+      />,
+    );
+
+    expect(getLiveBackgroundRenderers()).toEqual([]);
+    expect(document.documentElement).not.toHaveAttribute(
+      "data-live-background-renderer",
+    );
   });
 
   test("unmounts the renderer while the document is hidden", () => {
