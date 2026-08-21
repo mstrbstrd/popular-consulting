@@ -174,6 +174,21 @@ export const initGraphicsContextGovernor = () => {
     heightDescriptor.set.call(canvas, height);
   };
 
+  const restoreNativeDimensionDescriptors = () => {
+    try {
+      if (widthDescriptor) {
+        Object.defineProperty(canvasPrototype, "width", widthDescriptor);
+      }
+      if (heightDescriptor) {
+        Object.defineProperty(canvasPrototype, "height", heightDescriptor);
+      }
+    } catch (_) {
+      recordGraphicsEvent("context-governor-dimensions-unavailable", {
+        reason: "canvas-dimensions-restore-failed",
+      });
+    }
+  };
+
   const setGovernedDimension = (canvas, dimension, value) => {
     const descriptor =
       dimension === "width" ? widthDescriptor : heightDescriptor;
@@ -236,6 +251,7 @@ export const initGraphicsContextGovernor = () => {
         set: governedHeightSetter,
       });
     } catch (_) {
+      restoreNativeDimensionDescriptors();
       governedWidthSetter = null;
       governedHeightSetter = null;
       recordGraphicsEvent("context-governor-dimensions-unavailable", {
@@ -263,8 +279,7 @@ export const initGraphicsContextGovernor = () => {
     canvasPrototype.getContext = governedGetContext;
   } catch (_) {
     if (governedWidthSetter && governedHeightSetter) {
-      Object.defineProperty(canvasPrototype, "width", widthDescriptor);
-      Object.defineProperty(canvasPrototype, "height", heightDescriptor);
+      restoreNativeDimensionDescriptors();
     }
     recordGraphicsEvent("context-governor-unavailable", {
       reason: "prototype-readonly",
@@ -286,16 +301,12 @@ export const initGraphicsContextGovernor = () => {
       "height",
     );
     if (
-      governedWidthSetter &&
-      currentWidthDescriptor?.set === governedWidthSetter
+      (governedWidthSetter &&
+        currentWidthDescriptor?.set === governedWidthSetter) ||
+      (governedHeightSetter &&
+        currentHeightDescriptor?.set === governedHeightSetter)
     ) {
-      Object.defineProperty(canvasPrototype, "width", widthDescriptor);
-    }
-    if (
-      governedHeightSetter &&
-      currentHeightDescriptor?.set === governedHeightSetter
-    ) {
-      Object.defineProperty(canvasPrototype, "height", heightDescriptor);
+      restoreNativeDimensionDescriptors();
     }
 
     cleanupContextGovernor = null;
