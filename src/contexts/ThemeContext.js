@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import BlackHoleBackground from '../components/BlackHoleBackground';
 
 const ThemeCtx = createContext({ isDark: false, toggleTheme: () => {} });
 
@@ -22,6 +23,7 @@ export const ThemeProvider = ({ children }) => {
 
   return (
     <ThemeCtx.Provider value={{ isDark, toggleTheme: () => setIsDark(d => !d) }}>
+      <BlackHoleBackground isDark={isDark} />
       {children}
     </ThemeCtx.Provider>
   );
