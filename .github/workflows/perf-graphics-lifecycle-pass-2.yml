@@ -1,0 +1,61 @@
+name: Apply graphics lifecycle optimization
+
+on:
+  push:
+    branches:
+      - perf/graphics-lifecycle-pass-2
+
+permissions:
+  contents: write
+
+concurrency:
+  group: perf-graphics-lifecycle-pass-2
+  cancel-in-progress: true
+
+jobs:
+  apply-and-validate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Apply deterministic lifecycle patch
+        run: python scripts/perf_graphics_lifecycle_pass_2.py
+
+      - name: Check patch formatting
+        run: git diff --check
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Run complete test suite
+        run: npm test -- --watchAll=false --runInBand
+        env:
+          CI: true
+
+      - name: Build production bundle
+        run: npm run build
+        env:
+          CI: true
+
+      - name: Commit validated optimization
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src
+          git commit -m "perf: eliminate hidden graphics work"
+          git push origin HEAD:perf/graphics-lifecycle-pass-2
