@@ -73,18 +73,15 @@ export const resolveGraphicsPolicy = ({
     }
   }
 
-  if (windows) {
-    return {
-      mode: GRAPHICS_MODES.CSS,
-      source: "windows-safe-default",
-      isWindows: true,
-    };
-  }
-
   return {
     mode: GRAPHICS_MODES.AUTO,
-    source: queryMode === GRAPHICS_MODES.AUTO ? "query-auto" : "auto",
-    isWindows: false,
+    source:
+      queryMode === GRAPHICS_MODES.AUTO
+        ? "query-auto"
+        : windows
+          ? "windows-auto"
+          : "auto",
+    isWindows: windows,
   };
 };
 

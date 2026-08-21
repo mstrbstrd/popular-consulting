@@ -1,5 +1,6 @@
 import {
   disableWebGLForSession,
+  isWindowsPlatform,
   recordGraphicsEvent,
   shouldAttemptWebGL,
 } from "./graphicsPolicy";
@@ -32,6 +33,38 @@ const releaseProbeContext = (gl) => {
   }
 };
 
+const createProbeContext = (canvas) => {
+  const baseOptions = {
+    antialias: false,
+    powerPreference: "high-performance",
+  };
+
+  let gl = null;
+  try {
+    gl = canvas.getContext("webgl2", {
+      ...baseOptions,
+      failIfMajorPerformanceCaveat: true,
+    });
+  } catch (_) {
+    gl = null;
+  }
+
+  if (gl) return gl;
+
+  recordGraphicsEvent("probe-relaxed-context", {
+    reason: "major-performance-caveat",
+  });
+
+  try {
+    return canvas.getContext("webgl2", {
+      ...baseOptions,
+      failIfMajorPerformanceCaveat: false,
+    });
+  } catch (_) {
+    return null;
+  }
+};
+
 const probeHardwareWebGL = () => {
   if (
     IS_TEST_RUNTIME ||
@@ -49,11 +82,7 @@ const probeHardwareWebGL = () => {
 
   try {
     const canvas = document.createElement("canvas");
-    gl = canvas.getContext('webgl2', {
-      antialias: false,
-      failIfMajorPerformanceCaveat: true,
-      powerPreference: "low-power",
-    });
+    gl = createProbeContext(canvas);
 
     if (!gl) {
       recordGraphicsEvent("probe-rejected", { reason: "webgl2-unavailable" });
@@ -136,13 +165,48 @@ export const isMobileTier = (() => {
   return mobileUserAgent || iPadUserAgent || (lowCoreCount && lowMemory);
 })();
 
+export const SHADER_RUNTIME_PROFILES = Object.freeze({
+  mobile: Object.freeze({
+    id: "mobile",
+    maxDpr: 1,
+    maxPixels: 600_000,
+    frameIntervalMs: 1000 / 24,
+  }),
+  windows: Object.freeze({
+    id: "windows",
+    maxDpr: 1,
+    maxPixels: 600_000,
+    frameIntervalMs: 1000 / 24,
+  }),
+  desktop: Object.freeze({
+    id: "desktop",
+    maxDpr: 1.5,
+    maxPixels: 1_000_000,
+    frameIntervalMs: 1000 / 30,
+  }),
+});
+
+export const resolveShaderRuntimeProfile = ({
+  mobile = false,
+  windows = false,
+} = {}) => {
+  if (mobile) return SHADER_RUNTIME_PROFILES.mobile;
+  if (windows) return SHADER_RUNTIME_PROFILES.windows;
+  return SHADER_RUNTIME_PROFILES.desktop;
+};
+
+export const shaderRuntimeProfile = resolveShaderRuntimeProfile({
+  mobile: isMobileTier,
+  windows: isWindowsPlatform,
+});
+
 export const shaderDPR = Math.min(
   typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1,
-  isMobileTier ? 1 : 1.5,
+  shaderRuntimeProfile.maxDpr,
 );
 
-export const MAX_SHADER_PIXELS = isMobileTier ? 600_000 : 1_000_000;
-export const TARGET_SHADER_FRAME_MS = isMobileTier ? 1000 / 24 : 1000 / 30;
+export const MAX_SHADER_PIXELS = shaderRuntimeProfile.maxPixels;
+export const TARGET_SHADER_FRAME_MS = shaderRuntimeProfile.frameIntervalMs;
 
 export const getShaderCanvasSize = (
   cssWidth,

@@ -19,19 +19,19 @@ describe("graphics runtime policy", () => {
     expect(normalizeGraphicsMode("unsafe")).toBeNull();
   });
 
-  test("fails closed to CSS on Windows in automatic mode", () => {
+  test("attempts governed WebGL on Windows in automatic mode", () => {
     expect(
       resolveGraphicsPolicy({
         userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
       }),
     ).toEqual({
-      mode: GRAPHICS_MODES.CSS,
-      source: "windows-safe-default",
+      mode: GRAPHICS_MODES.AUTO,
+      source: "windows-auto",
       isWindows: true,
     });
   });
 
-  test("an explicit WebGL query is the only Windows opt-in", () => {
+  test("an explicit CSS or WebGL query remains authoritative on Windows", () => {
     expect(
       resolveGraphicsPolicy({
         search: "?graphics=webgl",
@@ -40,6 +40,17 @@ describe("graphics runtime policy", () => {
       }),
     ).toEqual({
       mode: GRAPHICS_MODES.WEBGL,
+      source: "query",
+      isWindows: true,
+    });
+
+    expect(
+      resolveGraphicsPolicy({
+        search: "?graphics=css",
+        userAgent: "Mozilla/5.0 (Windows NT 11.0; Win64; x64)",
+      }),
+    ).toEqual({
+      mode: GRAPHICS_MODES.CSS,
       source: "query",
       isWindows: true,
     });
@@ -59,21 +70,21 @@ describe("graphics runtime policy", () => {
     });
   });
 
-  test("graphics=auto ignores a persisted override", () => {
+  test("graphics=auto ignores a persisted override on every platform", () => {
     expect(
       resolveGraphicsPolicy({
         search: "?graphics=auto",
-        sessionMode: GRAPHICS_MODES.WEBGL,
-        userAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+        sessionMode: GRAPHICS_MODES.CSS,
+        userAgent: "Mozilla/5.0 (Windows NT 11.0; Win64; x64)",
       }),
     ).toEqual({
       mode: GRAPHICS_MODES.AUTO,
       source: "query-auto",
-      isWindows: false,
+      isWindows: true,
     });
   });
 
-  test("context loss persists a CSS-only session", () => {
+  test("explicit runtime containment can still persist a CSS-only session", () => {
     disableWebGLForSession("context-lost");
 
     expect(window.sessionStorage.getItem(WEBGL_DISABLED_SESSION_KEY)).toBe("1");

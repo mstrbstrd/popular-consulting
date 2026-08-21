@@ -1,4 +1,12 @@
+import { hasHardwareWebGL, isMobileTier } from "./deviceTier";
+
 export const ORB_BLACK_HOLE_MODE_EVENT = "orbBlackHoleModeChange";
+
+export const resolveOrbBlackHoleOwnership = ({
+  requested = false,
+  hardwareWebGL = hasHardwareWebGL,
+  mobile = isMobileTier,
+} = {}) => Boolean(requested && hardwareWebGL && !mobile);
 
 const dispatchOwnershipChange = (active) => {
   if (typeof window === "undefined") return;
@@ -20,7 +28,9 @@ const installLegacyOwnershipBridge = () => {
   if (descriptor && descriptor.configurable === false) return;
   if (descriptor?.get?.__popconOwnershipBridge) return;
 
-  let active = Boolean(window.__bhModeActive);
+  let active = resolveOrbBlackHoleOwnership({
+    requested: Boolean(window.__bhModeActive),
+  });
   const getActive = () => active;
   getActive.__popconOwnershipBridge = true;
 
@@ -29,7 +39,9 @@ const installLegacyOwnershipBridge = () => {
     enumerable: true,
     get: getActive,
     set(value) {
-      const nextActive = Boolean(value);
+      const nextActive = resolveOrbBlackHoleOwnership({
+        requested: Boolean(value),
+      });
       if (nextActive === active) return;
       active = nextActive;
       dispatchOwnershipChange(active);
@@ -45,7 +57,9 @@ export const isOrbBlackHoleModeActive = () =>
 export const setOrbBlackHoleModeActive = (active) => {
   if (typeof window === "undefined") return;
 
-  const nextActive = Boolean(active);
+  const nextActive = resolveOrbBlackHoleOwnership({
+    requested: Boolean(active),
+  });
   const descriptor = Object.getOwnPropertyDescriptor(
     window,
     "__bhModeActive",

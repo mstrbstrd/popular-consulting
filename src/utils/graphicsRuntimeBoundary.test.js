@@ -27,12 +27,12 @@ describe("graphics runtime boundary", () => {
     window.__bhModeActive = false;
   });
 
-  test("degrades a lost canvas locally without reloading the document", () => {
+  test("contains an unmanaged lost canvas without reloading the document", () => {
     const failureListener = jest.fn();
     window.addEventListener(GRAPHICS_RUNTIME_FAILURE_EVENT, failureListener);
 
     const root = document.createElement("div");
-    root.dataset.rendererId = "black-hole-orb";
+    root.dataset.rendererId = "unmanaged-renderer";
     const canvas = document.createElement("canvas");
     root.appendChild(canvas);
     document.body.appendChild(root);
@@ -45,17 +45,49 @@ describe("graphics runtime boundary", () => {
 
     expect(event.defaultPrevented).toBe(true);
     expect(mockDisableWebGLForSession).toHaveBeenCalledWith(
-      "context-lost:black-hole-orb",
+      "context-lost:unmanaged-renderer",
     );
     expect(mockRecordGraphicsEvent).toHaveBeenCalledWith(
       "runtime-boundary-context-lost",
-      { rendererId: "black-hole-orb" },
+      { rendererId: "unmanaged-renderer" },
     );
     expect(canvas.dataset.contextState).toBe("lost");
     expect(canvas.style.visibility).toBe("hidden");
     expect(canvas.style.pointerEvents).toBe("none");
     expect(window.__bhModeActive).toBe(false);
     expect(failureListener).toHaveBeenCalledTimes(1);
+
+    window.removeEventListener(
+      GRAPHICS_RUNTIME_FAILURE_EVENT,
+      failureListener,
+    );
+  });
+
+  test("delegates a locally recoverable canvas without poisoning the session", () => {
+    const failureListener = jest.fn();
+    window.addEventListener(GRAPHICS_RUNTIME_FAILURE_EVENT, failureListener);
+
+    const canvas = document.createElement("canvas");
+    canvas.dataset.rendererId = "black-hole-orb";
+    canvas.dataset.contextRecovery = "local";
+    document.body.appendChild(canvas);
+
+    const event = new Event("webglcontextlost", {
+      bubbles: true,
+      cancelable: true,
+    });
+    canvas.dispatchEvent(event);
+
+    expect(mockDisableWebGLForSession).not.toHaveBeenCalled();
+    expect(mockRecordGraphicsEvent).toHaveBeenCalledWith(
+      "runtime-boundary-delegated",
+      { rendererId: "black-hole-orb", recovery: "local" },
+    );
+    expect(canvas.dataset.contextState).toBeUndefined();
+    expect(canvas.style.visibility).toBe("");
+    expect(canvas.style.pointerEvents).toBe("");
+    expect(window.__bhModeActive).toBe(true);
+    expect(failureListener).not.toHaveBeenCalled();
 
     window.removeEventListener(
       GRAPHICS_RUNTIME_FAILURE_EVENT,

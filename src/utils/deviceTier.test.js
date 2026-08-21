@@ -4,12 +4,14 @@ import {
   disableWebGLForSession,
   hasHardwareWebGL,
   isMobileTier,
+  resolveShaderRuntimeProfile,
   shaderDPR,
+  SHADER_RUNTIME_PROFILES,
 } from "./deviceTier";
 
 /* deviceTier's exports are evaluated VALUES, not factory functions.
    Consumers that call them (`shaderDPR()`) throw "is not a function" at
-   runtime — and because these modules are canvas/WebGL heavy they are
+   runtime, and because these modules are canvas/WebGL heavy they are
    mocked out of most suites, so such a mistake ships silently. This pins
    both the contract and its call sites. */
 describe("deviceTier export contract", () => {
@@ -36,14 +38,28 @@ describe("deviceTier export contract", () => {
     expect(offenders).toEqual([]);
   });
 
-  test("hardware capability requires WebGL 2 and never falls back to WebGL 1", () => {
+  test("hardware capability requires WebGL 2 and can retry a caveated adapter", () => {
     const source = fs.readFileSync(path.join(__dirname, "deviceTier.js"), "utf8");
 
-    expect(source).toContain("canvas.getContext('webgl2'");
-    expect(source).not.toMatch(/getContext\(['"]webgl['"]\)/);
+    expect(source).toMatch(/canvas\.getContext\(["']webgl2["']/);
+    expect(source).not.toMatch(/getContext\(["']webgl["']\)/);
     expect(source).toContain("gl.COMPILE_STATUS");
     expect(source).toContain("gl.LINK_STATUS");
     expect(source).toContain("failIfMajorPerformanceCaveat: true");
+    expect(source).toContain("failIfMajorPerformanceCaveat: false");
+    expect(source).toContain('powerPreference: "high-performance"');
+    expect(source).toContain('recordGraphicsEvent("probe-relaxed-context"');
+  });
+
+  test("retains the bounded Dither profile for Windows without disabling WebGL", () => {
+    expect(resolveShaderRuntimeProfile({ windows: true })).toBe(
+      SHADER_RUNTIME_PROFILES.windows,
+    );
+    expect(SHADER_RUNTIME_PROFILES.windows).toMatchObject({
+      maxDpr: 1,
+      maxPixels: 600_000,
+      frameIntervalMs: 1000 / 24,
+    });
   });
 
   test("a live WebGL context loss can disable graphics for the session", () => {
