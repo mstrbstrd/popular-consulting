@@ -1,6 +1,12 @@
+jest.mock("./deviceTier", () => ({
+  hasHardwareWebGL: true,
+  isMobileTier: false,
+}));
+
 import {
   isOrbBlackHoleModeActive,
   ORB_BLACK_HOLE_MODE_EVENT,
+  resolveOrbBlackHoleOwnership,
   setOrbBlackHoleModeActive,
 } from "./rendererOwnership";
 
@@ -11,6 +17,30 @@ describe("Orb renderer ownership", () => {
 
   afterEach(() => {
     setOrbBlackHoleModeActive(false);
+  });
+
+  test("rejects ownership when the renderer cannot actually mount", () => {
+    expect(
+      resolveOrbBlackHoleOwnership({
+        requested: true,
+        hardwareWebGL: false,
+        mobile: false,
+      }),
+    ).toBe(false);
+    expect(
+      resolveOrbBlackHoleOwnership({
+        requested: true,
+        hardwareWebGL: true,
+        mobile: true,
+      }),
+    ).toBe(false);
+    expect(
+      resolveOrbBlackHoleOwnership({
+        requested: true,
+        hardwareWebGL: true,
+        mobile: false,
+      }),
+    ).toBe(true);
   });
 
   test("dispatches ownership changes from the explicit setter", () => {
