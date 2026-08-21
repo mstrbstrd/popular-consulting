@@ -1,5 +1,6 @@
 import {
   disableWebGLForSession,
+  isWindowsPlatform,
   recordGraphicsEvent,
   shouldAttemptWebGL,
 } from "./graphicsPolicy";
@@ -136,13 +137,48 @@ export const isMobileTier = (() => {
   return mobileUserAgent || iPadUserAgent || (lowCoreCount && lowMemory);
 })();
 
+export const SHADER_RUNTIME_PROFILES = Object.freeze({
+  mobile: Object.freeze({
+    id: "mobile",
+    maxDpr: 1,
+    maxPixels: 600_000,
+    frameIntervalMs: 1000 / 24,
+  }),
+  windows: Object.freeze({
+    id: "windows",
+    maxDpr: 1,
+    maxPixels: 600_000,
+    frameIntervalMs: 1000 / 24,
+  }),
+  desktop: Object.freeze({
+    id: "desktop",
+    maxDpr: 1.5,
+    maxPixels: 1_000_000,
+    frameIntervalMs: 1000 / 30,
+  }),
+});
+
+export const resolveShaderRuntimeProfile = ({
+  mobile = false,
+  windows = false,
+} = {}) => {
+  if (mobile) return SHADER_RUNTIME_PROFILES.mobile;
+  if (windows) return SHADER_RUNTIME_PROFILES.windows;
+  return SHADER_RUNTIME_PROFILES.desktop;
+};
+
+export const shaderRuntimeProfile = resolveShaderRuntimeProfile({
+  mobile: isMobileTier,
+  windows: isWindowsPlatform,
+});
+
 export const shaderDPR = Math.min(
   typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1,
-  isMobileTier ? 1 : 1.5,
+  shaderRuntimeProfile.maxDpr,
 );
 
-export const MAX_SHADER_PIXELS = isMobileTier ? 600_000 : 1_000_000;
-export const TARGET_SHADER_FRAME_MS = isMobileTier ? 1000 / 24 : 1000 / 30;
+export const MAX_SHADER_PIXELS = shaderRuntimeProfile.maxPixels;
+export const TARGET_SHADER_FRAME_MS = shaderRuntimeProfile.frameIntervalMs;
 
 export const getShaderCanvasSize = (
   cssWidth,
