@@ -173,8 +173,8 @@ describe("BlackHoleCanvas preservation and safety invariants", () => {
     expect(source).toContain("gl.fenceSync(");
     expect(source).toContain("gl.clientWaitSync(");
     expect(source).toContain("CALIBRATION_GRID = 8");
-    expect(source).toContain("frontTarget = completedTarget");
-    expect(source).toContain("backTarget = frontTarget");
+    expect(source).toContain("pipeline.frontTarget = completedTarget");
+    expect(source).toContain("pipeline.backTarget = pipeline.frontTarget");
     expect(source).toContain(
       "reducedMotion && pipeline.frontReady && !pipeline.frameInProgress",
     );
