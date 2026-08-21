@@ -22,7 +22,7 @@ Visible copy is defined in [`src/content/siteCopy.js`](src/content/siteCopy.js).
 
 ## What this repository is
 
-The current application is a visually rich React experience built around full-screen navigation, custom WebGL and GLSL rendering, interactive service and biography cards, accessible navigation affordances, responsive behavior, and fail-closed graphics fallbacks.
+The current application is a visually rich React experience built around full-screen navigation, custom WebGL and GLSL rendering, interactive service and biography cards, accessible navigation affordances, responsive behavior, and local graphics recovery.
 
 The repository is also becoming the public source of truth for:
 
@@ -46,7 +46,7 @@ The application separates its brand, professional, portfolio, and experimental e
 | `/work` | Conventional, directly linkable selected-work page | Scrollable engineering portfolio |
 | `/orb` | Unlisted, route-only interactive graphics experiment | Interactive orb controls and dedicated visual preset |
 | `/game` | Unlisted, route-only browser game | Popcorn game and dedicated visual preset |
-| `/dither-canvas` | Unlisted generative field lab | Live field study or intentional graphics-safe fallback |
+| `/dither-canvas` | Unlisted generative field lab | Live field study or intentional graphics fallback |
 
 The normal `/` and `/engineering` section stacks contain only Hero, About, Services, and Contact. The orb and game are not mounted, linked, or represented by section dots in the normal application. Direct `/orb`, `/game`, and `/dither-canvas` responses are excluded from indexing.
 
@@ -68,20 +68,25 @@ orb: true,
 
 That single switch restores the orb as the fifth main section and adds its main-navigation item. The dedicated `/orb` route remains available. No component, router, shader, or navigation refactor is required.
 
-## Graphics safety contract
+## Graphics preservation and safety contract
 
-Graphics are progressive enhancement, never an availability dependency.
+The visual experience is a product invariant. Safety controls must bound work and recover locally rather than replace the art direction by default.
 
-- Windows automatic sessions use the CSS-safe rendering path until real Intel, AMD, and NVIDIA hardware validation is complete.
-- `?graphics=css` forces the CSS-safe path for the current session.
-- `?graphics=webgl` explicitly opts into enhanced graphics for testing.
-- `?graphics=auto` clears the stored override and returns to automatic policy.
+- Windows automatic sessions attempt enhanced WebGL after the existing hardware probe. Operating-system detection alone does not force CSS mode.
+- `?graphics=css` forces the CSS fallback for the current session.
+- `?graphics=webgl` explicitly requests enhanced graphics and clears a prior recorded graphics failure.
+- `?graphics=auto` clears a stored override and returns to capability-based policy.
 - `window.__graphicsReport()` exposes the active policy, bounded diagnostics, and the last recorded graphics failure.
 - A lost WebGL context is handled in place. The document is never reloaded as a graphics recovery strategy.
 - Managed Dither canvases are bounded before their first draw and capped at the declared frame interval.
-- Hidden tabs, reduced-motion sessions, inactive renderers, and exclusive Orb Black Hole mode do not retain a live Dither renderer.
-- `BlackHoleCanvas.js` is the only black-hole implementation. Its analytic shader has no RK4 loop, no multi-channel ray trace, a 420,000-pixel ceiling, and a 30fps ceiling.
-- The removed persistent `BlackHoleBackground.js` renderer must not be recreated or imported.
+- Hidden tabs, reduced-motion sessions, inactive renderers, and exclusive Orb Black Hole mode do not retain a competing live Dither renderer.
+- `BlackHoleCanvas.js` preserves the original three-channel geodesic renderer, RK4 integration, accretion disk, Doppler and gravitational shifts, psychedelic palette, ordered dither, scanlines, camera movement, zoom controls, and pop transition.
+- The original profile remains the non-Windows default at 200 integration steps, a 0.08 base step, and the original 0.35 drawing scale.
+- Windows starts with the same shader at a balanced workload: 96 integration steps, an equivalent 16-unit nominal path, a 96,000-pixel ceiling, and a 24 fps ceiling.
+- A black-hole shader or context failure retries once with the same geodesic algorithm at the safe profile: 64 steps, an equivalent 16-unit nominal path, a 64,000-pixel ceiling, and a 20 fps ceiling.
+- `?black-hole-quality=original`, `balanced`, or `safe` selects a profile for direct comparison and hardware validation.
+- A final black-hole failure restores renderer ownership to Dither and removes only the failed overlay. It does not disable every WebGL experience for the session.
+- The dormant duplicate `BlackHoleBackground.js` implementation is removed, but recreating the active Orb effect as an analytic approximation is prohibited.
 
 ## Engineering evidence already present
 
@@ -138,7 +143,7 @@ npm test -- --watchAll=false --runInBand
 npm run build
 ```
 
-Focused accessibility tests live under `src/__tests__/a11y/`. Graphics policy, renderer ownership, context governance, context-loss recovery, and legacy-renderer removal are pinned by focused regression suites under `src/utils/` and `src/components/`.
+Focused accessibility tests live under `src/__tests__/a11y/`. Graphics policy, geodesic-renderer preservation, quality profiles, renderer ownership, context governance, and context-loss recovery are pinned by focused regression suites under `src/utils/` and `src/components/`.
 
 ## Repository map
 
@@ -197,7 +202,7 @@ Read [the publication and evidence policy](docs/content/publication-policy.md) b
 
 Use a focused branch and a pull request. Every pull request should explain the problem, constraints, invariants, validation, accessibility impact, security impact, and rollback path.
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) and the [pull request template](.github/pull_request_template.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md) and [the pull request template](.github/pull_request_template.md).
 
 ## Security
 
