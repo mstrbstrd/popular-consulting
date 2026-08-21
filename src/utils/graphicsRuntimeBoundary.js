@@ -4,6 +4,8 @@ import {
 } from "./graphicsPolicy";
 
 export const GRAPHICS_RUNTIME_FAILURE_EVENT = "graphicsRuntimeFailure";
+export const LOCAL_GRAPHICS_RECOVERY_SELECTOR =
+  '[data-context-recovery="local"]';
 
 let cleanupRuntimeBoundary = null;
 
@@ -18,14 +20,21 @@ export const initGraphicsRuntimeBoundary = () => {
     const canvas = event.target;
     if (!(canvas instanceof HTMLCanvasElement)) return;
 
-    event.preventDefault();
-
     const rendererRoot = canvas.closest?.("[data-renderer-id]");
     const rendererId =
       rendererRoot?.getAttribute("data-renderer-id") ||
       canvas.getAttribute("data-renderer-id") ||
       "unmanaged-webgl";
 
+    if (canvas.closest?.(LOCAL_GRAPHICS_RECOVERY_SELECTOR)) {
+      recordGraphicsEvent("runtime-boundary-delegated", {
+        rendererId,
+        recovery: "local",
+      });
+      return;
+    }
+
+    event.preventDefault();
     disableWebGLForSession(`context-lost:${rendererId}`);
     recordGraphicsEvent("runtime-boundary-context-lost", { rendererId });
 

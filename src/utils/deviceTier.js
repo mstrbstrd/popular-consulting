@@ -33,6 +33,38 @@ const releaseProbeContext = (gl) => {
   }
 };
 
+const createProbeContext = (canvas) => {
+  const baseOptions = {
+    antialias: false,
+    powerPreference: "high-performance",
+  };
+
+  let gl = null;
+  try {
+    gl = canvas.getContext("webgl2", {
+      ...baseOptions,
+      failIfMajorPerformanceCaveat: true,
+    });
+  } catch (_) {
+    gl = null;
+  }
+
+  if (gl) return gl;
+
+  recordGraphicsEvent("probe-relaxed-context", {
+    reason: "major-performance-caveat",
+  });
+
+  try {
+    return canvas.getContext("webgl2", {
+      ...baseOptions,
+      failIfMajorPerformanceCaveat: false,
+    });
+  } catch (_) {
+    return null;
+  }
+};
+
 const probeHardwareWebGL = () => {
   if (
     IS_TEST_RUNTIME ||
@@ -50,11 +82,7 @@ const probeHardwareWebGL = () => {
 
   try {
     const canvas = document.createElement("canvas");
-    gl = canvas.getContext("webgl2", {
-      antialias: false,
-      failIfMajorPerformanceCaveat: true,
-      powerPreference: "high-performance",
-    });
+    gl = createProbeContext(canvas);
 
     if (!gl) {
       recordGraphicsEvent("probe-rejected", { reason: "webgl2-unavailable" });

@@ -5,17 +5,21 @@ import { cleanup, render, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import BlackHoleCanvas, {
   BLACK_HOLE_FRAGMENT_SHADER,
-  BLACK_HOLE_RENDER_PROFILES,
+  BLACK_HOLE_MAX_PIXELS,
+  BLACK_HOLE_RECOVERY_MAX_PIXELS,
+  BLACK_HOLE_RENDER_SCHEDULES,
+  BLACK_HOLE_TILE_COUNT,
+  chooseBlackHoleRenderSchedule,
   createBlackHoleFragmentShader,
+  createBlackHoleTiles,
   getBlackHoleCanvasSize,
-  resolveBlackHoleRenderProfile,
+  resolveBlackHoleRenderSchedule,
 } from "./BlackHoleCanvas";
 
 const mockRecordGraphicsEvent = jest.fn();
 const mockSetOrbBlackHoleModeActive = jest.fn();
 
 jest.mock("../utils/graphicsPolicy", () => ({
-  isWindowsPlatform: false,
   recordGraphicsEvent: (...args) => mockRecordGraphicsEvent(...args),
 }));
 
@@ -28,6 +32,7 @@ describe("BlackHoleCanvas preservation and safety invariants", () => {
   beforeEach(() => {
     mockRecordGraphicsEvent.mockClear();
     mockSetOrbBlackHoleModeActive.mockClear();
+    window.sessionStorage.clear();
   });
 
   afterEach(() => {
@@ -35,9 +40,9 @@ describe("BlackHoleCanvas preservation and safety invariants", () => {
     jest.restoreAllMocks();
   });
 
-  test("preserves the original geodesic renderer at original quality", () => {
+  test("keeps the original geodesic shader canonical on every platform", () => {
     expect(BLACK_HOLE_FRAGMENT_SHADER).toContain("#define NUM_STEPS 200");
-    expect(BLACK_HOLE_FRAGMENT_SHADER).toContain("#define STEP_SIZE 0.080000");
+    expect(BLACK_HOLE_FRAGMENT_SHADER).toContain("#define STEP_SIZE 0.08");
     expect(BLACK_HOLE_FRAGMENT_SHADER).toContain("schwarzschildAccel");
     expect(BLACK_HOLE_FRAGMENT_SHADER).toContain("void rk4Step");
     expect(BLACK_HOLE_FRAGMENT_SHADER).toContain(
@@ -46,76 +51,145 @@ describe("BlackHoleCanvas preservation and safety invariants", () => {
     expect(BLACK_HOLE_FRAGMENT_SHADER).toContain("vec3 diskColor");
     expect(BLACK_HOLE_FRAGMENT_SHADER).toContain("psychePalette");
     expect(BLACK_HOLE_FRAGMENT_SHADER).not.toContain("Analytic lensing");
+    expect(createBlackHoleFragmentShader()).toBe(BLACK_HOLE_FRAGMENT_SHADER);
   });
 
-  test("Windows profile changes workload without replacing the visual algorithm", () => {
-    const shader = createBlackHoleFragmentShader(
-      BLACK_HOLE_RENDER_PROFILES.balanced,
-    );
+  test("changes scheduling before shader mathematics or resolution", () => {
+    const adaptiveSchedules = [
+      BLACK_HOLE_RENDER_SCHEDULES.full,
+      BLACK_HOLE_RENDER_SCHEDULES.fast,
+      BLACK_HOLE_RENDER_SCHEDULES.balanced,
+      BLACK_HOLE_RENDER_SCHEDULES.conservative,
+      BLACK_HOLE_RENDER_SCHEDULES.safe,
+    ];
 
-    expect(shader).toContain("#define NUM_STEPS 96");
-    expect(shader).toContain("#define STEP_SIZE 0.166667");
-    expect(shader).toContain("void rk4Step");
-    expect(shader).toContain("for (int ch = 0; ch < 3; ch++)");
-    expect(shader).toContain("vec3 diskColor");
-    expect(shader).toContain("psychePalette");
+    expect(adaptiveSchedules.map((schedule) => schedule.tilesPerBatch)).toEqual([
+      16, 8, 4, 2, 1,
+    ]);
+    expect(BLACK_HOLE_RENDER_SCHEDULES.calibration.tilesPerBatch).toBe(1);
+    adaptiveSchedules.forEach((schedule) => {
+      expect(schedule.pixelScale).toBe(0.35);
+      expect(schedule.maxPixels).toBe(BLACK_HOLE_MAX_PIXELS);
+      expect(schedule).not.toHaveProperty("numSteps");
+      expect(schedule).not.toHaveProperty("stepSize");
+    });
+    expect(BLACK_HOLE_RENDER_SCHEDULES.recovery.maxPixels).toBe(
+      BLACK_HOLE_RECOVERY_MAX_PIXELS,
+    );
   });
 
-  test("selects exact quality off Windows and bounded quality on Windows", () => {
-    expect(resolveBlackHoleRenderProfile({ windows: false }).id).toBe(
-      "original",
+  test("selects the same measured calibration path on Windows and macOS", () => {
+    expect(resolveBlackHoleRenderSchedule({ windows: false }).id).toBe(
+      "calibration",
     );
-    expect(resolveBlackHoleRenderProfile({ windows: true }).id).toBe(
-      "balanced",
+    expect(resolveBlackHoleRenderSchedule({ windows: true }).id).toBe(
+      "calibration",
     );
     expect(
-      resolveBlackHoleRenderProfile({
+      resolveBlackHoleRenderSchedule({
         windows: true,
         search: "?black-hole-quality=original",
       }).id,
-    ).toBe("original");
+    ).toBe("full");
     expect(
-      resolveBlackHoleRenderProfile({
+      resolveBlackHoleRenderSchedule({
         windows: false,
-        search: "?black-hole-quality=safe",
+        storedSchedule: JSON.stringify({ id: "balanced" }),
       }).id,
-    ).toBe("safe");
+    ).toBe("balanced");
   });
 
-  test("preserves the original 0.35 canvas scale until a profile budget applies", () => {
+  test("maps measured full-frame GPU time to bounded batch sizes", () => {
+    expect(chooseBlackHoleRenderSchedule(10).id).toBe("full");
+    expect(chooseBlackHoleRenderSchedule(30).id).toBe("fast");
+    expect(chooseBlackHoleRenderSchedule(60).id).toBe("balanced");
+    expect(chooseBlackHoleRenderSchedule(120).id).toBe("conservative");
+    expect(chooseBlackHoleRenderSchedule(220).id).toBe("safe");
+  });
+
+  test("tiles cover every target pixel exactly once", () => {
+    const width = 7;
+    const height = 5;
+    const coverage = Array.from({ length: height }, () =>
+      Array.from({ length: width }, () => 0),
+    );
+    const tiles = createBlackHoleTiles(width, height);
+
+    expect(tiles).toHaveLength(BLACK_HOLE_TILE_COUNT);
+    tiles.forEach((tile) => {
+      for (let y = tile.y; y < tile.y + tile.height; y += 1) {
+        for (let x = tile.x; x < tile.x + tile.width; x += 1) {
+          coverage[y][x] += 1;
+        }
+      }
+    });
+
+    expect(coverage.flat().every((count) => count === 1)).toBe(true);
+  });
+
+  test("preserves the original 0.35 canvas scale until local recovery", () => {
     expect(
       getBlackHoleCanvasSize(
         1920,
         1080,
-        BLACK_HOLE_RENDER_PROFILES.original,
+        BLACK_HOLE_RENDER_SCHEDULES.full,
       ),
     ).toMatchObject({ width: 672, height: 378, scale: 0.35 });
 
-    const balanced = getBlackHoleCanvasSize(
+    const recovery = getBlackHoleCanvasSize(
       1920,
       1080,
-      BLACK_HOLE_RENDER_PROFILES.balanced,
+      BLACK_HOLE_RENDER_SCHEDULES.recovery,
     );
-    expect(balanced.width * balanced.height).toBeLessThanOrEqual(
-      BLACK_HOLE_RENDER_PROFILES.balanced.maxPixels,
+    expect(recovery.width * recovery.height).toBeLessThanOrEqual(
+      BLACK_HOLE_RECOVERY_MAX_PIXELS,
     );
-    expect(balanced.width / balanced.height).toBeCloseTo(16 / 9, 1);
+    expect(recovery.width / recovery.height).toBeCloseTo(16 / 9, 1);
   });
 
-  test("keeps lifecycle recovery local to the black-hole renderer", () => {
-    const source = fs.readFileSync(
-      path.join(process.cwd(), "src/components/BlackHoleCanvas.js"),
-      "utf8",
-    );
+  test("presents only completed double-buffered frames and recovers locally", () => {
+    const source = [
+      "BlackHoleCanvas.js",
+      "blackHoleRenderer.js",
+      "blackHolePipeline.js",
+      "blackHoleFramePump.js",
+      "blackHoleWebGL.js",
+    ]
+      .map((file) =>
+        fs.readFileSync(
+          path.join(process.cwd(), "src/components", file),
+          "utf8",
+        ),
+      )
+      .join("\n");
 
     expect(source).toContain('powerPreference: "high-performance"');
+    expect(source).toContain("failIfMajorPerformanceCaveat: true");
+    expect(source).toContain("failIfMajorPerformanceCaveat: false");
+    expect(source).toContain("gl.scissor(");
+    expect(source).toContain("gl.viewport(tile.x, tile.y");
+    expect(source).toContain("gl.finish()");
+    expect(source).toContain("blocking-calibration-tile");
+    expect(source).toContain("gl.fenceSync(");
+    expect(source).toContain("gl.clientWaitSync(");
+    expect(source).toContain("CALIBRATION_GRID = 8");
+    expect(source).toContain("frontTarget = completedTarget");
+    expect(source).toContain("backTarget = frontTarget");
+    expect(source).toContain(
+      "reducedMotion && pipeline.frontReady && !pipeline.frameInProgress",
+    );
+    expect(source).not.toContain(
+      "presentBlackHoleFrame(pipeline);\n  if (!pollBatch(pipeline))",
+    );
+    expect(source).toContain('data-context-recovery="local"');
     expect(source).toContain('document.addEventListener("visibilitychange"');
     expect(source).toContain('canvas.addEventListener("webglcontextlost"');
-    expect(source).toContain("BLACK_HOLE_RENDER_PROFILES.safe.id");
-    expect(source).toContain("gl.deleteBuffer(buffer)");
-    expect(source).toContain("gl.deleteProgram(program)");
+    expect(source).toContain("gl.deleteFramebuffer");
+    expect(source).toContain("gl.deleteTexture");
+    expect(source).toContain("gl.deleteSync");
     expect(source).not.toContain("disableWebGLForSession");
-    expect(source).not.toContain('getExtension("WEBGL_lose_context")');
+    expect(source).not.toContain("isWindowsPlatform");
+    expect(source).not.toContain("navigator.userAgent");
   });
 
   test("restores renderer ownership when WebGL2 cannot be created", async () => {
