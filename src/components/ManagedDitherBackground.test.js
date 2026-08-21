@@ -17,6 +17,8 @@ const mockGetShaderCanvasSize = jest.fn();
 jest.mock("../utils/deviceTier", () => ({
   disableWebGLForSession: (...args) => mockDisableWebGLForSession(...args),
   getShaderCanvasSize: (...args) => mockGetShaderCanvasSize(...args),
+  hasHardwareWebGL: true,
+  isMobileTier: false,
   MAX_SHADER_PIXELS: 1_000_000,
   TARGET_SHADER_FRAME_MS: 1000 / 30,
 }));
