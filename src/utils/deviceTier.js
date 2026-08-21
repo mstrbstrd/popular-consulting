@@ -49,10 +49,10 @@ const probeHardwareWebGL = () => {
 
   try {
     const canvas = document.createElement("canvas");
-    gl = canvas.getContext('webgl2', {
+    gl = canvas.getContext("webgl2", {
       antialias: false,
       failIfMajorPerformanceCaveat: true,
-      powerPreference: "low-power",
+      powerPreference: "high-performance",
     });
 
     if (!gl) {
