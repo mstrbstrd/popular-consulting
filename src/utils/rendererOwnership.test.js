@@ -1,14 +1,14 @@
-jest.mock("./deviceTier", () => ({
-  hasHardwareWebGL: true,
-  isMobileTier: false,
-}));
-
 import {
   isOrbBlackHoleModeActive,
   ORB_BLACK_HOLE_MODE_EVENT,
   resolveOrbBlackHoleOwnership,
   setOrbBlackHoleModeActive,
 } from "./rendererOwnership";
+
+jest.mock("./deviceTier", () => ({
+  hasHardwareWebGL: true,
+  isMobileTier: false,
+}));
 
 describe("Orb renderer ownership", () => {
   beforeEach(() => {
