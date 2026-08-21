@@ -8,10 +8,10 @@ A React business + engineering platform for "Popular Consulting" with six routes
 
 | Path | View | Notes |
 |---|---|---|
-| `/` | `App` (immersive, business audience) | Section-snap parallax, managed WebGL dither or CSS-safe background |
+| `/` | `App` (immersive, business audience) | Section-snap parallax, managed WebGL dither or CSS fallback |
 | `/engineering` | `App` (immersive, engineering audience) | Shared immersive shell plus draggable Aetheris `ProfessionalHero` and engineering copy via `siteCopy` audiences |
 | `/work` | `WorkPage` | Scrollable portfolio; Aetheris design system; SpectralBloom backdrop |
-| `/orb` | `StandaloneExperiencePage` (orb) | noindex; lazy-loads `OrbSection`; managed Dither plus bounded analytic Black Hole |
+| `/orb` | `StandaloneExperiencePage` (orb) | noindex; lazy-loads `OrbSection`; managed Dither plus profiled geodesic Black Hole |
 | `/game` | `StandaloneExperiencePage` (game) | noindex; lazy-loads `PopcornGame` |
 | `/dither-canvas` | `DitherCanvasPage` or `GraphicsFallbackPage` | noindex; field lab is WebGL-policy gated |
 
@@ -22,7 +22,7 @@ Unknown paths fall back to `/`. Per-route HTML (title/meta/canonical) is generat
 - React 18 (CRA / react-scripts 5), JavaScript only (no TypeScript)
 - MUI v5 (`Box`/`Typography`/`Container`/`TextField`/`Button` in BioSection, ServicesSection, ContactSection only - removal is a planned project)
 - Custom CSS: global `src/index.css`, per-component inline `<style>` blocks, route-scoped `public/engineering-card.css`, `src/components/WorkPage.css`, and route-scoped `public/work-typography.css`
-- WebGL (raw, no library): managed `DitherBackground` (WebGL2), bounded `BlackHoleCanvas` (WebGL2), `SpectralBloom` (WebGL1), `CreatorOSLavaLampCanvas` (WebGL1), `CreatorOSFieldCanvas` (WebGL2)
+- WebGL (raw, no library): managed `DitherBackground` (WebGL2), profiled geodesic `BlackHoleCanvas` (WebGL2), `SpectralBloom` (WebGL1), `CreatorOSLavaLampCanvas` (WebGL1), `CreatorOSFieldCanvas` (WebGL2)
 - **Not used anywhere (do not reintroduce): Tailwind, framer-motion, Emotion-direct, simplex-noise**
 
 ## Commands
@@ -34,16 +34,22 @@ npm test        # Jest / RTL / jest-axe
 npm run lint    # eslint --max-warnings 0 (CI-gated)
 ```
 
-## Graphics safety architecture
+## Graphics preservation and safety architecture
 
-- `src/utils/graphicsPolicy.js` is the fail-closed policy boundary. It supports `?graphics=css`, `?graphics=webgl`, and `?graphics=auto`, persists runtime failures for the session, and defaults Windows automatic sessions to CSS until real hardware validation is complete.
-- `src/utils/deviceTier.js` performs the WebGL2 capability probe only when policy allows it, rejects known software renderers, compiles the actual GLSL ES 3 baseline, and releases the detached probe context.
+- The visual algorithms and interaction design are product invariants. Bound workload, ownership, and lifecycle before replacing an effect.
+- `src/utils/graphicsPolicy.js` supports `?graphics=css`, `?graphics=webgl`, and `?graphics=auto`. Windows automatic sessions attempt WebGL through the same hardware probe as other desktop platforms. A recorded runtime failure or an explicit CSS request can still select the fallback.
+- `src/utils/deviceTier.js` performs the WebGL2 capability probe only when policy allows it, rejects known software renderers, compiles the GLSL ES 3 baseline, requests the high-performance adapter, and releases the detached probe context.
 - `src/utils/graphicsContextGovernor.js` is installed before React mounts. It only governs canvases explicitly marked by `ManagedDitherBackground`, bounding their drawing buffer before the first draw and capping the legacy single-pass draw rate.
 - `src/utils/graphicsRuntimeBoundary.js` catches unmanaged WebGL context loss, hides the failed canvas, records the failure, clears exclusive Orb ownership, and never reloads the document.
 - `ManagedDitherBackground.js` owns Dither lifecycle. Hidden tabs, reduced motion, context loss, disabled policy, and exclusive Orb Black Hole ownership unmount the live renderer and reveal the CSS fallback.
-- `BlackHoleCanvas.js` is the only black-hole implementation. It is a loop-free analytic screen-space shader with a 420,000-pixel ceiling, 30fps ceiling, reduced-motion static frame, hidden/invisible suspension, low-power context request, explicit GPU cleanup, and fail-closed recovery.
-- `BlackHoleBackground.js` was removed. Never recreate or reintroduce the persistent 200-step RK4 background renderer.
-- Essential copy, navigation, forms, and route access must remain fully usable with WebGL disabled.
+- `BlackHoleCanvas.js` preserves the original three-channel geodesic shader, RK4 integration, accretion disk, Doppler and gravitational shifts, psychedelic palette, ordered dither, scanlines, camera movement, zoom controls, and pop transition.
+- The non-Windows `original` profile keeps 200 steps, a 0.08 base step, the original 0.35 drawing scale, and uncapped requestAnimationFrame cadence.
+- Windows starts with the same shader under the `balanced` profile: 96 steps, a 0.166667 base step, a 96,000-pixel ceiling, and a 24 fps ceiling. The larger step preserves the original nominal 16-unit integration path.
+- Shader initialization or context loss retries once under the same geodesic algorithm with the `safe` profile: 64 steps, a 0.25 base step, a 64,000-pixel ceiling, and a 20 fps ceiling.
+- `?black-hole-quality=original`, `balanced`, or `safe` is the explicit hardware-comparison and tuning override.
+- A final Black Hole failure clears only Orb renderer ownership and removes the failed overlay. It must not poison every WebGL renderer for the session.
+- `BlackHoleBackground.js` was a dormant duplicate and is removed. Do not duplicate the shader again. Do not replace the active geodesic Orb effect with an analytic approximation.
+- Essential copy, navigation, forms, and route access must remain fully usable if WebGL is unavailable or explicitly disabled.
 - `window.__graphicsReport()` returns the current graphics policy, the last failure, and bounded session breadcrumbs.
 
 ## Architecture
@@ -87,7 +93,7 @@ Producers null their globals on cleanup. Orb/dither: `__orbPop`, `__orbExpress`,
 - Timers/listeners: always capture and clear (see `useWorkPolish.js` / `LoadingOverlay.js` for the pattern).
 - `patchResizeObserver.js` must stay the first import in `src/index.js`.
 - Glass + per-frame transforms must not share a compositing subtree (Chrome clip desync) - see the comment in `ServicesSection.js` ExpandedOverlay before restructuring.
-- Tests pin many literals: `favicon.test.js` (icon/manifest), `WorkPageMotion.test.js` (keyframe budget), `ProfessionalHeroStyle.test.js` (Aetheris card and route isolation), `SpectralBloom.test.js` (shader discipline strings), graphics policy/governor/runtime tests, and the a11y suite (`src/__tests__/a11y/`, 10 files). Run the full suite after edits.
+- Tests pin many literals: `favicon.test.js` (icon/manifest), `WorkPageMotion.test.js` (keyframe budget), `ProfessionalHeroStyle.test.js` (Aetheris card and route isolation), `SpectralBloom.test.js` (shader discipline strings), graphics policy/governor/runtime tests, geodesic-renderer preservation tests, and the a11y suite (`src/__tests__/a11y/`, 10 files). Run the full suite after edits.
 - `git rm` over delete; never commit `node_modules` or `build/`.
 - Remote: `https://github.com/mstrbstrd/popular-consulting.git` (branch `main`); Vercel deploys from main.
-- CI (`.github/workflows/quality.yml`) gates lint, tests, and build on Ubuntu plus the complete test suite and build on `windows-latest`. Windows CI validates policy and platform behavior in a VM; it is not a substitute for real Intel/AMD/NVIDIA hardware validation.
+- CI (`.github/workflows/quality.yml`) gates lint, tests, and build on Ubuntu plus the complete test suite, build, and built-route Edge smoke on `windows-latest`. Windows CI validates cross-platform code and route behavior in a VM; it is not a substitute for real Intel, AMD, and NVIDIA hardware performance validation.
