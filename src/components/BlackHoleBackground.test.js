@@ -41,6 +41,8 @@ describe("persistent dark-mode black-hole invariants", () => {
 
   test("reuses the canonical pipeline without duplicating shader mathematics", () => {
     expect(componentSource).toContain("new BlackHolePipeline");
+    expect(componentSource).toContain("claimLiveBackgroundRenderer");
+    expect(componentSource).toContain("if (nextTarget) stopObserving()");
     expect(componentSource).toContain('data-renderer-id="black-hole-background"');
     expect(componentSource).toContain('data-context-recovery="local"');
     expect(componentSource).toContain("window.__bhRevealStart");

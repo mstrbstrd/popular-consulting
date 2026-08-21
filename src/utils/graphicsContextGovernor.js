@@ -34,7 +34,12 @@ const boundedViewportSize = (width, height, maxPixels) => {
   };
 };
 
-const governContext = (canvas, context, root) => {
+const governContext = (
+  canvas,
+  context,
+  root,
+  setNativeCanvasSize,
+) => {
   if (!context || context.__popconGraphicsGoverned) return context;
 
   try {
@@ -47,7 +52,10 @@ const governContext = (canvas, context, root) => {
     return context;
   }
 
-  const maxPixels = readPositiveNumber(root.dataset.maxShaderPixels, 1_000_000);
+  const maxPixels = readPositiveNumber(
+    root.dataset.maxShaderPixels,
+    1_000_000,
+  );
   const frameInterval = readPositiveNumber(
     root.dataset.shaderFrameInterval,
     1000 / 30,
@@ -69,9 +77,11 @@ const governContext = (canvas, context, root) => {
         }
 
         const bounded = boundedViewportSize(width, height, maxPixels);
-        if (canvas.width !== bounded.width || canvas.height !== bounded.height) {
-          canvas.width = bounded.width;
-          canvas.height = bounded.height;
+        if (
+          canvas.width !== bounded.width ||
+          canvas.height !== bounded.height
+        ) {
+          setNativeCanvasSize(canvas, bounded.width, bounded.height);
           root.dataset.renderWidth = String(bounded.width);
           root.dataset.renderHeight = String(bounded.height);
           recordGraphicsEvent("context-governor-resized", {
@@ -81,7 +91,12 @@ const governContext = (canvas, context, root) => {
           });
         }
 
-        return originalViewport(0, 0, bounded.width, bounded.height);
+        return originalViewport(
+          0,
+          0,
+          canvas.width,
+          canvas.height,
+        );
       };
     } catch (_) {
       // Some browsers expose non-extensible native context methods.
@@ -127,7 +142,108 @@ export const initGraphicsContextGovernor = () => {
     return cleanupContextGovernor || (() => {});
   }
 
-  const originalGetContext = HTMLCanvasElement.prototype.getContext;
+  const canvasPrototype = HTMLCanvasElement.prototype;
+  const originalGetContext = canvasPrototype.getContext;
+  const widthDescriptor = Object.getOwnPropertyDescriptor(
+    canvasPrototype,
+    "width",
+  );
+  const heightDescriptor = Object.getOwnPropertyDescriptor(
+    canvasPrototype,
+    "height",
+  );
+  const requestedCanvasSizes = new WeakMap();
+
+  const canPatchDimensions = Boolean(
+    widthDescriptor?.get &&
+      widthDescriptor?.set &&
+      heightDescriptor?.get &&
+      heightDescriptor?.set &&
+      widthDescriptor.configurable !== false &&
+      heightDescriptor.configurable !== false,
+  );
+
+  const setNativeCanvasSize = (canvas, width, height) => {
+    if (!widthDescriptor?.set || !heightDescriptor?.set) {
+      canvas.width = width;
+      canvas.height = height;
+      return;
+    }
+
+    widthDescriptor.set.call(canvas, width);
+    heightDescriptor.set.call(canvas, height);
+  };
+
+  const setGovernedDimension = (canvas, dimension, value) => {
+    const descriptor =
+      dimension === "width" ? widthDescriptor : heightDescriptor;
+    const root = canvas.closest?.(GOVERNOR_SELECTOR);
+
+    if (!root || !descriptor?.set) {
+      descriptor?.set?.call(canvas, value);
+      return;
+    }
+
+    const requested = requestedCanvasSizes.get(canvas) || {
+      width: widthDescriptor.get.call(canvas),
+      height: heightDescriptor.get.call(canvas),
+    };
+    requested[dimension] = Math.max(
+      1,
+      Math.floor(Number(value) || 1),
+    );
+    requestedCanvasSizes.set(canvas, requested);
+
+    const maxPixels = readPositiveNumber(
+      root.dataset.maxShaderPixels,
+      1_000_000,
+    );
+    const bounded = boundedViewportSize(
+      requested.width,
+      requested.height,
+      maxPixels,
+    );
+
+    if (
+      widthDescriptor.get.call(canvas) !== bounded.width ||
+      heightDescriptor.get.call(canvas) !== bounded.height
+    ) {
+      setNativeCanvasSize(canvas, bounded.width, bounded.height);
+    }
+
+    root.dataset.renderWidth = String(bounded.width);
+    root.dataset.renderHeight = String(bounded.height);
+  };
+
+  let governedWidthSetter = null;
+  let governedHeightSetter = null;
+
+  if (canPatchDimensions) {
+    governedWidthSetter = function setGovernedCanvasWidth(value) {
+      setGovernedDimension(this, "width", value);
+    };
+    governedHeightSetter = function setGovernedCanvasHeight(value) {
+      setGovernedDimension(this, "height", value);
+    };
+
+    try {
+      Object.defineProperty(canvasPrototype, "width", {
+        ...widthDescriptor,
+        set: governedWidthSetter,
+      });
+      Object.defineProperty(canvasPrototype, "height", {
+        ...heightDescriptor,
+        set: governedHeightSetter,
+      });
+    } catch (_) {
+      governedWidthSetter = null;
+      governedHeightSetter = null;
+      recordGraphicsEvent("context-governor-dimensions-unavailable", {
+        reason: "canvas-dimensions-readonly",
+      });
+    }
+  }
+
   const governedGetContext = function getGovernedContext(
     contextType,
     ...args
@@ -138,12 +254,18 @@ export const initGraphicsContextGovernor = () => {
     }
 
     const root = this.closest?.(GOVERNOR_SELECTOR);
-    return root ? governContext(this, context, root) : context;
+    return root
+      ? governContext(this, context, root, setNativeCanvasSize)
+      : context;
   };
 
   try {
-    HTMLCanvasElement.prototype.getContext = governedGetContext;
+    canvasPrototype.getContext = governedGetContext;
   } catch (_) {
+    if (governedWidthSetter && governedHeightSetter) {
+      Object.defineProperty(canvasPrototype, "width", widthDescriptor);
+      Object.defineProperty(canvasPrototype, "height", heightDescriptor);
+    }
     recordGraphicsEvent("context-governor-unavailable", {
       reason: "prototype-readonly",
     });
@@ -151,9 +273,31 @@ export const initGraphicsContextGovernor = () => {
   }
 
   cleanupContextGovernor = () => {
-    if (HTMLCanvasElement.prototype.getContext === governedGetContext) {
-      HTMLCanvasElement.prototype.getContext = originalGetContext;
+    if (canvasPrototype.getContext === governedGetContext) {
+      canvasPrototype.getContext = originalGetContext;
     }
+
+    const currentWidthDescriptor = Object.getOwnPropertyDescriptor(
+      canvasPrototype,
+      "width",
+    );
+    const currentHeightDescriptor = Object.getOwnPropertyDescriptor(
+      canvasPrototype,
+      "height",
+    );
+    if (
+      governedWidthSetter &&
+      currentWidthDescriptor?.set === governedWidthSetter
+    ) {
+      Object.defineProperty(canvasPrototype, "width", widthDescriptor);
+    }
+    if (
+      governedHeightSetter &&
+      currentHeightDescriptor?.set === governedHeightSetter
+    ) {
+      Object.defineProperty(canvasPrototype, "height", heightDescriptor);
+    }
+
     cleanupContextGovernor = null;
   };
 

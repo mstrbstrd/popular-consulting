@@ -65,6 +65,38 @@ describe("graphics context governor", () => {
     expect(root.dataset.renderHeight).toBe(String(canvas.height));
   });
 
+  test("bounds governed backing stores before context creation", () => {
+    cleanupGovernor = initGraphicsContextGovernor();
+
+    const root = document.createElement("div");
+    root.dataset.graphicsGovernor = "true";
+    root.dataset.maxShaderPixels = "600000";
+    const canvas = document.createElement("canvas");
+    const particleCanvas = document.createElement("canvas");
+    root.append(canvas, particleCanvas);
+    document.body.appendChild(root);
+
+    canvas.width = 3840;
+    canvas.height = 2160;
+    particleCanvas.width = 3840;
+    particleCanvas.height = 2160;
+
+    expect(canvas.width * canvas.height).toBeLessThanOrEqual(600_000);
+    expect(particleCanvas.width * particleCanvas.height).toBeLessThanOrEqual(
+      600_000,
+    );
+    expect(canvas.width / canvas.height).toBeCloseTo(16 / 9, 2);
+    expect(root.dataset.renderWidth).toBe(String(particleCanvas.width));
+    expect(root.dataset.renderHeight).toBe(String(particleCanvas.height));
+
+    const unmanaged = document.createElement("canvas");
+    document.body.appendChild(unmanaged);
+    unmanaged.width = 3840;
+    unmanaged.height = 2160;
+    expect(unmanaged.width).toBe(3840);
+    expect(unmanaged.height).toBe(2160);
+  });
+
   test("caps a managed single-pass context at the configured frame interval", () => {
     const viewport = jest.fn();
     const drawArrays = jest.fn();

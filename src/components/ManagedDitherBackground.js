@@ -9,6 +9,7 @@ import {
 } from "../utils/deviceTier";
 import { recordGraphicsEvent } from "../utils/graphicsPolicy";
 import {
+  claimLiveBackgroundRenderer,
   isOrbBlackHoleModeActive,
   ORB_BLACK_HOLE_MODE_EVENT,
 } from "../utils/rendererOwnership";
@@ -132,6 +133,8 @@ const ManagedDitherBackground = ({
 
     let resizeFrame = 0;
     let settleFrame = 0;
+    const releaseBackgroundOwnership =
+      claimLiveBackgroundRenderer(rendererId);
 
     const enforceCanvasBudget = () => {
       const bounds = root.getBoundingClientRect();
@@ -170,10 +173,7 @@ const ManagedDitherBackground = ({
       });
     };
 
-    recordGraphicsEvent("renderer-mounted", {
-      rendererId,
-      activeSection,
-    });
+    recordGraphicsEvent("renderer-mounted", { rendererId });
     scheduleBudgetEnforcement();
     window.addEventListener("resize", scheduleBudgetEnforcement);
 
@@ -181,9 +181,10 @@ const ManagedDitherBackground = ({
       window.cancelAnimationFrame(resizeFrame);
       window.cancelAnimationFrame(settleFrame);
       window.removeEventListener("resize", scheduleBudgetEnforcement);
+      releaseBackgroundOwnership();
       recordGraphicsEvent("renderer-unmounted", { rendererId });
     };
-  }, [activeSection, rendererId, shouldRender]);
+  }, [rendererId, shouldRender]);
 
   const rendererState = runtimeFailed
     ? "failed"

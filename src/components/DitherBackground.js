@@ -1529,11 +1529,19 @@ const DitherBackground = ({ activeSection = 0, isDark = false }) => {
     };
     spawnParticlesRef.current = spawnParticles;
 
+    let particleCanvasDirty = false;
     const drawParticles = (dt) => {
       if (!px2 || !popCvs) return;
-      px2.clearRect(0, 0, popCvs.width, popCvs.height);
       const parts = particlesRef.current;
-      if (!parts.length) return;
+      if (!parts.length) {
+        if (particleCanvasDirty) {
+          px2.clearRect(0, 0, popCvs.width, popCvs.height);
+          particleCanvasDirty = false;
+        }
+        return;
+      }
+      px2.clearRect(0, 0, popCvs.width, popCvs.height);
+      particleCanvasDirty = true;
       const now = performance.now() / 1000;
       const hs = (h, s, l, a) => `hsla(${h | 0},${s}%,${l}%,${a.toFixed(3)})`;
       particlesRef.current = parts.filter((p) => {
