@@ -1,32 +1,119 @@
+// BlackHoleCanvas.js
+// Psychedelic black-hole dither with bounded, platform-aware WebGL2 profiles.
 import React, { useEffect, useRef, useState } from "react";
 import {
-  disableWebGLForSession,
-  getShaderCanvasSize,
-  TARGET_SHADER_FRAME_MS,
-} from "../utils/deviceTier";
-import { recordGraphicsEvent } from "../utils/graphicsPolicy";
+  isWindowsPlatform,
+  recordGraphicsEvent,
+} from "../utils/graphicsPolicy";
 import { setOrbBlackHoleModeActive } from "../utils/rendererOwnership";
 
-export const BLACK_HOLE_MAX_PIXELS = 420_000;
-export const BLACK_HOLE_FRAME_INTERVAL_MS = Math.max(
-  TARGET_SHADER_FRAME_MS,
-  1000 / 30,
-);
+export const BLACK_HOLE_QUALITY_PARAM = "black-hole-quality";
+
+export const BLACK_HOLE_RENDER_PROFILES = Object.freeze({
+  original: Object.freeze({
+    id: "original",
+    numSteps: 200,
+    stepSize: 0.08,
+    pixelScale: 0.35,
+    maxPixels: 1_100_000,
+    frameIntervalMs: 0,
+  }),
+  balanced: Object.freeze({
+    id: "balanced",
+    numSteps: 96,
+    stepSize: 1 / 6,
+    pixelScale: 0.35,
+    maxPixels: 96_000,
+    frameIntervalMs: 1000 / 24,
+  }),
+  safe: Object.freeze({
+    id: "safe",
+    numSteps: 64,
+    stepSize: 0.25,
+    pixelScale: 0.35,
+    maxPixels: 64_000,
+    frameIntervalMs: 1000 / 20,
+  }),
+});
+
+export const BLACK_HOLE_MAX_PIXELS =
+  BLACK_HOLE_RENDER_PROFILES.original.maxPixels;
+export const BLACK_HOLE_FRAME_INTERVAL_MS =
+  BLACK_HOLE_RENDER_PROFILES.original.frameIntervalMs;
+
+const normalizeProfileId = (value) => {
+  const profileId = String(value || "").trim().toLowerCase();
+  return Object.prototype.hasOwnProperty.call(
+    BLACK_HOLE_RENDER_PROFILES,
+    profileId,
+  )
+    ? profileId
+    : null;
+};
+
+const readProfileOverride = (search = "") => {
+  try {
+    return normalizeProfileId(
+      new URLSearchParams(search).get(BLACK_HOLE_QUALITY_PARAM),
+    );
+  } catch (_) {
+    return null;
+  }
+};
+
+export const resolveBlackHoleRenderProfile = ({
+  windows = false,
+  search = "",
+} = {}) => {
+  const override = readProfileOverride(search);
+  if (override) return BLACK_HOLE_RENDER_PROFILES[override];
+  return windows
+    ? BLACK_HOLE_RENDER_PROFILES.balanced
+    : BLACK_HOLE_RENDER_PROFILES.original;
+};
+
+export const getBlackHoleCanvasSize = (cssWidth, cssHeight, profile) => {
+  const renderProfile = profile || BLACK_HOLE_RENDER_PROFILES.original;
+  const width = Math.max(1, Number(cssWidth) || 1);
+  const height = Math.max(1, Number(cssHeight) || 1);
+  const requestedWidth = Math.max(
+    1,
+    Math.floor(width * renderProfile.pixelScale),
+  );
+  const requestedHeight = Math.max(
+    1,
+    Math.floor(height * renderProfile.pixelScale),
+  );
+  const requestedPixels = requestedWidth * requestedHeight;
+  const budgetScale =
+    requestedPixels > renderProfile.maxPixels
+      ? Math.sqrt(renderProfile.maxPixels / requestedPixels)
+      : 1;
+
+  return {
+    width: Math.max(1, Math.floor(requestedWidth * budgetScale)),
+    height: Math.max(1, Math.floor(requestedHeight * budgetScale)),
+    scale: renderProfile.pixelScale * budgetScale,
+  };
+};
 
 export const BLACK_HOLE_VERTEX_SHADER = `#version 300 es
 in vec2 a_pos;
-out vec2 v_uv;
-void main() {
-  v_uv = a_pos * 0.5 + 0.5;
+out vec2 vUv;
+void main(){
+  vUv = a_pos * 0.5 + 0.5;
   gl_Position = vec4(a_pos, 0.0, 1.0);
 }`;
 
-export const BLACK_HOLE_FRAGMENT_SHADER = `#version 300 es
+export const createBlackHoleFragmentShader = (profile) => {
+  const renderProfile = profile || BLACK_HOLE_RENDER_PROFILES.original;
+  const numSteps = Math.max(1, Math.floor(renderProfile.numSteps));
+  const stepSize = Number(renderProfile.stepSize).toFixed(6);
+
+  return `#version 300 es
 precision highp float;
-
-in vec2 v_uv;
+in vec2 vUv;
 out vec4 fragColor;
-
 uniform float u_time;
 uniform vec2 u_res;
 uniform vec2 u_mouse;
@@ -35,133 +122,259 @@ uniform float u_lightMode;
 
 #define PI 3.14159265359
 #define TAU 6.28318530718
-
-float sat(float value) {
-  return clamp(value, 0.0, 1.0);
-}
-
-mat2 rot(float angle) {
-  float c = cos(angle);
-  float s = sin(angle);
-  return mat2(c, -s, s, c);
-}
-
-float hash21(vec2 p) {
-  p = fract(p * vec2(123.34, 456.21));
-  p += dot(p, p + 45.32);
-  return fract(p.x * p.y);
-}
-
-float starLayer(vec2 p, float scale, float threshold, float time) {
-  vec2 cell = floor(p * scale);
-  vec2 local = fract(p * scale) - 0.5;
-  float seed = hash21(cell);
-  float radius = mix(0.020, 0.080, seed);
-  float star = 1.0 - smoothstep(radius * 0.35, radius, length(local));
-  float twinkle = 0.68 + 0.32 * sin(time * (1.2 + seed * 2.4) + seed * 70.0);
-  return star * step(threshold, seed) * twinkle;
-}
-
-vec3 spectral(float hue) {
-  vec3 phase = vec3(0.0, 0.333333, 0.666667);
-  vec3 wave = 0.5 + 0.5 * cos(TAU * (hue + phase));
-  return pow(wave, vec3(0.72));
-}
+#define BH_MASS 1.0
+#define SCHWARZSCHILD_R (2.0 * BH_MASS)
+#define PHOTON_SPHERE_R (1.5 * SCHWARZSCHILD_R)
+#define ISCO_R (3.0 * SCHWARZSCHILD_R)
+#define DISK_INNER 2.8
+#define DISK_OUTER 12.0
+#define NUM_STEPS ${numSteps}
+#define STEP_SIZE ${stepSize}
 
 float bayer4(vec2 p) {
-  ivec2 ip = ivec2(mod(floor(p), 4.0));
-  int matrix[16] = int[16](
+  ivec2 ip = ivec2(mod(p, 4.0));
+  int b[16] = int[16](
      0, 8, 2,10,
     12, 4,14, 6,
      3,11, 1, 9,
     15, 7,13, 5
   );
-  return float(matrix[ip.x + ip.y * 4]) / 16.0;
+  return float(b[ip.x + ip.y * 4]) / 16.0;
+}
+
+mat2 rot(float a) {
+  float c = cos(a), s = sin(a);
+  return mat2(c, -s, s, c);
+}
+
+float hash2(vec2 p) {
+  vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+  p3 += dot(p3, p3.yzx + 33.33);
+  return fract((p3.x + p3.y) * p3.z);
+}
+
+float hash3(vec3 p) {
+  p = fract(p * 0.3183099 + 0.1);
+  p *= 17.0;
+  return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+}
+
+float noise3d(vec3 p) {
+  vec3 i = floor(p);
+  vec3 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(mix(hash3(i), hash3(i+vec3(1,0,0)), f.x),
+        mix(hash3(i+vec3(0,1,0)), hash3(i+vec3(1,1,0)), f.x), f.y),
+    mix(mix(hash3(i+vec3(0,0,1)), hash3(i+vec3(1,0,1)), f.x),
+        mix(hash3(i+vec3(0,1,1)), hash3(i+vec3(1,1,1)), f.x), f.y),
+    f.z
+  );
+}
+
+float fbm(vec3 p) {
+  float v = 0.0, a = 0.5;
+  for (int i = 0; i < 5; i++) {
+    v += a * noise3d(p);
+    p *= 2.1; a *= 0.48;
+  }
+  return v;
+}
+
+vec3 psychePalette(float t, float shift) {
+  vec3 a = vec3(0.5);
+  vec3 b = vec3(0.6);
+  vec3 c = vec3(1.0);
+  vec3 d = vec3(0.00, 0.15, 0.40);
+  return a + b * cos(TAU * (c * t + d + shift));
+}
+
+vec3 schwarzschildAccel(vec3 pos, vec3 vel) {
+  float r = length(pos);
+  if (r < 0.5) return vec3(0.0);
+  float r2 = r * r;
+  vec3 L = cross(pos, vel);
+  float L2 = dot(L, L);
+  return -BH_MASS / (r2 * r) * pos * (1.0 + 3.0 * L2 / r2);
+}
+
+void rk4Step(inout vec3 pos, inout vec3 vel, float h) {
+  vec3 k1v = schwarzschildAccel(pos, vel);
+  vec3 k1x = vel;
+  vec3 p2 = pos + 0.5*h*k1x; vec3 v2 = vel + 0.5*h*k1v;
+  vec3 k2v = schwarzschildAccel(p2, v2); vec3 k2x = v2;
+  vec3 p3 = pos + 0.5*h*k2x; vec3 v3 = vel + 0.5*h*k2v;
+  vec3 k3v = schwarzschildAccel(p3, v3); vec3 k3x = v3;
+  vec3 p4 = pos + h*k3x; vec3 v4 = vel + h*k3v;
+  vec3 k4v = schwarzschildAccel(p4, v4); vec3 k4x = v4;
+  pos += (h/6.0) * (k1x + 2.0*k2x + 2.0*k3x + k4x);
+  vel += (h/6.0) * (k1v + 2.0*k2v + 2.0*k3v + k4v);
+  vel = normalize(vel);
+}
+
+vec3 stars(vec3 rd, float t) {
+  vec2 sp = vec2(atan(rd.z, rd.x), asin(clamp(rd.y, -1.0, 1.0)));
+  vec3 col = vec3(0.0);
+  vec2 grid1 = floor(sp * 120.0);
+  float h1 = hash2(grid1);
+  if (h1 > 0.95) {
+    float b = pow((h1 - 0.95) / 0.05, 0.4);
+    b *= 0.6 + 0.4 * sin(t * 2.5 + h1 * 80.0);
+    col += psychePalette(h1 * 4.0 + t * 0.03, 0.0) * b;
+  }
+  vec2 grid2 = floor(sp * 40.0);
+  float h2 = hash2(grid2 + 99.0);
+  if (h2 > 0.985) {
+    float b = pow((h2 - 0.985) / 0.015, 0.3) * 1.5;
+    b *= 0.7 + 0.3 * sin(t * 1.8 + h2 * 60.0);
+    col += psychePalette(h2 * 6.0 + t * 0.05, 0.2) * b;
+  }
+  float neb = fbm(rd * 3.0 + t * 0.01);
+  neb = smoothstep(0.45, 0.75, neb) * 0.08;
+  col += psychePalette(rd.x + rd.y + t * 0.02, 0.4) * neb;
+  return col;
+}
+
+vec3 diskColor(vec3 hitPos, vec3 camPos, float t) {
+  float r = length(hitPos.xz);
+  if (r < DISK_INNER || r > DISK_OUTER) return vec3(0.0);
+  float angle = atan(hitPos.z, hitPos.x);
+  float v_orb = sqrt(BH_MASS / r);
+  vec3 velDir = normalize(vec3(-sin(angle), 0.0, cos(angle)));
+  vec3 velocity = velDir * v_orb;
+  vec3 toCamera = normalize(camPos - hitPos);
+  float v_los = dot(velocity, toCamera);
+  float gamma = 1.0 / sqrt(1.0 - min(v_orb * v_orb, 0.99));
+  float doppler = 1.0 / (gamma * (1.0 - v_los));
+  doppler = clamp(doppler, 0.3, 3.5);
+  float g_redshift = sqrt(max(1.0 - SCHWARZSCHILD_R / r, 0.01));
+  float totalShift = doppler * g_redshift;
+  float radialNorm = (r - DISK_INNER) / (DISK_OUTER - DISK_INNER);
+  float temperature = pow(1.0 - radialNorm, 1.8);
+  float rotSpeed = 1.0 / pow(r, 1.5);
+  float rotAngle = angle + rotSpeed * t * 2.0;
+  float spiral1 = sin(rotAngle * 4.0 - log(r) * 5.0);
+  float spiral2 = sin(rotAngle * 7.0 + log(r) * 3.0);
+  float turb = fbm(vec3(hitPos.xz * 0.8, t * 0.15));
+  float density = 0.55 + 0.25 * spiral1 + 0.15 * spiral2 + turb * 0.3;
+  density *= smoothstep(DISK_INNER, DISK_INNER + 0.8, r);
+  density *= smoothstep(DISK_OUTER, DISK_OUTER - 1.5, r);
+  float hue = angle / TAU + 0.5;
+  hue += r * 0.05 + t * 0.08;
+  hue += (totalShift - 1.0) * 0.3;
+  vec3 col = psychePalette(hue, 0.0);
+  vec3 hotCol = psychePalette(hue + 0.15, 0.25) * 2.5;
+  col = mix(col, hotCol, temperature * 0.7);
+  float beaming = pow(totalShift, 3.5);
+  float iscoGlow = exp(-(r - DISK_INNER) * 2.0);
+  vec3 plasmaCol = psychePalette(t * 0.2 + angle / TAU, 0.1) * 3.5;
+  col += plasmaCol * iscoGlow;
+  col *= density * beaming * (0.5 + temperature * 1.2);
+  return col;
 }
 
 void main() {
-  float minResolution = max(min(u_res.x, u_res.y), 1.0);
-  vec2 uv = (gl_FragCoord.xy * 2.0 - u_res) / minResolution;
-  vec2 mouse = u_mouse * 2.0 - 1.0;
-  float zoomMix = sat((u_zoom - 4.0) / 76.0);
-  float viewScale = mix(1.05, 2.75, zoomMix);
-
-  vec2 p = uv * viewScale;
-  p -= vec2(mouse.x * 0.055, mouse.y * 0.035);
-
-  float radius = length(p);
-  float angle = atan(p.y, p.x);
-  vec2 radialDirection = radius > 0.0001 ? p / radius : vec2(1.0, 0.0);
-
-  // Analytic lensing bends the background once in screen space. This keeps the
-  // apparent gravitational distortion without tracing hundreds of ray steps.
-  float lensStrength = 0.105 / (radius + 0.105);
-  vec2 lensed = radialDirection * (radius + lensStrength);
-  lensed = rot(u_time * 0.012 + mouse.x * 0.08) * lensed;
-
-  float fineStars = starLayer(lensed + 11.7, 34.0, 0.965, u_time);
-  float brightStars = starLayer(lensed * 0.58 - 7.1, 18.0, 0.985, u_time * 0.8);
-  float nebula = 0.5 + 0.5 * sin(
-    lensed.x * 3.2 + sin(lensed.y * 2.4 - u_time * 0.035) * 1.15
+  vec2 uv = (gl_FragCoord.xy - u_res * 0.5) / min(u_res.x, u_res.y);
+  float t = u_time;
+  float aberr = 0.006 + 0.003 * sin(t * 1.8);
+  float camAngle = t * 0.06;
+  vec2 ms = u_mouse * 2.0 - 1.0;
+  camAngle += ms.x * 1.0;
+  float camElev = 0.35 + ms.y * 0.5 + 0.1 * sin(t * 0.05);
+  vec3 ro = vec3(
+    u_zoom * cos(camAngle) * cos(camElev),
+    u_zoom * sin(camElev),
+    u_zoom * sin(camAngle) * cos(camElev)
   );
-  nebula *= 0.5 + 0.5 * sin(lensed.y * 2.7 + u_time * 0.028);
+  vec3 ta = vec3(0.0);
+  vec3 ww = normalize(ta - ro);
+  vec3 uu = normalize(cross(ww, vec3(0.0, 1.0, 0.0)));
+  vec3 vv = cross(uu, ww);
+  vec3 finalCol = vec3(0.0);
 
-  vec3 backgroundHue = spectral(fract(angle / TAU + u_time * 0.008));
-  vec3 color = backgroundHue * nebula * 0.055;
-  color += vec3(0.84, 0.92, 1.0) * fineStars * 0.72;
-  color += spectral(fract(angle / TAU + 0.18)) * brightStars * 1.45;
+  for (int ch = 0; ch < 3; ch++) {
+    float chOff = (ch == 0) ? aberr : (ch == 2) ? -aberr : 0.0;
+    vec3 rd = normalize((uv.x + chOff) * uu + uv.y * vv + 1.4 * ww);
+    vec3 pos = ro;
+    vec3 vel = rd;
+    vec3 accumulated = vec3(0.0);
+    float alpha = 0.0;
+    bool absorbed = false;
+    float minR = 100.0;
 
-  float diskTilt = mix(0.22, 0.38, sat(u_mouse.y));
-  vec2 diskPoint = rot(-0.20 - mouse.x * 0.24) * p;
-  diskPoint.y /= diskTilt;
-  float diskRadius = length(diskPoint);
-  float diskAngle = atan(diskPoint.y, diskPoint.x);
-  float diskBand = exp(-pow((diskRadius - 0.50) * 9.2, 2.0));
-  float diskEdge = smoothstep(0.20, 0.29, diskRadius)
-    * (1.0 - smoothstep(0.72, 0.92, diskRadius));
-  float spiral = 0.62
-    + 0.23 * sin(diskAngle * 7.0 - u_time * 1.45 + diskRadius * 13.0)
-    + 0.15 * sin(diskAngle * 3.0 + u_time * 0.72 - diskRadius * 8.0);
-  float doppler = mix(0.58, 1.45, sat(diskPoint.x / max(diskRadius, 0.001) * 0.5 + 0.5));
-  float disk = diskBand * diskEdge * max(spiral, 0.0) * doppler;
-  vec3 diskColor = spectral(fract(diskAngle / TAU + diskRadius * 0.28 + u_time * 0.035));
-  diskColor = mix(diskColor, vec3(1.0, 0.82, 0.52), 0.24);
-  color += diskColor * disk * 1.75;
+    for (int i = 0; i < NUM_STEPS; i++) {
+      float r = length(pos);
+      minR = min(minR, r);
+      if (r < SCHWARZSCHILD_R * 0.48) { absorbed = true; break; }
+      float prevY = pos.y;
+      float adaptiveH = STEP_SIZE * clamp(r * 0.3, 0.3, 4.0);
+      rk4Step(pos, vel, adaptiveH);
+      float currY = pos.y;
+      if (prevY * currY < 0.0 && alpha < 0.95) {
+        float frac = abs(prevY) / (abs(prevY) + abs(currY) + 0.0001);
+        vec3 hitP = pos - vel * adaptiveH * (1.0 - frac);
+        float hitR = length(hitP.xz);
+        if (hitR > DISK_INNER && hitR < DISK_OUTER) {
+          vec3 dCol = diskColor(hitP, ro, t);
+          float hitAlpha = clamp(length(dCol) * 0.7, 0.0, 0.9);
+          accumulated += dCol * (1.0 - alpha) * hitAlpha;
+          alpha += hitAlpha * (1.0 - alpha);
+        }
+      }
+      if (r > 120.0) break;
+    }
 
-  float horizonRadius = 0.205;
-  float horizon = 1.0 - smoothstep(horizonRadius - 0.012, horizonRadius + 0.012, radius);
-  float photonRing = exp(-pow((radius - 0.248) * 48.0, 2.0));
-  float outerGlow = exp(-pow((radius - 0.295) * 18.0, 2.0));
-  vec3 ringColor = spectral(fract(angle / TAU + u_time * 0.018 + 0.12));
-
-  color *= 1.0 - horizon;
-  color += ringColor * photonRing * 1.55;
-  color += ringColor * outerGlow * 0.22;
-
-  float lensArc = exp(-pow((radius - 0.37) * 15.0, 2.0));
-  lensArc *= 0.45 + 0.55 * pow(abs(cos(angle - mouse.x * 0.4)), 3.0);
-  color += spectral(fract(angle / TAU + 0.62)) * lensArc * 0.16;
-
-  color = color / (color + vec3(0.72));
-  float gray = dot(color, vec3(0.299, 0.587, 0.114));
-  color = mix(vec3(gray), color, 1.26);
-
-  float dither = bayer4(gl_FragCoord.xy) - 0.5;
-  float levels = 5.0;
-  color = floor(clamp(color + dither / levels, 0.0, 1.0) * levels + 0.5) / levels;
-
-  float scanline = 0.92 + 0.08 * sin(gl_FragCoord.y * PI);
-  color *= scanline;
-
-  vec2 vignettePoint = v_uv * 2.0 - 1.0;
-  color *= 1.0 - 0.24 * dot(vignettePoint, vignettePoint);
-
-  if (u_lightMode > 0.5) {
-    color = mix(vec3(0.98, 0.97, 1.0), vec3(1.0) - color, 0.82);
+    vec3 c;
+    if (absorbed) {
+      float glow = exp(-(minR - SCHWARZSCHILD_R * 0.48) * 4.0);
+      c = psychePalette(t * 0.15, 0.0) * glow * 0.15;
+    } else {
+      c = stars(normalize(vel), t);
+    }
+    c = mix(c, accumulated / max(alpha, 0.001), alpha);
+    float ringDist = abs(minR - PHOTON_SPHERE_R);
+    float ringGlow = exp(-ringDist * ringDist * 8.0) * 0.8;
+    float nearOrbit = exp(-ringDist * 20.0) * 1.5;
+    vec3 ringCol = psychePalette(t * 0.12 + minR * 0.3, 0.15);
+    c += ringCol * (ringGlow + nearOrbit);
+    if (minR < PHOTON_SPHERE_R * 1.3 && !absorbed) {
+      float lensAmp = 1.0 + 2.0 * exp(-(minR - PHOTON_SPHERE_R) * 3.0);
+      c *= lensAmp;
+    }
+    if (ch == 0) finalCol.r = c.r;
+    else if (ch == 1) finalCol.g = c.g;
+    else finalCol.b = c.b;
   }
 
-  fragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
+  finalCol = finalCol / (finalCol + 0.65);
+  float gray = dot(finalCol, vec3(0.299, 0.587, 0.114));
+  finalCol = mix(vec3(gray), finalCol, 1.3);
+
+  float threshold = bayer4(gl_FragCoord.xy);
+  float levels = 3.0;
+  finalCol = floor(finalCol * levels + threshold) / levels;
+
+  float scanline = 0.78 + 0.22 * sin(gl_FragCoord.y * PI * 2.0);
+  finalCol *= scanline;
+  float interference = 0.96 + 0.04 * sin(gl_FragCoord.y * 0.5 + t * 14.0);
+  finalCol *= interference;
+
+  vec2 cv = vUv * 2.0 - 1.0;
+  float curv = 1.0 - 0.35 * dot(cv * cv, cv * cv);
+  finalCol *= clamp(curv, 0.0, 1.0);
+
+  float lum = dot(finalCol, vec3(0.299, 0.587, 0.114));
+  finalCol += finalCol * smoothstep(0.4, 1.0, lum) * 0.3;
+
+  if (u_lightMode > 0.5) finalCol = 1.0 - finalCol;
+
+  fragColor = vec4(finalCol, 1.0);
 }`;
+};
+
+export const BLACK_HOLE_FRAGMENT_SHADER = createBlackHoleFragmentShader(
+  BLACK_HOLE_RENDER_PROFILES.original,
+);
 
 const compileShader = (gl, type, source) => {
   const shader = gl.createShader(type);
@@ -171,6 +384,8 @@ const compileShader = (gl, type, source) => {
   gl.compileShader(shader);
 
   if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+    const info = gl.getShaderInfoLog(shader) || "compile-failed";
+    recordGraphicsEvent("black-hole-shader-compile-failed", { info });
     gl.deleteShader(shader);
     return null;
   }
@@ -178,17 +393,9 @@ const compileShader = (gl, type, source) => {
   return shader;
 };
 
-const createProgram = (gl) => {
-  const vertex = compileShader(
-    gl,
-    gl.VERTEX_SHADER,
-    BLACK_HOLE_VERTEX_SHADER,
-  );
-  const fragment = compileShader(
-    gl,
-    gl.FRAGMENT_SHADER,
-    BLACK_HOLE_FRAGMENT_SHADER,
-  );
+const createProgram = (gl, fragmentSource) => {
+  const vertex = compileShader(gl, gl.VERTEX_SHADER, BLACK_HOLE_VERTEX_SHADER);
+  const fragment = compileShader(gl, gl.FRAGMENT_SHADER, fragmentSource);
 
   if (!vertex || !fragment) {
     if (vertex) gl.deleteShader(vertex);
@@ -210,6 +417,8 @@ const createProgram = (gl) => {
   gl.deleteShader(fragment);
 
   if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+    const info = gl.getProgramInfoLog(program) || "link-failed";
+    recordGraphicsEvent("black-hole-program-link-failed", { info });
     gl.deleteProgram(program);
     return null;
   }
@@ -229,6 +438,14 @@ const BlackHoleCanvas = ({
   const visibleRef = useRef(visible);
   const onFadeOutEndRef = useRef(onFadeOutEnd);
   const ensureAnimatingRef = useRef(null);
+  const hasRetriedRef = useRef(false);
+  const [profileId, setProfileId] = useState(() =>
+    resolveBlackHoleRenderProfile({
+      windows: isWindowsPlatform,
+      search: typeof window !== "undefined" ? window.location.search : "",
+    }).id,
+  );
+  const [rendererGeneration, setRendererGeneration] = useState(0);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
@@ -246,7 +463,8 @@ const BlackHoleCanvas = ({
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || failed) return undefined;
+    const profile = BLACK_HOLE_RENDER_PROFILES[profileId];
+    if (!canvas || !profile || failed) return undefined;
 
     let disposed = false;
     let animationFrame = 0;
@@ -265,14 +483,37 @@ const BlackHoleCanvas = ({
       gl = null;
     };
 
-    const failRenderer = (reason) => {
-      if (disposed) return;
+    const stopAnimation = () => {
       if (animationFrame) window.cancelAnimationFrame(animationFrame);
       animationFrame = 0;
-      recordGraphicsEvent("black-hole-failed", { reason });
-      disableWebGLForSession(`black-hole:${reason}`);
-      setOrbBlackHoleModeActive(false);
+    };
+
+    const failRenderer = (reason, retrySafe = false) => {
+      if (disposed) return;
+      stopAnimation();
+      recordGraphicsEvent("black-hole-failed", {
+        reason,
+        profile: profile.id,
+      });
       releaseResources();
+
+      if (
+        retrySafe &&
+        profile.id !== BLACK_HOLE_RENDER_PROFILES.safe.id &&
+        !hasRetriedRef.current
+      ) {
+        hasRetriedRef.current = true;
+        recordGraphicsEvent("black-hole-profile-fallback", {
+          from: profile.id,
+          to: BLACK_HOLE_RENDER_PROFILES.safe.id,
+          reason,
+        });
+        setProfileId(BLACK_HOLE_RENDER_PROFILES.safe.id);
+        setRendererGeneration((value) => value + 1);
+        return;
+      }
+
+      setOrbBlackHoleModeActive(false);
       setFailed(true);
       onFadeOutEndRef.current?.();
     };
@@ -284,7 +525,7 @@ const BlackHoleCanvas = ({
         depth: false,
         stencil: false,
         failIfMajorPerformanceCaveat: true,
-        powerPreference: "low-power",
+        powerPreference: "high-performance",
       });
     } catch (_) {
       gl = null;
@@ -295,9 +536,9 @@ const BlackHoleCanvas = ({
       return undefined;
     }
 
-    program = createProgram(gl);
+    program = createProgram(gl, createBlackHoleFragmentShader(profile));
     if (!program) {
-      failRenderer("shader-initialization");
+      failRenderer("shader-initialization", true);
       return undefined;
     }
 
@@ -343,10 +584,10 @@ const BlackHoleCanvas = ({
       if (!parent || !gl) return false;
 
       const bounds = parent.getBoundingClientRect();
-      const target = getShaderCanvasSize(
+      const target = getBlackHoleCanvasSize(
         bounds.width || parent.clientWidth || window.innerWidth,
         bounds.height || parent.clientHeight || window.innerHeight,
-        BLACK_HOLE_MAX_PIXELS,
+        profile,
       );
 
       if (
@@ -417,7 +658,7 @@ const BlackHoleCanvas = ({
 
     const handleContextLost = (event) => {
       event.preventDefault();
-      failRenderer("context-lost");
+      failRenderer("context-lost", true);
     };
 
     const draw = (timestamp) => {
@@ -439,6 +680,7 @@ const BlackHoleCanvas = ({
       if (firstFramePending) {
         firstFramePending = false;
         recordGraphicsEvent("black-hole-first-frame", {
+          profile: profile.id,
           width: canvas.width,
           height: canvas.height,
         });
@@ -457,8 +699,8 @@ const BlackHoleCanvas = ({
       }
 
       if (
-        !reducedMotion?.matches &&
-        timestamp - lastFrameAt < BLACK_HOLE_FRAME_INTERVAL_MS
+        profile.frameIntervalMs > 0 &&
+        timestamp - lastFrameAt < profile.frameIntervalMs
       ) {
         animationFrame = window.requestAnimationFrame(render);
         return;
@@ -492,16 +734,14 @@ const BlackHoleCanvas = ({
 
     const handleVisibility = () => {
       if (document.visibilityState === "hidden") {
-        if (animationFrame) window.cancelAnimationFrame(animationFrame);
-        animationFrame = 0;
+        stopAnimation();
       } else {
         ensureAnimating();
       }
     };
 
     const handleMotionChange = () => {
-      if (animationFrame) window.cancelAnimationFrame(animationFrame);
-      animationFrame = 0;
+      stopAnimation();
       ensureAnimating();
     };
 
@@ -528,14 +768,16 @@ const BlackHoleCanvas = ({
     }
 
     recordGraphicsEvent("black-hole-mounted", {
-      frameInterval: BLACK_HOLE_FRAME_INTERVAL_MS,
-      maxPixels: BLACK_HOLE_MAX_PIXELS,
+      profile: profile.id,
+      frameInterval: profile.frameIntervalMs,
+      maxPixels: profile.maxPixels,
+      numSteps: profile.numSteps,
     });
     ensureAnimating();
 
     return () => {
       disposed = true;
-      if (animationFrame) window.cancelAnimationFrame(animationFrame);
+      stopAnimation();
       ensureAnimatingRef.current = null;
       canvas.removeEventListener("mousemove", handleMouseMove);
       canvas.removeEventListener("wheel", handleWheel);
@@ -551,16 +793,18 @@ const BlackHoleCanvas = ({
       }
       resizeObserver?.disconnect();
       releaseResources();
-      recordGraphicsEvent("black-hole-unmounted");
+      recordGraphicsEvent("black-hole-unmounted", { profile: profile.id });
     };
-  }, [currentZoomRef, failed, zoomRef]);
+  }, [currentZoomRef, failed, profileId, rendererGeneration, zoomRef]);
 
   if (failed) return null;
 
   return (
     <canvas
+      key={`${profileId}-${rendererGeneration}`}
       ref={canvasRef}
       data-renderer-id="black-hole-orb"
+      data-render-profile={profileId}
       onTransitionEnd={() => {
         if (!visible) onFadeOutEndRef.current?.();
       }}
