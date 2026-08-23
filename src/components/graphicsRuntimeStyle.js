@@ -5,6 +5,29 @@ const GRAPHICS_RUNTIME_CSS = `
     touch-action: pinch-zoom;
   }
 
+  html[data-live-background-renderer],
+  html[data-live-background-renderer] body,
+  html[data-live-background-renderer] #root {
+    overflow: hidden !important;
+    scrollbar-width: none;
+    scrollbar-gutter: auto;
+  }
+
+  html[data-live-background-renderer]::-webkit-scrollbar,
+  html[data-live-background-renderer] body::-webkit-scrollbar,
+  html[data-live-background-renderer] #root::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
+  }
+
+  .parallax-wrapper .background-css-fallback,
+  .parallax-wrapper .background-dither-live,
+  .parallax-wrapper .glass-overlay,
+  .parallax-wrapper .glass-gradient {
+    inset: -2px !important;
+  }
+
   html[data-live-background-renderer] .background-css-orb,
   html[data-live-background-renderer] .standalone-experience__fallback > span {
     animation-play-state: paused !important;
