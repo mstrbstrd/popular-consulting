@@ -432,6 +432,29 @@ function buildBgKernels(W, H, count = 28) {
   return items;
 }
 
+export const shiftPopcornGameTimeline = (game, deltaMs) => {
+  const offset = Number(deltaMs);
+  if (!game || !Number.isFinite(offset) || offset <= 0) return game;
+
+  ["startMs", "lastSpawn", "lastGolden"].forEach((key) => {
+    if (Number(game[key]) > 0) game[key] += offset;
+  });
+
+  game.particles?.forEach((particle) => {
+    if (Number(particle.born) > 0) particle.born += offset;
+  });
+
+  game.kernels?.forEach((kernel) => {
+    ["spawnedAt", "popStartMs", "poppedAt", "fadeStart"].forEach(
+      (key) => {
+        if (Number(kernel[key]) > 0) kernel[key] += offset;
+      },
+    );
+  });
+
+  return game;
+};
+
 // ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
@@ -440,6 +463,10 @@ const PopcornGame = ({ isActive }) => {
   const isDarkRef  = useRef(isDark);
   useEffect(() => { isDarkRef.current = isDark; }, [isDark]);
 
+  const [documentVisible, setDocumentVisible] = useState(
+    () => document.visibilityState !== "hidden",
+  );
+  const runtimeActive = isActive !== false && documentVisible;
   const canvasRef = useRef(null);
   const [phase, setPhase] = useState('idle');    // 'idle' | 'playing' | 'gameover'
   const [score, setScore] = useState(0);
@@ -471,12 +498,24 @@ const PopcornGame = ({ isActive }) => {
   const audioCtxRef = useRef(null);
   const musicRef = useRef(null);
   const phaseRef = useRef('idle');
+  const pausedAtRef = useRef(null);
 
   // Keep phaseRef in sync
   useEffect(() => {
     phaseRef.current = phase;
     G.current.phase = phase;
   }, [phase]);
+
+  useEffect(() => {
+    const handleVisibility = () => {
+      setDocumentVisible(document.visibilityState !== "hidden");
+    };
+
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, []);
 
   // ---------------------------------------------------------------------------
   // Audio context (created on first interaction)
@@ -612,11 +651,11 @@ const PopcornGame = ({ isActive }) => {
   // ---------------------------------------------------------------------------
   const startLoop = useCallback(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || rafRef.current) return;
     const ctx = canvas.getContext('2d');
 
     const loop = (now) => {
-      rafRef.current = requestAnimationFrame(loop);
+      rafRef.current = null;
       const g = G.current;
 
       // DPR-aware transform
@@ -797,6 +836,10 @@ const PopcornGame = ({ isActive }) => {
 
         return false; // 'done'
       });
+
+      if (g.running || g.particles.length > 0 || g.kernels.length > 0) {
+        rafRef.current = requestAnimationFrame(loop);
+      }
     };
 
     rafRef.current = requestAnimationFrame(loop);
@@ -808,7 +851,7 @@ const PopcornGame = ({ isActive }) => {
   // ---------------------------------------------------------------------------
   const startConfettiLoop = useCallback(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || confettiRafRef.current) return;
     const ctx = canvas.getContext('2d');
 
     const loop = (now) => {
@@ -885,6 +928,7 @@ const PopcornGame = ({ isActive }) => {
       canvas.height = rect.height * dpr;
       G.current.dpr = dpr;
       G.current.bgKernels = []; // rebuild on resize
+      if (runtimeActive) startLoop();
     };
 
     const ro = new ResizeObserver(resize);
@@ -892,36 +936,62 @@ const PopcornGame = ({ isActive }) => {
     resize();
 
     return () => ro.disconnect();
-  }, []);
+  }, [runtimeActive, startLoop]);
 
   // ---------------------------------------------------------------------------
-  // Start / stop game loop on mount
+  // Runtime ownership: pause hidden work without advancing the game clock
   // ---------------------------------------------------------------------------
   useEffect(() => {
-    startLoop();
-    return () => {
+    const now = performance.now();
+
+    if (!runtimeActive) {
+      if (pausedAtRef.current === null) pausedAtRef.current = now;
       stopLoop();
       if (confettiRafRef.current) {
         cancelAnimationFrame(confettiRafRef.current);
         confettiRafRef.current = null;
       }
-    };
-  }, [startLoop, stopLoop]);
-
-  // ---------------------------------------------------------------------------
-  // isActive effect: stop/resume music
-  // ---------------------------------------------------------------------------
-  useEffect(() => {
-    if (!isActive) {
-      if (musicRef.current && musicRef.current.running) {
-        musicRef.current.stop();
-      }
-    } else {
-      if (G.current.running && musicRef.current && !musicRef.current.running) {
-        musicRef.current.resume();
-      }
+      if (musicRef.current?.running) musicRef.current.stop();
+      return undefined;
     }
-  }, [isActive]);
+
+    if (pausedAtRef.current !== null) {
+      shiftPopcornGameTimeline(G.current, now - pausedAtRef.current);
+      pausedAtRef.current = null;
+    }
+
+    if (phaseRef.current === "gameover" && G.current.confetti.length > 0) {
+      startConfettiLoop();
+    } else {
+      startLoop();
+    }
+
+    if (G.current.running && musicRef.current && !musicRef.current.running) {
+      musicRef.current.resume();
+    }
+
+    return undefined;
+  }, [runtimeActive, startConfettiLoop, startLoop, stopLoop]);
+
+  useEffect(() => {
+    if (runtimeActive) startLoop();
+  }, [isDark, runtimeActive, startLoop]);
+
+  useEffect(
+    () => () => {
+      stopLoop();
+      if (confettiRafRef.current) {
+        cancelAnimationFrame(confettiRafRef.current);
+        confettiRafRef.current = null;
+      }
+      musicRef.current?.stop();
+      const closeResult = audioCtxRef.current?.close?.();
+      closeResult?.catch?.(() => {});
+      audioCtxRef.current = null;
+      musicRef.current = null;
+    },
+    [stopLoop],
+  );
 
   // ---------------------------------------------------------------------------
   // Actions

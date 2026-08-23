@@ -411,6 +411,10 @@ export const ParallaxBackground = ({ children }) => {
             transform: initialTransform,
             opacity: isActive ? 1 : 0,
             zIndex: isActive ? 20 : 10 + index,
+            willChange:
+              isActive || index === exitingSectionRef.current
+                ? "transform, opacity"
+                : "auto",
           }}
         >
           {isMounted &&

@@ -4,6 +4,7 @@ import React from "react";
 import { createPortal } from "react-dom";
 import { hasHardwareWebGL, isMobileTier } from "../utils/deviceTier";
 import { recordGraphicsEvent } from "../utils/graphicsPolicy";
+import { claimLiveBackgroundRenderer } from "../utils/rendererOwnership";
 import {
   BLACK_HOLE_RENDER_SCHEDULES,
   BLACK_HOLE_SCHEDULE_SESSION_KEY,
@@ -45,27 +46,48 @@ const useFixedBackgroundTarget = (enabled) => {
       return undefined;
     }
 
+    let disposed = false;
     let frame = 0;
     let observer = null;
 
+    const stopObserving = () => {
+      observer?.disconnect();
+      observer = null;
+    };
+
     const updateTarget = () => {
+      frame = 0;
+      if (disposed) return null;
+
       const nextTarget = document.querySelector(".fixed-background");
       setTarget((currentTarget) =>
         currentTarget === nextTarget ? currentTarget : nextTarget,
       );
+      if (nextTarget) stopObserving();
+      return nextTarget;
     };
 
-    updateTarget();
-    frame = window.requestAnimationFrame(updateTarget);
+    const scheduleTargetCheck = () => {
+      if (disposed || frame) return;
+      frame = window.requestAnimationFrame(updateTarget);
+    };
 
-    if (typeof MutationObserver !== "undefined") {
-      observer = new MutationObserver(updateTarget);
-      observer.observe(document.body, { childList: true, subtree: true });
+    const initialTarget = updateTarget();
+    if (!initialTarget) {
+      if (typeof MutationObserver !== "undefined") {
+        observer = new MutationObserver(scheduleTargetCheck);
+        observer.observe(document.body, {
+          childList: true,
+          subtree: true,
+        });
+      }
+      scheduleTargetCheck();
     }
 
     return () => {
+      disposed = true;
       window.cancelAnimationFrame(frame);
-      observer?.disconnect();
+      stopObserving();
     };
   }, [enabled]);
 
@@ -121,6 +143,7 @@ const BlackHoleBackgroundCanvas = () => {
     let animationFrame = 0;
     let resizeObserver = null;
     let pipeline = null;
+    let releaseBackgroundOwnership = null;
     const reducedMotion = window.matchMedia?.(
       "(prefers-reduced-motion: reduce)",
     );
@@ -133,6 +156,8 @@ const BlackHoleBackgroundCanvas = () => {
     const failRenderer = (reason, retryLocally = false) => {
       if (disposed) return;
       stopAnimation();
+      releaseBackgroundOwnership?.();
+      releaseBackgroundOwnership = null;
       const schedule = pipeline?.schedule?.id || "uninitialized";
       recordGraphicsEvent("black-hole-background-failed", {
         reason,
@@ -198,6 +223,9 @@ const BlackHoleBackgroundCanvas = () => {
       failRenderer(pipeline.lastError || "initialization-failed");
       return undefined;
     }
+    releaseBackgroundOwnership = claimLiveBackgroundRenderer(
+      "black-hole-background",
+    );
 
     const render = (timestamp) => {
       animationFrame = 0;
@@ -305,6 +333,8 @@ const BlackHoleBackgroundCanvas = () => {
         reducedMotion?.removeListener?.(handleMotionChange);
       }
       resizeObserver?.disconnect();
+      releaseBackgroundOwnership?.();
+      releaseBackgroundOwnership = null;
       const schedule = pipeline?.schedule?.id || "uninitialized";
       pipeline?.destroy();
       pipeline = null;

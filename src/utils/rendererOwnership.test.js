@@ -1,6 +1,11 @@
 import {
+  claimLiveBackgroundRenderer,
+  getLiveBackgroundRenderers,
   isOrbBlackHoleModeActive,
+  LIVE_BACKGROUND_RENDERER_ATTRIBUTE,
+  LIVE_BACKGROUND_RENDERER_EVENT,
   ORB_BLACK_HOLE_MODE_EVENT,
+  resetLiveBackgroundRenderers,
   resolveOrbBlackHoleOwnership,
   setOrbBlackHoleModeActive,
 } from "./rendererOwnership";
@@ -13,10 +18,12 @@ jest.mock("./deviceTier", () => ({
 describe("Orb renderer ownership", () => {
   beforeEach(() => {
     setOrbBlackHoleModeActive(false);
+    resetLiveBackgroundRenderers();
   });
 
   afterEach(() => {
     setOrbBlackHoleModeActive(false);
+    resetLiveBackgroundRenderers();
   });
 
   test("rejects ownership when the renderer cannot actually mount", () => {
@@ -79,5 +86,34 @@ describe("Orb renderer ownership", () => {
     expect(listener).toHaveBeenCalledTimes(1);
 
     window.removeEventListener(ORB_BLACK_HOLE_MODE_EVENT, listener);
+  });
+
+  test("reference-counts live background ownership and releases idempotently", () => {
+    const listener = jest.fn();
+    window.addEventListener(LIVE_BACKGROUND_RENDERER_EVENT, listener);
+
+    const releaseFirst = claimLiveBackgroundRenderer("main-dither");
+    const releaseSecond = claimLiveBackgroundRenderer("main-dither");
+
+    expect(getLiveBackgroundRenderers()).toEqual(["main-dither"]);
+    expect(document.documentElement).toHaveAttribute(
+      LIVE_BACKGROUND_RENDERER_ATTRIBUTE,
+      "main-dither",
+    );
+    expect(listener).toHaveBeenCalledTimes(1);
+
+    releaseFirst();
+    releaseFirst();
+    expect(getLiveBackgroundRenderers()).toEqual(["main-dither"]);
+    expect(listener).toHaveBeenCalledTimes(1);
+
+    releaseSecond();
+    expect(getLiveBackgroundRenderers()).toEqual([]);
+    expect(document.documentElement).not.toHaveAttribute(
+      LIVE_BACKGROUND_RENDERER_ATTRIBUTE,
+    );
+    expect(listener).toHaveBeenCalledTimes(2);
+
+    window.removeEventListener(LIVE_BACKGROUND_RENDERER_EVENT, listener);
   });
 });
