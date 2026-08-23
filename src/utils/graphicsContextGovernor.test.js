@@ -65,6 +65,40 @@ describe("graphics context governor", () => {
     expect(root.dataset.renderHeight).toBe(String(canvas.height));
   });
 
+  test("keeps the viewport synchronized when managed sizing changes the backing store", () => {
+    const viewport = jest.fn();
+    const context = {
+      viewport,
+      drawArrays: jest.fn(),
+    };
+
+    getContextSpy = jest
+      .spyOn(HTMLCanvasElement.prototype, "getContext")
+      .mockReturnValue(context);
+    cleanupGovernor = initGraphicsContextGovernor();
+
+    const root = document.createElement("div");
+    root.dataset.graphicsGovernor = "true";
+    root.dataset.maxShaderPixels = "1000000";
+    const canvas = document.createElement("canvas");
+    root.appendChild(canvas);
+    document.body.appendChild(root);
+
+    canvas.getContext("webgl2");
+    viewport.mockClear();
+
+    canvas.width = 1200;
+    canvas.height = 675;
+
+    expect(viewport).toHaveBeenCalled();
+    expect(viewport).toHaveBeenLastCalledWith(
+      0,
+      0,
+      canvas.width,
+      canvas.height,
+    );
+  });
+
   test("bounds governed backing stores before context creation", () => {
     cleanupGovernor = initGraphicsContextGovernor();
 
