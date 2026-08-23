@@ -8,6 +8,7 @@ const WEBGL_CONTEXT_NAMES = new Set([
 ]);
 
 let cleanupContextGovernor = null;
+const governedViewportSync = new WeakMap();
 
 const readPositiveNumber = (value, fallback) => {
   const parsed = Number(value);
@@ -32,6 +33,19 @@ const boundedViewportSize = (width, height, maxPixels) => {
     width: Math.max(1, Math.floor(safeWidth * scale)),
     height: Math.max(1, Math.floor(safeHeight * scale)),
   };
+};
+
+const syncCanvasViewport = (canvas) => {
+  const syncViewport = governedViewportSync.get(canvas);
+  if (!syncViewport) return;
+
+  try {
+    syncViewport();
+  } catch (_) {
+    recordGraphicsEvent("context-governor-viewport-sync-failed", {
+      reason: "native-viewport-unavailable",
+    });
+  }
 };
 
 const governContext = (
@@ -64,6 +78,10 @@ const governContext = (
 
   const originalViewport = context.viewport?.bind(context);
   if (originalViewport) {
+    governedViewportSync.set(canvas, () => {
+      originalViewport(0, 0, canvas.width, canvas.height);
+    });
+
     try {
       context.viewport = (x, y, width, height) => {
         const isFullCanvasViewport =
@@ -224,6 +242,7 @@ export const initGraphicsContextGovernor = () => {
       heightDescriptor.get.call(canvas) !== bounded.height
     ) {
       setNativeCanvasSize(canvas, bounded.width, bounded.height);
+      syncCanvasViewport(canvas);
     }
 
     root.dataset.renderWidth = String(bounded.width);
