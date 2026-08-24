@@ -42,11 +42,14 @@ describe("CreatorOSFieldCanvas", () => {
 
     expect(source).toContain("const MODE_COUNT = 8");
     expect(source).toContain("const RENDER_SCALE = 0.5");
-    expect(source).toContain("const FRAME_INTERVAL_MS = 1000 / 30");
+    expect(source).toContain("const PREFERRED_FRAME_INTERVAL_MS = 1000 / 30");
+    expect(source).toContain("getDitherCanvasFrameInterval(");
     expect(source).toContain("const INTRO_DURATION_SECONDS = 3.2");
-    expect(source.match(/getContext\("webgl2"/g)).toHaveLength(1);
+    expect(source).toContain("createDitherCanvasContext({");
+    expect(source).toContain('contextType: "webgl2"');
+    expect(source).toContain("getDitherCanvasSize(");
     expect(source).toContain("premultipliedAlpha: true");
-    expect(source).toContain('powerPreference: "low-power"');
+    expect(source).toContain('data-context-recovery="local"');
     expect(css).toContain("image-rendering: pixelated");
     expect(css).toContain(".dither-renderer-creatoros-field .rupture-glass");
     expect(css).toContain("backdrop-filter: none");

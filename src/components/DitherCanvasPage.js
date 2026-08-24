@@ -636,6 +636,8 @@ const DitherFieldLab = () => {
     <main
       ref={pageRef}
       className={`dither-canvas-page dither-study-${activeStudy.id} dither-renderer-${activeStudy.type} rupture-${fieldState} dither-transition-${transitionPhase}${isMorphogenPaintMode ? " dither-morphogen-paint" : ""}`}
+      data-active-study={activeStudy.id}
+      data-theme-mode={isDark ? "dark" : "light"}
       aria-label="Spectral Display dither field lab"
     >
       <div className="dither-fixed-stage">

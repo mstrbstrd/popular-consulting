@@ -28,7 +28,10 @@ const routeChecks = [
   },
   {
     route: "/dither-canvas?graphics=webgl",
-    markers: ["graphics-fallback-page", "dither-canvas-page"],
+    markers: [
+      "graphics-fallback-page",
+      'aria-label="Dither field controls"',
+    ],
   },
 ];
 

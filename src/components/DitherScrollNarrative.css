@@ -19,7 +19,7 @@
   z-index: 0;
   overflow: hidden;
   transform-origin: center;
-  will-change: opacity, transform, filter, clip-path;
+  will-change: auto;
 }
 
 .dither-scroll-sequence {
@@ -53,6 +53,11 @@
 .dither-study-scene[data-direction="backward"],
 .dither-copy[data-direction="backward"] {
   --dither-direction: -1;
+}
+
+.dither-study-scene.is-exiting,
+.dither-study-scene.is-entering {
+  will-change: opacity, transform, filter, clip-path;
 }
 
 .dither-study-scene.is-exiting {

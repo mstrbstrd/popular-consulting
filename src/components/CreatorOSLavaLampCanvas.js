@@ -1,7 +1,16 @@
 import React, { useEffect, useRef, useState } from "react";
+import {
+  createDitherCanvasContext,
+  ditherCanvasRuntimeProfile,
+  getDitherCanvasFrameInterval,
+  getDitherCanvasSize,
+} from "../utils/ditherCanvasRuntime";
 
 const RENDER_SCALE = 0.5;
-const FRAME_INTERVAL_MS = 1000 / 30;
+const PREFERRED_FRAME_INTERVAL_MS = 1000 / 30;
+const FRAME_INTERVAL_MS = getDitherCanvasFrameInterval(
+  PREFERRED_FRAME_INTERVAL_MS,
+);
 const STATIC_TIME_SECONDS = 40;
 const INTRO_DURATION_SECONDS = 3.2;
 
@@ -223,6 +232,8 @@ const CreatorOSLavaLampCanvas = ({
 
     const handleContextLost = (event) => {
       event.preventDefault();
+      window.cancelAnimationFrame(rafId);
+      rafId = 0;
       setFallback(true);
       onFieldStateChangeRef.current?.("fallback");
     };
@@ -234,14 +245,17 @@ const CreatorOSLavaLampCanvas = ({
     canvas.addEventListener("webglcontextrestored", handleContextRestored);
 
     try {
-      gl = canvas.getContext("webgl", {
-        alpha: true,
-        premultipliedAlpha: true,
-        antialias: false,
-        depth: false,
-        stencil: false,
-        failIfMajorPerformanceCaveat: true,
-        powerPreference: "low-power",
+      gl = createDitherCanvasContext({
+        canvas,
+        contextType: "webgl",
+        rendererId: "dither-canvas-lava",
+        options: {
+          alpha: true,
+          premultipliedAlpha: true,
+          antialias: false,
+          depth: false,
+          stencil: false,
+        },
       });
       if (!gl) throw new Error("WebGL is unavailable.");
 
@@ -304,12 +318,17 @@ const CreatorOSLavaLampCanvas = ({
 
     const updateSize = () => {
       const bounds = root.getBoundingClientRect();
-      const width = Math.max(1, Math.floor(bounds.width * RENDER_SCALE));
-      const height = Math.max(1, Math.floor(bounds.height * RENDER_SCALE));
-      if (canvas.width !== width || canvas.height !== height) {
-        canvas.width = width;
-        canvas.height = height;
-        gl.viewport(0, 0, width, height);
+      const target = getDitherCanvasSize(
+        bounds.width,
+        bounds.height,
+        RENDER_SCALE,
+      );
+      if (canvas.width !== target.width || canvas.height !== target.height) {
+        canvas.width = target.width;
+        canvas.height = target.height;
+        gl.viewport(0, 0, target.width, target.height);
+        root.dataset.renderWidth = String(target.width);
+        root.dataset.renderHeight = String(target.height);
         forceRender = true;
       }
     };
@@ -331,10 +350,28 @@ const CreatorOSLavaLampCanvas = ({
       onFieldStateChangeRef.current?.("warming");
     };
 
-    const tick = (now) => {
+    function scheduleFrame() {
+      if (
+        rafId
+        || !documentVisible
+        || reducedMotion
+      ) {
+        return;
+      }
       rafId = window.requestAnimationFrame(tick);
-      if (!documentVisible || reducedMotion) return;
-      if (now - lastFrameAt < FRAME_INTERVAL_MS) return;
+    }
+
+    function tick(now) {
+      rafId = 0;
+      if (!documentVisible) return;
+      if (reducedMotion) {
+        drawStatic();
+        return;
+      }
+      if (now - lastFrameAt < FRAME_INTERVAL_MS) {
+        scheduleFrame();
+        return;
+      }
 
       const delta = lastFrameAt
         ? Math.min((now - lastFrameAt) / 1000, 0.1)
@@ -353,23 +390,26 @@ const CreatorOSLavaLampCanvas = ({
       draw(localTime, intro);
       reportState(intro < 1 ? "warming" : "flowing");
       forceRender = false;
-    };
+      if (!pausedRef.current) scheduleFrame();
+    }
 
     const start = () => {
       window.cancelAnimationFrame(rafId);
+      rafId = 0;
       applyRestart();
       if (reducedMotion) {
         drawStatic();
         return;
       }
       forceRender = true;
-      rafId = window.requestAnimationFrame(tick);
+      scheduleFrame();
     };
 
     const handleVisibility = () => {
       documentVisible = document.visibilityState !== "hidden";
       if (!documentVisible) {
         window.cancelAnimationFrame(rafId);
+        rafId = 0;
       } else {
         start();
       }
@@ -383,17 +423,20 @@ const CreatorOSLavaLampCanvas = ({
     redrawRef.current = () => {
       forceRender = true;
       if (reducedMotion) drawStatic();
+      else scheduleFrame();
+    };
+
+    const handleResize = () => {
+      updateSize();
+      redrawRef.current();
     };
 
     updateSize();
     if (typeof ResizeObserver !== "undefined") {
-      resizeObserver = new ResizeObserver(() => {
-        updateSize();
-        if (reducedMotion) drawStatic();
-      });
+      resizeObserver = new ResizeObserver(handleResize);
       resizeObserver.observe(root);
     }
-    window.addEventListener("resize", updateSize);
+    window.addEventListener("resize", handleResize);
     document.addEventListener("visibilitychange", handleVisibility);
     if (motionQuery?.addEventListener) {
       motionQuery.addEventListener("change", handleMotionChange);
@@ -406,7 +449,7 @@ const CreatorOSLavaLampCanvas = ({
     return () => {
       window.cancelAnimationFrame(rafId);
       redrawRef.current = () => {};
-      window.removeEventListener("resize", updateSize);
+      window.removeEventListener("resize", handleResize);
       document.removeEventListener("visibilitychange", handleVisibility);
       if (motionQuery?.removeEventListener) {
         motionQuery.removeEventListener("change", handleMotionChange);
@@ -427,9 +470,18 @@ const CreatorOSLavaLampCanvas = ({
     <div
       ref={rootRef}
       className={`creatoros-lava-shell${fallback ? " is-fallback" : ""}`}
+      data-context-recovery="local"
+      data-renderer-id="dither-canvas-lava"
+      data-runtime-profile={ditherCanvasRuntimeProfile.id}
       aria-hidden="true"
     >
-      <canvas ref={canvasRef} className="creatoros-lava-canvas" />
+      <canvas
+        ref={canvasRef}
+        className="creatoros-lava-canvas"
+        data-renderer-id="dither-canvas-lava"
+        aria-hidden="true"
+        tabIndex={-1}
+      />
       {fallback && <div className="creatoros-lava-fallback" />}
     </div>
   );

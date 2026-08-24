@@ -1406,23 +1406,47 @@ const DitherBackground = ({ activeSection = 0, isDark = false }) => {
       return -1.0;
     };
 
-    // Click on canvas while on orb section → pop if sphere hit, else ripple
-    const handleCanvasClick = (e) => {
-      if (targetIdxRef.current !== 4) return;
+    // Keep the visual click response without allowing a full-screen WebGL
+    // surface to own hit testing above foreground navigation.
+    const isInteractiveClickTarget = (target) =>
+      target instanceof Element
+      && Boolean(
+        target.closest(
+          "a, button, input, select, textarea, label, [role='button'], [role='link']",
+        ),
+      );
+    const handleCanvasClick = (event) => {
+      if (
+        targetIdxRef.current !== 4
+        || event.button > 0
+        || isInteractiveClickTarget(event.target)
+      ) {
+        return;
+      }
+
       const rect = canvas.getBoundingClientRect();
-      const uvx = (e.clientX - rect.left) / rect.width;
-      const uvy = (e.clientY - rect.top) / rect.height;
-      const aspect = rect.width / rect.height;
+      if (
+        event.clientX < rect.left
+        || event.clientX > rect.right
+        || event.clientY < rect.top
+        || event.clientY > rect.bottom
+      ) {
+        return;
+      }
+
+      const uvx = (event.clientX - rect.left) / Math.max(rect.width, 1);
+      const uvy = (event.clientY - rect.top) / Math.max(rect.height, 1);
+      const aspect = rect.width / Math.max(rect.height, 1);
       const dx = (uvx - 0.5) * aspect;
       const dy = uvy - 0.5;
       if (
-        Math.sqrt(dx * dx + dy * dy) < 0.31 &&
-        popStateRef.current === "idle"
+        Math.sqrt(dx * dx + dy * dy) < 0.31
+        && popStateRef.current === "idle"
       ) {
         window.__orbPop?.();
       }
     };
-    canvas.addEventListener("click", handleCanvasClick);
+    window.addEventListener("click", handleCanvasClick, { passive: true });
 
     // ── Pop particle system ────────────────────────────────────────────────────
     const popCvs = popCanvasRef.current;
@@ -1830,7 +1854,7 @@ const DitherBackground = ({ activeSection = 0, isDark = false }) => {
     animFrameRef.current = requestAnimationFrame(render);
     return () => {
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
-      canvas.removeEventListener("click", handleCanvasClick);
+      window.removeEventListener("click", handleCanvasClick);
       window.removeEventListener("resize", resize);
       gl.deleteTexture(atlasTex);
       gl.deleteBuffer(vb);
@@ -1842,17 +1866,9 @@ const DitherBackground = ({ activeSection = 0, isDark = false }) => {
     <>
       <canvas
         ref={canvasRef}
-        style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          width: "100%",
-          height: "100%",
-          display: "block",
-        }}
-      />
-      <canvas
-        ref={popCanvasRef}
+        aria-hidden="true"
+        data-graphics-layer="decorative"
+        tabIndex={-1}
         style={{
           position: "absolute",
           top: 0,
@@ -1861,6 +1877,23 @@ const DitherBackground = ({ activeSection = 0, isDark = false }) => {
           height: "100%",
           display: "block",
           pointerEvents: "none",
+          zIndex: -1,
+        }}
+      />
+      <canvas
+        ref={popCanvasRef}
+        aria-hidden="true"
+        data-graphics-layer="decorative"
+        tabIndex={-1}
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          width: "100%",
+          height: "100%",
+          display: "block",
+          pointerEvents: "none",
+          zIndex: -1,
         }}
       />
     </>
