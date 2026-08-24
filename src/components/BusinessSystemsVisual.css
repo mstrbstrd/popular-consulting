@@ -1,0 +1,312 @@
+.business-systems-visual {
+  --business-visual-ink: rgba(10, 10, 20, 0.88);
+  --business-visual-muted: rgba(10, 10, 20, 0.50);
+  --business-visual-faint: rgba(10, 10, 20, 0.16);
+  --business-visual-surface: rgba(255, 255, 255, 0.72);
+  --business-visual-stage: rgba(255, 255, 255, 0.52);
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+  isolation: isolate;
+  color: var(--business-visual-ink);
+  background:
+    radial-gradient(circle at 50% 38%, rgba(255, 255, 255, 0.82), transparent 38%),
+    radial-gradient(circle at 18% 12%, rgba(36, 204, 255, 0.24), transparent 34%),
+    radial-gradient(circle at 88% 82%, rgba(82, 229, 160, 0.18), transparent 42%),
+    linear-gradient(150deg, rgba(255, 255, 255, 0.90), rgba(242, 239, 255, 0.72));
+}
+
+[data-theme="dark"] .business-systems-visual {
+  --business-visual-ink: rgba(238, 241, 255, 0.92);
+  --business-visual-muted: rgba(225, 229, 255, 0.58);
+  --business-visual-faint: rgba(225, 229, 255, 0.18);
+  --business-visual-surface: rgba(10, 12, 24, 0.78);
+  --business-visual-stage: rgba(10, 12, 24, 0.62);
+  background:
+    radial-gradient(circle at 50% 38%, rgba(99, 68, 245, 0.24), transparent 40%),
+    radial-gradient(circle at 16% 12%, rgba(36, 204, 255, 0.17), transparent 34%),
+    radial-gradient(circle at 88% 82%, rgba(82, 229, 160, 0.13), transparent 42%),
+    linear-gradient(150deg, rgba(7, 8, 18, 0.98), rgba(15, 11, 30, 0.94));
+}
+
+.business-systems-visual::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  opacity: 0.42;
+  background-image:
+    linear-gradient(rgba(99, 68, 245, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(99, 68, 245, 0.08) 1px, transparent 1px);
+  background-size: 32px 32px;
+  -webkit-mask-image: linear-gradient(to bottom, black, transparent 88%);
+  mask-image: linear-gradient(to bottom, black, transparent 88%);
+}
+
+.business-systems-visual__ambient {
+  position: absolute;
+  width: 180px;
+  height: 180px;
+  left: 50%;
+  top: 45%;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: conic-gradient(
+    from 90deg,
+    rgba(99, 68, 245, 0.16),
+    rgba(36, 204, 255, 0.12),
+    rgba(82, 229, 160, 0.14),
+    rgba(99, 68, 245, 0.16)
+  );
+  opacity: 0.8;
+}
+
+.business-systems-visual__map {
+  position: relative;
+  width: 100%;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: visible;
+}
+
+.business-systems-visual__orbit {
+  fill: none;
+  stroke: var(--business-visual-faint);
+  stroke-width: 1;
+  stroke-dasharray: 3 8;
+  transform-box: view-box;
+  transform-origin: 180px 204px;
+  animation: businessSystemsOrbit 24s linear infinite;
+}
+
+.business-systems-visual__orbit--inner {
+  opacity: 0.5;
+  stroke-dasharray: 1 10;
+  animation-direction: reverse;
+  animation-duration: 17s;
+}
+
+.business-systems-visual__connection,
+.business-systems-visual__connection-flow {
+  fill: none;
+  stroke-linecap: round;
+}
+
+.business-systems-visual__connection {
+  stroke: var(--business-visual-faint);
+  stroke-width: 1.5;
+}
+
+.business-systems-visual__connection-flow {
+  stroke: url(#business-system-spectrum);
+  stroke-width: 2.6;
+  stroke-dasharray: 8 34;
+  animation: businessSystemsFlow 3.6s linear infinite;
+  animation-delay: var(--flow-delay);
+}
+
+.business-systems-visual__satellites {
+  fill: #24CCFF;
+  transform-box: view-box;
+  transform-origin: 180px 204px;
+  animation: businessSystemsOrbit 16s linear infinite reverse;
+  opacity: 0.78;
+}
+
+.business-systems-visual__node {
+  animation: businessSystemsNode 5.2s ease-in-out infinite;
+  animation-delay: var(--node-delay);
+}
+
+.business-systems-visual__node-ring {
+  fill: none;
+  stroke: url(#business-system-spectrum);
+  stroke-width: 1.6;
+  opacity: 0.68;
+}
+
+.business-systems-visual__node-surface {
+  fill: var(--business-visual-surface);
+  stroke: rgba(255, 255, 255, 0.72);
+  stroke-width: 1;
+}
+
+[data-theme="dark"] .business-systems-visual__node-surface {
+  stroke: rgba(225, 229, 255, 0.18);
+}
+
+.business-systems-visual__node-signal {
+  fill: #24CCFF;
+}
+
+.business-systems-visual__node text {
+  fill: var(--business-visual-muted);
+  font-family: "Poppins", sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.business-systems-visual__core-halo {
+  fill: rgba(99, 68, 245, 0.10);
+  stroke: url(#business-system-spectrum);
+  stroke-width: 1.2;
+  transform-box: view-box;
+  transform-origin: 180px 204px;
+  animation: businessSystemsCore 4.8s ease-in-out infinite;
+}
+
+.business-systems-visual__core-surface {
+  fill: url(#business-system-core);
+  stroke: rgba(255, 255, 255, 0.86);
+  stroke-width: 1.2;
+}
+
+[data-theme="dark"] .business-systems-visual__core-surface {
+  fill: rgba(12, 14, 28, 0.96);
+  stroke: rgba(225, 229, 255, 0.24);
+}
+
+.business-systems-visual__core-kicker {
+  fill: var(--business-visual-muted);
+  font-family: "Poppins", sans-serif;
+  font-size: 6.5px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+}
+
+.business-systems-visual__core-title {
+  fill: var(--business-visual-ink);
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.business-systems-visual__core-rule {
+  fill: none;
+  stroke: url(#business-system-spectrum);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.business-systems-visual__delivery {
+  flex: 0 0 auto;
+  padding: 0 18px 18px;
+}
+
+.business-systems-visual__delivery-label {
+  display: block;
+  margin-bottom: 9px;
+  color: var(--business-visual-muted);
+  font-family: "Poppins", sans-serif;
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.business-systems-visual__delivery-track {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 8px 7px;
+  border: 1px solid var(--business-visual-faint);
+  border-radius: 999px;
+  background: var(--business-visual-stage);
+}
+
+.business-systems-visual__stage {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  color: var(--business-visual-muted);
+  font-family: "Poppins", sans-serif;
+  font-size: 7px;
+  font-weight: 600;
+  letter-spacing: 0.035em;
+  white-space: nowrap;
+  animation: businessSystemsStage 8s ease-in-out infinite;
+  animation-delay: var(--stage-delay);
+}
+
+.business-systems-visual__stage-dot {
+  width: 4px;
+  height: 4px;
+  flex: 0 0 4px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #6344F5, #24CCFF);
+}
+
+.business-systems-visual__stage-line {
+  height: 1px;
+  min-width: 2px;
+  flex: 1 1 8px;
+  margin: 0 1px;
+  background: linear-gradient(90deg, rgba(99, 68, 245, 0.20), rgba(36, 204, 255, 0.28));
+}
+
+.business-systems-visual__motion {
+  animation-play-state: paused;
+}
+
+.business-systems-visual--active .business-systems-visual__motion {
+  animation-play-state: running;
+}
+
+.business-systems-visual--reduced .business-systems-visual__motion {
+  animation: none !important;
+}
+
+@keyframes businessSystemsOrbit {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes businessSystemsFlow {
+  from { stroke-dashoffset: 0; }
+  to { stroke-dashoffset: -42; }
+}
+
+@keyframes businessSystemsNode {
+  0%, 100% { opacity: 0.72; }
+  50% { opacity: 1; }
+}
+
+@keyframes businessSystemsCore {
+  0%, 100% { transform: scale(0.96); opacity: 0.64; }
+  50% { transform: scale(1.05); opacity: 1; }
+}
+
+@keyframes businessSystemsStage {
+  0%, 18% { color: var(--business-visual-ink); opacity: 1; }
+  28%, 100% { color: var(--business-visual-muted); opacity: 0.56; }
+}
+
+@media (max-width: 899px) {
+  .business-systems-visual__delivery {
+    padding: 0 14px 14px;
+  }
+
+  .business-systems-visual__delivery-label {
+    font-size: 8px;
+  }
+
+  .business-systems-visual__stage {
+    font-size: 6.5px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .business-systems-visual__motion {
+    animation: none !important;
+  }
+}
