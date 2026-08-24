@@ -6,6 +6,7 @@ on:
       - fix/dither-canvas-windows-hardening
     paths:
       - scripts/apply_dither_canvas_windows_hardening.py
+      - .github/workflows/apply-dither-canvas-windows-hardening.yml
 
 permissions:
   contents: write
@@ -29,6 +30,34 @@ jobs:
 
       - name: Apply deterministic hardening patch
         run: python scripts/apply_dither_canvas_windows_hardening.py
+
+      - name: Normalize generated contract test
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/components/DitherCanvasRuntimeContract.test.js")
+          text = path.read_text(encoding="utf-8")
+          invalid = '''    expect(narrative).toContain(
+                ".dither-study-scene.is-exiting,
+          .dither-study-scene.is-entering",
+              );'''
+          if invalid not in text:
+              invalid = '''    expect(narrative).toContain(
+                ".dither-study-scene.is-exiting,
+          .dither-study-scene.is-entering",
+              );'''.replace("                ", "      ").replace("          ", "")
+          replacement = '''    expect(narrative).toContain(
+                ".dither-study-scene.is-exiting,",
+              );
+              expect(narrative).toContain(
+                ".dither-study-scene.is-entering",
+              );'''
+          if invalid not in text:
+              raise SystemExit("Generated multiline contract assertion was not found")
+          path.write_text(text.replace(invalid, replacement, 1), encoding="utf-8")
+          PY
 
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
