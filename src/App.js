@@ -3,6 +3,7 @@ import React, { useState, lazy, Suspense } from "react";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import NavMenu from "./components/NavMenu";
 import BioSection from "./components/BioSection";
+import BusinessSystemsVisual from "./components/BusinessSystemsVisual";
 import ContactSection from "./components/ContactSection";
 import ServicesSection from "./components/ServicesSection";
 import DitherHero from "./components/DitherHero";
@@ -151,7 +152,10 @@ const App = ({ immersiveMode = IMMERSIVE_MODES.ORIGINAL }) => {
 
   return (
     <ThemeProvider>
-      <div style={{ position: "relative" }}>
+      <div
+        data-site-audience={audience}
+        style={{ position: "relative" }}
+      >
         <a href="#main-content" className="skip-to-content">
           Skip to main content
         </a>
@@ -164,6 +168,9 @@ const App = ({ immersiveMode = IMMERSIVE_MODES.ORIGINAL }) => {
           <main id="main-content" aria-label={mainLabel}>
             {presentation.showProfessionalHero && <ProfessionalHero />}
             <ParallaxBackground>{mainAppSections}</ParallaxBackground>
+            {audience === SITE_AUDIENCES.BUSINESS && (
+              <BusinessSystemsVisual />
+            )}
           </main>
         </div>
 
