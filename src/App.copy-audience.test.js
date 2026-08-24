@@ -19,6 +19,9 @@ jest.mock("./components/NavMenu", () => ({ audience }) => (
 jest.mock("./components/BioSection", () => ({ audience }) => (
   <div data-testid="bio-audience">{audience}</div>
 ));
+jest.mock("./components/BusinessSystemsVisual", () => () => (
+  <div data-testid="business-systems-visual" />
+));
 jest.mock("./components/ServicesSection", () => ({ audience }) => (
   <div data-testid="services-audience">{audience}</div>
 ));
@@ -71,5 +74,25 @@ describe("App audience wiring", () => {
         audience,
       );
     });
+
+    expect(
+      document.querySelector("[data-site-audience]")?.getAttribute(
+        "data-site-audience",
+      ),
+    ).toBe(audience);
+  });
+
+  test("renders the business systems visual only for business mode", () => {
+    const { rerender } = render(
+      <App immersiveMode={IMMERSIVE_MODES.ORIGINAL} />,
+    );
+
+    expect(screen.getByTestId("business-systems-visual")).toBeInTheDocument();
+
+    rerender(<App immersiveMode={IMMERSIVE_MODES.ENGINEERING} />);
+
+    expect(
+      screen.queryByTestId("business-systems-visual"),
+    ).not.toBeInTheDocument();
   });
 });
