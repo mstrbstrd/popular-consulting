@@ -15,11 +15,11 @@ The query parameter `visual-runtime` defines the comparison boundary:
 - Missing or invalid values resolve through `auto`.
 - Before the optimized renderer exists, every mode fails closed to `reference`.
 
-`window.__visualRuntimeReport()` returns the resolved policy, route, theme, live background ownership, and drawing-buffer information for every mounted canvas.
+`window.__visualRuntimeReport()` returns the resolved policy, route, theme, live background ownership, drawing-buffer information, and any active optimized-shell probe.
 
 ## Stage 0: reference oracle and policy
 
-Status: implemented in PR 77.
+Status: merged into `main` through PR 77.
 
 Invariants:
 
@@ -37,7 +37,7 @@ Acceptance:
 
 ## Stage 1: deterministic baseline harness
 
-Status: implemented on the stage-one branch.
+Status: merged into `main` through PR 78.
 
 Reference capture is activated only by an explicit query:
 
@@ -105,9 +105,55 @@ Acceptance:
 
 ## Stage 2: one persistent runtime shell
 
-Introduce one canvas, one graphics context, one resize authority, one scheduler, one render-target pool, and one context-loss boundary. Keep the reference renderer selectable and unchanged.
+Status: implemented on the Stage 2 branch.
 
-The shell must idle when hidden or settled under reduced motion.
+The shell remains non-presenting and opt-in until real optimized passes exist. Activate the developer probe on `/` or `/engineering` with:
+
+```text
+?visual-runtime=optimized&visual-runtime-shell=probe&graphics=webgl
+```
+
+The probe suppresses the live reference WebGL renderer before React mounts, leaves the existing CSS fallback visible, and creates exactly one shell-owned WebGL context. `visual-runtime=optimized` still resolves to the reference policy because the shell alone is not a visually complete optimized renderer.
+
+The probe establishes:
+
+- One shell-owned canvas.
+- One shell-owned WebGL2 context, requested exactly once.
+- One background-renderer ownership claim.
+- One invalidation scheduler.
+- One drawing-buffer resize authority.
+- One reusable render-target pool.
+- One local context-loss and restoration boundary.
+- An ordered pass registry with per-pass failure quarantine.
+
+Normal routes do not create the shell, its canvas, or an additional graphics context. Reference captures and the shell probe are mutually exclusive.
+
+The scheduler owns no permanent callback after its passes settle. Hidden documents own no scheduled frame. Reduced-motion mode may draw an explicitly invalidated static frame but cannot enter a continuous loop.
+
+Diagnostics are exposed through:
+
+```text
+window.__visualRuntimeShellReport()
+window.__visualRuntimeShellController.report()
+window.__visualRuntimeShellController.invalidate('reason')
+```
+
+Failure invariants:
+
+1. An empty shell cannot become the production optimized renderer.
+2. Canvas creation and context creation each have one authority.
+3. Resize observation never starts an independent animation loop.
+4. Context loss does not disable WebGL for unrelated renderers or reload the page.
+5. One failed pass is quarantined without disabling healthy passes.
+6. Context restoration reuses the same canvas and context boundary.
+7. Every texture and framebuffer allocation is owned by the render-target pool.
+8. The probe cannot coexist with a live reference-capture renderer.
+
+Acceptance:
+
+- The reference renderer fingerprints remain unchanged.
+- Unit tests prove one canvas, one context, one ownership claim, settled-idle behaviour, hidden and reduced-motion suspension, bounded resizing, render-target reuse, local context recovery, and pass quarantine.
+- Full lint, Jest, production build, and Windows Edge route smoke pass.
 
 ## Stage 3: light field and glyph composite split
 

@@ -3,8 +3,10 @@ import {
   GRAPHICS_MODE_SESSION_KEY,
   WEBGL_DISABLED_SESSION_KEY,
   disableWebGLForSession,
+  isVisualRuntimeShellProbeRequest,
   normalizeGraphicsMode,
   resolveGraphicsPolicy,
+  resolveReferenceWebGLAttempt,
 } from "./graphicsPolicy";
 
 describe("graphics runtime policy", () => {
@@ -82,6 +84,57 @@ describe("graphics runtime policy", () => {
       source: "query-auto",
       isWindows: true,
     });
+  });
+
+  test("recognizes only the explicit optimized shell probe", () => {
+    expect(
+      isVisualRuntimeShellProbeRequest(
+        "?visual-runtime=optimized&visual-runtime-shell=probe",
+        "/",
+      ),
+    ).toBe(true);
+    expect(
+      isVisualRuntimeShellProbeRequest(
+        "?visual-runtime=reference&visual-runtime-shell=probe",
+        "/engineering",
+      ),
+    ).toBe(false);
+    expect(
+      isVisualRuntimeShellProbeRequest(
+        "?visual-runtime=optimized",
+        "/",
+      ),
+    ).toBe(false);
+    expect(
+      isVisualRuntimeShellProbeRequest(
+        "?visual-runtime=optimized&visual-runtime-shell=probe",
+        "/work",
+      ),
+    ).toBe(false);
+  });
+
+  test("suppresses reference WebGL only when the shell actually wins", () => {
+    expect(
+      resolveReferenceWebGLAttempt({
+        webglAllowed: true,
+        shellProbeRequested: true,
+        captureActive: false,
+      }),
+    ).toBe(false);
+    expect(
+      resolveReferenceWebGLAttempt({
+        webglAllowed: true,
+        shellProbeRequested: true,
+        captureActive: true,
+      }),
+    ).toBe(true);
+    expect(
+      resolveReferenceWebGLAttempt({
+        webglAllowed: false,
+        shellProbeRequested: true,
+        captureActive: true,
+      }),
+    ).toBe(false);
   });
 
   test("explicit runtime containment can still persist a CSS-only session", () => {

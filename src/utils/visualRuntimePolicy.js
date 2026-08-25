@@ -6,8 +6,9 @@ export const VISUAL_RUNTIME_MODES = Object.freeze({
   OPTIMIZED: 'optimized',
 });
 
-export const VISUAL_RUNTIME_SCHEMA_VERSION = 1;
+export const VISUAL_RUNTIME_SCHEMA_VERSION = 2;
 export const OPTIMIZED_VISUAL_RUNTIME_AVAILABLE = false;
+export const OPTIMIZED_VISUAL_RUNTIME_SHELL_AVAILABLE = true;
 
 const KNOWN_VISUAL_RUNTIME_MODES = new Set(
   Object.values(VISUAL_RUNTIME_MODES),
@@ -105,6 +106,14 @@ const readCanvasSnapshot = (canvas, index) => {
       canvas.dataset.rendererState ||
       host?.dataset.rendererState ||
       null,
+    runtimeShellState:
+      canvas.dataset.visualRuntimeShellState ||
+      host?.dataset.visualRuntimeShellState ||
+      null,
+    contextRecovery:
+      canvas.dataset.contextRecovery ||
+      host?.dataset.contextRecovery ||
+      null,
     renderProfile:
       canvas.dataset.renderProfile ||
       host?.dataset.renderProfile ||
@@ -120,6 +129,23 @@ const readCanvasSnapshot = (canvas, index) => {
   };
 };
 
+const readShellReport = () => {
+  if (
+    typeof window === 'undefined' ||
+    typeof window.__visualRuntimeShellReport !== 'function'
+  ) {
+    return null;
+  }
+
+  try {
+    return window.__visualRuntimeShellReport();
+  } catch (error) {
+    return {
+      error: String(error?.message || error || 'shell report failed'),
+    };
+  }
+};
+
 export const getVisualRuntimeReport = () => {
   const root =
     typeof document === 'undefined' ? null : document.documentElement;
@@ -131,6 +157,8 @@ export const getVisualRuntimeReport = () => {
   return {
     schemaVersion: VISUAL_RUNTIME_SCHEMA_VERSION,
     ...visualRuntimePolicy,
+    optimizedShellAvailable:
+      OPTIMIZED_VISUAL_RUNTIME_SHELL_AVAILABLE,
     route:
       typeof window === 'undefined' ? null : window.location.pathname,
     theme: root?.getAttribute('data-theme') || null,
@@ -141,6 +169,7 @@ export const getVisualRuntimeReport = () => {
         : Array.from(document.querySelectorAll('canvas')).map(
             readCanvasSnapshot,
           ),
+    shell: readShellReport(),
     capturedAt: Date.now(),
   };
 };
@@ -156,9 +185,11 @@ const logVisualRuntimeReport = (snapshot) => {
       Requested: snapshot.requested,
       Resolved: snapshot.resolved,
       'Optimized available': snapshot.optimizedAvailable,
+      'Shell available': snapshot.optimizedShellAvailable,
       Fallback: snapshot.fallbackReason || 'none',
       Theme: snapshot.theme || 'unset',
       Route: snapshot.route || 'unknown',
+      Shell: snapshot.shell?.shell?.state || 'off',
     },
   ]);
 
@@ -180,6 +211,12 @@ export const initVisualRuntimePolicy = () => {
   root?.setAttribute(
     'data-visual-runtime',
     visualRuntimePolicy.resolved,
+  );
+  root?.setAttribute(
+    'data-optimized-visual-runtime-shell',
+    OPTIMIZED_VISUAL_RUNTIME_SHELL_AVAILABLE
+      ? 'available'
+      : 'unavailable',
   );
 
   if (visualRuntimePolicy.fallbackReason) {
@@ -203,6 +240,7 @@ export const initVisualRuntimePolicy = () => {
   window.__visualRuntimeReport = report;
 
   return () => {
+    root?.removeAttribute('data-optimized-visual-runtime-shell');
     if (window.__visualRuntimeReport === report) {
       if (previousReport === undefined) {
         delete window.__visualRuntimeReport;
