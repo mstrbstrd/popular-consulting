@@ -9,6 +9,9 @@
 # Production
 /build
 
+# Generated visual reference evidence
+/visual-reference
+
 # Environment and local secrets
 .env
 .env.*

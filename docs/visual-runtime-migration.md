@@ -19,7 +19,7 @@ The query parameter `visual-runtime` defines the comparison boundary:
 
 ## Stage 0: reference oracle and policy
 
-Status: implemented on the stage-zero branch.
+Status: implemented in PR 77.
 
 Invariants:
 
@@ -37,9 +37,71 @@ Acceptance:
 
 ## Stage 1: deterministic baseline harness
 
-Add deterministic capture controls for theme, section, time, pointer, reveal, Orb state, and black-hole camera state. Capture the reference matrix and record frame-time, drawing-buffer, and renderer-ownership baselines.
+Status: implemented on the stage-one branch.
 
-No optimized rendering is introduced in this stage.
+Reference capture is activated only by an explicit query:
+
+```text
+?visual-runtime=reference&visual-capture=reference
+```
+
+The capture contract can pin:
+
+- `capture-id`
+- `capture-theme`
+- `capture-section`
+- `capture-time`
+- `capture-pointer`
+- `capture-reveal`
+- `capture-ripple-age`
+- `capture-expression`
+- `capture-expression-blend`
+- `capture-pop-phase`
+- `capture-reanimation`
+- `capture-cd-blend`
+- `capture-cd-spin`
+- `capture-cd-angle`
+- `capture-black-hole-zoom`
+- `capture-seed`
+- `capture-settle-frames`
+- `capture-frame-step`
+
+The harness wraps the already-governed WebGL context and substitutes reference uniform inputs at submission time. It does not import, fork, or edit either oracle renderer. The existing renderer still compiles and executes its canonical shader.
+
+Capture mode also:
+
+1. Seeds `Math.random` for repeatable Orb particles.
+2. Uses a controlled animation-frame clock after the renderer initializes.
+3. Navigates the existing section-dot contract to the requested section.
+4. Records canvas size, renderer ownership, draw count, draw interval, and CPU draw-submission timing.
+5. Writes the final JSON snapshot to `#visual-capture-report`.
+6. Exposes `window.__visualCaptureReport()` and `window.__visualCaptureController`.
+7. Stops advancing frames after the capture becomes ready.
+
+Normal routes never install this instrumentation.
+
+To build and capture the complete matrix on a real Chromium-capable machine:
+
+```bash
+npm run visual:reference
+```
+
+Useful options:
+
+```bash
+node scripts/capture-visual-reference.mjs --list
+node scripts/capture-visual-reference.mjs --case orb-happy
+node scripts/capture-visual-reference.mjs --output ./visual-reference
+```
+
+Set `VISUAL_CAPTURE_BROWSER` when Edge, Chrome, or Chromium is installed in a non-standard location. Generated PNG and JSON files are local evidence and are intentionally ignored by Git.
+
+Acceptance:
+
+- `DitherBackground.js` and `blackHoleShader.js` remain byte-identical to Stage 0.
+- Missing or unsupported capture requests make no runtime changes.
+- An unavailable reference renderer fails the capture explicitly instead of recording a fallback as the oracle.
+- Full lint, Jest, production build, and Windows Edge route smoke pass.
 
 ## Stage 2: one persistent runtime shell
 
