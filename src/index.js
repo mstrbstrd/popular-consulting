@@ -14,7 +14,13 @@ import SiteRouter from './SiteRouter';
 import InteractionAccessibilityBridge from './components/InteractionAccessibilityBridge';
 import { initGraphicsContextGovernor } from './utils/graphicsContextGovernor';
 import { initGraphicsRuntimeBoundary } from './utils/graphicsRuntimeBoundary';
+import { initVisualRuntimePolicy } from './utils/visualRuntimePolicy';
 import { initCoreWebVitals, initSectionTiming, initLongTaskObserver } from './utils/telemetry';
+
+// The visual-runtime policy establishes the permanent reference/optimized
+// comparison boundary before any renderer mounts. Stage zero resolves every
+// request to the current reference implementation.
+initVisualRuntimePolicy();
 
 // The context governor is installed before React mounts any renderer. It only
 // touches canvases explicitly marked by ManagedDitherBackground, bounding their
