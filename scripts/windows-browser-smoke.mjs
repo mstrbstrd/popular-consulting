@@ -15,8 +15,11 @@ const routeChecks = [
   {
     route:
       "/?graphics=webgl&visual-runtime=optimized&visual-runtime-shell=probe",
-    markers: ['data-visual-runtime-shell-state="idle"'],
-    forbidden: 'data-visual-runtime-shell-contexts="0"',
+    markers: ['data-visual-runtime-shell-host="true"'],
+    forbidden: [
+      'data-visual-runtime-shell-contexts="0"',
+      'data-visual-runtime-shell-state="failed"',
+    ],
     requiresWebGL: true,
   },
   { route: "/work", markers: ['class="work-page"'] },
@@ -230,9 +233,18 @@ const runEdgeRoute = async (edgePath, origin, check) => {
       )} were found`,
     );
   }
-  if (check.forbidden && documentHtml.includes(check.forbidden)) {
+
+  const forbiddenMarkers = Array.isArray(check.forbidden)
+    ? check.forbidden
+    : check.forbidden
+      ? [check.forbidden]
+      : [];
+  const matchedForbidden = forbiddenMarkers.find((marker) =>
+    documentHtml.includes(marker),
+  );
+  if (matchedForbidden) {
     throw new Error(
-      `${check.route}: forbidden live renderer marker ${check.forbidden} was found`,
+      `${check.route}: forbidden live renderer marker ${matchedForbidden} was found`,
     );
   }
   if (
