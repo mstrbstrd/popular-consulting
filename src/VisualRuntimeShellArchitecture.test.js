@@ -37,9 +37,12 @@ describe("stage-two visual runtime shell architecture", () => {
     expect(shellPolicySource).toContain('PROBE: "probe"');
   });
 
-  test("suppresses reference WebGL before mounting the explicit probe", () => {
+  test("suppresses reference WebGL only when the explicit shell wins", () => {
     expect(graphicsPolicySource).toContain(
-      "!visualRuntimeShellProbeRequested",
+      "resolveReferenceWebGLAttempt",
+    );
+    expect(graphicsPolicySource).toContain(
+      "captureActive: visualCaptureState.active",
     );
     expect(shellPolicySource).toContain(
       "suppressReferenceRenderers: active",
