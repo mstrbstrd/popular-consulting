@@ -1,3 +1,5 @@
+import { visualCaptureState } from "./visualCapturePolicy";
+
 export const GRAPHICS_MODES = Object.freeze({
   AUTO: "auto",
   CSS: "css",
@@ -60,6 +62,16 @@ export const isVisualRuntimeShellProbeRequest = (
     return false;
   }
 };
+
+export const resolveReferenceWebGLAttempt = ({
+  webglAllowed = true,
+  shellProbeRequested = false,
+  captureActive = false,
+} = {}) =>
+  Boolean(
+    webglAllowed &&
+      (!shellProbeRequested || captureActive),
+  );
 
 export const resolveGraphicsPolicy = ({
   search = "",
@@ -178,9 +190,11 @@ export const visualRuntimeShellProbeRequested =
   isVisualRuntimeShellProbeRequest(runtimeSearch, runtimePathname);
 export const shouldAttemptVisualRuntimeShell =
   graphicsMode !== GRAPHICS_MODES.CSS;
-export const shouldAttemptWebGL =
-  shouldAttemptVisualRuntimeShell &&
-  !visualRuntimeShellProbeRequested;
+export const shouldAttemptWebGL = resolveReferenceWebGLAttempt({
+  webglAllowed: shouldAttemptVisualRuntimeShell,
+  shellProbeRequested: visualRuntimeShellProbeRequested,
+  captureActive: visualCaptureState.active,
+});
 export const isGraphicsSafeMode = !shouldAttemptWebGL;
 
 const sanitizeDetail = (detail = {}) =>
@@ -267,6 +281,7 @@ export const getGraphicsReport = () => {
     shouldAttemptWebGL,
     shouldAttemptVisualRuntimeShell,
     visualRuntimeShellProbeRequested,
+    referenceCaptureActive: visualCaptureState.active,
     failure,
     events,
   };
