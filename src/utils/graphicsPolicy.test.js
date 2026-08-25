@@ -6,6 +6,7 @@ import {
   isVisualRuntimeShellProbeRequest,
   normalizeGraphicsMode,
   resolveGraphicsPolicy,
+  resolveReferenceWebGLAttempt,
 } from "./graphicsPolicy";
 
 describe("graphics runtime policy", () => {
@@ -109,6 +110,30 @@ describe("graphics runtime policy", () => {
         "?visual-runtime=optimized&visual-runtime-shell=probe",
         "/work",
       ),
+    ).toBe(false);
+  });
+
+  test("suppresses reference WebGL only when the shell actually wins", () => {
+    expect(
+      resolveReferenceWebGLAttempt({
+        webglAllowed: true,
+        shellProbeRequested: true,
+        captureActive: false,
+      }),
+    ).toBe(false);
+    expect(
+      resolveReferenceWebGLAttempt({
+        webglAllowed: true,
+        shellProbeRequested: true,
+        captureActive: true,
+      }),
+    ).toBe(true);
+    expect(
+      resolveReferenceWebGLAttempt({
+        webglAllowed: false,
+        shellProbeRequested: true,
+        captureActive: true,
+      }),
     ).toBe(false);
   });
 
