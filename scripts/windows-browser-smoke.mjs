@@ -34,6 +34,20 @@ const routeChecks = [
     ],
     requiresWebGL: true,
   },
+  {
+    route:
+      "/?graphics=webgl&visual-runtime=optimized&visual-runtime-shell=probe" +
+      "&visual-runtime-pipeline=dark&visual-runtime-dark-capture=1" +
+      "&capture-theme=dark&capture-section=0&capture-time=8" +
+      "&capture-pointer=0.5,0.35&capture-black-hole-zoom=14",
+    markers: ['data-visual-runtime-dark-presented="true"'],
+    forbidden: [
+      'data-visual-runtime-shell-contexts="0"',
+      'data-visual-runtime-shell-state="failed"',
+      'data-visual-runtime-dark-pipeline="failed"',
+    ],
+    requiresWebGL: true,
+  },
   { route: "/work", markers: ['class="work-page"'] },
   {
     route: "/orb",

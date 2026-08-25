@@ -22,6 +22,9 @@ describe("visual runtime policy", () => {
       "data-optimized-visual-runtime-light",
     );
     document.documentElement.removeAttribute(
+      "data-optimized-visual-runtime-dark",
+    );
+    document.documentElement.removeAttribute(
       "data-live-background-renderer",
     );
     delete window.__visualRuntimeReport;
@@ -81,11 +84,12 @@ describe("visual runtime policy", () => {
     ).toBe(VISUAL_RUNTIME_MODES.OPTIMIZED);
   });
 
-  test("reports the optional shell and light candidate without changing ownership", () => {
+  test("reports optional light and dark candidates without changing ownership", () => {
     const canvas = document.createElement("canvas");
     canvas.width = 640;
     canvas.height = 360;
     canvas.dataset.rendererId = "reference-probe";
+    canvas.dataset.visualRuntimeDarkPipeline = "captured";
     document.body.appendChild(canvas);
     document.documentElement.setAttribute(
       "data-live-background-renderer",
@@ -93,8 +97,9 @@ describe("visual runtime policy", () => {
     );
     window.__visualRuntimeShellReport = jest.fn(() => ({
       policy: { active: true },
-      lightPipeline: {
-        id: "optimized-light-field-composite",
+      lightPipeline: null,
+      darkPipeline: {
+        id: "optimized-dark-transport-material",
       },
       shell: { state: "idle", context: { count: 1 } },
     }));
@@ -112,16 +117,18 @@ describe("visual runtime policy", () => {
     );
     expect(report).toEqual(
       expect.objectContaining({
-        schemaVersion: 3,
+        schemaVersion: 4,
         requested: VISUAL_RUNTIME_MODES.AUTO,
         resolved: VISUAL_RUNTIME_MODES.REFERENCE,
         optimizedShellAvailable: true,
         optimizedLightAvailable: true,
+        optimizedDarkAvailable: true,
         liveBackgroundRenderers: ["reference-probe"],
         shell: {
           policy: { active: true },
-          lightPipeline: {
-            id: "optimized-light-field-composite",
+          lightPipeline: null,
+          darkPipeline: {
+            id: "optimized-dark-transport-material",
           },
           shell: { state: "idle", context: { count: 1 } },
         },
@@ -130,6 +137,7 @@ describe("visual runtime policy", () => {
     expect(report.canvases).toEqual([
       expect.objectContaining({
         rendererId: "reference-probe",
+        darkPipelineState: "captured",
         width: 640,
         height: 360,
       }),
