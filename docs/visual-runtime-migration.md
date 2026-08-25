@@ -11,11 +11,11 @@ The current implementation remains the visual oracle. Optimization work must cha
 The query parameter `visual-runtime` defines the comparison boundary:
 
 - `?visual-runtime=reference` always selects the existing renderer.
-- `?visual-runtime=optimized` selects the optimized renderer only after it is explicitly marked available.
+- `?visual-runtime=optimized` selects the complete optimized renderer only after it is explicitly marked available.
 - Missing or invalid values resolve through `auto`.
-- Before the optimized renderer exists, every mode fails closed to `reference`.
+- Until both optimized theme pipelines pass their gates, every production mode fails closed to `reference`.
 
-`window.__visualRuntimeReport()` returns the resolved policy, route, theme, live background ownership, drawing-buffer information, and any active optimized-shell probe.
+`window.__visualRuntimeReport()` returns the resolved policy, route, theme, live background ownership, drawing-buffer information, shell state, and candidate-pipeline diagnostics.
 
 ## Stage 0: reference oracle and policy
 
@@ -105,7 +105,7 @@ Acceptance:
 
 ## Stage 2: one persistent runtime shell
 
-Status: implemented on the Stage 2 branch.
+Status: merged into `main` through PR 79.
 
 The shell remains non-presenting and opt-in until real optimized passes exist. Activate the developer probe on `/` or `/engineering` with:
 
@@ -126,7 +126,7 @@ The probe establishes:
 - One local context-loss and restoration boundary.
 - An ordered pass registry with per-pass failure quarantine.
 
-Normal routes do not create the shell, its canvas, or an additional graphics context. Reference captures and the shell probe are mutually exclusive.
+Normal routes do not create the shell, its canvas, or an additional graphics context. Reference captures and the active shell probe are mutually exclusive.
 
 The scheduler owns no permanent callback after its passes settle. Hidden documents own no scheduled frame. Reduced-motion mode may draw an explicitly invalidated static frame but cannot enter a continuous loop.
 
@@ -148,6 +148,8 @@ Failure invariants:
 6. Context restoration reuses the same canvas and context boundary.
 7. Every texture and framebuffer allocation is owned by the render-target pool.
 8. The probe cannot coexist with a live reference-capture renderer.
+9. Reference capture remains authoritative when a URL requests both capture and probe modes.
+10. Drawing-buffer dimensions remain within the configured hard pixel ceiling, including oversized surfaces.
 
 Acceptance:
 
@@ -157,12 +159,63 @@ Acceptance:
 
 ## Stage 3: light field and glyph composite split
 
-Calculate the procedural scalar field at glyph-grid resolution, then preserve the existing full-resolution glyph, Bayer, colour, reveal, scanline, glow, Orb, CD, ripple, and particle presentation.
+Status: implemented on the Stage 3 branch as an explicit comparison candidate.
 
-Performance gate:
+Activate the live candidate on `/` or `/engineering` with:
 
+```text
+?graphics=webgl&visual-runtime=optimized&visual-runtime-shell=probe&visual-runtime-pipeline=light
+```
+
+Pin the candidate pipeline to a deterministic light frame with:
+
+```text
+?graphics=webgl&visual-runtime=optimized&visual-runtime-shell=probe&visual-runtime-pipeline=light&visual-runtime-light-capture=1&capture-section=0&capture-time=8&capture-reveal=1
+```
+
+The light candidate runs inside the Stage 2 shell and uses two ordered draws:
+
+1. A glyph-grid field pass stores four canonical scene samples per cell: current, right neighbour, upper neighbour, and previous time.
+2. A full-resolution composite pass preserves the authored contrast transition, gradient flow, temporal shimmer, character interpolation, Bayer threshold, rainbow calculation, glow, vignette, and multiscale crystallization reveal.
+
+The candidate retains the four current main-index presets and their frame-based constants:
+
+- Hero Ripples: shape 6.
+- About Waves: shape 3.
+- Services Mandala: shape 4.
+- Contact Plasma: shape 0.
+- Continuous-parameter interpolation: `0.025` per rendered frame.
+- Shape blend step: `0.011` per rendered frame.
+- Wall-time advancement cap: `1 / 15` second.
+- Reveal duration: `2500` milliseconds.
+
+The existing ripple, reveal, canvas-layer, hero-lock, and unlock globals are bridged to the shell-owned pass so the intro and interaction contracts remain callable without mounting the oracle canvas.
+
+Candidate capture initialization pins the requested light theme before `ThemeProvider` reads its initial state and navigates through the existing section-dot contract. It does not activate the Stage 1 reference harness or create another graphics context.
+
+The candidate remains light-only and explicit-only. Switching the comparison route to dark theme suspends the light pass and exposes the CSS fallback rather than pretending dark parity exists. The standalone Orb and CD renderer remain on the reference path because they are outside the current four-section main index.
+
+Performance diagnostics report:
+
+- Output drawing-buffer dimensions.
+- Glyph-grid field dimensions.
+- Presented frame count.
+- Draw count.
+- Source-level procedural scene-sample reduction estimate.
+
+At 1920 by 1080 with six-pixel glyph cells, the field contains 38,400 cells. The candidate evaluates four scene samples per field cell, then performs an inexpensive full-resolution presentation pass. This removes well over one order of magnitude of repeated procedural scene work without lowering output resolution or visible cadence.
+
+Acceptance before enabling the candidate outside explicit comparison:
+
+- The reference source fingerprints remain unchanged.
+- Every light section and section transition passes deterministic image comparison.
+- Ripple and reveal captures match the reference.
 - Median active-frame GPU time is at most 10% of the reference median.
-- Output resolution and visible frame cadence cannot be reduced to satisfy the gate.
+- Output resolution and visible frame cadence are not reduced to satisfy the gate.
+- Context loss rebuilds the pass locally.
+- Windows, macOS, integrated-GPU, and discrete-GPU checks pass.
+
+The complete optimized runtime remains unavailable in this stage. `auto` and ordinary explicit `optimized` requests continue to fail closed to the reference renderer unless the additional Stage 3 candidate parameters are present.
 
 ## Stage 4: dark transport and material split
 
@@ -172,7 +225,7 @@ The existing 200-step shader remains the oracle and explicit comparison path.
 
 ## Stage 5: canary and rollout
 
-Enable the optimized runtime only after:
+Enable the complete optimized runtime only after:
 
 - Static-frame and transition comparisons pass.
 - Pointer, reveal, Orb, CD, and camera choreography match.

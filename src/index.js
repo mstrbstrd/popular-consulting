@@ -16,19 +16,28 @@ import VisualRuntimeShellHost from './components/VisualRuntimeShellHost';
 import { initGraphicsContextGovernor } from './utils/graphicsContextGovernor';
 import { initGraphicsRuntimeBoundary } from './utils/graphicsRuntimeBoundary';
 import { initVisualCaptureHarness } from './utils/visualCaptureHarness';
+import { initVisualRuntimeLightPolicy } from './utils/visualRuntimeLightPolicy';
 import { initVisualRuntimePolicy } from './utils/visualRuntimePolicy';
 import { initVisualRuntimeShellPolicy } from './utils/visualRuntimeShellPolicy';
 import { initCoreWebVitals, initSectionTiming, initLongTaskObserver } from './utils/telemetry';
 
 // The visual-runtime policy establishes the permanent reference/optimized
-// comparison boundary before any renderer mounts. The optimized renderer still
-// fails closed to the current reference implementation until visual passes ship.
+// comparison boundary before any renderer mounts. The complete optimized
+// renderer still fails closed to the current reference implementation.
 initVisualRuntimePolicy();
 
-// Stage two's shell is available only through the explicit optimized probe.
-// The query suppresses reference WebGL before React mounts, so the diagnostic
-// path cannot own two live full-screen contexts.
+// The shell is available only through the explicit optimized probe. Its query
+// suppresses reference WebGL before React mounts, so the comparison path cannot
+// own two live full-screen contexts.
 initVisualRuntimeShellPolicy();
+
+// Stage three's light candidate remains explicit-only. Capture initialization
+// pins the requested theme and uses the existing section-dot contract before
+// the shell renders its deterministic comparison frame.
+const cleanupVisualRuntimeLightPolicy = initVisualRuntimeLightPolicy();
+window.addEventListener('pagehide', cleanupVisualRuntimeLightPolicy, {
+  once: true,
+});
 
 // The context governor is installed before React mounts any renderer. It only
 // touches canvases explicitly marked by ManagedDitherBackground, bounding their

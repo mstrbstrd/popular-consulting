@@ -1,6 +1,15 @@
 import React from "react";
 import { createPortal } from "react-dom";
 import {
+  isMobileTier,
+  shaderRuntimeProfile,
+} from "../utils/deviceTier";
+import { createVisualRuntimeLightPass } from "../utils/visualRuntimeLightPass";
+import {
+  shouldPresentVisualRuntimeLightFrame,
+  visualRuntimeLightPolicy,
+} from "../utils/visualRuntimeLightPolicy";
+import {
   VisualRuntimeShell,
   VISUAL_RUNTIME_SHELL_RENDERER_ID,
 } from "../utils/visualRuntimeShell";
@@ -71,7 +80,12 @@ const VisualRuntimeShellSurface = () => {
     const canvas = canvasRef.current;
     if (!host || !canvas) return undefined;
 
-    const runtime = new VisualRuntimeShell({ host, canvas });
+    const runtime = new VisualRuntimeShell({
+      host,
+      canvas,
+      maxDevicePixelRatio: shaderRuntimeProfile.maxDpr,
+      maxPixels: shaderRuntimeProfile.maxPixels,
+    });
     const syncTheme = () => runtime.setTheme(readTheme());
     const syncSection = (event) => {
       const section = Number(
@@ -97,10 +111,58 @@ const VisualRuntimeShellSurface = () => {
     runtime.setSection(readInitialSection());
     runtime.initialize();
 
+    let lightPass = null;
+    let releaseLightPass = null;
+    if (visualRuntimeLightPolicy.active && runtime.gl) {
+      try {
+        const candidateLightPass = createVisualRuntimeLightPass({
+          gl: runtime.gl,
+          host,
+          canvas,
+          mobile: isMobileTier,
+          captureState: visualRuntimeLightPolicy.captureState,
+          invalidate: (reason) => runtime.invalidate(reason),
+        });
+        const captureActive = Boolean(
+          visualRuntimeLightPolicy.captureState?.active,
+        );
+
+        lightPass = {
+          ...candidateLightPass,
+          render: (frame) => {
+            if (
+              !shouldPresentVisualRuntimeLightFrame({
+                reducedMotion: frame.reducedMotion,
+                captureActive,
+              })
+            ) {
+              host.dataset.visualRuntimeLightPipeline =
+                "reduced-motion-fallback";
+              canvas.dataset.visualRuntimeLightPipeline =
+                "reduced-motion-fallback";
+              return { continue: false };
+            }
+            return candidateLightPass.render(frame);
+          },
+          report: () => ({
+            ...candidateLightPass.report(),
+            reducedMotionFallback:
+              host.dataset.visualRuntimeLightPipeline ===
+              "reduced-motion-fallback",
+          }),
+        };
+        releaseLightPass = runtime.registerPass(lightPass);
+      } catch (error) {
+        runtime.fail("light-pipeline-initialization", error);
+      }
+    }
+
     const previousReport = window.__visualRuntimeShellReport;
     const previousController = window.__visualRuntimeShellController;
     const report = () => ({
       policy: visualRuntimeShellPolicy,
+      lightPipelinePolicy: visualRuntimeLightPolicy,
+      lightPipeline: lightPass?.report?.() || null,
       shell: runtime.report(),
     });
     const controller = Object.freeze({
@@ -133,6 +195,7 @@ const VisualRuntimeShellSurface = () => {
         }
       }
 
+      releaseLightPass?.();
       runtime.dispose();
     };
   }, []);

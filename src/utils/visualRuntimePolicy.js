@@ -6,9 +6,10 @@ export const VISUAL_RUNTIME_MODES = Object.freeze({
   OPTIMIZED: 'optimized',
 });
 
-export const VISUAL_RUNTIME_SCHEMA_VERSION = 2;
+export const VISUAL_RUNTIME_SCHEMA_VERSION = 3;
 export const OPTIMIZED_VISUAL_RUNTIME_AVAILABLE = false;
 export const OPTIMIZED_VISUAL_RUNTIME_SHELL_AVAILABLE = true;
+export const OPTIMIZED_VISUAL_RUNTIME_LIGHT_AVAILABLE = true;
 
 const KNOWN_VISUAL_RUNTIME_MODES = new Set(
   Object.values(VISUAL_RUNTIME_MODES),
@@ -110,6 +111,10 @@ const readCanvasSnapshot = (canvas, index) => {
       canvas.dataset.visualRuntimeShellState ||
       host?.dataset.visualRuntimeShellState ||
       null,
+    lightPipelineState:
+      canvas.dataset.visualRuntimeLightPipeline ||
+      host?.dataset.visualRuntimeLightPipeline ||
+      null,
     contextRecovery:
       canvas.dataset.contextRecovery ||
       host?.dataset.contextRecovery ||
@@ -159,6 +164,8 @@ export const getVisualRuntimeReport = () => {
     ...visualRuntimePolicy,
     optimizedShellAvailable:
       OPTIMIZED_VISUAL_RUNTIME_SHELL_AVAILABLE,
+    optimizedLightAvailable:
+      OPTIMIZED_VISUAL_RUNTIME_LIGHT_AVAILABLE,
     route:
       typeof window === 'undefined' ? null : window.location.pathname,
     theme: root?.getAttribute('data-theme') || null,
@@ -186,10 +193,13 @@ const logVisualRuntimeReport = (snapshot) => {
       Resolved: snapshot.resolved,
       'Optimized available': snapshot.optimizedAvailable,
       'Shell available': snapshot.optimizedShellAvailable,
+      'Light pipeline available': snapshot.optimizedLightAvailable,
       Fallback: snapshot.fallbackReason || 'none',
       Theme: snapshot.theme || 'unset',
       Route: snapshot.route || 'unknown',
       Shell: snapshot.shell?.shell?.state || 'off',
+      'Light pipeline':
+        snapshot.shell?.lightPipeline?.id || 'off',
     },
   ]);
 
@@ -218,6 +228,12 @@ export const initVisualRuntimePolicy = () => {
       ? 'available'
       : 'unavailable',
   );
+  root?.setAttribute(
+    'data-optimized-visual-runtime-light',
+    OPTIMIZED_VISUAL_RUNTIME_LIGHT_AVAILABLE
+      ? 'available'
+      : 'unavailable',
+  );
 
   if (visualRuntimePolicy.fallbackReason) {
     root?.setAttribute(
@@ -241,6 +257,7 @@ export const initVisualRuntimePolicy = () => {
 
   return () => {
     root?.removeAttribute('data-optimized-visual-runtime-shell');
+    root?.removeAttribute('data-optimized-visual-runtime-light');
     if (window.__visualRuntimeReport === report) {
       if (previousReport === undefined) {
         delete window.__visualRuntimeReport;
