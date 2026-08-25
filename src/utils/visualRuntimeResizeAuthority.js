@@ -23,7 +23,7 @@ export const resolveVisualRuntimeDrawingBufferSize = ({
   const budgetScale = requestedPixels > pixelBudget
     ? Math.sqrt(pixelBudget / requestedPixels)
     : 1;
-  const scale = Math.max(0.25, dpr * budgetScale);
+  const scale = dpr * budgetScale;
 
   return {
     cssWidth: width,
