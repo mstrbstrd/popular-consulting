@@ -2,8 +2,10 @@ import fs from "fs";
 import http from "http";
 import os from "os";
 import path from "path";
-import { spawnSync } from "child_process";
+import { execFile } from "child_process";
+import { promisify } from "util";
 
+const execFileAsync = promisify(execFile);
 const repositoryRoot = process.cwd();
 const buildRoot = path.join(repositoryRoot, "build");
 
@@ -134,53 +136,62 @@ const createBuildServer = () =>
     }
   });
 
-const runEdgeRoute = (edgePath, origin, check) => {
+const runEdgeRoute = async (edgePath, origin, check) => {
   const profileDirectory = fs.mkdtempSync(
     path.join(os.tmpdir(), "popcon-edge-smoke-"),
   );
   const url = `${origin}${check.route}`;
+  let result;
 
-  const result = spawnSync(
-    edgePath,
-    [
-      "--headless=new",
-      "--disable-background-networking",
-      "--disable-component-update",
-      "--disable-default-apps",
-      "--disable-extensions",
-      "--disable-sync",
-      "--metrics-recording-only",
-      "--mute-audio",
-      "--no-default-browser-check",
-      "--no-first-run",
-      "--run-all-compositor-stages-before-draw",
-      "--virtual-time-budget=5000",
-      `--user-data-dir=${profileDirectory}`,
-      "--dump-dom",
-      url,
-    ],
-    {
-      encoding: "utf8",
-      maxBuffer: 10 * 1024 * 1024,
-      timeout: 30_000,
-      windowsHide: true,
-    },
-  );
-
-  fs.rmSync(profileDirectory, {
-    force: true,
-    maxRetries: 5,
-    recursive: true,
-    retryDelay: 200,
-  });
-
-  if (result.error) {
-    throw new Error(`${check.route}: Edge failed to start: ${result.error.message}`);
-  }
-  if (result.status !== 0) {
-    throw new Error(
-      `${check.route}: Edge exited with ${result.status}\n${result.stderr || ""}`,
+  try {
+    result = await execFileAsync(
+      edgePath,
+      [
+        "--headless=new",
+        "--disable-background-networking",
+        "--disable-component-update",
+        "--disable-default-apps",
+        "--disable-extensions",
+        "--disable-sync",
+        "--metrics-recording-only",
+        "--mute-audio",
+        "--no-default-browser-check",
+        "--no-first-run",
+        "--run-all-compositor-stages-before-draw",
+        "--virtual-time-budget=5000",
+        `--user-data-dir=${profileDirectory}`,
+        "--dump-dom",
+        url,
+      ],
+      {
+        encoding: "utf8",
+        maxBuffer: 10 * 1024 * 1024,
+        timeout: 30_000,
+        windowsHide: true,
+      },
     );
+  } catch (error) {
+    const stderr = typeof error.stderr === "string" ? error.stderr : "";
+    if (error.code === "ETIMEDOUT" || error.killed) {
+      throw new Error(
+        `${check.route}: Edge timed out after 30000ms${stderr ? `\n${stderr}` : ""}`,
+      );
+    }
+    if (typeof error.code === "number") {
+      throw new Error(
+        `${check.route}: Edge exited with ${error.code}\n${stderr}`,
+      );
+    }
+    throw new Error(
+      `${check.route}: Edge failed to start: ${error.message}${stderr ? `\n${stderr}` : ""}`,
+    );
+  } finally {
+    fs.rmSync(profileDirectory, {
+      force: true,
+      maxRetries: 5,
+      recursive: true,
+      retryDelay: 200,
+    });
   }
 
   const documentHtml = result.stdout || "";
@@ -234,7 +245,7 @@ try {
 
   const origin = `http://127.0.0.1:${address.port}`;
   for (const check of routeChecks) {
-    runEdgeRoute(edgePath, origin, check);
+    await runEdgeRoute(edgePath, origin, check);
   }
 } finally {
   await new Promise((resolve) => server.close(resolve));
