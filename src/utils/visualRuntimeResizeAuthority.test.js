@@ -30,6 +30,22 @@ describe("visual runtime resize authority", () => {
       1_000_000,
     );
     expect(bounded.width / bounded.height).toBeCloseTo(16 / 9, 2);
+
+    const oversized = resolveVisualRuntimeDrawingBufferSize({
+      cssWidth: 10_000,
+      cssHeight: 10_000,
+      devicePixelRatio: 1,
+      maxDevicePixelRatio: 1.5,
+      maxPixels: 1_000_000,
+    });
+    expect(oversized.width * oversized.height).toBeLessThanOrEqual(
+      1_000_000,
+    );
+    expect(oversized).toMatchObject({
+      width: 1_000,
+      height: 1_000,
+      scale: 0.1,
+    });
   });
 
   test("invalidates instead of starting an independent frame loop", () => {
