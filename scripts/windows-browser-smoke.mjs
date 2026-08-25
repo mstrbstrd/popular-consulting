@@ -17,6 +17,7 @@ const routeChecks = [
       "/?graphics=webgl&visual-runtime=optimized&visual-runtime-shell=probe",
     markers: ['data-visual-runtime-shell-state="idle"'],
     forbidden: 'data-visual-runtime-shell-contexts="0"',
+    requiresWebGL: true,
   },
   { route: "/work", markers: ['class="work-page"'] },
   {
@@ -156,6 +157,9 @@ const runEdgeRoute = async (edgePath, origin, check) => {
     path.join(os.tmpdir(), "popcon-edge-smoke-"),
   );
   const url = `${origin}${check.route}`;
+  const webGLArguments = check.requiresWebGL
+    ? ["--enable-unsafe-swiftshader", "--use-angle=swiftshader"]
+    : [];
   let result;
 
   try {
@@ -174,6 +178,7 @@ const runEdgeRoute = async (edgePath, origin, check) => {
         "--no-first-run",
         "--run-all-compositor-stages-before-draw",
         "--virtual-time-budget=5000",
+        ...webGLArguments,
         `--user-data-dir=${profileDirectory}`,
         "--dump-dom",
         url,
