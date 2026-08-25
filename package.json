@@ -19,7 +19,8 @@
     "build": "react-scripts build && node scripts/generate-route-html.mjs",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
-    "lint": "eslint --ext .js src --max-warnings 0"
+    "lint": "eslint --ext .js src --max-warnings 0",
+    "visual:reference": "npm run build && node scripts/capture-visual-reference.mjs"
   },
   "eslintConfig": {
     "extends": [

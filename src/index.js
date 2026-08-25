@@ -14,6 +14,7 @@ import SiteRouter from './SiteRouter';
 import InteractionAccessibilityBridge from './components/InteractionAccessibilityBridge';
 import { initGraphicsContextGovernor } from './utils/graphicsContextGovernor';
 import { initGraphicsRuntimeBoundary } from './utils/graphicsRuntimeBoundary';
+import { initVisualCaptureHarness } from './utils/visualCaptureHarness';
 import { initVisualRuntimePolicy } from './utils/visualRuntimePolicy';
 import { initCoreWebVitals, initSectionTiming, initLongTaskObserver } from './utils/telemetry';
 
@@ -26,6 +27,11 @@ initVisualRuntimePolicy();
 // touches canvases explicitly marked by ManagedDitherBackground, bounding their
 // drawing buffer before the first draw and suppressing over-budget draw calls.
 initGraphicsContextGovernor();
+
+// Explicit reference captures wrap the already-governed contexts. Normal routes
+// remain untouched, while capture URLs can pin authored uniform values and
+// collect deterministic baseline metadata without editing the oracle shaders.
+initVisualCaptureHarness();
 
 // Graphics failures degrade locally. The runtime boundary records context loss,
 // hides the failed canvas, releases exclusive renderer ownership, and never
