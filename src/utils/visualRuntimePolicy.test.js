@@ -19,6 +19,9 @@ describe("visual runtime policy", () => {
       "data-optimized-visual-runtime-shell",
     );
     document.documentElement.removeAttribute(
+      "data-optimized-visual-runtime-light",
+    );
+    document.documentElement.removeAttribute(
       "data-live-background-renderer",
     );
     delete window.__visualRuntimeReport;
@@ -78,7 +81,7 @@ describe("visual runtime policy", () => {
     ).toBe(VISUAL_RUNTIME_MODES.OPTIMIZED);
   });
 
-  test("reports the optional shell without changing renderer ownership", () => {
+  test("reports the optional shell and light candidate without changing ownership", () => {
     const canvas = document.createElement("canvas");
     canvas.width = 640;
     canvas.height = 360;
@@ -90,6 +93,9 @@ describe("visual runtime policy", () => {
     );
     window.__visualRuntimeShellReport = jest.fn(() => ({
       policy: { active: true },
+      lightPipeline: {
+        id: "optimized-light-field-composite",
+      },
       shell: { state: "idle", context: { count: 1 } },
     }));
 
@@ -106,13 +112,17 @@ describe("visual runtime policy", () => {
     );
     expect(report).toEqual(
       expect.objectContaining({
-        schemaVersion: 2,
+        schemaVersion: 3,
         requested: VISUAL_RUNTIME_MODES.AUTO,
         resolved: VISUAL_RUNTIME_MODES.REFERENCE,
         optimizedShellAvailable: true,
+        optimizedLightAvailable: true,
         liveBackgroundRenderers: ["reference-probe"],
         shell: {
           policy: { active: true },
+          lightPipeline: {
+            id: "optimized-light-field-composite",
+          },
           shell: { state: "idle", context: { count: 1 } },
         },
       }),

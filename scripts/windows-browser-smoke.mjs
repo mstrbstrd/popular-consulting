@@ -22,6 +22,18 @@ const routeChecks = [
     ],
     requiresWebGL: true,
   },
+  {
+    route:
+      "/?graphics=webgl&visual-runtime=optimized&visual-runtime-shell=probe" +
+      "&visual-runtime-pipeline=light&visual-runtime-light-capture=1" +
+      "&capture-section=0&capture-time=8&capture-reveal=1",
+    markers: ['data-visual-runtime-light-presented="true"'],
+    forbidden: [
+      'data-visual-runtime-shell-contexts="0"',
+      'data-visual-runtime-shell-state="failed"',
+    ],
+    requiresWebGL: true,
+  },
   { route: "/work", markers: ['class="work-page"'] },
   {
     route: "/orb",
