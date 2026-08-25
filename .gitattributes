@@ -1,0 +1,2 @@
+# Keep source-text assertions deterministic across Linux and Windows runners.
+*.css text eol=lf
