@@ -12,6 +12,12 @@ const buildRoot = path.join(repositoryRoot, "build");
 const routeChecks = [
   { route: "/", markers: ['class="parallax-wrapper"'] },
   { route: "/engineering", markers: ['class="parallax-wrapper"'] },
+  {
+    route:
+      "/?graphics=webgl&visual-runtime=optimized&visual-runtime-shell=probe",
+    markers: ['data-visual-runtime-shell-state="idle"'],
+    forbidden: 'data-visual-runtime-shell-contexts="0"',
+  },
   { route: "/work", markers: ['class="work-page"'] },
   {
     route: "/orb",
@@ -113,11 +119,18 @@ const safeFilePath = (pathname) => {
 
 const createBuildServer = () =>
   http.createServer((request, response) => {
-    const requestUrl = new URL(request.url || "/", "http://127.0.0.1");
+    const requestUrl = new URL(
+      request.url || "/",
+      "http://127.0.0.1",
+    );
     const directPath = safeFilePath(requestUrl.pathname);
 
     let filePath = directPath;
-    if (!filePath || !fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
+    if (
+      !filePath ||
+      !fs.existsSync(filePath) ||
+      fs.statSync(filePath).isDirectory()
+    ) {
       filePath = routeHtmlPath(requestUrl.pathname);
     }
 
@@ -131,7 +144,9 @@ const createBuildServer = () =>
       });
       response.end(body);
     } catch (error) {
-      response.writeHead(500, { "Content-Type": "text/plain; charset=utf-8" });
+      response.writeHead(500, {
+        "Content-Type": "text/plain; charset=utf-8",
+      });
       response.end(`Build server failure: ${error.message}`);
     }
   });
@@ -171,10 +186,13 @@ const runEdgeRoute = async (edgePath, origin, check) => {
       },
     );
   } catch (error) {
-    const stderr = typeof error.stderr === "string" ? error.stderr : "";
+    const stderr =
+      typeof error.stderr === "string" ? error.stderr : "";
     if (error.code === "ETIMEDOUT" || error.killed) {
       throw new Error(
-        `${check.route}: Edge timed out after 30000ms${stderr ? `\n${stderr}` : ""}`,
+        `${check.route}: Edge timed out after 30000ms${
+          stderr ? `\n${stderr}` : ""
+        }`,
       );
     }
     if (typeof error.code === "number") {
@@ -183,7 +201,9 @@ const runEdgeRoute = async (edgePath, origin, check) => {
       );
     }
     throw new Error(
-      `${check.route}: Edge failed to start: ${error.message}${stderr ? `\n${stderr}` : ""}`,
+      `${check.route}: Edge failed to start: ${error.message}${
+        stderr ? `\n${stderr}` : ""
+      }`,
     );
   } finally {
     fs.rmSync(profileDirectory, {
@@ -210,7 +230,11 @@ const runEdgeRoute = async (edgePath, origin, check) => {
       `${check.route}: forbidden live renderer marker ${check.forbidden} was found`,
     );
   }
-  if (/Aw, Snap!|STATUS_ACCESS_VIOLATION|RESULT_CODE_HUNG/i.test(documentHtml)) {
+  if (
+    /Aw, Snap!|STATUS_ACCESS_VIOLATION|RESULT_CODE_HUNG/i.test(
+      documentHtml,
+    )
+  ) {
     throw new Error(`${check.route}: Edge returned a browser crash document`);
   }
 

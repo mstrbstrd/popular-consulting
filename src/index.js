@@ -12,16 +12,23 @@ import './work-navigation-refinement.css';
 import './work-card-consistency.css';
 import SiteRouter from './SiteRouter';
 import InteractionAccessibilityBridge from './components/InteractionAccessibilityBridge';
+import VisualRuntimeShellHost from './components/VisualRuntimeShellHost';
 import { initGraphicsContextGovernor } from './utils/graphicsContextGovernor';
 import { initGraphicsRuntimeBoundary } from './utils/graphicsRuntimeBoundary';
 import { initVisualCaptureHarness } from './utils/visualCaptureHarness';
 import { initVisualRuntimePolicy } from './utils/visualRuntimePolicy';
+import { initVisualRuntimeShellPolicy } from './utils/visualRuntimeShellPolicy';
 import { initCoreWebVitals, initSectionTiming, initLongTaskObserver } from './utils/telemetry';
 
 // The visual-runtime policy establishes the permanent reference/optimized
-// comparison boundary before any renderer mounts. Stage zero resolves every
-// request to the current reference implementation.
+// comparison boundary before any renderer mounts. The optimized renderer still
+// fails closed to the current reference implementation until visual passes ship.
 initVisualRuntimePolicy();
+
+// Stage two's shell is available only through the explicit optimized probe.
+// The query suppresses reference WebGL before React mounts, so the diagnostic
+// path cannot own two live full-screen contexts.
+initVisualRuntimeShellPolicy();
 
 // The context governor is installed before React mounts any renderer. It only
 // touches canvases explicitly marked by ManagedDitherBackground, bounding their
@@ -40,10 +47,13 @@ initGraphicsRuntimeBoundary();
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
-  <React.StrictMode>
-    <InteractionAccessibilityBridge />
-    <SiteRouter />
-  </React.StrictMode>
+  <>
+    <VisualRuntimeShellHost />
+    <React.StrictMode>
+      <InteractionAccessibilityBridge />
+      <SiteRouter />
+    </React.StrictMode>
+  </>
 );
 
 initCoreWebVitals();

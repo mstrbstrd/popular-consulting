@@ -10,6 +10,8 @@ export const WEBGL_DISABLED_SESSION_KEY = "popcon-webgl-disabled";
 export const GRAPHICS_FAILURE_SESSION_KEY = "popcon-graphics-failure";
 export const GRAPHICS_EVENTS_SESSION_KEY = "popcon-graphics-events";
 
+const VISUAL_RUNTIME_QUERY_PARAM = "visual-runtime";
+const VISUAL_RUNTIME_SHELL_QUERY_PARAM = "visual-runtime-shell";
 const MAX_RECORDED_EVENTS = 20;
 const MAX_DETAIL_FIELDS = 8;
 const MAX_DETAIL_LENGTH = 160;
@@ -31,6 +33,31 @@ const queryModeFromSearch = (search = "") => {
     );
   } catch (_) {
     return null;
+  }
+};
+
+export const isVisualRuntimeShellProbeRequest = (
+  search = "",
+  pathname = "/",
+) => {
+  try {
+    const normalizedPath =
+      String(pathname || "/").replace(/\/+$/, "") || "/";
+    const immersiveRoute =
+      normalizedPath === "/" || normalizedPath === "/engineering";
+    if (!immersiveRoute) return false;
+
+    const params = new URLSearchParams(search);
+    return (
+      params.get(VISUAL_RUNTIME_QUERY_PARAM)?.trim().toLowerCase() ===
+        "optimized" &&
+      params
+        .get(VISUAL_RUNTIME_SHELL_QUERY_PARAM)
+        ?.trim()
+        .toLowerCase() === "probe"
+    );
+  } catch (_) {
+    return false;
   }
 };
 
@@ -113,6 +140,8 @@ const runtimeSearch =
   typeof window !== "undefined" ? window.location.search : "";
 const runtimeUserAgent =
   typeof navigator !== "undefined" ? navigator.userAgent : "";
+const runtimePathname =
+  typeof window !== "undefined" ? window.location.pathname : "/";
 const runtimeQueryMode = queryModeFromSearch(runtimeSearch);
 
 if (typeof window !== "undefined") {
@@ -145,7 +174,13 @@ export const graphicsPolicy = resolveGraphicsPolicy({
 
 export const graphicsMode = graphicsPolicy.mode;
 export const isWindowsPlatform = graphicsPolicy.isWindows;
-export const shouldAttemptWebGL = graphicsMode !== GRAPHICS_MODES.CSS;
+export const visualRuntimeShellProbeRequested =
+  isVisualRuntimeShellProbeRequest(runtimeSearch, runtimePathname);
+export const shouldAttemptVisualRuntimeShell =
+  graphicsMode !== GRAPHICS_MODES.CSS;
+export const shouldAttemptWebGL =
+  shouldAttemptVisualRuntimeShell &&
+  !visualRuntimeShellProbeRequested;
 export const isGraphicsSafeMode = !shouldAttemptWebGL;
 
 const sanitizeDetail = (detail = {}) =>
@@ -230,6 +265,8 @@ export const getGraphicsReport = () => {
   return {
     policy: graphicsPolicy,
     shouldAttemptWebGL,
+    shouldAttemptVisualRuntimeShell,
+    visualRuntimeShellProbeRequested,
     failure,
     events,
   };

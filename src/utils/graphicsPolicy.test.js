@@ -3,6 +3,7 @@ import {
   GRAPHICS_MODE_SESSION_KEY,
   WEBGL_DISABLED_SESSION_KEY,
   disableWebGLForSession,
+  isVisualRuntimeShellProbeRequest,
   normalizeGraphicsMode,
   resolveGraphicsPolicy,
 } from "./graphicsPolicy";
@@ -82,6 +83,33 @@ describe("graphics runtime policy", () => {
       source: "query-auto",
       isWindows: true,
     });
+  });
+
+  test("recognizes only the explicit optimized shell probe", () => {
+    expect(
+      isVisualRuntimeShellProbeRequest(
+        "?visual-runtime=optimized&visual-runtime-shell=probe",
+        "/",
+      ),
+    ).toBe(true);
+    expect(
+      isVisualRuntimeShellProbeRequest(
+        "?visual-runtime=reference&visual-runtime-shell=probe",
+        "/engineering",
+      ),
+    ).toBe(false);
+    expect(
+      isVisualRuntimeShellProbeRequest(
+        "?visual-runtime=optimized",
+        "/",
+      ),
+    ).toBe(false);
+    expect(
+      isVisualRuntimeShellProbeRequest(
+        "?visual-runtime=optimized&visual-runtime-shell=probe",
+        "/work",
+      ),
+    ).toBe(false);
   });
 
   test("explicit runtime containment can still persist a CSS-only session", () => {
