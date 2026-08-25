@@ -5,7 +5,10 @@ import {
   shaderRuntimeProfile,
 } from "../utils/deviceTier";
 import { createVisualRuntimeLightPass } from "../utils/visualRuntimeLightPass";
-import { visualRuntimeLightPolicy } from "../utils/visualRuntimeLightPolicy";
+import {
+  shouldPresentVisualRuntimeLightFrame,
+  visualRuntimeLightPolicy,
+} from "../utils/visualRuntimeLightPolicy";
 import {
   VisualRuntimeShell,
   VISUAL_RUNTIME_SHELL_RENDERER_ID,
@@ -112,7 +115,7 @@ const VisualRuntimeShellSurface = () => {
     let releaseLightPass = null;
     if (visualRuntimeLightPolicy.active && runtime.gl) {
       try {
-        lightPass = createVisualRuntimeLightPass({
+        const candidateLightPass = createVisualRuntimeLightPass({
           gl: runtime.gl,
           host,
           canvas,
@@ -120,6 +123,34 @@ const VisualRuntimeShellSurface = () => {
           captureState: visualRuntimeLightPolicy.captureState,
           invalidate: (reason) => runtime.invalidate(reason),
         });
+        const captureActive = Boolean(
+          visualRuntimeLightPolicy.captureState?.active,
+        );
+
+        lightPass = {
+          ...candidateLightPass,
+          render: (frame) => {
+            if (
+              !shouldPresentVisualRuntimeLightFrame({
+                reducedMotion: frame.reducedMotion,
+                captureActive,
+              })
+            ) {
+              host.dataset.visualRuntimeLightPipeline =
+                "reduced-motion-fallback";
+              canvas.dataset.visualRuntimeLightPipeline =
+                "reduced-motion-fallback";
+              return { continue: false };
+            }
+            return candidateLightPass.render(frame);
+          },
+          report: () => ({
+            ...candidateLightPass.report(),
+            reducedMotionFallback:
+              host.dataset.visualRuntimeLightPipeline ===
+              "reduced-motion-fallback",
+          }),
+        };
         releaseLightPass = runtime.registerPass(lightPass);
       } catch (error) {
         runtime.fail("light-pipeline-initialization", error);
