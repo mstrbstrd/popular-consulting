@@ -11,6 +11,7 @@ describe("stage-three optimized light architecture", () => {
   const policySource = read("src/utils/visualRuntimeLightPolicy.js");
   const runtimePolicySource = read("src/utils/visualRuntimePolicy.js");
   const hostSource = read("src/components/VisualRuntimeShellHost.js");
+  const indexSource = read("src/index.js");
 
   test("keeps the complete optimized runtime unavailable during comparison", () => {
     expect(runtimePolicySource).toContain(
@@ -64,5 +65,6 @@ describe("stage-three optimized light architecture", () => {
     expect(hostSource).toContain("runtime.registerPass(lightPass)");
     expect(hostSource).toContain("shaderRuntimeProfile.maxPixels");
     expect(hostSource.match(/<canvas/g)).toHaveLength(1);
+    expect(indexSource).toContain("initVisualRuntimeLightPolicy();");
   });
 });

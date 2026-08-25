@@ -1,4 +1,5 @@
 import {
+  initVisualRuntimeLightPolicy,
   readVisualRuntimeLightCaptureRequest,
   readVisualRuntimePipelineRequest,
   resolveVisualRuntimeLightPolicy,
@@ -9,6 +10,25 @@ const activeShell = Object.freeze({ active: true });
 const inactiveShell = Object.freeze({ active: false });
 
 describe("optimized light pipeline policy", () => {
+  afterEach(() => {
+    document.body.innerHTML = "";
+    document.documentElement.removeAttribute(
+      "data-visual-runtime-light-pipeline",
+    );
+    document.documentElement.removeAttribute(
+      "data-visual-runtime-light-disabled",
+    );
+    document.documentElement.removeAttribute(
+      "data-visual-runtime-light-capture",
+    );
+    document.documentElement.removeAttribute(
+      "data-visual-runtime-light-capture-id",
+    );
+    window.localStorage.clear();
+    window.history.replaceState({}, "", "/");
+    jest.restoreAllMocks();
+  });
+
   test("remains off without an explicit light request", () => {
     expect(readVisualRuntimePipelineRequest("")).toBeNull();
     expect(
@@ -106,5 +126,41 @@ describe("optimized light pipeline policy", () => {
       active: false,
       disabledReason: "light-capture-theme-required",
     });
+  });
+
+  test("pins capture theme and navigates through the existing section dots", () => {
+    document.body.innerHTML = `
+      <button class="section-dot active"></button>
+      <button class="section-dot"></button>
+    `;
+    const dots = document.querySelectorAll(".section-dot");
+    dots[1].click = jest.fn();
+    window.localStorage.setItem("popcon-theme", "dark");
+    jest.spyOn(window, "setTimeout").mockImplementation((callback) => {
+      callback();
+      return 1;
+    });
+
+    const policy = resolveVisualRuntimeLightPolicy({
+      search:
+        "?visual-runtime-pipeline=light" +
+        "&visual-runtime-light-capture=1" +
+        "&capture-id=light-about" +
+        "&capture-section=1" +
+        "&capture-theme=light",
+      shellPolicy: activeShell,
+    });
+    const cleanup = initVisualRuntimeLightPolicy({ policy });
+
+    expect(window.localStorage.getItem("popcon-theme")).toBe("light");
+    expect(window.location.hash).toBe("#section-1");
+    expect(dots[1].click).toHaveBeenCalledTimes(1);
+    expect(document.documentElement).toHaveAttribute(
+      "data-visual-runtime-light-capture",
+      "true",
+    );
+
+    cleanup();
+    expect(window.localStorage.getItem("popcon-theme")).toBe("dark");
   });
 });
