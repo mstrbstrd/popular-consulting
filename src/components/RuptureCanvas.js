@@ -1,6 +1,12 @@
 import React, { useEffect, useRef, useState } from "react";
 import { isMobileTier } from "../utils/deviceTier";
 import {
+  createDitherCanvasContext,
+  ditherCanvasRuntimeProfile,
+  getDitherCanvasFrameInterval,
+  getDitherCanvasSize,
+} from "../utils/ditherCanvasRuntime";
+import {
   RUPTURE_FRAGMENT_SHADER,
   RUPTURE_VERTEX_SHADER,
 } from "./RuptureShader";
@@ -10,7 +16,10 @@ const ATLAS_CELL = 32;
 const MAX_NODES = 24;
 const MAX_BRANCHES = 4;
 const ACTIVE_NODES = isMobileTier ? 17 : 23;
-const TARGET_FRAME_MS = isMobileTier ? 42 : 32;
+const PREFERRED_TARGET_FRAME_MS = isMobileTier ? 42 : 32;
+const TARGET_FRAME_MS = getDitherCanvasFrameInterval(
+  PREFERRED_TARGET_FRAME_MS,
+);
 const REDUCED_FRAME_MS = 84;
 const SCROLL_DISTANCE_PX = isMobileTier ? 1800 : 2600;
 
@@ -147,17 +156,20 @@ const RuptureCanvas = ({
   const syncControlledProgressRef = useRef(() => {});
   const animationFrameRef = useRef(0);
   const forceRenderRef = useRef(true);
+  const requestRenderRef = useRef(() => {});
   const [fallback, setFallback] = useState(false);
   const [contextVersion, setContextVersion] = useState(0);
 
   useEffect(() => {
     pausedRef.current = paused;
     forceRenderRef.current = true;
+    requestRenderRef.current();
   }, [paused]);
 
   useEffect(() => {
     themeRef.current = isDark ? 1 : 0;
     forceRenderRef.current = true;
+    requestRenderRef.current();
   }, [isDark]);
 
   useEffect(() => {
@@ -167,6 +179,7 @@ const RuptureCanvas = ({
   useEffect(() => {
     resetSimulationRef.current();
     forceRenderRef.current = true;
+    requestRenderRef.current();
   }, [resetVersion]);
 
   useEffect(() => {
@@ -175,6 +188,7 @@ const RuptureCanvas = ({
       : null;
     syncControlledProgressRef.current();
     forceRenderRef.current = true;
+    requestRenderRef.current();
   }, [controlledProgress]);
 
   useEffect(() => {
@@ -194,6 +208,7 @@ const RuptureCanvas = ({
     const syncReducedMotion = () => {
       reducedMotion = Boolean(motionQuery?.matches);
       forceRenderRef.current = true;
+      requestRenderRef.current();
     };
     syncReducedMotion();
     if (motionQuery?.addEventListener) {
@@ -204,12 +219,20 @@ const RuptureCanvas = ({
 
     const handleVisibility = () => {
       documentVisible = document.visibilityState !== "hidden";
-      if (documentVisible) forceRenderRef.current = true;
+      if (!documentVisible) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = 0;
+        return;
+      }
+      forceRenderRef.current = true;
+      requestRenderRef.current();
     };
     document.addEventListener("visibilitychange", handleVisibility);
 
     const handleContextLost = (event) => {
       event.preventDefault();
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = 0;
       setFallback(true);
     };
     const handleContextRestored = () => {
@@ -230,11 +253,15 @@ const RuptureCanvas = ({
     };
 
     try {
-      gl = canvas.getContext("webgl2", {
-        alpha: false,
-        antialias: false,
-        depth: false,
-        powerPreference: isMobileTier ? "low-power" : "high-performance",
+      gl = createDitherCanvasContext({
+        canvas,
+        contextType: "webgl2",
+        rendererId: "dither-canvas-rupture",
+        options: {
+          alpha: false,
+          antialias: false,
+          depth: false,
+        },
       });
       if (!gl) throw new Error("WebGL2 is unavailable.");
 
@@ -405,21 +432,26 @@ const RuptureCanvas = ({
       const scale = isMobileTier
         ? 0.72
         : Math.min(window.devicePixelRatio || 1, 1.0);
-      const renderWidth = Math.max(1, Math.floor(width * scale));
-      const renderHeight = Math.max(1, Math.floor(height * scale));
-      if (canvas.width !== renderWidth || canvas.height !== renderHeight) {
-        canvas.width = renderWidth;
-        canvas.height = renderHeight;
-        gl.viewport(0, 0, renderWidth, renderHeight);
+      const target = getDitherCanvasSize(width, height, scale);
+      if (canvas.width !== target.width || canvas.height !== target.height) {
+        canvas.width = target.width;
+        canvas.height = target.height;
+        gl.viewport(0, 0, target.width, target.height);
+        root.dataset.renderWidth = String(target.width);
+        root.dataset.renderHeight = String(target.height);
         forceRenderRef.current = true;
       }
     };
     updateSize();
+    const handleResize = () => {
+      updateSize();
+      requestRenderRef.current();
+    };
     if (typeof ResizeObserver !== "undefined") {
-      resizeObserver = new ResizeObserver(updateSize);
+      resizeObserver = new ResizeObserver(handleResize);
       resizeObserver.observe(root);
     }
-    window.addEventListener("resize", updateSize);
+    window.addEventListener("resize", handleResize);
 
     const readPointer = (event) => {
       const bounds = root.getBoundingClientRect();
@@ -547,14 +579,17 @@ const RuptureCanvas = ({
     };
 
     const render = (timestamp) => {
-      animationFrameRef.current = requestAnimationFrame(render);
+      animationFrameRef.current = 0;
       if (!documentVisible) return;
 
       const shouldOnlyRefresh = pausedRef.current || reducedMotion;
       if (shouldOnlyRefresh && !forceRenderRef.current) return;
 
       const minimumFrameMs = reducedMotion ? REDUCED_FRAME_MS : TARGET_FRAME_MS;
-      if (timestamp - lastFrameAt < minimumFrameMs) return;
+      if (timestamp - lastFrameAt < minimumFrameMs) {
+        scheduleRender();
+        return;
+      }
       const delta = lastFrameAt
         ? Math.min((timestamp - lastFrameAt) / 1000, 1 / 18)
         : 0;
@@ -571,14 +606,27 @@ const RuptureCanvas = ({
       updateSize();
       draw();
       forceRenderRef.current = false;
+      if (!pausedRef.current && !reducedMotion) scheduleRender();
     };
 
-    animationFrameRef.current = requestAnimationFrame(render);
+    const scheduleRender = () => {
+      if (
+        animationFrameRef.current
+        || !documentVisible
+      ) {
+        return;
+      }
+      animationFrameRef.current = requestAnimationFrame(render);
+    };
+
+    requestRenderRef.current = scheduleRender;
+    scheduleRender();
 
     return () => {
       cancelAnimationFrame(animationFrameRef.current);
       resetSimulationRef.current = () => {};
       syncControlledProgressRef.current = () => {};
+      requestRenderRef.current = () => {};
       window.removeEventListener("wheel", handleWheel);
       pointerSurface.removeEventListener("pointermove", handlePointerMove);
       root.removeEventListener("pointerdown", handlePointerDown);
@@ -586,7 +634,7 @@ const RuptureCanvas = ({
       root.removeEventListener("pointerup", finishPointerDrag);
       root.removeEventListener("pointercancel", finishPointerDrag);
       window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("resize", updateSize);
+      window.removeEventListener("resize", handleResize);
       resizeObserver?.disconnect();
       cleanupBase();
       if (page) {
@@ -607,11 +655,17 @@ const RuptureCanvas = ({
     <div
       ref={rootRef}
       className={`rupture-shell${fallback ? " is-fallback" : ""}`}
+      data-context-recovery="local"
+      data-renderer-id="dither-canvas-rupture"
+      data-runtime-profile={ditherCanvasRuntimeProfile.id}
       aria-hidden="true"
     >
       <canvas
         ref={canvasRef}
         className="rupture-canvas"
+        data-renderer-id="dither-canvas-rupture"
+        aria-hidden="true"
+        tabIndex={-1}
         style={{ cursor: "ns-resize" }}
       />
       {fallback && <div className="rupture-fallback" />}

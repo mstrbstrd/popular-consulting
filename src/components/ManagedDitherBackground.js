@@ -203,12 +203,18 @@ const ManagedDitherBackground = ({
       ref={rootRef}
       className="managed-dither-background"
       data-renderer-id={rendererId}
+      data-dither-layer-host="true"
       data-renderer-state={rendererState}
       data-graphics-governor="true"
       data-graphics-single-pass="true"
       data-max-shader-pixels={MAX_SHADER_PIXELS}
       data-shader-frame-interval={TARGET_SHADER_FRAME_MS}
-      style={{ position: "absolute", inset: 0 }}
+      style={{
+        position: "absolute",
+        inset: 0,
+        isolation: "isolate",
+        pointerEvents: "none",
+      }}
       aria-hidden="true"
     >
       {shouldRender ? (

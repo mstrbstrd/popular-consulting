@@ -37,7 +37,8 @@ describe("CreatorOSLavaLampCanvas", () => {
     );
 
     expect(source).toContain("const RENDER_SCALE = 0.5;");
-    expect(source).toContain("const FRAME_INTERVAL_MS = 1000 / 30;");
+    expect(source).toContain("const PREFERRED_FRAME_INTERVAL_MS = 1000 / 30;");
+    expect(source).toContain("getDitherCanvasFrameInterval(");
     expect(source).toContain("#define bayer8");
     expect(source).toContain("vec2 p = uv + warp * 0.42;");
     expect(source).toContain("for (int i = 0; i < 8; i++)");
@@ -60,9 +61,11 @@ describe("CreatorOSLavaLampCanvas", () => {
       "utf8",
     );
 
-    expect(source.match(/getContext\("webgl"/g)).toHaveLength(1);
+    expect(source).toContain("createDitherCanvasContext({");
+    expect(source).toContain('contextType: "webgl"');
+    expect(source).toContain("getDitherCanvasSize(");
     expect(source).toContain("premultipliedAlpha: true");
-    expect(source).toContain('powerPreference: "low-power"');
+    expect(source).toContain('data-context-recovery="local"');
     expect(source).toContain("prefers-reduced-motion: reduce");
     expect(source).toContain("visibilitychange");
     expect(source).toContain("webglcontextlost");

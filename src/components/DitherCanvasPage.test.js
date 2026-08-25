@@ -438,4 +438,48 @@ describe("DitherCanvasPage", () => {
     expect(screen.getByText("propagating")).toBeInTheDocument();
     expect(screen.getByRole("main")).toHaveClass("rupture-propagating");
   });
+
+  test.each([
+    ["Second Surface", "rupture-renderer"],
+    ["Metabloom", "creatoros-field-renderer"],
+    ["Tidal Weave", "creatoros-field-renderer"],
+    ["Moiré Halo", "creatoros-field-renderer"],
+    ["Contour Drift", "creatoros-field-renderer"],
+    ["Lava Lamp", "creatoros-lava-renderer"],
+    ["Morphogen Divide", "creatoros-field-renderer"],
+    ["Quasicrystal Chorus", "creatoros-field-renderer"],
+    ["Hyperbolic Garden", "creatoros-field-renderer"],
+    ["Forward Pass", "creatoros-field-renderer"],
+  ])("passes both themes through %s", (studyTitle, rendererTestId) => {
+    render(<DitherCanvasPage />);
+
+    if (studyTitle !== "Second Surface") {
+      fireEvent.click(
+        screen.getByRole("button", { name: new RegExp(studyTitle) }),
+      );
+      flushScrollFrame();
+      finishStudyTransition();
+    }
+
+    expect(screen.getByRole("main")).toHaveAttribute(
+      "data-theme-mode",
+      "light",
+    );
+    expect(screen.getByTestId(rendererTestId)).toHaveAttribute(
+      "data-theme-mode",
+      "light",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Use dark mode" }));
+
+    expect(screen.getByRole("main")).toHaveAttribute(
+      "data-theme-mode",
+      "dark",
+    );
+    expect(screen.getByTestId(rendererTestId)).toHaveAttribute(
+      "data-theme-mode",
+      "dark",
+    );
+  });
+
 });
