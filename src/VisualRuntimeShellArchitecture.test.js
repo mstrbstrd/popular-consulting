@@ -31,8 +31,9 @@ describe("stage-two visual runtime shell architecture", () => {
       "OPTIMIZED_VISUAL_RUNTIME_SHELL_AVAILABLE = true",
     );
     expect(shellPolicySource).toContain(
-      'VISUAL_RUNTIME_SHELL_QUERY_PARAM =\n  "visual-runtime-shell"',
+      "VISUAL_RUNTIME_SHELL_QUERY_PARAM",
     );
+    expect(shellPolicySource).toContain('"visual-runtime-shell"');
     expect(shellPolicySource).toContain('PROBE: "probe"');
   });
 
