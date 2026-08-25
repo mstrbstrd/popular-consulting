@@ -6,10 +6,11 @@ export const VISUAL_RUNTIME_MODES = Object.freeze({
   OPTIMIZED: 'optimized',
 });
 
-export const VISUAL_RUNTIME_SCHEMA_VERSION = 3;
+export const VISUAL_RUNTIME_SCHEMA_VERSION = 4;
 export const OPTIMIZED_VISUAL_RUNTIME_AVAILABLE = false;
 export const OPTIMIZED_VISUAL_RUNTIME_SHELL_AVAILABLE = true;
 export const OPTIMIZED_VISUAL_RUNTIME_LIGHT_AVAILABLE = true;
+export const OPTIMIZED_VISUAL_RUNTIME_DARK_AVAILABLE = true;
 
 const KNOWN_VISUAL_RUNTIME_MODES = new Set(
   Object.values(VISUAL_RUNTIME_MODES),
@@ -115,6 +116,10 @@ const readCanvasSnapshot = (canvas, index) => {
       canvas.dataset.visualRuntimeLightPipeline ||
       host?.dataset.visualRuntimeLightPipeline ||
       null,
+    darkPipelineState:
+      canvas.dataset.visualRuntimeDarkPipeline ||
+      host?.dataset.visualRuntimeDarkPipeline ||
+      null,
     contextRecovery:
       canvas.dataset.contextRecovery ||
       host?.dataset.contextRecovery ||
@@ -166,6 +171,8 @@ export const getVisualRuntimeReport = () => {
       OPTIMIZED_VISUAL_RUNTIME_SHELL_AVAILABLE,
     optimizedLightAvailable:
       OPTIMIZED_VISUAL_RUNTIME_LIGHT_AVAILABLE,
+    optimizedDarkAvailable:
+      OPTIMIZED_VISUAL_RUNTIME_DARK_AVAILABLE,
     route:
       typeof window === 'undefined' ? null : window.location.pathname,
     theme: root?.getAttribute('data-theme') || null,
@@ -194,12 +201,15 @@ const logVisualRuntimeReport = (snapshot) => {
       'Optimized available': snapshot.optimizedAvailable,
       'Shell available': snapshot.optimizedShellAvailable,
       'Light pipeline available': snapshot.optimizedLightAvailable,
+      'Dark pipeline available': snapshot.optimizedDarkAvailable,
       Fallback: snapshot.fallbackReason || 'none',
       Theme: snapshot.theme || 'unset',
       Route: snapshot.route || 'unknown',
       Shell: snapshot.shell?.shell?.state || 'off',
       'Light pipeline':
         snapshot.shell?.lightPipeline?.id || 'off',
+      'Dark pipeline':
+        snapshot.shell?.darkPipeline?.id || 'off',
     },
   ]);
 
@@ -234,6 +244,12 @@ export const initVisualRuntimePolicy = () => {
       ? 'available'
       : 'unavailable',
   );
+  root?.setAttribute(
+    'data-optimized-visual-runtime-dark',
+    OPTIMIZED_VISUAL_RUNTIME_DARK_AVAILABLE
+      ? 'available'
+      : 'unavailable',
+  );
 
   if (visualRuntimePolicy.fallbackReason) {
     root?.setAttribute(
@@ -258,6 +274,7 @@ export const initVisualRuntimePolicy = () => {
   return () => {
     root?.removeAttribute('data-optimized-visual-runtime-shell');
     root?.removeAttribute('data-optimized-visual-runtime-light');
+    root?.removeAttribute('data-optimized-visual-runtime-dark');
     if (window.__visualRuntimeReport === report) {
       if (previousReport === undefined) {
         delete window.__visualRuntimeReport;

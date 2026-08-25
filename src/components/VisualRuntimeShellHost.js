@@ -4,6 +4,9 @@ import {
   isMobileTier,
   shaderRuntimeProfile,
 } from "../utils/deviceTier";
+import { createVisualRuntimeDarkPass } from "../utils/visualRuntimeDarkPass";
+import { visualRuntimeDarkPolicy } from "../utils/visualRuntimeDarkPolicy";
+import { VISUAL_RUNTIME_DARK_FIXED } from "../utils/visualRuntimeDarkState";
 import { createVisualRuntimeLightPass } from "../utils/visualRuntimeLightPass";
 import {
   shouldPresentVisualRuntimeLightFrame,
@@ -80,11 +83,16 @@ const VisualRuntimeShellSurface = () => {
     const canvas = canvasRef.current;
     if (!host || !canvas) return undefined;
 
+    const darkCandidateActive = visualRuntimeDarkPolicy.active;
     const runtime = new VisualRuntimeShell({
       host,
       canvas,
-      maxDevicePixelRatio: shaderRuntimeProfile.maxDpr,
-      maxPixels: shaderRuntimeProfile.maxPixels,
+      maxDevicePixelRatio: darkCandidateActive
+        ? VISUAL_RUNTIME_DARK_FIXED.outputScale
+        : shaderRuntimeProfile.maxDpr,
+      maxPixels: darkCandidateActive
+        ? VISUAL_RUNTIME_DARK_FIXED.maxPixels
+        : shaderRuntimeProfile.maxPixels,
     });
     const syncTheme = () => runtime.setTheme(readTheme());
     const syncSection = (event) => {
@@ -112,8 +120,24 @@ const VisualRuntimeShellSurface = () => {
     runtime.initialize();
 
     let lightPass = null;
+    let darkPass = null;
     let releaseLightPass = null;
-    if (visualRuntimeLightPolicy.active && runtime.gl) {
+    let releaseDarkPass = null;
+
+    if (visualRuntimeDarkPolicy.active && runtime.gl) {
+      try {
+        darkPass = createVisualRuntimeDarkPass({
+          gl: runtime.gl,
+          host,
+          canvas,
+          captureState: visualRuntimeDarkPolicy.captureState,
+          invalidate: (reason) => runtime.invalidate(reason),
+        });
+        releaseDarkPass = runtime.registerPass(darkPass);
+      } catch (error) {
+        runtime.fail("dark-pipeline-initialization", error);
+      }
+    } else if (visualRuntimeLightPolicy.active && runtime.gl) {
       try {
         const candidateLightPass = createVisualRuntimeLightPass({
           gl: runtime.gl,
@@ -163,6 +187,8 @@ const VisualRuntimeShellSurface = () => {
       policy: visualRuntimeShellPolicy,
       lightPipelinePolicy: visualRuntimeLightPolicy,
       lightPipeline: lightPass?.report?.() || null,
+      darkPipelinePolicy: visualRuntimeDarkPolicy,
+      darkPipeline: darkPass?.report?.() || null,
       shell: runtime.report(),
     });
     const controller = Object.freeze({
@@ -195,6 +221,7 @@ const VisualRuntimeShellSurface = () => {
         }
       }
 
+      releaseDarkPass?.();
       releaseLightPass?.();
       runtime.dispose();
     };

@@ -16,6 +16,7 @@ import VisualRuntimeShellHost from './components/VisualRuntimeShellHost';
 import { initGraphicsContextGovernor } from './utils/graphicsContextGovernor';
 import { initGraphicsRuntimeBoundary } from './utils/graphicsRuntimeBoundary';
 import { initVisualCaptureHarness } from './utils/visualCaptureHarness';
+import { initVisualRuntimeDarkPolicy } from './utils/visualRuntimeDarkPolicy';
 import { initVisualRuntimeLightPolicy } from './utils/visualRuntimeLightPolicy';
 import { initVisualRuntimePolicy } from './utils/visualRuntimePolicy';
 import { initVisualRuntimeShellPolicy } from './utils/visualRuntimeShellPolicy';
@@ -35,9 +36,18 @@ initVisualRuntimeShellPolicy();
 // pins the requested theme and uses the existing section-dot contract before
 // the shell renders its deterministic comparison frame.
 const cleanupVisualRuntimeLightPolicy = initVisualRuntimeLightPolicy();
-window.addEventListener('pagehide', cleanupVisualRuntimeLightPolicy, {
-  once: true,
-});
+
+// Stage four's dark candidate is also explicit-only. A deterministic dark
+// capture pins theme, camera, pointer, time, and section before React mounts.
+const cleanupVisualRuntimeDarkPolicy = initVisualRuntimeDarkPolicy();
+window.addEventListener(
+  'pagehide',
+  () => {
+    cleanupVisualRuntimeDarkPolicy();
+    cleanupVisualRuntimeLightPolicy();
+  },
+  { once: true },
+);
 
 // The context governor is installed before React mounts any renderer. It only
 // touches canvases explicitly marked by ManagedDitherBackground, bounding their
