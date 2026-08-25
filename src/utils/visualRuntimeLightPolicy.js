@@ -37,6 +37,11 @@ export const readVisualRuntimeLightCaptureRequest = (search = "") => {
   return ["1", "true", "yes", "on"].includes(value);
 };
 
+export const shouldPresentVisualRuntimeLightFrame = ({
+  reducedMotion = false,
+  captureActive = false,
+} = {}) => !Boolean(reducedMotion) || Boolean(captureActive);
+
 const resolveLightCaptureState = (search) => {
   const params = readParams(search);
   params.set("visual-capture", "reference");
