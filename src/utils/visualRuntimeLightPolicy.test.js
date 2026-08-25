@@ -3,6 +3,7 @@ import {
   readVisualRuntimeLightCaptureRequest,
   readVisualRuntimePipelineRequest,
   resolveVisualRuntimeLightPolicy,
+  shouldPresentVisualRuntimeLightFrame,
   VISUAL_RUNTIME_LIGHT_PIPELINE_ID,
 } from "./visualRuntimeLightPolicy";
 
@@ -126,6 +127,27 @@ describe("optimized light pipeline policy", () => {
       active: false,
       disabledReason: "light-capture-theme-required",
     });
+  });
+
+  test("keeps reduced-motion visitors on the CSS fallback", () => {
+    expect(
+      shouldPresentVisualRuntimeLightFrame({
+        reducedMotion: true,
+        captureActive: false,
+      }),
+    ).toBe(false);
+    expect(
+      shouldPresentVisualRuntimeLightFrame({
+        reducedMotion: false,
+        captureActive: false,
+      }),
+    ).toBe(true);
+    expect(
+      shouldPresentVisualRuntimeLightFrame({
+        reducedMotion: true,
+        captureActive: true,
+      }),
+    ).toBe(true);
   });
 
   test("pins capture theme and navigates through the existing section dots", () => {
