@@ -3,6 +3,7 @@ import path from "path";
 import {
   createBuildServer,
   findBrowser,
+  runBrowserCapture,
 } from "./dark-evidence-browser.mjs";
 import {
   compareImages,
@@ -165,6 +166,168 @@ const buildCandidateUrl = (origin, captureCase) => {
   return url.toString();
 };
 
+const extractJsonScript = (documentHtml, id) => {
+  const escapedId = id.replace(
+    /[.*+?^${}()|[\]\\]/g,
+    "\\$&",
+  );
+  const match = documentHtml.match(
+    new RegExp(
+      `<script id="${escapedId}" type="application/json">([\\s\\S]*?)<\\/script>`,
+    ),
+  );
+  if (!match) {
+    throw new Error(
+      `Rendered document did not contain #${id}.`,
+    );
+  }
+  return JSON.parse(match[1]);
+};
+
+const runDiagnosticSmoke = async ({
+  browserPath,
+  origin,
+  outputDirectory,
+  viewport,
+  allowSoftware,
+}) => {
+  const captureCase = DARK_EVIDENCE_CASES[0];
+  const caseDirectory = path.join(
+    outputDirectory,
+    "diagnostic-candidate",
+  );
+  fs.mkdirSync(caseDirectory, { recursive: true });
+
+  const candidateUrl = buildCandidateUrl(origin, captureCase);
+  const candidateScreenshot = path.join(
+    caseDirectory,
+    "candidate.png",
+  );
+  const diffScreenshot = path.join(
+    caseDirectory,
+    "self-diff.png",
+  );
+  const candidateHtml = await runBrowserCapture({
+    browserPath,
+    url: candidateUrl,
+    screenshotPath: candidateScreenshot,
+    profilePrefix: "popcon-dark-smoke-candidate-",
+    viewport,
+    allowSoftware,
+  });
+
+  if (
+    !candidateHtml.includes(
+      'data-visual-runtime-dark-presented="true"',
+    )
+  ) {
+    throw new Error(
+      "Dark evidence smoke candidate did not present.",
+    );
+  }
+
+  const evidence = extractJsonScript(
+    candidateHtml,
+    "visual-runtime-evidence-report",
+  );
+  const record = evidence.records?.find(
+    (candidate) =>
+      candidate.rendererId === "optimized-visual-runtime-shell",
+  );
+  if (!record) {
+    throw new Error(
+      "Dark evidence smoke did not emit the candidate evidence record.",
+    );
+  }
+
+  const image = decodePng(
+    fs.readFileSync(candidateScreenshot),
+  );
+  const metrics = compareImages(image, image);
+  if (
+    metrics.meanAbsoluteError !== 0 ||
+    metrics.rootMeanSquareError !== 0 ||
+    metrics.mismatchRatio !== 0
+  ) {
+    throw new Error(
+      "Dark evidence smoke PNG comparison was not deterministic.",
+    );
+  }
+  if (
+    !Number.isFinite(metrics.candidateLuminanceStdDev) ||
+    metrics.candidateLuminanceStdDev < 0.001
+  ) {
+    throw new Error(
+      "Dark evidence smoke candidate screenshot was blank or flat.",
+    );
+  }
+
+  fs.writeFileSync(
+    diffScreenshot,
+    encodePng({
+      width: metrics.width,
+      height: metrics.height,
+      rgba: metrics.diff,
+    }),
+  );
+
+  const result = {
+    schemaVersion: 1,
+    diagnosticOnly: true,
+    qualificationEligible: false,
+    reason:
+      "The canonical renderer rejects software graphics, so CI smoke validates only candidate execution and evidence plumbing.",
+    captureCase,
+    viewport,
+    candidateUrl,
+    candidateScreenshot: path.relative(
+      outputDirectory,
+      candidateScreenshot,
+    ),
+    selfDiffScreenshot: path.relative(
+      outputDirectory,
+      diffScreenshot,
+    ),
+    renderer: record.renderer,
+    vendor: record.vendor,
+    software: record.software,
+    timerSupported: record.timerSupported,
+    visual: {
+      meanAbsoluteError: metrics.meanAbsoluteError,
+      rootMeanSquareError: metrics.rootMeanSquareError,
+      mismatchRatio: metrics.mismatchRatio,
+      luminanceStdDev: metrics.candidateLuminanceStdDev,
+    },
+    passed: true,
+    generatedAt: new Date().toISOString(),
+  };
+
+  fs.writeFileSync(
+    path.join(caseDirectory, "result.json"),
+    `${JSON.stringify(result, null, 2)}\n`,
+  );
+  fs.writeFileSync(
+    path.join(outputDirectory, "summary.json"),
+    `${JSON.stringify(result, null, 2)}\n`,
+  );
+  fs.writeFileSync(
+    path.join(outputDirectory, "summary.md"),
+    `# Dark Evidence Diagnostic Smoke\n\n` +
+      `Result: pass\n\n` +
+      `Qualification eligible: no\n\n` +
+      `Renderer: ${record.renderer || "unknown"}\n\n` +
+      `Vendor: ${record.vendor || "unknown"}\n\n` +
+      `Software renderer: ${record.software ? "yes" : "no"}\n\n` +
+      `The canonical renderer intentionally rejects software graphics. ` +
+      `This smoke proves candidate presentation, evidence report emission, ` +
+      `PNG decoding, encoding, and image comparison only.\n`,
+  );
+
+  process.stdout.write(
+    "Dark evidence diagnostic smoke passed.\n",
+  );
+};
+
 const runSelfTest = () => {
   const rgba = Buffer.from([
     255, 0, 0, 255,
@@ -243,9 +406,7 @@ const selectedCases = selectedCaseId
   ? DARK_EVIDENCE_CASES.filter(
       (captureCase) => captureCase.id === selectedCaseId,
     )
-  : smoke
-    ? [DARK_EVIDENCE_CASES[0]]
-    : [...DARK_EVIDENCE_CASES];
+  : [...DARK_EVIDENCE_CASES];
 
 if (selectedCases.length === 0) {
   throw new Error(`Unknown evidence case: ${selectedCaseId}`);
@@ -289,39 +450,49 @@ if (!origin) {
 }
 
 try {
-  const results = [];
-  for (const captureCase of selectedCases) {
-    results.push(
-      await runEvidenceCase({
-        browserPath,
-        captureCase,
-        referenceUrl: buildReferenceUrl(origin, captureCase),
-        candidateUrl: buildCandidateUrl(origin, captureCase),
-        outputDirectory,
-        viewport,
-        allowSoftware,
-        skipGpuGate,
-        skipVisualGate,
-      }),
-    );
-  }
+  if (smoke) {
+    await runDiagnosticSmoke({
+      browserPath,
+      origin,
+      outputDirectory,
+      viewport,
+      allowSoftware,
+    });
+  } else {
+    const results = [];
+    for (const captureCase of selectedCases) {
+      results.push(
+        await runEvidenceCase({
+          browserPath,
+          captureCase,
+          referenceUrl: buildReferenceUrl(origin, captureCase),
+          candidateUrl: buildCandidateUrl(origin, captureCase),
+          outputDirectory,
+          viewport,
+          allowSoftware,
+          skipGpuGate,
+          skipVisualGate,
+        }),
+      );
+    }
 
-  const summary = writeEvidenceSummary({
-    outputDirectory,
-    browserPath,
-    viewport,
-    allowSoftware,
-    skipGpuGate,
-    skipVisualGate,
-    results,
-  });
-  if (!summary.passed) {
-    throw new Error(
-      `Dark evidence gates failed. Inspect ${path.join(
-        outputDirectory,
-        "summary.md",
-      )}.`,
-    );
+    const summary = writeEvidenceSummary({
+      outputDirectory,
+      browserPath,
+      viewport,
+      allowSoftware,
+      skipGpuGate,
+      skipVisualGate,
+      results,
+    });
+    if (!summary.passed) {
+      throw new Error(
+        `Dark evidence gates failed. Inspect ${path.join(
+          outputDirectory,
+          "summary.md",
+        )}.`,
+      );
+    }
   }
 } finally {
   if (server) {
