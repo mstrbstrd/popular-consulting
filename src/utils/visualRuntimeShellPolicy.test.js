@@ -2,6 +2,7 @@ import {
   initVisualRuntimeShellPolicy,
   readVisualRuntimeShellRequest,
   resolveVisualRuntimeShellPolicy,
+  VISUAL_RUNTIME_SHELL_ACTIVATION_SOURCES,
   VISUAL_RUNTIME_SHELL_MODES,
 } from "./visualRuntimeShellPolicy";
 import { VISUAL_RUNTIME_MODES } from "./visualRuntimePolicy";
@@ -29,7 +30,7 @@ describe("visual runtime shell policy", () => {
     );
   });
 
-  test("remains off unless the probe is explicitly requested", () => {
+  test("keeps the low-level shell override off unless probe is requested", () => {
     expect(readVisualRuntimeShellRequest("")).toBe(
       VISUAL_RUNTIME_SHELL_MODES.OFF,
     );
@@ -76,10 +77,57 @@ describe("visual runtime shell policy", () => {
     });
   });
 
+  test("activates the production trial from visual-runtime=optimized", () => {
+    expect(
+      resolveVisualRuntimeShellPolicy({
+        search: "?visual-runtime=optimized",
+        pathname: "/",
+        runtimePolicy: runtimePolicy(
+          VISUAL_RUNTIME_MODES.OPTIMIZED,
+        ),
+        captureState: { active: false },
+        webglAllowed: true,
+      }),
+    ).toEqual({
+      schemaVersion: 1,
+      requested: VISUAL_RUNTIME_SHELL_MODES.OFF,
+      explicitShellRequest: false,
+      activationSource:
+        VISUAL_RUNTIME_SHELL_ACTIVATION_SOURCES.OPTIMIZED_QUERY,
+      active: true,
+      suppressReferenceRenderers: true,
+      immersiveRoute: true,
+      optimizedRequested: true,
+      captureActive: false,
+      disabledReason: null,
+    });
+  });
+
+  test("an explicit shell override can keep the production trial off", () => {
+    expect(
+      resolveVisualRuntimeShellPolicy({
+        search:
+          "?visual-runtime=optimized&visual-runtime-shell=off",
+        pathname: "/",
+        runtimePolicy: runtimePolicy(
+          VISUAL_RUNTIME_MODES.OPTIMIZED,
+        ),
+        captureState: { active: false },
+        webglAllowed: true,
+      }),
+    ).toMatchObject({
+      explicitShellRequest: true,
+      activationSource: null,
+      active: false,
+      suppressReferenceRenderers: false,
+      disabledReason: null,
+    });
+  });
+
   test("does not compete with CSS policy or reference capture", () => {
     expect(
       resolveVisualRuntimeShellPolicy({
-        search: "?visual-runtime-shell=probe",
+        search: "?visual-runtime=optimized",
         pathname: "/",
         runtimePolicy: runtimePolicy(
           VISUAL_RUNTIME_MODES.OPTIMIZED,
@@ -94,7 +142,7 @@ describe("visual runtime shell policy", () => {
 
     expect(
       resolveVisualRuntimeShellPolicy({
-        search: "?visual-runtime-shell=probe",
+        search: "?visual-runtime=optimized",
         pathname: "/engineering",
         runtimePolicy: runtimePolicy(
           VISUAL_RUNTIME_MODES.OPTIMIZED,
@@ -108,10 +156,11 @@ describe("visual runtime shell policy", () => {
     });
   });
 
-  test("activates one shell and suppresses reference WebGL only in the probe", () => {
+  test("retains the explicit probe comparison path", () => {
     expect(
       resolveVisualRuntimeShellPolicy({
-        search: "?visual-runtime-shell=probe",
+        search:
+          "?visual-runtime=optimized&visual-runtime-shell=probe",
         pathname: "/engineering/",
         runtimePolicy: runtimePolicy(
           VISUAL_RUNTIME_MODES.OPTIMIZED,
@@ -122,6 +171,9 @@ describe("visual runtime shell policy", () => {
     ).toEqual({
       schemaVersion: 1,
       requested: VISUAL_RUNTIME_SHELL_MODES.PROBE,
+      explicitShellRequest: true,
+      activationSource:
+        VISUAL_RUNTIME_SHELL_ACTIVATION_SOURCES.PROBE,
       active: true,
       suppressReferenceRenderers: true,
       immersiveRoute: true,
