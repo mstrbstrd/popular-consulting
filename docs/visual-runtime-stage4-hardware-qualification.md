@@ -37,7 +37,10 @@ A manual dispatch may also select `macos-26`. Changing the runner label changes 
 11. Both `BlackHole*.js` and `blackHole*.js` changes retrigger the full matrix on `main`.
 12. Automatic qualification runs on `macos-15`; `macos-26` remains selectable for manual cross-checking.
 13. Both selectable runner labels are ARM64 macOS hardware images.
-14. `OPTIMIZED_VISUAL_RUNTIME_AVAILABLE` remains `false`.
+14. Timer queries are polled asynchronously and the evidence path never calls `gl.finish()`.
+15. Out-of-order timer results cannot be grouped across draw or frame boundaries.
+16. Missing, disjoint, invalid, exceptional, or timed-out timer results fail closed.
+17. `OPTIMIZED_VISUAL_RUNTIME_AVAILABLE` remains `false`.
 
 ## Evidence output
 
@@ -64,6 +67,7 @@ A failure is a measurement, not a deployment failure.
 - A visual failure identifies where the transport map, packed crossings, chromatic sampling, or material reconstruction differs from the oracle.
 - A performance failure shows that the complete-frame cost has not reached the order-of-magnitude target, even if the source-level ray count has.
 - A hardware identity failure means the runner cannot establish trustworthy GPU evidence.
+- A timer failure means at least one complete-frame draw could not be measured without disjoint, invalid, exceptional, or timed-out state.
 - A missing summary means the harness or browser failed before evidence completion and the job log, retained DOM, and partial artifact become authoritative.
 - A queued run with no job means the selected hosted-runner pool has not assigned hardware. It is not evidence about the application or renderer.
 
