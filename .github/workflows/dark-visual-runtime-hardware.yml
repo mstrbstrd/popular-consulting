@@ -1,42 +1,23 @@
-name: Dark visual runtime evidence and physical qualification
+name: Dark visual runtime hosted diagnostic
 
 on:
   workflow_dispatch:
     inputs:
-      execution_mode:
-        description: Run a hosted diagnostic or a physical hardware qualification
-        required: true
-        default: hosted-diagnostic
-        type: choice
-        options:
-          - hosted-diagnostic
-          - physical-qualification
       viewport:
-        description: Capture viewport in WIDTHxHEIGHT form
+        description: Hosted diagnostic viewport in WIDTHxHEIGHT form
         required: true
-        default: 1440x900
+        default: 480x300
         type: string
-      evidence_case:
-        description: Run the complete physical matrix or one named diagnostic case
-        required: true
-        default: all
-        type: choice
-        options:
-          - all
-          - dark-section-0-hero
-          - dark-section-1-about
-          - dark-section-2-services
-          - dark-section-3-contact
-          - dark-section-4-orb
-          - dark-section-5-game
-          - dark-hero-pointer-left
-          - dark-hero-pointer-right
-          - dark-hero-time-16
   pull_request:
     paths:
       - .github/workflows/dark-visual-runtime-hardware.yml
+      - .github/workflows/quality.yml
+      - package.json
       - scripts/capture-visual-dark-evidence.mjs
       - scripts/dark-evidence-*.mjs
+      - scripts/physical-dark-qualification-lib.mjs
+      - scripts/run-physical-dark-qualification.mjs
+      - scripts/verify-physical-dark-qualification.mjs
       - src/components/BlackHole*.js
       - src/components/blackHole*.js
       - src/contexts/ThemeContext.js
@@ -48,8 +29,13 @@ on:
       - main
     paths:
       - .github/workflows/dark-visual-runtime-hardware.yml
+      - .github/workflows/quality.yml
+      - package.json
       - scripts/capture-visual-dark-evidence.mjs
       - scripts/dark-evidence-*.mjs
+      - scripts/physical-dark-qualification-lib.mjs
+      - scripts/run-physical-dark-qualification.mjs
+      - scripts/verify-physical-dark-qualification.mjs
       - src/components/BlackHole*.js
       - src/components/blackHole*.js
       - src/contexts/ThemeContext.js
@@ -61,27 +47,28 @@ permissions:
   contents: read
 
 concurrency:
-  group: dark-evidence-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}-${{ inputs.execution_mode || 'hosted-diagnostic' }}
+  group: dark-hosted-diagnostic-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   hosted-dark-diagnostic:
-    if: >-
-      github.event_name != 'workflow_dispatch' ||
-      inputs.execution_mode == 'hosted-diagnostic'
     name: Hosted dark diagnostic, non-qualifying
     runs-on: macos-15
     timeout-minutes: 35
     env:
       VISUAL_CAPTURE_BROWSER: /Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge
+      EVIDENCE_VIEWPORT: ${{ inputs.viewport || '480x300' }}
       EVIDENCE_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      EVIDENCE_SOURCE_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
       EVIDENCE_RUNNER_LABEL: macos-15-hosted
 
     steps:
-      - name: Check out exact source commit
+      - name: Check out exact diagnostic source commit
         uses: actions/checkout@v4
         with:
+          repository: ${{ env.EVIDENCE_SOURCE_REPOSITORY }}
           ref: ${{ env.EVIDENCE_SOURCE_SHA }}
+          persist-credentials: false
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -96,12 +83,15 @@ jobs:
         run: |
           npm run visual:dark-evidence:self-test
           node scripts/dark-evidence-hosted-diagnostic.mjs --self-test
+          node scripts/run-physical-dark-qualification.mjs --self-test
+          node scripts/verify-physical-dark-qualification.mjs --self-test
           node scripts/aggregate-dark-evidence.mjs --self-test
 
       - name: Record hosted runner and graphics identity
         shell: bash
         run: |
           set -euo pipefail
+          echo "Evidence source repository: ${EVIDENCE_SOURCE_REPOSITORY}"
           echo "Evidence source SHA: ${EVIDENCE_SOURCE_SHA}"
           echo "Hosted runner label: ${EVIDENCE_RUNNER_LABEL}"
           sw_vers
@@ -115,10 +105,10 @@ jobs:
         env:
           CI: true
 
-      - name: Run hosted candidate diagnostic
+      - name: Run timer-free hosted candidate diagnostic
         run: >-
           node scripts/dark-evidence-hosted-diagnostic.mjs
-          --viewport=480x300
+          --viewport="${EVIDENCE_VIEWPORT}"
           --output=visual-dark-evidence-hosted
 
       - name: Verify hosted evidence cannot qualify production
@@ -154,281 +144,3 @@ jobs:
           path: visual-dark-evidence-hosted
           if-no-files-found: warn
           retention-days: 30
-
-  evidence-case:
-    if: >-
-      github.event_name == 'workflow_dispatch' &&
-      inputs.execution_mode == 'physical-qualification' &&
-      inputs.evidence_case == 'all'
-    name: Physical dark evidence ${{ matrix.evidence_case }}
-    runs-on:
-      - self-hosted
-      - macOS
-      - ARM64
-      - physical-gpu
-      - visual-runtime-qualification
-    timeout-minutes: 90
-    strategy:
-      fail-fast: false
-      max-parallel: 3
-      matrix:
-        evidence_case:
-          - dark-section-0-hero
-          - dark-section-1-about
-          - dark-section-2-services
-          - dark-section-3-contact
-          - dark-section-4-orb
-          - dark-section-5-game
-          - dark-hero-pointer-left
-          - dark-hero-pointer-right
-          - dark-hero-time-16
-    env:
-      VISUAL_CAPTURE_BROWSER: /Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge
-      EVIDENCE_VIEWPORT: ${{ inputs.viewport || '1440x900' }}
-      EVIDENCE_CASE: ${{ matrix.evidence_case }}
-      EVIDENCE_SOURCE_SHA: ${{ github.sha }}
-      EVIDENCE_RUNNER_LABEL: self-hosted-physical-apple-silicon
-
-    steps:
-      - name: Check out exact source commit
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ env.EVIDENCE_SOURCE_SHA }}
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci --no-audit --no-fund
-
-      - name: Verify evidence scripts
-        run: |
-          npm run visual:dark-evidence:self-test
-          node scripts/aggregate-dark-evidence.mjs --self-test
-
-      - name: Record physical runner and graphics identity
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "Evidence source SHA: ${EVIDENCE_SOURCE_SHA}"
-          echo "Physical runner label: ${EVIDENCE_RUNNER_LABEL}"
-          sw_vers
-          uname -m
-          system_profiler SPDisplaysDataType
-          test -x "$VISUAL_CAPTURE_BROWSER"
-          "$VISUAL_CAPTURE_BROWSER" --version
-
-      - name: Build production bundle
-        run: npm run build
-        env:
-          CI: true
-
-      - name: Run strict physical evidence case
-        id: evidence
-        shell: bash
-        run: |
-          set +e
-          node scripts/capture-visual-dark-evidence.mjs \
-            --viewport="${EVIDENCE_VIEWPORT}" \
-            --case="${EVIDENCE_CASE}" \
-            --output="visual-dark-evidence/${EVIDENCE_CASE}"
-          status=$?
-          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
-          exit 0
-
-      - name: Upload physical case artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: dark-evidence-case-${{ matrix.evidence_case }}-${{ github.run_id }}
-          path: visual-dark-evidence
-          if-no-files-found: warn
-          retention-days: 30
-
-      - name: Enforce strict physical case
-        if: always()
-        shell: bash
-        run: |
-          test "${{ steps.evidence.outputs.exit_code }}" = "0"
-
-  qualify-dark-runtime:
-    if: >-
-      always() &&
-      github.event_name == 'workflow_dispatch' &&
-      inputs.execution_mode == 'physical-qualification' &&
-      inputs.evidence_case == 'all'
-    name: Aggregate physical dark qualification
-    needs: evidence-case
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    env:
-      EVIDENCE_SOURCE_SHA: ${{ github.sha }}
-      EVIDENCE_RUNNER_LABEL: self-hosted-physical-apple-silicon
-
-    steps:
-      - name: Check out exact source commit
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ env.EVIDENCE_SOURCE_SHA }}
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Verify aggregate script
-        run: node scripts/aggregate-dark-evidence.mjs --self-test
-
-      - name: Download every physical case artifact
-        continue-on-error: true
-        uses: actions/download-artifact@v4
-        with:
-          pattern: dark-evidence-case-*-${{ github.run_id }}
-          path: collected-dark-evidence
-          merge-multiple: true
-
-      - name: Aggregate the complete physical matrix
-        id: aggregate
-        if: always()
-        shell: bash
-        run: |
-          set +e
-          node scripts/aggregate-dark-evidence.mjs \
-            --input=collected-dark-evidence \
-            --output=visual-dark-evidence-aggregate \
-            --source-sha="${EVIDENCE_SOURCE_SHA}" \
-            --runner="${EVIDENCE_RUNNER_LABEL}"
-          status=$?
-          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
-          exit 0
-
-      - name: Publish aggregate evidence summary
-        if: always()
-        shell: bash
-        run: |
-          if [[ -f visual-dark-evidence-aggregate/summary.md ]]; then
-            cat visual-dark-evidence-aggregate/summary.md >> "$GITHUB_STEP_SUMMARY"
-          else
-            {
-              echo "# Physical dark visual runtime qualification"
-              echo
-              echo "The aggregate summary was not produced."
-              echo "The qualification remains failed closed."
-            } >> "$GITHUB_STEP_SUMMARY"
-          fi
-
-      - name: Upload complete physical qualification artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: dark-visual-runtime-evidence-physical-${{ github.run_id }}
-          path: |
-            collected-dark-evidence
-            visual-dark-evidence-aggregate
-          if-no-files-found: warn
-          retention-days: 30
-
-      - name: Enforce aggregate qualification
-        if: always()
-        shell: bash
-        run: |
-          test "${{ steps.aggregate.outputs.exit_code }}" = "0"
-
-  diagnostic-dark-runtime:
-    if: >-
-      github.event_name == 'workflow_dispatch' &&
-      inputs.execution_mode == 'physical-qualification' &&
-      inputs.evidence_case != 'all'
-    name: Diagnostic dark evidence, non-qualifying
-    runs-on:
-      - self-hosted
-      - macOS
-      - ARM64
-      - physical-gpu
-      - visual-runtime-qualification
-    timeout-minutes: 90
-    env:
-      VISUAL_CAPTURE_BROWSER: /Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge
-      EVIDENCE_VIEWPORT: ${{ inputs.viewport || '1440x900' }}
-      EVIDENCE_CASE: ${{ inputs.evidence_case }}
-      EVIDENCE_SOURCE_SHA: ${{ github.sha }}
-      EVIDENCE_RUNNER_LABEL: self-hosted-physical-apple-silicon
-
-    steps:
-      - name: Check out exact source commit
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ env.EVIDENCE_SOURCE_SHA }}
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci --no-audit --no-fund
-
-      - name: Verify evidence scripts
-        run: npm run visual:dark-evidence:self-test
-
-      - name: Build production bundle
-        run: npm run build
-        env:
-          CI: true
-
-      - name: Run one physical diagnostic case
-        id: evidence
-        shell: bash
-        run: |
-          set +e
-          node scripts/capture-visual-dark-evidence.mjs \
-            --viewport="${EVIDENCE_VIEWPORT}" \
-            --case="${EVIDENCE_CASE}" \
-            --output=visual-dark-evidence-diagnostic
-          status=$?
-          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
-          exit 0
-
-      - name: Mark the result as non-qualifying
-        if: always()
-        shell: bash
-        run: |
-          mkdir -p visual-dark-evidence-diagnostic
-          cat > visual-dark-evidence-diagnostic/qualification.json <<'JSON'
-          {
-            "diagnosticOnly": true,
-            "qualificationEligible": false,
-            "reason": "Only the complete nine-case physical matrix can qualify the optimized dark runtime."
-          }
-          JSON
-
-      - name: Publish diagnostic notice
-        if: always()
-        shell: bash
-        run: |
-          {
-            echo "# Diagnostic dark visual runtime evidence"
-            echo
-            echo "This single-case run is non-qualifying."
-            echo "Only the complete matrix can produce a qualification result."
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload physical diagnostic artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: dark-visual-runtime-physical-diagnostic-${{ inputs.evidence_case }}-${{ github.run_id }}
-          path: visual-dark-evidence-diagnostic
-          if-no-files-found: warn
-          retention-days: 30
-
-      - name: Enforce diagnostic execution only
-        if: always()
-        shell: bash
-        run: |
-          echo "Single-case evidence is diagnostic and cannot qualify the runtime."
-          test "${{ steps.evidence.outputs.exit_code }}" = "0"
