@@ -32,8 +32,10 @@ jobs:
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
 
-      - name: Run dark evidence script self-test
-        run: npm run visual:dark-evidence:self-test
+      - name: Run dark evidence script self-tests
+        run: |
+          npm run visual:dark-evidence:self-test
+          node scripts/dark-evidence-hosted-diagnostic.mjs --self-test
 
       - name: Run dark evidence aggregate self-test
         run: node scripts/aggregate-dark-evidence.mjs --self-test
