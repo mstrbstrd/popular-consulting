@@ -647,6 +647,7 @@ export const initVisualRuntimeGpuEvidence = ({
             try {
               context.flush();
               record.pendingQueries.push(pending);
+              publish();
               scheduleQueryPoll();
             } catch (_) {
               finalizeSample(pending, {
