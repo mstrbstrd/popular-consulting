@@ -44,11 +44,52 @@ const readEvidenceRecord = (report, rendererId) => {
   const medianGpuMs = Number(record.summary?.medianGpuMs);
   return {
     ...record,
+    evidenceStatus: report.status || null,
+    reportQualifyingHardware:
+      report.qualifyingHardware === true,
     medianGpuMs: Number.isFinite(medianGpuMs)
       ? medianGpuMs
       : null,
   };
 };
+
+const evidenceCollectionReady = (record) => {
+  const submittedDraws = Number(record.submittedDraws);
+  const measuredDraws = Number(record.measuredDraws);
+  const pendingDraws = Number(record.pendingDraws);
+  const invalidDraws = Number(record.invalidDraws);
+  const totalFrames = Number(record.summary?.totalFrames);
+  const validFrames = Number(record.summary?.validFrames);
+
+  return Boolean(
+    record.evidenceStatus === "ready" &&
+      record.reportQualifyingHardware &&
+      record.collectionComplete === true &&
+      record.collectionValid === true &&
+      Number.isFinite(submittedDraws) &&
+      submittedDraws > 0 &&
+      measuredDraws === submittedDraws &&
+      pendingDraws === 0 &&
+      invalidDraws === 0 &&
+      Number.isFinite(totalFrames) &&
+      totalFrames > 0 &&
+      validFrames === totalFrames,
+  );
+};
+
+const collectionSnapshot = (record) => ({
+  evidenceStatus: record.evidenceStatus,
+  reportQualifyingHardware: record.reportQualifyingHardware,
+  submittedDraws: record.submittedDraws,
+  measuredDraws: record.measuredDraws,
+  pendingDraws: record.pendingDraws,
+  invalidDraws: record.invalidDraws,
+  expectedFrameCount: record.expectedFrameCount,
+  collectionComplete: record.collectionComplete,
+  collectionValid: record.collectionValid,
+  collectionReasons: record.collectionReasons,
+  summary: record.summary,
+});
 
 const assertUsableImage = (metrics, label) => {
   if (
@@ -186,11 +227,15 @@ export const runEvidenceCase = async ({
   const software = Boolean(
     referenceRecord.software || candidateRecord.software,
   );
+  const referenceCollectionReady =
+    evidenceCollectionReady(referenceRecord);
+  const candidateCollectionReady =
+    evidenceCollectionReady(candidateRecord);
   const timerReady = Boolean(
     referenceRecord.timerSupported &&
       candidateRecord.timerSupported &&
-      Number(referenceRecord.summary?.validFrames) > 0 &&
-      Number(candidateRecord.summary?.validFrames) > 0 &&
+      referenceCollectionReady &&
+      candidateCollectionReady &&
       Number.isFinite(referenceGpuMs) &&
       Number.isFinite(candidateGpuMs),
   );
@@ -250,14 +295,16 @@ export const runEvidenceCase = async ({
       ratio: gpuRatio,
       maximumRatio: MAX_GPU_RATIO,
       timerReady,
+      referenceCollectionReady,
+      candidateCollectionReady,
       rendererIdentified,
       rendererMatches,
       hardwareQualifying,
       software,
       renderer: referenceRecord.renderer,
       vendor: referenceRecord.vendor,
-      referenceSummary: referenceRecord.summary,
-      candidateSummary: candidateRecord.summary,
+      referenceCollection: collectionSnapshot(referenceRecord),
+      candidateCollection: collectionSnapshot(candidateRecord),
       passed: gpuPassed,
       gateSkipped: skipGpuGate,
     },
@@ -302,6 +349,7 @@ export const writeEvidenceSummary = ({
       maximumRootMeanSquareError:
         MAX_ROOT_MEAN_SQUARE_ERROR,
       maximumMismatchRatio: MAX_MISMATCH_RATIO,
+      incompleteOrInvalidTimerCollectionsQualify: false,
     },
     results,
     passed: results.every((result) => result.passed),
@@ -357,6 +405,7 @@ ${rows}
 - Candidate complete-frame GPU median <= ${MAX_GPU_RATIO} of reference
 - Reference and candidate must identify the same non-software renderer and vendor
 - Both paths must return valid \`EXT_disjoint_timer_query_webgl2\` samples
+- Every submitted draw must resolve, no timer query may remain pending, and every complete frame must be valid
 `;
   fs.writeFileSync(
     path.join(outputDirectory, "summary.md"),
