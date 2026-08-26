@@ -11,6 +11,7 @@ describe("secure local dark physical qualification", () => {
   const qualitySource = read(".github/workflows/quality.yml");
   const packageSource = read("package.json");
   const gitignoreSource = read(".gitignore");
+  const browserSource = read("scripts/dark-evidence-browser.mjs");
   const runnerSource = read(
     "scripts/run-physical-dark-qualification.mjs",
   );
@@ -99,13 +100,20 @@ describe("secure local dark physical qualification", () => {
     );
   });
 
-  test("redacts custom browser paths throughout retained evidence", () => {
+  test("redacts custom browser paths from successful and failed evidence", () => {
     expect(runnerSource).toContain("sanitizeBrowserExecutable");
     expect(runnerSource).toContain("sanitizeEvidenceBrowserPath");
     expect(runnerSource).toContain("browserPathRedacted: true");
     expect(runnerSource).toContain("browserExecutable");
     expect(runnerSource).toContain(
       "content.split(browserPath).join(browserExecutable)",
+    );
+    expect(browserSource).toContain("sanitizeBrowserDiagnosticText");
+    expect(browserSource).toContain("<temporary-browser-profile>");
+    expect(browserSource).toContain("path.basename(screenshotPath)");
+    expect(browserSource).toContain('".jpg": "image/jpeg"');
+    expect(browserSource).toContain(
+      '".json": "application/json; charset=utf-8"',
     );
   });
 
