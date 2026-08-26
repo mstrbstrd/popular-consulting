@@ -17,6 +17,7 @@ import { initGraphicsContextGovernor } from './utils/graphicsContextGovernor';
 import { initGraphicsRuntimeBoundary } from './utils/graphicsRuntimeBoundary';
 import { initVisualCaptureHarness } from './utils/visualCaptureHarness';
 import { initVisualRuntimeDarkPolicy } from './utils/visualRuntimeDarkPolicy';
+import { initVisualRuntimeGpuEvidence } from './utils/visualRuntimeGpuEvidence';
 import { initVisualRuntimeLightPolicy } from './utils/visualRuntimeLightPolicy';
 import { initVisualRuntimePolicy } from './utils/visualRuntimePolicy';
 import { initVisualRuntimeShellPolicy } from './utils/visualRuntimeShellPolicy';
@@ -26,6 +27,12 @@ import { initCoreWebVitals, initSectionTiming, initLongTaskObserver } from './ut
 // comparison boundary before any renderer mounts. The complete optimized
 // renderer still fails closed to the current reference implementation.
 initVisualRuntimePolicy();
+
+// Explicit dark evidence instruments only the known reference black-hole or
+// optimized shell context. It is installed before capture instrumentation so
+// both paths measure the same complete 17-draw frame boundary.
+const cleanupVisualRuntimeGpuEvidence =
+  initVisualRuntimeGpuEvidence();
 
 // The shell is available only through the explicit optimized probe. Its query
 // suppresses reference WebGL before React mounts, so the comparison path cannot
@@ -45,6 +52,7 @@ window.addEventListener(
   () => {
     cleanupVisualRuntimeDarkPolicy();
     cleanupVisualRuntimeLightPolicy();
+    cleanupVisualRuntimeGpuEvidence();
   },
   { once: true },
 );
