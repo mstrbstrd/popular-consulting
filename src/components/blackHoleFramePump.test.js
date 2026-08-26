@@ -1,4 +1,7 @@
-import { resolveBlackHoleBatchSize } from "./blackHoleFramePump";
+import {
+  isDarkEvidenceCapture,
+  resolveBlackHoleBatchSize,
+} from "./blackHoleFramePump";
 
 describe("black-hole frame-pump evidence scheduling", () => {
   test("keeps the authored batch size outside evidence capture", () => {
@@ -22,9 +25,13 @@ describe("black-hole frame-pump evidence scheduling", () => {
   });
 
   test("uses the canonical evidence-request normalization", () => {
+    const normalizedSearch =
+      "?visual-runtime-evidence=%20DARK%20";
+
+    expect(isDarkEvidenceCapture(normalizedSearch)).toBe(true);
     expect(
       resolveBlackHoleBatchSize({
-        search: "?visual-runtime-evidence=%20DARK%20",
+        search: normalizedSearch,
         scheduledTilesPerBatch: 16,
         remainingTiles: 16,
       }),
@@ -32,6 +39,10 @@ describe("black-hole frame-pump evidence scheduling", () => {
   });
 
   test("does not alter unrelated evidence modes", () => {
+    expect(isDarkEvidenceCapture("")).toBe(false);
+    expect(
+      isDarkEvidenceCapture("?visual-runtime-evidence=light"),
+    ).toBe(false);
     expect(
       resolveBlackHoleBatchSize({
         search: "?visual-runtime-evidence=light",
