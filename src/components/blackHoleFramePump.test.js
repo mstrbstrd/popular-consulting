@@ -21,6 +21,16 @@ describe("black-hole frame-pump evidence scheduling", () => {
     ).toBe(1);
   });
 
+  test("uses the canonical evidence-request normalization", () => {
+    expect(
+      resolveBlackHoleBatchSize({
+        search: "?visual-runtime-evidence=%20DARK%20",
+        scheduledTilesPerBatch: 16,
+        remainingTiles: 16,
+      }),
+    ).toBe(1);
+  });
+
   test("does not alter unrelated evidence modes", () => {
     expect(
       resolveBlackHoleBatchSize({
