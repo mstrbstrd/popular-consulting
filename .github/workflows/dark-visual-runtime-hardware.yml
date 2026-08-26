@@ -24,6 +24,14 @@ on:
           - dark-hero-pointer-left
           - dark-hero-pointer-right
           - dark-hero-time-16
+      runner_label:
+        description: ARM64 macOS hardware image used for qualification
+        required: true
+        default: macos-15
+        type: choice
+        options:
+          - macos-15
+          - macos-26
   push:
     branches:
       - main
@@ -47,12 +55,13 @@ concurrency:
 jobs:
   qualify-dark-runtime:
     name: ${{ (inputs.evidence_case && inputs.evidence_case != 'all') && 'Diagnostic dark evidence, non-qualifying' || 'Strict dark evidence on macOS hardware' }}
-    runs-on: macos-26
+    runs-on: ${{ inputs.runner_label || 'macos-15' }}
     timeout-minutes: 90
     env:
       VISUAL_CAPTURE_BROWSER: /Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge
       EVIDENCE_VIEWPORT: ${{ inputs.viewport || '1440x900' }}
       EVIDENCE_CASE: ${{ inputs.evidence_case || 'all' }}
+      EVIDENCE_RUNNER_LABEL: ${{ inputs.runner_label || 'macos-15' }}
 
     steps:
       - name: Check out repository
@@ -74,6 +83,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          echo "Requested runner label: ${EVIDENCE_RUNNER_LABEL}"
           sw_vers
           uname -m
           system_profiler SPDisplaysDataType || true
@@ -107,6 +117,11 @@ jobs:
         if: always()
         shell: bash
         run: |
+          {
+            echo "Runner label: ${EVIDENCE_RUNNER_LABEL}"
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+
           if [[ "$EVIDENCE_CASE" != "all" ]]; then
             {
               echo "# Diagnostic dark visual runtime evidence"
@@ -132,7 +147,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: dark-visual-runtime-evidence-${{ github.run_id }}
+          name: dark-visual-runtime-evidence-${{ env.EVIDENCE_RUNNER_LABEL }}-${{ github.run_id }}
           path: visual-dark-evidence
           if-no-files-found: warn
           retention-days: 30
