@@ -18,9 +18,12 @@ describe("dark evidence reference readiness", () => {
     "src/utils/visualRuntimePolicy.js",
   );
 
-  test("yields reference tiles only for explicit dark evidence", () => {
+  test("yields reference tiles only for canonical dark evidence", () => {
     expect(framePumpSource).toContain(
-      'VISUAL_RUNTIME_EVIDENCE_QUERY_PARAM =\n  "visual-runtime-evidence"',
+      "readVisualRuntimeEvidenceRequest",
+    );
+    expect(framePumpSource).toContain(
+      "VISUAL_RUNTIME_EVIDENCE_DARK",
     );
     expect(framePumpSource).toContain(
       "darkEvidenceActive ? 1 : scheduled",
