@@ -6,25 +6,32 @@ The dark transport and material candidate is implemented, but it remains explici
 
 The production default remains the canonical black-hole renderer.
 
-## Evidence command
+## Physical evidence command
 
-Run the complete matrix on a physical machine with a hardware-accelerated Chromium browser:
+Run the complete qualification matrix on a physical Apple Silicon Mac:
 
 ```bash
-npm run visual:dark-evidence
+npm run visual:dark-evidence:physical
+```
+
+Use an alternate viewport when required:
+
+```bash
+npm run visual:dark-evidence:physical -- --viewport=1920x1080
 ```
 
 Set `VISUAL_CAPTURE_BROWSER` when Edge, Chrome, or Chromium is installed outside a standard location.
 
-Useful options:
+The lower-level capture tool remains available for local diagnosis:
 
 ```bash
 node scripts/capture-visual-dark-evidence.mjs --list
 node scripts/capture-visual-dark-evidence.mjs --case dark-section-0-hero
-node scripts/capture-visual-dark-evidence.mjs --viewport 1920x1080
-node scripts/capture-visual-dark-evidence.mjs --output ./visual-dark-evidence
-node scripts/capture-visual-dark-evidence.mjs --origin https://preview.example.com
+node scripts/capture-visual-dark-evidence.mjs --viewport=1920x1080
+node scripts/capture-visual-dark-evidence.mjs --output=./visual-dark-evidence
 ```
+
+A lower-level partial run is diagnostic only. Production qualification is defined by the complete physical command and its independently verified bundle.
 
 ## Matrix
 
@@ -114,11 +121,13 @@ The Node evidence runner repeats the same checks independently. It requires subm
 
 A performance result qualifies only when:
 
+- The command is running on macOS ARM64
+- The system identity describes physical Apple hardware
+- The renderer is not SwiftShader, llvmpipe, WARP, Microsoft Basic Render, Paravirtual, Virtio, VirtualMac, a virtual device, or another known software or virtual renderer
 - Both paths expose complete and valid timer-query collections
 - Neither path reports a disjoint GPU state
 - Reference and candidate identify the same renderer and vendor
-- The renderer is not SwiftShader, llvmpipe, WARP, Microsoft Basic Render, Paravirtual, Virtio, a virtual device, or another known software or virtual renderer
-- The measurement runs on the physical self-hosted qualification lane
+- All nine required cases are present exactly once
 
 The candidate gate is:
 
@@ -130,7 +139,7 @@ candidate full-frame GPU time <= 10% of reference full-frame GPU time
 
 The runner decodes Chromium PNG screenshots without third-party dependencies and writes a four-times-amplified difference image.
 
-The default visual gates are:
+The visual gates are:
 
 ```text
 mean absolute RGB error <= 0.01
@@ -142,73 +151,98 @@ pixel mismatch threshold = 24 / 255
 The result directory contains:
 
 ```text
-visual-dark-evidence/
-  summary.json
-  summary.md
-  <case>/
-    reference.png
-    reference.html
-    candidate.png
-    candidate.html
-    diff.png
-    result.json
+visual-dark-evidence-physical/
+  <source-and-time>/
+    host.json
+    execution.json
+    qualification.json
+    manifest.json
+    manifest.sha256
+    evidence/
+      summary.json
+      summary.md
+      <case>/
+        reference.png
+        reference.html
+        candidate.png
+        candidate.html
+        diff.png
+        result.json
 ```
 
 The retained HTML captures the rendered DOM on both success and browser failure. It exposes capture readiness, capture errors, renderer ownership, canvas dimensions, completed-frame state, hardware identity, timer status, and serialized runtime reports.
 
-## CI classification
+## Local security boundary
 
-The standard Windows job runs one small SwiftShader diagnostic smoke. The hosted macOS workflow runs the same candidate-only diagnostic against the hosted graphics environment.
+The physical command:
 
-The diagnostic command is equivalent to:
+- Requires no GitHub token
+- Does not connect a self-hosted runner to the public repository
+- Does not upload its result automatically
+- Rejects modified tracked source files
+- Records the exact full commit SHA
+- Removes serial numbers, UUIDs, UDIDs, host names, and machine names from the retained hardware profile
+- Ignores generated evidence through `.gitignore`
+- Writes a SHA-256 inventory for every retained file
+- Rejects symlinks, path traversal, missing files, added files, and checksum differences
+
+The matching `.tar.gz` archive is suitable for controlled transfer after the run completes.
+
+## Independent bundle verification
+
+Verify an extracted bundle with:
 
 ```bash
-node scripts/capture-visual-dark-evidence.mjs \
-  --smoke \
-  --viewport=480x300
+npm run visual:dark-evidence:physical:verify -- \
+  --bundle=/absolute/path/to/the/extracted/bundle
 ```
 
-Windows may add `--allow-software` to force SwiftShader. The hosted macOS job does not force a software adapter, but its virtual or paravirtual identity is still non-qualifying.
+Pin verification to the intended source commit with:
 
-The canonical renderer intentionally rejects software and virtual graphics through its hardware WebGL probe. Consequently, these diagnostics do not attempt to mount or compare the canonical renderer.
+```bash
+npm run visual:dark-evidence:physical:verify -- \
+  --bundle=/absolute/path/to/the/extracted/bundle \
+  --expected-sha=0123456789abcdef0123456789abcdef01234567
+```
 
-The diagnostic validates only the optimized candidate and evidence plumbing. It proves that:
+The verifier recalculates the manifest digest, every file digest, physical host eligibility, all nine visual gates, all nine GPU gates, renderer identity, timer completeness, and the 17-draw frame boundary. Tampering causes verification to fail.
 
-- The deterministic candidate URL loads
-- The optimized dark candidate presents
-- The candidate evidence report is emitted
-- The PNG decoder and encoder execute
-- A deterministic self-comparison produces zero visual error
-- The candidate screenshot is not blank or flat
+## CI classification
+
+The standard Windows job runs a small SwiftShader candidate smoke. It is diagnostic only.
+
+The hosted macOS workflow runs:
+
+```bash
+node scripts/dark-evidence-hosted-diagnostic.mjs \
+  --viewport=480x300 \
+  --output=visual-dark-evidence-hosted
+```
+
+The hosted script intentionally does not add `visual-runtime-evidence=dark`, so it installs no GPU timer instrumentation and makes no performance claim.
+
+It proves that:
+
+- The optimized candidate URL loads
+- The reference renderer is suppressed
+- The candidate presents
+- The screenshot is deterministic and non-flat
 - No browser crash document is returned
 
-Its result files explicitly contain:
+Its result explicitly contains:
 
-```text
-diagnosticOnly: true
-qualificationEligible: false
+```json
+{
+  "diagnosticOnly": true,
+  "qualificationEligible": false,
+  "timerInstrumentation": false
+}
 ```
 
-The diagnostic cannot establish reference parity, physical hardware performance, or rollout qualification. Those conclusions require the complete two-renderer matrix on the physical self-hosted lane.
-
-## Physical GitHub Actions qualification
-
-The physical workflow requires these self-hosted labels:
-
-```text
-self-hosted
-macOS
-ARM64
-physical-gpu
-visual-runtime-qualification
-```
-
-The complete nine-case matrix is sharded with bounded parallelism. Each case uploads its evidence independently. A separate aggregation job downloads every artifact, requires every named case exactly once, and revalidates all visual, GPU, timer, renderer, and threshold invariants.
-
-A manual one-case physical run is diagnostic only. Only the complete aggregate can qualify the runtime.
+Hosted output cannot establish reference parity, physical hardware performance, or rollout qualification.
 
 ## Rollout invariant
 
 `OPTIMIZED_VISUAL_RUNTIME_AVAILABLE` remains `false`.
 
-The candidate cannot advance to canary or production default until a committed evidence report from physical hardware passes every visual and GPU gate. Failing evidence is a finding, not a reason to loosen thresholds.
+The candidate cannot advance to canary or production default until a physical bundle from the exact source commit passes every visual and GPU gate and then passes independent verification. Failing evidence is a finding, not a reason to loosen thresholds.
