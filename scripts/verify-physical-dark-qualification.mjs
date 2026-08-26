@@ -28,13 +28,19 @@ const readArgument = (name) => {
 
 const hasFlag = (name) => process.argv.includes(`--${name}`);
 
-const readJson = (filePath) => {
+const readJsonResult = (filePath) => {
   try {
-    return JSON.parse(fs.readFileSync(filePath, "utf8"));
+    return {
+      value: JSON.parse(fs.readFileSync(filePath, "utf8")),
+      error: null,
+    };
   } catch (error) {
-    throw new Error(
-      `Unable to read ${filePath}: ${String(error?.message || error)}`,
-    );
+    return {
+      value: null,
+      error: `Unable to read ${filePath}: ${String(
+        error?.message || error,
+      )}`,
+    };
   }
 };
 
@@ -64,16 +70,20 @@ export const verifyPhysicalDarkQualificationBundle = ({
 }) => {
   const errors = [];
   const absoluteBundle = path.resolve(bundleDirectory);
+
   if (!fs.existsSync(absoluteBundle)) {
     return {
       passed: false,
       errors: [`Qualification bundle does not exist: ${absoluteBundle}`],
     };
   }
-  if (!fs.statSync(absoluteBundle).isDirectory()) {
+  const bundleStat = fs.lstatSync(absoluteBundle);
+  if (!bundleStat.isDirectory() || bundleStat.isSymbolicLink()) {
     return {
       passed: false,
-      errors: ["Qualification bundle must be an extracted directory."],
+      errors: [
+        "Qualification bundle must be an extracted regular directory.",
+      ],
     };
   }
 
@@ -81,16 +91,21 @@ export const verifyPhysicalDarkQualificationBundle = ({
   if (!fs.existsSync(manifestPath)) {
     return { passed: false, errors: ["manifest.json is missing."] };
   }
+
   const manifestText = fs.readFileSync(manifestPath, "utf8");
-  const manifest = readJson(manifestPath);
+  const manifestResult = readJsonResult(manifestPath);
+  if (manifestResult.error) errors.push(manifestResult.error);
   errors.push(...verifyManifestChecksum(absoluteBundle, manifestText));
 
-  const manifestValidation = verifyQualificationManifest({
-    bundleDirectory: absoluteBundle,
-    manifest,
-    expectedSourceSha,
-  });
-  errors.push(...manifestValidation.errors);
+  const manifest = manifestResult.value;
+  if (manifest) {
+    const manifestValidation = verifyQualificationManifest({
+      bundleDirectory: absoluteBundle,
+      manifest,
+      expectedSourceSha,
+    });
+    errors.push(...manifestValidation.errors);
+  }
 
   const hostPath = path.join(absoluteBundle, "host.json");
   const summaryPath = path.join(
@@ -106,39 +121,59 @@ export const verifyPhysicalDarkQualificationBundle = ({
   let hostValidation = null;
   let evidenceValidation = null;
   if (fs.existsSync(hostPath)) {
-    const host = readJson(hostPath);
-    hostValidation = validatePhysicalAppleSiliconHost({
-      platform: host.platform,
-      arch: host.arch,
-      model: host.model,
-      hardwareProfile: host.hardwareProfile,
-      displayProfile: host.displayProfile,
-    });
-    errors.push(...hostValidation.errors);
-    if (host.validation?.passed !== true) {
-      errors.push("Recorded host validation did not pass.");
+    const hostResult = readJsonResult(hostPath);
+    if (hostResult.error) {
+      errors.push(hostResult.error);
+    } else {
+      const host = hostResult.value;
+      hostValidation = validatePhysicalAppleSiliconHost({
+        platform: host.platform,
+        arch: host.arch,
+        model: host.model,
+        hardwareProfile: host.hardwareProfile,
+        displayProfile: host.displayProfile,
+      });
+      errors.push(...hostValidation.errors);
+      if (host.validation?.passed !== true) {
+        errors.push("Recorded host validation did not pass.");
+      }
+      if (host.sensitiveIdentifiersRecorded !== false) {
+        errors.push(
+          "Host evidence does not confirm identifier redaction.",
+        );
+      }
     }
   }
+
   if (fs.existsSync(summaryPath)) {
-    evidenceValidation = validatePhysicalDarkEvidenceSummary(
-      readJson(summaryPath),
-    );
-    errors.push(...evidenceValidation.errors);
+    const summaryResult = readJsonResult(summaryPath);
+    if (summaryResult.error) {
+      errors.push(summaryResult.error);
+    } else {
+      evidenceValidation = validatePhysicalDarkEvidenceSummary(
+        summaryResult.value,
+      );
+      errors.push(...evidenceValidation.errors);
+    }
   }
 
-  if (
-    evidenceValidation?.renderer &&
-    manifest.qualification?.renderer !== evidenceValidation.renderer
-  ) {
-    errors.push("Manifest renderer differs from the evidence renderer.");
+  if (manifest && evidenceValidation?.renderer) {
+    if (
+      manifest.qualification?.renderer !==
+      evidenceValidation.renderer
+    ) {
+      errors.push("Manifest renderer differs from the evidence renderer.");
+    }
+  }
+  if (manifest && evidenceValidation?.vendor) {
+    if (
+      manifest.qualification?.vendor !== evidenceValidation.vendor
+    ) {
+      errors.push("Manifest vendor differs from the evidence vendor.");
+    }
   }
   if (
-    evidenceValidation?.vendor &&
-    manifest.qualification?.vendor !== evidenceValidation.vendor
-  ) {
-    errors.push("Manifest vendor differs from the evidence vendor.");
-  }
-  if (
+    manifest &&
     evidenceValidation &&
     manifest.qualification?.caseCount !== evidenceValidation.caseCount
   ) {
@@ -178,7 +213,8 @@ const createValidCollection = () => ({
 
 const createValidSummary = () => ({
   schemaVersion: 1,
-  browserPath: "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+  browserPath:
+    "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
   viewport: { width: 1440, height: 900 },
   allowSoftware: false,
   qualification: {
@@ -224,60 +260,65 @@ const createValidSummary = () => ({
   generatedAt: new Date().toISOString(),
 });
 
+const writeSelfTestBundle = ({ root, sourceSha }) => {
+  const evidenceDirectory = path.join(root, "evidence");
+  fs.mkdirSync(evidenceDirectory, { recursive: true });
+  const host = {
+    schemaVersion: 1,
+    sourceSha,
+    platform: "darwin",
+    arch: "arm64",
+    model: "Mac16,7",
+    hardwareProfile: {
+      SPHardwareDataType: [{ chip_type: "Apple M4 Pro" }],
+    },
+    displayProfile: {
+      SPDisplaysDataType: [{ sppci_model: "Apple M4 Pro" }],
+    },
+    sensitiveIdentifiersRecorded: false,
+    validation: { passed: true, errors: [] },
+  };
+
+  fs.writeFileSync(
+    path.join(root, "host.json"),
+    `${JSON.stringify(host, null, 2)}\n`,
+  );
+  fs.writeFileSync(
+    path.join(root, "qualification.json"),
+    `${JSON.stringify({ passed: true }, null, 2)}\n`,
+  );
+  fs.writeFileSync(
+    path.join(evidenceDirectory, "summary.json"),
+    `${JSON.stringify(createValidSummary(), null, 2)}\n`,
+  );
+
+  const manifest = {
+    kind: PHYSICAL_DARK_QUALIFICATION_KIND,
+    schemaVersion: PHYSICAL_DARK_QUALIFICATION_SCHEMA_VERSION,
+    sourceSha,
+    qualification: {
+      passed: true,
+      renderer: "ANGLE Metal Renderer: Apple M4 Pro",
+      vendor: "Apple Inc.",
+      caseCount: REQUIRED_PHYSICAL_DARK_CASES.length,
+    },
+    files: listQualificationFiles(root),
+  };
+  const manifestText = `${JSON.stringify(manifest, null, 2)}\n`;
+  fs.writeFileSync(path.join(root, "manifest.json"), manifestText);
+  fs.writeFileSync(
+    path.join(root, "manifest.sha256"),
+    `${sha256Buffer(manifestText)}  manifest.json\n`,
+  );
+};
+
 const runSelfTest = () => {
   const root = fs.mkdtempSync(
     path.join(os.tmpdir(), "physical-dark-verifier-"),
   );
   try {
-    const evidenceDirectory = path.join(root, "evidence");
-    fs.mkdirSync(evidenceDirectory, { recursive: true });
     const sourceSha = "a".repeat(40);
-    const host = {
-      schemaVersion: 1,
-      sourceSha,
-      platform: "darwin",
-      arch: "arm64",
-      model: "Mac16,7",
-      hardwareProfile: {
-        SPHardwareDataType: [{ chip_type: "Apple M4 Pro" }],
-      },
-      displayProfile: {
-        SPDisplaysDataType: [{ sppci_model: "Apple M4 Pro" }],
-      },
-      validation: { passed: true, errors: [] },
-    };
-    fs.writeFileSync(
-      path.join(root, "host.json"),
-      `${JSON.stringify(host, null, 2)}\n`,
-    );
-    fs.writeFileSync(
-      path.join(root, "qualification.json"),
-      `${JSON.stringify({ passed: true }, null, 2)}\n`,
-    );
-    fs.writeFileSync(
-      path.join(evidenceDirectory, "summary.json"),
-      `${JSON.stringify(createValidSummary(), null, 2)}\n`,
-    );
-
-    const files = listQualificationFiles(root);
-    const manifest = {
-      kind: PHYSICAL_DARK_QUALIFICATION_KIND,
-      schemaVersion: PHYSICAL_DARK_QUALIFICATION_SCHEMA_VERSION,
-      sourceSha,
-      qualification: {
-        passed: true,
-        renderer: "ANGLE Metal Renderer: Apple M4 Pro",
-        vendor: "Apple Inc.",
-        caseCount: REQUIRED_PHYSICAL_DARK_CASES.length,
-      },
-      files,
-    };
-    const manifestText = `${JSON.stringify(manifest, null, 2)}\n`;
-    fs.writeFileSync(path.join(root, "manifest.json"), manifestText);
-    fs.writeFileSync(
-      path.join(root, "manifest.sha256"),
-      `${sha256Buffer(manifestText)}  manifest.json\n`,
-    );
+    writeSelfTestBundle({ root, sourceSha });
 
     const valid = verifyPhysicalDarkQualificationBundle({
       bundleDirectory: root,
@@ -296,7 +337,9 @@ const runSelfTest = () => {
       throw new Error("Tampered bundle did not fail verification.");
     }
 
-    process.stdout.write("Physical dark qualification verifier self-test passed.\n");
+    process.stdout.write(
+      "Physical dark qualification verifier self-test passed.\n",
+    );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
@@ -309,7 +352,7 @@ if (hasFlag("self-test")) {
 
 const bundleArgument =
   readArgument("bundle") ||
-  process.argv.find((argument) => !argument.startsWith("--"));
+  process.argv.slice(2).find((argument) => !argument.startsWith("--"));
 if (!bundleArgument) {
   throw new Error(
     "Provide an extracted qualification directory with --bundle=/path/to/bundle.",
