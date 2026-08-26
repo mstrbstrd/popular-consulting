@@ -14,19 +14,78 @@ import {
 } from "../utils/visualRuntimeLightPolicy";
 import {
   VisualRuntimeShell,
+  VISUAL_RUNTIME_SHELL_FAILURE_EVENT,
   VISUAL_RUNTIME_SHELL_RENDERER_ID,
 } from "../utils/visualRuntimeShell";
-import { visualRuntimeShellPolicy } from "../utils/visualRuntimeShellPolicy";
+import {
+  VISUAL_RUNTIME_SHELL_ACTIVATION_SOURCES,
+  visualRuntimeShellPolicy,
+} from "../utils/visualRuntimeShellPolicy";
 
-const readTheme = () =>
-  document.documentElement.getAttribute("data-theme") === "dark"
-    ? "dark"
-    : "light";
+const readTheme = () => {
+  const attributeTheme =
+    typeof document === "undefined"
+      ? null
+      : document.documentElement.getAttribute("data-theme");
+  if (attributeTheme === "dark" || attributeTheme === "light") {
+    return attributeTheme;
+  }
+
+  try {
+    return window.localStorage.getItem("popcon-theme") === "dark"
+      ? "dark"
+      : "light";
+  } catch (_) {
+    return "light";
+  }
+};
 
 const readInitialSection = () => {
   const match = window.location.hash.match(/^#section-(\d+)$/);
   const section = Number(match?.[1]);
   return Number.isInteger(section) && section >= 0 ? section : 0;
+};
+
+export const buildVisualRuntimeReferenceFallbackUrl = (href) => {
+  const url = new URL(String(href));
+  url.searchParams.set("visual-runtime", "reference");
+  [
+    "visual-runtime-shell",
+    "visual-runtime-pipeline",
+    "visual-runtime-light-capture",
+    "visual-runtime-dark-capture",
+  ].forEach((parameter) => url.searchParams.delete(parameter));
+  return url.toString();
+};
+
+const useRuntimeTheme = (enabled) => {
+  const [theme, setTheme] = React.useState(readTheme);
+
+  React.useEffect(() => {
+    if (!enabled || typeof document === "undefined") {
+      return undefined;
+    }
+
+    const syncTheme = () => setTheme(readTheme());
+    const observer =
+      typeof MutationObserver === "undefined"
+        ? null
+        : new MutationObserver(syncTheme);
+
+    observer?.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme"],
+    });
+    window.addEventListener("storage", syncTheme);
+    syncTheme();
+
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("storage", syncTheme);
+    };
+  }, [enabled]);
+
+  return theme;
 };
 
 const useFixedBackgroundTarget = (enabled) => {
@@ -74,7 +133,7 @@ const useFixedBackgroundTarget = (enabled) => {
   return target;
 };
 
-const VisualRuntimeShellSurface = () => {
+const VisualRuntimeShellSurface = ({ selectedTheme }) => {
   const hostRef = React.useRef(null);
   const canvasRef = React.useRef(null);
 
@@ -83,7 +142,17 @@ const VisualRuntimeShellSurface = () => {
     const canvas = canvasRef.current;
     if (!host || !canvas) return undefined;
 
-    const darkCandidateActive = visualRuntimeDarkPolicy.active;
+    const productionTrial =
+      visualRuntimeShellPolicy.activationSource ===
+      VISUAL_RUNTIME_SHELL_ACTIVATION_SOURCES.OPTIMIZED_QUERY;
+    const darkCandidateActive = Boolean(
+      visualRuntimeDarkPolicy.active ||
+        (productionTrial && selectedTheme === "dark"),
+    );
+    const lightCandidateActive = Boolean(
+      visualRuntimeLightPolicy.active ||
+        (productionTrial && selectedTheme === "light"),
+    );
     const runtime = new VisualRuntimeShell({
       host,
       canvas,
@@ -94,7 +163,47 @@ const VisualRuntimeShellSurface = () => {
         ? VISUAL_RUNTIME_DARK_FIXED.maxPixels
         : shaderRuntimeProfile.maxPixels,
     });
-    const syncTheme = () => runtime.setTheme(readTheme());
+    let fallbackStarted = false;
+
+    const fallbackToReference = (reason) => {
+      if (!productionTrial || fallbackStarted) return;
+      fallbackStarted = true;
+      try {
+        window.sessionStorage.setItem(
+          "popcon-visual-runtime-trial-fallback",
+          JSON.stringify({
+            reason: String(reason || "runtime-failure").slice(0, 120),
+            at: Date.now(),
+          }),
+        );
+      } catch (_) {
+        // Storage is optional for the production trial.
+      }
+
+      try {
+        window.location.replace(
+          buildVisualRuntimeReferenceFallbackUrl(window.location.href),
+        );
+      } catch (_) {
+        // The existing CSS fallback remains visible if navigation is blocked.
+      }
+    };
+
+    const handleRuntimeFailure = (event) => {
+      if (
+        event.detail?.rendererId !== VISUAL_RUNTIME_SHELL_RENDERER_ID ||
+        event.detail?.recoverable === true
+      ) {
+        return;
+      }
+      fallbackToReference(event.detail?.reason);
+    };
+
+    window.addEventListener(
+      VISUAL_RUNTIME_SHELL_FAILURE_EVENT,
+      handleRuntimeFailure,
+    );
+
     const syncSection = (event) => {
       const section = Number(
         event.detail?.to ?? event.detail?.index,
@@ -103,19 +212,11 @@ const VisualRuntimeShellSurface = () => {
         runtime.setSection(section);
       }
     };
-    const themeObserver =
-      typeof MutationObserver === "undefined"
-        ? null
-        : new MutationObserver(syncTheme);
 
-    themeObserver?.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["data-theme"],
-    });
     window.addEventListener("sectionChangeStart", syncSection);
     window.addEventListener("sectionChangeEnd", syncSection);
 
-    runtime.setTheme(readTheme());
+    runtime.setTheme(selectedTheme);
     runtime.setSection(readInitialSection());
     runtime.initialize();
 
@@ -124,7 +225,7 @@ const VisualRuntimeShellSurface = () => {
     let releaseLightPass = null;
     let releaseDarkPass = null;
 
-    if (visualRuntimeDarkPolicy.active && runtime.gl) {
+    if (darkCandidateActive && runtime.gl) {
       try {
         darkPass = createVisualRuntimeDarkPass({
           gl: runtime.gl,
@@ -137,7 +238,7 @@ const VisualRuntimeShellSurface = () => {
       } catch (error) {
         runtime.fail("dark-pipeline-initialization", error);
       }
-    } else if (visualRuntimeLightPolicy.active && runtime.gl) {
+    } else if (lightCandidateActive && runtime.gl) {
       try {
         const candidateLightPass = createVisualRuntimeLightPass({
           gl: runtime.gl,
@@ -179,12 +280,16 @@ const VisualRuntimeShellSurface = () => {
       } catch (error) {
         runtime.fail("light-pipeline-initialization", error);
       }
+    } else if (productionTrial && runtime.gl) {
+      runtime.fail("optimized-pipeline-unavailable");
     }
 
     const previousReport = window.__visualRuntimeShellReport;
     const previousController = window.__visualRuntimeShellController;
     const report = () => ({
       policy: visualRuntimeShellPolicy,
+      productionTrial,
+      selectedTheme,
       lightPipelinePolicy: visualRuntimeLightPolicy,
       lightPipeline: lightPass?.report?.() || null,
       darkPipelinePolicy: visualRuntimeDarkPolicy,
@@ -195,13 +300,18 @@ const VisualRuntimeShellSurface = () => {
       report,
       invalidate: (reason = "diagnostic") =>
         runtime.invalidate(reason),
+      fallbackToReference: (reason = "operator-fallback") =>
+        fallbackToReference(reason),
     });
 
     window.__visualRuntimeShellReport = report;
     window.__visualRuntimeShellController = controller;
 
     return () => {
-      themeObserver?.disconnect();
+      window.removeEventListener(
+        VISUAL_RUNTIME_SHELL_FAILURE_EVENT,
+        handleRuntimeFailure,
+      );
       window.removeEventListener("sectionChangeStart", syncSection);
       window.removeEventListener("sectionChangeEnd", syncSection);
 
@@ -225,7 +335,7 @@ const VisualRuntimeShellSurface = () => {
       releaseLightPass?.();
       runtime.dispose();
     };
-  }, []);
+  }, [selectedTheme]);
 
   return (
     <div
@@ -268,10 +378,17 @@ const VisualRuntimeShellSurface = () => {
 
 const VisualRuntimeShellHost = () => {
   const active = visualRuntimeShellPolicy.active;
+  const selectedTheme = useRuntimeTheme(active);
   const portalTarget = useFixedBackgroundTarget(active);
 
   if (!active || !portalTarget) return null;
-  return createPortal(<VisualRuntimeShellSurface />, portalTarget);
+  return createPortal(
+    <VisualRuntimeShellSurface
+      key={selectedTheme}
+      selectedTheme={selectedTheme}
+    />,
+    portalTarget,
+  );
 };
 
 export default VisualRuntimeShellHost;
