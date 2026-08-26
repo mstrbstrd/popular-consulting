@@ -96,7 +96,7 @@ describe("dark visual runtime hosted diagnostic", () => {
     expect(qualitySource).toContain(
       "node scripts/verify-physical-dark-qualification.mjs --self-test",
     );
-    expect(workflowSource).not.toContain("runs-on:");
+    expect(workflowSource).not.toContain("GITHUB_TOKEN");
   });
 
   test("preserves hosted evidence even when a diagnostic fails", () => {
