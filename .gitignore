@@ -13,6 +13,8 @@
 /visual-reference
 /visual-dark-evidence
 /visual-dark-evidence-smoke
+/visual-dark-evidence-physical
+/visual-dark-evidence-physical*.tar.gz
 
 # Environment and local secrets
 .env
