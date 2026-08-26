@@ -58,6 +58,34 @@ export const buildVisualRuntimeReferenceFallbackUrl = (href) => {
   return url.toString();
 };
 
+export const wrapVisualRuntimeTrialPass = ({
+  pass,
+  productionTrial = false,
+  fallbackToReference = () => {},
+} = {}) => {
+  if (!productionTrial || !pass) return pass;
+
+  const wrapPhase = (phase, handler) => {
+    if (typeof handler !== "function") return handler;
+    return (...args) => {
+      try {
+        return handler(...args);
+      } catch (error) {
+        fallbackToReference(
+          `${String(pass.id || "optimized-pass")}-${phase}`,
+        );
+        throw error;
+      }
+    };
+  };
+
+  return {
+    ...pass,
+    resize: wrapPhase("resize-failure", pass.resize),
+    render: wrapPhase("render-failure", pass.render),
+  };
+};
+
 const useRuntimeTheme = (enabled) => {
   const [theme, setTheme] = React.useState(readTheme);
 
@@ -227,12 +255,16 @@ const VisualRuntimeShellSurface = ({ selectedTheme }) => {
 
     if (darkCandidateActive && runtime.gl) {
       try {
-        darkPass = createVisualRuntimeDarkPass({
-          gl: runtime.gl,
-          host,
-          canvas,
-          captureState: visualRuntimeDarkPolicy.captureState,
-          invalidate: (reason) => runtime.invalidate(reason),
+        darkPass = wrapVisualRuntimeTrialPass({
+          pass: createVisualRuntimeDarkPass({
+            gl: runtime.gl,
+            host,
+            canvas,
+            captureState: visualRuntimeDarkPolicy.captureState,
+            invalidate: (reason) => runtime.invalidate(reason),
+          }),
+          productionTrial,
+          fallbackToReference,
         });
         releaseDarkPass = runtime.registerPass(darkPass);
       } catch (error) {
@@ -252,30 +284,34 @@ const VisualRuntimeShellSurface = ({ selectedTheme }) => {
           visualRuntimeLightPolicy.captureState?.active,
         );
 
-        lightPass = {
-          ...candidateLightPass,
-          render: (frame) => {
-            if (
-              !shouldPresentVisualRuntimeLightFrame({
-                reducedMotion: frame.reducedMotion,
-                captureActive,
-              })
-            ) {
-              host.dataset.visualRuntimeLightPipeline =
-                "reduced-motion-fallback";
-              canvas.dataset.visualRuntimeLightPipeline =
-                "reduced-motion-fallback";
-              return { continue: false };
-            }
-            return candidateLightPass.render(frame);
+        lightPass = wrapVisualRuntimeTrialPass({
+          pass: {
+            ...candidateLightPass,
+            render: (frame) => {
+              if (
+                !shouldPresentVisualRuntimeLightFrame({
+                  reducedMotion: frame.reducedMotion,
+                  captureActive,
+                })
+              ) {
+                host.dataset.visualRuntimeLightPipeline =
+                  "reduced-motion-fallback";
+                canvas.dataset.visualRuntimeLightPipeline =
+                  "reduced-motion-fallback";
+                return { continue: false };
+              }
+              return candidateLightPass.render(frame);
+            },
+            report: () => ({
+              ...candidateLightPass.report(),
+              reducedMotionFallback:
+                host.dataset.visualRuntimeLightPipeline ===
+                "reduced-motion-fallback",
+            }),
           },
-          report: () => ({
-            ...candidateLightPass.report(),
-            reducedMotionFallback:
-              host.dataset.visualRuntimeLightPipeline ===
-              "reduced-motion-fallback",
-          }),
-        };
+          productionTrial,
+          fallbackToReference,
+        });
         releaseLightPass = runtime.registerPass(lightPass);
       } catch (error) {
         runtime.fail("light-pipeline-initialization", error);
