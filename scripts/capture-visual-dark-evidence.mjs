@@ -3,14 +3,12 @@ import path from "path";
 import {
   createBuildServer,
   findBrowser,
-  runBrowserCapture,
 } from "./dark-evidence-browser.mjs";
 import {
   compareImages,
   decodePng,
   encodePng,
 } from "./dark-evidence-image.mjs";
-
 import {
   runEvidenceCase,
   writeEvidenceSummary,
@@ -82,7 +80,6 @@ export const DARK_EVIDENCE_CASES = Object.freeze([
   }),
 ]);
 
-
 const readArgument = (name) => {
   const prefix = `--${name}=`;
   const inline = process.argv.find((argument) =>
@@ -117,7 +114,6 @@ const parseViewport = (value, fallback = DEFAULT_VIEWPORT) => {
   }
   return Object.freeze({ width, height });
 };
-
 
 const applyCaptureState = (url, captureCase) => {
   url.searchParams.set("graphics", "webgl");
@@ -168,7 +164,6 @@ const buildCandidateUrl = (origin, captureCase) => {
   url.searchParams.set("visual-runtime-dark-capture", "1");
   return url.toString();
 };
-
 
 const runSelfTest = () => {
   const rgba = Buffer.from([
@@ -279,7 +274,7 @@ if (!origin) {
     );
   }
 
-  server = createBuildServer();
+  server = createBuildServer({ buildRoot });
   await new Promise((resolve, reject) => {
     server.once("error", reject);
     server.listen(0, "127.0.0.1", resolve);
