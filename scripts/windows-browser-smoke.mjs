@@ -13,6 +13,20 @@ const routeChecks = [
   { route: "/", markers: ['class="parallax-wrapper"'] },
   { route: "/engineering", markers: ['class="parallax-wrapper"'] },
   {
+    route: "/?visual-runtime=optimized",
+    markers: [
+      'data-visual-runtime-shell="optimized-query"',
+      'data-visual-runtime-light-presented="true"',
+    ],
+    forbidden: [
+      'data-visual-runtime-shell-contexts="0"',
+      'data-visual-runtime-shell-state="failed"',
+      'data-renderer-id="main-dither"',
+      'data-renderer-id="black-hole-background"',
+    ],
+    requiresWebGL: true,
+  },
+  {
     route:
       "/?graphics=webgl&visual-runtime=optimized&visual-runtime-shell=probe",
     markers: ['data-visual-runtime-shell-host="true"'],
