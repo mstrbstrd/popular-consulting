@@ -86,11 +86,17 @@ describe("graphics runtime policy", () => {
     });
   });
 
-  test("recognizes only the explicit optimized shell probe", () => {
+  test("recognizes the optimized production query and explicit probe", () => {
     expect(
       isVisualRuntimeShellProbeRequest(
         "?visual-runtime=optimized&visual-runtime-shell=probe",
         "/",
+      ),
+    ).toBe(true);
+    expect(
+      isVisualRuntimeShellProbeRequest(
+        "?visual-runtime=optimized",
+        "/engineering",
       ),
     ).toBe(true);
     expect(
@@ -101,13 +107,13 @@ describe("graphics runtime policy", () => {
     ).toBe(false);
     expect(
       isVisualRuntimeShellProbeRequest(
-        "?visual-runtime=optimized",
+        "?visual-runtime=optimized&visual-runtime-shell=off",
         "/",
       ),
     ).toBe(false);
     expect(
       isVisualRuntimeShellProbeRequest(
-        "?visual-runtime=optimized&visual-runtime-shell=probe",
+        "?visual-runtime=optimized",
         "/work",
       ),
     ).toBe(false);
