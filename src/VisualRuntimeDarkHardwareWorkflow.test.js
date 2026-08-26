@@ -12,14 +12,22 @@ describe("strict dark visual runtime hardware qualification", () => {
     "src/utils/visualRuntimePolicy.js",
   );
 
-  test("runs the immutable dark evidence matrix on a pinned macOS runner", () => {
+  test("runs the immutable dark evidence matrix on selectable ARM64 macOS hardware", () => {
     expect(workflowSource).toContain("workflow_dispatch:");
-    expect(workflowSource).toContain("runs-on: macos-26");
+    expect(workflowSource).toContain("runner_label:");
+    expect(workflowSource).toContain("default: macos-15");
+    expect(workflowSource).toContain("- macos-26");
+    expect(workflowSource).toContain(
+      "runs-on: ${{ inputs.runner_label || 'macos-15' }}",
+    );
     expect(workflowSource).toContain(
       "node scripts/capture-visual-dark-evidence.mjs",
     );
     expect(workflowSource).toContain(
       "VISUAL_CAPTURE_BROWSER: /Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+    );
+    expect(workflowSource).toContain(
+      "EVIDENCE_RUNNER_LABEL: ${{ inputs.runner_label || 'macos-15' }}",
     );
   });
 
@@ -68,6 +76,9 @@ describe("strict dark visual runtime hardware qualification", () => {
     expect(workflowSource).toContain("actions/upload-artifact@v4");
     expect(workflowSource).toContain("retention-days: 30");
     expect(workflowSource).toContain("visual-dark-evidence/summary.md");
+    expect(workflowSource).toContain(
+      "dark-visual-runtime-evidence-${{ env.EVIDENCE_RUNNER_LABEL }}-${{ github.run_id }}",
+    );
   });
 
   test("does not enable the optimized production runtime", () => {
