@@ -14,6 +14,9 @@ import {
   validatePhysicalDarkEvidenceSummary,
 } from "./physical-dark-qualification-lib.mjs";
 
+const SENSITIVE_PROFILE_KEY_PATTERN =
+  /serial|uuid|udid|machine[_-]?name|host[_-]?name/i;
+
 const readArgument = (name) => {
   const prefix = `--${name}=`;
   const inline = process.argv.find((argument) =>
@@ -29,9 +32,7 @@ const hasFlag = (name) => process.argv.includes(`--${name}`);
 
 export const parsePhysicalViewport = (value = "1440x900") => {
   const match = String(value || "").match(/^(\d+)x(\d+)$/i);
-  if (!match) {
-    throw new Error("Viewport must use WIDTHxHEIGHT form.");
-  }
+  if (!match) throw new Error("Viewport must use WIDTHxHEIGHT form.");
 
   const width = Number(match[1]);
   const height = Number(match[2]);
@@ -53,6 +54,19 @@ export const parsePhysicalViewport = (value = "1440x900") => {
     height,
     value: `${width}x${height}`,
   });
+};
+
+export const sanitizeSystemProfiler = (value) => {
+  if (Array.isArray(value)) {
+    return value.map((entry) => sanitizeSystemProfiler(entry));
+  }
+  if (!value || typeof value !== "object") return value;
+
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key]) => !SENSITIVE_PROFILE_KEY_PATTERN.test(key))
+      .map(([key, entry]) => [key, sanitizeSystemProfiler(entry)]),
+  );
 };
 
 const commandOutput = (command, args, cwd) =>
@@ -79,9 +93,12 @@ const runCommand = (command, args, cwd) => {
 };
 
 const safeTimestamp = () =>
-  new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+  new Date()
+    .toISOString()
+    .replace(/[-:]/g, "")
+    .replace(/\.\d{3}Z$/, "Z");
 
-const resolveDefaultOutput = (repositoryRoot, sourceSha) =>
+const defaultOutput = (repositoryRoot, sourceSha) =>
   path.join(
     repositoryRoot,
     "visual-dark-evidence-physical",
@@ -90,7 +107,7 @@ const resolveDefaultOutput = (repositoryRoot, sourceSha) =>
 
 const ensureOutputDirectory = (repositoryRoot, requested, sourceSha) => {
   const outputDirectory = path.resolve(
-    requested || resolveDefaultOutput(repositoryRoot, sourceSha),
+    requested || defaultOutput(repositoryRoot, sourceSha),
   );
   const forbidden = [
     repositoryRoot,
@@ -137,6 +154,21 @@ const runSelfTest = () => {
     throw new Error("Physical viewport parsing failed.");
   }
 
+  const sanitized = sanitizeSystemProfiler({
+    chip_type: "Apple M4 Pro",
+    serial_number: "secret",
+    platform_UUID: "secret",
+    nested: { provisioning_UDID: "secret", memory: "24 GB" },
+  });
+  const serialized = JSON.stringify(sanitized);
+  if (
+    serialized.includes("secret") ||
+    !serialized.includes("Apple M4 Pro") ||
+    !serialized.includes("24 GB")
+  ) {
+    throw new Error("System profiler redaction self-test failed.");
+  }
+
   const physical = validatePhysicalAppleSiliconHost({
     platform: "darwin",
     arch: "arm64",
@@ -166,28 +198,13 @@ const runSelfTest = () => {
   process.stdout.write("Physical dark qualification runner self-test passed.\n");
 };
 
-if (hasFlag("self-test")) {
-  runSelfTest();
-  process.exit(0);
-}
-
-let repositoryRoot = null;
-let outputDirectory = null;
-let archivePath = null;
-let sourceSha = null;
-let failure = null;
-let evidenceValidation = null;
-let hostValidation = null;
-let hostRecord = null;
-let viewport = null;
-
-try {
-  repositoryRoot = commandOutput(
+const executeQualification = () => {
+  const repositoryRoot = commandOutput(
     "git",
     ["rev-parse", "--show-toplevel"],
     process.cwd(),
   );
-  sourceSha = commandOutput(
+  const sourceSha = commandOutput(
     "git",
     ["rev-parse", "--verify", "HEAD"],
     repositoryRoot,
@@ -207,160 +224,171 @@ try {
     );
   }
 
-  viewport = parsePhysicalViewport(
+  const viewport = parsePhysicalViewport(
     readArgument("viewport") || "1440x900",
   );
-  outputDirectory = ensureOutputDirectory(
+  const outputDirectory = ensureOutputDirectory(
     repositoryRoot,
     readArgument("output"),
     sourceSha,
   );
-  archivePath = `${outputDirectory}.tar.gz`;
+  const archivePath = `${outputDirectory}.tar.gz`;
   if (fs.existsSync(archivePath)) {
     throw new Error(`Qualification archive already exists: ${archivePath}`);
   }
 
-  const model = commandOutput("sysctl", ["-n", "hw.model"], repositoryRoot);
-  const profiles = readJsonCommand(
-    "system_profiler",
-    ["SPHardwareDataType", "SPDisplaysDataType", "-json"],
-    repositoryRoot,
-  );
-  const hardwareProfile = profiles.SPHardwareDataType || [];
-  const displayProfile = profiles.SPDisplaysDataType || [];
-  hostValidation = validatePhysicalAppleSiliconHost({
-    platform: process.platform,
-    arch: process.arch,
-    model,
-    hardwareProfile,
-    displayProfile,
-  });
-  if (!hostValidation.passed) {
-    throw new Error(hostValidation.errors.join(" "));
-  }
+  let failure = null;
+  let evidenceValidation = null;
+  let hostValidation = null;
+  let hostRecord = null;
 
-  const browserPath = findBrowser();
-  if (!browserPath) {
-    throw new Error(
-      "Microsoft Edge, Google Chrome, or Chromium was not found. Set VISUAL_CAPTURE_BROWSER.",
+  try {
+    const model = commandOutput(
+      "sysctl",
+      ["-n", "hw.model"],
+      repositoryRoot,
     );
-  }
+    const rawProfiles = readJsonCommand(
+      "system_profiler",
+      ["SPHardwareDataType", "SPDisplaysDataType", "-json"],
+      repositoryRoot,
+    );
+    const profiles = sanitizeSystemProfiler(rawProfiles);
+    const hardwareProfile = profiles.SPHardwareDataType || [];
+    const displayProfile = profiles.SPDisplaysDataType || [];
+    hostValidation = validatePhysicalAppleSiliconHost({
+      platform: process.platform,
+      arch: process.arch,
+      model,
+      hardwareProfile,
+      displayProfile,
+    });
+    if (!hostValidation.passed) {
+      throw new Error(hostValidation.errors.join(" "));
+    }
 
-  hostRecord = {
-    schemaVersion: 1,
-    sourceSha,
-    capturedAt: new Date().toISOString(),
-    platform: process.platform,
-    arch: process.arch,
-    model,
-    nodeVersion: process.version,
-    npmVersion: commandOutput("npm", ["--version"], repositoryRoot),
-    browserPath,
-    browserVersion: commandOutput(browserPath, ["--version"], repositoryRoot),
-    hardwareProfile,
-    displayProfile,
-    validation: hostValidation,
-  };
-  writeJson(path.join(outputDirectory, "host.json"), hostRecord);
+    const browserPath = findBrowser();
+    if (!browserPath) {
+      throw new Error(
+        "Microsoft Edge, Google Chrome, or Chromium was not found. Set VISUAL_CAPTURE_BROWSER.",
+      );
+    }
 
-  const execution = {
-    schemaVersion: 1,
-    sourceSha,
-    viewport,
-    commands: [
-      ["npm", "ci", "--no-audit", "--no-fund"],
-      ["npm", "run", "build"],
+    hostRecord = {
+      schemaVersion: 1,
+      sourceSha,
+      capturedAt: new Date().toISOString(),
+      platform: process.platform,
+      arch: process.arch,
+      model,
+      nodeVersion: process.version,
+      npmVersion: commandOutput("npm", ["--version"], repositoryRoot),
+      browserPath,
+      browserVersion: commandOutput(
+        browserPath,
+        ["--version"],
+        repositoryRoot,
+      ),
+      hardwareProfile,
+      displayProfile,
+      sensitiveIdentifiersRecorded: false,
+      validation: hostValidation,
+    };
+    writeJson(path.join(outputDirectory, "host.json"), hostRecord);
+
+    writeJson(path.join(outputDirectory, "execution.json"), {
+      schemaVersion: 1,
+      sourceSha,
+      viewport,
+      commands: [
+        ["npm", "ci", "--no-audit", "--no-fund"],
+        ["npm", "run", "build"],
+        [
+          "node",
+          "scripts/capture-visual-dark-evidence.mjs",
+          `--viewport=${viewport.value}`,
+          "--output=evidence",
+        ],
+      ],
+      startedAt: new Date().toISOString(),
+    });
+
+    runCommand(
+      "npm",
+      ["ci", "--no-audit", "--no-fund"],
+      repositoryRoot,
+    );
+    runCommand("npm", ["run", "build"], repositoryRoot);
+
+    const evidenceDirectory = path.join(outputDirectory, "evidence");
+    runCommand(
+      "node",
       [
-        "node",
         "scripts/capture-visual-dark-evidence.mjs",
         `--viewport=${viewport.value}`,
-        "--output=evidence",
+        `--output=${evidenceDirectory}`,
       ],
-    ],
-    startedAt: new Date().toISOString(),
+      repositoryRoot,
+    );
+
+    const summaryPath = path.join(evidenceDirectory, "summary.json");
+    if (!fs.existsSync(summaryPath)) {
+      throw new Error("The evidence matrix did not produce summary.json.");
+    }
+    evidenceValidation = validatePhysicalDarkEvidenceSummary(
+      JSON.parse(fs.readFileSync(summaryPath, "utf8")),
+    );
+    if (!evidenceValidation.passed) {
+      throw new Error(evidenceValidation.errors.join(" "));
+    }
+  } catch (error) {
+    failure = String(error?.message || error || "unknown failure");
+  }
+
+  const qualification = {
+    schemaVersion: 1,
+    passed: !failure && evidenceValidation?.passed === true,
+    sourceSha,
+    requiredCases: [...REQUIRED_PHYSICAL_DARK_CASES],
+    caseCount: evidenceValidation?.caseCount || 0,
+    renderer: evidenceValidation?.renderer || null,
+    vendor: evidenceValidation?.vendor || null,
+    gpuRatios: evidenceValidation?.ratios || [],
+    maximumGpuRatio: PHYSICAL_DARK_MAX_GPU_RATIO,
+    hostValidation,
+    failure,
+    completedAt: new Date().toISOString(),
   };
-  writeJson(path.join(outputDirectory, "execution.json"), execution);
+  writeJson(path.join(outputDirectory, "qualification.json"), qualification);
 
-  runCommand(
-    "npm",
-    ["ci", "--no-audit", "--no-fund"],
-    repositoryRoot,
+  const manifest = {
+    kind: PHYSICAL_DARK_QUALIFICATION_KIND,
+    schemaVersion: PHYSICAL_DARK_QUALIFICATION_SCHEMA_VERSION,
+    generatedAt: new Date().toISOString(),
+    sourceSha,
+    sourceTreeClean: true,
+    viewport,
+    host: hostRecord
+      ? {
+          platform: hostRecord.platform,
+          arch: hostRecord.arch,
+          model: hostRecord.model,
+          nodeVersion: hostRecord.nodeVersion,
+          npmVersion: hostRecord.npmVersion,
+          browserVersion: hostRecord.browserVersion,
+          sensitiveIdentifiersRecorded: false,
+        }
+      : null,
+    qualification,
+    files: listQualificationFiles(outputDirectory),
+  };
+  const manifestText = `${JSON.stringify(manifest, null, 2)}\n`;
+  fs.writeFileSync(path.join(outputDirectory, "manifest.json"), manifestText);
+  fs.writeFileSync(
+    path.join(outputDirectory, "manifest.sha256"),
+    `${sha256Buffer(manifestText)}  manifest.json\n`,
   );
-  runCommand("npm", ["run", "build"], repositoryRoot);
 
-  const evidenceDirectory = path.join(outputDirectory, "evidence");
-  runCommand(
-    "node",
-    [
-      "scripts/capture-visual-dark-evidence.mjs",
-      `--viewport=${viewport.value}`,
-      `--output=${evidenceDirectory}`,
-    ],
-    repositoryRoot,
-  );
-
-  const summaryPath = path.join(evidenceDirectory, "summary.json");
-  if (!fs.existsSync(summaryPath)) {
-    throw new Error("The evidence matrix did not produce summary.json.");
-  }
-  const summary = JSON.parse(fs.readFileSync(summaryPath, "utf8"));
-  evidenceValidation = validatePhysicalDarkEvidenceSummary(summary);
-  if (!evidenceValidation.passed) {
-    throw new Error(evidenceValidation.errors.join(" "));
-  }
-} catch (error) {
-  failure = String(error?.message || error || "unknown failure");
-}
-
-if (!outputDirectory) {
-  throw new Error(failure || "Physical qualification failed before output setup.");
-}
-
-const qualification = {
-  schemaVersion: 1,
-  passed: !failure && evidenceValidation?.passed === true,
-  sourceSha,
-  requiredCases: [...REQUIRED_PHYSICAL_DARK_CASES],
-  caseCount: evidenceValidation?.caseCount || 0,
-  renderer: evidenceValidation?.renderer || null,
-  vendor: evidenceValidation?.vendor || null,
-  gpuRatios: evidenceValidation?.ratios || [],
-  maximumGpuRatio: PHYSICAL_DARK_MAX_GPU_RATIO,
-  hostValidation,
-  failure,
-  completedAt: new Date().toISOString(),
-};
-writeJson(path.join(outputDirectory, "qualification.json"), qualification);
-
-const files = listQualificationFiles(outputDirectory);
-const manifest = {
-  kind: PHYSICAL_DARK_QUALIFICATION_KIND,
-  schemaVersion: PHYSICAL_DARK_QUALIFICATION_SCHEMA_VERSION,
-  generatedAt: new Date().toISOString(),
-  sourceSha,
-  sourceTreeClean: true,
-  viewport,
-  host: hostRecord
-    ? {
-        platform: hostRecord.platform,
-        arch: hostRecord.arch,
-        model: hostRecord.model,
-        nodeVersion: hostRecord.nodeVersion,
-        npmVersion: hostRecord.npmVersion,
-        browserVersion: hostRecord.browserVersion,
-      }
-    : null,
-  qualification,
-  files,
-};
-const manifestText = `${JSON.stringify(manifest, null, 2)}\n`;
-fs.writeFileSync(path.join(outputDirectory, "manifest.json"), manifestText);
-fs.writeFileSync(
-  path.join(outputDirectory, "manifest.sha256"),
-  `${sha256Buffer(manifestText)}  manifest.json\n`,
-);
-
-try {
   runCommand(
     "tar",
     [
@@ -372,18 +400,22 @@ try {
     ],
     repositoryRoot,
   );
-} catch (error) {
-  failure = failure || String(error?.message || error);
-}
 
-if (failure || qualification.passed !== true) {
-  throw new Error(
-    `Physical dark qualification failed. Preserved bundle: ${outputDirectory}. ${
-      failure || "Evidence did not satisfy every gate."
-    }`,
+  if (failure || qualification.passed !== true) {
+    throw new Error(
+      `Physical dark qualification failed. Preserved bundle: ${outputDirectory}. ${
+        failure || "Evidence did not satisfy every gate."
+      }`,
+    );
+  }
+
+  process.stdout.write(
+    `\nPhysical dark qualification passed.\nBundle: ${outputDirectory}\nArchive: ${archivePath}\nRenderer: ${qualification.renderer}\n`,
   );
-}
+};
 
-process.stdout.write(
-  `\nPhysical dark qualification passed.\nBundle: ${outputDirectory}\nArchive: ${archivePath}\nRenderer: ${qualification.renderer}\n`,
-);
+if (hasFlag("self-test")) {
+  runSelfTest();
+} else {
+  executeQualification();
+}
