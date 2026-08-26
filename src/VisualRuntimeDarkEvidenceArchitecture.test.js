@@ -11,6 +11,7 @@ describe("stage-four dark evidence architecture", () => {
   const indexSource = read("src/index.js");
   const packageSource = read("package.json");
   const workflowSource = read(".github/workflows/quality.yml");
+  const runnerSource = read("scripts/dark-evidence-runner.mjs");
   const referenceShaderSource = read(
     "src/components/blackHoleShader.js",
   );
@@ -64,7 +65,7 @@ describe("stage-four dark evidence architecture", () => {
     expect(packageSource).toContain(
       '"visual:dark-evidence"',
     );
-    expect(packaeSource).toContain(
+    expect(packageSource).toContain(
       '"visual:dark-evidence:self-test"',
     );
     expect(workflowSource).toContain(
@@ -73,5 +74,9 @@ describe("stage-four dark evidence architecture", () => {
     expect(workflowSource).toContain(
       "Run dark evidence smoke",
     );
+    expect(runnerSource).toContain("referenceUrl,");
+    expect(runnerSource).toContain("candidateUrl,");
+    expect(runnerSource).toContain("url: referenceUrl");
+    expect(runnerSource).toContain("url: candidateUrl");
   });
 });

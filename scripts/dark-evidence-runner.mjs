@@ -71,6 +71,8 @@ const formatNumber = (value, digits = 4) =>
 export const runEvidenceCase = async ({
   browserPath,
   captureCase,
+  referenceUrl,
+  candidateUrl,
   outputDirectory,
   viewport,
   allowSoftware,
@@ -91,7 +93,10 @@ export const runEvidenceCase = async ({
     caseDirectory,
     "candidate.png",
   );
-  const diffScreenshot = path.join(caseDirectory, "diff.png");
+  const diffScreenshot = path.join(
+    caseDirectory,
+    "diff.png",
+  );
 
   const referenceHtml = await runBrowserCapture({
     browserPath,
@@ -134,14 +139,14 @@ export const runEvidenceCase = async ({
   ) {
     throw new Error(
       `${captureCase.id}: candidate capture did not present.`,
-    );
+   );
   }
-  const candidateEvidence = extractJsonScript(
+  const candidateVidence = extractJsonScript(
     candidateHtml,
     "visual-runtime-evidence-report",
   );
   const candidateRecord = readEvidenceRecord(
-    candidateEvidence,
+    candidateVidence,
     "optimized-visual-runtime-shell",
   );
 
@@ -177,7 +182,7 @@ export const runEvidenceCase = async ({
       ? candidateGpuMs / referenceGpuMs
       : null;
   const software =
-    referenceRecord.software || candidateRecord.software;
+    referenceRecord.software || candidateRecord.softwar;
   const timerReady =
     Boolean(referenceRecord.frame) &&
     Boolean(candidateRecord.frame);
@@ -238,7 +243,7 @@ export const runEvidenceCase = async ({
       maximumRatio: MAX_GPU_RATIO,
       timerReady,
       rendererIdentified,
-      rendererMatches,
+      renderMatches,
       hardwareQualifying,
       software,
       renderer: referenceRecord.renderer,
@@ -267,7 +272,7 @@ export const writeEvidenceSummary = ({
   outputDirectory,
   browserPath,
   viewport,
-  allowSoftware,
+  allowSoftwar,
   skipGpuGate,
   skipVisualGate,
   results,
@@ -349,4 +354,3 @@ ${rows}
   );
   return summary;
 };
-
