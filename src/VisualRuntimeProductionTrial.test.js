@@ -1,6 +1,9 @@
 import fs from "fs";
 import path from "path";
-import { buildVisualRuntimeReferenceFallbackUrl } from "./components/VisualRuntimeShellHost";
+import {
+  buildVisualRuntimeReferenceFallbackUrl,
+  wrapVisualRuntimeTrialPass,
+} from "./components/VisualRuntimeShellHost";
 import {
   resolveVisualRuntimeShellPolicy,
   VISUAL_RUNTIME_SHELL_ACTIVATION_SOURCES,
@@ -101,11 +104,55 @@ describe("explicit production optimized runtime trial", () => {
     );
   });
 
+  test("falls back when the sole optimized pass fails during resize or render", () => {
+    const fallbackToReference = jest.fn();
+    const resizeError = new Error("framebuffer incomplete");
+    const renderError = new Error("draw failed");
+    const pass = wrapVisualRuntimeTrialPass({
+      pass: {
+        id: "optimized-test-pass",
+        resize: () => {
+          throw resizeError;
+        },
+        render: () => {
+          throw renderError;
+        },
+      },
+      productionTrial: true,
+      fallbackToReference,
+    });
+
+    expect(() => pass.resize()).toThrow(resizeError);
+    expect(fallbackToReference).toHaveBeenCalledWith(
+      "optimized-test-pass-resize-failure",
+    );
+
+    expect(() => pass.render()).toThrow(renderError);
+    expect(fallbackToReference).toHaveBeenCalledWith(
+      "optimized-test-pass-render-failure",
+    );
+  });
+
+  test("does not alter pass behavior outside the production trial", () => {
+    const pass = {
+      id: "diagnostic-pass",
+      render: jest.fn(() => ({ continue: true })),
+    };
+
+    expect(
+      wrapVisualRuntimeTrialPass({
+        pass,
+        productionTrial: false,
+      }),
+    ).toBe(pass);
+  });
+
   test("retains a manual reference fallback controller", () => {
     expect(hostSource).toContain("fallbackToReference");
     expect(hostSource).toContain(
       "VISUAL_RUNTIME_SHELL_FAILURE_EVENT",
     );
     expect(hostSource).toContain("window.location.replace");
+    expect(hostSource).toContain("wrapVisualRuntimeTrialPass");
   });
 });
