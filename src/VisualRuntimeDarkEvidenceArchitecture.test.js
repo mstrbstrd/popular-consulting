@@ -90,7 +90,7 @@ describe("stage-four dark evidence architecture", () => {
     expect(runnerSource).toContain("candidateRecord.software");
     expect(runnerSource).toContain("rendererMatches,");
     expect(runnerSource).toContain("allowSoftware,");
-    expect(runnerSource).not.toContain("candidateRecord.softwar");
+    expect(runnerSource).not.toContain("candidateRecord.softwar,");
     expect(runnerSource).not.toContain("renderMatches");
     expect(runnerSource).not.toContain("allowSoftwar,");
     expect(runnerSource).not.toContain("candidateVidence");
