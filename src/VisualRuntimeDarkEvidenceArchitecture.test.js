@@ -40,6 +40,18 @@ describe("stage-four dark evidence architecture", () => {
     expect(evidenceSource).not.toContain("context.finish()");
   });
 
+  test("fails closed and reclaims asynchronous timer resources", () => {
+    expect(evidenceSource).toContain("timer-query-timeout");
+    expect(evidenceSource).toContain("gpu-disjoint");
+    expect(evidenceSource).toContain("timer-query-exception");
+    expect(evidenceSource).toContain("timer-query-flush-failed");
+    expect(evidenceSource).toContain("nativeClearTimeout");
+    expect(evidenceSource).toContain("context.deleteQuery");
+    expect(evidenceSource).toContain(
+      "getResolvedGpuEvidenceSamples",
+    );
+  });
+
   test("installs before reference capture instrumentation", () => {
     const evidenceIndex = indexSource.indexOf(
       "initVisualRuntimeGpuEvidence();",
