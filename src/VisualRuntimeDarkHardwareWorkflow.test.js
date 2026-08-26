@@ -15,6 +15,12 @@ describe("strict dark visual runtime hardware qualification", () => {
     "src/utils/visualRuntimePolicy.js",
   );
 
+  test("constructs exact GitHub expressions without lint-sensitive literals", () => {
+    expect(githubExpression("github.run_id")).toBe(
+      "$" + "{{ github.run_id }}",
+    );
+  });
+
   test("runs the immutable dark evidence matrix on selectable ARM64 macOS hardware", () => {
     expect(workflowSource).toContain("workflow_dispatch:");
     expect(workflowSource).toContain("runner_label:");
