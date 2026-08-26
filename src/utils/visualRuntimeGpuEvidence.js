@@ -14,7 +14,7 @@ const DARK_RENDERER_IDS = new Set([
   "optimized-visual-runtime-shell",
 ]);
 const SOFTWARE_RENDERER_PATTERN =
-  /swiftshader|llvmpipe|softpipe|software rasterizer|microsoft basic render|warp|virtualbox|vmware|parallels|angle \(.*swiftshader/i;
+  /swiftshader|llvmpipe|softpipe|software rasterizer|microsoft basic render|warp|paravirtual|virtual gpu|virtual device|virtio|virtualbox|vmware|parallels|angle \(.*swiftshader/i;
 const MAX_MEASURED_DRAWS =
   VISUAL_RUNTIME_DARK_FRAME_DRAW_COUNT * 3;
 const TIMER_QUERY_POLL_INTERVAL_MS = 8;
