@@ -30,6 +30,19 @@ describe("strict dark visual runtime hardware qualification", () => {
     expect(workflowSource).toContain("EVIDENCE_RUNNER_LABEL:");
   });
 
+  test("qualifies exact same-repository PR heads without running fork hardware jobs", () => {
+    expect(workflowSource).toContain("pull_request:");
+    expect(workflowSource).toContain(
+      "github.event.pull_request.head.repo.full_name == github.repository",
+    );
+    expect(workflowSource).toContain("EVIDENCE_SOURCE_SHA:");
+    expect(workflowSource).toContain(
+      "github.event.pull_request.head.sha || github.sha",
+    );
+    expect(workflowSource).toContain("ref:");
+    expect(workflowSource).toContain("env.EVIDENCE_SOURCE_SHA");
+  });
+
   test("reruns when either canonical or optimized dark inputs change", () => {
     expect(workflowSource).toContain(
       "src/components/BlackHole*.js",
