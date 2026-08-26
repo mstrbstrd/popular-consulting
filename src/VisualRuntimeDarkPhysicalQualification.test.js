@@ -41,22 +41,27 @@ describe("secure local dark physical qualification", () => {
 
   test("requires a clean physical Apple Silicon source checkout", () => {
     expect(runnerSource).toContain(
-      'git",\n    ["status", "--porcelain", "--untracked-files=no"]',
+      '["status", "--porcelain", "--untracked-files=all"]',
     );
-    expect(runnerSource).toContain('platform: process.platform');
-    expect(runnerSource).toContain('arch: process.arch');
+    expect(runnerSource).toContain("assertNoEnvironmentFiles");
+    expect(runnerSource).toContain(
+      "Tracked or untracked source files are present.",
+    );
+    expect(runnerSource).toContain(
+      "Build-affecting environment files are present",
+    );
+    expect(runnerSource).toContain("platform: process.platform");
+    expect(runnerSource).toContain("arch: process.arch");
     expect(runnerSource).toContain('"sysctl"');
     expect(runnerSource).toContain('"hw.model"');
     expect(runnerSource).toContain(
       '"SPHardwareDataType", "SPDisplaysDataType", "-json"',
     );
-    expect(librarySource).toContain(
-      'platform !== "darwin"',
-    );
+    expect(librarySource).toContain('platform !== "darwin"');
     expect(librarySource).toContain('arch !== "arm64"');
   });
 
-  test("redacts sensitive machine identifiers before writing evidence", () => {
+  test("sanitizes build inputs and sensitive machine identifiers", () => {
     expect(runnerSource).toContain(
       "SENSITIVE_PROFILE_KEY_PATTERN",
     );
@@ -64,6 +69,14 @@ describe("secure local dark physical qualification", () => {
       "serial|uuid|udid|machine[_-]?name|host[_-]?name",
     );
     expect(runnerSource).toContain("sanitizeSystemProfiler");
+    expect(runnerSource).toContain(
+      "BUILD_ENVIRONMENT_KEY_PATTERN",
+    );
+    expect(runnerSource).toContain("REACT_APP_");
+    expect(runnerSource).toContain("NODE_OPTIONS");
+    expect(runnerSource).toContain(
+      "createQualificationEnvironment",
+    );
     expect(runnerSource).toContain(
       "sensitiveIdentifiersRecorded: false",
     );
@@ -121,6 +134,8 @@ describe("secure local dark physical qualification", () => {
   test("produces a complete checksummed bundle and rejects tampering", () => {
     expect(runnerSource).toContain('"manifest.json"');
     expect(runnerSource).toContain('"manifest.sha256"');
+    expect(runnerSource).toContain("archiveDigestPath");
+    expect(runnerSource).toContain("sha256File(archivePath)");
     expect(runnerSource).toContain('"qualification.json"');
     expect(runnerSource).toContain('"host.json"');
     expect(runnerSource).toContain('"execution.json"');
@@ -148,6 +163,9 @@ describe("secure local dark physical qualification", () => {
     );
     expect(gitignoreSource).toContain(
       "/visual-dark-evidence-physical*.tar.gz",
+    );
+    expect(gitignoreSource).toContain(
+      "/visual-dark-evidence-physical*.tar.gz.sha256",
     );
   });
 
