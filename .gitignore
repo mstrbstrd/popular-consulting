@@ -15,6 +15,7 @@
 /visual-dark-evidence-smoke
 /visual-dark-evidence-physical
 /visual-dark-evidence-physical*.tar.gz
+/visual-dark-evidence-physical*.tar.gz.sha256
 
 # Environment and local secrets
 .env
