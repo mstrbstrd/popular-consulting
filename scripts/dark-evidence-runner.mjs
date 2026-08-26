@@ -54,25 +54,43 @@ const readEvidenceRecord = (report, rendererId) => {
 };
 
 const evidenceCollectionReady = (record) => {
+  const expectedDrawCount = Number(record.expectedDrawCount);
   const submittedDraws = Number(record.submittedDraws);
   const measuredDraws = Number(record.measuredDraws);
   const pendingDraws = Number(record.pendingDraws);
   const invalidDraws = Number(record.invalidDraws);
+  const expectedFrameCount = Number(record.expectedFrameCount);
   const totalFrames = Number(record.summary?.totalFrames);
   const validFrames = Number(record.summary?.validFrames);
+  const drawCountAligned = Boolean(
+    Number.isInteger(expectedDrawCount) &&
+      expectedDrawCount > 0 &&
+      Number.isInteger(submittedDraws) &&
+      submittedDraws > 0 &&
+      submittedDraws % expectedDrawCount === 0,
+  );
+  const recomputedFrameCount = drawCountAligned
+    ? submittedDraws / expectedDrawCount
+    : null;
 
   return Boolean(
     record.evidenceStatus === "ready" &&
       record.reportQualifyingHardware &&
       record.collectionComplete === true &&
       record.collectionValid === true &&
-      Number.isFinite(submittedDraws) &&
-      submittedDraws > 0 &&
+      drawCountAligned &&
+      Number.isInteger(measuredDraws) &&
       measuredDraws === submittedDraws &&
+      Number.isInteger(pendingDraws) &&
       pendingDraws === 0 &&
+      Number.isInteger(invalidDraws) &&
       invalidDraws === 0 &&
-      Number.isFinite(totalFrames) &&
+      Number.isInteger(expectedFrameCount) &&
+      expectedFrameCount === recomputedFrameCount &&
+      Number.isInteger(totalFrames) &&
+      totalFrames === recomputedFrameCount &&
       totalFrames > 0 &&
+      Number.isInteger(validFrames) &&
       validFrames === totalFrames,
   );
 };
@@ -80,6 +98,7 @@ const evidenceCollectionReady = (record) => {
 const collectionSnapshot = (record) => ({
   evidenceStatus: record.evidenceStatus,
   reportQualifyingHardware: record.reportQualifyingHardware,
+  expectedDrawCount: record.expectedDrawCount,
   submittedDraws: record.submittedDraws,
   measuredDraws: record.measuredDraws,
   pendingDraws: record.pendingDraws,
