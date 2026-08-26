@@ -50,9 +50,13 @@ export const isVisualRuntimeShellProbeRequest = (
     if (!immersiveRoute) return false;
 
     const params = new URLSearchParams(search);
-    return (
+    const optimizedRequested =
       params.get(VISUAL_RUNTIME_QUERY_PARAM)?.trim().toLowerCase() ===
-        "optimized" &&
+      "optimized";
+    if (!optimizedRequested) return false;
+
+    if (!params.has(VISUAL_RUNTIME_SHELL_QUERY_PARAM)) return true;
+    return (
       params
         .get(VISUAL_RUNTIME_SHELL_QUERY_PARAM)
         ?.trim()
