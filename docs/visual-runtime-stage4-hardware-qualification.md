@@ -4,7 +4,7 @@
 
 The optimized dark transport and material candidate remains explicit-only. Normal visitors continue to receive the canonical black-hole renderer.
 
-GitHub-hosted macOS runners expose a virtualized graphics device. The retained evidence identified:
+GitHub-hosted macOS runners expose a virtualized graphics device. Retained evidence identified:
 
 ```text
 ANGLE Metal Renderer: Apple Paravirtual device
@@ -12,50 +12,85 @@ ANGLE Metal Renderer: Apple Paravirtual device
 
 That environment is useful for build, browser, candidate-presentation, and evidence-plumbing diagnostics. It is not accepted as production GPU performance evidence.
 
-The workflow therefore has two separate modes:
+The public repository therefore uses two separate execution boundaries:
 
-1. Hosted diagnostic on `macos-15`
-2. Physical qualification on a self-hosted Apple Silicon runner
+1. GitHub-hosted, timer-free, non-qualifying diagnostics
+2. Local physical qualification on an Apple Silicon Mac
 
-The modes cannot substitute for one another.
+The public Actions workflow contains no self-hosted runner target. Physical qualification requires no GitHub token and does not upload evidence automatically.
 
-## Workflow
+## Hosted diagnostic
+
+The workflow is:
 
 ```text
 .github/workflows/dark-visual-runtime-hardware.yml
 ```
 
-Pull requests and pushes to `main` run the hosted diagnostic automatically when dark renderer or evidence contracts change.
+Pull requests and pushes to `main` run one candidate-only diagnostic on `macos-15` when dark renderer, evidence, or qualification contracts change.
 
-Manual dispatch provides an `execution_mode` input:
+Its result must contain:
 
-```text
-hosted-diagnostic
-physical-qualification
+```json
+{
+  "diagnosticOnly": true,
+  "qualificationEligible": false,
+  "timerInstrumentation": false,
+  "passed": true
+}
 ```
 
-The hosted mode runs one small candidate-only diagnostic. Its result must contain:
+The hosted diagnostic proves only that:
 
-```text
-diagnosticOnly: true
-qualificationEligible: false
+- The optimized dark candidate can initialize
+- The reference renderer is suppressed
+- The candidate presents a non-flat screenshot
+- The browser and evidence plumbing execute without crashing
+- The result is explicitly incapable of qualifying production
+
+It does not compare the candidate with the canonical renderer and does not measure production GPU performance.
+
+## Local physical qualification
+
+Run the complete physical matrix from a clean checkout of the exact commit being evaluated:
+
+```bash
+npm run visual:dark-evidence:physical
 ```
 
-The physical mode requires a runner with all of these labels:
+An alternate viewport may be supplied:
 
-```text
-self-hosted
-macOS
-ARM64
-physical-gpu
-visual-runtime-qualification
+```bash
+npm run visual:dark-evidence:physical -- --viewport=1920x1080
 ```
 
-No physical job is queued during an ordinary pull request or push.
+The local runner requires:
 
-## Physical matrix
+- macOS
+- Apple Silicon ARM64
+- A non-virtual hardware identity
+- Node.js 20
+- Microsoft Edge, Google Chrome, or Chromium
+- No modified tracked files
 
-A complete physical qualification runs these nine cases:
+The command does not require a GitHub token, a self-hosted Actions runner, or write access to the repository.
+
+## What the local runner does
+
+The runner performs this sequence:
+
+1. Records the full Git commit SHA.
+2. Rejects modified tracked files.
+3. Reads the physical Mac and display identity.
+4. Rejects virtual, paravirtual, software, and unidentified graphics devices.
+5. Removes serial numbers, UUIDs, UDIDs, host names, and machine names from the retained hardware profile.
+6. Runs `npm ci --no-audit --no-fund`.
+7. Builds the production bundle.
+8. Runs the complete nine-case reference-versus-candidate matrix.
+9. Revalidates every visual, timer, renderer, and GPU-ratio gate.
+10. Writes a checksummed evidence bundle and compressed archive.
+
+The exact cases are:
 
 - `dark-section-0-hero`
 - `dark-section-1-about`
@@ -67,89 +102,104 @@ A complete physical qualification runs these nine cases:
 - `dark-hero-pointer-right`
 - `dark-hero-time-16`
 
-The cases are sharded with `fail-fast: false` and bounded to three concurrent jobs. Each case uploads its evidence even when it fails.
-
-A separate Ubuntu aggregation job downloads every case artifact and independently rejects:
-
-- Missing cases
-- Duplicate cases
-- Unexpected cases
-- Failed visual gates
-- Failed GPU gates
-- Skipped gates
-- Incomplete timer collections
-- Invalid timer collections
-- Software renderers
-- Virtual or paravirtual renderers
-- Unidentified renderers
-- Renderer or vendor mismatches
-- Candidate GPU ratios above `0.1`
-
-The aggregate job writes both machine-readable and human-readable summaries and restores a failing workflow conclusion after artifacts are retained.
+A partial case selection cannot qualify the runtime.
 
 ## Strict invariants
 
 1. The physical matrix does not pass `--allow-software`.
 2. The physical matrix does not pass `--skip-gpu-gate`.
 3. The physical matrix does not pass `--skip-visual-gate`.
-4. Reference and candidate captures must identify the same renderer and vendor.
-5. SwiftShader, llvmpipe, WARP, Microsoft Basic Render, Paravirtual, Virtio, virtual-device, and other virtual identities do not qualify.
-6. The candidate complete-frame GPU time must remain at or below ten percent of the reference complete-frame time.
-7. The visual thresholds remain those encoded by the evidence harness.
-8. Every physical case remains a 17-draw complete-frame measurement.
-9. Timer queries are polled asynchronously and the evidence layer does not call `gl.finish()`.
-10. Missing, disjoint, invalid, exceptional, or timed-out timer results fail closed.
-11. A single physical case is diagnostic only and cannot qualify the runtime.
-12. Hosted diagnostics cannot qualify the runtime.
-13. `OPTIMIZED_VISUAL_RUNTIME_AVAILABLE` remains `false`.
-14. The canonical and optimized shader programs remain unchanged by the evidence layer.
+4. All nine required cases must appear exactly once.
+5. Reference and candidate must identify the same renderer and vendor.
+6. SwiftShader, llvmpipe, WARP, Microsoft Basic Render, Paravirtual, Virtio, VirtualMac, virtual-device, and other virtual identities do not qualify.
+7. The candidate complete-frame GPU time must remain at or below ten percent of the reference complete-frame time.
+8. The visual thresholds remain unchanged.
+9. Every case remains a 17-draw complete-frame measurement.
+10. Every submitted timer query must resolve.
+11. Pending, disjoint, invalid, exceptional, missing, or timed-out timer results fail closed.
+12. The complete source commit SHA is recorded in the bundle.
+13. Sensitive machine identifiers are not retained.
+14. Symlinks and uninventoried files invalidate the bundle.
+15. `OPTIMIZED_VISUAL_RUNTIME_AVAILABLE` remains `false`.
+16. The canonical and optimized shader programs remain unchanged by qualification tooling.
 
-## Evidence output
+## Evidence bundle
 
-A physical case may produce:
-
-- `reference.png`
-- `reference.html`
-- `candidate.png`
-- `candidate.html`
-- `diff.png`
-- `result.json`
-- `summary.json`
-- `summary.md`
-
-The physical aggregate produces:
-
-- `visual-dark-evidence-aggregate/summary.json`
-- `visual-dark-evidence-aggregate/summary.md`
-
-Artifacts are retained for 30 days.
-
-## Manual dispatch
-
-Use the GitHub Actions workflow named:
+By default, successful or failed evidence is written below:
 
 ```text
-Dark visual runtime evidence and physical qualification
+visual-dark-evidence-physical/
 ```
 
-For a production-eligible measurement:
+Each run receives a commit-and-timestamp directory and a matching `.tar.gz` archive.
 
-1. Connect a physical Apple Silicon self-hosted runner with the required labels.
-2. Select `physical-qualification`.
-3. Keep `evidence_case` set to `all`.
-4. Run the workflow from the exact commit being evaluated.
-5. Inspect every retained screenshot, DOM capture, JSON result, and aggregate summary.
+The bundle contains:
 
-Selecting one named case creates a non-qualifying physical diagnostic only.
+```text
+host.json
+execution.json
+qualification.json
+manifest.json
+manifest.sha256
+evidence/
+  summary.json
+  summary.md
+  <case>/
+    reference.png
+    reference.html
+    candidate.png
+    candidate.html
+    diff.png
+    result.json
+```
+
+`manifest.json` inventories every retained file with its byte count and SHA-256 digest. `manifest.sha256` authenticates the manifest itself. Generated evidence and archives are ignored by Git.
+
+A failed run still writes and archives its diagnostic bundle when output initialization succeeded, then exits nonzero.
+
+## Independent verification
+
+Verify an extracted bundle with:
+
+```bash
+npm run visual:dark-evidence:physical:verify -- \
+  --bundle=/absolute/path/to/the/extracted/bundle
+```
+
+Pin verification to an expected source commit:
+
+```bash
+npm run visual:dark-evidence:physical:verify -- \
+  --bundle=/absolute/path/to/the/extracted/bundle \
+  --expected-sha=0123456789abcdef0123456789abcdef01234567
+```
+
+The verifier independently checks:
+
+- Manifest and file checksums
+- Complete file inventory
+- Path containment
+- Absence of symlinks
+- Source commit identity
+- Physical Apple Silicon identity
+- Identifier-redaction declaration
+- All nine visual results
+- All nine GPU results
+- Complete timer collections
+- Matching renderer and vendor
+- The 17-draw boundary
+- The unchanged 0.1 GPU ratio gate
+
+Changing, deleting, adding, or corrupting any inventoried file causes verification to fail.
 
 ## Failure interpretation
 
-A hosted diagnostic failure means the candidate, browser, or evidence plumbing needs repair.
+A hosted diagnostic failure means the candidate, browser, or diagnostic plumbing needs repair.
 
-A physical visual failure identifies a parity difference between the candidate and the oracle.
+A local physical visual failure identifies a parity difference between the candidate and the oracle.
 
-A physical performance failure means the complete-frame cost has not reached the order-of-magnitude target.
+A local physical performance failure means the complete-frame cost has not reached the order-of-magnitude target.
 
-A hardware identity failure means the runner cannot establish trustworthy production GPU evidence.
+A hardware identity failure means the machine cannot establish trustworthy production GPU evidence.
 
-No failed, incomplete, hosted, software, virtual, or single-case result can activate a canary.
+No failed, incomplete, hosted, software, virtual, tampered, or partial result can activate a canary.
