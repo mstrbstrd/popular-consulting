@@ -168,6 +168,8 @@ visual-dark-evidence-physical/
         candidate.html
         diff.png
         result.json
+  <source-and-time>.tar.gz
+  <source-and-time>.tar.gz.sha256
 ```
 
 The retained HTML captures the rendered DOM on both success and browser failure. It exposes capture readiness, capture errors, renderer ownership, canvas dimensions, completed-frame state, hardware identity, timer status, and serialized runtime reports.
@@ -179,14 +181,17 @@ The physical command:
 - Requires no GitHub token
 - Does not connect a self-hosted runner to the public repository
 - Does not upload its result automatically
-- Rejects modified tracked source files
-- Records the exact full commit SHA
+- Rejects tracked and untracked source changes
+- Rejects local `.env` and `.env.*` build overrides other than `.env.example`
+- Removes build-affecting environment variables before install, build, and capture
+- Records the exact full commit SHA in every retained record
 - Removes serial numbers, UUIDs, UDIDs, host names, and machine names from the retained hardware profile
-- Ignores generated evidence through `.gitignore`
+- Ignores generated evidence, archives, and archive digests through `.gitignore`
 - Writes a SHA-256 inventory for every retained file
-- Rejects symlinks, path traversal, missing files, added files, and checksum differences
+- Writes a separate SHA-256 digest for the compressed archive
+- Rejects symlinks, path traversal, missing files, added files, checksum differences, and contradictory records
 
-The matching `.tar.gz` archive is suitable for controlled transfer after the run completes.
+The matching `.tar.gz` archive is suitable for controlled transfer after the run completes. Compare its `.tar.gz.sha256` value through a separate channel when transfer provenance matters.
 
 ## Independent bundle verification
 
@@ -205,7 +210,21 @@ npm run visual:dark-evidence:physical:verify -- \
   --expected-sha=0123456789abcdef0123456789abcdef01234567
 ```
 
-The verifier recalculates the manifest digest, every file digest, physical host eligibility, all nine visual gates, all nine GPU gates, renderer identity, timer completeness, and the 17-draw frame boundary. Tampering causes verification to fail.
+The verifier recalculates the manifest digest and every file digest. It also independently cross-checks:
+
+- Physical host eligibility
+- Identifier-redaction declarations
+- Clean-source and sanitized-environment declarations
+- Source SHA across host, execution, qualification, and manifest records
+- The exact nine required cases
+- Every visual threshold
+- Every GPU threshold
+- Renderer and vendor consistency
+- Timer completeness and validity
+- The 17-draw frame boundary
+- Qualification-record consistency
+
+Changing, deleting, adding, corrupting, or contradicting any inventoried record causes verification to fail.
 
 ## CI classification
 
