@@ -10,12 +10,16 @@ import {
   PHYSICAL_DARK_MAX_GPU_RATIO,
   REQUIRED_PHYSICAL_DARK_CASES,
   sha256Buffer,
+  sha256File,
   validatePhysicalAppleSiliconHost,
   validatePhysicalDarkEvidenceSummary,
 } from "./physical-dark-qualification-lib.mjs";
 
 const SENSITIVE_PROFILE_KEY_PATTERN =
   /serial|uuid|udid|machine[_-]?name|host[_-]?name/i;
+const BUILD_ENVIRONMENT_KEY_PATTERN =
+  /^(REACT_APP_|PUBLIC_URL$|BUILD_PATH$|GENERATE_SOURCEMAP$|INLINE_RUNTIME_CHUNK$|IMAGE_INLINE_SIZE_LIMIT$|DISABLE_ESLINT_PLUGIN$|TSC_COMPILE_ON_ERROR$|FAST_REFRESH$|NODE_OPTIONS$|NODE_ENV$|BABEL_ENV$|BROWSER$|HOST$|PORT$|CI$)/i;
+const ALLOWED_ENVIRONMENT_FILE = ".env.example";
 
 const readArgument = (name) => {
   const prefix = `--${name}=`;
@@ -69,6 +73,22 @@ export const sanitizeSystemProfiler = (value) => {
   );
 };
 
+export const createQualificationEnvironment = (
+  sourceEnvironment = process.env,
+) => {
+  const environment = Object.fromEntries(
+    Object.entries(sourceEnvironment).filter(
+      ([key]) => !BUILD_ENVIRONMENT_KEY_PATTERN.test(key),
+    ),
+  );
+  environment.CI = "true";
+  if (sourceEnvironment.VISUAL_CAPTURE_BROWSER) {
+    environment.VISUAL_CAPTURE_BROWSER =
+      sourceEnvironment.VISUAL_CAPTURE_BROWSER;
+  }
+  return environment;
+};
+
 const commandOutput = (command, args, cwd) =>
   execFileSync(command, args, {
     cwd,
@@ -77,11 +97,16 @@ const commandOutput = (command, args, cwd) =>
     stdio: ["ignore", "pipe", "pipe"],
   }).trim();
 
-const runCommand = (command, args, cwd) => {
+const runCommand = (
+  command,
+  args,
+  cwd,
+  environment = process.env,
+) => {
   process.stdout.write(`\n> ${command} ${args.join(" ")}\n`);
   const result = spawnSync(command, args, {
     cwd,
-    env: process.env,
+    env: environment,
     stdio: "inherit",
   });
   if (result.error) throw result.error;
@@ -111,12 +136,24 @@ const ensureOutputDirectory = (repositoryRoot, requested, sourceSha) => {
   );
   const forbidden = [
     repositoryRoot,
+    path.join(repositoryRoot, ".git"),
     path.join(repositoryRoot, "build"),
     path.join(repositoryRoot, "node_modules"),
   ].map((candidate) => path.resolve(candidate));
 
   if (forbidden.includes(outputDirectory)) {
     throw new Error("Qualification output cannot replace a project directory.");
+  }
+  const relativeToGit = path.relative(
+    path.join(repositoryRoot, ".git"),
+    outputDirectory,
+  );
+  if (
+    relativeToGit &&
+    !relativeToGit.startsWith("..") &&
+    !path.isAbsolute(relativeToGit)
+  ) {
+    throw new Error("Qualification output cannot be written inside .git.");
   }
   if (
     fs.existsSync(outputDirectory) &&
@@ -129,6 +166,27 @@ const ensureOutputDirectory = (repositoryRoot, requested, sourceSha) => {
 
   fs.mkdirSync(outputDirectory, { recursive: true });
   return outputDirectory;
+};
+
+const assertNoEnvironmentFiles = (repositoryRoot) => {
+  const environmentFiles = fs
+    .readdirSync(repositoryRoot, { withFileTypes: true })
+    .filter(
+      (entry) =>
+        entry.isFile() &&
+        (entry.name === ".env" || entry.name.startsWith(".env.")) &&
+        entry.name !== ALLOWED_ENVIRONMENT_FILE,
+    )
+    .map((entry) => entry.name)
+    .sort();
+
+  if (environmentFiles.length > 0) {
+    throw new Error(
+      `Build-affecting environment files are present: ${environmentFiles.join(
+        ", ",
+      )}. Remove them before qualification.`,
+    );
+  }
 };
 
 const readJsonCommand = (command, args, cwd) => {
@@ -167,6 +225,22 @@ const runSelfTest = () => {
     !serialized.includes("24 GB")
   ) {
     throw new Error("System profiler redaction self-test failed.");
+  }
+
+  const qualificationEnvironment = createQualificationEnvironment({
+    PATH: "/usr/bin",
+    HOME: "/tmp/home",
+    REACT_APP_SECRET: "remove-me",
+    NODE_OPTIONS: "--require malicious.js",
+    VISUAL_CAPTURE_BROWSER: "/Applications/Google Chrome.app",
+  });
+  if (
+    qualificationEnvironment.REACT_APP_SECRET ||
+    qualificationEnvironment.NODE_OPTIONS ||
+    qualificationEnvironment.CI !== "true" ||
+    !qualificationEnvironment.VISUAL_CAPTURE_BROWSER
+  ) {
+    throw new Error("Qualification environment self-test failed.");
   }
 
   const physical = validatePhysicalAppleSiliconHost({
@@ -213,16 +287,17 @@ const executeQualification = () => {
     throw new Error("Git did not return a full source commit SHA.");
   }
 
-  const trackedChanges = commandOutput(
+  const sourceChanges = commandOutput(
     "git",
-    ["status", "--porcelain", "--untracked-files=no"],
+    ["status", "--porcelain", "--untracked-files=all"],
     repositoryRoot,
   );
-  if (trackedChanges) {
+  if (sourceChanges) {
     throw new Error(
-      "Tracked files are modified. Commit or restore them before qualification.",
+      "Tracked or untracked source files are present. Commit, remove, or ignore them before qualification.",
     );
   }
+  assertNoEnvironmentFiles(repositoryRoot);
 
   const viewport = parsePhysicalViewport(
     readArgument("viewport") || "1440x900",
@@ -233,14 +308,18 @@ const executeQualification = () => {
     sourceSha,
   );
   const archivePath = `${outputDirectory}.tar.gz`;
-  if (fs.existsSync(archivePath)) {
-    throw new Error(`Qualification archive already exists: ${archivePath}`);
+  const archiveDigestPath = `${archivePath}.sha256`;
+  if (fs.existsSync(archivePath) || fs.existsSync(archiveDigestPath)) {
+    throw new Error(
+      `Qualification archive or digest already exists: ${archivePath}`,
+    );
   }
 
   let failure = null;
   let evidenceValidation = null;
   let hostValidation = null;
   let hostRecord = null;
+  const qualificationEnvironment = createQualificationEnvironment();
 
   try {
     const model = commandOutput(
@@ -300,6 +379,11 @@ const executeQualification = () => {
       schemaVersion: 1,
       sourceSha,
       viewport,
+      sourcePolicy: {
+        trackedAndUntrackedFilesClean: true,
+        environmentFilesAbsent: true,
+        buildEnvironmentSanitized: true,
+      },
       commands: [
         ["npm", "ci", "--no-audit", "--no-fund"],
         ["npm", "run", "build"],
@@ -317,8 +401,14 @@ const executeQualification = () => {
       "npm",
       ["ci", "--no-audit", "--no-fund"],
       repositoryRoot,
+      qualificationEnvironment,
     );
-    runCommand("npm", ["run", "build"], repositoryRoot);
+    runCommand(
+      "npm",
+      ["run", "build"],
+      repositoryRoot,
+      qualificationEnvironment,
+    );
 
     const evidenceDirectory = path.join(outputDirectory, "evidence");
     runCommand(
@@ -329,6 +419,7 @@ const executeQualification = () => {
         `--output=${evidenceDirectory}`,
       ],
       repositoryRoot,
+      qualificationEnvironment,
     );
 
     const summaryPath = path.join(evidenceDirectory, "summary.json");
@@ -400,6 +491,10 @@ const executeQualification = () => {
     ],
     repositoryRoot,
   );
+  fs.writeFileSync(
+    archiveDigestPath,
+    `${sha256File(archivePath)}  ${path.basename(archivePath)}\n`,
+  );
 
   if (failure || qualification.passed !== true) {
     throw new Error(
@@ -410,7 +505,7 @@ const executeQualification = () => {
   }
 
   process.stdout.write(
-    `\nPhysical dark qualification passed.\nBundle: ${outputDirectory}\nArchive: ${archivePath}\nRenderer: ${qualification.renderer}\n`,
+    `\nPhysical dark qualification passed.\nBundle: ${outputDirectory}\nArchive: ${archivePath}\nArchive digest: ${archiveDigestPath}\nRenderer: ${qualification.renderer}\n`,
   );
 };
 
