@@ -1,5 +1,6 @@
 import {
   buildGpuEvidenceFrames,
+  getResolvedGpuEvidenceSamples,
   isSoftwareRenderer,
   readVisualRuntimeEvidenceRequest,
   resolveVisualRuntimeEvidencePolicy,
@@ -88,6 +89,31 @@ describe("visual runtime GPU evidence", () => {
       maximumGpuMs: 8.5,
     });
     expect(summary.medianCpuMs).toBeCloseTo(1.7);
+  });
+
+  test("waits for a contiguous resolved prefix before grouping frames", () => {
+    const first = {
+      valid: true,
+      gpuMs: 1,
+      cpuMs: 0.1,
+      reason: null,
+    };
+    const third = {
+      valid: true,
+      gpuMs: 2,
+      cpuMs: 0.2,
+      reason: null,
+    };
+
+    expect(
+      getResolvedGpuEvidenceSamples([first, null, third]),
+    ).toEqual([first]);
+    expect(
+      getResolvedGpuEvidenceSamples([first, undefined, third]),
+    ).toEqual([first]);
+    expect(
+      getResolvedGpuEvidenceSamples([first, third]),
+    ).toEqual([first, third]);
   });
 
   test("fails a frame closed when any draw timing is invalid", () => {
