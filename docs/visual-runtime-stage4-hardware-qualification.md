@@ -6,6 +6,8 @@ This checkpoint runs the existing deterministic dark evidence matrix on GitHub-h
 
 Automatic `main` qualification uses `macos-15`, which is the stable availability lane. Manual dispatches may select either `macos-15` or `macos-26` so the same immutable matrix can be cross-checked on both supported ARM64 images.
 
+Same-repository pull requests that change the dark renderer or evidence boundary also run the complete `macos-15` matrix before merge. The workflow explicitly checks out the pull request head SHA. Fork-originated pull requests cannot start the hardware job.
+
 It does not enable the optimized runtime and it does not interpret a failed run as permission to weaken the visual or GPU thresholds.
 
 ## Workflow
@@ -14,7 +16,7 @@ It does not enable the optimized runtime and it does not interpret a failed run 
 .github/workflows/dark-visual-runtime-hardware.yml
 ```
 
-The workflow supports manual dispatch and also runs when the canonical dark renderer, optimized dark renderer, theme entry point, evidence harness, or workflow itself changes on `main`.
+The workflow supports manual dispatch, same-repository pull-request qualification, and automatic qualification when the canonical dark renderer, optimized dark renderer, theme entry point, evidence harness, or workflow itself changes on `main`.
 
 The default run executes all nine evidence cases at 1440 by 900 on `macos-15`.
 
@@ -34,13 +36,15 @@ A manual dispatch may also select `macos-26`. Changing the runner label changes 
 8. Evidence artifacts are uploaded even when qualification fails.
 9. The final full-matrix workflow step restores the failing conclusion after artifact upload.
 10. A single-case run is diagnostic only, even when that case passes.
-11. Both `BlackHole*.js` and `blackHole*.js` changes retrigger the full matrix on `main`.
+11. Both `BlackHole*.js` and `blackHole*.js` changes retrigger the full matrix on `main` and same-repository pull requests.
 12. Automatic qualification runs on `macos-15`; `macos-26` remains selectable for manual cross-checking.
 13. Both selectable runner labels are ARM64 macOS hardware images.
-14. Timer queries are polled asynchronously and the evidence path never calls `gl.finish()`.
-15. Out-of-order timer results cannot be grouped across draw or frame boundaries.
-16. Missing, disjoint, invalid, exceptional, or timed-out timer results fail closed.
-17. `OPTIMIZED_VISUAL_RUNTIME_AVAILABLE` remains `false`.
+14. Pull-request qualification checks out the exact head SHA rather than a synthetic merge commit.
+15. Fork-originated pull requests cannot consume the strict hardware lane.
+16. Timer queries are polled asynchronously and the evidence path never calls `gl.finish()`.
+17. Out-of-order timer results cannot be grouped across draw or frame boundaries.
+18. Missing, disjoint, invalid, exceptional, or timed-out timer results fail closed.
+19. `OPTIMIZED_VISUAL_RUNTIME_AVAILABLE` remains `false`.
 
 ## Evidence output
 
@@ -58,7 +62,7 @@ The matrix produces:
 - `summary.json`
 - `summary.md`
 
-The artifact name includes the selected runner label and GitHub run ID. The artifact is retained for 30 days. The Markdown summary is also copied into the GitHub Actions job summary.
+The artifact name includes the selected runner label and GitHub run ID. The artifact is retained for 30 days. The Markdown summary is also copied into the GitHub Actions job summary, together with the runner label and exact evidence source SHA.
 
 ## Failure interpretation
 
