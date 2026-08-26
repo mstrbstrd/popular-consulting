@@ -40,13 +40,15 @@ const readEvidenceRecord = (report, rendererId) => {
       `Evidence report did not contain renderer ${rendererId}.`,
     );
   }
-  const frame = record.frames?.find((candidate) => candidate.valid);
+
+  const medianGpuMs = Number(record.summary?.medianGpuMs);
   return {
     ...record,
-    frame: frame || null,
+    medianGpuMs: Number.isFinite(medianGpuMs)
+      ? medianGpuMs
+      : null,
   };
 };
-
 
 const assertUsableImage = (metrics, label) => {
   if (
@@ -139,14 +141,14 @@ export const runEvidenceCase = async ({
   ) {
     throw new Error(
       `${captureCase.id}: candidate capture did not present.`,
-   );
+    );
   }
-  const candidateVidence = extractJsonScript(
+  const candidateEvidence = extractJsonScript(
     candidateHtml,
     "visual-runtime-evidence-report",
   );
   const candidateRecord = readEvidenceRecord(
-    candidateVidence,
+    candidateEvidence,
     "optimized-visual-runtime-shell",
   );
 
@@ -173,19 +175,25 @@ export const runEvidenceCase = async ({
 
   const visualPassed =
     skipVisualGate || visualGatePassed(metrics);
-  const referenceGpuMs = referenceRecord.frame?.gpuMs ?? null;
-  const candidateGpuMs = candidateRecord.frame?.gpuMs ?? null;
+  const referenceGpuMs = referenceRecord.medianGpuMs;
+  const candidateGpuMs = candidateRecord.medianGpuMs;
   const gpuRatio =
     Number.isFinite(referenceGpuMs) &&
     referenceGpuMs > 0 &&
     Number.isFinite(candidateGpuMs)
       ? candidateGpuMs / referenceGpuMs
       : null;
-  const software =
-    referenceRecord.software || candidateRecord.softwar;
-  const timerReady =
-    Boolean(referenceRecord.frame) &&
-    Boolean(candidateRecord.frame);
+  const software = Boolean(
+    referenceRecord.software || candidateRecord.software,
+  );
+  const timerReady = Boolean(
+    referenceRecord.timerSupported &&
+      candidateRecord.timerSupported &&
+      Number(referenceRecord.summary?.validFrames) > 0 &&
+      Number(candidateRecord.summary?.validFrames) > 0 &&
+      Number.isFinite(referenceGpuMs) &&
+      Number.isFinite(candidateGpuMs),
+  );
   const rendererIdentified = Boolean(
     referenceRecord.renderer &&
       referenceRecord.vendor &&
@@ -243,11 +251,13 @@ export const runEvidenceCase = async ({
       maximumRatio: MAX_GPU_RATIO,
       timerReady,
       rendererIdentified,
-      renderMatches,
+      rendererMatches,
       hardwareQualifying,
       software,
       renderer: referenceRecord.renderer,
       vendor: referenceRecord.vendor,
+      referenceSummary: referenceRecord.summary,
+      candidateSummary: candidateRecord.summary,
       passed: gpuPassed,
       gateSkipped: skipGpuGate,
     },
@@ -272,7 +282,7 @@ export const writeEvidenceSummary = ({
   outputDirectory,
   browserPath,
   viewport,
-  allowSoftwar,
+  allowSoftware,
   skipGpuGate,
   skipVisualGate,
   results,
@@ -344,7 +354,7 @@ ${rows}
 - Mean absolute error <= ${MAX_MEAN_ABSOLUTE_ERROR}
 - Root mean square error <= ${MAX_ROOT_MEAN_SQUARE_ERROR}
 - Pixel mismatch ratio <= ${MAX_MISMATCH_RATIO} at delta > ${PIXEL_DELTA_THRESHOLD}/255
-- Candidate full-frame GPU median <= ${MAX_GPU_RATIO} of reference
+- Candidate complete-frame GPU median <= ${MAX_GPU_RATIO} of reference
 - Reference and candidate must identify the same non-software renderer and vendor
 - Both paths must return valid \`EXT_disjoint_timer_query_webgl2\` samples
 `;
