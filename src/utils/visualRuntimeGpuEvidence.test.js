@@ -188,6 +188,7 @@ describe("visual runtime GPU evidence", () => {
       UNMASKED_RENDERER_WEBGL: "unmasked-renderer",
       UNMASKED_VENDOR_WEBGL: "unmasked-vendor",
     };
+    const blockedQueries = new Set();
     let queryId = 0;
 
     const context = {
@@ -224,7 +225,9 @@ describe("visual runtime GPU evidence", () => {
       }),
       getQueryParameter: jest.fn((query, name) => {
         if (!query) return null;
-        if (name === context.QUERY_RESULT_AVAILABLE) return true;
+        if (name === context.QUERY_RESULT_AVAILABLE) {
+          return !blockedQueries.has(query.id);
+        }
         if (name === context.QUERY_RESULT) return 500_000;
         return null;
       }),
@@ -335,6 +338,24 @@ describe("visual runtime GPU evidence", () => {
       expect(
         attributes.get("data-visual-runtime-evidence-ready"),
       ).toBe("true");
+
+      blockedQueries.add(18);
+      instrumentedContext.drawArrays("triangles", 0, 4);
+      const collectingReport = JSON.parse(reportElement.textContent);
+      expect(collectingReport).toMatchObject({
+        status: "collecting",
+        qualifyingHardware: false,
+      });
+      expect(collectingReport.records[0]).toMatchObject({
+        submittedDraws: 18,
+        measuredDraws: 17,
+        pendingDraws: 1,
+        collectionComplete: false,
+        collectionValid: false,
+      });
+      expect(
+        attributes.get("data-visual-runtime-evidence-ready"),
+      ).toBe("false");
     } finally {
       cleanup();
     }
