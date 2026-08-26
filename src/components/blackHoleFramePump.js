@@ -1,9 +1,9 @@
 // Frame submission and atomic presentation for BlackHolePipeline.
 import { recordGraphicsEvent } from "../utils/graphicsPolicy";
-
-const VISUAL_RUNTIME_EVIDENCE_QUERY_PARAM =
-  "visual-runtime-evidence";
-const VISUAL_RUNTIME_DARK_EVIDENCE_MODE = "dark";
+import {
+  readVisualRuntimeEvidenceRequest,
+  VISUAL_RUNTIME_EVIDENCE_DARK,
+} from "../utils/visualRuntimeGpuEvidence";
 
 export const resolveBlackHoleBatchSize = ({
   search = "",
@@ -18,16 +18,9 @@ export const resolveBlackHoleBatchSize = ({
     1,
     Math.floor(Number(remainingTiles) || 1),
   );
-  let darkEvidenceActive = false;
-
-  try {
-    darkEvidenceActive =
-      new URLSearchParams(String(search || "")).get(
-        VISUAL_RUNTIME_EVIDENCE_QUERY_PARAM,
-      ) === VISUAL_RUNTIME_DARK_EVIDENCE_MODE;
-  } catch (_) {
-    darkEvidenceActive = false;
-  }
+  const darkEvidenceActive =
+    readVisualRuntimeEvidenceRequest(search) ===
+    VISUAL_RUNTIME_EVIDENCE_DARK;
 
   return Math.max(
     1,
