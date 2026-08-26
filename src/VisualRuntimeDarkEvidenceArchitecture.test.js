@@ -22,7 +22,7 @@ describe("stage-four dark evidence architecture", () => {
     "src/utils/visualRuntimeDarkPass.js",
   );
 
-  test("measures complete 16-tile plus presentation frames", () => {
+  test("measures complete 16-tile plus presentation frames without blocking submission", () => {
     expect(evidenceSource).toContain(
       "VISUAL_RUNTIME_DARK_FRAME_DRAW_COUNT = 17",
     );
@@ -32,7 +32,12 @@ describe("stage-four dark evidence architecture", () => {
     expect(evidenceSource).toContain(
       "buildGpuEvidenceFrames",
     );
-    expect(evidenceSource).toContain("context.finish()");
+    expect(evidenceSource).toContain(
+      "QUERY_RESULT_AVAILABLE",
+    );
+    expect(evidenceSource).toContain("pendingQueries");
+    expect(evidenceSource).toContain("context.flush()");
+    expect(evidenceSource).not.toContain("context.finish()");
   });
 
   test("installs before reference capture instrumentation", () => {
