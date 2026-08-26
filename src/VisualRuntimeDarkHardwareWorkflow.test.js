@@ -45,6 +45,8 @@ describe("dark visual runtime evidence workflows", () => {
   });
 
   test("shards the exact nine-case physical matrix with bounded parallelism", () => {
+    const dollar = String.fromCharCode(36);
+
     expect(workflowSource).toContain("evidence-case:");
     expect(workflowSource).toContain("fail-fast: false");
     expect(workflowSource).toContain("max-parallel: 3");
@@ -64,7 +66,7 @@ describe("dark visual runtime evidence workflows", () => {
     });
 
     expect(workflowSource).toContain(
-      '--case="$' + '{EVIDENCE_CASE}"',
+      `--case="${dollar}{EVIDENCE_CASE}"`,
     );
     expect(workflowSource).toContain("dark-evidence-case-");
     expect(workflowSource).toContain("matrix.evidence_case");
