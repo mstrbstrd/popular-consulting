@@ -69,7 +69,30 @@ EXT_disjoint_timer_query_webgl2
 
 The runner groups complete 17-draw frames and compares the median complete-frame GPU time from each renderer. This includes the entire reference frame and the entire candidate frame. It does not compare only the transport shader or use CPU submission time as a substitute.
 
-The timing path calls `gl.finish()` only under the explicit evidence query. Normal visitors never pay this synchronization cost.
+## Nonblocking timer collection
+
+Timer-query submission does not call `gl.finish()`.
+
+For each measured draw, the evidence layer:
+
+1. Begins a `TIME_ELAPSED_EXT` query.
+2. Submits the unchanged application draw.
+3. Ends the query and calls `gl.flush()`.
+4. Returns control to the application immediately.
+5. Polls `QUERY_RESULT_AVAILABLE` on a bounded timer until the GPU result is ready.
+
+Queries may resolve out of order. The evidence report groups only the contiguous resolved prefix, so a later result can never be attributed to an earlier draw or frame.
+
+The collector fails closed when:
+
+- The timer extension is unavailable
+- A query cannot be created, begun, ended, or flushed
+- The GPU becomes disjoint
+- The query result is invalid
+- A pending query exceeds the bounded timeout
+- The underlying application draw throws
+
+Pending timers and query objects are deleted during cleanup. Normal visitors never install this instrumentation because the evidence query is required.
 
 ## Hardware qualification
 
@@ -107,10 +130,14 @@ visual-dark-evidence/
   summary.md
   <case>/
     reference.png
+    reference.html
     candidate.png
+    candidate.html
     diff.png
     result.json
 ```
+
+The retained HTML captures the rendered DOM on both success and browser failure. It exposes capture readiness, capture errors, renderer ownership, canvas dimensions, completed-frame state, hardware identity, timer status, and serialized runtime reports.
 
 ## CI classification
 
