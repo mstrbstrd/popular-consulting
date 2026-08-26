@@ -12,22 +12,23 @@ describe("strict dark visual runtime hardware qualification", () => {
     "src/utils/visualRuntimePolicy.js",
   );
 
-  test("runs the immutable dark evidence matrix on selectable ARM64 macOS hardware", () => {
+  test("runs the immutable dark evidence matrix on macOS 26 ARM64 hardware", () => {
     expect(workflowSource).toContain("workflow_dispatch:");
-    expect(workflowSource).toContain("runner_label:");
-    expect(workflowSource).toContain("default: macos-15");
-    expect(workflowSource).toContain("- macos-26");
-    expect(workflowSource).toContain("runs-on:");
+    expect(workflowSource).toContain("runs-on: macos-26");
     expect(workflowSource).toContain(
-      "inputs.runner_label || 'macos-15'",
+      "Strict dark evidence on macOS 26 hardware",
     );
+    expect(workflowSource).not.toContain("runner_label:");
+    expect(workflowSource).not.toContain("runs-on: macos-15");
     expect(workflowSource).toContain(
       "node scripts/capture-visual-dark-evidence.mjs",
     );
     expect(workflowSource).toContain(
       "VISUAL_CAPTURE_BROWSER: /Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
     );
-    expect(workflowSource).toContain("EVIDENCE_RUNNER_LABEL:");
+    expect(workflowSource).toContain(
+      "EVIDENCE_RUNNER_LABEL: macos-26",
+    );
   });
 
   test("qualifies exact same-repository PR heads without running fork hardware jobs", () => {
