@@ -33,6 +33,19 @@ describe("dark evidence reference readiness", () => {
     );
   });
 
+  test("completes measured evidence batches without a post-draw fence", () => {
+    expect(framePumpSource).toContain(
+      "if (darkEvidenceActive)",
+    );
+    expect(framePumpSource).toContain("gl.finish();");
+    expect(framePumpSource).toContain(
+      "return completeBatch(pipeline);",
+    );
+    expect(framePumpSource).toContain(
+      "pipeline.pendingSync = gl.fenceSync",
+    );
+  });
+
   test("retains DOM diagnostics on success and browser failure", () => {
     expect(browserSource).toContain(
       "resolveCaptureDocumentPath",
