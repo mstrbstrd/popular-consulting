@@ -96,6 +96,10 @@ const readArgument = (name) => {
 
 const hasFlag = (name) => process.argv.includes(`--${name}`);
 
+/**
+ * @param {string | null} value
+ * @param {{ width: number, height: number }} fallback
+ */
 const parseViewport = (value, fallback = DEFAULT_VIEWPORT) => {
   const match = String(value || "").match(/^(\d+)x(\d+)$/i);
   if (!match) return fallback;
