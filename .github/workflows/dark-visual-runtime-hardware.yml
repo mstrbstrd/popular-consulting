@@ -32,6 +32,16 @@ on:
         options:
           - macos-15
           - macos-26
+  pull_request:
+    paths:
+      - .github/workflows/dark-visual-runtime-hardware.yml
+      - scripts/capture-visual-dark-evidence.mjs
+      - scripts/dark-evidence-*.mjs
+      - src/components/BlackHole*.js
+      - src/components/blackHole*.js
+      - src/contexts/ThemeContext.js
+      - src/utils/visualRuntimeDark*.js
+      - src/utils/visualRuntimeGpuEvidence*.js
   push:
     branches:
       - main
@@ -54,6 +64,9 @@ concurrency:
 
 jobs:
   qualify-dark-runtime:
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
     name: ${{ (inputs.evidence_case && inputs.evidence_case != 'all') && 'Diagnostic dark evidence, non-qualifying' || 'Strict dark evidence on macOS hardware' }}
     runs-on: ${{ inputs.runner_label || 'macos-15' }}
     timeout-minutes: 90
@@ -62,10 +75,13 @@ jobs:
       EVIDENCE_VIEWPORT: ${{ inputs.viewport || '1440x900' }}
       EVIDENCE_CASE: ${{ inputs.evidence_case || 'all' }}
       EVIDENCE_RUNNER_LABEL: ${{ inputs.runner_label || 'macos-15' }}
+      EVIDENCE_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ env.EVIDENCE_SOURCE_SHA }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -84,6 +100,7 @@ jobs:
         run: |
           set -euo pipefail
           echo "Requested runner label: ${EVIDENCE_RUNNER_LABEL}"
+          echo "Evidence source SHA: ${EVIDENCE_SOURCE_SHA}"
           sw_vers
           uname -m
           system_profiler SPDisplaysDataType || true
@@ -119,6 +136,8 @@ jobs:
         run: |
           {
             echo "Runner label: ${EVIDENCE_RUNNER_LABEL}"
+            echo
+            echo "Evidence source SHA: ${EVIDENCE_SOURCE_SHA}"
             echo
           } >> "$GITHUB_STEP_SUMMARY"
 
