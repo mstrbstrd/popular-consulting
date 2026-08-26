@@ -2,13 +2,22 @@
 
 ## Status
 
-This checkpoint runs the existing deterministic dark evidence matrix on the GitHub-hosted `macos-26` ARM64 lane.
+The optimized dark transport and material candidate remains explicit-only. Normal visitors continue to receive the canonical black-hole renderer.
 
-The `macos-15` ARM64 lane was evaluated as an availability fallback, but its retained evidence identified `ANGLE Metal Renderer: Apple Paravirtual device`. Its first timer query and render fence remained pending for the complete capture window. That lane is not accepted as qualifying GPU evidence.
+GitHub-hosted macOS runners expose a virtualized graphics device. The retained evidence identified:
 
-Same-repository pull requests that change the dark renderer or evidence boundary run the complete `macos-26` matrix before merge. The workflow explicitly checks out the pull request head SHA. Fork-originated pull requests cannot start the hardware job.
+```text
+ANGLE Metal Renderer: Apple Paravirtual device
+```
 
-It does not enable the optimized runtime and it does not interpret a failed run as permission to weaken the visual or GPU thresholds.
+That environment is useful for build, browser, candidate-presentation, and evidence-plumbing diagnostics. It is not accepted as production GPU performance evidence.
+
+The workflow therefore has two separate modes:
+
+1. Hosted diagnostic on `macos-15`
+2. Physical qualification on a self-hosted Apple Silicon runner
+
+The modes cannot substitute for one another.
 
 ## Workflow
 
@@ -16,36 +25,88 @@ It does not enable the optimized runtime and it does not interpret a failed run 
 .github/workflows/dark-visual-runtime-hardware.yml
 ```
 
-The workflow supports manual dispatch, same-repository pull-request qualification, and automatic qualification when the canonical dark renderer, optimized dark renderer, theme entry point, evidence harness, or workflow itself changes on `main`.
+Pull requests and pushes to `main` run the hosted diagnostic automatically when dark renderer or evidence contracts change.
 
-The default run executes all nine evidence cases at 1440 by 900 on `macos-26`.
+Manual dispatch provides an `execution_mode` input:
 
-A manual dispatch may select one named case while diagnosing a failure. A one-case run is labelled `Diagnostic dark evidence, non-qualifying`, and it cannot produce or replace the complete-matrix qualification result.
+```text
+hosted-diagnostic
+physical-qualification
+```
+
+The hosted mode runs one small candidate-only diagnostic. Its result must contain:
+
+```text
+diagnosticOnly: true
+qualificationEligible: false
+```
+
+The physical mode requires a runner with all of these labels:
+
+```text
+self-hosted
+macOS
+ARM64
+physical-gpu
+visual-runtime-qualification
+```
+
+No physical job is queued during an ordinary pull request or push.
+
+## Physical matrix
+
+A complete physical qualification runs these nine cases:
+
+- `dark-section-0-hero`
+- `dark-section-1-about`
+- `dark-section-2-services`
+- `dark-section-3-contact`
+- `dark-section-4-orb`
+- `dark-section-5-game`
+- `dark-hero-pointer-left`
+- `dark-hero-pointer-right`
+- `dark-hero-time-16`
+
+The cases are sharded with `fail-fast: false` and bounded to three concurrent jobs. Each case uploads its evidence even when it fails.
+
+A separate Ubuntu aggregation job downloads every case artifact and independently rejects:
+
+- Missing cases
+- Duplicate cases
+- Unexpected cases
+- Failed visual gates
+- Failed GPU gates
+- Skipped gates
+- Incomplete timer collections
+- Invalid timer collections
+- Software renderers
+- Virtual or paravirtual renderers
+- Unidentified renderers
+- Renderer or vendor mismatches
+- Candidate GPU ratios above `0.1`
+
+The aggregate job writes both machine-readable and human-readable summaries and restores a failing workflow conclusion after artifacts are retained.
 
 ## Strict invariants
 
-1. The workflow does not pass `--allow-software`.
-2. The workflow does not pass `--skip-gpu-gate`.
-3. The workflow does not pass `--skip-visual-gate`.
-4. The strict runner is pinned to `macos-26`.
-5. Reference and candidate captures must identify the same renderer and vendor.
-6. Software, virtual, paravirtual, unidentified, or disjoint GPU results do not qualify.
-7. The candidate complete-frame GPU time must remain at or below ten percent of the reference complete-frame time.
-8. The visual thresholds remain those encoded by the evidence harness.
-9. Evidence artifacts are uploaded even when qualification fails.
-10. The final full-matrix workflow step restores the failing conclusion after artifact upload.
-11. A single-case run is diagnostic only, even when that case passes.
-12. Both `BlackHole*.js` and `blackHole*.js` changes retrigger the full matrix on `main` and same-repository pull requests.
-13. Pull-request qualification checks out the exact head SHA rather than a synthetic merge commit.
-14. Fork-originated pull requests cannot consume the strict hardware lane.
-15. Timer queries are polled asynchronously and the evidence path never calls `gl.finish()`.
-16. Out-of-order timer results cannot be grouped across draw or frame boundaries.
-17. Missing, disjoint, invalid, exceptional, or timed-out timer results fail closed.
-18. `OPTIMIZED_VISUAL_RUNTIME_AVAILABLE` remains `false`.
+1. The physical matrix does not pass `--allow-software`.
+2. The physical matrix does not pass `--skip-gpu-gate`.
+3. The physical matrix does not pass `--skip-visual-gate`.
+4. Reference and candidate captures must identify the same renderer and vendor.
+5. SwiftShader, llvmpipe, WARP, Microsoft Basic Render, Paravirtual, Virtio, virtual-device, and other virtual identities do not qualify.
+6. The candidate complete-frame GPU time must remain at or below ten percent of the reference complete-frame time.
+7. The visual thresholds remain those encoded by the evidence harness.
+8. Every physical case remains a 17-draw complete-frame measurement.
+9. Timer queries are polled asynchronously and the evidence layer does not call `gl.finish()`.
+10. Missing, disjoint, invalid, exceptional, or timed-out timer results fail closed.
+11. A single physical case is diagnostic only and cannot qualify the runtime.
+12. Hosted diagnostics cannot qualify the runtime.
+13. `OPTIMIZED_VISUAL_RUNTIME_AVAILABLE` remains `false`.
+14. The canonical and optimized shader programs remain unchanged by the evidence layer.
 
 ## Evidence output
 
-Every case may produce:
+A physical case may produce:
 
 - `reference.png`
 - `reference.html`
@@ -53,33 +114,42 @@ Every case may produce:
 - `candidate.html`
 - `diff.png`
 - `result.json`
-
-The matrix produces:
-
 - `summary.json`
 - `summary.md`
 
-The artifact name includes the runner label and GitHub run ID. The artifact is retained for 30 days. The Markdown summary is also copied into the GitHub Actions job summary, together with the runner label and exact evidence source SHA.
+The physical aggregate produces:
 
-## Failure interpretation
+- `visual-dark-evidence-aggregate/summary.json`
+- `visual-dark-evidence-aggregate/summary.md`
 
-A failure is a measurement, not a deployment failure.
-
-- A visual failure identifies where the transport map, packed crossings, chromatic sampling, or material reconstruction differs from the oracle.
-- A performance failure shows that the complete-frame cost has not reached the order-of-magnitude target, even if the source-level ray count has.
-- A hardware identity failure means the runner cannot establish trustworthy GPU evidence.
-- A timer failure means at least one complete-frame draw could not be measured without disjoint, invalid, exceptional, or timed-out state.
-- A missing summary means the harness or browser failed before evidence completion and the job log, retained DOM, and partial artifact become authoritative.
-- A queued run with no job means the hosted-runner pool has not assigned hardware. It is not evidence about the application or renderer.
-
-No failing result can activate a canary. Refinement must occur in another explicit-only branch and be measured by the same gate.
+Artifacts are retained for 30 days.
 
 ## Manual dispatch
 
 Use the GitHub Actions workflow named:
 
 ```text
-Dark visual runtime hardware qualification
+Dark visual runtime evidence and physical qualification
 ```
 
-The default values run the complete matrix on `macos-26`. A single case should be selected only to isolate a known failure before rerunning the complete matrix. Its successful execution confirms only that diagnostic case, not the runtime as a whole.
+For a production-eligible measurement:
+
+1. Connect a physical Apple Silicon self-hosted runner with the required labels.
+2. Select `physical-qualification`.
+3. Keep `evidence_case` set to `all`.
+4. Run the workflow from the exact commit being evaluated.
+5. Inspect every retained screenshot, DOM capture, JSON result, and aggregate summary.
+
+Selecting one named case creates a non-qualifying physical diagnostic only.
+
+## Failure interpretation
+
+A hosted diagnostic failure means the candidate, browser, or evidence plumbing needs repair.
+
+A physical visual failure identifies a parity difference between the candidate and the oracle.
+
+A physical performance failure means the complete-frame cost has not reached the order-of-magnitude target.
+
+A hardware identity failure means the runner cannot establish trustworthy production GPU evidence.
+
+No failed, incomplete, hosted, software, virtual, or single-case result can activate a canary.
