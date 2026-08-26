@@ -24,14 +24,6 @@ on:
           - dark-hero-pointer-left
           - dark-hero-pointer-right
           - dark-hero-time-16
-      runner_label:
-        description: ARM64 macOS hardware image used for qualification
-        required: true
-        default: macos-15
-        type: choice
-        options:
-          - macos-15
-          - macos-26
   pull_request:
     paths:
       - .github/workflows/dark-visual-runtime-hardware.yml
@@ -67,14 +59,14 @@ jobs:
     if: >-
       github.event_name != 'pull_request' ||
       github.event.pull_request.head.repo.full_name == github.repository
-    name: ${{ (inputs.evidence_case && inputs.evidence_case != 'all') && 'Diagnostic dark evidence, non-qualifying' || 'Strict dark evidence on macOS hardware' }}
-    runs-on: ${{ inputs.runner_label || 'macos-15' }}
+    name: ${{ (inputs.evidence_case && inputs.evidence_case != 'all') && 'Diagnostic dark evidence, non-qualifying' || 'Strict dark evidence on macOS 26 hardware' }}
+    runs-on: macos-26
     timeout-minutes: 90
     env:
       VISUAL_CAPTURE_BROWSER: /Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge
       EVIDENCE_VIEWPORT: ${{ inputs.viewport || '1440x900' }}
       EVIDENCE_CASE: ${{ inputs.evidence_case || 'all' }}
-      EVIDENCE_RUNNER_LABEL: ${{ inputs.runner_label || 'macos-15' }}
+      EVIDENCE_RUNNER_LABEL: macos-26
       EVIDENCE_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
 
     steps:
@@ -99,7 +91,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo "Requested runner label: ${EVIDENCE_RUNNER_LABEL}"
+          echo "Required runner label: ${EVIDENCE_RUNNER_LABEL}"
           echo "Evidence source SHA: ${EVIDENCE_SOURCE_SHA}"
           sw_vers
           uname -m
