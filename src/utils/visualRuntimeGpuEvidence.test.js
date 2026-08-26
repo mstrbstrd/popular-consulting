@@ -1,6 +1,7 @@
 import {
   buildGpuEvidenceFrames,
   getResolvedGpuEvidenceSamples,
+  initVisualRuntimeGpuEvidence,
   isSoftwareRenderer,
   readVisualRuntimeEvidenceRequest,
   resolveVisualRuntimeEvidencePolicy,
@@ -114,6 +115,141 @@ describe("visual runtime GPU evidence", () => {
     expect(
       getResolvedGpuEvidenceSamples([first, third]),
     ).toEqual([first, third]);
+  });
+
+  test("polls complete-frame timer queries without blocking draw submission", async () => {
+    const timerExtension = {
+      TIME_ELAPSED_EXT: "time-elapsed",
+      GPU_DISJOINT_EXT: "gpu-disjoint",
+    };
+    const rendererInfo = {
+      UNMASKED_RENDERER_WEBGL: "unmasked-renderer",
+      UNMASKED_VENDOR_WEBGL: "unmasked-vendor",
+    };
+    let queryId = 0;
+
+    const context = {
+      QUERY_RESULT_AVAILABLE: "query-available",
+      QUERY_RESULT: "query-result",
+      createQuery: jest.fn(() => ({ id: ++queryId })),
+      beginQuery: jest.fn(),
+      endQuery: jest.fn(),
+      deleteQuery: jest.fn(),
+      drawArrays: jest.fn(),
+      drawElements: jest.fn(),
+      flush: jest.fn(),
+      finish: jest.fn(),
+      getExtension: jest.fn((name) => {
+        if (name === "EXT_disjoint_timer_query_webgl2") {
+          return timerExtension;
+        }
+        if (name === "WEBGL_debug_renderer_info") {
+          return rendererInfo;
+        }
+        return null;
+      }),
+      getParameter: jest.fn((name) => {
+        if (name === rendererInfo.UNMASKED_RENDERER_WEBGL) {
+          return "Apple M3 Pro";
+        }
+        if (name === rendererInfo.UNMASKED_VENDOR_WEBGL) {
+          return "Apple Inc.";
+        }
+        if (name === timerExtension.GPU_DISJOINT_EXT) {
+          return false;
+        }
+        return "";
+      }),
+      getQueryParameter: jest.fn((query, name) => {
+        if (name === context.QUERY_RESULT_AVAILABLE) return true;
+        if (name === context.QUERY_RESULT) return 500_000;
+        return null;
+      }),
+    };
+
+    class FakeCanvas {
+      constructor() {
+        this.dataset = {
+          rendererId: "black-hole-background",
+        };
+      }
+
+      closest() {
+        return null;
+      }
+    }
+
+    FakeCanvas.prototype.getContext = jest.fn(() => context);
+
+    const attributes = new Map();
+    const reportElement = { textContent: "" };
+    const documentObject = {
+      documentElement: {
+        setAttribute: (name, value) =>
+          attributes.set(name, String(value)),
+        removeAttribute: (name) => attributes.delete(name),
+      },
+      getElementById: (id) =>
+        id === "visual-runtime-evidence-report"
+          ? reportElement
+          : null,
+    };
+    const windowObject = {
+      HTMLCanvasElement: FakeCanvas,
+      performance: {
+        now: () => Date.now(),
+      },
+      setTimeout,
+      clearTimeout,
+    };
+
+    const cleanup = initVisualRuntimeGpuEvidence({
+      policy: {
+        schemaVersion: 1,
+        requested: "dark",
+        active: true,
+        disabledReason: null,
+      },
+      windowObject,
+      documentObject,
+    });
+
+    const canvas = new FakeCanvas();
+    const instrumentedContext = canvas.getContext("webgl2");
+    for (
+      let index = 0;
+      index < VISUAL_RUNTIME_DARK_FRAME_DRAW_COUNT;
+      index += 1
+    ) {
+      instrumentedContext.drawArrays("triangles", 0, 4);
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 40));
+
+    const report = JSON.parse(reportElement.textContent);
+    expect(report.status).toBe("ready");
+    expect(report.qualifyingHardware).toBe(true);
+    expect(report.records).toHaveLength(1);
+    expect(report.records[0]).toMatchObject({
+      submittedDraws: 17,
+      measuredDraws: 17,
+      pendingDraws: 0,
+      invalidDraws: 0,
+      software: false,
+    });
+    expect(report.records[0].summary).toMatchObject({
+      totalFrames: 1,
+      validFrames: 1,
+      medianGpuMs: 8.5,
+    });
+    expect(context.flush).toHaveBeenCalledTimes(17);
+    expect(context.finish).not.toHaveBeenCalled();
+    expect(context.deleteQuery).toHaveBeenCalledTimes(17);
+    expect(
+      attributes.get("data-visual-runtime-evidence-ready"),
+    ).toBe("true");
+
+    cleanup();
   });
 
   test("fails a frame closed when any draw timing is invalid", () => {
