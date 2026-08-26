@@ -79,6 +79,37 @@ describe("stage-four dark evidence architecture", () => {
     );
   });
 
+  test("keeps software smoke candidate-only and non-qualifying", () => {
+    const smokeStart = captureSource.indexOf(
+      "const runDiagnosticSmoke",
+    );
+    const selfTestStart = captureSource.indexOf(
+      "const runSelfTest",
+    );
+    const smokeSource = captureSource.slice(
+      smokeStart,
+      selfTestStart,
+    );
+
+    expect(smokeStart).toBeGreaterThan(-1);
+    expect(selfTestStart).toBeGreaterThan(smokeStart);
+    expect(smokeSource).toContain("buildCandidateUrl");
+    expect(smokeSource).not.toContain("buildReferenceUrl");
+    expect(smokeSource).toContain("diagnosticOnly: true");
+    expect(smokeSource).toContain(
+      "qualificationEligible: false",
+    );
+    expect(smokeSource).toContain(
+      "canonical renderer rejects software graphics",
+    );
+    expect(captureSource).toContain(
+      "await runDiagnosticSmoke({",
+    );
+    expect(captureSource).toContain(
+      "await runEvidenceCase({",
+    );
+  });
+
   test("binds the build server and result fields without silent misspellings", () => {
     expect(captureSource).toContain(
       "createBuildServer({ buildRoot })",
