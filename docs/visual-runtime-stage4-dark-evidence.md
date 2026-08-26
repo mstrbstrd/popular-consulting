@@ -94,11 +94,27 @@ The collector fails closed when:
 
 Pending timers and query objects are deleted during cleanup. Normal visitors never install this instrumentation because the evidence query is required.
 
+## Complete-collection invariant
+
+A renderer record becomes `ready` only when all of these conditions hold:
+
+- At least one full 17-draw frame was submitted
+- The submitted draw count is aligned to the 17-draw frame boundary
+- Every submitted draw has a resolved timer sample
+- No timer query remains pending
+- No draw sample is invalid
+- Every aggregated frame is valid
+- The renderer and vendor are identified as non-software hardware
+
+An earlier valid frame cannot mask a later pending or invalid draw. Submitting another measured draw immediately changes the report back to `collecting` until the enlarged collection is complete and valid.
+
+The Node evidence runner repeats the same checks independently. It requires submitted and measured draw counts to match, zero pending and invalid draws, `validFrames === totalFrames`, a ready browser report, and a hardware-qualifying record before calculating a passing GPU gate.
+
 ## Hardware qualification
 
 A performance result qualifies only when:
 
-- Both paths expose valid timer-query results
+- Both paths expose complete and valid timer-query collections
 - Neither path reports a disjoint GPU state
 - Reference and candidate identify the same renderer and vendor
 - The renderer is not SwiftShader, llvmpipe, WARP, Microsoft Basic Render, or another known software or virtual renderer
