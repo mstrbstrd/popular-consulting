@@ -32,6 +32,9 @@ jobs:
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
 
+      - name: Run dark evidence script self-test
+        run: npm run visual:dark-evidence:self-test
+
       - name: Lint
         run: npm run lint
 
@@ -48,7 +51,7 @@ jobs:
   windows-test-and-build:
     name: Windows test, build, and Edge smoke
     runs-on: windows-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
 
     steps:
       - name: Check out repository
@@ -75,3 +78,13 @@ jobs:
 
       - name: Run built routes in Microsoft Edge
         run: node scripts/windows-browser-smoke.mjs
+
+      - name: Run dark evidence smoke
+        run: >-
+          node scripts/capture-visual-dark-evidence.mjs
+          --smoke
+          --allow-software
+          --skip-gpu-gate
+          --skip-visual-gate
+          --viewport=480x300
+          --output=visual-dark-evidence-smoke

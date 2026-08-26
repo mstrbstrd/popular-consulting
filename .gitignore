@@ -11,6 +11,8 @@
 
 # Generated visual reference evidence
 /visual-reference
+/visual-dark-evidence
+/visual-dark-evidence-smoke
 
 # Environment and local secrets
 .env
