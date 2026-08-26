@@ -64,6 +64,111 @@ const verifyManifestChecksum = (bundleDirectory, manifestText) => {
     : ["manifest.json checksum does not match manifest.sha256."];
 };
 
+const sameSourceSha = (left, right) =>
+  typeof left === "string" &&
+  typeof right === "string" &&
+  left.toLowerCase() === right.toLowerCase();
+
+const readRequiredJson = (filePath, label, errors) => {
+  if (!fs.existsSync(filePath)) {
+    errors.push(`${label} is missing.`);
+    return null;
+  }
+  const result = readJsonResult(filePath);
+  if (result.error) errors.push(result.error);
+  return result.value;
+};
+
+const validateExecutionRecord = ({ execution, sourceSha, errors }) => {
+  if (!execution) return;
+  if (!sameSourceSha(execution.sourceSha, sourceSha)) {
+    errors.push("Execution record source SHA differs from the manifest.");
+  }
+  const policy = execution.sourcePolicy;
+  if (
+    policy?.trackedAndUntrackedFilesClean !== true ||
+    policy?.environmentFilesAbsent !== true ||
+    policy?.buildEnvironmentSanitized !== true
+  ) {
+    errors.push("Execution record does not preserve the source-input policy.");
+  }
+  if (!Array.isArray(execution.commands)) {
+    errors.push("Execution command record is missing.");
+    return;
+  }
+  const serializedCommands = JSON.stringify(execution.commands);
+  if (
+    !serializedCommands.includes("npm") ||
+    !serializedCommands.includes("ci") ||
+    !serializedCommands.includes("build") ||
+    !serializedCommands.includes(
+      "scripts/capture-visual-dark-evidence.mjs",
+    )
+  ) {
+    errors.push("Execution command record is incomplete.");
+  }
+};
+
+const validateQualificationRecord = ({
+  qualification,
+  sourceSha,
+  evidenceValidation,
+  errors,
+}) => {
+  if (!qualification) return;
+  if (qualification.passed !== true || qualification.failure != null) {
+    errors.push("Qualification record does not contain a clean pass.");
+  }
+  if (!sameSourceSha(qualification.sourceSha, sourceSha)) {
+    errors.push("Qualification record source SHA differs from the manifest.");
+  }
+  if (
+    qualification.maximumGpuRatio !== PHYSICAL_DARK_MAX_GPU_RATIO
+  ) {
+    errors.push("Qualification record GPU threshold changed.");
+  }
+  if (
+    qualification.caseCount !== REQUIRED_PHYSICAL_DARK_CASES.length
+  ) {
+    errors.push("Qualification record does not contain all required cases.");
+  }
+  if (
+    !Array.isArray(qualification.requiredCases) ||
+    qualification.requiredCases.length !==
+      REQUIRED_PHYSICAL_DARK_CASES.length ||
+    REQUIRED_PHYSICAL_DARK_CASES.some(
+      (caseId, index) => qualification.requiredCases[index] !== caseId,
+    )
+  ) {
+    errors.push("Qualification record case contract changed.");
+  }
+  if (
+    !Array.isArray(qualification.gpuRatios) ||
+    qualification.gpuRatios.length !==
+      REQUIRED_PHYSICAL_DARK_CASES.length ||
+    qualification.gpuRatios.some(
+      (ratio) =>
+        !Number.isFinite(Number(ratio)) ||
+        Number(ratio) < 0 ||
+        Number(ratio) > PHYSICAL_DARK_MAX_GPU_RATIO,
+    )
+  ) {
+    errors.push("Qualification record GPU ratios are incomplete or invalid.");
+  }
+  if (
+    evidenceValidation?.renderer &&
+    qualification.renderer !== evidenceValidation.renderer
+  ) {
+    errors.push("Qualification renderer differs from the evidence renderer.");
+  }
+  if (
+    evidenceValidation?.vendor &&
+    qualification.vendor !== evidenceValidation.vendor
+  ) {
+    errors.push("Qualification vendor differs from the evidence vendor.");
+  }
+};
+
 export const verifyPhysicalDarkQualificationBundle = ({
   bundleDirectory,
   expectedSourceSha = null,
@@ -105,79 +210,101 @@ export const verifyPhysicalDarkQualificationBundle = ({
       expectedSourceSha,
     });
     errors.push(...manifestValidation.errors);
+    if (manifest.sourceTreeClean !== true) {
+      errors.push("Manifest does not record a clean source tree.");
+    }
+    if (manifest.host?.sensitiveIdentifiersRecorded !== false) {
+      errors.push("Manifest does not record identifier redaction.");
+    }
   }
 
-  const hostPath = path.join(absoluteBundle, "host.json");
-  const summaryPath = path.join(
-    absoluteBundle,
-    "evidence",
-    "summary.json",
+  const host = readRequiredJson(
+    path.join(absoluteBundle, "host.json"),
+    "host.json",
+    errors,
   );
-  if (!fs.existsSync(hostPath)) errors.push("host.json is missing.");
-  if (!fs.existsSync(summaryPath)) {
-    errors.push("evidence/summary.json is missing.");
-  }
+  const execution = readRequiredJson(
+    path.join(absoluteBundle, "execution.json"),
+    "execution.json",
+    errors,
+  );
+  const qualification = readRequiredJson(
+    path.join(absoluteBundle, "qualification.json"),
+    "qualification.json",
+    errors,
+  );
+  const summary = readRequiredJson(
+    path.join(absoluteBundle, "evidence", "summary.json"),
+    "evidence/summary.json",
+    errors,
+  );
 
   let hostValidation = null;
   let evidenceValidation = null;
-  if (fs.existsSync(hostPath)) {
-    const hostResult = readJsonResult(hostPath);
-    if (hostResult.error) {
-      errors.push(hostResult.error);
-    } else {
-      const host = hostResult.value;
-      hostValidation = validatePhysicalAppleSiliconHost({
-        platform: host.platform,
-        arch: host.arch,
-        model: host.model,
-        hardwareProfile: host.hardwareProfile,
-        displayProfile: host.displayProfile,
-      });
-      errors.push(...hostValidation.errors);
-      if (host.validation?.passed !== true) {
-        errors.push("Recorded host validation did not pass.");
-      }
-      if (host.sensitiveIdentifiersRecorded !== false) {
-        errors.push(
-          "Host evidence does not confirm identifier redaction.",
-        );
-      }
+  if (host) {
+    hostValidation = validatePhysicalAppleSiliconHost({
+      platform: host.platform,
+      arch: host.arch,
+      model: host.model,
+      hardwareProfile: host.hardwareProfile,
+      displayProfile: host.displayProfile,
+    });
+    errors.push(...hostValidation.errors);
+    if (host.validation?.passed !== true) {
+      errors.push("Recorded host validation did not pass.");
     }
-  }
-
-  if (fs.existsSync(summaryPath)) {
-    const summaryResult = readJsonResult(summaryPath);
-    if (summaryResult.error) {
-      errors.push(summaryResult.error);
-    } else {
-      evidenceValidation = validatePhysicalDarkEvidenceSummary(
-        summaryResult.value,
+    if (host.sensitiveIdentifiersRecorded !== false) {
+      errors.push(
+        "Host evidence does not confirm identifier redaction.",
       );
-      errors.push(...evidenceValidation.errors);
+    }
+    if (manifest && !sameSourceSha(host.sourceSha, manifest.sourceSha)) {
+      errors.push("Host record source SHA differs from the manifest.");
     }
   }
 
-  if (manifest && evidenceValidation?.renderer) {
+  if (summary) {
+    evidenceValidation = validatePhysicalDarkEvidenceSummary(summary);
+    errors.push(...evidenceValidation.errors);
+  }
+
+  if (manifest) {
+    validateExecutionRecord({
+      execution,
+      sourceSha: manifest.sourceSha,
+      errors,
+    });
+    validateQualificationRecord({
+      qualification,
+      sourceSha: manifest.sourceSha,
+      evidenceValidation,
+      errors,
+    });
+
     if (
-      manifest.qualification?.renderer !==
-      evidenceValidation.renderer
+      qualification &&
+      manifest.qualification?.passed !== qualification.passed
+    ) {
+      errors.push("Manifest pass state differs from qualification.json.");
+    }
+    if (
+      evidenceValidation?.renderer &&
+      manifest.qualification?.renderer !== evidenceValidation.renderer
     ) {
       errors.push("Manifest renderer differs from the evidence renderer.");
     }
-  }
-  if (manifest && evidenceValidation?.vendor) {
     if (
+      evidenceValidation?.vendor &&
       manifest.qualification?.vendor !== evidenceValidation.vendor
     ) {
       errors.push("Manifest vendor differs from the evidence vendor.");
     }
-  }
-  if (
-    manifest &&
-    evidenceValidation &&
-    manifest.qualification?.caseCount !== evidenceValidation.caseCount
-  ) {
-    errors.push("Manifest case count differs from the evidence matrix.");
+    if (
+      evidenceValidation &&
+      manifest.qualification?.caseCount !== evidenceValidation.caseCount
+    ) {
+      errors.push("Manifest case count differs from the evidence matrix.");
+    }
   }
 
   return {
@@ -263,6 +390,8 @@ const createValidSummary = () => ({
 const writeSelfTestBundle = ({ root, sourceSha }) => {
   const evidenceDirectory = path.join(root, "evidence");
   fs.mkdirSync(evidenceDirectory, { recursive: true });
+  const renderer = "ANGLE Metal Renderer: Apple M4 Pro";
+  const vendor = "Apple Inc.";
   const host = {
     schemaVersion: 1,
     sourceSha,
@@ -278,14 +407,42 @@ const writeSelfTestBundle = ({ root, sourceSha }) => {
     sensitiveIdentifiersRecorded: false,
     validation: { passed: true, errors: [] },
   };
+  const qualification = {
+    passed: true,
+    failure: null,
+    sourceSha,
+    requiredCases: [...REQUIRED_PHYSICAL_DARK_CASES],
+    caseCount: REQUIRED_PHYSICAL_DARK_CASES.length,
+    renderer,
+    vendor,
+    gpuRatios: REQUIRED_PHYSICAL_DARK_CASES.map(() => 0.05),
+    maximumGpuRatio: PHYSICAL_DARK_MAX_GPU_RATIO,
+  };
+  const execution = {
+    sourceSha,
+    sourcePolicy: {
+      trackedAndUntrackedFilesClean: true,
+      environmentFilesAbsent: true,
+      buildEnvironmentSanitized: true,
+    },
+    commands: [
+      ["npm", "ci"],
+      ["npm", "run", "build"],
+      ["node", "scripts/capture-visual-dark-evidence.mjs"],
+    ],
+  };
 
   fs.writeFileSync(
     path.join(root, "host.json"),
     `${JSON.stringify(host, null, 2)}\n`,
   );
   fs.writeFileSync(
+    path.join(root, "execution.json"),
+    `${JSON.stringify(execution, null, 2)}\n`,
+  );
+  fs.writeFileSync(
     path.join(root, "qualification.json"),
-    `${JSON.stringify({ passed: true }, null, 2)}\n`,
+    `${JSON.stringify(qualification, null, 2)}\n`,
   );
   fs.writeFileSync(
     path.join(evidenceDirectory, "summary.json"),
@@ -296,10 +453,12 @@ const writeSelfTestBundle = ({ root, sourceSha }) => {
     kind: PHYSICAL_DARK_QUALIFICATION_KIND,
     schemaVersion: PHYSICAL_DARK_QUALIFICATION_SCHEMA_VERSION,
     sourceSha,
+    sourceTreeClean: true,
+    host: { sensitiveIdentifiersRecorded: false },
     qualification: {
       passed: true,
-      renderer: "ANGLE Metal Renderer: Apple M4 Pro",
-      vendor: "Apple Inc.",
+      renderer,
+      vendor,
       caseCount: REQUIRED_PHYSICAL_DARK_CASES.length,
     },
     files: listQualificationFiles(root),
