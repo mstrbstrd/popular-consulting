@@ -11,6 +11,9 @@ describe("stage-four dark evidence architecture", () => {
   const indexSource = read("src/index.js");
   const packageSource = read("package.json");
   const workflowSource = read(".github/workflows/quality.yml");
+  const captureSource = read(
+    "scripts/capture-visual-dark-evidence.mjs",
+  );
   const runnerSource = read("scripts/dark-evidence-runner.mjs");
   const referenceShaderSource = read(
     "src/components/blackHoleShader.js",
@@ -74,9 +77,65 @@ describe("stage-four dark evidence architecture", () => {
     expect(workflowSource).toContain(
       "Run dark evidence smoke",
     );
+  });
+
+  test("keeps software smoke candidate-only and non-qualifying", () => {
+    const smokeStart = captureSource.indexOf(
+      "const runDiagnosticSmoke",
+    );
+    const selfTestStart = captureSource.indexOf(
+      "const runSelfTest",
+    );
+    const smokeSource = captureSource.slice(
+      smokeStart,
+      selfTestStart,
+    );
+
+    expect(smokeStart).toBeGreaterThan(-1);
+    expect(selfTestStart).toBeGreaterThan(smokeStart);
+    expect(smokeSource).toContain("buildCandidateUrl");
+    expect(smokeSource).not.toContain("buildReferenceUrl");
+    expect(smokeSource).toContain("diagnosticOnly: true");
+    expect(smokeSource).toContain(
+      "qualificationEligible: false",
+    );
+    expect(smokeSource).toContain(
+      "canonical renderer rejects software graphics",
+    );
+    expect(captureSource).toContain(
+      "await runDiagnosticSmoke({",
+    );
+    expect(captureSource).toContain(
+      "await runEvidenceCase({",
+    );
+  });
+
+  test("binds the build server and result fields without silent misspellings", () => {
+    expect(captureSource).toContain(
+      "createBuildServer({ buildRoot })",
+    );
     expect(runnerSource).toContain("referenceUrl,");
     expect(runnerSource).toContain("candidateUrl,");
     expect(runnerSource).toContain("url: referenceUrl");
     expect(runnerSource).toContain("url: candidateUrl");
+    expect(runnerSource).toContain("candidateRecord.software");
+    expect(runnerSource).toContain("rendererMatches,");
+    expect(runnerSource).toContain("allowSoftware,");
+    expect(runnerSource).not.toContain("candidateRecord.softwar,");
+    expect(runnerSource).not.toContain("renderMatches");
+    expect(runnerSource).not.toContain("allowSoftwar,");
+    expect(runnerSource).not.toContain("candidateVidence");
+  });
+
+  test("uses the median of complete-frame GPU samples", () => {
+    expect(runnerSource).toContain(
+      "record.summary?.medianGpuMs",
+    );
+    expect(runnerSource).toContain(
+      "referenceRecord.medianGpuMs",
+    );
+    expect(runnerSource).toContain(
+      "candidateRecord.medianGpuMs",
+    );
   });
 });
