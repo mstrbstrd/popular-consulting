@@ -1,5 +1,32 @@
 // Frame submission and atomic presentation for BlackHolePipeline.
 import { recordGraphicsEvent } from "../utils/graphicsPolicy";
+import {
+  readVisualRuntimeEvidenceRequest,
+  VISUAL_RUNTIME_EVIDENCE_DARK,
+} from "../utils/visualRuntimeGpuEvidence";
+
+export const resolveBlackHoleBatchSize = ({
+  search = "",
+  scheduledTilesPerBatch = 1,
+  remainingTiles = 1,
+} = {}) => {
+  const scheduled = Math.max(
+    1,
+    Math.floor(Number(scheduledTilesPerBatch) || 1),
+  );
+  const remaining = Math.max(
+    1,
+    Math.floor(Number(remainingTiles) || 1),
+  );
+  const darkEvidenceActive =
+    readVisualRuntimeEvidenceRequest(search) ===
+    VISUAL_RUNTIME_EVIDENCE_DARK;
+
+  return Math.max(
+    1,
+    Math.min(darkEvidenceActive ? 1 : scheduled, remaining),
+  );
+};
 
 export const presentBlackHoleFrame = (pipeline) => {
   const {
@@ -78,13 +105,12 @@ const submitBatch = (pipeline) => {
     return false;
   }
 
-  const batchSize = Math.max(
-    1,
-    Math.min(
-      pipeline.schedule.tilesPerBatch,
-      pipeline.tiles.length - pipeline.tileCursor,
-    ),
-  );
+  const batchSize = resolveBlackHoleBatchSize({
+    search:
+      typeof window === "undefined" ? "" : window.location.search,
+    scheduledTilesPerBatch: pipeline.schedule.tilesPerBatch,
+    remainingTiles: pipeline.tiles.length - pipeline.tileCursor,
+  });
   gl.bindFramebuffer(gl.FRAMEBUFFER, backTarget.framebuffer);
   gl.enable(gl.SCISSOR_TEST);
   gl.useProgram(sceneProgram);

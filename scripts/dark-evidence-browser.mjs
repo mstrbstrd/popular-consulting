@@ -23,6 +23,26 @@ const contentTypes = {
 const existingPath = (candidate) =>
   candidate && fs.existsSync(candidate) ? candidate : null;
 
+export const resolveCaptureDocumentPath = (screenshotPath) => {
+  const parsed = path.parse(String(screenshotPath || "capture.png"));
+  return path.join(parsed.dir, `${parsed.name}.html`);
+};
+
+const persistCaptureDocument = ({
+  screenshotPath,
+  documentHtml,
+  failureMessage = null,
+}) => {
+  const documentPath = resolveCaptureDocumentPath(screenshotPath);
+  const content =
+    documentHtml ||
+    `<!-- Browser capture produced no DOM output. ${String(
+      failureMessage || "unknown failure",
+    ).replace(/-->/g, "--&gt;")} -->\n`;
+  fs.writeFileSync(documentPath, content, "utf8");
+  return documentPath;
+};
+
 export const findBrowser = () => {
   const explicit = existingPath(
     process.env.VISUAL_CAPTURE_BROWSER,
@@ -187,10 +207,17 @@ export const runBrowserCapture = async ({
     );
     stdout = result.stdout || "";
   } catch (error) {
+    stdout =
+      typeof error.stdout === "string" ? error.stdout : "";
+    const documentPath = persistCaptureDocument({
+      screenshotPath,
+      documentHtml: stdout,
+      failureMessage: error.message,
+    });
     const stderr =
       typeof error.stderr === "string" ? error.stderr : "";
     throw new Error(
-      `Browser capture failed for ${url}: ${error.message}${
+      `Browser capture failed for ${url}: ${error.message}. Diagnostic DOM: ${documentPath}${
         stderr ? `\n${stderr}` : ""
       }`,
     );
@@ -202,6 +229,11 @@ export const runBrowserCapture = async ({
       retryDelay: 200,
     });
   }
+
+  persistCaptureDocument({
+    screenshotPath,
+    documentHtml: stdout,
+  });
 
   if (!fs.existsSync(screenshotPath)) {
     throw new Error(
