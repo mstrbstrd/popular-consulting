@@ -5,6 +5,7 @@ import {
   isSoftwareRenderer,
   readVisualRuntimeEvidenceRequest,
   resolveVisualRuntimeEvidencePolicy,
+  summarizeGpuEvidenceCollection,
   summarizeGpuEvidenceFrames,
   VISUAL_RUNTIME_DARK_FRAME_DRAW_COUNT,
 } from "./visualRuntimeGpuEvidence";
@@ -115,6 +116,67 @@ describe("visual runtime GPU evidence", () => {
     expect(
       getResolvedGpuEvidenceSamples([first, third]),
     ).toEqual([first, third]);
+  });
+
+  test("rejects incomplete or invalid collections even when one frame is valid", () => {
+    const validFrame = Array.from(
+      { length: VISUAL_RUNTIME_DARK_FRAME_DRAW_COUNT },
+      () => ({
+        valid: true,
+        gpuMs: 0.5,
+        cpuMs: 0.1,
+        reason: null,
+      }),
+    );
+
+    const pendingCollection = summarizeGpuEvidenceCollection({
+      submittedDraws: 18,
+      samples: [...validFrame, null],
+      pendingDraws: 1,
+    });
+    expect(pendingCollection).toMatchObject({
+      measuredDraws: 17,
+      pendingDraws: 1,
+      collectionComplete: false,
+      collectionValid: false,
+    });
+    expect(pendingCollection.summary.validFrames).toBe(1);
+    expect(pendingCollection.collectionReasons).toEqual(
+      expect.arrayContaining([
+        "pending-draws",
+        "unresolved-draws",
+        "partial-frame",
+      ]),
+    );
+
+    const invalidSecondFrame = Array.from(
+      { length: VISUAL_RUNTIME_DARK_FRAME_DRAW_COUNT },
+      (_, index) => ({
+        valid: index !== 0,
+        gpuMs: index === 0 ? null : 0.5,
+        cpuMs: 0.1,
+        reason: index === 0 ? "gpu-disjoint" : null,
+      }),
+    );
+    const invalidCollection = summarizeGpuEvidenceCollection({
+      submittedDraws: 34,
+      samples: [...validFrame, ...invalidSecondFrame],
+      pendingDraws: 0,
+    });
+    expect(invalidCollection).toMatchObject({
+      measuredDraws: 34,
+      pendingDraws: 0,
+      invalidDraws: 1,
+      collectionComplete: true,
+      collectionValid: false,
+    });
+    expect(invalidCollection.summary).toMatchObject({
+      totalFrames: 2,
+      validFrames: 1,
+    });
+    expect(invalidCollection.collectionReasons).toEqual(
+      expect.arrayContaining(["invalid-draws", "invalid-frame"]),
+    );
   });
 
   test("polls complete-frame timer queries without blocking draw submission", async () => {
@@ -258,6 +320,8 @@ describe("visual runtime GPU evidence", () => {
         measuredDraws: 17,
         pendingDraws: 0,
         invalidDraws: 0,
+        collectionComplete: true,
+        collectionValid: true,
         software: false,
       });
       expect(report.records[0].summary).toMatchObject({
