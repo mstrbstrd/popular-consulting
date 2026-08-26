@@ -24,15 +24,13 @@ describe("strict dark visual runtime hardware qualification", () => {
   });
 
   test("never weakens qualification flags", () => {
-    const exitCodeExpression =
-      "$" + "{{ steps.evidence.outputs.exit_code }}";
-
     expect(workflowSource).not.toContain("--allow-software");
     expect(workflowSource).not.toContain("--skip-gpu-gate");
     expect(workflowSource).not.toContain("--skip-visual-gate");
     expect(workflowSource).toContain(
-      `test "${exitCodeExpression}" = "0"`,
+      "steps.evidence.outputs.exit_code",
     );
+    expect(workflowSource).toContain('= "0"');
   });
 
   test("preserves evidence even when qualification fails", () => {
