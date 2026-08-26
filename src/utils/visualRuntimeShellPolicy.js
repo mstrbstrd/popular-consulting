@@ -11,6 +11,10 @@ export const VISUAL_RUNTIME_SHELL_MODES = Object.freeze({
   OFF: "off",
   PROBE: "probe",
 });
+export const VISUAL_RUNTIME_SHELL_ACTIVATION_SOURCES = Object.freeze({
+  PROBE: "probe",
+  OPTIMIZED_QUERY: "optimized-query",
+});
 export const VISUAL_RUNTIME_SHELL_SCHEMA_VERSION = 1;
 
 const IMMERSIVE_PATHS = new Set(["/", "/engineering"]);
@@ -24,19 +28,32 @@ const normalizeSearch = (search) => {
 const normalizePathname = (pathname) =>
   String(pathname || "/").replace(/\/+$/, "") || "/";
 
-export const readVisualRuntimeShellRequest = (search = "") => {
+const readVisualRuntimeShellRequestState = (search = "") => {
   try {
-    const requested = new URLSearchParams(normalizeSearch(search))
+    const params = new URLSearchParams(normalizeSearch(search));
+    const explicit = params.has(VISUAL_RUNTIME_SHELL_QUERY_PARAM);
+    const requested = params
       .get(VISUAL_RUNTIME_SHELL_QUERY_PARAM)
       ?.trim()
       .toLowerCase();
-    return requested === VISUAL_RUNTIME_SHELL_MODES.PROBE
-      ? VISUAL_RUNTIME_SHELL_MODES.PROBE
-      : VISUAL_RUNTIME_SHELL_MODES.OFF;
+
+    return {
+      explicit,
+      requested:
+        requested === VISUAL_RUNTIME_SHELL_MODES.PROBE
+          ? VISUAL_RUNTIME_SHELL_MODES.PROBE
+          : VISUAL_RUNTIME_SHELL_MODES.OFF,
+    };
   } catch (_) {
-    return VISUAL_RUNTIME_SHELL_MODES.OFF;
+    return {
+      explicit: false,
+      requested: VISUAL_RUNTIME_SHELL_MODES.OFF,
+    };
   }
 };
+
+export const readVisualRuntimeShellRequest = (search = "") =>
+  readVisualRuntimeShellRequestState(search).requested;
 
 export const resolveVisualRuntimeShellPolicy = ({
   search = "",
@@ -45,7 +62,8 @@ export const resolveVisualRuntimeShellPolicy = ({
   captureState = visualCaptureState,
   webglAllowed = shouldAttemptVisualRuntimeShell,
 } = {}) => {
-  const requested = readVisualRuntimeShellRequest(search);
+  const requestState = readVisualRuntimeShellRequestState(search);
+  const requested = requestState.requested;
   const probeRequested =
     requested === VISUAL_RUNTIME_SHELL_MODES.PROBE;
   const immersiveRoute = IMMERSIVE_PATHS.has(
@@ -53,29 +71,40 @@ export const resolveVisualRuntimeShellPolicy = ({
   );
   const optimizedRequested =
     runtimePolicy.requested === VISUAL_RUNTIME_MODES.OPTIMIZED;
+  const optimizedQueryRequested = Boolean(
+    optimizedRequested && !requestState.explicit,
+  );
+  const shellRequested = probeRequested || optimizedQueryRequested;
   const captureActive = Boolean(captureState?.active);
   const active = Boolean(
-    probeRequested &&
+    shellRequested &&
       optimizedRequested &&
       immersiveRoute &&
       webglAllowed &&
       !captureActive,
   );
+  const activationSource = probeRequested
+    ? VISUAL_RUNTIME_SHELL_ACTIVATION_SOURCES.PROBE
+    : optimizedQueryRequested
+      ? VISUAL_RUNTIME_SHELL_ACTIVATION_SOURCES.OPTIMIZED_QUERY
+      : null;
 
   let disabledReason = null;
   if (probeRequested && !optimizedRequested) {
     disabledReason = "optimized-runtime-request-required";
-  } else if (probeRequested && !immersiveRoute) {
+  } else if (shellRequested && !immersiveRoute) {
     disabledReason = "immersive-route-required";
-  } else if (probeRequested && !webglAllowed) {
+  } else if (shellRequested && !webglAllowed) {
     disabledReason = "graphics-policy-css";
-  } else if (probeRequested && captureActive) {
+  } else if (shellRequested && captureActive) {
     disabledReason = "reference-capture-exclusive";
   }
 
   return Object.freeze({
     schemaVersion: VISUAL_RUNTIME_SHELL_SCHEMA_VERSION,
     requested,
+    explicitShellRequest: requestState.explicit,
+    activationSource,
     active,
     suppressReferenceRenderers: active,
     immersiveRoute,
@@ -103,7 +132,9 @@ export const initVisualRuntimeShellPolicy = () => {
 
   root?.setAttribute(
     "data-visual-runtime-shell",
-    visualRuntimeShellPolicy.active ? "probe" : "inactive",
+    visualRuntimeShellPolicy.active
+      ? visualRuntimeShellPolicy.activationSource || "active"
+      : "inactive",
   );
   root?.setAttribute(
     "data-visual-runtime-reference-suppressed",
