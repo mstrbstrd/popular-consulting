@@ -4,98 +4,65 @@ import path from "path";
 const read = (relativePath) =>
   fs.readFileSync(path.join(process.cwd(), relativePath), "utf8");
 
-describe("dark visual runtime evidence workflows", () => {
+describe("dark visual runtime hosted diagnostic", () => {
   const workflowSource = read(
     ".github/workflows/dark-visual-runtime-hardware.yml",
   );
+  const qualitySource = read(".github/workflows/quality.yml");
+  const packageSource = read("package.json");
   const runtimePolicySource = read(
     "src/utils/visualRuntimePolicy.js",
   );
 
-  test("keeps hosted diagnostics non-qualifying and physical qualification self-hosted", () => {
+  test("uses only a GitHub-hosted non-qualifying macOS diagnostic", () => {
     expect(workflowSource).toContain("hosted-dark-diagnostic:");
     expect(workflowSource).toContain("runs-on: macos-15");
     expect(workflowSource).toContain(
       "Hosted dark diagnostic, non-qualifying",
     );
-    expect(workflowSource).toContain(
-      "node scripts/dark-evidence-hosted-diagnostic.mjs",
+    expect(workflowSource).not.toContain("self-hosted");
+    expect(workflowSource).not.toContain("physical-gpu");
+    expect(workflowSource).not.toContain(
+      "visual-runtime-qualification",
     );
-    expect(workflowSource).toContain(
-      "summary.timerInstrumentation !== false",
-    );
-    expect(workflowSource).toContain(
-      "qualificationEligible !== false",
-    );
-
-    expect(workflowSource).toContain("evidence-case:");
-    expect(workflowSource).toContain("- self-hosted");
-    expect(workflowSource).toContain("- physical-gpu");
-    expect(workflowSource).toContain(
-      "- visual-runtime-qualification",
-    );
-    expect(workflowSource).toContain(
-      "self-hosted-physical-apple-silicon",
-    );
+    expect(workflowSource).not.toContain("evidence-case:");
+    expect(workflowSource).not.toContain("qualify-dark-runtime:");
   });
 
-  test("checks out the exact same-repository PR head for hosted diagnostics", () => {
+  test("checks out the exact public diagnostic source without persisted credentials", () => {
     expect(workflowSource).toContain("pull_request:");
     expect(workflowSource).toContain("EVIDENCE_SOURCE_SHA:");
     expect(workflowSource).toContain(
       "github.event.pull_request.head.sha || github.sha",
     );
-    expect(workflowSource).toContain("ref:");
-    expect(workflowSource).toContain("env.EVIDENCE_SOURCE_SHA");
+    expect(workflowSource).toContain(
+      "EVIDENCE_SOURCE_REPOSITORY:",
+    );
+    expect(workflowSource).toContain(
+      "github.event.pull_request.head.repo.full_name || github.repository",
+    );
+    expect(workflowSource).toContain("persist-credentials: false");
   });
 
-  test("shards the exact nine-case physical matrix with bounded parallelism", () => {
-    const dollar = String.fromCharCode(36);
-
-    expect(workflowSource).toContain("evidence-case:");
-    expect(workflowSource).toContain("fail-fast: false");
-    expect(workflowSource).toContain("max-parallel: 3");
-
-    [
-      "dark-section-0-hero",
-      "dark-section-1-about",
-      "dark-section-2-services",
-      "dark-section-3-contact",
-      "dark-section-4-orb",
-      "dark-section-5-game",
-      "dark-hero-pointer-left",
-      "dark-hero-pointer-right",
-      "dark-hero-time-16",
-    ].forEach((caseId) => {
-      expect(workflowSource).toContain(`- ${caseId}`);
-    });
-
+  test("keeps hosted evidence timer-free and permanently non-qualifying", () => {
     expect(workflowSource).toContain(
-      `--case="${dollar}{EVIDENCE_CASE}"`,
+      "node scripts/dark-evidence-hosted-diagnostic.mjs",
     );
-    expect(workflowSource).toContain("dark-evidence-case-");
-    expect(workflowSource).toContain("matrix.evidence_case");
+    expect(workflowSource).toContain(
+      "summary.diagnosticOnly !== true",
+    );
+    expect(workflowSource).toContain(
+      "summary.qualificationEligible !== false",
+    );
+    expect(workflowSource).toContain(
+      "summary.timerInstrumentation !== false",
+    );
+    expect(workflowSource).not.toContain("--allow-software");
+    expect(workflowSource).not.toContain("--skip-gpu-gate");
+    expect(workflowSource).not.toContain("--skip-visual-gate");
   });
 
-  test("aggregates every physical case through an independent fail-closed gate", () => {
-    expect(workflowSource).toContain("qualify-dark-runtime:");
-    expect(workflowSource).toContain("needs: evidence-case");
-    expect(workflowSource).toContain(
-      "actions/download-artifact@v4",
-    );
-    expect(workflowSource).toContain("collected-dark-evidence");
-    expect(workflowSource).toContain(
-      "node scripts/aggregate-dark-evidence.mjs",
-    );
-    expect(workflowSource).toContain(
-      "steps.aggregate.outputs.exit_code",
-    );
-    expect(workflowSource).toContain(
-      "dark-visual-runtime-evidence-physical-",
-    );
-  });
-
-  test("reruns diagnostics when renderer, evidence, or qualification contracts change", () => {
+  test("reruns when renderer, evidence, or local qualification contracts change", () => {
     expect(workflowSource).toContain(
       "src/components/BlackHole*.js",
     );
@@ -103,57 +70,42 @@ describe("dark visual runtime evidence workflows", () => {
       "src/components/blackHole*.js",
     );
     expect(workflowSource).toContain(
-      "src/contexts/ThemeContext.js",
+      "src/utils/visualRuntimeDark*.js",
     );
     expect(workflowSource).toContain(
-      "src/utils/visualRuntimeDark*.js",
+      "scripts/run-physical-dark-qualification.mjs",
+    );
+    expect(workflowSource).toContain(
+      "scripts/verify-physical-dark-qualification.mjs",
     );
     expect(workflowSource).toContain(
       "src/VisualRuntimeDark*.test.js",
     );
   });
 
-  test("never weakens strict physical qualification flags", () => {
-    const physicalStart = workflowSource.indexOf("  evidence-case:");
-    const aggregateStart = workflowSource.indexOf(
-      "  qualify-dark-runtime:",
+  test("keeps physical qualification local and token-free", () => {
+    expect(packageSource).toContain(
+      '"visual:dark-evidence:physical"',
     );
-    const physicalSource = workflowSource.slice(
-      physicalStart,
-      aggregateStart,
+    expect(packageSource).toContain(
+      '"visual:dark-evidence:physical:verify"',
     );
-
-    expect(physicalStart).toBeGreaterThan(-1);
-    expect(aggregateStart).toBeGreaterThan(physicalStart);
-    expect(physicalSource).not.toContain("--allow-software");
-    expect(physicalSource).not.toContain("--skip-gpu-gate");
-    expect(physicalSource).not.toContain("--skip-visual-gate");
+    expect(qualitySource).toContain(
+      "node scripts/run-physical-dark-qualification.mjs --self-test",
+    );
+    expect(qualitySource).toContain(
+      "node scripts/verify-physical-dark-qualification.mjs --self-test",
+    );
+    expect(workflowSource).not.toContain("GITHUB_TOKEN");
   });
 
-  test("keeps manual single-case physical execution explicitly non-qualifying", () => {
-    expect(workflowSource).toContain("diagnostic-dark-runtime:");
-    expect(workflowSource).toContain(
-      "Diagnostic dark evidence, non-qualifying",
-    );
-    expect(workflowSource).toContain(
-      "inputs.evidence_case != 'all'",
-    );
-    expect(workflowSource).toContain(
-      "Only the complete matrix can produce a qualification result.",
-    );
-    expect(workflowSource).toContain(
-      '"qualificationEligible": false',
-    );
-  });
-
-  test("preserves hosted, case, and aggregate evidence on failure", () => {
+  test("preserves hosted evidence even when a diagnostic fails", () => {
     expect(workflowSource).toContain("if: always()");
     expect(workflowSource).toContain("actions/upload-artifact@v4");
     expect(workflowSource).toContain("retention-days: 30");
     expect(workflowSource).toContain(
-      "visual-dark-evidence-aggregate/summary.md",
+      "dark-visual-runtime-hosted-diagnostic-",
     );
-    expect(workflowSource).toContain("github.run_id");
   });
 
   test("does not enable the optimized production runtime", () => {

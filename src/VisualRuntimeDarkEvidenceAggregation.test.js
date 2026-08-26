@@ -4,12 +4,15 @@ import path from "path";
 const read = (relativePath) =>
   fs.readFileSync(path.join(process.cwd(), relativePath), "utf8");
 
-describe("sharded dark evidence aggregation", () => {
+describe("dark evidence aggregation", () => {
   const workflowSource = read(
     ".github/workflows/dark-visual-runtime-hardware.yml",
   );
   const aggregateSource = read(
     "scripts/aggregate-dark-evidence.mjs",
+  );
+  const verifierSource = read(
+    "scripts/verify-physical-dark-qualification.mjs",
   );
   const runtimePolicySource = read(
     "src/utils/visualRuntimePolicy.js",
@@ -89,18 +92,21 @@ describe("sharded dark evidence aggregation", () => {
     );
   });
 
-  test("the workflow executes and enforces the aggregate boundary", () => {
+  test("keeps physical aggregation outside the public Actions workflow", () => {
     expect(workflowSource).toContain(
       "node scripts/aggregate-dark-evidence.mjs --self-test",
     );
-    expect(workflowSource).toContain(
+    expect(workflowSource).not.toContain(
       "actions/download-artifact@v4",
     );
-    expect(workflowSource).toContain(
+    expect(workflowSource).not.toContain(
       "--input=collected-dark-evidence",
     );
-    expect(workflowSource).toContain(
-      "steps.aggregate.outputs.exit_code",
+    expect(workflowSource).not.toContain(
+      "visual-dark-evidence-aggregate",
+    );
+    expect(verifierSource).toContain(
+      "validatePhysicalDarkEvidenceSummary",
     );
   });
 

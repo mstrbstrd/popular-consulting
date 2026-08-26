@@ -28,6 +28,26 @@ export const resolveCaptureDocumentPath = (screenshotPath) => {
   return path.join(parsed.dir, `${parsed.name}.html`);
 };
 
+export const sanitizeBrowserDiagnosticText = ({
+  value,
+  browserPath,
+  profileDirectory,
+  screenshotPath,
+}) => {
+  let result = String(value || "");
+  const replacements = [
+    [browserPath, path.basename(String(browserPath || "browser"))],
+    [profileDirectory, "<temporary-browser-profile>"],
+    [screenshotPath, path.basename(String(screenshotPath || "capture.png"))],
+  ];
+
+  for (const [sensitiveValue, replacement] of replacements) {
+    if (!sensitiveValue) continue;
+    result = result.split(String(sensitiveValue)).join(replacement);
+  }
+  return result;
+};
+
 const persistCaptureDocument = ({
   screenshotPath,
   documentHtml,
@@ -209,17 +229,27 @@ export const runBrowserCapture = async ({
   } catch (error) {
     stdout =
       typeof error.stdout === "string" ? error.stdout : "";
+    const sanitizedMessage = sanitizeBrowserDiagnosticText({
+      value: error.message,
+      browserPath,
+      profileDirectory,
+      screenshotPath,
+    });
     const documentPath = persistCaptureDocument({
       screenshotPath,
       documentHtml: stdout,
-      failureMessage: error.message,
+      failureMessage: sanitizedMessage,
     });
-    const stderr =
-      typeof error.stderr === "string" ? error.stderr : "";
+    const stderr = sanitizeBrowserDiagnosticText({
+      value: typeof error.stderr === "string" ? error.stderr : "",
+      browserPath,
+      profileDirectory,
+      screenshotPath,
+    });
     throw new Error(
-      `Browser capture failed for ${url}: ${error.message}. Diagnostic DOM: ${documentPath}${
-        stderr ? `\n${stderr}` : ""
-      }`,
+      `Browser capture failed for ${url}: ${sanitizedMessage}. Diagnostic DOM: ${path.basename(
+        documentPath,
+      )}${stderr ? `\n${stderr}` : ""}`,
     );
   } finally {
     fs.rmSync(profileDirectory, {
@@ -237,7 +267,7 @@ export const runBrowserCapture = async ({
 
   if (!fs.existsSync(screenshotPath)) {
     throw new Error(
-      `Browser did not create ${screenshotPath}.`,
+      `Browser did not create ${path.basename(screenshotPath)}.`,
     );
   }
   if (
