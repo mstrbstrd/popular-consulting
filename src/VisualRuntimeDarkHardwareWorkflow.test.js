@@ -18,7 +18,12 @@ describe("dark visual runtime evidence workflows", () => {
     expect(workflowSource).toContain(
       "Hosted dark diagnostic, non-qualifying",
     );
-    expect(workflowSource).toContain("--smoke");
+    expect(workflowSource).toContain(
+      "node scripts/dark-evidence-hosted-diagnostic.mjs",
+    );
+    expect(workflowSource).toContain(
+      "summary.timerInstrumentation !== false",
+    );
     expect(workflowSource).toContain(
       "qualificationEligible !== false",
     );
