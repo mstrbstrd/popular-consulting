@@ -1,0 +1,129 @@
+name: Dark visual runtime hardware qualification
+
+on:
+  workflow_dispatch:
+    inputs:
+      viewport:
+        description: Capture viewport in WIDTHxHEIGHT form
+        required: true
+        default: 1440x900
+        type: string
+      evidence_case:
+        description: Run the full matrix or one named case
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - dark-section-0-hero
+          - dark-section-1-about
+          - dark-section-2-services
+          - dark-section-3-contact
+          - dark-section-4-orb
+          - dark-section-5-game
+          - dark-hero-pointer-left
+          - dark-hero-pointer-right
+          - dark-hero-time-16
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/dark-visual-runtime-hardware.yml
+      - scripts/capture-visual-dark-evidence.mjs
+      - scripts/dark-evidence-*.mjs
+      - src/components/blackHole*.js
+      - src/utils/visualRuntimeDark*.js
+      - src/utils/visualRuntimeGpuEvidence*.js
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dark-hardware-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qualify-dark-runtime:
+    name: Strict dark evidence on macOS hardware
+    runs-on: macos-26
+    timeout-minutes: 90
+    env:
+      VISUAL_CAPTURE_BROWSER: /Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge
+      EVIDENCE_VIEWPORT: ${{ inputs.viewport || '1440x900' }}
+      EVIDENCE_CASE: ${{ inputs.evidence_case || 'all' }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Verify evidence scripts
+        run: npm run visual:dark-evidence:self-test
+
+      - name: Record runner and graphics identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          sw_vers
+          uname -m
+          system_profiler SPDisplaysDataType || true
+          test -x "$VISUAL_CAPTURE_BROWSER"
+          "$VISUAL_CAPTURE_BROWSER" --version
+
+      - name: Build production bundle
+        run: npm run build
+        env:
+          CI: true
+
+      - name: Run strict evidence matrix
+        id: evidence
+        shell: bash
+        run: |
+          set +e
+          args=("--viewport=${EVIDENCE_VIEWPORT}")
+          if [[ "$EVIDENCE_CASE" != "all" ]]; then
+            args+=("--case=${EVIDENCE_CASE}")
+          fi
+
+          node scripts/capture-visual-dark-evidence.mjs "${args[@]}"
+          status=$?
+          echo "exit_code=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Publish evidence summary
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f visual-dark-evidence/summary.md ]]; then
+            cat visual-dark-evidence/summary.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            {
+              echo "# Dark visual runtime qualification"
+              echo
+              echo "The evidence process did not produce summary.md."
+              echo "Inspect the uploaded artifact and job log."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload complete evidence artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dark-visual-runtime-evidence-${{ github.run_id }}
+          path: visual-dark-evidence
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Enforce strict qualification
+        if: always()
+        shell: bash
+        run: |
+          test "${{ steps.evidence.outputs.exit_code }}" = "0"
