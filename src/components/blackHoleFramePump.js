@@ -5,6 +5,10 @@ import {
   VISUAL_RUNTIME_EVIDENCE_DARK,
 } from "../utils/visualRuntimeGpuEvidence";
 
+export const isDarkEvidenceCapture = (search = "") =>
+  readVisualRuntimeEvidenceRequest(search) ===
+  VISUAL_RUNTIME_EVIDENCE_DARK;
+
 export const resolveBlackHoleBatchSize = ({
   search = "",
   scheduledTilesPerBatch = 1,
@@ -18,9 +22,7 @@ export const resolveBlackHoleBatchSize = ({
     1,
     Math.floor(Number(remainingTiles) || 1),
   );
-  const darkEvidenceActive =
-    readVisualRuntimeEvidenceRequest(search) ===
-    VISUAL_RUNTIME_EVIDENCE_DARK;
+  const darkEvidenceActive = isDarkEvidenceCapture(search);
 
   return Math.max(
     1,
@@ -105,9 +107,11 @@ const submitBatch = (pipeline) => {
     return false;
   }
 
+  const search =
+    typeof window === "undefined" ? "" : window.location.search;
+  const darkEvidenceActive = isDarkEvidenceCapture(search);
   const batchSize = resolveBlackHoleBatchSize({
-    search:
-      typeof window === "undefined" ? "" : window.location.search,
+    search,
     scheduledTilesPerBatch: pipeline.schedule.tilesPerBatch,
     remainingTiles: pipeline.tiles.length - pipeline.tileCursor,
   });
@@ -126,6 +130,16 @@ const submitBatch = (pipeline) => {
   pipeline.tileCursor += batchSize;
   pipeline.pendingCompletesFrame =
     pipeline.tileCursor >= pipeline.tiles.length;
+
+  if (darkEvidenceActive) {
+    // The explicit GPU evidence wrapper completes every measured draw with
+    // gl.finish(). A fence created afterwards can remain unsignalled while the
+    // deterministic capture clock advances, so evidence completes the batch
+    // synchronously and leaves the production fence path unchanged.
+    gl.finish();
+    return completeBatch(pipeline);
+  }
+
   pipeline.pendingSync = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
   gl.flush();
   if (!pipeline.pendingSync) {
