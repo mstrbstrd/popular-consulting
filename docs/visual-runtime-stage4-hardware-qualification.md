@@ -12,9 +12,11 @@ It does not enable the optimized runtime and it does not interpret a failed run 
 .github/workflows/dark-visual-runtime-hardware.yml
 ```
 
-The workflow supports manual dispatch and also runs when the dark renderer, dark evidence harness, or workflow itself changes on `main`.
+The workflow supports manual dispatch and also runs when the canonical dark renderer, optimized dark renderer, theme entry point, evidence harness, or workflow itself changes on `main`.
 
-The default run executes all nine evidence cases at 1440 by 900. Manual dispatch may select one named case while diagnosing a failure.
+The default run executes all nine evidence cases at 1440 by 900.
+
+A manual dispatch may select one named case while diagnosing a failure. A one-case run is labelled `Diagnostic dark evidence, non-qualifying`, and it cannot produce or replace the complete-matrix qualification result.
 
 ## Strict invariants
 
@@ -26,8 +28,10 @@ The default run executes all nine evidence cases at 1440 by 900. Manual dispatch
 6. The candidate complete-frame GPU time must remain at or below ten percent of the reference complete-frame time.
 7. The visual thresholds remain those encoded by the evidence harness.
 8. Evidence artifacts are uploaded even when qualification fails.
-9. The final workflow step restores the failing conclusion after artifact upload.
-10. `OPTIMIZED_VISUAL_RUNTIME_AVAILABLE` remains `false`.
+9. The final full-matrix workflow step restores the failing conclusion after artifact upload.
+10. A single-case run is diagnostic only, even when that case passes.
+11. Both `BlackHole*.js` and `blackHole*.js` changes retrigger the full matrix on `main`.
+12. `OPTIMIZED_VISUAL_RUNTIME_AVAILABLE` remains `false`.
 
 ## Evidence output
 
@@ -64,4 +68,4 @@ Use the GitHub Actions workflow named:
 Dark visual runtime hardware qualification
 ```
 
-The default values run the complete matrix. A single case should be selected only to isolate a known failure before rerunning the complete matrix.
+The default values run the complete matrix. A single case should be selected only to isolate a known failure before rerunning the complete matrix. Its successful execution confirms only that diagnostic case, not the runtime as a whole.
