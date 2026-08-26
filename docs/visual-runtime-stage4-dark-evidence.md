@@ -67,7 +67,7 @@ Each draw is measured with:
 EXT_disjoint_timer_query_webgl2
 ```
 
-The runner sums the 17 GPU elapsed-time samples. This means the comparison includes the complete reference frame and the complete candidate frame. It does not compare only the transport shader or use CPU submission time as a substitute.
+The runner groups complete 17-draw frames and compares the median complete-frame GPU time from each renderer. This includes the entire reference frame and the entire candidate frame. It does not compare only the transport shader or use CPU submission time as a substitute.
 
 The timing path calls `gl.finish()` only under the explicit evidence query. Normal visitors never pay this synchronization cost.
 
@@ -114,7 +114,7 @@ visual-dark-evidence/
 
 ## CI classification
 
-The standard Windows job runs one small SwiftShader smoke case:
+The standard Windows job runs one small SwiftShader diagnostic smoke:
 
 ```bash
 node scripts/capture-visual-dark-evidence.mjs \
@@ -125,16 +125,26 @@ node scripts/capture-visual-dark-evidence.mjs \
   --viewport=480x300
 ```
 
-That smoke proves:
+The canonical renderer intentionally rejects software and virtual graphics through its hardware WebGL probe. Consequently, the Windows SwiftShader smoke does not attempt to mount or compare the canonical renderer.
 
-- Both deterministic URLs load
-- Both renderers present
-- Evidence reports are emitted
-- PNG decoding and comparison execute
-- The candidate screenshot is not blank
+The smoke validates only the optimized candidate and evidence plumbing. It proves that:
+
+- The deterministic candidate URL loads
+- The optimized dark candidate presents
+- The candidate evidence report is emitted
+- The PNG decoder and encoder execute
+- A deterministic self-comparison produces zero visual error
+- The candidate screenshot is not blank or flat
 - No browser crash document is returned
 
-It cannot establish hardware performance or visual parity and is never represented as qualifying evidence.
+Its result files explicitly contain:
+
+```text
+diagnosticOnly: true
+qualificationEligible: false
+```
+
+The smoke cannot establish reference parity, hardware performance, or rollout qualification. Those conclusions require the strict two-renderer hardware matrix.
 
 ## Rollout invariant
 
