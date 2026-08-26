@@ -22,7 +22,8 @@
     "lint": "eslint --ext .js src --max-warnings 0",
     "visual:reference": "npm run build && node scripts/capture-visual-reference.mjs",
     "visual:dark-evidence": "npm run build && node scripts/capture-visual-dark-evidence.mjs",
-    "visual:dark-evidence:self-test": "node scripts/capture-visual-dark-evidence.mjs --self-test",
+    "visual:dark-evidence:self-test": "node scripts/capture-visual-dark-evidence.mjs --self-test && node scripts/probe-visual-dark-hardware.mjs --self-test",
+    "visual:dark-evidence:preflight": "node scripts/probe-visual-dark-hardware.mjs",
     "visual:dark-evidence:smoke": "npm run build && node scripts/capture-visual-dark-evidence.mjs --smoke --allow-software --skip-gpu-gate --skip-visual-gate --viewport=480x300"
   },
   "eslintConfig": {
