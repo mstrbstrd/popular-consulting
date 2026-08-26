@@ -71,7 +71,8 @@ The local runner requires:
 - A non-virtual hardware identity
 - Node.js 20
 - Microsoft Edge, Google Chrome, or Chromium
-- No modified tracked files
+- No tracked or untracked source changes
+- No local `.env` or `.env.*` override other than `.env.example`
 
 The command does not require a GitHub token, a self-hosted Actions runner, or write access to the repository.
 
@@ -80,15 +81,17 @@ The command does not require a GitHub token, a self-hosted Actions runner, or wr
 The runner performs this sequence:
 
 1. Records the full Git commit SHA.
-2. Rejects modified tracked files.
-3. Reads the physical Mac and display identity.
-4. Rejects virtual, paravirtual, software, and unidentified graphics devices.
-5. Removes serial numbers, UUIDs, UDIDs, host names, and machine names from the retained hardware profile.
-6. Runs `npm ci --no-audit --no-fund`.
-7. Builds the production bundle.
-8. Runs the complete nine-case reference-versus-candidate matrix.
-9. Revalidates every visual, timer, renderer, and GPU-ratio gate.
-10. Writes a checksummed evidence bundle and compressed archive.
+2. Rejects tracked and untracked source changes.
+3. Rejects local build-affecting `.env` files.
+4. Removes build-affecting environment variables before dependency installation, build, and capture.
+5. Reads the physical Mac and display identity.
+6. Rejects virtual, paravirtual, software, and unidentified graphics devices.
+7. Removes serial numbers, UUIDs, UDIDs, host names, and machine names from the retained hardware profile.
+8. Runs `npm ci --no-audit --no-fund`.
+9. Builds the production bundle.
+10. Runs the complete nine-case reference-versus-candidate matrix.
+11. Revalidates every visual, timer, renderer, and GPU-ratio gate.
+12. Writes a checksummed evidence bundle, compressed archive, and separate archive digest.
 
 The exact cases are:
 
@@ -117,11 +120,13 @@ A partial case selection cannot qualify the runtime.
 9. Every case remains a 17-draw complete-frame measurement.
 10. Every submitted timer query must resolve.
 11. Pending, disjoint, invalid, exceptional, missing, or timed-out timer results fail closed.
-12. The complete source commit SHA is recorded in the bundle.
-13. Sensitive machine identifiers are not retained.
-14. Symlinks and uninventoried files invalidate the bundle.
-15. `OPTIMIZED_VISUAL_RUNTIME_AVAILABLE` remains `false`.
-16. The canonical and optimized shader programs remain unchanged by qualification tooling.
+12. The complete source commit SHA is recorded in every qualification record.
+13. Uncommitted source and local environment overrides cannot influence the build.
+14. Sensitive machine identifiers are not retained.
+15. Symlinks, path traversal, and uninventoried files invalidate the bundle.
+16. Conflicting host, execution, qualification, manifest, or evidence records invalidate the bundle.
+17. `OPTIMIZED_VISUAL_RUNTIME_AVAILABLE` remains `false`.
+18. The canonical and optimized shader programs remain unchanged by qualification tooling.
 
 ## Evidence bundle
 
@@ -131,7 +136,7 @@ By default, successful or failed evidence is written below:
 visual-dark-evidence-physical/
 ```
 
-Each run receives a commit-and-timestamp directory and a matching `.tar.gz` archive.
+Each run receives a commit-and-timestamp directory, a matching `.tar.gz` archive, and a matching `.tar.gz.sha256` digest file.
 
 The bundle contains:
 
@@ -153,7 +158,9 @@ evidence/
     result.json
 ```
 
-`manifest.json` inventories every retained file with its byte count and SHA-256 digest. `manifest.sha256` authenticates the manifest itself. Generated evidence and archives are ignored by Git.
+`manifest.json` inventories every retained file with its byte count and SHA-256 digest. `manifest.sha256` records the digest of that manifest. The separate `.tar.gz.sha256` file records the digest of the transferred archive and should be compared through a separate communication channel when provenance matters.
+
+Generated evidence, archives, and archive digests are ignored by Git.
 
 A failed run still writes and archives its diagnostic bundle when output initialization succeeded, then exits nonzero.
 
@@ -180,9 +187,11 @@ The verifier independently checks:
 - Complete file inventory
 - Path containment
 - Absence of symlinks
-- Source commit identity
+- Source commit identity across every record
+- Clean-source and sanitized-environment declarations
 - Physical Apple Silicon identity
 - Identifier-redaction declaration
+- Qualification-record consistency
 - All nine visual results
 - All nine GPU results
 - Complete timer collections
@@ -190,7 +199,7 @@ The verifier independently checks:
 - The 17-draw boundary
 - The unchanged 0.1 GPU ratio gate
 
-Changing, deleting, adding, or corrupting any inventoried file causes verification to fail.
+Changing, deleting, adding, corrupting, or contradicting any inventoried record causes verification to fail.
 
 ## Failure interpretation
 
@@ -202,4 +211,4 @@ A local physical performance failure means the complete-frame cost has not reach
 
 A hardware identity failure means the machine cannot establish trustworthy production GPU evidence.
 
-No failed, incomplete, hosted, software, virtual, tampered, or partial result can activate a canary.
+No failed, incomplete, hosted, software, virtual, tampered, contradictory, or partial result can activate a canary.
