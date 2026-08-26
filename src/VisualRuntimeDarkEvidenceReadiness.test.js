@@ -1,0 +1,56 @@
+import fs from "fs";
+import path from "path";
+
+const read = (relativePath) =>
+  fs.readFileSync(path.join(process.cwd(), relativePath), "utf8");
+
+describe("dark evidence reference readiness", () => {
+  const framePumpSource = read(
+    "src/components/blackHoleFramePump.js",
+  );
+  const browserSource = read(
+    "scripts/dark-evidence-browser.mjs",
+  );
+  const shaderSource = read(
+    "src/components/blackHoleShader.js",
+  );
+  const runtimePolicySource = read(
+    "src/utils/visualRuntimePolicy.js",
+  );
+
+  test("yields reference tiles only for explicit dark evidence", () => {
+    expect(framePumpSource).toContain(
+      'VISUAL_RUNTIME_EVIDENCE_QUERY_PARAM =\n  "visual-runtime-evidence"',
+    );
+    expect(framePumpSource).toContain(
+      "darkEvidenceActive ? 1 : scheduled",
+    );
+    expect(framePumpSource).toContain(
+      "scheduledTilesPerBatch: pipeline.schedule.tilesPerBatch",
+    );
+  });
+
+  test("retains DOM diagnostics on success and browser failure", () => {
+    expect(browserSource).toContain(
+      "resolveCaptureDocumentPath",
+    );
+    expect(browserSource).toContain(
+      "persistCaptureDocument",
+    );
+    expect(browserSource).toContain(
+      'typeof error.stdout === "string"',
+    );
+    expect(browserSource).toContain(
+      "Diagnostic DOM:",
+    );
+  });
+
+  test("does not alter shader mathematics or enable rollout", () => {
+    expect(shaderSource).not.toContain(
+      "visual-runtime-evidence",
+    );
+    expect(runtimePolicySource).toContain(
+      "OPTIMIZED_VISUAL_RUNTIME_AVAILABLE = false",
+    );
+  });
+});
