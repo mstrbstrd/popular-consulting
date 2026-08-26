@@ -161,6 +161,7 @@ describe("visual runtime GPU evidence", () => {
         return "";
       }),
       getQueryParameter: jest.fn((query, name) => {
+        if (!query) return null;
         if (name === context.QUERY_RESULT_AVAILABLE) return true;
         if (name === context.QUERY_RESULT) return 500_000;
         return null;
@@ -214,42 +215,65 @@ describe("visual runtime GPU evidence", () => {
       documentObject,
     });
 
-    const canvas = new FakeCanvas();
-    const instrumentedContext = canvas.getContext("webgl2");
-    for (
-      let index = 0;
-      index < VISUAL_RUNTIME_DARK_FRAME_DRAW_COUNT;
-      index += 1
-    ) {
-      instrumentedContext.drawArrays("triangles", 0, 4);
+    try {
+      const canvas = new FakeCanvas();
+      const instrumentedContext = canvas.getContext("webgl2");
+      for (
+        let index = 0;
+        index < VISUAL_RUNTIME_DARK_FRAME_DRAW_COUNT;
+        index += 1
+      ) {
+        instrumentedContext.drawArrays("triangles", 0, 4);
+      }
+
+      await new Promise((resolve, reject) => {
+        const startedAt = Date.now();
+        const check = () => {
+          if (reportElement.textContent) {
+            const report = JSON.parse(reportElement.textContent);
+            if (report.status === "ready") {
+              resolve();
+              return;
+            }
+          }
+          if (Date.now() - startedAt >= 1_000) {
+            reject(
+              new Error(
+                "asynchronous GPU evidence did not become ready",
+              ),
+            );
+            return;
+          }
+          setTimeout(check, 10);
+        };
+        check();
+      });
+
+      const report = JSON.parse(reportElement.textContent);
+      expect(report.status).toBe("ready");
+      expect(report.qualifyingHardware).toBe(true);
+      expect(report.records).toHaveLength(1);
+      expect(report.records[0]).toMatchObject({
+        submittedDraws: 17,
+        measuredDraws: 17,
+        pendingDraws: 0,
+        invalidDraws: 0,
+        software: false,
+      });
+      expect(report.records[0].summary).toMatchObject({
+        totalFrames: 1,
+        validFrames: 1,
+        medianGpuMs: 8.5,
+      });
+      expect(context.flush).toHaveBeenCalledTimes(17);
+      expect(context.finish).not.toHaveBeenCalled();
+      expect(context.deleteQuery).toHaveBeenCalledTimes(17);
+      expect(
+        attributes.get("data-visual-runtime-evidence-ready"),
+      ).toBe("true");
+    } finally {
+      cleanup();
     }
-
-    await new Promise((resolve) => setTimeout(resolve, 40));
-
-    const report = JSON.parse(reportElement.textContent);
-    expect(report.status).toBe("ready");
-    expect(report.qualifyingHardware).toBe(true);
-    expect(report.records).toHaveLength(1);
-    expect(report.records[0]).toMatchObject({
-      submittedDraws: 17,
-      measuredDraws: 17,
-      pendingDraws: 0,
-      invalidDraws: 0,
-      software: false,
-    });
-    expect(report.records[0].summary).toMatchObject({
-      totalFrames: 1,
-      validFrames: 1,
-      medianGpuMs: 8.5,
-    });
-    expect(context.flush).toHaveBeenCalledTimes(17);
-    expect(context.finish).not.toHaveBeenCalled();
-    expect(context.deleteQuery).toHaveBeenCalledTimes(17);
-    expect(
-      attributes.get("data-visual-runtime-evidence-ready"),
-    ).toBe("true");
-
-    cleanup();
   });
 
   test("fails a frame closed when any draw timing is invalid", () => {
