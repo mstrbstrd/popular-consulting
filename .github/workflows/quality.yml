@@ -35,6 +35,9 @@ jobs:
       - name: Run dark evidence script self-test
         run: npm run visual:dark-evidence:self-test
 
+      - name: Run dark evidence aggregate self-test
+        run: node scripts/aggregate-dark-evidence.mjs --self-test
+
       - name: Lint
         run: npm run lint
 
