@@ -50,6 +50,14 @@ describe("stage-four dark evidence architecture", () => {
     expect(evidenceSource).toContain(
       "getResolvedGpuEvidenceSamples",
     );
+    expect(evidenceSource).toContain(
+      "summarizeGpuEvidenceCollection",
+    );
+    expect(runnerSource).toContain("evidenceCollectionReady");
+    expect(runnerSource).toContain("collectionComplete");
+    expect(runnerSource).toContain("collectionValid");
+    expect(runnerSource).toContain("pendingDraws === 0");
+    expect(runnerSource).toContain("invalidDraws === 0");
   });
 
   test("installs before reference capture instrumentation", () => {
