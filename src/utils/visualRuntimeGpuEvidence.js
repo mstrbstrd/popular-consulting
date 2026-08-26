@@ -71,6 +71,9 @@ const finiteNonNegative = (value) => {
   return Number.isFinite(numeric) && numeric >= 0 ? numeric : 0;
 };
 
+const nonNegativeInteger = (value) =>
+  Math.max(0, Math.floor(Number(value) || 0));
+
 const median = (values) => {
   if (!values.length) return null;
   const sorted = [...values].sort((left, right) => left - right);
@@ -150,6 +153,78 @@ export const summarizeGpuEvidenceFrames = (frames = []) => {
     minimumGpuMs: gpuValues.length ? Math.min(...gpuValues) : null,
     maximumGpuMs: gpuValues.length ? Math.max(...gpuValues) : null,
     medianCpuMs: median(cpuValues),
+  };
+};
+
+export const summarizeGpuEvidenceCollection = ({
+  submittedDraws = 0,
+  samples = [],
+  pendingDraws = 0,
+  expectedDrawCount = VISUAL_RUNTIME_DARK_FRAME_DRAW_COUNT,
+} = {}) => {
+  const safeSubmittedDraws = nonNegativeInteger(submittedDraws);
+  const safePendingDraws = nonNegativeInteger(pendingDraws);
+  const safeExpectedDrawCount = Math.max(
+    1,
+    nonNegativeInteger(expectedDrawCount),
+  );
+  const resolvedSamples = getResolvedGpuEvidenceSamples(samples);
+  const measuredDraws = resolvedSamples.length;
+  const invalidDraws = resolvedSamples.filter(
+    (sample) => !sample.valid,
+  ).length;
+  const frames = buildGpuEvidenceFrames(
+    resolvedSamples,
+    safeExpectedDrawCount,
+  );
+  const summary = summarizeGpuEvidenceFrames(frames);
+  const drawCountAligned =
+    safeSubmittedDraws > 0 &&
+    safeSubmittedDraws % safeExpectedDrawCount === 0;
+  const expectedFrameCount = drawCountAligned
+    ? safeSubmittedDraws / safeExpectedDrawCount
+    : null;
+  const collectionComplete = Boolean(
+    safePendingDraws === 0 &&
+      measuredDraws === safeSubmittedDraws &&
+      drawCountAligned &&
+      frames.length === expectedFrameCount,
+  );
+  const collectionValid = Boolean(
+    collectionComplete &&
+      invalidDraws === 0 &&
+      frames.length > 0 &&
+      frames.every((frame) => frame.valid),
+  );
+  const collectionReasons = [];
+
+  if (safePendingDraws > 0) {
+    collectionReasons.push("pending-draws");
+  }
+  if (measuredDraws !== safeSubmittedDraws) {
+    collectionReasons.push("unresolved-draws");
+  }
+  if (!drawCountAligned) {
+    collectionReasons.push("partial-frame");
+  }
+  if (invalidDraws > 0) {
+    collectionReasons.push("invalid-draws");
+  }
+  if (frames.some((frame) => !frame.valid)) {
+    collectionReasons.push("invalid-frame");
+  }
+
+  return {
+    submittedDraws: safeSubmittedDraws,
+    measuredDraws,
+    pendingDraws: safePendingDraws,
+    invalidDraws,
+    expectedFrameCount,
+    collectionComplete,
+    collectionValid,
+    collectionReasons,
+    frames,
+    summary,
   };
 };
 
@@ -259,44 +334,39 @@ export const initVisualRuntimeGpuEvidence = ({
   let disposed = false;
 
   const buildReport = () => {
-    const serializedRecords = records.map((record) => {
-      const resolvedSamples = getResolvedGpuEvidenceSamples(
-        record.samples,
-      );
-      const frames = buildGpuEvidenceFrames(
-        resolvedSamples,
-        record.expectedDrawCount,
-      );
-      return {
-        rendererId: readRendererId(record.canvas) || record.rendererId,
-        contextType: record.contextType,
-        renderer: record.identity.renderer,
-        vendor: record.identity.vendor,
-        software: record.identity.software,
-        timerSupported: record.timerSupported,
-        expectedDrawCount: record.expectedDrawCount,
+    const serializedRecords = records.map((record) => ({
+      rendererId: readRendererId(record.canvas) || record.rendererId,
+      contextType: record.contextType,
+      renderer: record.identity.renderer,
+      vendor: record.identity.vendor,
+      software: record.identity.software,
+      timerSupported: record.timerSupported,
+      expectedDrawCount: record.expectedDrawCount,
+      ...summarizeGpuEvidenceCollection({
         submittedDraws: record.submittedDraws,
-        measuredDraws: resolvedSamples.length,
+        samples: record.samples,
         pendingDraws: record.pendingQueries.length,
-        invalidDraws: resolvedSamples.filter(
-          (sample) => !sample.valid,
-        ).length,
-        frames,
-        summary: summarizeGpuEvidenceFrames(frames),
-      };
-    });
-    const validFrameCount = serializedRecords.reduce(
-      (total, record) => total + record.summary.validFrames,
-      0,
-    );
-    const timerSupported = serializedRecords.some(
-      (record) => record.timerSupported,
-    );
-    const status =
-      validFrameCount > 0
-        ? "ready"
-        : serializedRecords.length > 0 && !timerSupported
-          ? "unsupported"
+        expectedDrawCount: record.expectedDrawCount,
+      }),
+    }));
+    const hasRecords = serializedRecords.length > 0;
+    const timersSupported =
+      hasRecords &&
+      serializedRecords.every((record) => record.timerSupported);
+    const collectionsComplete =
+      hasRecords &&
+      serializedRecords.every((record) => record.collectionComplete);
+    const collectionsValid =
+      hasRecords &&
+      serializedRecords.every((record) => record.collectionValid);
+    const status = !hasRecords
+      ? "collecting"
+      : !timersSupported
+        ? "unsupported"
+        : collectionsComplete
+          ? collectionsValid
+            ? "ready"
+            : "invalid"
           : "collecting";
 
     return {
@@ -304,7 +374,7 @@ export const initVisualRuntimeGpuEvidence = ({
       policy,
       status,
       qualifyingHardware:
-        validFrameCount > 0 &&
+        status === "ready" &&
         serializedRecords.every(
           (record) =>
             Boolean(record.renderer) &&
