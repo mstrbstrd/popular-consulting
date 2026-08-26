@@ -105,7 +105,7 @@ describe("visual runtime GPU evidence", () => {
     expect(frames[0]).toMatchObject({
       valid: false,
       gpuMs: null,
-      invalidReasons: ["gpu-disjoint"],
+      invalidReasons: ["invalid-sample", "gpu-disjoint"],
     });
     expect(summarizeGpuEvidenceFrames(frames).validFrames).toBe(0);
   });
