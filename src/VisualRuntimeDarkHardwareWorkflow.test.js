@@ -12,17 +12,10 @@ describe("strict dark visual runtime hardware qualification", () => {
     "src/utils/visualRuntimePolicy.js",
   );
 
-  test("runs the immutable dark evidence matrix on macOS 26 ARM64 hardware", () => {
-    expect(workflowSource).toContain("workflow_dispatch:");
+  test("runs all strict cases on macOS 26 ARM64 hardware", () => {
     expect(workflowSource).toContain("runs-on: macos-26");
-    expect(workflowSource).toContain(
-      "Strict dark evidence on macOS 26 hardware",
-    );
     expect(workflowSource).not.toContain("runner_label:");
     expect(workflowSource).not.toContain("runs-on: macos-15");
-    expect(workflowSource).toContain(
-      "node scripts/capture-visual-dark-evidence.mjs",
-    );
     expect(workflowSource).toContain(
       "VISUAL_CAPTURE_BROWSER: /Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
     );
@@ -44,7 +37,53 @@ describe("strict dark visual runtime hardware qualification", () => {
     expect(workflowSource).toContain("env.EVIDENCE_SOURCE_SHA");
   });
 
-  test("reruns when either canonical or optimized dark inputs change", () => {
+  test("shards the exact nine-case matrix with bounded parallelism", () => {
+    expect(workflowSource).toContain("evidence-case:");
+    expect(workflowSource).toContain("fail-fast: false");
+    expect(workflowSource).toContain("max-parallel: 3");
+
+    [
+      "dark-section-0-hero",
+      "dark-section-1-about",
+      "dark-section-2-services",
+      "dark-section-3-contact",
+      "dark-section-4-orb",
+      "dark-section-5-game",
+      "dark-hero-pointer-left",
+      "dark-hero-pointer-right",
+      "dark-hero-time-16",
+    ].forEach((caseId) => {
+      expect(workflowSource).toContain(`- ${caseId}`);
+    });
+
+    expect(workflowSource).toContain(
+      '--case="${EVIDENCE_CASE}"',
+    );
+    expect(workflowSource).toContain(
+      "dark-evidence-case-",
+    );
+    expect(workflowSource).toContain("matrix.evidence_case");
+  });
+
+  test("aggregates every case through an independent fail-closed gate", () => {
+    expect(workflowSource).toContain("qualify-dark-runtime:");
+    expect(workflowSource).toContain("needs: evidence-case");
+    expect(workflowSource).toContain(
+      "actions/download-artifact@v4",
+    );
+    expect(workflowSource).toContain("collected-dark-evidence");
+    expect(workflowSource).toContain(
+      "node scripts/aggregate-dark-evidence.mjs",
+    );
+    expect(workflowSource).toContain(
+      "steps.aggregate.outputs.exit_code",
+    );
+    expect(workflowSource).toContain(
+      "dark-visual-runtime-evidence-",
+    );
+  });
+
+  test("reruns when renderer, evidence, or qualification contracts change", () => {
     expect(workflowSource).toContain(
       "src/components/BlackHole*.js",
     );
@@ -57,42 +96,37 @@ describe("strict dark visual runtime hardware qualification", () => {
     expect(workflowSource).toContain(
       "src/utils/visualRuntimeDark*.js",
     );
+    expect(workflowSource).toContain(
+      "src/VisualRuntimeDark*.test.js",
+    );
   });
 
-  test("never weakens qualification flags", () => {
+  test("never weakens strict qualification flags", () => {
     expect(workflowSource).not.toContain("--allow-software");
     expect(workflowSource).not.toContain("--skip-gpu-gate");
     expect(workflowSource).not.toContain("--skip-visual-gate");
-    expect(workflowSource).toContain(
-      "steps.evidence.outputs.exit_code",
-    );
-    expect(workflowSource).toContain('= "0"');
   });
 
-  test("keeps one-case runs explicitly non-qualifying", () => {
+  test("keeps manual single-case execution explicitly non-qualifying", () => {
+    expect(workflowSource).toContain("diagnostic-dark-runtime:");
     expect(workflowSource).toContain(
       "Diagnostic dark evidence, non-qualifying",
     );
     expect(workflowSource).toContain(
-      'echo "qualifying_run=false"',
+      "inputs.evidence_case != 'all'",
     );
     expect(workflowSource).toContain(
       "Only the complete matrix can produce a qualification result.",
     );
-    expect(workflowSource).toContain(
-      "steps.evidence.outputs.qualifying_run == 'true'",
-    );
   });
 
-  test("preserves evidence even when qualification fails", () => {
+  test("preserves case and aggregate evidence even when qualification fails", () => {
     expect(workflowSource).toContain("if: always()");
     expect(workflowSource).toContain("actions/upload-artifact@v4");
     expect(workflowSource).toContain("retention-days: 30");
-    expect(workflowSource).toContain("visual-dark-evidence/summary.md");
     expect(workflowSource).toContain(
-      "dark-visual-runtime-evidence-",
+      "visual-dark-evidence-aggregate/summary.md",
     );
-    expect(workflowSource).toContain("env.EVIDENCE_RUNNER_LABEL");
     expect(workflowSource).toContain("github.run_id");
   });
 
