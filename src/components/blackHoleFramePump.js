@@ -1,6 +1,40 @@
 // Frame submission and atomic presentation for BlackHolePipeline.
 import { recordGraphicsEvent } from "../utils/graphicsPolicy";
 
+const VISUAL_RUNTIME_EVIDENCE_QUERY_PARAM =
+  "visual-runtime-evidence";
+const VISUAL_RUNTIME_DARK_EVIDENCE_MODE = "dark";
+
+export const resolveBlackHoleBatchSize = ({
+  search = "",
+  scheduledTilesPerBatch = 1,
+  remainingTiles = 1,
+} = {}) => {
+  const scheduled = Math.max(
+    1,
+    Math.floor(Number(scheduledTilesPerBatch) || 1),
+  );
+  const remaining = Math.max(
+    1,
+    Math.floor(Number(remainingTiles) || 1),
+  );
+  let darkEvidenceActive = false;
+
+  try {
+    darkEvidenceActive =
+      new URLSearchParams(String(search || "")).get(
+        VISUAL_RUNTIME_EVIDENCE_QUERY_PARAM,
+      ) === VISUAL_RUNTIME_DARK_EVIDENCE_MODE;
+  } catch (_) {
+    darkEvidenceActive = false;
+  }
+
+  return Math.max(
+    1,
+    Math.min(darkEvidenceActive ? 1 : scheduled, remaining),
+  );
+};
+
 export const presentBlackHoleFrame = (pipeline) => {
   const {
     gl,
@@ -78,13 +112,12 @@ const submitBatch = (pipeline) => {
     return false;
   }
 
-  const batchSize = Math.max(
-    1,
-    Math.min(
-      pipeline.schedule.tilesPerBatch,
-      pipeline.tiles.length - pipeline.tileCursor,
-    ),
-  );
+  const batchSize = resolveBlackHoleBatchSize({
+    search:
+      typeof window === "undefined" ? "" : window.location.search,
+    scheduledTilesPerBatch: pipeline.schedule.tilesPerBatch,
+    remainingTiles: pipeline.tiles.length - pipeline.tileCursor,
+  });
   gl.bindFramebuffer(gl.FRAMEBUFFER, backTarget.framebuffer);
   gl.enable(gl.SCISSOR_TEST);
   gl.useProgram(sceneProgram);
