@@ -39,7 +39,11 @@ describe("secure local dark physical qualification", () => {
     );
   });
 
-  test("requires a clean physical Apple Silicon source checkout", () => {
+  test("requires a clean Node 20 physical Apple Silicon checkout", () => {
+    expect(runnerSource).toContain("isSupportedNodeVersion");
+    expect(runnerSource).toContain(
+      "Physical qualification requires Node.js 20.x.",
+    );
     expect(runnerSource).toContain(
       '["status", "--porcelain", "--untracked-files=all"]',
     );
@@ -59,6 +63,16 @@ describe("secure local dark physical qualification", () => {
     );
     expect(librarySource).toContain('platform !== "darwin"');
     expect(librarySource).toContain('arch !== "arm64"');
+  });
+
+  test("rechecks source inputs after every external build phase", () => {
+    expect(runnerSource).toContain("assertDeterministicSourceInputs");
+    expect(runnerSource).toContain("postCommandSourceChecks: true");
+    expect(runnerSource).toContain("environmentFilesAbsent: true");
+    expect(runnerSource).toContain(
+      "trackedAndUntrackedFilesClean: true",
+    );
+    expect(runnerSource).toContain("nodeMajorVersion: 20");
   });
 
   test("sanitizes build inputs and sensitive machine identifiers", () => {
@@ -83,6 +97,14 @@ describe("secure local dark physical qualification", () => {
     expect(verifierSource).toContain(
       "Host evidence does not confirm identifier redaction.",
     );
+  });
+
+  test("redacts custom browser paths throughout retained evidence", () => {
+    expect(runnerSource).toContain("sanitizeBrowserExecutable");
+    expect(runnerSource).toContain("sanitizeEvidenceBrowserPath");
+    expect(runnerSource).toContain("browserPathRedacted: true");
+    expect(runnerSource).toContain("browserExecutable");
+    expect(runnerSource).not.toContain("browserPath,");
   });
 
   test("runs the exact full matrix without weakening any gate", () => {
