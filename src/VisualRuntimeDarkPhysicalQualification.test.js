@@ -104,7 +104,9 @@ describe("secure local dark physical qualification", () => {
     expect(runnerSource).toContain("sanitizeEvidenceBrowserPath");
     expect(runnerSource).toContain("browserPathRedacted: true");
     expect(runnerSource).toContain("browserExecutable");
-    expect(runnerSource).not.toContain("browserPath,");
+    expect(runnerSource).toContain(
+      "content.split(browserPath).join(browserExecutable)",
+    );
   });
 
   test("runs the exact full matrix without weakening any gate", () => {
