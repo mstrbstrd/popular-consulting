@@ -95,6 +95,7 @@ jobs:
       - name: Verify evidence scripts
         run: |
           npm run visual:dark-evidence:self-test
+          node scripts/dark-evidence-hosted-diagnostic.mjs --self-test
           node scripts/aggregate-dark-evidence.mjs --self-test
 
       - name: Record hosted runner and graphics identity
@@ -116,8 +117,7 @@ jobs:
 
       - name: Run hosted candidate diagnostic
         run: >-
-          node scripts/capture-visual-dark-evidence.mjs
-          --smoke
+          node scripts/dark-evidence-hosted-diagnostic.mjs
           --viewport=480x300
           --output=visual-dark-evidence-hosted
 
@@ -137,10 +137,11 @@ jobs:
           if (
             summary.diagnosticOnly !== true ||
             summary.qualificationEligible !== false ||
+            summary.timerInstrumentation !== false ||
             summary.passed !== true
           ) {
             throw new Error(
-              "Hosted evidence must pass only as a non-qualifying diagnostic.",
+              "Hosted evidence must pass only as a timer-free non-qualifying diagnostic.",
             );
           }
           NODE
