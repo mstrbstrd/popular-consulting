@@ -20,6 +20,12 @@ const SENSITIVE_PROFILE_KEY_PATTERN =
 const BUILD_ENVIRONMENT_KEY_PATTERN =
   /^(REACT_APP_|PUBLIC_URL$|BUILD_PATH$|GENERATE_SOURCEMAP$|INLINE_RUNTIME_CHUNK$|IMAGE_INLINE_SIZE_LIMIT$|DISABLE_ESLINT_PLUGIN$|TSC_COMPILE_ON_ERROR$|FAST_REFRESH$|NODE_OPTIONS$|NODE_ENV$|BABEL_ENV$|BROWSER$|HOST$|PORT$|CI$)/i;
 const ALLOWED_ENVIRONMENT_FILE = ".env.example";
+const EVIDENCE_TEXT_EXTENSIONS = new Set([
+  ".html",
+  ".json",
+  ".md",
+  ".txt",
+]);
 
 const readArgument = (name) => {
   const prefix = `--${name}=`;
@@ -33,6 +39,9 @@ const readArgument = (name) => {
 };
 
 const hasFlag = (name) => process.argv.includes(`--${name}`);
+
+export const isSupportedNodeVersion = (value) =>
+  Number(String(value || "").split(".")[0]) === 20;
 
 export const parsePhysicalViewport = (value = "1440x900") => {
   const match = String(value || "").match(/^(\d+)x(\d+)$/i);
@@ -88,6 +97,9 @@ export const createQualificationEnvironment = (
   }
   return environment;
 };
+
+export const sanitizeBrowserExecutable = (browserPath) =>
+  path.basename(String(browserPath || "unknown-browser"));
 
 const commandOutput = (command, args, cwd) =>
   execFileSync(command, args, {
@@ -168,15 +180,14 @@ const ensureOutputDirectory = (repositoryRoot, requested, sourceSha) => {
   return outputDirectory;
 };
 
+const isEnvironmentOverrideName = (name) =>
+  (name === ".env" || name.startsWith(".env.")) &&
+  name !== ALLOWED_ENVIRONMENT_FILE;
+
 const assertNoEnvironmentFiles = (repositoryRoot) => {
   const environmentFiles = fs
     .readdirSync(repositoryRoot, { withFileTypes: true })
-    .filter(
-      (entry) =>
-        entry.isFile() &&
-        (entry.name === ".env" || entry.name.startsWith(".env.")) &&
-        entry.name !== ALLOWED_ENVIRONMENT_FILE,
-    )
+    .filter((entry) => isEnvironmentOverrideName(entry.name))
     .map((entry) => entry.name)
     .sort();
 
@@ -187,6 +198,60 @@ const assertNoEnvironmentFiles = (repositoryRoot) => {
       )}. Remove them before qualification.`,
     );
   }
+};
+
+const assertSourceTreeClean = (repositoryRoot) => {
+  const sourceChanges = commandOutput(
+    "git",
+    ["status", "--porcelain", "--untracked-files=all"],
+    repositoryRoot,
+  );
+  if (sourceChanges) {
+    throw new Error(
+      "Tracked or untracked source files are present. Commit, remove, or ignore them before qualification.",
+    );
+  }
+};
+
+const assertDeterministicSourceInputs = (repositoryRoot) => {
+  assertSourceTreeClean(repositoryRoot);
+  assertNoEnvironmentFiles(repositoryRoot);
+};
+
+const sanitizeEvidenceBrowserPath = (
+  evidenceDirectory,
+  browserPath,
+) => {
+  const browserExecutable = sanitizeBrowserExecutable(browserPath);
+
+  const visit = (directory) => {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const absolutePath = path.join(directory, entry.name);
+      if (entry.isDirectory()) {
+        visit(absolutePath);
+        continue;
+      }
+      if (
+        !entry.isFile() ||
+        !EVIDENCE_TEXT_EXTENSIONS.has(
+          path.extname(entry.name).toLowerCase(),
+        )
+      ) {
+        continue;
+      }
+
+      const content = fs.readFileSync(absolutePath, "utf8");
+      if (!content.includes(browserPath)) continue;
+      fs.writeFileSync(
+        absolutePath,
+        content.split(browserPath).join(browserExecutable),
+        "utf8",
+      );
+    }
+  };
+
+  visit(evidenceDirectory);
+  return browserExecutable;
 };
 
 const readJsonCommand = (command, args, cwd) => {
@@ -210,6 +275,26 @@ const runSelfTest = () => {
   const viewport = parsePhysicalViewport("1920x1080");
   if (viewport.width !== 1920 || viewport.height !== 1080) {
     throw new Error("Physical viewport parsing failed.");
+  }
+  if (
+    !isSupportedNodeVersion("20.20.2") ||
+    isSupportedNodeVersion("22.0.0")
+  ) {
+    throw new Error("Node.js version self-test failed.");
+  }
+  if (
+    !isEnvironmentOverrideName(".env.production") ||
+    !isEnvironmentOverrideName(".env") ||
+    isEnvironmentOverrideName(".env.example")
+  ) {
+    throw new Error("Environment override self-test failed.");
+  }
+  if (
+    sanitizeBrowserExecutable(
+      "/Users/private/Applications/Custom Chromium",
+    ) !== "Custom Chromium"
+  ) {
+    throw new Error("Browser executable redaction self-test failed.");
   }
 
   const sanitized = sanitizeSystemProfiler({
@@ -273,6 +358,12 @@ const runSelfTest = () => {
 };
 
 const executeQualification = () => {
+  if (!isSupportedNodeVersion(process.versions.node)) {
+    throw new Error(
+      `Physical qualification requires Node.js 20.x. Found ${process.versions.node}.`,
+    );
+  }
+
   const repositoryRoot = commandOutput(
     "git",
     ["rev-parse", "--show-toplevel"],
@@ -287,17 +378,7 @@ const executeQualification = () => {
     throw new Error("Git did not return a full source commit SHA.");
   }
 
-  const sourceChanges = commandOutput(
-    "git",
-    ["status", "--porcelain", "--untracked-files=all"],
-    repositoryRoot,
-  );
-  if (sourceChanges) {
-    throw new Error(
-      "Tracked or untracked source files are present. Commit, remove, or ignore them before qualification.",
-    );
-  }
-  assertNoEnvironmentFiles(repositoryRoot);
+  assertDeterministicSourceInputs(repositoryRoot);
 
   const viewport = parsePhysicalViewport(
     readArgument("viewport") || "1440x900",
@@ -352,6 +433,7 @@ const executeQualification = () => {
         "Microsoft Edge, Google Chrome, or Chromium was not found. Set VISUAL_CAPTURE_BROWSER.",
       );
     }
+    const browserExecutable = sanitizeBrowserExecutable(browserPath);
 
     hostRecord = {
       schemaVersion: 1,
@@ -362,7 +444,7 @@ const executeQualification = () => {
       model,
       nodeVersion: process.version,
       npmVersion: commandOutput("npm", ["--version"], repositoryRoot),
-      browserPath,
+      browserExecutable,
       browserVersion: commandOutput(
         browserPath,
         ["--version"],
@@ -383,6 +465,9 @@ const executeQualification = () => {
         trackedAndUntrackedFilesClean: true,
         environmentFilesAbsent: true,
         buildEnvironmentSanitized: true,
+        browserPathRedacted: true,
+        nodeMajorVersion: 20,
+        postCommandSourceChecks: true,
       },
       commands: [
         ["npm", "ci", "--no-audit", "--no-fund"],
@@ -403,12 +488,15 @@ const executeQualification = () => {
       repositoryRoot,
       qualificationEnvironment,
     );
+    assertDeterministicSourceInputs(repositoryRoot);
+
     runCommand(
       "npm",
       ["run", "build"],
       repositoryRoot,
       qualificationEnvironment,
     );
+    assertDeterministicSourceInputs(repositoryRoot);
 
     const evidenceDirectory = path.join(outputDirectory, "evidence");
     runCommand(
@@ -421,6 +509,8 @@ const executeQualification = () => {
       repositoryRoot,
       qualificationEnvironment,
     );
+    assertDeterministicSourceInputs(repositoryRoot);
+    sanitizeEvidenceBrowserPath(evidenceDirectory, browserPath);
 
     const summaryPath = path.join(evidenceDirectory, "summary.json");
     if (!fs.existsSync(summaryPath)) {
@@ -466,6 +556,7 @@ const executeQualification = () => {
           model: hostRecord.model,
           nodeVersion: hostRecord.nodeVersion,
           npmVersion: hostRecord.npmVersion,
+          browserExecutable: hostRecord.browserExecutable,
           browserVersion: hostRecord.browserVersion,
           sensitiveIdentifiersRecorded: false,
         }
