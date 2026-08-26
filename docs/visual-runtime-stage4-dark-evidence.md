@@ -2,13 +2,13 @@
 
 ## Status
 
-The dark transport and material candidate is implemented, but it remains explicit-only. This checkpoint adds repeatable evidence collection. It does not enable the candidate for normal visitors and it does not treat software-rendered CI output as rollout evidence.
+The dark transport and material candidate is implemented, but it remains explicit-only. This checkpoint adds repeatable evidence collection. It does not enable the candidate for normal visitors and it does not treat hosted, software-rendered, or virtualized GPU output as rollout evidence.
 
 The production default remains the canonical black-hole renderer.
 
 ## Evidence command
 
-Run the complete matrix on a machine with a hardware-accelerated Chromium browser:
+Run the complete matrix on a physical machine with a hardware-accelerated Chromium browser:
 
 ```bash
 npm run visual:dark-evidence
@@ -69,16 +69,56 @@ EXT_disjoint_timer_query_webgl2
 
 The runner groups complete 17-draw frames and compares the median complete-frame GPU time from each renderer. This includes the entire reference frame and the entire candidate frame. It does not compare only the transport shader or use CPU submission time as a substitute.
 
-The timing path calls `gl.finish()` only under the explicit evidence query. Normal visitors never pay this synchronization cost.
+## Nonblocking timer collection
+
+Timer-query submission does not call `gl.finish()`.
+
+For each measured draw, the evidence layer:
+
+1. Begins a `TIME_ELAPSED_EXT` query.
+2. Submits the unchanged application draw.
+3. Ends the query and calls `gl.flush()`.
+4. Returns control to the application immediately.
+5. Polls `QUERY_RESULT_AVAILABLE` on a bounded native timer until the GPU result is ready.
+
+Queries may resolve out of order. The evidence report groups only the contiguous resolved prefix, so a later result can never be attributed to an earlier draw or frame.
+
+The collector fails closed when:
+
+- The timer extension is unavailable
+- A query cannot be created, begun, ended, or flushed
+- The GPU becomes disjoint
+- The query result is invalid
+- A pending query exceeds the bounded timeout
+- The underlying application draw throws
+
+Pending timers and query objects are deleted during cleanup. Normal visitors never install this instrumentation because the evidence query is required.
+
+## Complete-collection invariant
+
+A renderer record becomes `ready` only when all of these conditions hold:
+
+- At least one full 17-draw frame was submitted
+- The submitted draw count is aligned to the 17-draw frame boundary
+- Every submitted draw has a resolved timer sample
+- No timer query remains pending
+- No draw sample is invalid
+- Every aggregated frame is valid
+- The renderer and vendor are identified as qualifying physical hardware
+
+An earlier valid frame cannot mask a later pending or invalid draw. Submitting another measured draw immediately changes the report back to `collecting` until the enlarged collection is complete and valid.
+
+The Node evidence runner repeats the same checks independently. It requires submitted and measured draw counts to match, zero pending and invalid draws, `validFrames === totalFrames`, a ready browser report, and a hardware-qualifying record before calculating a passing GPU gate.
 
 ## Hardware qualification
 
 A performance result qualifies only when:
 
-- Both paths expose valid timer-query results
+- Both paths expose complete and valid timer-query collections
 - Neither path reports a disjoint GPU state
 - Reference and candidate identify the same renderer and vendor
-- The renderer is not SwiftShader, llvmpipe, WARP, Microsoft Basic Render, or another known software or virtual renderer
+- The renderer is not SwiftShader, llvmpipe, WARP, Microsoft Basic Render, Paravirtual, Virtio, a virtual device, or another known software or virtual renderer
+- The measurement runs on the physical self-hosted qualification lane
 
 The candidate gate is:
 
@@ -107,27 +147,32 @@ visual-dark-evidence/
   summary.md
   <case>/
     reference.png
+    reference.html
     candidate.png
+    candidate.html
     diff.png
     result.json
 ```
 
+The retained HTML captures the rendered DOM on both success and browser failure. It exposes capture readiness, capture errors, renderer ownership, canvas dimensions, completed-frame state, hardware identity, timer status, and serialized runtime reports.
+
 ## CI classification
 
-The standard Windows job runs one small SwiftShader diagnostic smoke:
+The standard Windows job runs one small SwiftShader diagnostic smoke. The hosted macOS workflow runs the same candidate-only diagnostic against the hosted graphics environment.
+
+The diagnostic command is equivalent to:
 
 ```bash
 node scripts/capture-visual-dark-evidence.mjs \
   --smoke \
-  --allow-software \
-  --skip-gpu-gate \
-  --skip-visual-gate \
   --viewport=480x300
 ```
 
-The canonical renderer intentionally rejects software and virtual graphics through its hardware WebGL probe. Consequently, the Windows SwiftShader smoke does not attempt to mount or compare the canonical renderer.
+Windows may add `--allow-software` to force SwiftShader. The hosted macOS job does not force a software adapter, but its virtual or paravirtual identity is still non-qualifying.
 
-The smoke validates only the optimized candidate and evidence plumbing. It proves that:
+The canonical renderer intentionally rejects software and virtual graphics through its hardware WebGL probe. Consequently, these diagnostics do not attempt to mount or compare the canonical renderer.
+
+The diagnostic validates only the optimized candidate and evidence plumbing. It proves that:
 
 - The deterministic candidate URL loads
 - The optimized dark candidate presents
@@ -144,10 +189,26 @@ diagnosticOnly: true
 qualificationEligible: false
 ```
 
-The smoke cannot establish reference parity, hardware performance, or rollout qualification. Those conclusions require the strict two-renderer hardware matrix.
+The diagnostic cannot establish reference parity, physical hardware performance, or rollout qualification. Those conclusions require the complete two-renderer matrix on the physical self-hosted lane.
+
+## Physical GitHub Actions qualification
+
+The physical workflow requires these self-hosted labels:
+
+```text
+self-hosted
+macOS
+ARM64
+physical-gpu
+visual-runtime-qualification
+```
+
+The complete nine-case matrix is sharded with bounded parallelism. Each case uploads its evidence independently. A separate aggregation job downloads every artifact, requires every named case exactly once, and revalidates all visual, GPU, timer, renderer, and threshold invariants.
+
+A manual one-case physical run is diagnostic only. Only the complete aggregate can qualify the runtime.
 
 ## Rollout invariant
 
 `OPTIMIZED_VISUAL_RUNTIME_AVAILABLE` remains `false`.
 
-The candidate cannot advance to canary or production default until a committed evidence report from real hardware passes every visual and GPU gate. Failing evidence is a finding, not a reason to loosen thresholds.
+The candidate cannot advance to canary or production default until a committed evidence report from physical hardware passes every visual and GPU gate. Failing evidence is a finding, not a reason to loosen thresholds.

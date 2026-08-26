@@ -14,9 +14,11 @@ const DARK_RENDERER_IDS = new Set([
   "optimized-visual-runtime-shell",
 ]);
 const SOFTWARE_RENDERER_PATTERN =
-  /swiftshader|llvmpipe|softpipe|software rasterizer|microsoft basic render|warp|virtualbox|vmware|parallels|angle \(.*swiftshader/i;
+  /swiftshader|llvmpipe|softpipe|software rasterizer|microsoft basic render|warp|paravirtual|virtual gpu|virtual device|virtio|virtualbox|vmware|parallels|angle \(.*swiftshader/i;
 const MAX_MEASURED_DRAWS =
   VISUAL_RUNTIME_DARK_FRAME_DRAW_COUNT * 3;
+const TIMER_QUERY_POLL_INTERVAL_MS = 8;
+const TIMER_QUERY_TIMEOUT_MS = 180_000;
 
 const normalizeSearch = (search) => {
   const value = String(search || "").trim();
@@ -69,6 +71,9 @@ const finiteNonNegative = (value) => {
   return Number.isFinite(numeric) && numeric >= 0 ? numeric : 0;
 };
 
+const nonNegativeInteger = (value) =>
+  Math.max(0, Math.floor(Number(value) || 0));
+
 const median = (values) => {
   if (!values.length) return null;
   const sorted = [...values].sort((left, right) => left - right);
@@ -76,6 +81,15 @@ const median = (values) => {
   return sorted.length % 2
     ? sorted[midpoint]
     : (sorted[midpoint - 1] + sorted[midpoint]) / 2;
+};
+
+export const getResolvedGpuEvidenceSamples = (samples = []) => {
+  const resolved = [];
+  for (const sample of samples) {
+    if (!sample) break;
+    resolved.push(sample);
+  }
+  return resolved;
 };
 
 export const buildGpuEvidenceFrames = (
@@ -139,6 +153,78 @@ export const summarizeGpuEvidenceFrames = (frames = []) => {
     minimumGpuMs: gpuValues.length ? Math.min(...gpuValues) : null,
     maximumGpuMs: gpuValues.length ? Math.max(...gpuValues) : null,
     medianCpuMs: median(cpuValues),
+  };
+};
+
+export const summarizeGpuEvidenceCollection = ({
+  submittedDraws = 0,
+  samples = [],
+  pendingDraws = 0,
+  expectedDrawCount = VISUAL_RUNTIME_DARK_FRAME_DRAW_COUNT,
+} = {}) => {
+  const safeSubmittedDraws = nonNegativeInteger(submittedDraws);
+  const safePendingDraws = nonNegativeInteger(pendingDraws);
+  const safeExpectedDrawCount = Math.max(
+    1,
+    nonNegativeInteger(expectedDrawCount),
+  );
+  const resolvedSamples = getResolvedGpuEvidenceSamples(samples);
+  const measuredDraws = resolvedSamples.length;
+  const invalidDraws = resolvedSamples.filter(
+    (sample) => !sample.valid,
+  ).length;
+  const frames = buildGpuEvidenceFrames(
+    resolvedSamples,
+    safeExpectedDrawCount,
+  );
+  const summary = summarizeGpuEvidenceFrames(frames);
+  const drawCountAligned =
+    safeSubmittedDraws > 0 &&
+    safeSubmittedDraws % safeExpectedDrawCount === 0;
+  const expectedFrameCount = drawCountAligned
+    ? safeSubmittedDraws / safeExpectedDrawCount
+    : null;
+  const collectionComplete = Boolean(
+    safePendingDraws === 0 &&
+      measuredDraws === safeSubmittedDraws &&
+      drawCountAligned &&
+      frames.length === expectedFrameCount,
+  );
+  const collectionValid = Boolean(
+    collectionComplete &&
+      invalidDraws === 0 &&
+      frames.length > 0 &&
+      frames.every((frame) => frame.valid),
+  );
+  const collectionReasons = [];
+
+  if (safePendingDraws > 0) {
+    collectionReasons.push("pending-draws");
+  }
+  if (measuredDraws !== safeSubmittedDraws) {
+    collectionReasons.push("unresolved-draws");
+  }
+  if (!drawCountAligned) {
+    collectionReasons.push("partial-frame");
+  }
+  if (invalidDraws > 0) {
+    collectionReasons.push("invalid-draws");
+  }
+  if (frames.some((frame) => !frame.valid)) {
+    collectionReasons.push("invalid-frame");
+  }
+
+  return {
+    submittedDraws: safeSubmittedDraws,
+    measuredDraws,
+    pendingDraws: safePendingDraws,
+    invalidDraws,
+    expectedFrameCount,
+    collectionComplete,
+    collectionValid,
+    collectionReasons,
+    frames,
+    summary,
   };
 };
 
@@ -243,38 +329,44 @@ export const initVisualRuntimeGpuEvidence = ({
   const nativeNow =
     windowObject.performance?.now?.bind(windowObject.performance) ||
     (() => Date.now());
+  const nativeSetTimeout = windowObject.setTimeout.bind(windowObject);
+  const nativeClearTimeout = windowObject.clearTimeout.bind(windowObject);
+  let disposed = false;
 
   const buildReport = () => {
-    const serializedRecords = records.map((record) => {
-      const frames = buildGpuEvidenceFrames(
-        record.samples,
-        record.expectedDrawCount,
-      );
-      return {
-        rendererId: readRendererId(record.canvas) || record.rendererId,
-        contextType: record.contextType,
-        renderer: record.identity.renderer,
-        vendor: record.identity.vendor,
-        software: record.identity.software,
-        timerSupported: record.timerSupported,
+    const serializedRecords = records.map((record) => ({
+      rendererId: readRendererId(record.canvas) || record.rendererId,
+      contextType: record.contextType,
+      renderer: record.identity.renderer,
+      vendor: record.identity.vendor,
+      software: record.identity.software,
+      timerSupported: record.timerSupported,
+      expectedDrawCount: record.expectedDrawCount,
+      ...summarizeGpuEvidenceCollection({
+        submittedDraws: record.submittedDraws,
+        samples: record.samples,
+        pendingDraws: record.pendingQueries.length,
         expectedDrawCount: record.expectedDrawCount,
-        measuredDraws: record.samples.length,
-        frames,
-        summary: summarizeGpuEvidenceFrames(frames),
-      };
-    });
-    const validFrameCount = serializedRecords.reduce(
-      (total, record) => total + record.summary.validFrames,
-      0,
-    );
-    const timerSupported = serializedRecords.some(
-      (record) => record.timerSupported,
-    );
-    const status =
-      validFrameCount > 0
-        ? "ready"
-        : serializedRecords.length > 0 && !timerSupported
-          ? "unsupported"
+      }),
+    }));
+    const hasRecords = serializedRecords.length > 0;
+    const timersSupported =
+      hasRecords &&
+      serializedRecords.every((record) => record.timerSupported);
+    const collectionsComplete =
+      hasRecords &&
+      serializedRecords.every((record) => record.collectionComplete);
+    const collectionsValid =
+      hasRecords &&
+      serializedRecords.every((record) => record.collectionValid);
+    const status = !hasRecords
+      ? "collecting"
+      : !timersSupported
+        ? "unsupported"
+        : collectionsComplete
+          ? collectionsValid
+            ? "ready"
+            : "invalid"
           : "collecting";
 
     return {
@@ -282,7 +374,7 @@ export const initVisualRuntimeGpuEvidence = ({
       policy,
       status,
       qualifyingHardware:
-        validFrameCount > 0 &&
+        status === "ready" &&
         serializedRecords.every(
           (record) =>
             Boolean(record.renderer) &&
@@ -333,6 +425,7 @@ export const initVisualRuntimeGpuEvidence = ({
         : null;
     const record = {
       canvas,
+      context,
       rendererId,
       contextType,
       identity: readRendererIdentity(context),
@@ -340,11 +433,134 @@ export const initVisualRuntimeGpuEvidence = ({
       timerSupported: Boolean(timerExtension),
       expectedDrawCount:
         VISUAL_RUNTIME_DARK_FRAME_DRAW_COUNT,
+      submittedDraws: 0,
       samples: [],
+      pendingQueries: [],
+      pollTimer: 0,
     };
     records.push(record);
     canvas.dataset.visualRuntimeEvidenceInstrumented = "true";
     publish();
+
+    const deleteQuery = (query) => {
+      if (!query) return;
+      try {
+        context.deleteQuery(query);
+      } catch (_) {
+        // Context loss already owns query reclamation.
+      }
+    };
+
+    const finalizeSample = (pending, sample) => {
+      record.samples[pending.index] = sample;
+      deleteQuery(pending.query);
+    };
+
+    const pollPendingQueries = () => {
+      record.pollTimer = 0;
+      if (disposed || record.pendingQueries.length === 0) return;
+
+      let disjoint = false;
+      try {
+        disjoint = Boolean(
+          context.getParameter(
+            timerExtension.GPU_DISJOINT_EXT,
+          ),
+        );
+      } catch (_) {
+        disjoint = true;
+      }
+
+      const remaining = [];
+      let finalizedSample = false;
+      for (const pending of record.pendingQueries) {
+        if (disjoint) {
+          finalizeSample(pending, {
+            valid: false,
+            gpuMs: null,
+            cpuMs: pending.cpuMs,
+            reason: "gpu-disjoint",
+          });
+          finalizedSample = true;
+          continue;
+        }
+
+        try {
+          const available = Boolean(
+            context.getQueryParameter(
+              pending.query,
+              context.QUERY_RESULT_AVAILABLE,
+            ),
+          );
+          if (available) {
+            const elapsedNanoseconds = Number(
+              context.getQueryParameter(
+                pending.query,
+                context.QUERY_RESULT,
+              ),
+            );
+            const valid =
+              Number.isFinite(elapsedNanoseconds) &&
+              elapsedNanoseconds >= 0;
+            finalizeSample(pending, {
+              valid,
+              gpuMs: valid
+                ? elapsedNanoseconds / 1_000_000
+                : null,
+              cpuMs: pending.cpuMs,
+              reason: valid ? null : "timer-result-invalid",
+            });
+            finalizedSample = true;
+            continue;
+          }
+        } catch (_) {
+          finalizeSample(pending, {
+            valid: false,
+            gpuMs: null,
+            cpuMs: pending.cpuMs,
+            reason: "timer-query-exception",
+          });
+          finalizedSample = true;
+          continue;
+        }
+
+        if (nativeNow() - pending.submittedAt >= TIMER_QUERY_TIMEOUT_MS) {
+          finalizeSample(pending, {
+            valid: false,
+            gpuMs: null,
+            cpuMs: pending.cpuMs,
+            reason: "timer-query-timeout",
+          });
+          finalizedSample = true;
+          continue;
+        }
+
+        remaining.push(pending);
+      }
+
+      record.pendingQueries = remaining;
+      if (finalizedSample) publish();
+      if (record.pendingQueries.length > 0 && !disposed) {
+        record.pollTimer = nativeSetTimeout(
+          pollPendingQueries,
+          TIMER_QUERY_POLL_INTERVAL_MS,
+        );
+      }
+    };
+
+    const scheduleQueryPoll = () => {
+      if (
+        disposed ||
+        record.pollTimer ||
+        record.pendingQueries.length === 0
+      ) {
+        return;
+      }
+      record.pollTimer = nativeSetTimeout(
+        pollPendingQueries,
+        TIMER_QUERY_POLL_INTERVAL_MS,
+      );
+    };
 
     ["drawArrays", "drawElements"].forEach((methodName) => {
       if (typeof context[methodName] !== "function") return;
@@ -352,15 +568,20 @@ export const initVisualRuntimeGpuEvidence = ({
 
       try {
         context[methodName] = (...args) => {
-          if (record.samples.length >= MAX_MEASURED_DRAWS) {
+          if (record.submittedDraws >= MAX_MEASURED_DRAWS) {
             return originalDraw(...args);
           }
+
+          const index = record.submittedDraws;
+          record.submittedDraws += 1;
+          record.samples[index] = null;
 
           const startedAt = nativeNow();
           let query = null;
           let queryStarted = false;
           let result;
           let drawError = null;
+          let queryError = null;
 
           if (timerExtension) {
             try {
@@ -373,8 +594,7 @@ export const initVisualRuntimeGpuEvidence = ({
                 queryStarted = true;
               }
             } catch (_) {
-              query = null;
-              queryStarted = false;
+              queryError = "timer-query-failed";
             }
           }
 
@@ -384,86 +604,62 @@ export const initVisualRuntimeGpuEvidence = ({
             drawError = error;
           }
 
-          let sample = {
-            valid: false,
-            gpuMs: null,
-            cpuMs: Math.max(0, nativeNow() - startedAt),
-            reason: timerExtension
-              ? "timer-query-failed"
-              : "timer-extension-unavailable",
-          };
-
           if (queryStarted && query) {
             try {
               context.endQuery(
                 timerExtension.TIME_ELAPSED_EXT,
               );
-              context.finish();
-              const available = Boolean(
-                context.getQueryParameter(
-                  query,
-                  context.QUERY_RESULT_AVAILABLE,
-                ),
-              );
-              const disjoint = Boolean(
-                context.getParameter(
-                  timerExtension.GPU_DISJOINT_EXT,
-                ),
-              );
-              const elapsedNanoseconds =
-                available && !disjoint
-                  ? Number(
-                      context.getQueryParameter(
-                        query,
-                        context.QUERY_RESULT,
-                      ),
-                    )
-                  : NaN;
-
-              sample = {
-                valid:
-                  available &&
-                  !disjoint &&
-                  Number.isFinite(elapsedNanoseconds) &&
-                  elapsedNanoseconds >= 0,
-                gpuMs:
-                  Number.isFinite(elapsedNanoseconds) &&
-                  elapsedNanoseconds >= 0
-                    ? elapsedNanoseconds / 1_000_000
-                    : null,
-                cpuMs: Math.max(0, nativeNow() - startedAt),
-                reason: !available
-                  ? "timer-result-unavailable"
-                  : disjoint
-                    ? "gpu-disjoint"
-                    : Number.isFinite(elapsedNanoseconds)
-                      ? null
-                      : "timer-result-invalid",
-              };
             } catch (_) {
-              sample = {
-                ...sample,
-                cpuMs: Math.max(0, nativeNow() - startedAt),
-                reason: "timer-query-exception",
-              };
-            } finally {
-              try {
-                context.deleteQuery(query);
-              } catch (_) {
-                // Context loss already owns query reclamation.
-              }
+              queryError = "timer-query-exception";
             }
           }
 
-          record.samples.push(sample);
-          if (
-            record.samples.length %
-              record.expectedDrawCount ===
-            0
-          ) {
-            publish();
+          const cpuMs = Math.max(0, nativeNow() - startedAt);
+          const pending = {
+            index,
+            query,
+            cpuMs,
+            submittedAt: nativeNow(),
+          };
+
+          if (drawError) {
+            finalizeSample(pending, {
+              valid: false,
+              gpuMs: null,
+              cpuMs,
+              reason: "draw-exception",
+            });
+          } else if (!timerExtension) {
+            finalizeSample(pending, {
+              valid: false,
+              gpuMs: null,
+              cpuMs,
+              reason: "timer-extension-unavailable",
+            });
+          } else if (!queryStarted || !query || queryError) {
+            finalizeSample(pending, {
+              valid: false,
+              gpuMs: null,
+              cpuMs,
+              reason: queryError || "timer-query-failed",
+            });
+          } else {
+            try {
+              context.flush();
+              record.pendingQueries.push(pending);
+              publish();
+              scheduleQueryPoll();
+            } catch (_) {
+              finalizeSample(pending, {
+                valid: false,
+                gpuMs: null,
+                cpuMs,
+                reason: "timer-query-flush-failed",
+              });
+            }
           }
 
+          if (record.samples[index]) publish();
           if (drawError) throw drawError;
           return result;
         };
@@ -508,6 +704,22 @@ export const initVisualRuntimeGpuEvidence = ({
   publish();
 
   return () => {
+    disposed = true;
+    records.forEach((record) => {
+      if (record.pollTimer) {
+        nativeClearTimeout(record.pollTimer);
+        record.pollTimer = 0;
+      }
+      record.pendingQueries.forEach((pending) => {
+        try {
+          record.context.deleteQuery(pending.query);
+        } catch (_) {
+          // Context loss already owns query reclamation.
+        }
+      });
+      record.pendingQueries = [];
+    });
+
     if (canvasPrototype.getContext === evidenceGetContext) {
       canvasPrototype.getContext = originalGetContext;
     }

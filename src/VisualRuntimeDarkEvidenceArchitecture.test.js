@@ -22,7 +22,7 @@ describe("stage-four dark evidence architecture", () => {
     "src/utils/visualRuntimeDarkPass.js",
   );
 
-  test("measures complete 16-tile plus presentation frames", () => {
+  test("measures complete 16-tile plus presentation frames without blocking submission", () => {
     expect(evidenceSource).toContain(
       "VISUAL_RUNTIME_DARK_FRAME_DRAW_COUNT = 17",
     );
@@ -32,7 +32,41 @@ describe("stage-four dark evidence architecture", () => {
     expect(evidenceSource).toContain(
       "buildGpuEvidenceFrames",
     );
-    expect(evidenceSource).toContain("context.finish()");
+    expect(evidenceSource).toContain(
+      "QUERY_RESULT_AVAILABLE",
+    );
+    expect(evidenceSource).toContain("pendingQueries");
+    expect(evidenceSource).toContain("context.flush()");
+    expect(evidenceSource).not.toContain("context.finish()");
+  });
+
+  test("fails closed and reclaims asynchronous timer resources", () => {
+    expect(evidenceSource).toContain("timer-query-timeout");
+    expect(evidenceSource).toContain("gpu-disjoint");
+    expect(evidenceSource).toContain("timer-query-exception");
+    expect(evidenceSource).toContain("timer-query-flush-failed");
+    expect(evidenceSource).toContain("nativeClearTimeout");
+    expect(evidenceSource).toContain("context.deleteQuery");
+    expect(evidenceSource).toContain(
+      "getResolvedGpuEvidenceSamples",
+    );
+    expect(evidenceSource).toContain(
+      "summarizeGpuEvidenceCollection",
+    );
+    expect(runnerSource).toContain("evidenceCollectionReady");
+    expect(runnerSource).toContain("collectionComplete");
+    expect(runnerSource).toContain("collectionValid");
+    expect(runnerSource).toContain("pendingDraws === 0");
+    expect(runnerSource).toContain("invalidDraws === 0");
+    expect(runnerSource).toContain(
+      "submittedDraws % expectedDrawCount === 0",
+    );
+    expect(runnerSource).toContain(
+      "expectedFrameCount === recomputedFrameCount",
+    );
+    expect(runnerSource).toContain(
+      "totalFrames === recomputedFrameCount",
+    );
   });
 
   test("installs before reference capture instrumentation", () => {
