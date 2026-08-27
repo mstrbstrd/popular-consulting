@@ -1,6 +1,10 @@
 import React from "react";
 import { IMMERSIVE_MODES } from "./immersiveMode";
 import { hasHardwareWebGL } from "./utils/deviceTier";
+import {
+  GRAPHICS_MODES,
+  graphicsMode,
+} from "./utils/graphicsPolicy";
 
 const App = React.lazy(() => import("./App"));
 const WorkPage = React.lazy(() => import("./components/WorkPage"));
@@ -36,6 +40,15 @@ export const resolveSiteView = (pathname = "/") => {
   return SITE_VIEWS.ORIGINAL;
 };
 
+export const shouldRenderDitherCanvas = ({
+  hardwareWebGL = hasHardwareWebGL,
+  mode = graphicsMode,
+} = {}) => {
+  if (mode === GRAPHICS_MODES.CSS) return false;
+  if (mode === GRAPHICS_MODES.WEBGL) return true;
+  return Boolean(hardwareWebGL);
+};
+
 const routeFallback = (
   <div aria-hidden="true" style={{ minHeight: "100vh" }} />
 );
@@ -51,7 +64,9 @@ const SiteRouter = ({ pathname = window.location.pathname }) => {
   } else if (view === SITE_VIEWS.GAME) {
     page = <StandaloneExperiencePage experience={EXPERIENCES.GAME} />;
   } else if (view === SITE_VIEWS.DITHER_CANVAS) {
-    page = hasHardwareWebGL ? <DitherCanvasPage /> : <GraphicsFallbackPage />;
+    page = shouldRenderDitherCanvas()
+      ? <DitherCanvasPage />
+      : <GraphicsFallbackPage />;
   } else {
     page = (
       <App

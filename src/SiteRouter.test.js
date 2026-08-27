@@ -5,10 +5,22 @@ import SiteRouter, { resolveSiteView, SITE_VIEWS } from "./SiteRouter";
 import { IMMERSIVE_MODES } from "./immersiveMode";
 
 let mockHasHardwareWebGL = true;
+let mockGraphicsMode = "auto";
 
 jest.mock("./utils/deviceTier", () => ({
   get hasHardwareWebGL() {
     return mockHasHardwareWebGL;
+  },
+}));
+
+jest.mock("./utils/graphicsPolicy", () => ({
+  GRAPHICS_MODES: Object.freeze({
+    AUTO: "auto",
+    CSS: "css",
+    WEBGL: "webgl",
+  }),
+  get graphicsMode() {
+    return mockGraphicsMode;
   },
 }));
 
@@ -74,6 +86,7 @@ jest.mock("./components/StandaloneExperiencePage", () => {
 describe("SiteRouter", () => {
   beforeEach(() => {
     mockHasHardwareWebGL = true;
+    mockGraphicsMode = "auto";
   });
 
   afterEach(cleanup);
@@ -130,15 +143,33 @@ describe("SiteRouter", () => {
     expect(screen.queryByTestId("standalone-experience")).not.toBeInTheDocument();
   });
 
-  test("renders the shader canvas only when the graphics policy allows WebGL", async () => {
+  test("renders the shader canvas when the automatic hardware probe passes", async () => {
     render(<SiteRouter pathname="/dither-canvas" />);
 
     expect(await screen.findByTestId("dither-canvas-page")).toBeInTheDocument();
     expect(screen.queryByTestId("graphics-fallback-page")).not.toBeInTheDocument();
   });
 
-  test("fails closed to the field-lab fallback when WebGL is disabled", async () => {
+  test("fails closed to the field-lab fallback when automatic WebGL probing is unavailable", async () => {
     mockHasHardwareWebGL = false;
+    render(<SiteRouter pathname="/dither-canvas" />);
+
+    expect(await screen.findByTestId("graphics-fallback-page")).toBeInTheDocument();
+    expect(screen.queryByTestId("dither-canvas-page")).not.toBeInTheDocument();
+  });
+
+  test("honors the explicit enhanced-graphics bypass when the startup probe rejected WebGL", async () => {
+    mockHasHardwareWebGL = false;
+    mockGraphicsMode = "webgl";
+    render(<SiteRouter pathname="/dither-canvas" />);
+
+    expect(await screen.findByTestId("dither-canvas-page")).toBeInTheDocument();
+    expect(screen.queryByTestId("graphics-fallback-page")).not.toBeInTheDocument();
+  });
+
+  test("keeps an explicit CSS request in safe mode even when hardware WebGL is available", async () => {
+    mockHasHardwareWebGL = true;
+    mockGraphicsMode = "css";
     render(<SiteRouter pathname="/dither-canvas" />);
 
     expect(await screen.findByTestId("graphics-fallback-page")).toBeInTheDocument();
