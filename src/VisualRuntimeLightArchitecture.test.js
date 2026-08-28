@@ -68,14 +68,17 @@ describe("stage-three optimized light architecture", () => {
     expect(indexSource).toContain("initVisualRuntimeLightPolicy();");
   });
 
-  test("keeps reduced-motion visitors on the transparent CSS fallback", () => {
+  test("renders one settled optimized frame under reduced motion", () => {
     expect(policySource).toContain(
-      "shouldPresentVisualRuntimeLightFrame",
+      "shouldPresentVisualRuntimeLightFrame = () => true",
     );
     expect(hostSource).toContain(
       "shouldPresentVisualRuntimeLightFrame",
     );
-    expect(hostSource).toContain("reduced-motion-fallback");
-    expect(hostSource).toContain("return { continue: false }");
+    expect(hostSource).toContain("candidateLightPass.render(frame)");
+    expect(stateSource).toContain("staticTimeSeconds: 8");
+    expect(stateSource).toContain("if (reducedMotion)");
+    expect(stateSource).toContain("state.reveal = 1");
+    expect(stateSource).toContain("state.revealOutCompleted = true");
   });
 });
