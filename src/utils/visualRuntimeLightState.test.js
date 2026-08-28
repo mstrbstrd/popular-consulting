@@ -4,6 +4,7 @@ import {
   hideVisualRuntimeLightReveal,
   resolveVisualRuntimeLightFieldSize,
   resolveVisualRuntimeLightSceneSampleBudget,
+  VISUAL_RUNTIME_LIGHT_FIXED,
   VISUAL_RUNTIME_LIGHT_PRESETS,
 } from "./visualRuntimeLightState";
 
@@ -68,6 +69,7 @@ describe("optimized light animation state", () => {
       deltaMs: 16.6667,
       timestamp: 16.6667,
       section: 1,
+      reducedMotion: false,
     });
 
     expect(state.params.shapeA).toBe(6);
@@ -85,6 +87,7 @@ describe("optimized light animation state", () => {
       deltaMs: 1000,
       timestamp: 0,
       section: 0,
+      reducedMotion: false,
     });
     expect(state.timeSeconds).toBeCloseTo(0.7 / 15, 8);
     expect(state.reveal).toBe(0);
@@ -93,6 +96,7 @@ describe("optimized light animation state", () => {
       deltaMs: 16,
       timestamp: 1250,
       section: 0,
+      reducedMotion: false,
     });
     expect(state.reveal).toBeCloseTo(0.5, 8);
 
@@ -101,13 +105,52 @@ describe("optimized light animation state", () => {
       deltaMs: 16,
       timestamp: 2000,
       section: 0,
+      reducedMotion: false,
     });
     advanceVisualRuntimeLightAnimation(state, {
       deltaMs: 16,
       timestamp: 4500,
       section: 0,
+      reducedMotion: false,
     });
     expect(state.reveal).toBe(0);
+    expect(state.revealOutCompleted).toBe(true);
+  });
+
+  test("renders the authored section as one settled reduced-motion frame", () => {
+    const state = createVisualRuntimeLightAnimationState();
+    const preset = VISUAL_RUNTIME_LIGHT_PRESETS[2];
+
+    advanceVisualRuntimeLightAnimation(state, {
+      deltaMs: 1000,
+      timestamp: 5000,
+      section: 2,
+      reducedMotion: true,
+    });
+
+    expect(state.params).toEqual({
+      speed: preset.speed,
+      contrast: preset.contrast,
+      warp: preset.warp,
+      rainbowSpeed: preset.rainbowSpeed,
+      shapeA: preset.shape,
+      shapeB: preset.shape,
+      shapeMix: 0,
+    });
+    expect(state.timeSeconds).toBe(
+      VISUAL_RUNTIME_LIGHT_FIXED.staticTimeSeconds,
+    );
+    expect(state.reveal).toBe(1);
+    expect(state.revealOutCompleted).toBe(false);
+
+    hideVisualRuntimeLightReveal(state);
+    advanceVisualRuntimeLightAnimation(state, {
+      section: 2,
+      reducedMotion: true,
+    });
+
+    expect(state.reveal).toBe(0);
+    expect(state.revealHiding).toBe(false);
     expect(state.revealOutCompleted).toBe(true);
   });
 
@@ -119,6 +162,7 @@ describe("optimized light animation state", () => {
         timestamp: index * 16,
         section: 2,
         mobile: true,
+        reducedMotion: false,
       });
     }
 
