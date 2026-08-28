@@ -197,11 +197,7 @@ export const advanceVisualRuntimeLightAnimation = (
     state.timeSeconds =
       VISUAL_RUNTIME_LIGHT_FIXED.staticTimeSeconds;
     state.hueOffset =
-      (state.timeSeconds *
-        params.speed *
-        params.rainbowSpeed *
-        0.15) %
-      1;
+      (state.timeSeconds * params.rainbowSpeed * 0.15) % 1;
     state.revealStartMs = null;
     state.revealHideStartMs = null;
 
