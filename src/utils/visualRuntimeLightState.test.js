@@ -140,6 +140,13 @@ describe("optimized light animation state", () => {
     expect(state.timeSeconds).toBe(
       VISUAL_RUNTIME_LIGHT_FIXED.staticTimeSeconds,
     );
+    expect(state.hueOffset).toBeCloseTo(
+      (VISUAL_RUNTIME_LIGHT_FIXED.staticTimeSeconds *
+        preset.rainbowSpeed *
+        0.15) %
+        1,
+      8,
+    );
     expect(state.reveal).toBe(1);
     expect(state.revealOutCompleted).toBe(false);
 
