@@ -37,10 +37,9 @@ export const readVisualRuntimeLightCaptureRequest = (search = "") => {
   return ["1", "true", "yes", "on"].includes(value);
 };
 
-export const shouldPresentVisualRuntimeLightFrame = ({
-  reducedMotion = false,
-  captureActive = false,
-} = {}) => !Boolean(reducedMotion) || Boolean(captureActive);
+// Reduced motion controls scheduling, not presentation. The shell renders one
+// settled optimized frame and then idles instead of exposing the CSS fallback.
+export const shouldPresentVisualRuntimeLightFrame = () => true;
 
 const resolveLightCaptureState = (search) => {
   const params = readParams(search);
