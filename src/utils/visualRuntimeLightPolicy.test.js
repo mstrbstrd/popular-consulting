@@ -129,13 +129,13 @@ describe("optimized light pipeline policy", () => {
     });
   });
 
-  test("keeps reduced-motion visitors on the CSS fallback", () => {
+  test("keeps the optimized presenter visible under reduced motion", () => {
     expect(
       shouldPresentVisualRuntimeLightFrame({
         reducedMotion: true,
         captureActive: false,
       }),
-    ).toBe(false);
+    ).toBe(true);
     expect(
       shouldPresentVisualRuntimeLightFrame({
         reducedMotion: false,
