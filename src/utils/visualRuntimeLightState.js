@@ -37,6 +37,7 @@ export const VISUAL_RUNTIME_LIGHT_FIXED = Object.freeze({
   parameterLerp: 0.025,
   shapeBlendStep: 0.011,
   revealDurationMs: 2500,
+  staticTimeSeconds: 8,
 });
 
 const clampSection = (section) => {
@@ -47,6 +48,14 @@ const clampSection = (section) => {
     Math.min(VISUAL_RUNTIME_LIGHT_PRESETS.length - 1, numeric),
   );
 };
+
+const readReducedMotion = () =>
+  Boolean(
+    typeof window !== "undefined" &&
+      window.matchMedia?.(
+        "(prefers-reduced-motion: reduce)",
+      )?.matches,
+  );
 
 export const easeInOutCubic = (value) => {
   const x = Math.max(0, Math.min(1, Number(value) || 0));
@@ -166,6 +175,7 @@ export const advanceVisualRuntimeLightAnimation = (
     timestamp = 0,
     section = 0,
     mobile = false,
+    reducedMotion = readReducedMotion(),
   } = {},
 ) => {
   const target = resolveTargetPreset({
@@ -174,6 +184,39 @@ export const advanceVisualRuntimeLightAnimation = (
     lockedSection: state.lockedSection,
   });
   const params = state.params;
+
+  if (reducedMotion) {
+    params.speed = target.speed;
+    params.contrast = target.contrast;
+    params.warp = target.warp;
+    params.rainbowSpeed = target.rainbowSpeed;
+    params.shapeA = target.shape;
+    params.shapeB = target.shape;
+    params.shapeMix = 0;
+
+    state.timeSeconds =
+      VISUAL_RUNTIME_LIGHT_FIXED.staticTimeSeconds;
+    state.hueOffset =
+      (state.timeSeconds *
+        params.speed *
+        params.rainbowSpeed *
+        0.15) %
+      1;
+    state.revealStartMs = null;
+    state.revealHideStartMs = null;
+
+    if (state.revealHiding) {
+      state.reveal = 0;
+      state.revealHiding = false;
+      state.revealOutCompleted = true;
+    } else {
+      state.reveal = 1;
+      state.revealOutCompleted = false;
+    }
+
+    return state;
+  }
+
   const lerp = VISUAL_RUNTIME_LIGHT_FIXED.parameterLerp;
 
   params.speed += (target.speed - params.speed) * lerp;
