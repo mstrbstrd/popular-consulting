@@ -1,4 +1,4 @@
-ain("if (pausedRef.current && !forceRender");
+Contain("if (pausedRef.current && !forceRender");
       expect(renderer).toContain("return !pausedRef.current");
     });
     expect(rupture).toContain(

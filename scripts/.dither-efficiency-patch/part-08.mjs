@@ -182,8 +182,8 @@ update("src/components/DitherCanvasRuntimeContract.test.js", (source) => {
     [field, lava, rupture].forEach((renderer) => {
       expect(renderer).toContain("createDitherCanvasCadence({");
       expect(renderer).toContain('data-frame-cadence="timer-raf"');
-      expect(renderer).toMatch(/frameCadence\??\.cancel\(\)/);
+      expect(renderer).toMatch(/frameCadence\\??\\.cancel\\(\\)/);
       expect(renderer).toContain("frameCadence.dispose()");
     });
     [field, lava].forEach((renderer) => {
-      expect(renderer).toCont
+      expect(renderer).to
