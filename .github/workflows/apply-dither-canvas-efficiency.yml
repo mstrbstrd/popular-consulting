@@ -1,0 +1,47 @@
+name: Apply dither canvas efficiency patch
+
+on:
+  push:
+    branches:
+      - codex/dither-canvas-efficiency
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dither-canvas-efficiency
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    if: github.event.head_commit.message == 'chore: stage dither canvas efficiency patch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/dither-canvas-efficiency
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Reconstruct and apply patch
+        shell: bash
+        run: |
+          cat scripts/.dither-efficiency-patch/part-*.mjs > /tmp/apply-dither-canvas-efficiency.mjs
+          test "$(sha256sum /tmp/apply-dither-canvas-efficiency.mjs | cut -d' ' -f1)" = "9bc50c91e1ef9ddf65ca14413bc222a410695520ab5b8e929e3d8b9397fc315d"
+          node --check /tmp/apply-dither-canvas-efficiency.mjs
+          node /tmp/apply-dither-canvas-efficiency.mjs
+      - run: npm ci
+      - run: npm run lint
+      - run: CI=true npm test -- --watchAll=false --runInBand
+      - run: npm run build
+      - run: git diff --check
+      - name: Commit validated runtime changes
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src
+          git diff --cached --quiet && { echo "No source changes staged"; exit 1; }
+          git commit -m "perf: optimize dither canvas runtimes"
+          git push origin HEAD:codex/dither-canvas-efficiency
