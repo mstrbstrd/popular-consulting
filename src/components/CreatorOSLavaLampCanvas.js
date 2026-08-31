@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
+  createDitherCanvasCadence,
   createDitherCanvasContext,
   ditherCanvasRuntimeProfile,
   getDitherCanvasFrameInterval,
@@ -209,8 +210,7 @@ const CreatorOSLavaLampCanvas = ({
     let program;
     let positionBuffer;
     let resizeObserver;
-    let rafId = 0;
-    let lastFrameAt = 0;
+    let frameCadence;
     let localTime = 0;
     let introElapsed = 0;
     let documentVisible = document.visibilityState !== "hidden";
@@ -232,8 +232,7 @@ const CreatorOSLavaLampCanvas = ({
 
     const handleContextLost = (event) => {
       event.preventDefault();
-      window.cancelAnimationFrame(rafId);
-      rafId = 0;
+      frameCadence?.cancel();
       setFallback(true);
       onFieldStateChangeRef.current?.("fallback");
     };
@@ -270,6 +269,10 @@ const CreatorOSLavaLampCanvas = ({
       gl.attachShader(program, vertexShader);
       gl.attachShader(program, fragmentShader);
       gl.linkProgram(program);
+      gl.deleteShader(vertexShader);
+      gl.deleteShader(fragmentShader);
+      vertexShader = null;
+      fragmentShader = null;
       if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
         throw new Error("The CreatorOS lava program did not link.");
       }
@@ -311,8 +314,6 @@ const CreatorOSLavaLampCanvas = ({
       gl.uniform1f(timeUniform, timeSeconds);
       gl.uniform1f(lightUniform, lightRef.current);
       gl.uniform1f(introUniform, intro);
-      gl.clearColor(0, 0, 0, 0);
-      gl.clear(gl.COLOR_BUFFER_BIT);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
     };
 
@@ -344,59 +345,49 @@ const CreatorOSLavaLampCanvas = ({
       restartRef.current = false;
       localTime = 0;
       introElapsed = 0;
-      lastFrameAt = 0;
       forceRender = true;
       activeState = "warming";
       onFieldStateChangeRef.current?.("warming");
     };
 
-    function scheduleFrame() {
-      if (
-        rafId
-        || !documentVisible
-        || reducedMotion
-      ) {
-        return;
-      }
-      rafId = window.requestAnimationFrame(tick);
-    }
-
-    function tick(now) {
-      rafId = 0;
-      if (!documentVisible) return;
+    const renderFrame = ({ deltaMs }) => {
+      if (!documentVisible) return false;
       if (reducedMotion) {
         drawStatic();
-        return;
-      }
-      if (now - lastFrameAt < FRAME_INTERVAL_MS) {
-        scheduleFrame();
-        return;
+        return false;
       }
 
-      const delta = lastFrameAt
-        ? Math.min((now - lastFrameAt) / 1000, 0.1)
-        : 0;
-      lastFrameAt = now;
-      applyRestart();
-
-      if (pausedRef.current && !forceRender) return;
+      const restarted = applyRestart();
+      const delta = restarted
+        ? 0
+        : Math.min(deltaMs / 1000, 0.1);
+      if (pausedRef.current && !forceRender) return false;
       if (!pausedRef.current) {
         localTime += delta;
         introElapsed = Math.min(INTRO_DURATION_SECONDS, introElapsed + delta);
       }
 
-      updateSize();
       const intro = Math.min(1, introElapsed / INTRO_DURATION_SECONDS);
       draw(localTime, intro);
       reportState(intro < 1 ? "warming" : "flowing");
       forceRender = false;
-      if (!pausedRef.current) scheduleFrame();
-    }
+      return !pausedRef.current;
+    };
+
+    frameCadence = createDitherCanvasCadence({
+      frameIntervalMs: FRAME_INTERVAL_MS,
+      onFrame: renderFrame,
+    });
+
+    const scheduleFrame = () => {
+      if (!documentVisible || reducedMotion) return false;
+      return frameCadence.schedule();
+    };
 
     const start = () => {
-      window.cancelAnimationFrame(rafId);
-      rafId = 0;
+      frameCadence.reset();
       applyRestart();
+      updateSize();
       if (reducedMotion) {
         drawStatic();
         return;
@@ -408,8 +399,7 @@ const CreatorOSLavaLampCanvas = ({
     const handleVisibility = () => {
       documentVisible = document.visibilityState !== "hidden";
       if (!documentVisible) {
-        window.cancelAnimationFrame(rafId);
-        rafId = 0;
+        frameCadence.cancel();
       } else {
         start();
       }
@@ -447,7 +437,7 @@ const CreatorOSLavaLampCanvas = ({
     start();
 
     return () => {
-      window.cancelAnimationFrame(rafId);
+      frameCadence.dispose();
       redrawRef.current = () => {};
       window.removeEventListener("resize", handleResize);
       document.removeEventListener("visibilitychange", handleVisibility);
@@ -473,6 +463,7 @@ const CreatorOSLavaLampCanvas = ({
       data-context-recovery="local"
       data-renderer-id="dither-canvas-lava"
       data-runtime-profile={ditherCanvasRuntimeProfile.id}
+      data-frame-cadence="timer-raf"
       aria-hidden="true"
     >
       <canvas

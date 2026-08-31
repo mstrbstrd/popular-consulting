@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
+  createDitherCanvasCadence,
   createDitherCanvasContext,
   ditherCanvasRuntimeProfile,
   getDitherCanvasFrameInterval,
@@ -16,6 +17,19 @@ import {
 
 const MODE_COUNT = 8;
 const REACTION_MODE = 4;
+const FIELD_SCENE_FUNCTIONS = Object.freeze([
+  "sceneMetabloom",
+  "sceneTidalWeave",
+  "sceneMoireHalo",
+  "sceneContourDrift",
+  "sceneMorphogen",
+  "sceneQuasicrystal",
+  "sceneHyperbolic",
+  "sceneForwardPass",
+]);
+const FIELD_SAMPLE_SCENE_MARKER =
+  "vec4 sampleScene(int mode, vec2 uv, float time) {";
+const FIELD_MAIN_MARKER = "\n\nvoid main() {";
 const RENDER_SCALE = 0.5;
 const PREFERRED_FRAME_INTERVAL_MS = 1000 / 30;
 const FRAME_INTERVAL_MS = getDitherCanvasFrameInterval(
@@ -48,6 +62,28 @@ const clamp = (value, minimum = 0, maximum = 1) =>
 
 const clampMode = (mode) =>
   Math.max(0, Math.min(MODE_COUNT - 1, Number.isFinite(mode) ? mode : 0));
+
+export const specializeCreatorOSFieldFragmentShader = (source, mode) => {
+  const activeMode = clampMode(mode);
+  const sampleStart = source.indexOf(FIELD_SAMPLE_SCENE_MARKER);
+  const mainStart = source.indexOf(FIELD_MAIN_MARKER, sampleStart);
+
+  if (sampleStart < 0 || mainStart < 0) {
+    throw new Error(
+      "The CreatorOS field shader specialization boundary is missing.",
+    );
+  }
+
+  const specializedSampleScene = [
+    FIELD_SAMPLE_SCENE_MARKER,
+    `  return ${FIELD_SCENE_FUNCTIONS[activeMode]}(uv, time);`,
+    "}",
+  ].join("\n");
+
+  return source.slice(0, sampleStart)
+    + specializedSampleScene
+    + source.slice(mainStart);
+};
 
 const normalizeMetabloomPalette = (palette) =>
   palette === "metalbloom" ? "metalbloom" : "spectral";
@@ -201,15 +237,17 @@ const buildReactionSeed = (size, seed, paintMode = false) => {
       const uvY = (y + 0.5) / size;
       let v = paintMode ? 0 : random() * 0.018;
 
-      circles.forEach((circle) => {
+      for (let index = 0; index < circles.length; index += 1) {
+        const circle = circles[index];
         const deltaX = uvX - circle.x;
         const deltaY = uvY - circle.y;
-        const distance = Math.hypot(deltaX, deltaY);
-        if (distance < circle.radius) {
-          const amount = 1 - distance / circle.radius;
+        const distanceSquared = deltaX * deltaX + deltaY * deltaY;
+        const radiusSquared = circle.radius * circle.radius;
+        if (distanceSquared < radiusSquared) {
+          const amount = 1 - Math.sqrt(distanceSquared) / circle.radius;
           v = Math.max(v, circle.strength * amount);
         }
-      });
+      }
 
       const u = paintMode
         ? 1
@@ -281,13 +319,13 @@ const resetReactionTargets = (gl, targets, seed, paintMode = false) => {
   const data = buildReactionSeed(targets.size, seed, paintMode);
   targets.textures.forEach((texture) => {
     gl.bindTexture(gl.TEXTURE_2D, texture);
-    gl.texImage2D(
+    gl.texSubImage2D(
       gl.TEXTURE_2D,
       0,
-      gl.RGBA8,
-      targets.size,
-      targets.size,
       0,
+      0,
+      targets.size,
+      targets.size,
       gl.RGBA,
       gl.UNSIGNED_BYTE,
       data,
@@ -300,6 +338,32 @@ const resetReactionTargets = (gl, targets, seed, paintMode = false) => {
 const destroyReactionTargets = (gl, targets) => {
   targets?.textures?.forEach((texture) => gl.deleteTexture(texture));
   targets?.framebuffers?.forEach((framebuffer) => gl.deleteFramebuffer(framebuffer));
+};
+
+const createNeutralReactionTexture = (gl) => {
+  const texture = gl.createTexture();
+  if (!texture) {
+    throw new Error("The CreatorOS neutral reaction texture is unavailable.");
+  }
+
+  gl.bindTexture(gl.TEXTURE_2D, texture);
+  gl.texImage2D(
+    gl.TEXTURE_2D,
+    0,
+    gl.RGBA8,
+    1,
+    1,
+    0,
+    gl.RGBA,
+    gl.UNSIGNED_BYTE,
+    new Uint8Array([255, 0, 0, 255]),
+  );
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.bindTexture(gl.TEXTURE_2D, null);
+  return texture;
 };
 
 const CreatorOSFieldCanvas = ({
@@ -451,9 +515,9 @@ const CreatorOSFieldCanvas = ({
     let paintReactionProgram;
     let positionBuffer;
     let reactionTargets;
+    let neutralReactionTexture;
     let resizeObserver;
-    let rafId = 0;
-    let lastFrameAt = 0;
+    let frameCadence;
     let localTime = 0;
     let introElapsed = 0;
     let seed = Math.random();
@@ -483,6 +547,12 @@ const CreatorOSFieldCanvas = ({
       sampleY: 0.52,
       lastActivityAt: performance.now(),
     };
+    const pointerBounds = {
+      left: 0,
+      top: 0,
+      width: 1,
+      height: 1,
+    };
     const pulseOrigin = { x: 0.52, y: 0.52 };
     const brush = {
       down: false,
@@ -495,6 +565,13 @@ const CreatorOSFieldCanvas = ({
     };
     const page = root.closest(".dither-canvas-page");
     const pointerSurface = page || root;
+    const pageStyleCache = new Map();
+
+    const setPageStyle = (name, value) => {
+      if (!page || pageStyleCache.get(name) === value) return;
+      pageStyleCache.set(name, value);
+      page.style.setProperty(name, value);
+    };
 
     const reportState = (nextState) => {
       if (nextState === activeState) return;
@@ -522,8 +599,7 @@ const CreatorOSFieldCanvas = ({
 
     const handleContextLost = (event) => {
       event.preventDefault();
-      window.cancelAnimationFrame(rafId);
-      rafId = 0;
+      frameCadence?.cancel();
       setFallback(true);
       onFieldStateChangeRef.current?.("fallback");
     };
@@ -549,26 +625,36 @@ const CreatorOSFieldCanvas = ({
       });
       if (!gl) throw new Error("WebGL2 is unavailable.");
 
+      const activeMode = modeRef.current;
+      const reactionProgramsRequired = activeMode === REACTION_MODE;
       const paintProgramsRequired =
-        modeRef.current === REACTION_MODE
+        reactionProgramsRequired
         && morphogenPaintRef.current >= 0.5;
       displayProgram = createProgram(
         gl,
-        CREATOROS_FIELD_FRAGMENT_SHADER,
-        "CreatorOS original field",
+        specializeCreatorOSFieldFragmentShader(
+          CREATOROS_FIELD_FRAGMENT_SHADER,
+          activeMode,
+        ),
+        "CreatorOS specialized field",
       );
       paintDisplayProgram = paintProgramsRequired
         ? createProgram(
             gl,
-            CREATOROS_FIELD_PAINT_FRAGMENT_SHADER,
+            specializeCreatorOSFieldFragmentShader(
+              CREATOROS_FIELD_PAINT_FRAGMENT_SHADER,
+              activeMode,
+            ),
             "CreatorOS sand paint field",
           )
         : null;
-      reactionProgram = createProgram(
-        gl,
-        CREATOROS_REACTION_FRAGMENT_SHADER,
-        "CreatorOS original reaction diffusion",
-      );
+      reactionProgram = reactionProgramsRequired
+        ? createProgram(
+            gl,
+            CREATOROS_REACTION_FRAGMENT_SHADER,
+            "CreatorOS original reaction diffusion",
+          )
+        : null;
       paintReactionProgram = paintProgramsRequired
         ? createProgram(
             gl,
@@ -591,17 +677,22 @@ const CreatorOSFieldCanvas = ({
       if (paintDisplayProgram) {
         configurePosition(gl, paintDisplayProgram, positionBuffer);
       }
-      configurePosition(gl, reactionProgram, positionBuffer);
+      if (reactionProgram) {
+        configurePosition(gl, reactionProgram, positionBuffer);
+      }
       if (paintReactionProgram) {
         configurePosition(gl, paintReactionProgram, positionBuffer);
       }
 
-      reactionTargets = createReactionTargets(
-        gl,
-        REACTION_SIZE,
-        seed,
-        morphogenPaintRef.current >= 0.5,
-      );
+      neutralReactionTexture = createNeutralReactionTexture(gl);
+      reactionTargets = reactionProgramsRequired
+        ? createReactionTargets(
+            gl,
+            REACTION_SIZE,
+            seed,
+            morphogenPaintRef.current >= 0.5,
+          )
+        : null;
       setFallback(false);
     } catch (error) {
       console.error("CreatorOS field study failed to initialize:", error);
@@ -610,6 +701,9 @@ const CreatorOSFieldCanvas = ({
       canvas.removeEventListener("webglcontextlost", handleContextLost);
       canvas.removeEventListener("webglcontextrestored", handleContextRestored);
       destroyReactionTargets(gl, reactionTargets);
+      if (neutralReactionTexture && gl) {
+        gl.deleteTexture(neutralReactionTexture);
+      }
       if (positionBuffer && gl) gl.deleteBuffer(positionBuffer);
       if (displayProgram && gl) gl.deleteProgram(displayProgram);
       if (paintDisplayProgram && gl) gl.deleteProgram(paintDisplayProgram);
@@ -670,11 +764,13 @@ const CreatorOSFieldCanvas = ({
       "u_kill",
       "u_dt",
     ];
-    const reactionUniforms = collectUniforms(
-      gl,
-      reactionProgram,
-      reactionUniformNames,
-    );
+    const reactionUniforms = reactionProgram
+      ? collectUniforms(
+          gl,
+          reactionProgram,
+          reactionUniformNames,
+        )
+      : null;
     const paintReactionUniforms = paintReactionProgram
       ? collectUniforms(
           gl,
@@ -698,6 +794,10 @@ const CreatorOSFieldCanvas = ({
         bounds.height,
         RENDER_SCALE,
       );
+      pointerBounds.left = bounds.left;
+      pointerBounds.top = bounds.top;
+      pointerBounds.width = Math.max(bounds.width, 1);
+      pointerBounds.height = Math.max(bounds.height, 1);
       if (canvas.width !== target.width || canvas.height !== target.height) {
         canvas.width = target.width;
         canvas.height = target.height;
@@ -707,13 +807,14 @@ const CreatorOSFieldCanvas = ({
       }
     };
 
-    const readPointer = (event) => {
-      const bounds = root.getBoundingClientRect();
-      return {
-        x: clamp((event.clientX - bounds.left) / Math.max(bounds.width, 1)),
-        y: clamp(1 - (event.clientY - bounds.top) / Math.max(bounds.height, 1)),
-      };
-    };
+    const readPointer = (event) => ({
+      x: clamp(
+        (event.clientX - pointerBounds.left) / pointerBounds.width,
+      ),
+      y: clamp(
+        1 - (event.clientY - pointerBounds.top) / pointerBounds.height,
+      ),
+    });
 
     const handlePointerMove = (event) => {
       const next = readPointer(event);
@@ -860,12 +961,14 @@ const CreatorOSFieldCanvas = ({
         currentMode === REACTION_MODE && morphogenPaintRef.current < 0.5
           ? REACTION_WARMUP_STEPS
           : 0;
-      resetReactionTargets(
-        gl,
-        reactionTargets,
-        seed,
-        morphogenPaintRef.current >= 0.5,
-      );
+      if (reactionTargets) {
+        resetReactionTargets(
+          gl,
+          reactionTargets,
+          seed,
+          morphogenPaintRef.current >= 0.5,
+        );
+      }
       activeState = currentMode === REACTION_MODE
         ? morphogenPaintRef.current >= 0.5
           ? "ready"
@@ -873,7 +976,6 @@ const CreatorOSFieldCanvas = ({
         : "drifting";
       onFieldStateChangeRef.current?.(activeState);
       forceRender = true;
-      lastFrameAt = 0;
     };
 
     const applyRestart = () => {
@@ -931,12 +1033,18 @@ const CreatorOSFieldCanvas = ({
 
       if (page) {
         const chroma = energy * 0.58;
-        page.style.setProperty("--rupture-energy", energy.toFixed(3));
-        page.style.setProperty("--rupture-x", pointer.x.toFixed(3));
-        page.style.setProperty("--rupture-y", pointer.y.toFixed(3));
-        page.style.setProperty("--rupture-lift", `${(-energy * 3.7).toFixed(2)}px`);
-        page.style.setProperty("--rupture-chroma-positive", `${chroma.toFixed(2)}rem`);
-        page.style.setProperty(
+        setPageStyle("--rupture-energy", energy.toFixed(3));
+        setPageStyle("--rupture-x", pointer.x.toFixed(3));
+        setPageStyle("--rupture-y", pointer.y.toFixed(3));
+        setPageStyle(
+          "--rupture-lift",
+          `${(-energy * 3.7).toFixed(2)}px`,
+        );
+        setPageStyle(
+          "--rupture-chroma-positive",
+          `${chroma.toFixed(2)}rem`,
+        );
+        setPageStyle(
           "--rupture-chroma-negative",
           `${(-chroma * 0.72).toFixed(2)}rem`,
         );
@@ -944,6 +1052,8 @@ const CreatorOSFieldCanvas = ({
     };
 
     const drawReactionStep = (timeStep = 1.0, allowBrush = true) => {
+      if (!reactionTargets || !reactionProgram) return;
+
       const writeIndex = 1 - reactionTargets.readIndex;
       const paintMode = morphogenPaintRef.current;
       const usePaintProgram = paintMode >= 0.5;
@@ -1028,7 +1138,12 @@ const CreatorOSFieldCanvas = ({
     const advanceReaction = () => {
       const reactionVisible =
         currentMode === REACTION_MODE || incomingMode === REACTION_MODE;
-      if (!reactionVisible && reactionWarmupRemaining <= 0) return;
+      if (
+        !reactionTargets
+        || (!reactionVisible && reactionWarmupRemaining <= 0)
+      ) {
+        return;
+      }
 
       let steps = reducedMotion ? 1 : REACTION_STEPS;
       if (reactionWarmupRemaining > 0) {
@@ -1125,20 +1240,18 @@ const CreatorOSFieldCanvas = ({
         );
       }
 
+      const reactionTexture = reactionTargets
+        ? reactionTargets.textures[reactionTargets.readIndex]
+        : neutralReactionTexture;
+      const reactionSize = reactionTargets?.size || 1;
       gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(
-        gl.TEXTURE_2D,
-        reactionTargets.textures[reactionTargets.readIndex],
-      );
+      gl.bindTexture(gl.TEXTURE_2D, reactionTexture);
       gl.uniform1i(activeDisplayUniforms.u_reaction, 0);
       gl.uniform2f(
         activeDisplayUniforms.u_reactionTexel,
-        1 / reactionTargets.size,
-        1 / reactionTargets.size,
+        1 / reactionSize,
+        1 / reactionSize,
       );
-
-      gl.clearColor(0, 0, 0, 0);
-      gl.clear(gl.COLOR_BUFFER_BIT);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
     };
 
@@ -1181,39 +1294,23 @@ const CreatorOSFieldCanvas = ({
       forceRender = false;
     };
 
-    function scheduleFrame() {
-      if (
-        rafId
-        || !documentVisible
-        || reducedMotion
-      ) {
-        return;
-      }
-      rafId = window.requestAnimationFrame(tick);
-    }
-
-    function tick(now) {
-      rafId = 0;
-      if (!documentVisible) return;
+    const renderFrame = ({ deltaMs }) => {
+      if (!documentVisible) return false;
       if (reducedMotion) {
         drawStatic();
-        return;
-      }
-      if (now - lastFrameAt < FRAME_INTERVAL_MS) {
-        scheduleFrame();
-        return;
+        return false;
       }
 
-      const delta = lastFrameAt
-        ? Math.min((now - lastFrameAt) / 1000, 0.1)
-        : 0;
-      lastFrameAt = now;
-      applyRestart();
-
+      const restarted = applyRestart();
+      const delta = restarted
+        ? 0
+        : Math.min(deltaMs / 1000, 0.1);
       const paintBrushPending =
         isMorphogenPaintActive()
         && (brush.down || brush.pending);
-      if (pausedRef.current && !forceRender && !paintBrushPending) return;
+      if (pausedRef.current && !forceRender && !paintBrushPending) {
+        return false;
+      }
       if (!pausedRef.current) {
         localTime += delta;
         introElapsed = Math.min(
@@ -1231,16 +1328,25 @@ const CreatorOSFieldCanvas = ({
         }
       }
 
-      updateSize();
       draw();
       forceRender = false;
-      if (!pausedRef.current || brush.down || brush.pending) scheduleFrame();
-    }
+      return !pausedRef.current || brush.down || brush.pending;
+    };
+
+    frameCadence = createDitherCanvasCadence({
+      frameIntervalMs: FRAME_INTERVAL_MS,
+      onFrame: renderFrame,
+    });
+
+    const scheduleFrame = () => {
+      if (!documentVisible || reducedMotion) return false;
+      return frameCadence.schedule();
+    };
 
     const start = () => {
-      window.cancelAnimationFrame(rafId);
-      rafId = 0;
+      frameCadence.reset();
       applyRestart();
+      updateSize();
       if (reducedMotion) {
         drawStatic();
         return;
@@ -1252,8 +1358,7 @@ const CreatorOSFieldCanvas = ({
     const handleVisibility = () => {
       documentVisible = document.visibilityState !== "hidden";
       if (!documentVisible) {
-        window.cancelAnimationFrame(rafId);
-        rafId = 0;
+        frameCadence.cancel();
       } else {
         start();
       }
@@ -1292,7 +1397,7 @@ const CreatorOSFieldCanvas = ({
     start();
 
     return () => {
-      window.cancelAnimationFrame(rafId);
+      frameCadence.dispose();
       redrawRef.current = () => {};
       pointerSurface.removeEventListener("pointermove", handlePointerMove);
       pointerSurface.removeEventListener(
@@ -1322,6 +1427,9 @@ const CreatorOSFieldCanvas = ({
         page.style.removeProperty("--rupture-chroma-negative");
       }
       destroyReactionTargets(gl, reactionTargets);
+      if (neutralReactionTexture) {
+        gl.deleteTexture(neutralReactionTexture);
+      }
       if (positionBuffer) gl.deleteBuffer(positionBuffer);
       if (displayProgram) gl.deleteProgram(displayProgram);
       if (paintDisplayProgram) gl.deleteProgram(paintDisplayProgram);
@@ -1339,6 +1447,11 @@ const CreatorOSFieldCanvas = ({
       data-context-recovery="local"
       data-renderer-id="dither-canvas-field"
       data-runtime-profile={ditherCanvasRuntimeProfile.id}
+      data-field-specialization={FIELD_SCENE_FUNCTIONS[clampMode(mode)]}
+      data-frame-cadence="timer-raf"
+      data-reaction-runtime={
+        clampMode(mode) === REACTION_MODE ? "active" : "inactive"
+      }
       aria-hidden="true"
     >
       <canvas
