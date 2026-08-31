@@ -27,7 +27,9 @@ jobs:
       - name: Reconstruct and apply patch
         shell: bash
         run: |
+          sha256sum scripts/.dither-efficiency-patch/part-*.mjs
           cat scripts/.dither-efficiency-patch/part-*.mjs > /tmp/apply-dither-canvas-efficiency.mjs
+          sha256sum /tmp/apply-dither-canvas-efficiency.mjs
           test "$(sha256sum /tmp/apply-dither-canvas-efficiency.mjs | cut -d' ' -f1)" = "9bc50c91e1ef9ddf65ca14413bc222a410695520ab5b8e929e3d8b9397fc315d"
           node --check /tmp/apply-dither-canvas-efficiency.mjs
           node /tmp/apply-dither-canvas-efficiency.mjs
