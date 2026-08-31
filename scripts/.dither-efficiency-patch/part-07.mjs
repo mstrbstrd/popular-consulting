@@ -75,7 +75,7 @@
 
   next = replaceExact(
     next,
-    `      const render = (timestamp) => {
+    `    const render = (timestamp) => {
       animationFrameRef.current = 0;
       if (!documentVisible) return;
 
@@ -108,33 +108,72 @@
 
     const scheduleRender = () => {
       if (
-        animationFrameRef.currentˆYØÝ[Y[š\ÚX›Bˆ
-HÂˆ™]\›ŽÂˆBˆ[š[X][Û‘œ˜[YT™Y‹˜Ý\œ™[H™\]Y\Ý[š[X][Û‘œ˜[YJ™[™\ŠNÂˆNÂ‚ˆ™\]Y\Ý™[™\”™Y‹˜Ý\œ™[HØÚY[T™[™\ŽÂˆØÚY[T™[™\Š
-NÂ˜ˆÛÛœÝ™[™\ˆH
-È[S\ÈJHOˆÂˆYˆ
-YØÝ[Y[š\ÚX›JH™]\›ˆ˜[ÙNÂ‚ˆÛÛœÝÚÝ[Û›T™Yœ™\ÚH]\ÙY™Y‹˜Ý\œ™[™YXÙY[Ý[ÛŽÂˆYˆ
-ÚÝ[Û›T™Yœ™\Ú	‰ˆY›Ü˜ÙT™[™\”™Y‹˜Ý\œ™[
-H™]\›ˆ˜[ÙNÂˆÛÛœÝ[HHX]›Z[Š[S\ÈÈLHÈN
-NÂ‚ˆYˆ
-\]\ÙY™Y‹˜Ý\œ™[	‰ˆ\™YXÙY[Ý[ÛŠHÂˆØØ[[YH
-ÏH[NÂˆ™]™X[HX]›Z[ŠK™]™X[
-È[HÈKŽJNÂˆH[ÙHYˆ
-™YXÙY[Ý[ÛŠHÂˆ™]™X[HNÂˆB‚ˆ\]SÜ[š[™Ê[JNÂˆ˜]Ê
-NÂˆ›Ü˜ÙT™[™\”™Y‹˜Ý\œ™[H˜[ÙNÂˆ™]\›ˆ\]\ÙY™Y‹˜Ý\œ™[	‰ˆ\™YXÙY[Ý[ÛŽÂˆNÂ‚ˆœ˜[YPØY[˜ÙHHÜ™X]Q]\Ø[˜\ÐØY[˜ÙJÂˆœ˜[YR[\˜[\Îˆ
+        animationFrameRef.current
+        || !documentVisible
+      ) {
+        return;
+      }
+      animationFrameRef.current = requestAnimationFrame(render);
+    };
 
-HO‚ˆ™YXÙY[Ý[ÛˆÈ‘QPÑQÑ”SQWÓTÈˆT‘ÑUÑ”SQWÓTËˆÛ‘œ˜[YNˆ™[™\‹ˆJNÂ‚ˆÛÛœÝØÚY[T™[™\ˆH
+    requestRenderRef.current = scheduleRender;
+    scheduleRender();
+`,
+    `    const render = ({ deltaMs }) => {
+      if (!documentVisible) return false;
 
-HOˆÂˆYˆ
-YØÝ[Y[š\ÚX›JH™]\›ˆ˜[ÙNÂˆ™]\›ˆœ˜[YPØY[˜ÙKœØÚY[J
-NÂˆNÂ‚ˆ™\]Y\Ý™[™\”™Y‹˜Ý\œ™[HØÚY[T™[™\ŽÂˆØÚY[T™[™\Š
-NÂ˜ˆœ\\™HØY[˜ÙH™[™\ˆÛÜ‹ˆ
-NÂ‚ˆ™^H™\XÙQ^XÝ
-ˆ™^ˆØ[˜Ù[[š[X][Û‘œ˜[YJ[š[X][Û‘œ˜[YT™Y‹˜Ý\œ™[
-NÂˆ™\Ù]Ú[][][Û”™Y‹˜Ý\œ™[H
+      const shouldOnlyRefresh = pausedRef.current || reducedMotion;
+      if (shouldOnlyRefresh && !forceRenderRef.current) return false;
+      const delta = Math.min(deltaMs / 1000, 1 / 18);
 
-HOˆßNÂ˜ˆœ˜[YPØY[˜ÙK™\ÜÜÙJ
-NÂˆ™\Ù]Ú[][][Û”™Y‹˜Ý\œ™[H
+      if (!pausedRef.current && !reducedMotion) {
+        localTime += delta;
+        reveal = Math.min(1, reveal + delta / 1.9);
+      } else if (reducedMotion) {
+        reveal = 1;
+      }
 
-HOˆßNÂ˜ˆœ\\™HØY[˜ÙHÛX[\‹ˆ
-NÂ‚ˆ™^H™\XÙQ^XÝ
-ˆ™^ˆ]K\[[YK\›Ùš[O^Ù]\Ø[˜\Ô[[YT›Ùš[KšYBˆ\šXKZY[HYH‚˜ˆ]K\[[YK\›Ùš[O^Ù]\Ø[˜\Ô[[YT›Ùš[KšYBˆ]KYœ˜[YKXØY[˜ÙOH[Y\‹\˜Yˆ‚ˆ\šXKZY[HYH‚˜ˆœ\\™H
+      updateOpening(delta);
+      draw();
+      forceRenderRef.current = false;
+      return !pausedRef.current && !reducedMotion;
+    };
+
+    frameCadence = createDitherCanvasCadence({
+      frameIntervalMs: () =>
+        reducedMotion ? REDUCED_FRAME_MS : TARGET_FRAME_MS,
+      onFrame: render,
+    });
+
+    const scheduleRender = () => {
+      if (!documentVisible) return false;
+      return frameCadence.schedule();
+    };
+
+    requestRenderRef.current = scheduleRender;
+    scheduleRender();
+`,
+    "rupture cadence render loop",
+  );
+
+  next = replaceExact(
+    next,
+    `      cancelAnimationFrame(animationFrameRef.current);
+      resetSimulationRef.current = () => {};
+`,
+    `      frameCadence.dispose();
+      resetSimulationRef.current = () => {};
+`,
+    "rupture cadence cleanup",
+  );
+
+  next = replaceExact(
+    next,
+    `      data-runtime-profile={ditherCanvasRuntimeProfile.id}
+      aria-hidden="true"
+`,
+    `      data-runtime-profile={ditherCanvasRuntimeProfile.id}
+      data-frame-cadence="timer-raf"
+      aria-hidden="true"
+`,
+    "rupture ru
