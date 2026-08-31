@@ -23,16 +23,18 @@ describe("Dither Field Lab runtime invariants", () => {
   });
 
   test("hidden, paused, and reduced-motion states do not own permanent frame loops", () => {
-    [field, lava].forEach((renderer) => {
-      expect(renderer).toContain("rafId = 0");
-      expect(renderer).toContain("function scheduleFrame()");
-      expect(renderer).toContain("if (pausedRef.current && !forceRender");
-      expect(renderer).toContain("window.cancelAnimationFrame(rafId)");
+    [field, lava, rupture].forEach((renderer) => {
+      expect(renderer).toContain("createDitherCanvasCadence({");
+      expect(renderer).toContain('data-frame-cadence="timer-raf"');
+      expect(renderer).toMatch(/frameCadence\??\.cancel\(\)/);
+      expect(renderer).toContain("frameCadence.dispose()");
     });
-    expect(rupture).toContain("const scheduleRender = () =>");
-    expect(rupture).toContain("animationFrameRef.current = 0");
+    [field, lava].forEach((renderer) => {
+      expect(renderer).toContain("if (pausedRef.current && !forceRender");
+      expect(renderer).toContain("return !pausedRef.current");
+    });
     expect(rupture).toContain(
-      "if (!pausedRef.current && !reducedMotion) scheduleRender()",
+      "return !pausedRef.current && !reducedMotion",
     );
   });
 
@@ -41,7 +43,19 @@ describe("Dither Field Lab runtime invariants", () => {
     expect(page).toContain("{renderActiveStudy()}");
     expect(page).toContain("data-active-study={activeStudy.id}");
     expect(page).toContain('data-theme-mode={isDark ? "dark" : "light"}');
+    expect(page).toContain(
+      'paused: paused || transitionPhase === "exiting"',
+    );
     expect(blackHole).toContain('"/dither-canvas"');
+  });
+
+  test("feedback resources exist only for Morphogen Divide", () => {
+    expect(field).toContain("const reactionProgramsRequired =");
+    expect(field).toContain("reactionProgram = reactionProgramsRequired");
+    expect(field).toContain("reactionTargets = reactionProgramsRequired");
+    expect(field).toContain('data-reaction-runtime={');
+    expect(field).toContain("createNeutralReactionTexture");
+    expect(field).toContain("gl.texSubImage2D(");
   });
 
   test("paint-only shaders compile only for the opt-in paint experience", () => {

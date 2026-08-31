@@ -79,6 +79,145 @@ export const getDitherCanvasSize = (
   };
 };
 
+
+const readDitherCanvasNow = (windowObject) => {
+  const value = Number(windowObject?.performance?.now?.());
+  return Number.isFinite(value) ? value : Date.now();
+};
+
+const resolveDitherCanvasCadenceInterval = (frameIntervalMs) => {
+  const requested = typeof frameIntervalMs === "function"
+    ? frameIntervalMs()
+    : frameIntervalMs;
+  const value = Number(requested);
+  return Number.isFinite(value) ? Math.max(1, value) : 1000 / 30;
+};
+
+export const createDitherCanvasCadence = ({
+  frameIntervalMs = 1000 / 30,
+  onFrame = () => false,
+  windowObject = typeof window === "undefined" ? null : window,
+} = {}) => {
+  if (
+    !windowObject?.requestAnimationFrame
+    || !windowObject?.cancelAnimationFrame
+    || !windowObject?.setTimeout
+    || !windowObject?.clearTimeout
+  ) {
+    throw new Error(
+      "Dither canvas cadence requires animation frame and timer APIs.",
+    );
+  }
+
+  const requestAnimationFrame = windowObject.requestAnimationFrame.bind(
+    windowObject,
+  );
+  const cancelAnimationFrame = windowObject.cancelAnimationFrame.bind(
+    windowObject,
+  );
+  const setTimeout = windowObject.setTimeout.bind(windowObject);
+  const clearTimeout = windowObject.clearTimeout.bind(windowObject);
+
+  let animationFrameId = 0;
+  let timerId = 0;
+  let lastFrameAt = null;
+  let disposed = false;
+
+  const cancel = () => {
+    if (animationFrameId) {
+      cancelAnimationFrame(animationFrameId);
+      animationFrameId = 0;
+    }
+    if (timerId) {
+      clearTimeout(timerId);
+      timerId = 0;
+    }
+  };
+
+  const resetClock = () => {
+    lastFrameAt = null;
+  };
+
+  const schedule = () => {
+    if (disposed || animationFrameId || timerId) return false;
+
+    const interval = resolveDitherCanvasCadenceInterval(frameIntervalMs);
+    const now = readDitherCanvasNow(windowObject);
+    const elapsed = lastFrameAt === null
+      ? interval
+      : Math.max(0, now - lastFrameAt);
+    const remaining = Math.max(0, interval - elapsed);
+
+    const queueAnimationFrame = () => {
+      timerId = 0;
+      if (disposed || animationFrameId) return;
+      animationFrameId = requestAnimationFrame(runFrame);
+    };
+
+    if (remaining > 4) {
+      timerId = setTimeout(queueAnimationFrame, remaining - 4);
+    } else {
+      queueAnimationFrame();
+    }
+    return true;
+  };
+
+  function runFrame(timestamp) {
+    animationFrameId = 0;
+    if (disposed) return;
+
+    const interval = resolveDitherCanvasCadenceInterval(frameIntervalMs);
+    const numericTimestamp = Number(timestamp);
+    const safeTimestamp = Number.isFinite(numericTimestamp)
+      ? numericTimestamp
+      : readDitherCanvasNow(windowObject);
+    const elapsed = lastFrameAt === null
+      ? interval
+      : Math.max(0, safeTimestamp - lastFrameAt);
+
+    if (lastFrameAt !== null && elapsed + 0.5 < interval) {
+      schedule();
+      return;
+    }
+
+    const deltaMs = lastFrameAt === null ? 0 : elapsed;
+    lastFrameAt = safeTimestamp;
+    const continueRendering = onFrame({
+      timestamp: safeTimestamp,
+      deltaMs,
+      frameIntervalMs: interval,
+    }) === true;
+    if (continueRendering) schedule();
+  }
+
+  const reset = () => {
+    cancel();
+    resetClock();
+  };
+
+  const dispose = () => {
+    if (disposed) return;
+    disposed = true;
+    cancel();
+  };
+
+  const snapshot = () => ({
+    animationFrameId,
+    timerId,
+    lastFrameAt,
+    disposed,
+  });
+
+  return {
+    cancel,
+    dispose,
+    reset,
+    resetClock,
+    schedule,
+    snapshot,
+  };
+};
+
 export const createDitherCanvasContext = ({
   canvas,
   contextType,

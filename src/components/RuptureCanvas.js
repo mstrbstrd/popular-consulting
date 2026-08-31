@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { isMobileTier } from "../utils/deviceTier";
 import {
+  createDitherCanvasCadence,
   createDitherCanvasContext,
   ditherCanvasRuntimeProfile,
   getDitherCanvasFrameInterval,
@@ -154,7 +155,6 @@ const RuptureCanvas = ({
       : null,
   );
   const syncControlledProgressRef = useRef(() => {});
-  const animationFrameRef = useRef(0);
   const forceRenderRef = useRef(true);
   const requestRenderRef = useRef(() => {});
   const [fallback, setFallback] = useState(false);
@@ -201,6 +201,7 @@ const RuptureCanvas = ({
     let buffer;
     let atlas;
     let resizeObserver;
+    let frameCadence;
     let documentVisible = document.visibilityState !== "hidden";
     let reducedMotion = false;
 
@@ -220,8 +221,7 @@ const RuptureCanvas = ({
     const handleVisibility = () => {
       documentVisible = document.visibilityState !== "hidden";
       if (!documentVisible) {
-        cancelAnimationFrame(animationFrameRef.current);
-        animationFrameRef.current = 0;
+        frameCadence?.cancel();
         return;
       }
       forceRenderRef.current = true;
@@ -231,8 +231,7 @@ const RuptureCanvas = ({
 
     const handleContextLost = (event) => {
       event.preventDefault();
-      cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = 0;
+      frameCadence?.cancel();
       setFallback(true);
     };
     const handleContextRestored = () => {
@@ -312,6 +311,13 @@ const RuptureCanvas = ({
     const openings = new Float32Array(MAX_NODES);
     const scars = new Float32Array(MAX_NODES);
     const nodeData = new Float32Array(MAX_NODES * 4);
+    for (let index = 0; index < MAX_NODES; index += 1) {
+      const sourceIndex = Math.min(index, ACTIVE_NODES - 1);
+      const x = -0.06 + (sourceIndex / (ACTIVE_NODES - 1)) * 1.12;
+      const offset = index * 4;
+      nodeData[offset] = x;
+      nodeData[offset + 1] = baseFaultY(x);
+    }
 
     // These shader slots are deliberately kept at zero. Second Surface now has
     // one continuous seam, and no pointer or timer may create branch geometry.
@@ -319,6 +325,12 @@ const RuptureCanvas = ({
     const branchMeta = new Float32Array(MAX_BRANCHES * 4);
 
     const pointer = { x: 0.52, y: 0.52 };
+    const pointerBounds = {
+      left: 0,
+      top: 0,
+      width: 1,
+      height: 1,
+    };
     const drag = {
       active: false,
       lastY: 0,
@@ -332,12 +344,19 @@ const RuptureCanvas = ({
     let progress = 0;
     let targetProgress = 0;
     let currentEnergy = 0;
-    let lastFrameAt = 0;
+    let geometryDirty = true;
     let activeState = "sealed";
     let stateWasReported = false;
 
     const page = root.closest(".dither-canvas-page");
     const pointerSurface = page || root;
+    const pageStyleCache = new Map();
+
+    const setPageStyle = (name, value) => {
+      if (!page || pageStyleCache.get(name) === value) return;
+      pageStyleCache.set(name, value);
+      page.style.setProperty(name, value);
+    };
 
     const reportState = (nextState) => {
       if (nextState === activeState && stateWasReported) return;
@@ -349,18 +368,18 @@ const RuptureCanvas = ({
     const updatePageStyles = () => {
       if (!page) return;
       const chroma = currentEnergy * 0.62;
-      page.style.setProperty("--rupture-energy", currentEnergy.toFixed(3));
-      page.style.setProperty("--rupture-x", pointer.x.toFixed(3));
-      page.style.setProperty("--rupture-y", pointer.y.toFixed(3));
-      page.style.setProperty(
+      setPageStyle("--rupture-energy", currentEnergy.toFixed(3));
+      setPageStyle("--rupture-x", pointer.x.toFixed(3));
+      setPageStyle("--rupture-y", pointer.y.toFixed(3));
+      setPageStyle(
         "--rupture-lift",
         `${(-currentEnergy * 4.5).toFixed(2)}px`,
       );
-      page.style.setProperty(
+      setPageStyle(
         "--rupture-chroma-positive",
         `${chroma.toFixed(2)}rem`,
       );
-      page.style.setProperty(
+      setPageStyle(
         "--rupture-chroma-negative",
         `${(-chroma * 0.72).toFixed(2)}rem`,
       );
@@ -381,6 +400,7 @@ const RuptureCanvas = ({
     syncControlledProgress();
 
     const updateOpening = (delta) => {
+      const previousProgress = progress;
       const response = reducedMotion || pausedRef.current
         ? 1
         : 1 - Math.exp(-Math.max(delta, 1 / 120) * 5.4);
@@ -390,13 +410,21 @@ const RuptureCanvas = ({
       }
 
       const easedProgress = smoothStep(progress);
-      const opening = openingForProgress(progress);
-      for (let index = 0; index < ACTIVE_NODES; index += 1) {
-        const position = index / Math.max(ACTIVE_NODES - 1, 1);
-        const center = Math.exp(-Math.pow((position - 0.57) / 0.24, 2));
-        const edgeAllowance = 0.90 + center * 0.10;
-        openings[index] = opening * edgeAllowance;
-        scars[index] = Math.min(opening, 1) * (0.08 + center * 0.11);
+      const openingChanged =
+        Math.abs(progress - previousProgress) >= 0.000001;
+      if (openingChanged || geometryDirty) {
+        const opening = openingForProgress(progress);
+        for (let index = 0; index < ACTIVE_NODES; index += 1) {
+          const position = index / Math.max(ACTIVE_NODES - 1, 1);
+          const center = Math.exp(
+            -Math.pow((position - 0.57) / 0.24, 2),
+          );
+          const edgeAllowance = 0.90 + center * 0.10;
+          openings[index] = opening * edgeAllowance;
+          scars[index] = Math.min(opening, 1)
+            * (0.08 + center * 0.11);
+        }
+        geometryDirty = true;
       }
 
       currentEnergy = easedProgress;
@@ -413,6 +441,7 @@ const RuptureCanvas = ({
       progress = resetProgress;
       targetProgress = resetProgress;
       currentEnergy = smoothStep(resetProgress);
+      geometryDirty = true;
       pointer.x = 0.52;
       pointer.y = 0.52;
       drag.active = false;
@@ -429,6 +458,10 @@ const RuptureCanvas = ({
       const bounds = root.getBoundingClientRect();
       width = Math.max(bounds.width, 1);
       height = Math.max(bounds.height, 1);
+      pointerBounds.left = bounds.left;
+      pointerBounds.top = bounds.top;
+      pointerBounds.width = width;
+      pointerBounds.height = height;
       const scale = isMobileTier
         ? 0.72
         : Math.min(window.devicePixelRatio || 1, 1.0);
@@ -453,18 +486,20 @@ const RuptureCanvas = ({
     }
     window.addEventListener("resize", handleResize);
 
-    const readPointer = (event) => {
-      const bounds = root.getBoundingClientRect();
-      return {
-        x: clamp((event.clientX - bounds.left) / Math.max(bounds.width, 1)),
-        y: clamp(1 - (event.clientY - bounds.top) / Math.max(bounds.height, 1)),
-      };
-    };
+    const readPointer = (event) => ({
+      x: clamp(
+        (event.clientX - pointerBounds.left) / pointerBounds.width,
+      ),
+      y: clamp(
+        1 - (event.clientY - pointerBounds.top) / pointerBounds.height,
+      ),
+    });
 
     const syncPointer = (event) => {
       const next = readPointer(event);
       pointer.x = next.x;
       pointer.y = next.y;
+      updatePageStyles();
       forceRenderRef.current = true;
     };
 
@@ -546,54 +581,44 @@ const RuptureCanvas = ({
     const uploadGeometry = () => {
       for (let index = 0; index < MAX_NODES; index += 1) {
         const sourceIndex = Math.min(index, ACTIVE_NODES - 1);
-        const x = -0.06 + (sourceIndex / (ACTIVE_NODES - 1)) * 1.12;
         const offset = index * 4;
-        nodeData[offset] = x;
-        nodeData[offset + 1] = baseFaultY(x);
         nodeData[offset + 2] = openings[sourceIndex];
         nodeData[offset + 3] = scars[sourceIndex];
       }
+      gl.uniform4fv(uniforms["u_nodes[0]"], nodeData);
+      geometryDirty = false;
     };
 
+    gl.useProgram(program);
+    gl.uniform1i(uniforms.u_nodeCount, ACTIVE_NODES);
+    gl.uniform4fv(uniforms["u_branches[0]"], branchData);
+    gl.uniform4fv(uniforms["u_branchMeta[0]"], branchMeta);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, atlas.texture);
+    gl.uniform1i(uniforms.u_atlas, 0);
+    gl.uniform1f(uniforms.u_cellSize, isMobileTier ? 12 : 7);
+    gl.uniform1i(uniforms.u_charCount, GLYPHS.length);
+    gl.uniform1i(uniforms.u_atlasCols, atlas.columns);
+    gl.uniform1i(uniforms.u_atlasRows, atlas.rows);
+
     const draw = () => {
-      uploadGeometry();
       gl.useProgram(program);
+      if (geometryDirty) uploadGeometry();
       gl.uniform2f(uniforms.u_res, canvas.width, canvas.height);
       gl.uniform1f(uniforms.u_time, localTime);
       gl.uniform1f(uniforms.u_theme, themeRef.current);
       gl.uniform1f(uniforms.u_energy, currentEnergy);
       gl.uniform1f(uniforms.u_reveal, reveal);
       gl.uniform2f(uniforms.u_pointer, pointer.x, pointer.y);
-      gl.uniform1i(uniforms.u_nodeCount, ACTIVE_NODES);
-      gl.uniform4fv(uniforms["u_nodes[0]"], nodeData);
-      gl.uniform4fv(uniforms["u_branches[0]"], branchData);
-      gl.uniform4fv(uniforms["u_branchMeta[0]"], branchMeta);
-      gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, atlas.texture);
-      gl.uniform1i(uniforms.u_atlas, 0);
-      gl.uniform1f(uniforms.u_cellSize, isMobileTier ? 12 : 7);
-      gl.uniform1i(uniforms.u_charCount, GLYPHS.length);
-      gl.uniform1i(uniforms.u_atlasCols, atlas.columns);
-      gl.uniform1i(uniforms.u_atlasRows, atlas.rows);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     };
 
-    const render = (timestamp) => {
-      animationFrameRef.current = 0;
-      if (!documentVisible) return;
+    const render = ({ deltaMs }) => {
+      if (!documentVisible) return false;
 
       const shouldOnlyRefresh = pausedRef.current || reducedMotion;
-      if (shouldOnlyRefresh && !forceRenderRef.current) return;
-
-      const minimumFrameMs = reducedMotion ? REDUCED_FRAME_MS : TARGET_FRAME_MS;
-      if (timestamp - lastFrameAt < minimumFrameMs) {
-        scheduleRender();
-        return;
-      }
-      const delta = lastFrameAt
-        ? Math.min((timestamp - lastFrameAt) / 1000, 1 / 18)
-        : 0;
-      lastFrameAt = timestamp;
+      if (shouldOnlyRefresh && !forceRenderRef.current) return false;
+      const delta = Math.min(deltaMs / 1000, 1 / 18);
 
       if (!pausedRef.current && !reducedMotion) {
         localTime += delta;
@@ -603,27 +628,27 @@ const RuptureCanvas = ({
       }
 
       updateOpening(delta);
-      updateSize();
       draw();
       forceRenderRef.current = false;
-      if (!pausedRef.current && !reducedMotion) scheduleRender();
+      return !pausedRef.current && !reducedMotion;
     };
 
+    frameCadence = createDitherCanvasCadence({
+      frameIntervalMs: () =>
+        reducedMotion ? REDUCED_FRAME_MS : TARGET_FRAME_MS,
+      onFrame: render,
+    });
+
     const scheduleRender = () => {
-      if (
-        animationFrameRef.current
-        || !documentVisible
-      ) {
-        return;
-      }
-      animationFrameRef.current = requestAnimationFrame(render);
+      if (!documentVisible) return false;
+      return frameCadence.schedule();
     };
 
     requestRenderRef.current = scheduleRender;
     scheduleRender();
 
     return () => {
-      cancelAnimationFrame(animationFrameRef.current);
+      frameCadence.dispose();
       resetSimulationRef.current = () => {};
       syncControlledProgressRef.current = () => {};
       requestRenderRef.current = () => {};
@@ -658,6 +683,7 @@ const RuptureCanvas = ({
       data-context-recovery="local"
       data-renderer-id="dither-canvas-rupture"
       data-runtime-profile={ditherCanvasRuntimeProfile.id}
+      data-frame-cadence="timer-raf"
       aria-hidden="true"
     >
       <canvas

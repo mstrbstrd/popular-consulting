@@ -591,7 +591,7 @@ const DitherFieldLab = () => {
   const renderActiveStudy = () => {
     const sharedProps = {
       isDark,
-      paused,
+      paused: paused || transitionPhase === "exiting",
       resetVersion,
     };
 

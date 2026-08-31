@@ -1,4 +1,5 @@
 import {
+  createDitherCanvasCadence,
   createDitherCanvasContext,
   DITHER_CANVAS_RUNTIME_PROFILES,
   getDitherCanvasFrameInterval,
@@ -51,6 +52,76 @@ describe("Dither Field Lab runtime policy", () => {
         DITHER_CANVAS_RUNTIME_PROFILES.windows,
       ),
     ).toBeCloseTo(1000 / 24);
+  });
+
+  test("sleeps between capped frames instead of polling every display refresh", () => {
+    let now = 0;
+    let nextId = 1;
+    const animationFrames = new Map();
+    const timers = new Map();
+    const onFrame = jest
+      .fn()
+      .mockReturnValueOnce(true)
+      .mockReturnValueOnce(false);
+    const windowObject = {
+      performance: { now: () => now },
+      requestAnimationFrame: jest.fn((callback) => {
+        const id = nextId;
+        nextId += 1;
+        animationFrames.set(id, callback);
+        return id;
+      }),
+      cancelAnimationFrame: jest.fn((id) => {
+        animationFrames.delete(id);
+      }),
+      setTimeout: jest.fn((callback) => {
+        const id = nextId;
+        nextId += 1;
+        timers.set(id, callback);
+        return id;
+      }),
+      clearTimeout: jest.fn((id) => {
+        timers.delete(id);
+      }),
+    };
+    const cadence = createDitherCanvasCadence({
+      frameIntervalMs: 1000 / 30,
+      onFrame,
+      windowObject,
+    });
+
+    expect(cadence.schedule()).toBe(true);
+    expect(cadence.schedule()).toBe(false);
+    expect(animationFrames.size).toBe(1);
+
+    const firstFrame = animationFrames.values().next().value;
+    animationFrames.clear();
+    firstFrame(0);
+
+    expect(onFrame).toHaveBeenCalledTimes(1);
+    expect(timers.size).toBe(1);
+    expect(animationFrames.size).toBe(0);
+
+    now = 34;
+    const timer = timers.values().next().value;
+    timers.clear();
+    timer();
+    expect(animationFrames.size).toBe(1);
+
+    const secondFrame = animationFrames.values().next().value;
+    animationFrames.clear();
+    secondFrame(34);
+
+    expect(onFrame).toHaveBeenCalledTimes(2);
+    expect(cadence.snapshot()).toMatchObject({
+      animationFrameId: 0,
+      timerId: 0,
+      disposed: false,
+    });
+
+    cadence.dispose();
+    expect(cadence.schedule()).toBe(false);
+    expect(cadence.snapshot().disposed).toBe(true);
   });
 
   test("retries a caveated adapter with the same renderer options", () => {

@@ -1,7 +1,9 @@
 import React from "react";
 import { cleanup, render, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom";
-import CreatorOSFieldCanvas from "./CreatorOSFieldCanvas";
+import CreatorOSFieldCanvas, {
+  specializeCreatorOSFieldFragmentShader,
+} from "./CreatorOSFieldCanvas";
 import {
   CREATOROS_FIELD_FRAGMENT_SHADER,
   CREATOROS_REACTION_FRAGMENT_SHADER,
@@ -193,6 +195,31 @@ describe("CreatorOSFieldCanvas", () => {
     expect(css).toContain(
       ".creatoros-field-mode-1.creatoros-field-palette-spectral",
     );
+  });
+
+  test("specializes every field study to one fixed GPU scene path", () => {
+    const sceneFunctions = [
+      "sceneMetabloom",
+      "sceneTidalWeave",
+      "sceneMoireHalo",
+      "sceneContourDrift",
+      "sceneMorphogen",
+      "sceneQuasicrystal",
+      "sceneHyperbolic",
+      "sceneForwardPass",
+    ];
+
+    sceneFunctions.forEach((sceneFunction, mode) => {
+      const specialized = specializeCreatorOSFieldFragmentShader(
+        CREATOROS_FIELD_FRAGMENT_SHADER,
+        mode,
+      );
+      const sampleStart = specialized.indexOf("vec4 sampleScene");
+      const mainStart = specialized.indexOf("\n\nvoid main()", sampleStart);
+      const sampleScene = specialized.slice(sampleStart, mainStart);
+      expect(sampleScene).toContain(`return ${sceneFunction}(uv, time)`);
+      expect(sampleScene).not.toContain("if (mode ==");
+    });
   });
 
   test("keeps every refined study distinct inside one renderer", () => {
