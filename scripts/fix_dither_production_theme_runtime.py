@@ -12,3 +12,7 @@ old='''          onFieldStateChange={(state) => {\n            if (state === "fa
 if old not in s: raise SystemExit('inline callback target missing')
 s=s.replace(old,'          onFieldStateChange={handleProductionThemeStateChange}')
 p.write_text(s)
+
+t=Path('src/components/DitherCanvasPage.test.js')
+ts=t.read_text().replace('Light Theme', 'Radiant Lattice').replace('Dark Theme', 'Event Horizon')
+t.write_text(ts)
