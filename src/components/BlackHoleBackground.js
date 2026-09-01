@@ -25,9 +25,58 @@ const NON_IMMERSIVE_PATHS = new Set([
   "/dither-canvas",
 ]);
 
-export const isImmersiveBlackHolePath = (pathname = "/") => {
-  const normalized = String(pathname || "/").replace(/\/+$/, "") || "/";
-  return !NON_IMMERSIVE_PATHS.has(normalized);
+const normalizePathname = (pathname = "/") =>
+  String(pathname || "/").replace(/\/+$/, "") || "/";
+
+export const isImmersiveBlackHolePath = (pathname = "/") =>
+  !NON_IMMERSIVE_PATHS.has(normalizePathname(pathname));
+
+export const isMobileBlackHolePath = (pathname = "/") =>
+  normalizePathname(pathname) === "/";
+
+const readPositiveNumber = (value) => {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
+};
+
+export const canAttemptMobileBlackHole = ({
+  hardwareConcurrency = null,
+  deviceMemory = null,
+  saveData = false,
+} = {}) => {
+  if (saveData) return false;
+
+  const cores = readPositiveNumber(hardwareConcurrency);
+  const memory = readPositiveNumber(deviceMemory);
+  if (cores !== null && cores < 4) return false;
+  if (memory !== null && memory < 4) return false;
+  return true;
+};
+
+export const shouldRenderImmersiveBlackHole = ({
+  isDark = false,
+  hardwareWebGL = false,
+  mobile = false,
+  pathname = "/",
+  navigatorObject = null,
+} = {}) => {
+  if (
+    !isDark ||
+    !hardwareWebGL ||
+    !isImmersiveBlackHolePath(pathname)
+  ) {
+    return false;
+  }
+  if (!mobile) return true;
+
+  return (
+    isMobileBlackHolePath(pathname) &&
+    canAttemptMobileBlackHole({
+      hardwareConcurrency: navigatorObject?.hardwareConcurrency,
+      deviceMemory: navigatorObject?.deviceMemory,
+      saveData: navigatorObject?.connection?.saveData === true,
+    })
+  );
 };
 
 const readInitialSection = () => {
@@ -94,7 +143,7 @@ const useFixedBackgroundTarget = (enabled) => {
   return target;
 };
 
-const BlackHoleBackgroundCanvas = () => {
+const BlackHoleBackgroundCanvas = ({ mobile = false }) => {
   const canvasRef = React.useRef(null);
   const sectionRef = React.useRef(readInitialSection());
   const currentZoomRef = React.useRef(BLACK_HOLE_INITIAL_ZOOM);
@@ -266,7 +315,7 @@ const BlackHoleBackgroundCanvas = () => {
       animationFrame = window.requestAnimationFrame(render);
     };
 
-    const handleMouseMove = (event) => {
+    const handlePointerMove = (event) => {
       pointerRef.current[0] = event.clientX / Math.max(window.innerWidth, 1);
       pointerRef.current[1] =
         1 - event.clientY / Math.max(window.innerHeight, 1);
@@ -294,7 +343,7 @@ const BlackHoleBackgroundCanvas = () => {
     };
 
     canvas.addEventListener("webglcontextlost", handleContextLost, false);
-    window.addEventListener("mousemove", handleMouseMove, { passive: true });
+    window.addEventListener("pointermove", handlePointerMove, { passive: true });
     window.addEventListener("resize", requestResize);
     document.addEventListener("visibilitychange", handleVisibility);
     if (reducedMotion?.addEventListener) {
@@ -315,6 +364,7 @@ const BlackHoleBackgroundCanvas = () => {
       stepSize: 0.08,
       tileCount: BLACK_HOLE_TILE_COUNT,
       maxPixels: pipeline.schedule.maxPixels,
+      mobile,
     });
     ensureAnimatingRef.current = ensureAnimating;
     ensureAnimating();
@@ -324,7 +374,7 @@ const BlackHoleBackgroundCanvas = () => {
       stopAnimation();
       ensureAnimatingRef.current = null;
       canvas.removeEventListener("webglcontextlost", handleContextLost);
-      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("resize", requestResize);
       document.removeEventListener("visibilitychange", handleVisibility);
       if (reducedMotion?.removeEventListener) {
@@ -340,7 +390,7 @@ const BlackHoleBackgroundCanvas = () => {
       pipeline = null;
       recordGraphicsEvent("black-hole-background-unmounted", { schedule });
     };
-  }, [failed, rendererGeneration]);
+  }, [failed, mobile, rendererGeneration]);
 
   if (failed) return null;
 
@@ -350,6 +400,7 @@ const BlackHoleBackgroundCanvas = () => {
       ref={canvasRef}
       data-renderer-id="black-hole-background"
       data-context-recovery="local"
+      data-device-tier={mobile ? "mobile" : "desktop"}
       aria-hidden="true"
       style={{
         position: "absolute",
@@ -367,11 +418,15 @@ const BlackHoleBackgroundCanvas = () => {
 const BlackHoleBackground = ({ isDark = false }) => {
   const pathname =
     typeof window !== "undefined" ? window.location.pathname : "/";
-  const shouldRender =
-    isDark &&
-    hasHardwareWebGL &&
-    !isMobileTier &&
-    isImmersiveBlackHolePath(pathname);
+  const browserNavigator =
+    typeof navigator === "undefined" ? null : navigator;
+  const shouldRender = shouldRenderImmersiveBlackHole({
+    isDark,
+    hardwareWebGL: hasHardwareWebGL,
+    mobile: isMobileTier,
+    pathname,
+    navigatorObject: browserNavigator,
+  });
   const portalTarget = useFixedBackgroundTarget(shouldRender);
 
   if (!shouldRender || !portalTarget) return null;
@@ -388,7 +443,7 @@ const BlackHoleBackground = ({ isDark = false }) => {
       }}
       aria-hidden="true"
     >
-      <BlackHoleBackgroundCanvas />
+      <BlackHoleBackgroundCanvas mobile={isMobileTier} />
     </div>,
     portalTarget,
   );

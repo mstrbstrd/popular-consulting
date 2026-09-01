@@ -46,7 +46,7 @@ describe("persistent dark-mode black-hole invariants", () => {
     expect(componentSource).toContain('data-renderer-id="black-hole-background"');
     expect(componentSource).toContain('data-context-recovery="local"');
     expect(componentSource).toContain("window.__bhRevealStart");
-    expect(componentSource).toContain('window.addEventListener("mousemove"');
+    expect(componentSource).toContain('window.addEventListener("pointermove"');
     expect(componentSource).toContain('window.addEventListener("sectionChangeStart"');
     expect(componentSource).not.toContain("#define NUM_STEPS");
     expect(componentSource).not.toContain("schwarzschildAccel");
@@ -59,7 +59,10 @@ describe("persistent dark-mode black-hole invariants", () => {
     expect(parallaxSource).toContain(
       "const shouldUseDither = hasHardwareWebGL && !isDark;",
     );
-    expect(componentSource).toContain("isDark &&");
-    expect(componentSource).toContain("!isMobileTier &&");
+    expect(componentSource).toContain(
+      "shouldRenderImmersiveBlackHole({",
+    );
+    expect(componentSource).toContain("mobile: isMobileTier");
+    expect(componentSource).not.toContain("!isMobileTier &&");
   });
 });

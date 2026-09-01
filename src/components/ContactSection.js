@@ -21,9 +21,13 @@ const ContactSection = ({
   const { isDark } = useThemeMode();
   const copy = getSiteCopy(audience).contact;
   // Reference to main content div for animations
+  const sectionRef = React.useRef(null);
   const contentRef = React.useRef(null);
   const footerRef = React.useRef(null);
+  const viewportFrameRef = React.useRef(0);
+  const focusReleaseTimerRef = React.useRef(0);
   const [scrollOutStarted, setScrollOutStarted] = React.useState(false);
+  const [mobileInputFocused, setMobileInputFocused] = React.useState(false);
 
   // Handle section transition effects for both form and footer
   React.useEffect(() => {
@@ -83,6 +87,161 @@ const ContactSection = ({
 
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+
+  const keepFocusedControlVisible = React.useCallback(() => {
+    if (!isMobile || typeof window === "undefined") return;
+
+    const scrollContainer = contentRef.current;
+    const activeControl = document.activeElement;
+    if (
+      !scrollContainer ||
+      !activeControl ||
+      !scrollContainer.contains(activeControl) ||
+      !activeControl.matches?.("input, textarea, select")
+    ) {
+      return;
+    }
+
+    const visualViewport = window.visualViewport;
+    const viewportTop = Math.max(
+      0,
+      Number(visualViewport?.offsetTop) || 0,
+    );
+    const viewportHeight = Math.max(
+      1,
+      Number(visualViewport?.height) || window.innerHeight || 1,
+    );
+    const containerBounds = scrollContainer.getBoundingClientRect();
+    const controlBounds = activeControl.getBoundingClientRect();
+    const visibleTop = Math.max(containerBounds.top, viewportTop) + 20;
+    const visibleBottom =
+      Math.min(
+        containerBounds.bottom,
+        viewportTop + viewportHeight,
+      ) - 20;
+
+    if (visibleBottom <= visibleTop) return;
+    if (controlBounds.bottom > visibleBottom) {
+      scrollContainer.scrollTop +=
+        controlBounds.bottom - visibleBottom;
+    } else if (controlBounds.top < visibleTop) {
+      scrollContainer.scrollTop -= visibleTop - controlBounds.top;
+    }
+  }, [isMobile]);
+
+  const scheduleFocusedControlVisibility = React.useCallback(() => {
+    if (!isMobile || typeof window === "undefined") return;
+    window.cancelAnimationFrame(viewportFrameRef.current);
+    viewportFrameRef.current = window.requestAnimationFrame(() => {
+      viewportFrameRef.current = 0;
+      keepFocusedControlVisible();
+    });
+  }, [isMobile, keepFocusedControlVisible]);
+
+  React.useEffect(() => {
+    if (!isMobile || typeof window === "undefined") return undefined;
+
+    const section = sectionRef.current;
+    const visualViewport = window.visualViewport;
+    const syncVisualViewport = () => {
+      const height = Math.max(
+        1,
+        Math.round(
+          Number(visualViewport?.height) ||
+            window.innerHeight ||
+            1,
+        ),
+      );
+      const offsetTop = Math.max(
+        0,
+        Math.round(Number(visualViewport?.offsetTop) || 0),
+      );
+
+      section?.style.setProperty(
+        "--contact-mobile-viewport-height",
+        `${height}px`,
+      );
+      section?.style.setProperty(
+        "--contact-mobile-viewport-offset-top",
+        `${offsetTop}px`,
+      );
+      scheduleFocusedControlVisibility();
+    };
+
+    syncVisualViewport();
+    visualViewport?.addEventListener("resize", syncVisualViewport);
+    visualViewport?.addEventListener("scroll", syncVisualViewport);
+    window.addEventListener("orientationchange", syncVisualViewport);
+
+    return () => {
+      visualViewport?.removeEventListener("resize", syncVisualViewport);
+      visualViewport?.removeEventListener("scroll", syncVisualViewport);
+      window.removeEventListener(
+        "orientationchange",
+        syncVisualViewport,
+      );
+      window.cancelAnimationFrame(viewportFrameRef.current);
+      viewportFrameRef.current = 0;
+      section?.style.removeProperty(
+        "--contact-mobile-viewport-height",
+      );
+      section?.style.removeProperty(
+        "--contact-mobile-viewport-offset-top",
+      );
+    };
+  }, [isMobile, scheduleFocusedControlVisibility]);
+
+  React.useEffect(() => {
+    if (isActive) return;
+    const activeControl = document.activeElement;
+    if (contentRef.current?.contains(activeControl)) {
+      activeControl.blur?.();
+    }
+    setMobileInputFocused(false);
+  }, [isActive]);
+
+  React.useEffect(
+    () => () => {
+      window.clearTimeout(focusReleaseTimerRef.current);
+      window.cancelAnimationFrame(viewportFrameRef.current);
+    },
+    [],
+  );
+
+  const handleFormFocusCapture = (event) => {
+    if (
+      !isMobile ||
+      !event.target.matches?.("input, textarea, select")
+    ) {
+      return;
+    }
+
+    window.clearTimeout(focusReleaseTimerRef.current);
+    setMobileInputFocused(true);
+    scheduleFocusedControlVisibility();
+  };
+
+  const handleFormBlurCapture = (event) => {
+    if (
+      !isMobile ||
+      !event.target.matches?.("input, textarea, select")
+    ) {
+      return;
+    }
+
+    const form = event.currentTarget;
+    window.clearTimeout(focusReleaseTimerRef.current);
+    focusReleaseTimerRef.current = window.setTimeout(() => {
+      const activeControl = document.activeElement;
+      if (
+        form.contains(activeControl) &&
+        activeControl.matches?.("input, textarea, select")
+      ) {
+        return;
+      }
+      setMobileInputFocused(false);
+    }, 0);
+  };
 
   const containerStyles = {
     backgroundColor: isDark ? "rgba(6,6,16,0.78)" : hasHardwareWebGL ? "rgba(255,255,255,0.20)" : "rgba(255,255,255,0.85)",
@@ -167,6 +326,8 @@ const ContactSection = ({
     "& .MuiFilledInput-input": {
       color: isDark ? "rgba(225,225,245,0.88)" : "rgba(20,20,30,0.88)",
       fontWeight: "500",
+      fontSize: "16px",
+      lineHeight: 1.5,
       padding: "16px 20px",
       zIndex: 1,
       position: "relative",
@@ -244,10 +405,20 @@ const ContactSection = ({
 
   return (
     <section
+      ref={sectionRef}
       id="contact"
       aria-label={copy.sectionLabel}
+      data-mobile-focus-active={mobileInputFocused ? "true" : "false"}
       style={{
-        height: "100dvh",
+        height: isMobile
+          ? "var(--contact-mobile-viewport-height, 100dvh)"
+          : "100dvh",
+        minHeight: isMobile
+          ? "var(--contact-mobile-viewport-height, 100dvh)"
+          : "100dvh",
+        top: isMobile
+          ? "var(--contact-mobile-viewport-offset-top, 0px)"
+          : 0,
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -293,7 +464,7 @@ const ContactSection = ({
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
-            justifyContent: "center",
+            justifyContent: mobileInputFocused ? "flex-start" : "center",
             width: "100%",
             maxWidth: isMobile ? "100%" : "800px",
             opacity: 0, // Initially hidden, will be animated in useEffect
@@ -308,6 +479,11 @@ const ContactSection = ({
             touchAction: "pan-y",
             WebkitOverflowScrolling: "touch",
             overscrollBehavior: "contain",
+            scrollPaddingBlock: "2rem",
+            paddingTop: mobileInputFocused
+              ? "max(1.2rem, env(safe-area-inset-top))"
+              : 0,
+            paddingBottom: mobileInputFocused ? "2rem" : 0,
           }}
         >
           <Container
@@ -390,6 +566,8 @@ const ContactSection = ({
               action="https://formspree.io/f/mrgvbgww"
               method="POST"
               aria-label={copy.formLabel}
+              onFocusCapture={handleFormFocusCapture}
+              onBlurCapture={handleFormBlurCapture}
               style={{
                 display: "flex",
                 flexDirection: "column",
@@ -433,6 +611,8 @@ const ContactSection = ({
                 variant="filled"
                 type="text"
                 name="name"
+                autoComplete="name"
+                inputProps={{ enterKeyHint: "next" }}
                 required
                 fullWidth
                 sx={textFieldStyles}
@@ -443,6 +623,8 @@ const ContactSection = ({
                 variant="filled"
                 type="email"
                 name="email"
+                autoComplete="email"
+                inputProps={{ enterKeyHint: "next" }}
                 required
                 fullWidth
                 sx={textFieldStyles}
@@ -454,6 +636,7 @@ const ContactSection = ({
                 multiline
                 rows={3} // Reduced from 4
                 name="message"
+                inputProps={{ enterKeyHint: "send" }}
                 required
                 fullWidth
                 sx={textFieldStyles}
@@ -474,6 +657,7 @@ const ContactSection = ({
         {/* Footer pill — pinned to bottom, centering via flex wrapper so
                       translateY animation in useEffect never clobbers translateX(-50%) */}
         <div
+          className="contact-footer-viewport"
           style={{
             position: "absolute",
             bottom: "max(2rem, env(safe-area-inset-bottom))",
@@ -483,6 +667,13 @@ const ContactSection = ({
             justifyContent: "center",
             pointerEvents: "none",
             padding: "0 2.4rem",
+            opacity: mobileInputFocused ? 0 : 1,
+            visibility: mobileInputFocused ? "hidden" : "visible",
+            transform: mobileInputFocused
+              ? "translateY(1.2rem)"
+              : "translateY(0)",
+            transition:
+              "opacity 180ms ease, transform 180ms ease, visibility 180ms ease",
           }}
         >
           <div

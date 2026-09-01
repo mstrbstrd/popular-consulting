@@ -48,6 +48,17 @@ const fallbackOrbs = [
   { top: "72%", left: "22%", size: "42vmax", dur: "26s", delay: "-11s" },
 ];
 
+export const isContactTextEntryFocused = (
+  documentObject =
+    typeof document === "undefined" ? null : document,
+) => {
+  const activeElement = documentObject?.activeElement;
+  return Boolean(
+    activeElement?.matches?.("input, textarea, select") &&
+      activeElement.closest?.("#contact form"),
+  );
+};
+
 export const ParallaxBackground = ({ children }) => {
   const { isDark } = useThemeMode();
   const backgroundRef = useRef(null);
@@ -253,6 +264,7 @@ export const ParallaxBackground = ({ children }) => {
       event.preventDefault();
       if (
         isTransitioning ||
+        isContactTextEntryFocused() ||
         window.__serviceCardExpanded ||
         window.__bhModeActive ||
         window.__cardDragging
@@ -284,6 +296,7 @@ export const ParallaxBackground = ({ children }) => {
     const handleKeyDown = (event) => {
       if (
         isTransitioning ||
+        isContactTextEntryFocused() ||
         window.__serviceCardExpanded ||
         window.__bhModeActive ||
         window.__cardDragging
@@ -334,6 +347,7 @@ export const ParallaxBackground = ({ children }) => {
     const handleTouchEnd = (event) => {
       if (
         isTransitioning ||
+        isContactTextEntryFocused() ||
         window.__serviceCardExpanded ||
         window.__bhModeActive ||
         window.__cardDragging
