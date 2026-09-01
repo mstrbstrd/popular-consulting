@@ -2,7 +2,9 @@ import fs from "fs";
 import path from "path";
 
 const source = (name) =>
-  fs.readFileSync(path.join(__dirname, name), "utf8");
+  fs
+    .readFileSync(path.join(__dirname, name), "utf8")
+    .replace(/\r\n/g, "\n");
 
 describe("Dither Field Lab runtime invariants", () => {
   const field = source("CreatorOSFieldCanvas.js");
