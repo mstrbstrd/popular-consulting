@@ -42,7 +42,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git rm scripts/apply_second_surface_selector.py
+          git rm -f scripts/apply_second_surface_selector.py
           git rm .github/workflows/apply-second-surface-selector.yml
           git add src/components/DitherCanvasPage.js src/components/DitherCanvasPage.css src/components/DitherCanvasPage.test.js src/components/DitherCanvasRuntimeContract.test.js src/components/RuptureCanvas.js src/components/RuptureShader.js
           git diff --cached --check
