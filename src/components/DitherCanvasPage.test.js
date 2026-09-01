@@ -82,6 +82,24 @@ jest.mock("./CreatorOSLavaLampCanvas", () => {
     );
 });
 
+jest.mock("./ProductionThemeCanvas", () => {
+  const ReactModule = require("react");
+  return ({ theme, onFieldStateChange, paused, resetVersion }) =>
+    ReactModule.createElement(
+      "button",
+      {
+        type: "button",
+        "data-testid": "production-theme-renderer",
+        "data-production-theme": theme,
+        "data-paused": paused ? "true" : "false",
+        "data-reset-version": String(resetVersion),
+        onClick: () =>
+          onFieldStateChange?.(theme === "dark" ? "warping" : "radiating"),
+      },
+      `${theme} production theme renderer`,
+    );
+});
+
 describe("DitherCanvasPage", () => {
   let scrollPosition;
 
@@ -148,7 +166,7 @@ describe("DitherCanvasPage", () => {
     document.documentElement.removeAttribute("data-theme");
   });
 
-  test("opens as a ten-study scroll narrative with Second Surface first", () => {
+  test("opens as a twelve-study scroll narrative with Second Surface first", () => {
     render(<DitherCanvasPage />);
 
     expect(
@@ -159,17 +177,23 @@ describe("DitherCanvasPage", () => {
       "data-progress",
       "0",
     );
-    expect(document.querySelectorAll(".dither-scroll-step")).toHaveLength(10);
+    expect(document.querySelectorAll(".dither-scroll-step")).toHaveLength(12);
 
     const studyNavigation = screen.getByRole("navigation", {
       name: "Dither background studies",
     });
-    expect(within(studyNavigation).getAllByRole("button")).toHaveLength(10);
+    expect(within(studyNavigation).getAllByRole("button")).toHaveLength(12);
     expect(
       within(studyNavigation).getByRole("button", { name: /Second Surface/ }),
     ).toHaveAttribute("aria-pressed", "true");
     expect(
       within(studyNavigation).getByRole("button", { name: /Forward Pass/ }),
+    ).toBeInTheDocument();
+    expect(
+      within(studyNavigation).getByRole("button", { name: /Light Theme/ }),
+    ).toBeInTheDocument();
+    expect(
+      within(studyNavigation).getByRole("button", { name: /Dark Theme/ }),
     ).toBeInTheDocument();
   });
 
@@ -437,6 +461,45 @@ describe("DitherCanvasPage", () => {
     fireEvent.click(screen.getByTestId("creatoros-field-renderer"));
     expect(screen.getByText("propagating")).toBeInTheDocument();
     expect(screen.getByRole("main")).toHaveClass("rupture-propagating");
+  });
+
+  test.each([
+    ["Light Theme", "light", "radiating"],
+    ["Dark Theme", "dark", "warping"],
+  ])("mounts the production %s study with fixed theme behavior", (
+    studyTitle,
+    theme,
+    fieldState,
+  ) => {
+    render(<DitherCanvasPage />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: new RegExp(studyTitle) }),
+    );
+    flushScrollFrame();
+    finishStudyTransition();
+
+    expect(screen.getByRole("heading", { name: studyTitle })).toBeInTheDocument();
+    expect(screen.getByRole("main")).toHaveAttribute("data-theme-mode", theme);
+    expect(screen.getByTestId("production-theme-renderer")).toHaveAttribute(
+      "data-production-theme",
+      theme,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+    expect(screen.getByTestId("production-theme-renderer")).toHaveAttribute(
+      "data-paused",
+      "true",
+    );
+
+    fireEvent.click(screen.getByTestId("production-theme-renderer"));
+    expect(screen.getByText(fieldState)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Restart" }));
+    expect(screen.getByTestId("production-theme-renderer")).toHaveAttribute(
+      "data-reset-version",
+      "1",
+    );
   });
 
   test.each([

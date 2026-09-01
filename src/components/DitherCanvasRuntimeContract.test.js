@@ -8,8 +8,10 @@ describe("Dither Field Lab runtime invariants", () => {
   const field = source("CreatorOSFieldCanvas.js");
   const lava = source("CreatorOSLavaLampCanvas.js");
   const rupture = source("RuptureCanvas.js");
+  const productionThemes = source("ProductionThemeCanvas.js");
   const page = source("DitherCanvasPage.js");
   const narrative = source("DitherScrollNarrative.css");
+  const productionThemeStyles = source("ProductionThemeCanvas.css");
   const blackHole = source("BlackHoleBackground.js");
 
   test("every renderer owns local context recovery and a bounded runtime profile", () => {
@@ -20,6 +22,10 @@ describe("Dither Field Lab runtime invariants", () => {
       expect(renderer).toContain("getDitherCanvasSize(");
       expect(renderer).toContain("getDitherCanvasFrameInterval(");
     });
+    expect(productionThemes).toContain('data-context-recovery="local"');
+    expect(productionThemes).toContain("new VisualRuntimeShell({");
+    expect(productionThemes).toContain("VISUAL_RUNTIME_DARK_FIXED.maxPixels");
+    expect(productionThemes).toContain("shaderRuntimeProfile.maxPixels");
   });
 
   test("hidden, paused, and reduced-motion states do not own permanent frame loops", () => {
@@ -36,6 +42,9 @@ describe("Dither Field Lab runtime invariants", () => {
     expect(rupture).toContain(
       "return !pausedRef.current && !reducedMotion",
     );
+    expect(productionThemes).toContain("runtime.scheduler.suspend(PAUSE_REASON)");
+    expect(productionThemes).toContain("runtime.scheduler.resume(PAUSE_REASON)");
+    expect(productionThemes).toContain("runtime?.dispose()");
   });
 
   test("the route mounts one study renderer and never the persistent black hole", () => {
@@ -47,6 +56,29 @@ describe("Dither Field Lab runtime invariants", () => {
       'paused: paused || transitionPhase === "exiting"',
     );
     expect(blackHole).toContain('"/dither-canvas"');
+  });
+
+  test("production light and dark are first-class field studies", () => {
+    expect(page).toContain('id: "light-theme"');
+    expect(page).toContain('id: "dark-theme"');
+    expect(page).toContain('type: "production-theme"');
+    expect(page).toContain('<ProductionThemeCanvas');
+    expect(page).toContain('theme={activeStudy.theme}');
+    expect(productionThemes).toContain("createVisualRuntimeLightPass({");
+    expect(productionThemes).toContain("createVisualRuntimeDarkPass({");
+    expect(productionThemes).toContain("candidateRuntime.registerPass(guardedPass)");
+    expect(productionThemeStyles).toContain(
+      '[data-transition="production-theme"]',
+    );
+  });
+
+  test("production theme failures degrade locally to intentional CSS surfaces", () => {
+    expect(productionThemes).toContain("setFallbackActive(true)");
+    expect(productionThemes).toContain('onFieldStateChange("fallback")');
+    expect(productionThemes).toContain('data-runtime-fallback={fallbackActive ? "css" : "none"}');
+    expect(productionThemeStyles).toContain(
+      ".production-theme-shell.is-fallback .production-theme-canvas",
+    );
   });
 
   test("feedback resources exist only for Morphogen Divide", () => {

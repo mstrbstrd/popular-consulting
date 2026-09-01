@@ -3,6 +3,7 @@ import logo from "../assets/icons/logo2026_128.png";
 import { ThemeProvider, useThemeMode } from "../contexts/ThemeContext";
 import CreatorOSFieldCanvas from "./CreatorOSFieldCanvas";
 import CreatorOSLavaLampCanvas from "./CreatorOSLavaLampCanvas";
+import ProductionThemeCanvas from "./ProductionThemeCanvas";
 import RuptureCanvas from "./RuptureCanvas";
 import "./DitherCanvasPage.css";
 import "./DitherCanvasVibrance.css";
@@ -149,6 +150,34 @@ const STUDIES = [
     instruction:
       "Move to bias the gates · tap to inject a token pulse and watch it propagate through the chambers",
   },
+  {
+    id: "light-theme",
+    number: "11",
+    title: "Light Theme",
+    type: "production-theme",
+    theme: "light",
+    kind: "Production",
+    initialState: "radiating",
+    resetLabel: "Restart",
+    description:
+      "The production light field enters the lab intact: responsive glyph ripples, spectral flow, and a full-resolution dither composite driven by the optimized field pass.",
+    instruction:
+      "Move through the field · tap to launch a ripple · choose Restart to rebuild the light runtime",
+  },
+  {
+    id: "dark-theme",
+    number: "12",
+    title: "Dark Theme",
+    type: "production-theme",
+    theme: "dark",
+    kind: "Production",
+    initialState: "warping",
+    resetLabel: "Restart",
+    description:
+      "The production dark field brings its geodesic horizon into the lab, reusing the optimized transport map and material pass without duplicating the black-hole shader.",
+    instruction:
+      "Move to bend the horizon · choose Restart to rebuild the dark transport",
+  },
 ];
 
 const DESKTOP_SCROLL_PROFILE = Object.freeze({
@@ -211,6 +240,8 @@ const STUDY_TRANSITIONS = {
     exit: "hyperbolic-garden",
   },
   "forward-pass": { enter: "forward-pass", exit: "forward-pass" },
+  "light-theme": { enter: "production-theme", exit: "production-theme" },
+  "dark-theme": { enter: "production-theme", exit: "production-theme" },
 };
 
 const clamp = (value, minimum = 0, maximum = 1) =>
@@ -288,6 +319,7 @@ const DitherFieldLab = () => {
   const viewportWidthRef = useRef(0);
   const displayStudyIndexRef = useRef(0);
   const directNavigationTargetRef = useRef(null);
+  const syncedThemeStudyRef = useRef(null);
   const [displayStudyIndex, setDisplayStudyIndex] = useState(0);
   const [requestedStudyIndex, setRequestedStudyIndex] = useState(0);
   const [transitionTargetIndex, setTransitionTargetIndex] = useState(null);
@@ -348,6 +380,19 @@ const DitherFieldLab = () => {
       setMorphogenExperience(MORPHOGEN_EXPERIENCE_ORGANISM);
     }
   }, [activeStudy.id, morphogenExperience]);
+
+  useEffect(() => {
+    const forcedTheme = activeStudy.theme;
+    if (!forcedTheme) {
+      syncedThemeStudyRef.current = null;
+      return;
+    }
+    if (syncedThemeStudyRef.current === activeStudy.id) return;
+
+    syncedThemeStudyRef.current = activeStudy.id;
+    const shouldUseDarkTheme = forcedTheme === "dark";
+    if (isDark !== shouldUseDarkTheme) toggleTheme();
+  }, [activeStudy.id, activeStudy.theme, isDark, toggleTheme]);
 
   useEffect(() => {
     const previousTitle = document.title;
@@ -609,6 +654,17 @@ const DitherFieldLab = () => {
       return (
         <CreatorOSLavaLampCanvas
           {...sharedProps}
+          onFieldStateChange={setFieldState}
+        />
+      );
+    }
+
+    if (activeStudy.type === "production-theme") {
+      return (
+        <ProductionThemeCanvas
+          paused={sharedProps.paused}
+          resetVersion={resetVersion}
+          theme={activeStudy.theme}
           onFieldStateChange={setFieldState}
         />
       );

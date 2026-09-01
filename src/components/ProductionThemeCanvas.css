@@ -1,0 +1,112 @@
+.production-theme-shell,
+.production-theme-fallback,
+.production-theme-canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.production-theme-shell {
+  z-index: 0;
+  overflow: hidden;
+  isolation: isolate;
+  touch-action: pan-y;
+  cursor: crosshair;
+}
+
+.production-theme-fallback {
+  z-index: 0;
+  pointer-events: none;
+}
+
+.production-theme-light .production-theme-fallback {
+  background:
+    radial-gradient(circle at 25% 28%, rgba(36, 204, 255, 0.24), transparent 30%),
+    radial-gradient(circle at 72% 62%, rgba(255, 86, 214, 0.20), transparent 34%),
+    radial-gradient(circle at 54% 44%, rgba(99, 68, 245, 0.14), transparent 48%),
+    #fff8f7;
+}
+
+.production-theme-dark .production-theme-fallback {
+  background:
+    radial-gradient(circle at 50% 52%, rgba(36, 204, 255, 0.12), transparent 16%),
+    radial-gradient(circle at 50% 50%, rgba(99, 68, 245, 0.16), transparent 34%),
+    radial-gradient(circle at 50% 50%, rgba(255, 86, 214, 0.08), transparent 52%),
+    #080809;
+}
+
+.production-theme-canvas {
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+  transition: opacity 220ms ease;
+}
+
+.production-theme-shell.is-fallback .production-theme-canvas {
+  opacity: 0;
+}
+
+.dither-study-scene.is-exiting[data-transition="production-theme"] {
+  animation-name: dither-production-theme-exit;
+}
+
+.dither-study-scene.is-entering[data-transition="production-theme"] {
+  animation-name: dither-production-theme-enter;
+}
+
+.dither-copy.is-exiting[data-transition="production-theme"] {
+  animation-name: dither-copy-production-theme-exit;
+}
+
+.dither-copy.is-entering[data-transition="production-theme"] {
+  animation-name: dither-copy-production-theme-enter;
+}
+
+@keyframes dither-production-theme-exit {
+  from {
+    opacity: 1;
+    transform: scale(1);
+    filter: blur(0) saturate(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.985);
+    filter: blur(1.2rem) saturate(0.72);
+  }
+}
+
+@keyframes dither-production-theme-enter {
+  from {
+    opacity: 0;
+    transform: scale(1.018);
+    filter: blur(1.4rem) saturate(0.75);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+    filter: blur(0) saturate(1);
+  }
+}
+
+@keyframes dither-copy-production-theme-exit {
+  from {
+    opacity: 1;
+    transform: translateY(var(--dither-copy-drift, 0px));
+  }
+  to {
+    opacity: 0;
+    transform: translateY(calc(var(--dither-copy-drift, 0px) + 1.8rem));
+  }
+}
+
+@keyframes dither-copy-production-theme-enter {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--dither-copy-drift, 0px) - 1.8rem));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(var(--dither-copy-drift, 0px));
+  }
+}
