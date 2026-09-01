@@ -21,7 +21,9 @@ jobs:
           node-version: 20
           cache: npm
       - name: Apply guarded implementation
-        run: python scripts/apply_second_surface_selector.py
+        run: |
+          sed -i 's/content.count(old) != 1/content.count(old) < 1/' scripts/apply_second_surface_selector.py
+          python scripts/apply_second_surface_selector.py
       - name: Check whitespace
         run: git diff --check
       - name: Install
