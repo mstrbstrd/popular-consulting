@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import logo from "../assets/icons/logo2026_128.png";
 import { ThemeProvider, useThemeMode } from "../contexts/ThemeContext";
+import { hasHardwareWebGL, isMobileTier } from "../utils/deviceTier";
+import { canAttemptHighFidelityMobileGraphics } from "../utils/mobileGraphicsCapability";
 import CreatorOSFieldCanvas from "./CreatorOSFieldCanvas";
 import CreatorOSLavaLampCanvas from "./CreatorOSLavaLampCanvas";
 import ProductionThemeCanvas from "./ProductionThemeCanvas";
@@ -332,6 +334,7 @@ const DitherFieldLab = () => {
   const [paused, setPaused] = useState(false);
   const [resetVersion, setResetVersion] = useState(0);
   const [fieldState, setFieldState] = useState(STUDIES[0].initialState);
+  const [mobileLightRuntimeFailed, setMobileLightRuntimeFailed] = useState(false);
   const [metabloomPalette, setMetabloomPalette] = useState(
     METABLOOM_PALETTE_SPECTRAL,
   );
@@ -356,6 +359,20 @@ const DitherFieldLab = () => {
     MORPHOGEN_COLOR_B_DEFAULT,
   );
   const activeStudy = STUDIES[displayStudyIndex];
+  const highFidelityMobileLight =
+    activeStudy.id === "light-theme"
+    && hasHardwareWebGL
+    && isMobileTier
+    && !mobileLightRuntimeFailed
+    && canAttemptHighFidelityMobileGraphics({
+      hardwareConcurrency:
+        typeof navigator === "undefined" ? null : navigator.hardwareConcurrency,
+      deviceMemory:
+        typeof navigator === "undefined" ? null : navigator.deviceMemory,
+      saveData:
+        typeof navigator !== "undefined"
+        && navigator.connection?.saveData === true,
+    });
   const isMorphogenPaintMode =
     activeStudy.id === "morphogen-divide"
     && morphogenExperience === MORPHOGEN_EXPERIENCE_PAINT;
@@ -630,6 +647,9 @@ const DitherFieldLab = () => {
 
   const resetActiveStudy = () => {
     if (displayStudyIndex === 0) scrollToStudy(0);
+    if (activeStudy.id === "light-theme") {
+      setMobileLightRuntimeFailed(false);
+    }
     setResetVersion((value) => value + 1);
   };
 
@@ -665,7 +685,15 @@ const DitherFieldLab = () => {
           paused={sharedProps.paused}
           resetVersion={resetVersion}
           theme={activeStudy.theme}
-          onFieldStateChange={setFieldState}
+          highFidelityLight={highFidelityMobileLight}
+          runtimeScope="dither-canvas-lab"
+          onFieldStateChange={(state) => {
+            if (state === "fallback" && highFidelityMobileLight) {
+              setMobileLightRuntimeFailed(true);
+              return;
+            }
+            setFieldState(state);
+          }}
         />
       );
     }
@@ -694,6 +722,15 @@ const DitherFieldLab = () => {
       className={`dither-canvas-page dither-study-${activeStudy.id} dither-renderer-${activeStudy.type} rupture-${fieldState} dither-transition-${transitionPhase}${isMorphogenPaintMode ? " dither-morphogen-paint" : ""}`}
       data-active-study={activeStudy.id}
       data-theme-mode={isDark ? "dark" : "light"}
+      data-mobile-light-detail={
+        activeStudy.id === "light-theme"
+          ? highFidelityMobileLight
+            ? "high-fidelity"
+            : mobileLightRuntimeFailed
+              ? "compatibility-fallback"
+              : "compatibility"
+          : "inactive"
+      }
       aria-label="Spectral Display dither field lab"
     >
       <div className="dither-fixed-stage">
