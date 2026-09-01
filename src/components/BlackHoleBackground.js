@@ -4,6 +4,7 @@ import React from "react";
 import { createPortal } from "react-dom";
 import { hasHardwareWebGL, isMobileTier } from "../utils/deviceTier";
 import { recordGraphicsEvent } from "../utils/graphicsPolicy";
+import { canAttemptHighFidelityMobileGraphics } from "../utils/mobileGraphicsCapability";
 import { claimLiveBackgroundRenderer } from "../utils/rendererOwnership";
 import {
   BLACK_HOLE_RENDER_SCHEDULES,
@@ -34,24 +35,8 @@ export const isImmersiveBlackHolePath = (pathname = "/") =>
 export const isMobileBlackHolePath = (pathname = "/") =>
   normalizePathname(pathname) === "/";
 
-const readPositiveNumber = (value) => {
-  const numeric = Number(value);
-  return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
-};
-
-export const canAttemptMobileBlackHole = ({
-  hardwareConcurrency = null,
-  deviceMemory = null,
-  saveData = false,
-} = {}) => {
-  if (saveData) return false;
-
-  const cores = readPositiveNumber(hardwareConcurrency);
-  const memory = readPositiveNumber(deviceMemory);
-  if (cores !== null && cores < 4) return false;
-  if (memory !== null && memory < 4) return false;
-  return true;
-};
+export const canAttemptMobileBlackHole = (signals = {}) =>
+  canAttemptHighFidelityMobileGraphics(signals);
 
 export const shouldRenderImmersiveBlackHole = ({
   isDark = false,

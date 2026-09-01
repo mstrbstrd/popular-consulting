@@ -1,3 +1,5 @@
+import fs from "fs";
+import path from "path";
 import React from "react";
 import { act, cleanup, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom";
@@ -7,6 +9,10 @@ import { getSiteCopy, SITE_AUDIENCES } from "../content/siteCopy";
 const BUSINESS_PHOTO_ALT = getSiteCopy(
   SITE_AUDIENCES.BUSINESS,
 ).bio.photoAlt;
+const VISUAL_CSS = fs.readFileSync(
+  path.join(process.cwd(), "src/components/BusinessSystemsVisual.css"),
+  "utf8",
+);
 
 const createPortraitHost = () => {
   const section = document.createElement("section");
@@ -73,6 +79,30 @@ describe("BusinessSystemsVisual", () => {
     expect(image).toHaveAttribute("aria-hidden", "false");
     expect(image).not.toHaveAttribute("data-business-portrait-hidden");
     expect(host).not.toHaveAttribute("data-business-visual-host");
+  });
+
+  test("uses the Work-page system-map language and four rotating logo marks", () => {
+    createPortraitHost();
+    render(<BusinessSystemsVisual />);
+
+    const visual = screen.getByTestId("business-systems-visual");
+    expect(
+      visual.querySelector(".business-systems-visual__frame"),
+    ).toBeInTheDocument();
+    expect(
+      visual.querySelectorAll(
+        ".business-systems-visual__node-logo-image",
+      ),
+    ).toHaveLength(4);
+    expect(
+      visual.querySelectorAll("[data-system-node]"),
+    ).toHaveLength(4);
+    ["Strategy", "Software", "Commerce", "AI"].forEach((label) => {
+      expect(visual).toHaveTextContent(label);
+    });
+    expect(VISUAL_CSS).toContain("--business-visual-spectral");
+    expect(VISUAL_CSS).toContain("--aetheris-font-mono");
+    expect(VISUAL_CSS).toContain("@keyframes businessSystemsLogoSpin");
   });
 
   test("runs motion only while Section 1 is active", () => {

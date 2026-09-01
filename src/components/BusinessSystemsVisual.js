@@ -1,6 +1,7 @@
 import React from "react";
 import { createPortal } from "react-dom";
 import { getSiteCopy, SITE_AUDIENCES } from "../content/siteCopy";
+import nodeLogo from "../assets/icons/popcon_svg.svg";
 import "./BusinessSystemsVisual.css";
 
 const BUSINESS_BIO_COPY = getSiteCopy(SITE_AUDIENCES.BUSINESS).bio;
@@ -11,51 +12,63 @@ const SYSTEM_NODES = Object.freeze([
     id: "strategy",
     label: "Strategy",
     x: 180,
-    y: 78,
+    y: 82,
+    labelWidth: 78,
     delay: "0s",
+    rotationDuration: "11s",
+    rotationDirection: "normal",
   }),
   Object.freeze({
     id: "software",
     label: "Software",
-    x: 294,
-    y: 204,
-    delay: "-1.2s",
+    x: 292,
+    y: 190,
+    labelWidth: 82,
+    delay: "-2.4s",
+    rotationDuration: "14s",
+    rotationDirection: "reverse",
   }),
   Object.freeze({
     id: "commerce",
     label: "Commerce",
     x: 180,
-    y: 330,
-    delay: "-2.4s",
+    y: 298,
+    labelWidth: 84,
+    delay: "-4.8s",
+    rotationDuration: "12s",
+    rotationDirection: "normal",
   }),
   Object.freeze({
     id: "ai",
     label: "AI",
-    x: 66,
-    y: 204,
-    delay: "-3.6s",
+    x: 68,
+    y: 190,
+    labelWidth: 52,
+    delay: "-7.2s",
+    rotationDuration: "15s",
+    rotationDirection: "reverse",
   }),
 ]);
 
 const SYSTEM_CONNECTIONS = Object.freeze([
   Object.freeze({
     id: "strategy",
-    path: "M180 178 C180 142 180 116 180 96",
+    path: "M180 138 C180 126 180 112 180 104",
     delay: "0s",
   }),
   Object.freeze({
     id: "software",
-    path: "M224 204 C248 204 266 204 276 204",
+    path: "M232 190 C248 190 262 190 270 190",
     delay: "-0.9s",
   }),
   Object.freeze({
     id: "commerce",
-    path: "M180 230 C180 264 180 292 180 312",
+    path: "M180 242 C180 256 180 270 180 276",
     delay: "-1.8s",
   }),
   Object.freeze({
     id: "ai",
-    path: "M136 204 C112 204 94 204 84 204",
+    path: "M128 190 C112 190 98 190 90 190",
     delay: "-2.7s",
   }),
 ]);
@@ -197,13 +210,13 @@ const BusinessSystemsVisual = () => {
       }${reducedMotion ? " business-systems-visual--reduced" : ""}`}
       data-testid="business-systems-visual"
       role="img"
-      aria-label="Animated systems map showing strategy, software, AI, and commerce connected around the client's business from discovery through support."
+      aria-label="Animated systems map showing rotating Popular Consulting marks for strategy, software, AI, and commerce connected around the client's business from discovery through support."
     >
       <div className="business-systems-visual__ambient" aria-hidden="true" />
 
       <svg
         className="business-systems-visual__map"
-        viewBox="0 0 360 410"
+        viewBox="0 0 360 360"
         aria-hidden="true"
         focusable="false"
       >
@@ -215,29 +228,57 @@ const BusinessSystemsVisual = () => {
             x2="1"
             y2="1"
           >
-            <stop offset="0%" stopColor="#6344F5" />
-            <stop offset="48%" stopColor="#24CCFF" />
-            <stop offset="100%" stopColor="#52E5A0" />
+            <stop offset="0%" stopColor="#00EEFF" />
+            <stop offset="42%" stopColor="#FF00FF" />
+            <stop offset="72%" stopColor="#FFEE00" />
+            <stop offset="100%" stopColor="#9D00FF" />
           </linearGradient>
-          <radialGradient id="business-system-core" cx="50%" cy="42%" r="66%">
-            <stop offset="0%" stopColor="#ffffff" stopOpacity="0.98" />
-            <stop offset="62%" stopColor="#ffffff" stopOpacity="0.74" />
-            <stop offset="100%" stopColor="#6344F5" stopOpacity="0.18" />
+          <radialGradient id="business-system-core" cx="50%" cy="38%" r="72%">
+            <stop offset="0%" stopColor="#ffffff" stopOpacity="0.96" />
+            <stop offset="68%" stopColor="#ffffff" stopOpacity="0.78" />
+            <stop offset="100%" stopColor="#00EEFF" stopOpacity="0.10" />
           </radialGradient>
         </defs>
 
+        <rect
+          className="business-systems-visual__frame"
+          x="18"
+          y="14"
+          width="324"
+          height="332"
+          rx="24"
+        />
+        <path
+          className="business-systems-visual__frame-rule"
+          d="M42 44 H318"
+        />
+        <text
+          className="business-systems-visual__map-kicker"
+          x="42"
+          y="34"
+        >
+          POPULAR CONSULTING / SYSTEM MAP
+        </text>
+
         <circle
-          className="business-systems-visual__orbit business-systems-visual__motion"
+          className="business-systems-visual__orbit business-systems-visual__orbit--outer business-systems-visual__motion"
           cx="180"
-          cy="204"
+          cy="190"
           r="112"
         />
         <circle
           className="business-systems-visual__orbit business-systems-visual__orbit--inner business-systems-visual__motion"
           cx="180"
-          cy="204"
-          r="78"
+          cy="190"
+          r="76"
         />
+
+        <g className="business-systems-visual__ticks">
+          <path d="M180 54 V64" />
+          <path d="M316 190 H306" />
+          <path d="M180 326 V316" />
+          <path d="M44 190 H54" />
+        </g>
 
         {SYSTEM_CONNECTIONS.map((connection) => (
           <g key={connection.id}>
@@ -253,26 +294,45 @@ const BusinessSystemsVisual = () => {
           </g>
         ))}
 
-        <g className="business-systems-visual__satellites business-systems-visual__motion">
-          <circle cx="180" cy="92" r="4" />
-          <circle cx="292" cy="204" r="4" />
-          <circle cx="180" cy="316" r="4" />
-          <circle cx="68" cy="204" r="4" />
-        </g>
-
         {SYSTEM_NODES.map((node) => (
           <g
-            className="business-systems-visual__node business-systems-visual__motion"
+            className="business-systems-visual__node"
+            data-system-node={node.id}
             key={node.id}
             transform={`translate(${node.x} ${node.y})`}
             style={{ "--node-delay": node.delay }}
           >
-            <circle className="business-systems-visual__node-ring" r="23" />
-            <circle className="business-systems-visual__node-surface" r="18" />
-            <circle className="business-systems-visual__node-signal" r="4" />
-            <text textAnchor="middle" y="38">
-              {node.label}
-            </text>
+            <circle
+              className="business-systems-visual__node-ring business-systems-visual__motion"
+              r="25"
+            />
+            <circle className="business-systems-visual__node-surface" r="20" />
+            <image
+              className="business-systems-visual__node-logo-image business-systems-visual__motion"
+              href={nodeLogo}
+              x="-12"
+              y="-12"
+              width="24"
+              height="24"
+              preserveAspectRatio="xMidYMid meet"
+              style={{
+                "--logo-delay": node.delay,
+                "--logo-duration": node.rotationDuration,
+                "--logo-direction": node.rotationDirection,
+              }}
+            />
+            <g className="business-systems-visual__node-label">
+              <rect
+                x={-node.labelWidth / 2}
+                y="31"
+                width={node.labelWidth}
+                height="20"
+                rx="10"
+              />
+              <text textAnchor="middle" y="44">
+                {node.label}
+              </text>
+            </g>
           </g>
         ))}
 
@@ -280,19 +340,28 @@ const BusinessSystemsVisual = () => {
           <circle
             className="business-systems-visual__core-halo business-systems-visual__motion"
             cx="180"
-            cy="204"
-            r="55"
+            cy="190"
+            r="56"
           />
           <circle
             className="business-systems-visual__core-surface"
             cx="180"
-            cy="204"
-            r="46"
+            cy="190"
+            r="48"
+          />
+          <image
+            className="business-systems-visual__core-logo"
+            href={nodeLogo}
+            x="168"
+            y="154"
+            width="24"
+            height="24"
+            preserveAspectRatio="xMidYMid meet"
           />
           <text
             className="business-systems-visual__core-kicker"
             x="180"
-            y="195"
+            y="193"
             textAnchor="middle"
           >
             BUILT AROUND
@@ -300,14 +369,14 @@ const BusinessSystemsVisual = () => {
           <text
             className="business-systems-visual__core-title"
             x="180"
-            y="214"
+            y="211"
             textAnchor="middle"
           >
             YOUR BUSINESS
           </text>
           <path
             className="business-systems-visual__core-rule"
-            d="M150 224 H210"
+            d="M150 221 H210"
           />
         </g>
       </svg>

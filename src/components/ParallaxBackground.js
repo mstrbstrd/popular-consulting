@@ -6,8 +6,10 @@ import React, {
   cloneElement,
 } from "react";
 import ManagedDitherBackground from "./ManagedDitherBackground";
+import ProductionThemeCanvas from "./ProductionThemeCanvas";
 import { useThemeMode } from "../contexts/ThemeContext";
-import { hasHardwareWebGL } from "../utils/deviceTier";
+import { hasHardwareWebGL, isMobileTier } from "../utils/deviceTier";
+import { shouldUseHighFidelityMobileLight } from "../utils/mobileGraphicsCapability";
 
 const SUPPORTS_DVH =
   typeof CSS !== "undefined" && CSS.supports?.("height", "100dvh");
@@ -74,11 +76,39 @@ export const ParallaxBackground = ({ children }) => {
 
   const [activeSection, setActiveSection] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [mobileLightRuntimeFailed, setMobileLightRuntimeFailed] =
+    useState(false);
   const totalSections = Children.count(children) || 0;
   const activeSectionRef = useRef(0);
 
   const shouldUseDither = hasHardwareWebGL && !isDark;
+  const mobileLightEligible = shouldUseHighFidelityMobileLight({
+    isDark,
+    hardwareWebGL: hasHardwareWebGL,
+    mobile: isMobileTier,
+    pathname:
+      typeof window === "undefined" ? "/" : window.location.pathname,
+    navigatorObject:
+      typeof navigator === "undefined" ? null : navigator,
+  });
+  const shouldUseMobileLight =
+    shouldUseDither &&
+    mobileLightEligible &&
+    !mobileLightRuntimeFailed;
+  const shouldUseLegacyDither =
+    shouldUseDither && !shouldUseMobileLight;
+  const mobileLightRuntimeState = shouldUseMobileLight
+    ? "high-fidelity"
+    : shouldUseDither && isMobileTier
+      ? mobileLightRuntimeFailed
+        ? "compatibility-fallback"
+        : "compatibility"
+      : "inactive";
   const fallbackColors = isDark ? CSS_SECTION_DARK : CSS_SECTION_LIGHT;
+
+  const handleMobileLightStateChange = React.useCallback((state) => {
+    if (state === "fallback") setMobileLightRuntimeFailed(true);
+  }, []);
 
   useEffect(() => {
     activeSectionRef.current = activeSection;
@@ -444,7 +474,10 @@ export const ParallaxBackground = ({ children }) => {
     });
 
   return (
-    <div className="parallax-wrapper">
+    <div
+      className="parallax-wrapper"
+      data-mobile-light-runtime={mobileLightRuntimeState}
+    >
       <div className="fixed-background" ref={backgroundRef}>
         <div className="background-css-fallback" aria-hidden="true">
           {fallbackOrbs.map((orb, index) => (
@@ -468,13 +501,25 @@ export const ParallaxBackground = ({ children }) => {
           <div className="background-css-grid" />
         </div>
 
-        {shouldUseDither && (
+        {shouldUseLegacyDither && (
           <div className="background-dither-live">
             <ManagedDitherBackground
               activeSection={activeSection}
-              enabled={shouldUseDither}
+              enabled={shouldUseLegacyDither}
               isDark={isDark}
               rendererId="main-dither"
+            />
+          </div>
+        )}
+
+        {shouldUseMobileLight && (
+          <div className="background-mobile-light-live">
+            <ProductionThemeCanvas
+              theme="light"
+              activeSection={activeSection}
+              highFidelityLight
+              runtimeScope="mobile-index"
+              onFieldStateChange={handleMobileLightStateChange}
             />
           </div>
         )}
@@ -535,6 +580,7 @@ export const ParallaxBackground = ({ children }) => {
         .fixed-background,
         .background-css-fallback,
         .background-dither-live,
+        .background-mobile-light-live,
         .glass-overlay,
         .glass-gradient {
           position: fixed;
@@ -573,7 +619,8 @@ export const ParallaxBackground = ({ children }) => {
           pointer-events: none;
         }
 
-        .background-dither-live {
+        .background-dither-live,
+        .background-mobile-light-live {
           pointer-events: none;
         }
 
