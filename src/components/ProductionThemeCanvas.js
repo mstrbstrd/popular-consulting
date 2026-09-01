@@ -50,17 +50,33 @@ const ProductionThemeCanvas = ({
   theme = "light",
   paused = false,
   resetVersion = 0,
+  activeSection = 0,
+  highFidelityLight = false,
+  runtimeScope = "dither-canvas",
   onFieldStateChange = NOOP,
 }) => {
   const hostRef = React.useRef(null);
   const canvasRef = React.useRef(null);
   const runtimeRef = React.useRef(null);
   const pausedRef = React.useRef(paused);
+  const normalizedSection = Math.max(
+    0,
+    Math.floor(Number(activeSection) || 0),
+  );
+  const activeSectionRef = React.useRef(normalizedSection);
   const [fallbackActive, setFallbackActive] = React.useState(false);
   const selectedTheme = theme === "dark" ? "dark" : "light";
-  const rendererId = `dither-canvas-${selectedTheme}-theme`;
+  const normalizedScope =
+    String(runtimeScope || "dither-canvas")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9-]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 48) || "dither-canvas";
+  const rendererId = `${normalizedScope}-${selectedTheme}-theme`;
 
   pausedRef.current = paused;
+  activeSectionRef.current = normalizedSection;
 
   React.useEffect(() => {
     const host = hostRef.current;
@@ -126,7 +142,7 @@ const ProductionThemeCanvas = ({
       runtime = candidateRuntime;
       runtimeRef.current = candidateRuntime;
       candidateRuntime.setTheme(selectedTheme);
-      candidateRuntime.setSection(0);
+      candidateRuntime.setSection(activeSectionRef.current);
 
       if (!candidateRuntime.initialize() || !candidateRuntime.gl) {
         failLocally();
@@ -143,7 +159,7 @@ const ProductionThemeCanvas = ({
                 gl: candidateRuntime.gl,
                 host,
                 canvas,
-                mobile: isMobileTier,
+                mobile: isMobileTier && !highFidelityLight,
                 invalidate: (reason) => candidateRuntime.invalidate(reason),
               });
         const guardedPass = guardRuntimePass({
@@ -173,7 +189,17 @@ const ProductionThemeCanvas = ({
       runtime?.dispose();
       if (runtimeRef.current === runtime) runtimeRef.current = null;
     };
-  }, [onFieldStateChange, rendererId, resetVersion, selectedTheme]);
+  }, [
+    highFidelityLight,
+    onFieldStateChange,
+    rendererId,
+    resetVersion,
+    selectedTheme,
+  ]);
+
+  React.useEffect(() => {
+    runtimeRef.current?.setSection(normalizedSection);
+  }, [normalizedSection]);
 
   React.useEffect(() => {
     const runtime = runtimeRef.current;
@@ -190,6 +216,15 @@ const ProductionThemeCanvas = ({
         fallbackActive ? " is-fallback" : ""
       }`}
       data-production-theme={selectedTheme}
+      data-runtime-scope={normalizedScope}
+      data-active-section={normalizedSection}
+      data-light-detail={
+        selectedTheme === "light"
+          ? highFidelityLight
+            ? "high-fidelity"
+            : "mobile-compatible"
+          : undefined
+      }
       data-context-recovery="local"
       data-runtime-fallback={fallbackActive ? "css" : "none"}
       aria-hidden="true"
