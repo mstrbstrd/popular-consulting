@@ -208,6 +208,7 @@ void main() {
   float progress = sat(u_energy);
   float easedProgress = progress * progress * (3.0 - 2.0 * progress);
   float fullOpen = smoothstep(0.970, 0.999, progress);
+  bool externalSurface = u_externalSurface > 0.5;
 
   // One continuous aperture grows from the original fault. There are no
   // secondary branches or impact-driven breaks in this material study.
@@ -267,21 +268,28 @@ void main() {
     * step(0.0, fault.signedDist);
   surface -= mix(vec3(0.10), vec3(0.02), u_theme) * foldCrease * 0.16;
 
-  vec3 world = vec3(0.010, 0.014, 0.045);
-  float worldRegion = mix(sideWidth + 0.15, 10.0, fullOpen);
-  if (fault.dist < worldRegion) {
-    world = hiddenWorld(v_uv, fault);
+  // When another study owns the second surface, this pass draws only the
+  // first material and its seam. The transparent aperture exposes the selected
+  // underlay without compositing the legacy hidden world.
+  vec3 world = surface;
+  if (!externalSurface) {
+    float worldRegion = mix(sideWidth + 0.15, 10.0, fullOpen);
+    if (fault.dist < worldRegion) {
+      world = hiddenWorld(v_uv, fault);
+    }
   }
 
   float raisedSide = 0.5 + 0.5 * sign(fault.signedDist);
   float shadow = lip * mix(0.30, 0.48, u_theme) * mix(0.42, 1.0, raisedSide);
   surface *= 1.0 - shadow * 0.24;
 
-  vec3 spillColor = mix(
-    world,
-    spectral(fault.nearest.x * 0.22 + u_time * 0.03, 1.0),
-    0.28
+  vec3 seamSpectrum = spectral(
+    fault.nearest.x * 0.22 + u_time * 0.03,
+    1.0
   );
+  vec3 spillColor = externalSurface
+    ? mix(surface, seamSpectrum, mix(0.12, 0.20, u_theme))
+    : mix(world, seamSpectrum, 0.28);
   surface += spillColor * spill * mix(0.26, 0.42, u_theme);
   float upperLip = edge * (0.46 + 0.54 * step(0.0, fault.signedDist));
   float lowerLip = edge * (0.46 + 0.54 * step(fault.signedDist, 0.0));
@@ -297,10 +305,14 @@ void main() {
   float innerRim = inside
     * exp(-max(sideWidth - fault.dist, 0.0) * 28.0)
     * (1.0 - fullOpen);
-  world += spectral(fault.nearest.x * 0.24 - u_time * 0.025 + 0.34, 0.88)
-    * innerRim
-    * 0.22;
-  vec3 color = mix(surface, world, inside);
+  if (!externalSurface) {
+    world += spectral(fault.nearest.x * 0.24 - u_time * 0.025 + 0.34, 0.88)
+      * innerRim
+      * 0.22;
+  }
+  vec3 color = externalSurface
+    ? surface
+    : mix(surface, world, inside);
 
   vec2 cellCount = max(floor(u_res / max(u_cellSize, 1.0)), vec2(1.0));
   vec2 cellId = floor(v_uv * cellCount);
@@ -358,7 +370,7 @@ void main() {
   float reveal = max(revealMask(gl_FragCoord.xy), fullOpen);
   color = mix(surface, color, reveal);
   float outputAlpha = 1.0;
-  if (u_externalSurface > 0.5) {
+  if (externalSurface) {
     float seamOverlay = sat(
       edgeField * 1.35
       + glyphPresence * 0.95
