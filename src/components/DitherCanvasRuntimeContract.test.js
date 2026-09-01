@@ -63,6 +63,10 @@ describe("Dither Field Lab runtime invariants", () => {
     expect(page).toContain('id: "dark-theme"');
     expect(page).toContain('type: "production-theme"');
     expect(page).toContain('<ProductionThemeCanvas');
+    expect(page).toContain('highFidelityLight={highFidelityMobileLight}');
+    expect(page).toContain('runtimeScope="dither-canvas-lab"');
+    expect(page).toContain("canAttemptHighFidelityMobileGraphics");
+    expect(page).toContain('data-mobile-light-detail={');
     expect(page).toContain('theme={activeStudy.theme}');
     expect(productionThemes).toContain("createVisualRuntimeLightPass({");
     expect(productionThemes).toContain("createVisualRuntimeDarkPass({");
