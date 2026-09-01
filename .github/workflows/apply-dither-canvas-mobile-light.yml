@@ -1,0 +1,68 @@
+name: Apply dither canvas mobile light
+
+on:
+  push:
+    branches:
+      - feat/dither-canvas-mobile-light-20260901
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-dither-canvas-mobile-light-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apply-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/dither-canvas-mobile-light-20260901
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Apply source changes
+        run: python scripts/apply_dither_canvas_mobile_light.py
+
+      - name: Check patch whitespace
+        run: git diff --check
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test -- --watchAll=false --runInBand
+        env:
+          CI: true
+
+      - name: Build
+        run: npm run build
+        env:
+          CI: true
+
+      - name: Commit verified changes
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm scripts/apply_dither_canvas_mobile_light.py
+          git rm .github/workflows/apply-dither-canvas-mobile-light.yml
+          git add src/components/DitherCanvasPage.js src/components/DitherCanvasRuntimeContract.test.js
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo "No verified source changes were produced."
+            exit 1
+          fi
+          git commit -m "Match dither canvas mobile light fidelity"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
