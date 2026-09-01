@@ -190,10 +190,10 @@ describe("DitherCanvasPage", () => {
       within(studyNavigation).getByRole("button", { name: /Forward Pass/ }),
     ).toBeInTheDocument();
     expect(
-      within(studyNavigation).getByRole("button", { name: /Light Theme/ }),
+      within(studyNavigation).getByRole("button", { name: /Radiant Lattice/ }),
     ).toBeInTheDocument();
     expect(
-      within(studyNavigation).getByRole("button", { name: /Dark Theme/ }),
+      within(studyNavigation).getByRole("button", { name: /Event Horizon/ }),
     ).toBeInTheDocument();
   });
 
@@ -464,8 +464,8 @@ describe("DitherCanvasPage", () => {
   });
 
   test.each([
-    ["Light Theme", "light", "radiating"],
-    ["Dark Theme", "dark", "warping"],
+    ["Radiant Lattice", "light", "radiating"],
+    ["Event Horizon", "dark", "warping"],
   ])("mounts the production %s study with fixed theme behavior", (
     studyTitle,
     theme,
