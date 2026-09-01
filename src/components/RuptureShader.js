@@ -379,5 +379,11 @@ void main() {
     ) * (1.0 - fullOpen);
     outputAlpha = max(1.0 - inside, seamOverlay);
   }
-  fragColor = vec4(clamp(color, 0.0, 1.0), outputAlpha);
+  // The WebGL canvas is composited with premultiplied alpha. Collapse RGB
+  // with the aperture alpha so the first surface cannot bleach the live field.
+  vec3 outputColor = clamp(color, 0.0, 1.0);
+  if (externalSurface) {
+    outputColor *= outputAlpha;
+  }
+  fragColor = vec4(outputColor, outputAlpha);
 }`;

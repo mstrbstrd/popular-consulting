@@ -259,6 +259,7 @@ const RuptureCanvas = ({
         rendererId: "dither-canvas-rupture",
         options: {
           alpha: revealUnderlay,
+          premultipliedAlpha: true,
           antialias: false,
           depth: false,
         },
