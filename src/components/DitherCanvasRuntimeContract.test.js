@@ -2,7 +2,9 @@ import fs from "fs";
 import path from "path";
 
 const source = (name) =>
-  fs.readFileSync(path.join(__dirname, name), "utf8");
+  fs
+    .readFileSync(path.join(__dirname, name), "utf8")
+    .replace(/\r\n/g, "\n");
 
 describe("Dither Field Lab runtime invariants", () => {
   const field = source("CreatorOSFieldCanvas.js");
@@ -117,6 +119,26 @@ describe("Dither Field Lab runtime invariants", () => {
     expect(ruptureShader).toContain(
       "outputAlpha = max(1.0 - inside, seamOverlay);",
     );
+  });
+
+  test("a selected second surface fully replaces the legacy hidden world", () => {
+    expect(ruptureShader).toContain(
+      "bool externalSurface = u_externalSurface > 0.5;",
+    );
+    expect(ruptureShader).toContain("vec3 world = surface;");
+    expect(ruptureShader).toContain(
+      "if (!externalSurface) {\n    float worldRegion",
+    );
+    expect(ruptureShader).toContain(
+      "world = hiddenWorld(v_uv, fault);",
+    );
+    expect(ruptureShader).toContain(
+      "vec3 spillColor = externalSurface\n    ? mix(surface, seamSpectrum",
+    );
+    expect(ruptureShader).toContain(
+      "vec3 color = externalSurface\n    ? surface\n    : mix(surface, world, inside);",
+    );
+    expect(ruptureShader).toContain("if (externalSurface) {");
   });
 
   test("production theme failures degrade locally to intentional CSS surfaces", () => {
