@@ -24,6 +24,7 @@ uniform float u_cellSize;
 uniform int u_charCount;
 uniform int u_atlasCols;
 uniform int u_atlasRows;
+uniform float u_externalSurface;
 
 #define TAU 6.28318530718
 
@@ -356,5 +357,15 @@ void main() {
 
   float reveal = max(revealMask(gl_FragCoord.xy), fullOpen);
   color = mix(surface, color, reveal);
-  fragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
+  float outputAlpha = 1.0;
+  if (u_externalSurface > 0.5) {
+    float seamOverlay = sat(
+      edgeField * 1.35
+      + glyphPresence * 0.95
+      + cutLine * 0.72
+      + innerRim * 0.42
+    ) * (1.0 - fullOpen);
+    outputAlpha = max(1.0 - inside, seamOverlay);
+  }
+  fragColor = vec4(clamp(color, 0.0, 1.0), outputAlpha);
 }`;

@@ -182,6 +182,8 @@ const STUDIES = [
   },
 ];
 
+const SECOND_SURFACE_STUDIES = STUDIES.filter((study) => study.id !== "second-surface");
+
 const DESKTOP_SCROLL_PROFILE = Object.freeze({
   openingUnits: 1.55,
   ruptureOpenUnits: 1.08,
@@ -335,6 +337,7 @@ const DitherFieldLab = () => {
   const [resetVersion, setResetVersion] = useState(0);
   const [fieldState, setFieldState] = useState(STUDIES[0].initialState);
   const [mobileLightRuntimeFailed, setMobileLightRuntimeFailed] = useState(false);
+  const [secondSurfaceStudyId, setSecondSurfaceStudyId] = useState("metabloom");
   const [metabloomPalette, setMetabloomPalette] = useState(
     METABLOOM_PALETTE_SPECTRAL,
   );
@@ -359,6 +362,9 @@ const DitherFieldLab = () => {
     MORPHOGEN_COLOR_B_DEFAULT,
   );
   const activeStudy = STUDIES[displayStudyIndex];
+  const secondSurfaceStudy = SECOND_SURFACE_STUDIES.find(
+    (study) => study.id === secondSurfaceStudyId,
+  ) || SECOND_SURFACE_STUDIES[0];
   const highFidelityMobileLight =
     activeStudy.id === "light-theme"
     && hasHardwareWebGL
@@ -376,16 +382,22 @@ const DitherFieldLab = () => {
   const isMorphogenPaintMode =
     activeStudy.id === "morphogen-divide"
     && morphogenExperience === MORPHOGEN_EXPERIENCE_PAINT;
-  const activeDescription = isMorphogenPaintMode
-    ? "A living sand canvas turns reaction-diffusion pigment into a drawable material. Every stroke settles, diffuses, and glints with the colors you choose."
-    : activeStudy.description;
-  const activeInstruction = isMorphogenPaintMode
-    ? "Drag anywhere to paint · switch to erase for corrections · choose two colors and a gradient · Clear starts fresh"
-    : activeStudy.instruction;
+  const activeDescription = activeStudy.id === "second-surface"
+    ? `A second surface waits beneath the page. The tear now reveals ${secondSurfaceStudy.title} as a real live field rather than a fixed hidden shader.`
+    : isMorphogenPaintMode
+      ? "A living sand canvas turns reaction-diffusion pigment into a drawable material. Every stroke settles, diffuses, and glints with the colors you choose."
+      : activeStudy.description;
+  const activeInstruction = activeStudy.id === "second-surface"
+    ? "Choose a surface below · scroll to open the tear · scroll back to close it · choose Heal to seal the surface"
+    : isMorphogenPaintMode
+      ? "Drag anywhere to paint · switch to erase for corrections · choose two colors and a gradient · Clear starts fresh"
+      : activeStudy.instruction;
   const activeResetLabel = isMorphogenPaintMode
     ? "Clear"
     : activeStudy.resetLabel;
   displayStudyIndexRef.current = displayStudyIndex;
+
+  const ignoreFieldStateChange = useCallback(() => {}, []);
 
   const handleProductionThemeStateChange = useCallback((state) => {
     if (state === "fallback" && highFidelityMobileLight) {
@@ -661,49 +673,47 @@ const DitherFieldLab = () => {
     setResetVersion((value) => value + 1);
   };
 
-  const renderActiveStudy = () => {
-    const sharedProps = {
-      isDark,
-      paused: paused || transitionPhase === "exiting",
-      resetVersion,
-    };
+  const renderStudy = (study, { asSecondSurface = false } = {}) => {
+    const sharedPaused = paused || transitionPhase === "exiting";
+    const rendererPaused = asSecondSurface
+      ? sharedPaused || firstSurfaceProgress < 0.015
+      : sharedPaused;
+    const stateHandler = asSecondSurface
+      ? ignoreFieldStateChange
+      : setFieldState;
 
-    if (activeStudy.type === "rupture") {
-      return (
-        <RuptureCanvas
-          {...sharedProps}
-          progress={firstSurfaceProgress}
-          onRuptureStateChange={setFieldState}
-        />
-      );
-    }
-
-    if (activeStudy.type === "creatoros-lava") {
+    if (study.type === "creatoros-lava") {
       return (
         <CreatorOSLavaLampCanvas
-          {...sharedProps}
-          onFieldStateChange={setFieldState}
+          isDark={isDark}
+          paused={rendererPaused}
+          resetVersion={resetVersion}
+          onFieldStateChange={stateHandler}
         />
       );
     }
 
-    if (activeStudy.type === "production-theme") {
+    if (study.type === "production-theme") {
       return (
         <ProductionThemeCanvas
-          paused={sharedProps.paused}
+          paused={rendererPaused}
           resetVersion={resetVersion}
-          theme={activeStudy.theme}
-          highFidelityLight={highFidelityMobileLight}
-          runtimeScope="dither-canvas-lab"
-          onFieldStateChange={handleProductionThemeStateChange}
+          theme={study.theme}
+          highFidelityLight={asSecondSurface ? false : highFidelityMobileLight}
+          runtimeScope={asSecondSurface ? "dither-canvas-second-surface" : "dither-canvas-lab"}
+          onFieldStateChange={
+            asSecondSurface ? ignoreFieldStateChange : handleProductionThemeStateChange
+          }
         />
       );
     }
 
     return (
       <CreatorOSFieldCanvas
-        {...sharedProps}
-        mode={activeStudy.mode}
+        isDark={isDark}
+        paused={rendererPaused}
+        resetVersion={resetVersion}
+        mode={study.mode}
         metabloomPalette={metabloomPalette}
         contourPalette={contourPalette}
         tidalPalette={tidalPalette}
@@ -713,9 +723,39 @@ const DitherFieldLab = () => {
         morphogenGradient={morphogenGradient}
         morphogenColorA={morphogenColorA}
         morphogenColorB={morphogenColorB}
-        onFieldStateChange={setFieldState}
+        onFieldStateChange={stateHandler}
       />
     );
+  };
+
+  const renderActiveStudy = () => {
+    if (activeStudy.type === "rupture") {
+      return (
+        <div
+          className="second-surface-stack"
+          data-second-surface-study={secondSurfaceStudy.id}
+        >
+          <div
+            key={`second-surface-underlay-${secondSurfaceStudy.id}`}
+            className="second-surface-underlay"
+          >
+            {renderStudy(secondSurfaceStudy, { asSecondSurface: true })}
+          </div>
+          <div className="second-surface-rupture">
+            <RuptureCanvas
+              isDark={isDark}
+              paused={paused || transitionPhase === "exiting"}
+              resetVersion={resetVersion}
+              progress={firstSurfaceProgress}
+              revealUnderlay
+              onRuptureStateChange={setFieldState}
+            />
+          </div>
+        </div>
+      );
+    }
+
+    return renderStudy(activeStudy);
   };
 
   return (
@@ -809,6 +849,22 @@ const DitherFieldLab = () => {
 
         <nav className="dither-study-switcher" aria-label="Dither background studies">
           <p className="dither-study-switcher-label">Field studies</p>
+          {activeStudy.id === "second-surface" && (
+            <label className="second-surface-selector">
+              <span className="second-surface-selector-label">Surface</span>
+              <select
+                value={secondSurfaceStudy.id}
+                onChange={(event) => setSecondSurfaceStudyId(event.target.value)}
+                aria-label="Choose the theme beneath Second Surface"
+              >
+                {SECOND_SURFACE_STUDIES.map((study) => (
+                  <option key={study.id} value={study.id}>
+                    {study.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           {activeStudy.id === "metabloom" && (
             <div
               className="metabloom-palette-selector"

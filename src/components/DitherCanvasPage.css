@@ -47,6 +47,26 @@
   inset: 0;
 }
 
+.second-surface-stack,
+.second-surface-underlay,
+.second-surface-rupture {
+  position: absolute;
+  inset: 0;
+}
+
+.second-surface-stack {
+  isolation: isolate;
+}
+
+.second-surface-underlay {
+  z-index: 0;
+  overflow: hidden;
+}
+
+.second-surface-rupture {
+  z-index: 1;
+}
+
 .rupture-shell,
 .spectral-dither-shell {
   z-index: 0;
@@ -253,6 +273,7 @@
 .morphogen-experience-option:focus-visible,
 .morphogen-paint-option:focus-visible,
 .morphogen-color-control input:focus-visible,
+.second-surface-selector select:focus-visible,
 .dither-study-option:focus-visible {
   outline: var(--focus-ring);
   outline-offset: 0.3rem;
@@ -278,6 +299,44 @@
   font-size: 1.15rem;
   letter-spacing: 0.075em;
   text-transform: uppercase;
+}
+
+
+.second-surface-selector {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0 0.4rem 0.8rem;
+  padding: 0.4rem;
+  border: 1px solid var(--rupture-border);
+  border-radius: 1.35rem;
+  background: var(--rupture-control);
+}
+
+.second-surface-selector-label {
+  padding: 0 0.55rem;
+  color: var(--rupture-text-muted);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.second-surface-selector select {
+  min-width: 0;
+  min-height: 3.5rem;
+  padding: 0 2.8rem 0 0.9rem;
+  border: 1px solid var(--rupture-border);
+  border-radius: 1rem;
+  background: var(--rupture-panel-active);
+  color: var(--rupture-text);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
 }
 
 
@@ -953,6 +1012,7 @@
     display: none;
   }
 
+  .second-surface-selector,
   .metabloom-palette-selector,
   .tidal-palette-selector,
   .contour-palette-selector,
@@ -961,6 +1021,7 @@
     padding: 0.35rem;
   }
 
+  .second-surface-selector-label,
   .metabloom-palette-selector-label,
   .tidal-palette-selector-label,
   .contour-palette-selector-label,
