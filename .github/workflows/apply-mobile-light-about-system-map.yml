@@ -30,7 +30,9 @@ jobs:
           cache: npm
 
       - name: Apply guarded source changes
-        run: python scripts/apply_mobile_light_about_system_map.py
+        run: |
+          python scripts/apply_mobile_light_about_system_map.py
+          python scripts/fix_mobile_light_about_test.py
 
       - name: Check patch whitespace
         run: git diff --check
@@ -65,6 +67,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git rm scripts/apply_mobile_light_about_system_map.py
+          git rm scripts/fix_mobile_light_about_test.py
           git rm .github/workflows/apply-mobile-light-about-system-map.yml
           git add \
             src/utils/mobileGraphicsCapability.js \
