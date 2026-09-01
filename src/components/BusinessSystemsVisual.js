@@ -1,11 +1,14 @@
 import React from "react";
 import { createPortal } from "react-dom";
+import { useThemeMode } from "../contexts/ThemeContext";
 import { getSiteCopy, SITE_AUDIENCES } from "../content/siteCopy";
 import nodeLogo from "../assets/icons/popcon_svg.svg";
 import "./BusinessSystemsVisual.css";
 
 const BUSINESS_BIO_COPY = getSiteCopy(SITE_AUDIENCES.BUSINESS).bio;
 const BUSINESS_SECTION_INDEX = 1;
+const LIGHT_MODE_LOGO_CONTRAST_FILTER =
+  "brightness(0.46) saturate(1.55) drop-shadow(0 0 4px var(--business-visual-glow))";
 
 const SYSTEM_NODES = Object.freeze([
   Object.freeze({
@@ -118,6 +121,7 @@ const useReducedMotion = () => {
 };
 
 const BusinessSystemsVisual = () => {
+  const { isDark } = useThemeMode();
   const photoAlt = BUSINESS_BIO_COPY.photoAlt;
   const escapedPhotoAlt = escapeCssAttribute(photoAlt);
   const reducedMotion = useReducedMotion();
@@ -245,7 +249,7 @@ const BusinessSystemsVisual = () => {
           x="18"
           y="14"
           width="324"
-          height="332"
+          height="336"
           rx="24"
         />
         <path
@@ -319,6 +323,10 @@ const BusinessSystemsVisual = () => {
                 "--logo-delay": node.delay,
                 "--logo-duration": node.rotationDuration,
                 "--logo-direction": node.rotationDirection,
+                filter: isDark
+                  ? undefined
+                  : LIGHT_MODE_LOGO_CONTRAST_FILTER,
+                opacity: isDark ? undefined : 1,
               }}
             />
             <g className="business-systems-visual__node-label">
@@ -357,6 +365,10 @@ const BusinessSystemsVisual = () => {
             width="24"
             height="24"
             preserveAspectRatio="xMidYMid meet"
+            style={{
+              filter: isDark ? undefined : LIGHT_MODE_LOGO_CONTRAST_FILTER,
+              opacity: isDark ? undefined : 1,
+            }}
           />
           <text
             className="business-systems-visual__core-kicker"
