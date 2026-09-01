@@ -9,6 +9,7 @@ jest.mock("./contexts/ThemeContext", () => {
   return {
     ThemeProvider: ({ children }) =>
       ReactModule.createElement(ReactModule.Fragment, null, children),
+    useThemeMode: () => ({ isDark: false, toggleTheme: jest.fn() }),
   };
 });
 
