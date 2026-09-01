@@ -115,7 +115,8 @@ describe("Dither Field Lab runtime invariants", () => {
       "asSecondSurface ? ignoreFieldStateChange : handleProductionThemeStateChange",
     );
     expect(rupture).toContain("revealUnderlay = false");
-    expect(rupture).toContain("alpha: revealUnderlay");
+    expect(rupture).toContain("alpha: true");
+    expect(rupture).not.toContain("alpha: revealUnderlay");
     expect(rupture).toContain("premultipliedAlpha: true");
     expect(rupture).toContain('"u_externalSurface"');
     expect(rupture).toContain(
