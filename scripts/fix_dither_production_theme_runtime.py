@@ -12,11 +12,3 @@ old='''          onFieldStateChange={(state) => {\n            if (state === "fa
 if old not in s: raise SystemExit('inline callback target missing')
 s=s.replace(old,'          onFieldStateChange={handleProductionThemeStateChange}')
 p.write_text(s)
-
-t=Path('src/components/DitherCanvasRuntimeContract.test.js')
-ts=t.read_text()
-anchor='''    expect(page).toContain('<ProductionThemeCanvas');'''
-addition='''    expect(page).toContain('<ProductionThemeCanvas');\n    expect(page).toContain('title: "Radiant Lattice"');\n    expect(page).toContain('title: "Event Horizon"');\n    expect(page).toContain('const handleProductionThemeStateChange = useCallback');\n    expect(page).toContain('onFieldStateChange={handleProductionThemeStateChange}');'''
-if anchor not in ts: raise SystemExit('contract test anchor missing')
-ts=ts.replace(anchor,addition,1)
-t.write_text(ts)
