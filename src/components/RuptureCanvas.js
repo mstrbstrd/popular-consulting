@@ -258,7 +258,11 @@ const RuptureCanvas = ({
         contextType: "webgl2",
         rendererId: "dither-canvas-rupture",
         options: {
-          alpha: revealUnderlay,
+          // Canvas context attributes are immutable after first creation.
+          // Keep alpha enabled for both modes so switching from Default to a
+          // selected underlay can expose it without replacing the canvas node.
+          alpha: true,
+          premultipliedAlpha: true,
           antialias: false,
           depth: false,
         },

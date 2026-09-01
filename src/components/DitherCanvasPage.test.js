@@ -194,7 +194,7 @@ describe("DitherCanvasPage", () => {
     expect(within(secondSurfaceSelect).getAllByRole("option")).toHaveLength(12);
     expect(
       within(secondSurfaceSelect).getByRole("option", {
-        name: "Original Second Surface",
+        name: "Default",
       }),
     ).toBeInTheDocument();
 

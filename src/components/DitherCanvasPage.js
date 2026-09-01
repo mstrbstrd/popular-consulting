@@ -184,7 +184,7 @@ const STUDIES = [
 
 const ORIGINAL_SECOND_SURFACE = Object.freeze({
   id: "original-second-surface",
-  title: "Original Second Surface",
+  title: "Default",
 });
 const SECOND_SURFACE_STUDIES = STUDIES.filter(
   (study) => study.id !== "second-surface",

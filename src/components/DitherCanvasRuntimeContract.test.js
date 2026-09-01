@@ -88,7 +88,7 @@ describe("Dither Field Lab runtime invariants", () => {
 
   test("Second Surface defaults to its original field and conditionally composes a selected live underlay", () => {
     expect(page).toContain('id: "original-second-surface"');
-    expect(page).toContain('title: "Original Second Surface"');
+    expect(page).toContain('title: "Default"');
     expect(page).toContain(
       "const SECOND_SURFACE_OPTIONS = Object.freeze([",
     );
@@ -115,7 +115,9 @@ describe("Dither Field Lab runtime invariants", () => {
       "asSecondSurface ? ignoreFieldStateChange : handleProductionThemeStateChange",
     );
     expect(rupture).toContain("revealUnderlay = false");
-    expect(rupture).toContain("alpha: revealUnderlay");
+    expect(rupture).toContain("alpha: true");
+    expect(rupture).not.toContain("alpha: revealUnderlay");
+    expect(rupture).toContain("premultipliedAlpha: true");
     expect(rupture).toContain('"u_externalSurface"');
     expect(rupture).toContain(
       "gl.uniform1f(uniforms.u_externalSurface, revealUnderlay ? 1 : 0);",
@@ -123,6 +125,15 @@ describe("Dither Field Lab runtime invariants", () => {
     expect(ruptureShader).toContain("uniform float u_externalSurface;");
     expect(ruptureShader).toContain(
       "outputAlpha = max(1.0 - inside, seamOverlay);",
+    );
+  });
+
+  test("transparent rupture pixels cannot bleach a selected live underlay", () => {
+    expect(ruptureShader).toContain(
+      "vec3 outputColor = clamp(color, 0.0, 1.0);\n  if (externalSurface) {\n    outputColor *= outputAlpha;\n  }\n  fragColor = vec4(outputColor, outputAlpha);",
+    );
+    expect(ruptureShader).not.toContain(
+      "fragColor = vec4(clamp(color, 0.0, 1.0), outputAlpha);",
     );
   });
 
