@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import logo from "../assets/icons/logo2026_128.png";
 import { ThemeProvider, useThemeMode } from "../contexts/ThemeContext";
 import { hasHardwareWebGL, isMobileTier } from "../utils/deviceTier";
@@ -155,7 +155,7 @@ const STUDIES = [
   {
     id: "light-theme",
     number: "11",
-    title: "Light Theme",
+    title: "Radiant Lattice",
     type: "production-theme",
     theme: "light",
     kind: "Production",
@@ -169,7 +169,7 @@ const STUDIES = [
   {
     id: "dark-theme",
     number: "12",
-    title: "Dark Theme",
+    title: "Event Horizon",
     type: "production-theme",
     theme: "dark",
     kind: "Production",
@@ -386,6 +386,14 @@ const DitherFieldLab = () => {
     ? "Clear"
     : activeStudy.resetLabel;
   displayStudyIndexRef.current = displayStudyIndex;
+
+  const handleProductionThemeStateChange = useCallback((state) => {
+    if (state === "fallback" && highFidelityMobileLight) {
+      setMobileLightRuntimeFailed(true);
+      return;
+    }
+    setFieldState(state);
+  }, [highFidelityMobileLight]);
 
   // Sand Paint is opt-in for the current Morphogen visit. Leaving the study
   // restores the original autonomous organism while preserving paint settings.
@@ -687,13 +695,7 @@ const DitherFieldLab = () => {
           theme={activeStudy.theme}
           highFidelityLight={highFidelityMobileLight}
           runtimeScope="dither-canvas-lab"
-          onFieldStateChange={(state) => {
-            if (state === "fallback" && highFidelityMobileLight) {
-              setMobileLightRuntimeFailed(true);
-              return;
-            }
-            setFieldState(state);
-          }}
+          onFieldStateChange={handleProductionThemeStateChange}
         />
       );
     }
