@@ -18,6 +18,7 @@ jest.mock("./RuptureCanvas", () => {
     paused,
     progress,
     resetVersion,
+    revealUnderlay,
   }) =>
     ReactModule.createElement(
       "button",
@@ -28,6 +29,7 @@ jest.mock("./RuptureCanvas", () => {
         "data-paused": paused ? "true" : "false",
         "data-progress": String(progress),
         "data-reset-version": String(resetVersion),
+        "data-reveal-underlay": revealUnderlay ? "true" : "false",
         onClick: () => onRuptureStateChange?.("open"),
       },
       "rupture renderer",
@@ -176,6 +178,20 @@ describe("DitherCanvasPage", () => {
     expect(screen.getByTestId("rupture-renderer")).toHaveAttribute(
       "data-progress",
       "0",
+    );
+    expect(screen.getByTestId("rupture-renderer")).toHaveAttribute(
+      "data-reveal-underlay",
+      "true",
+    );
+    const secondSurfaceSelect = screen.getByRole("combobox", {
+      name: "Choose the theme beneath Second Surface",
+    });
+    expect(secondSurfaceSelect).toHaveValue("metabloom");
+    expect(within(secondSurfaceSelect).getAllByRole("option")).toHaveLength(11);
+    fireEvent.change(secondSurfaceSelect, { target: { value: "dark-theme" } });
+    expect(screen.getByTestId("production-theme-renderer")).toHaveAttribute(
+      "data-production-theme",
+      "dark",
     );
     expect(document.querySelectorAll(".dither-scroll-step")).toHaveLength(12);
 

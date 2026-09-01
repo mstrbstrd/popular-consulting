@@ -8,6 +8,7 @@ describe("Dither Field Lab runtime invariants", () => {
   const field = source("CreatorOSFieldCanvas.js");
   const lava = source("CreatorOSLavaLampCanvas.js");
   const rupture = source("RuptureCanvas.js");
+  const ruptureShader = source("RuptureShader.js");
   const productionThemes = source("ProductionThemeCanvas.js");
   const page = source("DitherCanvasPage.js");
   const narrative = source("DitherScrollNarrative.css");
@@ -47,14 +48,20 @@ describe("Dither Field Lab runtime invariants", () => {
     expect(productionThemes).toContain("runtime?.dispose()");
   });
 
-  test("the route mounts one study renderer and never the persistent black hole", () => {
+  test("the route mounts one active scene and bounds every renderer pause path", () => {
     expect(page).toContain("key={activeStudy.id}");
     expect(page).toContain("{renderActiveStudy()}");
     expect(page).toContain("data-active-study={activeStudy.id}");
     expect(page).toContain('data-theme-mode={isDark ? "dark" : "light"}');
     expect(page).toContain(
-      'paused: paused || transitionPhase === "exiting"',
+      'const sharedPaused = paused || transitionPhase === "exiting";',
     );
+    expect(page).toContain("const rendererPaused = asSecondSurface");
+    expect(page).toContain(
+      "? sharedPaused || firstSurfaceProgress < 0.015",
+    );
+    expect(page).toContain(": sharedPaused;");
+    expect(page).toContain("paused={rendererPaused}");
     expect(blackHole).toContain('"/dither-canvas"');
   });
 
@@ -63,16 +70,52 @@ describe("Dither Field Lab runtime invariants", () => {
     expect(page).toContain('id: "dark-theme"');
     expect(page).toContain('type: "production-theme"');
     expect(page).toContain('<ProductionThemeCanvas');
-    expect(page).toContain('highFidelityLight={highFidelityMobileLight}');
-    expect(page).toContain('runtimeScope="dither-canvas-lab"');
+    expect(page).toContain('theme={study.theme}');
+    expect(page).toContain(
+      "highFidelityLight={asSecondSurface ? false : highFidelityMobileLight}",
+    );
+    expect(page).toContain(
+      'runtimeScope={asSecondSurface ? "dither-canvas-second-surface" : "dither-canvas-lab"}',
+    );
     expect(page).toContain("canAttemptHighFidelityMobileGraphics");
     expect(page).toContain('data-mobile-light-detail={');
-    expect(page).toContain('theme={activeStudy.theme}');
     expect(productionThemes).toContain("createVisualRuntimeLightPass({");
     expect(productionThemes).toContain("createVisualRuntimeDarkPass({");
     expect(productionThemes).toContain("candidateRuntime.registerPass(guardedPass)");
     expect(productionThemeStyles).toContain(
       '[data-transition="production-theme"]',
+    );
+  });
+
+  test("Second Surface composes one selectable underlay beneath a transparent rupture", () => {
+    expect(page).toContain(
+      'const SECOND_SURFACE_STUDIES = STUDIES.filter((study) => study.id !== "second-surface");',
+    );
+    expect(page).toContain(
+      'const [secondSurfaceStudyId, setSecondSurfaceStudyId] = useState("metabloom");',
+    );
+    expect(page).toContain(
+      'aria-label="Choose the theme beneath Second Surface"',
+    );
+    expect(page).toContain(
+      "data-second-surface-study={secondSurfaceStudy.id}",
+    );
+    expect(page).toContain(
+      "{renderStudy(secondSurfaceStudy, { asSecondSurface: true })}",
+    );
+    expect(page).toContain("revealUnderlay");
+    expect(page).toContain(
+      "asSecondSurface ? ignoreFieldStateChange : handleProductionThemeStateChange",
+    );
+    expect(rupture).toContain("revealUnderlay = false");
+    expect(rupture).toContain("alpha: revealUnderlay");
+    expect(rupture).toContain('"u_externalSurface"');
+    expect(rupture).toContain(
+      "gl.uniform1f(uniforms.u_externalSurface, revealUnderlay ? 1 : 0);",
+    );
+    expect(ruptureShader).toContain("uniform float u_externalSurface;");
+    expect(ruptureShader).toContain(
+      "outputAlpha = max(1.0 - inside, seamOverlay);",
     );
   });
 

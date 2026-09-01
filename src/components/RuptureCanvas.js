@@ -142,6 +142,7 @@ const RuptureCanvas = ({
   paused = false,
   progress: controlledProgress = null,
   resetVersion = 0,
+  revealUnderlay = false,
 }) => {
   const rootRef = useRef(null);
   const canvasRef = useRef(null);
@@ -257,7 +258,7 @@ const RuptureCanvas = ({
         contextType: "webgl2",
         rendererId: "dither-canvas-rupture",
         options: {
-          alpha: false,
+          alpha: revealUnderlay,
           antialias: false,
           depth: false,
         },
@@ -304,6 +305,7 @@ const RuptureCanvas = ({
       "u_charCount",
       "u_atlasCols",
       "u_atlasRows",
+      "u_externalSurface",
     ].forEach((name) => {
       uniforms[name] = gl.getUniformLocation(program, name);
     });
@@ -600,6 +602,7 @@ const RuptureCanvas = ({
     gl.uniform1i(uniforms.u_charCount, GLYPHS.length);
     gl.uniform1i(uniforms.u_atlasCols, atlas.columns);
     gl.uniform1i(uniforms.u_atlasRows, atlas.rows);
+    gl.uniform1f(uniforms.u_externalSurface, revealUnderlay ? 1 : 0);
 
     const draw = () => {
       gl.useProgram(program);
@@ -674,7 +677,7 @@ const RuptureCanvas = ({
       if (buffer) gl.deleteBuffer(buffer);
       if (program) gl.deleteProgram(program);
     };
-  }, [contextVersion]);
+  }, [contextVersion, revealUnderlay]);
 
   return (
     <div
