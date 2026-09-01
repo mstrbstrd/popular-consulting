@@ -181,17 +181,50 @@ describe("DitherCanvasPage", () => {
     );
     expect(screen.getByTestId("rupture-renderer")).toHaveAttribute(
       "data-reveal-underlay",
-      "true",
+      "false",
     );
+    expect(
+      screen.queryByTestId("creatoros-field-renderer"),
+    ).not.toBeInTheDocument();
+
     const secondSurfaceSelect = screen.getByRole("combobox", {
       name: "Choose the theme beneath Second Surface",
     });
-    expect(secondSurfaceSelect).toHaveValue("metabloom");
-    expect(within(secondSurfaceSelect).getAllByRole("option")).toHaveLength(11);
+    expect(secondSurfaceSelect).toHaveValue("original-second-surface");
+    expect(within(secondSurfaceSelect).getAllByRole("option")).toHaveLength(12);
+    expect(
+      within(secondSurfaceSelect).getByRole("option", {
+        name: "Original Second Surface",
+      }),
+    ).toBeInTheDocument();
+
     fireEvent.change(secondSurfaceSelect, { target: { value: "dark-theme" } });
+    expect(screen.getByTestId("rupture-renderer")).toHaveAttribute(
+      "data-reveal-underlay",
+      "true",
+    );
+    expect(screen.getByTestId("rupture-renderer")).toHaveAttribute(
+      "data-progress",
+      "0",
+    );
     expect(screen.getByTestId("production-theme-renderer")).toHaveAttribute(
       "data-production-theme",
       "dark",
+    );
+    expect(screen.getByTestId("production-theme-renderer")).toHaveAttribute(
+      "data-paused",
+      "false",
+    );
+
+    fireEvent.change(secondSurfaceSelect, {
+      target: { value: "original-second-surface" },
+    });
+    expect(
+      screen.queryByTestId("production-theme-renderer"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("rupture-renderer")).toHaveAttribute(
+      "data-reveal-underlay",
+      "false",
     );
     expect(document.querySelectorAll(".dither-scroll-step")).toHaveLength(12);
 
