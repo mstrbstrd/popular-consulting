@@ -1,0 +1,32 @@
+:root {
+  --immersive-viewport-height: 100dvh;
+}
+
+/*
+ * iOS and iOS Chrome can restore a background tab with a stale 100dvh value.
+ * One measured viewport contract keeps every immersive layer the same height.
+ */
+.parallax-wrapper,
+.parallax-wrapper > .sections-content,
+.parallax-wrapper > .sections-content > .section-container,
+.parallax-wrapper > .sections-content > .section-container > .hero-section {
+  height: var(--immersive-viewport-height, 100dvh) !important;
+}
+
+.parallax-wrapper > .sections-content > .section-container > .hero-section {
+  min-height: var(--immersive-viewport-height, 100dvh) !important;
+}
+
+.parallax-wrapper > .fixed-background,
+.parallax-wrapper > .fixed-background .background-css-fallback,
+.parallax-wrapper > .fixed-background .background-dither-live,
+.parallax-wrapper > .fixed-background .background-mobile-light-live,
+.parallax-wrapper > .fixed-background .glass-overlay,
+.parallax-wrapper > .fixed-background .glass-gradient {
+  bottom: auto !important;
+  height: var(--immersive-viewport-height, 100dvh) !important;
+}
+
+.parallax-wrapper .section-dots {
+  top: calc(var(--immersive-viewport-height, 100dvh) / 2) !important;
+}

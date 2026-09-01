@@ -10,11 +10,13 @@ import './spectral-icon-colorway.css';
 import './work-responsive.css';
 import './work-navigation-refinement.css';
 import './work-card-consistency.css';
+import './immersive-viewport.css';
 import SiteRouter from './SiteRouter';
 import InteractionAccessibilityBridge from './components/InteractionAccessibilityBridge';
 import VisualRuntimeShellHost from './components/VisualRuntimeShellHost';
 import { initGraphicsContextGovernor } from './utils/graphicsContextGovernor';
 import { initGraphicsRuntimeBoundary } from './utils/graphicsRuntimeBoundary';
+import { initImmersiveViewport } from './utils/immersiveViewport';
 import { initVisualCaptureHarness } from './utils/visualCaptureHarness';
 import { initVisualRuntimeDarkPolicy } from './utils/visualRuntimeDarkPolicy';
 import { initVisualRuntimeGpuEvidence } from './utils/visualRuntimeGpuEvidence';
@@ -22,6 +24,10 @@ import { initVisualRuntimeLightPolicy } from './utils/visualRuntimeLightPolicy';
 import { initVisualRuntimePolicy } from './utils/visualRuntimePolicy';
 import { initVisualRuntimeShellPolicy } from './utils/visualRuntimeShellPolicy';
 import { initCoreWebVitals, initSectionTiming, initLongTaskObserver } from './utils/telemetry';
+
+// Establish the measured immersive viewport before React mounts. This repairs
+// restored iOS/WebKit tabs where the browser keeps an obsolete 100dvh value.
+initImmersiveViewport();
 
 // The visual-runtime policy establishes the permanent reference/optimized
 // comparison boundary before any renderer mounts. The complete optimized
