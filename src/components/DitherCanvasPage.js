@@ -182,7 +182,17 @@ const STUDIES = [
   },
 ];
 
-const SECOND_SURFACE_STUDIES = STUDIES.filter((study) => study.id !== "second-surface");
+const ORIGINAL_SECOND_SURFACE = Object.freeze({
+  id: "original-second-surface",
+  title: "Original Second Surface",
+});
+const SECOND_SURFACE_STUDIES = STUDIES.filter(
+  (study) => study.id !== "second-surface",
+);
+const SECOND_SURFACE_OPTIONS = Object.freeze([
+  ORIGINAL_SECOND_SURFACE,
+  ...SECOND_SURFACE_STUDIES,
+]);
 
 const DESKTOP_SCROLL_PROFILE = Object.freeze({
   openingUnits: 1.55,
@@ -337,7 +347,9 @@ const DitherFieldLab = () => {
   const [resetVersion, setResetVersion] = useState(0);
   const [fieldState, setFieldState] = useState(STUDIES[0].initialState);
   const [mobileLightRuntimeFailed, setMobileLightRuntimeFailed] = useState(false);
-  const [secondSurfaceStudyId, setSecondSurfaceStudyId] = useState("metabloom");
+  const [secondSurfaceStudyId, setSecondSurfaceStudyId] = useState(
+    ORIGINAL_SECOND_SURFACE.id,
+  );
   const [metabloomPalette, setMetabloomPalette] = useState(
     METABLOOM_PALETTE_SPECTRAL,
   );
@@ -362,9 +374,14 @@ const DitherFieldLab = () => {
     MORPHOGEN_COLOR_B_DEFAULT,
   );
   const activeStudy = STUDIES[displayStudyIndex];
-  const secondSurfaceStudy = SECOND_SURFACE_STUDIES.find(
+  const secondSurfaceOption = SECOND_SURFACE_OPTIONS.find(
     (study) => study.id === secondSurfaceStudyId,
-  ) || SECOND_SURFACE_STUDIES[0];
+  ) || ORIGINAL_SECOND_SURFACE;
+  const secondSurfaceStudy =
+    secondSurfaceOption.id === ORIGINAL_SECOND_SURFACE.id
+      ? null
+      : secondSurfaceOption;
+  const usesExternalSecondSurface = secondSurfaceStudy !== null;
   const highFidelityMobileLight =
     activeStudy.id === "light-theme"
     && hasHardwareWebGL
@@ -383,7 +400,9 @@ const DitherFieldLab = () => {
     activeStudy.id === "morphogen-divide"
     && morphogenExperience === MORPHOGEN_EXPERIENCE_PAINT;
   const activeDescription = activeStudy.id === "second-surface"
-    ? `A second surface waits beneath the page. The tear now reveals ${secondSurfaceStudy.title} as a real live field rather than a fixed hidden shader.`
+    ? usesExternalSecondSurface
+      ? `A second surface waits beneath the page. The tear now reveals ${secondSurfaceStudy.title} as a live field beneath the original material.`
+      : activeStudy.description
     : isMorphogenPaintMode
       ? "A living sand canvas turns reaction-diffusion pigment into a drawable material. Every stroke settles, diffuses, and glints with the colors you choose."
       : activeStudy.description;
@@ -675,9 +694,9 @@ const DitherFieldLab = () => {
 
   const renderStudy = (study, { asSecondSurface = false } = {}) => {
     const sharedPaused = paused || transitionPhase === "exiting";
-    const rendererPaused = asSecondSurface
-      ? sharedPaused || firstSurfaceProgress < 0.015
-      : sharedPaused;
+    // A selected underlay runs behind the sealed first surface so the seam
+    // reveals an already-moving field rather than triggering a second entrance.
+    const rendererPaused = sharedPaused;
     const stateHandler = asSecondSurface
       ? ignoreFieldStateChange
       : setFieldState;
@@ -733,21 +752,23 @@ const DitherFieldLab = () => {
       return (
         <div
           className="second-surface-stack"
-          data-second-surface-study={secondSurfaceStudy.id}
+          data-second-surface-study={secondSurfaceOption.id}
         >
-          <div
-            key={`second-surface-underlay-${secondSurfaceStudy.id}`}
-            className="second-surface-underlay"
-          >
-            {renderStudy(secondSurfaceStudy, { asSecondSurface: true })}
-          </div>
+          {usesExternalSecondSurface && (
+            <div
+              key={`second-surface-underlay-${secondSurfaceStudy.id}`}
+              className="second-surface-underlay"
+            >
+              {renderStudy(secondSurfaceStudy, { asSecondSurface: true })}
+            </div>
+          )}
           <div className="second-surface-rupture">
             <RuptureCanvas
               isDark={isDark}
               paused={paused || transitionPhase === "exiting"}
               resetVersion={resetVersion}
               progress={firstSurfaceProgress}
-              revealUnderlay
+              revealUnderlay={usesExternalSecondSurface}
               onRuptureStateChange={setFieldState}
             />
           </div>
@@ -853,11 +874,11 @@ const DitherFieldLab = () => {
             <label className="second-surface-selector">
               <span className="second-surface-selector-label">Surface</span>
               <select
-                value={secondSurfaceStudy.id}
+                value={secondSurfaceOption.id}
                 onChange={(event) => setSecondSurfaceStudyId(event.target.value)}
                 aria-label="Choose the theme beneath Second Surface"
               >
-                {SECOND_SURFACE_STUDIES.map((study) => (
+                {SECOND_SURFACE_OPTIONS.map((study) => (
                   <option key={study.id} value={study.id}>
                     {study.title}
                   </option>

@@ -58,11 +58,8 @@ describe("Dither Field Lab runtime invariants", () => {
     expect(page).toContain(
       'const sharedPaused = paused || transitionPhase === "exiting";',
     );
-    expect(page).toContain("const rendererPaused = asSecondSurface");
-    expect(page).toContain(
-      "? sharedPaused || firstSurfaceProgress < 0.015",
-    );
-    expect(page).toContain(": sharedPaused;");
+    expect(page).toContain("const rendererPaused = sharedPaused;");
+    expect(page).not.toContain("firstSurfaceProgress < 0.015");
     expect(page).toContain("paused={rendererPaused}");
     expect(blackHole).toContain('"/dither-canvas"');
   });
@@ -89,23 +86,31 @@ describe("Dither Field Lab runtime invariants", () => {
     );
   });
 
-  test("Second Surface composes one selectable underlay beneath a transparent rupture", () => {
+  test("Second Surface defaults to its original field and conditionally composes a selected live underlay", () => {
+    expect(page).toContain('id: "original-second-surface"');
+    expect(page).toContain('title: "Original Second Surface"');
     expect(page).toContain(
-      'const SECOND_SURFACE_STUDIES = STUDIES.filter((study) => study.id !== "second-surface");',
+      "const SECOND_SURFACE_OPTIONS = Object.freeze([",
     );
     expect(page).toContain(
-      'const [secondSurfaceStudyId, setSecondSurfaceStudyId] = useState("metabloom");',
+      "const [secondSurfaceStudyId, setSecondSurfaceStudyId] = useState(\n    ORIGINAL_SECOND_SURFACE.id,",
+    );
+    expect(page).toContain(
+      "const usesExternalSecondSurface = secondSurfaceStudy !== null;",
     );
     expect(page).toContain(
       'aria-label="Choose the theme beneath Second Surface"',
     );
     expect(page).toContain(
-      "data-second-surface-study={secondSurfaceStudy.id}",
+      "data-second-surface-study={secondSurfaceOption.id}",
     );
+    expect(page).toContain("{usesExternalSecondSurface && (");
     expect(page).toContain(
       "{renderStudy(secondSurfaceStudy, { asSecondSurface: true })}",
     );
-    expect(page).toContain("revealUnderlay");
+    expect(page).toContain(
+      "revealUnderlay={usesExternalSecondSurface}",
+    );
     expect(page).toContain(
       "asSecondSurface ? ignoreFieldStateChange : handleProductionThemeStateChange",
     );
