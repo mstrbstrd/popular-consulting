@@ -105,6 +105,59 @@ describe("BusinessSystemsVisual", () => {
     expect(VISUAL_CSS).toContain("@keyframes businessSystemsLogoSpin");
   });
 
+  test("keeps every node label inside the system frame", () => {
+    createPortraitHost();
+    render(<BusinessSystemsVisual />);
+
+    const visual = screen.getByTestId("business-systems-visual");
+    const frame = visual.querySelector(".business-systems-visual__frame");
+    const frameLeft = Number(frame.getAttribute("x"));
+    const frameTop = Number(frame.getAttribute("y"));
+    const frameRight = frameLeft + Number(frame.getAttribute("width"));
+    const frameBottom = frameTop + Number(frame.getAttribute("height"));
+
+    visual.querySelectorAll("[data-system-node]").forEach((node) => {
+      const transformMatch = node
+        .getAttribute("transform")
+        .match(/translate\(([-\d.]+)\s+([-\d.]+)\)/);
+      const label = node.querySelector(
+        ".business-systems-visual__node-label rect",
+      );
+
+      expect(transformMatch).not.toBeNull();
+      expect(label).not.toBeNull();
+
+      const nodeX = Number(transformMatch[1]);
+      const nodeY = Number(transformMatch[2]);
+      const labelLeft = nodeX + Number(label.getAttribute("x"));
+      const labelTop = nodeY + Number(label.getAttribute("y"));
+      const labelRight = labelLeft + Number(label.getAttribute("width"));
+      const labelBottom = labelTop + Number(label.getAttribute("height"));
+
+      expect(labelLeft).toBeGreaterThanOrEqual(frameLeft);
+      expect(labelTop).toBeGreaterThanOrEqual(frameTop);
+      expect(labelRight).toBeLessThanOrEqual(frameRight);
+      expect(labelBottom).toBeLessThanOrEqual(frameBottom);
+    });
+  });
+
+  test("darkens the pale SVG marks in light mode", () => {
+    createPortraitHost();
+    render(<BusinessSystemsVisual />);
+
+    const visual = screen.getByTestId("business-systems-visual");
+    const logos = visual.querySelectorAll(
+      ".business-systems-visual__node-logo-image, .business-systems-visual__core-logo",
+    );
+
+    expect(logos).toHaveLength(5);
+    logos.forEach((logo) => {
+      expect(logo.style.filter).toContain("brightness(0.46)");
+      expect(logo.style.filter).toContain("saturate(1.55)");
+      expect(logo.style.opacity).toBe("1");
+    });
+  });
+
   test("runs motion only while Section 1 is active", () => {
     createPortraitHost();
     render(<BusinessSystemsVisual />);
