@@ -42,7 +42,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git rm scripts/fix_dither_production_theme_runtime.py
           git rm .github/workflows/apply-dither-production-theme-runtime-fix.yml
-          git add src/components/DitherCanvasPage.js src/components/DitherCanvasRuntimeContract.test.js
+          git add src/components/DitherCanvasPage.js src/components/DitherCanvasPage.test.js
           git diff --cached --check
           git commit -m "Fix dither production themes and rename studies"
           git push origin "HEAD:${GITHUB_REF_NAME}"
