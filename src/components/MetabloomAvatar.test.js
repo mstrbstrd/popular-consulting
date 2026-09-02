@@ -18,6 +18,7 @@ jest.mock("./LivingMetabloomCanvas", () => {
     mockFieldProps = props;
     return ReactModule.createElement("div", {
       "data-testid": "living-metabloom-field",
+      "data-enabled": String(props.enabled),
       "data-expression": props.expression,
       "data-form": props.form,
       "data-paused": String(props.paused),
@@ -71,6 +72,7 @@ describe("MetabloomAvatar", () => {
 
     expect(screen.getAllByTestId("living-metabloom-field")).toHaveLength(1);
     expect(mockFieldProps).toMatchObject({
+      enabled: true,
       expression: "thinking",
       form: "focus",
       pulseVersion: 4,
@@ -115,7 +117,7 @@ describe("MetabloomAvatar", () => {
     expect(onPulse).toHaveBeenCalledTimes(3);
   });
 
-  test("keeps every mood distinct in the non-WebGL creature", () => {
+  test("routes every degraded session through the same complete creature component", () => {
     mockHasHardwareWebGL = false;
     const expressions = [
       "happy",
@@ -130,66 +132,21 @@ describe("MetabloomAvatar", () => {
       <MetabloomAvatar expression={expressions[0]} />,
     );
 
-    expressions.forEach((expression) => {
-      rerender(<MetabloomAvatar expression={expression} />);
-      const fallback = screen
-        .getByTestId("metabloom-avatar")
-        .querySelector(".living-metabloom-canvas");
-      expect(fallback).toHaveAttribute(
-        "data-fallback-expression",
-        expression,
+    expressions.forEach((expression, index) => {
+      rerender(
+        <MetabloomAvatar
+          expression={expression}
+          form={index % 2 === 0 ? "bloom" : "focus"}
+          pulseVersion={index + 1}
+          talking={index === 4}
+        />,
       );
+      expect(mockFieldProps.enabled).toBe(false);
+      expect(mockFieldProps.expression).toBe(expression);
+      expect(mockFieldProps.form).toBe(index % 2 === 0 ? "bloom" : "focus");
+      expect(mockFieldProps.pulseVersion).toBe(index + 1);
+      expect(mockFieldProps.talking).toBe(index === 4);
+      expect(screen.getAllByTestId("living-metabloom-field")).toHaveLength(1);
     });
-  });
-
-  test("keeps forms, speech, and keyed pulse feedback in the fallback", () => {
-    mockHasHardwareWebGL = false;
-    const { rerender } = render(
-      <MetabloomAvatar
-        expression="excited"
-        form="bloom"
-        pulseVersion={1}
-        talking={false}
-      />,
-    );
-
-    const avatar = screen.getByTestId("metabloom-avatar");
-    const fallback = avatar.querySelector(".living-metabloom-canvas");
-    const firstPulse = avatar.querySelector(
-      ".living-metabloom-canvas__fallback-pulse",
-    );
-
-    expect(
-      screen.queryByTestId("living-metabloom-field"),
-    ).not.toBeInTheDocument();
-    expect(
-      avatar.querySelector(".living-metabloom-canvas__fallback"),
-    ).toBeInTheDocument();
-    expect(
-      avatar.querySelectorAll(".living-metabloom-canvas__fallback-blob"),
-    ).toHaveLength(5);
-    expect(fallback).toHaveAttribute("data-fallback-expression", "excited");
-    expect(fallback).toHaveAttribute("data-fallback-talking", "false");
-    expect(avatar).toHaveAttribute("data-avatar-form", "bloom");
-    expect(firstPulse).toBeInTheDocument();
-
-    rerender(
-      <MetabloomAvatar
-        expression="angry"
-        form="focus"
-        pulseVersion={2}
-        talking
-      />,
-    );
-
-    const secondPulse = avatar.querySelector(
-      ".living-metabloom-canvas__fallback-pulse",
-    );
-    expect(fallback).toHaveAttribute("data-fallback-expression", "angry");
-    expect(fallback).toHaveAttribute("data-fallback-talking", "true");
-    expect(avatar).toHaveAttribute("data-avatar-form", "focus");
-    expect(secondPulse).toBeInTheDocument();
-    expect(secondPulse).not.toBe(firstPulse);
-    expect(avatar.querySelector(".metabloom-avatar__body")).toBeNull();
   });
 });
