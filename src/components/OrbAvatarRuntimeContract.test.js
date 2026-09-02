@@ -53,6 +53,7 @@ describe("Metabloom Orb runtime invariants", () => {
     expect(field).toContain("pulseAge = 0;");
     expect(field).toContain("energy = 1;");
     expect(field).toContain('reportState("resonance")');
+    expect(field).toContain("triggerExternalPulseRef.current = () => {};");
   });
 
   test("the standalone Orb does not retain a full-screen WebGL background", () => {
