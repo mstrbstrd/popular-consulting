@@ -30,40 +30,6 @@ const normalizeForm = (form) =>
     ? form
     : "companion";
 
-const MetabloomFallback = ({ expression, pulseVersion, talking }) => (
-  <div
-    className="living-metabloom-canvas is-fallback"
-    data-fallback-expression={expression}
-    data-fallback-talking={talking ? "true" : "false"}
-    data-renderer-fallback="css"
-    aria-hidden="true"
-  >
-    <div className="living-metabloom-canvas__fallback">
-      <span className="living-metabloom-canvas__fallback-blob" />
-      <span className="living-metabloom-canvas__fallback-blob" />
-      <span className="living-metabloom-canvas__fallback-blob" />
-      <span className="living-metabloom-canvas__fallback-blob" />
-      <span className="living-metabloom-canvas__fallback-blob" />
-
-      <div className="living-metabloom-canvas__fallback-face">
-        <span className="living-metabloom-canvas__fallback-eye living-metabloom-canvas__fallback-eye--left" />
-        <span className="living-metabloom-canvas__fallback-eye living-metabloom-canvas__fallback-eye--right" />
-        <span className="living-metabloom-canvas__fallback-mouth" />
-        <span className="living-metabloom-canvas__fallback-accent living-metabloom-canvas__fallback-accent--one" />
-        <span className="living-metabloom-canvas__fallback-accent living-metabloom-canvas__fallback-accent--two" />
-        <span className="living-metabloom-canvas__fallback-accent living-metabloom-canvas__fallback-accent--three" />
-      </div>
-
-      {pulseVersion > 0 && (
-        <span
-          key={pulseVersion}
-          className="living-metabloom-canvas__fallback-pulse"
-        />
-      )}
-    </div>
-  </div>
-);
-
 const MetabloomAvatar = ({
   expression = "happy",
   form = "companion",
@@ -104,24 +70,17 @@ const MetabloomAvatar = ({
       onClick={onPulse}
       onKeyDown={handleKeyDown}
     >
-      {hasHardwareWebGL ? (
-        <LivingMetabloomCanvas
-          expression={normalizedExpression}
-          form={normalizedForm}
-          isDark={isDark}
-          onFieldStateChange={onFieldStateChange}
-          paused={!isActive || paused}
-          pulseVersion={pulseVersion}
-          resetVersion={resetVersion}
-          talking={talking}
-        />
-      ) : (
-        <MetabloomFallback
-          expression={normalizedExpression}
-          pulseVersion={pulseVersion}
-          talking={talking}
-        />
-      )}
+      <LivingMetabloomCanvas
+        enabled={hasHardwareWebGL}
+        expression={normalizedExpression}
+        form={normalizedForm}
+        isDark={isDark}
+        onFieldStateChange={onFieldStateChange}
+        paused={!isActive || paused}
+        pulseVersion={pulseVersion}
+        resetVersion={resetVersion}
+        talking={talking}
+      />
     </div>
   );
 };
