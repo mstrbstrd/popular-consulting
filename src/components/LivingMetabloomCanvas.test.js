@@ -76,6 +76,14 @@ describe("LivingMetabloomCanvas", () => {
     expect(shader).toContain("float smin(");
     expect(shader).toContain("for(int i=0;i<7;i++)");
     expect(shader).toContain("shape=smin(shape,lobe,unionK)");
+    expect(shader).toContain(
+      "float crownGrowth=smoothstep(0.0,1.0,crownPresence)",
+    );
+    expect(shader).toContain("crownR*=mix(.04,1.0,crownGrowth)");
+    expect(shader).toContain(
+      "(.105+.040*crownPresence)*crownGrowth",
+    );
+    expect(shader).toContain("shape=smin(shape,leftCrown,crownUnion)");
     expect(shader).toContain("if(shape>.14)");
     expect(shader).toContain("fragColor=vec4(0.0)");
     expect(shader).toContain("float pointerPresence");

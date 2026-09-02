@@ -173,14 +173,28 @@ void main(){
  // A soft two-lobed crown gives Companion a readable, huggable silhouette.
  // These masses are fused into the same signed field, never drawn above it.
  float crownPresence=sat(companion*(.86+happy*.12+excited*.18));
+ float crownGrowth=smoothstep(0.0,1.0,crownPresence);
  if(crownPresence>.001){
-   vec2 leftC=vec2(-.158,.348+breath*.006);
-   vec2 rightC=vec2(.152,.344-breath*.005);
+   vec2 leftC=mix(
+     vec2(-.105,.205),
+     vec2(-.158,.348+breath*.006),
+     crownGrowth
+   );
+   vec2 rightC=mix(
+     vec2(.105,.205),
+     vec2(.152,.344-breath*.005),
+     crownGrowth
+   );
    vec2 crownR=vec2(.252,.205)*(1.0+excited*.025);
+   crownR*=mix(.04,1.0,crownGrowth);
+   float crownUnion=max(
+     .004,
+     (.105+.040*crownPresence)*crownGrowth
+   );
    float leftCrown=ellipseSdf(rot(-.12)*(q-leftC),crownR);
    float rightCrown=ellipseSdf(rot(.10)*(q-rightC),crownR);
-   shape=smin(shape,leftCrown,.105+.040*crownPresence);
-   shape=smin(shape,rightCrown,.105+.040*crownPresence);
+   shape=smin(shape,leftCrown,crownUnion);
+   shape=smin(shape,rightCrown,crownUnion);
    float leftCrownWeight=gauss(q,leftC,crownR)*crownPresence;
    float rightCrownWeight=gauss(q,rightC,crownR)*crownPresence;
    potential+=(leftCrownWeight+rightCrownWeight)*.28;

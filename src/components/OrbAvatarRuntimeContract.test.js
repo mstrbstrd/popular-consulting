@@ -63,6 +63,13 @@ describe("living Metabloom Orb runtime invariants", () => {
     expect(livingShader).toContain("float ellipseSdf(");
     expect(livingShader).toContain("float smin(");
     expect(livingShader).toContain("for(int i=0;i<7;i++)");
+    expect(livingShader).toContain(
+      "float crownGrowth=smoothstep(0.0,1.0,crownPresence)",
+    );
+    expect(livingShader).toContain(
+      "crownR*=mix(.04,1.0,crownGrowth)",
+    );
+    expect(livingShader).toContain("shape=smin(shape,leftCrown,crownUnion)");
     expect(livingShader).toContain("if(shape>.14)");
     expect(livingShader).toContain("fragColor=vec4(0.0)");
     expect(livingShader).toContain("fragColor=vec4(color*alpha,alpha)");
