@@ -30,18 +30,36 @@ const normalizeForm = (form) =>
     ? form
     : "companion";
 
-const MetabloomFallback = () => (
+const MetabloomFallback = ({ expression, pulseVersion, talking }) => (
   <div
     className="living-metabloom-canvas is-fallback"
+    data-fallback-expression={expression}
+    data-fallback-talking={talking ? "true" : "false"}
     data-renderer-fallback="css"
     aria-hidden="true"
   >
     <div className="living-metabloom-canvas__fallback">
-      <span />
-      <span />
-      <span />
-      <span />
-      <span />
+      <span className="living-metabloom-canvas__fallback-blob" />
+      <span className="living-metabloom-canvas__fallback-blob" />
+      <span className="living-metabloom-canvas__fallback-blob" />
+      <span className="living-metabloom-canvas__fallback-blob" />
+      <span className="living-metabloom-canvas__fallback-blob" />
+
+      <div className="living-metabloom-canvas__fallback-face">
+        <span className="living-metabloom-canvas__fallback-eye living-metabloom-canvas__fallback-eye--left" />
+        <span className="living-metabloom-canvas__fallback-eye living-metabloom-canvas__fallback-eye--right" />
+        <span className="living-metabloom-canvas__fallback-mouth" />
+        <span className="living-metabloom-canvas__fallback-accent living-metabloom-canvas__fallback-accent--one" />
+        <span className="living-metabloom-canvas__fallback-accent living-metabloom-canvas__fallback-accent--two" />
+        <span className="living-metabloom-canvas__fallback-accent living-metabloom-canvas__fallback-accent--three" />
+      </div>
+
+      {pulseVersion > 0 && (
+        <span
+          key={pulseVersion}
+          className="living-metabloom-canvas__fallback-pulse"
+        />
+      )}
     </div>
   </div>
 );
@@ -98,7 +116,11 @@ const MetabloomAvatar = ({
           talking={talking}
         />
       ) : (
-        <MetabloomFallback />
+        <MetabloomFallback
+          expression={normalizedExpression}
+          pulseVersion={pulseVersion}
+          talking={talking}
+        />
       )}
     </div>
   );
