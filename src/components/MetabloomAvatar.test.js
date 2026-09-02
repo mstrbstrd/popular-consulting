@@ -115,11 +115,50 @@ describe("MetabloomAvatar", () => {
     expect(onPulse).toHaveBeenCalledTimes(3);
   });
 
-  test("falls back to a metabloom object rather than an empty frame", () => {
+  test("keeps every mood distinct in the non-WebGL creature", () => {
     mockHasHardwareWebGL = false;
-    render(<MetabloomAvatar expression="excited" form="bloom" />);
+    const expressions = [
+      "happy",
+      "excited",
+      "sad",
+      "surprised",
+      "thinking",
+      "sleepy",
+      "angry",
+    ];
+    const { rerender } = render(
+      <MetabloomAvatar expression={expressions[0]} />,
+    );
+
+    expressions.forEach((expression) => {
+      rerender(<MetabloomAvatar expression={expression} />);
+      const fallback = screen
+        .getByTestId("metabloom-avatar")
+        .querySelector(".living-metabloom-canvas");
+      expect(fallback).toHaveAttribute(
+        "data-fallback-expression",
+        expression,
+      );
+    });
+  });
+
+  test("keeps forms, speech, and keyed pulse feedback in the fallback", () => {
+    mockHasHardwareWebGL = false;
+    const { rerender } = render(
+      <MetabloomAvatar
+        expression="excited"
+        form="bloom"
+        pulseVersion={1}
+        talking={false}
+      />,
+    );
 
     const avatar = screen.getByTestId("metabloom-avatar");
+    const fallback = avatar.querySelector(".living-metabloom-canvas");
+    const firstPulse = avatar.querySelector(
+      ".living-metabloom-canvas__fallback-pulse",
+    );
+
     expect(
       screen.queryByTestId("living-metabloom-field"),
     ).not.toBeInTheDocument();
@@ -127,8 +166,30 @@ describe("MetabloomAvatar", () => {
       avatar.querySelector(".living-metabloom-canvas__fallback"),
     ).toBeInTheDocument();
     expect(
-      avatar.querySelectorAll(".living-metabloom-canvas__fallback > span"),
+      avatar.querySelectorAll(".living-metabloom-canvas__fallback-blob"),
     ).toHaveLength(5);
+    expect(fallback).toHaveAttribute("data-fallback-expression", "excited");
+    expect(fallback).toHaveAttribute("data-fallback-talking", "false");
+    expect(avatar).toHaveAttribute("data-avatar-form", "bloom");
+    expect(firstPulse).toBeInTheDocument();
+
+    rerender(
+      <MetabloomAvatar
+        expression="angry"
+        form="focus"
+        pulseVersion={2}
+        talking
+      />,
+    );
+
+    const secondPulse = avatar.querySelector(
+      ".living-metabloom-canvas__fallback-pulse",
+    );
+    expect(fallback).toHaveAttribute("data-fallback-expression", "angry");
+    expect(fallback).toHaveAttribute("data-fallback-talking", "true");
+    expect(avatar).toHaveAttribute("data-avatar-form", "focus");
+    expect(secondPulse).toBeInTheDocument();
+    expect(secondPulse).not.toBe(firstPulse);
     expect(avatar.querySelector(".metabloom-avatar__body")).toBeNull();
   });
 });
