@@ -93,6 +93,34 @@
   background: transparent;
 }
 
+.metabloom-avatar__material-fallback {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 30% 68%, rgba(0, 238, 255, 0.82), transparent 25%),
+    radial-gradient(ellipse at 58% 34%, rgba(255, 0, 255, 0.74), transparent 29%),
+    radial-gradient(ellipse at 74% 64%, rgba(157, 0, 255, 0.7), transparent 27%),
+    radial-gradient(ellipse at 46% 46%, rgba(255, 238, 0, 0.34), transparent 37%),
+    #fff8f7;
+}
+
+[data-theme="dark"] .metabloom-avatar__material-fallback {
+  background:
+    radial-gradient(ellipse at 30% 68%, rgba(0, 238, 255, 0.58), transparent 25%),
+    radial-gradient(ellipse at 58% 34%, rgba(255, 0, 255, 0.48), transparent 29%),
+    radial-gradient(ellipse at 74% 64%, rgba(157, 0, 255, 0.52), transparent 27%),
+    radial-gradient(ellipse at 46% 46%, rgba(255, 238, 0, 0.18), transparent 37%),
+    #080809;
+}
+
+.metabloom-avatar[data-avatar-form="focus"]
+  .metabloom-avatar__material-fallback {
+  background:
+    radial-gradient(ellipse at 34% 30%, rgba(255, 255, 255, 0.92), transparent 22%),
+    radial-gradient(ellipse at 62% 58%, rgba(108, 122, 142, 0.82), transparent 38%),
+    linear-gradient(145deg, #eaf0f3 0%, #798692 48%, #202830 100%);
+}
+
 .metabloom-avatar__dither-veil {
   position: absolute;
   inset: 0;

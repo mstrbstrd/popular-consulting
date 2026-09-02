@@ -115,12 +115,16 @@ const OrbSection = ({ isActive = true }) => {
   const [sequenceId, setSequenceId] = React.useState(null);
   const [fieldState, setFieldState] = React.useState("drifting");
 
-  const clearSequence = React.useCallback(() => {
+  const cancelSequenceTimer = React.useCallback(() => {
     sequenceTokenRef.current += 1;
     window.clearTimeout(sequenceTimerRef.current);
     sequenceTimerRef.current = 0;
-    setSequenceId(null);
   }, []);
+
+  const clearSequence = React.useCallback(() => {
+    cancelSequenceTimer();
+    setSequenceId(null);
+  }, [cancelSequenceTimer]);
 
   const pulse = React.useCallback(() => {
     setPulseVersion((value) => value + 1);
@@ -202,6 +206,11 @@ const OrbSection = ({ isActive = true }) => {
     setTalking(false);
   }, []);
 
+  const toggleTalking = React.useCallback(() => {
+    clearSequence();
+    setTalking((value) => !value);
+  }, [clearSequence]);
+
   const handleFieldStateChange = React.useCallback((nextState) => {
     setFieldState(nextState);
   }, []);
@@ -225,7 +234,7 @@ const OrbSection = ({ isActive = true }) => {
     window.__orbStopTalk = stopTalking;
 
     return () => {
-      clearSequence();
+      cancelSequenceTimer();
       clearOwnedGlobal("__orbPop", pulse);
       clearOwnedGlobal("__orbExpress", express);
       clearOwnedGlobal("__orbPlaySequence", playExternalSequence);
@@ -237,7 +246,7 @@ const OrbSection = ({ isActive = true }) => {
       window.__bhModeActive = false;
     };
   }, [
-    clearSequence,
+    cancelSequenceTimer,
     express,
     playExternalSequence,
     pulse,
@@ -373,7 +382,7 @@ const OrbSection = ({ isActive = true }) => {
             <button
               type="button"
               className={talking ? "is-active" : ""}
-              onClick={() => setTalking((value) => !value)}
+              onClick={toggleTalking}
               aria-pressed={talking}
             >
               {talking ? "Quiet" : "Talk"}

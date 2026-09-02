@@ -89,7 +89,7 @@ html body .nav-theme-toggle:not(.nav-overlay-theme)::before {
 
 html body .nav-theme-toggle:not(.nav-overlay-theme):hover {
   color: var(--aetheris-ink) !important;
-  background: var(--aetheris-state-layer) !important;
+  background: radial-gradient(circle at center, var(--aetheris-state-layer) 0 15px, transparent 16px) !important;
   box-shadow: none !important;
   transform: translateX(2px) !important;
 }
@@ -344,7 +344,7 @@ html body .work-page .work-page__theme::before {
 
 html body .work-page .work-page__theme:hover {
   color: var(--ink);
-  background: var(--nav-hover-bg);
+  background: radial-gradient(circle at center, var(--aetheris-state-layer) 0 15px, transparent 16px);
   box-shadow: none;
   transform: translateX(2px);
 }

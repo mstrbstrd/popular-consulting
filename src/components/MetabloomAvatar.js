@@ -1,4 +1,5 @@
 import React from "react";
+import { hasHardwareWebGL } from "../utils/deviceTier";
 import CreatorOSFieldCanvas from "./CreatorOSFieldCanvas";
 import "./CreatorOSFieldCanvas.css";
 import "./MetabloomAvatar.css";
@@ -270,6 +271,7 @@ const MetabloomAvatar = ({
       className="metabloom-avatar"
       data-avatar-expression={normalizedExpression}
       data-avatar-form={normalizedForm}
+      data-avatar-active={isActive && !paused ? "true" : "false"}
       data-avatar-talking={talking ? "true" : "false"}
       data-testid="metabloom-avatar"
       role="button"
@@ -295,14 +297,21 @@ const MetabloomAvatar = ({
 
         <div className="metabloom-avatar__body">
           <div className="metabloom-avatar__material">
-            <CreatorOSFieldCanvas
-              isDark={isDark}
-              metabloomPalette={materialPalette}
-              mode={0}
-              onFieldStateChange={onFieldStateChange}
-              paused={!isActive || paused}
-              resetVersion={resetVersion}
-            />
+            {hasHardwareWebGL ? (
+              <CreatorOSFieldCanvas
+                isDark={isDark}
+                metabloomPalette={materialPalette}
+                mode={0}
+                onFieldStateChange={onFieldStateChange}
+                paused={!isActive || paused}
+                resetVersion={resetVersion}
+              />
+            ) : (
+              <div
+                className="metabloom-avatar__material-fallback"
+                data-renderer-fallback="css"
+              />
+            )}
           </div>
           <div className="metabloom-avatar__dither-veil" />
           <div className="metabloom-avatar__sheen" />

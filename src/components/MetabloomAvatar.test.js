@@ -5,6 +5,10 @@ import MetabloomAvatar from "./MetabloomAvatar";
 
 let mockFieldProps = null;
 
+jest.mock("../utils/deviceTier", () => ({
+  hasHardwareWebGL: true,
+}));
+
 jest.mock("./CreatorOSFieldCanvas", () => {
   const ReactModule = require("react");
   return (props) => {

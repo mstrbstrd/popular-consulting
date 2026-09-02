@@ -11,7 +11,7 @@ A React business + engineering platform for "Popular Consulting" with six routes
 | `/` | `App` (immersive, business audience) | Section-snap parallax, managed WebGL dither or CSS fallback |
 | `/engineering` | `App` (immersive, engineering audience) | Shared immersive shell plus draggable Aetheris `ProfessionalHero` and engineering copy via `siteCopy` audiences |
 | `/work` | `WorkPage` | Scrollable portfolio; Aetheris design system; SpectralBloom backdrop |
-| `/orb` | `StandaloneExperiencePage` (orb) | noindex; lazy-loads `OrbSection`; managed Dither plus profiled geodesic Black Hole |
+| `/orb` | `StandaloneExperiencePage` (orb) | noindex; one localized Metabloom avatar field plus static CSS atmosphere |
 | `/game` | `StandaloneExperiencePage` (game) | noindex; lazy-loads `PopcornGame` |
 | `/dither-canvas` | `DitherCanvasPage` or `GraphicsFallbackPage` | noindex; field lab is WebGL-policy gated |
 
@@ -22,7 +22,7 @@ Unknown paths fall back to `/`. Per-route HTML (title/meta/canonical) is generat
 - React 18 (CRA / react-scripts 5), JavaScript only (no TypeScript)
 - MUI v5 (`Box`/`Typography`/`Container`/`TextField`/`Button` in BioSection, ServicesSection, ContactSection only - removal is a planned project)
 - Custom CSS: global `src/index.css`, per-component inline `<style>` blocks, route-scoped `public/engineering-card.css`, `src/components/WorkPage.css`, and route-scoped `public/work-typography.css`
-- WebGL (raw, no library): managed `DitherBackground` (WebGL2), profiled geodesic `BlackHoleCanvas` (WebGL2), `SpectralBloom` (WebGL1), `CreatorOSLavaLampCanvas` (WebGL1), `CreatorOSFieldCanvas` (WebGL2)
+- WebGL (raw, no library): managed `DitherBackground` (WebGL2), dormant profiled `BlackHoleCanvas` (WebGL2), `SpectralBloom` (WebGL1), `CreatorOSLavaLampCanvas` (WebGL1), and the shared `CreatorOSFieldCanvas` (WebGL2), including the localized Metabloom avatar
 - **Not used anywhere (do not reintroduce): Tailwind, framer-motion, Emotion-direct, simplex-noise**
 
 ## Commands
@@ -41,13 +41,13 @@ npm run lint    # eslint --max-warnings 0 (CI-gated)
 - `src/utils/deviceTier.js` performs the WebGL2 capability probe only when policy allows it, rejects known software renderers, compiles the GLSL ES 3 baseline, requests the high-performance adapter, and releases the detached probe context.
 - `src/utils/graphicsContextGovernor.js` is installed before React mounts. It only governs canvases explicitly marked by `ManagedDitherBackground`, bounding their drawing buffer before the first draw and capping the legacy single-pass draw rate.
 - `src/utils/graphicsRuntimeBoundary.js` catches unmanaged WebGL context loss, hides the failed canvas, records the failure, clears exclusive Orb ownership, and never reloads the document.
-- `ManagedDitherBackground.js` owns Dither lifecycle. Hidden tabs, reduced motion, context loss, disabled policy, and exclusive Orb Black Hole ownership unmount the live renderer and reveal the CSS fallback.
-- `BlackHoleCanvas.js` preserves the original three-channel geodesic shader, RK4 integration, accretion disk, Doppler and gravitational shifts, psychedelic palette, ordered dither, scanlines, camera movement, zoom controls, and pop transition.
+- `ManagedDitherBackground.js` owns full-screen Dither lifecycle. Hidden tabs, reduced motion, context loss, and disabled policy unmount the live renderer and reveal the CSS fallback. The `/orb` route intentionally does not mount this full-screen renderer.
+- `BlackHoleCanvas.js` remains as a dormant legacy renderer for reference and regression coverage. `OrbSection` must not mount it alongside the Metabloom avatar.
 - The non-Windows `original` profile keeps 200 steps, a 0.08 base step, the original 0.35 drawing scale, and uncapped requestAnimationFrame cadence.
 - Windows starts with the same shader under the `balanced` profile: 96 steps, a 0.166667 base step, a 96,000-pixel ceiling, and a 24 fps ceiling. The larger step preserves the original nominal 16-unit integration path.
 - Shader initialization or context loss retries once under the same geodesic algorithm with the `safe` profile: 64 steps, a 0.25 base step, a 64,000-pixel ceiling, and a 20 fps ceiling.
 - `?black-hole-quality=original`, `balanced`, or `safe` is the explicit hardware-comparison and tuning override.
-- A final Black Hole failure clears only Orb renderer ownership and removes the failed overlay. It must not poison every WebGL renderer for the session.
+- The Metabloom avatar fails locally to its clipped CSS material. It must never poison every WebGL renderer for the session or add a second full-screen context.
 - `BlackHoleBackground.js` was a dormant duplicate and is removed. Do not duplicate the shader again. Do not replace the active geodesic Orb effect with an analytic approximation.
 - Essential copy, navigation, forms, and route access must remain fully usable if WebGL is unavailable or explicitly disabled.
 - `window.__graphicsReport()` returns the current graphics policy, the last failure, and bounded session breadcrumbs.
@@ -56,13 +56,19 @@ npm run lint    # eslint --max-warnings 0 (CI-gated)
 
 ### Immersive home (`/`, `/engineering`)
 - `ParallaxBackground.js` - section-snap controller. Intercepts wheel/keyboard/touch (native scroll is NOT used); 4 sections: DitherHero, Bio, Services, Contact. Section dots (`.section-dot`) are the navigation contract: `document.querySelectorAll('.section-dot')[N]?.click()` navigates from anywhere.
-- `DitherBackground.js` (~1900 lines) - legacy persistent WebGL2 dither canvas, per-section shader presets, orb face/emotions, and CD blend modes. It must only be mounted through `ManagedDitherBackground`; direct imports into route code are prohibited. **Touch carefully; verify visually.**
+- `DitherBackground.js` (~1900 lines) - legacy persistent WebGL2 dither canvas and per-section shader presets. Its older orb face and CD modes are dormant compatibility code. It must only be mounted through `ManagedDitherBackground`; direct imports into route code are prohibited. **Touch carefully; verify visually.**
 - `experiencePlacement.js` - which sections render (orb currently disabled on the main stack).
 - `siteCopy.js` - dual-audience copy (business vs engineering); `immersiveMode.js` picks per route.
 - `ProfessionalHero.js` owns the `/engineering` card's reveal state, section-action routing, pointer capture, viewport clamping, drag suppression, and double-click reset. Do not move those invariants into presentation code or replace its inline transform.
 - `public/engineering-card.css` is injected only into generated `/engineering` HTML. It maps the card to the Aetheris contract: Hanken Grotesk + JetBrains Mono, structural spectral edges, masked glass ring, specular elevation, shared radii, focus halo, calm hover/press states, and dark/light/reduced-transparency parity. Filled gradient text and filled rainbow action buttons are prohibited.
 - `scripts/generate-route-html.mjs` keeps Poppins for the shared `/engineering` shell, adds Hanken Grotesk + JetBrains Mono for the card, and injects the cache-busted card stylesheet. The root, orb, and game routes must not receive those card assets.
 - WebGL-unavailable or policy-disabled fallback: CSS gradient orbs remain mounted beneath the managed canvas and preserve the complete content path.
+
+### /orb (Metabloom avatar lab)
+- `OrbSection.js` owns the public avatar state and the legacy `window.__orb*` control API. It preserves seven expressions, transformable forms, bounded sequences, speech, pause, pulse, and reset without owning a canvas itself.
+- `MetabloomAvatar.js` composes exactly one localized `CreatorOSFieldCanvas` in Metabloom mode. Companion, Bloom, Focus, and Drift are presentation states around that same renderer; Focus changes the existing material palette rather than mounting another pass.
+- `/orb` does not mount `ManagedDitherBackground`, `BlackHoleCanvas`, or a full-screen 2D particle layer. The surrounding route atmosphere is static CSS, and the full-screen glass blur is disabled.
+- The avatar inherits the field renderer's half-resolution budget, cadence scheduler, hidden-tab suspension, reduced-motion static frame, local context recovery, and explicit GPU cleanup. Unsupported graphics sessions render the clipped CSS material.
 
 ### /work (Aetheris Iridescent)
 - Design tokens and component recipes are scoped to `.work-page` in `WorkPage.css`: structural spectral gradients, Hanken Grotesk + JetBrains Mono, glass panels, the 6/10/14/26px radius hierarchy, light-derived elevation, and the shared interaction system. Styleguide source: `mstrbstrd/aetheris-styleguide`; follow `conventions.md` when extending.
@@ -85,7 +91,7 @@ npm run lint    # eslint --max-warnings 0 (CI-gated)
 - `RuptureCanvas.js` remains isolated as the Second Surface material study and must not be folded into the fluid renderer.
 
 ### window.__* globals contract
-Producers null their globals on cleanup. Orb/dither: `__orbPop`, `__orbExpress`, `__orbPlaySequence`, `__orbStop`, `__orbReset`, `__orbExpressions`, `__orbTalk`, `__orbStopTalk`, `__ditherRaiseCanvas`, `__ditherLowerCanvas`, `__ditherLockToHero`, `__ditherUnlock`, `__ditherRevealIn`, `__ditherRevealOut`, `__ditherSetCD`, `__ditherSetOrb`, `__addDitherRipple` (all from DitherBackground). Others: `__bhModeActive` (OrbSection, synchronously bridged by `rendererOwnership.js`), `__serviceCardExpanded` (ServicesSection), `__triggerLoading` (App / StandaloneExperiencePage), `__perfReport` (telemetry), `__graphicsReport` (graphics policy diagnostics).
+Producers null their globals on cleanup. `OrbSection` owns `__orbPop`, `__orbExpress`, `__orbPlaySequence`, `__orbStop`, `__orbReset`, `__orbExpressions`, `__orbTalk`, and `__orbStopTalk`. `DitherBackground` retains `__ditherRaiseCanvas`, `__ditherLowerCanvas`, `__ditherLockToHero`, `__ditherUnlock`, `__ditherRevealIn`, `__ditherRevealOut`, `__ditherSetCD`, `__ditherSetOrb`, and `__addDitherRipple` for legacy background behavior. `__bhModeActive` is synchronously bridged by `rendererOwnership.js` but remains false in the Metabloom Orb. Others: `__serviceCardExpanded` (ServicesSection), `__triggerLoading` (App / StandaloneExperiencePage), `__perfReport` (telemetry), and `__graphicsReport` (graphics policy diagnostics).
 
 ## Conventions & cautions
 
