@@ -2,6 +2,7 @@ import React from "react";
 import { useThemeMode } from "../contexts/ThemeContext";
 import MetabloomAvatar from "./MetabloomAvatar";
 import "./OrbSection.css";
+import "./OrbSectionPolish.css";
 
 const DEFAULT_EXPRESSION = "happy";
 const DEFAULT_FORM = "companion";
@@ -25,7 +26,7 @@ const FORMS = Object.freeze([
   Object.freeze({
     id: "bloom",
     label: "Bloom",
-    description: "Opens the same field into petal-like lobes",
+    description: "Opens the same organism into petal-like lobes",
   }),
   Object.freeze({
     id: "focus",
@@ -35,7 +36,7 @@ const FORMS = Object.freeze([
   Object.freeze({
     id: "drift",
     label: "Drift",
-    description: "Stretches the living field into a travelling current",
+    description: "Stretches the living organism into a travelling current",
   }),
 ]);
 
@@ -106,14 +107,27 @@ const OrbSection = ({ isActive = true }) => {
   const { isDark } = useThemeMode();
   const sequenceTimerRef = React.useRef(0);
   const sequenceTokenRef = React.useRef(0);
+  const stateRef = React.useRef(null);
   const [expression, setExpression] = React.useState(DEFAULT_EXPRESSION);
   const [form, setForm] = React.useState(DEFAULT_FORM);
   const [talking, setTalking] = React.useState(false);
   const [paused, setPaused] = React.useState(false);
+  const [emotionVersion, setEmotionVersion] = React.useState(0);
   const [pulseVersion, setPulseVersion] = React.useState(0);
   const [resetVersion, setResetVersion] = React.useState(0);
   const [sequenceId, setSequenceId] = React.useState(null);
   const [fieldState, setFieldState] = React.useState("forming");
+
+  stateRef.current = {
+    emotionVersion,
+    expression,
+    fieldState,
+    form,
+    paused,
+    pulseVersion,
+    sequenceId,
+    talking,
+  };
 
   const cancelSequenceTimer = React.useCallback(() => {
     sequenceTokenRef.current += 1;
@@ -130,19 +144,30 @@ const OrbSection = ({ isActive = true }) => {
     setPulseVersion((value) => value + 1);
   }, []);
 
-  const express = React.useCallback((nextExpression) => {
-    clearSequence();
-    setExpression(normalizeExpression(nextExpression));
-    setTalking(false);
-    pulse();
-  }, [clearSequence, pulse]);
+  const respondWithEmotion = React.useCallback(() => {
+    setEmotionVersion((value) => value + 1);
+  }, []);
 
-  const transform = React.useCallback((nextForm) => {
-    clearSequence();
-    setForm(normalizeForm(nextForm));
-    setTalking(false);
-    pulse();
-  }, [clearSequence, pulse]);
+  const express = React.useCallback(
+    (nextExpression) => {
+      clearSequence();
+      setExpression(normalizeExpression(nextExpression));
+      setTalking(false);
+      respondWithEmotion();
+      pulse();
+    },
+    [clearSequence, pulse, respondWithEmotion],
+  );
+
+  const transform = React.useCallback(
+    (nextForm) => {
+      clearSequence();
+      setForm(normalizeForm(nextForm));
+      setTalking(false);
+      pulse();
+    },
+    [clearSequence, pulse],
+  );
 
   const stop = React.useCallback(() => {
     clearSequence();
@@ -159,48 +184,56 @@ const OrbSection = ({ isActive = true }) => {
     setPulseVersion((value) => value + 1);
   }, [clearSequence]);
 
-  const playSequence = React.useCallback((steps, nextSequenceId = "custom") => {
-    const normalizedSteps = normalizeSequenceSteps(steps);
-    clearSequence();
-    if (normalizedSteps.length === 0) return;
+  const playSequence = React.useCallback(
+    (steps, nextSequenceId = "custom") => {
+      const normalizedSteps = normalizeSequenceSteps(steps);
+      clearSequence();
+      if (normalizedSteps.length === 0) return;
 
-    const token = sequenceTokenRef.current;
-    let index = 0;
-    setSequenceId(nextSequenceId);
-    setPaused(false);
+      const token = sequenceTokenRef.current;
+      let index = 0;
+      setSequenceId(nextSequenceId);
+      setPaused(false);
 
-    const advance = () => {
-      if (sequenceTokenRef.current !== token) return;
-      const step = normalizedSteps[index];
-      if (!step) {
-        setTalking(false);
-        setSequenceId(null);
-        sequenceTimerRef.current = 0;
-        return;
-      }
+      const advance = () => {
+        if (sequenceTokenRef.current !== token) return;
+        const step = normalizedSteps[index];
+        if (!step) {
+          setTalking(false);
+          setSequenceId(null);
+          sequenceTimerRef.current = 0;
+          return;
+        }
 
-      setExpression(step.expression);
-      if (step.form) setForm(step.form);
-      setTalking(step.talking);
-      setPulseVersion((value) => value + 1);
-      index += 1;
-      sequenceTimerRef.current = window.setTimeout(advance, step.duration);
-    };
+        setExpression(step.expression);
+        if (step.form) setForm(step.form);
+        setTalking(step.talking);
+        setEmotionVersion((value) => value + 1);
+        setPulseVersion((value) => value + 1);
+        index += 1;
+        sequenceTimerRef.current = window.setTimeout(advance, step.duration);
+      };
 
-    advance();
-  }, [clearSequence]);
+      advance();
+    },
+    [clearSequence],
+  );
 
-  const playExternalSequence = React.useCallback((steps) => {
-    playSequence(steps, "custom");
-  }, [playSequence]);
+  const playExternalSequence = React.useCallback(
+    (steps) => {
+      playSequence(steps, "custom");
+    },
+    [playSequence],
+  );
 
   const startTalking = React.useCallback(() => {
     clearSequence();
     setTalking(true);
-    setExpression((current) =>
-      current === "sleepy" || current === "angry" ? "happy" : current,
-    );
-  }, [clearSequence]);
+    if (expression === "sleepy" || expression === "angry") {
+      setExpression("happy");
+      respondWithEmotion();
+    }
+  }, [clearSequence, expression, respondWithEmotion]);
 
   const stopTalking = React.useCallback(() => {
     setTalking(false);
@@ -210,6 +243,50 @@ const OrbSection = ({ isActive = true }) => {
     clearSequence();
     setTalking((value) => !value);
   }, [clearSequence]);
+
+  const reactToUser = React.useCallback(
+    (request) => {
+      if (!request || typeof request !== "object" || Array.isArray(request)) {
+        return false;
+      }
+
+      const requestedExpression = VALID_EXPRESSIONS.has(request.expression)
+        ? request.expression
+        : null;
+      const requestedForm = VALID_FORMS.has(request.form)
+        ? request.form
+        : null;
+      const requestedTalking =
+        typeof request.talking === "boolean" ? request.talking : null;
+      const requestedPaused =
+        typeof request.paused === "boolean" ? request.paused : null;
+      const requestedPulse = request.pulse === true;
+
+      if (
+        !requestedExpression &&
+        !requestedForm &&
+        requestedTalking === null &&
+        requestedPaused === null &&
+        !requestedPulse
+      ) {
+        return false;
+      }
+
+      clearSequence();
+      if (requestedExpression) {
+        setExpression(requestedExpression);
+        respondWithEmotion();
+      }
+      if (requestedForm) setForm(requestedForm);
+      if (requestedTalking !== null) setTalking(requestedTalking);
+      if (requestedPaused !== null) setPaused(requestedPaused);
+      if (requestedPulse) pulse();
+      return true;
+    },
+    [clearSequence, pulse, respondWithEmotion],
+  );
+
+  const getState = React.useCallback(() => ({ ...stateRef.current }), []);
 
   const handleFieldStateChange = React.useCallback((nextState) => {
     setFieldState(nextState);
@@ -222,14 +299,19 @@ const OrbSection = ({ isActive = true }) => {
 
   React.useEffect(() => {
     const expressions = EMOTIONS.map(({ id }) => id);
+    const forms = FORMS.map(({ id }) => id);
 
     window.__bhModeActive = false;
     window.__orbPop = pulse;
     window.__orbExpress = express;
+    window.__orbTransform = transform;
+    window.__orbReact = reactToUser;
     window.__orbPlaySequence = playExternalSequence;
     window.__orbStop = stop;
     window.__orbReset = reset;
     window.__orbExpressions = expressions;
+    window.__orbForms = forms;
+    window.__orbState = getState;
     window.__orbTalk = startTalking;
     window.__orbStopTalk = stopTalking;
 
@@ -237,10 +319,14 @@ const OrbSection = ({ isActive = true }) => {
       cancelSequenceTimer();
       clearOwnedGlobal("__orbPop", pulse);
       clearOwnedGlobal("__orbExpress", express);
+      clearOwnedGlobal("__orbTransform", transform);
+      clearOwnedGlobal("__orbReact", reactToUser);
       clearOwnedGlobal("__orbPlaySequence", playExternalSequence);
       clearOwnedGlobal("__orbStop", stop);
       clearOwnedGlobal("__orbReset", reset);
       clearOwnedGlobal("__orbExpressions", expressions);
+      clearOwnedGlobal("__orbForms", forms);
+      clearOwnedGlobal("__orbState", getState);
       clearOwnedGlobal("__orbTalk", startTalking);
       clearOwnedGlobal("__orbStopTalk", stopTalking);
       window.__bhModeActive = false;
@@ -248,12 +334,15 @@ const OrbSection = ({ isActive = true }) => {
   }, [
     cancelSequenceTimer,
     express,
+    getState,
     playExternalSequence,
     pulse,
+    reactToUser,
     reset,
     startTalking,
     stop,
     stopTalking,
+    transform,
   ]);
 
   const activeEmotion = EMOTIONS.find(({ id }) => id === expression);
@@ -274,16 +363,17 @@ const OrbSection = ({ isActive = true }) => {
       data-orb-renderer="living-metabloom"
       data-orb-expression={expression}
       data-orb-form={form}
+      data-orb-emotion-version={emotionVersion}
     >
       <div className="orb-avatar-lab__copy">
         <p className="orb-avatar-lab__eyebrow">
-          The field is the character · one bounded draw
+          One fluid organism · one bounded field
         </p>
         <h1>Meet Bloom</h1>
         <p>
-          Bloom is not a shell with a texture. Its silhouette, gaze, voice,
-          expressions, and transformations are formed by one living Metabloom
-          field.
+          Bloom&apos;s body, face, gaze, and voice are one fluid Metabloom
+          organism. Each feeling changes its physics, floods its material with
+          color, then resolves back into its native spectrum.
         </p>
         <span
           className="orb-avatar-lab__status"
@@ -297,6 +387,7 @@ const OrbSection = ({ isActive = true }) => {
 
       <div className="orb-avatar-lab__stage">
         <MetabloomAvatar
+          emotionVersion={emotionVersion}
           expression={expression}
           form={form}
           isActive={isActive}
@@ -312,7 +403,7 @@ const OrbSection = ({ isActive = true }) => {
 
       <div className="orb-avatar-lab__controls">
         <div
-          className="orb-pill orb-avatar-lab__control-row"
+          className="orb-pill orb-avatar-lab__control-row orb-avatar-lab__form-row"
           role="group"
           aria-label="Living Metabloom forms"
         >
@@ -354,7 +445,7 @@ const OrbSection = ({ isActive = true }) => {
 
         <div className="orb-avatar-lab__utility-row">
           <div
-            className="orb-pill orb-avatar-lab__control-row"
+            className="orb-pill orb-avatar-lab__control-row orb-avatar-lab__sequence-row"
             role="group"
             aria-label="Living Metabloom sequences"
           >

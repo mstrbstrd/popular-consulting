@@ -9,15 +9,23 @@ import {
 import { CREATOROS_FIELD_VERTEX_SHADER } from "./CreatorOSFieldShader";
 import { LIVING_METABLOOM_FRAGMENT_SHADER } from "./LivingMetabloomShader";
 import "./LivingMetabloomCanvas.css";
+import "./LivingMetabloomPolish.css";
 
-const RENDER_SCALE = 0.5;
+const RENDER_SCALE_BY_PROFILE = Object.freeze({
+  desktop: 0.9,
+  mobile: 0.72,
+  windows: 0.78,
+});
+const RENDER_SCALE =
+  RENDER_SCALE_BY_PROFILE[ditherCanvasRuntimeProfile.id] || 0.72;
 const PREFERRED_FRAME_INTERVAL_MS = 1000 / 30;
 const FRAME_INTERVAL_MS = getDitherCanvasFrameInterval(
   PREFERRED_FRAME_INTERVAL_MS,
 );
-const INTRO_DURATION_SECONDS = 1.8;
+const INTRO_DURATION_SECONDS = 1.35;
 const PULSE_LIFETIME_SECONDS = 5.8;
-const STATE_TRANSITION_SECONDS = 0.58;
+const STATE_TRANSITION_SECONDS = 0.62;
+const EMOTION_COLOR_DURATION_SECONDS = 6.4;
 const STATIC_TIME_SECONDS = 18;
 
 const EXPRESSION_INDEX = Object.freeze({
@@ -84,7 +92,9 @@ const createProgram = (gl) => {
   if (!program) {
     gl.deleteShader(vertexShader);
     gl.deleteShader(fragmentShader);
-    throw new Error("The browser could not create the living Metabloom program.");
+    throw new Error(
+      "The browser could not create the living Metabloom program.",
+    );
   }
 
   gl.attachShader(program, vertexShader);
@@ -124,6 +134,7 @@ const collectUniforms = (gl, program, names) => {
 
 const LivingMetabloomCanvas = ({
   enabled = true,
+  emotionVersion = 0,
   expression = "happy",
   form = "companion",
   isDark = false,
@@ -139,6 +150,7 @@ const LivingMetabloomCanvas = ({
     "happy",
   );
   const normalizedForm = normalizeStateName(form, FORM_INDEX, "companion");
+  const normalizedEmotionVersion = normalizePulseVersion(emotionVersion);
   const rootRef = useRef(null);
   const canvasRef = useRef(null);
   const pausedRef = useRef(paused);
@@ -147,6 +159,8 @@ const LivingMetabloomCanvas = ({
   const expressionTargetRef = useRef(
     normalizeStateIndex(normalizedExpression, EXPRESSION_INDEX, "happy"),
   );
+  const expressionResponseRequestRef = useRef(0);
+  const emotionVersionRef = useRef(normalizedEmotionVersion);
   const formTargetRef = useRef(
     normalizeStateIndex(normalizedForm, FORM_INDEX, "companion"),
   );
@@ -176,13 +190,25 @@ const LivingMetabloomCanvas = ({
   }, [talking]);
 
   useEffect(() => {
-    expressionTargetRef.current = normalizeStateIndex(
+    const nextExpression = normalizeStateIndex(
       normalizedExpression,
       EXPRESSION_INDEX,
       "happy",
     );
+    if (expressionTargetRef.current !== nextExpression) {
+      expressionTargetRef.current = nextExpression;
+      expressionResponseRequestRef.current += 1;
+    }
     redrawRef.current();
   }, [normalizedExpression]);
+
+  useEffect(() => {
+    if (emotionVersionRef.current !== normalizedEmotionVersion) {
+      emotionVersionRef.current = normalizedEmotionVersion;
+      expressionResponseRequestRef.current += 1;
+    }
+    redrawRef.current();
+  }, [normalizedEmotionVersion]);
 
   useEffect(() => {
     formTargetRef.current = normalizeStateIndex(
@@ -224,12 +250,14 @@ const LivingMetabloomCanvas = ({
     let uniforms;
     let resizeObserver;
     let frameCadence;
+    let reducedMotionEmotionTimer = 0;
     let documentVisible = document.visibilityState !== "hidden";
     let reducedMotion = false;
     let forceRender = true;
     let localTime = 0;
     let introElapsed = 0;
     let pulseAge = PULSE_LIFETIME_SECONDS + 1;
+    let emotionAge = EMOTION_COLOR_DURATION_SECONDS + 1;
     let energy = 0;
     let seed = Math.random();
     let activeState = "forming";
@@ -239,6 +267,8 @@ const LivingMetabloomCanvas = ({
     let formA = formTargetRef.current;
     let formB = formA;
     let formMix = 1;
+    let appliedExpressionResponseRequest =
+      expressionResponseRequestRef.current;
 
     const pointer = {
       x: 0.5,
@@ -274,6 +304,7 @@ const LivingMetabloomCanvas = ({
     const handleContextLost = (event) => {
       event.preventDefault();
       frameCadence?.cancel();
+      window.clearTimeout(reducedMotionEmotionTimer);
       setFallback(true);
       onFieldStateChangeRef.current?.("fallback");
     };
@@ -323,6 +354,7 @@ const LivingMetabloomCanvas = ({
         "u_pointer",
         "u_pulseOrigin",
         "u_pulseAge",
+        "u_emotionAge",
         "u_expressionA",
         "u_expressionB",
         "u_expressionMix",
@@ -363,6 +395,7 @@ const LivingMetabloomCanvas = ({
         canvas.height = target.height;
         root.dataset.renderWidth = String(target.width);
         root.dataset.renderHeight = String(target.height);
+        root.dataset.actualRenderScale = target.scale.toFixed(3);
         forceRender = true;
       }
     };
@@ -386,7 +419,7 @@ const LivingMetabloomCanvas = ({
       pointer.targetY = next.y;
       pointer.sampleX = next.x;
       pointer.sampleY = next.y;
-      energy = clamp(energy + magnitude * 3.8);
+      energy = clamp(energy + magnitude * 3.4);
       forceRender = true;
       redrawRef.current();
     };
@@ -408,6 +441,7 @@ const LivingMetabloomCanvas = ({
       localTime = 0;
       introElapsed = reducedMotion ? INTRO_DURATION_SECONDS : 0;
       pulseAge = PULSE_LIFETIME_SECONDS + 1;
+      emotionAge = EMOTION_COLOR_DURATION_SECONDS + 1;
       energy = 0;
       seed = Math.random();
       pointer.x = 0.5;
@@ -424,7 +458,10 @@ const LivingMetabloomCanvas = ({
       formA = formTargetRef.current;
       formB = formA;
       formMix = 1;
+      appliedExpressionResponseRequest =
+        expressionResponseRequestRef.current;
       activeState = "forming";
+      window.clearTimeout(reducedMotionEmotionTimer);
       onFieldStateChangeRef.current?.("forming");
       forceRender = true;
       return true;
@@ -446,6 +483,29 @@ const LivingMetabloomCanvas = ({
       energy = 1;
       reportState("resonance");
       forceRender = true;
+      return true;
+    };
+
+    const applyPendingEmotionResponse = () => {
+      const requestedVersion = expressionResponseRequestRef.current;
+      if (requestedVersion === appliedExpressionResponseRequest) {
+        return false;
+      }
+
+      appliedExpressionResponseRequest = requestedVersion;
+      emotionAge = 0;
+      energy = Math.max(energy, 0.48);
+      reportState("responding");
+      forceRender = true;
+
+      if (reducedMotion) {
+        window.clearTimeout(reducedMotionEmotionTimer);
+        reducedMotionEmotionTimer = window.setTimeout(() => {
+          emotionAge = EMOTION_COLOR_DURATION_SECONDS + 1;
+          forceRender = true;
+          redrawRef.current();
+        }, EMOTION_COLOR_DURATION_SECONDS * 1000);
+      }
       return true;
     };
 
@@ -508,6 +568,7 @@ const LivingMetabloomCanvas = ({
         pulseOrigin.y,
       );
       gl.uniform1f(uniforms.u_pulseAge, pulseAge);
+      gl.uniform1f(uniforms.u_emotionAge, emotionAge);
       gl.uniform1i(uniforms.u_expressionA, expressionA);
       gl.uniform1i(uniforms.u_expressionB, expressionB);
       gl.uniform1f(uniforms.u_expressionMix, expressionMix);
@@ -523,6 +584,8 @@ const LivingMetabloomCanvas = ({
         reportState("transforming");
       } else if (pulseAge < 1.45 || energy >= 0.68) {
         reportState("resonance");
+      } else if (emotionAge < 1.35) {
+        reportState("responding");
       } else if (talkingRef.current) {
         reportState("speaking");
       } else if (energy >= 0.18) {
@@ -544,7 +607,11 @@ const LivingMetabloomCanvas = ({
       formMix = 1;
       localTime = STATIC_TIME_SECONDS;
       introElapsed = INTRO_DURATION_SECONDS;
+      const emotionChanged = applyPendingEmotionResponse();
       const pulsed = applyPendingPulse();
+      if (emotionChanged) {
+        emotionAge = 0.9;
+      }
       if (pulsed) {
         pulseAge = 0.34;
         energy = 0.82;
@@ -552,7 +619,13 @@ const LivingMetabloomCanvas = ({
       pointer.x = pointer.targetX;
       pointer.y = pointer.targetY;
       draw();
-      reportState(pulsed ? "resonance" : "settled");
+      reportState(
+        pulsed
+          ? "resonance"
+          : emotionChanged
+            ? "responding"
+            : "settled",
+      );
       forceRender = false;
     };
 
@@ -566,6 +639,7 @@ const LivingMetabloomCanvas = ({
 
       const restarted = applyRestart();
       const delta = restarted ? 0 : Math.min(deltaMs / 1000, 0.1);
+      applyPendingEmotionResponse();
       applyPendingPulse();
       beginExpressionTransition();
       beginFormTransition();
@@ -581,6 +655,10 @@ const LivingMetabloomCanvas = ({
         pulseAge = Math.min(
           PULSE_LIFETIME_SECONDS + 1,
           pulseAge + delta,
+        );
+        emotionAge = Math.min(
+          EMOTION_COLOR_DURATION_SECONDS + 1,
+          emotionAge + delta,
         );
         energy *= Math.pow(0.958, delta * 60);
         if (pulseAge < 1.2) {
@@ -672,6 +750,7 @@ const LivingMetabloomCanvas = ({
 
     return () => {
       frameCadence.dispose();
+      window.clearTimeout(reducedMotionEmotionTimer);
       redrawRef.current = () => {};
       root.removeEventListener("pointermove", handlePointerMove);
       root.removeEventListener("pointerleave", handlePointerLeave);
@@ -695,6 +774,8 @@ const LivingMetabloomCanvas = ({
       ref={rootRef}
       className={`living-metabloom-canvas${fallback ? " is-fallback" : ""}`}
       data-context-recovery="local"
+      data-emotion-color-response="transient"
+      data-emotion-version={normalizedEmotionVersion}
       data-fallback-expression={fallback ? normalizedExpression : undefined}
       data-fallback-talking={fallback ? String(Boolean(talking)) : undefined}
       data-field-expression={normalizedExpression}
@@ -722,6 +803,13 @@ const LivingMetabloomCanvas = ({
           <span className="living-metabloom-canvas__fallback-blob" />
           <span className="living-metabloom-canvas__fallback-blob" />
           <span className="living-metabloom-canvas__fallback-blob" />
+
+          {normalizedEmotionVersion > 0 && (
+            <span
+              key={`emotion-${normalizedEmotionVersion}`}
+              className="living-metabloom-canvas__fallback-emotion"
+            />
+          )}
 
           <div className="living-metabloom-canvas__fallback-face">
             <span className="living-metabloom-canvas__fallback-eye living-metabloom-canvas__fallback-eye--left" />

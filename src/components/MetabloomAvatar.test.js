@@ -18,6 +18,7 @@ jest.mock("./LivingMetabloomCanvas", () => {
     mockFieldProps = props;
     return ReactModule.createElement("div", {
       "data-testid": "living-metabloom-field",
+      "data-emotion-version": String(props.emotionVersion),
       "data-enabled": String(props.enabled),
       "data-expression": props.expression,
       "data-form": props.form,
@@ -41,6 +42,7 @@ describe("MetabloomAvatar", () => {
   test("uses the living Metabloom field as the complete creature", () => {
     const { rerender } = render(
       <MetabloomAvatar
+        emotionVersion={2}
         expression="sad"
         form="drift"
         pulseVersion={2}
@@ -63,6 +65,7 @@ describe("MetabloomAvatar", () => {
 
     rerender(
       <MetabloomAvatar
+        emotionVersion={4}
         expression="thinking"
         form="focus"
         pulseVersion={4}
@@ -72,6 +75,7 @@ describe("MetabloomAvatar", () => {
 
     expect(screen.getAllByTestId("living-metabloom-field")).toHaveLength(1);
     expect(mockFieldProps).toMatchObject({
+      emotionVersion: 4,
       enabled: true,
       expression: "thinking",
       form: "focus",
@@ -135,6 +139,7 @@ describe("MetabloomAvatar", () => {
     expressions.forEach((expression, index) => {
       rerender(
         <MetabloomAvatar
+          emotionVersion={index + 10}
           expression={expression}
           form={index % 2 === 0 ? "bloom" : "focus"}
           pulseVersion={index + 1}
@@ -142,6 +147,7 @@ describe("MetabloomAvatar", () => {
         />,
       );
       expect(mockFieldProps.enabled).toBe(false);
+      expect(mockFieldProps.emotionVersion).toBe(index + 10);
       expect(mockFieldProps.expression).toBe(expression);
       expect(mockFieldProps.form).toBe(index % 2 === 0 ? "bloom" : "focus");
       expect(mockFieldProps.pulseVersion).toBe(index + 1);

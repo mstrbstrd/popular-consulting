@@ -10,120 +10,48 @@ describe("LivingMetabloomCanvas", () => {
     jest.restoreAllMocks();
   });
 
-  test("skips WebGL entirely when capability policy selects the fallback", () => {
-    const contextSpy = jest
-      .spyOn(HTMLCanvasElement.prototype, "getContext")
-      .mockReturnValue(null);
-
-    const { container, unmount } = render(
-      <LivingMetabloomCanvas
-        enabled={false}
-        expression="excited"
-        form="bloom"
-        pulseVersion={1}
-        talking
-      />,
-    );
-
-    const shell = container.querySelector(".living-metabloom-canvas");
-    expect(contextSpy).not.toHaveBeenCalled();
-    expect(shell).toHaveClass("is-fallback");
-    expect(shell).toHaveAttribute("data-renderer-state", "fallback");
-    expect(shell).toHaveAttribute("data-fallback-expression", "excited");
-    expect(shell).toHaveAttribute("data-fallback-talking", "true");
-    expect(
-      container.querySelectorAll(".living-metabloom-canvas__fallback-blob"),
-    ).toHaveLength(5);
-    expect(
-      container.querySelector(".living-metabloom-canvas__fallback-pulse"),
-    ).toBeInTheDocument();
-    expect(() => unmount()).not.toThrow();
-  });
-
-  test("uses the same complete fallback after a local WebGL2 failure", async () => {
+  test("degrades locally to the same living organism when WebGL2 is unavailable", async () => {
     jest.spyOn(console, "error").mockImplementation(() => {});
     jest.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
 
     const { container, unmount } = render(
       <LivingMetabloomCanvas
-        expression="sad"
-        form="drift"
+        emotionVersion={3}
+        expression="excited"
+        form="bloom"
         onFieldStateChange={() => {}}
-        pulseVersion={2}
       />,
     );
 
     const shell = container.querySelector(".living-metabloom-canvas");
     await waitFor(() => expect(shell).toHaveClass("is-fallback"));
-    expect(shell).toHaveAttribute("data-fallback-expression", "sad");
-    expect(shell).toHaveAttribute("data-field-form", "drift");
     expect(
-      container.querySelectorAll(".living-metabloom-canvas__fallback-blob"),
-    ).toHaveLength(5);
-    expect(
-      container.querySelector(".living-metabloom-canvas__fallback-face"),
+      container.querySelector(".living-metabloom-canvas__fallback"),
     ).toBeInTheDocument();
     expect(
-      container.querySelector(".living-metabloom-canvas__fallback-pulse"),
+      container.querySelector(".living-metabloom-canvas__fallback-emotion"),
     ).toBeInTheDocument();
     expect(shell).toHaveAttribute("data-context-recovery", "local");
+    expect(shell).toHaveAttribute("data-emotion-color-response", "transient");
     expect(() => unmount()).not.toThrow();
   });
 
-  test("updates fallback moods and remounts pulse feedback", () => {
-    const { container, rerender } = render(
-      <LivingMetabloomCanvas
-        enabled={false}
-        expression="happy"
-        pulseVersion={1}
-      />,
-    );
-    const shell = container.querySelector(".living-metabloom-canvas");
-    const firstPulse = container.querySelector(
-      ".living-metabloom-canvas__fallback-pulse",
-    );
-
-    [
-      "excited",
-      "sad",
-      "surprised",
-      "thinking",
-      "sleepy",
-      "angry",
-    ].forEach((expression, index) => {
-      rerender(
-        <LivingMetabloomCanvas
-          enabled={false}
-          expression={expression}
-          pulseVersion={index + 2}
-          talking={expression === "thinking"}
-        />,
-      );
-      expect(shell).toHaveAttribute("data-fallback-expression", expression);
-    });
-
-    const secondPulse = container.querySelector(
-      ".living-metabloom-canvas__fallback-pulse",
-    );
-    expect(secondPulse).toBeInTheDocument();
-    expect(secondPulse).not.toBe(firstPulse);
-  });
-
-  test("keeps one bounded draw with complete local lifecycle ownership", () => {
+  test("keeps one bounded draw with a profile-aware high-fidelity budget", () => {
     const fs = require("fs");
     const path = require("path");
     const source = fs.readFileSync(
       path.join(__dirname, "LivingMetabloomCanvas.js"),
       "utf8",
     );
-    const css = fs.readFileSync(
-      path.join(__dirname, "LivingMetabloomCanvas.css"),
+    const polish = fs.readFileSync(
+      path.join(__dirname, "LivingMetabloomPolish.css"),
       "utf8",
     );
 
-    expect(source).toContain("const RENDER_SCALE = 0.5;");
-    expect(source).toContain("enabled = true");
-    expect(source).toContain("if (!enabled) {");
+    expect(source).toContain("const RENDER_SCALE_BY_PROFILE");
+    expect(source).toContain("desktop: 0.9");
+    expect(source).toContain("mobile: 0.72");
+    expect(source).toContain("windows: 0.78");
     expect(source).toContain("getDitherCanvasFrameInterval(");
     expect(source).toContain("createDitherCanvasCadence({");
     expect(source).toContain('rendererId: "living-metabloom"');
@@ -135,42 +63,84 @@ describe("LivingMetabloomCanvas", () => {
     expect(source).toContain('"webglcontextrestored"');
     expect(source).toContain("gl.deleteBuffer(positionBuffer)");
     expect(source).toContain("gl.deleteProgram(program)");
-    expect(css).toContain("image-rendering: pixelated");
-    expect(css).toContain("@keyframes livingMetabloomFallbackPulse");
-    expect(css).toContain("@media (prefers-reduced-motion: reduce)");
+    expect(polish).toContain("image-rendering: auto");
+    expect(polish).toContain(
+      ".living-metabloom-canvas.is-fallback .living-metabloom-canvas__surface",
+    );
   });
 
-  test("constructs silhouette, emotion, gaze, speech, and face from the field itself", () => {
+  test("constructs a bounded asymmetric organism rather than a textured rectangle", () => {
     const shader = LIVING_METABLOOM_FRAGMENT_SHADER;
 
-    expect(shader).toContain("uniform int u_expressionA");
-    expect(shader).toContain("uniform int u_expressionB");
-    expect(shader).toContain("uniform int u_formA");
-    expect(shader).toContain("uniform int u_formB");
-    expect(shader).toContain("uniform float u_talking");
-    expect(shader).toContain("void addMetaball(");
-    expect(shader).toContain("for (int index = 0; index < 9; index++)");
-    expect(shader).toContain("float droop = sad");
-    expect(shader).toContain("float tension = focus");
-    expect(shader).toContain("vec2 gaze = clamp(pointer");
-    expect(shader).toContain("float faceVoid");
-    expect(shader).toContain("alpha *= 1.0 - faceVoid");
-    expect(shader).toContain("float talkOpen = u_talking");
-    expect(shader).toContain("float heartbeat");
+    expect(shader).toContain("float ellipseSdf(");
+    expect(shader).toContain("float smin(");
+    expect(shader).toContain("for(int i=0;i<7;i++)");
+    expect(shader).toContain("shape=smin(shape,lobe,unionK)");
+    expect(shader).toContain("if(shape>.14)");
+    expect(shader).toContain("fragColor=vec4(0.0)");
+    expect(shader).toContain("float pointerPresence");
+    expect(shader).toContain("float attention=sat(u_energy*pointerPresence)");
+    expect(shader).toContain("shape=smin(shape,reach,.07+.08*attention)");
     expect(shader).not.toContain("sampler2D");
     expect(shader).not.toContain("texture(");
   });
 
-  test("inherits the Metabloom spectral material and premultiplied Bayer output", () => {
+  test("grows the face as relief and cavities in the same material", () => {
+    const shader = LIVING_METABLOOM_FRAGMENT_SHADER;
+
+    expect(shader).toContain("float eyeSocket");
+    expect(shader).toContain("float mouthCavity");
+    expect(shader).toContain("float browRidge");
+    expect(shader).toContain("float surfaceHeight=innerDepth");
+    expect(shader).toContain("-eyeSocket*.095");
+    expect(shader).toContain("-mouthCavity*.105");
+    expect(shader).toContain(
+      "vec2 grad=vec2(dFdx(surfaceHeight),dFdy(surfaceHeight))",
+    );
+    expect(shader).toContain("vec3 normal=normalize(");
+    expect(shader).not.toContain("faceVoid");
+    expect(shader).not.toContain("alpha *= 1.0 - faceVoid");
+  });
+
+  test("changes color with emotion and then resolves to the native spectrum", () => {
+    const fs = require("fs");
+    const path = require("path");
+    const source = fs.readFileSync(
+      path.join(__dirname, "LivingMetabloomCanvas.js"),
+      "utf8",
+    );
+    const shader = LIVING_METABLOOM_FRAGMENT_SHADER;
+
+    expect(source).toContain("const EMOTION_COLOR_DURATION_SECONDS = 6.4");
+    expect(source).toContain("const expressionResponseRequestRef = useRef(0)");
+    expect(source).toContain("const applyPendingEmotionResponse = () => {");
+    expect(source).toContain("emotionAge = 0");
+    expect(source).toContain("gl.uniform1f(uniforms.u_emotionAge, emotionAge)");
+    expect(source).toContain('data-emotion-color-response="transient"');
+
+    expect(shader).toContain("uniform float u_emotionAge");
+    expect(shader).toContain("vec3 moodPrimary");
+    expect(shader).toContain("vec3 moodSecondary");
+    expect(shader).toContain("float emotionEnvelope=smoothstep(0.0,.20");
+    expect(shader).toContain("1.0-smoothstep(2.1,6.4,u_emotionAge)");
+    expect(shader).toContain(
+      "vec3 materialTint=mix(baseTint,moodTint,emotionEnvelope*.78)",
+    );
+  });
+
+  test("inherits Metabloom iridescence, fluid lighting, Metalbloom, and premultiplied output", () => {
     const shader = LIVING_METABLOOM_FRAGMENT_SHADER;
 
     expect(shader).toContain("#define bayer8");
-    expect(shader).toContain("vec3(0.0, 0.933, 1.0)");
-    expect(shader).toContain("vec3(1.0, 0.0, 1.0)");
-    expect(shader).toContain("vec3(1.0, 0.933, 0.0)");
-    expect(shader).toContain("vec3(0.616, 0.0, 1.0)");
-    expect(shader).toContain("potential * 4.4");
+    expect(shader).toContain("vec3(0.0,.933,1.0)");
+    expect(shader).toContain("vec3(1,0,1)");
+    expect(shader).toContain("vec3(1,.933,0)");
+    expect(shader).toContain("vec3(.616,0,1)");
     expect(shader).toContain("float membrane");
-    expect(shader).toContain("fragColor = vec4(color * alpha, alpha)");
+    expect(shader).toContain("float cellular");
+    expect(shader).toContain("float broadHighlight");
+    expect(shader).toContain("float mirror=sat(");
+    expect(shader).toContain("vec3 color=mix(gel,metal,focus)");
+    expect(shader).toContain("fragColor=vec4(color*alpha,alpha)");
   });
 });

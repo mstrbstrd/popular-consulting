@@ -31,6 +31,7 @@ const normalizeForm = (form) =>
     : "companion";
 
 const MetabloomAvatar = ({
+  emotionVersion = 0,
   expression = "happy",
   form = "companion",
   isActive = true,
@@ -72,6 +73,7 @@ const MetabloomAvatar = ({
     >
       <LivingMetabloomCanvas
         enabled={hasHardwareWebGL}
+        emotionVersion={emotionVersion}
         expression={normalizedExpression}
         form={normalizedForm}
         isDark={isDark}
