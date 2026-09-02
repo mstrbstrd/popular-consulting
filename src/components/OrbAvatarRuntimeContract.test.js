@@ -29,8 +29,12 @@ describe("Metabloom Orb runtime invariants", () => {
     expect(avatar.match(/<CreatorOSFieldCanvas/g)).toHaveLength(1);
     expect(avatar).toContain("mode={0}");
     expect(avatar).toContain('metabloomPalette={materialPalette}');
+    expect(avatar).toContain("externalPulseVersion={pulseVersion}");
     expect(avatar).toContain("paused={!isActive || paused}");
     expect(field).toContain("const RENDER_SCALE = 0.5;");
+    expect(field).toContain("externalPulseVersion = 0");
+    expect(field).toContain("triggerExternalPulseRef.current = triggerExternalPulse");
+    expect(field).toContain('reportState("resonance")');
     expect(field).toContain("createDitherCanvasCadence({");
     expect(field).toContain('data-context-recovery="local"');
   });

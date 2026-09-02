@@ -15,6 +15,7 @@ jest.mock("./CreatorOSFieldCanvas", () => {
     mockFieldProps = props;
     return ReactModule.createElement("div", {
       "data-testid": "metabloom-material-field",
+      "data-external-pulse-version": String(props.externalPulseVersion),
       "data-mode": String(props.mode),
       "data-palette": props.metabloomPalette,
       "data-paused": String(props.paused),
@@ -62,6 +63,25 @@ describe("MetabloomAvatar", () => {
       "data-avatar-form",
       "focus",
     );
+  });
+
+  test("routes each shell pulse into the live Metabloom material", () => {
+    const { rerender } = render(
+      <MetabloomAvatar pulseVersion={0} />,
+    );
+
+    expect(screen.getByTestId("metabloom-material-field")).toHaveAttribute(
+      "data-external-pulse-version",
+      "0",
+    );
+
+    rerender(<MetabloomAvatar pulseVersion={3} />);
+
+    expect(screen.getByTestId("metabloom-material-field")).toHaveAttribute(
+      "data-external-pulse-version",
+      "3",
+    );
+    expect(mockFieldProps.externalPulseVersion).toBe(3);
   });
 
   test("pauses the field when the avatar is inactive or explicitly paused", () => {

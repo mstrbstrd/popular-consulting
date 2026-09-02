@@ -299,6 +299,7 @@ const MetabloomAvatar = ({
           <div className="metabloom-avatar__material">
             {hasHardwareWebGL ? (
               <CreatorOSFieldCanvas
+                externalPulseVersion={pulseVersion}
                 isDark={isDark}
                 metabloomPalette={materialPalette}
                 mode={0}
