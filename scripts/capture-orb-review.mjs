@@ -157,7 +157,9 @@ try {
       outputRoot,
       `${captureCase.id}.png`,
     );
-    const url = `${origin}/orb?graphics=webgl`;
+    const url =
+      `${origin}/orb?graphics=webgl` +
+      "&visual-capture=orb&orb-force-webgl=1";
 
     try {
       const result = await execFileAsync(
@@ -197,6 +199,13 @@ try {
       if (!documentHtml.includes('data-renderer-id="living-metabloom"')) {
         throw new Error(
           `${captureCase.id}: the living Metabloom renderer did not mount.`,
+        );
+      }
+      if (
+        !documentHtml.includes('data-avatar-webgl-capture="forced"')
+      ) {
+        throw new Error(
+          `${captureCase.id}: the capture-only WebGL override was not active.`,
         );
       }
       if (!fs.existsSync(screenshotPath)) {
