@@ -59,6 +59,13 @@ float eyeDistance(vec2 p,vec2 c,float width,float aperture,float curve,float sla
  return ellipseSdf(q,vec2(width,max(aperture,.006)));
 }
 float band(float d,float width){return exp(-abs(d)/max(width,.0001));}
+float starGlint(vec2 p,vec2 center,float scale){
+ vec2 q=(p-center)/max(scale,.0001);
+ float core=exp(-dot(q,q)*2.8);
+ float cross=exp(-abs(q.x)*7.0-abs(q.y)*1.2)
+  +exp(-abs(q.y)*7.0-abs(q.x)*1.2);
+ return sat(core+cross*.38);
+}
 
 void main(){
  vec2 aspect=vec2(u_res.x/max(u_res.y,1.0),1.0);
@@ -113,19 +120,19 @@ void main(){
  float viscosity=.035+bloom*.026+drift*.042+sleepy*.015-focus*.018;
  q+=warp*viscosity;
 
- vec2 coreR=vec2(.43,.47);
- coreR+=vec2(surprised*.025+breath*.008, surprised*.03+breath*.010);
- coreR+=vec2(excited*.010,excited*.014);
- coreR-=vec2(focus*.025,0.0);
- vec2 coreC=vec2(0.0,-.015+breath2*.007-sad*.025-sleepy*.014);
+ vec2 coreR=vec2(.455,.445);
+ coreR+=vec2(surprised*.030+breath*.010, surprised*.026+breath*.010);
+ coreR+=vec2(excited*.016,excited*.012);
+ coreR-=vec2(focus*.030,0.0);
+ vec2 coreC=vec2(0.0,-.020+breath2*.007-sad*.025-sleepy*.014);
  float shape=ellipseSdf(q-coreC,coreR);
  float coreW=gauss(q,coreC,coreR);
  float potential=coreW*1.16;
  vec3 tintAcc=spectral(.69+t*.012+u_seed*.11)*coreW;
  float tintWeight=coreW;
 
- float spread=.282+bloom*.155+drift*.036-focus*.052+surprised*.018+pulse*.012;
- float unionK=.245+companion*.075+focus*.045-bloom*.095;
+ float spread=.270+bloom*.155+drift*.036-focus*.052+surprised*.018+pulse*.012;
+ float unionK=.255+companion*.085+focus*.045-bloom*.095;
  for(int i=0;i<7;i++){
    float fi=float(i);
    float a=fi/7.0*TAU+PI*.5+t*(.013+excited*.019)+u_seed*.22;
@@ -161,6 +168,25 @@ void main(){
    potential+=w*.74;
    tintAcc+=spectral(.56+fi*.11+t*.011+u_seed*.13)*w;
    tintWeight+=w;
+ }
+
+ // A soft two-lobed crown gives Companion a readable, huggable silhouette.
+ // These masses are fused into the same signed field, never drawn above it.
+ float crownPresence=sat(companion*(.86+happy*.12+excited*.18));
+ if(crownPresence>.001){
+   vec2 leftC=vec2(-.158,.348+breath*.006);
+   vec2 rightC=vec2(.152,.344-breath*.005);
+   vec2 crownR=vec2(.252,.205)*(1.0+excited*.025);
+   float leftCrown=ellipseSdf(rot(-.12)*(q-leftC),crownR);
+   float rightCrown=ellipseSdf(rot(.10)*(q-rightC),crownR);
+   shape=smin(shape,leftCrown,.105+.040*crownPresence);
+   shape=smin(shape,rightCrown,.105+.040*crownPresence);
+   float leftCrownWeight=gauss(q,leftC,crownR)*crownPresence;
+   float rightCrownWeight=gauss(q,rightC,crownR)*crownPresence;
+   potential+=(leftCrownWeight+rightCrownWeight)*.28;
+   tintAcc+=spectral(.61+t*.010)*leftCrownWeight;
+   tintAcc+=spectral(.83-t*.008)*rightCrownWeight;
+   tintWeight+=leftCrownWeight+rightCrownWeight;
  }
 
  // expression-specific buds remain part of the same field
@@ -214,9 +240,20 @@ void main(){
  float caustic=pow(.5+.5*sin((q.x*.68+q.y*.91)*13.0+flowB*5.4-flowA*2.1-t*.15),5.0);
  float cellular=pow(sat(1.0-abs(flowA-flowB)*2.15),3.0);
 
- float baseHue=.69+q.x*.085+q.y*.14+(flowA-.5)*.24+(flowB-.5)*.11+potential*.032+t*.013+u_seed*.12;
+ float baseHue=.64+q.x*.15+q.y*.18+(flowA-.5)*.28+(flowB-.5)*.15+potential*.028+t*.012+u_seed*.12;
  vec3 lobeTint=tintAcc/max(tintWeight,.001);
- vec3 baseTint=mix(lobeTint,spectral(baseHue),.76+membrane*.10);
+ float spectrumBlend=sat(.5+q.x*.72+(flowA-.5)*.62);
+ vec3 nativeSpectrum=mix(
+   spectral(baseHue-.10),
+   spectral(baseHue+.20),
+   spectrumBlend
+ );
+ nativeSpectrum=mix(
+   nativeSpectrum,
+   spectral(baseHue+.42),
+   sat(.28-q.y*.46+flowB*.18)*.34
+ );
+ vec3 baseTint=mix(lobeTint,nativeSpectrum,.80+membrane*.08);
 
  vec3 moodPrimary=
    happy*vec3(1.00,.62,.22)
@@ -241,66 +278,82 @@ void main(){
  materialTint=mix(materialTint,spectral(baseHue+.18),pulse*(.26+u_energy*.34));
 
  // The face is relief inside the organism, never a composited drawing.
- vec2 face=q-vec2(0.0,.020);
- float leftOpen=.055+excited*.017+surprised*.028-sleepy*.046-angry*.028-happy*.008;
- float rightOpen=leftOpen-thinking*.027;
- leftOpen=max(.008,leftOpen);
- rightOpen=max(.008,rightOpen);
+ // Large sensory organs grow from the same height field as the body.
+ vec2 face=q-vec2(0.0,.012);
+ float leftOpen=.076+happy*.010+excited*.021+surprised*.042-thinking*.004-sleepy*.060-angry*.020;
+ float rightOpen=leftOpen-thinking*.032;
+ leftOpen=max(.010,leftOpen);
+ rightOpen=max(.010,rightOpen);
  float blink=pow(max(0.0,sin(t*.56+u_seed*17.0)),48.0);
- leftOpen*=1.0-blink*.94;
- rightOpen*=1.0-blink*.94;
- float eyeWidth=.080+excited*.009+surprised*.012-angry*.006;
- float eyeCurve=.018*sad-.015*happy;
- float leftSlant=angry*.14-sad*.025-thinking*.020;
- float rightSlant=-angry*.14+sad*.025+thinking*.090;
- vec2 le=vec2(-.142,.090)+gaze*vec2(.27,.21);
- vec2 re=vec2(.142,.090)+gaze*vec2(.27,.21);
+ float blinkDepth=.96-excited*.08;
+ leftOpen*=1.0-blink*blinkDepth;
+ rightOpen*=1.0-blink*blinkDepth;
+ float eyeWidth=.104+happy*.006+excited*.012+surprised*.018-angry*.005;
+ float eyeCurve=.010*sad-.006*happy;
+ float leftSlant=angry*.18-sad*.050-thinking*.020;
+ float rightSlant=-angry*.18+sad*.050+thinking*.085;
+ vec2 le=vec2(-.154,.094)+gaze*vec2(.29,.23);
+ vec2 re=vec2(.154,.094)+gaze*vec2(.29,.23);
  float ld=eyeDistance(face,le,eyeWidth,leftOpen,eyeCurve,leftSlant);
  float rd=eyeDistance(face,re,eyeWidth,rightOpen,eyeCurve,rightSlant);
- float leftGate=smoothstep(.013,.034,leftOpen);
- float rightGate=smoothstep(.013,.034,rightOpen);
- float linside=(1.0-smoothstep(-.035,.045,ld))*leftGate;
- float rinside=(1.0-smoothstep(-.035,.045,rd))*rightGate;
- float lcrease=band(ld,.013)*(1.0-leftGate*.72);
- float rcrease=band(rd,.013)*(1.0-rightGate*.72);
- float eyeSocket=max(max(linside,rinside),max(lcrease,rcrease)*.70);
+ float leftGate=smoothstep(.014,.032,leftOpen);
+ float rightGate=smoothstep(.014,.032,rightOpen);
+ float linside=(1.0-smoothstep(-.040,.045,ld))*leftGate;
+ float rinside=(1.0-smoothstep(-.040,.045,rd))*rightGate;
+ float lcrease=band(ld,.012)*(1.0-leftGate*.76);
+ float rcrease=band(rd,.012)*(1.0-rightGate*.76);
+ float eyeSocket=max(max(linside,rinside),max(lcrease,rcrease)*.72);
  float eyeRim=sat(band(ld,.010)*leftGate+band(rd,.010)*rightGate);
 
- vec2 irisOffset=gaze*.42;
- float liris=gauss(face,le+irisOffset,vec2(.030,.034))*leftGate;
- float riris=gauss(face,re+irisOffset,vec2(.030,.034))*rightGate*(1.0-thinking*.48);
+ vec2 irisOffset=gaze*.48;
+ float liris=gauss(face,le+irisOffset,vec2(.061,.066))*leftGate;
+ float riris=gauss(face,re+irisOffset,vec2(.061,.066))*rightGate*(1.0-thinking*.36);
  float iris=sat(liris+riris);
  float pupil=sat(
-   gauss(face,le+irisOffset,vec2(.013,.017))*leftGate
-  +gauss(face,re+irisOffset,vec2(.013,.017))*rightGate*(1.0-thinking*.48)
+   gauss(face,le+irisOffset,vec2(.034,.041))*leftGate
+  +gauss(face,re+irisOffset,vec2(.034,.041))*rightGate*(1.0-thinking*.36)
  );
- float eyeSpark=sat(
-   gauss(face,le+irisOffset+vec2(-.010,.012),vec2(.006))
-  +gauss(face,re+irisOffset+vec2(-.010,.012),vec2(.006))
- )*sat(leftGate+rightGate);
+ float primaryEyeSpark=sat(
+   starGlint(face,le+irisOffset+vec2(-.024,.027),.019)
+  +starGlint(face,re+irisOffset+vec2(-.024,.027),.019)
+ );
+ float secondaryEyeSpark=sat(
+   gauss(face,le+irisOffset+vec2(.022,-.014),vec2(.009))
+  +gauss(face,re+irisOffset+vec2(.022,-.014),vec2(.009))
+ );
+ float eyeSpark=sat(primaryEyeSpark+secondaryEyeSpark*.72)
+  *sat(leftGate+rightGate);
+ float ocularDome=sat(iris*.82+eyeRim*.28);
 
  float mx=face.x;
- float neutralY=-.118+mx*.025;
- float smileY=-.106+mx*mx*1.08;
- float sadY=-.078-mx*mx*.86;
+ float neutralY=-.124+mx*.018;
+ float smileY=-.112+mx*mx*1.22;
+ float sadY=-.076-mx*mx*.92;
  float mouthY=neutralY
-  +(smileY-neutralY)*(happy+excited*.76)
+  +(smileY-neutralY)*(happy+excited*.80)
   +(sadY-neutralY)*sad
-  +angry*(-.006-mx*.16)
-  +thinking*(.008+mx*.13);
- float mouthWidth=.108+happy*.020+excited*.026-sleepy*.042-angry*.012;
- float mouthGate=1.0-smoothstep(mouthWidth*.76,mouthWidth,abs(mx));
- float mouthCrease=exp(-abs(face.y-mouthY)*102.0)*mouthGate;
+  +angry*(-.006-mx*.17)
+  +thinking*(.008+mx*.12);
+ float mouthWidth=.132+happy*.030+excited*.034-sleepy*.046-angry*.010;
+ float mouthGate=1.0-smoothstep(mouthWidth*.78,mouthWidth,abs(mx));
+ float mouthCrease=exp(-abs(face.y-mouthY)*90.0)*mouthGate;
+ float cornerX=mouthWidth*.76;
+ float cornerY=-.112+cornerX*cornerX*1.22;
+ float smileCorner=(
+   gauss(face,vec2(-cornerX,cornerY),vec2(.024,.020))
+  +gauss(face,vec2(cornerX,cornerY),vec2(.024,.020))
+ )*sat(happy+excited*.78);
  float talkCycle=.5+.5*sin(u_time*11.2+u_seed*4.4);
- float mouthOpenAmount=u_talking*(.019+talkCycle*.033)+surprised*.064+excited*.034;
+ float mouthOpenAmount=u_talking*(.020+talkCycle*.034)+surprised*.068+excited*.036;
  float mouthD=ellipseSdf(
-   face-vec2(0.0,-.120),
-   vec2(.057+surprised*.012,max(.010,mouthOpenAmount))
+   face-vec2(0.0,-.124),
+   vec2(.064+surprised*.014,max(.010,mouthOpenAmount))
  );
  float mouthOpenGate=sat(u_talking+surprised+excited*.62);
  float mouthInside=(1.0-smoothstep(-.05,.05,mouthD))*mouthOpenGate;
  float mouthRim=band(mouthD,.013)*mouthOpenGate;
- float mouthCavity=max(mouthCrease*.62,mouthInside);
+ float mouthCavity=max(mouthCrease*.66,mouthInside);
+ float lipRidge=sat(mouthRim*.70+smileCorner*.55+mouthCrease*.18);
 
  float browStrength=sat(angry+sad*.64+thinking*.52);
  float browY=.190;
@@ -313,9 +366,9 @@ void main(){
  float browRidge=(lbrow+rbrow)*browStrength;
 
  float cheek=(
-   gauss(face,vec2(-.230,-.002),vec2(.078,.044))
-  +gauss(face,vec2(.230,-.002),vec2(.078,.044))
- )*(happy+excited*.72);
+   gauss(face,vec2(-.238,-.010),vec2(.094,.058))
+  +gauss(face,vec2(.238,-.010),vec2(.094,.058))
+ )*(.22+happy*.78+excited*.82+surprised*.15);
 
  float faceGate=smoothstep(.035,.17,innerDepth);
  eyeSocket*=faceGate;
@@ -326,12 +379,18 @@ void main(){
  iris*=faceGate;
  pupil*=faceGate;
  eyeSpark*=faceGate;
+ ocularDome*=faceGate;
+ lipRidge*=faceGate;
+ smileCorner*=faceGate;
  cheek*=faceGate;
 
  float surfaceHeight=innerDepth
-  -eyeSocket*.095
-  -mouthCavity*.105
-  +browRidge*.032
+  -eyeSocket*.078
+  -mouthCavity*.100
+  +ocularDome*.052
+  +lipRidge*.022
+  +cheek*.014
+  +browRidge*.028
   +rim*.018
   +(membrane-.5)*.011*bodyAlpha;
  vec2 grad=vec2(dFdx(surfaceHeight),dFdy(surfaceHeight));
@@ -353,19 +412,29 @@ void main(){
  gel+=vec3(1.0,.98,.94)*broadHighlight*.10*bodyAlpha;
  gel+=vec3(1.0)*spec*.58+materialTint*softSpec*.22;
  gel+=spectral(baseHue+.12)*rim*(.28+fresnel*.52);
- gel+=moodTint*heartbeat*.055*innerDepth;
- gel+=moodSecondary*cheek*emotionEnvelope*.11;
+ gel+=moodTint*heartbeat*.060*innerDepth;
+ gel+=moodSecondary*cheek*emotionEnvelope*.10;
  gel*=mix(1.0,.90,u_light);
 
- float cavity=sat(eyeSocket*.74+mouthCavity*.90);
- vec3 cavityTint=gel*.18+materialTint*.10+moodSecondary*.10*emotionEnvelope;
- gel=mix(gel,cavityTint,cavity*.75);
- gel+=materialTint*eyeRim*.18;
- gel+=materialTint*mouthRim*.15;
- gel=mix(gel,moodSecondary*.28+materialTint*.24,iris*.47);
- gel=mix(gel,materialTint*.035+vec3(.010,.014,.028),pupil*.71);
- gel+=vec3(1.0,.96,.88)*eyeSpark*.58;
- gel+=moodSecondary*iris*(.09+.16*emotionEnvelope);
+ float cavity=sat(eyeSocket*.58+mouthCavity*.86);
+ vec3 cavityTint=gel*.14+materialTint*.08+moodSecondary*.08*emotionEnvelope;
+ gel=mix(gel,cavityTint,cavity*.56);
+ gel+=materialTint*eyeRim*.21;
+ gel+=materialTint*mouthRim*.18;
+ vec3 ocularColor=mix(
+   vec3(.050,.016,.135),
+   moodSecondary*.40+materialTint*.18,
+   .34
+ );
+ vec3 ocularRimColor=mix(materialTint,moodSecondary,.48);
+ gel=mix(gel,ocularColor,iris*.78);
+ gel+=ocularRimColor*eyeRim*.22;
+ gel=mix(gel,vec3(.004,.006,.020),pupil*.90);
+ gel+=vec3(1.24,1.16,1.30)*eyeSpark*.82;
+ gel+=moodSecondary*iris*(.08+.18*emotionEnvelope);
+ float permanentBlush=cheek*(.07+happy*.18+excited*.24);
+ gel+=mix(vec3(1.00,.19,.46),moodPrimary,.22)*permanentBlush;
+ gel+=materialTint*lipRidge*.11;
 
  // intrinsic Metalbloom in focus form
  float mirror=sat(.24+diffuse*.16+spec*1.25+softSpec*.44+fresnel*.74+(flowA-.5)*.14);
@@ -375,19 +444,41 @@ void main(){
  vec3 metal=mix(metalShadow,metalMid,smoothstep(.12,.48,mirror));
  metal=mix(metal,metalHi,smoothstep(.50,.96,mirror));
  metal+=materialTint*(.10+rim*(.22+fresnel*.28));
- metal=mix(metal,metal*.22+materialTint*.08,cavity*.67);
- metal+=materialTint*(eyeRim+mouthRim)*.13;
- metal=mix(metal,moodSecondary*.27+metal*.24,iris*.43);
- metal=mix(metal,vec3(.010,.014,.024),pupil*.72);
+ metal=mix(metal,metal*.22+materialTint*.08,cavity*.56);
+ metal+=materialTint*(eyeRim+mouthRim)*.15;
+ metal=mix(
+   metal,
+   mix(vec3(.035,.012,.090),moodSecondary*.34,.38),
+   iris*.70
+ );
+ metal=mix(metal,vec3(.006,.008,.020),pupil*.88);
+ metal+=vec3(1.20,1.14,1.28)*eyeSpark*.70;
  vec3 color=mix(gel,metal,focus);
 
  float alpha=bodyAlpha*(.90+innerDepth*.085)+aura;
  alpha*=smoothstep(.04,.72,intro);
  alpha*=1.0-cavity*.035;
  alpha=max(alpha,(eyeRim+mouthRim)*.025*bodyAlpha);
- float d=bayer8(gl_FragCoord.xy)-.5;
- float edgeDither=(1.0-innerDepth)*.55+.18;
- alpha=sat(floor(alpha*48.0+d*edgeDither)/47.0);
- color=max(vec3(0),floor(color*64.0+d*.35)/63.0);
+ // Ordered dither is a persistent material property, not a temporary overlay.
+ vec2 ditherCoord=floor(gl_FragCoord.xy);
+ float orderedDither=bayer8(ditherCoord)-.5;
+ float coarseDither=bayer8(floor(gl_FragCoord.xy*.5)+vec2(3.0,5.0))-.5;
+ float edgeDither=(1.0-innerDepth)*.95+.24;
+ float alphaLevels=22.0;
+ alpha=sat(
+   floor(alpha*(alphaLevels-1.0)+orderedDither*edgeDither+.5)
+   /(alphaLevels-1.0)
+ );
+ float colorLevels=18.0;
+ vec3 ditheredColor=floor(
+   max(color,vec3(0.0))*(colorLevels-1.0)
+    +orderedDither*.95
+    +.5
+ )/(colorLevels-1.0);
+ float ditherInk=coarseDither*(.046+rim*.030+membrane*.014)*bodyAlpha;
+ color=max(
+   vec3(0.0),
+   mix(color,ditheredColor,.90)+materialTint*ditherInk
+ );
  fragColor=vec4(color*alpha,alpha);
 }`;

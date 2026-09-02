@@ -66,9 +66,11 @@ describe("living Metabloom Orb runtime invariants", () => {
     expect(livingShader).toContain("if(shape>.14)");
     expect(livingShader).toContain("fragColor=vec4(0.0)");
     expect(livingShader).toContain("fragColor=vec4(color*alpha,alpha)");
+    expect(livingShader).toContain("float orderedDither=bayer8");
+    expect(livingShader).toContain("float colorLevels=18.0");
     expect(livingShader).not.toContain("sampler2D");
     expect(livingShader).not.toContain("texture(");
-    expect(livingPolish).toContain("image-rendering: auto");
+    expect(livingPolish).toContain("image-rendering: pixelated");
   });
 
   test("the face is grown as material relief instead of painted over the body", () => {
@@ -76,8 +78,10 @@ describe("living Metabloom Orb runtime invariants", () => {
     expect(livingShader).toContain("float mouthCavity");
     expect(livingShader).toContain("float browRidge");
     expect(livingShader).toContain("float surfaceHeight=innerDepth");
-    expect(livingShader).toContain("-eyeSocket*.095");
-    expect(livingShader).toContain("-mouthCavity*.105");
+    expect(livingShader).toContain("-eyeSocket*.078");
+    expect(livingShader).toContain("+ocularDome*.052");
+    expect(livingShader).toContain("-mouthCavity*.100");
+    expect(livingShader).toContain("+lipRidge*.022");
     expect(livingShader).toContain(
       "vec2 grad=vec2(dFdx(surfaceHeight),dFdy(surfaceHeight))",
     );
