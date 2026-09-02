@@ -10,25 +10,103 @@ describe("LivingMetabloomCanvas", () => {
     jest.restoreAllMocks();
   });
 
-  test("degrades locally to a living metabloom object when WebGL2 is unavailable", async () => {
+  test("skips WebGL entirely when capability policy selects the fallback", () => {
+    const contextSpy = jest
+      .spyOn(HTMLCanvasElement.prototype, "getContext")
+      .mockReturnValue(null);
+
+    const { container, unmount } = render(
+      <LivingMetabloomCanvas
+        enabled={false}
+        expression="excited"
+        form="bloom"
+        pulseVersion={1}
+        talking
+      />,
+    );
+
+    const shell = container.querySelector(".living-metabloom-canvas");
+    expect(contextSpy).not.toHaveBeenCalled();
+    expect(shell).toHaveClass("is-fallback");
+    expect(shell).toHaveAttribute("data-renderer-state", "fallback");
+    expect(shell).toHaveAttribute("data-fallback-expression", "excited");
+    expect(shell).toHaveAttribute("data-fallback-talking", "true");
+    expect(
+      container.querySelectorAll(".living-metabloom-canvas__fallback-blob"),
+    ).toHaveLength(5);
+    expect(
+      container.querySelector(".living-metabloom-canvas__fallback-pulse"),
+    ).toBeInTheDocument();
+    expect(() => unmount()).not.toThrow();
+  });
+
+  test("uses the same complete fallback after a local WebGL2 failure", async () => {
     jest.spyOn(console, "error").mockImplementation(() => {});
     jest.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
 
     const { container, unmount } = render(
       <LivingMetabloomCanvas
-        expression="excited"
-        form="bloom"
+        expression="sad"
+        form="drift"
         onFieldStateChange={() => {}}
+        pulseVersion={2}
       />,
     );
 
     const shell = container.querySelector(".living-metabloom-canvas");
     await waitFor(() => expect(shell).toHaveClass("is-fallback"));
+    expect(shell).toHaveAttribute("data-fallback-expression", "sad");
+    expect(shell).toHaveAttribute("data-field-form", "drift");
     expect(
-      container.querySelector(".living-metabloom-canvas__fallback"),
+      container.querySelectorAll(".living-metabloom-canvas__fallback-blob"),
+    ).toHaveLength(5);
+    expect(
+      container.querySelector(".living-metabloom-canvas__fallback-face"),
+    ).toBeInTheDocument();
+    expect(
+      container.querySelector(".living-metabloom-canvas__fallback-pulse"),
     ).toBeInTheDocument();
     expect(shell).toHaveAttribute("data-context-recovery", "local");
     expect(() => unmount()).not.toThrow();
+  });
+
+  test("updates fallback moods and remounts pulse feedback", () => {
+    const { container, rerender } = render(
+      <LivingMetabloomCanvas
+        enabled={false}
+        expression="happy"
+        pulseVersion={1}
+      />,
+    );
+    const shell = container.querySelector(".living-metabloom-canvas");
+    const firstPulse = container.querySelector(
+      ".living-metabloom-canvas__fallback-pulse",
+    );
+
+    [
+      "excited",
+      "sad",
+      "surprised",
+      "thinking",
+      "sleepy",
+      "angry",
+    ].forEach((expression, index) => {
+      rerender(
+        <LivingMetabloomCanvas
+          enabled={false}
+          expression={expression}
+          pulseVersion={index + 2}
+          talking={expression === "thinking"}
+        />,
+      );
+      expect(shell).toHaveAttribute("data-fallback-expression", expression);
+    });
+
+    const secondPulse = container.querySelector(
+      ".living-metabloom-canvas__fallback-pulse",
+    );
+    expect(secondPulse).toBeInTheDocument();
+    expect(secondPulse).not.toBe(firstPulse);
   });
 
   test("keeps one bounded draw with complete local lifecycle ownership", () => {
@@ -44,6 +122,8 @@ describe("LivingMetabloomCanvas", () => {
     );
 
     expect(source).toContain("const RENDER_SCALE = 0.5;");
+    expect(source).toContain("enabled = true");
+    expect(source).toContain("if (!enabled) {");
     expect(source).toContain("getDitherCanvasFrameInterval(");
     expect(source).toContain("createDitherCanvasCadence({");
     expect(source).toContain('rendererId: "living-metabloom"');
@@ -56,6 +136,8 @@ describe("LivingMetabloomCanvas", () => {
     expect(source).toContain("gl.deleteBuffer(positionBuffer)");
     expect(source).toContain("gl.deleteProgram(program)");
     expect(css).toContain("image-rendering: pixelated");
+    expect(css).toContain("@keyframes livingMetabloomFallbackPulse");
+    expect(css).toContain("@media (prefers-reduced-motion: reduce)");
   });
 
   test("constructs silhouette, emotion, gaze, speech, and face from the field itself", () => {
