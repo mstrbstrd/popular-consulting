@@ -1,0 +1,50 @@
+name: Verify queued Orb pulse initialization
+
+on:
+  push:
+    branches:
+      - feature/metabloom-avatar-orb-20260902
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/metabloom-avatar-orb-20260902
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Queue pulses until the field is ready
+        run: python scripts/queue_orb_pulse_until_field_ready.py
+      - name: Check whitespace
+        run: git diff --check
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Lint
+        run: npm run lint
+      - name: Test
+        run: npm test -- --watchAll=false --runInBand
+        env:
+          CI: true
+      - name: Build
+        run: npm run build
+        env:
+          CI: true
+      - name: Commit verified initialization ordering
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm scripts/queue_orb_pulse_until_field_ready.py
+          git rm .github/workflows/queue-orb-pulse-until-field-ready.yml
+          git add \
+            src/components/CreatorOSFieldCanvas.js \
+            src/components/OrbAvatarRuntimeContract.test.js
+          git diff --cached --check
+          git commit -m "Queue Orb pulses until the field is ready"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
