@@ -33,10 +33,21 @@ describe("Metabloom Orb runtime invariants", () => {
     expect(avatar).toContain("paused={!isActive || paused}");
     expect(field).toContain("const RENDER_SCALE = 0.5;");
     expect(field).toContain("externalPulseVersion = 0");
-    expect(field).toContain("triggerExternalPulseRef.current = triggerExternalPulse");
-    expect(field).toContain('reportState("resonance")');
     expect(field).toContain("createDitherCanvasCadence({");
     expect(field).toContain('data-context-recovery="local"');
+  });
+
+  test("every public pulse mutates the existing Metabloom resonance state", () => {
+    expect(orb).toContain("setPulseVersion((value) => value + 1);");
+    expect(avatar).toContain("externalPulseVersion={pulseVersion}");
+    expect(field).toContain(
+      "triggerExternalPulseRef.current = triggerExternalPulse",
+    );
+    expect(field).toContain("pulseOrigin.x = pointer.x;");
+    expect(field).toContain("pulseOrigin.y = pointer.y;");
+    expect(field).toContain("pulseAge = 0;");
+    expect(field).toContain("energy = 1;");
+    expect(field).toContain('reportState("resonance")');
   });
 
   test("the standalone Orb does not retain a full-screen WebGL background", () => {
