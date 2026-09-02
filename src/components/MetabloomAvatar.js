@@ -30,6 +30,16 @@ const normalizeForm = (form) =>
     ? form
     : "companion";
 
+const shouldForceVisualCaptureWebGL = () => {
+  if (typeof window === "undefined") return false;
+
+  const parameters = new URLSearchParams(window.location.search);
+  return (
+    parameters.get("visual-capture") === "orb" &&
+    parameters.get("orb-force-webgl") === "1"
+  );
+};
+
 const MetabloomAvatar = ({
   emotionVersion = 0,
   expression = "happy",
@@ -45,6 +55,8 @@ const MetabloomAvatar = ({
 }) => {
   const normalizedExpression = normalizeExpression(expression);
   const normalizedForm = normalizeForm(form);
+  const forceVisualCaptureWebGL = shouldForceVisualCaptureWebGL();
+  const webglEnabled = hasHardwareWebGL || forceVisualCaptureWebGL;
   const accessibleLabel =
     `Living Metabloom expressing ${EXPRESSION_LABELS[normalizedExpression]} ` +
     `in its ${FORM_LABELS[normalizedForm]} form` +
@@ -64,6 +76,7 @@ const MetabloomAvatar = ({
       data-avatar-form={normalizedForm}
       data-avatar-material="living-metabloom"
       data-avatar-talking={talking ? "true" : "false"}
+      data-avatar-webgl-capture={forceVisualCaptureWebGL ? "forced" : "native"}
       data-testid="metabloom-avatar"
       role="button"
       tabIndex={0}
@@ -72,7 +85,7 @@ const MetabloomAvatar = ({
       onKeyDown={handleKeyDown}
     >
       <LivingMetabloomCanvas
-        enabled={hasHardwareWebGL}
+        enabled={webglEnabled}
         emotionVersion={emotionVersion}
         expression={normalizedExpression}
         form={normalizedForm}
