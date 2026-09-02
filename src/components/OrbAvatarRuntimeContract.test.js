@@ -41,8 +41,13 @@ describe("Metabloom Orb runtime invariants", () => {
     expect(orb).toContain("setPulseVersion((value) => value + 1);");
     expect(avatar).toContain("externalPulseVersion={pulseVersion}");
     expect(field).toContain(
+      "resetSimulation();\n    start();\n    // Publish the pulse handler only after initialization has completed.",
+    );
+    expect(field).toContain(
       "triggerExternalPulseRef.current = triggerExternalPulse",
     );
+    expect(field.indexOf("triggerExternalPulseRef.current = triggerExternalPulse"))
+      .toBeGreaterThan(field.indexOf("resetSimulation();\n    start();"));
     expect(field).toContain("pulseOrigin.x = pointer.x;");
     expect(field).toContain("pulseOrigin.y = pointer.y;");
     expect(field).toContain("pulseAge = 0;");

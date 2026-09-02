@@ -617,8 +617,6 @@ const CreatorOSFieldCanvas = ({
       redrawRef.current();
       return true;
     };
-    triggerExternalPulseRef.current = triggerExternalPulse;
-    triggerExternalPulse();
 
     const isMorphogenPaintActive = () =>
       modeRef.current === REACTION_MODE
@@ -1436,6 +1434,11 @@ const CreatorOSFieldCanvas = ({
 
     resetSimulation();
     start();
+    // Publish the pulse handler only after initialization has completed. Any
+    // request received while WebGL was starting remains queued in the version
+    // refs and is applied here instead of being erased by resetSimulation().
+    triggerExternalPulseRef.current = triggerExternalPulse;
+    triggerExternalPulse();
 
     return () => {
       frameCadence.dispose();
