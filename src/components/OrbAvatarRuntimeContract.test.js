@@ -16,6 +16,7 @@ describe("living Metabloom Orb runtime invariants", () => {
   const avatar = source("MetabloomAvatar.js");
   const avatarCss = source("MetabloomAvatar.css");
   const livingCanvas = source("LivingMetabloomCanvas.js");
+  const livingCss = source("LivingMetabloomCanvas.css");
   const livingShader = source("LivingMetabloomShader.js");
   const standalone = source("StandaloneExperiencePage.js");
 
@@ -94,6 +95,47 @@ describe("living Metabloom Orb runtime invariants", () => {
     expect(livingCanvas).toContain('reportState("resonance")');
     expect(livingCanvas.indexOf("applyPendingPulse();"))
       .toBeGreaterThan(livingCanvas.indexOf("const renderFrame"));
+  });
+
+  test("the non-WebGL creature preserves every mood, form, speech, and pulse", () => {
+    expect(avatar).toContain(
+      "const MetabloomFallback = ({ expression, pulseVersion, talking })",
+    );
+    expect(avatar).toContain("data-fallback-expression={expression}");
+    expect(avatar).toContain(
+      'data-fallback-talking={talking ? "true" : "false"}',
+    );
+    expect(avatar).toContain("key={pulseVersion}");
+    expect(avatar).toContain(
+      'className="living-metabloom-canvas__fallback-pulse"',
+    );
+    expect(
+      avatar.match(/className="living-metabloom-canvas__fallback-blob"/g),
+    ).toHaveLength(5);
+
+    [
+      "happy",
+      "excited",
+      "sad",
+      "surprised",
+      "thinking",
+      "sleepy",
+      "angry",
+    ].forEach((expression) => {
+      expect(livingCss).toContain(
+        `[data-fallback-expression="${expression}"]`,
+      );
+    });
+
+    ["bloom", "focus", "drift"].forEach((form) => {
+      expect(livingCss).toContain(`[data-avatar-form="${form}"]`);
+    });
+
+    expect(livingCss).toContain(
+      '[data-fallback-talking="true"]',
+    );
+    expect(livingCss).toContain("@keyframes livingMetabloomFallbackPulse");
+    expect(livingCss).toContain("@media (prefers-reduced-motion: reduce)");
   });
 
   test("the standalone Orb does not retain a full-screen WebGL background", () => {
