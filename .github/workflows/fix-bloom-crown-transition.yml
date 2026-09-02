@@ -1,0 +1,66 @@
+name: Verify smooth Bloom crown transitions
+
+on:
+  push:
+    branches:
+      - feature/living-metabloom-creature-20260902
+
+permissions:
+  contents: write
+
+concurrency:
+  group: bloom-crown-transition-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apply-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/living-metabloom-creature-20260902
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Apply crown transition fix
+        run: python scripts/fix_bloom_crown_transition.py
+
+      - name: Check source invariants
+        run: |
+          git diff --check
+          grep -q 'float crownGrowth=smoothstep(0.0,1.0,crownPresence)' src/components/LivingMetabloomShader.js
+          grep -q 'crownR\*=mix(.04,1.0,crownGrowth)' src/components/LivingMetabloomShader.js
+          grep -q 'shape=smin(shape,leftCrown,crownUnion)' src/components/LivingMetabloomShader.js
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test -- --watchAll=false --runInBand
+        env:
+          CI: true
+
+      - name: Build
+        run: npm run build
+        env:
+          CI: true
+
+      - name: Commit verified source
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm scripts/fix_bloom_crown_transition.py
+          git rm .github/workflows/fix-bloom-crown-transition.yml
+          git add src/components/LivingMetabloomShader.js
+          git add src/components/LivingMetabloomCanvas.test.js
+          git add src/components/OrbAvatarRuntimeContract.test.js
+          git diff --cached --check
+          git commit -m "Smooth Bloom crown form transitions"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
