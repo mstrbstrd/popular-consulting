@@ -51,6 +51,9 @@ describe("CreatorOSFieldCanvas", () => {
     expect(source).toContain('contextType: "webgl2"');
     expect(source).toContain("getDitherCanvasSize(");
     expect(source).toContain("premultipliedAlpha: true");
+    expect(source).toContain("externalPulseVersion = 0");
+    expect(source).toContain("triggerExternalPulseRef.current = triggerExternalPulse");
+    expect(source).toContain('reportState("resonance")');
     expect(source).toContain('data-context-recovery="local"');
     expect(css).toContain("image-rendering: pixelated");
     expect(css).toContain(".dither-renderer-creatoros-field .rupture-glass");

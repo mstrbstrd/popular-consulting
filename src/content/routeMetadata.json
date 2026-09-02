@@ -31,13 +31,13 @@
   },
   "orb": {
     "path": "/orb",
-    "title": "Interactive Orb Lab | Popular Consulting",
-    "description": "A route-only interactive WebGL orb experiment by Popular Consulting, with expressions, morphing, animation sequences, and a complete non-WebGL fallback.",
+    "title": "Metabloom Avatar Lab | Popular Consulting",
+    "description": "A lightweight interactive Metabloom avatar by Popular Consulting, with expressive moods, fluid body forms, animation sequences, and a complete non-WebGL fallback.",
     "canonical": "https://popular-consulting.com/orb",
-    "socialTitle": "Interactive Orb Lab | Popular Consulting",
-    "socialDescription": "An interactive WebGL orb experiment with expressions, morphing, animation sequences, and a non-WebGL fallback.",
+    "socialTitle": "Metabloom Avatar Lab | Popular Consulting",
+    "socialDescription": "Meet Bloom, a friendly interactive avatar grown from the bounded Metabloom field with expressive moods and transformable forms.",
     "robots": "noindex,follow",
-    "noscript": "The Interactive Orb Lab requires JavaScript. Return to https://popular-consulting.com/ or contact shae@popcon.dev."
+    "noscript": "The Metabloom Avatar Lab requires JavaScript. Return to https://popular-consulting.com/ or contact shae@popcon.dev."
   },
   "game": {
     "path": "/game",

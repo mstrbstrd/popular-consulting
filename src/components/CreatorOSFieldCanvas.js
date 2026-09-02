@@ -366,8 +366,14 @@ const createNeutralReactionTexture = (gl) => {
   return texture;
 };
 
+const normalizeExternalPulseVersion = (value) => {
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : 0;
+};
+
 const CreatorOSFieldCanvas = ({
   contourPalette = "terrain",
+  externalPulseVersion = 0,
   isDark = false,
   metabloomPalette = "spectral",
   mode = 0,
@@ -413,6 +419,14 @@ const CreatorOSFieldCanvas = ({
     morphogenColorToRgb(morphogenColorB, MORPHOGEN_DEFAULT_COLOR_B),
   );
   const onFieldStateChangeRef = useRef(onFieldStateChange);
+  const normalizedExternalPulseVersion = normalizeExternalPulseVersion(
+    externalPulseVersion,
+  );
+  const externalPulseRequestRef = useRef(normalizedExternalPulseVersion);
+  const appliedExternalPulseVersionRef = useRef(
+    normalizedExternalPulseVersion,
+  );
+  const triggerExternalPulseRef = useRef(() => {});
   const restartRef = useRef(true);
   const redrawRef = useRef(() => {});
   const [fallback, setFallback] = useState(false);
@@ -504,6 +518,13 @@ const CreatorOSFieldCanvas = ({
   }, [resetVersion]);
 
   useEffect(() => {
+    externalPulseRequestRef.current = normalizeExternalPulseVersion(
+      externalPulseVersion,
+    );
+    triggerExternalPulseRef.current();
+  }, [externalPulseVersion]);
+
+  useEffect(() => {
     const root = rootRef.current;
     const canvas = canvasRef.current;
     if (!root || !canvas) return undefined;
@@ -577,6 +598,24 @@ const CreatorOSFieldCanvas = ({
       if (nextState === activeState) return;
       activeState = nextState;
       onFieldStateChangeRef.current?.(nextState);
+    };
+
+    const triggerExternalPulse = () => {
+      const requestedVersion = externalPulseRequestRef.current;
+      if (requestedVersion === appliedExternalPulseVersionRef.current) {
+        return false;
+      }
+
+      appliedExternalPulseVersionRef.current = requestedVersion;
+      pulseOrigin.x = pointer.x;
+      pulseOrigin.y = pointer.y;
+      pulseAge = 0;
+      energy = 1;
+      pointer.lastActivityAt = performance.now();
+      reportState("resonance");
+      forceRender = true;
+      redrawRef.current();
+      return true;
     };
 
     const isMorphogenPaintActive = () =>
@@ -1395,9 +1434,15 @@ const CreatorOSFieldCanvas = ({
 
     resetSimulation();
     start();
+    // Publish the pulse handler only after initialization has completed. Any
+    // request received while WebGL was starting remains queued in the version
+    // refs and is applied here instead of being erased by resetSimulation().
+    triggerExternalPulseRef.current = triggerExternalPulse;
+    triggerExternalPulse();
 
     return () => {
       frameCadence.dispose();
+      triggerExternalPulseRef.current = () => {};
       redrawRef.current = () => {};
       pointerSurface.removeEventListener("pointermove", handlePointerMove);
       pointerSurface.removeEventListener(

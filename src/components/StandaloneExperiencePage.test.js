@@ -86,6 +86,7 @@ describe("StandaloneExperiencePage", () => {
     expect(resolveExperienceConfig(EXPERIENCE_IDS.ORB)).toMatchObject({
       canonical: "https://popular-consulting.com/orb",
       backgroundSection: 4,
+      label: "Metabloom Avatar Lab",
     });
     expect(resolveExperienceConfig(EXPERIENCE_IDS.GAME)).toMatchObject({
       canonical: "https://popular-consulting.com/game",
@@ -94,7 +95,7 @@ describe("StandaloneExperiencePage", () => {
     expect(resolveExperienceConfig("unknown")).toBeNull();
   });
 
-  test("renders the orb by itself with the managed orb preset", async () => {
+  test("renders the orb with one localized avatar and no full-screen renderer", async () => {
     const { container } = render(
       <StandaloneExperiencePage experience={EXPERIENCE_IDS.ORB} />,
     );
@@ -104,18 +105,18 @@ describe("StandaloneExperiencePage", () => {
       "true",
     );
     expect(screen.queryByTestId("game-experience")).not.toBeInTheDocument();
-    expect(screen.getByTestId("dither-background")).toHaveAttribute(
-      "data-preset",
-      "4",
-    );
+    expect(screen.queryByTestId("dither-background")).not.toBeInTheDocument();
     expect(
       container.querySelector("[data-renderer-id='orb-dither']"),
-    ).toHaveAttribute("data-renderer-state", "running");
+    ).not.toBeInTheDocument();
     expect(
-      container.querySelector(".standalone-experience__fallback"),
+      container.querySelector(".standalone-experience__fallback--orb"),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("main", { name: "Interactive Orb Lab" }),
+      container.querySelector(".standalone-experience__orb-ambient"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("main", { name: "Metabloom Avatar Lab" }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("link", {
@@ -124,7 +125,7 @@ describe("StandaloneExperiencePage", () => {
     ).toHaveAttribute("href", "/");
 
     await waitFor(() => {
-      expect(document.title).toBe("Interactive Orb Lab | Popular Consulting");
+      expect(document.title).toBe("Metabloom Avatar Lab | Popular Consulting");
       expect(document.querySelector('link[rel="canonical"]')).toHaveAttribute(
         "href",
         "https://popular-consulting.com/orb",
@@ -136,15 +137,20 @@ describe("StandaloneExperiencePage", () => {
     });
   });
 
-  test("keeps the orb renderer available in dark mode", async () => {
+  test("keeps dark Orb mode on the same localized avatar architecture", async () => {
     mockIsDark = true;
-    render(<StandaloneExperiencePage experience={EXPERIENCE_IDS.ORB} />);
+    const { container } = render(
+      <StandaloneExperiencePage experience={EXPERIENCE_IDS.ORB} />,
+    );
 
     expect(await screen.findByTestId("orb-experience")).toBeInTheDocument();
-    expect(screen.getByTestId("dither-background")).toHaveAttribute(
-      "data-dark",
-      "true",
-    );
+    expect(screen.queryByTestId("dither-background")).not.toBeInTheDocument();
+    expect(
+      container.querySelector("[data-renderer-id='orb-dither']"),
+    ).not.toBeInTheDocument();
+    expect(
+      container.querySelector(".standalone-experience__orb-ambient"),
+    ).toBeInTheDocument();
   });
 
   test("renders the game with one managed background preset", async () => {

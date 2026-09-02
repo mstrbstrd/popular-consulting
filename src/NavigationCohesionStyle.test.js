@@ -35,6 +35,9 @@ describe("cohesive site navigation styling", () => {
       ".nav-theme-toggle:not(.nav-overlay-theme)",
     );
     expect(css).toContain("background: transparent !important;");
+    expect(css).toContain(
+      "radial-gradient(circle at center, var(--aetheris-state-layer) 0 15px, transparent 16px)",
+    );
     expect(css).toContain(".work-page .work-page__theme");
     expect(css).toContain(".work-page__theme > span:last-child");
     expect(css).toContain("display: none;");

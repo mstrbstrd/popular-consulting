@@ -15,7 +15,7 @@ export const EXPERIENCE_IDS = Object.freeze({
 
 const EXPERIENCE_CONFIG = Object.freeze({
   [EXPERIENCE_IDS.ORB]: {
-    label: "Interactive Orb Lab",
+    label: "Metabloom Avatar Lab",
     title: routeMetadata.orb.title,
     description: routeMetadata.orb.description,
     canonical: routeMetadata.orb.canonical,
@@ -149,13 +149,10 @@ const ExperienceContent = ({ experience }) => {
   const colors = isDark ? config.darkColors : config.lightColors;
   const isOrbExperience = experience === EXPERIENCE_IDS.ORB;
   const useDitherBackground =
-    hasHardwareWebGL && (isOrbExperience || !isDark);
+    !isOrbExperience && hasHardwareWebGL && !isDark;
   const pageHideStyle = pageHidden
     ? { visibility: "hidden", pointerEvents: "none" }
     : undefined;
-  const orbFallback = isOrbExperience ? (
-    <div className="standalone-experience__orb-fallback" aria-hidden="true" />
-  ) : null;
 
   return (
     <div
@@ -179,8 +176,14 @@ const ExperienceContent = ({ experience }) => {
 
       <div style={pageHideStyle}>
         <div className="standalone-experience__background" aria-hidden="true">
-          <div className="standalone-experience__fallback">
-            {fallbackOrbs.map((orb, index) => (
+          <div
+            className={`standalone-experience__fallback${
+              isOrbExperience
+                ? " standalone-experience__fallback--orb"
+                : ""
+            }`}
+          >
+            {!isOrbExperience && fallbackOrbs.map((orb, index) => (
               <span
                 key={index}
                 style={{
@@ -194,18 +197,25 @@ const ExperienceContent = ({ experience }) => {
                 }}
               />
             ))}
+            {isOrbExperience && (
+              <div
+                className="standalone-experience__orb-ambient"
+                aria-hidden="true"
+              />
+            )}
             <div className="standalone-experience__grid" />
           </div>
 
-          <div className="standalone-experience__dither">
-            <ManagedDitherBackground
-              activeSection={config.backgroundSection}
-              enabled={useDitherBackground}
-              fallback={orbFallback}
-              isDark={isDark}
-              rendererId={`${experience}-dither`}
-            />
-          </div>
+          {!isOrbExperience && (
+            <div className="standalone-experience__dither">
+              <ManagedDitherBackground
+                activeSection={config.backgroundSection}
+                enabled={useDitherBackground}
+                isDark={isDark}
+                rendererId={`${experience}-dither`}
+              />
+            </div>
+          )}
 
           <div className="standalone-experience__glass" />
         </div>
@@ -301,6 +311,61 @@ const ExperienceContent = ({ experience }) => {
           background: var(--experience-page-bg);
         }
 
+        .standalone-experience__fallback--orb {
+          background:
+            radial-gradient(
+              ellipse at 50% 45%,
+              ${isDark ? "rgba(0,238,255,0.10)" : "rgba(36,204,255,0.12)"},
+              transparent 32%
+            ),
+            radial-gradient(
+              ellipse at 50% 58%,
+              ${isDark ? "rgba(157,0,255,0.12)" : "rgba(255,86,214,0.10)"},
+              transparent 48%
+            ),
+            var(--experience-page-bg);
+        }
+
+        .standalone-experience__orb-ambient {
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          width: min(74rem, 82vw, 82vh);
+          aspect-ratio: 1;
+          border: 1px solid ${
+            isDark ? "rgba(255,255,255,0.10)" : "rgba(36,42,70,0.08)"
+          };
+          border-radius: 50%;
+          opacity: 0.72;
+          transform: translate(-50%, -50%);
+        }
+
+        .standalone-experience__orb-ambient::before,
+        .standalone-experience__orb-ambient::after {
+          content: "";
+          position: absolute;
+          border-radius: 50%;
+        }
+
+        .standalone-experience__orb-ambient::before {
+          inset: 9%;
+          border: 1px dashed ${
+            isDark ? "rgba(0,238,255,0.14)" : "rgba(99,68,245,0.10)"
+          };
+        }
+
+        .standalone-experience__orb-ambient::after {
+          inset: 20%;
+          background-image: radial-gradient(
+            circle at 1px 1px,
+            ${isDark ? "rgba(255,255,255,0.10)" : "rgba(40,40,90,0.08)"} 0 1px,
+            transparent 1.4px
+          );
+          background-size: 18px 18px;
+          mask-image: radial-gradient(circle, black, transparent 72%);
+          -webkit-mask-image: radial-gradient(circle, black, transparent 72%);
+        }
+
         .standalone-experience__fallback > span {
           position: absolute;
           display: block;
@@ -332,32 +397,24 @@ const ExperienceContent = ({ experience }) => {
           pointer-events: none;
         }
 
-        .standalone-experience__orb-fallback {
-          position: absolute;
-          top: 50%;
-          left: 50%;
-          width: min(55vw, 55vh);
-          height: min(55vw, 55vh);
-          border-radius: 50%;
-          transform: translate(-50%, -60%);
-          background: ${
-            isDark
-              ? "radial-gradient(circle at 36% 32%, #d7ccff 0%, #9b72ff 12%, #4338ca 42%, #17133f 72%, transparent 100%)"
-              : "radial-gradient(circle at 36% 32%, #ffffff 0%, #c4b5fd 14%, #818cf8 42%, #4338ca 72%, transparent 100%)"
-          };
-          box-shadow: ${
-            isDark
-              ? "0 0 90px 24px rgba(99,68,245,0.34), inset 0 0 44px rgba(215,204,255,0.26)"
-              : "0 0 90px 24px rgba(99,68,245,0.18), inset 0 0 44px rgba(255,255,255,0.42)"
-          };
-          animation: standaloneOrbPulse 4s ease-in-out infinite;
-        }
 
         .standalone-experience__glass {
           z-index: 3;
           pointer-events: none;
           backdrop-filter: blur(2px) saturate(100%);
           -webkit-backdrop-filter: blur(2px) saturate(100%);
+        }
+
+        .standalone-experience--orb .standalone-experience__glass {
+          background: linear-gradient(
+            180deg,
+            rgba(255, 255, 255, 0.02),
+            transparent 28%,
+            transparent 74%,
+            rgba(99, 68, 245, 0.025)
+          );
+          backdrop-filter: none;
+          -webkit-backdrop-filter: none;
         }
 
         .standalone-experience__header {
@@ -431,10 +488,6 @@ const ExperienceContent = ({ experience }) => {
           50% { transform: translate(-44%, -56%) scale(1.08) rotate(6deg); }
         }
 
-        @keyframes standaloneOrbPulse {
-          0%, 100% { transform: translate(-50%, -60%) scale(1); }
-          50% { transform: translate(-50%, -60%) scale(1.035); }
-        }
 
         @media (max-width: 720px) {
           .standalone-experience__header {
@@ -446,8 +499,7 @@ const ExperienceContent = ({ experience }) => {
         }
 
         @media (prefers-reduced-motion: reduce) {
-          .standalone-experience__fallback > span,
-          .standalone-experience__orb-fallback {
+          .standalone-experience__fallback > span {
             animation: none !important;
           }
         }

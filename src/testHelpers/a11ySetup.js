@@ -18,6 +18,10 @@ jest.mock('../components/DitherHero', () => () => (
   <div data-testid="dither-hero" aria-label="Hero" />
 ));
 
+jest.mock('../components/MetabloomAvatar', () => () => (
+  <div data-testid="metabloom-avatar" aria-hidden="true" />
+));
+
 jest.mock('../components/SpectralBloom', () => () => (
   <canvas className="work-page__backdrop" aria-hidden="true" />
 ));
