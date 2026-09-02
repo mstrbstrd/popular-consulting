@@ -63,7 +63,7 @@ describe("LivingMetabloomCanvas", () => {
     expect(source).toContain('"webglcontextrestored"');
     expect(source).toContain("gl.deleteBuffer(positionBuffer)");
     expect(source).toContain("gl.deleteProgram(program)");
-    expect(polish).toContain("image-rendering: auto");
+    expect(polish).toContain("image-rendering: pixelated");
     expect(polish).toContain(
       ".living-metabloom-canvas.is-fallback .living-metabloom-canvas__surface",
     );
@@ -76,6 +76,14 @@ describe("LivingMetabloomCanvas", () => {
     expect(shader).toContain("float smin(");
     expect(shader).toContain("for(int i=0;i<7;i++)");
     expect(shader).toContain("shape=smin(shape,lobe,unionK)");
+    expect(shader).toContain(
+      "float crownGrowth=smoothstep(0.0,1.0,crownPresence)",
+    );
+    expect(shader).toContain("crownR*=mix(.04,1.0,crownGrowth)");
+    expect(shader).toContain(
+      "(.105+.040*crownPresence)*crownGrowth",
+    );
+    expect(shader).toContain("shape=smin(shape,leftCrown,crownUnion)");
     expect(shader).toContain("if(shape>.14)");
     expect(shader).toContain("fragColor=vec4(0.0)");
     expect(shader).toContain("float pointerPresence");
@@ -92,8 +100,10 @@ describe("LivingMetabloomCanvas", () => {
     expect(shader).toContain("float mouthCavity");
     expect(shader).toContain("float browRidge");
     expect(shader).toContain("float surfaceHeight=innerDepth");
-    expect(shader).toContain("-eyeSocket*.095");
-    expect(shader).toContain("-mouthCavity*.105");
+    expect(shader).toContain("-eyeSocket*.078");
+    expect(shader).toContain("+ocularDome*.052");
+    expect(shader).toContain("-mouthCavity*.100");
+    expect(shader).toContain("+lipRidge*.022");
     expect(shader).toContain(
       "vec2 grad=vec2(dFdx(surfaceHeight),dFdy(surfaceHeight))",
     );
@@ -139,6 +149,12 @@ describe("LivingMetabloomCanvas", () => {
     expect(shader).toContain("float membrane");
     expect(shader).toContain("float cellular");
     expect(shader).toContain("float broadHighlight");
+    expect(shader).toContain("float ocularDome");
+    expect(shader).toContain("float secondaryEyeSpark");
+    expect(shader).toContain("float permanentBlush");
+    expect(shader).toContain("float orderedDither=bayer8");
+    expect(shader).toContain("float colorLevels=18.0");
+    expect(shader).toContain("mix(color,ditheredColor,.90)");
     expect(shader).toContain("float mirror=sat(");
     expect(shader).toContain("vec3 color=mix(gel,metal,focus)");
     expect(shader).toContain("fragColor=vec4(color*alpha,alpha)");
