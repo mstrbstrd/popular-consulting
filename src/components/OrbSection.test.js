@@ -55,7 +55,7 @@ describe("OrbSection", () => {
     window.__bhModeActive = false;
   });
 
-  test("opens as one friendly Metabloom companion with preserved mood controls", () => {
+  test("opens as one friendly living Metabloom with preserved mood controls", () => {
     render(<OrbSection isActive />);
 
     expect(
@@ -79,7 +79,9 @@ describe("OrbSection", () => {
         expect(button).toHaveAccessibleName(/express/i);
       });
 
-    const formGroup = screen.getByRole("group", { name: "Avatar forms" });
+    const formGroup = screen.getByRole("group", {
+      name: "Living Metabloom forms",
+    });
     expect(within(formGroup).getAllByRole("button")).toHaveLength(4);
     expect(document.querySelector("#orb canvas")).not.toBeInTheDocument();
   });
@@ -92,7 +94,7 @@ describe("OrbSection", () => {
     );
     fireEvent.click(
       screen.getByRole("button", {
-        name: /transform avatar into focus form/i,
+        name: /transform bloom into focus form/i,
       }),
     );
 
@@ -107,7 +109,7 @@ describe("OrbSection", () => {
     expect(screen.getAllByTestId("metabloom-avatar")).toHaveLength(1);
   });
 
-  test("plays expression and transformation sequences through the same avatar", () => {
+  test("plays expression and transformation sequences through the same creature", () => {
     render(<OrbSection isActive />);
 
     fireEvent.click(screen.getByRole("button", { name: "Wonder" }));
@@ -154,7 +156,7 @@ describe("OrbSection", () => {
     expect(screen.getAllByTestId("metabloom-avatar")).toHaveLength(1);
   });
 
-  test("keeps pulse, speech, pause, and reset as bounded avatar actions", () => {
+  test("keeps pulse, speech, pause, and reset as bounded creature actions", () => {
     render(<OrbSection isActive />);
 
     fireEvent.click(screen.getByRole("button", { name: "Talk" }));
