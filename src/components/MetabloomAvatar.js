@@ -1,7 +1,6 @@
 import React from "react";
 import { hasHardwareWebGL } from "../utils/deviceTier";
 import LivingMetabloomCanvas from "./LivingMetabloomCanvas";
-import "./LivingMetabloomCanvas.css";
 import "./MetabloomAvatar.css";
 
 const EXPRESSION_LABELS = Object.freeze({
