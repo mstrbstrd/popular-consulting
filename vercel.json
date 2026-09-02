@@ -6,6 +6,14 @@
         {
           "key": "X-Robots-Tag",
           "value": "noindex, follow"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "no-store, max-age=0"
+        },
+        {
+          "key": "X-Popcon-Orb-Release",
+          "value": "living-metabloom-organism-v2"
         }
       ]
     },
@@ -15,6 +23,14 @@
         {
           "key": "X-Robots-Tag",
           "value": "noindex, follow"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "no-store, max-age=0"
+        },
+        {
+          "key": "X-Popcon-Orb-Release",
+          "value": "living-metabloom-organism-v2"
         }
       ]
     },
@@ -59,7 +75,7 @@
       ]
     },
     {
-      "source": "/(|engineering|work|orb|game)",
+      "source": "/(|engineering|work|game)",
       "headers": [
         {
           "key": "Cache-Control",
