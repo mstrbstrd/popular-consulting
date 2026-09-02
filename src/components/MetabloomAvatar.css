@@ -11,6 +11,11 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+.metabloom-avatar .living-metabloom-canvas.is-fallback
+  .living-metabloom-canvas__surface {
+  opacity: 0;
+}
+
 .metabloom-avatar::before {
   content: "";
   position: absolute;
