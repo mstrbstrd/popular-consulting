@@ -82,6 +82,16 @@ describe("living Metabloom Orb runtime invariants", () => {
   });
 
   test("every public pulse enters the creature's existing resonance state", () => {
+    const renderFrameStart = livingCanvas.indexOf("const renderFrame");
+    const renderFrameEnd = livingCanvas.indexOf(
+      "frameCadence = createDitherCanvasCadence",
+      renderFrameStart,
+    );
+    const renderFrameBody = livingCanvas.slice(
+      renderFrameStart,
+      renderFrameEnd,
+    );
+
     expect(orb).toContain("setPulseVersion((value) => value + 1);");
     expect(avatar).toContain("pulseVersion={pulseVersion}");
     expect(livingCanvas).toContain(
@@ -93,8 +103,9 @@ describe("living Metabloom Orb runtime invariants", () => {
     expect(livingCanvas).toContain("pulseAge = 0;");
     expect(livingCanvas).toContain("energy = 1;");
     expect(livingCanvas).toContain('reportState("resonance")');
-    expect(livingCanvas.indexOf("applyPendingPulse();"))
-      .toBeGreaterThan(livingCanvas.indexOf("const renderFrame"));
+    expect(renderFrameStart).toBeGreaterThanOrEqual(0);
+    expect(renderFrameEnd).toBeGreaterThan(renderFrameStart);
+    expect(renderFrameBody).toContain("applyPendingPulse();");
   });
 
   test("every degraded path uses the same complete fallback creature", () => {
