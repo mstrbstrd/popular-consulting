@@ -1,0 +1,137 @@
+/* Compact the laboratory controls so Bloom remains the primary visual. */
+@media (max-width: 720px) {
+  .orb-avatar-lab__copy {
+    top: 6.9rem;
+  }
+
+  .orb-avatar-lab__eyebrow {
+    margin-bottom: 0.65rem;
+    font-size: 0.82rem;
+    letter-spacing: 0.11em;
+  }
+
+  .orb-avatar-lab__copy h1 {
+    font-size: clamp(3rem, 12vw, 4.35rem);
+  }
+
+  .orb-avatar-lab__status {
+    min-height: 2.55rem;
+    margin-top: 0.75rem;
+    padding: 0.38rem 0.72rem;
+    font-size: 0.78rem;
+  }
+
+  .orb-avatar-lab__stage {
+    inset: 13.3rem 0 21.2rem;
+    padding: 0;
+  }
+
+  .orb-avatar-lab__controls {
+    gap: 0.42rem;
+  }
+
+  .orb-avatar-lab .orb-pill {
+    gap: 0.22rem;
+    padding: 0.32rem;
+  }
+
+  .orb-avatar-lab__control-row {
+    overflow: visible;
+  }
+
+  .orb-avatar-lab__control-label {
+    position: static;
+    min-width: 0;
+    min-height: 3.65rem;
+    justify-content: center;
+    padding: 0 0.35rem;
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+    box-shadow: none;
+  }
+
+  .orb-avatar-lab .orb-pill button {
+    width: 100%;
+    min-width: 0;
+    min-height: 3.65rem;
+    padding: 0.42rem 0.28rem;
+    font-size: 0.78rem;
+    letter-spacing: 0.015em;
+  }
+
+  .orb-avatar-lab__form-row {
+    display: grid;
+    grid-template-columns: 0.72fr repeat(4, minmax(0, 1fr));
+  }
+
+  .orb-avatar-lab__emotion-row {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .orb-avatar-lab__emotion-row button {
+    justify-content: center;
+    gap: 0.28rem;
+  }
+
+  .orb-avatar-lab__emotion-row button > span:first-child {
+    font-size: 1.05rem;
+  }
+
+  .orb-avatar-lab__emotion-row button > span:last-child {
+    overflow: hidden;
+    font-size: 0.72rem;
+    text-overflow: ellipsis;
+  }
+
+  .orb-avatar-lab__utility-row {
+    gap: 0.42rem;
+  }
+
+  .orb-avatar-lab__sequence-row {
+    display: grid;
+    grid-template-columns: 0.8fr repeat(3, minmax(0, 1fr));
+  }
+
+  .orb-avatar-lab__action-row {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .orb-avatar-lab__action-row button:last-child {
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 420px) {
+  .orb-avatar-lab .orb-pill button {
+    font-size: 0.72rem;
+  }
+
+  .orb-avatar-lab__emotion-row button > span:last-child {
+    font-size: 0.66rem;
+  }
+}
+
+@media (max-width: 720px) and (max-height: 740px) {
+  .orb-avatar-lab__eyebrow {
+    display: none;
+  }
+
+  .orb-avatar-lab__copy {
+    top: 6.7rem;
+  }
+
+  .orb-avatar-lab__status {
+    margin-top: 0.5rem;
+  }
+
+  .orb-avatar-lab__stage {
+    inset: 11.7rem 0 20.2rem;
+  }
+
+  .orb-avatar-lab__control-label,
+  .orb-avatar-lab .orb-pill button {
+    min-height: 3.35rem;
+  }
+}

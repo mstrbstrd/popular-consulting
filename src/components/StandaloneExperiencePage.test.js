@@ -86,7 +86,7 @@ describe("StandaloneExperiencePage", () => {
     expect(resolveExperienceConfig(EXPERIENCE_IDS.ORB)).toMatchObject({
       canonical: "https://popular-consulting.com/orb",
       backgroundSection: 4,
-      label: "Metabloom Avatar Lab",
+      label: "Living Metabloom Lab",
     });
     expect(resolveExperienceConfig(EXPERIENCE_IDS.GAME)).toMatchObject({
       canonical: "https://popular-consulting.com/game",
@@ -95,7 +95,7 @@ describe("StandaloneExperiencePage", () => {
     expect(resolveExperienceConfig("unknown")).toBeNull();
   });
 
-  test("renders the orb with one localized avatar and no full-screen renderer", async () => {
+  test("renders the Orb with one localized creature and no full-screen renderer", async () => {
     const { container } = render(
       <StandaloneExperiencePage experience={EXPERIENCE_IDS.ORB} />,
     );
@@ -116,7 +116,7 @@ describe("StandaloneExperiencePage", () => {
       container.querySelector(".standalone-experience__orb-ambient"),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("main", { name: "Metabloom Avatar Lab" }),
+      screen.getByRole("main", { name: "Living Metabloom Lab" }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("link", {
@@ -125,7 +125,7 @@ describe("StandaloneExperiencePage", () => {
     ).toHaveAttribute("href", "/");
 
     await waitFor(() => {
-      expect(document.title).toBe("Metabloom Avatar Lab | Popular Consulting");
+      expect(document.title).toBe("Living Metabloom Lab | Popular Consulting");
       expect(document.querySelector('link[rel="canonical"]')).toHaveAttribute(
         "href",
         "https://popular-consulting.com/orb",
@@ -137,7 +137,7 @@ describe("StandaloneExperiencePage", () => {
     });
   });
 
-  test("keeps dark Orb mode on the same localized avatar architecture", async () => {
+  test("keeps dark Orb mode on the same localized creature architecture", async () => {
     mockIsDark = true;
     const { container } = render(
       <StandaloneExperiencePage experience={EXPERIENCE_IDS.ORB} />,

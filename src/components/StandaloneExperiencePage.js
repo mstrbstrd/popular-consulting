@@ -15,7 +15,7 @@ export const EXPERIENCE_IDS = Object.freeze({
 
 const EXPERIENCE_CONFIG = Object.freeze({
   [EXPERIENCE_IDS.ORB]: {
-    label: "Metabloom Avatar Lab",
+    label: "Living Metabloom Lab",
     title: routeMetadata.orb.title,
     description: routeMetadata.orb.description,
     canonical: routeMetadata.orb.canonical,
@@ -330,13 +330,10 @@ const ExperienceContent = ({ experience }) => {
           position: absolute;
           top: 50%;
           left: 50%;
-          width: min(74rem, 82vw, 82vh);
+          width: min(86rem, 92vw, 92vh);
           aspect-ratio: 1;
-          border: 1px solid ${
-            isDark ? "rgba(255,255,255,0.10)" : "rgba(36,42,70,0.08)"
-          };
-          border-radius: 50%;
-          opacity: 0.72;
+          opacity: 0.76;
+          pointer-events: none;
           transform: translate(-50%, -50%);
         }
 
@@ -345,25 +342,25 @@ const ExperienceContent = ({ experience }) => {
           content: "";
           position: absolute;
           border-radius: 50%;
+          filter: blur(2rem);
         }
 
         .standalone-experience__orb-ambient::before {
-          inset: 9%;
-          border: 1px dashed ${
-            isDark ? "rgba(0,238,255,0.14)" : "rgba(99,68,245,0.10)"
-          };
+          inset: 7%;
+          background: radial-gradient(
+            ellipse at 48% 54%,
+            ${isDark ? "rgba(0,238,255,0.075)" : "rgba(36,204,255,0.085)"},
+            transparent 64%
+          );
         }
 
         .standalone-experience__orb-ambient::after {
-          inset: 20%;
-          background-image: radial-gradient(
-            circle at 1px 1px,
-            ${isDark ? "rgba(255,255,255,0.10)" : "rgba(40,40,90,0.08)"} 0 1px,
-            transparent 1.4px
+          inset: 19%;
+          background: radial-gradient(
+            ellipse at 55% 48%,
+            ${isDark ? "rgba(157,0,255,0.085)" : "rgba(255,86,214,0.075)"},
+            transparent 66%
           );
-          background-size: 18px 18px;
-          mask-image: radial-gradient(circle, black, transparent 72%);
-          -webkit-mask-image: radial-gradient(circle, black, transparent 72%);
         }
 
         .standalone-experience__fallback > span {
@@ -396,7 +393,6 @@ const ExperienceContent = ({ experience }) => {
         .standalone-experience__dither {
           pointer-events: none;
         }
-
 
         .standalone-experience__glass {
           z-index: 3;
@@ -487,7 +483,6 @@ const ExperienceContent = ({ experience }) => {
           0%, 100% { transform: translate(-50%, -50%) scale(1) rotate(0deg); }
           50% { transform: translate(-44%, -56%) scale(1.08) rotate(6deg); }
         }
-
 
         @media (max-width: 720px) {
           .standalone-experience__header {
