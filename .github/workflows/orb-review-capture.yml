@@ -3,7 +3,7 @@ name: Orb visual review capture
 on:
   push:
     branches:
-      - feature/living-metabloom-creature-20260902
+      - feature/living-metabloom-organism-v2-20260902
 
 permissions:
   contents: read
