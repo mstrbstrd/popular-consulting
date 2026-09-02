@@ -20,22 +20,22 @@ const FORMS = Object.freeze([
   Object.freeze({
     id: "companion",
     label: "Companion",
-    description: "A calm, rounded friend",
+    description: "Draws its living lobes together into a social form",
   }),
   Object.freeze({
     id: "bloom",
     label: "Bloom",
-    description: "Opens into a four-petal form",
+    description: "Opens the same field into petal-like lobes",
   }),
   Object.freeze({
     id: "focus",
     label: "Focus",
-    description: "Condenses into liquid metal",
+    description: "Raises surface tension into reflective Metalbloom",
   }),
   Object.freeze({
     id: "drift",
     label: "Drift",
-    description: "Stretches into a floating current",
+    description: "Stretches the living field into a travelling current",
   }),
 ]);
 
@@ -113,7 +113,7 @@ const OrbSection = ({ isActive = true }) => {
   const [pulseVersion, setPulseVersion] = React.useState(0);
   const [resetVersion, setResetVersion] = React.useState(0);
   const [sequenceId, setSequenceId] = React.useState(null);
-  const [fieldState, setFieldState] = React.useState("drifting");
+  const [fieldState, setFieldState] = React.useState("forming");
 
   const cancelSequenceTimer = React.useCallback(() => {
     sequenceTokenRef.current += 1;
@@ -261,7 +261,7 @@ const OrbSection = ({ isActive = true }) => {
   const statusText = sequenceId
     ? `Playing ${sequenceId === "custom" ? "custom sequence" : sequenceId}`
     : paused
-      ? "Material paused"
+      ? "Creature paused"
       : talking
         ? `${activeEmotion.label} and speaking`
         : `${activeEmotion.label} · ${activeForm.label} form · ${fieldState}`;
@@ -270,19 +270,20 @@ const OrbSection = ({ isActive = true }) => {
     <section
       id="orb"
       className="orb-avatar-lab"
-      aria-label="Interactive Orb Metabloom avatar lab"
-      data-orb-renderer="metabloom-avatar"
+      aria-label="Interactive Orb living Metabloom lab"
+      data-orb-renderer="living-metabloom"
       data-orb-expression={expression}
       data-orb-form={form}
     >
       <div className="orb-avatar-lab__copy">
         <p className="orb-avatar-lab__eyebrow">
-          Metabloom companion · one bounded field
+          The field is the character · one bounded draw
         </p>
         <h1>Meet Bloom</h1>
         <p>
-          A friendly avatar grown from the Metabloom material. Change its mood,
-          reshape its body, or send a pulse through the field.
+          Bloom is not a shell with a texture. Its silhouette, gaze, voice,
+          expressions, and transformations are formed by one living Metabloom
+          field.
         </p>
         <span
           className="orb-avatar-lab__status"
@@ -313,7 +314,7 @@ const OrbSection = ({ isActive = true }) => {
         <div
           className="orb-pill orb-avatar-lab__control-row"
           role="group"
-          aria-label="Avatar forms"
+          aria-label="Living Metabloom forms"
         >
           <span className="orb-avatar-lab__control-label">Form</span>
           {FORMS.map(({ id, label, description }) => (
@@ -322,7 +323,7 @@ const OrbSection = ({ isActive = true }) => {
               type="button"
               className={form === id ? "is-active" : ""}
               onClick={() => transform(id)}
-              aria-label={`Transform avatar into ${label} form. ${description}`}
+              aria-label={`Transform Bloom into ${label} form. ${description}`}
               aria-pressed={form === id}
             >
               {label}
@@ -355,7 +356,7 @@ const OrbSection = ({ isActive = true }) => {
           <div
             className="orb-pill orb-avatar-lab__control-row"
             role="group"
-            aria-label="Avatar sequences"
+            aria-label="Living Metabloom sequences"
           >
             <span className="orb-avatar-lab__control-label">Sequence</span>
             {SEQUENCES.map(({ id, label, steps }) => (
@@ -374,7 +375,7 @@ const OrbSection = ({ isActive = true }) => {
           <div
             className="orb-pill orb-avatar-lab__control-row orb-avatar-lab__action-row"
             role="group"
-            aria-label="Avatar actions"
+            aria-label="Living Metabloom actions"
           >
             <button type="button" onClick={pulse}>
               Pulse
