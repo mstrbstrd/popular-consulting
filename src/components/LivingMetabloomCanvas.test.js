@@ -50,7 +50,7 @@ describe("LivingMetabloomCanvas", () => {
     expect(source).toContain('contextType: "webgl2"');
     expect(source.match(/gl\.drawArrays/g)).toHaveLength(1);
     expect(source).toContain('document.addEventListener("visibilitychange"');
-    expect(source).toContain('"prefers-reduced-motion: reduce"');
+    expect(source).toContain('"(prefers-reduced-motion: reduce)"');
     expect(source).toContain('"webglcontextlost"');
     expect(source).toContain('"webglcontextrestored"');
     expect(source).toContain("gl.deleteBuffer(positionBuffer)");
