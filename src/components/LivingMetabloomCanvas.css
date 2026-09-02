@@ -1,0 +1,231 @@
+.living-metabloom-canvas {
+  position: absolute;
+  inset: -4%;
+  overflow: visible;
+  pointer-events: auto;
+}
+
+.living-metabloom-canvas__surface {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  filter:
+    drop-shadow(0 2.6rem 3.6rem rgba(29, 18, 74, 0.20))
+    drop-shadow(0 0 2.8rem rgba(99, 68, 245, 0.20));
+  image-rendering: pixelated;
+  pointer-events: none;
+  transition: filter 260ms ease;
+}
+
+[data-theme="dark"] .living-metabloom-canvas__surface {
+  filter:
+    drop-shadow(0 2.8rem 4.4rem rgba(0, 0, 0, 0.48))
+    drop-shadow(0 0 3.4rem rgba(0, 238, 255, 0.16))
+    drop-shadow(0 0 5.2rem rgba(157, 0, 255, 0.14));
+}
+
+.metabloom-avatar:hover .living-metabloom-canvas__surface {
+  filter:
+    drop-shadow(0 2.8rem 4rem rgba(29, 18, 74, 0.22))
+    drop-shadow(0 0 3.6rem rgba(99, 68, 245, 0.25));
+}
+
+[data-theme="dark"]
+  .metabloom-avatar:hover
+  .living-metabloom-canvas__surface {
+  filter:
+    drop-shadow(0 3rem 4.8rem rgba(0, 0, 0, 0.52))
+    drop-shadow(0 0 4rem rgba(0, 238, 255, 0.19))
+    drop-shadow(0 0 6rem rgba(157, 0, 255, 0.17));
+}
+
+.living-metabloom-canvas__fallback {
+  position: absolute;
+  inset: 16%;
+  filter:
+    drop-shadow(0 2.4rem 3.8rem rgba(29, 18, 74, 0.22))
+    drop-shadow(0 0 3.4rem rgba(99, 68, 245, 0.22));
+  transform-origin: center;
+}
+
+.living-metabloom-canvas__fallback > span {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 48%;
+  height: 48%;
+  border-radius: 48% 52% 46% 54% / 52% 45% 55% 48%;
+  background:
+    radial-gradient(circle at 30% 24%, rgba(255, 255, 255, 0.72), transparent 18%),
+    radial-gradient(circle at 62% 70%, rgba(0, 238, 255, 0.74), transparent 52%),
+    linear-gradient(135deg, rgba(255, 0, 255, 0.88), rgba(99, 68, 245, 0.82));
+  box-shadow:
+    inset 0 0 2.2rem rgba(255, 255, 255, 0.26),
+    0 0 2.6rem rgba(99, 68, 245, 0.18);
+  mix-blend-mode: multiply;
+  transform: translate(-50%, -50%);
+}
+
+[data-theme="dark"] .living-metabloom-canvas__fallback > span {
+  background:
+    radial-gradient(circle at 30% 24%, rgba(255, 255, 255, 0.52), transparent 18%),
+    radial-gradient(circle at 62% 70%, rgba(0, 238, 255, 0.56), transparent 52%),
+    linear-gradient(135deg, rgba(255, 0, 255, 0.72), rgba(99, 68, 245, 0.78));
+  mix-blend-mode: screen;
+}
+
+.living-metabloom-canvas__fallback > span:nth-child(1) {
+  width: 58%;
+  height: 58%;
+}
+
+.living-metabloom-canvas__fallback > span:nth-child(2) {
+  transform: translate(-90%, -70%) rotate(-24deg);
+}
+
+.living-metabloom-canvas__fallback > span:nth-child(3) {
+  transform: translate(-10%, -76%) rotate(30deg);
+}
+
+.living-metabloom-canvas__fallback > span:nth-child(4) {
+  transform: translate(-90%, -14%) rotate(24deg);
+}
+
+.living-metabloom-canvas__fallback > span:nth-child(5) {
+  transform: translate(-8%, -10%) rotate(-28deg);
+}
+
+.living-metabloom-canvas__fallback::before,
+.living-metabloom-canvas__fallback::after {
+  content: "";
+  position: absolute;
+  z-index: 4;
+  left: 50%;
+  pointer-events: none;
+}
+
+.living-metabloom-canvas__fallback::before {
+  top: 43%;
+  width: 31%;
+  height: 10%;
+  background:
+    radial-gradient(ellipse at 22% 50%, rgba(10, 12, 24, 0.88) 0 22%, transparent 26%),
+    radial-gradient(ellipse at 78% 50%, rgba(10, 12, 24, 0.88) 0 22%, transparent 26%);
+  transform: translateX(-50%);
+}
+
+.living-metabloom-canvas__fallback::after {
+  top: 58%;
+  width: 18%;
+  height: 8%;
+  border-bottom: 0.45rem solid rgba(10, 12, 24, 0.78);
+  border-radius: 0 0 50% 50%;
+  transform: translateX(-50%);
+}
+
+[data-theme="dark"] .living-metabloom-canvas__fallback::before {
+  background:
+    radial-gradient(ellipse at 22% 50%, rgba(2, 3, 9, 0.92) 0 22%, transparent 26%),
+    radial-gradient(ellipse at 78% 50%, rgba(2, 3, 9, 0.92) 0 22%, transparent 26%);
+}
+
+[data-theme="dark"] .living-metabloom-canvas__fallback::after {
+  border-bottom-color: rgba(2, 3, 9, 0.88);
+}
+
+.metabloom-avatar[data-avatar-form="bloom"]
+  .living-metabloom-canvas__fallback
+  > span:nth-child(2) {
+  transform: translate(-116%, -74%) rotate(-42deg);
+}
+
+.metabloom-avatar[data-avatar-form="bloom"]
+  .living-metabloom-canvas__fallback
+  > span:nth-child(3) {
+  transform: translate(16%, -84%) rotate(48deg);
+}
+
+.metabloom-avatar[data-avatar-form="bloom"]
+  .living-metabloom-canvas__fallback
+  > span:nth-child(4) {
+  transform: translate(-116%, 12%) rotate(42deg);
+}
+
+.metabloom-avatar[data-avatar-form="bloom"]
+  .living-metabloom-canvas__fallback
+  > span:nth-child(5) {
+  transform: translate(14%, 18%) rotate(-48deg);
+}
+
+.metabloom-avatar[data-avatar-form="focus"]
+  .living-metabloom-canvas__fallback {
+  filter:
+    grayscale(0.88)
+    saturate(0.36)
+    contrast(1.14)
+    drop-shadow(0 2.8rem 4rem rgba(12, 18, 28, 0.28));
+  transform: scaleX(0.72) scaleY(1.24);
+}
+
+.metabloom-avatar[data-avatar-form="drift"]
+  .living-metabloom-canvas__fallback {
+  transform: rotate(-7deg) scaleX(1.32) scaleY(0.74);
+}
+
+.metabloom-avatar[data-avatar-expression="sad"]
+  .living-metabloom-canvas__fallback {
+  translate: 0 3%;
+}
+
+.metabloom-avatar[data-avatar-expression="excited"]
+  .living-metabloom-canvas__fallback {
+  filter:
+    saturate(1.2)
+    drop-shadow(0 2.4rem 3.8rem rgba(29, 18, 74, 0.22))
+    drop-shadow(0 0 4.4rem rgba(255, 0, 255, 0.25));
+}
+
+.metabloom-avatar[data-avatar-expression="sleepy"]
+  .living-metabloom-canvas__fallback {
+  opacity: 0.84;
+  translate: 0 2%;
+}
+
+.metabloom-avatar[data-avatar-talking="true"]
+  .living-metabloom-canvas__fallback::after {
+  height: 11%;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(10, 12, 24, 0.78);
+}
+
+.metabloom-avatar[data-avatar-active="true"]
+  .living-metabloom-canvas.is-fallback
+  .living-metabloom-canvas__fallback {
+  animation: livingMetabloomFallbackBreathe 4.8s ease-in-out infinite;
+}
+
+@keyframes livingMetabloomFallbackBreathe {
+  0%, 100% { scale: 1; }
+  50% { scale: 1.025; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .living-metabloom-canvas__surface,
+  .living-metabloom-canvas__fallback {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+@media (forced-colors: active) {
+  .living-metabloom-canvas__surface {
+    filter: none;
+  }
+
+  .living-metabloom-canvas__fallback > span {
+    background: CanvasText;
+    mix-blend-mode: normal;
+  }
+}
