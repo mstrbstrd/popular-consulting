@@ -40,10 +40,11 @@ const FORM_INDEX = Object.freeze({
 const clamp = (value, minimum = 0, maximum = 1) =>
   Math.max(minimum, Math.min(maximum, value));
 
+const normalizeStateName = (value, states, fallback) =>
+  Object.prototype.hasOwnProperty.call(states, value) ? value : fallback;
+
 const normalizeStateIndex = (value, states, fallback) =>
-  Object.prototype.hasOwnProperty.call(states, value)
-    ? states[value]
-    : states[fallback];
+  states[normalizeStateName(value, states, fallback)];
 
 const normalizePulseVersion = (value) => {
   const numericValue = Number(value);
@@ -122,6 +123,7 @@ const collectUniforms = (gl, program, names) => {
 };
 
 const LivingMetabloomCanvas = ({
+  enabled = true,
   expression = "happy",
   form = "companion",
   isDark = false,
@@ -131,16 +133,22 @@ const LivingMetabloomCanvas = ({
   resetVersion = 0,
   talking = false,
 }) => {
+  const normalizedExpression = normalizeStateName(
+    expression,
+    EXPRESSION_INDEX,
+    "happy",
+  );
+  const normalizedForm = normalizeStateName(form, FORM_INDEX, "companion");
   const rootRef = useRef(null);
   const canvasRef = useRef(null);
   const pausedRef = useRef(paused);
   const lightRef = useRef(isDark ? 0 : 1);
   const talkingRef = useRef(Boolean(talking));
   const expressionTargetRef = useRef(
-    normalizeStateIndex(expression, EXPRESSION_INDEX, "happy"),
+    normalizeStateIndex(normalizedExpression, EXPRESSION_INDEX, "happy"),
   );
   const formTargetRef = useRef(
-    normalizeStateIndex(form, FORM_INDEX, "companion"),
+    normalizeStateIndex(normalizedForm, FORM_INDEX, "companion"),
   );
   const onFieldStateChangeRef = useRef(onFieldStateChange);
   const externalPulseRequestRef = useRef(normalizePulseVersion(pulseVersion));
@@ -149,7 +157,7 @@ const LivingMetabloomCanvas = ({
   );
   const restartRef = useRef(true);
   const redrawRef = useRef(() => {});
-  const [fallback, setFallback] = useState(false);
+  const [fallback, setFallback] = useState(!enabled);
   const [contextVersion, setContextVersion] = useState(0);
 
   useEffect(() => {
@@ -169,21 +177,21 @@ const LivingMetabloomCanvas = ({
 
   useEffect(() => {
     expressionTargetRef.current = normalizeStateIndex(
-      expression,
+      normalizedExpression,
       EXPRESSION_INDEX,
       "happy",
     );
     redrawRef.current();
-  }, [expression]);
+  }, [normalizedExpression]);
 
   useEffect(() => {
     formTargetRef.current = normalizeStateIndex(
-      form,
+      normalizedForm,
       FORM_INDEX,
       "companion",
     );
     redrawRef.current();
-  }, [form]);
+  }, [normalizedForm]);
 
   useEffect(() => {
     onFieldStateChangeRef.current = onFieldStateChange;
@@ -203,6 +211,12 @@ const LivingMetabloomCanvas = ({
     const root = rootRef.current;
     const canvas = canvasRef.current;
     if (!root || !canvas) return undefined;
+
+    if (!enabled) {
+      setFallback(true);
+      onFieldStateChangeRef.current?.("fallback");
+      return undefined;
+    }
 
     let gl;
     let program;
@@ -674,14 +688,19 @@ const LivingMetabloomCanvas = ({
       if (positionBuffer) gl.deleteBuffer(positionBuffer);
       if (program) gl.deleteProgram(program);
     };
-  }, [contextVersion]);
+  }, [contextVersion, enabled]);
 
   return (
     <div
       ref={rootRef}
       className={`living-metabloom-canvas${fallback ? " is-fallback" : ""}`}
       data-context-recovery="local"
+      data-fallback-expression={fallback ? normalizedExpression : undefined}
+      data-fallback-talking={fallback ? String(Boolean(talking)) : undefined}
+      data-field-expression={normalizedExpression}
+      data-field-form={normalizedForm}
       data-renderer-id="living-metabloom"
+      data-renderer-state={fallback ? "fallback" : "running"}
       data-runtime-profile={ditherCanvasRuntimeProfile.id}
       data-render-scale={RENDER_SCALE}
       aria-hidden="true"
@@ -698,11 +717,27 @@ const LivingMetabloomCanvas = ({
           className="living-metabloom-canvas__fallback"
           data-renderer-fallback="css"
         >
-          <span />
-          <span />
-          <span />
-          <span />
-          <span />
+          <span className="living-metabloom-canvas__fallback-blob" />
+          <span className="living-metabloom-canvas__fallback-blob" />
+          <span className="living-metabloom-canvas__fallback-blob" />
+          <span className="living-metabloom-canvas__fallback-blob" />
+          <span className="living-metabloom-canvas__fallback-blob" />
+
+          <div className="living-metabloom-canvas__fallback-face">
+            <span className="living-metabloom-canvas__fallback-eye living-metabloom-canvas__fallback-eye--left" />
+            <span className="living-metabloom-canvas__fallback-eye living-metabloom-canvas__fallback-eye--right" />
+            <span className="living-metabloom-canvas__fallback-mouth" />
+            <span className="living-metabloom-canvas__fallback-accent living-metabloom-canvas__fallback-accent--one" />
+            <span className="living-metabloom-canvas__fallback-accent living-metabloom-canvas__fallback-accent--two" />
+            <span className="living-metabloom-canvas__fallback-accent living-metabloom-canvas__fallback-accent--three" />
+          </div>
+
+          {pulseVersion > 0 && (
+            <span
+              key={pulseVersion}
+              className="living-metabloom-canvas__fallback-pulse"
+            />
+          )}
         </div>
       )}
     </div>
