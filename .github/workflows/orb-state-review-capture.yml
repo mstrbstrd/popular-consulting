@@ -1,9 +1,6 @@
-name: Orb visual review capture
+name: Orb state visual review
 
 on:
-  push:
-    branches:
-      - feature/living-metabloom-organism-v2-20260902
   pull_request:
     branches:
       - main
@@ -12,7 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  capture:
+  capture-states:
     runs-on: windows-latest
     timeout-minutes: 20
     steps:
@@ -33,13 +30,13 @@ jobs:
         env:
           CI: true
 
-      - name: Capture living Metabloom
-        run: node scripts/capture-orb-review.mjs
+      - name: Capture Bloom moods and forms
+        run: node scripts/capture-orb-state-review.mjs
 
-      - name: Upload Orb review images
+      - name: Upload Bloom state review
         uses: actions/upload-artifact@v4
         with:
-          name: orb-review-${{ github.sha }}
-          path: orb-review/*.png
+          name: orb-state-review-${{ github.sha }}
+          path: orb-state-review/*
           if-no-files-found: error
           retention-days: 3
