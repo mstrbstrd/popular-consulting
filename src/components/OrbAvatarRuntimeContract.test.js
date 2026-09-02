@@ -154,7 +154,16 @@ describe("living Metabloom Orb runtime invariants", () => {
   });
 
   test("every degraded path uses the same complete fallback creature", () => {
-    expect(avatar).toContain("enabled={hasHardwareWebGL}");
+    expect(avatar).toContain(
+      "const webglEnabled = hasHardwareWebGL || forceVisualCaptureWebGL",
+    );
+    expect(avatar).toContain("enabled={webglEnabled}");
+    expect(avatar).toContain(
+      'parameters.get("visual-capture") === "orb"',
+    );
+    expect(avatar).toContain(
+      'parameters.get("orb-force-webgl") === "1"',
+    );
     expect(livingCanvas).toContain("enabled = true");
     expect(livingCanvas).toContain("if (!enabled) {");
     expect(livingCanvas).toContain(
