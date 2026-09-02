@@ -97,20 +97,22 @@ describe("living Metabloom Orb runtime invariants", () => {
       .toBeGreaterThan(livingCanvas.indexOf("const renderFrame"));
   });
 
-  test("the non-WebGL creature preserves every mood, form, speech, and pulse", () => {
-    expect(avatar).toContain(
-      "const MetabloomFallback = ({ expression, pulseVersion, talking })",
+  test("every degraded path uses the same complete fallback creature", () => {
+    expect(avatar).toContain("enabled={hasHardwareWebGL}");
+    expect(livingCanvas).toContain("enabled = true");
+    expect(livingCanvas).toContain("if (!enabled) {");
+    expect(livingCanvas).toContain(
+      "data-fallback-expression={fallback ? normalizedExpression : undefined}",
     );
-    expect(avatar).toContain("data-fallback-expression={expression}");
-    expect(avatar).toContain(
-      'data-fallback-talking={talking ? "true" : "false"}',
+    expect(livingCanvas).toContain(
+      "data-fallback-talking={fallback ? String(Boolean(talking)) : undefined}",
     );
-    expect(avatar).toContain("key={pulseVersion}");
-    expect(avatar).toContain(
+    expect(livingCanvas).toContain("key={pulseVersion}");
+    expect(livingCanvas).toContain(
       'className="living-metabloom-canvas__fallback-pulse"',
     );
     expect(
-      avatar.match(/className="living-metabloom-canvas__fallback-blob"/g),
+      livingCanvas.match(/className="living-metabloom-canvas__fallback-blob"/g),
     ).toHaveLength(5);
 
     [
