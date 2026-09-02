@@ -50,7 +50,7 @@ describe("living Metabloom Orb runtime invariants", () => {
     expect(livingCanvas.match(/gl\.drawArrays/g)).toHaveLength(1);
     expect(livingCanvas).toContain('data-context-recovery="local"');
     expect(livingCanvas).toContain('document.addEventListener("visibilitychange"');
-    expect(livingCanvas).toContain('"prefers-reduced-motion: reduce"');
+    expect(livingCanvas).toContain('"(prefers-reduced-motion: reduce)"');
     expect(livingCanvas).toContain("gl.deleteBuffer(positionBuffer)");
     expect(livingCanvas).toContain("gl.deleteProgram(program)");
 
