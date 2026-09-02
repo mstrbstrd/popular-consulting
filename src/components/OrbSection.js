@@ -229,11 +229,12 @@ const OrbSection = ({ isActive = true }) => {
   const startTalking = React.useCallback(() => {
     clearSequence();
     setTalking(true);
-    if (expression === "sleepy" || expression === "angry") {
+    const currentExpression = stateRef.current?.expression;
+    if (currentExpression === "sleepy" || currentExpression === "angry") {
       setExpression("happy");
       respondWithEmotion();
     }
-  }, [clearSequence, expression, respondWithEmotion]);
+  }, [clearSequence, respondWithEmotion]);
 
   const stopTalking = React.useCallback(() => {
     setTalking(false);
