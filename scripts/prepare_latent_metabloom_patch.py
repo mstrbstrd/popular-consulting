@@ -39,4 +39,45 @@ if text.count(old_assertion) != 1:
     )
 text = text.replace(old_assertion, new_assertion, 1)
 
+old_initial_test = """    '''    expect(screen.getByTestId(\"metabloom-avatar\")).toHaveAttribute(
+      \"data-form\",
+      \"companion\",
+    );''',
+    '''    expect(screen.getByTestId(\"metabloom-avatar\")).toHaveAttribute(
+      \"data-form\",
+      \"companion\",
+    );
+    expect(screen.getByTestId(\"metabloom-avatar\")).toHaveAttribute(
+      \"data-field-state\",
+      \"latent\",
+    );''',
+    \"initial latent field state test\","""
+new_initial_test = """    '''    expect(screen.getByTestId(\"metabloom-avatar\")).toHaveAttribute(
+      \"data-expression\",
+      \"happy\",
+    );
+    expect(screen.getByTestId(\"metabloom-avatar\")).toHaveAttribute(
+      \"data-form\",
+      \"companion\",
+    );''',
+    '''    expect(screen.getByTestId(\"metabloom-avatar\")).toHaveAttribute(
+      \"data-expression\",
+      \"happy\",
+    );
+    expect(screen.getByTestId(\"metabloom-avatar\")).toHaveAttribute(
+      \"data-form\",
+      \"companion\",
+    );
+    expect(screen.getByTestId(\"metabloom-avatar\")).toHaveAttribute(
+      \"data-field-state\",
+      \"latent\",
+    );''',
+    \"initial latent field state test\","""
+if text.count(old_initial_test) != 1:
+    raise SystemExit(
+        "initial test patch source: expected one match, "
+        f"found {text.count(old_initial_test)}"
+    )
+text = text.replace(old_initial_test, new_initial_test, 1)
+
 path.write_text(text, encoding="utf-8", newline="\n")
