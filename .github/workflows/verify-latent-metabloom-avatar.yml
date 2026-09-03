@@ -1,0 +1,72 @@
+name: Verify latent Metabloom response lifecycle
+
+on:
+  push:
+    branches:
+      - feature/latent-metabloom-avatar-20260902
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/latent-metabloom-avatar-20260902
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Apply latent Metabloom lifecycle
+        run: python scripts/apply_latent_metabloom_avatar.py
+
+      - name: Check source invariants
+        run: |
+          git diff --check
+          python -m py_compile scripts/apply_latent_metabloom_avatar.py
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test -- --watchAll=false --runInBand
+        env:
+          CI: true
+
+      - name: Build production bundle
+        run: npm run build
+        env:
+          CI: true
+
+      - name: Commit verified implementation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm scripts/apply_latent_metabloom_avatar.py
+          git rm .github/workflows/verify-latent-metabloom-avatar.yml
+          git add CLAUDE.md \
+            .github/workflows/orb-review-capture.yml \
+            scripts/capture-orb-review.mjs \
+            src/components/LivingMetabloomCanvas.js \
+            src/components/LivingMetabloomCanvas.test.js \
+            src/components/LivingMetabloomPolish.css \
+            src/components/MetabloomAvatar.js \
+            src/components/MetabloomAvatar.css \
+            src/components/MetabloomAvatar.test.js \
+            src/components/OrbAvatarRuntimeContract.test.js \
+            src/components/OrbSection.js \
+            src/components/OrbSection.test.js \
+            src/content/routeMetadata.json
+          git diff --cached --check
+          git commit -m "Make Metabloom latent until it reacts"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
