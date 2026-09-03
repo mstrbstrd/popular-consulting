@@ -1,9 +1,13 @@
-/* Route-only presentation layer. The Metabloom renderer and chat behavior remain owned by OrbSection. */
+/* Route-only presentation layer. OrbSection continues to own the renderer and chat behavior. */
 .orb-page .metabloom-chat {
   --metabloom-chat-ink: var(--aetheris-ink);
   --metabloom-chat-muted: var(--aetheris-ink-2);
   --metabloom-chat-line: var(--aetheris-line-strong);
-  --metabloom-chat-assistant: var(--aetheris-glass-panel-raised);
+  --metabloom-chat-assistant: color-mix(
+    in srgb,
+    var(--aetheris-glass-panel) 72%,
+    transparent
+  );
   --metabloom-chat-user: var(--aetheris-ink);
   --metabloom-chat-user-ink: var(--aetheris-panel);
   --metabloom-chat-control: var(--aetheris-glass-panel);
@@ -19,94 +23,78 @@
   background:
     linear-gradient(
       180deg,
-      color-mix(in srgb, var(--aetheris-panel) 20%, transparent) 0%,
-      transparent 26%,
-      transparent 58%,
-      color-mix(in srgb, var(--aetheris-panel) 58%, transparent) 100%
+      color-mix(in srgb, var(--aetheris-panel) 26%, transparent) 0%,
+      transparent 24%,
+      transparent 66%,
+      color-mix(in srgb, var(--aetheris-panel) 60%, transparent) 100%
     ),
     radial-gradient(
-      circle at 78% 58%,
-      transparent 0 24%,
-      color-mix(in srgb, var(--aetheris-panel) 20%, transparent) 72%
+      circle at 50% 54%,
+      transparent 0 28%,
+      color-mix(in srgb, var(--aetheris-panel) 14%, transparent) 74%
     );
 }
 
 .orb-page .metabloom-chat__interface {
-  display: flex;
-  align-items: flex-end;
-  justify-content: flex-end;
-  padding:
-    max(9.6rem, calc(env(safe-area-inset-top) + 8.2rem))
-    clamp(2.4rem, 5vw, 7.2rem)
-    max(2.4rem, env(safe-area-inset-bottom));
+  padding: 0;
 }
 
 .orb-page .metabloom-chat__shell {
   position: relative;
-  width: min(58rem, 48vw);
-  height: min(68rem, calc(100dvh - 12.4rem));
+  display: block;
+  width: 100%;
+  height: 100%;
   margin: 0;
   padding: 0;
-  overflow: hidden;
-  border: 1px solid transparent;
-  border-radius: var(--aetheris-radius-glass);
-  background:
-    linear-gradient(
-      color-mix(in srgb, var(--aetheris-glass-panel) 92%, transparent),
-      color-mix(in srgb, var(--aetheris-glass-panel) 92%, transparent)
-    ) padding-box,
-    var(--aetheris-spectral-border-soft) border-box;
-  backdrop-filter: var(--aetheris-glass-blur);
-  -webkit-backdrop-filter: var(--aetheris-glass-blur);
-  box-shadow:
-    var(--aetheris-shadow),
-    var(--aetheris-glass-specular),
-    0 2.4rem 7rem var(--metabloom-chat-shadow);
-  pointer-events: auto;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow: none;
+  pointer-events: none;
 }
 
 .orb-page .metabloom-chat__shell::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 5;
-  border-radius: inherit;
-  padding: 1px;
-  pointer-events: none;
-  background: var(--aetheris-glass-ring-veil), var(--aetheris-spectral-border-soft);
-  -webkit-mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  mask-composite: exclude;
-  opacity: 0.72;
+  display: none;
 }
 
 .orb-page .metabloom-chat__presence {
-  position: relative;
-  z-index: 1;
-  justify-self: stretch;
-  min-height: 5.6rem;
-  padding: 1.2rem 1.6rem;
-  border: 0;
-  border-bottom: 1px solid var(--metabloom-chat-line);
-  border-radius: 0;
-  background: color-mix(in srgb, var(--metabloom-chat-control) 82%, transparent);
-  box-shadow: none;
+  position: absolute;
+  top: max(8.2rem, calc(env(safe-area-inset-top) + 7.2rem));
+  left: 50%;
+  z-index: 4;
+  justify-self: auto;
+  min-height: 3.8rem;
+  padding: 0.65rem 1.1rem;
+  border: 1px solid transparent;
+  border-radius: var(--aetheris-radius-pill);
+  color: var(--aetheris-ink-2);
+  background:
+    linear-gradient(
+      color-mix(in srgb, var(--aetheris-glass-panel) 86%, transparent),
+      color-mix(in srgb, var(--aetheris-glass-panel) 86%, transparent)
+    ) padding-box,
+    var(--aetheris-spectral-border-soft) border-box;
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  box-shadow:
+    var(--aetheris-shadow),
+    0 0 22px var(--aetheris-spectral-glow);
   font-family: var(--aetheris-font-mono);
-  font-size: 0.92rem;
+  font-size: 0.88rem;
   font-weight: 500;
-  letter-spacing: 0.065em;
+  letter-spacing: 0.07em;
+  transform: translateX(-50%);
+  pointer-events: auto;
 }
 
 .orb-page .metabloom-chat__presence::after {
   content: "Conversation";
-  margin-left: auto;
+  margin-left: 0.25rem;
   color: var(--aetheris-muted);
-  font-size: 0.78rem;
+  font-size: 0.76rem;
   letter-spacing: 0.09em;
 }
 
@@ -118,16 +106,31 @@
 }
 
 .orb-page .metabloom-chat__messages {
-  position: relative;
+  position: absolute;
+  inset: 0;
   z-index: 1;
-  padding: 2.2rem 1.6rem 1.4rem;
+  padding:
+    max(13rem, calc(env(safe-area-inset-top) + 11.8rem))
+    clamp(1.6rem, 4.5vw, 7.2rem)
+    max(14rem, calc(env(safe-area-inset-bottom) + 12.8rem));
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scroll-padding-bottom: 14rem;
   scrollbar-color: var(--aetheris-line-strong) transparent;
   scrollbar-width: thin;
+  opacity: 1;
+  transition: opacity var(--aetheris-motion-medium) var(--aetheris-ease-standard);
+  pointer-events: auto;
 }
 
 .orb-page .metabloom-chat__messages::-webkit-scrollbar {
   display: block;
   width: 0.5rem;
+}
+
+.orb-page .metabloom-chat__messages::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .orb-page .metabloom-chat__messages::-webkit-scrollbar-thumb {
@@ -136,120 +139,254 @@
 }
 
 .orb-page .metabloom-chat__message-list {
-  gap: 1.25rem;
+  width: 100%;
+  min-height: 100%;
+  gap: clamp(1.6rem, 2.6vh, 2.4rem);
   padding: 0;
 }
 
 .orb-page .metabloom-chat__message {
-  width: min(48rem, 88%);
+  width: fit-content;
+  max-width: min(68rem, 72vw);
+  gap: 0.55rem;
+}
+
+.orb-page .metabloom-chat__message--assistant {
+  align-self: flex-start;
+  align-items: flex-start;
+  margin-right: auto;
+}
+
+.orb-page .metabloom-chat__message--user {
+  align-self: flex-end;
+  align-items: flex-end;
+  margin-left: auto;
 }
 
 .orb-page .metabloom-chat__speaker {
+  padding: 0 0.35rem;
+  color: var(--aetheris-ink-2);
   font-family: var(--aetheris-font-mono);
-  font-size: 0.9rem;
+  font-size: 0.84rem;
   font-weight: 500;
+  letter-spacing: 0.085em;
 }
 
 .orb-page .metabloom-chat__bubble {
-  padding: 1.25rem 1.5rem;
+  position: relative;
+  max-width: 100%;
+  padding: 1.3rem 1.55rem 1.3rem 1.85rem;
+  border: 0;
   border-radius:
+    0
     var(--aetheris-radius-lg)
     var(--aetheris-radius-lg)
-    var(--aetheris-radius-lg)
-    var(--aetheris-radius-sm);
+    0;
+  color: var(--metabloom-chat-ink);
   background: var(--metabloom-chat-assistant);
-  box-shadow: 0 1rem 3.4rem var(--metabloom-chat-shadow);
+  backdrop-filter: blur(16px) saturate(1.12);
+  -webkit-backdrop-filter: blur(16px) saturate(1.12);
+  box-shadow: none;
+}
+
+.orb-page .metabloom-chat__message--assistant .metabloom-chat__bubble::before {
+  content: "";
+  position: absolute;
+  top: 0.45rem;
+  bottom: 0.45rem;
+  left: 0;
+  width: 2px;
+  border-radius: var(--aetheris-radius-pill);
+  background: var(--aetheris-spectral-v);
+  box-shadow: 0 0 16px var(--aetheris-spectral-glow);
 }
 
 .orb-page .metabloom-chat__message--user .metabloom-chat__bubble {
-  border-color: transparent;
+  padding: 1.3rem 1.55rem;
+  border: 1px solid transparent;
   border-radius:
     var(--aetheris-radius-lg)
     var(--aetheris-radius-lg)
     var(--aetheris-radius-sm)
     var(--aetheris-radius-lg);
+  color: var(--metabloom-chat-user-ink);
+  background:
+    linear-gradient(
+      var(--metabloom-chat-user),
+      var(--metabloom-chat-user)
+    ) padding-box,
+    var(--aetheris-spectral-border-soft) border-box;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  box-shadow:
+    0 1.2rem 3.6rem var(--metabloom-chat-shadow),
+    0 0 18px var(--aetheris-spectral-glow);
 }
 
 .orb-page .metabloom-chat__bubble > p {
   font-family: var(--aetheris-font-sans);
-  font-size: clamp(1.4rem, 1.2vw, 1.55rem);
+  font-size: clamp(1.4rem, 1.15vw, 1.6rem);
   font-weight: 450;
+  letter-spacing: -0.012em;
+  line-height: 1.6;
 }
 
-.orb-page .metabloom-chat__speaker,
 .orb-page .metabloom-chat__preview-label {
   font-family: var(--aetheris-font-mono);
 }
 
-.orb-page .metabloom-chat__suggestions button {
-  border-color: transparent;
-  border-radius: var(--aetheris-radius-md);
-  background:
-    linear-gradient(var(--metabloom-chat-control), var(--metabloom-chat-control)) padding-box,
-    var(--aetheris-spectral-border-soft) border-box;
-  box-shadow: none;
-  font-family: var(--aetheris-font-sans);
-  font-size: 1.12rem;
-  font-weight: 550;
-  transition:
-    background var(--aetheris-motion-fast) var(--aetheris-ease-standard),
-    box-shadow var(--aetheris-motion-fast) var(--aetheris-ease-standard),
-    transform var(--aetheris-motion-medium) var(--aetheris-ease-spring);
-}
-
-.orb-page .metabloom-chat__suggestions button:hover {
-  background:
-    linear-gradient(var(--metabloom-chat-control-hover), var(--metabloom-chat-control-hover)) padding-box,
-    var(--aetheris-spectral) border-box;
-  box-shadow: 0 0 20px var(--aetheris-spectral-glow);
-}
-
-.orb-page .metabloom-chat__suggestions button:focus-visible,
-.orb-page .metabloom-chat__composer:focus-within {
-  outline: none;
-  box-shadow: var(--aetheris-focus-halo);
+.orb-page .metabloom-chat__typing {
+  min-width: 7rem;
+  min-height: 4.6rem;
 }
 
 .orb-page .metabloom-chat__composer-area {
-  position: relative;
-  z-index: 1;
-  padding: 1.2rem 1.4rem 1.4rem;
-  border-top: 1px solid var(--metabloom-chat-line);
-  background: color-mix(in srgb, var(--metabloom-chat-control) 88%, transparent);
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 3;
+  display: grid;
+  width: min(78rem, calc(100% - 3.2rem));
+  gap: 0.8rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  transform: translate(-50%, -50%);
+  transition:
+    top var(--aetheris-motion-slow) var(--aetheris-ease-spring),
+    transform var(--aetheris-motion-slow) var(--aetheris-ease-spring),
+    width var(--aetheris-motion-medium) var(--aetheris-ease-standard);
+  pointer-events: auto;
+}
+
+.orb-page
+  .metabloom-chat:has(
+    .metabloom-chat__message-list > article:nth-of-type(2)
+  )
+  .metabloom-chat__composer-area {
+  top: calc(100% - max(1.8rem, env(safe-area-inset-bottom)));
+  transform: translate(-50%, -100%);
 }
 
 .orb-page .metabloom-chat__composer {
-  padding: 0.65rem 0.7rem 0.65rem 1.2rem;
-  border-radius: var(--aetheris-radius-lg);
-  background: var(--metabloom-chat-control-hover);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24);
+  position: relative;
+  width: 100%;
+  overflow: visible;
+  gap: 0.8rem;
+  padding: 0.65rem 0.65rem 0.65rem 1.55rem;
+  border: 1px solid transparent;
+  border-radius: var(--aetheris-radius-glass);
+  background:
+    linear-gradient(
+      color-mix(in srgb, var(--aetheris-glass-panel-raised) 92%, transparent),
+      color-mix(in srgb, var(--aetheris-glass-panel-raised) 92%, transparent)
+    ) padding-box,
+    var(--aetheris-spectral-border-soft) border-box;
+  backdrop-filter: blur(24px) saturate(1.25);
+  -webkit-backdrop-filter: blur(24px) saturate(1.25);
+  box-shadow:
+    var(--aetheris-shadow),
+    var(--aetheris-glass-specular),
+    0 1.8rem 5rem var(--metabloom-chat-shadow);
+  transition:
+    background var(--aetheris-motion-medium) var(--aetheris-ease-standard),
+    box-shadow var(--aetheris-motion-medium) var(--aetheris-ease-standard),
+    transform var(--aetheris-motion-medium) var(--aetheris-ease-spring);
+}
+
+.orb-page .metabloom-chat__composer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: inherit;
+  padding: 1px;
+  pointer-events: none;
+  background:
+    var(--aetheris-glass-ring-veil),
+    var(--aetheris-spectral-border-soft);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  opacity: 0.72;
+}
+
+.orb-page .metabloom-chat__composer:focus-within {
+  outline: none;
+  background:
+    linear-gradient(
+      var(--metabloom-chat-control-hover),
+      var(--metabloom-chat-control-hover)
+    ) padding-box,
+    var(--aetheris-spectral) border-box;
+  box-shadow:
+    var(--aetheris-focus-halo),
+    var(--aetheris-glass-specular),
+    0 1.8rem 5rem var(--metabloom-chat-shadow);
 }
 
 .orb-page .metabloom-chat__composer textarea {
+  position: relative;
+  z-index: 3;
+  min-height: 4.8rem;
+  max-height: 10.4rem;
+  padding: 1.15rem 0.4rem 0.85rem 0;
+  caret-color: var(--aetheris-teal);
+  color: var(--metabloom-chat-ink);
   font-family: var(--aetheris-font-sans);
-  font-size: 1.45rem;
+  font-size: 1.55rem;
   font-weight: 450;
+  letter-spacing: -0.012em;
+  line-height: 1.45;
 }
 
 .orb-page .metabloom-chat__composer button {
+  position: relative;
+  z-index: 3;
+  width: 4.8rem;
+  height: 4.8rem;
+  min-width: 4.8rem;
+  min-height: 4.8rem;
   border: 1px solid transparent;
-  border-radius: var(--aetheris-radius-md);
-  color: var(--metabloom-chat-ink);
+  border-radius: var(--aetheris-radius-lg);
+  color: var(--aetheris-ink-2);
   background:
-    linear-gradient(var(--aetheris-panel-strong), var(--aetheris-panel-strong)) padding-box,
+    linear-gradient(
+      var(--aetheris-panel-strong),
+      var(--aetheris-panel-strong)
+    ) padding-box,
     var(--aetheris-spectral-border-soft) border-box;
+  box-shadow: none;
   transition:
     background var(--aetheris-motion-fast) var(--aetheris-ease-standard),
     box-shadow var(--aetheris-motion-fast) var(--aetheris-ease-standard),
+    color var(--aetheris-motion-fast) var(--aetheris-ease-standard),
     opacity var(--aetheris-motion-fast) var(--aetheris-ease-standard),
     transform var(--aetheris-motion-medium) var(--aetheris-ease-spring);
 }
 
-[data-theme="dark"] .orb-page .metabloom-chat__composer button {
-  color: var(--metabloom-chat-ink);
+.orb-page .metabloom-chat__composer button:not(:disabled) {
+  color: var(--aetheris-panel);
   background:
-    linear-gradient(var(--aetheris-panel-strong), var(--aetheris-panel-strong)) padding-box,
-    var(--aetheris-spectral-border-soft) border-box;
+    linear-gradient(var(--aetheris-ink), var(--aetheris-ink)) padding-box,
+    var(--aetheris-spectral) border-box;
+  box-shadow: 0 0 20px var(--aetheris-spectral-glow);
+}
+
+.orb-page .metabloom-chat__composer button:hover:not(:disabled) {
+  box-shadow:
+    0 0 0 3px var(--aetheris-focus-ring),
+    0 0 24px var(--aetheris-spectral-glow-strong);
+  transform: translateY(-2px);
+}
+
+.orb-page .metabloom-chat__composer button:active:not(:disabled) {
+  transform: translateY(0) scale(0.97);
 }
 
 .orb-page .metabloom-chat__composer button:focus-visible {
@@ -257,43 +394,152 @@
   box-shadow: var(--aetheris-focus-halo);
 }
 
-@media (max-width: 1100px) {
-  .orb-page .metabloom-chat__interface {
-    justify-content: center;
-    padding:
-      clamp(24rem, 34vh, 31rem)
-      3.2rem
-      max(1.8rem, env(safe-area-inset-bottom));
-  }
+.orb-page .metabloom-chat__composer button:disabled {
+  opacity: 0.34;
+}
 
-  .orb-page .metabloom-chat__shell {
-    width: min(70rem, 100%);
-    height: min(54rem, 100%);
-  }
+.orb-page .metabloom-chat__composer button > span {
+  display: block;
+  font-family: var(--aetheris-font-sans);
+  font-size: 2.25rem;
+  font-weight: 500;
+  line-height: 1;
+  transform: translateY(-0.1rem);
+}
+
+.orb-page .metabloom-chat__suggestions {
+  position: fixed;
+  top: calc(50% + 5.8rem);
+  left: 50%;
+  z-index: 2;
+  justify-content: center;
+  width: min(84rem, calc(100% - 3.2rem));
+  max-width: none;
+  transform: translateX(-50%);
+  pointer-events: auto;
+}
+
+.orb-page .metabloom-chat__suggestions button {
+  min-height: 4.4rem;
+  padding: 0.8rem 1.2rem;
+  border: 1px solid transparent;
+  border-radius: var(--aetheris-radius-md);
+  color: var(--aetheris-ink-2);
+  background:
+    linear-gradient(
+      color-mix(in srgb, var(--aetheris-glass-panel) 84%, transparent),
+      color-mix(in srgb, var(--aetheris-glass-panel) 84%, transparent)
+    ) padding-box,
+    var(--aetheris-spectral-border-soft) border-box;
+  backdrop-filter: blur(14px) saturate(1.15);
+  -webkit-backdrop-filter: blur(14px) saturate(1.15);
+  box-shadow: none;
+  font-family: var(--aetheris-font-sans);
+  font-size: 1.08rem;
+  font-weight: 550;
+  transition:
+    background var(--aetheris-motion-fast) var(--aetheris-ease-standard),
+    box-shadow var(--aetheris-motion-fast) var(--aetheris-ease-standard),
+    color var(--aetheris-motion-fast) var(--aetheris-ease-standard),
+    transform var(--aetheris-motion-medium) var(--aetheris-ease-spring);
+}
+
+.orb-page .metabloom-chat__suggestions button:hover {
+  color: var(--aetheris-ink);
+  background:
+    linear-gradient(
+      var(--metabloom-chat-control-hover),
+      var(--metabloom-chat-control-hover)
+    ) padding-box,
+    var(--aetheris-spectral) border-box;
+  box-shadow: 0 0 20px var(--aetheris-spectral-glow);
+  transform: translateY(-2px);
+}
+
+.orb-page .metabloom-chat__suggestions button:focus-visible {
+  outline: none;
+  box-shadow: var(--aetheris-focus-halo);
+}
+
+.orb-page
+  .metabloom-chat:not(:has(
+    .metabloom-chat__message-list > article:nth-of-type(2)
+  ))
+  .metabloom-chat__message {
+  display: none;
+}
+
+.orb-page
+  .metabloom-chat:not(:has(
+    .metabloom-chat__message-list > article:nth-of-type(2)
+  ))
+  .metabloom-chat__messages {
+  overflow: visible;
+}
+
+.orb-page .orb-page__identity {
+  top: auto;
+  right: auto;
+  bottom: calc(50% + 6.2rem);
+  left: 50%;
+  display: block;
+  width: min(68rem, calc(100% - 3.2rem));
+  max-width: none;
+  padding: 0;
+  text-align: center;
+  transform: translateX(-50%);
+  transition:
+    opacity var(--aetheris-motion-medium) var(--aetheris-ease-standard),
+    transform var(--aetheris-motion-slow) var(--aetheris-ease-spring),
+    visibility 0s linear var(--aetheris-motion-medium);
+}
+
+.orb-page .orb-page__identity::before {
+  top: auto;
+  right: auto;
+  bottom: -1.4rem;
+  left: 50%;
+  width: 6.4rem;
+  height: 1px;
+  transform: translateX(-50%);
+}
+
+.orb-page .orb-page__eyebrow {
+  margin-bottom: 1rem;
+  font-size: 0.95rem;
+}
+
+.orb-page .orb-page__title {
+  font-size: clamp(4.2rem, 6.2vw, 7.2rem);
+}
+
+.orb-page .orb-page__description {
+  max-width: 54rem;
+  margin: 1.4rem auto 0;
+  font-size: clamp(1.3rem, 1.25vw, 1.55rem);
+}
+
+.orb-page .orb-page__principles {
+  justify-content: center;
+  margin-top: 1.4rem;
+}
+
+.orb-page:has(
+    .metabloom-chat__message-list > article:nth-of-type(2)
+  )
+  .orb-page__identity {
+  visibility: hidden;
+  opacity: 0;
+  transform: translate(-50%, -1.2rem);
+  transition-delay: 0s;
 }
 
 @media (max-width: 720px) {
-  .orb-page .metabloom-chat__interface {
-    padding:
-      max(8.6rem, calc(env(safe-area-inset-top) + 7.4rem))
-      0.8rem
-      max(0.8rem, env(safe-area-inset-bottom));
-  }
-
-  .orb-page .metabloom-chat__shell {
-    width: 100%;
-    height: 100%;
-    border-radius: var(--aetheris-radius-xl);
-    background:
-      linear-gradient(var(--aetheris-panel), var(--aetheris-panel)) padding-box,
-      var(--aetheris-spectral-border-soft) border-box;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-  }
-
   .orb-page .metabloom-chat__presence {
-    min-height: 5rem;
-    padding: 1rem 1.2rem;
+    top: max(7.6rem, calc(env(safe-area-inset-top) + 6.7rem));
+    min-height: 3.4rem;
+    padding: 0.55rem 0.9rem;
+    font-size: 0.78rem;
   }
 
   .orb-page .metabloom-chat__presence::after,
@@ -302,42 +548,182 @@
   }
 
   .orb-page .metabloom-chat__messages {
-    padding: 1.4rem 1rem 1rem;
+    padding:
+      max(10rem, calc(env(safe-area-inset-top) + 9rem))
+      max(1rem, env(safe-area-inset-right))
+      max(13rem, calc(env(safe-area-inset-bottom) + 12rem))
+      max(1rem, env(safe-area-inset-left));
+    scroll-padding-bottom: 13rem;
+  }
+
+  .orb-page .metabloom-chat__message-list {
+    gap: 1.4rem;
   }
 
   .orb-page .metabloom-chat__message {
-    width: min(94%, 58rem);
+    max-width: min(86vw, 54rem);
+  }
+
+  .orb-page .metabloom-chat__bubble {
+    padding: 1.15rem 1.25rem 1.15rem 1.5rem;
+  }
+
+  .orb-page .metabloom-chat__message--user .metabloom-chat__bubble {
+    padding: 1.15rem 1.25rem;
+  }
+
+  .orb-page .metabloom-chat__bubble > p {
+    font-size: 1.35rem;
+    line-height: 1.55;
   }
 
   .orb-page .metabloom-chat__composer-area {
-    padding: 0.8rem;
+    width: calc(100% - 1.6rem);
+  }
+
+  .orb-page
+    .metabloom-chat:has(
+      .metabloom-chat__message-list > article:nth-of-type(2)
+    )
+    .metabloom-chat__composer-area {
+    top: calc(100% - max(0.8rem, env(safe-area-inset-bottom)));
+  }
+
+  .orb-page .metabloom-chat__composer {
+    padding: 0.5rem 0.5rem 0.5rem 1.2rem;
+    border-radius: var(--aetheris-radius-xl);
+  }
+
+  .orb-page .metabloom-chat__composer textarea {
+    min-height: 4.8rem;
+    padding-top: 1.1rem;
+    font-size: 1.6rem;
+  }
+
+  .orb-page .metabloom-chat__composer button {
+    width: 4.8rem;
+    height: 4.8rem;
+    min-width: 4.8rem;
+    min-height: 4.8rem;
+    border-radius: var(--aetheris-radius-lg);
+  }
+
+  .orb-page .metabloom-chat__suggestions {
+    top: calc(50% + 5.6rem);
+    display: grid;
+    width: calc(100% - 2.4rem);
+    justify-items: center;
+    gap: 0.6rem;
+  }
+
+  .orb-page .metabloom-chat__suggestions button {
+    width: fit-content;
+    max-width: 100%;
+    min-height: 4.2rem;
+    padding: 0.7rem 1rem;
+    font-size: 1rem;
+    text-align: center;
+  }
+
+  .orb-page .orb-page__identity {
+    bottom: calc(50% + 5.8rem);
+    display: block;
+    width: calc(100% - 3.2rem);
+  }
+
+  .orb-page .orb-page__eyebrow {
+    margin-bottom: 0.7rem;
+    font-size: 0.82rem;
+  }
+
+  .orb-page .orb-page__title {
+    font-size: clamp(3.6rem, 12vw, 5rem);
+  }
+
+  .orb-page .orb-page__description {
+    max-width: 34rem;
+    margin-top: 0.9rem;
+    font-size: 1.2rem;
+    line-height: 1.45;
+  }
+
+  .orb-page .orb-page__principles {
+    display: none;
   }
 }
 
-@media (max-height: 650px) and (min-width: 721px) {
-  .orb-page .metabloom-chat__interface {
-    padding-top: 8.6rem;
-    padding-bottom: 1.2rem;
+@media (max-height: 650px) {
+  .orb-page .metabloom-chat__presence {
+    display: none;
   }
 
-  .orb-page .metabloom-chat__shell {
-    height: calc(100dvh - 9.8rem);
+  .orb-page .metabloom-chat__messages {
+    padding-top: max(8.2rem, calc(env(safe-area-inset-top) + 7.2rem));
+  }
+
+  .orb-page .metabloom-chat__composer-area {
+    top: 54%;
+  }
+
+  .orb-page
+    .metabloom-chat:has(
+      .metabloom-chat__message-list > article:nth-of-type(2)
+    )
+    .metabloom-chat__composer-area {
+    top: calc(100% - max(0.8rem, env(safe-area-inset-bottom)));
+  }
+
+  .orb-page .metabloom-chat__suggestions {
+    top: calc(54% + 5.4rem);
+  }
+
+  .orb-page .orb-page__identity {
+    bottom: calc(46% + 5.8rem);
+    display: block;
+  }
+
+  .orb-page .orb-page__description,
+  .orb-page .orb-page__principles {
+    display: none;
+  }
+
+  .orb-page .orb-page__title {
+    font-size: clamp(3.4rem, 8vw, 4.8rem);
   }
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  .orb-page .metabloom-chat__shell {
-    background:
-      linear-gradient(var(--aetheris-panel), var(--aetheris-panel)) padding-box,
-      var(--aetheris-spectral-border-soft) border-box;
+  .orb-page .metabloom-chat__presence,
+  .orb-page .metabloom-chat__bubble,
+  .orb-page .metabloom-chat__composer,
+  .orb-page .metabloom-chat__suggestions button {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
+  }
+
+  .orb-page .metabloom-chat__presence,
+  .orb-page .metabloom-chat__composer,
+  .orb-page .metabloom-chat__suggestions button {
+    background:
+      linear-gradient(
+        var(--aetheris-panel-raised),
+        var(--aetheris-panel-raised)
+      ) padding-box,
+      var(--aetheris-spectral-border-soft) border-box;
+  }
+
+  .orb-page .metabloom-chat__bubble {
+    background: var(--aetheris-panel-raised);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .orb-page .metabloom-chat__messages,
+  .orb-page .metabloom-chat__composer-area,
+  .orb-page .metabloom-chat__composer,
+  .orb-page .metabloom-chat__composer button,
   .orb-page .metabloom-chat__suggestions button,
-  .orb-page .metabloom-chat__composer button {
+  .orb-page .orb-page__identity {
     transition: none;
   }
 }
@@ -347,7 +733,6 @@
     display: none;
   }
 
-  .orb-page .metabloom-chat__shell,
   .orb-page .metabloom-chat__presence,
   .orb-page .metabloom-chat__bubble,
   .orb-page .metabloom-chat__suggestions button,
@@ -356,6 +741,12 @@
     border: 1px solid CanvasText;
     color: CanvasText;
     background: Canvas;
+    box-shadow: none;
+  }
+
+  .orb-page .metabloom-chat__message--assistant .metabloom-chat__bubble::before,
+  .orb-page .orb-page__identity::before {
+    background: Highlight;
     box-shadow: none;
   }
 
