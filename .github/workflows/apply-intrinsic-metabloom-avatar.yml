@@ -39,21 +39,33 @@ jobs:
           )
 
           content = target.read_text()
-          start_marker = "shader = replace_once(\n    shader,\n    '''    tintAccumulator += spectral("
-          end_marker = "    'shader chameleon lobe color',\n)"
-          start = content.find(start_marker)
-          end = content.find(end_marker, start)
-          if start < 0 or end < 0:
+          helper = (
+              "def replace_first(content, old, new, label):\n"
+              "    count = content.count(old)\n"
+              "    if count < 1:\n"
+              "        raise SystemExit(\n"
+              "            f'{label}: expected at least one match, found {count}'\n"
+              "        )\n"
+              "    return content.replace(old, new, 1)\n\n"
+          )
+          label_marker = "'shader chameleon lobe color',"
+          label_index = content.find(label_marker)
+          call_index = content.rfind(
+              "shader = replace_once(",
+              0,
+              label_index,
+          )
+          if label_index < 0 or call_index < 0:
               raise SystemExit(
-                  "Decoded patch did not contain the chameleon replacement boundary"
+                  "Decoded patch did not contain the chameleon replacement call"
               )
-          end += len(end_marker)
-          replacement = '''chameleon_old = \'\'\'    tintAccumulator += spectral(\\n      0.62 + layer * 0.137 + time * 0.012 + u_seed * 0.09\\n    ) * weight;\\n\'\'\'
-chameleon_new = \'\'\'    vec3 nativeLayerTint = spectral(\\n      0.62 + layer * 0.137 + time * 0.012 + u_seed * 0.09\\n    );\\n    float avatarLayerPhase = fract(\\n      layer * 0.183\\n        + time * 0.017\\n        + avatarPhase * 0.31\\n    );\\n    vec3 avatarLayerTint = avatarLayerPhase < 0.5\\n      ? mix(u_avatarColorA, u_avatarColorB, avatarLayerPhase * 2.0)\\n      : mix(\\n          u_avatarColorB,\\n          u_avatarColorC,\\n          (avatarLayerPhase - 0.5) * 2.0\\n        );\\n    float layerColorMix = avatarColorMix\\n      * (0.72 + 0.20 * sin(layer * 1.7 + time * 0.9));\\n    tintAccumulator += mix(\\n      nativeLayerTint,\\n      avatarLayerTint,\\n      sat(layerColorMix)\\n    ) * weight;\\n\'\'\'
-if shader.count(chameleon_old) < 1:
-    fail(\'shader chameleon lobe color: expected at least one match\')
-shader = shader.replace(chameleon_old, chameleon_new, 1)'''
-          target.write_text(content[:start] + replacement + content[end:])
+          content = (
+              helper
+              + content[:call_index]
+              + "shader = replace_first("
+              + content[call_index + len("shader = replace_once("):]
+          )
+          target.write_text(content)
           PY
 
       - name: Apply intrinsic shader architecture
