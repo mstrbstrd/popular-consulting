@@ -1,0 +1,133 @@
+/*
+ * Final presentation guardrails for the Orb route.
+ *
+ * These rules intentionally load after OrbPageExperience.css. They neutralize
+ * legacy global button defaults, keep the landing state visually quiet, and
+ * make narrow-screen controls geometrically bounded without changing chat or
+ * renderer behavior.
+ */
+
+.orb-page .metabloom-chat__presence {
+  transition:
+    opacity var(--aetheris-motion-medium) var(--aetheris-ease-standard),
+    transform var(--aetheris-motion-medium) var(--aetheris-ease-spring),
+    visibility 0s linear 0s;
+}
+
+.orb-page[data-conversation-started="false"]
+  .metabloom-chat__presence {
+  visibility: hidden;
+  opacity: 0;
+  transform: translate3d(-50%, -0.8rem, 0);
+  transition:
+    opacity var(--aetheris-motion-medium) var(--aetheris-ease-standard),
+    transform var(--aetheris-motion-medium) var(--aetheris-ease-spring),
+    visibility 0s linear var(--aetheris-motion-medium);
+}
+
+.orb-page[data-conversation-started="true"]
+  .metabloom-chat__presence {
+  visibility: visible;
+  opacity: 1;
+  transform: translate3d(-50%, 0, 0);
+}
+
+.orb-page .metabloom-chat__composer {
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.orb-page .metabloom-chat__composer textarea {
+  min-width: 0;
+}
+
+.orb-page .metabloom-chat__composer button {
+  display: grid;
+  width: 4.6rem;
+  height: 4.6rem;
+  min-width: 4.6rem;
+  min-height: 4.6rem;
+  flex: 0 0 4.6rem;
+  place-items: center;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  appearance: none;
+  -webkit-appearance: none;
+  line-height: 1;
+}
+
+.orb-page .metabloom-chat__composer button svg {
+  display: block;
+}
+
+@media (max-width: 720px) {
+  .orb-page .metabloom-chat__composer-area {
+    width: calc(100% - 2.4rem);
+    max-width: 48rem;
+  }
+
+  .orb-page .metabloom-chat__composer {
+    grid-template-columns: minmax(0, 1fr) 4.4rem;
+  }
+
+  .orb-page .metabloom-chat__composer button {
+    width: 4.4rem;
+    height: 4.4rem;
+    min-width: 4.4rem;
+    min-height: 4.4rem;
+    flex-basis: 4.4rem;
+  }
+
+  .orb-page .metabloom-chat__suggestions {
+    display: grid;
+    width: min(34rem, calc(100% - 2.4rem));
+    max-width: min(34rem, calc(100% - 2.4rem));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+  }
+
+  .orb-page .metabloom-chat__suggestions button {
+    width: 100%;
+    min-width: 0;
+    min-height: 4.4rem;
+    height: 100%;
+    padding: 0.7rem 0.9rem;
+    line-height: 1.35;
+  }
+
+  .orb-page .metabloom-chat__suggestions button:last-child {
+    width: min(16rem, 100%);
+    grid-column: 1 / -1;
+    justify-self: center;
+  }
+}
+
+@media (max-width: 420px) {
+  .orb-page .metabloom-chat__composer-area {
+    width: calc(100% - 2rem);
+    max-width: calc(100% - 2rem);
+  }
+
+  .orb-page .metabloom-chat__suggestions {
+    width: min(32rem, calc(100% - 2rem));
+    max-width: min(32rem, calc(100% - 2rem));
+  }
+}
+
+@media (max-width: 360px) {
+  .orb-page .metabloom-chat__suggestions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .orb-page .metabloom-chat__suggestions button:last-child {
+    width: 100%;
+    grid-column: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .orb-page .metabloom-chat__presence {
+    transition: none;
+  }
+}
