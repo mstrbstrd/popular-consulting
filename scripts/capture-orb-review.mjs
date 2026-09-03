@@ -9,6 +9,7 @@ const execFileAsync = promisify(execFile);
 const repositoryRoot = process.cwd();
 const buildRoot = path.join(repositoryRoot, "build");
 const outputRoot = path.join(repositoryRoot, "orb-review");
+const VIRTUAL_TIME_BUDGET_MS = 15000;
 
 const captureCases = Object.freeze([
   Object.freeze({ id: "orb-mobile", width: 390, height: 844 }),
@@ -92,8 +93,39 @@ const routeHtmlPath = (pathname) => {
 const countOccurrences = (source, value) =>
   source.split(value).length - 1;
 
-const assertOrbInterface = (captureCase, documentHtml) => {
+const buildCaptureUrl = (origin, captureCase) => {
+  const url = new URL("/orb", origin);
+  url.searchParams.set("graphics", "webgl");
+  url.searchParams.set("visual-runtime", "reference");
+  url.searchParams.set("visual-capture", "reference");
+  url.searchParams.set("capture-id", captureCase.id);
+  url.searchParams.set("capture-theme", "light");
+  url.searchParams.set("capture-section", "4");
+  url.searchParams.set("capture-time", "9");
+  url.searchParams.set("capture-expression", "happy");
+  url.searchParams.set("capture-expression-blend", "1");
+  url.searchParams.set("capture-settle-frames", "40");
+  url.searchParams.set("capture-frame-step", "50");
+  url.searchParams.set("capture-ready-timeout", "30000");
+  return url.toString();
+};
+
+const extractCaptureReport = (documentHtml) => {
+  const match = documentHtml.match(
+    /<script id="visual-capture-report" type="application\/json">([\s\S]*?)<\/script>/,
+  );
+  if (!match) {
+    throw new Error(
+      "The rendered document did not contain a visual capture report.",
+    );
+  }
+
+  return JSON.parse(match[1]);
+};
+
+const assertOrbInterface = (captureCase, documentHtml, report) => {
   const requiredContracts = [
+    ['data-visual-capture-ready="true"', "deterministic capture state"],
     ['data-avatar-material="creatoros-metabloom"', "faceless Metabloom avatar"],
     ['data-renderer-id="dither-canvas-field"', "CreatorOS Metabloom field"],
     ['data-avatar-faceless="true"', "faceless avatar invariant"],
@@ -113,6 +145,23 @@ const assertOrbInterface = (captureCase, documentHtml) => {
       throw new Error(`${captureCase.id}: the ${label} did not mount.`);
     }
   });
+
+  if (report.status !== "ready") {
+    throw new Error(
+      `${captureCase.id}: capture did not become ready: ${report.error || report.status}`,
+    );
+  }
+
+  const expectedRenderer = report.renderers?.find(
+    (renderer) =>
+      renderer.rendererId === report.expectedRenderer
+      && renderer.drawCalls > 0,
+  );
+  if (!expectedRenderer) {
+    throw new Error(
+      `${captureCase.id}: expected renderer ${report.expectedRenderer} did not draw.`,
+    );
+  }
 
   if (
     countOccurrences(documentHtml, 'data-renderer-id="dither-canvas-field"')
@@ -213,31 +262,31 @@ try {
       outputRoot,
       `${captureCase.id}.png`,
     );
-    const url = `${origin}/orb?graphics=webgl&visual-capture=orb-interface`;
+    const reportPath = path.join(
+      outputRoot,
+      `${captureCase.id}.json`,
+    );
+    const url = buildCaptureUrl(origin, captureCase);
 
     try {
       const result = await execFileAsync(
         edgePath,
         [
           "--headless=new",
-          "--enable-gpu",
           "--disable-background-networking",
           "--disable-component-update",
           "--disable-default-apps",
           "--disable-extensions",
           "--disable-sync",
-          "--enable-unsafe-swiftshader",
-          "--force-device-scale-factor=1",
-          "--force-prefers-reduced-motion",
           "--hide-scrollbars",
           "--metrics-recording-only",
           "--mute-audio",
           "--no-default-browser-check",
           "--no-first-run",
           "--run-all-compositor-stages-before-draw",
-          "--use-angle=swiftshader",
-          "--virtual-time-budget=6000",
+          "--force-device-scale-factor=1",
           `--window-size=${captureCase.width},${captureCase.height}`,
+          `--virtual-time-budget=${VIRTUAL_TIME_BUDGET_MS}`,
           `--user-data-dir=${profileDirectory}`,
           `--screenshot=${screenshotPath}`,
           "--dump-dom",
@@ -246,13 +295,25 @@ try {
         {
           encoding: "utf8",
           maxBuffer: 20 * 1024 * 1024,
-          timeout: 90000,
+          timeout: 180000,
           windowsHide: true,
         },
       );
 
       const documentHtml = result.stdout || "";
-      assertOrbInterface(captureCase, documentHtml);
+      const report = extractCaptureReport(documentHtml);
+      assertOrbInterface(captureCase, documentHtml, report);
+      fs.writeFileSync(
+        reportPath,
+        `${JSON.stringify({
+          id: captureCase.id,
+          viewport: {
+            width: captureCase.width,
+            height: captureCase.height,
+          },
+          report,
+        }, null, 2)}\n`,
+      );
 
       if (!fs.existsSync(screenshotPath)) {
         throw new Error(
