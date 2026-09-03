@@ -51,16 +51,7 @@ const createMetabloomMountId = () => {
   return `metabloom-${uniquePart}`;
 };
 
-const INITIAL_MESSAGES = Object.freeze([
-  Object.freeze({
-    id: "assistant-introduction",
-    role: "assistant",
-    content:
-      "Ask anything. I will answer here while the Metabloom field carries the emotional rhythm of the response.",
-    actionChain: Object.freeze([]),
-    source: "interface",
-  }),
-]);
+const INITIAL_MESSAGES = Object.freeze([]);
 
 const SUGGESTED_PROMPTS = Object.freeze([
   "How should this interface feel?",
@@ -144,7 +135,10 @@ const extractCorrelatedResponse = (detail) => {
   return null;
 };
 
-const OrbSection = ({ isActive = true }) => {
+const OrbSection = ({
+  isActive = true,
+  onConversationStateChange,
+}) => {
   const { isDark } = useThemeMode();
   const initialMessages = React.useMemo(
     () => INITIAL_MESSAGES.map((message) => ({ ...message, actionChain: [] })),
@@ -178,13 +172,14 @@ const OrbSection = ({ isActive = true }) => {
   const activeAction =
     resolveMetabloomAction(actionId) || getDefaultMetabloomAction();
   const legacyForm = ACTION_FORMS[activeAction.id] || "companion";
-  const hasUserMessage = messages.some((message) => message.role === "user");
+  const conversationStarted = messages.length > 0 || pending;
 
   messagesRef.current = messages;
   stateRef.current = {
     action: activeAction.id,
     actionVersion,
     colorway: activeAction.colorway,
+    conversationStarted,
     expression: activeAction.id,
     fieldState,
     form: legacyForm,
@@ -585,6 +580,10 @@ const OrbSection = ({ isActive = true }) => {
   }, [isActive, stop]);
 
   React.useEffect(() => {
+    onConversationStateChange?.(conversationStarted);
+  }, [conversationStarted, onConversationStateChange]);
+
+  React.useEffect(() => {
     const end = messagesEndRef.current;
     if (end && typeof end.scrollIntoView === "function") {
       end.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -704,6 +703,7 @@ const OrbSection = ({ isActive = true }) => {
       id="orb"
       className="metabloom-chat"
       aria-label="Metabloom model chat interface"
+      data-conversation-started={conversationStarted ? "true" : "false"}
       data-orb-action={activeAction.id}
       data-orb-action-version={actionVersion}
       data-orb-renderer="creatoros-metabloom"
@@ -771,7 +771,7 @@ const OrbSection = ({ isActive = true }) => {
                 </article>
               ))}
 
-              {!hasUserMessage && !pending && (
+              {!conversationStarted && (
                 <div
                   className="metabloom-chat__suggestions"
                   aria-label="Suggested messages"
@@ -839,7 +839,20 @@ const OrbSection = ({ isActive = true }) => {
                 disabled={pending || !draft.trim()}
                 aria-label="Send message"
               >
-                <span aria-hidden="true">↑</span>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  aria-hidden="true"
+                  focusable="false"
+                >
+                  <path
+                    d="M12 19V5M6.5 10.5 12 5l5.5 5.5"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
               </button>
             </form>
           </div>

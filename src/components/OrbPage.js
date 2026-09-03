@@ -8,6 +8,7 @@ import NavMenu from "./NavMenu";
 import OrbSection from "./OrbSection";
 import "./OrbPage.css";
 import "./OrbPageExperience.css";
+import "./OrbPageFinalPolish.css";
 
 const METADATA_SELECTORS = Object.freeze({
   description: 'meta[name="description"]',
@@ -21,6 +22,7 @@ const METADATA_SELECTORS = Object.freeze({
 });
 
 const OrbPageContent = () => {
+  const [conversationStarted, setConversationStarted] = React.useState(false);
   const [loading, setLoading] = React.useState(false);
   const [pageHidden, setPageHidden] = React.useState(false);
   const metadata = routeMetadata.orb;
@@ -118,6 +120,7 @@ const OrbPageContent = () => {
   return (
     <div
       className="orb-page standalone-experience--orb"
+      data-conversation-started={conversationStarted ? "true" : "false"}
       data-site-audience={SITE_AUDIENCES.BUSINESS}
     >
       <a className="skip-to-content orb-page__skip" href="#main-content">
@@ -135,17 +138,11 @@ const OrbPageContent = () => {
         <NavMenu audience={SITE_AUDIENCES.BUSINESS} />
 
         <div className="orb-page__identity" aria-hidden="true">
-          <span className="orb-page__eyebrow">Interactive interface study</span>
           <p className="orb-page__title">Metabloom</p>
           <p className="orb-page__description">
             A living field that translates response intent into motion, colour,
             and form.
           </p>
-          <div className="orb-page__principles">
-            <span>Intent</span>
-            <span>Motion</span>
-            <span>Colour</span>
-          </div>
         </div>
 
         <main
@@ -154,7 +151,10 @@ const OrbPageContent = () => {
           aria-label="Metabloom"
           tabIndex={-1}
         >
-          <OrbSection isActive />
+          <OrbSection
+            isActive
+            onConversationStateChange={setConversationStarted}
+          />
         </main>
       </div>
 
