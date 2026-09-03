@@ -176,6 +176,10 @@ describe("intrinsic Metabloom chat runtime invariants", () => {
     expect(orb).toContain('data-response-contract="response+actionChain"');
     expect(orb).not.toContain("<table>");
     expect(orb).not.toContain("orb-avatar-lab__stage");
+    expect(orb).not.toContain("Ready for model JSON");
+    expect(orb).not.toContain("Model output:");
+    expect(orb).not.toContain("metabloom-chat__action-chain");
+    expect(orb).not.toContain("metabloom-chat__composer-note");
 
     expect(orbCss).toContain(".metabloom-chat {");
     expect(orbCss).toContain("position: fixed;");

@@ -120,15 +120,17 @@ describe("OrbSection", () => {
     });
 
     expect(screen.getByText(/worth celebrating/i)).toBeInTheDocument();
-    expect(screen.getByText("Local contract preview")).toBeInTheDocument();
-    expect(screen.getByLabelText(/Action chain: excited, happy, agree, reform/i))
-      .toBeInTheDocument();
+    expect(screen.getByText("Preview response")).toBeInTheDocument();
     expect(mockAvatarProps.action).toBe("excited");
     expect(window.__orbMessages()).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           role: "assistant",
           content: expect.stringMatching(/worth celebrating/i),
+          actionChain: expect.arrayContaining([
+            expect.objectContaining({ action: "excited" }),
+            expect.objectContaining({ action: "reform" }),
+          ]),
         }),
       ]),
     );
@@ -253,7 +255,7 @@ describe("OrbSection", () => {
     expect(
       screen.getByText("The installed adapter supplied this response."),
     ).toBeInTheDocument();
-    expect(screen.queryByText("Local contract preview")).not.toBeInTheDocument();
+    expect(screen.queryByText("Preview response")).not.toBeInTheDocument();
   });
 
   test("preserves the bounded legacy action and sequence APIs", () => {

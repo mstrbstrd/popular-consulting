@@ -174,6 +174,11 @@ const assertOrbInterface = (captureCase, documentHtml, report) => {
     "orb-avatar-lab__stage",
     "orb-avatar-lab__controls",
     "orb-avatar-lab__table-wrap",
+    "metabloom-chat__action-chain",
+    "metabloom-chat__composer-note",
+    "Living Metabloom Lab",
+    "Ready for model JSON",
+    "Model output:",
   ].forEach((forbiddenClass) => {
     if (documentHtml.includes(forbiddenClass)) {
       throw new Error(

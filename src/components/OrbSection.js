@@ -579,15 +579,6 @@ const OrbSection = ({ isActive = true }) => {
         : talking
           ? "Speaking"
           : activeAction.label;
-  const sourceText =
-    responseSource === "preview"
-      ? "Local interface preview"
-      : responseSource === "model" || responseSource === "external"
-        ? "Model response"
-        : responseSource === "error"
-          ? "Response unavailable"
-          : "Ready for model JSON";
-
   return (
     <section
       id="orb"
@@ -627,9 +618,9 @@ const OrbSection = ({ isActive = true }) => {
             aria-live="polite"
           >
             <span className="metabloom-chat__presence-dot" aria-hidden="true" />
-            <span>{statusText}</span>
+            <span>Metabloom</span>
             <span aria-hidden="true">·</span>
-            <span>{sourceText}</span>
+            <span>{statusText}</span>
           </div>
 
           <div
@@ -651,27 +642,9 @@ const OrbSection = ({ isActive = true }) => {
                   </span>
                   <div className="metabloom-chat__bubble">
                     <p>{message.content}</p>
-                    {message.role === "assistant"
-                      && message.actionChain.length > 0 && (
-                        <div
-                          className="metabloom-chat__action-chain"
-                          aria-label={`Action chain: ${message.actionChain
-                            .map((step) => step.action)
-                            .join(", ")}`}
-                        >
-                          {message.actionChain.map((step, index) => (
-                            <React.Fragment
-                              key={`${message.id}-${step.action}-${index}`}
-                            >
-                              {index > 0 && <span aria-hidden="true">→</span>}
-                              <span>{step.action}</span>
-                            </React.Fragment>
-                          ))}
-                        </div>
-                      )}
                     {message.source === "preview" && (
                       <span className="metabloom-chat__preview-label">
-                        Local contract preview
+                        Preview response
                       </span>
                     )}
                   </div>
@@ -749,16 +722,6 @@ const OrbSection = ({ isActive = true }) => {
                 <span aria-hidden="true">↑</span>
               </button>
             </form>
-            <div className="metabloom-chat__composer-note">
-              <span>
-                Model output: <code>response</code> + <code>actionChain</code>
-              </span>
-              {draft.length > MAX_USER_MESSAGE_CHARS * 0.75 && (
-                <span>
-                  {draft.length}/{MAX_USER_MESSAGE_CHARS}
-                </span>
-              )}
-            </div>
           </div>
         </div>
       </div>
