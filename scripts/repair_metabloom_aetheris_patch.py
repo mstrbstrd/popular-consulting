@@ -14,7 +14,7 @@ if content.count(marker_old) != 1:
         f"found {content.count(marker_old)}"
     )
 
-post_apply = r'''
+post_apply = r"""
 
 replace_once(
     "src/components/MetabloomAvatar.css",
@@ -45,7 +45,7 @@ replace_once(
     expect(orb).toContain('viewBox="0 0 24 24"');''',
     "multiline send icon contract",
 )
-'''
+"""
 
 if "explicit full-screen Metabloom field size invariant" in content:
     raise SystemExit("Generated UI repair was already appended")
