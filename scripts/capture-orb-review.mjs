@@ -90,9 +90,6 @@ const routeHtmlPath = (pathname) => {
     : path.join(buildRoot, "index.html");
 };
 
-const countOccurrences = (source, value) =>
-  source.split(value).length - 1;
-
 const buildCaptureUrl = (origin, captureCase) => {
   const url = new URL("/orb", origin);
   url.searchParams.set("graphics", "webgl");
@@ -116,6 +113,11 @@ const readOptionalCaptureReport = (documentHtml) => {
   );
   return match ? JSON.parse(match[1]) : null;
 };
+
+const readFieldCanvases = (documentHtml) =>
+  documentHtml.match(
+    /<canvas\b(?=[^>]*\bdata-renderer-id="dither-canvas-field")[^>]*>/gi,
+  ) || [];
 
 const assertOrbInterface = (captureCase, documentHtml, report) => {
   const requiredContracts = [
@@ -158,12 +160,10 @@ const assertOrbInterface = (captureCase, documentHtml, report) => {
     }
   }
 
-  if (
-    countOccurrences(documentHtml, 'data-renderer-id="dither-canvas-field"')
-    !== 1
-  ) {
+  const fieldCanvases = readFieldCanvases(documentHtml);
+  if (fieldCanvases.length !== 1) {
     throw new Error(
-      `${captureCase.id}: expected exactly one CreatorOS field renderer.`,
+      `${captureCase.id}: expected exactly one CreatorOS field canvas, found ${fieldCanvases.length}.`,
     );
   }
 
