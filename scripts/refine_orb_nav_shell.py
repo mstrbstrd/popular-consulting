@@ -93,11 +93,14 @@ write(site_path, site)
 
 standalone_path = "src/components/StandaloneExperiencePage.js"
 standalone = read(standalone_path)
-standalone = replace_once(
-    standalone,
-    "          color: var(--experience-nav-text);\n",
+legacy_text_token = "          color: var(--experience-nav-text);\n"
+if standalone.count(legacy_text_token) != 2:
+    raise SystemExit(
+        "standalone inherited text token: expected exactly two matches"
+    )
+standalone = standalone.replace(
+    legacy_text_token,
     "          color: var(--aetheris-ink);\n",
-    "standalone inherited text token",
 )
 standalone = replace_once(
     standalone,
