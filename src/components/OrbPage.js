@@ -148,10 +148,33 @@ const OrbPageContent = () => {
       data-page="orb"
       data-site-audience={SITE_AUDIENCES.BUSINESS}
     >
-      <a
-        className="standalone-experience__skip orb-page__skip"
-        href="#orb-main"
-      >
+      <style>{`
+        .orb-page__skip {
+          position: fixed;
+          top: max(0px, env(safe-area-inset-top));
+          left: 50%;
+          z-index: 20000;
+          min-height: 44px;
+          padding: 1rem 1.6rem;
+          border-radius: 0 0 var(--aetheris-radius-md) var(--aetheris-radius-md);
+          background: #6344f5;
+          color: #ffffff;
+          font-family: var(--aetheris-font-sans);
+          font-size: 1.3rem;
+          font-weight: 650;
+          text-decoration: none;
+          transform: translate(-50%, calc(-100% - 1rem));
+          transition: transform var(--aetheris-motion-fast) var(--aetheris-ease-standard);
+        }
+
+        .orb-page__skip:focus {
+          outline: 2px solid #ffffff;
+          outline-offset: -4px;
+          transform: translate(-50%, 0);
+        }
+      `}</style>
+
+      <a className="orb-page__skip" href="#orb-main">
         Skip to Metabloom
       </a>
 
