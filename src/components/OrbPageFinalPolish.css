@@ -70,8 +70,16 @@
   border-color: transparent;
   background:
     linear-gradient(
-      var(--aetheris-state-layer),
-      var(--aetheris-state-layer)
+      color-mix(
+        in srgb,
+        var(--aetheris-glass-panel-raised) 90%,
+        transparent
+      ),
+      color-mix(
+        in srgb,
+        var(--aetheris-glass-panel-raised) 90%,
+        transparent
+      )
     ) padding-box,
     var(--aetheris-spectral-border-soft) border-box;
   line-height: 1;
@@ -79,6 +87,25 @@
 
 .orb-page .metabloom-chat__composer button:disabled {
   opacity: 1;
+}
+
+.orb-page .metabloom-chat__composer button:not(:disabled) {
+  color: var(--aetheris-ink);
+  background:
+    linear-gradient(
+      color-mix(
+        in srgb,
+        var(--aetheris-glass-panel-raised) 96%,
+        transparent
+      ),
+      color-mix(
+        in srgb,
+        var(--aetheris-glass-panel-raised) 96%,
+        transparent
+      )
+    ) padding-box,
+    var(--aetheris-spectral) border-box;
+  box-shadow: 0 0 18px var(--aetheris-spectral-glow);
 }
 
 .orb-page .metabloom-chat__composer button svg {
@@ -109,9 +136,9 @@
 }
 
 .orb-page .metabloom-chat__composer button:disabled::after {
-  opacity: 0.62;
+  opacity: 0.72;
   filter: drop-shadow(
-    0 0 3px var(--spectral-icon-glow, var(--aetheris-spectral-glow))
+    0 0 4px var(--spectral-icon-glow, var(--aetheris-spectral-glow))
   );
 }
 
@@ -136,8 +163,16 @@
   border: 1px solid transparent;
   background:
     linear-gradient(
-      color-mix(in srgb, var(--aetheris-glass-panel) 68%, transparent),
-      color-mix(in srgb, var(--aetheris-glass-panel) 68%, transparent)
+      color-mix(
+        in srgb,
+        var(--aetheris-glass-panel-raised) 88%,
+        transparent
+      ),
+      color-mix(
+        in srgb,
+        var(--aetheris-glass-panel-raised) 88%,
+        transparent
+      )
     ) padding-box,
     var(--aetheris-spectral-border-soft) border-box;
 }
@@ -149,12 +184,12 @@
       linear-gradient(
         color-mix(
           in srgb,
-          var(--metabloom-chat-control-hover) 84%,
+          var(--metabloom-chat-control-hover) 94%,
           transparent
         ),
         color-mix(
           in srgb,
-          var(--metabloom-chat-control-hover) 84%,
+          var(--metabloom-chat-control-hover) 94%,
           transparent
         )
       ) padding-box,
@@ -168,12 +203,12 @@
     linear-gradient(
       color-mix(
         in srgb,
-        var(--metabloom-chat-control-hover) 88%,
+        var(--metabloom-chat-control-hover) 96%,
         transparent
       ),
       color-mix(
         in srgb,
-        var(--metabloom-chat-control-hover) 88%,
+        var(--metabloom-chat-control-hover) 96%,
         transparent
       )
     ) padding-box,
@@ -260,6 +295,8 @@
       var(--aetheris-spectral-border-soft) border-box;
   }
 
+  .orb-page .metabloom-chat__composer button,
+  .orb-page .metabloom-chat__composer button:not(:disabled),
   .orb-page .metabloom-chat__suggestions button {
     background:
       linear-gradient(
@@ -284,6 +321,7 @@
 
 @media (forced-colors: active) {
   .orb-page .metabloom-chat__composer,
+  .orb-page .metabloom-chat__composer button,
   .orb-page .metabloom-chat__suggestions button {
     border: 1px solid CanvasText;
     background: Canvas;
