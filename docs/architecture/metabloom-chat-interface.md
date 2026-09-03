@@ -92,14 +92,14 @@ window.__orbResponseSchema
 A host application may install a request adapter before or after `/orb` mounts:
 
 ```js
-window.__metabloomRequest = async ({ message, history }) => {
+window.__metabloomRequest = async ({ requestId, message, history }) => {
   const response = await fetch("/api/metabloom/respond", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
     credentials: "same-origin",
-    body: JSON.stringify({ message, history }),
+    body: JSON.stringify({ requestId, message, history }),
   });
 
   if (!response.ok) {
@@ -109,6 +109,8 @@ window.__metabloomRequest = async ({ message, history }) => {
   return response.json();
 };
 ```
+
+`requestId` is browser transport metadata used to correlate the active request. The adapter's returned model payload must still contain only `response` and `actionChain`.
 
 The browser must not contain provider API keys or long-lived credentials. The adapter should call a same-origin authenticated server endpoint that owns provider credentials, request limits, moderation, logging policy, and timeout behavior.
 
@@ -152,7 +154,7 @@ window.addEventListener("metabloom:user-message", async (event) => {
 });
 ```
 
-Calling `event.preventDefault()` is also treated as a synchronous claim. A responder may use `event.detail.respond(payload)` instead of dispatching the response event. Correlated responses with stale or unknown request ids are ignored, and an observer that does not claim cannot append a second answer after the local preview wins.
+Calling `event.preventDefault()` is also treated as a synchronous claim. A responder may use `event.detail.respond(payload)` instead of dispatching the response event. Correlated responses with stale or unknown request ids are ignored, and an observer that does not claim cannot append a second answer after the local preview wins. Request ids contain a unique component-mount identity, so a response created before leaving `/orb` cannot be accepted after the interface mounts again.
 
 The model payload itself still contains exactly `response` and `actionChain`; `requestId` belongs only to the browser transport envelope.
 
@@ -211,7 +213,7 @@ The preview passes through the same parser as an external model response. It doe
 - User messages are limited to 1,600 characters.
 - The visible transcript is bounded to 24 messages.
 - Model history is bounded to the latest 12 messages.
-- Only one model request is considered current. Every event response is correlated to that request id.
+- Only one model request is considered current. Every event response is correlated to a request id that is unique to both the component mount and the request sequence.
 - Event integrations must claim synchronously before asynchronous work, so the local preview cannot race a connected responder.
 - Pending preview timers and action timers are cleared during reset and unmount.
 - The shared renderer continues to own reduced motion, hidden-tab suspension, local WebGL context recovery, and GPU cleanup.
