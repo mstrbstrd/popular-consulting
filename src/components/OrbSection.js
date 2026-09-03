@@ -353,7 +353,7 @@ const OrbSection = ({ isActive = true }) => {
     <section
       id="orb"
       className="orb-avatar-lab"
-      aria-label="Interactive faceless Metabloom avatar lab"
+      aria-label="Interactive Orb faceless Metabloom avatar lab"
       data-orb-action={activeAction.id}
       data-orb-action-version={actionVersion}
       data-orb-renderer="creatoros-metabloom"
@@ -440,7 +440,7 @@ const OrbSection = ({ isActive = true }) => {
           </div>
         </div>
 
-        <aside className="orb-avatar-lab__language" aria-labelledby="action-language-title">
+        <div className="orb-avatar-lab__language" aria-labelledby="action-language-title">
           <div className="orb-avatar-lab__language-heading">
             <p>Expression vocabulary</p>
             <h2 id="action-language-title">Action language</h2>
@@ -450,7 +450,11 @@ const OrbSection = ({ isActive = true }) => {
             </span>
           </div>
 
-          <div className="orb-avatar-lab__table-wrap">
+          <div
+            className="orb-avatar-lab__table-wrap"
+            role="group"
+            aria-label="Orb emotions"
+          >
             <table>
               <caption className="orb-avatar-lab__sr-only">
                 Metabloom avatar actions, motions, colorways, and meanings
@@ -496,7 +500,7 @@ const OrbSection = ({ isActive = true }) => {
               </tbody>
             </table>
           </div>
-        </aside>
+        </div>
       </div>
     </section>
   );
