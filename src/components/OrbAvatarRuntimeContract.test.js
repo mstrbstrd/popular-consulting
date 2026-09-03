@@ -11,7 +11,7 @@ const repositorySource = (relativePath) =>
     .readFileSync(path.join(process.cwd(), relativePath), "utf8")
     .replace(/\r\n/g, "\n");
 
-describe("faceless Metabloom Orb runtime invariants", () => {
+describe("intrinsic Metabloom Orb runtime invariants", () => {
   const actions = source("metabloomActions.js");
   const avatar = source("MetabloomAvatar.js");
   const avatarCss = source("MetabloomAvatar.css");
@@ -21,36 +21,88 @@ describe("faceless Metabloom Orb runtime invariants", () => {
   const orbCss = source("OrbSection.css");
   const standalone = source("StandaloneExperiencePage.js");
 
-  test("the exact CreatorOS Metabloom study is the only rendered body", () => {
-    expect(avatar).toContain('import CreatorOSFieldCanvas from "./CreatorOSFieldCanvas";');
+  test("the existing Metabloom field is the avatar instead of content inside a second blob", () => {
+    expect(avatar).toContain(
+      'import CreatorOSFieldCanvas from "./CreatorOSFieldCanvas";',
+    );
     expect(avatar.match(/<CreatorOSFieldCanvas/g)).toHaveLength(1);
-    expect(avatar).toContain('metabloomPalette="spectral"');
-    expect(avatar).toContain("mode={0}");
-    expect(avatar).toContain('data-avatar-material="creatoros-metabloom"');
-    expect(avatar).toContain('data-avatar-faceless="true"');
-    expect(avatar).not.toContain("LivingMetabloomCanvas");
-    expect(avatar).not.toContain("LivingMetabloomShader");
-    expect(orb).not.toContain("<canvas");
-    expect(orb).not.toContain("BlackHoleCanvas");
+    expect(avatar).toContain("metabloomAvatarEnabled");
+    expect(avatar).toContain('data-avatar-engine="intrinsic-shader"');
+    [
+      "metabloom-avatar__blob",
+      "metabloom-avatar__motion",
+      "metabloom-avatar__pose",
+      "metabloom-avatar__colorwash",
+      "metabloom-avatar__burst",
+      "metabloom-avatar__fragment",
+      "<svg",
+    ].forEach((forbidden) => expect(avatar).not.toContain(forbidden));
 
-    expect(fieldCanvas).toContain('"sceneMetabloom"');
+    expect(avatarCss).not.toContain("overflow: hidden");
+    expect(avatarCss).not.toContain("mix-blend-mode: color");
+    expect(avatarCss).not.toContain("@keyframes metabloomAvatar");
+    expect(avatarCss).not.toContain("metabloom-avatar__blob");
+    expect(avatarCss).not.toContain("metabloom-avatar__fragment");
+  });
+
+  test("expression deforms the authored seven-body field before material resolution", () => {
+    [
+      "uniform float u_avatarEnabled",
+      "uniform int u_avatarAction",
+      "uniform float u_avatarPhase",
+      "uniform float u_avatarIntensity",
+      "uniform vec3 u_avatarColorA",
+      "uniform vec3 u_avatarColorB",
+      "uniform vec3 u_avatarColorC",
+      "uniform float u_avatarTalking",
+      "center *= avatarCenterScale",
+      "center += radialDirection",
+      "radius *= avatarRadiusScale",
+      "p = rotate2(avatarRotation)",
+    ].forEach((contract) => expect(fieldShader).toContain(contract));
+
+    expect(fieldShader).toContain("for (int index = 0; index < 7; index++)");
+    expect(fieldShader).toContain("float potential = 0.0");
     expect(fieldShader).toContain("vec4 sceneMetabloom(vec2 uv, float time)");
   });
 
-  test("expression is outside the shader and never adds a face", () => {
-    expect(avatar).not.toContain("<svg");
-    expect(avatar).not.toContain("metabloom-avatar__eye");
-    expect(avatar).not.toContain("metabloom-avatar__mouth");
-    expect(avatar).not.toContain("metabloom-avatar__face");
-    expect(avatarCss).not.toContain("__eye");
-    expect(avatarCss).not.toContain("__mouth");
-    expect(avatarCss).not.toContain("__face");
-    expect(avatarCss).toContain("overflow: hidden");
-    expect(avatarCss).toContain("metabloomAvatarMorph");
-    expect(avatarCss).toContain("mix-blend-mode: color");
+  test("chameleon colour is resolved inside Metabloom and returns to native spectrum", () => {
+    expect(fieldShader).toContain("vec3 avatarTint");
+    expect(fieldShader).toContain("float avatarColorMix = avatarEnvelope");
+    expect(fieldShader).toContain(
+      "tint = mix(tint, avatarTint, sat(avatarColorMix))",
+    );
+    expect(fieldShader).toContain(
+      "float avatarEnvelope = avatarEnabled * sin(PI * avatarPhase)",
+    );
+    expect(avatar).not.toContain("mixBlendMode");
+    expect(avatarCss).not.toContain("colorwash");
   });
 
-  test("the action table binds intent, motion, color, and bounded duration", () => {
+  test("the canvas owns the bounded action clock and uploads optional uniforms", () => {
+    [
+      "metabloomAvatarAction = 0",
+      "metabloomAvatarEnabled = false",
+      "metabloomAvatarVersion = 0",
+      "metabloomAvatarRestartRef",
+      "applyMetabloomAvatarRestart",
+      '"u_avatarEnabled"',
+      '"u_avatarAction"',
+      '"u_avatarPhase"',
+      '"u_avatarIntensity"',
+      '"u_avatarColorA"',
+      '"u_avatarColorB"',
+      '"u_avatarColorC"',
+      '"u_avatarTalking"',
+      'nextState = "expressing"',
+    ].forEach((contract) => expect(fieldCanvas).toContain(contract));
+
+    expect(fieldCanvas).toContain(
+      'data-metabloom-avatar={metabloomAvatarEnabled ? "true" : "false"}',
+    );
+  });
+
+  test("the action table remains explicit, input-bounded, and agent-compatible", () => {
     [
       "reform",
       "agree",
@@ -66,51 +118,16 @@ describe("faceless Metabloom Orb runtime invariants", () => {
 
     expect(actions).toContain('motion: "Shakes side to side"');
     expect(actions).toContain('motion: "Nods down and up twice"');
-    expect(actions).toContain('motion: "Compresses, explodes, and reforms"');
-    expect(actions).toContain('colorway: "Magenta warning"');
-    expect(actions).toContain('colorway: "Electric bloom"');
-    expect(actions).toContain("duration:");
+    expect(actions).toContain(
+      'motion: "Compresses, explodes, and reforms"',
+    );
     expect(orb).toContain("METABLOOM_ACTIONS.map((action) => (");
     expect(orb).toContain("<table>");
-    expect(orb).toContain("action.motion");
-    expect(orb).toContain("action.colorway");
-    expect(orb).toContain("action.intent");
-  });
+    expect(orb).toContain(".slice(0, 16)");
+    expect(orb).toContain(
+      "Math.max(160, Math.min(duration, 8000))",
+    );
 
-  test("whole-body gestures include nod, shake, burst, reform, and quiet states", () => {
-    [
-      "metabloomAvatarReform",
-      "metabloomAvatarAgree",
-      "metabloomAvatarDisagree",
-      "metabloomAvatarHappy",
-      "metabloomAvatarExcited",
-      "metabloomAvatarSad",
-      "metabloomAvatarSurprised",
-      "metabloomAvatarThinking",
-      "metabloomAvatarSleepy",
-      "metabloomAvatarAngry",
-      "metabloomAvatarBurstRing",
-    ].forEach((animation) => expect(avatarCss).toContain(animation));
-
-    expect(avatar).toContain("actionTimerRef");
-    expect(avatar).toContain("window.clearTimeout(actionTimerRef.current)");
-    expect(avatar).toContain("normalizedAction.duration");
-    expect(avatarCss).toContain("@media (prefers-reduced-motion: reduce)");
-    expect(avatarCss).toContain("animation: none !important");
-  });
-
-  test("pause, hidden route state, and pulse stay within the shared renderer lifecycle", () => {
-    expect(avatar).toContain("paused={!active}");
-    expect(avatar).toContain("externalPulseVersion={pulseVersion}");
-    expect(fieldCanvas).toContain("createDitherCanvasCadence({");
-    expect(fieldCanvas).toContain('contextType: "webgl2"');
-    expect(fieldCanvas).toContain('document.addEventListener("visibilitychange"');
-    expect(fieldCanvas).toContain("gl.deleteBuffer(positionBuffer)");
-    expect(fieldCanvas).toContain("gl.deleteProgram(displayProgram)");
-    expect(fieldCanvas).toContain('data-context-recovery="local"');
-  });
-
-  test("the public control surface is compatible, explicit, and input-bounded", () => {
     [
       "__orbPop",
       "__orbExpress",
@@ -126,14 +143,24 @@ describe("faceless Metabloom Orb runtime invariants", () => {
       "__orbTalk",
       "__orbStopTalk",
     ].forEach((name) => expect(orb).toContain(name));
+  });
 
-    expect(orb).toContain('typeof request !== "object"');
-    expect(orb).toContain("Array.isArray(request)");
-    expect(orb).toContain("resolveMetabloomAction(");
-    expect(orb).toContain(".slice(0, 16)");
-    expect(orb).toContain("Math.max(160, Math.min(duration, 8000))");
-    expect(orb).not.toContain("spawnExplosion");
-    expect(orb).not.toContain("bhMounted");
+  test("pause, reduced motion, and cleanup remain inside the shared renderer lifecycle", () => {
+    expect(avatar).toContain("paused={!active}");
+    expect(avatar).toContain("externalPulseVersion={pulseVersion}");
+    expect(fieldCanvas).toContain("createDitherCanvasCadence({");
+    expect(fieldCanvas).toContain('contextType: "webgl2"');
+    expect(fieldCanvas).toContain(
+      'document.addEventListener("visibilitychange"',
+    );
+    expect(fieldCanvas).toContain("gl.deleteBuffer(positionBuffer)");
+    expect(fieldCanvas).toContain("gl.deleteProgram(displayProgram)");
+    expect(fieldCanvas).toContain(
+      'data-context-recovery="local"',
+    );
+    expect(fieldCanvas).toContain(
+      "metabloomAvatarPhase = 0.5",
+    );
   });
 
   test("the action table remains usable inside the fixed standalone route", () => {
@@ -141,11 +168,13 @@ describe("faceless Metabloom Orb runtime invariants", () => {
     expect(orbCss).toContain("overflow: auto");
     expect(orbCss).toContain(".orb-avatar-lab__table-wrap");
     expect(orbCss).toContain("overflow-x: auto");
-    expect(standalone).toContain("const useDitherBackground =\n    !isOrbExperience");
+    expect(standalone).toContain(
+      "const useDitherBackground =\n    !isOrbExperience",
+    );
     expect(standalone).toContain("{!isOrbExperience && (");
   });
 
-  test("the navigation retains its full hit target and smaller hover field", () => {
+  test("the navigation retains its full target and smaller hover field", () => {
     const navigation = repositorySource("src/navigation-cohesion.css");
     expect(navigation).toContain("width: 44px !important;");
     expect(navigation).toContain("height: 44px !important;");

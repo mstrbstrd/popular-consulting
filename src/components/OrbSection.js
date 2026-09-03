@@ -364,9 +364,9 @@ const OrbSection = ({ isActive = true }) => {
             <p className="orb-avatar-lab__eyebrow">The theme is the body</p>
             <h1>Metabloom, embodied</h1>
             <p>
-              The original Metabloom field remains visually intact. It becomes
-              a faceless avatar through whole-body gesture and bounded
-              chameleon colorways, never eyes, a mouth, or a costume.
+              The original Metabloom field is the avatar. Every response
+              changes its own seven metaballs, membrane, and spectral material
+              before the dithered image is rendered.
             </p>
             <span
               className="orb-avatar-lab__status"

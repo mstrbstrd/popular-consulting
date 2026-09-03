@@ -209,6 +209,27 @@ try {
           `${captureCase.id}: the faceless avatar invariant was not present.`,
         );
       }
+      if (!documentHtml.includes('data-avatar-engine="intrinsic-shader"')) {
+        throw new Error(
+          `${captureCase.id}: the intrinsic shader engine was not present.`,
+        );
+      }
+      if (!documentHtml.includes('data-metabloom-avatar="true"')) {
+        throw new Error(
+          `${captureCase.id}: the shared field did not enable avatar uniforms.`,
+        );
+      }
+      [
+        "metabloom-avatar__blob",
+        "metabloom-avatar__colorwash",
+        "metabloom-avatar__fragment",
+      ].forEach((forbiddenClass) => {
+        if (documentHtml.includes(forbiddenClass)) {
+          throw new Error(
+            `${captureCase.id}: ${forbiddenClass} reintroduced an external avatar layer.`,
+          );
+        }
+      });
       if (!fs.existsSync(screenshotPath)) {
         throw new Error(
           `${captureCase.id}: Edge did not create a screenshot.`,
