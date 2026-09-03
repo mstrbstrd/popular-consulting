@@ -133,6 +133,9 @@ const assertOrbInterface = (captureCase, documentHtml, report) => {
     ['aria-label="Conversation"', "conversation label"],
     ['id="metabloom-message"', "message composer"],
     ['aria-label="Send message"', "send control"],
+    ['class="standalone-experience__nav-pill nav-pill"', "shared navigation pill"],
+    ['class="standalone-experience__brand nav-brand"', "shared navigation brand"],
+    ['class="standalone-experience__theme nav-theme-toggle"', "shared theme control"],
   ];
 
   requiredContracts.forEach(([token, label]) => {

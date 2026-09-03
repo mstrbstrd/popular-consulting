@@ -1,4 +1,5 @@
 import React, { lazy, Suspense } from "react";
+import logo from "../assets/icons/logo2026_128.png";
 import ManagedDitherBackground from "./ManagedDitherBackground";
 import { ThemeProvider, useThemeMode } from "../contexts/ThemeContext";
 import { hasHardwareWebGL } from "../utils/deviceTier";
@@ -158,16 +159,7 @@ const ExperienceContent = ({ experience }) => {
     <div
       className={`standalone-experience standalone-experience--${experience}`}
       style={{
-        "--experience-page-bg": isDark ? "#0b0b18" : "#ffffff",
-        "--experience-nav-bg": isDark
-          ? "rgba(6, 6, 16, 0.84)"
-          : "rgba(255, 255, 255, 0.72)",
-        "--experience-nav-text": isDark
-          ? "rgba(235, 235, 252, 0.9)"
-          : "rgba(20, 20, 34, 0.84)",
-        "--experience-nav-muted": isDark
-          ? "rgba(225, 225, 245, 0.58)"
-          : "rgba(20, 20, 34, 0.55)",
+        "--experience-page-bg": "var(--aetheris-panel)",
       }}
     >
       <a className="standalone-experience__skip" href="#experience-main">
@@ -221,20 +213,77 @@ const ExperienceContent = ({ experience }) => {
         </div>
 
         <header className="standalone-experience__header">
-          <a href="/" aria-label="Return to Popular Consulting home">
-            <span aria-hidden="true">←</span>
-            Popular Consulting
-          </a>
-          <span className="standalone-experience__header-label">
-            {config.label}
-          </span>
-          <button
-            type="button"
-            onClick={toggleTheme}
-            aria-label={isDark ? "Use light theme" : "Use dark theme"}
+          <nav
+            className="standalone-experience__nav-pill nav-pill"
+            aria-label={`${config.label} navigation`}
           >
-            {isDark ? "Light" : "Dark"}
-          </button>
+            <a
+              href="/"
+              className="standalone-experience__brand nav-brand"
+              aria-label="Return to Popular Consulting home"
+            >
+              <img
+                src={logo}
+                alt=""
+                aria-hidden="true"
+                className="standalone-experience__brand-logo nav-logo"
+              />
+              <span className="standalone-experience__brand-name nav-brand-name">
+                Popular Consulting
+              </span>
+            </a>
+
+            <span
+              className="standalone-experience__nav-rule nav-rule"
+              aria-hidden="true"
+            />
+
+            <span
+              className="standalone-experience__header-label"
+              aria-current="page"
+            >
+              <span>{config.label}</span>
+              <span
+                className="standalone-experience__route-dot nav-dot"
+                aria-hidden="true"
+              />
+            </span>
+
+            <button
+              type="button"
+              className="standalone-experience__theme nav-theme-toggle"
+              onClick={toggleTheme}
+              aria-label={isDark ? "Use light theme" : "Use dark theme"}
+            >
+              {isDark ? (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                  <circle
+                    cx="12"
+                    cy="12"
+                    r="4"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                  />
+                  <path
+                    d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              )}
+            </button>
+          </nav>
         </header>
 
         <main
@@ -415,54 +464,112 @@ const ExperienceContent = ({ experience }) => {
 
         .standalone-experience__header {
           position: fixed;
-          top: max(1.6rem, env(safe-area-inset-top));
-          left: max(1.6rem, env(safe-area-inset-left));
-          right: max(1.6rem, env(safe-area-inset-right));
+          top: 0;
+          right: 0;
+          left: 0;
           z-index: 50;
-          display: grid;
-          grid-template-columns: 1fr auto 1fr;
+          display: flex;
+          justify-content: center;
+          padding:
+            max(2rem, env(safe-area-inset-top))
+            max(2.4rem, env(safe-area-inset-right))
+            0
+            max(2.4rem, env(safe-area-inset-left));
+          pointer-events: none;
+        }
+
+        .standalone-experience__header::after {
+          display: none !important;
+        }
+
+        .standalone-experience__nav-pill {
+          pointer-events: auto;
+          display: flex;
+          width: max-content;
+          max-width: 100%;
           align-items: center;
-          gap: 1.6rem;
+          gap: 0;
+          min-height: 0;
+          padding: 0.75rem 0.75rem 0.75rem 1.6rem;
+          border-radius: var(--aetheris-radius-pill);
+        }
+
+        .standalone-experience__brand {
+          display: flex;
+          min-width: 0;
           min-height: 4.4rem;
-          padding: 0.6rem 1rem;
-          border: 1px solid rgba(255,255,255,0.18);
-          border-radius: 999px;
-          background: var(--experience-nav-bg);
-          backdrop-filter: blur(18px) saturate(140%);
-          -webkit-backdrop-filter: blur(18px) saturate(140%);
-        }
-
-        .standalone-experience__header a,
-        .standalone-experience__header button {
-          min-height: 44px;
-          border: 0;
-          background: transparent;
-          color: var(--experience-nav-text);
-          font: inherit;
-          font-size: 1.3rem;
-          font-weight: 700;
-          text-decoration: none;
-          cursor: pointer;
-        }
-
-        .standalone-experience__header a {
-          display: inline-flex;
           align-items: center;
-          gap: 0.7rem;
+          gap: 1rem;
+          flex-shrink: 1;
+          margin-left: -1.1rem;
+          padding: 0.55rem 1.1rem;
+          border: 0;
+          color: var(--aetheris-ink);
+          background: transparent;
+          text-decoration: none;
         }
 
-        .standalone-experience__header button {
-          justify-self: end;
-          padding: 0 1.2rem;
+        .standalone-experience__brand-logo {
+          width: 26px;
+          height: 26px;
+          flex: 0 0 auto;
+          object-fit: contain;
+        }
+
+        .standalone-experience__brand-name {
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .standalone-experience__nav-rule {
+          width: 1px;
+          height: 1.8rem;
+          flex: 0 0 auto;
+          margin: 0 1.4rem;
+          border-radius: var(--aetheris-radius-pill);
         }
 
         .standalone-experience__header-label {
-          color: var(--experience-nav-muted);
-          font-size: 1.2rem;
-          font-weight: 700;
-          letter-spacing: 0.12em;
+          position: relative;
+          display: inline-flex;
+          min-height: 3.6rem;
+          align-items: center;
+          justify-content: center;
+          gap: 0.6rem;
+          padding: 0.55rem 1.1rem;
+          border-radius: var(--aetheris-radius-md);
+          color: var(--aetheris-ink-2);
+          font-family: var(--aetheris-font-mono);
+          font-size: 1.05rem;
+          font-weight: 500;
+          letter-spacing: 0.065em;
+          line-height: 1;
           text-transform: uppercase;
           white-space: nowrap;
+        }
+
+        .standalone-experience__route-dot {
+          display: block;
+          width: 4px;
+          height: 4px;
+          flex: 0 0 auto;
+          border-radius: 50%;
+          background: var(--aetheris-spectral);
+          box-shadow: 0 0 10px var(--aetheris-spectral-glow);
+        }
+
+        .standalone-experience__theme {
+          display: grid;
+          flex: 0 0 auto;
+          place-items: center;
+          cursor: pointer;
+        }
+
+        .standalone-experience__theme svg {
+          width: 16px;
+          height: 16px;
         }
 
         .standalone-experience__content {
@@ -486,10 +593,39 @@ const ExperienceContent = ({ experience }) => {
 
         @media (max-width: 720px) {
           .standalone-experience__header {
-            grid-template-columns: 1fr auto;
+            padding:
+              max(1.2rem, env(safe-area-inset-top))
+              max(0.8rem, env(safe-area-inset-right))
+              0
+              max(0.8rem, env(safe-area-inset-left));
           }
+
+          .standalone-experience__nav-pill {
+            width: min(100%, 46rem);
+            justify-content: space-between;
+            padding: 0.55rem 0.55rem 0.55rem 1rem;
+          }
+
+          .standalone-experience__brand {
+            margin-left: -0.5rem;
+            padding-inline: 0.8rem;
+          }
+
+          .standalone-experience__brand-name {
+            font-size: 1.2rem !important;
+          }
+
+          .standalone-experience__nav-rule,
           .standalone-experience__header-label {
             display: none;
+          }
+
+          .standalone-experience__theme {
+            margin-left: auto !important;
+          }
+
+          .standalone-experience__theme::before {
+            display: none !important;
           }
         }
 

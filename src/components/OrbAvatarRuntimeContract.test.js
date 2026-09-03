@@ -199,6 +199,31 @@ describe("intrinsic Metabloom chat runtime invariants", () => {
     expect(standalone).toContain("{!isOrbExperience && (");
   });
 
+  test("desktop conversation uses opposite viewport edges and shared Aetheris chrome", () => {
+    expect(orbCss).toContain("@media (min-width: 960px)");
+    expect(orbCss).toContain("width: min(46rem, 36vw);");
+    expect(orbCss).toContain(
+      "padding-inline: clamp(2.4rem, 4vw, 7.2rem);",
+    );
+    expect(orbCss).toContain("align-self: flex-start;");
+    expect(orbCss).toContain("align-self: flex-end;");
+    expect(orbCss).toContain("var(--aetheris-glass-panel-raised)");
+    expect(orbCss).toContain("var(--aetheris-glass-specular)");
+    expect(orbCss).toContain("var(--aetheris-font-mono)");
+    expect(standalone).toContain(
+      'className="standalone-experience__nav-pill nav-pill"',
+    );
+    expect(standalone).toContain(
+      'className="standalone-experience__brand nav-brand"',
+    );
+    expect(standalone).toContain(
+      'className="standalone-experience__theme nav-theme-toggle"',
+    );
+    expect(standalone).toContain(
+      'import logo from "../assets/icons/logo2026_128.png";',
+    );
+  });
+
   test("the chat bridge supports direct, event-driven, and adapter-driven model responses", () => {
     expect(orb).toContain(
       'const MODEL_REQUEST_EVENT = "metabloom:user-message";',

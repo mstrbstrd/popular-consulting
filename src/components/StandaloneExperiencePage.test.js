@@ -123,6 +123,23 @@ describe("StandaloneExperiencePage", () => {
         name: "Return to Popular Consulting home",
       }),
     ).toHaveAttribute("href", "/");
+    expect(
+      screen.getByRole("navigation", { name: "Metabloom navigation" }),
+    ).toHaveClass("standalone-experience__nav-pill", "nav-pill");
+    expect(
+      screen.getByRole("link", {
+        name: "Return to Popular Consulting home",
+      }),
+    ).toHaveClass("standalone-experience__brand", "nav-brand");
+    expect(
+      container.querySelector(".standalone-experience__brand-logo.nav-logo"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Use dark theme" }),
+    ).toHaveClass("standalone-experience__theme", "nav-theme-toggle");
+    expect(
+      container.querySelector(".standalone-experience__header-label"),
+    ).toHaveAttribute("aria-current", "page");
 
     await waitFor(() => {
       expect(document.title).toBe("Metabloom Chat | Popular Consulting");
