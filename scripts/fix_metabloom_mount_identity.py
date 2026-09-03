@@ -23,8 +23,8 @@ let metabloomMountSequence = 0;
 const createMetabloomMountId = () => {
   metabloomMountSequence += 1;
   const randomUUID =
-    typeof globalThis.crypto?.randomUUID === "function"
-      ? globalThis.crypto.randomUUID()
+    typeof window.crypto?.randomUUID === "function"
+      ? window.crypto.randomUUID()
       : "";
   const uniquePart =
     randomUUID ||
