@@ -43,10 +43,11 @@ jobs:
       - name: Capture full-screen Metabloom chat
         run: node scripts/capture-orb-review.mjs
 
-      - name: Upload Orb interface review images
+      - name: Upload Orb interface review evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: orb-interface-review-${{ github.sha }}
-          path: orb-review/*.png
-          if-no-files-found: error
+          path: orb-review/*
+          if-no-files-found: warn
           retention-days: 7
