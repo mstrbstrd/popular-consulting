@@ -1,9 +1,19 @@
-name: Orb visual review capture
+name: Orb interface visual review
 
 on:
-  push:
-    branches:
-      - feature/metabloom-amorphous-avatar-20260902
+  pull_request:
+    paths:
+      - .github/workflows/orb-review-capture.yml
+      - scripts/capture-orb-review.mjs
+      - src/components/OrbSection.js
+      - src/components/OrbSection.css
+      - src/components/MetabloomAvatar.js
+      - src/components/MetabloomAvatar.css
+      - src/components/CreatorOSFieldCanvas.js
+      - src/components/CreatorOSFieldShader.js
+      - src/components/metabloomActions.js
+      - src/components/metabloomResponseContract.js
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -30,13 +40,13 @@ jobs:
         env:
           CI: true
 
-      - name: Capture faceless Metabloom avatar
+      - name: Capture full-screen Metabloom chat
         run: node scripts/capture-orb-review.mjs
 
-      - name: Upload Orb review images
+      - name: Upload Orb interface review images
         uses: actions/upload-artifact@v4
         with:
-          name: orb-review-${{ github.sha }}
+          name: orb-interface-review-${{ github.sha }}
           path: orb-review/*.png
           if-no-files-found: error
-          retention-days: 3
+          retention-days: 7
