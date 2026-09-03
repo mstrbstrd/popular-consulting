@@ -11,8 +11,9 @@ const repositorySource = (relativePath) =>
     .readFileSync(path.join(process.cwd(), relativePath), "utf8")
     .replace(/\r\n/g, "\n");
 
-describe("intrinsic Metabloom Orb runtime invariants", () => {
+describe("intrinsic Metabloom chat runtime invariants", () => {
   const actions = source("metabloomActions.js");
+  const responseContract = source("metabloomResponseContract.js");
   const avatar = source("MetabloomAvatar.js");
   const avatarCss = source("MetabloomAvatar.css");
   const fieldCanvas = source("CreatorOSFieldCanvas.js");
@@ -102,7 +103,28 @@ describe("intrinsic Metabloom Orb runtime invariants", () => {
     );
   });
 
-  test("the action table remains explicit, input-bounded, and agent-compatible", () => {
+  test("model output is limited to response and actionChain before it reaches UI state", () => {
+    expect(responseContract).toContain(
+      'const TOP_LEVEL_KEYS = new Set(["response", "actionChain"]);',
+    );
+    expect(responseContract).toContain("additionalProperties: false");
+    expect(responseContract).toContain('required: ["response", "actionChain"]');
+    expect(responseContract).toContain("MAX_METABLOOM_RESPONSE_CHARS = 4000");
+    expect(responseContract).toContain("MAX_METABLOOM_ACTION_STEPS = 12");
+    expect(responseContract).toContain(
+      "MAX_METABLOOM_CHAIN_DURATION_MS = 24000",
+    );
+    expect(responseContract).toContain(
+      "export const parseMetabloomModelResponse",
+    );
+    expect(responseContract).toContain(
+      'actionChain[actionChain.length - 1].action !== "reform"',
+    );
+    expect(orb).toContain("parseMetabloomModelResponse(payload)");
+    expect(orb).not.toContain("dangerouslySetInnerHTML");
+  });
+
+  test("the action language remains explicit, input-bounded, and agent-compatible", () => {
     [
       "reform",
       "agree",
@@ -121,8 +143,6 @@ describe("intrinsic Metabloom Orb runtime invariants", () => {
     expect(actions).toContain(
       'motion: "Compresses, explodes, and reforms"',
     );
-    expect(orb).toContain("METABLOOM_ACTIONS.map((action) => (");
-    expect(orb).toContain("<table>");
     expect(orb).toContain(".slice(0, 16)");
     expect(orb).toContain(
       "Math.max(160, Math.min(duration, 8000))",
@@ -142,7 +162,54 @@ describe("intrinsic Metabloom Orb runtime invariants", () => {
       "__orbState",
       "__orbTalk",
       "__orbStopTalk",
+      "__orbRespond",
+      "__orbResponseSchema",
+      "__orbMessages",
     ].forEach((name) => expect(orb).toContain(name));
+  });
+
+  test("the Metabloom field fills the route while chat remains an overlay", () => {
+    expect(orb).toContain('className="metabloom-chat__field"');
+    expect(orb).toContain('className="metabloom-chat__interface"');
+    expect(orb).toContain('role="log"');
+    expect(orb).toContain("<textarea");
+    expect(orb).toContain('data-response-contract="response+actionChain"');
+    expect(orb).not.toContain("<table>");
+    expect(orb).not.toContain("orb-avatar-lab__stage");
+
+    expect(orbCss).toContain(".metabloom-chat {");
+    expect(orbCss).toContain("position: fixed;");
+    expect(orbCss).toContain("height: 100dvh;");
+    expect(orbCss).toContain(".metabloom-chat__field");
+    expect(orbCss).not.toContain("orb-avatar-lab__table-wrap");
+
+    expect(avatarCss).toContain("inset: 0;");
+    expect(avatarCss).toContain("width: 100%;");
+    expect(avatarCss).toContain("height: 100%;");
+    expect(avatarCss).not.toContain("aspect-ratio: 1");
+    expect(avatarCss).not.toContain("56vw");
+
+    expect(standalone).toContain(
+      "const useDitherBackground =\n    !isOrbExperience",
+    );
+    expect(standalone).toContain("{!isOrbExperience && (");
+  });
+
+  test("the chat bridge supports direct, event-driven, and adapter-driven model responses", () => {
+    expect(orb).toContain(
+      'const MODEL_REQUEST_EVENT = "metabloom:user-message";',
+    );
+    expect(orb).toContain(
+      'const MODEL_RESPONSE_EVENT = "metabloom:model-response";',
+    );
+    expect(orb).toContain("window.__metabloomRequest");
+    expect(orb).toContain("new CustomEvent(MODEL_REQUEST_EVENT");
+    expect(orb).toContain(
+      "window.addEventListener(MODEL_RESPONSE_EVENT",
+    );
+    expect(orb).toContain("requestTokenRef.current !== requestToken");
+    expect(orb).toContain("MAX_CHAT_MESSAGES = 24");
+    expect(orb).toContain("MAX_USER_MESSAGE_CHARS = 1600");
   });
 
   test("pause, reduced motion, and cleanup remain inside the shared renderer lifecycle", () => {
@@ -155,23 +222,10 @@ describe("intrinsic Metabloom Orb runtime invariants", () => {
     );
     expect(fieldCanvas).toContain("gl.deleteBuffer(positionBuffer)");
     expect(fieldCanvas).toContain("gl.deleteProgram(displayProgram)");
-    expect(fieldCanvas).toContain(
-      'data-context-recovery="local"',
-    );
-    expect(fieldCanvas).toContain(
-      "metabloomAvatarPhase = 0.5",
-    );
-  });
-
-  test("the action table remains usable inside the fixed standalone route", () => {
-    expect(orbCss).toContain("height: 100dvh");
-    expect(orbCss).toContain("overflow: auto");
-    expect(orbCss).toContain(".orb-avatar-lab__table-wrap");
-    expect(orbCss).toContain("overflow-x: auto");
-    expect(standalone).toContain(
-      "const useDitherBackground =\n    !isOrbExperience",
-    );
-    expect(standalone).toContain("{!isOrbExperience && (");
+    expect(fieldCanvas).toContain('data-context-recovery="local"');
+    expect(fieldCanvas).toContain("metabloomAvatarPhase = 0.5");
+    expect(orb).toContain("window.clearTimeout(previewTimerRef.current)");
+    expect(orb).toContain("mountedRef.current = false");
   });
 
   test("the navigation retains its full target and smaller hover field", () => {
