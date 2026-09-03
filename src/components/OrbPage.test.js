@@ -127,6 +127,7 @@ describe("OrbPage", () => {
     const source = fs.readFileSync(path.join(__dirname, "OrbPage.js"), "utf8");
 
     expect(source).toContain('import NavMenu from "./NavMenu";');
+    expect(source).toContain('import "./OrbPageExperience.css";');
     expect(source).toContain("<NavMenu audience={SITE_AUDIENCES.BUSINESS} />");
     expect(source).not.toContain("ManagedDitherBackground");
     expect(source).not.toContain("BlackHoleCanvas");
