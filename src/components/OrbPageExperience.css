@@ -1,0 +1,366 @@
+/* Route-only presentation layer. The Metabloom renderer and chat behavior remain owned by OrbSection. */
+.orb-page .metabloom-chat {
+  --metabloom-chat-ink: var(--aetheris-ink);
+  --metabloom-chat-muted: var(--aetheris-ink-2);
+  --metabloom-chat-line: var(--aetheris-line-strong);
+  --metabloom-chat-assistant: var(--aetheris-glass-panel-raised);
+  --metabloom-chat-user: var(--aetheris-ink);
+  --metabloom-chat-user-ink: var(--aetheris-panel);
+  --metabloom-chat-control: var(--aetheris-glass-panel);
+  --metabloom-chat-control-hover: var(--aetheris-glass-panel-raised);
+  --metabloom-chat-shadow: rgba(31, 29, 59, 0.14);
+}
+
+[data-theme="dark"] .orb-page .metabloom-chat {
+  --metabloom-chat-shadow: rgba(0, 0, 0, 0.38);
+}
+
+.orb-page .metabloom-chat__scrim {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--aetheris-panel) 20%, transparent) 0%,
+      transparent 26%,
+      transparent 58%,
+      color-mix(in srgb, var(--aetheris-panel) 58%, transparent) 100%
+    ),
+    radial-gradient(
+      circle at 78% 58%,
+      transparent 0 24%,
+      color-mix(in srgb, var(--aetheris-panel) 20%, transparent) 72%
+    );
+}
+
+.orb-page .metabloom-chat__interface {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding:
+    max(9.6rem, calc(env(safe-area-inset-top) + 8.2rem))
+    clamp(2.4rem, 5vw, 7.2rem)
+    max(2.4rem, env(safe-area-inset-bottom));
+}
+
+.orb-page .metabloom-chat__shell {
+  position: relative;
+  width: min(58rem, 48vw);
+  height: min(68rem, calc(100dvh - 12.4rem));
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid transparent;
+  border-radius: var(--aetheris-radius-glass);
+  background:
+    linear-gradient(
+      color-mix(in srgb, var(--aetheris-glass-panel) 92%, transparent),
+      color-mix(in srgb, var(--aetheris-glass-panel) 92%, transparent)
+    ) padding-box,
+    var(--aetheris-spectral-border-soft) border-box;
+  backdrop-filter: var(--aetheris-glass-blur);
+  -webkit-backdrop-filter: var(--aetheris-glass-blur);
+  box-shadow:
+    var(--aetheris-shadow),
+    var(--aetheris-glass-specular),
+    0 2.4rem 7rem var(--metabloom-chat-shadow);
+  pointer-events: auto;
+}
+
+.orb-page .metabloom-chat__shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  border-radius: inherit;
+  padding: 1px;
+  pointer-events: none;
+  background: var(--aetheris-glass-ring-veil), var(--aetheris-spectral-border-soft);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  opacity: 0.72;
+}
+
+.orb-page .metabloom-chat__presence {
+  position: relative;
+  z-index: 1;
+  justify-self: stretch;
+  min-height: 5.6rem;
+  padding: 1.2rem 1.6rem;
+  border: 0;
+  border-bottom: 1px solid var(--metabloom-chat-line);
+  border-radius: 0;
+  background: color-mix(in srgb, var(--metabloom-chat-control) 82%, transparent);
+  box-shadow: none;
+  font-family: var(--aetheris-font-mono);
+  font-size: 0.92rem;
+  font-weight: 500;
+  letter-spacing: 0.065em;
+}
+
+.orb-page .metabloom-chat__presence::after {
+  content: "Conversation";
+  margin-left: auto;
+  color: var(--aetheris-muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.09em;
+}
+
+.orb-page .metabloom-chat__presence-dot {
+  width: 0.72rem;
+  height: 0.72rem;
+  background: var(--aetheris-spectral);
+  box-shadow: 0 0 1.2rem var(--aetheris-spectral-glow);
+}
+
+.orb-page .metabloom-chat__messages {
+  position: relative;
+  z-index: 1;
+  padding: 2.2rem 1.6rem 1.4rem;
+  scrollbar-color: var(--aetheris-line-strong) transparent;
+  scrollbar-width: thin;
+}
+
+.orb-page .metabloom-chat__messages::-webkit-scrollbar {
+  display: block;
+  width: 0.5rem;
+}
+
+.orb-page .metabloom-chat__messages::-webkit-scrollbar-thumb {
+  border-radius: var(--aetheris-radius-pill);
+  background: var(--aetheris-line-strong);
+}
+
+.orb-page .metabloom-chat__message-list {
+  gap: 1.25rem;
+  padding: 0;
+}
+
+.orb-page .metabloom-chat__message {
+  width: min(48rem, 88%);
+}
+
+.orb-page .metabloom-chat__speaker {
+  font-family: var(--aetheris-font-mono);
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.orb-page .metabloom-chat__bubble {
+  padding: 1.25rem 1.5rem;
+  border-radius:
+    var(--aetheris-radius-lg)
+    var(--aetheris-radius-lg)
+    var(--aetheris-radius-lg)
+    var(--aetheris-radius-sm);
+  background: var(--metabloom-chat-assistant);
+  box-shadow: 0 1rem 3.4rem var(--metabloom-chat-shadow);
+}
+
+.orb-page .metabloom-chat__message--user .metabloom-chat__bubble {
+  border-color: transparent;
+  border-radius:
+    var(--aetheris-radius-lg)
+    var(--aetheris-radius-lg)
+    var(--aetheris-radius-sm)
+    var(--aetheris-radius-lg);
+}
+
+.orb-page .metabloom-chat__bubble > p {
+  font-family: var(--aetheris-font-sans);
+  font-size: clamp(1.4rem, 1.2vw, 1.55rem);
+  font-weight: 450;
+}
+
+.orb-page .metabloom-chat__speaker,
+.orb-page .metabloom-chat__preview-label {
+  font-family: var(--aetheris-font-mono);
+}
+
+.orb-page .metabloom-chat__suggestions button {
+  border-color: transparent;
+  border-radius: var(--aetheris-radius-md);
+  background:
+    linear-gradient(var(--metabloom-chat-control), var(--metabloom-chat-control)) padding-box,
+    var(--aetheris-spectral-border-soft) border-box;
+  box-shadow: none;
+  font-family: var(--aetheris-font-sans);
+  font-size: 1.12rem;
+  font-weight: 550;
+  transition:
+    background var(--aetheris-motion-fast) var(--aetheris-ease-standard),
+    box-shadow var(--aetheris-motion-fast) var(--aetheris-ease-standard),
+    transform var(--aetheris-motion-medium) var(--aetheris-ease-spring);
+}
+
+.orb-page .metabloom-chat__suggestions button:hover {
+  background:
+    linear-gradient(var(--metabloom-chat-control-hover), var(--metabloom-chat-control-hover)) padding-box,
+    var(--aetheris-spectral) border-box;
+  box-shadow: 0 0 20px var(--aetheris-spectral-glow);
+}
+
+.orb-page .metabloom-chat__suggestions button:focus-visible,
+.orb-page .metabloom-chat__composer:focus-within {
+  outline: none;
+  box-shadow: var(--aetheris-focus-halo);
+}
+
+.orb-page .metabloom-chat__composer-area {
+  position: relative;
+  z-index: 1;
+  padding: 1.2rem 1.4rem 1.4rem;
+  border-top: 1px solid var(--metabloom-chat-line);
+  background: color-mix(in srgb, var(--metabloom-chat-control) 88%, transparent);
+}
+
+.orb-page .metabloom-chat__composer {
+  padding: 0.65rem 0.7rem 0.65rem 1.2rem;
+  border-radius: var(--aetheris-radius-lg);
+  background: var(--metabloom-chat-control-hover);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24);
+}
+
+.orb-page .metabloom-chat__composer textarea {
+  font-family: var(--aetheris-font-sans);
+  font-size: 1.45rem;
+  font-weight: 450;
+}
+
+.orb-page .metabloom-chat__composer button {
+  border: 1px solid transparent;
+  border-radius: var(--aetheris-radius-md);
+  color: var(--metabloom-chat-ink);
+  background:
+    linear-gradient(var(--aetheris-panel-strong), var(--aetheris-panel-strong)) padding-box,
+    var(--aetheris-spectral-border-soft) border-box;
+  transition:
+    background var(--aetheris-motion-fast) var(--aetheris-ease-standard),
+    box-shadow var(--aetheris-motion-fast) var(--aetheris-ease-standard),
+    opacity var(--aetheris-motion-fast) var(--aetheris-ease-standard),
+    transform var(--aetheris-motion-medium) var(--aetheris-ease-spring);
+}
+
+[data-theme="dark"] .orb-page .metabloom-chat__composer button {
+  color: var(--metabloom-chat-ink);
+  background:
+    linear-gradient(var(--aetheris-panel-strong), var(--aetheris-panel-strong)) padding-box,
+    var(--aetheris-spectral-border-soft) border-box;
+}
+
+.orb-page .metabloom-chat__composer button:focus-visible {
+  outline: none;
+  box-shadow: var(--aetheris-focus-halo);
+}
+
+@media (max-width: 1100px) {
+  .orb-page .metabloom-chat__interface {
+    justify-content: center;
+    padding:
+      clamp(24rem, 34vh, 31rem)
+      3.2rem
+      max(1.8rem, env(safe-area-inset-bottom));
+  }
+
+  .orb-page .metabloom-chat__shell {
+    width: min(70rem, 100%);
+    height: min(54rem, 100%);
+  }
+}
+
+@media (max-width: 720px) {
+  .orb-page .metabloom-chat__interface {
+    padding:
+      max(8.6rem, calc(env(safe-area-inset-top) + 7.4rem))
+      0.8rem
+      max(0.8rem, env(safe-area-inset-bottom));
+  }
+
+  .orb-page .metabloom-chat__shell {
+    width: 100%;
+    height: 100%;
+    border-radius: var(--aetheris-radius-xl);
+    background:
+      linear-gradient(var(--aetheris-panel), var(--aetheris-panel)) padding-box,
+      var(--aetheris-spectral-border-soft) border-box;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .orb-page .metabloom-chat__presence {
+    min-height: 5rem;
+    padding: 1rem 1.2rem;
+  }
+
+  .orb-page .metabloom-chat__presence::after,
+  .orb-page .metabloom-chat__presence > span:nth-child(n + 3) {
+    display: none;
+  }
+
+  .orb-page .metabloom-chat__messages {
+    padding: 1.4rem 1rem 1rem;
+  }
+
+  .orb-page .metabloom-chat__message {
+    width: min(94%, 58rem);
+  }
+
+  .orb-page .metabloom-chat__composer-area {
+    padding: 0.8rem;
+  }
+}
+
+@media (max-height: 650px) and (min-width: 721px) {
+  .orb-page .metabloom-chat__interface {
+    padding-top: 8.6rem;
+    padding-bottom: 1.2rem;
+  }
+
+  .orb-page .metabloom-chat__shell {
+    height: calc(100dvh - 9.8rem);
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .orb-page .metabloom-chat__shell {
+    background:
+      linear-gradient(var(--aetheris-panel), var(--aetheris-panel)) padding-box,
+      var(--aetheris-spectral-border-soft) border-box;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .orb-page .metabloom-chat__suggestions button,
+  .orb-page .metabloom-chat__composer button {
+    transition: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .orb-page .metabloom-chat__scrim {
+    display: none;
+  }
+
+  .orb-page .metabloom-chat__shell,
+  .orb-page .metabloom-chat__presence,
+  .orb-page .metabloom-chat__bubble,
+  .orb-page .metabloom-chat__suggestions button,
+  .orb-page .metabloom-chat__composer,
+  .orb-page .metabloom-chat__error {
+    border: 1px solid CanvasText;
+    color: CanvasText;
+    background: Canvas;
+    box-shadow: none;
+  }
+
+  .orb-page .metabloom-chat__message--user .metabloom-chat__bubble {
+    color: Canvas;
+    background: CanvasText;
+  }
+}

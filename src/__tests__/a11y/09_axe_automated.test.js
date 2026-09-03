@@ -2,7 +2,7 @@
  * Automated axe-core accessibility scan.
  *
  * Uses jest-axe to run axe-core against rendered component trees.
- * axe-core catches ~30–40% of WCAG violations automatically, including:
+ * axe-core catches ~30-40% of WCAG violations automatically, including:
  *  - Missing labels
  *  - Invalid ARIA roles/attributes
  *  - Image alt text
@@ -15,7 +15,7 @@
 
 import '../../testHelpers/a11ySetup';
 import React from 'react';
-import { render } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { axe, toHaveNoViolations } from 'jest-axe';
 import { ThemeProvider } from '../../contexts/ThemeContext';
 import NavMenu from '../../components/NavMenu';
@@ -26,7 +26,7 @@ import OrbSection from '../../components/OrbSection';
 import { ParallaxBackground } from '../../components/ParallaxBackground';
 import WorkPage from '../../components/WorkPage';
 import ProfessionalHero from '../../components/ProfessionalHero';
-import StandaloneExperiencePage from '../../components/StandaloneExperiencePage';
+import OrbPage from '../../components/OrbPage';
 
 expect.extend(toHaveNoViolations);
 
@@ -41,7 +41,7 @@ const Section = ({ id, label }) => (
   </section>
 );
 
-// ── Per-component axe scans ─────────────────────────────────────────────
+// Per-component axe scans
 
 describe('axe: NavMenu', () => {
   test('has no automatically detectable violations', async () => {
@@ -99,7 +99,7 @@ describe('axe: ParallaxBackground (navigation structure)', () => {
   });
 });
 
-// ── Route-level scans (previously uncovered: /work, /engineering, /orb) ──
+// Route-level scans
 
 describe('axe: WorkPage', () => {
   test('has no automatically detectable violations', async () => {
@@ -120,12 +120,21 @@ describe('axe: ProfessionalHero', () => {
   });
 });
 
-describe('axe: StandaloneExperiencePage (/orb shell)', () => {
+describe('axe: OrbPage', () => {
   test('has no automatically detectable violations', async () => {
-    const container = await wrap(
-      <StandaloneExperiencePage experience="orb" />,
-    );
-    const results = await axe(container);
-    expect(results).toHaveNoViolations();
+    const previousPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+    window.history.replaceState({}, '', '/orb');
+
+    let unmount = () => {};
+    try {
+      const rendered = render(<OrbPage />);
+      unmount = rendered.unmount;
+      await screen.findByRole('textbox', { name: 'Message Metabloom' });
+      const results = await axe(rendered.container);
+      expect(results).toHaveNoViolations();
+    } finally {
+      unmount();
+      window.history.replaceState({}, '', previousPath || '/');
+    }
   });
 });

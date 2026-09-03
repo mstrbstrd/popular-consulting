@@ -44,6 +44,16 @@ jest.mock("./components/WorkPage", () => {
     );
 });
 
+jest.mock("./components/OrbPage", () => {
+  const ReactModule = require("react");
+  return () =>
+    ReactModule.createElement(
+      "div",
+      { "data-testid": "orb-page" },
+      "Orb page",
+    );
+});
+
 jest.mock("./components/DitherCanvasPage", () => {
   const ReactModule = require("react");
   return () =>
@@ -79,8 +89,16 @@ jest.mock("./components/StandaloneExperiencePage", () => {
   return {
     __esModule: true,
     default: component,
-    EXPERIENCE_IDS: { ORB: "orb", GAME: "game" },
   };
+});
+
+jest.mock("./components/SectionDeepLinkBridge", () => {
+  const ReactModule = require("react");
+  return ({ enabled }) =>
+    ReactModule.createElement("div", {
+      "data-testid": "section-deep-link-bridge",
+      "data-enabled": String(enabled),
+    });
 });
 
 describe("SiteRouter", () => {
@@ -115,9 +133,13 @@ describe("SiteRouter", () => {
       "data-mode",
       IMMERSIVE_MODES.ORIGINAL,
     );
+    expect(screen.getByTestId("section-deep-link-bridge")).toHaveAttribute(
+      "data-enabled",
+      "true",
+    );
   });
 
-  test("renders the original and engineering modes without route-only experiences", async () => {
+  test("renders the original and engineering modes with deep-link support", async () => {
     const { rerender } = render(<SiteRouter pathname="/" />);
 
     expect(await screen.findByTestId("immersive-site")).toHaveAttribute(
@@ -125,6 +147,10 @@ describe("SiteRouter", () => {
       IMMERSIVE_MODES.ORIGINAL,
     );
     expect(screen.queryByTestId("standalone-experience")).not.toBeInTheDocument();
+    expect(screen.getByTestId("section-deep-link-bridge")).toHaveAttribute(
+      "data-enabled",
+      "true",
+    );
 
     rerender(<SiteRouter pathname="/engineering" />);
 
@@ -133,6 +159,10 @@ describe("SiteRouter", () => {
       IMMERSIVE_MODES.ENGINEERING,
     );
     expect(screen.queryByTestId("standalone-experience")).not.toBeInTheDocument();
+    expect(screen.getByTestId("section-deep-link-bridge")).toHaveAttribute(
+      "data-enabled",
+      "true",
+    );
   });
 
   test("renders the selected work page only at /work", async () => {
@@ -141,6 +171,10 @@ describe("SiteRouter", () => {
     expect(await screen.findByTestId("work-page")).toBeInTheDocument();
     expect(screen.queryByTestId("immersive-site")).not.toBeInTheDocument();
     expect(screen.queryByTestId("standalone-experience")).not.toBeInTheDocument();
+    expect(screen.getByTestId("section-deep-link-bridge")).toHaveAttribute(
+      "data-enabled",
+      "false",
+    );
   });
 
   test("renders the shader canvas when the automatic hardware probe passes", async () => {
@@ -176,16 +210,26 @@ describe("SiteRouter", () => {
     expect(screen.queryByTestId("dither-canvas-page")).not.toBeInTheDocument();
   });
 
-  test.each([
-    ["/orb", "orb"],
-    ["/game", "game"],
-  ])("renders %s as an isolated standalone experience", async (pathname, experience) => {
-    render(<SiteRouter pathname={pathname} />);
+  test("renders /orb through the integrated Orb page", async () => {
+    render(<SiteRouter pathname="/orb" />);
+
+    expect(await screen.findByTestId("orb-page")).toBeInTheDocument();
+    expect(screen.queryByTestId("standalone-experience")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("immersive-site")).not.toBeInTheDocument();
+    expect(screen.getByTestId("section-deep-link-bridge")).toHaveAttribute(
+      "data-enabled",
+      "false",
+    );
+  });
+
+  test("keeps /game as an isolated standalone experience", async () => {
+    render(<SiteRouter pathname="/game" />);
 
     expect(await screen.findByTestId("standalone-experience")).toHaveAttribute(
       "data-experience",
-      experience,
+      "game",
     );
+    expect(screen.queryByTestId("orb-page")).not.toBeInTheDocument();
     expect(screen.queryByTestId("immersive-site")).not.toBeInTheDocument();
     expect(screen.queryByTestId("work-page")).not.toBeInTheDocument();
   });

@@ -5,9 +5,11 @@ import {
   GRAPHICS_MODES,
   graphicsMode,
 } from "./utils/graphicsPolicy";
+import SectionDeepLinkBridge from "./components/SectionDeepLinkBridge";
 
 const App = React.lazy(() => import("./App"));
 const WorkPage = React.lazy(() => import("./components/WorkPage"));
+const OrbPage = React.lazy(() => import("./components/OrbPage"));
 const DitherCanvasPage = React.lazy(() =>
   import("./components/DitherCanvasPage"),
 );
@@ -18,7 +20,7 @@ const StandaloneExperiencePage = React.lazy(() =>
   import("./components/StandaloneExperiencePage"),
 );
 
-const EXPERIENCES = Object.freeze({ ORB: "orb", GAME: "game" });
+const EXPERIENCES = Object.freeze({ GAME: "game" });
 
 export const SITE_VIEWS = Object.freeze({
   ORIGINAL: "original",
@@ -60,7 +62,7 @@ const SiteRouter = ({ pathname = window.location.pathname }) => {
   if (view === SITE_VIEWS.WORK) {
     page = <WorkPage />;
   } else if (view === SITE_VIEWS.ORB) {
-    page = <StandaloneExperiencePage experience={EXPERIENCES.ORB} />;
+    page = <OrbPage />;
   } else if (view === SITE_VIEWS.GAME) {
     page = <StandaloneExperiencePage experience={EXPERIENCES.GAME} />;
   } else if (view === SITE_VIEWS.DITHER_CANVAS) {
@@ -79,7 +81,15 @@ const SiteRouter = ({ pathname = window.location.pathname }) => {
     );
   }
 
-  return <React.Suspense fallback={routeFallback}>{page}</React.Suspense>;
+  const enableSectionDeepLinks =
+    view === SITE_VIEWS.ORIGINAL || view === SITE_VIEWS.ENGINEERING;
+
+  return (
+    <>
+      <React.Suspense fallback={routeFallback}>{page}</React.Suspense>
+      <SectionDeepLinkBridge enabled={enableSectionDeepLinks} />
+    </>
+  );
 };
 
 export default SiteRouter;
