@@ -25,12 +25,15 @@ jobs:
           cache: npm
 
       - name: Apply latent Metabloom lifecycle
-        run: python scripts/apply_latent_metabloom_avatar.py
+        run: |
+          python scripts/prepare_latent_metabloom_patch.py
+          python scripts/apply_latent_metabloom_avatar.py
 
       - name: Check source invariants
         run: |
           git diff --check
           python -m py_compile scripts/apply_latent_metabloom_avatar.py
+          python -m py_compile scripts/prepare_latent_metabloom_patch.py
 
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
@@ -53,6 +56,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git rm scripts/apply_latent_metabloom_avatar.py
+          git rm scripts/prepare_latent_metabloom_patch.py
           git rm .github/workflows/verify-latent-metabloom-avatar.yml
           git add CLAUDE.md \
             .github/workflows/orb-review-capture.yml \
