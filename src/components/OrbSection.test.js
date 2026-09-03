@@ -22,10 +22,10 @@ jest.mock("./MetabloomAvatar", () => {
     mockAvatarProps = props;
     return ReactModule.createElement("div", {
       "data-testid": "metabloom-avatar",
-      "data-emotion-version": String(props.emotionVersion),
-      "data-expression": props.expression,
-      "data-form": props.form,
+      "data-action": props.action,
+      "data-action-version": String(props.actionVersion),
       "data-paused": String(props.paused),
+      "data-pulse-version": String(props.pulseVersion),
       "data-talking": String(props.talking),
     });
   };
@@ -39,6 +39,7 @@ const OWNED_GLOBALS = [
   "__orbPlaySequence",
   "__orbStop",
   "__orbReset",
+  "__orbActions",
   "__orbExpressions",
   "__orbForms",
   "__orbState",
@@ -62,174 +63,120 @@ describe("OrbSection", () => {
     window.__bhModeActive = false;
   });
 
-  test("opens as one fluid Metabloom organism with complete mood controls", () => {
+  test("opens as the unchanged Metabloom theme in one faceless body", () => {
     render(<OrbSection isActive />);
 
     expect(
-      screen.getByRole("heading", { name: "Meet Bloom" }),
+      screen.getByRole("heading", { name: "Metabloom, embodied" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/body, face, gaze, and voice are one fluid/i),
+      screen.getByText(/original Metabloom field remains visually intact/i),
     ).toBeInTheDocument();
     expect(screen.getAllByTestId("metabloom-avatar")).toHaveLength(1);
     expect(screen.getByTestId("metabloom-avatar")).toHaveAttribute(
-      "data-expression",
-      "happy",
-    );
-    expect(screen.getByTestId("metabloom-avatar")).toHaveAttribute(
-      "data-form",
-      "companion",
+      "data-action",
+      "reform",
     );
 
-    const emotionGroup = screen.getByRole("group", { name: "Orb emotions" });
-    expect(within(emotionGroup).getAllByRole("button")).toHaveLength(7);
-    within(emotionGroup)
-      .getAllByRole("button")
-      .forEach((button) => {
-        expect(button).toHaveAccessibleName(/express/i);
-      });
-
-    const formGroup = screen.getByRole("group", {
-      name: "Living Metabloom forms",
+    const table = screen.getByRole("table", {
+      name: /Metabloom avatar actions/i,
     });
-    expect(within(formGroup).getAllByRole("button")).toHaveLength(4);
-    expect(document.querySelector("#orb canvas")).not.toBeInTheDocument();
+    expect(within(table).getAllByRole("button")).toHaveLength(10);
+    expect(within(table).getByText("Shakes side to side")).toBeInTheDocument();
+    expect(within(table).getByText("Magenta warning")).toBeInTheDocument();
   });
 
-  test("changes expression, color-response version, and form without mounting another renderer", () => {
+  test("maps each table signal to one gesture and colorway", () => {
     render(<OrbSection isActive />);
 
-    const firstEmotionVersion = Number(
-      screen
-        .getByTestId("metabloom-avatar")
-        .getAttribute("data-emotion-version"),
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Express sad" }));
+    const before = mockAvatarProps.actionVersion;
     fireEvent.click(
-      screen.getByRole("button", {
-        name: /transform bloom into focus form/i,
-      }),
+      screen.getByRole("button", { name: "Express disagree" }),
     );
 
-    expect(screen.getByTestId("metabloom-avatar")).toHaveAttribute(
-      "data-expression",
-      "sad",
+    expect(mockAvatarProps.action).toBe("disagree");
+    expect(mockAvatarProps.actionVersion).toBe(before + 1);
+    expect(
+      screen.getByRole("button", { name: "Express disagree" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Disagree: Shakes side to side",
     );
-    expect(screen.getByTestId("metabloom-avatar")).toHaveAttribute(
-      "data-form",
-      "focus",
-    );
-    expect(Number(mockAvatarProps.emotionVersion)).toBeGreaterThan(
-      firstEmotionVersion,
-    );
-    expect(screen.getAllByTestId("metabloom-avatar")).toHaveLength(1);
   });
 
-  test("replays an emotion color response when the active mood is selected again", () => {
+  test("replays an active action instead of treating it as a no-op", () => {
     render(<OrbSection isActive />);
 
-    const happyButton = screen.getByRole("button", { name: "Express happy" });
-    const before = mockAvatarProps.emotionVersion;
-    fireEvent.click(happyButton);
-    const afterFirst = mockAvatarProps.emotionVersion;
-    fireEvent.click(happyButton);
+    const agreeButton = screen.getByRole("button", { name: "Express agree" });
+    const before = mockAvatarProps.actionVersion;
+    fireEvent.click(agreeButton);
+    const afterFirst = mockAvatarProps.actionVersion;
+    fireEvent.click(agreeButton);
 
     expect(afterFirst).toBe(before + 1);
-    expect(mockAvatarProps.emotionVersion).toBe(afterFirst + 1);
-    expect(mockAvatarProps.expression).toBe("happy");
+    expect(mockAvatarProps.actionVersion).toBe(afterFirst + 1);
+    expect(mockAvatarProps.action).toBe("agree");
   });
 
-  test("plays expression and transformation sequences through the same creature", () => {
+  test("plays bounded action sequences through the same avatar", () => {
     render(<OrbSection isActive />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Wonder" }));
-    expect(screen.getByTestId("metabloom-avatar")).toHaveAttribute(
-      "data-expression",
-      "thinking",
-    );
-    expect(screen.getByTestId("metabloom-avatar")).toHaveAttribute(
-      "data-form",
-      "focus",
-    );
-
-    const firstStepEmotionVersion = mockAvatarProps.emotionVersion;
-    act(() => {
-      jest.advanceTimersByTime(1100);
-    });
-    expect(screen.getByTestId("metabloom-avatar")).toHaveAttribute(
-      "data-expression",
-      "surprised",
-    );
-    expect(screen.getByTestId("metabloom-avatar")).toHaveAttribute(
-      "data-form",
-      "bloom",
-    );
-    expect(mockAvatarProps.emotionVersion).toBe(firstStepEmotionVersion + 1);
+    fireEvent.click(screen.getByRole("button", { name: "Consider" }));
+    expect(mockAvatarProps.action).toBe("thinking");
 
     act(() => {
-      jest.advanceTimersByTime(850);
+      jest.advanceTimersByTime(1460);
     });
-    expect(screen.getByTestId("metabloom-avatar")).toHaveAttribute(
-      "data-expression",
-      "happy",
-    );
-    expect(screen.getByTestId("metabloom-avatar")).toHaveAttribute(
-      "data-form",
-      "companion",
-    );
+    expect(mockAvatarProps.action).toBe("surprised");
 
     act(() => {
-      jest.advanceTimersByTime(1250);
+      jest.advanceTimersByTime(900);
     });
-    expect(screen.getByRole("button", { name: "Wonder" })).toHaveAttribute(
+    expect(mockAvatarProps.action).toBe("agree");
+
+    act(() => {
+      jest.advanceTimersByTime(920);
+    });
+    expect(mockAvatarProps.action).toBe("reform");
+
+    act(() => {
+      jest.advanceTimersByTime(900);
+    });
+    expect(screen.getByRole("button", { name: "Consider" })).toHaveAttribute(
       "aria-pressed",
       "false",
     );
     expect(screen.getAllByTestId("metabloom-avatar")).toHaveLength(1);
   });
 
-  test("keeps pulse, speech, pause, and reset as bounded creature actions", () => {
+  test("keeps pulse, speech, pause, and reform as bounded controls", () => {
     render(<OrbSection isActive />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Talk" }));
-    expect(screen.getByTestId("metabloom-avatar")).toHaveAttribute(
-      "data-talking",
-      "true",
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Speak" }));
+    expect(mockAvatarProps.talking).toBe(true);
 
     fireEvent.click(screen.getByRole("button", { name: "Pause" }));
-    expect(screen.getByTestId("metabloom-avatar")).toHaveAttribute(
-      "data-paused",
-      "true",
-    );
+    expect(mockAvatarProps.paused).toBe(true);
 
     const pulseBefore = mockAvatarProps.pulseVersion;
     fireEvent.click(screen.getByRole("button", { name: "Pulse" }));
     expect(mockAvatarProps.pulseVersion).toBe(pulseBefore + 1);
 
-    fireEvent.click(screen.getByRole("button", { name: "Reset" }));
-    expect(screen.getByTestId("metabloom-avatar")).toHaveAttribute(
-      "data-expression",
-      "happy",
-    );
-    expect(screen.getByTestId("metabloom-avatar")).toHaveAttribute(
-      "data-form",
-      "companion",
-    );
-    expect(screen.getByTestId("metabloom-avatar")).toHaveAttribute(
-      "data-paused",
-      "false",
-    );
-    expect(screen.getByTestId("metabloom-avatar")).toHaveAttribute(
-      "data-talking",
-      "false",
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Reform" }));
+    expect(mockAvatarProps).toMatchObject({
+      action: "reform",
+      paused: false,
+      talking: false,
+    });
   });
 
-  test("exposes a strict agent-facing state and reaction API", () => {
+  test("exposes the complete action table and a strict agent-facing API", () => {
     render(<OrbSection isActive />);
 
     expect(window.__orbExpressions).toEqual([
+      "reform",
+      "agree",
+      "disagree",
       "happy",
       "excited",
       "sad",
@@ -238,75 +185,70 @@ describe("OrbSection", () => {
       "sleepy",
       "angry",
     ]);
-    expect(window.__orbForms).toEqual([
-      "companion",
-      "bloom",
-      "focus",
-      "drift",
-    ]);
+    expect(window.__orbActions).toHaveLength(10);
+    expect(window.__orbActions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "disagree",
+          motion: "Shakes side to side",
+          colorway: "Magenta warning",
+        }),
+      ]),
+    );
 
     let accepted;
     act(() => {
       accepted = window.__orbReact({
-        expression: "thinking",
-        form: "drift",
+        action: "agree",
         pulse: true,
         talking: true,
       });
     });
     expect(accepted).toBe(true);
     expect(mockAvatarProps).toMatchObject({
-      expression: "thinking",
-      form: "drift",
+      action: "agree",
       talking: true,
     });
     expect(window.__orbState()).toMatchObject({
-      expression: "thinking",
-      form: "drift",
+      action: "agree",
+      colorway: "Verdant signal",
       talking: true,
     });
 
     act(() => {
-      accepted = window.__orbReact({
-        expression: "not-a-mood",
-        form: "not-a-form",
-      });
+      accepted = window.__orbReact({ action: "not-an-action" });
     });
     expect(accepted).toBe(false);
-    expect(mockAvatarProps.expression).toBe("thinking");
-    expect(mockAvatarProps.form).toBe("drift");
+    expect(mockAvatarProps.action).toBe("agree");
 
     act(() => {
-      window.__orbTransform("focus");
+      accepted = window.__orbTransform("focus");
     });
-    expect(mockAvatarProps.form).toBe("focus");
+    expect(accepted).toBe(true);
+    expect(mockAvatarProps.action).toBe("thinking");
   });
 
-  test("preserves the public Orb control API and cleans up owned globals", () => {
-    const { unmount } = render(<OrbSection isActive />);
+  test("accepts legacy expression and form sequence inputs within the new language", () => {
+    render(<OrbSection isActive />);
 
+    let accepted;
     act(() => {
-      window.__orbExpress("angry");
-    });
-    expect(screen.getByTestId("metabloom-avatar")).toHaveAttribute(
-      "data-expression",
-      "angry",
-    );
-
-    act(() => {
-      window.__orbPlaySequence([
-        { name: "sleepy", form: "drift", duration: 200 },
+      accepted = window.__orbPlaySequence([
+        { name: "curious", form: "focus", duration: 200 },
+        { expression: "sleepy", form: "drift", duration: 200 },
       ]);
     });
-    expect(screen.getByTestId("metabloom-avatar")).toHaveAttribute(
-      "data-expression",
-      "sleepy",
-    );
-    expect(screen.getByTestId("metabloom-avatar")).toHaveAttribute(
-      "data-form",
-      "drift",
-    );
+    expect(accepted).toBe(true);
+    expect(mockAvatarProps.action).toBe("thinking");
 
+    act(() => {
+      jest.advanceTimersByTime(200);
+    });
+    expect(mockAvatarProps.action).toBe("sleepy");
+  });
+
+  test("cleans up every owned global", () => {
+    const { unmount } = render(<OrbSection isActive />);
     unmount();
 
     OWNED_GLOBALS.forEach((name) => {

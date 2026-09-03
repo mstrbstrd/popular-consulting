@@ -3,7 +3,7 @@ name: Orb visual review capture
 on:
   push:
     branches:
-      - feature/living-metabloom-creature-20260902
+      - feature/metabloom-amorphous-avatar-20260902
 
 permissions:
   contents: read
@@ -30,7 +30,7 @@ jobs:
         env:
           CI: true
 
-      - name: Capture living Metabloom
+      - name: Capture faceless Metabloom avatar
         run: node scripts/capture-orb-review.mjs
 
       - name: Upload Orb review images
