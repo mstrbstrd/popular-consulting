@@ -1,0 +1,59 @@
+name: Refine Metabloom chat surface
+
+on:
+  push:
+    branches:
+      - feature/fullscreen-metabloom-chat-20260903
+
+permissions:
+  contents: write
+
+jobs:
+  refine-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/fullscreen-metabloom-chat-20260903
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Apply guarded chat surface refinement
+        run: python scripts/refine_metabloom_chat_surface.py
+
+      - name: Check whitespace
+        run: git diff --check
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test -- --watchAll=false --runInBand
+        env:
+          CI: true
+
+      - name: Build production bundle
+        run: npm run build
+        env:
+          CI: true
+
+      - name: Commit verified refinement
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm scripts/refine_metabloom_chat_surface.py
+          git rm .github/workflows/refine-metabloom-chat-surface.yml
+          git add -A
+          git diff --cached --check
+          git commit -m "Refine the full-screen Metabloom chat surface"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
