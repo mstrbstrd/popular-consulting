@@ -894,60 +894,51 @@ html body #contact a:hover {
   filter: brightness(0) saturate(100%) !important;
 }
 
-/* Standalone experience header only. */
+/* Standalone experiences reuse the shared floating navigation pill. The outer
+   route header is only a positioning boundary and must never become a second
+   full-width application bar. */
 
 html body .standalone-experience__header {
   position: fixed;
-  isolation: isolate;
-  border: 1px solid var(--aetheris-line) !important;
-  background: var(--aetheris-topbar) !important;
-  backdrop-filter: var(--aetheris-glass-blur-chrome) !important;
-  -webkit-backdrop-filter: var(--aetheris-glass-blur-chrome) !important;
-  box-shadow: var(--aetheris-shadow), var(--aetheris-glass-specular) !important;
+  isolation: auto;
+  border: 0 !important;
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: none !important;
 }
 
-html body .standalone-experience__header a,
-html body .standalone-experience__header button,
-html body .standalone-experience__header-label {
-  border-radius: var(--aetheris-radius-md) !important;
+html body .standalone-experience__header::after {
+  display: none !important;
+}
+
+html body .standalone-experience__brand {
+  border: 0 !important;
   color: var(--aetheris-ink) !important;
-  font-family: var(--aetheris-font-mono) !important;
-  font-size: 1.1rem !important;
-  font-weight: 500 !important;
-  letter-spacing: 0.045em !important;
-  text-transform: uppercase;
+  background: transparent !important;
+  box-shadow: none !important;
+  font-family: var(--aetheris-font-sans) !important;
+  font-size: inherit !important;
+  font-weight: inherit !important;
+  letter-spacing: normal !important;
+  text-transform: none !important;
+}
+
+html body .standalone-experience__brand:hover {
+  color: var(--aetheris-ink) !important;
+  background: var(--aetheris-state-layer) !important;
+  box-shadow: none !important;
+  transform: translateX(2px) !important;
 }
 
 html body .standalone-experience__header-label {
-  color: var(--aetheris-muted) !important;
-  border-color: var(--aetheris-line-strong) !important;
-}
-
-html body .standalone-experience__header a,
-html body .standalone-experience__header button {
-  border: 1px solid transparent !important;
-  background:
-    linear-gradient(transparent, transparent) padding-box,
-    linear-gradient(transparent, transparent) border-box !important;
-  transition:
-    background var(--aetheris-motion-medium) var(--aetheris-ease-standard),
-    box-shadow var(--aetheris-motion-medium) var(--aetheris-ease-standard),
-    transform var(--aetheris-motion-medium) var(--aetheris-ease-spring) !important;
-}
-
-html body .standalone-experience__header a:hover,
-html body .standalone-experience__header button:hover {
-  background:
-    linear-gradient(var(--aetheris-panel), var(--aetheris-panel)) padding-box,
-    var(--aetheris-spectral-border-soft) border-box !important;
-  box-shadow: 0 0 18px var(--aetheris-spectral-glow) !important;
-  transform: translateY(-2px);
-}
-
-html body .standalone-experience__header a:focus-visible,
-html body .standalone-experience__header button:focus-visible {
-  outline: none !important;
-  box-shadow: var(--aetheris-focus-halo) !important;
+  border: 0 !important;
+  color: var(--aetheris-ink-2) !important;
+  font-family: var(--aetheris-font-mono) !important;
+  font-size: 1.05rem !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.065em !important;
+  text-transform: uppercase;
 }
 
 /* Orb controls only. The orb visual remains owned by OrbSection. */

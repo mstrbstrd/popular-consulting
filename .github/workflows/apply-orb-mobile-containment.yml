@@ -1,0 +1,64 @@
+name: Apply Orb mobile containment
+
+on:
+  push:
+    branches:
+      - feature/orb-interface-cohesion-20260903
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-orb-mobile-containment
+  cancel-in-progress: false
+
+jobs:
+  apply-test-and-push:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/orb-interface-cohesion-20260903
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Apply guarded mobile containment fix
+        run: python scripts/fix_orb_mobile_containment.py
+
+      - name: Check whitespace
+        run: git diff --check
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Run complete test suite
+        run: npm test -- --watchAll=false --runInBand
+        env:
+          CI: true
+
+      - name: Build production bundle
+        run: npm run build
+        env:
+          CI: true
+
+      - name: Commit verified source
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm scripts/fix_orb_mobile_containment.py
+          git add -A
+          git diff --cached --check
+          git commit -m "Contain the Metabloom chat on mobile"
+          git push origin "HEAD:${GITHUB_REF_NAME}"

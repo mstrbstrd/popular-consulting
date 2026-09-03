@@ -21,6 +21,7 @@ describe("intrinsic Metabloom chat runtime invariants", () => {
   const orb = source("OrbSection.js");
   const orbCss = source("OrbSection.css");
   const standalone = source("StandaloneExperiencePage.js");
+  const aetheris = repositorySource("src/aetheris-site.css");
 
   test("the existing Metabloom field is the avatar instead of content inside a second blob", () => {
     expect(avatar).toContain(
@@ -197,6 +198,40 @@ describe("intrinsic Metabloom chat runtime invariants", () => {
       "const useDitherBackground =\n    !isOrbExperience",
     );
     expect(standalone).toContain("{!isOrbExperience && (");
+  });
+
+  test("desktop conversation uses opposite viewport edges and shared Aetheris chrome", () => {
+    expect(orbCss).toContain("@media (min-width: 960px)");
+    expect(orbCss).toContain("width: min(46rem, 36vw);");
+    expect(orbCss).toContain(
+      "padding-inline: clamp(2.4rem, 4vw, 7.2rem);",
+    );
+    expect(orbCss).toContain("align-self: flex-start;");
+    expect(orbCss).toContain("align-self: flex-end;");
+    expect(orbCss).toContain("var(--aetheris-glass-panel-raised)");
+    expect(orbCss).toContain("var(--aetheris-glass-specular)");
+    expect(orbCss).toContain("var(--aetheris-font-mono)");
+    expect(standalone).toContain(
+      'className="standalone-experience__nav-pill nav-pill"',
+    );
+    expect(standalone).toContain(
+      'className="standalone-experience__brand nav-brand"',
+    );
+    expect(standalone).toContain(
+      'className="standalone-experience__theme nav-theme-toggle"',
+    );
+    expect(standalone).toContain(
+      'import logo from "../assets/icons/logo2026_128.png";',
+    );
+    expect(standalone).toContain(
+      "width: min(46rem, calc(100vw - 1.6rem));",
+    );
+    expect(standalone).toContain("flex: 0 0 44px;");
+    expect(aetheris).toContain(
+      "html body .standalone-experience__header {",
+    );
+    expect(aetheris).toContain("background: transparent !important;");
+    expect(aetheris).toContain("text-transform: none !important;");
   });
 
   test("the chat bridge supports direct, event-driven, and adapter-driven model responses", () => {

@@ -7,6 +7,9 @@ on:
       - scripts/capture-orb-review.mjs
       - src/components/OrbSection.js
       - src/components/OrbSection.css
+      - src/components/StandaloneExperiencePage.js
+      - src/aetheris-site.css
+      - src/navigation-cohesion.css
       - src/components/MetabloomAvatar.js
       - src/components/MetabloomAvatar.css
       - src/components/CreatorOSFieldCanvas.js
