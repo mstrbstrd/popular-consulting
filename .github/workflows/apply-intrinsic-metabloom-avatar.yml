@@ -39,20 +39,21 @@ jobs:
           )
 
           content = target.read_text()
-          old = '''shader = replace_once(
-              shader,
-              \'\'\'    tintAccumulator += spectral(\\n      0.62 + layer * 0.137 + time * 0.012 + u_seed * 0.09\\n    ) * weight;\\n\'\'\',
-              \'\'\'    vec3 nativeLayerTint = spectral(\\n      0.62 + layer * 0.137 + time * 0.012 + u_seed * 0.09\\n    );\\n    float avatarLayerPhase = fract(\\n      layer * 0.183\\n        + time * 0.017\\n        + avatarPhase * 0.31\\n    );\\n    vec3 avatarLayerTint = avatarLayerPhase < 0.5\\n      ? mix(u_avatarColorA, u_avatarColorB, avatarLayerPhase * 2.0)\\n      : mix(\\n          u_avatarColorB,\\n          u_avatarColorC,\\n          (avatarLayerPhase - 0.5) * 2.0\\n        );\\n    float layerColorMix = avatarColorMix\\n      * (0.72 + 0.20 * sin(layer * 1.7 + time * 0.9));\\n    tintAccumulator += mix(\\n      nativeLayerTint,\\n      avatarLayerTint,\\n      sat(layerColorMix)\\n    ) * weight;\\n\'\'\',
-              \'shader chameleon lobe color\',
-          )'''.replace("          ", "")
-          new = '''chameleon_old = \'\'\'    tintAccumulator += spectral(\\n      0.62 + layer * 0.137 + time * 0.012 + u_seed * 0.09\\n    ) * weight;\\n\'\'\'
-          chameleon_new = \'\'\'    vec3 nativeLayerTint = spectral(\\n      0.62 + layer * 0.137 + time * 0.012 + u_seed * 0.09\\n    );\\n    float avatarLayerPhase = fract(\\n      layer * 0.183\\n        + time * 0.017\\n        + avatarPhase * 0.31\\n    );\\n    vec3 avatarLayerTint = avatarLayerPhase < 0.5\\n      ? mix(u_avatarColorA, u_avatarColorB, avatarLayerPhase * 2.0)\\n      : mix(\\n          u_avatarColorB,\\n          u_avatarColorC,\\n          (avatarLayerPhase - 0.5) * 2.0\\n        );\\n    float layerColorMix = avatarColorMix\\n      * (0.72 + 0.20 * sin(layer * 1.7 + time * 0.9));\\n    tintAccumulator += mix(\\n      nativeLayerTint,\\n      avatarLayerTint,\\n      sat(layerColorMix)\\n    ) * weight;\\n\'\'\'
-          if shader.count(chameleon_old) < 1:
-              fail(\'shader chameleon lobe color: expected at least one match\')
-          shader = shader.replace(chameleon_old, chameleon_new, 1)'''.replace("          ", "")
-          if old not in content:
-              raise SystemExit("Decoded patch did not contain the expected chameleon replacement block")
-          target.write_text(content.replace(old, new, 1))
+          start_marker = "shader = replace_once(\n    shader,\n    '''    tintAccumulator += spectral("
+          end_marker = "    'shader chameleon lobe color',\n)"
+          start = content.find(start_marker)
+          end = content.find(end_marker, start)
+          if start < 0 or end < 0:
+              raise SystemExit(
+                  "Decoded patch did not contain the chameleon replacement boundary"
+              )
+          end += len(end_marker)
+          replacement = '''chameleon_old = \'\'\'    tintAccumulator += spectral(\\n      0.62 + layer * 0.137 + time * 0.012 + u_seed * 0.09\\n    ) * weight;\\n\'\'\'
+chameleon_new = \'\'\'    vec3 nativeLayerTint = spectral(\\n      0.62 + layer * 0.137 + time * 0.012 + u_seed * 0.09\\n    );\\n    float avatarLayerPhase = fract(\\n      layer * 0.183\\n        + time * 0.017\\n        + avatarPhase * 0.31\\n    );\\n    vec3 avatarLayerTint = avatarLayerPhase < 0.5\\n      ? mix(u_avatarColorA, u_avatarColorB, avatarLayerPhase * 2.0)\\n      : mix(\\n          u_avatarColorB,\\n          u_avatarColorC,\\n          (avatarLayerPhase - 0.5) * 2.0\\n        );\\n    float layerColorMix = avatarColorMix\\n      * (0.72 + 0.20 * sin(layer * 1.7 + time * 0.9));\\n    tintAccumulator += mix(\\n      nativeLayerTint,\\n      avatarLayerTint,\\n      sat(layerColorMix)\\n    ) * weight;\\n\'\'\'
+if shader.count(chameleon_old) < 1:
+    fail(\'shader chameleon lobe color: expected at least one match\')
+shader = shader.replace(chameleon_old, chameleon_new, 1)'''
+          target.write_text(content[:start] + replacement + content[end:])
           PY
 
       - name: Apply intrinsic shader architecture
