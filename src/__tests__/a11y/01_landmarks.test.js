@@ -78,10 +78,10 @@ describe('ContactSection landmark', () => {
 });
 
 describe('OrbSection landmark', () => {
-  test('renders a <section> with aria-label containing "Interactive Orb"', () => {
+  test('renders a labelled Metabloom model chat section', () => {
     wrap(<OrbSection isActive={true} />);
     const section = document.querySelector('section#orb');
     expect(section).toBeInTheDocument();
-    expect(section.getAttribute('aria-label')).toMatch(/interactive orb/i);
+    expect(section.getAttribute('aria-label')).toMatch(/metabloom model chat interface/i);
   });
 });

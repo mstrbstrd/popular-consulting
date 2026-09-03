@@ -12,8 +12,8 @@
  *  - External links: aria-label indicating new tab
  *  - Contact form: aria-label
  *  - Submit button: accessible name
- *  - Orb emotion buttons: aria-label
- *  - Orb emotion group: role="group", aria-label
+ *  - Metabloom conversation log: role="log", aria-label
+ *  - Metabloom composer: aria-label and named controls
  */
 
 import '../../testHelpers/a11ySetup';
@@ -190,23 +190,24 @@ describe('Contact form ARIA', () => {
   });
 });
 
-// ── OrbSection emotion controls ──────────────────────────────────────────
+// ── Metabloom chat controls ──────────────────────────────────────────────
 
-describe('OrbSection emotion buttons', () => {
+describe('OrbSection chat controls', () => {
   beforeEach(() => wrap(<OrbSection isActive={true} />));
 
-  test('emotion buttons are wrapped in a group with aria-label="Orb emotions"', () => {
-    const group = document.querySelector('[role="group"][aria-label="Orb emotions"]');
-    expect(group).toBeInTheDocument();
+  test('conversation updates are published through a labelled log', () => {
+    expect(screen.getByRole('log', { name: 'Conversation' })).toBeInTheDocument();
   });
 
-  test('each emote button has a descriptive aria-label', () => {
-    const group = document.querySelector('[role="group"][aria-label="Orb emotions"]');
-    if (!group) return;
-    const buttons = group.querySelectorAll('button');
-    buttons.forEach(btn => {
-      expect(btn).toHaveAttribute('aria-label');
-      expect(btn.getAttribute('aria-label')).toMatch(/express/i);
-    });
+  test('composer and message controls have explicit accessible names', () => {
+    expect(screen.getByRole('form', { name: 'Message Metabloom' })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Message Metabloom' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Send message' })).toBeInTheDocument();
+  });
+
+  test('suggested messages are conventional named buttons', () => {
+    expect(screen.getByRole('button', { name: 'How should this interface feel?' })).toHaveAttribute('type', 'button');
+    expect(screen.getByRole('button', { name: 'Show me a thoughtful response' })).toHaveAttribute('type', 'button');
+    expect(screen.getByRole('button', { name: 'Celebrate a small win' })).toHaveAttribute('type', 'button');
   });
 });

@@ -15,7 +15,7 @@ export const EXPERIENCE_IDS = Object.freeze({
 
 const EXPERIENCE_CONFIG = Object.freeze({
   [EXPERIENCE_IDS.ORB]: {
-    label: "Living Metabloom Lab",
+    label: "Metabloom",
     title: routeMetadata.orb.title,
     description: routeMetadata.orb.description,
     canonical: routeMetadata.orb.canonical,
