@@ -1,0 +1,66 @@
+name: Apply intrinsic Metabloom avatar
+
+on:
+  push:
+    branches:
+      - feature/intrinsic-metabloom-avatar-20260903
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/intrinsic-metabloom-avatar-20260903
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Decode migration
+        shell: bash
+        run: |
+          base64 --decode scripts/apply_intrinsic_metabloom_avatar.py.gz.b64 \
+            | gzip --decompress > scripts/apply_intrinsic_metabloom_avatar.py
+
+      - name: Apply migration
+        run: python scripts/apply_intrinsic_metabloom_avatar.py
+
+      - name: Check whitespace
+        run: git diff --check
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test -- --watchAll=false --runInBand
+        env:
+          CI: true
+
+      - name: Build
+        run: npm run build
+        env:
+          CI: true
+
+      - name: Commit verified implementation
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm scripts/apply_intrinsic_metabloom_avatar.py.gz.b64
+          rm scripts/apply_intrinsic_metabloom_avatar.py
+          git rm .github/workflows/apply-intrinsic-metabloom-avatar.yml
+          git add .
+          git diff --cached --check
+          git commit -m "Move Metabloom avatar expression into the shader"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
