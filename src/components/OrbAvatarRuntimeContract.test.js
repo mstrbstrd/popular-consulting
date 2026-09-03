@@ -21,6 +21,7 @@ describe("intrinsic Metabloom chat runtime invariants", () => {
   const orb = source("OrbSection.js");
   const orbCss = source("OrbSection.css");
   const standalone = source("StandaloneExperiencePage.js");
+  const aetheris = repositorySource("src/aetheris-site.css");
 
   test("the existing Metabloom field is the avatar instead of content inside a second blob", () => {
     expect(avatar).toContain(
@@ -222,6 +223,15 @@ describe("intrinsic Metabloom chat runtime invariants", () => {
     expect(standalone).toContain(
       'import logo from "../assets/icons/logo2026_128.png";',
     );
+    expect(standalone).toContain(
+      "width: min(46rem, calc(100vw - 1.6rem));",
+    );
+    expect(standalone).toContain("flex: 0 0 44px;");
+    expect(aetheris).toContain(
+      "html body .standalone-experience__header {",
+    );
+    expect(aetheris).toContain("background: transparent !important;");
+    expect(aetheris).toContain("text-transform: none !important;");
   });
 
   test("the chat bridge supports direct, event-driven, and adapter-driven model responses", () => {

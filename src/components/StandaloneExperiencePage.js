@@ -318,7 +318,7 @@ const ExperienceContent = ({ experience }) => {
           inset: 0;
           overflow: hidden;
           background: var(--experience-page-bg);
-          color: var(--experience-nav-text);
+          color: var(--aetheris-ink);
         }
 
         .standalone-experience__skip {
@@ -582,7 +582,7 @@ const ExperienceContent = ({ experience }) => {
           min-height: 100vh;
           min-height: 100dvh;
           place-items: center;
-          color: var(--experience-nav-text);
+          color: var(--aetheris-ink);
           font-size: 1.6rem;
         }
 
@@ -601,27 +601,33 @@ const ExperienceContent = ({ experience }) => {
           }
 
           .standalone-experience__nav-pill {
-            width: min(100%, 46rem);
+            width: min(46rem, calc(100vw - 1.6rem));
+            max-width: 100%;
+            min-width: 0;
             justify-content: space-between;
             padding: 0.55rem 0.55rem 0.55rem 1rem;
           }
 
           .standalone-experience__brand {
+            min-width: 0;
+            flex: 1 1 auto;
             margin-left: -0.5rem;
             padding-inline: 0.8rem;
           }
 
           .standalone-experience__brand-name {
+            max-width: calc(100vw - 11rem);
             font-size: 1.2rem !important;
           }
 
           .standalone-experience__nav-rule,
           .standalone-experience__header-label {
-            display: none;
+            display: none !important;
           }
 
           .standalone-experience__theme {
-            margin-left: auto !important;
+            flex: 0 0 44px;
+            margin-left: 0.4rem !important;
           }
 
           .standalone-experience__theme::before {
