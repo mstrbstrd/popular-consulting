@@ -48,22 +48,14 @@ jobs:
               "        )\n"
               "    return content.replace(old, new, 1)\n\n"
           )
-          label_marker = "'shader chameleon lobe color',"
-          label_index = content.find(label_marker)
-          call_index = content.rfind(
-              "shader = replace_once(",
-              0,
-              label_index,
-          )
-          if label_index < 0 or call_index < 0:
+          shader_calls = content.count("shader = replace_once(")
+          if shader_calls < 1:
               raise SystemExit(
-                  "Decoded patch did not contain the chameleon replacement call"
+                  "Decoded patch did not contain shader replacement calls"
               )
-          content = (
-              helper
-              + content[:call_index]
-              + "shader = replace_first("
-              + content[call_index + len("shader = replace_once("):]
+          content = helper + content.replace(
+              "shader = replace_once(",
+              "shader = replace_first(",
           )
           target.write_text(content)
           PY
