@@ -5,6 +5,7 @@ on:
     paths:
       - .github/workflows/orb-review-capture.yml
       - scripts/capture-orb-review.mjs
+      - scripts/windows-browser-smoke.mjs
       - src/SiteRouter.js
       - src/aetheris-site.css
       - src/components/NavMenu.js
