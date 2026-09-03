@@ -84,21 +84,32 @@ jobs:
                   raise SystemExit(f"{label}: expected source was not found")
               file_path.write_text(content.replace(old, new, 1))
 
-          replace_required(
-              "src/components/CreatorOSFieldCanvas.js",
-              """      const avatarColorAValue = avatarColorARef.current;
-              const avatarColorBValue = avatarColorBRef.current;
-              const avatarColorCValue = avatarColorCRef.current;
-          """,
-              """      const avatarColorAValue =
-                avatarColorARef.current || [0.0, 0.933, 1.0];
-              const avatarColorBValue =
-                avatarColorBRef.current || [1.0, 0.0, 1.0];
-              const avatarColorCValue =
-                avatarColorCRef.current || [0.616, 0.0, 1.0];
-          """,
-              "defensive avatar colour defaults",
+          canvas_path = Path("src/components/CreatorOSFieldCanvas.js")
+          canvas = canvas_path.read_text()
+          colour_replacements = (
+              (
+                  "const avatarColorAValue = avatarColorARef.current;",
+                  "const avatarColorAValue =\n"
+                  "        avatarColorARef.current || [0.0, 0.933, 1.0];",
+              ),
+              (
+                  "const avatarColorBValue = avatarColorBRef.current;",
+                  "const avatarColorBValue =\n"
+                  "        avatarColorBRef.current || [1.0, 0.0, 1.0];",
+              ),
+              (
+                  "const avatarColorCValue = avatarColorCRef.current;",
+                  "const avatarColorCValue =\n"
+                  "        avatarColorCRef.current || [0.616, 0.0, 1.0];",
+              ),
           )
+          for old, new in colour_replacements:
+              if old not in canvas:
+                  raise SystemExit(
+                      f"defensive avatar colour default missing: {old}"
+                  )
+              canvas = canvas.replace(old, new, 1)
+          canvas_path.write_text(canvas)
 
           shader_path = Path("src/components/CreatorOSFieldShader.js")
           shader = shader_path.read_text().replace(
@@ -116,15 +127,11 @@ jobs:
               ) + "\n"
           )
 
-          orb_test_path = Path("src/components/OrbSection.test.js")
-          orb_test = orb_test_path.read_text()
-          if '"Metabloom, embodied"' not in orb_test:
-              raise SystemExit("Orb heading contract was not found")
-          orb_test_path.write_text(
-              orb_test.replace(
-                  '"Metabloom, embodied"',
-                  '"Metabloom itself"',
-              )
+          replace_required(
+              "src/components/OrbSection.test.js",
+              '"Metabloom, embodied"',
+              '"Metabloom itself"',
+              "Orb heading contract",
           )
 
           standalone_test_path = Path(
