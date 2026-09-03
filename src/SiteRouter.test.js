@@ -44,6 +44,16 @@ jest.mock("./components/WorkPage", () => {
     );
 });
 
+jest.mock("./components/OrbPage", () => {
+  const ReactModule = require("react");
+  return () =>
+    ReactModule.createElement(
+      "div",
+      { "data-testid": "orb-page" },
+      "Orb page",
+    );
+});
+
 jest.mock("./components/DitherCanvasPage", () => {
   const ReactModule = require("react");
   return () =>
@@ -140,6 +150,7 @@ describe("SiteRouter", () => {
 
     expect(await screen.findByTestId("work-page")).toBeInTheDocument();
     expect(screen.queryByTestId("immersive-site")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("orb-page")).not.toBeInTheDocument();
     expect(screen.queryByTestId("standalone-experience")).not.toBeInTheDocument();
   });
 
@@ -176,16 +187,23 @@ describe("SiteRouter", () => {
     expect(screen.queryByTestId("dither-canvas-page")).not.toBeInTheDocument();
   });
 
-  test.each([
-    ["/orb", "orb"],
-    ["/game", "game"],
-  ])("renders %s as an isolated standalone experience", async (pathname, experience) => {
-    render(<SiteRouter pathname={pathname} />);
+  test("renders /orb through its first-class application page", async () => {
+    render(<SiteRouter pathname="/orb" />);
+
+    expect(await screen.findByTestId("orb-page")).toBeInTheDocument();
+    expect(screen.queryByTestId("standalone-experience")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("immersive-site")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("work-page")).not.toBeInTheDocument();
+  });
+
+  test("keeps /game in the isolated standalone experience", async () => {
+    render(<SiteRouter pathname="/game" />);
 
     expect(await screen.findByTestId("standalone-experience")).toHaveAttribute(
       "data-experience",
-      experience,
+      "game",
     );
+    expect(screen.queryByTestId("orb-page")).not.toBeInTheDocument();
     expect(screen.queryByTestId("immersive-site")).not.toBeInTheDocument();
     expect(screen.queryByTestId("work-page")).not.toBeInTheDocument();
   });

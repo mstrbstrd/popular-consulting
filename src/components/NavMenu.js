@@ -3,7 +3,20 @@ import logo from "../assets/icons/logo2026_128.png";
 import { useThemeMode } from "../contexts/ThemeContext";
 import { SITE_AUDIENCES, getSiteCopy } from "../content/siteCopy";
 
-const NavMenu = ({ audience = SITE_AUDIENCES.BUSINESS }) => {
+export const readRequestedSection = (
+  hash = typeof window === "undefined" ? "" : window.location.hash,
+) => {
+  const match = String(hash || "").match(/^#section-(\d+)$/);
+  const section = Number(match?.[1]);
+  return Number.isInteger(section) && section >= 0 ? section : null;
+};
+
+const NavMenu = ({
+  audience = SITE_AUDIENCES.BUSINESS,
+  alwaysVisible = false,
+  homeHref = null,
+  sectionHrefs = null,
+}) => {
   const { isDark, toggleTheme } = useThemeMode();
   const navigation = getSiteCopy(audience).navigation;
   const navLinks = navigation.links;
@@ -24,8 +37,22 @@ const NavMenu = ({ audience = SITE_AUDIENCES.BUSINESS }) => {
       setIsVisible(index !== 0);
     };
 
+    const openRequestedSection = () => {
+      const requestedSection = readRequestedSection();
+      const dots = document.querySelectorAll(".section-dot");
+      const requestedDot =
+        requestedSection === null ? null : dots[requestedSection];
+
+      if (requestedDot && !requestedDot.classList.contains("active")) {
+        requestedDot.click();
+        return;
+      }
+
+      checkActiveSection();
+    };
+
     checkMobile();
-    const initialSyncTimer = window.setTimeout(checkActiveSection, 500);
+    const initialSyncTimer = window.setTimeout(openRequestedSection, 500);
 
     const observer = new MutationObserver(checkActiveSection);
     document.querySelectorAll(".section-dot").forEach((dot) =>
@@ -48,13 +75,18 @@ const NavMenu = ({ audience = SITE_AUDIENCES.BUSINESS }) => {
 
   const renderLink = ({ label, section, href }, mobile = false) => {
     const className = mobile ? "nav-overlay-link" : "nav-link";
+    const sectionHref =
+      Number.isInteger(section) && sectionHrefs
+        ? sectionHrefs[section]
+        : null;
+    const resolvedHref = href || sectionHref;
 
-    if (href) {
-      const external = /^https?:\/\//.test(href);
+    if (resolvedHref) {
+      const external = /^https?:\/\//.test(resolvedHref);
 
       return (
         <a
-          href={href}
+          href={resolvedHref}
           target={external ? "_blank" : undefined}
           rel={external ? "noopener noreferrer" : undefined}
           className={className}
@@ -90,18 +122,36 @@ const NavMenu = ({ audience = SITE_AUDIENCES.BUSINESS }) => {
     );
   };
 
+  const brandContent = (
+    <>
+      <img src={logo} alt="" aria-hidden="true" className="nav-logo" />
+      <span className="nav-brand-name">{navigation.brandLabel}</span>
+    </>
+  );
+
   return (
     <>
-      <header className={`nav-header ${isVisible ? "nav-in" : "nav-out"}`}>
+      <header
+        className={`nav-header ${alwaysVisible || isVisible ? "nav-in" : "nav-out"}`}
+      >
         <nav className="nav-pill" aria-label="Primary navigation">
-          <button
-            className="nav-brand"
-            onClick={() => navigate(0)}
-            aria-label={navigation.brandAriaLabel}
-          >
-            <img src={logo} alt="" aria-hidden="true" className="nav-logo" />
-            <span className="nav-brand-name">{navigation.brandLabel}</span>
-          </button>
+          {homeHref ? (
+            <a
+              className="nav-brand"
+              href={homeHref}
+              aria-label={navigation.brandAriaLabel}
+            >
+              {brandContent}
+            </a>
+          ) : (
+            <button
+              className="nav-brand"
+              onClick={() => navigate(0)}
+              aria-label={navigation.brandAriaLabel}
+            >
+              {brandContent}
+            </button>
+          )}
 
           {!isMobile && (
             <>

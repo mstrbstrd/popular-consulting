@@ -1,0 +1,647 @@
+.orb-page {
+  --orb-page-background: #fff8f7;
+  --orb-page-grid: rgba(32, 26, 27, 0.08);
+  --orb-page-scrim-top: rgba(255, 248, 247, 0.16);
+  --orb-page-scrim-bottom: rgba(255, 248, 247, 0.84);
+  --orb-page-edge: rgba(255, 248, 247, 0.2);
+  --orb-page-user-surface: rgba(32, 26, 27, 0.92);
+  --orb-page-user-ink: rgba(255, 255, 255, 0.98);
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  isolation: isolate;
+  color: var(--aetheris-ink);
+  background: var(--orb-page-background);
+}
+
+[data-theme="dark"] .orb-page {
+  --orb-page-background: #080809;
+  --orb-page-grid: rgba(255, 255, 255, 0.075);
+  --orb-page-scrim-top: rgba(8, 8, 9, 0.18);
+  --orb-page-scrim-bottom: rgba(8, 8, 9, 0.86);
+  --orb-page-edge: rgba(8, 8, 9, 0.24);
+  --orb-page-user-surface: rgba(237, 233, 240, 0.92);
+  --orb-page-user-ink: rgba(19, 19, 26, 0.98);
+}
+
+.orb-page__stage,
+.orb-page__atmosphere,
+.orb-page__content {
+  position: fixed;
+  inset: 0;
+}
+
+.orb-page__stage {
+  overflow: hidden;
+}
+
+.orb-page__atmosphere {
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      ellipse at 50% 42%,
+      rgba(0, 238, 255, 0.075),
+      transparent 34%
+    ),
+    radial-gradient(
+      ellipse at 50% 60%,
+      rgba(255, 0, 255, 0.06),
+      transparent 52%
+    ),
+    var(--orb-page-background);
+}
+
+[data-theme="dark"] .orb-page__atmosphere {
+  background:
+    radial-gradient(
+      ellipse at 50% 42%,
+      rgba(0, 238, 255, 0.09),
+      transparent 34%
+    ),
+    radial-gradient(
+      ellipse at 50% 60%,
+      rgba(157, 0, 255, 0.1),
+      transparent 52%
+    ),
+    var(--orb-page-background);
+}
+
+.orb-page__glow {
+  position: absolute;
+  display: block;
+  width: 44vmax;
+  height: 44vmax;
+  border-radius: 50%;
+  filter: blur(9rem);
+  opacity: 0.13;
+}
+
+.orb-page__glow--cyan {
+  top: -24vmax;
+  left: -15vmax;
+  background: #00eeff;
+}
+
+.orb-page__glow--magenta {
+  right: -22vmax;
+  bottom: -24vmax;
+  background: #ff00ff;
+}
+
+.orb-page__glow--violet {
+  top: 36%;
+  right: 10%;
+  width: 24vmax;
+  height: 24vmax;
+  background: #9d00ff;
+  opacity: 0.07;
+}
+
+.orb-page__grid {
+  position: absolute;
+  inset: 0;
+  opacity: 0.22;
+  background-image:
+    linear-gradient(var(--orb-page-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--orb-page-grid) 1px, transparent 1px);
+  background-size: 8rem 8rem;
+  -webkit-mask-image: radial-gradient(
+    ellipse at center,
+    #000 0%,
+    rgba(0, 0, 0, 0.74) 42%,
+    transparent 82%
+  );
+  mask-image: radial-gradient(
+    ellipse at center,
+    #000 0%,
+    rgba(0, 0, 0, 0.74) 42%,
+    transparent 82%
+  );
+}
+
+.orb-page__content {
+  z-index: 10;
+}
+
+.orb-page .nav-header {
+  z-index: 1200;
+}
+
+.orb-page__signature {
+  position: fixed;
+  top: 50%;
+  left: max(3.2rem, env(safe-area-inset-left));
+  z-index: 40;
+  width: min(26rem, calc((100vw - 82rem) / 2 - 4.8rem));
+  padding: 0.2rem 0 0.2rem 1.8rem;
+  color: var(--aetheris-ink);
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.orb-page__signature::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 2px;
+  border-radius: var(--aetheris-radius-pill);
+  background: var(--aetheris-spectral-v);
+  box-shadow: 0 0 18px var(--aetheris-spectral-glow);
+}
+
+.orb-page__signature::after {
+  content: "";
+  display: block;
+  width: 6.4rem;
+  height: 1px;
+  margin-top: 1.7rem;
+  border-radius: var(--aetheris-radius-pill);
+  background: var(--aetheris-spectral-h);
+  opacity: 0.72;
+}
+
+.orb-page__signature-kicker {
+  display: block;
+  color: var(--aetheris-ink-2);
+  font-family: var(--aetheris-font-mono);
+  font-size: 0.98rem;
+  font-weight: 600;
+  letter-spacing: 0.085em;
+  line-height: 1.45;
+  text-transform: uppercase;
+}
+
+.orb-page__signature-title {
+  display: block;
+  margin-top: 1.1rem;
+  color: var(--aetheris-ink);
+  font-family: var(--aetheris-font-sans);
+  font-size: clamp(2.8rem, 2.5vw, 4rem);
+  font-weight: 650;
+  letter-spacing: -0.045em;
+  line-height: 0.98;
+}
+
+.orb-page__signature p {
+  max-width: 24rem;
+  margin: 1.4rem 0 0;
+  color: var(--aetheris-ink-2);
+  font-family: var(--aetheris-font-sans);
+  font-size: 1.22rem;
+  font-weight: 430;
+  letter-spacing: -0.01em;
+  line-height: 1.62;
+}
+
+.orb-page__loading {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  color: var(--aetheris-ink-2);
+  font-family: var(--aetheris-font-mono);
+  font-size: 1.15rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.orb-page .metabloom-chat {
+  color: var(--aetheris-ink);
+  background: transparent;
+}
+
+.orb-page .metabloom-chat__scrim {
+  background:
+    linear-gradient(
+      180deg,
+      var(--orb-page-scrim-top) 0%,
+      transparent 24%,
+      transparent 56%,
+      var(--orb-page-scrim-bottom) 100%
+    ),
+    linear-gradient(
+      90deg,
+      var(--orb-page-edge),
+      transparent 18%,
+      transparent 82%,
+      var(--orb-page-edge)
+    );
+}
+
+.orb-page .metabloom-chat__shell {
+  width: min(76rem, calc(100% - 3.2rem));
+  padding-top: max(10rem, calc(env(safe-area-inset-top) + 8.9rem));
+  padding-bottom: max(1.8rem, env(safe-area-inset-bottom));
+}
+
+.orb-page .metabloom-chat__presence {
+  min-height: 3.4rem;
+  padding: 0.55rem 1.1rem;
+  border: 1px solid transparent;
+  border-radius: var(--aetheris-radius-pill);
+  color: var(--aetheris-ink-2);
+  background:
+    linear-gradient(
+      var(--aetheris-glass-panel-raised),
+      var(--aetheris-glass-panel-raised)
+    ) padding-box,
+    var(--aetheris-spectral-border-soft) border-box;
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  box-shadow: var(--aetheris-shadow), var(--aetheris-glass-specular);
+  font-family: var(--aetheris-font-mono);
+  font-size: 0.86rem;
+  font-weight: 600;
+  letter-spacing: 0.075em;
+}
+
+.orb-page .metabloom-chat__presence-dot {
+  width: 0.72rem;
+  height: 0.72rem;
+  background: var(--aetheris-spectral);
+  box-shadow: 0 0 14px var(--aetheris-spectral-glow);
+}
+
+.orb-page .metabloom-chat__messages {
+  padding: clamp(2.2rem, 7vh, 6.4rem) 0.4rem 1.8rem;
+  scroll-padding-block: 2rem;
+}
+
+.orb-page .metabloom-chat__message-list {
+  gap: 1.25rem;
+}
+
+.orb-page .metabloom-chat__message {
+  width: min(60rem, 88%);
+}
+
+.orb-page .metabloom-chat__speaker {
+  color: var(--aetheris-ink-2);
+  font-family: var(--aetheris-font-mono);
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.075em;
+}
+
+.orb-page .metabloom-chat__bubble {
+  position: relative;
+  overflow: hidden;
+  padding: 1.25rem 1.5rem;
+  border: 1px solid var(--aetheris-line-strong);
+  border-radius:
+    var(--aetheris-radius-glass)
+    var(--aetheris-radius-glass)
+    var(--aetheris-radius-glass)
+    var(--aetheris-radius-sm);
+  color: var(--aetheris-ink);
+  background: var(--aetheris-glass-panel-raised);
+  box-shadow: var(--aetheris-shadow), var(--aetheris-glass-specular);
+}
+
+.orb-page .metabloom-chat__message--assistant .metabloom-chat__bubble::before {
+  content: "";
+  position: absolute;
+  top: 18%;
+  bottom: 18%;
+  left: 0;
+  width: 2px;
+  border-radius: var(--aetheris-radius-pill);
+  background: var(--aetheris-spectral-v);
+  opacity: 0.9;
+}
+
+.orb-page .metabloom-chat__message--user .metabloom-chat__bubble {
+  border-color: transparent;
+  border-radius:
+    var(--aetheris-radius-glass)
+    var(--aetheris-radius-glass)
+    var(--aetheris-radius-sm)
+    var(--aetheris-radius-glass);
+  color: var(--orb-page-user-ink);
+  background: var(--orb-page-user-surface);
+  box-shadow: var(--aetheris-shadow);
+}
+
+.orb-page .metabloom-chat__bubble > p {
+  color: inherit;
+  font-family: var(--aetheris-font-sans);
+  font-size: clamp(1.3rem, 1.25vw, 1.5rem);
+  font-weight: 430;
+  letter-spacing: -0.012em;
+  line-height: 1.58;
+}
+
+.orb-page .metabloom-chat__preview-label {
+  color: currentColor;
+  font-family: var(--aetheris-font-mono);
+  opacity: 0.58;
+}
+
+.orb-page .metabloom-chat__suggestions {
+  gap: 0.75rem;
+}
+
+.orb-page .metabloom-chat__suggestions button {
+  min-height: 4.4rem;
+  padding: 0.8rem 1.15rem;
+  border: 1px solid transparent;
+  border-radius: var(--aetheris-radius-md);
+  color: var(--aetheris-ink-2);
+  background:
+    linear-gradient(
+      var(--aetheris-glass-panel),
+      var(--aetheris-glass-panel)
+    ) padding-box,
+    var(--aetheris-spectral-border-soft) border-box;
+  box-shadow: var(--aetheris-shadow);
+  font-family: var(--aetheris-font-mono);
+  font-size: 0.92rem;
+  font-weight: 600;
+  letter-spacing: 0.045em;
+  line-height: 1.35;
+  text-transform: uppercase;
+  transition:
+    color var(--aetheris-motion-fast) var(--aetheris-ease-standard),
+    background var(--aetheris-motion-fast) var(--aetheris-ease-standard),
+    transform var(--aetheris-motion-medium) var(--aetheris-ease-spring);
+}
+
+.orb-page .metabloom-chat__suggestions button:hover {
+  color: var(--aetheris-ink);
+  background:
+    linear-gradient(
+      var(--aetheris-glass-panel-raised),
+      var(--aetheris-glass-panel-raised)
+    ) padding-box,
+    var(--aetheris-spectral) border-box;
+  transform: translateY(-2px);
+}
+
+.orb-page .metabloom-chat__suggestions button:active {
+  transform: translateY(1px) scale(0.99);
+}
+
+.orb-page .metabloom-chat__composer-area {
+  gap: 0.75rem;
+}
+
+.orb-page .metabloom-chat__error {
+  border: 1px solid rgba(210, 44, 80, 0.38);
+  border-radius: var(--aetheris-radius-md);
+  color: var(--aetheris-ink);
+  background: var(--aetheris-glass-panel-raised);
+  box-shadow: var(--aetheris-shadow);
+  font-family: var(--aetheris-font-sans);
+}
+
+.orb-page .metabloom-chat__composer {
+  gap: 0.8rem;
+  padding: 0.65rem 0.7rem 0.65rem 1.25rem;
+  border: 1px solid transparent;
+  border-radius: var(--aetheris-radius-glass);
+  background:
+    linear-gradient(
+      var(--aetheris-glass-panel-raised),
+      var(--aetheris-glass-panel-raised)
+    ) padding-box,
+    var(--aetheris-spectral-border-soft) border-box;
+  backdrop-filter: var(--aetheris-glass-blur-chrome);
+  -webkit-backdrop-filter: var(--aetheris-glass-blur-chrome);
+  box-shadow: var(--aetheris-shadow), var(--aetheris-glass-specular);
+  transition:
+    background var(--aetheris-motion-fast) var(--aetheris-ease-standard),
+    box-shadow var(--aetheris-motion-fast) var(--aetheris-ease-standard);
+}
+
+.orb-page .metabloom-chat__composer:focus-within {
+  outline: none;
+  background:
+    linear-gradient(
+      var(--aetheris-glass-panel-raised),
+      var(--aetheris-glass-panel-raised)
+    ) padding-box,
+    var(--aetheris-spectral) border-box;
+  box-shadow:
+    var(--aetheris-focus-halo),
+    var(--aetheris-shadow),
+    var(--aetheris-glass-specular);
+}
+
+.orb-page .metabloom-chat__composer textarea {
+  color: var(--aetheris-ink);
+  font-family: var(--aetheris-font-sans);
+  font-size: 1.36rem;
+  font-weight: 430;
+}
+
+.orb-page .metabloom-chat__composer textarea::placeholder {
+  color: var(--aetheris-ink-2);
+}
+
+.orb-page .metabloom-chat__composer button,
+[data-theme="dark"] .orb-page .metabloom-chat__composer button {
+  width: 4.4rem;
+  height: 4.4rem;
+  min-width: 4.4rem;
+  min-height: 4.4rem;
+  border: 1px solid transparent;
+  border-radius: var(--aetheris-radius-md);
+  color: var(--aetheris-ink);
+  background:
+    linear-gradient(
+      var(--aetheris-panel-strong),
+      var(--aetheris-panel-strong)
+    ) padding-box,
+    var(--aetheris-spectral-border-soft) border-box;
+  box-shadow: none;
+  font-family: var(--aetheris-font-mono);
+  font-size: 1.8rem;
+  font-weight: 600;
+  transition:
+    background var(--aetheris-motion-fast) var(--aetheris-ease-standard),
+    box-shadow var(--aetheris-motion-fast) var(--aetheris-ease-standard),
+    transform var(--aetheris-motion-medium) var(--aetheris-ease-spring);
+}
+
+.orb-page .metabloom-chat__composer button:hover:not(:disabled) {
+  background:
+    linear-gradient(
+      var(--aetheris-panel-raised),
+      var(--aetheris-panel-raised)
+    ) padding-box,
+    var(--aetheris-spectral) border-box;
+  box-shadow: 0 0 18px var(--aetheris-spectral-glow);
+  transform: translateY(-2px);
+}
+
+.orb-page .metabloom-chat__composer button:active:not(:disabled) {
+  transform: translateY(1px) scale(0.98);
+}
+
+.orb-page .metabloom-chat__composer button:focus-visible {
+  outline: none;
+  box-shadow: var(--aetheris-focus-halo);
+}
+
+.orb-page .metabloom-chat__composer button:disabled {
+  opacity: 0.34;
+}
+
+.orb-page .metabloom-chat__typing > span:not(.metabloom-chat__sr-only) {
+  background: var(--aetheris-teal);
+}
+
+@media (max-width: 1280px) {
+  .orb-page__signature {
+    display: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .orb-page__glow {
+    width: 58vmax;
+    height: 58vmax;
+    filter: blur(7rem);
+  }
+
+  .orb-page__grid {
+    background-size: 6rem 6rem;
+    opacity: 0.16;
+  }
+
+  .orb-page .metabloom-chat__shell {
+    width: calc(100% - 1.6rem);
+    padding-top: max(8.9rem, calc(env(safe-area-inset-top) + 8rem));
+    padding-bottom: max(0.9rem, env(safe-area-inset-bottom));
+  }
+
+  .orb-page .metabloom-chat__presence {
+    min-height: 3.1rem;
+    padding: 0.5rem 0.9rem;
+    font-size: 0.76rem;
+  }
+
+  .orb-page .metabloom-chat__messages {
+    padding: 1.5rem 0.15rem 1.1rem;
+  }
+
+  .orb-page .metabloom-chat__message-list {
+    gap: 0.95rem;
+  }
+
+  .orb-page .metabloom-chat__message {
+    width: min(94%, 58rem);
+  }
+
+  .orb-page .metabloom-chat__bubble {
+    padding: 1rem 1.2rem;
+    border-radius:
+      var(--aetheris-radius-xl)
+      var(--aetheris-radius-xl)
+      var(--aetheris-radius-xl)
+      var(--aetheris-radius-sm);
+  }
+
+  .orb-page .metabloom-chat__message--user .metabloom-chat__bubble {
+    border-radius:
+      var(--aetheris-radius-xl)
+      var(--aetheris-radius-xl)
+      var(--aetheris-radius-sm)
+      var(--aetheris-radius-xl);
+  }
+
+  .orb-page .metabloom-chat__bubble > p {
+    font-size: 1.2rem;
+    line-height: 1.52;
+  }
+
+  .orb-page .metabloom-chat__suggestions {
+    gap: 0.6rem;
+  }
+
+  .orb-page .metabloom-chat__suggestions button {
+    min-height: 4rem;
+    padding: 0.65rem 0.9rem;
+    font-size: 0.82rem;
+  }
+
+  .orb-page .metabloom-chat__composer {
+    gap: 0.5rem;
+    padding: 0.45rem 0.5rem 0.45rem 1rem;
+    border-radius: var(--aetheris-radius-xl);
+  }
+
+  .orb-page .metabloom-chat__composer textarea {
+    min-height: 4rem;
+    padding-top: 0.9rem;
+    font-size: 1.24rem;
+  }
+
+  .orb-page .metabloom-chat__composer button,
+  [data-theme="dark"] .orb-page .metabloom-chat__composer button {
+    width: 4rem;
+    height: 4rem;
+    min-width: 4rem;
+    min-height: 4rem;
+  }
+}
+
+@media (max-height: 650px) {
+  .orb-page .metabloom-chat__shell {
+    padding-top: max(8.2rem, calc(env(safe-area-inset-top) + 7.4rem));
+  }
+
+  .orb-page .metabloom-chat__messages {
+    padding-top: 0.8rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .orb-page .metabloom-chat__suggestions button,
+  .orb-page .metabloom-chat__composer,
+  .orb-page .metabloom-chat__composer button {
+    transition: none;
+  }
+
+  .orb-page .metabloom-chat__suggestions button:hover,
+  .orb-page .metabloom-chat__composer button:hover:not(:disabled) {
+    transform: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .orb-page__atmosphere {
+    display: none;
+  }
+
+  .orb-page__signature::before,
+  .orb-page__signature::after {
+    background: CanvasText;
+    box-shadow: none;
+  }
+
+  .orb-page .metabloom-chat__presence,
+  .orb-page .metabloom-chat__bubble,
+  .orb-page .metabloom-chat__suggestions button,
+  .orb-page .metabloom-chat__composer,
+  .orb-page .metabloom-chat__error,
+  .orb-page .metabloom-chat__composer button,
+  [data-theme="dark"] .orb-page .metabloom-chat__composer button {
+    border: 1px solid CanvasText;
+    color: CanvasText;
+    background: Canvas;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+
+  .orb-page .metabloom-chat__message--assistant .metabloom-chat__bubble::before {
+    background: CanvasText;
+  }
+}
