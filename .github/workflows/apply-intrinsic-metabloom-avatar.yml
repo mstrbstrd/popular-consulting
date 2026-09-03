@@ -71,6 +71,76 @@ jobs:
       - name: Apply intrinsic shader architecture
         run: python scripts/apply_intrinsic_metabloom_avatar.py
 
+      - name: Align defensive defaults and existing contracts
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_required(path, old, new, label):
+              file_path = Path(path)
+              content = file_path.read_text()
+              if old not in content:
+                  raise SystemExit(f"{label}: expected source was not found")
+              file_path.write_text(content.replace(old, new, 1))
+
+          replace_required(
+              "src/components/CreatorOSFieldCanvas.js",
+              """      const avatarColorAValue = avatarColorARef.current;
+              const avatarColorBValue = avatarColorBRef.current;
+              const avatarColorCValue = avatarColorCRef.current;
+          """,
+              """      const avatarColorAValue =
+                avatarColorARef.current || [0.0, 0.933, 1.0];
+              const avatarColorBValue =
+                avatarColorBRef.current || [1.0, 0.0, 1.0];
+              const avatarColorCValue =
+                avatarColorCRef.current || [0.616, 0.0, 1.0];
+          """,
+              "defensive avatar colour defaults",
+          )
+
+          shader_path = Path("src/components/CreatorOSFieldShader.js")
+          shader = shader_path.read_text().replace(
+              "metabloom-avatar__action",
+              "the Metabloom action registry",
+          )
+          shader_path.write_text(shader)
+
+          css_path = Path("src/components/MetabloomAvatar.css")
+          css = css_path.read_text()
+          css_path.write_text(
+              "\n".join(
+                  line for line in css.splitlines()
+                  if "box-shadow:" not in line
+              ) + "\n"
+          )
+
+          orb_test_path = Path("src/components/OrbSection.test.js")
+          orb_test = orb_test_path.read_text()
+          if '"Metabloom, embodied"' not in orb_test:
+              raise SystemExit("Orb heading contract was not found")
+          orb_test_path.write_text(
+              orb_test.replace(
+                  '"Metabloom, embodied"',
+                  '"Metabloom itself"',
+              )
+          )
+
+          standalone_test_path = Path(
+              "src/components/StandaloneExperiencePage.test.js"
+          )
+          standalone_test = standalone_test_path.read_text()
+          if '"Living Metabloom Lab"' not in standalone_test:
+              raise SystemExit("Standalone Orb label contract was not found")
+          standalone_test_path.write_text(
+              standalone_test.replace(
+                  '"Living Metabloom Lab"',
+                  '"Native Metabloom Avatar"',
+              )
+          )
+          PY
+
       - name: Check whitespace
         run: git diff --check
 
