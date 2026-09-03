@@ -31,13 +31,13 @@
   },
   "orb": {
     "path": "/orb",
-    "title": "Faceless Metabloom Avatar Lab | Popular Consulting",
-    "description": "An interactive faceless avatar built from the original Metabloom field, expressing intent through whole-body gesture and bounded chameleon colorways.",
+    "title": "Metabloom Chat | Popular Consulting",
+    "description": "A full-screen model chat interface where the original Metabloom field carries a bounded emotion and action chain alongside each plain-text response.",
     "canonical": "https://popular-consulting.com/orb",
-    "socialTitle": "Faceless Metabloom Avatar Lab | Popular Consulting",
-    "socialDescription": "The original Metabloom theme becomes an amorphous avatar through nods, shakes, bursts, reforming motion, and emotion-specific colorways.",
+    "socialTitle": "Metabloom Chat | Popular Consulting",
+    "socialDescription": "A minimalist conversation interface where the original Metabloom field responds through bounded motion and colour alongside the model's written answer.",
     "robots": "noindex,follow",
-    "noscript": "The Faceless Metabloom Avatar Lab requires JavaScript. Return to https://popular-consulting.com/ or contact shae@popcon.dev."
+    "noscript": "Metabloom Chat requires JavaScript. Return to https://popular-consulting.com/ or contact shae@popcon.dev."
   },
   "game": {
     "path": "/game",
