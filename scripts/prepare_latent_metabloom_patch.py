@@ -39,7 +39,9 @@ if text.count(old_assertion) != 1:
     )
 text = text.replace(old_assertion, new_assertion, 1)
 
-old_initial_test = """    '''    expect(screen.getByTestId(\"metabloom-avatar\")).toHaveAttribute(
+old_initial_call = """orb_test = replace_once(
+    orb_test,
+    '''    expect(screen.getByTestId(\"metabloom-avatar\")).toHaveAttribute(
       \"data-form\",
       \"companion\",
     );''',
@@ -51,33 +53,33 @@ old_initial_test = """    '''    expect(screen.getByTestId(\"metabloom-avatar\")
       \"data-field-state\",
       \"latent\",
     );''',
-    \"initial latent field state test\","""
-new_initial_test = """    '''    expect(screen.getByTestId(\"metabloom-avatar\")).toHaveAttribute(
-      \"data-expression\",
-      \"happy\",
-    );
-    expect(screen.getByTestId(\"metabloom-avatar\")).toHaveAttribute(
+    \"initial latent field state test\",
+)"""
+new_initial_call = """orb_test = replace_once(
+    orb_test,
+    '''    expect(screen.getByTestId(\"metabloom-avatar\")).toHaveAttribute(
       \"data-form\",
       \"companion\",
-    );''',
-    '''    expect(screen.getByTestId(\"metabloom-avatar\")).toHaveAttribute(
-      \"data-expression\",
-      \"happy\",
     );
-    expect(screen.getByTestId(\"metabloom-avatar\")).toHaveAttribute(
+
+    const emotionGroup = screen.getByRole(\"group\", { name: \"Orb emotions\" });''',
+    '''    expect(screen.getByTestId(\"metabloom-avatar\")).toHaveAttribute(
       \"data-form\",
       \"companion\",
     );
     expect(screen.getByTestId(\"metabloom-avatar\")).toHaveAttribute(
       \"data-field-state\",
       \"latent\",
-    );''',
-    \"initial latent field state test\","""
-if text.count(old_initial_test) != 1:
+    );
+
+    const emotionGroup = screen.getByRole(\"group\", { name: \"Orb emotions\" });''',
+    \"initial latent field state test\",
+)"""
+if text.count(old_initial_call) != 1:
     raise SystemExit(
-        "initial test patch source: expected one match, "
-        f"found {text.count(old_initial_test)}"
+        "initial test call patch source: expected one match, "
+        f"found {text.count(old_initial_call)}"
     )
-text = text.replace(old_initial_test, new_initial_test, 1)
+text = text.replace(old_initial_call, new_initial_call, 1)
 
 path.write_text(text, encoding="utf-8", newline="\n")
