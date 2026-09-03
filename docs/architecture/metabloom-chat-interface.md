@@ -92,14 +92,14 @@ window.__orbResponseSchema
 A host application may install a request adapter before or after `/orb` mounts:
 
 ```js
-window.__metabloomRequest = async ({ message, history }) => {
+window.__metabloomRequest = async ({ requestId, message, history }) => {
   const response = await fetch("/api/metabloom/respond", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
     credentials: "same-origin",
-    body: JSON.stringify({ message, history }),
+    body: JSON.stringify({ requestId, message, history }),
   });
 
   if (!response.ok) {
@@ -109,6 +109,8 @@ window.__metabloomRequest = async ({ message, history }) => {
   return response.json();
 };
 ```
+
+`requestId` is browser transport metadata used to correlate the active request. The adapter's returned model payload must still contain only `response` and `actionChain`.
 
 The browser must not contain provider API keys or long-lived credentials. The adapter should call a same-origin authenticated server endpoint that owns provider credentials, request limits, moderation, logging policy, and timeout behavior.
 
