@@ -220,6 +220,7 @@ try {
         edgePath,
         [
           "--headless=new",
+          "--enable-gpu",
           "--disable-background-networking",
           "--disable-component-update",
           "--disable-default-apps",
@@ -227,6 +228,7 @@ try {
           "--disable-sync",
           "--enable-unsafe-swiftshader",
           "--force-device-scale-factor=1",
+          "--force-prefers-reduced-motion",
           "--hide-scrollbars",
           "--metrics-recording-only",
           "--mute-audio",
@@ -234,7 +236,7 @@ try {
           "--no-first-run",
           "--run-all-compositor-stages-before-draw",
           "--use-angle=swiftshader",
-          "--virtual-time-budget=12000",
+          "--virtual-time-budget=6000",
           `--window-size=${captureCase.width},${captureCase.height}`,
           `--user-data-dir=${profileDirectory}`,
           `--screenshot=${screenshotPath}`,
@@ -244,7 +246,7 @@ try {
         {
           encoding: "utf8",
           maxBuffer: 20 * 1024 * 1024,
-          timeout: 120_000,
+          timeout: 90000,
           windowsHide: true,
         },
       );
