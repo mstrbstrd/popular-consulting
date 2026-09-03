@@ -75,6 +75,9 @@ jobs:
           )
           PY
 
+      - name: Keep workflow files outside the app commit
+        run: git checkout -- .github/workflows/orb-review-capture.yml
+
       - name: Check whitespace
         run: git diff --check
 
@@ -101,7 +104,6 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git rm scripts/apply_intrinsic_metabloom_avatar.py.gz.b64
           rm scripts/apply_intrinsic_metabloom_avatar.py
-          git rm .github/workflows/apply-intrinsic-metabloom-avatar.yml
           git add .
           git diff --cached --check
           git commit -m "Move Metabloom avatar expression into the shader"
