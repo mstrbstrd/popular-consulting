@@ -152,7 +152,7 @@ window.addEventListener("metabloom:user-message", async (event) => {
 });
 ```
 
-Calling `event.preventDefault()` is also treated as a synchronous claim. A responder may use `event.detail.respond(payload)` instead of dispatching the response event. Correlated responses with stale or unknown request ids are ignored, and an observer that does not claim cannot append a second answer after the local preview wins.
+Calling `event.preventDefault()` is also treated as a synchronous claim. A responder may use `event.detail.respond(payload)` instead of dispatching the response event. Correlated responses with stale or unknown request ids are ignored, and an observer that does not claim cannot append a second answer after the local preview wins. Request ids contain a unique component-mount identity, so a response created before leaving `/orb` cannot be accepted after the interface mounts again.
 
 The model payload itself still contains exactly `response` and `actionChain`; `requestId` belongs only to the browser transport envelope.
 
@@ -211,7 +211,7 @@ The preview passes through the same parser as an external model response. It doe
 - User messages are limited to 1,600 characters.
 - The visible transcript is bounded to 24 messages.
 - Model history is bounded to the latest 12 messages.
-- Only one model request is considered current. Every event response is correlated to that request id.
+- Only one model request is considered current. Every event response is correlated to a request id that is unique to both the component mount and the request sequence.
 - Event integrations must claim synchronously before asynchronous work, so the local preview cannot race a connected responder.
 - Pending preview timers and action timers are cleared during reset and unmount.
 - The shared renderer continues to own reduced motion, hidden-tab suspension, local WebGL context recovery, and GPU cleanup.

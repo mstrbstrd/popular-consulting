@@ -37,6 +37,20 @@ const MAX_CHAT_MESSAGES = 24;
 const MAX_HISTORY_MESSAGES = 12;
 const PREVIEW_RESPONSE_DELAY_MS = 520;
 
+let metabloomMountSequence = 0;
+
+const createMetabloomMountId = () => {
+  metabloomMountSequence += 1;
+  const randomUUID =
+    typeof window.crypto?.randomUUID === "function"
+      ? window.crypto.randomUUID()
+      : "";
+  const uniquePart =
+    randomUUID ||
+    `${Date.now().toString(36)}-${metabloomMountSequence.toString(36)}`;
+  return `metabloom-${uniquePart}`;
+};
+
 const INITIAL_MESSAGES = Object.freeze([
   Object.freeze({
     id: "assistant-introduction",
@@ -138,6 +152,8 @@ const OrbSection = ({ isActive = true }) => {
   );
   const sequenceTimerRef = React.useRef(0);
   const sequenceTokenRef = React.useRef(0);
+  const mountIdRef = React.useRef("");
+  if (!mountIdRef.current) mountIdRef.current = createMetabloomMountId();
   const previewTimerRef = React.useRef(0);
   const requestTokenRef = React.useRef(0);
   const activeRequestRef = React.useRef(null);
@@ -430,7 +446,7 @@ const OrbSection = ({ isActive = true }) => {
         .slice(-MAX_HISTORY_MESSAGES)
         .map(({ role, content }) => ({ role, content }));
       const requestToken = requestTokenRef.current + 1;
-      const requestId = `metabloom-${requestToken}`;
+      const requestId = `${mountIdRef.current}-${requestToken}`;
       const activeRequest = {
         claimed: false,
         requestId,
