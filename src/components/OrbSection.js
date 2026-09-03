@@ -101,6 +101,35 @@ const cloneMessage = ({ role, content, actionChain = [], source }) => ({
   source,
 });
 
+const extractCorrelatedResponse = (detail) => {
+  if (!detail || typeof detail !== "object" || Array.isArray(detail)) {
+    return null;
+  }
+
+  const requestId =
+    typeof detail.requestId === "string" ? detail.requestId.trim() : "";
+  if (!requestId) return null;
+
+  if (Object.prototype.hasOwnProperty.call(detail, "payload")) {
+    return { requestId, payload: detail.payload };
+  }
+
+  if (
+    Object.prototype.hasOwnProperty.call(detail, "response") &&
+    Object.prototype.hasOwnProperty.call(detail, "actionChain")
+  ) {
+    return {
+      requestId,
+      payload: {
+        response: detail.response,
+        actionChain: detail.actionChain,
+      },
+    };
+  }
+
+  return null;
+};
+
 const OrbSection = ({ isActive = true }) => {
   const { isDark } = useThemeMode();
   const initialMessages = React.useMemo(
@@ -111,6 +140,7 @@ const OrbSection = ({ isActive = true }) => {
   const sequenceTokenRef = React.useRef(0);
   const previewTimerRef = React.useRef(0);
   const requestTokenRef = React.useRef(0);
+  const activeRequestRef = React.useRef(null);
   const messageCounterRef = React.useRef(0);
   const mountedRef = React.useRef(true);
   const messagesEndRef = React.useRef(null);
@@ -198,6 +228,7 @@ const OrbSection = ({ isActive = true }) => {
   const reset = React.useCallback(() => {
     clearSequence();
     requestTokenRef.current += 1;
+    activeRequestRef.current = null;
     window.clearTimeout(previewTimerRef.current);
     previewTimerRef.current = 0;
     setActionId(DEFAULT_ACTION);
@@ -345,11 +376,29 @@ const OrbSection = ({ isActive = true }) => {
   );
 
   const receiveModelResponse = React.useCallback(
-    (payload) => {
+    (payload, options = {}) => {
+      const expectedRequestId =
+        options && typeof options === "object" ? options.requestId : null;
+      const source =
+        options &&
+        typeof options === "object" &&
+        typeof options.source === "string"
+          ? options.source
+          : "external";
+      const activeRequest = activeRequestRef.current;
+
+      if (
+        expectedRequestId &&
+        (!activeRequest || activeRequest.requestId !== expectedRequestId)
+      ) {
+        return false;
+      }
+
       requestTokenRef.current += 1;
+      activeRequestRef.current = null;
       window.clearTimeout(previewTimerRef.current);
       previewTimerRef.current = 0;
-      return applyModelResponse(payload, "external");
+      return applyModelResponse(payload, source);
     },
     [applyModelResponse],
   );
@@ -381,7 +430,14 @@ const OrbSection = ({ isActive = true }) => {
         .slice(-MAX_HISTORY_MESSAGES)
         .map(({ role, content }) => ({ role, content }));
       const requestToken = requestTokenRef.current + 1;
+      const requestId = `metabloom-${requestToken}`;
+      const activeRequest = {
+        claimed: false,
+        requestId,
+        requestToken,
+      };
       requestTokenRef.current = requestToken;
+      activeRequestRef.current = activeRequest;
 
       setDraft("");
       setPending(true);
@@ -389,21 +445,49 @@ const OrbSection = ({ isActive = true }) => {
       setResponseSource("pending");
       performAction("thinking");
 
-      window.dispatchEvent(
-        new CustomEvent(MODEL_REQUEST_EVENT, {
-          detail: {
-            message: userMessage.content,
-            history,
-          },
-        }),
-      );
+      const claimRequest = () => {
+        if (
+          !mountedRef.current ||
+          requestTokenRef.current !== requestToken ||
+          activeRequestRef.current !== activeRequest
+        ) {
+          return false;
+        }
+        activeRequest.claimed = true;
+        return true;
+      };
+      const respond = (payload) => {
+        if (!claimRequest()) return false;
+        return receiveModelResponse(payload, {
+          requestId,
+          source: "external",
+        });
+      };
+      const requestEvent = new CustomEvent(MODEL_REQUEST_EVENT, {
+        cancelable: true,
+        detail: {
+          requestId,
+          message: userMessage.content,
+          history,
+          claim: claimRequest,
+          respond,
+        },
+      });
+      window.dispatchEvent(requestEvent);
+      if (requestEvent.defaultPrevented) claimRequest();
 
       if (requestTokenRef.current !== requestToken) return true;
 
       const requestAdapter = window.__metabloomRequest;
       if (typeof requestAdapter === "function") {
         Promise.resolve()
-          .then(() => requestAdapter({ message: userMessage.content, history }))
+          .then(() =>
+            requestAdapter({
+              requestId,
+              message: userMessage.content,
+              history,
+            }),
+          )
           .then((payload) => {
             if (
               !mountedRef.current
@@ -411,7 +495,10 @@ const OrbSection = ({ isActive = true }) => {
             ) {
               return;
             }
-            applyModelResponse(payload, "model");
+            receiveModelResponse(payload, {
+              requestId,
+              source: "model",
+            });
           })
           .catch(() => {
             if (
@@ -420,6 +507,8 @@ const OrbSection = ({ isActive = true }) => {
             ) {
               return;
             }
+            activeRequestRef.current = null;
+            requestTokenRef.current += 1;
             setPending(false);
             setResponseSource("error");
             setErrorMessage(
@@ -430,16 +519,25 @@ const OrbSection = ({ isActive = true }) => {
         return true;
       }
 
+      if (activeRequest.claimed) return true;
+
       previewTimerRef.current = window.setTimeout(() => {
         previewTimerRef.current = 0;
-        if (!mountedRef.current || requestTokenRef.current !== requestToken) {
+        if (
+          !mountedRef.current ||
+          requestTokenRef.current !== requestToken ||
+          activeRequestRef.current !== activeRequest
+        ) {
           return;
         }
-        applyModelResponse(createMetabloomPreviewResponse(message), "preview");
+        receiveModelResponse(createMetabloomPreviewResponse(message), {
+          requestId,
+          source: "preview",
+        });
       }, PREVIEW_RESPONSE_DELAY_MS);
       return true;
     },
-    [appendMessage, applyModelResponse, pending, performAction],
+    [appendMessage, pending, performAction, receiveModelResponse],
   );
 
   const handleSubmit = React.useCallback(
@@ -479,7 +577,12 @@ const OrbSection = ({ isActive = true }) => {
 
   React.useEffect(() => {
     const handleModelResponse = (event) => {
-      receiveModelResponse(event.detail);
+      const correlated = extractCorrelatedResponse(event.detail);
+      if (!correlated) return;
+      receiveModelResponse(correlated.payload, {
+        requestId: correlated.requestId,
+        source: "external",
+      });
     };
 
     window.addEventListener(MODEL_RESPONSE_EVENT, handleModelResponse);
@@ -527,6 +630,7 @@ const OrbSection = ({ isActive = true }) => {
     return () => {
       cancelSequenceTimer();
       requestTokenRef.current += 1;
+      activeRequestRef.current = null;
       window.clearTimeout(previewTimerRef.current);
       previewTimerRef.current = 0;
       clearOwnedGlobal("__orbPop", pulse);
