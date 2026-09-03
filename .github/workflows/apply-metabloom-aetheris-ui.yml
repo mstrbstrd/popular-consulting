@@ -1,0 +1,72 @@
+name: Apply Metabloom Aetheris UI
+
+on:
+  push:
+    branches:
+      - feature/metabloom-chat-aetheris-layout-20260903
+
+permissions:
+  contents: write
+
+jobs:
+  refine-test-and-capture:
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/metabloom-chat-aetheris-layout-20260903
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Apply guarded UI refinement
+        run: python scripts/apply_metabloom_aetheris_ui.py
+
+      - name: Check whitespace
+        run: git diff --check
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Run complete test suite
+        run: npm test -- --watchAll=false --runInBand
+        env:
+          CI: true
+
+      - name: Build production bundle
+        run: npm run build
+        env:
+          CI: true
+
+      - name: Capture desktop and mobile Orb review
+        run: node scripts/capture-orb-review.mjs
+
+      - name: Upload UI review evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: metabloom-aetheris-ui-${{ github.sha }}
+          path: orb-review/*
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Commit verified UI refinement
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm scripts/apply_metabloom_aetheris_ui.py
+          git rm .github/workflows/apply-metabloom-aetheris-ui.yml
+          git add -A
+          git diff --cached --check
+          git commit -m "Align the Metabloom chat with the Aetheris interface"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
