@@ -13,6 +13,8 @@ The renderer and chat are separate concerns:
 
 The chat overlay never creates a second avatar body, clips the field into a card, or mounts another WebGL renderer.
 
+The visible interface deliberately does not expose JSON field names, raw action chains, model-source diagnostics, or laboratory controls. Those contracts remain available through the programmatic integration surface while the user sees only the conversation, a restrained state indicator, and the responding Metabloom field.
+
 ## Model response contract
 
 A model response must contain exactly `response` and `actionChain`.
@@ -197,7 +199,7 @@ __orbStopTalk
 
 ## Local review behavior
 
-When no `window.__metabloomRequest` adapter and no event listener supplies a response, the page produces a clearly labelled local contract preview. This exists only so the interface, transcript, and action choreography can be reviewed without a model backend.
+When no `window.__metabloomRequest` adapter and no event listener supplies a response, the page produces a response marked `Preview`. This exists only so the interface, transcript, and action choreography can be reviewed without a model backend.
 
 The preview passes through the same parser as an external model response. It does not bypass the schema or action limits.
 
