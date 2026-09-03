@@ -16,16 +16,15 @@ if content.count(marker_old) != 1:
 
 post_apply = r"""
 
-replace_once(
-    "src/components/MetabloomAvatar.css",
-    '''.metabloom-avatar .creatoros-field-shell,
+avatar_path = "src/components/MetabloomAvatar.css"
+avatar_old = '''.metabloom-avatar .creatoros-field-shell,
 .metabloom-avatar .creatoros-field-canvas,
 .metabloom-avatar .creatoros-field-fallback {
   position: absolute;
   inset: 0;
 }
-''',
-    '''.metabloom-avatar .creatoros-field-shell,
+'''
+avatar_new = '''.metabloom-avatar .creatoros-field-shell,
 .metabloom-avatar .creatoros-field-canvas,
 .metabloom-avatar .creatoros-field-fallback {
   position: absolute;
@@ -33,21 +32,29 @@ replace_once(
   width: 100%;
   height: 100%;
 }
-''',
-    "explicit full-screen Metabloom field size invariant",
-)
+'''
+avatar_content = read(avatar_path)
+if avatar_old in avatar_content:
+    write(avatar_path, avatar_content.replace(avatar_old, avatar_new, 1))
+elif avatar_new not in avatar_content:
+    raise SystemExit("Explicit full-screen Metabloom field size invariant is missing")
 
-replace_once(
-    "src/components/MetabloomChatVisualContract.test.js",
-    '''    expect(orb).toContain('<svg aria-hidden="true" viewBox="0 0 24 24"');''',
-    '''    expect(orb).toContain("<svg");
+ui_contract_path = "src/components/MetabloomChatVisualContract.test.js"
+ui_contract_old = '''    expect(orb).toContain('<svg aria-hidden="true" viewBox="0 0 24 24"');'''
+ui_contract_new = '''    expect(orb).toContain("<svg");
     expect(orb).toContain('aria-hidden="true"');
-    expect(orb).toContain('viewBox="0 0 24 24"');''',
-    "multiline send icon contract",
-)
+    expect(orb).toContain('viewBox="0 0 24 24"');'''
+ui_contract_content = read(ui_contract_path)
+if ui_contract_old in ui_contract_content:
+    write(
+        ui_contract_path,
+        ui_contract_content.replace(ui_contract_old, ui_contract_new, 1),
+    )
+elif ui_contract_new not in ui_contract_content:
+    raise SystemExit("Multiline send icon contract is missing")
 """
 
-if "explicit full-screen Metabloom field size invariant" in content:
+if "Explicit full-screen Metabloom field size invariant is missing" in content:
     raise SystemExit("Generated UI repair was already appended")
 
 path.write_text(
