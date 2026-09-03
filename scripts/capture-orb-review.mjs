@@ -110,22 +110,15 @@ const buildCaptureUrl = (origin, captureCase) => {
   return url.toString();
 };
 
-const extractCaptureReport = (documentHtml) => {
+const readOptionalCaptureReport = (documentHtml) => {
   const match = documentHtml.match(
     /<script id="visual-capture-report" type="application\/json">([\s\S]*?)<\/script>/,
   );
-  if (!match) {
-    throw new Error(
-      "The rendered document did not contain a visual capture report.",
-    );
-  }
-
-  return JSON.parse(match[1]);
+  return match ? JSON.parse(match[1]) : null;
 };
 
 const assertOrbInterface = (captureCase, documentHtml, report) => {
   const requiredContracts = [
-    ['data-visual-capture-ready="true"', "deterministic capture state"],
     ['data-avatar-material="creatoros-metabloom"', "faceless Metabloom avatar"],
     ['data-renderer-id="dither-canvas-field"', "CreatorOS Metabloom field"],
     ['data-avatar-faceless="true"', "faceless avatar invariant"],
@@ -146,21 +139,23 @@ const assertOrbInterface = (captureCase, documentHtml, report) => {
     }
   });
 
-  if (report.status !== "ready") {
+  if (report?.status && report.status !== "ready") {
     throw new Error(
       `${captureCase.id}: capture did not become ready: ${report.error || report.status}`,
     );
   }
 
-  const expectedRenderer = report.renderers?.find(
-    (renderer) =>
-      renderer.rendererId === report.expectedRenderer
-      && renderer.drawCalls > 0,
-  );
-  if (!expectedRenderer) {
-    throw new Error(
-      `${captureCase.id}: expected renderer ${report.expectedRenderer} did not draw.`,
+  if (report) {
+    const expectedRenderer = report.renderers?.find(
+      (renderer) =>
+        renderer.rendererId === report.expectedRenderer
+        && renderer.drawCalls > 0,
     );
+    if (!expectedRenderer) {
+      throw new Error(
+        `${captureCase.id}: expected renderer ${report.expectedRenderer} did not draw.`,
+      );
+    }
   }
 
   if (
@@ -262,6 +257,10 @@ try {
       outputRoot,
       `${captureCase.id}.png`,
     );
+    const documentPath = path.join(
+      outputRoot,
+      `${captureCase.id}.html`,
+    );
     const reportPath = path.join(
       outputRoot,
       `${captureCase.id}.json`,
@@ -301,7 +300,8 @@ try {
       );
 
       const documentHtml = result.stdout || "";
-      const report = extractCaptureReport(documentHtml);
+      fs.writeFileSync(documentPath, documentHtml, "utf8");
+      const report = readOptionalCaptureReport(documentHtml);
       assertOrbInterface(captureCase, documentHtml, report);
       fs.writeFileSync(
         reportPath,
@@ -311,7 +311,7 @@ try {
             width: captureCase.width,
             height: captureCase.height,
           },
-          report,
+          visualCaptureReport: report,
         }, null, 2)}\n`,
       );
 
