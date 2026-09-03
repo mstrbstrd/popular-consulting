@@ -5,6 +5,11 @@ on:
     paths:
       - .github/workflows/orb-review-capture.yml
       - scripts/capture-orb-review.mjs
+      - src/SiteRouter.js
+      - src/aetheris-site.css
+      - src/components/NavMenu.js
+      - src/components/OrbPage.js
+      - src/components/OrbPage.css
       - src/components/OrbSection.js
       - src/components/OrbSection.css
       - src/components/MetabloomAvatar.js
