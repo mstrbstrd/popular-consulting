@@ -190,8 +190,13 @@ describe("OrbSection", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(/unsupported action id/i);
   });
 
-  test("publishes user messages as events and accepts an event-driven response", () => {
-    const onUserMessage = jest.fn();
+  test("lets an event responder claim a request and answer with correlation", () => {
+    let requestDetail = null;
+    const onUserMessage = jest.fn((event) => {
+      requestDetail = event.detail;
+      expect(event.cancelable).toBe(true);
+      expect(event.detail.claim()).toBe(true);
+    });
     window.addEventListener("metabloom:user-message", onUserMessage);
     render(<OrbSection isActive />);
 
@@ -200,17 +205,41 @@ describe("OrbSection", () => {
     fireEvent.keyDown(input, { key: "Enter", shiftKey: false });
 
     expect(onUserMessage).toHaveBeenCalledTimes(1);
-    expect(onUserMessage.mock.calls[0][0].detail).toMatchObject({
+    expect(requestDetail).toMatchObject({
+      requestId: expect.stringMatching(/^metabloom-\d+$/),
       message: "What do you think?",
       history: expect.arrayContaining([
         { role: "user", content: "What do you think?" },
       ]),
+      claim: expect.any(Function),
+      respond: expect.any(Function),
     });
+
+    act(() => {
+      jest.advanceTimersByTime(1000);
+    });
+    expect(screen.queryByText("Preview response")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Metabloom is thinking")).toBeInTheDocument();
 
     act(() => {
       window.dispatchEvent(
         new CustomEvent("metabloom:model-response", {
-          detail: modelResponse({ response: "An event supplied this response." }),
+          detail: {
+            requestId: "metabloom-stale",
+            ...modelResponse({ response: "A stale response." }),
+          },
+        }),
+      );
+    });
+    expect(screen.queryByText("A stale response.")).not.toBeInTheDocument();
+
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent("metabloom:model-response", {
+          detail: {
+            requestId: requestDetail.requestId,
+            ...modelResponse({ response: "An event supplied this response." }),
+          },
         }),
       );
     });
@@ -222,6 +251,42 @@ describe("OrbSection", () => {
     });
     expect(screen.queryByText(/local interface preview shows/i))
       .not.toBeInTheDocument();
+
+    window.removeEventListener("metabloom:user-message", onUserMessage);
+  });
+
+  test("ignores a late unclaimed event response after the preview wins", () => {
+    let requestId = "";
+    const onUserMessage = (event) => {
+      requestId = event.detail.requestId;
+    };
+    window.addEventListener("metabloom:user-message", onUserMessage);
+    render(<OrbSection isActive />);
+
+    const input = screen.getByRole("textbox", { name: "Message Metabloom" });
+    fireEvent.change(input, { target: { value: "Use the local preview" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+    act(() => {
+      jest.advanceTimersByTime(520);
+    });
+    expect(screen.getByText("Preview response")).toBeInTheDocument();
+    const messagesAfterPreview = window.__orbMessages();
+
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent("metabloom:model-response", {
+          detail: {
+            requestId,
+            ...modelResponse({ response: "This response arrived too late." }),
+          },
+        }),
+      );
+    });
+
+    expect(screen.queryByText("This response arrived too late."))
+      .not.toBeInTheDocument();
+    expect(window.__orbMessages()).toEqual(messagesAfterPreview);
 
     window.removeEventListener("metabloom:user-message", onUserMessage);
   });
@@ -246,6 +311,7 @@ describe("OrbSection", () => {
 
     expect(window.__metabloomRequest).toHaveBeenCalledWith(
       expect.objectContaining({
+        requestId: expect.stringMatching(/^metabloom-\d+$/),
         message: "Use the model adapter",
         history: expect.arrayContaining([
           { role: "user", content: "Use the model adapter" },
