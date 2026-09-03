@@ -65,7 +65,7 @@ const routeChecks = [
   { route: "/work", markers: ['class="work-page"'] },
   {
     route: "/orb",
-    markers: ["standalone-experience--orb"],
+    markers: ['data-page="orb"'],
     forbidden: 'data-renderer-state="running"',
   },
   {
