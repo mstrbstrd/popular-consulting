@@ -27,7 +27,9 @@ jobs:
           cache: npm
 
       - name: Apply guarded UI refinement
-        run: python scripts/apply_metabloom_aetheris_ui.py
+        run: |
+          python scripts/repair_metabloom_aetheris_patch.py
+          python scripts/apply_metabloom_aetheris_ui.py
 
       - name: Check whitespace
         run: git diff --check
@@ -65,6 +67,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git rm scripts/apply_metabloom_aetheris_ui.py
+          git rm scripts/repair_metabloom_aetheris_patch.py
           git rm .github/workflows/apply-metabloom-aetheris-ui.yml
           git add -A
           git diff --cached --check
