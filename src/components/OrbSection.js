@@ -7,6 +7,12 @@ import {
   getDefaultMetabloomAction,
   resolveMetabloomAction,
 } from "./metabloomActions";
+import {
+  MAX_METABLOOM_RESPONSE_CHARS,
+  METABLOOM_MODEL_RESPONSE_SCHEMA,
+  createMetabloomPreviewResponse,
+  parseMetabloomModelResponse,
+} from "./metabloomResponseContract";
 import "./OrbSection.css";
 
 const DEFAULT_ACTION = getDefaultMetabloomAction().id;
@@ -24,38 +30,28 @@ const ACTION_FORMS = Object.freeze({
   surprised: "bloom",
   thinking: "focus",
 });
+const MODEL_REQUEST_EVENT = "metabloom:user-message";
+const MODEL_RESPONSE_EVENT = "metabloom:model-response";
+const MAX_USER_MESSAGE_CHARS = 1600;
+const MAX_CHAT_MESSAGES = 24;
+const MAX_HISTORY_MESSAGES = 12;
+const PREVIEW_RESPONSE_DELAY_MS = 520;
 
-const SEQUENCES = Object.freeze([
+const INITIAL_MESSAGES = Object.freeze([
   Object.freeze({
-    id: "greet",
-    label: "Greet",
-    steps: Object.freeze([
-      Object.freeze({ action: "reform", duration: 380 }),
-      Object.freeze({ action: "agree", duration: 920 }),
-      Object.freeze({ action: "happy", duration: 1080 }),
-      Object.freeze({ action: "reform", duration: 900 }),
-    ]),
+    id: "assistant-introduction",
+    role: "assistant",
+    content:
+      "Ask anything. I will answer here while the Metabloom field carries the emotional rhythm of the response.",
+    actionChain: Object.freeze([]),
+    source: "interface",
   }),
-  Object.freeze({
-    id: "consider",
-    label: "Consider",
-    steps: Object.freeze([
-      Object.freeze({ action: "thinking", duration: 1460 }),
-      Object.freeze({ action: "surprised", duration: 900 }),
-      Object.freeze({ action: "agree", duration: 920 }),
-      Object.freeze({ action: "reform", duration: 900 }),
-    ]),
-  }),
-  Object.freeze({
-    id: "celebrate",
-    label: "Celebrate",
-    steps: Object.freeze([
-      Object.freeze({ action: "excited", duration: 1320 }),
-      Object.freeze({ action: "happy", duration: 1050 }),
-      Object.freeze({ action: "agree", duration: 920 }),
-      Object.freeze({ action: "reform", duration: 900 }),
-    ]),
-  }),
+]);
+
+const SUGGESTED_PROMPTS = Object.freeze([
+  "How should this interface feel?",
+  "Show me a thoughtful response",
+  "Celebrate a small win",
 ]);
 
 const normalizeDuration = (value) => {
@@ -79,7 +75,7 @@ const normalizeSequenceSteps = (steps) => {
       return action
         ? {
             action: action.id,
-            duration: normalizeDuration(step.duration),
+            duration: normalizeDuration(step.duration || action.duration),
             talking: Boolean(step.talking),
           }
         : null;
@@ -91,10 +87,33 @@ const clearOwnedGlobal = (name, value) => {
   if (window[name] === value) window[name] = null;
 };
 
+const cloneActionChain = (actionChain = []) =>
+  actionChain.map(({ action, duration, talking }) => ({
+    action,
+    duration,
+    talking,
+  }));
+
+const cloneMessage = ({ role, content, actionChain = [], source }) => ({
+  role,
+  content,
+  actionChain: cloneActionChain(actionChain),
+  source,
+});
+
 const OrbSection = ({ isActive = true }) => {
   const { isDark } = useThemeMode();
+  const initialMessages = React.useMemo(
+    () => INITIAL_MESSAGES.map((message) => ({ ...message, actionChain: [] })),
+    [],
+  );
   const sequenceTimerRef = React.useRef(0);
   const sequenceTokenRef = React.useRef(0);
+  const previewTimerRef = React.useRef(0);
+  const requestTokenRef = React.useRef(0);
+  const messageCounterRef = React.useRef(0);
+  const mountedRef = React.useRef(true);
+  const messagesEndRef = React.useRef(null);
   const stateRef = React.useRef(null);
   const [actionId, setActionId] = React.useState(DEFAULT_ACTION);
   const [actionVersion, setActionVersion] = React.useState(0);
@@ -104,10 +123,18 @@ const OrbSection = ({ isActive = true }) => {
   const [resetVersion, setResetVersion] = React.useState(0);
   const [sequenceId, setSequenceId] = React.useState(null);
   const [fieldState, setFieldState] = React.useState("forming");
+  const [messages, setMessages] = React.useState(initialMessages);
+  const messagesRef = React.useRef(initialMessages);
+  const [draft, setDraft] = React.useState("");
+  const [pending, setPending] = React.useState(false);
+  const [errorMessage, setErrorMessage] = React.useState("");
+  const [responseSource, setResponseSource] = React.useState("interface");
   const activeAction =
     resolveMetabloomAction(actionId) || getDefaultMetabloomAction();
   const legacyForm = ACTION_FORMS[activeAction.id] || "companion";
+  const hasUserMessage = messages.some((message) => message.role === "user");
 
+  messagesRef.current = messages;
   stateRef.current = {
     action: activeAction.id,
     actionVersion,
@@ -115,9 +142,12 @@ const OrbSection = ({ isActive = true }) => {
     expression: activeAction.id,
     fieldState,
     form: legacyForm,
+    messageCount: messages.length,
     motion: activeAction.motion,
     paused,
+    pending,
     pulseVersion,
+    responseSource,
     sequenceId,
     talking,
   };
@@ -167,10 +197,15 @@ const OrbSection = ({ isActive = true }) => {
 
   const reset = React.useCallback(() => {
     clearSequence();
+    requestTokenRef.current += 1;
+    window.clearTimeout(previewTimerRef.current);
+    previewTimerRef.current = 0;
     setActionId(DEFAULT_ACTION);
     setActionVersion((value) => value + 1);
     setTalking(false);
     setPaused(false);
+    setPending(false);
+    setErrorMessage("");
     setResetVersion((value) => value + 1);
     setPulseVersion((value) => value + 1);
   }, [clearSequence]);
@@ -224,11 +259,6 @@ const OrbSection = ({ isActive = true }) => {
     setTalking(false);
   }, []);
 
-  const toggleTalking = React.useCallback(() => {
-    clearSequence();
-    setTalking((value) => !value);
-  }, [clearSequence]);
-
   const reactToUser = React.useCallback(
     (request) => {
       if (!request || typeof request !== "object" || Array.isArray(request)) {
@@ -269,16 +299,194 @@ const OrbSection = ({ isActive = true }) => {
     [clearSequence, pulse],
   );
 
+  const appendMessage = React.useCallback(
+    (role, content, actionChain = [], source = "interface") => {
+      messageCounterRef.current += 1;
+      const message = {
+        id: `${role}-${messageCounterRef.current}`,
+        role,
+        content,
+        actionChain: cloneActionChain(actionChain),
+        source,
+      };
+      const nextMessages = [
+        ...messagesRef.current.slice(-(MAX_CHAT_MESSAGES - 1)),
+        message,
+      ];
+      messagesRef.current = nextMessages;
+      setMessages(nextMessages);
+      return message;
+    },
+    [],
+  );
+
+  const applyModelResponse = React.useCallback(
+    (payload, source = "external") => {
+      const parsed = parseMetabloomModelResponse(payload);
+      if (!parsed.ok) {
+        setPending(false);
+        setErrorMessage(parsed.error);
+        return false;
+      }
+
+      setErrorMessage("");
+      setPending(false);
+      setResponseSource(source);
+      appendMessage(
+        "assistant",
+        parsed.value.response,
+        parsed.value.actionChain,
+        source,
+      );
+      playSequence(parsed.value.actionChain, "model-response");
+      return true;
+    },
+    [appendMessage, playSequence],
+  );
+
+  const receiveModelResponse = React.useCallback(
+    (payload) => {
+      requestTokenRef.current += 1;
+      window.clearTimeout(previewTimerRef.current);
+      previewTimerRef.current = 0;
+      return applyModelResponse(payload, "external");
+    },
+    [applyModelResponse],
+  );
+
   const getState = React.useCallback(() => ({ ...stateRef.current }), []);
+
+  const getMessages = React.useCallback(
+    () => messagesRef.current.map(cloneMessage),
+    [],
+  );
 
   const handleFieldStateChange = React.useCallback((nextState) => {
     setFieldState(nextState);
   }, []);
 
+  const sendMessage = React.useCallback(
+    (value) => {
+      if (pending) return false;
+
+      const message = typeof value === "string" ? value.trim() : "";
+      if (!message) return false;
+      if (message.length > MAX_USER_MESSAGE_CHARS) {
+        setErrorMessage("Your message is longer than this interface allows.");
+        return false;
+      }
+
+      const userMessage = appendMessage("user", message);
+      const history = [...messagesRef.current]
+        .slice(-MAX_HISTORY_MESSAGES)
+        .map(({ role, content }) => ({ role, content }));
+      const requestToken = requestTokenRef.current + 1;
+      requestTokenRef.current = requestToken;
+
+      setDraft("");
+      setPending(true);
+      setErrorMessage("");
+      setResponseSource("pending");
+      performAction("thinking");
+
+      window.dispatchEvent(
+        new CustomEvent(MODEL_REQUEST_EVENT, {
+          detail: {
+            message: userMessage.content,
+            history,
+          },
+        }),
+      );
+
+      if (requestTokenRef.current !== requestToken) return true;
+
+      const requestAdapter = window.__metabloomRequest;
+      if (typeof requestAdapter === "function") {
+        Promise.resolve()
+          .then(() => requestAdapter({ message: userMessage.content, history }))
+          .then((payload) => {
+            if (
+              !mountedRef.current
+              || requestTokenRef.current !== requestToken
+            ) {
+              return;
+            }
+            applyModelResponse(payload, "model");
+          })
+          .catch(() => {
+            if (
+              !mountedRef.current
+              || requestTokenRef.current !== requestToken
+            ) {
+              return;
+            }
+            setPending(false);
+            setResponseSource("error");
+            setErrorMessage(
+              "No valid model response was received. Please try again.",
+            );
+            performAction("sad");
+          });
+        return true;
+      }
+
+      previewTimerRef.current = window.setTimeout(() => {
+        previewTimerRef.current = 0;
+        if (!mountedRef.current || requestTokenRef.current !== requestToken) {
+          return;
+        }
+        applyModelResponse(createMetabloomPreviewResponse(message), "preview");
+      }, PREVIEW_RESPONSE_DELAY_MS);
+      return true;
+    },
+    [appendMessage, applyModelResponse, pending, performAction],
+  );
+
+  const handleSubmit = React.useCallback(
+    (event) => {
+      event.preventDefault();
+      sendMessage(draft);
+    },
+    [draft, sendMessage],
+  );
+
+  const handleComposerKeyDown = React.useCallback(
+    (event) => {
+      if (
+        event.key !== "Enter"
+        || event.shiftKey
+        || event.nativeEvent?.isComposing
+      ) {
+        return;
+      }
+      event.preventDefault();
+      sendMessage(draft);
+    },
+    [draft, sendMessage],
+  );
+
   React.useEffect(() => {
     if (isActive) return;
     stop();
   }, [isActive, stop]);
+
+  React.useEffect(() => {
+    const end = messagesEndRef.current;
+    if (end && typeof end.scrollIntoView === "function") {
+      end.scrollIntoView({ behavior: "smooth", block: "end" });
+    }
+  }, [messages, pending]);
+
+  React.useEffect(() => {
+    const handleModelResponse = (event) => {
+      receiveModelResponse(event.detail);
+    };
+
+    window.addEventListener(MODEL_RESPONSE_EVENT, handleModelResponse);
+    return () => {
+      window.removeEventListener(MODEL_RESPONSE_EVENT, handleModelResponse);
+    };
+  }, [receiveModelResponse]);
 
   React.useEffect(() => {
     const publicActions = METABLOOM_ACTIONS.map(
@@ -294,6 +502,9 @@ const OrbSection = ({ isActive = true }) => {
     );
     const expressions = [...METABLOOM_ACTION_IDS];
     const forms = [...LEGACY_FORMS];
+    const responseSchema = JSON.parse(
+      JSON.stringify(METABLOOM_MODEL_RESPONSE_SCHEMA),
+    );
 
     window.__bhModeActive = false;
     window.__orbPop = pulse;
@@ -309,9 +520,15 @@ const OrbSection = ({ isActive = true }) => {
     window.__orbState = getState;
     window.__orbTalk = startTalking;
     window.__orbStopTalk = stopTalking;
+    window.__orbRespond = receiveModelResponse;
+    window.__orbResponseSchema = responseSchema;
+    window.__orbMessages = getMessages;
 
     return () => {
       cancelSequenceTimer();
+      requestTokenRef.current += 1;
+      window.clearTimeout(previewTimerRef.current);
+      previewTimerRef.current = 0;
       clearOwnedGlobal("__orbPop", pulse);
       clearOwnedGlobal("__orbExpress", performAction);
       clearOwnedGlobal("__orbTransform", transform);
@@ -325,15 +542,20 @@ const OrbSection = ({ isActive = true }) => {
       clearOwnedGlobal("__orbState", getState);
       clearOwnedGlobal("__orbTalk", startTalking);
       clearOwnedGlobal("__orbStopTalk", stopTalking);
+      clearOwnedGlobal("__orbRespond", receiveModelResponse);
+      clearOwnedGlobal("__orbResponseSchema", responseSchema);
+      clearOwnedGlobal("__orbMessages", getMessages);
       window.__bhModeActive = false;
     };
   }, [
     cancelSequenceTimer,
+    getMessages,
     getState,
     performAction,
     playExternalSequence,
     pulse,
     reactToUser,
+    receiveModelResponse,
     reset,
     startTalking,
     stop,
@@ -341,167 +563,210 @@ const OrbSection = ({ isActive = true }) => {
     transform,
   ]);
 
-  const statusText = sequenceId
-    ? `Playing ${sequenceId === "custom" ? "custom sequence" : sequenceId}`
-    : paused
-      ? "Avatar paused"
-      : talking
-        ? `${activeAction.label}, speaking through ripples`
-        : `${activeAction.label}: ${activeAction.motion}`;
+  React.useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  const statusText = pending
+    ? "Thinking"
+    : sequenceId
+      ? "Responding"
+      : paused
+        ? "Paused"
+        : talking
+          ? "Speaking"
+          : activeAction.label;
+  const sourceText =
+    responseSource === "preview"
+      ? "Local interface preview"
+      : responseSource === "model" || responseSource === "external"
+        ? "Model response"
+        : responseSource === "error"
+          ? "Response unavailable"
+          : "Ready for model JSON";
 
   return (
     <section
       id="orb"
-      className="orb-avatar-lab"
-      aria-label="Interactive Orb faceless Metabloom avatar lab"
+      className="metabloom-chat"
+      aria-label="Metabloom model chat interface"
       data-orb-action={activeAction.id}
       data-orb-action-version={actionVersion}
       data-orb-renderer="creatoros-metabloom"
+      data-response-contract="response+actionChain"
     >
-      <div className="orb-avatar-lab__layout">
-        <div className="orb-avatar-lab__experience">
-          <header className="orb-avatar-lab__copy">
-            <p className="orb-avatar-lab__eyebrow">The theme is the body</p>
-            <h1>Metabloom, embodied</h1>
-            <p>
-              The original Metabloom field is the avatar. Every response
-              changes its own seven metaballs, membrane, and spectral material
-              before the dithered image is rendered.
-            </p>
-            <span
-              className="orb-avatar-lab__status"
-              role="status"
-              aria-live="polite"
-            >
-              <span aria-hidden="true" />
-              {statusText}
-            </span>
-          </header>
+      <h1 className="metabloom-chat__sr-only">
+        Metabloom model chat interface
+      </h1>
 
-          <div className="orb-avatar-lab__stage">
-            <MetabloomAvatar
-              action={activeAction.id}
-              actionVersion={actionVersion}
-              isActive={isActive}
-              isDark={isDark}
-              onFieldStateChange={handleFieldStateChange}
-              onPulse={pulse}
-              paused={paused}
-              pulseVersion={pulseVersion}
-              resetVersion={resetVersion}
-              talking={talking}
-            />
-          </div>
+      <div className="metabloom-chat__field">
+        <MetabloomAvatar
+          action={activeAction.id}
+          actionVersion={actionVersion}
+          isActive={isActive}
+          isDark={isDark}
+          onFieldStateChange={handleFieldStateChange}
+          onPulse={pulse}
+          paused={paused}
+          pulseVersion={pulseVersion}
+          resetVersion={resetVersion}
+          talking={talking}
+        />
+      </div>
 
-          <div className="orb-avatar-lab__control-deck">
-            <div
-              className="orb-avatar-lab__sequence-row"
-              role="group"
-              aria-label="Metabloom expression sequences"
-            >
-              <span>Sequence</span>
-              {SEQUENCES.map(({ id, label, steps }) => (
-                <button
-                  key={id}
-                  type="button"
-                  className={sequenceId === id ? "is-active" : ""}
-                  onClick={() => playSequence(steps, id)}
-                  aria-pressed={sequenceId === id}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
+      <div className="metabloom-chat__scrim" aria-hidden="true" />
 
-            <div
-              className="orb-avatar-lab__utility-row"
-              role="group"
-              aria-label="Metabloom avatar controls"
-            >
-              <button type="button" onClick={pulse}>Pulse</button>
-              <button
-                type="button"
-                className={talking ? "is-active" : ""}
-                onClick={toggleTalking}
-                aria-pressed={talking}
-              >
-                {talking ? "Quiet" : "Speak"}
-              </button>
-              <button
-                type="button"
-                className={paused ? "is-active" : ""}
-                onClick={() => setPaused((value) => !value)}
-                aria-pressed={paused}
-              >
-                {paused ? "Resume" : "Pause"}
-              </button>
-              <button type="button" onClick={reset}>Reform</button>
-            </div>
-          </div>
-        </div>
-
-        <div className="orb-avatar-lab__language" aria-labelledby="action-language-title">
-          <div className="orb-avatar-lab__language-heading">
-            <p>Expression vocabulary</p>
-            <h2 id="action-language-title">Action language</h2>
-            <span>
-              Every signal maps one intent to one bounded gesture and one
-              colorway.
-            </span>
+      <div className="metabloom-chat__interface">
+        <div className="metabloom-chat__shell">
+          <div
+            className="metabloom-chat__presence"
+            role="status"
+            aria-live="polite"
+          >
+            <span className="metabloom-chat__presence-dot" aria-hidden="true" />
+            <span>{statusText}</span>
+            <span aria-hidden="true">·</span>
+            <span>{sourceText}</span>
           </div>
 
           <div
-            className="orb-avatar-lab__table-wrap"
-            role="group"
-            aria-label="Orb emotions"
+            className="metabloom-chat__messages"
+            role="log"
+            aria-live="polite"
+            aria-label="Conversation"
+            aria-relevant="additions text"
           >
-            <table>
-              <caption className="orb-avatar-lab__sr-only">
-                Metabloom avatar actions, motions, colorways, and meanings
-              </caption>
-              <thead>
-                <tr>
-                  <th scope="col">Signal</th>
-                  <th scope="col">Motion</th>
-                  <th scope="col">Color</th>
-                  <th scope="col">Meaning</th>
-                </tr>
-              </thead>
-              <tbody>
-                {METABLOOM_ACTIONS.map((action) => (
-                  <tr
-                    key={action.id}
-                    className={activeAction.id === action.id ? "is-active" : ""}
-                  >
-                    <th scope="row">
-                      <button
-                        type="button"
-                        onClick={() => performAction(action.id)}
-                        aria-label={`Express ${action.label.toLowerCase()}`}
-                        aria-pressed={activeAction.id === action.id}
-                      >
-                        {action.label}
-                      </button>
-                    </th>
-                    <td>{action.motion}</td>
-                    <td>
-                      <span className="orb-avatar-lab__colorway">
-                        <span className="orb-avatar-lab__swatches" aria-hidden="true">
-                          {action.colors.map((color) => (
-                            <span key={color} style={{ background: color }} />
+            <div className="metabloom-chat__message-list">
+              {messages.map((message) => (
+                <article
+                  key={message.id}
+                  className={`metabloom-chat__message metabloom-chat__message--${message.role}`}
+                  aria-label={`${message.role === "assistant" ? "Metabloom" : "You"} message`}
+                >
+                  <span className="metabloom-chat__speaker">
+                    {message.role === "assistant" ? "Metabloom" : "You"}
+                  </span>
+                  <div className="metabloom-chat__bubble">
+                    <p>{message.content}</p>
+                    {message.role === "assistant"
+                      && message.actionChain.length > 0 && (
+                        <div
+                          className="metabloom-chat__action-chain"
+                          aria-label={`Action chain: ${message.actionChain
+                            .map((step) => step.action)
+                            .join(", ")}`}
+                        >
+                          {message.actionChain.map((step, index) => (
+                            <React.Fragment
+                              key={`${message.id}-${step.action}-${index}`}
+                            >
+                              {index > 0 && <span aria-hidden="true">→</span>}
+                              <span>{step.action}</span>
+                            </React.Fragment>
                           ))}
-                        </span>
-                        <span>{action.colorway}</span>
+                        </div>
+                      )}
+                    {message.source === "preview" && (
+                      <span className="metabloom-chat__preview-label">
+                        Local contract preview
                       </span>
-                    </td>
-                    <td>{action.intent}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    )}
+                  </div>
+                </article>
+              ))}
+
+              {!hasUserMessage && !pending && (
+                <div
+                  className="metabloom-chat__suggestions"
+                  aria-label="Suggested messages"
+                >
+                  {SUGGESTED_PROMPTS.map((prompt) => (
+                    <button
+                      key={prompt}
+                      type="button"
+                      onClick={() => sendMessage(prompt)}
+                    >
+                      {prompt}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {pending && (
+                <article
+                  className="metabloom-chat__message metabloom-chat__message--assistant"
+                  aria-label="Metabloom is thinking"
+                >
+                  <span className="metabloom-chat__speaker">Metabloom</span>
+                  <div className="metabloom-chat__bubble metabloom-chat__typing">
+                    <span aria-hidden="true" />
+                    <span aria-hidden="true" />
+                    <span aria-hidden="true" />
+                    <span className="metabloom-chat__sr-only">Thinking</span>
+                  </div>
+                </article>
+              )}
+
+              <div ref={messagesEndRef} aria-hidden="true" />
+            </div>
+          </div>
+
+          <div className="metabloom-chat__composer-area">
+            {errorMessage && (
+              <p className="metabloom-chat__error" role="alert">
+                {errorMessage}
+              </p>
+            )}
+            <form
+              className="metabloom-chat__composer"
+              onSubmit={handleSubmit}
+              aria-label="Message Metabloom"
+            >
+              <label
+                className="metabloom-chat__sr-only"
+                htmlFor="metabloom-message"
+              >
+                Message Metabloom
+              </label>
+              <textarea
+                id="metabloom-message"
+                value={draft}
+                onChange={(event) => setDraft(event.target.value)}
+                onKeyDown={handleComposerKeyDown}
+                placeholder="Message Metabloom"
+                rows={1}
+                maxLength={MAX_USER_MESSAGE_CHARS}
+                disabled={pending}
+              />
+              <button
+                type="submit"
+                disabled={pending || !draft.trim()}
+                aria-label="Send message"
+              >
+                <span aria-hidden="true">↑</span>
+              </button>
+            </form>
+            <div className="metabloom-chat__composer-note">
+              <span>
+                Model output: <code>response</code> + <code>actionChain</code>
+              </span>
+              {draft.length > MAX_USER_MESSAGE_CHARS * 0.75 && (
+                <span>
+                  {draft.length}/{MAX_USER_MESSAGE_CHARS}
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </div>
+
+      <span className="metabloom-chat__sr-only" aria-live="polite">
+        {activeAction.label}: {activeAction.motion}. Maximum response length is
+        {` ${MAX_METABLOOM_RESPONSE_CHARS} characters.`}
+      </span>
     </section>
   );
 };
