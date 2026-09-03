@@ -11,8 +11,20 @@ const buildRoot = path.join(repositoryRoot, "build");
 const outputRoot = path.join(repositoryRoot, "orb-review");
 const VIRTUAL_TIME_BUDGET_MS = 15000;
 
+/*
+ * Edge's Windows headless backend clamps its layout viewport to roughly 500px
+ * even when a narrower screenshot width is requested. Asking it for 390px can
+ * therefore create a misleading crop of a wider page. Capture the exact narrow
+ * layout width here, while source-level responsive tests continue to pin the
+ * 420px and 360px production breakpoints.
+ */
+const EDGE_NARROW_LAYOUT_WIDTH = 500;
 const captureCases = Object.freeze([
-  Object.freeze({ id: "orb-mobile", width: 390, height: 844 }),
+  Object.freeze({
+    id: "orb-mobile",
+    width: EDGE_NARROW_LAYOUT_WIDTH,
+    height: 900,
+  }),
   Object.freeze({ id: "orb-desktop", width: 1440, height: 900 }),
 ]);
 
@@ -119,6 +131,21 @@ const readFieldCanvases = (documentHtml) =>
     /<canvas\b(?=[^>]*\bdata-renderer-id="dither-canvas-field")[^>]*>/gi,
   ) || [];
 
+const readPngDimensions = (filePath) => {
+  const buffer = fs.readFileSync(filePath);
+  if (
+    buffer.length < 24 ||
+    buffer.toString("ascii", 1, 4) !== "PNG"
+  ) {
+    throw new Error(`${filePath}: output is not a valid PNG screenshot.`);
+  }
+
+  return {
+    width: buffer.readUInt32BE(16),
+    height: buffer.readUInt32BE(20),
+  };
+};
+
 const assertOrbInterface = (captureCase, documentHtml, report) => {
   const requiredContracts = [
     ['data-avatar-material="creatoros-metabloom"', "faceless Metabloom avatar"],
@@ -127,6 +154,7 @@ const assertOrbInterface = (captureCase, documentHtml, report) => {
     ['data-avatar-engine="intrinsic-shader"', "intrinsic shader engine"],
     ['data-metabloom-avatar="true"', "avatar shader uniforms"],
     ['data-response-contract="response+actionChain"', "model response contract"],
+    ['data-conversation-started="false"', "landing conversation state"],
     ['class="metabloom-chat__field"', "full-screen field layer"],
     ['class="metabloom-chat__interface"', "chat overlay layer"],
     ['role="log"', "conversation log"],
@@ -308,6 +336,23 @@ try {
       fs.writeFileSync(documentPath, documentHtml, "utf8");
       const report = readOptionalCaptureReport(documentHtml);
       assertOrbInterface(captureCase, documentHtml, report);
+
+      if (!fs.existsSync(screenshotPath)) {
+        throw new Error(
+          `${captureCase.id}: Edge did not create a screenshot.`,
+        );
+      }
+
+      const screenshot = readPngDimensions(screenshotPath);
+      if (
+        screenshot.width !== captureCase.width ||
+        screenshot.height !== captureCase.height
+      ) {
+        throw new Error(
+          `${captureCase.id}: expected ${captureCase.width}x${captureCase.height}, received ${screenshot.width}x${screenshot.height}.`,
+        );
+      }
+
       fs.writeFileSync(
         reportPath,
         `${JSON.stringify({
@@ -316,15 +361,10 @@ try {
             width: captureCase.width,
             height: captureCase.height,
           },
+          screenshot,
           visualCaptureReport: report,
         }, null, 2)}\n`,
       );
-
-      if (!fs.existsSync(screenshotPath)) {
-        throw new Error(
-          `${captureCase.id}: Edge did not create a screenshot.`,
-        );
-      }
     } finally {
       fs.rmSync(profileDirectory, {
         force: true,
