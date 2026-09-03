@@ -206,7 +206,7 @@ describe("OrbSection", () => {
 
     expect(onUserMessage).toHaveBeenCalledTimes(1);
     expect(requestDetail).toMatchObject({
-      requestId: expect.stringMatching(/^metabloom-\d+$/),
+      requestId: expect.stringMatching(/^metabloom-[a-z0-9-]+-\d+$/i),
       message: "What do you think?",
       history: expect.arrayContaining([
         { role: "user", content: "What do you think?" },
@@ -291,6 +291,56 @@ describe("OrbSection", () => {
     window.removeEventListener("metabloom:user-message", onUserMessage);
   });
 
+  test("keeps request ids unique across component mounts", () => {
+    const requestIds = [];
+    const onUserMessage = (event) => {
+      requestIds.push(event.detail.requestId);
+      event.detail.claim();
+    };
+    window.addEventListener("metabloom:user-message", onUserMessage);
+
+    const firstRender = render(<OrbSection isActive />);
+    let input = screen.getByRole("textbox", { name: "Message Metabloom" });
+    fireEvent.change(input, { target: { value: "First mount" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+    firstRender.unmount();
+
+    render(<OrbSection isActive />);
+    input = screen.getByRole("textbox", { name: "Message Metabloom" });
+    fireEvent.change(input, { target: { value: "Second mount" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+    expect(requestIds).toHaveLength(2);
+    expect(requestIds[0]).not.toBe(requestIds[1]);
+
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent("metabloom:model-response", {
+          detail: {
+            requestId: requestIds[0],
+            ...modelResponse({ response: "The old mount answered late." }),
+          },
+        }),
+      );
+    });
+    expect(screen.queryByText("The old mount answered late."))
+      .not.toBeInTheDocument();
+
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent("metabloom:model-response", {
+          detail: {
+            requestId: requestIds[1],
+            ...modelResponse({ response: "The current mount answered." }),
+          },
+        }),
+      );
+    });
+    expect(screen.getByText("The current mount answered.")).toBeInTheDocument();
+
+    window.removeEventListener("metabloom:user-message", onUserMessage);
+  });
+
   test("uses an installed model adapter instead of the local preview", async () => {
     window.__metabloomRequest = jest.fn(() =>
       Promise.resolve(
@@ -311,7 +361,7 @@ describe("OrbSection", () => {
 
     expect(window.__metabloomRequest).toHaveBeenCalledWith(
       expect.objectContaining({
-        requestId: expect.stringMatching(/^metabloom-\d+$/),
+        requestId: expect.stringMatching(/^metabloom-[a-z0-9-]+-\d+$/i),
         message: "Use the model adapter",
         history: expect.arrayContaining([
           { role: "user", content: "Use the model adapter" },
