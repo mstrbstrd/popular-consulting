@@ -39,7 +39,7 @@ jobs:
           )
 
           content = target.read_text()
-          helper = (
+          helpers = (
               "def replace_first(content, old, new, label):\n"
               "    count = content.count(old)\n"
               "    if count < 1:\n"
@@ -47,15 +47,23 @@ jobs:
               "            f'{label}: expected at least one match, found {count}'\n"
               "        )\n"
               "    return content.replace(old, new, 1)\n\n"
+              "def replace_if_present(content, old, new, label):\n"
+              "    if old not in content:\n"
+              "        return content\n"
+              "    return content.replace(old, new, 1)\n\n"
           )
           shader_calls = content.count("shader = replace_once(")
-          if shader_calls < 1:
+          orb_calls = content.count("orb = replace_once(")
+          if shader_calls < 1 or orb_calls < 1:
               raise SystemExit(
-                  "Decoded patch did not contain shader replacement calls"
+                  "Decoded patch did not contain expected source replacements"
               )
-          content = helper + content.replace(
+          content = helpers + content.replace(
               "shader = replace_once(",
               "shader = replace_first(",
+          ).replace(
+              "orb = replace_once(",
+              "orb = replace_if_present(",
           )
           target.write_text(content)
           PY
