@@ -1,0 +1,141 @@
+name: Verify and promote intrinsic Metabloom avatar
+
+on:
+  push:
+    branches:
+      - feature/intrinsic-metabloom-avatar-20260903
+
+permissions:
+  contents: write
+
+jobs:
+  linux-quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/intrinsic-metabloom-avatar-20260903
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Apply intrinsic implementation when pending
+        shell: bash
+        run: |
+          if [ -f scripts/run_intrinsic_metabloom_patch.py ]; then
+            python scripts/run_intrinsic_metabloom_patch.py
+          fi
+      - name: Check whitespace
+        run: git diff --check
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Run dark evidence self-tests
+        run: npm run visual:dark-evidence:self-test
+      - name: Run dark evidence aggregate self-test
+        run: node scripts/aggregate-dark-evidence.mjs --self-test
+      - name: Lint
+        run: npm run lint
+      - name: Test
+        run: npm test -- --watchAll=false --runInBand
+        env:
+          CI: true
+      - name: Build
+        run: npm run build
+        env:
+          CI: true
+
+  windows-quality:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/intrinsic-metabloom-avatar-20260903
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Apply intrinsic implementation when pending
+        shell: pwsh
+        run: |
+          if (Test-Path "scripts/run_intrinsic_metabloom_patch.py") {
+            python scripts/run_intrinsic_metabloom_patch.py
+          }
+      - name: Check whitespace
+        run: git diff --check
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Run complete test suite
+        run: npm test -- --watchAll=false --runInBand
+        env:
+          CI: true
+      - name: Build production bundle
+        run: npm run build
+        env:
+          CI: true
+      - name: Run built routes in Microsoft Edge
+        run: node scripts/windows-browser-smoke.mjs
+      - name: Run dark evidence smoke
+        run: npm run visual:dark-evidence:smoke
+      - name: Capture intrinsic Metabloom review images
+        run: node scripts/capture-orb-review.mjs
+      - name: Upload review images
+        uses: actions/upload-artifact@v4
+        with:
+          name: intrinsic-metabloom-review-${{ github.sha }}
+          path: orb-review/*.png
+          if-no-files-found: error
+          retention-days: 3
+
+  promote:
+    needs:
+      - linux-quality
+      - windows-quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/intrinsic-metabloom-avatar-20260903
+          fetch-depth: 0
+      - name: Apply intrinsic implementation when pending
+        shell: bash
+        run: |
+          if [ -f scripts/run_intrinsic_metabloom_patch.py ]; then
+            python scripts/run_intrinsic_metabloom_patch.py
+          fi
+      - name: Remove one-time delivery files
+        shell: bash
+        run: |
+          rm -f scripts/apply_intrinsic_metabloom_avatar.py
+          rm -f scripts/apply_intrinsic_metabloom_avatar.py.gz.b64
+          rm -f scripts/run_intrinsic_metabloom_patch.py
+          rm -f .github/workflows/apply-intrinsic-metabloom-avatar.yml
+          rm -f .github/workflows/apply-intrinsic-metabloom-avatar-v2.yml
+          rm -f .github/workflows/promote-intrinsic-metabloom-avatar.yml
+          rm -f .github/workflows/intrinsic-orb-review-capture.yml
+          git add -A
+          git diff --cached --check
+      - name: Commit verified source
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if ! git diff --cached --quiet; then
+            git commit -m "Implement intrinsic Metabloom avatar physics"
+          fi
+      - name: Fast-forward feature branch and main
+        shell: bash
+        run: |
+          git fetch origin main
+          main_sha="$(git rev-parse origin/main)"
+          merge_base="$(git merge-base origin/main HEAD)"
+          if [ "$merge_base" != "$main_sha" ]; then
+            echo "Main moved outside the verified feature history; refusing promotion."
+            exit 1
+          fi
+          git push origin "HEAD:feature/intrinsic-metabloom-avatar-20260903"
+          git push origin "HEAD:main"
