@@ -15,6 +15,7 @@ const ruleFor = (css, selector) => {
 describe("Orb final presentation guardrails", () => {
   const css = readSource("OrbPageFinalPolish.css");
   const pageSource = readSource("OrbPage.js");
+  const sendIconSource = readSource("../assets/icons/send-up.svg");
 
   test("loads after the route experience layer", () => {
     const experienceIndex = pageSource.indexOf('import "./OrbPageExperience.css";');
@@ -35,6 +36,64 @@ describe("Orb final presentation guardrails", () => {
     expect(buttonRule).toContain("place-items: center;");
     expect(buttonRule).toContain("appearance: none;");
     expect(buttonRule).toContain("-webkit-appearance: none;");
+  });
+
+  test("uses the shared rainbow material for the composer border", () => {
+    const composerRule = ruleFor(
+      css,
+      ".orb-page .metabloom-chat__composer",
+    );
+    const ringRule = ruleFor(
+      css,
+      ".orb-page .metabloom-chat__composer::after",
+    );
+    const focusRingRule = ruleFor(
+      css,
+      ".orb-page .metabloom-chat__composer:focus-within::after",
+    );
+
+    expect(composerRule).toContain("border-color: transparent;");
+    expect(ringRule).toContain("var(--aetheris-spectral-border-soft)");
+    expect(ringRule).toContain("opacity: 1;");
+    expect(focusRingRule).toContain("var(--aetheris-spectral)");
+  });
+
+  test("uses spectral borders for every suggested prompt", () => {
+    const promptRule = ruleFor(
+      css,
+      ".orb-page .metabloom-chat__suggestions button",
+    );
+    const hoverRule = ruleFor(
+      css,
+      ".orb-page .metabloom-chat__suggestions button:hover",
+    );
+    const focusRule = ruleFor(
+      css,
+      ".orb-page .metabloom-chat__suggestions button:focus-visible",
+    );
+
+    expect(promptRule).toContain("border: 1px solid transparent;");
+    expect(promptRule).toContain("var(--aetheris-spectral-border-soft) border-box");
+    expect(hoverRule).toContain("var(--aetheris-spectral) border-box");
+    expect(focusRule).toContain("var(--aetheris-spectral) border-box");
+  });
+
+  test("renders the send arrow with the shared spectral icon colorway", () => {
+    const svgRule = ruleFor(
+      css,
+      ".orb-page .metabloom-chat__composer button svg",
+    );
+    const iconRule = ruleFor(
+      css,
+      ".orb-page .metabloom-chat__composer button::after",
+    );
+
+    expect(svgRule).toContain("opacity: 0;");
+    expect(iconRule).toContain("var(--spectral-icon-colorway");
+    expect(iconRule).toContain('url("../assets/icons/send-up.svg")');
+    expect(iconRule).toContain("drop-shadow");
+    expect(sendIconSource).toContain('viewBox="0 0 24 24"');
+    expect(sendIconSource).toContain('stroke="#000"');
   });
 
   test("keeps status chrome out of the landing composition", () => {
@@ -63,8 +122,11 @@ describe("Orb final presentation guardrails", () => {
     expect(css).toContain("@media (max-width: 360px)");
   });
 
-  test("preserves reduced-motion behavior", () => {
+  test("preserves reduced-motion and forced-color behavior", () => {
     expect(css).toContain("@media (prefers-reduced-motion: reduce)");
     expect(css).toContain("transition: none;");
+    expect(css).toContain("@media (forced-colors: active)");
+    expect(css).toContain("button svg");
+    expect(css).toContain("opacity: 1;");
   });
 });
