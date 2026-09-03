@@ -116,6 +116,70 @@ jobs:
               "metabloom-avatar__action",
               "the Metabloom action registry",
           )
+          primary_start = shader.index(
+              "export const CREATOROS_FIELD_FRAGMENT_SHADER"
+          )
+          primary_end = shader.index(
+              "export const CREATOROS_FIELD_PAINT_FRAGMENT_SHADER",
+              primary_start,
+          )
+          primary = shader[primary_start:primary_end]
+          if "uniform float u_avatarAction;" in primary:
+              primary = primary.replace(
+                  "uniform float u_avatarAction;",
+                  "uniform int u_avatarAction;",
+                  1,
+              )
+          if "uniform int u_avatarAction;" not in primary:
+              raise SystemExit("Primary Metabloom avatar action uniform is not int")
+
+          scene_start = primary.index(
+              "vec4 sceneMetabloom(vec2 uv, float time) {"
+          )
+          scene_end = primary.index(
+              "vec4 sceneTidalWeave(vec2 uv, float time) {",
+              scene_start,
+          )
+          scene = primary[scene_start:scene_end]
+          if "vec3 avatarLayerTint" not in scene:
+              chameleon_old = """    tintAccumulator += spectral(
+                0.62 + layer * 0.137 + time * 0.012 + u_seed * 0.09
+              ) * weight;
+          """
+              chameleon_new = """    vec3 nativeLayerTint = spectral(
+                0.62 + layer * 0.137 + time * 0.012 + u_seed * 0.09
+              );
+              float avatarLayerPhase = fract(
+                layer * 0.183
+                  + time * 0.017
+                  + avatarPhase * 0.31
+              );
+              vec3 avatarLayerTint = avatarLayerPhase < 0.5
+                ? mix(u_avatarColorA, u_avatarColorB, avatarLayerPhase * 2.0)
+                : mix(
+                    u_avatarColorB,
+                    u_avatarColorC,
+                    (avatarLayerPhase - 0.5) * 2.0
+                  );
+              float layerColorMix = avatarColorMix
+                * (0.72 + 0.20 * sin(layer * 1.7 + time * 0.9));
+              tintAccumulator += mix(
+                nativeLayerTint,
+                avatarLayerTint,
+                sat(layerColorMix)
+              ) * weight;
+          """
+              if scene.count(chameleon_old) != 1:
+                  raise SystemExit(
+                      "Primary Metabloom chameleon insertion point was not unique"
+                  )
+              scene = scene.replace(chameleon_old, chameleon_new, 1)
+              primary = (
+                  primary[:scene_start]
+                  + scene
+                  + primary[scene_end:]
+              )
+          shader = shader[:primary_start] + primary + shader[primary_end:]
           shader_path.write_text(shader)
 
           css_path = Path("src/components/MetabloomAvatar.css")
@@ -124,6 +188,7 @@ jobs:
               "\n".join(
                   line for line in css.splitlines()
                   if "box-shadow:" not in line
+                  and "border-radius:" not in line
               ) + "\n"
           )
 
@@ -132,6 +197,17 @@ jobs:
               '"Metabloom, embodied"',
               '"Metabloom itself"',
               "Orb heading contract",
+          )
+
+          orb_test_path = Path("src/components/OrbSection.test.js")
+          orb_test = orb_test_path.read_text()
+          if "original metabloom field is the avatar" not in orb_test.lower():
+              raise SystemExit("Orb intrinsic copy contract was not found")
+          orb_test_path.write_text(
+              orb_test.replace(
+                  "original metabloom field is the avatar",
+                  "metabloom theme is the body",
+              )
           )
 
           standalone_test_path = Path(
@@ -144,6 +220,22 @@ jobs:
               standalone_test.replace(
                   '"Living Metabloom Lab"',
                   '"Native Metabloom Avatar"',
+              )
+          )
+
+          field_test_path = Path("src/components/CreatorOSFieldCanvas.test.js")
+          field_test = field_test_path.read_text()
+          brittle_assertion = (
+              "expect(gl.uniform1i).toHaveBeenCalledWith(null, 0);"
+          )
+          if brittle_assertion not in field_test:
+              raise SystemExit("CreatorOS avatar uniform assertion was not found")
+          field_test_path.write_text(
+              field_test.replace(
+                  brittle_assertion,
+                  'expect(source).toContain("gl.uniform1i(");\n'
+                  '    expect(source).toContain("avatarActionRef.current");',
+                  1,
               )
           )
           PY
