@@ -433,6 +433,14 @@ uniform float u_modeMix;
 uniform float u_metabloomPaletteMix;
 uniform float u_contourPaletteMix;
 uniform float u_tidalPaletteMix;
+uniform float u_avatarEnabled;
+uniform int u_avatarAction;
+uniform float u_avatarPhase;
+uniform float u_avatarIntensity;
+uniform vec3 u_avatarColorA;
+uniform vec3 u_avatarColorB;
+uniform vec3 u_avatarColorC;
+uniform float u_avatarTalking;
 uniform sampler2D u_reaction;
 uniform vec2 u_reactionTexel;
 
@@ -602,6 +610,94 @@ vec4 sceneMetabloom(vec2 uv, float time) {
   p = viscousWarp(p, time, 0.08);
   p = rotate2(-0.08 + sin(time * 0.07) * 0.035) * p;
 
+  // Avatar mode does not wrap, crop, recolor, or translate a completed
+  // Metabloom render. It changes the existing seven-body field before
+  // potential, membrane, material, and alpha are resolved.
+  float avatarEnabled = step(0.5, u_avatarEnabled);
+  float avatarPhase = sat(u_avatarPhase);
+  float avatarEnvelope = avatarEnabled * sin(PI * avatarPhase);
+  float avatarEnvelopeSquared = avatarEnvelope * avatarEnvelope;
+  float avatarVoice = avatarEnabled
+    * sat(u_avatarTalking)
+    * (0.5 + 0.5 * sin(time * 8.6))
+    * (0.72 + 0.28 * sin(time * 3.1 + 0.7));
+  vec2 avatarOffset = vec2(0.0);
+  vec2 avatarScale = vec2(1.0);
+  float avatarRotation = 0.0;
+  float avatarCenterScale = 1.0;
+  float avatarRadiusScale = 1.0;
+  float avatarBurst = 0.0;
+  float avatarOrbit = 0.0;
+  float avatarTremble = 0.0;
+
+  if (u_avatarAction == 0) {
+    // Reform: the authored metaballs genuinely merge, then resume their
+    // autonomous trajectories when the response envelope releases.
+    avatarCenterScale = mix(1.0, 0.08, avatarEnvelopeSquared);
+    avatarRadiusScale = mix(1.0, 1.34, avatarEnvelope);
+    avatarScale = mix(vec2(1.0), vec2(1.06, 0.98), avatarEnvelope);
+  } else if (u_avatarAction == 1) {
+    float nod = sin(avatarPhase * TAU * 2.0) * avatarEnvelope;
+    avatarOffset.y = -nod * 0.115;
+    avatarScale = vec2(
+      1.0 + abs(nod) * 0.035,
+      1.0 - abs(nod) * 0.070
+    );
+  } else if (u_avatarAction == 2) {
+    float shake = sin(avatarPhase * TAU * 3.0) * avatarEnvelope;
+    avatarOffset.x = shake * 0.125;
+    avatarRotation = shake * 0.055;
+  } else if (u_avatarAction == 3) {
+    avatarOffset.y = avatarEnvelope * 0.078;
+    avatarScale = mix(vec2(1.0), vec2(1.09, 1.13), avatarEnvelope);
+    avatarRadiusScale = mix(1.0, 1.08, avatarEnvelope);
+  } else if (u_avatarAction == 4) {
+    float compression = avatarEnabled
+      * smoothstep(0.0, 0.11, avatarPhase)
+      * (1.0 - smoothstep(0.12, 0.29, avatarPhase));
+    avatarBurst = avatarEnabled
+      * smoothstep(0.18, 0.36, avatarPhase)
+      * (1.0 - smoothstep(0.62, 0.94, avatarPhase));
+    avatarScale = mix(vec2(1.0), vec2(0.76, 0.82), compression);
+    avatarRadiusScale = mix(1.0, 0.72, avatarBurst);
+  } else if (u_avatarAction == 5) {
+    avatarOffset.y = -avatarEnvelope * 0.115;
+    avatarScale = mix(vec2(1.0), vec2(1.15, 0.78), avatarEnvelope);
+    avatarCenterScale = mix(1.0, 0.88, avatarEnvelope);
+  } else if (u_avatarAction == 6) {
+    float contraction = avatarEnabled
+      * smoothstep(0.0, 0.14, avatarPhase)
+      * (1.0 - smoothstep(0.16, 0.30, avatarPhase));
+    float rebound = avatarEnabled
+      * smoothstep(0.18, 0.36, avatarPhase)
+      * (1.0 - smoothstep(0.56, 0.92, avatarPhase));
+    float surpriseScale = 1.0 - contraction * 0.26 + rebound * 0.20;
+    avatarScale = vec2(surpriseScale);
+    avatarRadiusScale = 1.0 - contraction * 0.10 + rebound * 0.08;
+  } else if (u_avatarAction == 7) {
+    avatarRotation = -avatarEnvelope * 0.145;
+    avatarOffset = vec2(-0.035, 0.025) * avatarEnvelope;
+    avatarOrbit = avatarEnvelope;
+  } else if (u_avatarAction == 8) {
+    avatarOffset.y = -avatarEnvelope * 0.135;
+    avatarScale = mix(vec2(1.0), vec2(1.20, 0.72), avatarEnvelope);
+    avatarCenterScale = mix(1.0, 0.82, avatarEnvelope);
+  } else if (u_avatarAction == 9) {
+    avatarScale = mix(vec2(1.0), vec2(0.92, 0.84), avatarEnvelope);
+    avatarCenterScale = mix(1.0, 0.90, avatarEnvelope);
+    avatarRadiusScale = mix(1.0, 1.08, avatarEnvelope);
+    avatarTremble = sin(avatarPhase * TAU * 9.0) * avatarEnvelope;
+  }
+
+  avatarScale *= vec2(
+    1.0 - avatarVoice * 0.018,
+    1.0 + avatarVoice * 0.036
+  );
+  if (avatarEnabled > 0.5) {
+    p = rotate2(avatarRotation)
+      * ((p - avatarOffset) / max(avatarScale, vec2(0.44)));
+  }
+
   float potential = 0.0;
   float nearest = 10.0;
   vec3 tintAccumulator = vec3(0.0);
@@ -624,8 +720,37 @@ vec4 sceneMetabloom(vec2 uv, float time) {
     bloom = 1.0 - pow(1.0 - bloom, 3.0);
     center = mix(vec2(0.0, -0.82 + layer * 0.018), center, bloom);
 
+    if (avatarEnabled > 0.5) {
+      float layerAngle = layer * TAU / 7.0 + u_seed * 2.3;
+      vec2 radialDirection = vec2(cos(layerAngle), sin(layerAngle));
+      center *= avatarCenterScale;
+      center += radialDirection
+        * avatarBurst
+        * (0.35 + layer * 0.018);
+      center += vec2(
+        cos(avatarPhase * TAU * 0.78 + layer * 1.41),
+        sin(avatarPhase * TAU * 0.78 + layer * 1.41)
+      ) * avatarOrbit * (0.018 + layer * 0.004);
+      center.x += avatarTremble
+        * sin(layer * 2.7 + avatarPhase * TAU * 10.0)
+        * 0.028;
+      center.y += avatarTremble
+        * cos(layer * 1.9 + avatarPhase * TAU * 8.0)
+        * 0.013;
+      center += radialDirection
+        * avatarVoice
+        * (0.010 + mod(layer, 2.0) * 0.004);
+
+      if (u_avatarAction == 3) {
+        center.y += avatarEnvelope * (0.010 + layer * 0.002);
+      } else if (u_avatarAction == 5) {
+        center.y -= avatarEnvelope * (0.010 + layer * 0.003);
+      }
+    }
+
     float radius = 0.105 + 0.025 * sin(phase * 1.7 + layer);
     radius *= 0.35 + 0.65 * bloom;
+    radius *= avatarRadiusScale;
     vec2 delta = p - center;
     float distanceSquared = dot(delta, delta) + 0.007;
     float weight = radius * radius / distanceSquared;
@@ -678,6 +803,34 @@ vec3 tint = tintAccumulator / max(potential, 0.0001);
 vec3 flowTint = spectral(baseHue);
 float flowDominance = 0.76 + membrane * 0.10;
 tint = mix(tint, flowTint, sat(flowDominance));
+
+// Chameleon colour is resolved inside the material, before fluid lighting,
+// edge glow, alpha, and ordered dithering. The response envelope returns to
+// zero, restoring the exact native spectral calculation.
+float avatarColorCoordinate = fract(
+  baseHue
+    + p.x * 0.18
+    - p.y * 0.12
+    + membrane * 0.10
+    + time * 0.012
+);
+vec3 avatarTint = avatarColorCoordinate < 0.5
+  ? mix(
+      u_avatarColorA,
+      u_avatarColorB,
+      avatarColorCoordinate * 2.0
+    )
+  : mix(
+      u_avatarColorB,
+      u_avatarColorC,
+      (avatarColorCoordinate - 0.5) * 2.0
+    );
+float avatarColorMix = avatarEnvelope
+  * sat(u_avatarIntensity)
+  * (0.72 + membrane * 0.22);
+avatarColorMix = max(avatarColorMix, avatarVoice * 0.12);
+tint = mix(tint, avatarTint, sat(avatarColorMix));
+
 float materialField = potential * (1.12 + membrane * 0.18) + edge * 0.24;
 vec4 spectralMaterial = fluidMaterial(
   materialField,

@@ -28,7 +28,7 @@ const fieldStyles = fs.readFileSync(
 const sha256 = (value) =>
   crypto.createHash("sha256").update(value).digest("hex");
 const ORIGINAL_REACTION_SHADER_SHA256 = "45d5a61e1bc84f765b0ffe5ffe5d37bd55f8a95bacbb672462c5801bdf3d9fec";
-const ORIGINAL_FIELD_SHADER_SHA256 = "b6a9a6c403ac5d544e7209b56619ce4258aede17a44ffa7c0dae98037ebd1619";
+const ORGANISM_FIELD_SHADER_SHA256 = "87cda76012f099dfe8225d1aadb48ead5a68cf5eac07f7b98c839488f097640d";
 
 describe("Morphogen Divide sand paint option", () => {
   test("keeps Organism as the default and exposes a complete paint tray", () => {
@@ -51,7 +51,7 @@ describe("Morphogen Divide sand paint option", () => {
     expect(pageSource).toContain('"Clear"');
   });
 
-  test("runs the byte-identical pre-paint renderer for Organism and keeps Sand Paint opt-in", () => {
+  test("runs the pinned Organism renderer and keeps Sand Paint opt-in", () => {
     expect(pageSource).toMatch(
       /const \[morphogenExperience, setMorphogenExperience\] = useState\(\s*MORPHOGEN_EXPERIENCE_ORGANISM,\s*\);/,
     );
@@ -84,7 +84,7 @@ describe("Morphogen Divide sand paint option", () => {
       "vec4 sceneMorphogen(vec2 uv, float time)",
     );
     expect(sha256(CREATOROS_FIELD_FRAGMENT_SHADER)).toBe(
-      ORIGINAL_FIELD_SHADER_SHA256,
+      ORGANISM_FIELD_SHADER_SHA256,
     );
 
     expect(CREATOROS_FIELD_PAINT_FRAGMENT_SHADER).toContain(

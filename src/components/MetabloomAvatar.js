@@ -7,7 +7,18 @@ import {
 } from "./metabloomActions";
 import "./MetabloomAvatar.css";
 
-const BURST_FRAGMENTS = Object.freeze([1, 2, 3, 4, 5, 6]);
+const ACTION_CODES = Object.freeze({
+  reform: 0,
+  agree: 1,
+  disagree: 2,
+  happy: 3,
+  excited: 4,
+  sad: 5,
+  surprised: 6,
+  thinking: 7,
+  sleepy: 8,
+  angry: 9,
+});
 
 const MetabloomAvatar = ({
   action = "reform",
@@ -21,39 +32,10 @@ const MetabloomAvatar = ({
   resetVersion = 0,
   talking = false,
 }) => {
-  const motionRef = React.useRef(null);
-  const actionTimerRef = React.useRef(0);
   const normalizedAction =
     resolveMetabloomAction(action) || getDefaultMetabloomAction();
   const active = isActive && !paused;
-
-  React.useEffect(() => {
-    const motion = motionRef.current;
-    window.clearTimeout(actionTimerRef.current);
-    actionTimerRef.current = 0;
-    if (!motion) return undefined;
-
-    motion.classList.remove("is-acting");
-    if (!active) return undefined;
-
-    motion.getBoundingClientRect();
-    motion.classList.add("is-acting");
-    actionTimerRef.current = window.setTimeout(() => {
-      motion.classList.remove("is-acting");
-      actionTimerRef.current = 0;
-    }, normalizedAction.duration);
-
-    return () => {
-      window.clearTimeout(actionTimerRef.current);
-      actionTimerRef.current = 0;
-      motion.classList.remove("is-acting");
-    };
-  }, [
-    actionVersion,
-    active,
-    normalizedAction.duration,
-    normalizedAction.id,
-  ]);
+  const actionCode = ACTION_CODES[normalizedAction.id] ?? ACTION_CODES.reform;
 
   const handleKeyDown = (event) => {
     if (event.key !== "Enter" && event.key !== " ") return;
@@ -62,8 +44,8 @@ const MetabloomAvatar = ({
   };
 
   const accessibleLabel =
-    `Faceless Metabloom avatar expressing ${normalizedAction.label.toLowerCase()}. ` +
-    `${normalizedAction.motion}. ${normalizedAction.colorway} colorway.`;
+    `Faceless Metabloom avatar expressing ${normalizedAction.label.toLowerCase()}. `
+    + `${normalizedAction.motion}. ${normalizedAction.colorway} colorway.`;
 
   return (
     <div
@@ -72,6 +54,7 @@ const MetabloomAvatar = ({
       data-avatar-action-version={actionVersion}
       data-avatar-active={active ? "true" : "false"}
       data-avatar-colorway={normalizedAction.colorway}
+      data-avatar-engine="intrinsic-shader"
       data-avatar-faceless="true"
       data-avatar-material="creatoros-metabloom"
       data-avatar-talking={talking ? "true" : "false"}
@@ -85,37 +68,26 @@ const MetabloomAvatar = ({
         "--avatar-color-a": normalizedAction.colors[0],
         "--avatar-color-b": normalizedAction.colors[1],
         "--avatar-color-c": normalizedAction.colors[2],
-        "--avatar-color-intensity": normalizedAction.intensity,
-        "--avatar-action-duration": `${normalizedAction.duration}ms`,
       }}
     >
-      <div className="metabloom-avatar__pose">
-        <div ref={motionRef} className="metabloom-avatar__motion">
-          <div className="metabloom-avatar__blob">
-            <div className="metabloom-avatar__field">
-              <CreatorOSFieldCanvas
-                externalPulseVersion={pulseVersion}
-                isDark={isDark}
-                metabloomPalette="spectral"
-                mode={0}
-                onFieldStateChange={onFieldStateChange}
-                paused={!active}
-                resetVersion={resetVersion}
-              />
-            </div>
-            <span className="metabloom-avatar__colorwash" aria-hidden="true" />
-          </div>
-
-          <span className="metabloom-avatar__burst" aria-hidden="true" />
-          {BURST_FRAGMENTS.map((fragment) => (
-            <span
-              key={fragment}
-              className={`metabloom-avatar__fragment metabloom-avatar__fragment--${fragment}`}
-              aria-hidden="true"
-            />
-          ))}
-        </div>
-      </div>
+      <CreatorOSFieldCanvas
+        externalPulseVersion={pulseVersion}
+        isDark={isDark}
+        metabloomAvatarAction={actionCode}
+        metabloomAvatarColorA={normalizedAction.colors[0]}
+        metabloomAvatarColorB={normalizedAction.colors[1]}
+        metabloomAvatarColorC={normalizedAction.colors[2]}
+        metabloomAvatarDuration={normalizedAction.duration}
+        metabloomAvatarEnabled
+        metabloomAvatarIntensity={normalizedAction.intensity}
+        metabloomAvatarTalking={talking}
+        metabloomAvatarVersion={actionVersion}
+        metabloomPalette="spectral"
+        mode={0}
+        onFieldStateChange={onFieldStateChange}
+        paused={!active}
+        resetVersion={resetVersion}
+      />
     </div>
   );
 };

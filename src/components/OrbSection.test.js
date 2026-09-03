@@ -70,7 +70,7 @@ describe("OrbSection", () => {
       screen.getByRole("heading", { name: "Metabloom, embodied" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/original Metabloom field remains visually intact/i),
+      screen.getByText(/original Metabloom field is the avatar/i),
     ).toBeInTheDocument();
     expect(screen.getAllByTestId("metabloom-avatar")).toHaveLength(1);
     expect(screen.getByTestId("metabloom-avatar")).toHaveAttribute(

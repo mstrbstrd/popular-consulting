@@ -1,5 +1,5 @@
 import React from "react";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import MetabloomAvatar from "./MetabloomAvatar";
 
@@ -14,27 +14,24 @@ jest.mock("./CreatorOSFieldCanvas", () => {
     return ReactModule.createElement("div", {
       "data-testid": "creatoros-metabloom-field",
       "data-mode": String(props.mode),
-      "data-palette": props.metabloomPalette,
+      "data-avatar-enabled": String(props.metabloomAvatarEnabled),
+      "data-avatar-action": String(props.metabloomAvatarAction),
       "data-paused": String(props.paused),
-      "data-pulse-version": String(props.externalPulseVersion),
     });
   };
 });
 
 describe("MetabloomAvatar", () => {
   beforeEach(() => {
-    jest.useFakeTimers();
     mockFieldProps = null;
     mockFieldRenderCount = 0;
   });
 
   afterEach(() => {
     cleanup();
-    jest.clearAllTimers();
-    jest.useRealTimers();
   });
 
-  test("uses the exact CreatorOS Metabloom field as one faceless body", () => {
+  test("uses the CreatorOS Metabloom field itself as the only visible body", () => {
     render(
       <MetabloomAvatar
         action="disagree"
@@ -49,81 +46,75 @@ describe("MetabloomAvatar", () => {
       "data-avatar-material",
       "creatoros-metabloom",
     );
+    expect(avatar).toHaveAttribute("data-avatar-engine", "intrinsic-shader");
     expect(avatar).toHaveAttribute("data-avatar-faceless", "true");
     expect(avatar).toHaveAttribute("data-avatar-action", "disagree");
     expect(mockFieldProps).toMatchObject({
       externalPulseVersion: 7,
+      metabloomAvatarAction: 2,
+      metabloomAvatarColorA: "#ff315f",
+      metabloomAvatarColorB: "#ff36d1",
+      metabloomAvatarColorC: "#7138ff",
+      metabloomAvatarDuration: 820,
+      metabloomAvatarEnabled: true,
+      metabloomAvatarIntensity: 0.54,
+      metabloomAvatarTalking: false,
+      metabloomAvatarVersion: 3,
       metabloomPalette: "spectral",
       mode: 0,
       paused: false,
     });
-    expect(avatar.querySelector("svg")).not.toBeInTheDocument();
-    expect(avatar.querySelector(".metabloom-avatar__face")).not.toBeInTheDocument();
-    expect(avatar.querySelector(".metabloom-avatar__eye")).not.toBeInTheDocument();
-    expect(avatar.querySelector(".metabloom-avatar__mouth")).not.toBeInTheDocument();
+
+    [
+      ".metabloom-avatar__blob",
+      ".metabloom-avatar__motion",
+      ".metabloom-avatar__pose",
+      ".metabloom-avatar__colorwash",
+      ".metabloom-avatar__burst",
+      ".metabloom-avatar__fragment",
+      ".metabloom-avatar__face",
+    ].forEach((selector) => {
+      expect(avatar.querySelector(selector)).not.toBeInTheDocument();
+    });
   });
 
-  test("changes gesture and chameleon colorway without mounting another renderer", () => {
+  test("changes intrinsic action uniforms without mounting another renderer", () => {
     const { rerender } = render(
       <MetabloomAvatar action="agree" actionVersion={1} />,
     );
 
     const avatar = screen.getByTestId("metabloom-avatar");
     const firstField = screen.getByTestId("creatoros-metabloom-field");
-    expect(avatar).toHaveAttribute("data-avatar-action", "agree");
-    expect(avatar).toHaveAttribute("data-avatar-colorway", "Verdant signal");
-    expect(
-      avatar.querySelector(".metabloom-avatar__motion"),
-    ).toHaveClass("is-acting");
+    expect(mockFieldProps.metabloomAvatarAction).toBe(1);
+    expect(mockFieldProps.metabloomAvatarVersion).toBe(1);
 
     rerender(<MetabloomAvatar action="excited" actionVersion={2} />);
 
     expect(avatar).toHaveAttribute("data-avatar-action", "excited");
-    expect(avatar).toHaveAttribute("data-avatar-colorway", "Electric bloom");
+    expect(mockFieldProps.metabloomAvatarAction).toBe(4);
+    expect(mockFieldProps.metabloomAvatarVersion).toBe(2);
     expect(screen.getAllByTestId("creatoros-metabloom-field")).toHaveLength(1);
     expect(screen.getByTestId("creatoros-metabloom-field")).toBe(firstField);
     expect(mockFieldRenderCount).toBeGreaterThan(1);
   });
 
-  test("replays the same action when its bounded version changes", () => {
+  test("forwards talking and pause into the same field renderer", () => {
     const { rerender } = render(
-      <MetabloomAvatar action="agree" actionVersion={1} />,
-    );
-    const motion = document.querySelector(".metabloom-avatar__motion");
-    expect(motion).toHaveClass("is-acting");
-
-    act(() => {
-      jest.advanceTimersByTime(920);
-    });
-    expect(motion).not.toHaveClass("is-acting");
-
-    rerender(<MetabloomAvatar action="agree" actionVersion={2} />);
-    expect(motion).toHaveClass("is-acting");
-  });
-
-  test("pauses the shared field when inactive or explicitly paused", () => {
-    const { rerender } = render(
-      <MetabloomAvatar isActive={false} paused={false} />,
+      <MetabloomAvatar isActive talking paused={false} />,
     );
 
-    expect(mockFieldProps.paused).toBe(true);
-    expect(screen.getByTestId("metabloom-avatar")).toHaveAttribute(
-      "data-avatar-active",
-      "false",
-    );
-
-    rerender(<MetabloomAvatar isActive paused />);
-    expect(mockFieldProps.paused).toBe(true);
-
-    rerender(<MetabloomAvatar isActive paused={false} />);
+    expect(mockFieldProps.metabloomAvatarTalking).toBe(true);
     expect(mockFieldProps.paused).toBe(false);
-    expect(screen.getByTestId("metabloom-avatar")).toHaveAttribute(
-      "data-avatar-active",
-      "true",
-    );
+
+    rerender(<MetabloomAvatar isActive talking={false} paused />);
+    expect(mockFieldProps.metabloomAvatarTalking).toBe(false);
+    expect(mockFieldProps.paused).toBe(true);
+
+    rerender(<MetabloomAvatar isActive={false} paused={false} />);
+    expect(mockFieldProps.paused).toBe(true);
   });
 
-  test("keeps keyboard and pointer pulse activation on the amorphous body", () => {
+  test("keeps keyboard and pointer pulse activation on the live field", () => {
     const onPulse = jest.fn();
     render(<MetabloomAvatar onPulse={onPulse} />);
 
@@ -137,11 +128,12 @@ describe("MetabloomAvatar", () => {
     expect(onPulse).toHaveBeenCalledTimes(3);
   });
 
-  test("normalizes legacy action names into the new vocabulary", () => {
+  test("normalizes legacy action names into the shader vocabulary", () => {
     render(<MetabloomAvatar action="curious" />);
     expect(screen.getByTestId("metabloom-avatar")).toHaveAttribute(
       "data-avatar-action",
       "thinking",
     );
+    expect(mockFieldProps.metabloomAvatarAction).toBe(7);
   });
 });

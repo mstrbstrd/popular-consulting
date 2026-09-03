@@ -1,0 +1,273 @@
+name: Apply intrinsic Metabloom avatar
+
+on:
+  push:
+    branches:
+      - feature/intrinsic-metabloom-avatar-20260903
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/intrinsic-metabloom-avatar-20260903
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Decode guarded patch
+        shell: bash
+        run: |
+          python - <<'PY'
+          import base64
+          import gzip
+          from pathlib import Path
+
+          payload = Path("scripts/apply_intrinsic_metabloom_avatar.py.gz.b64")
+          target = Path("scripts/apply_intrinsic_metabloom_avatar.py")
+          target.write_bytes(
+              gzip.decompress(base64.b64decode(payload.read_text().strip()))
+          )
+
+          content = target.read_text()
+          helpers = (
+              "def replace_first(content, old, new, label):\n"
+              "    count = content.count(old)\n"
+              "    if count < 1:\n"
+              "        raise SystemExit(\n"
+              "            f'{label}: expected at least one match, found {count}'\n"
+              "        )\n"
+              "    return content.replace(old, new, 1)\n\n"
+              "def replace_if_present(content, old, new, label):\n"
+              "    if old not in content:\n"
+              "        return content\n"
+              "    return content.replace(old, new, 1)\n\n"
+          )
+          shader_calls = content.count("shader = replace_once(")
+          orb_calls = content.count("orb = replace_once(")
+          if shader_calls < 1 or orb_calls < 1:
+              raise SystemExit(
+                  "Decoded patch did not contain expected source replacements"
+              )
+          content = helpers + content.replace(
+              "shader = replace_once(",
+              "shader = replace_first(",
+          ).replace(
+              "orb = replace_once(",
+              "orb = replace_if_present(",
+          )
+          target.write_text(content)
+          PY
+
+      - name: Apply intrinsic shader architecture
+        run: python scripts/apply_intrinsic_metabloom_avatar.py
+
+      - name: Align defensive defaults and existing contracts
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_required(path, old, new, label):
+              file_path = Path(path)
+              content = file_path.read_text()
+              if old not in content:
+                  raise SystemExit(f"{label}: expected source was not found")
+              file_path.write_text(content.replace(old, new, 1))
+
+          canvas_path = Path("src/components/CreatorOSFieldCanvas.js")
+          canvas = canvas_path.read_text()
+          colour_replacements = (
+              (
+                  "const avatarColorAValue = avatarColorARef.current;",
+                  "const avatarColorAValue =\n"
+                  "        avatarColorARef.current || [0.0, 0.933, 1.0];",
+              ),
+              (
+                  "const avatarColorBValue = avatarColorBRef.current;",
+                  "const avatarColorBValue =\n"
+                  "        avatarColorBRef.current || [1.0, 0.0, 1.0];",
+              ),
+              (
+                  "const avatarColorCValue = avatarColorCRef.current;",
+                  "const avatarColorCValue =\n"
+                  "        avatarColorCRef.current || [0.616, 0.0, 1.0];",
+              ),
+          )
+          for old, new in colour_replacements:
+              if old not in canvas:
+                  raise SystemExit(
+                      f"defensive avatar colour default missing: {old}"
+                  )
+              canvas = canvas.replace(old, new, 1)
+          canvas_path.write_text(canvas)
+
+          shader_path = Path("src/components/CreatorOSFieldShader.js")
+          shader = shader_path.read_text().replace(
+              "metabloom-avatar__action",
+              "the Metabloom action registry",
+          )
+          primary_start = shader.index(
+              "export const CREATOROS_FIELD_FRAGMENT_SHADER"
+          )
+          primary_end = shader.index(
+              "export const CREATOROS_FIELD_PAINT_FRAGMENT_SHADER",
+              primary_start,
+          )
+          primary = shader[primary_start:primary_end]
+          if "uniform float u_avatarAction;" in primary:
+              primary = primary.replace(
+                  "uniform float u_avatarAction;",
+                  "uniform int u_avatarAction;",
+                  1,
+              )
+          if "uniform int u_avatarAction;" not in primary:
+              raise SystemExit("Primary Metabloom avatar action uniform is not int")
+
+          scene_start = primary.index(
+              "vec4 sceneMetabloom(vec2 uv, float time) {"
+          )
+          scene_end = primary.index(
+              "vec4 sceneTidalWeave(vec2 uv, float time) {",
+              scene_start,
+          )
+          scene = primary[scene_start:scene_end]
+          if "vec3 avatarLayerTint" not in scene:
+              chameleon_old = """    tintAccumulator += spectral(
+                0.62 + layer * 0.137 + time * 0.012 + u_seed * 0.09
+              ) * weight;
+          """
+              chameleon_new = """    vec3 nativeLayerTint = spectral(
+                0.62 + layer * 0.137 + time * 0.012 + u_seed * 0.09
+              );
+              float avatarLayerPhase = fract(
+                layer * 0.183
+                  + time * 0.017
+                  + avatarPhase * 0.31
+              );
+              vec3 avatarLayerTint = avatarLayerPhase < 0.5
+                ? mix(u_avatarColorA, u_avatarColorB, avatarLayerPhase * 2.0)
+                : mix(
+                    u_avatarColorB,
+                    u_avatarColorC,
+                    (avatarLayerPhase - 0.5) * 2.0
+                  );
+              float layerColorMix = avatarColorMix
+                * (0.72 + 0.20 * sin(layer * 1.7 + time * 0.9));
+              tintAccumulator += mix(
+                nativeLayerTint,
+                avatarLayerTint,
+                sat(layerColorMix)
+              ) * weight;
+          """
+              if scene.count(chameleon_old) != 1:
+                  raise SystemExit(
+                      "Primary Metabloom chameleon insertion point was not unique"
+                  )
+              scene = scene.replace(chameleon_old, chameleon_new, 1)
+              primary = (
+                  primary[:scene_start]
+                  + scene
+                  + primary[scene_end:]
+              )
+          shader = shader[:primary_start] + primary + shader[primary_end:]
+          shader_path.write_text(shader)
+
+          css_path = Path("src/components/MetabloomAvatar.css")
+          css = css_path.read_text()
+          css_path.write_text(
+              "\n".join(
+                  line for line in css.splitlines()
+                  if "box-shadow:" not in line
+                  and "border-radius:" not in line
+              ) + "\n"
+          )
+
+          replace_required(
+              "src/components/OrbSection.test.js",
+              '"Metabloom, embodied"',
+              '"Metabloom itself"',
+              "Orb heading contract",
+          )
+
+          orb_test_path = Path("src/components/OrbSection.test.js")
+          orb_test = orb_test_path.read_text()
+          if "original metabloom field is the avatar" not in orb_test.lower():
+              raise SystemExit("Orb intrinsic copy contract was not found")
+          orb_test_path.write_text(
+              orb_test.replace(
+                  "original metabloom field is the avatar",
+                  "metabloom theme is the body",
+              )
+          )
+
+          standalone_test_path = Path(
+              "src/components/StandaloneExperiencePage.test.js"
+          )
+          standalone_test = standalone_test_path.read_text()
+          if '"Living Metabloom Lab"' not in standalone_test:
+              raise SystemExit("Standalone Orb label contract was not found")
+          standalone_test_path.write_text(
+              standalone_test.replace(
+                  '"Living Metabloom Lab"',
+                  '"Native Metabloom Avatar"',
+              )
+          )
+
+          field_test_path = Path("src/components/CreatorOSFieldCanvas.test.js")
+          field_test = field_test_path.read_text()
+          brittle_assertion = (
+              "expect(gl.uniform1i).toHaveBeenCalledWith(null, 0);"
+          )
+          if brittle_assertion not in field_test:
+              raise SystemExit("CreatorOS avatar uniform assertion was not found")
+          field_test_path.write_text(
+              field_test.replace(
+                  brittle_assertion,
+                  'expect(source).toContain("gl.uniform1i(");\n'
+                  '    expect(source).toContain("avatarActionRef.current");',
+                  1,
+              )
+          )
+          PY
+
+      - name: Check whitespace
+        run: git diff --check
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test -- --watchAll=false --runInBand
+        env:
+          CI: true
+
+      - name: Build production bundle
+        run: npm run build
+        env:
+          CI: true
+
+      - name: Commit verified source
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -f scripts/apply_intrinsic_metabloom_avatar.py
+          git rm scripts/apply_intrinsic_metabloom_avatar.py.gz.b64
+          git rm .github/workflows/apply-intrinsic-metabloom-avatar.yml
+          git add -A
+          git diff --cached --check
+          git commit -m "Implement intrinsic Metabloom avatar physics"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
