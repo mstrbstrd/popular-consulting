@@ -22,7 +22,7 @@ const contentTypes = Object.freeze({
   ".jpeg": "image/jpeg",
   ".jpg": "image/jpeg",
   ".js": "text/javascript; charset=utf-8",
-  ".json": "application/json; charset=utf-8",
+  ".json": "application/json",
   ".png": "image/png",
   ".svg": "image/svg+xml",
   ".webp": "image/webp",
@@ -87,6 +87,62 @@ const routeHtmlPath = (pathname) => {
   return fs.existsSync(generated)
     ? generated
     : path.join(buildRoot, "index.html");
+};
+
+const countOccurrences = (source, value) =>
+  source.split(value).length - 1;
+
+const assertOrbInterface = (captureCase, documentHtml) => {
+  const requiredContracts = [
+    ['data-avatar-material="creatoros-metabloom"', "faceless Metabloom avatar"],
+    ['data-renderer-id="dither-canvas-field"', "CreatorOS Metabloom field"],
+    ['data-avatar-faceless="true"', "faceless avatar invariant"],
+    ['data-avatar-engine="intrinsic-shader"', "intrinsic shader engine"],
+    ['data-metabloom-avatar="true"', "avatar shader uniforms"],
+    ['data-response-contract="response+actionChain"', "model response contract"],
+    ['class="metabloom-chat__field"', "full-screen field layer"],
+    ['class="metabloom-chat__interface"', "chat overlay layer"],
+    ['role="log"', "conversation log"],
+    ['aria-label="Conversation"', "conversation label"],
+    ['id="metabloom-message"', "message composer"],
+    ['aria-label="Send message"', "send control"],
+  ];
+
+  requiredContracts.forEach(([token, label]) => {
+    if (!documentHtml.includes(token)) {
+      throw new Error(`${captureCase.id}: the ${label} did not mount.`);
+    }
+  });
+
+  if (
+    countOccurrences(documentHtml, 'data-renderer-id="dither-canvas-field"')
+    !== 1
+  ) {
+    throw new Error(
+      `${captureCase.id}: expected exactly one CreatorOS field renderer.`,
+    );
+  }
+
+  [
+    "metabloom-avatar__blob",
+    "metabloom-avatar__colorwash",
+    "metabloom-avatar__fragment",
+    "orb-avatar-lab__stage",
+    "orb-avatar-lab__controls",
+    "orb-avatar-lab__table-wrap",
+  ].forEach((forbiddenClass) => {
+    if (documentHtml.includes(forbiddenClass)) {
+      throw new Error(
+        `${captureCase.id}: ${forbiddenClass} reintroduced the old contained interface.`,
+      );
+    }
+  });
+
+  if (documentHtml.includes("<table")) {
+    throw new Error(
+      `${captureCase.id}: the old visible action table is still mounted.`,
+    );
+  }
 };
 
 const server = http.createServer((request, response) => {
@@ -157,7 +213,7 @@ try {
       outputRoot,
       `${captureCase.id}.png`,
     );
-    const url = `${origin}/orb?graphics=webgl&visual-capture=orb`;
+    const url = `${origin}/orb?graphics=webgl&visual-capture=orb-interface`;
 
     try {
       const result = await execFileAsync(
@@ -194,42 +250,8 @@ try {
       );
 
       const documentHtml = result.stdout || "";
-      if (!documentHtml.includes('data-avatar-material="creatoros-metabloom"')) {
-        throw new Error(
-          `${captureCase.id}: the faceless Metabloom avatar did not mount.`,
-        );
-      }
-      if (!documentHtml.includes('data-renderer-id="dither-canvas-field"')) {
-        throw new Error(
-          `${captureCase.id}: the original CreatorOS Metabloom field did not mount.`,
-        );
-      }
-      if (!documentHtml.includes('data-avatar-faceless="true"')) {
-        throw new Error(
-          `${captureCase.id}: the faceless avatar invariant was not present.`,
-        );
-      }
-      if (!documentHtml.includes('data-avatar-engine="intrinsic-shader"')) {
-        throw new Error(
-          `${captureCase.id}: the intrinsic shader engine was not present.`,
-        );
-      }
-      if (!documentHtml.includes('data-metabloom-avatar="true"')) {
-        throw new Error(
-          `${captureCase.id}: the shared field did not enable avatar uniforms.`,
-        );
-      }
-      [
-        "metabloom-avatar__blob",
-        "metabloom-avatar__colorwash",
-        "metabloom-avatar__fragment",
-      ].forEach((forbiddenClass) => {
-        if (documentHtml.includes(forbiddenClass)) {
-          throw new Error(
-            `${captureCase.id}: ${forbiddenClass} reintroduced an external avatar layer.`,
-          );
-        }
-      });
+      assertOrbInterface(captureCase, documentHtml);
+
       if (!fs.existsSync(screenshotPath)) {
         throw new Error(
           `${captureCase.id}: Edge did not create a screenshot.`,
