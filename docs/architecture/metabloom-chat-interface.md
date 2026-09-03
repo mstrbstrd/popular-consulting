@@ -114,48 +114,47 @@ The browser must not contain provider API keys or long-lived credentials. The ad
 
 ### Event bridge
 
-Every submitted user message dispatches:
+Every submitted user message dispatches a cancelable event:
 
 ```text
 metabloom:user-message
 ```
 
-The event detail contains:
+Its detail contains `requestId`, `message`, bounded `history`, and two functions:
 
-```json
-{
-  "message": "The newest user message",
-  "history": [
-    {
-      "role": "assistant",
-      "content": "Previous message"
-    },
-    {
-      "role": "user",
-      "content": "The newest user message"
-    }
-  ]
-}
-```
+- `claim()` synchronously claims the request and suppresses the local preview.
+- `respond(payload)` delivers a response only while that request is still current.
 
-An external integration may respond by dispatching:
+An asynchronous event integration must claim before awaiting network work:
 
 ```js
-window.dispatchEvent(
-  new CustomEvent("metabloom:model-response", {
-    detail: {
-      response: "Validated model text",
-      actionChain: [
-        { action: "thinking", duration: 900, talking: false },
-        { action: "agree", duration: 920, talking: true },
-        { action: "reform", duration: 980, talking: false },
-      ],
-    },
-  }),
-);
+window.addEventListener("metabloom:user-message", async (event) => {
+  const { requestId, message, history, claim } = event.detail;
+  if (!claim()) return;
+
+  const result = await fetch("/api/metabloom/respond", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify({ message, history }),
+  });
+  const payload = await result.json();
+
+  window.dispatchEvent(
+    new CustomEvent("metabloom:model-response", {
+      detail: {
+        requestId,
+        response: payload.response,
+        actionChain: payload.actionChain,
+      },
+    }),
+  );
+});
 ```
 
-A synchronous event response cancels the local preview before it can run.
+Calling `event.preventDefault()` is also treated as a synchronous claim. A responder may use `event.detail.respond(payload)` instead of dispatching the response event. Correlated responses with stale or unknown request ids are ignored, and an observer that does not claim cannot append a second answer after the local preview wins.
+
+The model payload itself still contains exactly `response` and `actionChain`; `requestId` belongs only to the browser transport envelope.
 
 ### Direct response API
 
@@ -212,7 +211,8 @@ The preview passes through the same parser as an external model response. It doe
 - User messages are limited to 1,600 characters.
 - The visible transcript is bounded to 24 messages.
 - Model history is bounded to the latest 12 messages.
-- Only one model request is considered current. A newer response invalidates stale work.
+- Only one model request is considered current. Every event response is correlated to that request id.
+- Event integrations must claim synchronously before asynchronous work, so the local preview cannot race a connected responder.
 - Pending preview timers and action timers are cleared during reset and unmount.
 - The shared renderer continues to own reduced motion, hidden-tab suspension, local WebGL context recovery, and GPU cleanup.
 - The regular `/dither-canvas` Metabloom study remains unchanged because avatar uniforms are disabled by default outside `/orb`.
