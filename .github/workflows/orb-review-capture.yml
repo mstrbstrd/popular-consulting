@@ -8,6 +8,7 @@ on:
       - .github/workflows/orb-review-capture.yml
       - scripts/capture-orb-review.mjs
       - src/SiteRouter.js
+      - src/assets/icons/send-up.svg
       - src/components/ImmersiveRouteNavigationBridge.js
       - src/components/NavMenu.js
       - src/components/OrbPage.js
@@ -28,6 +29,7 @@ on:
       - .github/workflows/orb-review-capture.yml
       - scripts/capture-orb-review.mjs
       - src/SiteRouter.js
+      - src/assets/icons/send-up.svg
       - src/components/ImmersiveRouteNavigationBridge.js
       - src/components/NavMenu.js
       - src/components/OrbPage.js
