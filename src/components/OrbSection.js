@@ -172,7 +172,6 @@ const OrbSection = ({
   const activeAction =
     resolveMetabloomAction(actionId) || getDefaultMetabloomAction();
   const legacyForm = ACTION_FORMS[activeAction.id] || "companion";
-  const hasUserMessage = messages.some((message) => message.role === "user");
   const conversationStarted = messages.length > 0 || pending;
 
   messagesRef.current = messages;
