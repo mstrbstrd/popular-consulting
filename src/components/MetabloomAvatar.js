@@ -1,49 +1,17 @@
 import React from "react";
-import { hasHardwareWebGL } from "../utils/deviceTier";
-import LivingMetabloomCanvas from "./LivingMetabloomCanvas";
+import CreatorOSFieldCanvas from "./CreatorOSFieldCanvas";
+import "./CreatorOSFieldCanvas.css";
+import {
+  getDefaultMetabloomAction,
+  resolveMetabloomAction,
+} from "./metabloomActions";
 import "./MetabloomAvatar.css";
 
-const EXPRESSION_LABELS = Object.freeze({
-  angry: "angry",
-  excited: "excited",
-  happy: "happy",
-  sad: "sad",
-  sleepy: "sleepy",
-  surprised: "surprised",
-  thinking: "curious",
-});
-
-const FORM_LABELS = Object.freeze({
-  bloom: "open bloom",
-  companion: "companion",
-  drift: "drifting",
-  focus: "focused metalbloom",
-});
-
-const normalizeExpression = (expression) =>
-  Object.prototype.hasOwnProperty.call(EXPRESSION_LABELS, expression)
-    ? expression
-    : "happy";
-
-const normalizeForm = (form) =>
-  Object.prototype.hasOwnProperty.call(FORM_LABELS, form)
-    ? form
-    : "companion";
-
-const shouldForceVisualCaptureWebGL = () => {
-  if (typeof window === "undefined") return false;
-
-  const parameters = new URLSearchParams(window.location.search);
-  return (
-    parameters.get("visual-capture") === "orb" &&
-    parameters.get("orb-force-webgl") === "1"
-  );
-};
+const BURST_FRAGMENTS = Object.freeze([1, 2, 3, 4, 5, 6]);
 
 const MetabloomAvatar = ({
-  emotionVersion = 0,
-  expression = "happy",
-  form = "companion",
+  action = "reform",
+  actionVersion = 0,
   isActive = true,
   isDark = false,
   onFieldStateChange,
@@ -53,14 +21,39 @@ const MetabloomAvatar = ({
   resetVersion = 0,
   talking = false,
 }) => {
-  const normalizedExpression = normalizeExpression(expression);
-  const normalizedForm = normalizeForm(form);
-  const forceVisualCaptureWebGL = shouldForceVisualCaptureWebGL();
-  const webglEnabled = hasHardwareWebGL || forceVisualCaptureWebGL;
-  const accessibleLabel =
-    `Living Metabloom expressing ${EXPRESSION_LABELS[normalizedExpression]} ` +
-    `in its ${FORM_LABELS[normalizedForm]} form` +
-    `${talking ? " and speaking" : ""}`;
+  const motionRef = React.useRef(null);
+  const actionTimerRef = React.useRef(0);
+  const normalizedAction =
+    resolveMetabloomAction(action) || getDefaultMetabloomAction();
+  const active = isActive && !paused;
+
+  React.useEffect(() => {
+    const motion = motionRef.current;
+    window.clearTimeout(actionTimerRef.current);
+    actionTimerRef.current = 0;
+    if (!motion) return undefined;
+
+    motion.classList.remove("is-acting");
+    if (!active) return undefined;
+
+    motion.getBoundingClientRect();
+    motion.classList.add("is-acting");
+    actionTimerRef.current = window.setTimeout(() => {
+      motion.classList.remove("is-acting");
+      actionTimerRef.current = 0;
+    }, normalizedAction.duration);
+
+    return () => {
+      window.clearTimeout(actionTimerRef.current);
+      actionTimerRef.current = 0;
+      motion.classList.remove("is-acting");
+    };
+  }, [
+    actionVersion,
+    active,
+    normalizedAction.duration,
+    normalizedAction.id,
+  ]);
 
   const handleKeyDown = (event) => {
     if (event.key !== "Enter" && event.key !== " ") return;
@@ -68,34 +61,61 @@ const MetabloomAvatar = ({
     onPulse?.();
   };
 
+  const accessibleLabel =
+    `Faceless Metabloom avatar expressing ${normalizedAction.label.toLowerCase()}. ` +
+    `${normalizedAction.motion}. ${normalizedAction.colorway} colorway.`;
+
   return (
     <div
       className="metabloom-avatar"
-      data-avatar-active={isActive && !paused ? "true" : "false"}
-      data-avatar-expression={normalizedExpression}
-      data-avatar-form={normalizedForm}
-      data-avatar-material="living-metabloom"
+      data-avatar-action={normalizedAction.id}
+      data-avatar-action-version={actionVersion}
+      data-avatar-active={active ? "true" : "false"}
+      data-avatar-colorway={normalizedAction.colorway}
+      data-avatar-faceless="true"
+      data-avatar-material="creatoros-metabloom"
       data-avatar-talking={talking ? "true" : "false"}
-      data-avatar-webgl-capture={forceVisualCaptureWebGL ? "forced" : "native"}
       data-testid="metabloom-avatar"
       role="button"
       tabIndex={0}
-      aria-label={`${accessibleLabel}. Activate to send a pulse through the creature.`}
+      aria-label={`${accessibleLabel} Activate to send a pulse through it.`}
       onClick={onPulse}
       onKeyDown={handleKeyDown}
+      style={{
+        "--avatar-color-a": normalizedAction.colors[0],
+        "--avatar-color-b": normalizedAction.colors[1],
+        "--avatar-color-c": normalizedAction.colors[2],
+        "--avatar-color-intensity": normalizedAction.intensity,
+        "--avatar-action-duration": `${normalizedAction.duration}ms`,
+      }}
     >
-      <LivingMetabloomCanvas
-        enabled={webglEnabled}
-        emotionVersion={emotionVersion}
-        expression={normalizedExpression}
-        form={normalizedForm}
-        isDark={isDark}
-        onFieldStateChange={onFieldStateChange}
-        paused={!isActive || paused}
-        pulseVersion={pulseVersion}
-        resetVersion={resetVersion}
-        talking={talking}
-      />
+      <div className="metabloom-avatar__pose">
+        <div ref={motionRef} className="metabloom-avatar__motion">
+          <div className="metabloom-avatar__blob">
+            <div className="metabloom-avatar__field">
+              <CreatorOSFieldCanvas
+                externalPulseVersion={pulseVersion}
+                isDark={isDark}
+                metabloomPalette="spectral"
+                mode={0}
+                onFieldStateChange={onFieldStateChange}
+                paused={!active}
+                resetVersion={resetVersion}
+              />
+            </div>
+            <span className="metabloom-avatar__colorwash" aria-hidden="true" />
+          </div>
+
+          <span className="metabloom-avatar__burst" aria-hidden="true" />
+          {BURST_FRAGMENTS.map((fragment) => (
+            <span
+              key={fragment}
+              className={`metabloom-avatar__fragment metabloom-avatar__fragment--${fragment}`}
+              aria-hidden="true"
+            />
+          ))}
+        </div>
+      </div>
     </div>
   );
 };

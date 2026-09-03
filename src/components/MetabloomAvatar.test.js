@@ -1,91 +1,107 @@
 import React from "react";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import MetabloomAvatar from "./MetabloomAvatar";
 
 let mockFieldProps = null;
-let mockHasHardwareWebGL = true;
+let mockFieldRenderCount = 0;
 
-jest.mock("../utils/deviceTier", () => ({
-  get hasHardwareWebGL() {
-    return mockHasHardwareWebGL;
-  },
-}));
-
-jest.mock("./LivingMetabloomCanvas", () => {
+jest.mock("./CreatorOSFieldCanvas", () => {
   const ReactModule = require("react");
   return (props) => {
     mockFieldProps = props;
+    mockFieldRenderCount += 1;
     return ReactModule.createElement("div", {
-      "data-testid": "living-metabloom-field",
-      "data-emotion-version": String(props.emotionVersion),
-      "data-enabled": String(props.enabled),
-      "data-expression": props.expression,
-      "data-form": props.form,
+      "data-testid": "creatoros-metabloom-field",
+      "data-mode": String(props.mode),
+      "data-palette": props.metabloomPalette,
       "data-paused": String(props.paused),
-      "data-pulse-version": String(props.pulseVersion),
-      "data-talking": String(props.talking),
+      "data-pulse-version": String(props.externalPulseVersion),
     });
   };
 });
 
 describe("MetabloomAvatar", () => {
   beforeEach(() => {
+    jest.useFakeTimers();
     mockFieldProps = null;
-    mockHasHardwareWebGL = true;
+    mockFieldRenderCount = 0;
   });
 
   afterEach(() => {
     cleanup();
+    jest.clearAllTimers();
+    jest.useRealTimers();
   });
 
-  test("uses the living Metabloom field as the complete creature", () => {
-    const { rerender } = render(
+  test("uses the exact CreatorOS Metabloom field as one faceless body", () => {
+    render(
       <MetabloomAvatar
-        emotionVersion={2}
-        expression="sad"
-        form="drift"
-        pulseVersion={2}
-        talking={false}
+        action="disagree"
+        actionVersion={3}
+        pulseVersion={7}
       />,
     );
 
     const avatar = screen.getByTestId("metabloom-avatar");
-    expect(screen.getAllByTestId("living-metabloom-field")).toHaveLength(1);
-    expect(avatar).toHaveAttribute("data-avatar-material", "living-metabloom");
-    expect(avatar).toHaveAttribute("data-avatar-expression", "sad");
-    expect(avatar).toHaveAttribute("data-avatar-form", "drift");
-    expect(avatar.querySelector("svg")).not.toBeInTheDocument();
-    expect(
-      avatar.querySelector(".metabloom-avatar__body"),
-    ).not.toBeInTheDocument();
-    expect(
-      avatar.querySelector(".metabloom-avatar__material"),
-    ).not.toBeInTheDocument();
-
-    rerender(
-      <MetabloomAvatar
-        emotionVersion={4}
-        expression="thinking"
-        form="focus"
-        pulseVersion={4}
-        talking
-      />,
+    expect(screen.getAllByTestId("creatoros-metabloom-field")).toHaveLength(1);
+    expect(avatar).toHaveAttribute(
+      "data-avatar-material",
+      "creatoros-metabloom",
     );
-
-    expect(screen.getAllByTestId("living-metabloom-field")).toHaveLength(1);
+    expect(avatar).toHaveAttribute("data-avatar-faceless", "true");
+    expect(avatar).toHaveAttribute("data-avatar-action", "disagree");
     expect(mockFieldProps).toMatchObject({
-      emotionVersion: 4,
-      enabled: true,
-      expression: "thinking",
-      form: "focus",
-      pulseVersion: 4,
-      talking: true,
+      externalPulseVersion: 7,
+      metabloomPalette: "spectral",
+      mode: 0,
+      paused: false,
     });
-    expect(avatar).toHaveAttribute("data-avatar-talking", "true");
+    expect(avatar.querySelector("svg")).not.toBeInTheDocument();
+    expect(avatar.querySelector(".metabloom-avatar__face")).not.toBeInTheDocument();
+    expect(avatar.querySelector(".metabloom-avatar__eye")).not.toBeInTheDocument();
+    expect(avatar.querySelector(".metabloom-avatar__mouth")).not.toBeInTheDocument();
   });
 
-  test("pauses the one field when inactive or explicitly paused", () => {
+  test("changes gesture and chameleon colorway without mounting another renderer", () => {
+    const { rerender } = render(
+      <MetabloomAvatar action="agree" actionVersion={1} />,
+    );
+
+    const avatar = screen.getByTestId("metabloom-avatar");
+    const firstField = screen.getByTestId("creatoros-metabloom-field");
+    expect(avatar).toHaveAttribute("data-avatar-action", "agree");
+    expect(avatar).toHaveAttribute("data-avatar-colorway", "Verdant signal");
+    expect(
+      avatar.querySelector(".metabloom-avatar__motion"),
+    ).toHaveClass("is-acting");
+
+    rerender(<MetabloomAvatar action="excited" actionVersion={2} />);
+
+    expect(avatar).toHaveAttribute("data-avatar-action", "excited");
+    expect(avatar).toHaveAttribute("data-avatar-colorway", "Electric bloom");
+    expect(screen.getAllByTestId("creatoros-metabloom-field")).toHaveLength(1);
+    expect(screen.getByTestId("creatoros-metabloom-field")).toBe(firstField);
+    expect(mockFieldRenderCount).toBeGreaterThan(1);
+  });
+
+  test("replays the same action when its bounded version changes", () => {
+    const { rerender } = render(
+      <MetabloomAvatar action="agree" actionVersion={1} />,
+    );
+    const motion = document.querySelector(".metabloom-avatar__motion");
+    expect(motion).toHaveClass("is-acting");
+
+    act(() => {
+      jest.advanceTimersByTime(920);
+    });
+    expect(motion).not.toHaveClass("is-acting");
+
+    rerender(<MetabloomAvatar action="agree" actionVersion={2} />);
+    expect(motion).toHaveClass("is-acting");
+  });
+
+  test("pauses the shared field when inactive or explicitly paused", () => {
     const { rerender } = render(
       <MetabloomAvatar isActive={false} paused={false} />,
     );
@@ -107,12 +123,12 @@ describe("MetabloomAvatar", () => {
     );
   });
 
-  test("keeps keyboard and pointer pulse activation on the creature", () => {
+  test("keeps keyboard and pointer pulse activation on the amorphous body", () => {
     const onPulse = jest.fn();
     render(<MetabloomAvatar onPulse={onPulse} />);
 
     const avatar = screen.getByRole("button", {
-      name: /activate to send a pulse through the creature/i,
+      name: /activate to send a pulse through it/i,
     });
     fireEvent.keyDown(avatar, { key: "Enter" });
     fireEvent.keyDown(avatar, { key: " " });
@@ -121,38 +137,11 @@ describe("MetabloomAvatar", () => {
     expect(onPulse).toHaveBeenCalledTimes(3);
   });
 
-  test("routes every degraded session through the same complete creature component", () => {
-    mockHasHardwareWebGL = false;
-    const expressions = [
-      "happy",
-      "excited",
-      "sad",
-      "surprised",
+  test("normalizes legacy action names into the new vocabulary", () => {
+    render(<MetabloomAvatar action="curious" />);
+    expect(screen.getByTestId("metabloom-avatar")).toHaveAttribute(
+      "data-avatar-action",
       "thinking",
-      "sleepy",
-      "angry",
-    ];
-    const { rerender } = render(
-      <MetabloomAvatar expression={expressions[0]} />,
     );
-
-    expressions.forEach((expression, index) => {
-      rerender(
-        <MetabloomAvatar
-          emotionVersion={index + 10}
-          expression={expression}
-          form={index % 2 === 0 ? "bloom" : "focus"}
-          pulseVersion={index + 1}
-          talking={index === 4}
-        />,
-      );
-      expect(mockFieldProps.enabled).toBe(false);
-      expect(mockFieldProps.emotionVersion).toBe(index + 10);
-      expect(mockFieldProps.expression).toBe(expression);
-      expect(mockFieldProps.form).toBe(index % 2 === 0 ? "bloom" : "focus");
-      expect(mockFieldProps.pulseVersion).toBe(index + 1);
-      expect(mockFieldProps.talking).toBe(index === 4);
-      expect(screen.getAllByTestId("living-metabloom-field")).toHaveLength(1);
-    });
   });
 });

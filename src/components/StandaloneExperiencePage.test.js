@@ -125,7 +125,7 @@ describe("StandaloneExperiencePage", () => {
     ).toHaveAttribute("href", "/");
 
     await waitFor(() => {
-      expect(document.title).toBe("Living Metabloom Lab | Popular Consulting");
+      expect(document.title).toBe("Faceless Metabloom Avatar Lab | Popular Consulting");
       expect(document.querySelector('link[rel="canonical"]')).toHaveAttribute(
         "href",
         "https://popular-consulting.com/orb",

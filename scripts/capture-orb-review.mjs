@@ -157,9 +157,7 @@ try {
       outputRoot,
       `${captureCase.id}.png`,
     );
-    const url =
-      `${origin}/orb?graphics=webgl` +
-      "&visual-capture=orb&orb-force-webgl=1";
+    const url = `${origin}/orb?graphics=webgl&visual-capture=orb`;
 
     try {
       const result = await execFileAsync(
@@ -196,16 +194,19 @@ try {
       );
 
       const documentHtml = result.stdout || "";
-      if (!documentHtml.includes('data-renderer-id="living-metabloom"')) {
+      if (!documentHtml.includes('data-avatar-material="creatoros-metabloom"')) {
         throw new Error(
-          `${captureCase.id}: the living Metabloom renderer did not mount.`,
+          `${captureCase.id}: the faceless Metabloom avatar did not mount.`,
         );
       }
-      if (
-        !documentHtml.includes('data-avatar-webgl-capture="forced"')
-      ) {
+      if (!documentHtml.includes('data-renderer-id="dither-canvas-field"')) {
         throw new Error(
-          `${captureCase.id}: the capture-only WebGL override was not active.`,
+          `${captureCase.id}: the original CreatorOS Metabloom field did not mount.`,
+        );
+      }
+      if (!documentHtml.includes('data-avatar-faceless="true"')) {
+        throw new Error(
+          `${captureCase.id}: the faceless avatar invariant was not present.`,
         );
       }
       if (!fs.existsSync(screenshotPath)) {

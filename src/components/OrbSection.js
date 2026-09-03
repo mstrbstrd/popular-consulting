@@ -1,83 +1,62 @@
 import React from "react";
 import { useThemeMode } from "../contexts/ThemeContext";
 import MetabloomAvatar from "./MetabloomAvatar";
+import {
+  METABLOOM_ACTIONS,
+  METABLOOM_ACTION_IDS,
+  getDefaultMetabloomAction,
+  resolveMetabloomAction,
+} from "./metabloomActions";
 import "./OrbSection.css";
-import "./OrbSectionPolish.css";
 
-const DEFAULT_EXPRESSION = "happy";
-const DEFAULT_FORM = "companion";
-
-const EMOTIONS = Object.freeze([
-  Object.freeze({ id: "happy", label: "Happy", emoji: "😊" }),
-  Object.freeze({ id: "excited", label: "Excited", emoji: "🤩" }),
-  Object.freeze({ id: "sad", label: "Sad", emoji: "😢" }),
-  Object.freeze({ id: "surprised", label: "Surprised", emoji: "😮" }),
-  Object.freeze({ id: "thinking", label: "Curious", emoji: "🤔" }),
-  Object.freeze({ id: "sleepy", label: "Sleepy", emoji: "😴" }),
-  Object.freeze({ id: "angry", label: "Grumpy", emoji: "😠" }),
-]);
-
-const FORMS = Object.freeze([
-  Object.freeze({
-    id: "companion",
-    label: "Companion",
-    description: "Draws its living lobes together into a social form",
-  }),
-  Object.freeze({
-    id: "bloom",
-    label: "Bloom",
-    description: "Opens the same organism into petal-like lobes",
-  }),
-  Object.freeze({
-    id: "focus",
-    label: "Focus",
-    description: "Raises surface tension into reflective Metalbloom",
-  }),
-  Object.freeze({
-    id: "drift",
-    label: "Drift",
-    description: "Stretches the living organism into a travelling current",
-  }),
-]);
+const DEFAULT_ACTION = getDefaultMetabloomAction().id;
+const LEGACY_FORMS = Object.freeze(["companion", "bloom", "focus", "drift"]);
+const FORM_ACTIONS = Object.freeze({
+  bloom: "surprised",
+  companion: "reform",
+  drift: "sleepy",
+  focus: "thinking",
+});
+const ACTION_FORMS = Object.freeze({
+  excited: "bloom",
+  reform: "companion",
+  sleepy: "drift",
+  surprised: "bloom",
+  thinking: "focus",
+});
 
 const SEQUENCES = Object.freeze([
   Object.freeze({
     id: "greet",
     label: "Greet",
     steps: Object.freeze([
-      Object.freeze({ expression: "happy", form: "companion", duration: 700 }),
-      Object.freeze({ expression: "excited", form: "bloom", duration: 1100 }),
-      Object.freeze({ expression: "happy", form: "companion", duration: 1300 }),
+      Object.freeze({ action: "reform", duration: 380 }),
+      Object.freeze({ action: "agree", duration: 920 }),
+      Object.freeze({ action: "happy", duration: 1080 }),
+      Object.freeze({ action: "reform", duration: 900 }),
     ]),
   }),
   Object.freeze({
-    id: "wonder",
-    label: "Wonder",
+    id: "consider",
+    label: "Consider",
     steps: Object.freeze([
-      Object.freeze({ expression: "thinking", form: "focus", duration: 1100 }),
-      Object.freeze({ expression: "surprised", form: "bloom", duration: 850 }),
-      Object.freeze({ expression: "happy", form: "companion", duration: 1250 }),
+      Object.freeze({ action: "thinking", duration: 1460 }),
+      Object.freeze({ action: "surprised", duration: 900 }),
+      Object.freeze({ action: "agree", duration: 920 }),
+      Object.freeze({ action: "reform", duration: 900 }),
     ]),
   }),
   Object.freeze({
-    id: "wind-down",
-    label: "Wind down",
+    id: "celebrate",
+    label: "Celebrate",
     steps: Object.freeze([
-      Object.freeze({ expression: "happy", form: "drift", duration: 900 }),
-      Object.freeze({ expression: "thinking", form: "drift", duration: 900 }),
-      Object.freeze({ expression: "sleepy", form: "drift", duration: 1800 }),
+      Object.freeze({ action: "excited", duration: 1320 }),
+      Object.freeze({ action: "happy", duration: 1050 }),
+      Object.freeze({ action: "agree", duration: 920 }),
+      Object.freeze({ action: "reform", duration: 900 }),
     ]),
   }),
 ]);
-
-const VALID_EXPRESSIONS = new Set(EMOTIONS.map(({ id }) => id));
-const VALID_FORMS = new Set(FORMS.map(({ id }) => id));
-
-const normalizeExpression = (value) =>
-  VALID_EXPRESSIONS.has(value) ? value : DEFAULT_EXPRESSION;
-
-const normalizeForm = (value) =>
-  VALID_FORMS.has(value) ? value : DEFAULT_FORM;
 
 const normalizeDuration = (value) => {
   const duration = Number(value);
@@ -86,18 +65,27 @@ const normalizeDuration = (value) => {
     : 900;
 };
 
-const normalizeSequenceSteps = (steps) =>
-  Array.isArray(steps)
-    ? steps
-        .filter((step) => step && typeof step === "object")
-        .slice(0, 16)
-        .map((step) => ({
-          duration: normalizeDuration(step.duration),
-          expression: normalizeExpression(step.expression || step.name),
-          form: step.form ? normalizeForm(step.form) : null,
-          talking: Boolean(step.talking),
-        }))
-    : [];
+const normalizeSequenceSteps = (steps) => {
+  if (!Array.isArray(steps)) return [];
+
+  return steps
+    .filter((step) => step && typeof step === "object" && !Array.isArray(step))
+    .slice(0, 16)
+    .map((step) => {
+      const formAction = FORM_ACTIONS[step.form];
+      const action = resolveMetabloomAction(
+        step.action || step.expression || step.name || formAction,
+      );
+      return action
+        ? {
+            action: action.id,
+            duration: normalizeDuration(step.duration),
+            talking: Boolean(step.talking),
+          }
+        : null;
+    })
+    .filter(Boolean);
+};
 
 const clearOwnedGlobal = (name, value) => {
   if (window[name] === value) window[name] = null;
@@ -108,21 +96,26 @@ const OrbSection = ({ isActive = true }) => {
   const sequenceTimerRef = React.useRef(0);
   const sequenceTokenRef = React.useRef(0);
   const stateRef = React.useRef(null);
-  const [expression, setExpression] = React.useState(DEFAULT_EXPRESSION);
-  const [form, setForm] = React.useState(DEFAULT_FORM);
+  const [actionId, setActionId] = React.useState(DEFAULT_ACTION);
+  const [actionVersion, setActionVersion] = React.useState(0);
   const [talking, setTalking] = React.useState(false);
   const [paused, setPaused] = React.useState(false);
-  const [emotionVersion, setEmotionVersion] = React.useState(0);
   const [pulseVersion, setPulseVersion] = React.useState(0);
   const [resetVersion, setResetVersion] = React.useState(0);
   const [sequenceId, setSequenceId] = React.useState(null);
   const [fieldState, setFieldState] = React.useState("forming");
+  const activeAction =
+    resolveMetabloomAction(actionId) || getDefaultMetabloomAction();
+  const legacyForm = ACTION_FORMS[activeAction.id] || "companion";
 
   stateRef.current = {
-    emotionVersion,
-    expression,
+    action: activeAction.id,
+    actionVersion,
+    colorway: activeAction.colorway,
+    expression: activeAction.id,
     fieldState,
-    form,
+    form: legacyForm,
+    motion: activeAction.motion,
     paused,
     pulseVersion,
     sequenceId,
@@ -144,29 +137,27 @@ const OrbSection = ({ isActive = true }) => {
     setPulseVersion((value) => value + 1);
   }, []);
 
-  const respondWithEmotion = React.useCallback(() => {
-    setEmotionVersion((value) => value + 1);
-  }, []);
+  const performAction = React.useCallback(
+    (nextAction) => {
+      const resolved = resolveMetabloomAction(nextAction);
+      if (!resolved) return false;
 
-  const express = React.useCallback(
-    (nextExpression) => {
       clearSequence();
-      setExpression(normalizeExpression(nextExpression));
+      setActionId(resolved.id);
+      setActionVersion((value) => value + 1);
       setTalking(false);
-      respondWithEmotion();
-      pulse();
+      setPulseVersion((value) => value + 1);
+      return true;
     },
-    [clearSequence, pulse, respondWithEmotion],
+    [clearSequence],
   );
 
   const transform = React.useCallback(
     (nextForm) => {
-      clearSequence();
-      setForm(normalizeForm(nextForm));
-      setTalking(false);
-      pulse();
+      const mappedAction = FORM_ACTIONS[nextForm];
+      return mappedAction ? performAction(mappedAction) : false;
     },
-    [clearSequence, pulse],
+    [performAction],
   );
 
   const stop = React.useCallback(() => {
@@ -176,8 +167,8 @@ const OrbSection = ({ isActive = true }) => {
 
   const reset = React.useCallback(() => {
     clearSequence();
-    setExpression(DEFAULT_EXPRESSION);
-    setForm(DEFAULT_FORM);
+    setActionId(DEFAULT_ACTION);
+    setActionVersion((value) => value + 1);
     setTalking(false);
     setPaused(false);
     setResetVersion((value) => value + 1);
@@ -188,7 +179,7 @@ const OrbSection = ({ isActive = true }) => {
     (steps, nextSequenceId = "custom") => {
       const normalizedSteps = normalizeSequenceSteps(steps);
       clearSequence();
-      if (normalizedSteps.length === 0) return;
+      if (normalizedSteps.length === 0) return false;
 
       const token = sequenceTokenRef.current;
       let index = 0;
@@ -205,36 +196,29 @@ const OrbSection = ({ isActive = true }) => {
           return;
         }
 
-        setExpression(step.expression);
-        if (step.form) setForm(step.form);
+        setActionId(step.action);
+        setActionVersion((value) => value + 1);
         setTalking(step.talking);
-        setEmotionVersion((value) => value + 1);
         setPulseVersion((value) => value + 1);
         index += 1;
         sequenceTimerRef.current = window.setTimeout(advance, step.duration);
       };
 
       advance();
+      return true;
     },
     [clearSequence],
   );
 
   const playExternalSequence = React.useCallback(
-    (steps) => {
-      playSequence(steps, "custom");
-    },
+    (steps) => playSequence(steps, "custom"),
     [playSequence],
   );
 
   const startTalking = React.useCallback(() => {
     clearSequence();
     setTalking(true);
-    const currentExpression = stateRef.current?.expression;
-    if (currentExpression === "sleepy" || currentExpression === "angry") {
-      setExpression("happy");
-      respondWithEmotion();
-    }
-  }, [clearSequence, respondWithEmotion]);
+  }, [clearSequence]);
 
   const stopTalking = React.useCallback(() => {
     setTalking(false);
@@ -251,12 +235,11 @@ const OrbSection = ({ isActive = true }) => {
         return false;
       }
 
-      const requestedExpression = VALID_EXPRESSIONS.has(request.expression)
-        ? request.expression
-        : null;
-      const requestedForm = VALID_FORMS.has(request.form)
-        ? request.form
-        : null;
+      const formAction = FORM_ACTIONS[request.form];
+      const requestedAction =
+        resolveMetabloomAction(request.action) ||
+        resolveMetabloomAction(request.expression) ||
+        resolveMetabloomAction(formAction);
       const requestedTalking =
         typeof request.talking === "boolean" ? request.talking : null;
       const requestedPaused =
@@ -264,8 +247,7 @@ const OrbSection = ({ isActive = true }) => {
       const requestedPulse = request.pulse === true;
 
       if (
-        !requestedExpression &&
-        !requestedForm &&
+        !requestedAction &&
         requestedTalking === null &&
         requestedPaused === null &&
         !requestedPulse
@@ -274,17 +256,17 @@ const OrbSection = ({ isActive = true }) => {
       }
 
       clearSequence();
-      if (requestedExpression) {
-        setExpression(requestedExpression);
-        respondWithEmotion();
+      if (requestedAction) {
+        setActionId(requestedAction.id);
+        setActionVersion((value) => value + 1);
+        setPulseVersion((value) => value + 1);
       }
-      if (requestedForm) setForm(requestedForm);
       if (requestedTalking !== null) setTalking(requestedTalking);
       if (requestedPaused !== null) setPaused(requestedPaused);
-      if (requestedPulse) pulse();
+      if (requestedPulse && !requestedAction) pulse();
       return true;
     },
-    [clearSequence, pulse, respondWithEmotion],
+    [clearSequence, pulse],
   );
 
   const getState = React.useCallback(() => ({ ...stateRef.current }), []);
@@ -299,17 +281,29 @@ const OrbSection = ({ isActive = true }) => {
   }, [isActive, stop]);
 
   React.useEffect(() => {
-    const expressions = EMOTIONS.map(({ id }) => id);
-    const forms = FORMS.map(({ id }) => id);
+    const publicActions = METABLOOM_ACTIONS.map(
+      ({ id, label, intent, motion, colorway, colors, duration }) => ({
+        id,
+        label,
+        intent,
+        motion,
+        colorway,
+        colors: [...colors],
+        duration,
+      }),
+    );
+    const expressions = [...METABLOOM_ACTION_IDS];
+    const forms = [...LEGACY_FORMS];
 
     window.__bhModeActive = false;
     window.__orbPop = pulse;
-    window.__orbExpress = express;
+    window.__orbExpress = performAction;
     window.__orbTransform = transform;
     window.__orbReact = reactToUser;
     window.__orbPlaySequence = playExternalSequence;
     window.__orbStop = stop;
     window.__orbReset = reset;
+    window.__orbActions = publicActions;
     window.__orbExpressions = expressions;
     window.__orbForms = forms;
     window.__orbState = getState;
@@ -319,12 +313,13 @@ const OrbSection = ({ isActive = true }) => {
     return () => {
       cancelSequenceTimer();
       clearOwnedGlobal("__orbPop", pulse);
-      clearOwnedGlobal("__orbExpress", express);
+      clearOwnedGlobal("__orbExpress", performAction);
       clearOwnedGlobal("__orbTransform", transform);
       clearOwnedGlobal("__orbReact", reactToUser);
       clearOwnedGlobal("__orbPlaySequence", playExternalSequence);
       clearOwnedGlobal("__orbStop", stop);
       clearOwnedGlobal("__orbReset", reset);
+      clearOwnedGlobal("__orbActions", publicActions);
       clearOwnedGlobal("__orbExpressions", expressions);
       clearOwnedGlobal("__orbForms", forms);
       clearOwnedGlobal("__orbState", getState);
@@ -334,8 +329,8 @@ const OrbSection = ({ isActive = true }) => {
     };
   }, [
     cancelSequenceTimer,
-    express,
     getState,
+    performAction,
     playExternalSequence,
     pulse,
     reactToUser,
@@ -346,151 +341,164 @@ const OrbSection = ({ isActive = true }) => {
     transform,
   ]);
 
-  const activeEmotion = EMOTIONS.find(({ id }) => id === expression);
-  const activeForm = FORMS.find(({ id }) => id === form);
   const statusText = sequenceId
     ? `Playing ${sequenceId === "custom" ? "custom sequence" : sequenceId}`
     : paused
-      ? "Creature paused"
+      ? "Avatar paused"
       : talking
-        ? `${activeEmotion.label} and speaking`
-        : `${activeEmotion.label} · ${activeForm.label} form · ${fieldState}`;
+        ? `${activeAction.label}, speaking through ripples`
+        : `${activeAction.label}: ${activeAction.motion}`;
 
   return (
     <section
       id="orb"
       className="orb-avatar-lab"
-      aria-label="Interactive Orb living Metabloom lab"
-      data-orb-renderer="living-metabloom"
-      data-orb-expression={expression}
-      data-orb-form={form}
-      data-orb-emotion-version={emotionVersion}
+      aria-label="Interactive Orb faceless Metabloom avatar lab"
+      data-orb-action={activeAction.id}
+      data-orb-action-version={actionVersion}
+      data-orb-renderer="creatoros-metabloom"
     >
-      <div className="orb-avatar-lab__copy">
-        <p className="orb-avatar-lab__eyebrow">
-          One fluid organism · one bounded field
-        </p>
-        <h1>Meet Bloom</h1>
-        <p>
-          Bloom&apos;s body, face, gaze, and voice are one fluid Metabloom
-          organism. Each feeling changes its physics, floods its material with
-          color, then resolves back into its native spectrum.
-        </p>
-        <span
-          className="orb-avatar-lab__status"
-          role="status"
-          aria-live="polite"
-        >
-          <span aria-hidden="true" />
-          {statusText}
-        </span>
-      </div>
-
-      <div className="orb-avatar-lab__stage">
-        <MetabloomAvatar
-          emotionVersion={emotionVersion}
-          expression={expression}
-          form={form}
-          isActive={isActive}
-          isDark={isDark}
-          onFieldStateChange={handleFieldStateChange}
-          onPulse={pulse}
-          paused={paused}
-          pulseVersion={pulseVersion}
-          resetVersion={resetVersion}
-          talking={talking}
-        />
-      </div>
-
-      <div className="orb-avatar-lab__controls">
-        <div
-          className="orb-pill orb-avatar-lab__control-row orb-avatar-lab__form-row"
-          role="group"
-          aria-label="Living Metabloom forms"
-        >
-          <span className="orb-avatar-lab__control-label">Form</span>
-          {FORMS.map(({ id, label, description }) => (
-            <button
-              key={id}
-              type="button"
-              className={form === id ? "is-active" : ""}
-              onClick={() => transform(id)}
-              aria-label={`Transform Bloom into ${label} form. ${description}`}
-              aria-pressed={form === id}
+      <div className="orb-avatar-lab__layout">
+        <div className="orb-avatar-lab__experience">
+          <header className="orb-avatar-lab__copy">
+            <p className="orb-avatar-lab__eyebrow">The theme is the body</p>
+            <h1>Metabloom, embodied</h1>
+            <p>
+              The original Metabloom field remains visually intact. It becomes
+              a faceless avatar through whole-body gesture and bounded
+              chameleon colorways, never eyes, a mouth, or a costume.
+            </p>
+            <span
+              className="orb-avatar-lab__status"
+              role="status"
+              aria-live="polite"
             >
-              {label}
-            </button>
-          ))}
-        </div>
+              <span aria-hidden="true" />
+              {statusText}
+            </span>
+          </header>
 
-        <div
-          className="orb-pill orb-avatar-lab__control-row orb-avatar-lab__emotion-row"
-          role="group"
-          aria-label="Orb emotions"
-        >
-          <span className="orb-avatar-lab__control-label">Mood</span>
-          {EMOTIONS.map(({ id, label, emoji }) => (
-            <button
-              key={id}
-              type="button"
-              className={expression === id ? "is-active" : ""}
-              onClick={() => express(id)}
-              aria-label={`Express ${label.toLowerCase()}`}
-              aria-pressed={expression === id}
+          <div className="orb-avatar-lab__stage">
+            <MetabloomAvatar
+              action={activeAction.id}
+              actionVersion={actionVersion}
+              isActive={isActive}
+              isDark={isDark}
+              onFieldStateChange={handleFieldStateChange}
+              onPulse={pulse}
+              paused={paused}
+              pulseVersion={pulseVersion}
+              resetVersion={resetVersion}
+              talking={talking}
+            />
+          </div>
+
+          <div className="orb-avatar-lab__control-deck">
+            <div
+              className="orb-avatar-lab__sequence-row"
+              role="group"
+              aria-label="Metabloom expression sequences"
             >
-              <span aria-hidden="true">{emoji}</span>
-              <span>{label}</span>
-            </button>
-          ))}
-        </div>
+              <span>Sequence</span>
+              {SEQUENCES.map(({ id, label, steps }) => (
+                <button
+                  key={id}
+                  type="button"
+                  className={sequenceId === id ? "is-active" : ""}
+                  onClick={() => playSequence(steps, id)}
+                  aria-pressed={sequenceId === id}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
 
-        <div className="orb-avatar-lab__utility-row">
-          <div
-            className="orb-pill orb-avatar-lab__control-row orb-avatar-lab__sequence-row"
-            role="group"
-            aria-label="Living Metabloom sequences"
-          >
-            <span className="orb-avatar-lab__control-label">Sequence</span>
-            {SEQUENCES.map(({ id, label, steps }) => (
+            <div
+              className="orb-avatar-lab__utility-row"
+              role="group"
+              aria-label="Metabloom avatar controls"
+            >
+              <button type="button" onClick={pulse}>Pulse</button>
               <button
-                key={id}
                 type="button"
-                className={sequenceId === id ? "is-active" : ""}
-                onClick={() => playSequence(steps, id)}
-                aria-pressed={sequenceId === id}
+                className={talking ? "is-active" : ""}
+                onClick={toggleTalking}
+                aria-pressed={talking}
               >
-                {label}
+                {talking ? "Quiet" : "Speak"}
               </button>
-            ))}
+              <button
+                type="button"
+                className={paused ? "is-active" : ""}
+                onClick={() => setPaused((value) => !value)}
+                aria-pressed={paused}
+              >
+                {paused ? "Resume" : "Pause"}
+              </button>
+              <button type="button" onClick={reset}>Reform</button>
+            </div>
+          </div>
+        </div>
+
+        <div className="orb-avatar-lab__language" aria-labelledby="action-language-title">
+          <div className="orb-avatar-lab__language-heading">
+            <p>Expression vocabulary</p>
+            <h2 id="action-language-title">Action language</h2>
+            <span>
+              Every signal maps one intent to one bounded gesture and one
+              colorway.
+            </span>
           </div>
 
           <div
-            className="orb-pill orb-avatar-lab__control-row orb-avatar-lab__action-row"
+            className="orb-avatar-lab__table-wrap"
             role="group"
-            aria-label="Living Metabloom actions"
+            aria-label="Orb emotions"
           >
-            <button type="button" onClick={pulse}>
-              Pulse
-            </button>
-            <button
-              type="button"
-              className={talking ? "is-active" : ""}
-              onClick={toggleTalking}
-              aria-pressed={talking}
-            >
-              {talking ? "Quiet" : "Talk"}
-            </button>
-            <button
-              type="button"
-              className={paused ? "is-active" : ""}
-              onClick={() => setPaused((value) => !value)}
-              aria-pressed={paused}
-            >
-              {paused ? "Resume" : "Pause"}
-            </button>
-            <button type="button" onClick={reset}>
-              Reset
-            </button>
+            <table>
+              <caption className="orb-avatar-lab__sr-only">
+                Metabloom avatar actions, motions, colorways, and meanings
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Signal</th>
+                  <th scope="col">Motion</th>
+                  <th scope="col">Color</th>
+                  <th scope="col">Meaning</th>
+                </tr>
+              </thead>
+              <tbody>
+                {METABLOOM_ACTIONS.map((action) => (
+                  <tr
+                    key={action.id}
+                    className={activeAction.id === action.id ? "is-active" : ""}
+                  >
+                    <th scope="row">
+                      <button
+                        type="button"
+                        onClick={() => performAction(action.id)}
+                        aria-label={`Express ${action.label.toLowerCase()}`}
+                        aria-pressed={activeAction.id === action.id}
+                      >
+                        {action.label}
+                      </button>
+                    </th>
+                    <td>{action.motion}</td>
+                    <td>
+                      <span className="orb-avatar-lab__colorway">
+                        <span className="orb-avatar-lab__swatches" aria-hidden="true">
+                          {action.colors.map((color) => (
+                            <span key={color} style={{ background: color }} />
+                          ))}
+                        </span>
+                        <span>{action.colorway}</span>
+                      </span>
+                    </td>
+                    <td>{action.intent}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>

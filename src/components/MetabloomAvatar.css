@@ -1,7 +1,12 @@
 .metabloom-avatar {
+  --avatar-color-a: #00eeff;
+  --avatar-color-b: #ff00ff;
+  --avatar-color-c: #9d00ff;
+  --avatar-color-intensity: 0;
+  --avatar-action-duration: 980ms;
   position: relative;
-  width: min(61rem, 67vw, 67vh);
-  min-width: 26rem;
+  width: min(56rem, 46vw, 61vh);
+  min-width: 28rem;
   aspect-ratio: 1;
   margin: 0 auto;
   border: 0;
@@ -11,125 +16,498 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-.metabloom-avatar .living-metabloom-canvas.is-fallback
-  .living-metabloom-canvas__surface {
-  opacity: 0;
-}
-
 .metabloom-avatar::before {
   content: "";
   position: absolute;
-  right: 18%;
-  bottom: 10%;
-  left: 18%;
-  z-index: -1;
-  height: 12%;
+  right: 14%;
+  bottom: 2%;
+  left: 14%;
+  z-index: -2;
+  height: 15%;
   border-radius: 50%;
   background: radial-gradient(
     ellipse,
-    rgba(44, 28, 88, 0.20),
-    transparent 70%
+    color-mix(in srgb, var(--avatar-color-b) 30%, rgba(29, 23, 62, 0.32)),
+    transparent 72%
   );
-  filter: blur(1.4rem);
-  opacity: 0.74;
+  filter: blur(1.7rem);
+  opacity: 0.72;
   pointer-events: none;
-  transform: scaleX(1.08);
+  transform: scaleX(1.05);
   transition:
-    opacity 240ms ease,
-    transform 360ms cubic-bezier(0.16, 1, 0.3, 1);
+    background 420ms ease,
+    opacity 320ms ease,
+    transform 420ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 [data-theme="dark"] .metabloom-avatar::before {
   background: radial-gradient(
     ellipse,
-    rgba(0, 0, 0, 0.48),
-    transparent 72%
+    color-mix(in srgb, var(--avatar-color-a) 20%, rgba(0, 0, 0, 0.7)),
+    transparent 74%
   );
+}
+
+.metabloom-avatar__pose,
+.metabloom-avatar__motion,
+.metabloom-avatar__blob {
+  position: absolute;
+  inset: 0;
+}
+
+.metabloom-avatar__pose {
+  transition: transform 720ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.metabloom-avatar__motion {
+  transform-origin: 50% 68%;
+  will-change: transform;
+}
+
+.metabloom-avatar__blob {
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 52% 48% 55% 45% / 47% 56% 44% 53%;
+  background: #fff8f7;
+  box-shadow:
+    0 2.6rem 7rem rgba(31, 24, 83, 0.18),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.22),
+    inset 0 0 5rem rgba(255, 255, 255, 0.08);
+  transform-origin: 50% 58%;
+  animation:
+    metabloomAvatarBreathe 5.8s ease-in-out infinite,
+    metabloomAvatarMorph 11s ease-in-out infinite;
+}
+
+[data-theme="dark"] .metabloom-avatar__blob {
+  background: #080809;
+  border-color: rgba(255, 255, 255, 0.16);
+  box-shadow:
+    0 2.8rem 8rem rgba(0, 0, 0, 0.44),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.1),
+    inset 0 0 6rem rgba(255, 255, 255, 0.05);
+}
+
+.metabloom-avatar__field {
+  position: absolute;
+  inset: -7%;
+  transform: scale(1.02);
+}
+
+.metabloom-avatar__field .creatoros-field-shell {
+  background: #fff8f7;
+}
+
+[data-theme="dark"] .metabloom-avatar__field .creatoros-field-shell {
+  background: #080809;
+}
+
+.metabloom-avatar__colorwash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.metabloom-avatar__colorwash {
+  z-index: 3;
+  background:
+    radial-gradient(circle at 24% 28%, var(--avatar-color-a), transparent 46%),
+    radial-gradient(circle at 74% 34%, var(--avatar-color-b), transparent 48%),
+    radial-gradient(circle at 52% 78%, var(--avatar-color-c), transparent 52%),
+    conic-gradient(
+      from 22deg at 50% 50%,
+      var(--avatar-color-a),
+      var(--avatar-color-b),
+      var(--avatar-color-c),
+      var(--avatar-color-a)
+    );
+  mix-blend-mode: color;
+  opacity: var(--avatar-color-intensity);
+  transition: opacity 460ms ease;
+}
+
+
+.metabloom-avatar__burst {
+  position: absolute;
+  inset: 8%;
+  z-index: -1;
+  border: 2px solid var(--avatar-color-a);
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.metabloom-avatar__fragment {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: -1;
+  width: 7.5%;
+  aspect-ratio: 1;
+  border-radius: 48% 52% 58% 42% / 54% 40% 60% 46%;
+  background: linear-gradient(135deg, var(--avatar-color-a), var(--avatar-color-b));
+  box-shadow: 0 0 2.4rem color-mix(in srgb, var(--avatar-color-c) 48%, transparent);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(0.25);
+}
+
+.metabloom-avatar__fragment--2,
+.metabloom-avatar__fragment--5 {
+  background: linear-gradient(135deg, var(--avatar-color-b), var(--avatar-color-c));
+}
+
+.metabloom-avatar__fragment--3,
+.metabloom-avatar__fragment--6 {
+  background: linear-gradient(135deg, var(--avatar-color-c), var(--avatar-color-a));
+}
+
+.metabloom-avatar[data-avatar-action="happy"] .metabloom-avatar__pose {
+  transform: translateY(-2%) scale(1.015);
+}
+
+.metabloom-avatar[data-avatar-action="excited"] .metabloom-avatar__pose {
+  transform: translateY(-2%) scale(1.035);
+}
+
+.metabloom-avatar[data-avatar-action="sad"] .metabloom-avatar__pose {
+  transform: translateY(6%) scale(1.05, 0.9);
+}
+
+.metabloom-avatar[data-avatar-action="surprised"] .metabloom-avatar__pose {
+  transform: translateY(-1%) scale(0.98, 1.06);
+}
+
+.metabloom-avatar[data-avatar-action="thinking"] .metabloom-avatar__pose {
+  transform: translate(-2%, -1%) rotate(-3.5deg) scale(0.99);
+}
+
+.metabloom-avatar[data-avatar-action="sleepy"] .metabloom-avatar__pose {
+  transform: translateY(8%) scale(1.1, 0.84);
+}
+
+.metabloom-avatar[data-avatar-action="angry"] .metabloom-avatar__pose {
+  transform: translateY(4%) scale(0.94, 0.9);
+}
+
+.metabloom-avatar[data-avatar-talking="true"] .metabloom-avatar__field {
+  animation: metabloomAvatarSpeak 430ms ease-in-out infinite;
+}
+
+.metabloom-avatar[data-avatar-talking="true"] .metabloom-avatar__colorwash {
+  animation: metabloomAvatarVoiceColor 860ms ease-in-out infinite;
+}
+
+.metabloom-avatar__motion.is-acting {
+  animation-duration: var(--avatar-action-duration);
+  animation-fill-mode: both;
+  animation-timing-function: cubic-bezier(0.2, 0.78, 0.2, 1);
+}
+
+.metabloom-avatar[data-avatar-action="reform"]
+  .metabloom-avatar__motion.is-acting {
+  animation-name: metabloomAvatarReform;
+}
+
+.metabloom-avatar[data-avatar-action="agree"]
+  .metabloom-avatar__motion.is-acting {
+  animation-name: metabloomAvatarAgree;
+}
+
+.metabloom-avatar[data-avatar-action="disagree"]
+  .metabloom-avatar__motion.is-acting {
+  animation-name: metabloomAvatarDisagree;
+}
+
+.metabloom-avatar[data-avatar-action="happy"]
+  .metabloom-avatar__motion.is-acting {
+  animation-name: metabloomAvatarHappy;
+}
+
+.metabloom-avatar[data-avatar-action="excited"]
+  .metabloom-avatar__motion.is-acting {
+  animation-name: metabloomAvatarExcited;
+}
+
+.metabloom-avatar[data-avatar-action="sad"]
+  .metabloom-avatar__motion.is-acting {
+  animation-name: metabloomAvatarSad;
+}
+
+.metabloom-avatar[data-avatar-action="surprised"]
+  .metabloom-avatar__motion.is-acting {
+  animation-name: metabloomAvatarSurprised;
+}
+
+.metabloom-avatar[data-avatar-action="thinking"]
+  .metabloom-avatar__motion.is-acting {
+  animation-name: metabloomAvatarThinking;
+}
+
+.metabloom-avatar[data-avatar-action="sleepy"]
+  .metabloom-avatar__motion.is-acting {
+  animation-name: metabloomAvatarSleepy;
+}
+
+.metabloom-avatar[data-avatar-action="angry"]
+  .metabloom-avatar__motion.is-acting {
+  animation-name: metabloomAvatarAngry;
+}
+
+.metabloom-avatar[data-avatar-action="excited"]
+  .metabloom-avatar__motion.is-acting
+  .metabloom-avatar__burst {
+  animation: metabloomAvatarBurstRing var(--avatar-action-duration) ease-out both;
+}
+
+.metabloom-avatar[data-avatar-action="excited"]
+  .metabloom-avatar__motion.is-acting
+  .metabloom-avatar__fragment {
+  animation: metabloomAvatarFragmentOne var(--avatar-action-duration) ease-out both;
+}
+
+.metabloom-avatar[data-avatar-action="excited"]
+  .metabloom-avatar__motion.is-acting
+  .metabloom-avatar__fragment--2 {
+  animation-name: metabloomAvatarFragmentTwo;
+}
+
+.metabloom-avatar[data-avatar-action="excited"]
+  .metabloom-avatar__motion.is-acting
+  .metabloom-avatar__fragment--3 {
+  animation-name: metabloomAvatarFragmentThree;
+}
+
+.metabloom-avatar[data-avatar-action="excited"]
+  .metabloom-avatar__motion.is-acting
+  .metabloom-avatar__fragment--4 {
+  animation-name: metabloomAvatarFragmentFour;
+}
+
+.metabloom-avatar[data-avatar-action="excited"]
+  .metabloom-avatar__motion.is-acting
+  .metabloom-avatar__fragment--5 {
+  animation-name: metabloomAvatarFragmentFive;
+}
+
+.metabloom-avatar[data-avatar-action="excited"]
+  .metabloom-avatar__motion.is-acting
+  .metabloom-avatar__fragment--6 {
+  animation-name: metabloomAvatarFragmentSix;
 }
 
 .metabloom-avatar:hover::before {
   opacity: 0.9;
-  transform: scaleX(1.16);
+  transform: scaleX(1.13);
 }
 
 .metabloom-avatar:focus-visible::after {
   content: "";
   position: absolute;
-  inset: 8%;
+  inset: -1.2rem;
   z-index: 8;
   border: 2px solid transparent;
-  border-radius: 50%;
+  border-radius: 54% 46% 58% 42% / 48% 58% 42% 52%;
   background:
     linear-gradient(transparent, transparent) padding-box,
-    var(
-      --aetheris-spectral,
-      linear-gradient(135deg, #00eeff, #ff00ff, #ffee00, #9d00ff)
-    ) border-box;
-  box-shadow: var(
-    --aetheris-focus-halo,
-    0 0 0 3px rgba(99, 68, 245, 0.42)
-  );
+    linear-gradient(135deg, var(--avatar-color-a), var(--avatar-color-b), var(--avatar-color-c)) border-box;
+  box-shadow: 0 0 0 3px rgba(99, 68, 245, 0.3);
   pointer-events: none;
 }
 
-.metabloom-avatar[data-avatar-form="bloom"]::before {
-  right: 15%;
-  left: 15%;
-  transform: scaleX(1.18);
+.metabloom-avatar[data-avatar-active="false"] *,
+.metabloom-avatar[data-avatar-active="false"]::before {
+  animation-play-state: paused !important;
 }
 
-.metabloom-avatar[data-avatar-form="focus"]::before {
-  right: 27%;
-  left: 27%;
-  opacity: 0.68;
-  transform: scaleX(0.84);
+@keyframes metabloomAvatarBreathe {
+  0%, 100% { transform: scale(0.985, 1.015); }
+  45% { transform: scale(1.018, 0.982); }
+  72% { transform: scale(1.004, 1.012); }
 }
 
-.metabloom-avatar[data-avatar-form="drift"]::before {
-  right: 10%;
-  left: 10%;
-  transform: translateX(-2%) scaleX(1.28);
+@keyframes metabloomAvatarMorph {
+  0%, 100% { border-radius: 52% 48% 55% 45% / 47% 56% 44% 53%; }
+  28% { border-radius: 46% 54% 48% 52% / 55% 45% 58% 42%; }
+  57% { border-radius: 58% 42% 52% 48% / 44% 57% 43% 56%; }
+  82% { border-radius: 49% 51% 44% 56% / 58% 48% 52% 42%; }
 }
 
-.metabloom-avatar[data-avatar-expression="sad"]::before,
-.metabloom-avatar[data-avatar-expression="sleepy"]::before {
-  opacity: 0.62;
+@keyframes metabloomAvatarReform {
+  0% { transform: scale(1.18, 0.72); filter: blur(0.35rem); }
+  34% { transform: scale(0.86, 1.14); filter: blur(0); }
+  68% { transform: scale(1.04, 0.98); }
+  100% { transform: scale(1); filter: blur(0); }
 }
 
-.metabloom-avatar[data-avatar-expression="excited"]::before {
-  opacity: 0.94;
-  transform: scaleX(1.22);
+@keyframes metabloomAvatarAgree {
+  0%, 100% { transform: translateY(0) scale(1); }
+  18% { transform: translateY(6%) scale(1.04, 0.9); }
+  36% { transform: translateY(-3%) scale(0.98, 1.05); }
+  55% { transform: translateY(5%) scale(1.03, 0.92); }
+  76% { transform: translateY(-2%) scale(0.99, 1.03); }
 }
 
-@media (max-width: 980px) {
+@keyframes metabloomAvatarDisagree {
+  0%, 100% { transform: translateX(0) skewX(0deg); }
+  15% { transform: translateX(-8%) skewX(-4deg); }
+  31% { transform: translateX(8%) skewX(4deg); }
+  48% { transform: translateX(-6%) skewX(-3deg); }
+  65% { transform: translateX(6%) skewX(3deg); }
+  82% { transform: translateX(-2.5%) skewX(-1deg); }
+}
+
+@keyframes metabloomAvatarHappy {
+  0%, 100% { transform: translateY(0) scale(1); }
+  25% { transform: translateY(-7%) scale(1.05, 0.96); }
+  52% { transform: translateY(2%) scale(0.98, 1.04); }
+  75% { transform: translateY(-3%) scale(1.02, 0.99); }
+}
+
+@keyframes metabloomAvatarExcited {
+  0%, 100% { transform: scale(1); }
+  18% { transform: scale(0.78, 0.84) rotate(-2deg); }
+  36% { transform: scale(1.19, 1.12) rotate(2deg); }
+  55% { transform: scale(0.92, 1.03); }
+  73% { transform: scale(1.07, 0.96); }
+}
+
+@keyframes metabloomAvatarSad {
+  0%, 100% { transform: translateY(0) scale(1); }
+  32% { transform: translateY(7%) scale(1.06, 0.88); }
+  68% { transform: translateY(4%) scale(1.03, 0.93); }
+}
+
+@keyframes metabloomAvatarSurprised {
+  0%, 100% { transform: scale(1); }
+  22% { transform: scale(0.76, 1.18); }
+  45% { transform: scale(1.18, 0.9); }
+  67% { transform: scale(0.95, 1.06); }
+  84% { transform: scale(1.04, 0.98); }
+}
+
+@keyframes metabloomAvatarThinking {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  24% { transform: translate(-4%, -2%) rotate(-6deg); }
+  52% { transform: translate(2%, -5%) rotate(3deg); }
+  76% { transform: translate(4%, 1%) rotate(5deg); }
+}
+
+@keyframes metabloomAvatarSleepy {
+  0%, 100% { transform: translateY(0) scale(1); }
+  38% { transform: translateY(7%) scale(1.1, 0.82); }
+  72% { transform: translateY(5%) scale(1.06, 0.88); }
+}
+
+@keyframes metabloomAvatarAngry {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  18% { transform: translate(-2%, 2%) scale(0.91, 0.88); }
+  30% { transform: translate(2%, 1%) scale(0.93, 0.89); }
+  42% { transform: translate(-1.5%, 2%) scale(0.9, 0.87); }
+  54% { transform: translate(1.5%, 1%) scale(0.92, 0.89); }
+  70% { transform: translate(-1%, 1%) scale(0.95, 0.93); }
+}
+
+@keyframes metabloomAvatarSpeak {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.025, 0.975); }
+}
+
+@keyframes metabloomAvatarVoiceColor {
+  0%, 100% { opacity: var(--avatar-color-intensity); }
+  50% { opacity: calc(var(--avatar-color-intensity) + 0.14); }
+}
+
+@keyframes metabloomAvatarBurstRing {
+  0%, 24% { opacity: 0; transform: scale(0.5); }
+  36% { opacity: 0.8; }
+  72% { opacity: 0; transform: scale(1.35); }
+  100% { opacity: 0; transform: scale(1.45); }
+}
+
+@keyframes metabloomAvatarFragmentOne {
+  0%, 24%, 100% { opacity: 0; transform: translate(-50%, -50%) scale(0.2); }
+  38% { opacity: 0.9; }
+  68% { opacity: 0; transform: translate(410%, -430%) scale(1); }
+}
+
+@keyframes metabloomAvatarFragmentTwo {
+  0%, 24%, 100% { opacity: 0; transform: translate(-50%, -50%) scale(0.2); }
+  38% { opacity: 0.9; }
+  68% { opacity: 0; transform: translate(520%, 60%) scale(0.78); }
+}
+
+@keyframes metabloomAvatarFragmentThree {
+  0%, 24%, 100% { opacity: 0; transform: translate(-50%, -50%) scale(0.2); }
+  38% { opacity: 0.9; }
+  68% { opacity: 0; transform: translate(270%, 500%) scale(0.92); }
+}
+
+@keyframes metabloomAvatarFragmentFour {
+  0%, 24%, 100% { opacity: 0; transform: translate(-50%, -50%) scale(0.2); }
+  38% { opacity: 0.9; }
+  68% { opacity: 0; transform: translate(-500%, 310%) scale(0.88); }
+}
+
+@keyframes metabloomAvatarFragmentFive {
+  0%, 24%, 100% { opacity: 0; transform: translate(-50%, -50%) scale(0.2); }
+  38% { opacity: 0.9; }
+  68% { opacity: 0; transform: translate(-530%, -140%) scale(0.76); }
+}
+
+@keyframes metabloomAvatarFragmentSix {
+  0%, 24%, 100% { opacity: 0; transform: translate(-50%, -50%) scale(0.2); }
+  38% { opacity: 0.9; }
+  68% { opacity: 0; transform: translate(-220%, -500%) scale(0.96); }
+}
+
+@media (max-width: 1080px) {
   .metabloom-avatar {
-    width: min(56rem, 80vw, 58vh);
+    width: min(50rem, 74vw, 52vh);
   }
 }
 
 @media (max-width: 720px) {
   .metabloom-avatar {
-    width: min(47rem, 94vw, 52vh);
+    width: min(41rem, 90vw, 45vh);
     min-width: 22rem;
   }
 }
 
 @media (max-height: 720px) and (min-width: 721px) {
   .metabloom-avatar {
-    width: min(43rem, 52vw, 58vh);
-    min-width: 21rem;
+    width: min(39rem, 42vw, 48vh);
+    min-width: 23rem;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .metabloom-avatar::before {
+  .metabloom-avatar__blob,
+  .metabloom-avatar__field,
+  .metabloom-avatar__colorwash,
+  .metabloom-avatar__motion,
+  .metabloom-avatar__burst,
+  .metabloom-avatar__fragment {
+    animation: none !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .metabloom-avatar__pose {
+    transform: none !important;
     transition: none !important;
   }
 }
 
 @media (forced-colors: active) {
+  .metabloom-avatar__colorwash,
+  .metabloom-avatar__fragment,
+  .metabloom-avatar__burst,
   .metabloom-avatar::before {
     display: none;
+  }
+
+  .metabloom-avatar__blob {
+    border: 2px solid CanvasText;
   }
 
   .metabloom-avatar:focus-visible::after {
