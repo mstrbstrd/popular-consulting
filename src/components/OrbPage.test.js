@@ -1,7 +1,13 @@
 import fs from "fs";
 import path from "path";
 import React from "react";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import OrbPage from "./OrbPage";
 
@@ -37,8 +43,15 @@ jest.mock("./ImmersiveRouteNavigationBridge", () => {
 
 jest.mock("./OrbSection", () => ({
   __esModule: true,
-  default: ({ isActive }) => (
-    <section data-testid="orb-experience" data-active={String(isActive)} />
+  default: ({ isActive, onConversationStateChange }) => (
+    <section data-testid="orb-experience" data-active={String(isActive)}>
+      <button
+        type="button"
+        onClick={() => onConversationStateChange?.(true)}
+      >
+        Begin mocked conversation
+      </button>
+    </section>
   ),
 }));
 
@@ -74,7 +87,7 @@ describe("OrbPage", () => {
     window.__triggerLoading = null;
   });
 
-  test("uses the shared site shell around the single Metabloom experience", async () => {
+  test("uses the shared site shell around the focused Metabloom experience", async () => {
     const { container } = render(<OrbPage />);
 
     expect(await screen.findByTestId("orb-experience")).toHaveAttribute(
@@ -83,6 +96,10 @@ describe("OrbPage", () => {
     );
     expect(container.querySelector(".orb-page")).toHaveClass(
       "standalone-experience--orb",
+    );
+    expect(container.querySelector(".orb-page")).toHaveAttribute(
+      "data-conversation-started",
+      "false",
     );
     expect(
       screen.getByRole("navigation", { name: "Primary navigation" }),
@@ -95,11 +112,30 @@ describe("OrbPage", () => {
     expect(
       screen.getByRole("main", { name: "Metabloom" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Interactive interface study")).toBeInTheDocument();
-    expect(screen.getByText("Intent")).toBeInTheDocument();
+    expect(screen.getByText("Metabloom")).toBeInTheDocument();
+    expect(
+      screen.getByText(/translates response intent into motion/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Interactive interface study"))
+      .not.toBeInTheDocument();
+    expect(screen.queryByText("Intent")).not.toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "Skip to Metabloom" }),
     ).toHaveAttribute("href", "#main-content");
+  });
+
+  test("lifts explicit conversation state to the page shell", async () => {
+    const { container } = render(<OrbPage />);
+    await screen.findByTestId("orb-experience");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Begin mocked conversation" }),
+    );
+
+    expect(container.querySelector(".orb-page")).toHaveAttribute(
+      "data-conversation-started",
+      "true",
+    );
   });
 
   test("publishes route metadata while remaining excluded from indexing", async () => {
@@ -123,15 +159,21 @@ describe("OrbPage", () => {
     });
   });
 
-  test("does not add a competing graphics renderer to the Orb route", () => {
+  test("does not add a competing renderer or duplicate presentation import", () => {
     const source = fs.readFileSync(path.join(__dirname, "OrbPage.js"), "utf8");
+    const pageCss = fs.readFileSync(
+      path.join(__dirname, "OrbPage.css"),
+      "utf8",
+    );
 
     expect(source).toContain('import NavMenu from "./NavMenu";');
-    expect(source).toContain('import "./OrbPageExperience.css";');
-    expect(source).toContain("<NavMenu audience={SITE_AUDIENCES.BUSINESS} />");
+    expect(source.match(/OrbPageExperience\.css/g)).toHaveLength(1);
+    expect(pageCss).not.toContain('@import "./OrbPageExperience.css";');
+    expect(source).toContain("onConversationStateChange={setConversationStarted}");
     expect(source).not.toContain("ManagedDitherBackground");
     expect(source).not.toContain("BlackHoleCanvas");
     expect(source).not.toContain("CreatorOSFieldCanvas");
+    expect(source).not.toContain("orb-page__principles");
   });
 
   test("keeps route controls at the shared 44px minimum target size", () => {
