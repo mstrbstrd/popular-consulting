@@ -95,12 +95,14 @@
 .orb-page__finish-selector {
   position: fixed;
   top: max(9.6rem, calc(env(safe-area-inset-top) + 8.5rem));
-  left: calc(100% - var(--orb-finish-gutter));
+  right: var(--orb-finish-gutter);
+  left: auto;
   z-index: 30;
   display: grid;
+  width: max-content;
   min-width: 0;
   max-width: calc(100vw - 4rem);
-  grid-template-columns: auto repeat(2, minmax(0, auto));
+  grid-template-columns: max-content max-content max-content;
   align-items: center;
   gap: 0.3rem;
   min-height: 5rem;
@@ -131,7 +133,7 @@
       rgba(31, 29, 59, 0.14) 72%,
       transparent
     );
-  transform: translateX(-100%);
+  transform: none;
   pointer-events: auto;
 }
 
@@ -277,9 +279,11 @@
 @media (max-width: 720px) {
   .orb-page__finish-selector {
     top: max(8.6rem, calc(env(safe-area-inset-top) + 7.6rem));
+    right: auto;
     left: 50%;
     width: max-content;
     max-width: calc(100vw - 2.4rem);
+    grid-template-columns: auto repeat(2, minmax(0, auto));
     transform: translateX(-50%);
     transition:
       top var(--aetheris-motion-slow) var(--aetheris-ease-spring);
