@@ -1,6 +1,7 @@
 import React from "react";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom";
+import MetabloomPaletteContext from "../contexts/MetabloomPaletteContext";
 import MetabloomAvatar from "./MetabloomAvatar";
 
 let mockFieldProps = null;
@@ -16,6 +17,7 @@ jest.mock("./CreatorOSFieldCanvas", () => {
       "data-mode": String(props.mode),
       "data-avatar-enabled": String(props.metabloomAvatarEnabled),
       "data-avatar-action": String(props.metabloomAvatarAction),
+      "data-palette": props.metabloomPalette,
       "data-paused": String(props.paused),
     });
   };
@@ -49,6 +51,7 @@ describe("MetabloomAvatar", () => {
     expect(avatar).toHaveAttribute("data-avatar-engine", "intrinsic-shader");
     expect(avatar).toHaveAttribute("data-avatar-faceless", "true");
     expect(avatar).toHaveAttribute("data-avatar-action", "disagree");
+    expect(avatar).toHaveAttribute("data-avatar-finish", "spectral");
     expect(mockFieldProps).toMatchObject({
       externalPulseVersion: 7,
       metabloomAvatarAction: 2,
@@ -96,6 +99,38 @@ describe("MetabloomAvatar", () => {
     expect(screen.getAllByTestId("creatoros-metabloom-field")).toHaveLength(1);
     expect(screen.getByTestId("creatoros-metabloom-field")).toBe(firstField);
     expect(mockFieldRenderCount).toBeGreaterThan(1);
+  });
+
+  test("changes material uniforms without remounting the field renderer", () => {
+    const { rerender } = render(
+      <MetabloomPaletteContext.Provider value="spectral">
+        <MetabloomAvatar action="reform" />
+      </MetabloomPaletteContext.Provider>,
+    );
+
+    const firstField = screen.getByTestId("creatoros-metabloom-field");
+    expect(firstField).toHaveAttribute("data-palette", "spectral");
+    expect(screen.getByTestId("metabloom-avatar")).toHaveAttribute(
+      "data-avatar-finish",
+      "spectral",
+    );
+
+    rerender(
+      <MetabloomPaletteContext.Provider value="metalbloom">
+        <MetabloomAvatar action="reform" />
+      </MetabloomPaletteContext.Provider>,
+    );
+
+    expect(screen.getByTestId("creatoros-metabloom-field")).toBe(firstField);
+    expect(screen.getByTestId("creatoros-metabloom-field")).toHaveAttribute(
+      "data-palette",
+      "metalbloom",
+    );
+    expect(screen.getByTestId("metabloom-avatar")).toHaveAttribute(
+      "data-avatar-finish",
+      "metalbloom",
+    );
+    expect(mockFieldProps.metabloomPalette).toBe("metalbloom");
   });
 
   test("forwards talking and pause into the same field renderer", () => {
