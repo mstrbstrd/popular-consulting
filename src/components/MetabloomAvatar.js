@@ -1,4 +1,5 @@
 import React from "react";
+import { useMetabloomPalette } from "../contexts/MetabloomPaletteContext";
 import CreatorOSFieldCanvas from "./CreatorOSFieldCanvas";
 import "./CreatorOSFieldCanvas.css";
 import {
@@ -32,10 +33,13 @@ const MetabloomAvatar = ({
   resetVersion = 0,
   talking = false,
 }) => {
+  const metabloomPalette = useMetabloomPalette();
   const normalizedAction =
     resolveMetabloomAction(action) || getDefaultMetabloomAction();
   const active = isActive && !paused;
   const actionCode = ACTION_CODES[normalizedAction.id] ?? ACTION_CODES.reform;
+  const materialLabel =
+    metabloomPalette === "metalbloom" ? "liquid metal" : "spectral fluid";
 
   const handleKeyDown = (event) => {
     if (event.key !== "Enter" && event.key !== " ") return;
@@ -45,7 +49,8 @@ const MetabloomAvatar = ({
 
   const accessibleLabel =
     `Faceless Metabloom avatar expressing ${normalizedAction.label.toLowerCase()}. `
-    + `${normalizedAction.motion}. ${normalizedAction.colorway} colorway.`;
+    + `${normalizedAction.motion}. ${normalizedAction.colorway} colorway, `
+    + `${materialLabel} finish.`;
 
   return (
     <div
@@ -56,6 +61,7 @@ const MetabloomAvatar = ({
       data-avatar-colorway={normalizedAction.colorway}
       data-avatar-engine="intrinsic-shader"
       data-avatar-faceless="true"
+      data-avatar-finish={metabloomPalette}
       data-avatar-material="creatoros-metabloom"
       data-avatar-talking={talking ? "true" : "false"}
       data-testid="metabloom-avatar"
@@ -82,7 +88,7 @@ const MetabloomAvatar = ({
         metabloomAvatarIntensity={normalizedAction.intensity}
         metabloomAvatarTalking={talking}
         metabloomAvatarVersion={actionVersion}
-        metabloomPalette="spectral"
+        metabloomPalette={metabloomPalette}
         mode={0}
         onFieldStateChange={onFieldStateChange}
         paused={!active}
