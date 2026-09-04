@@ -21,7 +21,7 @@ jobs:
       - name: Apply refinement patch
         shell: bash
         run: |
-          git apply --index scripts/metabloom-emotive-runtime.patch
+          git apply --index --recount scripts/metabloom-emotive-runtime.patch
           git diff --cached --check
 
       - name: Set up Node.js
