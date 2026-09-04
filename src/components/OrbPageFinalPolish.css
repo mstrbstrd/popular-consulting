@@ -110,53 +110,6 @@
 
 .orb-page .metabloom-chat__composer button svg {
   display: block;
-  opacity: 0;
-}
-
-.orb-page .metabloom-chat__composer button::after {
-  content: "";
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  z-index: 2;
-  width: 1.9rem;
-  height: 1.9rem;
-  pointer-events: none;
-  background: var(--spectral-icon-colorway, var(--aetheris-spectral));
-  filter: drop-shadow(
-    0 0 5px var(--spectral-icon-glow, var(--aetheris-spectral-glow))
-  );
-  transform: translate(-50%, -50%);
-  transition:
-    filter var(--aetheris-motion-fast) var(--aetheris-ease-standard),
-    opacity var(--aetheris-motion-fast) var(--aetheris-ease-standard),
-    transform var(--aetheris-motion-medium) var(--aetheris-ease-spring);
-  -webkit-mask: url("../assets/icons/send-up.svg") center / contain no-repeat;
-  mask: url("../assets/icons/send-up.svg") center / contain no-repeat;
-}
-
-.orb-page .metabloom-chat__composer button:disabled::after {
-  opacity: 0.72;
-  filter: drop-shadow(
-    0 0 4px var(--spectral-icon-glow, var(--aetheris-spectral-glow))
-  );
-}
-
-.orb-page .metabloom-chat__composer button:not(:disabled)::after {
-  opacity: 1;
-}
-
-@media (hover: hover) {
-  .orb-page .metabloom-chat__composer button:hover:not(:disabled)::after {
-    filter: drop-shadow(
-      0 0 9px var(--spectral-icon-glow, var(--aetheris-spectral-glow))
-    );
-    transform: translate(-50%, -50%) scale(1.08);
-  }
-}
-
-.orb-page .metabloom-chat__composer button:active:not(:disabled)::after {
-  transform: translate(-50%, -50%) scale(0.96);
 }
 
 .orb-page .metabloom-chat__suggestions button {
@@ -233,11 +186,6 @@
     flex-basis: 4.4rem;
   }
 
-  .orb-page .metabloom-chat__composer button::after {
-    width: 1.8rem;
-    height: 1.8rem;
-  }
-
   .orb-page .metabloom-chat__suggestions {
     display: grid;
     width: min(34rem, calc(100% - 2.4rem));
@@ -308,14 +256,8 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .orb-page .metabloom-chat__presence,
-  .orb-page .metabloom-chat__composer button::after {
+  .orb-page .metabloom-chat__presence {
     transition: none;
-  }
-
-  .orb-page .metabloom-chat__composer button:hover:not(:disabled)::after,
-  .orb-page .metabloom-chat__composer button:active:not(:disabled)::after {
-    transform: translate(-50%, -50%);
   }
 }
 
@@ -327,12 +269,7 @@
     background: Canvas;
   }
 
-  .orb-page .metabloom-chat__composer::after,
-  .orb-page .metabloom-chat__composer button::after {
+  .orb-page .metabloom-chat__composer::after {
     display: none;
-  }
-
-  .orb-page .metabloom-chat__composer button svg {
-    opacity: 1;
   }
 }
