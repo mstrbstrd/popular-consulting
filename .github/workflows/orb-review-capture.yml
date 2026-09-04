@@ -8,7 +8,7 @@ on:
       - .github/workflows/orb-review-capture.yml
       - scripts/capture-orb-review.mjs
       - src/SiteRouter.js
-      - src/assets/icons/send-up.svg
+      - src/contexts/MetabloomPaletteContext.js
       - src/components/ImmersiveRouteNavigationBridge.js
       - src/components/NavMenu.js
       - src/components/OrbPage.js
@@ -16,6 +16,7 @@ on:
       - src/components/OrbPageExperience.css
       - src/components/OrbPageFinalPolish.css
       - src/components/OrbComposerFocus.css
+      - src/components/OrbMetalbloomFinish.css
       - src/components/OrbSection.js
       - src/components/OrbSection.css
       - src/components/SectionDeepLinkBridge.js
@@ -30,7 +31,7 @@ on:
       - .github/workflows/orb-review-capture.yml
       - scripts/capture-orb-review.mjs
       - src/SiteRouter.js
-      - src/assets/icons/send-up.svg
+      - src/contexts/MetabloomPaletteContext.js
       - src/components/ImmersiveRouteNavigationBridge.js
       - src/components/NavMenu.js
       - src/components/OrbPage.js
@@ -38,6 +39,7 @@ on:
       - src/components/OrbPageExperience.css
       - src/components/OrbPageFinalPolish.css
       - src/components/OrbComposerFocus.css
+      - src/components/OrbMetalbloomFinish.css
       - src/components/OrbSection.js
       - src/components/OrbSection.css
       - src/components/SectionDeepLinkBridge.js
