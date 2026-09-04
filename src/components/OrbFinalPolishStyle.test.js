@@ -147,6 +147,20 @@ describe("Orb final presentation guardrails", () => {
     expect(finishCss).toContain("min-height: 4.4rem;");
   });
 
+  test("keeps keyboard focus visible above active finish styling", () => {
+    const focusRule = ruleFor(
+      finishCss,
+      ".orb-page .orb-page__finish-option:focus-visible,\n.orb-page .orb-page__finish-option.is-active:focus-visible",
+    );
+
+    expect(focusRule).toContain(
+      "outline: 2px solid var(--aetheris-focus-line);",
+    );
+    expect(focusRule).toContain("box-shadow: var(--aetheris-focus-halo);");
+    expect(finishCss).toContain("outline: 2px solid Highlight !important;");
+    expect(finishCss).toContain("box-shadow: none !important;");
+  });
+
   test("preserves reduced-motion and forced-color behavior", () => {
     expect(css).toContain("@media (prefers-reduced-motion: reduce)");
     expect(css).toContain("transition: none;");
