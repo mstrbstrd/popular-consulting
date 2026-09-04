@@ -43,7 +43,6 @@ jest.mock("./ImmersiveRouteNavigationBridge", () => {
 });
 
 jest.mock("./OrbSection", () => {
-  const ReactModule = require("react");
   const { useMetabloomPalette } = require(
     "../contexts/MetabloomPaletteContext"
   );
