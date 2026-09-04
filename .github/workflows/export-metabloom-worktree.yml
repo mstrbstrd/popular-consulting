@@ -21,7 +21,11 @@ jobs:
       - name: Reconstruct and apply refinement patch
         shell: bash
         run: |
-          cat scripts/metabloom-emotive-runtime.patch.gz.b64.part-* \
+          {
+            head -c 6000 scripts/metabloom-emotive-runtime.patch.gz.b64.part-00
+            cat scripts/metabloom-emotive-runtime.patch.gz.b64.part-01
+            cat scripts/metabloom-emotive-runtime.patch.gz.b64.part-02
+          } \
             | base64 --decode \
             | gzip --decompress \
             > "$RUNNER_TEMP/metabloom-emotive-runtime.patch"
