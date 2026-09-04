@@ -32,7 +32,8 @@
 
   .orb-page .metabloom-chat__composer textarea:focus,
   .orb-page .metabloom-chat__composer textarea:focus-visible {
-    outline: none;
-    box-shadow: none;
+    outline: none !important;
+    outline-offset: 0 !important;
+    box-shadow: none !important;
   }
 }
