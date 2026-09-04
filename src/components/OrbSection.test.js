@@ -398,6 +398,7 @@ describe("OrbSection", () => {
     });
 
     let accepted;
+    let immediateState;
     act(() => {
       accepted = window.__metabloomTools.express({
         action: "happy",
@@ -405,18 +406,19 @@ describe("OrbSection", () => {
         intensity: 0.67,
         talking: true,
       });
+      immediateState = window.__metabloomTools.getState({});
     });
     expect(accepted).toBe(true);
+    expect(immediateState).toMatchObject({
+      action: "happy",
+      actionDuration: 1440,
+      actionIntensity: 0.67,
+      talking: true,
+    });
     expect(mockAvatarProps).toMatchObject({
       action: "happy",
       duration: 1440,
       intensity: 0.67,
-      talking: true,
-    });
-    expect(window.__metabloomTools.getState({})).toMatchObject({
-      action: "happy",
-      actionDuration: 1440,
-      actionIntensity: 0.67,
       talking: true,
     });
 
@@ -438,15 +440,20 @@ describe("OrbSection", () => {
           },
         ],
       });
+      immediateState = window.__metabloomTools.getState({});
     });
     expect(accepted).toBe(true);
+    expect(immediateState).toMatchObject({
+      action: "thinking",
+      actionDuration: 360,
+      actionIntensity: 0.34,
+      sequenceId: "gentle-acknowledgement",
+      talking: false,
+    });
     expect(mockAvatarProps).toMatchObject({
       action: "thinking",
       duration: 360,
       intensity: 0.34,
-    });
-    expect(window.__metabloomTools.getState({})).toMatchObject({
-      sequenceId: "gentle-acknowledgement",
     });
 
     act(() => {
@@ -457,6 +464,18 @@ describe("OrbSection", () => {
       duration: 420,
       intensity: 0.42,
       talking: true,
+    });
+
+    let beforePulse;
+    act(() => {
+      expect(window.__metabloomTools.talk({ active: false })).toBe(true);
+      beforePulse = window.__metabloomTools.getState({}).pulseVersion;
+      expect(window.__metabloomTools.pulse({})).toBe(true);
+      immediateState = window.__metabloomTools.getState({});
+    });
+    expect(immediateState).toMatchObject({
+      talking: false,
+      pulseVersion: beforePulse + 1,
     });
 
     expect(

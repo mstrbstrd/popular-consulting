@@ -425,6 +425,14 @@ const OrbSection = ({
     talking,
   };
 
+  const updateStateSnapshot = React.useCallback((updates) => {
+    stateRef.current = {
+      ...(stateRef.current || {}),
+      ...updates,
+    };
+    return stateRef.current;
+  }, []);
+
   const cancelSequenceTimer = React.useCallback(() => {
     sequenceTokenRef.current += 1;
     window.clearTimeout(sequenceTimerRef.current);
@@ -433,12 +441,15 @@ const OrbSection = ({
 
   const clearSequence = React.useCallback(() => {
     cancelSequenceTimer();
+    updateStateSnapshot({ sequenceId: null });
     setSequenceId(null);
-  }, [cancelSequenceTimer]);
+  }, [cancelSequenceTimer, updateStateSnapshot]);
 
   const pulse = React.useCallback(() => {
-    setPulseVersion((value) => value + 1);
-  }, []);
+    const nextPulseVersion = (stateRef.current?.pulseVersion ?? 0) + 1;
+    updateStateSnapshot({ pulseVersion: nextPulseVersion });
+    setPulseVersion(nextPulseVersion);
+  }, [updateStateSnapshot]);
 
   const performAction = React.useCallback(
     (nextAction, options = {}) => {
@@ -448,19 +459,40 @@ const OrbSection = ({
       const resolved = resolveMetabloomAction(request.action);
       if (!resolved) return false;
 
-      clearSequence();
-      setActionId(resolved.id);
-      setActionDuration(normalizeDuration(request.duration, resolved.duration));
-      setActionIntensity(normalizeIntensity(request.intensity, resolved.intensity));
-      setActionVersion((value) => value + 1);
-      setTalking(
-        typeof request.talking === "boolean" ? request.talking : false,
+      const duration = normalizeDuration(request.duration, resolved.duration);
+      const intensity = normalizeIntensity(
+        request.intensity,
+        resolved.intensity,
       );
+      const nextTalking =
+        typeof request.talking === "boolean" ? request.talking : false;
+      clearSequence();
+      const nextActionVersion = (stateRef.current?.actionVersion ?? 0) + 1;
+      const nextPulseVersion = (stateRef.current?.pulseVersion ?? 0) + 1;
+      updateStateSnapshot({
+        action: resolved.id,
+        actionDuration: duration,
+        actionIntensity: intensity,
+        actionVersion: nextActionVersion,
+        colorway: resolved.colorway,
+        expression: resolved.id,
+        form: ACTION_FORMS[resolved.id] || "companion",
+        motion: resolved.motion,
+        paused: false,
+        pulseVersion: nextPulseVersion,
+        sequenceId: null,
+        talking: nextTalking,
+      });
+      setActionId(resolved.id);
+      setActionDuration(duration);
+      setActionIntensity(intensity);
+      setActionVersion(nextActionVersion);
+      setTalking(nextTalking);
       setPaused(false);
-      setPulseVersion((value) => value + 1);
+      setPulseVersion(nextPulseVersion);
       return true;
     },
-    [clearSequence],
+    [clearSequence, updateStateSnapshot],
   );
 
   const transform = React.useCallback(
@@ -473,8 +505,9 @@ const OrbSection = ({
 
   const stop = React.useCallback(() => {
     clearSequence();
+    updateStateSnapshot({ talking: false });
     setTalking(false);
-  }, [clearSequence]);
+  }, [clearSequence, updateStateSnapshot]);
 
   const reset = React.useCallback(() => {
     clearSequence();
@@ -482,17 +515,34 @@ const OrbSection = ({
     activeRequestRef.current = null;
     window.clearTimeout(previewTimerRef.current);
     previewTimerRef.current = 0;
+    const nextActionVersion = (stateRef.current?.actionVersion ?? 0) + 1;
+    const nextPulseVersion = (stateRef.current?.pulseVersion ?? 0) + 1;
+    updateStateSnapshot({
+      action: DEFAULT_ACTION,
+      actionDuration: DEFAULT_ACTION_RECORD.duration,
+      actionIntensity: DEFAULT_ACTION_RECORD.intensity,
+      actionVersion: nextActionVersion,
+      colorway: DEFAULT_ACTION_RECORD.colorway,
+      expression: DEFAULT_ACTION,
+      form: ACTION_FORMS[DEFAULT_ACTION] || "companion",
+      motion: DEFAULT_ACTION_RECORD.motion,
+      paused: false,
+      pending: false,
+      pulseVersion: nextPulseVersion,
+      sequenceId: null,
+      talking: false,
+    });
     setActionId(DEFAULT_ACTION);
     setActionDuration(DEFAULT_ACTION_RECORD.duration);
     setActionIntensity(DEFAULT_ACTION_RECORD.intensity);
-    setActionVersion((value) => value + 1);
+    setActionVersion(nextActionVersion);
     setTalking(false);
     setPaused(false);
     setPending(false);
     setErrorMessage("");
     setResetVersion((value) => value + 1);
-    setPulseVersion((value) => value + 1);
-  }, [clearSequence]);
+    setPulseVersion(nextPulseVersion);
+  }, [clearSequence, updateStateSnapshot]);
 
   const playSequence = React.useCallback(
     (steps, nextSequenceId = "custom") => {
@@ -502,6 +552,10 @@ const OrbSection = ({
 
       const token = sequenceTokenRef.current;
       let index = 0;
+      updateStateSnapshot({
+        paused: false,
+        sequenceId: nextSequenceId,
+      });
       setSequenceId(nextSequenceId);
       setPaused(false);
 
@@ -509,18 +563,42 @@ const OrbSection = ({
         if (sequenceTokenRef.current !== token) return;
         const step = normalizedSteps[index];
         if (!step) {
+          updateStateSnapshot({
+            sequenceId: null,
+            talking: false,
+          });
           setTalking(false);
           setSequenceId(null);
           sequenceTimerRef.current = 0;
           return;
         }
 
-        setActionId(step.action);
+        const action =
+          resolveMetabloomAction(step.action) || DEFAULT_ACTION_RECORD;
+        const nextActionVersion =
+          (stateRef.current?.actionVersion ?? 0) + 1;
+        const nextPulseVersion =
+          (stateRef.current?.pulseVersion ?? 0) + 1;
+        updateStateSnapshot({
+          action: action.id,
+          actionDuration: step.duration,
+          actionIntensity: step.intensity,
+          actionVersion: nextActionVersion,
+          colorway: action.colorway,
+          expression: action.id,
+          form: ACTION_FORMS[action.id] || "companion",
+          motion: action.motion,
+          paused: false,
+          pulseVersion: nextPulseVersion,
+          sequenceId: nextSequenceId,
+          talking: step.talking,
+        });
+        setActionId(action.id);
         setActionDuration(step.duration);
         setActionIntensity(step.intensity);
-        setActionVersion((value) => value + 1);
+        setActionVersion(nextActionVersion);
         setTalking(step.talking);
-        setPulseVersion((value) => value + 1);
+        setPulseVersion(nextPulseVersion);
         index += 1;
         sequenceTimerRef.current = window.setTimeout(advance, step.duration);
       };
@@ -528,7 +606,7 @@ const OrbSection = ({
       advance();
       return true;
     },
-    [clearSequence],
+    [clearSequence, updateStateSnapshot],
   );
 
   const playExternalSequence = React.useCallback(
@@ -537,12 +615,14 @@ const OrbSection = ({
   );
 
   const startTalking = React.useCallback(() => {
+    updateStateSnapshot({ talking: true });
     setTalking(true);
-  }, []);
+  }, [updateStateSnapshot]);
 
   const stopTalking = React.useCallback(() => {
+    updateStateSnapshot({ talking: false });
     setTalking(false);
-  }, []);
+  }, [updateStateSnapshot]);
 
   const reactToUser = React.useCallback(
     (request) => {
@@ -571,23 +651,50 @@ const OrbSection = ({
       }
 
       clearSequence();
+      const snapshotUpdates = { sequenceId: null };
       if (requestedAction) {
+        const duration = normalizeDuration(
+          request.duration,
+          requestedAction.duration,
+        );
+        const intensity = normalizeIntensity(
+          request.intensity,
+          requestedAction.intensity,
+        );
+        const nextActionVersion =
+          (stateRef.current?.actionVersion ?? 0) + 1;
+        const nextPulseVersion =
+          (stateRef.current?.pulseVersion ?? 0) + 1;
+        Object.assign(snapshotUpdates, {
+          action: requestedAction.id,
+          actionDuration: duration,
+          actionIntensity: intensity,
+          actionVersion: nextActionVersion,
+          colorway: requestedAction.colorway,
+          expression: requestedAction.id,
+          form: ACTION_FORMS[requestedAction.id] || "companion",
+          motion: requestedAction.motion,
+          pulseVersion: nextPulseVersion,
+        });
         setActionId(requestedAction.id);
-        setActionDuration(
-          normalizeDuration(request.duration, requestedAction.duration),
-        );
-        setActionIntensity(
-          normalizeIntensity(request.intensity, requestedAction.intensity),
-        );
-        setActionVersion((value) => value + 1);
-        setPulseVersion((value) => value + 1);
+        setActionDuration(duration);
+        setActionIntensity(intensity);
+        setActionVersion(nextActionVersion);
+        setPulseVersion(nextPulseVersion);
       }
-      if (requestedTalking !== null) setTalking(requestedTalking);
-      if (requestedPaused !== null) setPaused(requestedPaused);
+      if (requestedTalking !== null) {
+        snapshotUpdates.talking = requestedTalking;
+        setTalking(requestedTalking);
+      }
+      if (requestedPaused !== null) {
+        snapshotUpdates.paused = requestedPaused;
+        setPaused(requestedPaused);
+      }
+      updateStateSnapshot(snapshotUpdates);
       if (requestedPulse && !requestedAction) pulse();
       return true;
     },
-    [clearSequence, pulse],
+    [clearSequence, pulse, updateStateSnapshot],
   );
 
   const appendMessage = React.useCallback(
@@ -605,21 +712,30 @@ const OrbSection = ({
         message,
       ];
       messagesRef.current = nextMessages;
+      updateStateSnapshot({
+        conversationStarted: true,
+        messageCount: nextMessages.length,
+      });
       setMessages(nextMessages);
       return message;
     },
-    [],
+    [updateStateSnapshot],
   );
 
   const applyModelResponse = React.useCallback(
     (payload, source = "external") => {
       const parsed = parseMetabloomModelResponse(payload);
       if (!parsed.ok) {
+        updateStateSnapshot({ pending: false });
         setPending(false);
         setErrorMessage(parsed.error);
         return false;
       }
 
+      updateStateSnapshot({
+        pending: false,
+        responseSource: source,
+      });
       setErrorMessage("");
       setPending(false);
       setResponseSource(source);
@@ -632,7 +748,7 @@ const OrbSection = ({
       playSequence(parsed.value.actionChain, "model-response");
       return true;
     },
-    [appendMessage, playSequence],
+    [appendMessage, playSequence, updateStateSnapshot],
   );
 
   const receiveModelResponse = React.useCallback(
@@ -694,9 +810,10 @@ const OrbSection = ({
     ) {
       return false;
     }
+    updateStateSnapshot({ talking: request.active });
     setTalking(request.active);
     return true;
-  }, []);
+  }, [updateStateSnapshot]);
 
   const toolPulse = React.useCallback(
     (request = {}) => {
@@ -727,12 +844,13 @@ const OrbSection = ({
   );
 
   const handleFieldStateChange = React.useCallback((nextState) => {
+    updateStateSnapshot({ fieldState: nextState });
     setFieldState(nextState);
-  }, []);
+  }, [updateStateSnapshot]);
 
   const sendMessage = React.useCallback(
     (value) => {
-      if (pending) return false;
+      if (pending || stateRef.current?.pending) return false;
 
       const message = typeof value === "string" ? value.trim() : "";
       if (!message) return false;
@@ -755,6 +873,11 @@ const OrbSection = ({
       requestTokenRef.current = requestToken;
       activeRequestRef.current = activeRequest;
 
+      updateStateSnapshot({
+        conversationStarted: true,
+        pending: true,
+        responseSource: "pending",
+      });
       setDraft("");
       setPending(true);
       setErrorMessage("");
@@ -825,6 +948,10 @@ const OrbSection = ({
             }
             activeRequestRef.current = null;
             requestTokenRef.current += 1;
+            updateStateSnapshot({
+              pending: false,
+              responseSource: "error",
+            });
             setPending(false);
             setResponseSource("error");
             setErrorMessage(
@@ -853,7 +980,13 @@ const OrbSection = ({
       }, PREVIEW_RESPONSE_DELAY_MS);
       return true;
     },
-    [appendMessage, pending, performAction, receiveModelResponse],
+    [
+      appendMessage,
+      pending,
+      performAction,
+      receiveModelResponse,
+      updateStateSnapshot,
+    ],
   );
 
   const handleSubmit = React.useCallback(
