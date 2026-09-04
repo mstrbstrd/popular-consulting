@@ -21,15 +21,11 @@ jobs:
       - name: Reconstruct and apply refinement patch
         shell: bash
         run: |
-          {
-            head -c 6000 scripts/metabloom-emotive-runtime.patch.gz.b64.part-00
-            cat scripts/metabloom-emotive-runtime.patch.gz.b64.part-01
-            cat scripts/metabloom-emotive-runtime.patch.gz.b64.part-02
-          } \
+          cat scripts/metabloom-emotive-runtime.final-* \
             | base64 --decode \
             | gzip --decompress \
             > "$RUNNER_TEMP/metabloom-emotive-runtime.patch"
-          echo "f548d011aa5630efbb27b32677838cb0dcad0ab38ba666e1d5769859e2d9e54a  $RUNNER_TEMP/metabloom-emotive-runtime.patch" \
+          echo "60b1c93d92a1895f5176892c9f65fd1b3f378a6c774008972e02c474268f8133  $RUNNER_TEMP/metabloom-emotive-runtime.patch" \
             | sha256sum --check
           git apply --index "$RUNNER_TEMP/metabloom-emotive-runtime.patch"
           git diff --cached --check
@@ -61,11 +57,11 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git rm scripts/metabloom-emotive-runtime.patch
-          git rm scripts/metabloom-emotive-runtime.patch.gz.b64.part-00
-          git rm scripts/metabloom-emotive-runtime.patch.gz.b64.part-01
-          git rm scripts/metabloom-emotive-runtime.patch.gz.b64.part-02
-          git rm .github/workflows/export-metabloom-worktree.yml
+          git rm -f .emotive-runtime-note
+          git rm -f scripts/metabloom-emotive-runtime.patch
+          git rm -f scripts/metabloom-emotive-runtime.patch.gz.b64.part-*
+          git rm -f scripts/metabloom-emotive-runtime.final-*
+          git rm -f .github/workflows/export-metabloom-worktree.yml
           git add -A
           git diff --cached --check
           git commit -m "Refine Metabloom emotive transitions"
