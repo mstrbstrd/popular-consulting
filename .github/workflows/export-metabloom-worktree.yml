@@ -18,10 +18,16 @@ jobs:
         with:
           ref: codex/metabloom-emotive-runtime
 
-      - name: Apply refinement patch
+      - name: Reconstruct and apply refinement patch
         shell: bash
         run: |
-          git apply --index --recount scripts/metabloom-emotive-runtime.patch
+          cat scripts/metabloom-emotive-runtime.patch.gz.b64.part-* \
+            | base64 --decode \
+            | gzip --decompress \
+            > "$RUNNER_TEMP/metabloom-emotive-runtime.patch"
+          echo "ef54b763436deef41baaaf0438808a1c8a3aa4312c60da4b6ecf88c6a9221e61  $RUNNER_TEMP/metabloom-emotive-runtime.patch" \
+            | sha256sum --check
+          git apply --index "$RUNNER_TEMP/metabloom-emotive-runtime.patch"
           git diff --cached --check
 
       - name: Set up Node.js
@@ -52,6 +58,9 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git rm scripts/metabloom-emotive-runtime.patch
+          git rm scripts/metabloom-emotive-runtime.patch.gz.b64.part-00
+          git rm scripts/metabloom-emotive-runtime.patch.gz.b64.part-01
+          git rm scripts/metabloom-emotive-runtime.patch.gz.b64.part-02
           git rm .github/workflows/export-metabloom-worktree.yml
           git add -A
           git diff --cached --check
