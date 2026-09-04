@@ -189,8 +189,16 @@ describe("Orb final presentation guardrails", () => {
   });
 
   test("preserves reduced-motion, transparency, and forced-color behavior", () => {
+    const reducedMotionRule = ruleFor(
+      css,
+      ".orb-page .metabloom-chat__presence,\n  .orb-page .metabloom-chat__composer button,\n  .orb-page .metabloom-chat__suggestions button,\n  .orb-page .metabloom-chat__composer button::before,\n  .orb-page .metabloom-chat__suggestions button::before",
+    );
+
     expect(css).toContain("@media (prefers-reduced-motion: reduce)");
-    expect(css).toContain("transition: none;");
+    expect(reducedMotionRule).toContain("transition: none;");
+    expect(css).toContain(
+      ".orb-page .metabloom-chat__composer button:hover:not(:disabled),\n  .orb-page .metabloom-chat__suggestions button:hover {\n    transform: none;",
+    );
     expect(css).toContain("@media (prefers-reduced-transparency: reduce)");
     expect(css).toContain("background: var(--aetheris-panel-raised);");
     expect(css).toContain("@media (forced-colors: active)");
