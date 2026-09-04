@@ -25,7 +25,7 @@ jobs:
             | base64 --decode \
             | gzip --decompress \
             > "$RUNNER_TEMP/metabloom-emotive-runtime.patch"
-          echo "ef54b763436deef41baaaf0438808a1c8a3aa4312c60da4b6ecf88c6a9221e61  $RUNNER_TEMP/metabloom-emotive-runtime.patch" \
+          echo "f548d011aa5630efbb27b32677838cb0dcad0ab38ba666e1d5769859e2d9e54a  $RUNNER_TEMP/metabloom-emotive-runtime.patch" \
             | sha256sum --check
           git apply --index "$RUNNER_TEMP/metabloom-emotive-runtime.patch"
           git diff --cached --check
