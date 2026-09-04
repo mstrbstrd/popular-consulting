@@ -1,4 +1,4 @@
-name: Export Metabloom refinement worktree
+name: Apply and verify Metabloom emotive runtime
 
 on:
   push:
@@ -6,29 +6,54 @@ on:
       - codex/metabloom-emotive-runtime
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  export:
+  apply-and-verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 35
     steps:
       - name: Check out refinement branch
         uses: actions/checkout@v4
+        with:
+          ref: codex/metabloom-emotive-runtime
 
-      - name: Package worktree
+      - name: Apply refinement patch
         shell: bash
         run: |
-          tar \
-            --exclude=.git \
-            --exclude=node_modules \
-            --exclude=build \
-            -czf "$RUNNER_TEMP/popular-consulting-worktree.tar.gz" .
+          git apply --index scripts/metabloom-emotive-runtime.patch
+          git diff --cached --check
 
-      - name: Upload worktree
-        uses: actions/upload-artifact@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
-          name: popular-consulting-worktree-${{ github.sha }}
-          path: ${{ runner.temp }}/popular-consulting-worktree.tar.gz
-          if-no-files-found: error
-          retention-days: 1
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Run complete test suite
+        run: npm test -- --watchAll=false --runInBand
+        env:
+          CI: true
+
+      - name: Build production bundle
+        run: npm run build
+        env:
+          CI: true
+
+      - name: Commit verified source
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm scripts/metabloom-emotive-runtime.patch
+          git rm .github/workflows/export-metabloom-worktree.yml
+          git add -A
+          git diff --cached --check
+          git commit -m "Refine Metabloom emotive transitions"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
