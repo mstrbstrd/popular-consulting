@@ -15,6 +15,7 @@ on:
       - src/components/OrbPage.css
       - src/components/OrbPageExperience.css
       - src/components/OrbPageFinalPolish.css
+      - src/components/OrbComposerFocus.css
       - src/components/OrbSection.js
       - src/components/OrbSection.css
       - src/components/SectionDeepLinkBridge.js
@@ -36,6 +37,7 @@ on:
       - src/components/OrbPage.css
       - src/components/OrbPageExperience.css
       - src/components/OrbPageFinalPolish.css
+      - src/components/OrbComposerFocus.css
       - src/components/OrbSection.js
       - src/components/OrbSection.css
       - src/components/SectionDeepLinkBridge.js
