@@ -7,6 +7,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import OrbPage from "./OrbPage";
@@ -41,19 +42,34 @@ jest.mock("./ImmersiveRouteNavigationBridge", () => {
     });
 });
 
-jest.mock("./OrbSection", () => ({
-  __esModule: true,
-  default: ({ isActive, onConversationStateChange }) => (
-    <section data-testid="orb-experience" data-active={String(isActive)}>
-      <button
-        type="button"
-        onClick={() => onConversationStateChange?.(true)}
+jest.mock("./OrbSection", () => {
+  const { useMetabloomPalette } = require(
+    "../contexts/MetabloomPaletteContext"
+  );
+
+  const MockOrbSection = ({ isActive, onConversationStateChange }) => {
+    const palette = useMetabloomPalette();
+    return (
+      <section
+        data-testid="orb-experience"
+        data-active={String(isActive)}
+        data-palette={palette}
       >
-        Begin mocked conversation
-      </button>
-    </section>
-  ),
-}));
+        <button
+          type="button"
+          onClick={() => onConversationStateChange?.(true)}
+        >
+          Begin mocked conversation
+        </button>
+      </section>
+    );
+  };
+
+  return {
+    __esModule: true,
+    default: MockOrbSection,
+  };
+});
 
 jest.mock("./LoadingOverlay", () => ({
   __esModule: true,
@@ -101,6 +117,14 @@ describe("OrbPage", () => {
       "data-conversation-started",
       "false",
     );
+    expect(container.querySelector(".orb-page")).toHaveAttribute(
+      "data-metabloom-palette",
+      "spectral",
+    );
+    expect(screen.getByTestId("orb-experience")).toHaveAttribute(
+      "data-palette",
+      "spectral",
+    );
     expect(
       screen.getByRole("navigation", { name: "Primary navigation" }),
     ).toHaveTextContent("Popular Consulting");
@@ -122,6 +146,52 @@ describe("OrbPage", () => {
     expect(
       screen.getByRole("link", { name: "Skip to Metabloom" }),
     ).toHaveAttribute("href", "#main-content");
+
+    const finishGroup = screen.getByRole("group", {
+      name: "Metabloom material finish",
+    });
+    expect(
+      within(finishGroup).getByRole("button", {
+        name: "Use spectral fluid for Metabloom",
+      }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(
+      within(finishGroup).getByRole("button", {
+        name: "Use liquid metal for Metabloom",
+      }),
+    ).toHaveAttribute("aria-pressed", "false");
+
+    const gradient = container.querySelector("#orb-send-gradient");
+    expect(gradient).toBeInTheDocument();
+    expect(gradient?.querySelectorAll("stop")).toHaveLength(4);
+  });
+
+  test("switches the existing Orb renderer to Metalbloom material", async () => {
+    const { container } = render(<OrbPage />);
+    await screen.findByTestId("orb-experience");
+
+    const finishGroup = screen.getByRole("group", {
+      name: "Metabloom material finish",
+    });
+    const spectralOption = within(finishGroup).getByRole("button", {
+      name: "Use spectral fluid for Metabloom",
+    });
+    const metalbloomOption = within(finishGroup).getByRole("button", {
+      name: "Use liquid metal for Metabloom",
+    });
+
+    fireEvent.click(metalbloomOption);
+
+    expect(container.querySelector(".orb-page")).toHaveAttribute(
+      "data-metabloom-palette",
+      "metalbloom",
+    );
+    expect(screen.getByTestId("orb-experience")).toHaveAttribute(
+      "data-palette",
+      "metalbloom",
+    );
+    expect(spectralOption).toHaveAttribute("aria-pressed", "false");
+    expect(metalbloomOption).toHaveAttribute("aria-pressed", "true");
   });
 
   test("lifts explicit conversation state to the page shell", async () => {
@@ -168,6 +238,7 @@ describe("OrbPage", () => {
 
     expect(source).toContain('import NavMenu from "./NavMenu";');
     expect(source.match(/OrbPageExperience\.css/g)).toHaveLength(1);
+    expect(source.match(/OrbMetalbloomFinish\.css/g)).toHaveLength(1);
     expect(pageCss).not.toContain('@import "./OrbPageExperience.css";');
     expect(source).toContain("onConversationStateChange={setConversationStarted}");
     expect(source).not.toContain("ManagedDitherBackground");
@@ -185,6 +256,10 @@ describe("OrbPage", () => {
       path.join(__dirname, "OrbSection.css"),
       "utf8",
     );
+    const finishCss = fs.readFileSync(
+      path.join(__dirname, "OrbMetalbloomFinish.css"),
+      "utf8",
+    );
 
     expect(pageSource).toContain(
       'document.documentElement.style.fontSize = "62.5%"',
@@ -194,6 +269,9 @@ describe("OrbPage", () => {
     );
     expect(sectionCss).toMatch(
       /\.metabloom-chat__composer button \{[^}]*min-height: 4\.4rem;/,
+    );
+    expect(finishCss).toMatch(
+      /\.orb-page \.orb-page__finish-option \{[^}]*min-height: 4\.4rem;/,
     );
   });
 });

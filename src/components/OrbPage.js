@@ -1,4 +1,7 @@
 import React from "react";
+import MetabloomPaletteContext, {
+  METABLOOM_PALETTES,
+} from "../contexts/MetabloomPaletteContext";
 import { ThemeProvider } from "../contexts/ThemeContext";
 import { SITE_AUDIENCES } from "../content/siteCopy";
 import routeMetadata from "../content/routeMetadata.json";
@@ -10,6 +13,7 @@ import "./OrbPage.css";
 import "./OrbPageExperience.css";
 import "./OrbPageFinalPolish.css";
 import "./OrbComposerFocus.css";
+import "./OrbMetalbloomFinish.css";
 
 const METADATA_SELECTORS = Object.freeze({
   description: 'meta[name="description"]',
@@ -24,6 +28,9 @@ const METADATA_SELECTORS = Object.freeze({
 
 const OrbPageContent = () => {
   const [conversationStarted, setConversationStarted] = React.useState(false);
+  const [metabloomPalette, setMetabloomPalette] = React.useState(
+    METABLOOM_PALETTES.SPECTRAL,
+  );
   const [loading, setLoading] = React.useState(false);
   const [pageHidden, setPageHidden] = React.useState(false);
   const metadata = routeMetadata.orb;
@@ -119,51 +126,142 @@ const OrbPageContent = () => {
     : undefined;
 
   return (
-    <div
-      className="orb-page standalone-experience--orb"
-      data-conversation-started={conversationStarted ? "true" : "false"}
-      data-site-audience={SITE_AUDIENCES.BUSINESS}
-    >
-      <a className="skip-to-content orb-page__skip" href="#main-content">
-        Skip to Metabloom
-      </a>
+    <MetabloomPaletteContext.Provider value={metabloomPalette}>
+      <div
+        className="orb-page standalone-experience--orb"
+        data-conversation-started={conversationStarted ? "true" : "false"}
+        data-metabloom-palette={metabloomPalette}
+        data-site-audience={SITE_AUDIENCES.BUSINESS}
+      >
+        <a className="skip-to-content orb-page__skip" href="#main-content">
+          Skip to Metabloom
+        </a>
 
-      <div className="orb-page__background" aria-hidden="true">
-        <div className="orb-page__ambient" />
-        <div className="orb-page__grid" />
-        <div className="orb-page__vignette" />
-      </div>
+        <svg
+          className="orb-page__svg-definitions"
+          width="0"
+          height="0"
+          aria-hidden="true"
+          focusable="false"
+        >
+          <defs>
+            <linearGradient
+              id="orb-send-gradient"
+              x1="3"
+              y1="21"
+              x2="21"
+              y2="3"
+              gradientUnits="userSpaceOnUse"
+            >
+              <stop
+                className="orb-page__send-stop orb-page__send-stop--cyan"
+                offset="0"
+              />
+              <stop
+                className="orb-page__send-stop orb-page__send-stop--magenta"
+                offset="0.42"
+              />
+              <stop
+                className="orb-page__send-stop orb-page__send-stop--gold"
+                offset="0.72"
+              />
+              <stop
+                className="orb-page__send-stop orb-page__send-stop--violet"
+                offset="1"
+              />
+            </linearGradient>
+          </defs>
+        </svg>
 
-      <div style={pageHideStyle}>
-        <ImmersiveRouteNavigationBridge />
-        <NavMenu audience={SITE_AUDIENCES.BUSINESS} />
-
-        <div className="orb-page__identity" aria-hidden="true">
-          <p className="orb-page__title">Metabloom</p>
-          <p className="orb-page__description">
-            A living field that translates response intent into motion, colour,
-            and form.
-          </p>
+        <div className="orb-page__background" aria-hidden="true">
+          <div className="orb-page__ambient" />
+          <div className="orb-page__grid" />
+          <div className="orb-page__vignette" />
         </div>
 
-        <main
-          id="main-content"
-          className="orb-page__content"
-          aria-label="Metabloom"
-          tabIndex={-1}
-        >
-          <OrbSection
-            isActive
-            onConversationStateChange={setConversationStarted}
-          />
-        </main>
-      </div>
+        <div style={pageHideStyle}>
+          <ImmersiveRouteNavigationBridge />
+          <NavMenu audience={SITE_AUDIENCES.BUSINESS} />
 
-      <LoadingOverlay
-        visible={loading}
-        onExitComplete={() => setPageHidden(false)}
-      />
-    </div>
+          <div className="orb-page__identity" aria-hidden="true">
+            <p className="orb-page__title">Metabloom</p>
+            <p className="orb-page__description">
+              A living field that translates response intent into motion,
+              colour, and form.
+            </p>
+          </div>
+
+          <div
+            className="orb-page__finish-selector"
+            role="group"
+            aria-label="Metabloom material finish"
+          >
+            <span className="orb-page__finish-label">Finish</span>
+            <button
+              type="button"
+              className={`orb-page__finish-option${
+                metabloomPalette === METABLOOM_PALETTES.SPECTRAL
+                  ? " is-active"
+                  : ""
+              }`}
+              data-palette="spectral"
+              aria-pressed={
+                metabloomPalette === METABLOOM_PALETTES.SPECTRAL
+              }
+              aria-label="Use spectral fluid for Metabloom"
+              onClick={() =>
+                setMetabloomPalette(METABLOOM_PALETTES.SPECTRAL)
+              }
+            >
+              <span
+                className="orb-page__finish-swatch"
+                aria-hidden="true"
+              />
+              <span>Spectral</span>
+            </button>
+            <button
+              type="button"
+              className={`orb-page__finish-option${
+                metabloomPalette === METABLOOM_PALETTES.METALBLOOM
+                  ? " is-active"
+                  : ""
+              }`}
+              data-palette="metalbloom"
+              aria-pressed={
+                metabloomPalette === METABLOOM_PALETTES.METALBLOOM
+              }
+              aria-label="Use liquid metal for Metabloom"
+              onClick={() =>
+                setMetabloomPalette(METABLOOM_PALETTES.METALBLOOM)
+              }
+            >
+              <span
+                className="orb-page__finish-swatch"
+                aria-hidden="true"
+              />
+              <span>Metalbloom</span>
+            </button>
+          </div>
+
+          <main
+            id="main-content"
+            className="orb-page__content"
+            aria-label="Metabloom"
+            tabIndex={-1}
+          >
+            <OrbSection
+              isActive
+              onConversationStateChange={setConversationStarted}
+            />
+          </main>
+        </div>
+
+        <LoadingOverlay
+          visible={loading}
+          onExitComplete={() => setPageHidden(false)}
+        />
+      </div>
+    </MetabloomPaletteContext.Provider>
   );
 };
 
