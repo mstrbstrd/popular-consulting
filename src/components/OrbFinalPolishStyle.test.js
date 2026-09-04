@@ -63,24 +63,51 @@ describe("Orb final presentation guardrails", () => {
     expect(focusRingRule).toContain("var(--aetheris-spectral)");
   });
 
-  test("uses spectral borders for every suggested prompt", () => {
+  test("matches submit and prompt fills to the neutral text box surface", () => {
+    const composerRule = ruleFor(
+      css,
+      ".orb-page .metabloom-chat__composer",
+    );
+    const submitRule = ruleFor(
+      css,
+      ".orb-page .metabloom-chat__composer button",
+    );
+    const enabledSubmitRule = ruleFor(
+      css,
+      ".orb-page .metabloom-chat__composer button:not(:disabled)",
+    );
     const promptRule = ruleFor(
       css,
       ".orb-page .metabloom-chat__suggestions button",
     );
-    const hoverRule = ruleFor(
+
+    [composerRule, submitRule, enabledSubmitRule, promptRule].forEach((rule) => {
+      expect(rule).toContain("background: var(--orb-control-surface);");
+    });
+    [submitRule, enabledSubmitRule, promptRule].forEach((rule) => {
+      expect(rule).not.toContain("linear-gradient(");
+    });
+  });
+
+  test("keeps spectral borders without using them as button fills", () => {
+    const sharedRingRule = ruleFor(
       css,
-      ".orb-page .metabloom-chat__suggestions button:hover",
+      ".orb-page .metabloom-chat__composer button::before,\n.orb-page .metabloom-chat__suggestions button::before",
     );
-    const focusRule = ruleFor(
+    const hoverRingRule = ruleFor(
       css,
-      ".orb-page .metabloom-chat__suggestions button:focus-visible",
+      ".orb-page .metabloom-chat__composer button:hover:not(:disabled)::before,\n  .orb-page .metabloom-chat__suggestions button:hover::before",
+    );
+    const focusRingRule = ruleFor(
+      css,
+      ".orb-page .metabloom-chat__suggestions button:focus-visible::before",
     );
 
-    expect(promptRule).toContain("border: 1px solid transparent;");
-    expect(promptRule).toContain("var(--aetheris-spectral-border-soft) border-box");
-    expect(hoverRule).toContain("var(--aetheris-spectral) border-box");
-    expect(focusRule).toContain("var(--aetheris-spectral) border-box");
+    expect(sharedRingRule).toContain("var(--aetheris-spectral-border-soft)");
+    expect(sharedRingRule).toContain("-webkit-mask:");
+    expect(sharedRingRule).toContain("mask-composite: exclude;");
+    expect(hoverRingRule).toContain("var(--aetheris-spectral)");
+    expect(focusRingRule).toContain("var(--aetheris-spectral)");
   });
 
   test("paints the real inline SVG path instead of a masked replacement", () => {
@@ -104,7 +131,7 @@ describe("Orb final presentation guardrails", () => {
     expect(pageSource).toContain('id="orb-send-gradient"');
     expect(pageSource.match(/orb-page__send-stop--/g)).toHaveLength(4);
     expect(css).not.toContain("send-up.svg");
-    expect(css).not.toContain("-webkit-mask:");
+    expect(css).not.toContain("-webkit-mask: url");
     expect(finishCss).not.toContain("send-up.svg");
   });
 
@@ -161,9 +188,21 @@ describe("Orb final presentation guardrails", () => {
     expect(finishCss).toContain("box-shadow: none !important;");
   });
 
-  test("preserves reduced-motion and forced-color behavior", () => {
+  test("preserves reduced-motion, transparency, and forced-color behavior", () => {
+    const reducedMotionRule = ruleFor(
+      css,
+      ".orb-page .metabloom-chat__presence,\n  .orb-page .metabloom-chat__composer button,\n  .orb-page .metabloom-chat__suggestions button,\n  .orb-page .metabloom-chat__composer button::before,\n  .orb-page .metabloom-chat__suggestions button::before",
+    );
+
     expect(css).toContain("@media (prefers-reduced-motion: reduce)");
-    expect(css).toContain("transition: none;");
+    expect(reducedMotionRule).toContain("transition: none;");
+    expect(css).toContain(
+      ".orb-page .metabloom-chat__composer button:hover:not(:disabled),\n  .orb-page .metabloom-chat__suggestions button:hover {\n    transform: none;",
+    );
+    expect(css).toContain("@media (prefers-reduced-transparency: reduce)");
+    expect(css).toContain("background: var(--aetheris-panel-raised);");
+    expect(css).toContain("@media (forced-colors: active)");
+    expect(css).toContain("button::before");
     expect(finishCss).toContain("@media (prefers-reduced-motion: reduce)");
     expect(finishCss).toContain("@media (forced-colors: active)");
     expect(finishCss).toContain("stroke: ButtonText;");
