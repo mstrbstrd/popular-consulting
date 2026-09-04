@@ -57,11 +57,11 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git rm -f .emotive-runtime-note
-          git rm -f scripts/metabloom-emotive-runtime.patch
-          git rm -f scripts/metabloom-emotive-runtime.patch.gz.b64.part-*
-          git rm -f scripts/metabloom-emotive-runtime.final-*
-          git rm -f .github/workflows/export-metabloom-worktree.yml
+          git rm -f --ignore-unmatch .emotive-runtime-note
+          git rm -f --ignore-unmatch scripts/metabloom-emotive-runtime.patch
+          git rm -f --ignore-unmatch scripts/metabloom-emotive-runtime.patch.gz.b64.part-*
+          git rm -f --ignore-unmatch scripts/metabloom-emotive-runtime.final-*
+          git rm -f --ignore-unmatch .github/workflows/export-metabloom-worktree.yml
           git add -A
           git diff --cached --check
           git commit -m "Refine Metabloom emotive transitions"
