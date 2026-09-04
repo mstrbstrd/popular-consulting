@@ -250,9 +250,16 @@
 
 @media (prefers-reduced-motion: reduce) {
   .orb-page .metabloom-chat__presence,
+  .orb-page .metabloom-chat__composer button,
+  .orb-page .metabloom-chat__suggestions button,
   .orb-page .metabloom-chat__composer button::before,
   .orb-page .metabloom-chat__suggestions button::before {
     transition: none;
+  }
+
+  .orb-page .metabloom-chat__composer button:hover:not(:disabled),
+  .orb-page .metabloom-chat__suggestions button:hover {
+    transform: none;
   }
 }
 
