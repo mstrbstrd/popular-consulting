@@ -8,6 +8,8 @@ export const MAX_METABLOOM_ACTION_STEPS = 12;
 export const MAX_METABLOOM_CHAIN_DURATION_MS = 24000;
 export const MIN_METABLOOM_ACTION_DURATION_MS = 160;
 export const MAX_METABLOOM_ACTION_DURATION_MS = 6000;
+export const MIN_METABLOOM_ACTION_INTENSITY = 0;
+export const MAX_METABLOOM_ACTION_INTENSITY = 1;
 
 const MAX_MODEL_JSON_CHARS = 32000;
 const ACTION_BY_ID = new Map(
@@ -15,7 +17,12 @@ const ACTION_BY_ID = new Map(
 );
 const ACTION_ID_SET = new Set(METABLOOM_ACTION_IDS);
 const TOP_LEVEL_KEYS = new Set(["response", "actionChain"]);
-const ACTION_STEP_KEYS = new Set(["action", "duration", "talking"]);
+const ACTION_STEP_KEYS = new Set([
+  "action",
+  "duration",
+  "intensity",
+  "talking",
+]);
 
 export const METABLOOM_MODEL_RESPONSE_SCHEMA = Object.freeze({
   $schema: "https://json-schema.org/draft/2020-12/schema",
@@ -49,6 +56,11 @@ export const METABLOOM_MODEL_RESPONSE_SCHEMA = Object.freeze({
             type: "integer",
             minimum: MIN_METABLOOM_ACTION_DURATION_MS,
             maximum: MAX_METABLOOM_ACTION_DURATION_MS,
+          },
+          intensity: {
+            type: "number",
+            minimum: MIN_METABLOOM_ACTION_INTENSITY,
+            maximum: MAX_METABLOOM_ACTION_INTENSITY,
           },
           talking: {
             type: "boolean",
@@ -118,6 +130,18 @@ const normalizeActionStep = (step, index) => {
     return failure(`Action ${index + 1} used an invalid duration.`);
   }
 
+  const intensity = step.intensity === undefined
+    ? action.intensity
+    : step.intensity;
+  if (
+    typeof intensity !== "number"
+    || !Number.isFinite(intensity)
+    || intensity < MIN_METABLOOM_ACTION_INTENSITY
+    || intensity > MAX_METABLOOM_ACTION_INTENSITY
+  ) {
+    return failure(`Action ${index + 1} used an invalid intensity.`);
+  }
+
   if (step.talking !== undefined && typeof step.talking !== "boolean") {
     return failure(`Action ${index + 1} used an invalid talking value.`);
   }
@@ -127,6 +151,7 @@ const normalizeActionStep = (step, index) => {
     value: {
       action: actionId,
       duration,
+      intensity,
       talking:
         step.talking === undefined ? actionId !== "reform" : step.talking,
     },
@@ -186,6 +211,7 @@ export const parseMetabloomModelResponse = (payload) => {
     actionChain.push({
       action: reform.id,
       duration: reform.duration,
+      intensity: reform.intensity,
       talking: false,
     });
   }
@@ -225,10 +251,10 @@ export const createMetabloomPreviewResponse = (message) => {
       response:
         "That sounds worth celebrating. This local preview pairs the written response with an excited, happy, then calm Metabloom action chain.",
       actionChain: [
-        { action: "excited", duration: 1320, talking: true },
-        { action: "happy", duration: 1050, talking: true },
-        { action: "agree", duration: 820, talking: true },
-        { action: "reform", duration: 980, talking: false },
+        { action: "excited", duration: 1420, intensity: 0.72, talking: true },
+        { action: "happy", duration: 1180, intensity: 0.62, talking: true },
+        { action: "agree", duration: 920, intensity: 0.48, talking: true },
+        { action: "reform", duration: 1080, intensity: 0, talking: false },
       ],
     };
   }
@@ -238,10 +264,10 @@ export const createMetabloomPreviewResponse = (message) => {
       response:
         "I hear the weight in that. This local preview lets the response remain readable while the full-page field carries a quieter, more empathetic emotional cadence.",
       actionChain: [
-        { action: "sad", duration: 1180, talking: true },
-        { action: "thinking", duration: 1180, talking: true },
-        { action: "agree", duration: 820, talking: true },
-        { action: "reform", duration: 980, talking: false },
+        { action: "sad", duration: 1460, intensity: 0.46, talking: true },
+        { action: "thinking", duration: 1320, intensity: 0.40, talking: true },
+        { action: "agree", duration: 980, intensity: 0.34, talking: true },
+        { action: "reform", duration: 1180, intensity: 0, talking: false },
       ],
     };
   }
@@ -251,10 +277,10 @@ export const createMetabloomPreviewResponse = (message) => {
       response:
         "I would pause and examine that claim rather than simply mirror it. The response text and the corrective Metabloom gesture are controlled by separate fields in the same model payload.",
       actionChain: [
-        { action: "disagree", duration: 820, talking: true },
-        { action: "thinking", duration: 1260, talking: true },
-        { action: "agree", duration: 820, talking: true },
-        { action: "reform", duration: 980, talking: false },
+        { action: "disagree", duration: 980, intensity: 0.52, talking: true },
+        { action: "thinking", duration: 1380, intensity: 0.44, talking: true },
+        { action: "agree", duration: 920, intensity: 0.38, talking: true },
+        { action: "reform", duration: 1080, intensity: 0, talking: false },
       ],
     };
   }
@@ -263,10 +289,10 @@ export const createMetabloomPreviewResponse = (message) => {
     response:
       "I am following. This local interface preview shows the intended contract: readable response text in one field, with a separate bounded action chain controlling the full-page Metabloom avatar.",
     actionChain: [
-      { action: "thinking", duration: 1260, talking: false },
-      { action: "agree", duration: 820, talking: true },
-      { action: "happy", duration: 1050, talking: true },
-      { action: "reform", duration: 980, talking: false },
+      { action: "thinking", duration: 1380, intensity: 0.42, talking: false },
+      { action: "agree", duration: 920, intensity: 0.42, talking: true },
+      { action: "happy", duration: 1160, intensity: 0.50, talking: true },
+      { action: "reform", duration: 1080, intensity: 0, talking: false },
     ],
   };
 };

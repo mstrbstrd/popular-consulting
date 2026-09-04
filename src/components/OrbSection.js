@@ -8,14 +8,21 @@ import {
   resolveMetabloomAction,
 } from "./metabloomActions";
 import {
+  MAX_METABLOOM_ACTION_DURATION_MS,
+  MAX_METABLOOM_ACTION_INTENSITY,
+  MAX_METABLOOM_ACTION_STEPS,
+  MAX_METABLOOM_CHAIN_DURATION_MS,
   MAX_METABLOOM_RESPONSE_CHARS,
+  MIN_METABLOOM_ACTION_DURATION_MS,
+  MIN_METABLOOM_ACTION_INTENSITY,
   METABLOOM_MODEL_RESPONSE_SCHEMA,
   createMetabloomPreviewResponse,
   parseMetabloomModelResponse,
 } from "./metabloomResponseContract";
 import "./OrbSection.css";
 
-const DEFAULT_ACTION = getDefaultMetabloomAction().id;
+const DEFAULT_ACTION_RECORD = getDefaultMetabloomAction();
+const DEFAULT_ACTION = DEFAULT_ACTION_RECORD.id;
 const LEGACY_FORMS = Object.freeze(["companion", "bloom", "focus", "drift"]);
 const FORM_ACTIONS = Object.freeze({
   bloom: "surprised",
@@ -36,6 +43,106 @@ const MAX_USER_MESSAGE_CHARS = 1600;
 const MAX_CHAT_MESSAGES = 24;
 const MAX_HISTORY_MESSAGES = 12;
 const PREVIEW_RESPONSE_DELAY_MS = 520;
+const MAX_TOOL_SEQUENCE_ID_CHARS = 48;
+const TOOL_SEQUENCE_ID_PATTERN = /^[a-z][a-z0-9-]*$/;
+const TOOL_EXPRESSION_KEYS = new Set([
+  "action",
+  "duration",
+  "intensity",
+  "talking",
+]);
+const TOOL_SEQUENCE_KEYS = new Set(["id", "steps"]);
+const TOOL_TALK_KEYS = new Set(["active"]);
+const EMPTY_TOOL_KEYS = new Set();
+
+const METABLOOM_TOOL_SCHEMAS = Object.freeze({
+  express: {
+    $schema: "https://json-schema.org/draft/2020-12/schema",
+    title: "MetabloomExpress",
+    type: "object",
+    additionalProperties: false,
+    required: ["action"],
+    properties: {
+      action: { type: "string", enum: [...METABLOOM_ACTION_IDS] },
+      duration: {
+        type: "integer",
+        minimum: MIN_METABLOOM_ACTION_DURATION_MS,
+        maximum: MAX_METABLOOM_ACTION_DURATION_MS,
+      },
+      intensity: {
+        type: "number",
+        minimum: MIN_METABLOOM_ACTION_INTENSITY,
+        maximum: MAX_METABLOOM_ACTION_INTENSITY,
+      },
+      talking: { type: "boolean" },
+    },
+  },
+  sequence: {
+    $schema: "https://json-schema.org/draft/2020-12/schema",
+    title: "MetabloomSequence",
+    type: "object",
+    additionalProperties: false,
+    required: ["steps"],
+    properties: {
+      id: {
+        type: "string",
+        minLength: 1,
+        maxLength: MAX_TOOL_SEQUENCE_ID_CHARS,
+        pattern: "^[a-z][a-z0-9-]*$",
+      },
+      steps: {
+        type: "array",
+        minItems: 1,
+        maxItems: MAX_METABLOOM_ACTION_STEPS,
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["action"],
+          properties: {
+            action: { type: "string", enum: [...METABLOOM_ACTION_IDS] },
+            duration: {
+              type: "integer",
+              minimum: MIN_METABLOOM_ACTION_DURATION_MS,
+              maximum: MAX_METABLOOM_ACTION_DURATION_MS,
+            },
+            intensity: {
+              type: "number",
+              minimum: MIN_METABLOOM_ACTION_INTENSITY,
+              maximum: MAX_METABLOOM_ACTION_INTENSITY,
+            },
+            talking: { type: "boolean" },
+          },
+        },
+      },
+    },
+  },
+  talk: {
+    $schema: "https://json-schema.org/draft/2020-12/schema",
+    title: "MetabloomTalk",
+    type: "object",
+    additionalProperties: false,
+    required: ["active"],
+    properties: { active: { type: "boolean" } },
+  },
+  pulse: {
+    $schema: "https://json-schema.org/draft/2020-12/schema",
+    title: "MetabloomPulse",
+    type: "object",
+    additionalProperties: false,
+  },
+  settle: {
+    $schema: "https://json-schema.org/draft/2020-12/schema",
+    title: "MetabloomSettle",
+    type: "object",
+    additionalProperties: false,
+  },
+  getState: {
+    $schema: "https://json-schema.org/draft/2020-12/schema",
+    title: "MetabloomGetState",
+    type: "object",
+    additionalProperties: false,
+  },
+});
 
 let metabloomMountSequence = 0;
 
@@ -59,11 +166,36 @@ const SUGGESTED_PROMPTS = Object.freeze([
   "Celebrate a small win",
 ]);
 
-const normalizeDuration = (value) => {
+const isPlainObject = (value) => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+};
+
+const hasOnlyKeys = (value, allowedKeys) =>
+  Object.keys(value).every((key) => allowedKeys.has(key));
+
+const normalizeDuration = (value, fallback = DEFAULT_ACTION_RECORD.duration) => {
   const duration = Number(value);
   return Number.isFinite(duration)
-    ? Math.max(160, Math.min(duration, 8000))
-    : 900;
+    ? Math.max(
+        MIN_METABLOOM_ACTION_DURATION_MS,
+        Math.min(duration, MAX_METABLOOM_ACTION_DURATION_MS),
+      )
+    : fallback;
+};
+
+const normalizeIntensity = (
+  value,
+  fallback = DEFAULT_ACTION_RECORD.intensity,
+) => {
+  const intensity = Number(value);
+  return Number.isFinite(intensity)
+    ? Math.max(
+        MIN_METABLOOM_ACTION_INTENSITY,
+        Math.min(intensity, MAX_METABLOOM_ACTION_INTENSITY),
+      )
+    : fallback;
 };
 
 const normalizeSequenceSteps = (steps) => {
@@ -71,7 +203,7 @@ const normalizeSequenceSteps = (steps) => {
 
   return steps
     .filter((step) => step && typeof step === "object" && !Array.isArray(step))
-    .slice(0, 16)
+    .slice(0, MAX_METABLOOM_ACTION_STEPS)
     .map((step) => {
       const formAction = FORM_ACTIONS[step.form];
       const action = resolveMetabloomAction(
@@ -80,12 +212,103 @@ const normalizeSequenceSteps = (steps) => {
       return action
         ? {
             action: action.id,
-            duration: normalizeDuration(step.duration || action.duration),
-            talking: Boolean(step.talking),
+            duration: normalizeDuration(step.duration, action.duration),
+            intensity: normalizeIntensity(step.intensity, action.intensity),
+            talking:
+              typeof step.talking === "boolean"
+                ? step.talking
+                : action.id !== "reform",
           }
         : null;
     })
     .filter(Boolean);
+};
+
+const normalizeStrictToolStep = (step) => {
+  if (!isPlainObject(step) || !hasOnlyKeys(step, TOOL_EXPRESSION_KEYS)) {
+    return null;
+  }
+  if (typeof step.action !== "string") return null;
+  const actionId = step.action.trim();
+  if (!METABLOOM_ACTION_IDS.includes(actionId)) return null;
+  const action = resolveMetabloomAction(actionId);
+  const duration = step.duration === undefined ? action.duration : step.duration;
+  const intensity = step.intensity === undefined
+    ? action.intensity
+    : step.intensity;
+  if (
+    !Number.isInteger(duration)
+    || duration < MIN_METABLOOM_ACTION_DURATION_MS
+    || duration > MAX_METABLOOM_ACTION_DURATION_MS
+  ) {
+    return null;
+  }
+  if (
+    typeof intensity !== "number"
+    || !Number.isFinite(intensity)
+    || intensity < MIN_METABLOOM_ACTION_INTENSITY
+    || intensity > MAX_METABLOOM_ACTION_INTENSITY
+  ) {
+    return null;
+  }
+  if (step.talking !== undefined && typeof step.talking !== "boolean") {
+    return null;
+  }
+  return {
+    action: action.id,
+    duration,
+    intensity,
+    talking: step.talking === undefined ? action.id !== "reform" : step.talking,
+  };
+};
+
+const normalizeToolSequence = (request) => {
+  if (!isPlainObject(request) || !hasOnlyKeys(request, TOOL_SEQUENCE_KEYS)) {
+    return null;
+  }
+  if (!Array.isArray(request.steps)) return null;
+  if (
+    request.steps.length < 1
+    || request.steps.length > MAX_METABLOOM_ACTION_STEPS
+  ) {
+    return null;
+  }
+  const id = request.id === undefined ? "agent" : request.id;
+  if (
+    typeof id !== "string"
+    || id.length < 1
+    || id.length > MAX_TOOL_SEQUENCE_ID_CHARS
+    || !TOOL_SEQUENCE_ID_PATTERN.test(id)
+  ) {
+    return null;
+  }
+  const steps = request.steps.map(normalizeStrictToolStep);
+  if (steps.some((step) => !step)) return null;
+  if (steps[steps.length - 1].action !== "reform") {
+    if (steps.length >= MAX_METABLOOM_ACTION_STEPS) return null;
+    steps.push({
+      action: DEFAULT_ACTION_RECORD.id,
+      duration: DEFAULT_ACTION_RECORD.duration,
+      intensity: DEFAULT_ACTION_RECORD.intensity,
+      talking: false,
+    });
+  }
+  const totalDuration = steps.reduce((sum, step) => sum + step.duration, 0);
+  if (totalDuration > MAX_METABLOOM_CHAIN_DURATION_MS) return null;
+  return { id, steps };
+};
+
+const normalizeEmptyToolRequest = (request = {}) =>
+  isPlainObject(request) && hasOnlyKeys(request, EMPTY_TOOL_KEYS);
+
+const cloneSchema = (schema) => JSON.parse(JSON.stringify(schema));
+
+const deepFreeze = (value) => {
+  if (!value || typeof value !== "object" || Object.isFrozen(value)) {
+    return value;
+  }
+  Object.values(value).forEach(deepFreeze);
+  return Object.freeze(value);
 };
 
 const clearOwnedGlobal = (name, value) => {
@@ -93,9 +316,10 @@ const clearOwnedGlobal = (name, value) => {
 };
 
 const cloneActionChain = (actionChain = []) =>
-  actionChain.map(({ action, duration, talking }) => ({
+  actionChain.map(({ action, duration, intensity, talking }) => ({
     action,
     duration,
+    intensity,
     talking,
   }));
 
@@ -156,6 +380,12 @@ const OrbSection = ({
   const messagesEndRef = React.useRef(null);
   const stateRef = React.useRef(null);
   const [actionId, setActionId] = React.useState(DEFAULT_ACTION);
+  const [actionDuration, setActionDuration] = React.useState(
+    DEFAULT_ACTION_RECORD.duration,
+  );
+  const [actionIntensity, setActionIntensity] = React.useState(
+    DEFAULT_ACTION_RECORD.intensity,
+  );
   const [actionVersion, setActionVersion] = React.useState(0);
   const [talking, setTalking] = React.useState(false);
   const [paused, setPaused] = React.useState(false);
@@ -177,6 +407,8 @@ const OrbSection = ({
   messagesRef.current = messages;
   stateRef.current = {
     action: activeAction.id,
+    actionDuration,
+    actionIntensity,
     actionVersion,
     colorway: activeAction.colorway,
     conversationStarted,
@@ -209,14 +441,22 @@ const OrbSection = ({
   }, []);
 
   const performAction = React.useCallback(
-    (nextAction) => {
-      const resolved = resolveMetabloomAction(nextAction);
+    (nextAction, options = {}) => {
+      const request = isPlainObject(nextAction)
+        ? nextAction
+        : { ...options, action: nextAction };
+      const resolved = resolveMetabloomAction(request.action);
       if (!resolved) return false;
 
       clearSequence();
       setActionId(resolved.id);
+      setActionDuration(normalizeDuration(request.duration, resolved.duration));
+      setActionIntensity(normalizeIntensity(request.intensity, resolved.intensity));
       setActionVersion((value) => value + 1);
-      setTalking(false);
+      setTalking(
+        typeof request.talking === "boolean" ? request.talking : false,
+      );
+      setPaused(false);
       setPulseVersion((value) => value + 1);
       return true;
     },
@@ -243,6 +483,8 @@ const OrbSection = ({
     window.clearTimeout(previewTimerRef.current);
     previewTimerRef.current = 0;
     setActionId(DEFAULT_ACTION);
+    setActionDuration(DEFAULT_ACTION_RECORD.duration);
+    setActionIntensity(DEFAULT_ACTION_RECORD.intensity);
     setActionVersion((value) => value + 1);
     setTalking(false);
     setPaused(false);
@@ -274,6 +516,8 @@ const OrbSection = ({
         }
 
         setActionId(step.action);
+        setActionDuration(step.duration);
+        setActionIntensity(step.intensity);
         setActionVersion((value) => value + 1);
         setTalking(step.talking);
         setPulseVersion((value) => value + 1);
@@ -293,9 +537,8 @@ const OrbSection = ({
   );
 
   const startTalking = React.useCallback(() => {
-    clearSequence();
     setTalking(true);
-  }, [clearSequence]);
+  }, []);
 
   const stopTalking = React.useCallback(() => {
     setTalking(false);
@@ -330,6 +573,12 @@ const OrbSection = ({
       clearSequence();
       if (requestedAction) {
         setActionId(requestedAction.id);
+        setActionDuration(
+          normalizeDuration(request.duration, requestedAction.duration),
+        );
+        setActionIntensity(
+          normalizeIntensity(request.intensity, requestedAction.intensity),
+        );
         setActionVersion((value) => value + 1);
         setPulseVersion((value) => value + 1);
       }
@@ -419,6 +668,62 @@ const OrbSection = ({
   const getMessages = React.useCallback(
     () => messagesRef.current.map(cloneMessage),
     [],
+  );
+
+  const toolExpress = React.useCallback(
+    (request) => {
+      const command = normalizeStrictToolStep(request);
+      return command ? performAction(command) : false;
+    },
+    [performAction],
+  );
+
+  const toolSequence = React.useCallback(
+    (request) => {
+      const sequence = normalizeToolSequence(request);
+      return sequence ? playSequence(sequence.steps, sequence.id) : false;
+    },
+    [playSequence],
+  );
+
+  const toolTalk = React.useCallback((request) => {
+    if (
+      !isPlainObject(request)
+      || !hasOnlyKeys(request, TOOL_TALK_KEYS)
+      || typeof request.active !== "boolean"
+    ) {
+      return false;
+    }
+    setTalking(request.active);
+    return true;
+  }, []);
+
+  const toolPulse = React.useCallback(
+    (request = {}) => {
+      if (!normalizeEmptyToolRequest(request)) return false;
+      pulse();
+      return true;
+    },
+    [pulse],
+  );
+
+  const toolSettle = React.useCallback(
+    (request = {}) => {
+      if (!normalizeEmptyToolRequest(request)) return false;
+      return performAction({
+        action: DEFAULT_ACTION,
+        duration: 1180,
+        intensity: 0,
+        talking: false,
+      });
+    },
+    [performAction],
+  );
+
+  const toolGetState = React.useCallback(
+    (request = {}) =>
+      normalizeEmptyToolRequest(request) ? getState() : null,
+    [getState],
   );
 
   const handleFieldStateChange = React.useCallback((nextState) => {
@@ -608,7 +913,7 @@ const OrbSection = ({
 
   React.useEffect(() => {
     const publicActions = METABLOOM_ACTIONS.map(
-      ({ id, label, intent, motion, colorway, colors, duration }) => ({
+      ({ id, label, intent, motion, colorway, colors, duration, intensity }) => ({
         id,
         label,
         intent,
@@ -616,15 +921,33 @@ const OrbSection = ({
         colorway,
         colors: [...colors],
         duration,
+        intensity,
       }),
     );
     const expressions = [...METABLOOM_ACTION_IDS];
     const forms = [...LEGACY_FORMS];
-    const responseSchema = JSON.parse(
-      JSON.stringify(METABLOOM_MODEL_RESPONSE_SCHEMA),
+    const responseSchema = cloneSchema(METABLOOM_MODEL_RESPONSE_SCHEMA);
+    const toolSchemas = Object.freeze(
+      Object.fromEntries(
+        Object.entries(METABLOOM_TOOL_SCHEMAS).map(([name, schema]) => [
+          name,
+          deepFreeze(cloneSchema(schema)),
+        ]),
+      ),
     );
+    const metabloomTools = Object.freeze({
+      version: "1.0.0",
+      express: toolExpress,
+      sequence: toolSequence,
+      talk: toolTalk,
+      pulse: toolPulse,
+      settle: toolSettle,
+      getState: toolGetState,
+    });
 
     window.__bhModeActive = false;
+    window.__metabloomTools = metabloomTools;
+    window.__metabloomToolSchemas = toolSchemas;
     window.__orbPop = pulse;
     window.__orbExpress = performAction;
     window.__orbTransform = transform;
@@ -648,6 +971,8 @@ const OrbSection = ({
       activeRequestRef.current = null;
       window.clearTimeout(previewTimerRef.current);
       previewTimerRef.current = 0;
+      clearOwnedGlobal("__metabloomTools", metabloomTools);
+      clearOwnedGlobal("__metabloomToolSchemas", toolSchemas);
       clearOwnedGlobal("__orbPop", pulse);
       clearOwnedGlobal("__orbExpress", performAction);
       clearOwnedGlobal("__orbTransform", transform);
@@ -679,6 +1004,12 @@ const OrbSection = ({
     startTalking,
     stop,
     stopTalking,
+    toolExpress,
+    toolGetState,
+    toolPulse,
+    toolSequence,
+    toolSettle,
+    toolTalk,
     transform,
   ]);
 
@@ -717,6 +1048,8 @@ const OrbSection = ({
         <MetabloomAvatar
           action={activeAction.id}
           actionVersion={actionVersion}
+          duration={actionDuration}
+          intensity={actionIntensity}
           isActive={isActive}
           isDark={isDark}
           onFieldStateChange={handleFieldStateChange}

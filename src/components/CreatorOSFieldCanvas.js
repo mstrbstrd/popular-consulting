@@ -14,6 +14,11 @@ import {
   CREATOROS_REACTION_FRAGMENT_SHADER,
   CREATOROS_REACTION_PAINT_FRAGMENT_SHADER,
 } from "./CreatorOSFieldShader";
+import {
+  createMetabloomMotionRuntime,
+  dampMetabloomValue,
+  dampMetabloomVector,
+} from "./metabloomMotionRuntime";
 
 const MODE_COUNT = 8;
 const REACTION_MODE = 4;
@@ -35,6 +40,10 @@ const PREFERRED_FRAME_INTERVAL_MS = 1000 / 30;
 const FRAME_INTERVAL_MS = getDitherCanvasFrameInterval(
   PREFERRED_FRAME_INTERVAL_MS,
 );
+const ACTIVE_FRAME_INTERVAL_MS =
+  ditherCanvasRuntimeProfile.id === "desktop"
+    ? 1000 / 60
+    : FRAME_INTERVAL_MS;
 const STATIC_TIME_SECONDS = 40;
 const INTRO_DURATION_SECONDS = 3.2;
 const PULSE_LIFETIME_SECONDS = 6.8;
@@ -56,7 +65,19 @@ const MORPHOGEN_GRADIENT_MODES = Object.freeze({
   linear: 1,
   radial: 2,
 });
-const METABLOOM_AVATAR_ACTION_COUNT = 10;
+const METABLOOM_AVATAR_ACTION_IDS = Object.freeze([
+  "reform",
+  "agree",
+  "disagree",
+  "happy",
+  "excited",
+  "sad",
+  "surprised",
+  "thinking",
+  "sleepy",
+  "angry",
+]);
+const METABLOOM_AVATAR_ACTION_COUNT = METABLOOM_AVATAR_ACTION_IDS.length;
 const METABLOOM_AVATAR_DEFAULT_COLOR_A = "#00eeff";
 const METABLOOM_AVATAR_DEFAULT_COLOR_B = "#ff00ff";
 const METABLOOM_AVATAR_DEFAULT_COLOR_C = "#9d00ff";
@@ -696,6 +717,13 @@ const CreatorOSFieldCanvas = ({
     let metabloomAvatarElapsed =
       metabloomAvatarDurationRef.current + 1;
     let metabloomAvatarPhase = 1;
+    const metabloomMotionRuntime = createMetabloomMotionRuntime();
+    let metabloomMotionFrame = metabloomMotionRuntime.snapshot();
+    let metabloomRenderedPaletteMix = metabloomPaletteRef.current;
+    let metabloomRenderedIntensity = metabloomAvatarIntensityRef.current;
+    let metabloomRenderedColorA = [...metabloomAvatarColorARef.current];
+    let metabloomRenderedColorB = [...metabloomAvatarColorBRef.current];
+    let metabloomRenderedColorC = [...metabloomAvatarColorCRef.current];
 
     const pointer = {
       x: 0.52,
@@ -911,6 +939,15 @@ const CreatorOSFieldCanvas = ({
       "u_avatarColorB",
       "u_avatarColorC",
       "u_avatarTalking",
+      "u_avatarOffset",
+      "u_avatarScale",
+      "u_avatarRotation",
+      "u_avatarCenterScale",
+      "u_avatarRadiusScale",
+      "u_avatarBurst",
+      "u_avatarOrbit",
+      "u_avatarTremble",
+      "u_avatarExpression",
       "u_reaction",
       "u_reactionTexel",
     ];
@@ -1157,6 +1194,13 @@ const CreatorOSFieldCanvas = ({
           ? "ready"
           : "forming"
         : "drifting";
+      metabloomMotionRuntime.reset();
+      metabloomMotionFrame = metabloomMotionRuntime.snapshot();
+      metabloomRenderedPaletteMix = metabloomPaletteRef.current;
+      metabloomRenderedIntensity = metabloomAvatarIntensityRef.current;
+      metabloomRenderedColorA = [...metabloomAvatarColorARef.current];
+      metabloomRenderedColorB = [...metabloomAvatarColorBRef.current];
+      metabloomRenderedColorC = [...metabloomAvatarColorCRef.current];
       onFieldStateChangeRef.current?.(activeState);
       forceRender = true;
     };
@@ -1214,6 +1258,53 @@ const CreatorOSFieldCanvas = ({
         if (modeMix >= 1) currentMode = incomingMode;
       }
 
+      const avatarEnabled =
+        metabloomAvatarEnabledRef.current
+        && currentMode === 0
+        && incomingMode === 0;
+      metabloomRenderedPaletteMix = dampMetabloomValue(
+        metabloomRenderedPaletteMix,
+        metabloomPaletteRef.current,
+        delta,
+        6.5,
+      );
+      metabloomRenderedIntensity = dampMetabloomValue(
+        metabloomRenderedIntensity,
+        metabloomAvatarIntensityRef.current,
+        delta,
+        8.0,
+      );
+      metabloomRenderedColorA = dampMetabloomVector(
+        metabloomRenderedColorA,
+        metabloomAvatarColorARef.current,
+        delta,
+        7.0,
+      );
+      metabloomRenderedColorB = dampMetabloomVector(
+        metabloomRenderedColorB,
+        metabloomAvatarColorBRef.current,
+        delta,
+        7.0,
+      );
+      metabloomRenderedColorC = dampMetabloomVector(
+        metabloomRenderedColorC,
+        metabloomAvatarColorCRef.current,
+        delta,
+        7.0,
+      );
+      metabloomMotionFrame = metabloomMotionRuntime.step({
+        action:
+          METABLOOM_AVATAR_ACTION_IDS[metabloomAvatarActionRef.current]
+          || "reform",
+        deltaSeconds: delta,
+        enabled: avatarEnabled,
+        intensity: metabloomRenderedIntensity,
+        phase: metabloomAvatarPhase,
+        seed,
+        talking: metabloomAvatarTalkingRef.current,
+        timeSeconds: localTime,
+      });
+
       pulseAge = Math.min(PULSE_LIFETIME_SECONDS + 1, pulseAge + delta);
       const idleSeconds = Math.max(0, (now - pointer.lastActivityAt) / 1000);
       energy *= Math.pow(idleSeconds > 0.8 ? 0.90 : 0.965, delta * 60);
@@ -1233,8 +1324,13 @@ const CreatorOSFieldCanvas = ({
       ) {
         nextState = "forming";
       } else if (
-        metabloomAvatarEnabledRef.current
-        && metabloomAvatarPhase < 1
+        avatarEnabled
+        && (
+          metabloomAvatarPhase < 1
+          || metabloomMotionFrame.pose.expression > 0.012
+          || metabloomMotionFrame.pose.voice > 0.012
+          || metabloomMotionFrame.motionEnergy > 0.018
+        )
       ) {
         nextState = "expressing";
       } else if (pulseAge < 1.4 || energy >= 0.62) nextState = "resonance";
@@ -1407,7 +1503,7 @@ const CreatorOSFieldCanvas = ({
       gl.uniform1f(activeDisplayUniforms.u_modeMix, modeMix);
       gl.uniform1f(
         activeDisplayUniforms.u_metabloomPaletteMix,
-        metabloomPaletteRef.current,
+        metabloomRenderedPaletteMix,
       );
       gl.uniform1f(
         activeDisplayUniforms.u_contourPaletteMix,
@@ -1418,16 +1514,17 @@ const CreatorOSFieldCanvas = ({
         tidalPaletteRef.current,
       );
 
-      const avatarColorA = metabloomAvatarColorARef.current;
-      const avatarColorB = metabloomAvatarColorBRef.current;
-      const avatarColorC = metabloomAvatarColorCRef.current;
+      const avatarColorA = metabloomRenderedColorA;
+      const avatarColorB = metabloomRenderedColorB;
+      const avatarColorC = metabloomRenderedColorC;
+      const avatarPose = metabloomMotionFrame.pose;
+      const avatarEnabled =
+        metabloomAvatarEnabledRef.current
+        && currentMode === 0
+        && incomingMode === 0;
       gl.uniform1f(
         activeDisplayUniforms.u_avatarEnabled,
-        metabloomAvatarEnabledRef.current
-          && currentMode === 0
-          && incomingMode === 0
-          ? 1
-          : 0,
+        avatarEnabled ? 1 : 0,
       );
       gl.uniform1i(
         activeDisplayUniforms.u_avatarAction,
@@ -1439,7 +1536,7 @@ const CreatorOSFieldCanvas = ({
       );
       gl.uniform1f(
         activeDisplayUniforms.u_avatarIntensity,
-        metabloomAvatarIntensityRef.current,
+        metabloomRenderedIntensity,
       );
       gl.uniform3f(
         activeDisplayUniforms.u_avatarColorA,
@@ -1461,7 +1558,45 @@ const CreatorOSFieldCanvas = ({
       );
       gl.uniform1f(
         activeDisplayUniforms.u_avatarTalking,
-        metabloomAvatarTalkingRef.current ? 1 : 0,
+        avatarPose.voice,
+      );
+      gl.uniform2f(
+        activeDisplayUniforms.u_avatarOffset,
+        avatarPose.offsetX,
+        avatarPose.offsetY,
+      );
+      gl.uniform2f(
+        activeDisplayUniforms.u_avatarScale,
+        avatarPose.scaleX,
+        avatarPose.scaleY,
+      );
+      gl.uniform1f(
+        activeDisplayUniforms.u_avatarRotation,
+        avatarPose.rotation,
+      );
+      gl.uniform1f(
+        activeDisplayUniforms.u_avatarCenterScale,
+        avatarPose.centerScale,
+      );
+      gl.uniform1f(
+        activeDisplayUniforms.u_avatarRadiusScale,
+        avatarPose.radiusScale,
+      );
+      gl.uniform1f(
+        activeDisplayUniforms.u_avatarBurst,
+        avatarPose.burst,
+      );
+      gl.uniform1f(
+        activeDisplayUniforms.u_avatarOrbit,
+        avatarPose.orbit,
+      );
+      gl.uniform1f(
+        activeDisplayUniforms.u_avatarTremble,
+        avatarPose.tremble,
+      );
+      gl.uniform1f(
+        activeDisplayUniforms.u_avatarExpression,
+        avatarPose.expression,
       );
 
       if (usePaintDisplayProgram) {
@@ -1535,6 +1670,25 @@ const CreatorOSFieldCanvas = ({
       modeMix = 1;
       localTime = STATIC_TIME_SECONDS;
       introElapsed = INTRO_DURATION_SECONDS;
+      metabloomRenderedPaletteMix = metabloomPaletteRef.current;
+      metabloomRenderedIntensity = metabloomAvatarIntensityRef.current;
+      metabloomRenderedColorA = [...metabloomAvatarColorARef.current];
+      metabloomRenderedColorB = [...metabloomAvatarColorBRef.current];
+      metabloomRenderedColorC = [...metabloomAvatarColorCRef.current];
+      metabloomMotionFrame = metabloomMotionRuntime.snap({
+        action:
+          METABLOOM_AVATAR_ACTION_IDS[metabloomAvatarActionRef.current]
+          || "reform",
+        enabled:
+          metabloomAvatarEnabledRef.current
+          && currentMode === 0
+          && incomingMode === 0,
+        intensity: metabloomRenderedIntensity,
+        phase: metabloomAvatarPhase,
+        seed,
+        talking: false,
+        timeSeconds: localTime,
+      });
 
       if (
         currentMode === REACTION_MODE
@@ -1606,8 +1760,28 @@ const CreatorOSFieldCanvas = ({
       return !pausedRef.current || brush.down || brush.pending;
     };
 
+    const resolveFrameIntervalMs = () => {
+      const avatarPose = metabloomMotionFrame.pose;
+      const activeExpression =
+        metabloomAvatarEnabledRef.current
+        && (
+          metabloomAvatarPhase < 1
+          || avatarPose.expression > 0.012
+          || avatarPose.voice > 0.012
+          || metabloomMotionFrame.motionEnergy > 0.024
+        );
+      const activeInteraction =
+        pulseAge < 1.4
+        || energy >= 0.18
+        || brush.down
+        || brush.pending;
+      return activeExpression || activeInteraction
+        ? ACTIVE_FRAME_INTERVAL_MS
+        : FRAME_INTERVAL_MS;
+    };
+
     frameCadence = createDitherCanvasCadence({
-      frameIntervalMs: FRAME_INTERVAL_MS,
+      frameIntervalMs: resolveFrameIntervalMs,
       onFrame: renderFrame,
     });
 
@@ -1732,6 +1906,10 @@ const CreatorOSFieldCanvas = ({
         metabloomAvatarAction,
       )}
       data-frame-cadence="timer-raf"
+      data-active-frame-rate={
+        ditherCanvasRuntimeProfile.id === "desktop" ? "60" : "profile"
+      }
+      data-metabloom-motion-runtime="pose-velocity-inertial"
       data-reaction-runtime={
         clampMode(mode) === REACTION_MODE ? "active" : "inactive"
       }

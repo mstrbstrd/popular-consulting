@@ -81,6 +81,48 @@ describe("MetabloomAvatar", () => {
     });
   });
 
+  test("forwards per-command timing and intensity without replacing the renderer", () => {
+    const { rerender } = render(
+      <MetabloomAvatar
+        action="happy"
+        actionVersion={4}
+        duration={1480}
+        intensity={0.73}
+      />,
+    );
+
+    const firstField = screen.getByTestId("creatoros-metabloom-field");
+    expect(mockFieldProps).toMatchObject({
+      metabloomAvatarDuration: 1480,
+      metabloomAvatarIntensity: 0.73,
+      metabloomAvatarVersion: 4,
+    });
+    expect(screen.getByTestId("metabloom-avatar")).toHaveAttribute(
+      "data-avatar-duration",
+      "1480",
+    );
+    expect(screen.getByTestId("metabloom-avatar")).toHaveAttribute(
+      "data-avatar-intensity",
+      "0.73",
+    );
+
+    rerender(
+      <MetabloomAvatar
+        action="sad"
+        actionVersion={5}
+        duration={1320}
+        intensity={0.38}
+      />,
+    );
+
+    expect(screen.getByTestId("creatoros-metabloom-field")).toBe(firstField);
+    expect(mockFieldProps).toMatchObject({
+      metabloomAvatarDuration: 1320,
+      metabloomAvatarIntensity: 0.38,
+      metabloomAvatarVersion: 5,
+    });
+  });
+
   test("changes intrinsic action uniforms without mounting another renderer", () => {
     const { rerender } = render(
       <MetabloomAvatar action="agree" actionVersion={1} />,
