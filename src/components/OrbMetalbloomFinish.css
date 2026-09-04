@@ -1,0 +1,407 @@
+/*
+ * Orb material finish control and direct SVG gradient paint.
+ *
+ * The submit arrow uses the inline SVG path as its paint target. No mask,
+ * replacement glyph, or pseudo-element is used. The finish selector changes
+ * only the existing Metabloom renderer's material uniform.
+ */
+
+.orb-page {
+  --orb-finish-gutter: clamp(2rem, 4.5vw, 7.2rem);
+  --orb-send-cyan: #007e8c;
+  --orb-send-magenta: #ba00ba;
+  --orb-send-gold: #8a5a00;
+  --orb-send-violet: #6f00b5;
+}
+
+[data-theme="dark"] .orb-page {
+  --orb-send-cyan: #00eeff;
+  --orb-send-magenta: #ff00ff;
+  --orb-send-gold: #ffee00;
+  --orb-send-violet: #9d00ff;
+}
+
+.orb-page__svg-definitions {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.orb-page__send-stop--cyan {
+  stop-color: var(--orb-send-cyan);
+}
+
+.orb-page__send-stop--magenta {
+  stop-color: var(--orb-send-magenta);
+}
+
+.orb-page__send-stop--gold {
+  stop-color: var(--orb-send-gold);
+}
+
+.orb-page__send-stop--violet {
+  stop-color: var(--orb-send-violet);
+}
+
+/* The real inline SVG path owns the gradient. Retire the previous mask layer. */
+.orb-page .metabloom-chat__composer button::after {
+  display: none;
+  content: none;
+}
+
+.orb-page .metabloom-chat__composer button svg {
+  display: block;
+  width: 1.9rem;
+  height: 1.9rem;
+  overflow: visible;
+  opacity: 1;
+  filter: drop-shadow(
+    0 0 5px var(--spectral-icon-glow, var(--aetheris-spectral-glow))
+  );
+  transform: translateZ(0);
+  transform-origin: center;
+  transition:
+    filter var(--aetheris-motion-fast) var(--aetheris-ease-standard),
+    opacity var(--aetheris-motion-fast) var(--aetheris-ease-standard),
+    transform var(--aetheris-motion-medium) var(--aetheris-ease-spring);
+}
+
+.orb-page .metabloom-chat__composer button svg path {
+  stroke: url("#orb-send-gradient");
+}
+
+.orb-page .metabloom-chat__composer button:disabled svg {
+  opacity: 0.72;
+  filter: drop-shadow(
+    0 0 3px var(--spectral-icon-glow, var(--aetheris-spectral-glow))
+  );
+}
+
+@media (hover: hover) {
+  .orb-page .metabloom-chat__composer button:hover:not(:disabled) svg {
+    filter: drop-shadow(
+      0 0 9px var(--spectral-icon-glow, var(--aetheris-spectral-glow))
+    );
+    transform: translateY(-1px) scale(1.08);
+  }
+}
+
+.orb-page .metabloom-chat__composer button:active:not(:disabled) svg {
+  transform: translateY(1px) scale(0.96);
+}
+
+.orb-page__finish-selector {
+  position: fixed;
+  top: calc(50% - 7rem);
+  left: 50%;
+  z-index: 30;
+  display: grid;
+  min-width: 0;
+  grid-template-columns: auto repeat(2, minmax(0, auto));
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 3.8rem;
+  padding: 0.3rem;
+  border: 1px solid transparent;
+  border-radius: var(--aetheris-radius-pill);
+  color: var(--aetheris-ink-2);
+  background:
+    linear-gradient(
+      color-mix(
+        in srgb,
+        var(--aetheris-glass-panel) 88%,
+        transparent
+      ),
+      color-mix(
+        in srgb,
+        var(--aetheris-glass-panel) 88%,
+        transparent
+      )
+    ) padding-box,
+    var(--aetheris-spectral-border-soft) border-box;
+  backdrop-filter: blur(18px) saturate(1.16);
+  -webkit-backdrop-filter: blur(18px) saturate(1.16);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.48),
+    0 0.8rem 2.8rem color-mix(
+      in srgb,
+      rgba(31, 29, 59, 0.14) 72%,
+      transparent
+    );
+  transform: translate(-50%, -50%);
+  transition:
+    left var(--aetheris-motion-slow) var(--aetheris-ease-spring),
+    top var(--aetheris-motion-slow) var(--aetheris-ease-spring),
+    transform var(--aetheris-motion-slow) var(--aetheris-ease-spring);
+  pointer-events: auto;
+}
+
+[data-theme="dark"] .orb-page__finish-selector {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 1rem 3rem rgba(0, 0, 0, 0.34);
+}
+
+.orb-page[data-conversation-started="true"] .orb-page__finish-selector {
+  top: max(9.6rem, calc(env(safe-area-inset-top) + 8.5rem));
+  left: calc(100% - var(--orb-finish-gutter));
+  transform: translate(-100%, 0);
+}
+
+.orb-page[data-conversation-started="true"]
+  .metabloom-chat__messages {
+  padding-top: max(15rem, calc(env(safe-area-inset-top) + 13.8rem));
+}
+
+.orb-page__finish-label {
+  padding: 0 0.55rem 0 0.65rem;
+  color: var(--aetheris-muted);
+  font-family: var(--aetheris-font-mono);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.13em;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.orb-page .orb-page__finish-option {
+  display: flex;
+  min-width: 0;
+  min-height: 3.2rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0.55rem 0.78rem;
+  border: 1px solid transparent;
+  border-radius: var(--aetheris-radius-pill);
+  appearance: none;
+  -webkit-appearance: none;
+  color: var(--aetheris-ink-2);
+  background: transparent;
+  box-shadow: none;
+  font-family: var(--aetheris-font-mono);
+  font-size: 0.76rem;
+  font-weight: 600;
+  letter-spacing: 0.035em;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background var(--aetheris-motion-fast) var(--aetheris-ease-standard),
+    border-color var(--aetheris-motion-fast) var(--aetheris-ease-standard),
+    box-shadow var(--aetheris-motion-fast) var(--aetheris-ease-standard),
+    color var(--aetheris-motion-fast) var(--aetheris-ease-standard),
+    transform var(--aetheris-motion-medium) var(--aetheris-ease-spring);
+}
+
+.orb-page .orb-page__finish-option:hover {
+  color: var(--aetheris-ink);
+  background: var(--aetheris-state-layer);
+  transform: translateY(-1px);
+}
+
+.orb-page .orb-page__finish-option:active {
+  transform: translateY(1px) scale(0.98);
+}
+
+.orb-page .orb-page__finish-option:focus-visible {
+  outline: none;
+  box-shadow: var(--aetheris-focus-halo);
+}
+
+.orb-page .orb-page__finish-option.is-active {
+  border-color: transparent;
+  color: var(--aetheris-ink);
+  background:
+    linear-gradient(
+      color-mix(
+        in srgb,
+        var(--aetheris-glass-panel-raised) 94%,
+        transparent
+      ),
+      color-mix(
+        in srgb,
+        var(--aetheris-glass-panel-raised) 94%,
+        transparent
+      )
+    ) padding-box,
+    var(--aetheris-spectral-border-soft) border-box;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.56),
+    0 0 1.4rem var(--aetheris-spectral-glow);
+}
+
+.orb-page .orb-page__finish-option.is-active[data-palette="metalbloom"] {
+  color: color-mix(in srgb, var(--aetheris-ink) 90%, #11151c);
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, #f8fafc 88%, var(--aetheris-panel)) 0%,
+      color-mix(in srgb, #8c96a3 42%, var(--aetheris-panel)) 45%,
+      color-mix(in srgb, #eef2f5 90%, var(--aetheris-panel)) 100%
+    ) padding-box,
+    var(--aetheris-spectral-border-soft) border-box;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.58);
+}
+
+[data-theme="dark"]
+  .orb-page
+  .orb-page__finish-option.is-active[data-palette="metalbloom"] {
+  color: #12151a;
+}
+
+.orb-page__finish-swatch {
+  width: 0.88rem;
+  height: 0.88rem;
+  flex: 0 0 0.88rem;
+  border: 1px solid color-mix(
+    in srgb,
+    var(--aetheris-ink) 16%,
+    transparent
+  );
+  border-radius: 50%;
+  background: var(--aetheris-spectral);
+  box-shadow: 0 0 0.8rem var(--aetheris-spectral-glow);
+}
+
+.orb-page__finish-option[data-palette="metalbloom"]
+  .orb-page__finish-swatch {
+  border-color: rgba(226, 233, 239, 0.82);
+  background: linear-gradient(
+    135deg,
+    #2f353e 0%,
+    #f2f5f7 40%,
+    #7f8996 67%,
+    #ffffff 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.82),
+    0 0 0.8rem rgba(0, 126, 140, 0.14);
+}
+
+@media (max-width: 720px) {
+  .orb-page__finish-selector {
+    top: calc(50% - 5.8rem);
+    width: max-content;
+    max-width: calc(100vw - 2.4rem);
+  }
+
+  .orb-page[data-conversation-started="true"] .orb-page__finish-selector {
+    top: max(12.4rem, calc(env(safe-area-inset-top) + 11.4rem));
+    left: 50%;
+    transform: translate(-50%, 0);
+  }
+
+  .orb-page[data-conversation-started="true"]
+    .metabloom-chat__messages {
+    padding-top: max(17rem, calc(env(safe-area-inset-top) + 16rem));
+  }
+
+  .orb-page__finish-label {
+    padding-right: 0.4rem;
+    padding-left: 0.5rem;
+    font-size: 0.68rem;
+  }
+
+  .orb-page .orb-page__finish-option {
+    min-height: 3.15rem;
+    padding: 0.52rem 0.68rem;
+    font-size: 0.72rem;
+  }
+
+  .orb-page .metabloom-chat__composer button svg {
+    width: 1.8rem;
+    height: 1.8rem;
+  }
+}
+
+@media (max-width: 380px) {
+  .orb-page__finish-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+}
+
+@media (max-height: 650px) {
+  .orb-page__finish-selector {
+    top: calc(52% - 5.4rem);
+  }
+
+  .orb-page[data-conversation-started="true"] .orb-page__finish-selector {
+    top: max(8.8rem, calc(env(safe-area-inset-top) + 7.8rem));
+  }
+
+  .orb-page[data-conversation-started="true"]
+    .metabloom-chat__messages {
+    padding-top: max(13.4rem, calc(env(safe-area-inset-top) + 12.4rem));
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .orb-page__finish-selector {
+    background:
+      linear-gradient(
+        var(--aetheris-panel-raised),
+        var(--aetheris-panel-raised)
+      ) padding-box,
+      var(--aetheris-spectral-border-soft) border-box;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .orb-page__finish-selector,
+  .orb-page .orb-page__finish-option,
+  .orb-page .metabloom-chat__composer button svg {
+    transition: none;
+  }
+
+  .orb-page .orb-page__finish-option:hover,
+  .orb-page .orb-page__finish-option:active,
+  .orb-page .metabloom-chat__composer button:hover:not(:disabled) svg,
+  .orb-page .metabloom-chat__composer button:active:not(:disabled) svg {
+    transform: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .orb-page__finish-selector,
+  .orb-page .orb-page__finish-option,
+  .orb-page .orb-page__finish-option.is-active {
+    border: 1px solid CanvasText;
+    color: CanvasText;
+    background: Canvas;
+    box-shadow: none;
+    text-shadow: none;
+  }
+
+  .orb-page .orb-page__finish-option[aria-pressed="true"] {
+    color: HighlightText;
+    background: Highlight;
+  }
+
+  .orb-page__finish-swatch {
+    border-color: CanvasText;
+    background: CanvasText;
+    box-shadow: none;
+  }
+
+  .orb-page .metabloom-chat__composer button svg {
+    filter: none;
+  }
+
+  .orb-page .metabloom-chat__composer button svg path {
+    stroke: ButtonText;
+  }
+}
