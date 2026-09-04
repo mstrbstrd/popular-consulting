@@ -247,6 +247,14 @@
   color: #12151a;
 }
 
+/* Focus is rendered after selection styles so active options remain visible. */
+.orb-page .orb-page__finish-option:focus-visible,
+.orb-page .orb-page__finish-option.is-active:focus-visible {
+  outline: 2px solid var(--aetheris-focus-line);
+  outline-offset: 2px;
+  box-shadow: var(--aetheris-focus-halo);
+}
+
 .orb-page__finish-swatch {
   width: 0.88rem;
   height: 0.88rem;
@@ -383,6 +391,13 @@
   .orb-page .orb-page__finish-option[aria-pressed="true"] {
     color: HighlightText;
     background: Highlight;
+  }
+
+  .orb-page .orb-page__finish-option:focus-visible,
+  .orb-page .orb-page__finish-option.is-active:focus-visible {
+    outline: 2px solid Highlight !important;
+    outline-offset: 2px;
+    box-shadow: none !important;
   }
 
   .orb-page__finish-swatch {
