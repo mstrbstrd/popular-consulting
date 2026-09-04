@@ -61,4 +61,11 @@ describe("Orb composite composer focus", () => {
     expect(css).toContain("outline: 2px solid Highlight;");
     expect(css).toContain("outline-offset: 2px;");
   });
+
+  test("overrides the site-wide important outline in forced-colors mode", () => {
+    expect(siteCss).toContain("outline: 3px solid CanvasText !important;");
+    expect(css).toContain("outline: none !important;");
+    expect(css).toContain("outline-offset: 0 !important;");
+    expect(css).toContain("box-shadow: none !important;");
+  });
 });
