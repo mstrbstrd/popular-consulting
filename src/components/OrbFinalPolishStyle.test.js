@@ -14,15 +14,20 @@ const ruleFor = (css, selector) => {
 
 describe("Orb final presentation guardrails", () => {
   const css = readSource("OrbPageFinalPolish.css");
+  const finishCss = readSource("OrbMetalbloomFinish.css");
   const pageSource = readSource("OrbPage.js");
-  const sendIconSource = readSource("../assets/icons/send-up.svg");
+  const avatarSource = readSource("MetabloomAvatar.js");
 
-  test("loads after the route experience layer", () => {
+  test("loads the finish layer after every other Orb presentation layer", () => {
     const experienceIndex = pageSource.indexOf('import "./OrbPageExperience.css";');
     const polishIndex = pageSource.indexOf('import "./OrbPageFinalPolish.css";');
+    const focusIndex = pageSource.indexOf('import "./OrbComposerFocus.css";');
+    const finishIndex = pageSource.indexOf('import "./OrbMetalbloomFinish.css";');
 
     expect(experienceIndex).toBeGreaterThan(-1);
     expect(polishIndex).toBeGreaterThan(experienceIndex);
+    expect(focusIndex).toBeGreaterThan(polishIndex);
+    expect(finishIndex).toBeGreaterThan(focusIndex);
   });
 
   test("neutralizes inherited global button geometry", () => {
@@ -78,22 +83,40 @@ describe("Orb final presentation guardrails", () => {
     expect(focusRule).toContain("var(--aetheris-spectral) border-box");
   });
 
-  test("renders the send arrow with the shared spectral icon colorway", () => {
+  test("paints the real inline SVG path instead of a masked replacement", () => {
     const svgRule = ruleFor(
-      css,
+      finishCss,
       ".orb-page .metabloom-chat__composer button svg",
     );
-    const iconRule = ruleFor(
-      css,
+    const pathRule = ruleFor(
+      finishCss,
+      ".orb-page .metabloom-chat__composer button svg path",
+    );
+    const retiredMaskRule = ruleFor(
+      finishCss,
       ".orb-page .metabloom-chat__composer button::after",
     );
 
-    expect(svgRule).toContain("opacity: 0;");
-    expect(iconRule).toContain("var(--spectral-icon-colorway");
-    expect(iconRule).toContain('url("../assets/icons/send-up.svg")');
-    expect(iconRule).toContain("drop-shadow");
-    expect(sendIconSource).toContain('viewBox="0 0 24 24"');
-    expect(sendIconSource).toContain('stroke="#000"');
+    expect(svgRule).toContain("opacity: 1;");
+    expect(pathRule).toContain('stroke: url("#orb-send-gradient");');
+    expect(retiredMaskRule).toContain("display: none;");
+    expect(retiredMaskRule).toContain("content: none;");
+    expect(pageSource).toContain('id="orb-send-gradient"');
+    expect(pageSource.match(/orb-page__send-stop--/g)).toHaveLength(4);
+    expect(css).not.toContain("send-up.svg");
+    expect(css).not.toContain("-webkit-mask:");
+    expect(finishCss).not.toContain("send-up.svg");
+  });
+
+  test("threads the selected Dither-page material into the existing renderer", () => {
+    expect(pageSource).toContain('aria-label="Metabloom material finish"');
+    expect(pageSource).toContain('aria-label="Use spectral fluid for Metabloom"');
+    expect(pageSource).toContain('aria-label="Use liquid metal for Metabloom"');
+    expect(pageSource).toContain("MetabloomPaletteContext.Provider");
+    expect(pageSource).toContain("data-metabloom-palette={metabloomPalette}");
+    expect(avatarSource).toContain("const metabloomPalette = useMetabloomPalette()");
+    expect(avatarSource).toContain("metabloomPalette={metabloomPalette}");
+    expect(avatarSource).toContain("data-avatar-finish={metabloomPalette}");
   });
 
   test("keeps status chrome out of the landing composition", () => {
@@ -112,7 +135,7 @@ describe("Orb final presentation guardrails", () => {
     expect(activeRule).toContain("opacity: 1;");
   });
 
-  test("bounds narrow-screen composer and prompt geometry", () => {
+  test("bounds narrow-screen composer, prompts, and finish controls", () => {
     expect(css).toContain("width: calc(100% - 2.4rem);");
     expect(css).toContain("grid-template-columns: minmax(0, 1fr) 4.4rem;");
     expect(css).toContain(
@@ -120,13 +143,15 @@ describe("Orb final presentation guardrails", () => {
     );
     expect(css).toContain("grid-column: 1 / -1;");
     expect(css).toContain("@media (max-width: 360px)");
+    expect(finishCss).toContain("max-width: calc(100vw - 2.4rem);");
+    expect(finishCss).toContain("min-height: 4.4rem;");
   });
 
   test("preserves reduced-motion and forced-color behavior", () => {
     expect(css).toContain("@media (prefers-reduced-motion: reduce)");
     expect(css).toContain("transition: none;");
-    expect(css).toContain("@media (forced-colors: active)");
-    expect(css).toContain("button svg");
-    expect(css).toContain("opacity: 1;");
+    expect(finishCss).toContain("@media (prefers-reduced-motion: reduce)");
+    expect(finishCss).toContain("@media (forced-colors: active)");
+    expect(finishCss).toContain("stroke: ButtonText;");
   });
 });
