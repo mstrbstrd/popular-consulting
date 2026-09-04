@@ -94,15 +94,16 @@
 
 .orb-page__finish-selector {
   position: fixed;
-  top: calc(50% - 7rem);
-  left: 50%;
+  top: max(9.6rem, calc(env(safe-area-inset-top) + 8.5rem));
+  left: calc(100% - var(--orb-finish-gutter));
   z-index: 30;
   display: grid;
   min-width: 0;
+  max-width: calc(100vw - 4rem);
   grid-template-columns: auto repeat(2, minmax(0, auto));
   align-items: center;
   gap: 0.3rem;
-  min-height: 3.8rem;
+  min-height: 5rem;
   padding: 0.3rem;
   border: 1px solid transparent;
   border-radius: var(--aetheris-radius-pill);
@@ -130,11 +131,7 @@
       rgba(31, 29, 59, 0.14) 72%,
       transparent
     );
-  transform: translate(-50%, -50%);
-  transition:
-    left var(--aetheris-motion-slow) var(--aetheris-ease-spring),
-    top var(--aetheris-motion-slow) var(--aetheris-ease-spring),
-    transform var(--aetheris-motion-slow) var(--aetheris-ease-spring);
+  transform: translateX(-100%);
   pointer-events: auto;
 }
 
@@ -144,15 +141,9 @@
     0 1rem 3rem rgba(0, 0, 0, 0.34);
 }
 
-.orb-page[data-conversation-started="true"] .orb-page__finish-selector {
-  top: max(9.6rem, calc(env(safe-area-inset-top) + 8.5rem));
-  left: calc(100% - var(--orb-finish-gutter));
-  transform: translate(-100%, 0);
-}
-
 .orb-page[data-conversation-started="true"]
   .metabloom-chat__messages {
-  padding-top: max(15rem, calc(env(safe-area-inset-top) + 13.8rem));
+  padding-top: max(15.5rem, calc(env(safe-area-inset-top) + 14.3rem));
 }
 
 .orb-page__finish-label {
@@ -170,12 +161,12 @@
 .orb-page .orb-page__finish-option {
   display: flex;
   min-width: 0;
-  min-height: 3.2rem;
+  min-height: 4.4rem;
   align-items: center;
   justify-content: center;
   gap: 0.45rem;
   margin: 0;
-  padding: 0.55rem 0.78rem;
+  padding: 0.7rem 0.9rem;
   border: 1px solid transparent;
   border-radius: var(--aetheris-radius-pill);
   appearance: none;
@@ -285,20 +276,22 @@
 
 @media (max-width: 720px) {
   .orb-page__finish-selector {
-    top: calc(50% - 5.8rem);
+    top: max(8.6rem, calc(env(safe-area-inset-top) + 7.6rem));
+    left: 50%;
     width: max-content;
     max-width: calc(100vw - 2.4rem);
+    transform: translateX(-50%);
+    transition:
+      top var(--aetheris-motion-slow) var(--aetheris-ease-spring);
   }
 
   .orb-page[data-conversation-started="true"] .orb-page__finish-selector {
-    top: max(12.4rem, calc(env(safe-area-inset-top) + 11.4rem));
-    left: 50%;
-    transform: translate(-50%, 0);
+    top: max(13rem, calc(env(safe-area-inset-top) + 12rem));
   }
 
   .orb-page[data-conversation-started="true"]
     .metabloom-chat__messages {
-    padding-top: max(17rem, calc(env(safe-area-inset-top) + 16rem));
+    padding-top: max(19rem, calc(env(safe-area-inset-top) + 18rem));
   }
 
   .orb-page__finish-label {
@@ -308,8 +301,8 @@
   }
 
   .orb-page .orb-page__finish-option {
-    min-height: 3.15rem;
-    padding: 0.52rem 0.68rem;
+    min-height: 4.4rem;
+    padding: 0.68rem 0.78rem;
     font-size: 0.72rem;
   }
 
@@ -333,17 +326,14 @@
 }
 
 @media (max-height: 650px) {
-  .orb-page__finish-selector {
-    top: calc(52% - 5.4rem);
-  }
-
+  .orb-page__finish-selector,
   .orb-page[data-conversation-started="true"] .orb-page__finish-selector {
     top: max(8.8rem, calc(env(safe-area-inset-top) + 7.8rem));
   }
 
   .orb-page[data-conversation-started="true"]
     .metabloom-chat__messages {
-    padding-top: max(13.4rem, calc(env(safe-area-inset-top) + 12.4rem));
+    padding-top: max(14.8rem, calc(env(safe-area-inset-top) + 13.8rem));
   }
 }
 
