@@ -1,0 +1,38 @@
+/*
+ * The Orb composer is one composite control. The outer form owns all visible
+ * focus treatment, while the textarea owns only text entry and the caret.
+ * This prevents the shared element-level focus halo from drawing a second,
+ * rectangular ring inside the rounded spectral composer.
+ */
+
+.orb-page .metabloom-chat__composer textarea {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  outline: none;
+  background: transparent;
+  box-shadow: none;
+  appearance: none;
+  -webkit-appearance: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.orb-page .metabloom-chat__composer textarea:focus,
+.orb-page .metabloom-chat__composer textarea:focus-visible {
+  border: 0;
+  outline: none;
+  box-shadow: none;
+}
+
+@media (forced-colors: active) {
+  .orb-page .metabloom-chat__composer:focus-within {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
+
+  .orb-page .metabloom-chat__composer textarea:focus,
+  .orb-page .metabloom-chat__composer textarea:focus-visible {
+    outline: none;
+    box-shadow: none;
+  }
+}
