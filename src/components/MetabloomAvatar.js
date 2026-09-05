@@ -21,9 +21,28 @@ const ACTION_CODES = Object.freeze({
   angry: 9,
 });
 
+const clamp = (value, minimum, maximum) =>
+  Math.max(minimum, Math.min(maximum, value));
+
+const normalizeDuration = (value, fallback) => {
+  const duration = Number(value);
+  return Number.isFinite(duration)
+    ? clamp(duration, 160, 8000)
+    : fallback;
+};
+
+const normalizeIntensity = (value, fallback) => {
+  const intensity = Number(value);
+  return Number.isFinite(intensity)
+    ? clamp(intensity, 0, 1)
+    : fallback;
+};
+
 const MetabloomAvatar = ({
   action = "reform",
   actionVersion = 0,
+  duration,
+  intensity,
   isActive = true,
   isDark = false,
   onFieldStateChange,
@@ -38,6 +57,11 @@ const MetabloomAvatar = ({
     resolveMetabloomAction(action) || getDefaultMetabloomAction();
   const active = isActive && !paused;
   const actionCode = ACTION_CODES[normalizedAction.id] ?? ACTION_CODES.reform;
+  const actionDuration = normalizeDuration(duration, normalizedAction.duration);
+  const actionIntensity = normalizeIntensity(
+    intensity,
+    normalizedAction.intensity,
+  );
   const materialLabel =
     metabloomPalette === "metalbloom" ? "liquid metal" : "spectral fluid";
 
@@ -59,9 +83,11 @@ const MetabloomAvatar = ({
       data-avatar-action-version={actionVersion}
       data-avatar-active={active ? "true" : "false"}
       data-avatar-colorway={normalizedAction.colorway}
+      data-avatar-duration={actionDuration}
       data-avatar-engine="intrinsic-shader"
       data-avatar-faceless="true"
       data-avatar-finish={metabloomPalette}
+      data-avatar-intensity={actionIntensity}
       data-avatar-material="creatoros-metabloom"
       data-avatar-talking={talking ? "true" : "false"}
       data-testid="metabloom-avatar"
@@ -83,9 +109,9 @@ const MetabloomAvatar = ({
         metabloomAvatarColorA={normalizedAction.colors[0]}
         metabloomAvatarColorB={normalizedAction.colors[1]}
         metabloomAvatarColorC={normalizedAction.colors[2]}
-        metabloomAvatarDuration={normalizedAction.duration}
+        metabloomAvatarDuration={actionDuration}
         metabloomAvatarEnabled
-        metabloomAvatarIntensity={normalizedAction.intensity}
+        metabloomAvatarIntensity={actionIntensity}
         metabloomAvatarTalking={talking}
         metabloomAvatarVersion={actionVersion}
         metabloomPalette={metabloomPalette}

@@ -56,6 +56,15 @@ describe("intrinsic Metabloom chat runtime invariants", () => {
       "uniform vec3 u_avatarColorB",
       "uniform vec3 u_avatarColorC",
       "uniform float u_avatarTalking",
+      "uniform vec2 u_avatarOffset",
+      "uniform vec2 u_avatarScale",
+      "uniform float u_avatarRotation",
+      "uniform float u_avatarCenterScale",
+      "uniform float u_avatarRadiusScale",
+      "uniform float u_avatarBurst",
+      "uniform float u_avatarOrbit",
+      "uniform float u_avatarTremble",
+      "uniform float u_avatarExpression",
       "center *= avatarCenterScale",
       "center += radialDirection",
       "radius *= avatarRadiusScale",
@@ -67,26 +76,33 @@ describe("intrinsic Metabloom chat runtime invariants", () => {
     expect(fieldShader).toContain("vec4 sceneMetabloom(vec2 uv, float time)");
   });
 
-  test("chameleon colour is resolved inside Metabloom and returns to native spectrum", () => {
+  test("chameleon colour follows the continuous pose expression", () => {
     expect(fieldShader).toContain("vec3 avatarTint");
-    expect(fieldShader).toContain("float avatarColorMix = avatarEnvelope");
+    expect(fieldShader).toContain("float avatarColorMix = avatarExpression");
     expect(fieldShader).toContain(
       "tint = mix(tint, avatarTint, sat(avatarColorMix))",
     );
     expect(fieldShader).toContain(
+      "float avatarExpression = avatarEnabled * sat(u_avatarExpression)",
+    );
+    expect(fieldShader).not.toContain(
       "float avatarEnvelope = avatarEnabled * sin(PI * avatarPhase)",
     );
     expect(avatar).not.toContain("mixBlendMode");
     expect(avatarCss).not.toContain("colorwash");
   });
 
-  test("the canvas owns the bounded action clock and uploads optional uniforms", () => {
+  test("the canvas owns a bounded pose-and-velocity transition runtime", () => {
     [
       "metabloomAvatarAction = 0",
       "metabloomAvatarEnabled = false",
       "metabloomAvatarVersion = 0",
       "metabloomAvatarRestartRef",
       "applyMetabloomAvatarRestart",
+      "createMetabloomMotionRuntime",
+      "metabloomMotionFrame",
+      "dampMetabloomValue",
+      "dampMetabloomVector",
       '"u_avatarEnabled"',
       '"u_avatarAction"',
       '"u_avatarPhase"',
@@ -95,11 +111,24 @@ describe("intrinsic Metabloom chat runtime invariants", () => {
       '"u_avatarColorB"',
       '"u_avatarColorC"',
       '"u_avatarTalking"',
+      '"u_avatarOffset"',
+      '"u_avatarScale"',
+      '"u_avatarRotation"',
+      '"u_avatarCenterScale"',
+      '"u_avatarRadiusScale"',
+      '"u_avatarBurst"',
+      '"u_avatarOrbit"',
+      '"u_avatarTremble"',
+      '"u_avatarExpression"',
       'nextState = "expressing"',
+      "frameIntervalMs: resolveFrameIntervalMs",
     ].forEach((contract) => expect(fieldCanvas).toContain(contract));
 
     expect(fieldCanvas).toContain(
       'data-metabloom-avatar={metabloomAvatarEnabled ? "true" : "false"}',
+    );
+    expect(fieldCanvas).toContain(
+      'data-metabloom-motion-runtime="pose-velocity-inertial"',
     );
   });
 
@@ -143,12 +172,18 @@ describe("intrinsic Metabloom chat runtime invariants", () => {
     expect(actions).toContain(
       'motion: "Compresses, explodes, and reforms"',
     );
-    expect(orb).toContain(".slice(0, 16)");
-    expect(orb).toContain(
-      "Math.max(160, Math.min(duration, 8000))",
-    );
+    expect(orb).toContain("MAX_METABLOOM_ACTION_STEPS");
+    expect(orb).toContain("MAX_METABLOOM_CHAIN_DURATION_MS");
+    expect(orb).toContain("MAX_METABLOOM_ACTION_INTENSITY");
+    expect(orb).toContain("actionDuration");
+    expect(orb).toContain("actionIntensity");
+    expect(orb).toContain("window.__metabloomTools");
+    expect(orb).toContain("window.__metabloomToolSchemas");
+    expect(orb).toContain('version: "1.0.0"');
 
     [
+      "__metabloomTools",
+      "__metabloomToolSchemas",
       "__orbPop",
       "__orbExpress",
       "__orbTransform",
@@ -228,6 +263,8 @@ describe("intrinsic Metabloom chat runtime invariants", () => {
     expect(fieldCanvas).toContain("gl.deleteProgram(displayProgram)");
     expect(fieldCanvas).toContain('data-context-recovery="local"');
     expect(fieldCanvas).toContain("metabloomAvatarPhase = 0.5");
+    expect(fieldCanvas).toContain("metabloomMotionRuntime.snap({");
+    expect(fieldCanvas).toContain("metabloomMotionRuntime.reset()");
     expect(orb).toContain("window.clearTimeout(previewTimerRef.current)");
     expect(orb).toContain("mountedRef.current = false");
   });

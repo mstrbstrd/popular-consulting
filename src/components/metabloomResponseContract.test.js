@@ -39,9 +39,24 @@ describe("Metabloom model response contract", () => {
       value: {
         response: "I agree with that direction.",
         actionChain: [
-          { action: "thinking", duration: 700, talking: false },
-          { action: "agree", duration: 920, talking: true },
-          { action: "reform", duration: 980, talking: false },
+          {
+            action: "thinking",
+            duration: 700,
+            intensity: 0.46,
+            talking: false,
+          },
+          {
+            action: "agree",
+            duration: 920,
+            intensity: 0.46,
+            talking: true,
+          },
+          {
+            action: "reform",
+            duration: 980,
+            intensity: 0,
+            talking: false,
+          },
         ],
       },
     });
@@ -60,8 +75,18 @@ describe("Metabloom model response contract", () => {
 
     expect(parsed.ok).toBe(true);
     expect(parsed.value.actionChain).toEqual([
-      { action: "happy", duration: 600, talking: true },
-      { action: "reform", duration: 500, talking: false },
+      {
+        action: "happy",
+        duration: 600,
+        intensity: 0.44,
+        talking: true,
+      },
+      {
+        action: "reform",
+        duration: 500,
+        intensity: 0,
+        talking: false,
+      },
     ]);
   });
 
@@ -92,6 +117,20 @@ describe("Metabloom model response contract", () => {
       parseMetabloomModelResponse({
         response: "Durations remain bounded.",
         actionChain: [{ action: "agree", duration: 90000 }],
+      }),
+    ).toMatchObject({ ok: false });
+
+    expect(
+      parseMetabloomModelResponse({
+        response: "Intensity remains bounded.",
+        actionChain: [{ action: "agree", intensity: 1.01 }],
+      }),
+    ).toMatchObject({ ok: false });
+
+    expect(
+      parseMetabloomModelResponse({
+        response: "Intensity must remain finite.",
+        actionChain: [{ action: "agree", intensity: Number.NaN }],
       }),
     ).toMatchObject({ ok: false });
   });

@@ -23,6 +23,8 @@ jest.mock("./MetabloomAvatar", () => {
       "data-testid": "metabloom-avatar",
       "data-action": props.action,
       "data-action-version": String(props.actionVersion),
+      "data-duration": String(props.duration),
+      "data-intensity": String(props.intensity),
       "data-paused": String(props.paused),
       "data-pulse-version": String(props.pulseVersion),
       "data-talking": String(props.talking),
@@ -31,6 +33,8 @@ jest.mock("./MetabloomAvatar", () => {
 });
 
 const OWNED_GLOBALS = [
+  "__metabloomTools",
+  "__metabloomToolSchemas",
   "__orbPop",
   "__orbExpress",
   "__orbTransform",
@@ -372,6 +376,121 @@ describe("OrbSection", () => {
       screen.getByText("The installed adapter supplied this response."),
     ).toBeInTheDocument();
     expect(screen.queryByText("Preview response")).not.toBeInTheDocument();
+  });
+
+  test("publishes a strict semantic tool surface with bounded expressive state", () => {
+    render(<OrbSection isActive />);
+
+    expect(Object.isFrozen(window.__metabloomTools)).toBe(true);
+    expect(Object.keys(window.__metabloomTools)).toEqual([
+      "version",
+      "express",
+      "sequence",
+      "talk",
+      "pulse",
+      "settle",
+      "getState",
+    ]);
+    expect(window.__metabloomTools.version).toBe("1.0.0");
+    expect(window.__metabloomToolSchemas.express).toMatchObject({
+      additionalProperties: false,
+      required: ["action"],
+    });
+
+    let accepted;
+    let immediateState;
+    act(() => {
+      accepted = window.__metabloomTools.express({
+        action: "happy",
+        duration: 1440,
+        intensity: 0.67,
+        talking: true,
+      });
+      immediateState = window.__metabloomTools.getState({});
+    });
+    expect(accepted).toBe(true);
+    expect(immediateState).toMatchObject({
+      action: "happy",
+      actionDuration: 1440,
+      actionIntensity: 0.67,
+      talking: true,
+    });
+    expect(mockAvatarProps).toMatchObject({
+      action: "happy",
+      duration: 1440,
+      intensity: 0.67,
+      talking: true,
+    });
+
+    act(() => {
+      accepted = window.__metabloomTools.sequence({
+        id: "gentle-acknowledgement",
+        steps: [
+          {
+            action: "thinking",
+            duration: 360,
+            intensity: 0.34,
+            talking: false,
+          },
+          {
+            action: "agree",
+            duration: 420,
+            intensity: 0.42,
+            talking: true,
+          },
+        ],
+      });
+      immediateState = window.__metabloomTools.getState({});
+    });
+    expect(accepted).toBe(true);
+    expect(immediateState).toMatchObject({
+      action: "thinking",
+      actionDuration: 360,
+      actionIntensity: 0.34,
+      sequenceId: "gentle-acknowledgement",
+      talking: false,
+    });
+    expect(mockAvatarProps).toMatchObject({
+      action: "thinking",
+      duration: 360,
+      intensity: 0.34,
+    });
+
+    act(() => {
+      jest.advanceTimersByTime(360);
+    });
+    expect(mockAvatarProps).toMatchObject({
+      action: "agree",
+      duration: 420,
+      intensity: 0.42,
+      talking: true,
+    });
+
+    let beforePulse;
+    act(() => {
+      expect(window.__metabloomTools.talk({ active: false })).toBe(true);
+      beforePulse = window.__metabloomTools.getState({}).pulseVersion;
+      expect(window.__metabloomTools.pulse({})).toBe(true);
+      immediateState = window.__metabloomTools.getState({});
+    });
+    expect(immediateState).toMatchObject({
+      talking: false,
+      pulseVersion: beforePulse + 1,
+    });
+
+    expect(
+      window.__metabloomTools.express({
+        action: "happy",
+        shader: "arbitrary-code",
+      }),
+    ).toBe(false);
+    expect(
+      window.__metabloomTools.sequence({
+        id: "Invalid id",
+        steps: [{ action: "happy" }],
+      }),
+    ).toBe(false);
+    expect(window.__metabloomTools.getState({ extra: true })).toBeNull();
   });
 
   test("preserves the bounded legacy action and sequence APIs", () => {

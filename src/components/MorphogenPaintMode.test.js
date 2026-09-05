@@ -28,7 +28,15 @@ const fieldStyles = fs.readFileSync(
 const sha256 = (value) =>
   crypto.createHash("sha256").update(value).digest("hex");
 const ORIGINAL_REACTION_SHADER_SHA256 = "45d5a61e1bc84f765b0ffe5ffe5d37bd55f8a95bacbb672462c5801bdf3d9fec";
-const ORGANISM_FIELD_SHADER_SHA256 = "87cda76012f099dfe8225d1aadb48ead5a68cf5eac07f7b98c839488f097640d";
+const ORGANISM_MORPHOGEN_SCENE_SHA256 =
+  "99dfb0ae4fa52e0e4882f4c08acad2145a662e519d81b33cc4cf22c508ce493e";
+
+const sliceShaderScene = (source, startMarker, endMarker) => {
+  const start = source.indexOf(startMarker);
+  const end = source.indexOf(endMarker, start);
+  if (start < 0 || end <= start) return "";
+  return source.slice(start, end);
+};
 
 describe("Morphogen Divide sand paint option", () => {
   test("keeps Organism as the default and exposes a complete paint tray", () => {
@@ -80,11 +88,19 @@ describe("Morphogen Divide sand paint option", () => {
     expect(CREATOROS_FIELD_FRAGMENT_SHADER).not.toContain(
       "sceneMorphogenPaint",
     );
-    expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain(
+    const organismMorphogenScene = sliceShaderScene(
+      CREATOROS_FIELD_FRAGMENT_SHADER,
+      "vec4 sceneMorphogen(vec2 uv, float time)",
+      "vec4 sceneQuasicrystal(vec2 uv, float time)",
+    );
+    expect(organismMorphogenScene).toContain(
       "vec4 sceneMorphogen(vec2 uv, float time)",
     );
-    expect(sha256(CREATOROS_FIELD_FRAGMENT_SHADER)).toBe(
-      ORGANISM_FIELD_SHADER_SHA256,
+    expect(organismMorphogenScene).toContain(
+      "vec4 material = fluidMaterial(field, tint, 0.34, 0.26, 0.91)",
+    );
+    expect(sha256(organismMorphogenScene)).toBe(
+      ORGANISM_MORPHOGEN_SCENE_SHA256,
     );
 
     expect(CREATOROS_FIELD_PAINT_FRAGMENT_SHADER).toContain(

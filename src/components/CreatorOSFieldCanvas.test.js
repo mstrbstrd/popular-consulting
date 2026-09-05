@@ -45,7 +45,13 @@ describe("CreatorOSFieldCanvas", () => {
     expect(source).toContain("const MODE_COUNT = 8");
     expect(source).toContain("const RENDER_SCALE = 0.5");
     expect(source).toContain("const PREFERRED_FRAME_INTERVAL_MS = 1000 / 30");
+    expect(source).toContain("const ACTIVE_FRAME_INTERVAL_MS =");
     expect(source).toContain("getDitherCanvasFrameInterval(");
+    expect(source).toContain("createMetabloomMotionRuntime");
+    expect(source).toContain("frameIntervalMs: resolveFrameIntervalMs");
+    expect(source).toContain(
+      'data-metabloom-motion-runtime="pose-velocity-inertial"',
+    );
     expect(source).toContain("const INTRO_DURATION_SECONDS = 3.2");
     expect(source).toContain("createDitherCanvasContext({");
     expect(source).toContain('contextType: "webgl2"');
@@ -58,6 +64,41 @@ describe("CreatorOSFieldCanvas", () => {
     expect(css).toContain("image-rendering: pixelated");
     expect(css).toContain(".dither-renderer-creatoros-field .rupture-glass");
     expect(css).toContain("backdrop-filter: none");
+  });
+
+  test("uploads a continuous bounded pose rather than branching by action in GLSL", () => {
+    const fs = require("fs");
+    const path = require("path");
+    const source = fs.readFileSync(
+      path.join(__dirname, "CreatorOSFieldCanvas.js"),
+      "utf8",
+    );
+    const sceneStart = CREATOROS_FIELD_FRAGMENT_SHADER.indexOf(
+      "vec4 sceneMetabloom",
+    );
+    const sceneEnd = CREATOROS_FIELD_FRAGMENT_SHADER.indexOf(
+      "vec4 sceneTidalWeave",
+    );
+    const scene = CREATOROS_FIELD_FRAGMENT_SHADER.slice(sceneStart, sceneEnd);
+
+    [
+      "u_avatarOffset",
+      "u_avatarScale",
+      "u_avatarRotation",
+      "u_avatarCenterScale",
+      "u_avatarRadiusScale",
+      "u_avatarBurst",
+      "u_avatarOrbit",
+      "u_avatarTremble",
+      "u_avatarExpression",
+    ].forEach((uniform) => {
+      expect(source).toContain(`"${uniform}"`);
+      expect(scene).toContain(uniform);
+    });
+    expect(scene).not.toContain("if (u_avatarAction ==");
+    expect(scene).toContain(
+      "Secondary motion is time-based rather than action-phase-based",
+    );
   });
 
   test("uses the exact CreatorOS palette, Bayer-8 output, and fluid material model", () => {

@@ -441,6 +441,15 @@ uniform vec3 u_avatarColorA;
 uniform vec3 u_avatarColorB;
 uniform vec3 u_avatarColorC;
 uniform float u_avatarTalking;
+uniform vec2 u_avatarOffset;
+uniform vec2 u_avatarScale;
+uniform float u_avatarRotation;
+uniform float u_avatarCenterScale;
+uniform float u_avatarRadiusScale;
+uniform float u_avatarBurst;
+uniform float u_avatarOrbit;
+uniform float u_avatarTremble;
+uniform float u_avatarExpression;
 uniform sampler2D u_reaction;
 uniform vec2 u_reactionTexel;
 
@@ -610,92 +619,50 @@ vec4 sceneMetabloom(vec2 uv, float time) {
   p = viscousWarp(p, time, 0.08);
   p = rotate2(-0.08 + sin(time * 0.07) * 0.035) * p;
 
-  // Avatar mode does not wrap, crop, recolor, or translate a completed
-  // Metabloom render. It changes the existing seven-body field before
-  // potential, membrane, material, and alpha are resolved.
+  // The CPU motion runtime owns the transition state. It samples authored
+  // gestures, retains the current pose and velocity when commands change, and
+  // uploads one bounded pose. The shader only applies that continuous pose to
+  // the existing seven-body field before material and alpha are resolved.
   float avatarEnabled = step(0.5, u_avatarEnabled);
   float avatarPhase = sat(u_avatarPhase);
-  float avatarEnvelope = avatarEnabled * sin(PI * avatarPhase);
-  float avatarEnvelopeSquared = avatarEnvelope * avatarEnvelope;
-  float avatarVoice = avatarEnabled
-    * sat(u_avatarTalking)
-    * (0.5 + 0.5 * sin(time * 8.6))
-    * (0.72 + 0.28 * sin(time * 3.1 + 0.7));
-  vec2 avatarOffset = vec2(0.0);
-  vec2 avatarScale = vec2(1.0);
-  float avatarRotation = 0.0;
-  float avatarCenterScale = 1.0;
-  float avatarRadiusScale = 1.0;
-  float avatarBurst = 0.0;
-  float avatarOrbit = 0.0;
-  float avatarTremble = 0.0;
-
-  if (u_avatarAction == 0) {
-    // Reform: the authored metaballs genuinely merge, then resume their
-    // autonomous trajectories when the response envelope releases.
-    avatarCenterScale = mix(1.0, 0.08, avatarEnvelopeSquared);
-    avatarRadiusScale = mix(1.0, 1.34, avatarEnvelope);
-    avatarScale = mix(vec2(1.0), vec2(1.06, 0.98), avatarEnvelope);
-  } else if (u_avatarAction == 1) {
-    float nod = sin(avatarPhase * TAU * 2.0) * avatarEnvelope;
-    avatarOffset.y = -nod * 0.115;
-    avatarScale = vec2(
-      1.0 + abs(nod) * 0.035,
-      1.0 - abs(nod) * 0.070
-    );
-  } else if (u_avatarAction == 2) {
-    float shake = sin(avatarPhase * TAU * 3.0) * avatarEnvelope;
-    avatarOffset.x = shake * 0.125;
-    avatarRotation = shake * 0.055;
-  } else if (u_avatarAction == 3) {
-    avatarOffset.y = avatarEnvelope * 0.078;
-    avatarScale = mix(vec2(1.0), vec2(1.09, 1.13), avatarEnvelope);
-    avatarRadiusScale = mix(1.0, 1.08, avatarEnvelope);
-  } else if (u_avatarAction == 4) {
-    float compression = avatarEnabled
-      * smoothstep(0.0, 0.11, avatarPhase)
-      * (1.0 - smoothstep(0.12, 0.29, avatarPhase));
-    avatarBurst = avatarEnabled
-      * smoothstep(0.18, 0.36, avatarPhase)
-      * (1.0 - smoothstep(0.62, 0.94, avatarPhase));
-    avatarScale = mix(vec2(1.0), vec2(0.76, 0.82), compression);
-    avatarRadiusScale = mix(1.0, 0.72, avatarBurst);
-  } else if (u_avatarAction == 5) {
-    avatarOffset.y = -avatarEnvelope * 0.115;
-    avatarScale = mix(vec2(1.0), vec2(1.15, 0.78), avatarEnvelope);
-    avatarCenterScale = mix(1.0, 0.88, avatarEnvelope);
-  } else if (u_avatarAction == 6) {
-    float contraction = avatarEnabled
-      * smoothstep(0.0, 0.14, avatarPhase)
-      * (1.0 - smoothstep(0.16, 0.30, avatarPhase));
-    float rebound = avatarEnabled
-      * smoothstep(0.18, 0.36, avatarPhase)
-      * (1.0 - smoothstep(0.56, 0.92, avatarPhase));
-    float surpriseScale = 1.0 - contraction * 0.26 + rebound * 0.20;
-    avatarScale = vec2(surpriseScale);
-    avatarRadiusScale = 1.0 - contraction * 0.10 + rebound * 0.08;
-  } else if (u_avatarAction == 7) {
-    avatarRotation = -avatarEnvelope * 0.145;
-    avatarOffset = vec2(-0.035, 0.025) * avatarEnvelope;
-    avatarOrbit = avatarEnvelope;
-  } else if (u_avatarAction == 8) {
-    avatarOffset.y = -avatarEnvelope * 0.135;
-    avatarScale = mix(vec2(1.0), vec2(1.20, 0.72), avatarEnvelope);
-    avatarCenterScale = mix(1.0, 0.82, avatarEnvelope);
-  } else if (u_avatarAction == 9) {
-    avatarScale = mix(vec2(1.0), vec2(0.92, 0.84), avatarEnvelope);
-    avatarCenterScale = mix(1.0, 0.90, avatarEnvelope);
-    avatarRadiusScale = mix(1.0, 1.08, avatarEnvelope);
-    avatarTremble = sin(avatarPhase * TAU * 9.0) * avatarEnvelope;
-  }
+  float avatarVoice = avatarEnabled * sat(u_avatarTalking);
+  float avatarExpression = avatarEnabled * sat(u_avatarExpression);
+  float avatarHorizontalRoom = min(1.0, scale.x);
+  vec2 avatarOffset = clamp(
+    u_avatarOffset,
+    vec2(-0.16),
+    vec2(0.16)
+  ) * avatarEnabled;
+  avatarOffset.x *= avatarHorizontalRoom;
+  vec2 avatarScale = mix(
+    vec2(1.0),
+    clamp(u_avatarScale, vec2(0.76), vec2(1.24)),
+    avatarEnabled
+  );
+  float avatarRotation = clamp(u_avatarRotation, -0.20, 0.20)
+    * avatarEnabled;
+  float avatarCenterScale = mix(
+    1.0,
+    clamp(u_avatarCenterScale, 0.16, 1.12),
+    avatarEnabled
+  );
+  float avatarRadiusScale = mix(
+    1.0,
+    clamp(u_avatarRadiusScale, 0.74, 1.28),
+    avatarEnabled
+  );
+  float avatarBurst = clamp(u_avatarBurst, 0.0, 0.52) * avatarEnabled;
+  float avatarOrbit = clamp(u_avatarOrbit, 0.0, 0.80) * avatarEnabled;
+  float avatarTremble = clamp(u_avatarTremble, -0.75, 0.75)
+    * avatarEnabled;
 
   avatarScale *= vec2(
-    1.0 - avatarVoice * 0.018,
-    1.0 + avatarVoice * 0.036
+    1.0 - avatarVoice * 0.014,
+    1.0 + avatarVoice * 0.028
   );
   if (avatarEnabled > 0.5) {
     p = rotate2(avatarRotation)
-      * ((p - avatarOffset) / max(avatarScale, vec2(0.44)));
+      * ((p - avatarOffset) / max(avatarScale, vec2(0.62)));
   }
 
   float potential = 0.0;
@@ -724,28 +691,27 @@ vec4 sceneMetabloom(vec2 uv, float time) {
       float layerAngle = layer * TAU / 7.0 + u_seed * 2.3;
       vec2 radialDirection = vec2(cos(layerAngle), sin(layerAngle));
       center *= avatarCenterScale;
-      center += radialDirection
+      vec2 boundedRadialDirection = radialDirection
+        * vec2(avatarHorizontalRoom, 1.0);
+      center += boundedRadialDirection
         * avatarBurst
         * (0.35 + layer * 0.018);
+      // Secondary motion is time-based rather than action-phase-based, so a
+      // new command cannot jump the layer positions by resetting its phase.
       center += vec2(
-        cos(avatarPhase * TAU * 0.78 + layer * 1.41),
-        sin(avatarPhase * TAU * 0.78 + layer * 1.41)
+        cos(time * 0.78 + layer * 1.41 + u_seed * 1.9)
+          * avatarHorizontalRoom,
+        sin(time * 0.78 + layer * 1.41 + u_seed * 1.9)
       ) * avatarOrbit * (0.018 + layer * 0.004);
       center.x += avatarTremble
-        * sin(layer * 2.7 + avatarPhase * TAU * 10.0)
-        * 0.028;
+        * sin(layer * 2.7 + time * 17.0 + u_seed * 5.1)
+        * 0.022;
       center.y += avatarTremble
-        * cos(layer * 1.9 + avatarPhase * TAU * 8.0)
-        * 0.013;
+        * cos(layer * 1.9 + time * 13.0 + u_seed * 3.7)
+        * 0.010;
       center += radialDirection
         * avatarVoice
-        * (0.010 + mod(layer, 2.0) * 0.004);
-
-      if (u_avatarAction == 3) {
-        center.y += avatarEnvelope * (0.010 + layer * 0.002);
-      } else if (u_avatarAction == 5) {
-        center.y -= avatarEnvelope * (0.010 + layer * 0.003);
-      }
+        * (0.008 + mod(layer, 2.0) * 0.003);
     }
 
     float radius = 0.105 + 0.025 * sin(phase * 1.7 + layer);
@@ -825,7 +791,7 @@ vec3 avatarTint = avatarColorCoordinate < 0.5
       u_avatarColorC,
       (avatarColorCoordinate - 0.5) * 2.0
     );
-float avatarColorMix = avatarEnvelope
+float avatarColorMix = avatarExpression
   * sat(u_avatarIntensity)
   * (0.72 + membrane * 0.22);
 avatarColorMix = max(avatarColorMix, avatarVoice * 0.12);
