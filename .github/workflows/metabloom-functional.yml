@@ -11,7 +11,8 @@ concurrency:
   cancel-in-progress: true
 jobs:
   emote-contract-and-browser:
-    runs-on: ubuntu-latest
+    # Use the same sandboxed Edge runtime as the existing route smoke suite.
+    runs-on: windows-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
