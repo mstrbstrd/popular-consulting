@@ -1,0 +1,32 @@
+name: Export Metabloom source
+
+on:
+  push:
+    branches:
+      - codex/metabloom-emotive-runtime
+
+permissions:
+  contents: read
+
+jobs:
+  export-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out refinement branch
+        uses: actions/checkout@v4
+        with:
+          ref: codex/metabloom-emotive-runtime
+
+      - name: Upload source worktree
+        uses: actions/upload-artifact@v4
+        with:
+          name: metabloom-source-${{ github.sha }}
+          include-hidden-files: true
+          retention-days: 1
+          path: |
+            .
+            !.git/**
+            !node_modules/**
+            !build/**
+            !coverage/**
