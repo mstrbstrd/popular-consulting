@@ -3,7 +3,7 @@ name: Export Metabloom source
 on:
   push:
     branches:
-      - codex/metabloom-emotive-runtime
+      - codex/metabloom-emote-protocol
 
 permissions:
   contents: read
@@ -13,15 +13,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Check out refinement branch
+      - name: Check out protocol branch
         uses: actions/checkout@v4
         with:
-          ref: codex/metabloom-emotive-runtime
+          ref: codex/metabloom-emote-protocol
 
       - name: Upload source worktree
         uses: actions/upload-artifact@v4
         with:
-          name: metabloom-source-${{ github.sha }}
+          name: metabloom-pr117-source-${{ github.sha }}
           include-hidden-files: true
           retention-days: 1
           path: |
