@@ -171,7 +171,7 @@ const clampPose = (pose) => {
   return pose;
 };
 
-const intensityGain = (intensity) => 0.42 + clamp(intensity) * 1.02;
+const intensityGain = (intensity) => clamp(intensity) * 1.44;
 
 const addPhysiology = (pose, timeSeconds, seed, enabled) => {
   if (!enabled) return pose;
@@ -223,7 +223,7 @@ export const sampleMetabloomActionPose = ({
   const decay = 1 - normalizedPhase * 0.24;
 
   if (actionId === "reform") {
-    const gather = envelope;
+    const gather = envelope * gain;
     pose.centerScale = 1 - gather * 0.83;
     pose.radiusScale = 1 + gather * 0.28;
     pose.scaleX = 1 + gather * 0.045;
@@ -323,6 +323,8 @@ export const sampleMetabloomActionPose = ({
           * (0.72 + 0.28 * (0.5 + 0.5 * Math.sin(timeSeconds * 1.13 + seed * 12.4))),
       )
     : 0;
+  // Preserve idle physiology but eliminate every deliberate gesture at zero intensity.
+  if (normalizedIntensity === 0) resetPose(pose);
   pose.voice = voiceTarget;
 
   addPhysiology(pose, timeSeconds, seed, enabled);
@@ -494,7 +496,12 @@ export const createMetabloomMotionRuntime = () => {
   };
 
   const snap = (options = {}) => {
-    sampleMetabloomActionPose(options, targetPose);
+    // Static settling is terminal, never the midpoint of the gather gesture.
+    const settling = resolveAction(options.action).id === "reform";
+    sampleMetabloomActionPose(
+      settling ? { ...options, phase: 1, enabled: false, talking: false } : options,
+      targetPose,
+    );
     METABLOOM_POSE_KEYS.forEach((key) => {
       pose[key] = targetPose[key];
       velocity[key] = 0;

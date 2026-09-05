@@ -206,8 +206,8 @@ describe('OrbSection chat controls', () => {
   });
 
   test('suggested messages are conventional named buttons', () => {
-    expect(screen.getByRole('button', { name: 'How should this interface feel?' })).toHaveAttribute('type', 'button');
-    expect(screen.getByRole('button', { name: 'Show me a thoughtful response' })).toHaveAttribute('type', 'button');
-    expect(screen.getByRole('button', { name: 'Celebrate a small win' })).toHaveAttribute('type', 'button');
+    expect(screen.getByRole('button', { name: 'Show me a whimsical response' })).toHaveAttribute('type', 'button');
+    expect(screen.getByRole('button', { name: 'Give me a reflective response' })).toHaveAttribute('type', 'button');
+    expect(screen.getByRole('button', { name: 'Offer a reassuring response' })).toHaveAttribute('type', 'button');
   });
 });

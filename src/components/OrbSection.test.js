@@ -33,6 +33,7 @@ jest.mock("./MetabloomAvatar", () => {
 });
 
 const OWNED_GLOBALS = [
+  "__metabloomProtocol",
   "__metabloomTools",
   "__metabloomToolSchemas",
   "__orbPop",
@@ -104,7 +105,7 @@ describe("OrbSection", () => {
     );
     expect(container.querySelector("#orb")).toHaveAttribute(
       "data-response-contract",
-      "response+actionChain",
+      "emote+response",
     );
   });
 
@@ -117,7 +118,7 @@ describe("OrbSection", () => {
 
     expect(screen.getByText("Celebrate a small win")).toBeInTheDocument();
     expect(screen.getByLabelText("Metabloom is thinking")).toBeInTheDocument();
-    expect(mockAvatarProps.action).toBe("thinking");
+    expect(mockAvatarProps.actionVersion).toBe(0);
 
     act(() => {
       jest.advanceTimersByTime(520);
@@ -131,10 +132,8 @@ describe("OrbSection", () => {
         expect.objectContaining({
           role: "assistant",
           content: expect.stringMatching(/worth celebrating/i),
-          actionChain: expect.arrayContaining([
-            expect.objectContaining({ action: "excited" }),
-            expect.objectContaining({ action: "reform" }),
-          ]),
+          emote: "celebratory",
+          actionChain: [],
         }),
       ]),
     );
@@ -161,7 +160,7 @@ describe("OrbSection", () => {
     expect(window.__orbState()).toMatchObject({
       action: "thinking",
       responseSource: "external",
-      sequenceId: "model-response",
+      sequenceId: "legacy-model-response",
     });
 
     act(() => {
@@ -212,9 +211,7 @@ describe("OrbSection", () => {
     expect(requestDetail).toMatchObject({
       requestId: expect.stringMatching(/^metabloom-[a-z0-9-]+-\d+$/i),
       message: "What do you think?",
-      history: expect.arrayContaining([
-        { role: "user", content: "What do you think?" },
-      ]),
+      history: [],
       claim: expect.any(Function),
       respond: expect.any(Function),
     });
@@ -367,9 +364,7 @@ describe("OrbSection", () => {
       expect.objectContaining({
         requestId: expect.stringMatching(/^metabloom-[a-z0-9-]+-\d+$/i),
         message: "Use the model adapter",
-        history: expect.arrayContaining([
-          { role: "user", content: "Use the model adapter" },
-        ]),
+        history: [],
       }),
     );
     expect(

@@ -1,0 +1,83 @@
+/* Local demos use the same neutral glass and border-only spectral material. */
+.orb-page .metabloom-chat__protocol-note {
+  position: absolute;
+  top: calc(100% + 0.6rem);
+  width: 100%;
+  margin: 0;
+  color: var(--aetheris-ink-2);
+  font: 1rem/1.5 var(--aetheris-font-mono);
+  text-align: center;
+  pointer-events: none;
+}
+.orb-page .metabloom-chat__demos {
+  position: relative;
+  justify-self: center;
+  max-width: 100%;
+  color: var(--aetheris-ink-2);
+  font: 1.1rem/1.5 var(--aetheris-font-mono);
+}
+.orb-page .metabloom-chat__demos summary {
+  padding: 0.6rem 1.4rem;
+  min-height: 4.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: var(--aetheris-radius-pill);
+}
+.orb-page .metabloom-chat__demos > div {
+  position: absolute;
+  bottom: calc(100% + 0.8rem);
+  left: 50%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem;
+  width: min(50rem, calc(100vw - 3.2rem));
+  padding: 1rem;
+  border-radius: var(--aetheris-radius-lg);
+  background: var(--aetheris-panel);
+  border: 1px solid var(--aetheris-line-strong);
+  box-shadow: var(--aetheris-shadow);
+  transform: translateX(-50%);
+}
+.orb-page .metabloom-chat__demos button {
+  position: relative;
+  padding: 0.8rem 1rem;
+  min-width: 0;
+  min-height: 4.4rem;
+  border: 0;
+  border-radius: var(--aetheris-radius-pill);
+  color: var(--aetheris-ink);
+  background: var(--orb-control-surface);
+  font: 1.1rem/1.4 var(--aetheris-font-sans);
+  cursor: pointer;
+}
+.orb-page .metabloom-chat__demos button::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--aetheris-spectral-border-soft);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+}
+.orb-page .metabloom-chat__demos button:disabled { opacity: 0.55; cursor: not-allowed; }
+.orb-page .metabloom-chat__demos button:focus-visible,
+.orb-page .metabloom-chat__demos summary:focus-visible {
+  outline: 2px solid var(--aetheris-focus-line);
+  outline-offset: 3px;
+}
+@media (max-width: 720px) {
+  .orb-page .metabloom-chat__suggestions[data-demo-count="4"] button:last-child {
+    width: 100%;
+    grid-column: auto;
+  }
+}
+@media (forced-colors: active) {
+  .orb-page .metabloom-chat__demos button { color: ButtonText; background: ButtonFace; border: 1px solid ButtonText; }
+  .orb-page .metabloom-chat__demos button::before { display: none; }
+}
