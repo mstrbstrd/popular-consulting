@@ -59,6 +59,30 @@ describe("shipped semantic emote integration", () => {
     act(() => window.__orbReset());
     expect(request.signal.aborted).toBe(true);
   });
+  test("ordinary external adapters cannot implicitly opt into multiple segments", async () => {
+    window.__metabloomRequest = () => Promise.resolve({ version: "1.0.0", segments: [
+      { emote: "whimsy", response: "First response" },
+      { emote: "reflective", response: "Second response" },
+    ] });
+    render(<OrbSection />);
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "An ordinary request" } });
+    fireEvent.submit(screen.getByRole("form", { name: "Message Metabloom" }));
+    await act(async () => { await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); });
+    expect(window.__orbMessages().filter((item) => item.role === "assistant")).toHaveLength(0);
+    expect(mockProps.actionVersion).toBe(0);
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+  });
+  test("direct multi-segment integrations must opt in explicitly", () => {
+    render(<OrbSection />);
+    const payload = { version: "1.0.0", segments: [
+      { emote: "whimsy", response: "First response" },
+      { emote: "reflective", response: "Second response" },
+    ] };
+    act(() => { expect(window.__metabloomProtocol.respond(payload)).toBe(false); });
+    act(() => { expect(window.__metabloomProtocol.respond(payload, { allowMultiple: true })).toBe(true); });
+    act(() => jest.advanceTimersByTime(7000));
+    expect(window.__orbMessages().map((item) => item.emote)).toEqual(["whimsy", "reflective"]);
+  });
   test("finishes the two-part demo with one different emote on each message", () => {
     render(<OrbSection />);
     fireEvent.click(screen.getByRole("button", { name: "Demo a two-part emotional stream" }));

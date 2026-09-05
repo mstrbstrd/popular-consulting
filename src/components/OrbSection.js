@@ -20,6 +20,7 @@ import {
 } from "./metabloomResponseContract";
 import {
   METABLOOM_DEMO_PROMPTS,
+  METABLOOM_DEMOS,
   createMetabloomDemoEnvelope,
 } from "./metabloomDemoResponses";
 import {
@@ -829,9 +830,9 @@ const OrbSection = ({
   );
 
   const applyModelResponse = React.useCallback(
-    (payload, source = "external") => {
+    (payload, source = "external", allowMultiple = false) => {
       cancelResponseSegmentTimer();
-      const emoteResponse = parseMetabloomEmoteEnvelope(payload);
+      const emoteResponse = parseMetabloomEmoteEnvelope(payload, { allowMultiple });
       if (emoteResponse.ok) {
         updateStateSnapshot({ pending: false, responseSource: source });
         setErrorMessage("");
@@ -883,8 +884,12 @@ const OrbSection = ({
         return false;
       }
 
+      // Ordinary requests cannot be upgraded to multi-segment by a responder.
+      const allowMultiple = expectedRequestId
+        ? activeRequest?.allowMultiple === true
+        : options?.allowMultiple === true;
       cancelResponse();
-      return applyModelResponse(payload, source);
+      return applyModelResponse(payload, source, allowMultiple);
     },
     [applyModelResponse, cancelResponse],
   );
@@ -975,7 +980,14 @@ const OrbSection = ({
       const userMessage = appendMessage("user", message);
       const requestToken = requestTokenRef.current + 1;
       const requestId = `${mountIdRef.current}-${requestToken}`;
-      const activeRequest = { claimed: false, requestId, requestToken };
+      const activeRequest = {
+        claimed: false,
+        requestId,
+        requestToken,
+        allowMultiple: METABLOOM_DEMOS.some(
+          (demo) => demo.prompt === message && demo.segments.length > 1,
+        ),
+      };
       requestTokenRef.current = requestToken;
       activeRequestRef.current = activeRequest;
       updateStateSnapshot({ conversationStarted: true, pending: true, responseSource: "pending", talking: false });
