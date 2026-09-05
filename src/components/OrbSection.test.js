@@ -11,6 +11,12 @@ import OrbSection from "./OrbSection";
 
 let mockAvatarProps = null;
 
+// The old event/preview tests also run where Node provides a native fetch.
+// Explicitly model an unconfigured endpoint instead of depending on its absence.
+jest.mock("./metabloomApiClient", () => ({
+  requestMetabloomResponse: jest.fn(async () => null),
+}));
+
 jest.mock("../contexts/ThemeContext", () => ({
   useThemeMode: () => ({ isDark: false }),
 }));
@@ -109,7 +115,7 @@ describe("OrbSection", () => {
     );
   });
 
-  test("submits a message and demonstrates the same contract with a local preview", () => {
+  test("submits a message and demonstrates the same contract with a local preview", async () => {
     render(<OrbSection isActive />);
 
     const input = screen.getByRole("textbox", { name: "Message Metabloom" });
@@ -120,6 +126,11 @@ describe("OrbSection", () => {
     expect(screen.getByLabelText("Metabloom is thinking")).toBeInTheDocument();
     expect(mockAvatarProps.actionVersion).toBe(0);
 
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
     act(() => {
       jest.advanceTimersByTime(520);
     });
@@ -256,7 +267,7 @@ describe("OrbSection", () => {
     window.removeEventListener("metabloom:user-message", onUserMessage);
   });
 
-  test("ignores a late unclaimed event response after the preview wins", () => {
+  test("ignores a late unclaimed event response after the preview wins", async () => {
     let requestId = "";
     const onUserMessage = (event) => {
       requestId = event.detail.requestId;
@@ -268,6 +279,11 @@ describe("OrbSection", () => {
     fireEvent.change(input, { target: { value: "Use the local preview" } });
     fireEvent.click(screen.getByRole("button", { name: "Send message" }));
 
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
     act(() => {
       jest.advanceTimersByTime(520);
     });

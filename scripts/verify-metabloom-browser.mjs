@@ -94,6 +94,14 @@ try {
     ] });
     await call("Page.navigate", { url: `${origin}/orb?graphics=webgl` });
     await until(`window.__metabloomProtocol?.version === '1.0.0' && document.querySelectorAll('[data-demo-count="4"] button').length === 4`);
+    const expectedTheme = config.dark ? "dark" : "light";
+    await until(`document.querySelector('button[aria-label="Toggle dark mode"]') !== null`);
+    if (await evaluate("document.documentElement.dataset.theme") !== expectedTheme) {
+      await evaluate(`document.querySelector('button[aria-label="Toggle dark mode"]').click()`);
+    }
+    await until(`document.documentElement.dataset.theme === ${JSON.stringify(expectedTheme)}`);
+    const landingImage = await call("Page.captureScreenshot", { format: "png" });
+    fs.writeFileSync(path.join(output, `${config.id}-landing.png`), Buffer.from(landingImage.data, "base64"));
     const geometry = await evaluate(`(() => { const r = document.querySelector('.metabloom-chat__composer').getBoundingClientRect(); return {left:r.left,right:r.right,width:innerWidth}; })()`);
     assert.ok(geometry.left >= -1 && geometry.right <= geometry.width + 1, "Composer overflow");
     for (const [label, emote] of [["Show me a whimsical response", "whimsy"], ["Give me a reflective response", "reflective"], ["Offer a reassuring response", "reassuring"]]) {
@@ -115,7 +123,7 @@ try {
     const state = await evaluate(`({state:window.__orbState(), tail:window.__orbMessages().slice(-2), calls:window.__demoNetworkCalls})`);
     assert.deepEqual(state.tail.map((item) => item.emote), ["whimsy", "reflective"]);
     assert.equal(state.calls, 0, "Demos must never call the provider");
-    results.push({ viewport: config.id, demoEmotes: ["whimsy", "reflective", "reassuring"], stream: state.tail.map((item) => item.emote), networkCalls: state.calls, geometry });
+    results.push({ viewport: config.id, theme: expectedTheme, reducedMotion: config.reduced, demoEmotes: ["whimsy", "reflective", "reassuring"], stream: state.tail.map((item) => item.emote), networkCalls: state.calls, geometry });
   }
   fs.writeFileSync(path.join(output, "result.json"), JSON.stringify({ origin, success: true, results }, null, 2));
   console.log(JSON.stringify({ origin, success: true, results }));
