@@ -11,6 +11,12 @@ import OrbSection from "./OrbSection";
 
 let mockAvatarProps = null;
 
+// The old event/preview tests also run where Node provides a native fetch.
+// Explicitly model an unconfigured endpoint instead of depending on its absence.
+jest.mock("./metabloomApiClient", () => ({
+  requestMetabloomResponse: jest.fn(async () => null),
+}));
+
 jest.mock("../contexts/ThemeContext", () => ({
   useThemeMode: () => ({ isDark: false }),
 }));
@@ -33,6 +39,7 @@ jest.mock("./MetabloomAvatar", () => {
 });
 
 const OWNED_GLOBALS = [
+  "__metabloomProtocol",
   "__metabloomTools",
   "__metabloomToolSchemas",
   "__orbPop",
@@ -104,11 +111,11 @@ describe("OrbSection", () => {
     );
     expect(container.querySelector("#orb")).toHaveAttribute(
       "data-response-contract",
-      "response+actionChain",
+      "emote+response",
     );
   });
 
-  test("submits a message and demonstrates the same contract with a local preview", () => {
+  test("submits a message and demonstrates the same contract with a local preview", async () => {
     render(<OrbSection isActive />);
 
     const input = screen.getByRole("textbox", { name: "Message Metabloom" });
@@ -117,8 +124,13 @@ describe("OrbSection", () => {
 
     expect(screen.getByText("Celebrate a small win")).toBeInTheDocument();
     expect(screen.getByLabelText("Metabloom is thinking")).toBeInTheDocument();
-    expect(mockAvatarProps.action).toBe("thinking");
+    expect(mockAvatarProps.actionVersion).toBe(0);
 
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
     act(() => {
       jest.advanceTimersByTime(520);
     });
@@ -131,10 +143,8 @@ describe("OrbSection", () => {
         expect.objectContaining({
           role: "assistant",
           content: expect.stringMatching(/worth celebrating/i),
-          actionChain: expect.arrayContaining([
-            expect.objectContaining({ action: "excited" }),
-            expect.objectContaining({ action: "reform" }),
-          ]),
+          emote: "celebratory",
+          actionChain: [],
         }),
       ]),
     );
@@ -161,7 +171,7 @@ describe("OrbSection", () => {
     expect(window.__orbState()).toMatchObject({
       action: "thinking",
       responseSource: "external",
-      sequenceId: "model-response",
+      sequenceId: "legacy-model-response",
     });
 
     act(() => {
@@ -212,9 +222,7 @@ describe("OrbSection", () => {
     expect(requestDetail).toMatchObject({
       requestId: expect.stringMatching(/^metabloom-[a-z0-9-]+-\d+$/i),
       message: "What do you think?",
-      history: expect.arrayContaining([
-        { role: "user", content: "What do you think?" },
-      ]),
+      history: [],
       claim: expect.any(Function),
       respond: expect.any(Function),
     });
@@ -259,7 +267,7 @@ describe("OrbSection", () => {
     window.removeEventListener("metabloom:user-message", onUserMessage);
   });
 
-  test("ignores a late unclaimed event response after the preview wins", () => {
+  test("ignores a late unclaimed event response after the preview wins", async () => {
     let requestId = "";
     const onUserMessage = (event) => {
       requestId = event.detail.requestId;
@@ -271,6 +279,11 @@ describe("OrbSection", () => {
     fireEvent.change(input, { target: { value: "Use the local preview" } });
     fireEvent.click(screen.getByRole("button", { name: "Send message" }));
 
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
     act(() => {
       jest.advanceTimersByTime(520);
     });
@@ -367,9 +380,7 @@ describe("OrbSection", () => {
       expect.objectContaining({
         requestId: expect.stringMatching(/^metabloom-[a-z0-9-]+-\d+$/i),
         message: "Use the model adapter",
-        history: expect.arrayContaining([
-          { role: "user", content: "Use the model adapter" },
-        ]),
+        history: [],
       }),
     );
     expect(

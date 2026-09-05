@@ -13,7 +13,7 @@
         },
         {
           "key": "X-Popcon-Orb-Release",
-          "value": "intrinsic-metabloom-avatar-v1"
+          "value": "semantic-emotes-v1"
         }
       ]
     },
@@ -30,7 +30,7 @@
         },
         {
           "key": "X-Popcon-Orb-Release",
-          "value": "intrinsic-metabloom-avatar-v1"
+          "value": "semantic-emotes-v1"
         }
       ]
     },
@@ -121,5 +121,10 @@
       "source": "/((?!static/|api/).*)",
       "destination": "/index.html"
     }
-  ]
+  ],
+  "functions": {
+    "api/metabloom.js": {
+      "maxDuration": 30
+    }
+  }
 }

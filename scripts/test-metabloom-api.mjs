@@ -1,48 +1,23 @@
-const baseUrl = (process.env.METABLOOM_BASE_URL || "http://localhost:3000")
-  .replace(/\/$/, "");
-const message = process.env.METABLOOM_TEST_MESSAGE
-  || "Explain why a small emotional vocabulary can make an interface feel more trustworthy.";
-
-const response = await fetch(`${baseUrl}/api/metabloom`, {
+import { createRequire } from "node:module";
+const require = createRequire(import.meta.url);
+const { createMetabloomSegmentStreamDecoder } = require("../src/components/metabloomEmoteProtocol");
+const origin = process.env.METABLOOM_TEST_ORIGIN || "http://localhost:3000";
+const endpoint = new URL("/api/metabloom", origin);
+if (!['http:', 'https:'].includes(endpoint.protocol)) throw new Error("Expected an HTTP origin");
+const response = await fetch(endpoint, {
   method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({
-    allowMultiple: false,
-    history: [],
-    message,
-    requestId: `smoke-${Date.now()}`,
-  }),
+  headers: { "Content-Type": "application/json", Origin: endpoint.origin },
+  body: JSON.stringify({ message: "Share one thoughtful observation.", history: [], allowMultiple: false }),
+  signal: AbortSignal.timeout(30000),
 });
-
-if (!response.ok) {
-  const body = await response.text();
-  throw new Error(`Metabloom API returned ${response.status}: ${body}`);
+if (!response.ok) throw new Error(`Metabloom endpoint returned HTTP ${response.status}`);
+if (!response.headers.get("content-type")?.includes("application/x-ndjson")) throw new Error("Expected NDJSON");
+const decoder = createMetabloomSegmentStreamDecoder({ allowMultiple: false });
+const textDecoder = new TextDecoder();
+for await (const chunk of response.body) {
+  if (!decoder.push(textDecoder.decode(chunk, { stream: true }))) throw new Error("Invalid response stream");
 }
-
-const contentType = response.headers.get("content-type") || "";
-if (!contentType.includes("application/x-ndjson")) {
-  throw new Error(`Expected NDJSON but received ${contentType || "no content type"}.`);
-}
-
-const lines = (await response.text())
-  .split("\n")
-  .map((line) => line.trim())
-  .filter(Boolean)
-  .map((line) => JSON.parse(line));
-
-const segments = lines.filter((event) => event.type === "segment");
-const done = lines.at(-1);
-if (
-  segments.length !== 1
-  || !segments[0].emote
-  || !segments[0].response
-  || done?.type !== "done"
-) {
-  throw new Error(`Unexpected Metabloom stream: ${JSON.stringify(lines)}`);
-}
-
-console.log(JSON.stringify({
-  emote: segments[0].emote,
-  response: segments[0].response,
-  version: done.version,
-}, null, 2));
+decoder.push(textDecoder.decode());
+const parsed = decoder.finish();
+if (!parsed.ok) throw new Error(parsed.error);
+console.log(JSON.stringify(parsed.value, null, 2));
