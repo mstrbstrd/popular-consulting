@@ -208,7 +208,7 @@ describe("intrinsic Metabloom chat runtime invariants", () => {
     expect(orb).toContain('className="metabloom-chat__interface"');
     expect(orb).toContain('role="log"');
     expect(orb).toContain("<textarea");
-    expect(orb).toContain('data-response-contract="response+actionChain"');
+    expect(orb).toContain('data-response-contract="emote+response"');
     expect(orb).not.toContain("<table>");
     expect(orb).not.toContain("orb-avatar-lab__stage");
     expect(orb).not.toContain("Ready for model JSON");
@@ -246,7 +246,7 @@ describe("intrinsic Metabloom chat runtime invariants", () => {
     expect(orb).toContain(
       "window.addEventListener(MODEL_RESPONSE_EVENT",
     );
-    expect(orb).toContain("requestTokenRef.current !== requestToken");
+    expect(orb).toContain("requestTokenRef.current === requestToken");
     expect(orb).toContain("MAX_CHAT_MESSAGES = 24");
     expect(orb).toContain("MAX_USER_MESSAGE_CHARS = 1600");
   });

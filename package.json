@@ -49,7 +49,10 @@
           "jest/no-conditional-expect": "off"
         }
       }
-    ]
+    ],
+    "globals": {
+      "globalThis": "readonly"
+    }
   },
   "browserslist": {
     "production": [

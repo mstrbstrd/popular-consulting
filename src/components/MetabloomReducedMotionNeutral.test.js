@@ -1,20 +1,12 @@
-import fs from "fs";
-import path from "path";
+import { createMetabloomMotionRuntime, METABLOOM_NEUTRAL_POSE } from "./metabloomMotionRuntime";
 
 describe("Metabloom reduced-motion neutrality", () => {
-  const source = fs.readFileSync(
-    path.join(__dirname, "CreatorOSFieldCanvas.js"),
-    "utf8",
-  );
-
   test("settle and reform resolve to the neutral terminal pose", () => {
-    const actionPhaseBlock = source.match(
-      /const\s+actionPhase\s*=([\s\S]*?);/,
-    );
-    expect(actionPhaseBlock).not.toBeNull();
-    expect(actionPhaseBlock[1]).toContain('actionId === "reform"');
-    expect(actionPhaseBlock[1]).toMatch(
-      /actionId\s*===\s*"reform"\s*\?\s*1/,
-    );
+    const runtime = createMetabloomMotionRuntime();
+    runtime.snap({ action: "thinking", phase: 0.5, intensity: 0.6 });
+    expect(runtime.snapshot().pose.rotation).not.toBe(0);
+    runtime.snap({ action: "reform", phase: 0.5, intensity: 0.8 });
+    expect(runtime.snapshot().pose).toEqual(METABLOOM_NEUTRAL_POSE);
+    expect(Object.values(runtime.snapshot().velocity).every((value) => value === 0)).toBe(true);
   });
 });
