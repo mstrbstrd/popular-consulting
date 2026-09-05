@@ -1,30 +1,37 @@
-name: Dispatch Metabloom state fix
+name: Apply final Metabloom emote protocol
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - codex/metabloom-emote-protocol
 
 permissions:
   contents: write
 
+concurrency:
+  group: pr117-finalize
+  cancel-in-progress: false
+
 jobs:
-  apply-and-verify:
+  apply-verify-and-clean:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
-      - name: Check out refinement branch
+      - name: Check out protocol branch
         uses: actions/checkout@v4
         with:
-          ref: codex/metabloom-emotive-runtime
+          ref: codex/metabloom-emote-protocol
 
-      - name: Reconstruct and apply state fix
+      - name: Reconstruct and apply final source
         shell: bash
         run: |
-          base64 --decode scripts/metabloom-imperative-state.patch.gz.b64 \
+          set -euo pipefail
+          base64 --decode scripts/pr117-final.patch.gz.b64 \
             | gzip --decompress \
-            > "$RUNNER_TEMP/metabloom-imperative-state.patch"
-          echo "cab08fe2d28c802bc300db7ab4cfc5f3fa4425d67c48a9c4692e9bb9f7c66f6d  $RUNNER_TEMP/metabloom-imperative-state.patch" \
+            > "$RUNNER_TEMP/pr117-final.patch"
+          echo "46a80578eff3bb5420f76a79afe78535dbc4f9de5ef738a24fcd3428f2ac2dd7  $RUNNER_TEMP/pr117-final.patch" \
             | sha256sum --check
-          git apply --index "$RUNNER_TEMP/metabloom-imperative-state.patch"
+          git apply --index "$RUNNER_TEMP/pr117-final.patch"
           git diff --cached --check
 
       - name: Set up Node.js
@@ -49,15 +56,15 @@ jobs:
         env:
           CI: true
 
-      - name: Commit verified source
+      - name: Commit verified clean source
         shell: bash
         run: |
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git rm scripts/metabloom-imperative-state.patch.gz.b64
-          git rm .github/workflows/fix-metabloom-imperative-state.yml
-          git rm .github/workflows/dispatch-metabloom-state-fix.yml
+          git rm -f scripts/pr117-final.patch.gz.b64
+          git rm -f .github/workflows/apply-pr117-final.yml
           git add -A
           git diff --cached --check
-          git commit -m "Synchronize Metabloom agent state"
+          git commit -m "Finalize Metabloom emote response protocol"
           git push origin "HEAD:${GITHUB_REF_NAME}"
