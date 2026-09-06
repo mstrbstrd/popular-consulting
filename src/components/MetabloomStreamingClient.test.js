@@ -48,17 +48,18 @@ describe("HTTP segment arrival, not whole-response buffering", () => {
   test("a disconnect after a valid prefix never becomes a successful demo response", async () => {
     const io = transport(); const onSegment = jest.fn();
     const request = requestMetabloomResponse({ fetchImpl: io.fetchImpl, message: "Hello", allowMultiple: true, onSegment, optional: true });
-    const rejection = expect(request).rejects.toMatchObject({ code: "invalid_response" });
+    const failure = request.catch((error) => error);
     await flush(); await io.send(line(first, 0)); await io.close();
-    await rejection;
+    expect(await failure).toMatchObject({ code: "invalid_response" });
     expect(onSegment).toHaveBeenCalledTimes(1);
   });
 
   test("a cancelled request does not emit a late segment", async () => {
     const io = transport(); const controller = new AbortController(); const onSegment = jest.fn();
     const request = requestMetabloomResponse({ fetchImpl: io.fetchImpl, message: "Hello", onSegment, signal: controller.signal });
-    const rejection = expect(request).rejects.toMatchObject({ code: "cancelled" });
-    await flush(); controller.abort(); await io.send(line(first, 0)); await rejection;
+    const failure = request.catch((error) => error);
+    await flush(); controller.abort(); await io.send(line(first, 0));
+    expect(await failure).toMatchObject({ code: "cancelled" });
     expect(onSegment).not.toHaveBeenCalled();
   });
 });

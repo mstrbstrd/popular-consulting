@@ -104,6 +104,16 @@
 .orb-page .metabloom-chat__bubble > p + p {
   margin-top: 1.1em;
 }
+/* Keep the actual input centred; extra controls must not collide with prompts. */
+.orb-page .metabloom-chat[data-conversation-started="false"] .metabloom-chat__stream-option {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 0.8rem);
+}
+.orb-page .metabloom-chat[data-response-presentation="single-message-stream"] {
+  --orb-composer-clearance: max(22rem, calc(env(safe-area-inset-bottom) + 20rem));
+}
 @media (max-width: 720px) {
   .orb-page .metabloom-chat__suggestions[data-demo-count="4"] button:last-child {
     width: 100%;

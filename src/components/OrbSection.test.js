@@ -201,7 +201,7 @@ describe("OrbSection", () => {
     expect(window.__orbMessages()).toEqual(beforeMessages);
     expect(mockAvatarProps.action).toBe(beforeAction);
     expect(screen.queryByText("This must not render.")).not.toBeInTheDocument();
-    expect(screen.getByRole("alert")).toHaveTextContent(/unsupported action id/i);
+    expect(screen.getByRole("alert")).toHaveTextContent(/invalid metabloom response fields or protocol version/i);
   });
 
   test("lets an event responder claim a request and answer with correlation", () => {
@@ -243,7 +243,8 @@ describe("OrbSection", () => {
         }),
       );
     });
-    expect(screen.queryByText("A stale response.")).not.toBeInTheDocument();
+    expect(screen.queryByText("A stale response."))
+      .not.toBeInTheDocument();
 
     act(() => {
       window.dispatchEvent(
