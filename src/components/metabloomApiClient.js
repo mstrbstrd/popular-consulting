@@ -36,51 +36,63 @@ export const requestMetabloomResponse = async ({
     const response = await fetchImpl("/api/metabloom", {
       method: "POST",
       credentials: "same-origin",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", Accept: "application/x-ndjson" },
       body: JSON.stringify({ allowMultiple: allowMultiple === true, history, message, requestId }),
       signal: controller.signal,
     });
-    if (!response.ok) {
-      let payload = {};
-      try { payload = await response.json(); } catch { /* Missing static-host endpoint. */ }
-      const error = new MetabloomApiError("The model request was not completed.", {
-        code: typeof payload.code === "string" ? payload.code : "request_failed",
-        status: response.status,
-      });
-      if (optional && isMetabloomApiUnavailable(error)) return null;
-      throw error;
-    }
     const contentType = response.headers?.get?.("content-type") || "";
     const isStream = contentType.includes("application/x-ndjson");
-    if (!isStream && !contentType.includes("application/json")) {
-      throw new MetabloomApiError("Unexpected model response format.");
-    }
-    const decoder = createMetabloomSegmentStreamDecoder({ allowMultiple, onSegment });
+    const decoder = createMetabloomSegmentStreamDecoder({
+      allowMultiple,
+      onSegment: (segment, index) => {
+        if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
+        onSegment?.(segment, index);
+      },
+    });
     let text = "";
     let bytes = 0;
+    if (response.ok && !isStream && !contentType.includes("application/json")) {
+      throw new MetabloomApiError("Unexpected model response format.");
+    }
     if (response.body?.getReader) {
       reader = response.body.getReader();
       const textDecoder = new TextDecoder("utf-8", { fatal: true });
       while (true) {
         const chunk = await reader.read();
+        if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
         if (chunk.done) break;
         bytes += chunk.value.byteLength;
-        if (bytes > MAX_RESPONSE_BYTES) throw new MetabloomApiError("Response exceeded its size limit.");
+        if (bytes > (response.ok ? MAX_RESPONSE_BYTES : 4096)) throw new MetabloomApiError("Response exceeded its size limit.");
         const part = textDecoder.decode(chunk.value, { stream: true });
-        if (isStream) {
-          if (!decoder.push(part)) throw new MetabloomApiError("Invalid response stream.");
+        if (response.ok && isStream) {
+          if (!decoder.push(part)) throw new MetabloomApiError("The response stream was interrupted or invalid.", { code: "invalid_response" });
         } else text += part;
       }
       const tail = textDecoder.decode();
-      if (isStream) decoder.push(tail); else text += tail;
-    } else {
-      // Test transports and non-streaming implementations remain bounded too.
+      if (response.ok && isStream) decoder.push(tail); else text += tail;
+    } else if (typeof response.text === "function") {
       text = await response.text();
-      if (text.length > 24000) throw new MetabloomApiError("Response exceeded its size limit.");
-      if (isStream) decoder.push(text);
+      if (text.length > (response.ok ? 24000 : 4096)) throw new MetabloomApiError("Response exceeded its size limit.");
+      if (response.ok && isStream) decoder.push(text);
+    } else if (!response.ok && typeof response.json === "function") {
+      // Minimal test transports; real HTTP responses use the bounded reader above.
+      text = JSON.stringify(await response.json());
+      if (text.length > 4096) throw new MetabloomApiError("Response exceeded its size limit.");
+    }
+    if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
+    if (!response.ok) {
+      let payload = {};
+      try { payload = JSON.parse(text); } catch { /* Static host may return HTML. */ }
+      const error = new MetabloomApiError("The model request was not completed.", {
+        code: typeof payload.code === "string" ? payload.code : "request_failed", status: response.status,
+      });
+      if (optional && isMetabloomApiUnavailable(error)) return null;
+      throw error;
     }
     const result = isStream ? decoder.finish() : parseMetabloomEmoteEnvelope(text, { allowMultiple });
     if (!result.ok) throw new MetabloomApiError(result.error, { code: "invalid_response" });
+    // JSON compatibility responses use the same callback, exactly once per segment.
+    if (!isStream) result.value.segments.forEach((segment, index) => onSegment?.(segment, index));
     return result.value;
   } catch (error) {
     if (controller.signal.aborted) throw new MetabloomApiError("The model request was cancelled or timed out.", { code: "cancelled" });

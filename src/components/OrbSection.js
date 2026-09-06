@@ -18,21 +18,12 @@ import {
   METABLOOM_MODEL_RESPONSE_SCHEMA,
   parseMetabloomModelResponse,
 } from "./metabloomResponseContract";
-import {
-  METABLOOM_DEMO_PROMPTS,
-  METABLOOM_DEMOS,
-  createMetabloomDemoEnvelope,
-} from "./metabloomDemoResponses";
-import {
-  parseMetabloomEmoteEnvelope,
-} from "./metabloomEmoteProtocol";
-import {
-  resolveMetabloomEmote,
-  METABLOOM_PROTOCOL_VERSION,
-  METABLOOM_EMOTE_IDS,
-  METABLOOM_EMOTE_RESPONSE_SCHEMA,
-} from "./metabloomEmoteLibrary";
+import { METABLOOM_DEMO_PROMPTS, METABLOOM_DEMOS } from "./metabloomDemoResponses";
+import { parseMetabloomEmoteEnvelope, createMetabloomSegmentStreamDecoder } from "./metabloomEmoteProtocol";
+import { resolveMetabloomEmote, METABLOOM_PROTOCOL_VERSION, METABLOOM_EMOTE_IDS, METABLOOM_EMOTE_RESPONSE_SCHEMA } from "./metabloomEmoteLibrary";
+import { createMetabloomReplySession } from "./metabloomReplySession";
 import { requestMetabloomResponse } from "./metabloomApiClient";
+import { streamMetabloomDemoResponse } from "./metabloomDemoStream";
 import "./OrbSection.css";
 import "./OrbEmoteDemos.css";
 
@@ -57,7 +48,7 @@ const MODEL_RESPONSE_EVENT = "metabloom:model-response";
 const MAX_USER_MESSAGE_CHARS = 1600;
 const MAX_CHAT_MESSAGES = 24;
 const MAX_HISTORY_MESSAGES = 12;
-const PREVIEW_RESPONSE_DELAY_MS = 520;
+const RESPONSE_TIMEOUT_MS = 30000;
 const MAX_TOOL_SEQUENCE_ID_CHARS = 48;
 const TOOL_SEQUENCE_ID_PATTERN = /^[a-z][a-z0-9-]*$/;
 const TOOL_EXPRESSION_KEYS = new Set([
@@ -334,8 +325,11 @@ const cloneActionChain = (actionChain = []) =>
     talking,
   }));
 
-const cloneMessage = ({ role, content, actionChain = [], source, emote }) => ({
+const cloneMessage = ({ id, role, content, actionChain = [], source, emote, segments = [], status }) => ({
+  id,
   emote,
+  segments: segments.map((segment) => ({ ...segment })),
+  status,
   role,
   content,
   actionChain: cloneActionChain(actionChain),
@@ -382,19 +376,19 @@ const OrbSection = ({
   );
   const sequenceTimerRef = React.useRef(0);
   const sequenceTokenRef = React.useRef(0);
-  const responseSegmentTimerRef = React.useRef(0);
-  const responseSegmentTokenRef = React.useRef(0);
   const mountIdRef = React.useRef("");
   if (!mountIdRef.current) mountIdRef.current = createMetabloomMountId();
   const previewTimerRef = React.useRef(0);
   const requestTokenRef = React.useRef(0);
   const activeRequestRef = React.useRef(null);
   const requestAbortRef = React.useRef(null);
+  const replyRef = React.useRef(null);
   const messageCounterRef = React.useRef(0);
   const mountedRef = React.useRef(true);
   const messagesEndRef = React.useRef(null);
   const stateRef = React.useRef(null);
   const [emoteId, setEmoteId] = React.useState("neutral");
+  const [allowEmoteChanges, setAllowEmoteChanges] = React.useState(false);
   const [actionId, setActionId] = React.useState(DEFAULT_ACTION);
   const [actionDuration, setActionDuration] = React.useState(
     DEFAULT_ACTION_RECORD.duration,
@@ -451,21 +445,22 @@ const OrbSection = ({
     return stateRef.current;
   }, []);
 
-  const cancelResponseSegmentTimer = React.useCallback(() => {
-    responseSegmentTokenRef.current += 1;
-    window.clearTimeout(responseSegmentTimerRef.current);
-    responseSegmentTimerRef.current = 0;
-  }, []);
+  const publishMessages = React.useCallback((nextMessages) => {
+    messagesRef.current = nextMessages;
+    updateStateSnapshot({ conversationStarted: nextMessages.length > 0, messageCount: nextMessages.length });
+    if (mountedRef.current) setMessages(nextMessages);
+  }, [updateStateSnapshot]);
 
-  const cancelResponse = React.useCallback(() => {
-    cancelResponseSegmentTimer();
+  const cancelResponse = React.useCallback((reason = "interrupted") => {
     requestAbortRef.current?.abort();
     requestAbortRef.current = null;
     requestTokenRef.current += 1;
     activeRequestRef.current = null;
     window.clearTimeout(previewTimerRef.current);
     previewTimerRef.current = 0;
-  }, [cancelResponseSegmentTimer]);
+    replyRef.current?.interrupt(reason);
+    replyRef.current = null;
+  }, []);
 
   const cancelSequenceTimer = React.useCallback(() => {
     sequenceTokenRef.current += 1;
@@ -502,8 +497,7 @@ const OrbSection = ({
         typeof request.talking === "boolean" ? request.talking : false;
       clearSequence();
       const nextActionVersion = (stateRef.current?.actionVersion ?? 0) + 1;
-      const nextPulseVersion = (stateRef.current?.pulseVersion ?? 0)
-        + (options.pulse === false ? 0 : 1);
+      const nextPulseVersion = (stateRef.current?.pulseVersion ?? 0) + (options.pulse === false ? 0 : 1);
       updateStateSnapshot({
         action: resolved.id,
         actionDuration: duration,
@@ -530,21 +524,13 @@ const OrbSection = ({
     [clearSequence, updateStateSnapshot],
   );
 
-  const performEmote = React.useCallback(
-    (nextEmote) => {
-      const emote = resolveMetabloomEmote(nextEmote);
-      if (!emote) return false;
-      updateStateSnapshot({ emote: emote.id });
-      setEmoteId(emote.id);
-      return performAction({
-        action: emote.action || "reform",
-        duration: emote.duration,
-        intensity: emote.intensity,
-        talking: false,
-      }, { pulse: false });
-    },
-    [performAction, updateStateSnapshot],
-  );
+  const performEmote = React.useCallback((nextEmote) => {
+    const emote = resolveMetabloomEmote(nextEmote);
+    if (!emote) return false;
+    updateStateSnapshot({ emote: emote.id });
+    setEmoteId(emote.id);
+    return performAction({ action: emote.action || "reform", duration: emote.duration, intensity: emote.intensity, talking: false }, { pulse: false });
+  }, [performAction, updateStateSnapshot]);
 
   const transform = React.useCallback(
     (nextForm) => {
@@ -564,8 +550,8 @@ const OrbSection = ({
 
   const reset = React.useCallback(() => {
     cancelResponse();
-    clearSequence();
     setEmoteId("neutral");
+    clearSequence();
     requestTokenRef.current += 1;
     activeRequestRef.current = null;
     window.clearTimeout(previewTimerRef.current);
@@ -754,145 +740,122 @@ const OrbSection = ({
   );
 
   const appendMessage = React.useCallback(
-    (role, content, actionChain = [], source = "interface", emote = null) => {
-      messageCounterRef.current += 1;
+    (role, content, actionChain = [], source = "interface", emote = null, segments = [], status = "complete") => {
       const message = {
-        id: `${role}-${messageCounterRef.current}`,
-        role,
-        content,
-        emote,
-        actionChain: cloneActionChain(actionChain),
-        source,
+        id: `${role}-${++messageCounterRef.current}`, role, content, emote,
+        actionChain: cloneActionChain(actionChain), source, segments, status,
       };
-      const nextMessages = [
-        ...messagesRef.current.slice(-(MAX_CHAT_MESSAGES - 1)),
-        message,
-      ];
-      messagesRef.current = nextMessages;
-      updateStateSnapshot({
-        conversationStarted: true,
-        messageCount: nextMessages.length,
-      });
-      setMessages(nextMessages);
+      publishMessages([...messagesRef.current.slice(-(MAX_CHAT_MESSAGES - 1)), message]);
       return message;
     },
-    [updateStateSnapshot],
+    [publishMessages],
   );
 
-  const applyEmoteSegment = React.useCallback(
-    (segment, source = "external") => {
-      const parsed = parseMetabloomEmoteEnvelope(segment);
-      if (!parsed.ok || parsed.value.segments.length !== 1) return false;
-      const normalized = parsed.value.segments[0];
-      appendMessage("assistant", normalized.response, [], source, normalized.emote);
-      performEmote(normalized.emote);
-      return true;
-    },
-    [appendMessage, performEmote],
-  );
+  const failReply = React.useCallback((session) => {
+    if (replyRef.current !== session || session.closed) return false;
+    cancelResponse("error");
+    updateStateSnapshot({ pending: false, responseSource: "error" });
+    setPending(false);
+    setResponseSource("error");
+    setErrorMessage("The response stream was interrupted. Any visible reply is incomplete. Try again or use a local demo.");
+    return false;
+  }, [cancelResponse, updateStateSnapshot]);
 
-  const playEmoteSegments = React.useCallback(
-    (envelope, source = "external") => {
-      const parsed = parseMetabloomEmoteEnvelope(envelope);
-      if (!parsed.ok) return false;
-      cancelResponseSegmentTimer();
-      const segments = parsed.value.segments;
-      const token = responseSegmentTokenRef.current;
-      let index = 0;
-
-      const advance = () => {
-        if (responseSegmentTokenRef.current !== token) return;
-        const segment = segments[index];
-        if (!segment) {
-          responseSegmentTimerRef.current = 0;
-          return;
+  const beginReply = React.useCallback((source, allowMultiple = false) => {
+    cancelResponse();
+    clearSequence();
+    let messageId = null;
+    const session = createMetabloomReplySession({
+      allowMultiple,
+      onEmote: performEmote,
+      onUpdate: (snapshot) => {
+        if (!mountedRef.current) return;
+        const replySource = replyRef.current === session ? stateRef.current.responseSource : source;
+        if (!messageId) {
+          messageId = appendMessage("assistant", snapshot.content, [], replySource, snapshot.emote, snapshot.segments, snapshot.status).id;
+        } else {
+          publishMessages(messagesRef.current.map((message) => message.id === messageId ? { ...message, ...snapshot, source: replySource } : message));
         }
-        applyEmoteSegment(segment, source);
-        index += 1;
-        if (index >= segments.length) {
-          responseSegmentTimerRef.current = 0;
-          return;
-        }
-        const readingDelay = Math.min(
-          7000,
-          Math.max(2200, segment.response.length * 30),
-        );
-        responseSegmentTimerRef.current = window.setTimeout(
-          advance,
-          readingDelay,
-        );
-      };
+      },
+    });
+    replyRef.current = session;
+    updateStateSnapshot({ pending: true, responseSource: source });
+    setPending(true);
+    setResponseSource(source);
+    setErrorMessage("");
+    previewTimerRef.current = window.setTimeout(() => failReply(session), RESPONSE_TIMEOUT_MS);
+    return session;
+  }, [appendMessage, cancelResponse, clearSequence, failReply, performEmote, publishMessages, updateStateSnapshot]);
 
-      advance();
-      return true;
-    },
-    [applyEmoteSegment, cancelResponseSegmentTimer],
-  );
-
-  const applyModelResponse = React.useCallback(
-    (payload, source = "external", allowMultiple = false) => {
-      cancelResponseSegmentTimer();
-      const emoteResponse = parseMetabloomEmoteEnvelope(payload, { allowMultiple });
-      if (emoteResponse.ok) {
-        updateStateSnapshot({ pending: false, responseSource: source });
-        setErrorMessage("");
-        setPending(false);
-        setResponseSource(source);
-        return playEmoteSegments(emoteResponse.value, source);
-      }
-
-      const parsed = parseMetabloomModelResponse(payload);
-      if (!parsed.ok) {
-        updateStateSnapshot({ pending: false });
-        setPending(false);
-        setErrorMessage(parsed.error);
-        return false;
-      }
-
-      updateStateSnapshot({ pending: false, responseSource: source });
-      setErrorMessage("");
+  const finishReply = React.useCallback((session, payload) => {
+    if (replyRef.current !== session || session.closed) return false;
+    try {
+      session.finish(payload);
+      window.clearTimeout(previewTimerRef.current);
+      previewTimerRef.current = 0;
+      activeRequestRef.current = null;
+      requestAbortRef.current = null;
+      requestTokenRef.current += 1;
+      updateStateSnapshot({ pending: false });
       setPending(false);
-      setResponseSource(source);
-      appendMessage(
-        "assistant",
-        parsed.value.response,
-        parsed.value.actionChain,
-        source,
-      );
-      playSequence(parsed.value.actionChain, "legacy-model-response");
       return true;
-    },
-    [appendMessage, cancelResponseSegmentTimer, playEmoteSegments, playSequence, updateStateSnapshot],
-  );
+    } catch { return failReply(session); }
+  }, [failReply, updateStateSnapshot]);
 
-  const receiveModelResponse = React.useCallback(
-    (payload, options = {}) => {
-      const expectedRequestId =
-        options && typeof options === "object" ? options.requestId : null;
-      const source =
-        options &&
-        typeof options === "object" &&
-        typeof options.source === "string"
-          ? options.source
-          : "external";
-      const activeRequest = activeRequestRef.current;
+  const receiveModelResponse = React.useCallback((payload, options = {}) => {
+    const expectedRequestId = options?.requestId;
+    const source = typeof options?.source === "string" ? options.source : "external";
+    const activeRequest = activeRequestRef.current;
+    if (expectedRequestId && (!activeRequest || activeRequest.requestId !== expectedRequestId)) return false;
+    if (expectedRequestId && activeRequest.session.snapshot().segments.length && !activeRequest.claimed) return false;
+    const allowMultiple = expectedRequestId ? activeRequest.allowMultiple : options?.allowMultiple === true;
+    const parsed = parseMetabloomEmoteEnvelope(payload, { allowMultiple });
+    if (parsed.ok) {
+      const session = expectedRequestId ? activeRequest.session : beginReply(source, allowMultiple);
+      updateStateSnapshot({ responseSource: source });
+      setResponseSource(source);
+      return finishReply(session, parsed.value);
+    }
+    // Explicit backwards compatibility only. A streamed reply never falls back to a playlist.
+    const legacy = parseMetabloomModelResponse(payload);
+    if (!legacy.ok || activeRequest?.session.snapshot().segments.length) {
+      if (activeRequest) return failReply(activeRequest.session);
+      setErrorMessage(parsed.error);
+      return false;
+    }
+    cancelResponse();
+    updateStateSnapshot({ pending: false, responseSource: source });
+    setPending(false);
+    setResponseSource(source);
+    setErrorMessage("");
+    appendMessage("assistant", legacy.value.response, legacy.value.actionChain, source);
+    playSequence(legacy.value.actionChain, "legacy-model-response");
+    return true;
+  }, [appendMessage, beginReply, cancelResponse, failReply, finishReply, playSequence, updateStateSnapshot]);
 
-      if (
-        expectedRequestId &&
-        (!activeRequest || activeRequest.requestId !== expectedRequestId)
-      ) {
-        return false;
-      }
-
-      // Ordinary requests cannot be upgraded to multi-segment by a responder.
-      const allowMultiple = expectedRequestId
-        ? activeRequest?.allowMultiple === true
-        : options?.allowMultiple === true;
-      cancelResponse();
-      return applyModelResponse(payload, source, allowMultiple);
-    },
-    [applyModelResponse, cancelResponse],
-  );
+  const createStream = React.useCallback((options = {}) => {
+    const allowMultiple = options?.allowMultiple === true;
+    const session = beginReply("external", allowMultiple);
+    const decoder = createMetabloomSegmentStreamDecoder({
+      allowMultiple,
+      onSegment: (segment, index) => session.append(segment, index),
+    });
+    return Object.freeze({
+      push(chunk) {
+        if (replyRef.current !== session || session.closed) return false;
+        try { return decoder.push(chunk) || failReply(session); }
+        catch { return failReply(session); }
+      },
+      finish() {
+        if (replyRef.current !== session || session.closed) return false;
+        const result = decoder.finish();
+        return result.ok ? finishReply(session, result.value) : failReply(session);
+      },
+      cancel() {
+        if (replyRef.current === session && !session.closed) stop();
+      },
+    });
+  }, [beginReply, failReply, finishReply, stop]);
 
   const getState = React.useCallback(() => ({ ...stateRef.current }), []);
 
@@ -965,7 +928,7 @@ const OrbSection = ({
 
   const sendMessage = React.useCallback(
     (value) => {
-      if (stateRef.current?.pending) return false;
+      if (!isActive) return false;
       const message = typeof value === "string" ? value.trim() : "";
       if (!message) return false;
       if (message.length > MAX_USER_MESSAGE_CHARS) {
@@ -973,88 +936,81 @@ const OrbSection = ({
         return false;
       }
       cancelResponse();
-      clearSequence();
-      // History excludes the new turn: the server appends it exactly once.
-      const history = messagesRef.current.slice(-MAX_HISTORY_MESSAGES)
-        .map(({ role, content }) => ({ role, content }));
-      const userMessage = appendMessage("user", message);
-      const requestToken = requestTokenRef.current + 1;
-      const requestId = `${mountIdRef.current}-${requestToken}`;
-      const activeRequest = {
-        claimed: false,
-        requestId,
-        requestToken,
-        allowMultiple: METABLOOM_DEMOS.some(
-          (demo) => demo.prompt === message && demo.segments.length > 1,
-        ),
-      };
-      requestTokenRef.current = requestToken;
-      activeRequestRef.current = activeRequest;
-      updateStateSnapshot({ conversationStarted: true, pending: true, responseSource: "pending", talking: false });
-      setDraft("");
-      setPending(true);
-      setTalking(false);
-      setErrorMessage("");
-      setResponseSource("pending");
-      // Waiting does not trigger a second emote or restart the current pose.
-      const current = () => mountedRef.current && requestTokenRef.current === requestToken
-        && activeRequestRef.current === activeRequest;
-      const schedulePreviewResponse = () => {
-        if (!current()) return;
-        previewTimerRef.current = window.setTimeout(() => {
-          previewTimerRef.current = 0;
-          if (!current()) return;
-          receiveModelResponse(createMetabloomDemoEnvelope(message), { requestId, source: "preview" });
-        }, PREVIEW_RESPONSE_DELAY_MS);
-      };
-      // Hardwired demo buttons always stay local, even with a configured provider.
-      if (SUGGESTED_PROMPTS.includes(message)) {
-        schedulePreviewResponse();
-        return true;
+      // A multi-segment reply remains one history entry. Exclude incomplete replies
+      // and bound the history by characters as well as message count.
+      let historyChars = 0;
+      const history = [];
+      for (const item of [...messagesRef.current].reverse()) {
+        if (item.status === "interrupted" || item.status === "error") continue;
+        if (history.length >= MAX_HISTORY_MESSAGES || historyChars + item.content.length > 16000) break;
+        history.unshift({ role: item.role, content: item.content });
+        historyChars += item.content.length;
       }
+      appendMessage("user", message);
+      const demo = METABLOOM_DEMOS.find((item) => item.prompt === message);
+      const allowMultiple = demo ? demo.segments.length > 1 : allowEmoteChanges;
+      const source = demo ? "preview" : "model";
+      const session = beginReply(source, allowMultiple);
+      const requestToken = ++requestTokenRef.current;
+      const requestId = `${mountIdRef.current}-${requestToken}`;
+      const activeRequest = { claimed: false, requestId, requestToken, allowMultiple, session };
+      activeRequestRef.current = activeRequest;
+      const controller = new AbortController();
+      requestAbortRef.current = controller;
+      updateStateSnapshot({ conversationStarted: true, talking: false });
+      setDraft("");
+      setTalking(false);
+      const current = () => mountedRef.current && requestTokenRef.current === requestToken
+        && activeRequestRef.current === activeRequest && !session.closed;
+      const onSegment = (segment, index) => {
+        if (!current()) return;
+        session.append(segment, index);
+      };
+      const request = { requestId, message, history, allowMultiple, signal: controller.signal, onSegment };
+      const runDemo = () => {
+        if (!current()) return;
+        // Source label belongs to this reply, not to every arriving segment.
+        updateStateSnapshot({ responseSource: "preview" });
+        setResponseSource("preview");
+        return streamMetabloomDemoResponse(request).then((payload) => {
+          if (!current()) return;
+          // Unconfigured live requests use the same reply, honestly labelled preview.
+          publishMessages(messagesRef.current.map((item) => item.status === "streaming" ? { ...item, source: "preview" } : item));
+          finishReply(session, payload);
+        }).catch(() => { if (current()) failReply(session); });
+      };
+      if (demo) { runDemo(); return true; }
       const claimRequest = () => {
         if (!current()) return false;
         activeRequest.claimed = true;
         return true;
       };
-      const respond = (payload) => {
-        if (!claimRequest()) return false;
-        return receiveModelResponse(payload, { requestId, source: "external" });
-      };
+      const respond = (payload) => claimRequest() && receiveModelResponse(payload, { requestId, source: "external" });
       const requestEvent = new CustomEvent(MODEL_REQUEST_EVENT, {
         cancelable: true,
-        detail: { requestId, message: userMessage.content, history, claim: claimRequest, respond },
+        detail: { ...request, claim: claimRequest, respond },
       });
       window.dispatchEvent(requestEvent);
       if (requestEvent.defaultPrevented) claimRequest();
       if (!current() || activeRequest.claimed) return true;
       const externalAdapter = window.__metabloomRequest;
       if (typeof externalAdapter !== "function" && typeof globalThis.fetch !== "function") {
-        schedulePreviewResponse();
+        runDemo();
         return true;
       }
-      const controller = new AbortController();
-      requestAbortRef.current = controller;
-      const request = { requestId, message: userMessage.content, history, signal: controller.signal };
       Promise.resolve().then(() => {
-        if (!current() || controller.signal.aborted) return null;
+        if (!current()) return null;
         return typeof externalAdapter === "function" ? externalAdapter(request)
-          : requestMetabloomResponse({ ...request, allowMultiple: false, optional: true });
+          : requestMetabloomResponse({ ...request, optional: true });
       }).then((payload) => {
         if (!current()) return;
-        if (!payload) { schedulePreviewResponse(); return; }
-        receiveModelResponse(payload, { requestId, source: "model" });
-      }).catch(() => {
-        if (!current()) return;
-        cancelResponse();
-        updateStateSnapshot({ pending: false, responseSource: "error" });
-        setPending(false);
-        setResponseSource("error");
-        setErrorMessage("The live model response was not completed. Try again or use a local demo.");
-      });
+        if (!payload && !session.snapshot().segments.length) { runDemo(); return; }
+        if (parseMetabloomEmoteEnvelope(payload, { allowMultiple }).ok) finishReply(session, payload);
+        else receiveModelResponse(payload, { requestId, source: "model" });
+      }).catch(() => { if (current()) failReply(session); });
       return true;
     },
-    [appendMessage, cancelResponse, clearSequence, receiveModelResponse, updateStateSnapshot],
+    [allowEmoteChanges, appendMessage, beginReply, cancelResponse, failReply, finishReply, isActive, publishMessages, receiveModelResponse, updateStateSnapshot],
   );
 
   const handleSubmit = React.useCallback(
@@ -1151,6 +1107,7 @@ const OrbSection = ({
       emotes: [...METABLOOM_EMOTE_IDS],
       schema: cloneSchema(METABLOOM_EMOTE_RESPONSE_SCHEMA),
       respond: receiveModelResponse,
+      createStream,
       getState,
     });
     window.__metabloomProtocol = emoteProtocol;
@@ -1175,9 +1132,10 @@ const OrbSection = ({
     window.__orbMessages = getMessages;
 
     return () => {
+      mountedRef.current = false;
       cancelResponse();
-      cancelSequenceTimer();
       clearOwnedGlobal("__metabloomProtocol", emoteProtocol);
+      cancelSequenceTimer();
       requestTokenRef.current += 1;
       activeRequestRef.current = null;
       window.clearTimeout(previewTimerRef.current);
@@ -1204,6 +1162,7 @@ const OrbSection = ({
     };
   }, [
     cancelResponse,
+    createStream,
     cancelSequenceTimer,
     getMessages,
     getState,
@@ -1229,13 +1188,12 @@ const OrbSection = ({
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
-      responseSegmentTokenRef.current += 1;
-      window.clearTimeout(responseSegmentTimerRef.current);
     };
   }, []);
 
+  const hasStreamingReply = messages.some((message) => message.status === "streaming");
   const statusText = pending
-    ? "Thinking"
+    ? (hasStreamingReply ? "Responding" : "Thinking")
     : sequenceId
       ? "Responding"
       : paused
@@ -1254,6 +1212,7 @@ const OrbSection = ({
       data-orb-renderer="creatoros-metabloom"
       data-response-contract="emote+response"
       data-emote-protocol={METABLOOM_PROTOCOL_VERSION}
+      data-response-presentation="single-message-stream"
       data-emote={emoteId}
     >
       <h1 className="metabloom-chat__sr-only">
@@ -1305,14 +1264,20 @@ const OrbSection = ({
                   key={message.id}
                   className={`metabloom-chat__message metabloom-chat__message--${message.role}`}
                   aria-label={`${message.role === "assistant" ? "Metabloom" : "You"} message`}
+                  data-message-id={message.id}
                   data-emote={message.emote || undefined}
+                  data-stream-status={message.status}
                 >
                   <span className="metabloom-chat__speaker">
                     {message.role === "assistant" ? "Metabloom" : "You"}
                     {message.emote && ` · ${resolveMetabloomEmote(message.emote)?.label}`}
                   </span>
                   <div className="metabloom-chat__bubble">
-                    <p>{message.content}</p>
+                    {message.segments?.length
+                      ? message.segments.map((segment, index) => <p key={index} data-segment-index={index}>{segment.response}</p>)
+                      : <p>{message.content}</p>}
+                    {message.status === "streaming" && <span className="metabloom-chat__stream-status">Receiving response…</span>}
+                    {["interrupted", "error"].includes(message.status) && <span className="metabloom-chat__stream-status">Response incomplete</span>}
                     {message.source === "preview" && (
                       <span className="metabloom-chat__preview-label">
                         Preview response
@@ -1340,7 +1305,7 @@ const OrbSection = ({
                 </div>
               )}
 
-              {pending && (
+              {pending && !hasStreamingReply && (
                 <article
                   className="metabloom-chat__message metabloom-chat__message--assistant"
                   aria-label="Metabloom is thinking"
@@ -1365,11 +1330,15 @@ const OrbSection = ({
                 <summary>Local emote demos</summary>
                 <div>
                   {SUGGESTED_PROMPTS.map((prompt) => (
-                    <button key={prompt} type="button" disabled={pending} onClick={() => sendMessage(prompt)}>{prompt}</button>
+                    <button key={prompt} type="button" onClick={() => sendMessage(prompt)}>{prompt}</button>
                   ))}
                 </div>
               </details>
             )}
+            <label className="metabloom-chat__stream-option">
+              <input type="checkbox" checked={allowEmoteChanges} onChange={(event) => setAllowEmoteChanges(event.target.checked)} />
+              Allow emote changes within one reply
+            </label>
             {errorMessage && (
               <p className="metabloom-chat__error" role="alert">
                 {errorMessage}
@@ -1394,12 +1363,12 @@ const OrbSection = ({
                 placeholder="Message Metabloom"
                 rows={1}
                 maxLength={MAX_USER_MESSAGE_CHARS}
-                disabled={pending}
               />
               <button
-                type="submit"
-                disabled={pending || !draft.trim()}
-                aria-label="Send message"
+                type={pending && !draft.trim() ? "button" : "submit"}
+                disabled={!pending && !draft.trim()}
+                onClick={pending && !draft.trim() ? stop : undefined}
+                aria-label={pending && !draft.trim() ? "Stop response" : "Send message"}
               >
                 <svg
                   viewBox="0 0 24 24"
@@ -1408,7 +1377,7 @@ const OrbSection = ({
                   focusable="false"
                 >
                   <path
-                    d="M12 19V5M6.5 10.5 12 5l5.5 5.5"
+                    d={pending && !draft.trim() ? "M7 7H17V17H7Z" : "M12 19V5M6.5 10.5 12 5l5.5 5.5"}
                     stroke="currentColor"
                     strokeWidth="1.8"
                     strokeLinecap="round"
@@ -1417,7 +1386,7 @@ const OrbSection = ({
                 </svg>
               </button>
             </form>
-            {!conversationStarted && <p className="metabloom-chat__protocol-note">Emote protocol 1.0 · Try a local demo below</p>}
+            {!conversationStarted && <p className="metabloom-chat__protocol-note">Emote protocol 1.0 · Stream segments into one reply</p>}
           </div>
         </div>
       </div>

@@ -16,9 +16,16 @@ afterEach(() => {
 const segment = (emote = "reflective", response = "A careful thought.") => ({ emote, response });
 const envelope = (...segments) => ({ version: "1.0.0", segments });
 const request = (body = { message: "Hello", history: [] }) => ({ method: "POST", headers: { host: "localhost:3000", origin: "http://localhost:3000", "content-type": "application/json" }, socket: { remoteAddress: "127.0.0.1" }, body });
-const response = () => Object.assign(new EventEmitter(), { statusCode: 0, headers: {}, body: "", setHeader(k, v) { this.headers[k] = v; }, write(s) { this.body += s; }, end(s = "") { this.body += s; this.writableEnded = true; } });
+const response = () => Object.assign(new EventEmitter(), { statusCode: 0, headers: {}, body: "", setHeader(k, v) { this.headers[k] = v; }, write(s) { this.body += s; return true; }, end(s = "") { this.body += s; this.writableEnded = true; } });
 const local = () => { process.env.VERCEL_ENV = "development"; process.env.OPENAI_API_KEY = "test-only-not-a-credential"; };
-const reply = (text) => new Response(JSON.stringify({ status: "completed", output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify(text) }] }] }), { headers: { "content-type": "application/json" } });
+const reply = (value) => {
+  const text = JSON.stringify(value);
+  const events = [
+    { type: "response.output_text.delta", item_id: "m1", output_index: 0, content_index: 0, delta: text },
+    { type: "response.completed", response: { status: "completed", output: [{ type: "message", content: [{ type: "output_text", text }] }] } },
+  ];
+  return new Response(events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(""), { headers: { "content-type": "text/event-stream" } });
+};
 
 test("one segment, exact enum, required version, no extra controls", () => {
   assert.equal(parseMetabloomEmoteEnvelope(envelope(segment())).ok, true);
@@ -66,20 +73,26 @@ test("shared atomic quota is checked before provider work and fails closed", asy
   global.fetch = async () => { throw new Error("Quota down"); };
   const failed = response(); await handler(req, failed); assert.equal(failed.statusCode, 502);
 });
-test("server uses shared prompt/schema and sends the current turn once", async () => {
+test("server streams using the shared prompt/schema and sends the current turn once", async () => {
   local(); let sent;
   global.fetch = async (url, options) => { sent = JSON.parse(options.body); return reply(envelope(segment())); };
   const res = response(); await handler(request(), res);
   assert.equal(res.statusCode, 200);
   assert.deepEqual(sent.input, [{ role: "user", content: "Hello" }]);
   assert.equal(sent.instructions, buildMetabloomSystemPrompt());
+  assert.ok(sent.instructions.includes("ONE assistant reply"));
+  assert.equal(sent.stream, true);
   assert.equal(sent.text.format.schema.properties.segments.maxItems, 1);
   const d = createMetabloomSegmentStreamDecoder({ allowMultiple: false }); d.push(res.body);
   assert.equal(d.finish().ok, true); assert.equal(res.body.includes("test-only"), false);
 });
-test("ordinary replies reject extra segments instead of silently truncating them", async () => {
+test("ordinary streams reject extra segments without declaring the visible prefix complete", async () => {
   local(); global.fetch = async () => reply(envelope(segment("warm"), segment("reflective")));
-  const res = response(); await handler(request(), res); assert.equal(res.statusCode, 502);
+  const res = response(); await handler(request(), res);
+  const d = createMetabloomSegmentStreamDecoder({ allowMultiple: false }); d.push(res.body);
+  assert.equal(d.finish().ok, false);
+  assert.equal(res.body.includes('"type":"done"'), false);
+  assert.equal(res.body.includes('"emote":"reflective"'), false);
 });
 test("disconnect cancels provider work before sending a stale response", async () => {
   local(); let started; const ready = new Promise((resolve) => { started = resolve; }); let signal;

@@ -1,31 +1,29 @@
-# Test the Metabloom response protocol
+# Test Metabloom streaming
 
-Open `/orb`. The landing controls are **Show me a whimsical response**, **Give me a reflective response**, **Offer a reassuring response**, and **Demo a two-part emotional stream**. They are always local, cost nothing at the provider, and work without an API key. After sending a message, expand **Local emote demos** above the composer to replay them. Assistant messages show the selected semantic emote beside Metabloom's name.
+Open `/orb` and choose **Demo a two-part emotional stream**. One assistant bubble should first show a whimsical paragraph, then append a reflective paragraph. The message ID stays the same. The first paragraph is visible while **Receiving response…** is displayed; completion removes that status without replaying either emote. These transport-fragmented demos never contact a model provider.
 
-The landing note reads `Emote protocol 1.0`. The root has `data-response-contract="emote+response"` and `data-emote-protocol="1.0.0"`. These are actual shipped application markers, not PR descriptions.
+After the first reply, expand **Local emote demos** above the input to replay. **Stop response** cancels a pending reply. Typing and sending a new message also cancels the older stream. A cancelled or failed partial reply is marked **Response incomplete**.
 
-## Local provider test
+Ordinary replies remain single-emote by default. Check **Allow emote changes within one reply** to opt live requests into multiple segments. This never creates additional assistant messages. The root exposes `data-response-presentation="single-message-stream"` and `GET /api/metabloom` reports the same `presentation` value.
 
-Use Node.js 20 and the Vercel development server (the React-only dev server does not run root API functions):
+## Local provider setup
 
 ```sh
 cp docs/examples/metabloom.env.example .env.local
-# Fill in OPENAI_API_KEY in .env.local. Do not commit it.
+# Set OPENAI_API_KEY in .env.local. Never commit it.
 npx vercel dev
 ```
 
-Type a normal message in `/orb`, rather than clicking a hardwired demo. The browser calls `/api/metabloom`. The API key remains on the server. Responses are labelled Preview response only when the server is absent or deliberately unconfigured. Rate limits, provider failures, malformed output, and refusal are errors, not disguised demo success.
+Send an original message rather than a hardwired demo. The provider is requested in streaming mode. Each complete validated JSON segment appears while later segments are still being generated. This is paragraph/segment streaming, not a character-by-character typing effect.
 
 ```sh
 node scripts/test-metabloom-api.mjs
 ```
 
-The smoke client makes one billable model request when configured. No provider call is made by CI or by the demo buttons. End-to-end tests mock the provider and test actual validation; they do not claim to prove live provider access.
+The smoke client makes one billable request when configured. CI only uses controlled mock provider streams. Real provider authentication is not claimed as tested without a key.
 
-## Vercel preview or production
+## Production configuration
 
-Set `OPENAI_API_KEY`, optionally `METABLOOM_MODEL`, and `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` in server environment variables, then redeploy. Use a Redis database dedicated to this application. Public model requests fail closed without shared quota storage, even when a key is set. Local in-memory throttling is limited to loopback development only.
+Set server-only `OPENAI_API_KEY`, optionally `METABLOOM_MODEL`, and `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`, then redeploy. The shared quota limits public requests to 12 per client per minute and 300 per project per rolling 24-hour window. Local loopback development supports key-only testing. Never use `REACT_APP_` for a secret.
 
-The shared atomic quota permits at most 12 requests per client per minute and 300 total requests per rolling 24-hour project window. Every admitted request consumes quota even if the provider subsequently fails. These application limits do not replace provider budget controls or edge abuse protection.
-
-`GET /api/metabloom` makes no provider request and returns protocol version, the nine allowed emotes, release marker, and whether server configuration is complete. It never returns any secret. A `configured: true` response indicates configuration presence, not a successful provider authorization test.
+`GET /api/metabloom` is a free metadata check. `configured: true` means the required variables exist, not that a paid provider request has succeeded. Missing/unconfigured service may use a clearly labelled local preview; provider failures, malformed streams, refusal, and quota errors are not disguised as successful demos.

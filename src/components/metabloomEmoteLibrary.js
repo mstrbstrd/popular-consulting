@@ -116,6 +116,7 @@ const buildMetabloomSystemPrompt = ({ allowMultiple = false } = {}) => {
   return [
     protocol.systemPromptBase,
     modeInstruction,
+    "All segments are consecutive paragraphs of ONE assistant reply, not separate messages. Do not repeat greetings or restart the answer. Preserve schema key order: version before segments; emote before response.",
     "Allowed emotes:",
     emoteGuide,
     "Choose the least intense emote that honestly supports the response.",
