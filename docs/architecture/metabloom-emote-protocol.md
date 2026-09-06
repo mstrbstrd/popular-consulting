@@ -1,39 +1,48 @@
-# Metabloom semantic response protocol 1.0.0
+# Metabloom: one reply, streamed emotional segments
 
-An ordinary assistant response contains exactly one subtle emote. The same velocity-aware renderer remains mounted. An emote does not restart the canvas, reset physiology time, queue a reform animation, or emit an additional field pulse. Waiting for a response does not start another emotional gesture.
+Protocol 1.0.0 carries semantic text/emote pairs. A response request owns exactly one assistant message ID and one history entry, even when the reply contains several emotional segments. The same velocity-aware avatar remains mounted.
 
 ```json
-{"version":"1.0.0","segments":[{"emote":"reflective","response":"A considered response."}]}
+{"version":"1.0.0","segments":[{"emote":"whimsy","response":"A playful opening."},{"emote":"reflective","response":"A considered continuation."}]}
 ```
 
-`metabloomProtocol.json` defines nine presets: neutral, warm, whimsy, reflective, curious, reassuring, concerned, celebratory, and resolute. `metabloomEmoteLibrary.js` generates the model schema and system prompt from that manifest. `metabloomEmoteProtocol.js` contains the actual validators shared unchanged by the browser and server. The model selects an enum and text, never duration, intensity, topology, colours, shader code, or an action chain. Motion presets are authored application code.
+The model chooses from nine restrained presets: neutral, warm, whimsy, reflective, curious, reassuring, concerned, celebratory, and resolute. Ordinary requests allow one segment. The checkbox **Allow emote changes within one reply** explicitly permits up to four. The shared system prompt explains that segments are consecutive paragraphs of ONE reply, not standalone messages. The model cannot control shader parameters, intensity, duration, or animation playlists.
 
-The prompt asks for helpful, accurate text, honest uncertainty, restrained emotional emphasis, and one semantically complete text segment. Neutral is preferred over theatrical or manipulative emphasis. User messages and history cannot change the schema. Movement must not be presented as evidence of consciousness. Unsafe requests still receive an appropriate safe response, and provider refusals are handled explicitly.
+## Streaming path
 
-## Segments and streaming
-
-Multi-segment responses are opt-in and bounded to four segments. NDJSON records require consecutive zero-based indexes and an explicit terminal version:
+`api/metabloom.js` requests `stream: true` from the Responses API. `server/metabloomProviderStream.js` incrementally reads provider SSE text deltas, recognizing the ordered JSON schema. A complete segment must pass the exact emote/text schema and aggregate limits before it is emitted as NDJSON. Incomplete JSON never reaches the UI, and arbitrary JSON is never repaired. The parser handles chunk boundaries, escaped strings, nested-looking text, and UTF-8 splits.
 
 ```json
-{"type":"segment","index":0,"emote":"whimsy","response":"A playful possibility."}
-{"type":"segment","index":1,"emote":"reflective","response":"A considered conclusion."}
+{"type":"segment","index":0,"emote":"whimsy","response":"A playful opening."}
+{"type":"segment","index":1,"emote":"reflective","response":"A considered continuation."}
 {"type":"done","version":"1.0.0"}
 ```
 
-The provider adapter currently validates a complete structured envelope before framing it as NDJSON. This is not token-level upstream streaming. The decoder supports arbitrarily divided text chunks, but the UI waits for validated completion and presents complete segments with bounded reading time. One segment and its emote are presented together. The two-part demo deliberately exercises this presentation boundary, not an animation playlist.
+The browser's HTTP reader invokes `onSegment` immediately when each record validates, before network completion. `metabloomReplySession.js` accumulates those paragraphs into one message. The matching emote is triggered once at arrival. There is no reading-delay scheduler, no second assistant bubble, and no replay at completion. A final envelope must match the already visible prefix exactly.
 
-Unknown fields/emotes, wrong versions, empty streams, missing completion, out-of-order indexes, trailing data, excess segment counts, and oversized text fail closed. Limits: 1,600 characters per segment, 4,800 total, 24,000 serialized stream characters. The HTTP readers also bound response bytes and lifetime.
+This is **validated segment streaming**, not character-by-character display: a paragraph arrives when its complete emote/response object is available. The server emits it before later segments and the final envelope finish. Provider errors after a visible prefix produce an error record without `done`; the partial message remains explicitly incomplete. It is not relabelled as a successful demo.
 
-## Lifecycle and continuity
+## Local demonstration and integration
 
-A new user message, reset, stop, deactivation, or unmount cancels undelivered segments and aborts obsolete network requests. Request IDs and tokens reject late external responses. History excludes the current turn; the server appends it once. Snapshots update synchronously when a command is accepted.
+The four demo controls require no key. The two-part demo sends fragmented NDJSON through the same decoder and reply session, with simulated transport delays. The first paragraph appears with Whimsy while the stream is open. The second paragraph extends the same bubble with Reflective. Completion changes only the reply status.
 
-Neutral targets reform at zero intensity, which removes deliberate deformation without disrupting autonomous physiology. Static settle resolves to the neutral terminal pose, not a contracted midpoint. Existing legacy `__orb*` APIs remain compatible. `window.__metabloomProtocol` exposes the version, semantic enum/schema, response acceptance, and state inspection. The new built-in model path uses semantic response envelopes, not legacy action chains.
+For an external integration:
 
-## Security and verification
+```js
+const stream = window.__metabloomProtocol.createStream({ allowMultiple: true });
+stream.push('{"type":"segment","index":0,"emote":"whimsy","response":"First paragraph."}\n');
+// Later, as the next transport chunk arrives:
+stream.push('{"type":"segment","index":1,"emote":"reflective","response":"Second paragraph."}\n');
+stream.push('{"type":"done","version":"1.0.0"}\n');
+stream.finish();
+```
 
-Provider and quota credentials are server-only. Requests have exact body keys, bounded parsed and raw bodies, bounded history, complete-origin checks, explicit content types, server revalidation, upstream timeouts through body consumption, and disconnect cancellation. Production/preview model access additionally requires an atomic shared Redis quota; failures never fall through to unmetered model requests. No conversation content is logged.
+`push` accepts arbitrarily divided text chunks. `finish` requires terminal completion. `cancel` closes this response. The existing request adapter can instead call the provided `onSegment(segment, index)` callback as data arrives and resolve its promise with the matching final envelope. Legacy complete envelopes remain compatible, but cannot retroactively simulate streaming.
 
-`node --test scripts/metabloom-api.test.cjs` verifies the real server handler with a mocked upstream, parser boundaries, quotas, cancellation, and prompt/schema identity. Jest exercises the actual component controls and message/emote transitions. `Metabloom functional verification` builds the actual source and clicks demos in Chromium at desktop/mobile/reduced-motion settings. On main it additionally verifies the metadata and demo behavior on the production domain. Screenshots and structured results are retained as artifacts. No workflow applies patches or commits source.
+## Invariants and verification
 
-Protocol/SDK references: OpenAI Structured Outputs documentation (`https://developers.openai.com/api/docs/guides/structured-outputs`), Vercel request headers (`https://vercel.com/docs/headers/request-headers`), Upstash Redis REST API (`https://upstash.com/docs/redis/features/restapi`).
+New input, stop, reset, deactivation, and unmount abort obsolete network work and reject stale chunks. Partial responses are marked incomplete and excluded from future history. Combined assistant history allows 4,806 characters including paragraph separators, within the existing 16,000-character history and 24,000-byte body budgets. Unknown emotes, extra fields, duplicate provider keys, wrong ordering, excess segments, oversized data, missing completion, inconsistent final text, and provider refusal fail closed.
+
+Origin validation, shared atomic client/project quotas, server-only credentials, bounded body readers, backpressure, and lifetime limits remain enforced. CI uses mocked provider streams without paid requests. Node tests hold the upstream stream open to prove the first segment is actually emitted early. React tests pin one DOM node, one history entry, exact emote counts, cancellation, and partial failure. The browser workflow exercises the actual demos in desktop, mobile dark mode, and reduced motion; on main it also checks the production domain.
+
+Primary references: OpenAI Responses streaming (`https://developers.openai.com/api/docs/guides/streaming-responses`), Structured Outputs (`https://developers.openai.com/api/docs/guides/structured-outputs`), Vercel Functions streaming (`https://vercel.com/docs/functions/streaming-functions`).

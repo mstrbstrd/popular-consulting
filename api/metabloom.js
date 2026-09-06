@@ -1,8 +1,8 @@
 const { createHmac } = require("node:crypto");
+const { once } = require("node:events");
 const { METABLOOM_PROTOCOL_VERSION, METABLOOM_EMOTE_IDS, METABLOOM_EMOTE_RESPONSE_SCHEMA, buildMetabloomSystemPrompt } = require("../src/components/metabloomEmoteLibrary");
-const { parseMetabloomEmoteEnvelope } = require("../src/components/metabloomEmoteProtocol");
+const { streamMetabloomProvider } = require("../server/metabloomProviderStream");
 const MAX_BODY_BYTES = 24000;
-const MAX_UPSTREAM_BYTES = 128000;
 const localBuckets = new Map();
 // Atomic quotas across serverless instances, including a project-wide cost ceiling.
 const QUOTA_SCRIPT = `
@@ -43,7 +43,8 @@ const parseBody = (request) => {
     let total = 0;
     for (const item of history) {
       if (!exactKeys(item, ["role", "content"]) || !["user", "assistant"].includes(item.role)
-        || typeof item.content !== "string" || !item.content.trim() || item.content.length > 1600) return null;
+        || typeof item.content !== "string" || !item.content.trim()
+        || item.content.length > (item.role === "assistant" ? 4806 : 1600)) return null;
       total += item.content.length;
     }
     if (total > 16000) return null;
@@ -105,7 +106,8 @@ const handler = async (request, response) => {
   response.setHeader("X-Content-Type-Options", "nosniff");
   response.setHeader("X-Metabloom-Protocol", METABLOOM_PROTOCOL_VERSION);
   if (request.method === "GET") return sendJson(response, 200, {
-    version: METABLOOM_PROTOCOL_VERSION, release: "semantic-emotes-v1", configured: configured(request), emotes: METABLOOM_EMOTE_IDS,
+    version: METABLOOM_PROTOCOL_VERSION, release: "semantic-emotes-v1", presentation: "single-message-stream",
+    streaming: "validated-segments", configured: configured(request), emotes: METABLOOM_EMOTE_IDS,
   });
   if (request.method !== "POST") {
     response.setHeader("Allow", "GET, POST");
@@ -115,13 +117,13 @@ const handler = async (request, response) => {
   if (!/^application\/json(?:\s*;|$)/i.test(request.headers?.["content-type"] || "")) return sendJson(response, 415, { code: "invalid_content_type" });
   const body = parseBody(request);
   if (!body) return sendJson(response, 400, { code: "invalid_request" });
-  // Never enable a public, billable endpoint with only an in-memory limiter.
   if (!configured(request)) return sendJson(response, 503, { code: "not_configured" });
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 25000);
   const onClose = () => { if (!response.writableEnded) controller.abort(); };
   response.on?.("close", onClose);
   let stage = "quota";
+  let streaming = false;
   try {
     if (!(await consumeRateLimit(request, controller.signal))) {
       response.setHeader("Retry-After", "60");
@@ -138,7 +140,7 @@ const handler = async (request, response) => {
         model: process.env.METABLOOM_MODEL || "gpt-5-mini",
         instructions: buildMetabloomSystemPrompt({ allowMultiple: body.allowMultiple }),
         input: [...body.history, { role: "user", content: body.message }],
-        max_output_tokens: 2400, store: false,
+        max_output_tokens: 2400, store: false, stream: true,
         text: { format: { type: "json_schema", name: "metabloom_response", strict: true, schema } },
       }),
     });
@@ -146,21 +148,29 @@ const handler = async (request, response) => {
       await upstream.body?.cancel?.();
       return sendJson(response, 502, { code: "upstream_error" });
     }
-    const payload = await readBoundedJson(upstream, MAX_UPSTREAM_BYTES);
-    if (payload.status !== "completed") return sendJson(response, 502, { code: "incomplete_response" });
-    const content = (payload.output || []).filter((item) => item.type === "message").flatMap((item) => item.content || []);
-    if (content.some((item) => item.type === "refusal")) return sendJson(response, 422, { code: "model_refusal" });
-    const text = content.filter((item) => item.type === "output_text").map((item) => item.text).join("");
-    const parsed = parseMetabloomEmoteEnvelope(text, { allowMultiple: body.allowMultiple });
-    if (!parsed.ok) return sendJson(response, 502, { code: "invalid_response" });
+    await streamMetabloomProvider(upstream, {
+      allowMultiple: body.allowMultiple,
+      signal: controller.signal,
+      onSegment: async (segment, index) => {
+        if (controller.signal.aborted || response.destroyed) throw new Error("Cancelled");
+        if (!streaming) {
+          response.statusCode = 200;
+          response.setHeader("Content-Type", "application/x-ndjson; charset=utf-8");
+          response.flushHeaders?.();
+          streaming = true;
+        }
+        if (response.write(`${JSON.stringify({ type: "segment", index, ...segment })}\n`) === false) {
+          await once(response, "drain", { signal: controller.signal });
+        }
+      },
+    });
     if (controller.signal.aborted || response.destroyed) return;
-    response.statusCode = 200;
-    response.setHeader("Content-Type", "application/x-ndjson; charset=utf-8");
-    // Segment-framed output, not a claim of token-by-token provider streaming.
-    parsed.value.segments.forEach((segment, index) => response.write(`${JSON.stringify({ type: "segment", index, ...segment })}\n`));
     response.end(`${JSON.stringify({ type: "done", version: METABLOOM_PROTOCOL_VERSION })}\n`);
   } catch {
     if (response.destroyed) return;
+    // Once bytes have been sent, never append a JSON error to a successful
+    // envelope or claim completion. Preserve the visible prefix as incomplete.
+    if (streaming) return response.end(`${JSON.stringify({ type: "error", code: "stream_interrupted" })}\n`);
     return sendJson(response, controller.signal.aborted ? 504 : 502, { code: stage === "quota" ? "quota_unavailable" : "upstream_unavailable" });
   } finally {
     clearTimeout(timeout);

@@ -71,6 +71,39 @@
   outline: 2px solid var(--aetheris-focus-line);
   outline-offset: 3px;
 }
+.orb-page .metabloom-chat__stream-option {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.8rem;
+  min-height: 4.4rem;
+  max-width: 100%;
+  padding: 0.4rem 1rem;
+  color: var(--aetheris-ink-2);
+  font: 1.1rem/1.4 var(--aetheris-font-mono);
+  cursor: pointer;
+}
+.orb-page .metabloom-chat__stream-option input {
+  width: 1.6rem;
+  height: 1.6rem;
+  flex: 0 0 1.6rem;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--aetheris-ink);
+}
+.orb-page .metabloom-chat__stream-option input:focus-visible {
+  outline: 2px solid var(--aetheris-focus-line);
+  outline-offset: 3px;
+}
+.orb-page .metabloom-chat__stream-status {
+  display: block;
+  margin-top: 0.8rem;
+  color: var(--aetheris-ink-2);
+  font: 1rem/1.5 var(--aetheris-font-mono);
+}
+.orb-page .metabloom-chat__bubble > p + p {
+  margin-top: 1.1em;
+}
 @media (max-width: 720px) {
   .orb-page .metabloom-chat__suggestions[data-demo-count="4"] button:last-child {
     width: 100%;
@@ -80,4 +113,7 @@
 @media (forced-colors: active) {
   .orb-page .metabloom-chat__demos button { color: ButtonText; background: ButtonFace; border: 1px solid ButtonText; }
   .orb-page .metabloom-chat__demos button::before { display: none; }
+  .orb-page .metabloom-chat__stream-option,
+  .orb-page .metabloom-chat__stream-status { color: CanvasText; }
+  .orb-page .metabloom-chat__stream-option input:focus-visible { outline-color: Highlight; }
 }

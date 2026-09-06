@@ -22,11 +22,11 @@ try {
       try {
         const response = await fetch(`${origin}/api/metabloom`, { signal: AbortSignal.timeout(8000), cache: "no-store" });
         metadata = await response.json();
-        if (metadata.version === "1.0.0" && metadata.release === "semantic-emotes-v1") break;
+        if (metadata.version === "1.0.0" && metadata.presentation === "single-message-stream") break;
       } catch { /* Deployment may still be replacing the previous release. */ }
       await sleep(5000);
     }
-    assert.equal(metadata?.release, "semantic-emotes-v1", "Production is not serving the new API source");
+    assert.equal(metadata?.presentation, "single-message-stream", "Production is not serving the streaming implementation");
     assert.equal(metadata.emotes.length, 9);
   }
   const browser = findBrowser();
@@ -67,9 +67,13 @@ try {
   const until = async (expression) => {
     for (let attempt = 0; attempt < 100; attempt++) {
       if (await evaluate(expression)) return;
-      await sleep(150);
+      await sleep(100);
     }
     throw new Error(`Browser assertion timed out: ${expression}`);
+  };
+  const screenshot = async (name) => {
+    const image = await call("Page.captureScreenshot", { format: "png" });
+    fs.writeFileSync(path.join(output, `${name}.png`), Buffer.from(image.data, "base64"));
   };
   await call("Page.enable");
   await call("Page.addScriptToEvaluateOnNewDocument", { source: `
@@ -93,15 +97,14 @@ try {
       { name: "prefers-color-scheme", value: config.dark ? "dark" : "light" },
     ] });
     await call("Page.navigate", { url: `${origin}/orb?graphics=webgl` });
-    await until(`window.__metabloomProtocol?.version === '1.0.0' && document.querySelectorAll('[data-demo-count="4"] button').length === 4`);
+    await until(`typeof window.__metabloomProtocol?.createStream === 'function' && document.querySelector('[data-response-presentation="single-message-stream"]') && document.querySelectorAll('[data-demo-count="4"] button').length === 4`);
     const expectedTheme = config.dark ? "dark" : "light";
     await until(`document.querySelector('button[aria-label="Toggle dark mode"]') !== null`);
     if (await evaluate("document.documentElement.dataset.theme") !== expectedTheme) {
       await evaluate(`document.querySelector('button[aria-label="Toggle dark mode"]').click()`);
     }
     await until(`document.documentElement.dataset.theme === ${JSON.stringify(expectedTheme)}`);
-    const landingImage = await call("Page.captureScreenshot", { format: "png" });
-    fs.writeFileSync(path.join(output, `${config.id}-landing.png`), Buffer.from(landingImage.data, "base64"));
+    await screenshot(`${config.id}-landing`);
     const geometry = await evaluate(`(() => { const r = document.querySelector('.metabloom-chat__composer').getBoundingClientRect(); return {left:r.left,right:r.right,width:innerWidth}; })()`);
     assert.ok(geometry.left >= -1 && geometry.right <= geometry.width + 1, "Composer overflow");
     for (const [label, emote] of [["Show me a whimsical response", "whimsy"], ["Give me a reflective response", "reflective"], ["Offer a reassuring response", "reassuring"]]) {
@@ -111,21 +114,29 @@ try {
       assert.equal(await evaluate("window.__orbState().actionVersion"), before + 1);
       assert.equal(await evaluate("window.__orbState().sequenceId"), null);
       assert.equal(await evaluate("window.__orbState().pulseVersion"), 0);
-      await sleep(300);
-      if (emote === "whimsy") {
-        const image = await call("Page.captureScreenshot", { format: "png" });
-        fs.writeFileSync(path.join(output, `${config.id}.png`), Buffer.from(image.data, "base64"));
-      }
+      if (emote === "whimsy") await screenshot(config.id);
     }
-    const before = await evaluate("window.__orbMessages().length");
+    const before = await evaluate("({count:window.__orbMessages().length, version:window.__orbState().actionVersion})");
     await evaluate(`(() => { const d = document.querySelector('.metabloom-chat__demos'); d.open=true; Array.from(d.querySelectorAll('button')).find(b => b.textContent.includes('two-part')).click(); d.open=false; })()`);
-    await until(`window.__orbMessages().length === ${before + 3} && window.__orbState().emote === 'reflective'`);
-    const state = await evaluate(`({state:window.__orbState(), tail:window.__orbMessages().slice(-2), calls:window.__demoNetworkCalls})`);
-    assert.deepEqual(state.tail.map((item) => item.emote), ["whimsy", "reflective"]);
+    await until(`window.__orbMessages().length === ${before.count + 2} && window.__orbMessages().at(-1).segments.length === 1 && window.__orbState().pending`);
+    const intermediate = await evaluate(`(() => { const m=window.__orbMessages().at(-1); window.__streamArticle=document.querySelector('[data-message-id="'+m.id+'"]'); return {id:m.id,count:window.__orbMessages().length,emote:m.emote,status:m.status,version:window.__orbState().actionVersion}; })()`);
+    assert.equal(intermediate.emote, "whimsy");
+    assert.equal(intermediate.status, "streaming");
+    assert.equal(intermediate.version, before.version + 1);
+    await until(`!window.__orbState().pending && window.__orbMessages().at(-1).segments.length === 2`);
+    const state = await evaluate(`(() => {const m=window.__orbMessages().at(-1);return {state:window.__orbState(),message:m,count:window.__orbMessages().length,calls:window.__demoNetworkCalls,sameNode:window.__streamArticle===document.querySelector('[data-message-id="'+m.id+'"]'),paragraphs:window.__streamArticle.querySelectorAll('p[data-segment-index]').length};})()`);
+    assert.equal(state.count, before.count + 2, "Only one assistant message may be created");
+    assert.equal(state.message.id, intermediate.id);
+    assert.equal(state.sameNode, true, "The original message DOM node must survive streaming");
+    assert.equal(state.paragraphs, 2);
+    assert.equal(state.message.status, "complete");
+    assert.equal(state.state.actionVersion, before.version + 2, "Completion must not replay emotes");
+    assert.deepEqual(state.message.segments.map((item) => item.emote), ["whimsy", "reflective"]);
     assert.equal(state.calls, 0, "Demos must never call the provider");
-    results.push({ viewport: config.id, theme: expectedTheme, reducedMotion: config.reduced, demoEmotes: ["whimsy", "reflective", "reassuring"], stream: state.tail.map((item) => item.emote), networkCalls: state.calls, geometry });
+    await screenshot(`${config.id}-stream`);
+    results.push({ viewport: config.id, theme: expectedTheme, reducedMotion: config.reduced, stream: state.message.segments.map((item) => item.emote), oneMessage: true, sameDomNode: state.sameNode, observedWhileStreaming: intermediate, networkCalls: state.calls, geometry });
   }
-  fs.writeFileSync(path.join(output, "result.json"), JSON.stringify({ origin, success: true, results }, null, 2));
+  fs.writeFileSync(path.join(output, "result.json"), JSON.stringify({ origin, presentation: "single-message-stream", success: true, results }, null, 2));
   console.log(JSON.stringify({ origin, success: true, results }));
 } catch (error) {
   fs.writeFileSync(path.join(output, "result.json"), JSON.stringify({ origin, success: false, error: error.message, results }, null, 2));
