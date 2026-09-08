@@ -252,8 +252,9 @@ const ContactSection = ({
     position: "relative",
     zIndex: 2,
     margin: "auto",
-    // Auto margins center the desktop card only while it fits. On short
-    // viewports they resolve to zero, keeping the first field reachable.
+    // Scale the entire desktop card in layout, not just its painted surface.
+    // Keep this separate from the existing entrance/exit transforms.
+    zoom: isMobile ? 1 : 0.75,
     marginTop: isMobile ? "0" : "auto",
     marginBottom: isMobile ? "1rem" : "auto",
     flexShrink: isMobile ? undefined : 0,
@@ -428,7 +429,10 @@ const ContactSection = ({
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        overflow: "hidden",
+        overflowX: "hidden",
+        // At extreme zoom/short heights, scroll the section as a whole,
+        // never a clipped window inside the desktop form.
+        overflowY: isMobile ? "hidden" : "auto",
         position: "relative",
       }}
     >
@@ -454,7 +458,7 @@ const ContactSection = ({
         style={{
           display: isMobile ? "flex" : "grid",
           gridTemplateColumns: isMobile ? undefined : "minmax(0, 1fr)",
-          gridTemplateRows: isMobile ? undefined : "minmax(0, 1fr) auto",
+          gridTemplateRows: isMobile ? undefined : "minmax(max-content, 1fr) auto",
           gap: isMobile ? undefined : "clamp(2.4rem, 4dvh, 4rem)",
           flexDirection: "column",
           alignItems: isMobile ? "center" : "stretch",
@@ -488,10 +492,10 @@ const ContactSection = ({
             transform: "translateY(30px)", // Initially offset, will be animated in useEffect
             marginBottom: isMobile ? "1rem" : 0,
             flex: "0 1 auto", // Don't grow, allow shrinking
-            // Only the form row scrolls on short desktop viewports. The
-            // footer must never consume or cover this row's available height.
-            maxHeight: "100%",
-            overflowY: "auto",
+            // The scaled desktop card must remain fully visible, not become
+            // a scroll pane. Mobile retains its keyboard-aware scrolling.
+            maxHeight: isMobile ? "100%" : undefined,
+            overflowY: isMobile ? "auto" : "visible",
             touchAction: "pan-y",
             WebkitOverflowScrolling: "touch",
             overscrollBehavior: "contain",
@@ -511,7 +515,9 @@ const ContactSection = ({
           <Container
             sx={{
               ...containerStyles,
-              width: "100%",
+              // Percentage widths otherwise fill the same physical space
+              // under CSS zoom. Preserve a true 25% reduction in both axes.
+              width: isMobile ? "100%" : "75%",
               "&::after": {
                 content: '""',
                 position: "absolute",
