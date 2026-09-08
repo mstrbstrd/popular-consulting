@@ -470,7 +470,7 @@ const ContactSection = ({
           boxSizing: "border-box",
           padding: isMobile
             ? "2rem"
-            : "2rem 2rem max(2.4rem, env(safe-area-inset-bottom))",
+            : "1.2rem 2rem max(2.4rem, env(safe-area-inset-bottom))",
           position: "relative",
         }}
       >
