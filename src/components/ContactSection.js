@@ -252,11 +252,14 @@ const ContactSection = ({
     position: "relative",
     zIndex: 2,
     margin: "auto",
-    marginTop: "0", // No top margin
-    marginBottom: "1rem", // Reduced bottom margin
+    // Auto margins center the desktop card only while it fits. On short
+    // viewports they resolve to zero, keeping the first field reachable.
+    marginTop: isMobile ? "0" : "auto",
+    marginBottom: isMobile ? "1rem" : "auto",
+    flexShrink: isMobile ? undefined : 0,
     width: "80%",
     maxWidth: "1200px",
-    minWidth: isMobile ? "min(300px, 100%)" : "500px",
+    minWidth: isMobile ? "min(300px, 100%)" : 0,
     border: "1px solid rgba(255, 255, 255, 0.22)",
     boxShadow:
       "0 4px 24px rgba(0,0,0,0.12), inset 0 1px 0 rgba(255,255,255,0.30)",
@@ -275,7 +278,7 @@ const ContactSection = ({
       right: 0,
       height: "1px",
       background:
-        "linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,0.5), rgba(255,255,255,0))",
+        "linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,0.5), rgba(156, 85, 255, 0))",
       zIndex: -1,
     },
   };
@@ -410,6 +413,8 @@ const ContactSection = ({
       aria-label={copy.sectionLabel}
       data-mobile-focus-active={mobileInputFocused ? "true" : "false"}
       style={{
+        // App-level section margins must not push the footer outside 100dvh.
+        margin: isMobile ? undefined : 0,
         height: isMobile
           ? "var(--contact-mobile-viewport-height, 100dvh)"
           : "100dvh",
@@ -443,47 +448,64 @@ const ContactSection = ({
         }}
       ></div>
 
-      {/* Main flex container — form centred, footer pill pinned to bottom */}
+      {/* Desktop reserves a separate footer row; mobile retains its focus layout. */}
       <div
+        className="contact-layout"
         style={{
-          display: "flex",
+          display: isMobile ? "flex" : "grid",
+          gridTemplateColumns: isMobile ? undefined : "minmax(0, 1fr)",
+          gridTemplateRows: isMobile ? undefined : "minmax(0, 1fr) auto",
+          gap: isMobile ? undefined : "clamp(2.4rem, 4dvh, 4rem)",
           flexDirection: "column",
-          alignItems: "center",
+          alignItems: isMobile ? "center" : "stretch",
+          justifyItems: "center",
           justifyContent: "center",
           width: "100%",
           height: "100%",
           maxWidth: "1200px",
-          padding: "2rem",
+          minHeight: isMobile ? undefined : 0,
+          boxSizing: "border-box",
+          padding: isMobile
+            ? "2rem"
+            : "2rem 2rem max(2.4rem, env(safe-area-inset-bottom))",
           position: "relative",
         }}
       >
         {/* Contact Form Container */}
         <div
           ref={contentRef}
+          className="contact-form-viewport"
           style={{
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
-            justifyContent: mobileInputFocused ? "flex-start" : "center",
+            justifyContent: isMobile && !mobileInputFocused ? "center" : "flex-start",
             width: "100%",
-            maxWidth: isMobile ? "100%" : "800px",
+            maxWidth: isMobile ? "100%" : "720px",
+            minHeight: isMobile ? undefined : 0,
+            minWidth: isMobile ? undefined : 0,
             opacity: 0, // Initially hidden, will be animated in useEffect
             transform: "translateY(30px)", // Initially offset, will be animated in useEffect
-            marginBottom: "1rem", // Less margin at bottom
+            marginBottom: isMobile ? "1rem" : 0,
             flex: "0 1 auto", // Don't grow, allow shrinking
-            // Short viewports (landscape phones, small laptops with the
-            // URL bar expanded) must still be able to reach the submit
-            // button — the section itself is a clipped 100dvh box.
+            // Only the form row scrolls on short desktop viewports. The
+            // footer must never consume or cover this row's available height.
             maxHeight: "100%",
             overflowY: "auto",
             touchAction: "pan-y",
             WebkitOverflowScrolling: "touch",
             overscrollBehavior: "contain",
             scrollPaddingBlock: "2rem",
-            paddingTop: mobileInputFocused
-              ? "max(1.2rem, env(safe-area-inset-top))"
-              : 0,
-            paddingBottom: mobileInputFocused ? "2rem" : 0,
+            paddingLeft: isMobile ? undefined : "1.2rem",
+            paddingRight: isMobile ? undefined : "1.2rem",
+            paddingTop: isMobile
+              ? mobileInputFocused
+                ? "max(1.2rem, env(safe-area-inset-top))"
+                : 0
+              : "1.2rem",
+            paddingBottom: isMobile
+              ? mobileInputFocused ? "2rem" : 0
+              : "1.2rem",
           }}
         >
           <Container
@@ -654,19 +676,19 @@ const ContactSection = ({
           </Container>
         </div>
 
-        {/* Footer pill — pinned to bottom, centering via flex wrapper so
-                      translateY animation in useEffect never clobbers translateX(-50%) */}
+        {/* Keep the desktop footer in flow and animate only its inner pill. */}
         <div
           className="contact-footer-viewport"
           style={{
-            position: "absolute",
-            bottom: "max(2rem, env(safe-area-inset-bottom))",
-            left: 0,
-            right: 0,
+            position: isMobile ? "absolute" : "relative",
+            bottom: isMobile ? "max(2rem, env(safe-area-inset-bottom))" : undefined,
+            left: isMobile ? 0 : undefined,
+            right: isMobile ? 0 : undefined,
+            width: isMobile ? undefined : "100%",
             display: "flex",
             justifyContent: "center",
             pointerEvents: "none",
-            padding: "0 2.4rem",
+            padding: isMobile ? "0 2.4rem" : 0,
             opacity: mobileInputFocused ? 0 : 1,
             visibility: mobileInputFocused ? "hidden" : "visible",
             transform: mobileInputFocused
