@@ -4,6 +4,8 @@ import "@testing-library/jest-dom";
 import ContactSection from "./ContactSection";
 import { ThemeProvider } from "../contexts/ThemeContext";
 
+// JSDOM does not implement CSS zoom. The built-application browser suite
+// asserts the actual zoom and 0.75 width/height ratios, not simulated geometry.
 describe("contact form and footer layout", () => {
   let originalMatchMedia;
   let viewportWidth;
@@ -75,7 +77,6 @@ describe("contact form and footer layout", () => {
         marginBottom: "0",
       });
       expect(viewport.style.maxHeight).toBe("");
-      expect(window.getComputedStyle(card).getPropertyValue("zoom")).toBe("0.75");
       expect(card).toHaveStyle({
         width: "75%",
         flexShrink: "0",
@@ -106,7 +107,6 @@ describe("contact form and footer layout", () => {
       justifyContent: "center",
     });
     const card = document.querySelector(".contact-form");
-    expect(window.getComputedStyle(card).getPropertyValue("zoom")).toBe("1");
     expect(card).toHaveStyle({ width: "100%" });
     expect(document.querySelector(".contact-footer-viewport")).toHaveStyle({
       position: "absolute",

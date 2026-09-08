@@ -24,7 +24,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   browser-layout:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
