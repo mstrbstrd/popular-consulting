@@ -83,7 +83,11 @@ try {
         const mobile = width < 600;
         const id = `${route === "/" ? "business" : "engineering"}-${theme}-${width}x${height}`;
         await call("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile });
-        await call("Page.navigate", { url: `${origin}${route}?graphics=css#section-3` });
+        // Page.navigate returns before the previous document is replaced.
+        // A unique URL and document marker prevent measuring or focusing stale DOM.
+        await evaluate("window.__contactLayoutPreviousDocument = true");
+        await call("Page.navigate", { url: `${origin}${route}?graphics=css&contact-layout-case=${id}#section-3` });
+        await until("!window.__contactLayoutPreviousDocument && document.readyState === 'complete'");
         await until("document.querySelector('#contact') && document.querySelectorAll('.section-dot').length >= 4");
         await until("document.querySelector('#contact').closest('.section-container').classList.contains('active')");
         if (await evaluate("document.documentElement.dataset.theme") !== theme) {
@@ -142,7 +146,7 @@ try {
           if (width === 1280 || width === 1440) { await sleep(350); await screenshot(id); }
         } else {
           await evaluate("document.querySelector('#name').focus()");
-          await until("document.querySelector('.contact-footer-viewport').style.visibility === 'hidden'");
+          await until("document.activeElement === document.querySelector('#name') && document.querySelector('.contact-footer-viewport').style.visibility === 'hidden'");
           assert.equal(await evaluate("getComputedStyle(document.querySelector('#name')).fontSize"), "16px");
         }
         console.log(`PASS ${id}`);
