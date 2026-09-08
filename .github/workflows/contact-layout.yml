@@ -38,8 +38,16 @@ jobs:
           CI: true
       - name: Verify complete form in the built application
         run: node --experimental-websocket scripts/verify-contact-layout.mjs
-      - name: Preserve layout measurements and screenshots
+      - name: Record layout measurements in the job log
         if: always()
+        run: |
+          if (Test-Path contact-layout-evidence/result.json) {
+            Get-Content contact-layout-evidence/result.json
+          }
+      - name: Preserve optional layout screenshots
+        if: always()
+        # Artifact storage must not override the required browser test result.
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: contact-layout-${{ github.sha }}

@@ -14,7 +14,7 @@ await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
 const origin = `http://127.0.0.1:${server.address().port}`;
 const results = [];
 const pending = new Map();
-let child, socket, profile, screenshot;
+let child, socket, profile, screenshot, diagnostics;
 try {
   const browser = findBrowser();
   assert.ok(browser, "Chromium or Edge is required");
@@ -70,7 +70,18 @@ try {
     const image = await call("Page.captureScreenshot", { format: "png" });
     fs.writeFileSync(path.join(output, `${name}.png`), Buffer.from(image.data, "base64"));
   };
+  diagnostics = async () => evaluate(`({
+    hasFocus: document.hasFocus(),
+    activeElement: document.activeElement?.outerHTML.slice(0, 500),
+    mobile: matchMedia('(max-width: 599.95px)').matches,
+    focusState: document.querySelector('#contact')?.dataset.mobileFocusActive,
+    footerVisibility: document.querySelector('.contact-footer-viewport')?.style.visibility,
+    nameElement: document.querySelector('#name')?.outerHTML.slice(0, 500),
+    nameInert: Boolean(document.querySelector('#name')?.closest('[inert]'))
+  })`);
   await call("Page.enable");
+  await call("Page.bringToFront");
+  await call("Emulation.setFocusEmulationEnabled", { enabled: true });
   await call("Network.enable");
   await call("Network.setBlockedURLs", { urls: ["*formspree.io*"] });
   await call("Page.addScriptToEvaluateOnNewDocument", {
@@ -83,6 +94,7 @@ try {
         const mobile = width < 600;
         const id = `${route === "/" ? "business" : "engineering"}-${theme}-${width}x${height}`;
         await call("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile });
+        await call("Emulation.setTouchEmulationEnabled", { enabled: mobile });
         // Page.navigate returns before the previous document is replaced.
         // A unique URL and document marker prevent measuring or focusing stale DOM.
         await evaluate("window.__contactLayoutPreviousDocument = true");
@@ -145,7 +157,9 @@ try {
           assert.ok(Math.abs(ratio.height - 0.75) < 0.01, `${id}: height is not 25% smaller (${ratio.height})`);
           if (width === 1280 || width === 1440) { await sleep(350); await screenshot(id); }
         } else {
-          await evaluate("document.querySelector('#name').focus()");
+          const name = geometry.controls.find((control) => control.name === "name");
+          await call("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: name.x + name.width / 2, y: name.y + name.height / 2 }] });
+          await call("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
           await until("document.activeElement === document.querySelector('#name') && document.querySelector('.contact-footer-viewport').style.visibility === 'hidden'");
           assert.equal(await evaluate("getComputedStyle(document.querySelector('#name')).fontSize"), "16px");
         }
@@ -156,7 +170,9 @@ try {
   fs.writeFileSync(path.join(output, "result.json"), JSON.stringify({ success: true, results }, null, 2));
   console.log(`All ${results.length} built-application contact layout cases passed.`);
 } catch (error) {
-  fs.writeFileSync(path.join(output, "result.json"), JSON.stringify({ success: false, error: error.message, results }, null, 2));
+  let browserState;
+  if (diagnostics) { try { browserState = await diagnostics(); } catch { /* Keep the original error. */ } }
+  fs.writeFileSync(path.join(output, "result.json"), JSON.stringify({ success: false, error: error.message, browserState, results }, null, 2));
   if (screenshot) { try { await screenshot("failure"); } catch { /* Preserve the original failure. */ } }
   throw error;
 } finally {
