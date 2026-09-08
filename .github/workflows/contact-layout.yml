@@ -1,0 +1,49 @@
+name: Contact layout
+
+on:
+  pull_request:
+    paths:
+      - 'src/components/ContactSection*'
+      - 'src/App.js'
+      - 'src/*.css'
+      - 'scripts/verify-contact-layout-browser.mjs'
+      - '.github/workflows/contact-layout.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/components/ContactSection*'
+      - 'src/App.js'
+      - 'src/*.css'
+      - 'scripts/verify-contact-layout-browser.mjs'
+      - '.github/workflows/contact-layout.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: contact-layout-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  browser-layout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+        env:
+          CI: true
+      - name: Verify full form geometry in the built routes
+        run: node --experimental-websocket scripts/verify-contact-layout-browser.mjs
+      - name: Preserve contact layout screenshots and measurements
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: contact-layout-evidence
+          path: contact-layout-evidence/
+          retention-days: 7

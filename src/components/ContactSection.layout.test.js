@@ -37,7 +37,7 @@ describe("contact form and footer layout", () => {
   });
 
   test.each([600, 768, 1024, 1440])(
-    "reserves an in-flow footer row at desktop width %ipx",
+    "renders the complete desktop form at 75%% size at width %ipx",
     (width) => {
       viewportWidth = width;
       render(
@@ -51,27 +51,36 @@ describe("contact form and footer layout", () => {
       const footer = document.querySelector(".contact-footer-viewport");
       const card = document.querySelector(".contact-form");
 
-      expect(document.getElementById("contact")).toHaveStyle({ margin: "0" });
+      expect(document.getElementById("contact")).toHaveStyle({
+        margin: "0",
+        justifyContent: "flex-start",
+        overflowY: "auto",
+      });
       expect(layout).toHaveStyle({
         display: "grid",
         gridTemplateColumns: "minmax(0, 1fr)",
-        gridTemplateRows: "minmax(0, 1fr) auto",
-        minHeight: "0",
+        gridTemplateRows: "minmax(min-content, 1fr) auto",
+        height: "auto",
+        minHeight: "100%",
+        flexShrink: "0",
       });
       expect(layout.style.gap).toBe("clamp(2.4rem, 4dvh, 4rem)");
       expect(footer.parentElement).toBe(layout);
       expect(viewport.nextElementSibling).toBe(footer);
       expect(footer).toHaveStyle({ position: "relative", width: "100%" });
       expect(footer.style.bottom).toBe("");
+      expect(String(viewport.style.zoom)).toBe("0.75");
       expect(viewport).toHaveStyle({
-        minHeight: "0",
+        width: "75%",
+        minHeight: "min-content",
         minWidth: "0",
         maxWidth: "720px",
-        overflowY: "auto",
+        overflowY: "visible",
         justifyContent: "flex-start",
         marginBottom: "0",
       });
-      // A tall card must scroll, not flex-shrink and paint under the footer.
+      expect(viewport.style.maxHeight).toBe("");
+      // Neither the card nor its row may shrink into a clipped scroll box.
       expect(card).toHaveStyle({
         flexShrink: "0",
         marginTop: "auto",
@@ -92,11 +101,17 @@ describe("contact form and footer layout", () => {
     expect(document.querySelector(".contact-layout")).toHaveStyle({
       display: "flex",
       padding: "2rem",
+      height: "100%",
     });
-    expect(document.querySelector(".contact-form-viewport")).toHaveStyle({
+    const viewport = document.querySelector(".contact-form-viewport");
+    expect(Number(viewport.style.zoom || 1)).toBe(1);
+    expect(viewport).toHaveStyle({
+      width: "100%",
       maxWidth: "100%",
+      maxHeight: "100%",
       marginBottom: "1rem",
       justifyContent: "center",
+      overflowY: "auto",
     });
     expect(document.querySelector(".contact-footer-viewport")).toHaveStyle({
       position: "absolute",

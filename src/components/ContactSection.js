@@ -252,8 +252,7 @@ const ContactSection = ({
     position: "relative",
     zIndex: 2,
     margin: "auto",
-    // Auto margins center the desktop card only while it fits. On short
-    // viewports they resolve to zero, keeping the first field reachable.
+    // Center the complete desktop card in the space above the footer.
     marginTop: isMobile ? "0" : "auto",
     marginBottom: isMobile ? "1rem" : "auto",
     flexShrink: isMobile ? undefined : 0,
@@ -427,8 +426,11 @@ const ContactSection = ({
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        justifyContent: "center",
-        overflow: "hidden",
+        justifyContent: isMobile ? "center" : "flex-start",
+        // Exceptionally short/zoomed windows can scroll the whole section,
+        // never a clipped box inside the desktop form.
+        overflowX: "hidden",
+        overflowY: isMobile ? "hidden" : "auto",
         position: "relative",
       }}
     >
@@ -454,16 +456,17 @@ const ContactSection = ({
         style={{
           display: isMobile ? "flex" : "grid",
           gridTemplateColumns: isMobile ? undefined : "minmax(0, 1fr)",
-          gridTemplateRows: isMobile ? undefined : "minmax(0, 1fr) auto",
+          gridTemplateRows: isMobile ? undefined : "minmax(min-content, 1fr) auto",
           gap: isMobile ? undefined : "clamp(2.4rem, 4dvh, 4rem)",
           flexDirection: "column",
           alignItems: isMobile ? "center" : "stretch",
           justifyItems: "center",
           justifyContent: "center",
           width: "100%",
-          height: "100%",
+          height: isMobile ? "100%" : "auto",
           maxWidth: "1200px",
-          minHeight: isMobile ? undefined : 0,
+          minHeight: isMobile ? undefined : "100%",
+          flexShrink: isMobile ? undefined : 0,
           boxSizing: "border-box",
           padding: isMobile
             ? "2rem"
@@ -480,18 +483,21 @@ const ContactSection = ({
             flexDirection: "column",
             alignItems: "center",
             justifyContent: isMobile && !mobileInputFocused ? "center" : "flex-start",
-            width: "100%",
+            // Scale the complete desktop form, including its layout footprint.
+            // Percentage width must also shrink when the 720px cap is not reached.
+            zoom: isMobile ? undefined : 0.75,
+            width: isMobile ? "100%" : "75%",
             maxWidth: isMobile ? "100%" : "720px",
-            minHeight: isMobile ? undefined : 0,
+            minHeight: isMobile ? undefined : "min-content",
             minWidth: isMobile ? undefined : 0,
             opacity: 0, // Initially hidden, will be animated in useEffect
             transform: "translateY(30px)", // Initially offset, will be animated in useEffect
             marginBottom: isMobile ? "1rem" : 0,
             flex: "0 1 auto", // Don't grow, allow shrinking
-            // Only the form row scrolls on short desktop viewports. The
-            // footer must never consume or cover this row's available height.
-            maxHeight: "100%",
-            overflowY: "auto",
+            // Desktop always renders the full card; only mobile keyboard
+            // handling retains the existing inner scroll container.
+            maxHeight: isMobile ? "100%" : undefined,
+            overflowY: isMobile ? "auto" : "visible",
             touchAction: "pan-y",
             WebkitOverflowScrolling: "touch",
             overscrollBehavior: "contain",
