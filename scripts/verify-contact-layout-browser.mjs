@@ -18,6 +18,7 @@ let child, socket, profile;
 // Runs against the real built routes, with all shared CSS and MUI styles loaded.
 function measureContact() {
   const section = document.getElementById("contact");
+  const layout = section.querySelector(".contact-layout");
   const viewport = section.querySelector(".contact-form-viewport");
   const card = section.querySelector(".contact-form");
   const footer = section.querySelector(".contact-footer-viewport");
@@ -30,14 +31,21 @@ function measureContact() {
   const scaled = rect(card);
   const previousZoom = viewport.style.zoom;
   const previousWidth = viewport.style.width;
+  const previousLayoutWidth = layout.style.width;
+  const previousScrollTop = section.scrollTop;
   let unscaled;
   try {
+    // An unscaled card may create a Windows scrollbar. Freeze the available
+    // width so the comparison does not accidentally measure a narrower page.
+    layout.style.width = `${rect(layout).width}px`;
     viewport.style.zoom = "1";
     viewport.style.width = "100%";
     unscaled = rect(card);
   } finally {
     viewport.style.zoom = previousZoom;
     viewport.style.width = previousWidth;
+    layout.style.width = previousLayoutWidth;
+    section.scrollTop = previousScrollTop;
   }
   const buttonBounds = rect(button);
   const hit = document.elementFromPoint(
