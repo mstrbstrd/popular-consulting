@@ -122,18 +122,24 @@ try {
           assert.ok(geometry.controls.every(control => control.reachable && control.top >= geometry.card.top && control.bottom <= geometry.card.bottom), `${id}: control obscured`);
           const ratio = await evaluate(`(() => {
             const card = document.querySelector('.contact-form');
+            const section = document.querySelector('#contact');
             const oldStyle = card.getAttribute('style');
+            const oldOverflow = section.style.overflowY;
             const scaled = card.getBoundingClientRect();
+            // The unscaled reference can overflow a short viewport. Do not let
+            // its temporary Windows scrollbar change the comparison width.
+            section.style.overflowY = 'hidden';
             card.style.transition = 'none'; card.style.zoom = '1'; card.style.width = '100%';
             const full = card.getBoundingClientRect();
             const ratio = { width: scaled.width / full.width, height: scaled.height / full.height };
             if (oldStyle === null) card.removeAttribute('style'); else card.setAttribute('style', oldStyle);
+            section.style.overflowY = oldOverflow;
             return ratio;
           })()`);
-          assert.ok(Math.abs(ratio.width - 0.75) < 0.01, `${id}: width is not 25% smaller`);
-          assert.ok(Math.abs(ratio.height - 0.75) < 0.01, `${id}: height is not 25% smaller`);
           results.at(-1).ratio = ratio;
-          if (width === 1280 || width === 1440) await screenshot(id);
+          assert.ok(Math.abs(ratio.width - 0.75) < 0.01, `${id}: width is not 25% smaller (${ratio.width})`);
+          assert.ok(Math.abs(ratio.height - 0.75) < 0.01, `${id}: height is not 25% smaller (${ratio.height})`);
+          if (width === 1280 || width === 1440) { await sleep(350); await screenshot(id); }
         } else {
           await evaluate("document.querySelector('#name').focus()");
           await until("document.querySelector('.contact-footer-viewport').style.visibility === 'hidden'");
