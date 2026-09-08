@@ -9,8 +9,6 @@ import {
 } from "@mui/material";
 import { useThemeMode } from "../contexts/ThemeContext";
 import { hasHardwareWebGL } from "../utils/deviceTier";
-import twitterIcon from "../assets/icons/twitter.svg";
-import instagramIcon from "../assets/icons/instagram.svg";
 import logo from "../assets/icons/logo2026_128.png";
 import { SITE_AUDIENCES, getSiteCopy } from "../content/siteCopy";
 
@@ -394,7 +392,7 @@ const ContactSection = ({
     display: "flex",
     alignItems: "center",
     gap: 0,
-    padding: "0.75rem 0.75rem 0.75rem 1.6rem",
+    padding: "0.75rem 1.6rem",
     background: isDark ? "rgba(6,6,16,0.82)" : hasHardwareWebGL ? "rgba(255, 255, 255, 0.09)" : "rgba(255,255,255,0.75)",
     backdropFilter: "blur(32px) saturate(160%)",
     WebkitBackdropFilter: "blur(32px) saturate(160%)",
@@ -750,80 +748,6 @@ const ContactSection = ({
                 flexShrink: 0,
               }}
             />
-
-            {/* Separator */}
-            <div
-              style={{
-                width: 1,
-                height: "1.8rem",
-                background: isDark ? "rgba(255,255,255,0.12)" : "rgba(20,20,30,0.11)",
-                margin: "0 1.4rem",
-                flexShrink: 0,
-              }}
-            />
-
-            {/* Social links — styled like nav-link pills */}
-            <div
-              style={{ display: "flex", alignItems: "center", gap: "0.1rem" }}
-            >
-              {[
-                {
-                  href: "https://twitter.com/mstrbstrdd",
-                  src: twitterIcon,
-                  alt: "Twitter",
-                  label: "Popular Consulting on Twitter — opens in new tab",
-                },
-                {
-                  href: "https://instagram.com",
-                  src: instagramIcon,
-                  alt: "Instagram",
-                  label: "Popular Consulting on Instagram — opens in new tab",
-                },
-              ].map(({ href, src, alt, label }) => (
-                <a
-                  key={alt}
-                  href={href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label={label}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    padding: "0.55rem 1.1rem",
-                    borderRadius: "100px",
-                    transition: "background 0.22s ease",
-                    textDecoration: "none",
-                  }}
-                  onMouseOver={(e) => {
-                    e.currentTarget.style.background = "rgba(255,255,255,0.22)";
-                  }}
-                  onMouseOut={(e) => {
-                    e.currentTarget.style.background = "transparent";
-                  }}
-                >
-                  <img
-                    src={src}
-                    alt=""
-                    aria-hidden="true"
-                    style={{
-                      width: 18,
-                      height: 18,
-                      opacity: 0.72,
-                      filter: "brightness(0) saturate(100%) invert(25%) sepia(60%) saturate(2000%) hue-rotate(240deg) brightness(0.9)",
-                      transition: "opacity 0.22s ease",
-                      display: "block",
-                    }}
-                    onMouseOver={(e) => {
-                      e.currentTarget.style.opacity = 1;
-                    }}
-                    onMouseOut={(e) => {
-                      e.currentTarget.style.opacity = 0.72;
-                    }}
-                  />
-                </a>
-              ))}
-            </div>
           </div>
         </div>
         {/* end centering wrapper */}
