@@ -278,7 +278,7 @@ const ContactSection = ({
       right: 0,
       height: "1px",
       background:
-        "linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,0.5), rgba(156, 85, 255, 0))",
+        "linear-gradient(90deg, rgba(255,255,255,0), rgba(255,255,255,0.5), rgba(255,255,255,0))",
       zIndex: -1,
     },
   };
