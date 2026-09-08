@@ -364,7 +364,7 @@ const ContactSection = ({
     "&:active": {
       transform: "translateY(-1px)",
       boxShadow:
-        "0 5px 15px rgba(108, 68, 245, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.3)",
+        "0 5px 15px rgba(108, 68, 245, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.2)",
     },
     transition: "all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)",
     "&::before": {
