@@ -37,7 +37,7 @@ describe("contact form and footer layout", () => {
   });
 
   test.each([600, 768, 1024, 1440])(
-    "reserves an in-flow footer row at desktop width %ipx",
+    "scales the complete desktop card without an internal scroll pane at %ipx",
     (width) => {
       viewportWidth = width;
       render(
@@ -51,11 +51,14 @@ describe("contact form and footer layout", () => {
       const footer = document.querySelector(".contact-footer-viewport");
       const card = document.querySelector(".contact-form");
 
-      expect(document.getElementById("contact")).toHaveStyle({ margin: "0" });
+      expect(document.getElementById("contact")).toHaveStyle({
+        margin: "0",
+        overflowY: "auto",
+      });
       expect(layout).toHaveStyle({
         display: "grid",
         gridTemplateColumns: "minmax(0, 1fr)",
-        gridTemplateRows: "minmax(0, 1fr) auto",
+        gridTemplateRows: "minmax(max-content, 1fr) auto",
         minHeight: "0",
       });
       expect(layout.style.gap).toBe("clamp(2.4rem, 4dvh, 4rem)");
@@ -67,12 +70,14 @@ describe("contact form and footer layout", () => {
         minHeight: "0",
         minWidth: "0",
         maxWidth: "720px",
-        overflowY: "auto",
+        overflowY: "visible",
         justifyContent: "flex-start",
         marginBottom: "0",
       });
-      // A tall card must scroll, not flex-shrink and paint under the footer.
+      expect(viewport.style.maxHeight).toBe("");
+      expect(window.getComputedStyle(card).getPropertyValue("zoom")).toBe("0.75");
       expect(card).toHaveStyle({
+        width: "75%",
         flexShrink: "0",
         marginTop: "auto",
         marginBottom: "auto",
@@ -81,7 +86,7 @@ describe("contact form and footer layout", () => {
     },
   );
 
-  test.each([390, 599])("preserves the mobile layout at %ipx", (width) => {
+  test.each([390, 599])("preserves the unscaled mobile layout at %ipx", (width) => {
     viewportWidth = width;
     render(
       <ThemeProvider>
@@ -95,9 +100,14 @@ describe("contact form and footer layout", () => {
     });
     expect(document.querySelector(".contact-form-viewport")).toHaveStyle({
       maxWidth: "100%",
+      maxHeight: "100%",
+      overflowY: "auto",
       marginBottom: "1rem",
       justifyContent: "center",
     });
+    const card = document.querySelector(".contact-form");
+    expect(window.getComputedStyle(card).getPropertyValue("zoom")).toBe("1");
+    expect(card).toHaveStyle({ width: "100%" });
     expect(document.querySelector(".contact-footer-viewport")).toHaveStyle({
       position: "absolute",
       visibility: "visible",
