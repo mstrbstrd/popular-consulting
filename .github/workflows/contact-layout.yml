@@ -26,7 +26,7 @@ concurrency:
 
 jobs:
   browser-layout:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -39,9 +39,16 @@ jobs:
         env:
           CI: true
       - name: Verify full form geometry in the built routes
-        run: node --experimental-websocket scripts/verify-contact-layout-browser.mjs
+        run: |
+          node --experimental-websocket scripts/verify-contact-layout-browser.mjs
+          $verifyExit = $LASTEXITCODE
+          if (Test-Path contact-layout-evidence/result.json) {
+            Get-Content contact-layout-evidence/result.json
+          }
+          exit $verifyExit
       - name: Preserve contact layout screenshots and measurements
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: contact-layout-evidence
