@@ -38,7 +38,7 @@ describe("spectral icon colorway", () => {
     expect(workSource).toContain('<circle cx="12" cy="12" r="3.5"');
   });
 
-  test("keeps social marks spectral, unframed, and separated by one rule", () => {
+  test("keeps shared social icon styles spectral, unframed, and separated by one rule", () => {
     expect(css).toContain('a[href*="twitter.com"]');
     expect(css).toContain('a[href*="instagram.com"]');
     expect(css).toContain('url("./assets/icons/twitter.svg")');
@@ -48,9 +48,13 @@ describe("spectral icon colorway", () => {
     expect(css).toContain("border: 0 !important;");
     expect(css).not.toContain("var(--aetheris-spectral-border-soft) border-box");
     expect(css).not.toContain("var(--aetheris-sheen)");
+  });
 
-    expect(contactSource).toContain("https://twitter.com/mstrbstrdd");
-    expect(contactSource).toContain("https://instagram.com");
+  test("does not reintroduce social links or icon imports in the contact footer", () => {
+    expect(contactSource).not.toContain("twitter.com");
+    expect(contactSource).not.toContain("instagram.com");
+    expect(contactSource).not.toContain("twitterIcon");
+    expect(contactSource).not.toContain("instagramIcon");
   });
 
   test("uses motion instead of a shaded box for both brand clusters", () => {
