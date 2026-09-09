@@ -4,6 +4,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import logo from "../assets/icons/popcon_svg.svg";
 import { useThemeMode } from "../contexts/ThemeContext";
+import "./IntroBranding.css";
 
 const LOADING_TEXT = "Loading";
 const INTRO_DUR = 2500;
@@ -200,10 +201,10 @@ const LoadingOverlay = ({ visible, onExitComplete }) => {
             }}
           >
             <img
+              className="intro-branding__logo"
               src={logo}
               alt="Popular Consulting"
               style={{
-                width: "clamp(125px, 31.25vw, 312px)",
                 height: "auto",
                 display: "block",
                 animation: "ditherLogoFlip 6s ease-in-out infinite",
@@ -213,6 +214,7 @@ const LoadingOverlay = ({ visible, onExitComplete }) => {
 
           {textVisible && (
             <div
+              className="intro-branding__text"
               style={{
                 position: "absolute",
                 top: "50%",
@@ -220,7 +222,6 @@ const LoadingOverlay = ({ visible, onExitComplete }) => {
                 transform: "translate(-50%, -50%)",
                 color: "rgba(255,255,255,0.95)",
                 fontFamily: "monospace",
-                fontSize: "clamp(1.5625rem, 3.75vw, 2.344rem)",
                 fontWeight: 700,
                 letterSpacing: "0.18em",
                 textTransform: "uppercase",

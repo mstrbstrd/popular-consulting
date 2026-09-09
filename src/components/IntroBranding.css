@@ -1,0 +1,19 @@
+/* Keep initial and replayed intro sizing in sync without changing animation transforms. */
+.intro-branding__logo {
+  width: clamp(125px, 31.25vw, 312px);
+}
+
+.intro-branding__text {
+  font-size: clamp(1.5625rem, 3.75vw, 2.344rem);
+}
+
+/* Mobile only: increase both the mark and its typewriter text by 15%. */
+@media (max-width: 768px) {
+  .intro-branding__logo {
+    width: clamp(143.75px, 35.9375vw, 358.8px);
+  }
+
+  .intro-branding__text {
+    font-size: clamp(1.796875rem, 4.3125vw, 2.6956rem);
+  }
+}
