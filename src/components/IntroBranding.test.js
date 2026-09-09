@@ -10,7 +10,9 @@ import { ThemeProvider } from "../contexts/ThemeContext";
 const styles = fs.readFileSync(path.join(__dirname, "IntroBranding.css"), "utf8");
 
 describe("Mobile intro branding", () => {
-  beforeEach(() => jest.useFakeTimers());
+  beforeEach(() => {
+    jest.useFakeTimers();
+  });
   afterEach(() => {
     cleanup();
     jest.useRealTimers();
@@ -27,7 +29,9 @@ describe("Mobile intro branding", () => {
     );
 
     for (const duration of [1700, 900, 800]) {
-      act(() => jest.advanceTimersByTime(duration));
+      act(() => {
+        jest.advanceTimersByTime(duration);
+      });
     }
 
     const logo = screen.getByRole("img", { name: "Popular Consulting" });
@@ -58,7 +62,7 @@ describe("Mobile intro branding", () => {
       expect(rules[0].style.getPropertyValue("width")).toBe("clamp(125px, 31.25vw, 312px)");
       expect(rules[1].selectorText).toBe(".intro-branding__text");
       expect(rules[1].style.getPropertyValue("font-size")).toBe("clamp(1.5625rem, 3.75vw, 2.344rem)");
-      expect(rules[2].conditionText).toBe("(max-width: 768px)");
+      expect(rules[2].media.mediaText).toBe("(max-width: 768px)");
       const mobile = Array.from(rules[2].cssRules);
       expect(mobile).toHaveLength(2);
       expect(mobile[0].selectorText).toBe(".intro-branding__logo");
