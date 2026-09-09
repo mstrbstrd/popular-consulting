@@ -7,6 +7,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import logo from '../assets/icons/popcon_svg.svg';
+import './IntroBranding.css';
 
 const WELCOME = 'Welcome';
 
@@ -138,10 +139,10 @@ const HeroLogo = () => {
             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleClick(e); } }}
           >
             <img
+              className="intro-branding__logo"
               src={logo}
               alt="Popular Consulting"
               style={{
-                width:     'clamp(125px, 31.25vw, 312px)',
                 height:    'auto',
                 display:   'block',
                 pointerEvents: 'none',
@@ -154,6 +155,7 @@ const HeroLogo = () => {
         {/* Welcome typewriter — centred over the logo */}
         {welcomeVisible && (
           <div
+            className="intro-branding__text"
             style={{
               position:    'absolute',
               top:         '50%',
@@ -161,7 +163,6 @@ const HeroLogo = () => {
               transform:   'translate(-50%, -50%)',
               color:       'rgba(255, 255, 255, 0.95)',
               fontFamily:  'monospace',
-              fontSize:    'clamp(1.5625rem, 3.75vw, 2.344rem)',
               fontWeight:  '700',
               letterSpacing: '0.18em',
               textTransform: 'uppercase',
