@@ -6,7 +6,7 @@
 // animation on the logo invisible.
 
 import React, { useState, useEffect, useRef } from 'react';
-import logo from '../assets/icons/popcon_png.png';
+import logo from '../assets/icons/popcon_svg.svg';
 
 const WELCOME = 'Welcome';
 

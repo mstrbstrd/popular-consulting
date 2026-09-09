@@ -1,5 +1,5 @@
 import React from "react";
-import logo from "../assets/icons/popcon_png.png";
+import logo from "../assets/icons/popcon_svg.svg";
 import brandLogo from "../assets/icons/logo2026_128.png";
 import SpectralBloom from "./SpectralBloom";
 import useWorkPolish from "./useWorkPolish";
