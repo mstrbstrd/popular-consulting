@@ -7,8 +7,6 @@ import "./BusinessSystemsVisual.css";
 
 const BUSINESS_BIO_COPY = getSiteCopy(SITE_AUDIENCES.BUSINESS).bio;
 const BUSINESS_SECTION_INDEX = 1;
-const LIGHT_MODE_LOGO_CONTRAST_FILTER =
-  "brightness(0.46) saturate(1.55) drop-shadow(0 0 4px var(--business-visual-glow))";
 
 const SYSTEM_NODES = Object.freeze([
   Object.freeze({
@@ -122,6 +120,8 @@ const useReducedMotion = () => {
 
 const BusinessSystemsVisual = () => {
   const { isDark } = useThemeMode();
+  const logoContrastFilterId = React.useId();
+  const lightModeLogoContrastFilter = `url(#${logoContrastFilterId})`;
   const photoAlt = BUSINESS_BIO_COPY.photoAlt;
   const escapedPhotoAlt = escapeCssAttribute(photoAlt);
   const reducedMotion = useReducedMotion();
@@ -225,6 +225,30 @@ const BusinessSystemsVisual = () => {
         focusable="false"
       >
         <defs>
+          {/* SVG primitives keep light-mode contrast on WebKit, which can ignore
+              CSS brightness/saturate functions on nested SVG image elements. */}
+          <filter
+            id={logoContrastFilterId}
+            x="-50%"
+            y="-50%"
+            width="200%"
+            height="200%"
+            colorInterpolationFilters="sRGB"
+          >
+            <feComponentTransfer>
+              <feFuncR type="linear" slope="0.46" />
+              <feFuncG type="linear" slope="0.46" />
+              <feFuncB type="linear" slope="0.46" />
+            </feComponentTransfer>
+            <feColorMatrix type="saturate" values="1.55" />
+            <feDropShadow
+              dx="0"
+              dy="0"
+              stdDeviation="4"
+              floodColor="#007e8c"
+              floodOpacity="0.13"
+            />
+          </filter>
           <linearGradient
             id="business-system-spectrum"
             x1="0"
@@ -325,7 +349,7 @@ const BusinessSystemsVisual = () => {
                 "--logo-direction": node.rotationDirection,
                 filter: isDark
                   ? undefined
-                  : LIGHT_MODE_LOGO_CONTRAST_FILTER,
+                  : lightModeLogoContrastFilter,
                 opacity: isDark ? undefined : 1,
               }}
             />
@@ -366,7 +390,7 @@ const BusinessSystemsVisual = () => {
             height="24"
             preserveAspectRatio="xMidYMid meet"
             style={{
-              filter: isDark ? undefined : LIGHT_MODE_LOGO_CONTRAST_FILTER,
+              filter: isDark ? undefined : lightModeLogoContrastFilter,
               opacity: isDark ? undefined : 1,
             }}
           />
