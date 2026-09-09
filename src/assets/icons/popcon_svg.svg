@@ -1,24 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
-  <defs>
-    <!-- Create a mask to cut out the center -->
-    <mask id="centerCutout">
-      <rect width="200" height="200" fill="white"/>
-      <circle cx="100" cy="100" r="33.75" fill="black"/>
-    </mask>
-  </defs>
-  
-  <!-- Four circles with transparent center (25% larger) -->
-  <g mask="url(#centerCutout)">
-    <!-- Top circle -->
-    <circle cx="100" cy="69" r="37.5" fill="none" stroke="#fbfca9" stroke-width="7.5" />
-    
-    <!-- Bottom left circle -->
-    <circle cx="68" cy="119" r="37.5" fill="none" stroke="#fbfca9" stroke-width="7.5" />
-    
-    <!-- Bottom right circle -->
-    <circle cx="132" cy="119" r="37.5" fill="none" stroke="#fbfca9" stroke-width="7.5" />
-    
-    <!-- Center circle -->
-    <circle cx="100" cy="100" r="37.5" fill="none" stroke="#fbfca9" stroke-width="7.5" />
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" shape-rendering="geometricPrecision">
+  <title>Popular Consulting logo</title>
+  <!-- Keep this asset identical in public/ and src/assets/icons/. -->
+  <!-- Tangent circular fillets soften the joins; evenodd preserves all four apertures. -->
+  <path fill="#fbfca9" fill-rule="evenodd" d="
+      M 59.38955 76.235598 A 41.25 41.25 0 1 1 140.61045 76.235598 A 2.5 2.5 0 0 0 142.439021 79.092741 A 41.25 41.25 0 1 1 101.828571 147.12912 A 2.5 2.5 0 0 0 98.171429 147.12912 A 41.25 41.25 0 1 1 57.560979 79.092741 A 2.5 2.5 0 0 0 59.38955 76.235598 Z
+      M 66.252483 69.409355 A 33.75 33.75 0 1 1 133.747517 69.409355 A 2.5 2.5 0 0 1 129.462118 71.128802 A 41.25 41.25 0 0 0 70.537882 71.128802 A 2.5 2.5 0 0 1 66.252483 69.409355 Z
+      M 143.325531 87.207 A 33.75 33.75 0 1 1 109.507971 144.162892 A 2.5 2.5 0 0 1 110.53553 139.881889 A 41.25 41.25 0 0 0 140.058797 90.158492 A 2.5 2.5 0 0 1 143.325531 87.207 Z
+      M 90.492029 144.162892 A 33.75 33.75 0 1 1 56.674469 87.207 A 2.5 2.5 0 0 1 59.941203 90.158492 A 41.25 41.25 0 0 0 89.46447 139.881889 A 2.5 2.5 0 0 1 90.492029 144.162892 Z
+      M 133.75 100 A 33.75 33.75 0 1 1 66.25 100 A 33.75 33.75 0 1 1 133.75 100 Z
+    " />
 </svg>
