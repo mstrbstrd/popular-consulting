@@ -4,7 +4,12 @@ import React from "react";
 import { act, cleanup, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import BusinessSystemsVisual from "./BusinessSystemsVisual";
+import { useThemeMode } from "../contexts/ThemeContext";
 import { getSiteCopy, SITE_AUDIENCES } from "../content/siteCopy";
+
+jest.mock("../contexts/ThemeContext", () => ({
+  useThemeMode: jest.fn(),
+}));
 
 const BUSINESS_PHOTO_ALT = getSiteCopy(
   SITE_AUDIENCES.BUSINESS,
@@ -35,6 +40,7 @@ describe("BusinessSystemsVisual", () => {
   const originalMatchMedia = window.matchMedia;
 
   beforeEach(() => {
+    useThemeMode.mockReturnValue({ isDark: false });
     Object.defineProperty(document, "hidden", {
       configurable: true,
       value: false,
@@ -141,20 +147,59 @@ describe("BusinessSystemsVisual", () => {
     });
   });
 
-  test("darkens the pale SVG marks in light mode", () => {
+  test("darkens every pale SVG mark with a local sRGB SVG filter in light mode", () => {
     createPortraitHost();
     render(<BusinessSystemsVisual />);
 
     const visual = screen.getByTestId("business-systems-visual");
+    const contrastFilter = visual.querySelector("filter");
+    expect(contrastFilter).toHaveAttribute("color-interpolation-filters", "sRGB");
+    expect(contrastFilter).toHaveAttribute("x", "-50%");
+    expect(contrastFilter).toHaveAttribute("y", "-50%");
+    expect(contrastFilter).toHaveAttribute("width", "200%");
+    expect(contrastFilter).toHaveAttribute("height", "200%");
+    ["feFuncR", "feFuncG", "feFuncB"].forEach((channel) => {
+      const transfer = contrastFilter.querySelector(channel);
+      expect(transfer).toHaveAttribute("type", "linear");
+      expect(transfer).toHaveAttribute("slope", "0.46");
+    });
+    expect(contrastFilter.querySelector("feFuncA")).toBeNull();
+    expect(contrastFilter.querySelector("feColorMatrix")).toHaveAttribute("type", "saturate");
+    expect(contrastFilter.querySelector("feColorMatrix")).toHaveAttribute("values", "1.55");
+    expect(contrastFilter.querySelector("feDropShadow")).toHaveAttribute("flood-color", "#007e8c");
+    expect(contrastFilter.querySelector("feDropShadow")).toHaveAttribute("flood-opacity", "0.13");
+
     const logos = visual.querySelectorAll(
       ".business-systems-visual__node-logo-image, .business-systems-visual__core-logo",
     );
 
     expect(logos).toHaveLength(5);
     logos.forEach((logo) => {
-      expect(logo.style.filter).toContain("brightness(0.46)");
-      expect(logo.style.filter).toContain("saturate(1.55)");
+      expect(logo.style.filter).toBe(`url(#${contrastFilter.id})`);
       expect(logo.style.opacity).toBe("1");
+      expect(logo).toHaveAttribute("width", "24");
+      expect(logo).toHaveAttribute("height", "24");
+    });
+  });
+
+  test("preserves dark styling and restores light contrast after repeated theme switches", () => {
+    createPortraitHost();
+    const { rerender } = render(<BusinessSystemsVisual />);
+    const visual = screen.getByTestId("business-systems-visual");
+    const filterId = visual.querySelector("filter").id;
+
+    [true, false, true, false].forEach((isDark) => {
+      useThemeMode.mockReturnValue({ isDark });
+      rerender(<BusinessSystemsVisual />);
+      expect(visual.querySelector("filter").id).toBe(filterId);
+      const logos = visual.querySelectorAll(
+        ".business-systems-visual__node-logo-image, .business-systems-visual__core-logo",
+      );
+      expect(logos).toHaveLength(5);
+      logos.forEach((logo) => {
+        expect(logo.style.filter).toBe(isDark ? "" : `url(#${filterId})`);
+        expect(logo.style.opacity).toBe(isDark ? "" : "1");
+      });
     });
   });
 
