@@ -2,7 +2,7 @@
 // Replays the site's intro reveal and logo animation on demand.
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import logo from "../assets/icons/popcon_png.png";
+import logo from "../assets/icons/popcon_svg.svg";
 import { useThemeMode } from "../contexts/ThemeContext";
 
 const LOADING_TEXT = "Loading";
