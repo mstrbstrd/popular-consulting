@@ -49,9 +49,9 @@ export const InvoiceDocument = ({ invoice, calculation }) => {
       <div className="invoice-table-scroll" role="region" aria-label="Invoice line items" tabIndex="0">
         <table className="invoice-document-table" role="table">
           <caption className="invoice-sr-only">Service details and line amounts before tax</caption>
-          <thead role="rowgroup"><tr role="row"><th role="columnheader" scope="col">Service / date</th><th role="columnheader" scope="col">Qty</th><th role="columnheader" scope="col">Rate</th>
+          <thead><tr role="row"><th role="columnheader" scope="col">Service / date</th><th role="columnheader" scope="col">Qty</th><th role="columnheader" scope="col">Rate</th>
             <th role="columnheader" scope="col">Discount</th><th role="columnheader" scope="col">Tax</th><th role="columnheader" scope="col">Amount</th></tr></thead>
-          <tbody role="rowgroup">{invoice.items.map((item, index) => (
+          <tbody>{invoice.items.map((item, index) => (
             <tr key={index} role="row">
               <td role="cell" data-label="Service"><span className="invoice-line-description">{item.description || "Service description"}</span><small>{item.date}</small></td>
               <td role="cell" data-label="Quantity">{item.qty || "–"}</td>
@@ -97,6 +97,7 @@ export const InvoiceGeneratorContent = () => {
   const errorRef = useRef(null);
   const previewRef = useRef(null);
   const editorRef = useRef(null);
+  const actionsRef = useRef(null);
   const menuRef = useRef(null);
   const importRef = useRef(null);
   const fileRequest = useRef(0);
@@ -133,8 +134,21 @@ export const InvoiceGeneratorContent = () => {
     window.addEventListener("afterprint", restorePrintTitle);
     document.addEventListener("keydown", closeMenu);
     document.addEventListener("pointerdown", closeMenu);
+    // Match the sticky document and focus offsets to the real action-bar height,
+    // including wrapped status text, zoom, font loading and viewport changes.
+    const bar = actionsRef.current;
+    const measureActions = () => {
+      const height = Math.ceil(bar?.getBoundingClientRect().height || 0);
+      if (height) bar.closest(".invoice-page")?.style.setProperty("--invoice-actions-height", `${height}px`);
+    };
+    measureActions();
+    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measureActions) : null;
+    if (bar) observer?.observe(bar);
+    window.addEventListener("resize", measureActions);
     return () => {
       fileRequest.current += 1;
+      observer?.disconnect();
+      window.removeEventListener("resize", measureActions);
       window.removeEventListener("afterprint", restorePrintTitle);
       document.removeEventListener("keydown", closeMenu);
       document.removeEventListener("pointerdown", closeMenu);
@@ -228,7 +242,12 @@ export const InvoiceGeneratorContent = () => {
   };
   const printInvoice = () => {
     setShowErrors(true);
-    if (!ready) { setView("editor"); setFocusRequest({ id: "errors" }); return; }
+    if (!ready) {
+      setView("editor");
+      // Hidden setup fields must not hide the way to repair a validation error.
+      editorRef.current?.querySelectorAll(".invoice-settings").forEach((section) => { section.open = true; });
+      setFocusRequest({ id: "errors" }); return;
+    }
     try {
       document.title = `Invoice_${invoice.invoiceNumber.replace(/[^a-z0-9_-]/gi, "_")}`;
       window.print();
@@ -243,12 +262,13 @@ export const InvoiceGeneratorContent = () => {
     setView("editor"); setFocusRequest({ id: `item-description-${index}` });
     setStatus(`Item ${index + 1} added.`);
   };
+  const closeDraftMenu = () => { if (menuRef.current) { menuRef.current.open = false; menuRef.current.querySelector("summary")?.focus(); } };
   const field = (key, id, label, props = {}) => <InvoiceField id={id} label={label} value={invoice[key]}
     onChange={(value) => change(key, value)} {...props} />;
 
   return (
     <main className="invoice-page" data-ready={ready ? "true" : "false"} data-view={view}>
-      <a className="invoice-skip-link invoice-no-print" href="#invoice-editor">Skip to invoice editor</a>
+      <a className="invoice-skip-link invoice-no-print" href="#invoice-editor" onClick={(event) => { event.preventDefault(); navigateView("editor"); }}>Skip to invoice editor</a>
       <header className="invoice-topbar invoice-no-print">
         <a className="invoice-brand" href="/"><img src={logo} alt="" /><span>Popular Consulting</span></a>
         <div className="invoice-topbar-actions"><a href="/">Back to site <span aria-hidden="true">↗</span></a>
@@ -260,24 +280,24 @@ export const InvoiceGeneratorContent = () => {
       <section className="invoice-intro invoice-no-print">
         <div><p className="invoice-eyebrow">Studio tools / 01</p><h1>Invoice generator<span>.</span></h1>
           <p className="invoice-lede">Make it clear. Make it yours.</p></div>
-        <p className="invoice-local-note">Local-only workspace<span>No account. No uploads.</span></p>
+        <p className="invoice-local-note">Local-only workspace<span>No account. No server uploads.</span></p>
       </section>
-      <section className="invoice-actions invoice-no-print" aria-label="Invoice actions">
+      <section ref={actionsRef} className="invoice-actions invoice-no-print" aria-label="Invoice actions">
         <div className="invoice-action-main">
-          <div className="invoice-total-card"><span>Current invoice</span><strong>{calculation ? formatInvoiceMoney(calculation.total, invoice.currency) : "Add your first rate"}</strong>
+          <div className="invoice-total-card"><span>Current invoice</span><strong>{calculation ? formatInvoiceMoney(calculation.total, invoice.currency) : "Totals pending"}</strong>
             <small className="invoice-save-state">{invoice.items.length} {invoice.items.length === 1 ? "item" : "items"} · {saveState}</small></div>
           <div className="invoice-action-buttons">
             <button type="button" onClick={saveDraft} disabled={logoPending}>Save draft</button>
             <details className="invoice-draft-menu" ref={menuRef}>
               <summary>Draft options</summary>
-              <div className="invoice-toolbar" onClick={(event) => { if (event.target.closest("button")) menuRef.current.open = false; }}>
-                <button type="button" onClick={loadDraft}>Load saved</button>
-                <button type="button" onClick={exportDraft} disabled={logoPending}>Export draft</button>
-                <button type="button" onClick={() => importRef.current?.click()}>Import draft</button>
-                <button type="button" onClick={() => { if (confirmReplace()) { replaceInvoice(createInvoice()); setStatus("New invoice started. The saved device draft is unchanged."); } }}>New invoice</button>
+              <div className="invoice-toolbar">
+                <button type="button" onClick={() => { closeDraftMenu(); loadDraft(); }}>Load saved</button>
+                <button type="button" onClick={() => { closeDraftMenu(); exportDraft(); }} disabled={logoPending}>Export draft</button>
+                <button type="button" onClick={() => { closeDraftMenu(); importRef.current?.click(); }}>Import draft</button>
+                <button type="button" onClick={() => { closeDraftMenu(); if (confirmReplace()) { replaceInvoice(createInvoice()); setStatus("New invoice started. The saved device draft is unchanged."); } }}>New invoice</button>
               </div>
             </details>
-            <input ref={importRef} type="file" accept=".json,application/json" className="invoice-sr-only" aria-label="Import invoice draft" onChange={importDraft} />
+            <input ref={importRef} type="file" accept=".json,application/json" className="invoice-sr-only" tabIndex="-1" aria-label="Import invoice draft" onChange={importDraft} />
             <button type="button" id="generate-invoice" className="invoice-primary" onClick={printInvoice} disabled={logoPending}>Print / save PDF <span aria-hidden="true">↗</span></button>
           </div>
         </div>
@@ -355,7 +375,7 @@ export const InvoiceGeneratorContent = () => {
           </form>
           <details className="invoice-device-options"><summary>Privacy &amp; device storage</summary>
             <p className="invoice-privacy">This unlisted page is not password-protected. Invoice details stay in this browser. Saving is optional, unencrypted, and limited to one draft per browser. Shared-device users and other scripts on this site can access a saved draft. Export a draft for a portable backup.</p>
-            <button type="button" onClick={() => { if (window.confirm("Delete the saved device draft? The open invoice will not be changed.")) { try { localStorage.removeItem(INVOICE_DRAFT_KEY); setSavedOnDevice(false); setStatus("Saved device draft deleted. The open invoice is unchanged."); } catch { setActionError("The browser did not allow deleting the saved draft."); } } }}>Delete saved draft</button>
+            <button type="button" onClick={() => { if (window.confirm("Delete the saved device draft? The open invoice will not be changed.")) { try { localStorage.removeItem(INVOICE_DRAFT_KEY); setSavedOnDevice(false); setDirty(true); setStatus("Saved device draft deleted. The open invoice is unchanged."); } catch { setActionError("The browser did not allow deleting the saved draft."); } } }}>Delete saved draft</button>
           </details>
         </section>
         <section ref={previewRef} id="invoice-preview" className="invoice-preview" aria-label="Preview workspace" tabIndex="-1">
