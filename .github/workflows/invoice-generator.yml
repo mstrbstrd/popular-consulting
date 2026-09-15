@@ -13,7 +13,7 @@ on:
       - 'src/index.js'
       - 'vercel.json'
       - 'scripts/generate-route-html.mjs'
-      - 'scripts/verify-invoice-generator.mjs'
+      - 'scripts/verify-invoice*'
       - 'scripts/review-invoice-workspace.mjs'
       - '.github/workflows/invoice-generator.yml'
   push:
@@ -29,7 +29,7 @@ on:
       - 'src/index.js'
       - 'vercel.json'
       - 'scripts/generate-route-html.mjs'
-      - 'scripts/verify-invoice-generator.mjs'
+      - 'scripts/verify-invoice*'
       - 'scripts/review-invoice-workspace.mjs'
       - '.github/workflows/invoice-generator.yml'
 
@@ -66,6 +66,13 @@ jobs:
           VISUAL_CAPTURE_BROWSER: /usr/bin/google-chrome
           INVOICE_REVIEW_ORIGIN: http://127.0.0.1:4173
           INVOICE_REVIEW_LOG_IMAGES: '1'
+      - name: Verify and render the 40-line invoice PDF
+        run: |
+          if ! command -v pdftoppm >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y poppler-utils
+          fi
+          python3 scripts/verify-invoice-pdf.py
       - name: Preserve invoice verification evidence
         if: always()
         uses: actions/upload-artifact@v4

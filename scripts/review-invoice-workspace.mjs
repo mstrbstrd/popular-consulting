@@ -62,7 +62,7 @@ try {
       const report = { origin, width, height, mode, checks: 0, failures: [] };
       const check = (condition, message) => { report.checks++; if (!condition) report.failures.push(message); };
       const click = async selector => {
-        const point = await evaluate(`(() => { const el=document.querySelector(${JSON.stringify(selector)}); if(!el) throw new Error('Missing ${selector}'); el.scrollIntoView({block:'center'}); const r=el.getBoundingClientRect(); if(!r.width||!r.height) throw new Error('Hidden ${selector}'); const x=r.x+r.width/2,y=r.y+r.height/2; const hit=document.elementFromPoint(x,y); if(!el.contains(hit)) throw new Error('Covered ${selector}'); return {x,y}; })()`);
+        const point = await evaluate(`(() => { const el=document.querySelector(${JSON.stringify(selector)}); if(!el) throw new Error('Missing control'); el.scrollIntoView({block:'center'}); const r=el.getBoundingClientRect(); if(!r.width||!r.height) throw new Error('Hidden control'); const x=r.x+r.width/2,y=r.y+r.height/2; const hit=document.elementFromPoint(x,y); if(!el.contains(hit)) throw new Error('Covered control: '+${JSON.stringify(selector)}); return {x,y}; })()`);
         await call('Input.dispatchMouseEvent', { type:'mousePressed', button:'left', clickCount:1, ...point });
         await call('Input.dispatchMouseEvent', { type:'mouseReleased', button:'left', clickCount:1, ...point });
         await settle();
@@ -96,6 +96,7 @@ try {
         check(report.geometry.documentWidth<=width+1,'Horizontal page overflow');
         check(report.geometry.formTop<600,'Form buried below header');
         check(report.geometry.targetHeights.every(value=>value>=44),'Small action or tax target');
+        check(await evaluate('getComputedStyle(document.querySelector(".invoice-document-footer")).backgroundColor==="rgba(0, 0, 0, 0)"'),'Site footer background leaked into invoice');
         await capture('top');
         await click('.invoice-draft-menu > summary');
         check(await evaluate('document.querySelector(".invoice-draft-menu").open'),'Draft menu did not open');
@@ -121,12 +122,13 @@ try {
           await click('[aria-label="Apply GST to item 1"]');
           await click('[aria-label="Duplicate item 1"]');
           check(await evaluate('document.getElementById("item-description-1").value==="Fictional design review" && document.activeElement.id==="item-description-1"'),'Duplicate values/focus failed');
-          check(await evaluate('document.querySelector("[aria-label=\"Apply GST to item 2\"]").checked'),'Duplicate tax selection lost');
+          check(await evaluate('document.querySelectorAll(".invoice-item-taxes input")[2].checked'),'Duplicate tax selection lost');
           await click('#add-item');
-          check(await evaluate('document.activeElement.id==="item-description-2" && !document.querySelector("[aria-label=\"Apply GST to item 3\"]").checked'),'New item focus/tax regression');
+          check(await evaluate('document.activeElement.id==="item-description-2" && !document.querySelectorAll(".invoice-item-taxes input")[4].checked'),'New item focus/tax regression');
           const fieldRect = await evaluate('document.getElementById("item-description-2").getBoundingClientRect().top');
           const barBottom = await evaluate('document.querySelector(".invoice-actions").getBoundingClientRect().bottom');
           if (height>600) check(fieldRect>=barBottom,'Focused input hidden by sticky toolbar');
+          await capture('items');
           await click('[aria-label="Remove item 3"]');
           if (width<=1200) await click('[aria-controls="invoice-preview"]');
           await set('item-cost-0','');
@@ -147,7 +149,7 @@ try {
           await settle();
           check(await evaluate('document.querySelectorAll(".invoice-document-table tbody tr").length===40'),'Long import failed');
           if (width<=1200) await click('[aria-controls="invoice-preview"]');
-          await evaluate('scrollTo(0,0)'); await settle();
+          await evaluate('document.querySelector(".invoice-preview").scrollIntoView({block:"start"})'); await settle();
           if (width>1200 && height>600) {
             check(await evaluate('document.querySelector(".invoice-preview-document").scrollHeight>document.querySelector(".invoice-preview-document").clientHeight'),'Long document not independently scrollable');
             await evaluate('const viewer=document.querySelector(".invoice-preview-document");viewer.scrollTop=viewer.scrollHeight;');
@@ -173,8 +175,10 @@ try {
   assert(reports.every(report=>report.failures.length===0),'Invoice workspace regression');
 } finally {
   await send('Browser.close').catch(()=>{});
-  browser.kill();
+  if (browser.exitCode === null) browser.kill();
   for(const request of pending.values()) clearTimeout(request.timer);
   server?.close();
-  fs.rmSync(profile,{recursive:true,force:true,maxRetries:5,retryDelay:200});
+  // Yield while Chrome finishes closing child processes before removing its profile.
+  await new Promise(resolve=>setTimeout(resolve,500));
+  await fs.promises.rm(profile,{recursive:true,force:true,maxRetries:10,retryDelay:200});
 }
