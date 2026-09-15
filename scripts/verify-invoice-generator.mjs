@@ -38,8 +38,13 @@ const script = `
   localStorage.setItem('popcon-theme',mode);
   try {
     await wait(()=>document.querySelector('.invoice-page'));
+    // The React element can appear before ThemeProvider's effect updates html.
+    // Wait for state/DOM agreement before choosing whether to toggle.
+    await wait(()=>document.documentElement.dataset.theme ===
+      (document.querySelector('.invoice-topbar-actions button')?.getAttribute('aria-label')==='Use light mode'?'dark':'light'));
     const toggle=document.querySelector('[aria-label="Use '+(mode==='dark'?'dark':'light')+' mode"]');
-    if(toggle){ toggle.click(); await pause(); }
+    if(toggle) toggle.click();
+    await wait(()=>document.documentElement.dataset.theme===mode);
     check(document.documentElement.dataset.theme===mode,'Theme mismatch');
     check(!document.querySelector('.background-black-hole-live'),'Immersive renderer mounted');
     document.getElementById('generate-invoice').click(); await pause();

@@ -48,7 +48,7 @@ const send = (method, params = {}, sessionId) => new Promise((resolve, reject) =
 });
 const reports = [];
 try {
-  for (const [width, height] of [[1440,1000], [1280,800], [1024,768], [768,1024], [390,844], [320,640], [844,390]]) {
+  for (const [width, height] of [[1440,1000], [1280,800], [1024,768], [768,1024], [390,844], [320,640], [844,390], [1200,900], [1920,1080]]) {
     for (const mode of ['light', 'dark']) {
       const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
       const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
@@ -97,6 +97,35 @@ try {
         check(report.geometry.formTop<600,'Form buried below header');
         check(report.geometry.targetHeights.every(value=>value>=44),'Small action or tax target');
         check(await evaluate('getComputedStyle(document.querySelector(".invoice-document-footer")).backgroundColor==="rgba(0, 0, 0, 0)"'),'Site footer background leaked into invoice');
+        // Reuse the persistent review browser for the style matrix. Repeated
+        // one-shot Chrome launches can time out before producing a screenshot.
+        // The original four-case functional smoke remains unchanged.
+        if (local) {
+          report.styling = await evaluate(`(() => {
+            const shared=getComputedStyle(document.documentElement);
+            const page=getComputedStyle(document.querySelector('.invoice-page'));
+            const header=document.querySelector('.invoice-topbar');
+            const box=header.getBoundingClientRect();
+            const panels=[...document.querySelectorAll('.invoice-form > fieldset')];
+            return {
+              sharedInk:page.getPropertyValue('--invoice-ink').trim()===shared.getPropertyValue('--aetheris-ink').trim(),
+              sharedSecondaryInk:page.getPropertyValue('--invoice-muted').trim()===shared.getPropertyValue('--aetheris-ink-2').trim(),
+              technicalControls:getComputedStyle(document.querySelector('.invoice-action-buttons > button')).fontFamily.includes('JetBrains Mono'),
+              pill:getComputedStyle(header).borderRadius===shared.getPropertyValue('--aetheris-radius-pill').trim(),
+              headerFits:box.left>=0 && box.right<=innerWidth+1,
+              headerRimIgnoresInput:getComputedStyle(header,'::after').pointerEvents==='none',
+              panelRadii:panels.every(panel=>getComputedStyle(panel).borderRadius===shared.getPropertyValue('--aetheris-radius-glass').trim()),
+              panelRimsIgnoreInput:panels.every(panel=>getComputedStyle(panel,'::before').pointerEvents==='none'),
+              legendsClear:panels.every(panel=>{const legend=panel.querySelector('legend');return legend.getBoundingClientRect().bottom<=legend.nextElementSibling.getBoundingClientRect().top+1;}),
+              inputBounds:[...document.querySelectorAll('.invoice-field input,.invoice-field textarea,.invoice-field select')].every(input=>input.getBoundingClientRect().right<=innerWidth+1),
+              whitePaper:getComputedStyle(document.querySelector('.invoice-paper')).backgroundColor==='rgb(255, 255, 255)'
+            };
+          })()`);
+          for (const [name, passed] of Object.entries(report.styling)) check(passed, 'Aetheris style: '+name);
+          const focusHalo = await evaluate(`(() => {const input=document.getElementById('invoice-number');input.focus({preventScroll:true});const visible=input.matches(':focus-visible')&&getComputedStyle(input).boxShadow!=='none';input.blur();return visible;})()`);
+          check(focusHalo,'Input focus halo missing');
+          await settle();
+        }
         await capture('top');
         await click('.invoice-draft-menu > summary');
         check(await evaluate('document.querySelector(".invoice-draft-menu").open'),'Draft menu did not open');
