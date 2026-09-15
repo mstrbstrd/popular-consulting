@@ -1,0 +1,30 @@
+name: Invoice workspace review
+on:
+  push:
+    branches: [refine/invoice-workspace-20260915]
+permissions:
+  contents: read
+concurrency:
+  group: invoice-live-review-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node scripts/review-invoice-workspace.mjs
+        env:
+          VISUAL_CAPTURE_BROWSER: /usr/bin/google-chrome
+          INVOICE_REVIEW_LOG_IMAGES: '1'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: invoice-live-review
+          path: invoice-review-evidence/
+          retention-days: 3
