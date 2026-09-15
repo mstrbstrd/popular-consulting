@@ -1,130 +1,73 @@
 {
   "headers": [
     {
+      "source": "/invoice-generator",
+      "headers": [
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow, noarchive" },
+        { "key": "Cache-Control", "value": "no-store, max-age=0" }
+      ]
+    },
+    {
+      "source": "/invoice-generator/:path*",
+      "headers": [
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow, noarchive" },
+        { "key": "Cache-Control", "value": "no-store, max-age=0" }
+      ]
+    },
+    {
       "source": "/orb",
       "headers": [
-        {
-          "key": "X-Robots-Tag",
-          "value": "noindex, follow"
-        },
-        {
-          "key": "Cache-Control",
-          "value": "no-store, max-age=0"
-        },
-        {
-          "key": "X-Popcon-Orb-Release",
-          "value": "semantic-emotes-v1"
-        }
+        { "key": "X-Robots-Tag", "value": "noindex, follow" },
+        { "key": "Cache-Control", "value": "no-store, max-age=0" },
+        { "key": "X-Popcon-Orb-Release", "value": "semantic-emotes-v1" }
       ]
     },
     {
       "source": "/orb/:path*",
       "headers": [
-        {
-          "key": "X-Robots-Tag",
-          "value": "noindex, follow"
-        },
-        {
-          "key": "Cache-Control",
-          "value": "no-store, max-age=0"
-        },
-        {
-          "key": "X-Popcon-Orb-Release",
-          "value": "semantic-emotes-v1"
-        }
+        { "key": "X-Robots-Tag", "value": "noindex, follow" },
+        { "key": "Cache-Control", "value": "no-store, max-age=0" },
+        { "key": "X-Popcon-Orb-Release", "value": "semantic-emotes-v1" }
       ]
     },
     {
       "source": "/game",
-      "headers": [
-        {
-          "key": "X-Robots-Tag",
-          "value": "noindex, follow"
-        }
-      ]
+      "headers": [{ "key": "X-Robots-Tag", "value": "noindex, follow" }]
     },
     {
       "source": "/game/:path*",
-      "headers": [
-        {
-          "key": "X-Robots-Tag",
-          "value": "noindex, follow"
-        }
-      ]
+      "headers": [{ "key": "X-Robots-Tag", "value": "noindex, follow" }]
     },
     {
       "source": "/static/(.*)",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=31536000, immutable"
-        }
-      ]
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
     },
     {
       "source": "/(.*)",
       "headers": [
-        {
-          "key": "X-Content-Type-Options",
-          "value": "nosniff"
-        },
-        {
-          "key": "Referrer-Policy",
-          "value": "strict-origin-when-cross-origin"
-        }
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
       ]
     },
     {
       "source": "/(|engineering|work|game)",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=0, must-revalidate"
-        }
-      ]
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }]
     }
   ],
   "rewrites": [
-    {
-      "source": "/engineering",
-      "destination": "/engineering/index.html"
-    },
-    {
-      "source": "/engineering/:path*",
-      "destination": "/engineering/index.html"
-    },
-    {
-      "source": "/work",
-      "destination": "/work/index.html"
-    },
-    {
-      "source": "/work/:path*",
-      "destination": "/work/index.html"
-    },
-    {
-      "source": "/orb",
-      "destination": "/orb/index.html"
-    },
-    {
-      "source": "/orb/:path*",
-      "destination": "/orb/index.html"
-    },
-    {
-      "source": "/game",
-      "destination": "/game/index.html"
-    },
-    {
-      "source": "/game/:path*",
-      "destination": "/game/index.html"
-    },
-    {
-      "source": "/((?!static/|api/).*)",
-      "destination": "/index.html"
-    }
+    { "source": "/invoice-generator", "destination": "/invoice-generator/index.html" },
+    { "source": "/invoice-generator/:path*", "destination": "/invoice-generator/index.html" },
+    { "source": "/engineering", "destination": "/engineering/index.html" },
+    { "source": "/engineering/:path*", "destination": "/engineering/index.html" },
+    { "source": "/work", "destination": "/work/index.html" },
+    { "source": "/work/:path*", "destination": "/work/index.html" },
+    { "source": "/orb", "destination": "/orb/index.html" },
+    { "source": "/orb/:path*", "destination": "/orb/index.html" },
+    { "source": "/game", "destination": "/game/index.html" },
+    { "source": "/game/:path*", "destination": "/game/index.html" },
+    { "source": "/((?!static/|api/).*)", "destination": "/index.html" }
   ],
   "functions": {
-    "api/metabloom.js": {
-      "maxDuration": 30
-    }
+    "api/metabloom.js": { "maxDuration": 30 }
   }
 }

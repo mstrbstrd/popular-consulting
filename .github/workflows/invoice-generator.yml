@@ -1,0 +1,70 @@
+name: Invoice generator
+
+on:
+  pull_request:
+    paths:
+      - 'src/components/InvoiceGenerator*'
+      - 'src/utils/invoice*'
+      - 'src/SiteRouter*'
+      - 'src/contexts/ThemeContext.js'
+      - 'src/content/routeMetadata.json'
+      - 'src/InvoiceGeneratorRoute.test.js'
+      - 'src/index.css'
+      - 'src/index.js'
+      - 'vercel.json'
+      - 'scripts/generate-route-html.mjs'
+      - 'scripts/verify-invoice-generator.mjs'
+      - '.github/workflows/invoice-generator.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/components/InvoiceGenerator*'
+      - 'src/utils/invoice*'
+      - 'src/SiteRouter*'
+      - 'src/contexts/ThemeContext.js'
+      - 'src/content/routeMetadata.json'
+      - 'src/InvoiceGeneratorRoute.test.js'
+      - 'src/index.css'
+      - 'src/index.js'
+      - 'vercel.json'
+      - 'scripts/generate-route-html.mjs'
+      - 'scripts/verify-invoice-generator.mjs'
+      - '.github/workflows/invoice-generator.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: invoice-generator-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  invoice-browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+        env:
+          CI: true
+      - name: Verify editor, drafts, print validation, and responsive themes
+        run: node scripts/verify-invoice-generator.mjs
+        env:
+          VISUAL_CAPTURE_BROWSER: /usr/bin/google-chrome
+      - name: Preserve invoice verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: invoice-evidence
+          path: |
+            invoice-evidence/*.json
+            invoice-evidence/*.png
+          if-no-files-found: ignore
+          retention-days: 7
