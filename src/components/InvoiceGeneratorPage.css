@@ -85,7 +85,7 @@ html[data-theme="dark"] .invoice-page {
 .invoice-brand img { width: 30px; height: 30px; object-fit: contain; }
 .invoice-topbar-actions { display: flex; align-items: center; gap: 24px; font-size: 14px; }
 .invoice-topbar-actions button { width: 44px; padding: 0; border-radius: 50%; }
-.invoice-intro { max-width: 1760px; margin: 52px auto 36px; display: flex; align-items: end; justify-content: space-between; gap: 32px; }
+.invoice-intro { max-width: 1760px; margin: 52px auto 36px; display: flex; align-items: flex-end; justify-content: space-between; gap: 32px; }
 .invoice-eyebrow { color: var(--invoice-muted); font: 500 11px/1.5 var(--invoice-mono); letter-spacing: .15em; text-transform: uppercase; }
 .invoice-intro h1 { margin: 10px 0 14px; font-size: clamp(32px, 4.2vw, 62px); font-weight: 500; letter-spacing: -.05em; line-height: 1.08; }
 .invoice-intro h1 span { color: var(--invoice-accent); }
