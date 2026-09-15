@@ -102,16 +102,27 @@
   }
 }
 
+/* Keep contrast at the glyph edge, not across a panel of the artwork.
+   Opaque ink plus a 1px light keyline preserves the field between letters.
+   Do not add a copy background, pseudo-element, blur, or blend mode here. */
 .dither-canvas-page[data-theme-mode="light"] .rupture-copy {
-  --study-copy-ink: #202c3a;
-  --study-caption-ink: #344256;
-  --study-copy-wash: rgba(255, 248, 247, 0.78);
-  isolation: isolate;
+  --study-copy-ink: #18212b;
+  --study-caption-ink: #283545;
+  --study-copy-keyline: #fff8f7;
 }
 
 .dither-canvas-page[data-theme-mode="light"] .rupture-copy :is(.rupture-eyebrow, .rupture-description, .rupture-instruction) {
   color: var(--study-caption-ink);
-  text-shadow: none;
+  /* Zero-blur fallback. Never soften the field or duplicate the DOM text. */
+  text-shadow:
+    -1px 0 0 var(--study-copy-keyline),
+    1px 0 0 var(--study-copy-keyline),
+    0 -1px 0 var(--study-copy-keyline),
+    0 1px 0 var(--study-copy-keyline),
+    -0.7px -0.7px 0 var(--study-copy-keyline),
+    0.7px -0.7px 0 var(--study-copy-keyline),
+    -0.7px 0.7px 0 var(--study-copy-keyline),
+    0.7px 0.7px 0 var(--study-copy-keyline);
 }
 
 .dither-canvas-page[data-theme-mode="light"] .rupture-copy .rupture-description {
@@ -119,39 +130,34 @@
   font-weight: 500;
 }
 
-/* A feathered, copy-local wash keeps even dark moving pigment from washing
-   out the small text. One soft reading area, not a box behind each paragraph.
-   No full-screen overlay, backdrop blur, or hit target. */
-.dither-canvas-page[data-theme-mode="light"] .rupture-copy::before {
-  content: "";
-  position: absolute;
-  inset: -1.2rem -10rem -6rem -4rem;
-  z-index: -1;
-  background: var(--study-copy-wash);
-  /* Fade only outside the text box so contrast never falls at a glyph edge. */
-  -webkit-mask-image:
-    linear-gradient(to right, transparent, #000 4rem, #000 calc(100% - 10rem), transparent),
-    linear-gradient(to bottom, transparent, #000 1.2rem, #000 calc(100% - 6rem), transparent);
-  mask-image:
-    linear-gradient(to right, transparent, #000 4rem, #000 calc(100% - 10rem), transparent),
-    linear-gradient(to bottom, transparent, #000 1.2rem, #000 calc(100% - 6rem), transparent);
-  -webkit-mask-composite: source-in;
-  mask-composite: intersect;
-  pointer-events: none;
+@supports (-webkit-text-stroke: 2px white) and (paint-order: stroke fill) {
+  .dither-canvas-page[data-theme-mode="light"] .rupture-copy :is(.rupture-eyebrow, .rupture-description, .rupture-instruction) {
+    /* Painting the fill last preserves thin serifs and counters. A centered
+       2px stroke leaves only a 1px outside edge, not an embossed/glowing label. */
+    -webkit-text-stroke: 2px var(--study-copy-keyline);
+    paint-order: stroke fill;
+    text-shadow: none;
+  }
 }
 
-@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+@media (prefers-contrast: more) {
   .dither-canvas-page[data-theme-mode="light"] .rupture-copy {
-    --study-copy-wash: #fff8f7;
+    --study-copy-ink: #000000;
+    --study-caption-ink: #000000;
+    --study-copy-keyline: #ffffff;
   }
+}
+
+/* Selection and forced colors belong to the browser, not the artwork. */
+.dither-canvas-page[data-theme-mode="light"] .rupture-copy :is(.rupture-eyebrow, .rupture-description, .rupture-instruction)::selection {
+  -webkit-text-stroke-width: 0;
+  text-shadow: none;
 }
 
 @media (forced-colors: active) {
   .dither-canvas-page[data-theme-mode="light"] .rupture-copy :is(.rupture-eyebrow, .rupture-description, .rupture-instruction) {
     color: CanvasText;
-  }
-
-  .dither-canvas-page[data-theme-mode="light"] .rupture-copy::before {
-    content: none;
+    -webkit-text-stroke-width: 0;
+    text-shadow: none;
   }
 }
