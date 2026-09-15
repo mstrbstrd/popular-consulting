@@ -10,6 +10,7 @@ import SectionDeepLinkBridge from "./components/SectionDeepLinkBridge";
 const App = React.lazy(() => import("./App"));
 const WorkPage = React.lazy(() => import("./components/WorkPage"));
 const OrbPage = React.lazy(() => import("./components/OrbPage"));
+const InvoiceGeneratorPage = React.lazy(() => import("./components/InvoiceGeneratorPage"));
 const DitherCanvasPage = React.lazy(() =>
   import("./components/DitherCanvasPage"),
 );
@@ -29,6 +30,7 @@ export const SITE_VIEWS = Object.freeze({
   ORB: "orb",
   GAME: "game",
   DITHER_CANVAS: "dither-canvas",
+  INVOICE_GENERATOR: "invoice-generator",
 });
 
 export const resolveSiteView = (pathname = "/") => {
@@ -39,6 +41,7 @@ export const resolveSiteView = (pathname = "/") => {
   if (normalized === "/orb") return SITE_VIEWS.ORB;
   if (normalized === "/game") return SITE_VIEWS.GAME;
   if (normalized === "/dither-canvas") return SITE_VIEWS.DITHER_CANVAS;
+  if (normalized === "/invoice-generator" || normalized === "/invoice-generator/index.html") return SITE_VIEWS.INVOICE_GENERATOR;
   return SITE_VIEWS.ORIGINAL;
 };
 
@@ -61,6 +64,8 @@ const SiteRouter = ({ pathname = window.location.pathname }) => {
   let page;
   if (view === SITE_VIEWS.WORK) {
     page = <WorkPage />;
+  } else if (view === SITE_VIEWS.INVOICE_GENERATOR) {
+    page = <InvoiceGeneratorPage />;
   } else if (view === SITE_VIEWS.ORB) {
     page = <OrbPage />;
   } else if (view === SITE_VIEWS.GAME) {

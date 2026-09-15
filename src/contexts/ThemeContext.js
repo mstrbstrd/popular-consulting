@@ -3,7 +3,7 @@ import BlackHoleBackground from '../components/BlackHoleBackground';
 
 const ThemeCtx = createContext({ isDark: false, toggleTheme: () => {} });
 
-export const ThemeProvider = ({ children }) => {
+export const ThemeProvider = ({ children, enableBackground = true }) => {
   const [isDark, setIsDark] = useState(() => {
     try {
       const stored = localStorage.getItem('popcon-theme');
@@ -23,7 +23,7 @@ export const ThemeProvider = ({ children }) => {
 
   return (
     <ThemeCtx.Provider value={{ isDark, toggleTheme: () => setIsDark(d => !d) }}>
-      <BlackHoleBackground isDark={isDark} />
+      {enableBackground && <BlackHoleBackground isDark={isDark} />}
       {children}
     </ThemeCtx.Provider>
   );

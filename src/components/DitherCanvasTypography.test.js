@@ -48,7 +48,6 @@ describe("Dither field-lab typography", () => {
     expect(declarations).not.toMatch(/(?:^|[;{])\s*(?:animation(?:-[\w-]+)?|transition(?:-[\w-]+)?|transform|filter|backdrop-filter|background(?:-[\w-]+)?|color|position|z-index|pointer-events|touch-action|display|visibility)\s*:/);
     expect(declarations).not.toMatch(/!important|overflow\s*:\s*hidden/);
     expect(declarations).not.toMatch(/\.rupture-nav|\.dither-study-option|\.morphogen-paint-toolbar|\.dither-study-scene/);
-    // All rule selectors remain inside the existing route root.
     const selectors = declarations.match(/[^{}]+(?=\{)/g) || [];
     selectors.filter((selector) => !selector.trim().startsWith("@media"))
       .forEach((selector) => expect(selector.trim()).toMatch(/^\.dither-canvas-page(?:[\s.]|$)/));
@@ -68,7 +67,7 @@ describe("Dither field-lab typography", () => {
 
 describe("Generated field-lab asset isolation", () => {
   let fixtureRoot;
-  const routes = ["root", "engineering", "work", "orb", "game", "ditherCanvas"];
+  const routes = Object.keys(JSON.parse(readRepositoryFile("src/content/routeMetadata.json")));
   const readRoute = (directory = "") =>
     fs.readFileSync(path.join(fixtureRoot, "build", directory, "index.html"), "utf8");
 
@@ -78,7 +77,6 @@ describe("Generated field-lab asset isolation", () => {
       fs.mkdirSync(path.join(fixtureRoot, directory), { recursive: true });
     }
     fs.writeFileSync(path.join(fixtureRoot, "scripts/generate-route-html.mjs"), routeGenerator);
-    // Exercise the real generator in isolation, never overwrite the real build.
     const metadata = Object.fromEntries(routes.map((key) => [key, {
       title: `${key} title`,
       description: `${key} description`,
@@ -125,7 +123,7 @@ describe("Generated field-lab asset isolation", () => {
     expect(html.indexOf("dither-typography.css")).toBeGreaterThan(html.indexOf("main.fixture.css"));
   });
 
-  test.each(["", "engineering", "work", "orb", "game"])("does not load lab assets on /%s", (directory) => {
+  test.each(["", "engineering", "work", "orb", "game", "invoice-generator"])("does not load lab assets on /%s", (directory) => {
     const html = readRoute(directory);
     expect(html).not.toContain("dither-typography.css");
     expect(html).not.toContain("Cormorant+Garamond");

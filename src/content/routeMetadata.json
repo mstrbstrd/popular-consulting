@@ -58,5 +58,15 @@
     "socialDescription": "Explore ten interactive Spectral Display studies, including the CreatorOS lava lamp, a transformer forward pass, live reaction-diffusion morphogenesis, quasicrystal waves, and a hyperbolic garden.",
     "robots": "noindex,follow",
     "noscript": "The Dither Field Lab requires JavaScript and WebGL. Return to https://popular-consulting.com/ or contact shae@popcon.dev."
+  },
+  "invoiceGenerator": {
+    "path": "/invoice-generator",
+    "title": "Invoice Generator | Popular Consulting",
+    "description": "A browser-only invoice workspace with a live document preview and printable invoices.",
+    "canonical": "https://popular-consulting.com/invoice-generator",
+    "socialTitle": "Invoice Generator | Popular Consulting",
+    "socialDescription": "An unlisted browser-only invoice workspace. No invoice data is stored on the server.",
+    "robots": "noindex,nofollow,noarchive",
+    "noscript": "The invoice generator requires JavaScript. It is a browser-only tool; no invoice data is stored on the server."
   }
 }
