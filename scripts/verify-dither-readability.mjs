@@ -64,7 +64,7 @@ const viewports = [[320,568], [360,640], [390,844], [430,932], [600,900], [601,3
 const fixture = `<!doctype html><html><head><meta charset="utf-8"><style>${fontStyles}\n${styles}</style><style id="refinements">${refinements}</style><style>html{font-size:10px}body{margin:0}.dither-fixed-stage{background:linear-gradient(120deg,#080809,#8b7659,#0aa3ad,#ff56d6,#fff8f7)}</style></head><body><main class="dither-canvas-page dither-study-metabloom" data-theme-mode="light"><div class="dither-fixed-stage"><section class="rupture-copy dither-copy is-idle"><p class="rupture-eyebrow"></p><h1 id="rupture-title"></h1><p class="rupture-description"></p><p class="rupture-instruction"></p></section></div></main></body></html>`;
 const html = `<!doctype html><html><body><pre id="readability-report">RUNNING</pre><iframe id="fixture" style="border:0;width:1440px;height:900px"></iframe><script>
 (async () => {
-  const result = { cases: 0, metabloomCases: 0, minimumContrast: 100, failures: [], fontFiles: ${fontCache.size} };
+  const result = { cases: 0, metabloomCases: 0, minimumKeylineContrast: 100, fallbackChecks: 0, failures: [], fontFiles: ${fontCache.size}, contrastScope: 'Authored ink/keyline colors only; not a full animated-background accessibility audit.' };
   const check = (condition, message) => { if (!condition) result.failures.push(message); };
   try {
     const frame = document.getElementById('fixture');
@@ -115,6 +115,7 @@ const html = `<!doctype html><html><body><pre id="readability-report">RUNNING</p
       value /= 255;
       return value <= 0.04045 ? value/12.92 : ((value+0.055)/1.055)**2.4;
     }).reduce((sum,value,index) => sum + value*[0.2126,0.7152,0.0722][index],0);
+    const copySignature = style => [style.color,style.fontWeight,style.textShadow,style.webkitTextStrokeWidth,style.paintOrder].join('|');
     for (const [width,height] of ${JSON.stringify(viewports)}) {
       frame.style.width = width + 'px';
       frame.style.height = height + 'px';
@@ -126,10 +127,7 @@ const html = `<!doctype html><html><body><pre id="readability-report">RUNNING</p
           sheet.disabled = true;
           const previous = win.getComputedStyle(title);
           const baselineTitle = [previous.fontFamily, previous.fontSize, previous.fontWeight, previous.letterSpacing].join('|');
-          const baselineCopy = [description,eyebrow,instruction].map(element => {
-            const style = win.getComputedStyle(element);
-            return [style.color,style.fontWeight].join('|');
-          });
+          const baselineCopy = [description,eyebrow,instruction].map(element => copySignature(win.getComputedStyle(element)));
           sheet.disabled = false;
           if (study.id === 'metabloom') {
             const measured = measure();
@@ -142,26 +140,49 @@ const html = `<!doctype html><html><body><pre id="readability-report">RUNNING</p
             const style = win.getComputedStyle(title);
             check([style.fontFamily,style.fontSize,style.fontWeight,style.letterSpacing].join('|') === baselineTitle, label + ': unrelated heading changed');
           }
+          // There must be no painted rectangle, mask, or fog behind any copy.
+          for (const pseudo of ['::before','::after']) {
+            const surface = win.getComputedStyle(copy,pseudo);
+            check(surface.content === 'none' || surface.content === 'normal', label + ': copy backing returned');
+          }
+          for (const element of [copy,description,eyebrow,instruction]) {
+            const style = win.getComputedStyle(element);
+            check(rgb(style.backgroundColor)[3] === 0 && style.backgroundImage === 'none', label + ': painted copy background');
+            check(style.backdropFilter === 'none' && style.maskImage === 'none' && style.mixBlendMode === 'normal', label + ': copy compositing changed');
+          }
           [description,eyebrow,instruction].forEach((element,index) => {
             const style = win.getComputedStyle(element);
-            const surface = win.getComputedStyle(copy,'::before');
             if (mode === 'light') {
-              const wash = rgb(surface.backgroundColor);
               const foreground = rgb(style.color);
-              const darkest = wash.slice(0,3).map(channel => channel*(wash[3] ?? 1));
-              const contrast = (luminance(darkest)+0.05)/(luminance(foreground)+0.05);
-              result.minimumContrast = Math.min(result.minimumContrast,contrast);
-              check(contrast >= 4.5 && (foreground[3] ?? 1) === 1, label + ': insufficient copy contrast');
-              check(surface.pointerEvents === 'none', label + ': wash intercepts input');
+              const keyline = rgb(style.webkitTextStrokeColor);
+              const contrast = (luminance(keyline)+0.05)/(luminance(foreground)+0.05);
+              result.minimumKeylineContrast = Math.min(result.minimumKeylineContrast,contrast);
+              check(contrast >= 7 && (foreground[3] ?? 1) === 1 && (keyline[3] ?? 1) === 1, label + ': insufficient ink/keyline contrast');
+              check(style.webkitTextStrokeWidth === '2px' && style.paintOrder.startsWith('stroke'), label + ': glyph edge lost');
+              check(style.textShadow === 'none', label + ': redundant shadow/glow');
             } else {
-              check([style.color,style.fontWeight].join('|') === baselineCopy[index], label + ': dark copy changed');
-              check(surface.content === 'none' || surface.content === 'normal', label + ': light wash leaked into dark mode');
+              check(copySignature(style) === baselineCopy[index], label + ': dark copy changed');
             }
           });
           result.cases++;
         }
       }
     }
+    // Exercise the zero-blur fallback independently of native text strokes.
+    const edgeIndex = [...sheet.cssRules].findIndex(rule => rule.conditionText?.includes('-webkit-text-stroke'));
+    check(edgeIndex >= 0, 'Missing progressive text-stroke rule');
+    const nativeEdge = sheet.cssRules[edgeIndex].cssText;
+    sheet.deleteRule(edgeIndex);
+    for (const study of studies) {
+      setStudy(study,'light');
+      for (const element of [description,eyebrow,instruction]) {
+        const style = win.getComputedStyle(element);
+        check(style.webkitTextStrokeWidth === '0px', study.id + ': fallback still has a stroke');
+        check((style.textShadow.match(/rgb\\(/g) || []).length === 8, study.id + ': missing fallback keyline');
+        result.fallbackChecks++;
+      }
+    }
+    sheet.insertRule(nativeEdge,edgeIndex);
     // Leave a representative real-font frame for the screenshot artifact.
     frame.style.width='1440px'; frame.style.height='900px'; doc.documentElement.style.fontSize='10px';
     setStudy(studies.find(study => study.id === 'metabloom'),'light');
@@ -199,6 +220,7 @@ try {
   console.log(JSON.stringify(result, null, 2));
   assert.equal(result.failures.length, 0, "Dither readability regression");
   assert.equal(result.cases, viewports.length * 3 * 2 * studies.length);
+  assert.equal(result.fallbackChecks, studies.length * 3);
 } finally {
   server.close();
   // The helper's DOM contains temporary embedded font data. Keep only the

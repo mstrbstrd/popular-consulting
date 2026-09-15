@@ -10,8 +10,6 @@ const lightCopy = refinements.match(
 )[1];
 const ink = (token) => lightCopy.match(new RegExp(`${token}: (#[a-f0-9]{6})`))[1]
   .slice(1).match(/../g).map((channel) => parseInt(channel, 16));
-const wash = lightCopy.match(/--study-copy-wash: rgba\(([^)]+)\)/)[1]
-  .split(",").map(Number);
 const luminance = (rgb) => rgb.map((channel) => {
   const value = channel / 255;
   return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
@@ -32,27 +30,46 @@ describe("Dither copy readability boundaries", () => {
   });
 
   test.each(["--study-copy-ink", "--study-caption-ink"])(
-    "%s maintains at least 4.5:1 against the wash over any sRGB field color", (token) => {
-      // Black is the darkest possible underlying pixel. The wash raises every
-      // channel monotonically, so other field colors can only increase contrast.
-      const darkestBackdrop = wash.slice(0, 3).map((value) => value * wash[3]);
-      const ratio = (luminance(darkestBackdrop) + 0.05) / (luminance(ink(token)) + 0.05);
-      expect(wash[3]).toBeGreaterThan(0);
-      expect(wash[3]).toBeLessThanOrEqual(1);
-      expect(ratio).toBeGreaterThanOrEqual(4.5);
+    "%s has a high-contrast opaque keyline color pair", (token) => {
+      // This tests authored ink/keyline colors, not every anti-aliased glyph
+      // or moving field pixel. A color-pair pass is not a full WCAG audit.
+      const ratio = (luminance(ink("--study-copy-keyline")) + 0.05)
+        / (luminance(ink(token)) + 0.05);
+      expect(ratio).toBeGreaterThanOrEqual(7);
     },
   );
 
-  test("contrast treatment stays local to light-mode supporting copy", () => {
-    const colorRules = [...refinements.matchAll(/([^{}]+)\{[^{}]*(?:color|background|box-shadow):[^{}]*\}/g)];
+  test("does not paint a wash, panel, mask, blur, or compositing layer", () => {
+    const declarations = refinements.replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(declarations).not.toContain("--study-copy-wash");
+    expect(declarations).not.toMatch(/::before|::after/);
+    expect(declarations).not.toMatch(/(?:^|[;{])\s*(?:background[\w-]*|box-shadow|(?:-webkit-)?mask[\w-]*|filter|(?:-webkit-)?backdrop-filter|mix-blend-mode|isolation|position|z-index|content|pointer-events)\s*:/);
+  });
+
+  test("uses a glyph-only edge without filling over the letterforms", () => {
+    expect(refinements).toContain("@supports (-webkit-text-stroke: 2px white) and (paint-order: stroke fill)");
+    expect(refinements).toContain("-webkit-text-stroke: 2px var(--study-copy-keyline)");
+    expect(refinements).toContain("paint-order: stroke fill");
+    // All eight fallback shadows are opaque and have a zero blur radius.
+    const fallback = refinements.match(/text-shadow:\s*([^;]+);/)[1];
+    const shadows = fallback.split(",");
+    expect(shadows).toHaveLength(8);
+    shadows.forEach((shadow) => {
+      expect(shadow.trim()).toMatch(/^(?:0|-?(?:1|0\.7)px) (?:0|-?(?:1|0\.7)px) 0 var\(--study-copy-keyline\)$/);
+    });
+  });
+
+  test("contrast stays in light-mode supporting copy and respects user colors", () => {
+    const colorRules = [...refinements.matchAll(/([^{}]+)\{[^{}]*(?:color|text-shadow|text-stroke):[^{}]*\}/g)];
     colorRules.forEach((rule) => {
       expect(rule[1]).toContain('.dither-canvas-page[data-theme-mode="light"] .rupture-copy');
     });
-    expect(refinements).toContain("pointer-events: none");
-    expect(refinements).toContain("isolation: isolate");
-    expect(refinements).toContain("prefers-reduced-transparency: reduce");
+    expect(refinements).toContain("prefers-contrast: more");
     expect(refinements).toContain("forced-colors: active");
+    expect(refinements).toContain("::selection");
+    expect(refinements).toContain("color: CanvasText");
+    expect(refinements).toContain("-webkit-text-stroke-width: 0");
     expect(refinements).not.toMatch(/@keyframes|!important|\.rupture-nav|\.dither-study-scene|\.rupture-glass\s*\{/);
-    expect(refinements).not.toMatch(/(?:^|[;{])\s*(?:animation|transition|filter|backdrop-filter|transform|touch-action)\s*:/);
+    expect(refinements).not.toMatch(/(?:^|[;{])\s*(?:animation|transition|transform|touch-action)\s*:/);
   });
 });
