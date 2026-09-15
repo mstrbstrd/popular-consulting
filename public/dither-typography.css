@@ -1,0 +1,288 @@
+/* Field-lab typography only. Renderer, transition, palette, and control
+   ownership stay in the existing components. No animated type or new layers.
+   Each study sets its own scale; switching studies also resets every token. */
+.dither-canvas-page {
+  --study-title-font: "Space Grotesk", "Hanken Grotesk", sans-serif;
+  --study-title-weight: 500;
+  --study-title-style: normal;
+  --study-title-case: none;
+  --study-title-tracking: -0.045em;
+  --study-title-leading: 1.02;
+  --study-title-width: 12ch;
+  --study-body-font: "Hanken Grotesk", sans-serif;
+  --study-body-size: clamp(1.5rem, 1.2vw, 1.8rem);
+  --study-body-mobile: 1.4rem;
+  --study-body-leading: 1.55;
+  --study-body-tracking: 0;
+  --study-label-font: "JetBrains Mono", monospace;
+  --study-label-tracking: 0.16em;
+}
+
+/* 01: architectural, cut from a solid surface. */
+.dither-canvas-page.dither-study-second-surface {
+  --study-title-size: clamp(4.6rem, 6.4vw, 9.4rem);
+  --study-title-mobile: clamp(3.5rem, 11.2vw, 6.6rem);
+  --study-title-weight: 700;
+  --study-title-case: uppercase;
+  --study-title-tracking: -0.065em;
+  --study-title-leading: 0.96;
+  --study-title-width: 10ch;
+  --study-label-tracking: 0.22em;
+}
+
+/* 02: wide, soft-edged letterforms echo the merging fluid silhouette. */
+.dither-canvas-page.dither-study-metabloom {
+  --study-title-font: "Syne", "Hanken Grotesk", sans-serif;
+  --study-title-size: clamp(4.2rem, 5.3vw, 8rem);
+  --study-title-mobile: clamp(3rem, 8.5vw, 5.6rem);
+  --study-title-weight: 800;
+  --study-title-case: lowercase;
+  --study-title-tracking: -0.055em;
+  --study-title-leading: 1.08;
+  --study-title-width: 100%;
+  --study-body-size: clamp(1.55rem, 1.25vw, 1.85rem);
+  --study-label-font: "Hanken Grotesk", sans-serif;
+  --study-label-tracking: 0.24em;
+}
+
+/* 03: a flowing editorial italic, paired with a readable roman serif. */
+.dither-canvas-page.dither-study-tidal-weave {
+  --study-title-font: "Cormorant Garamond", Georgia, serif;
+  --study-title-size: clamp(5.4rem, 7.7vw, 11.2rem);
+  --study-title-mobile: clamp(4.5rem, 14vw, 8.2rem);
+  --study-title-weight: 500;
+  --study-title-style: italic;
+  --study-title-tracking: -0.035em;
+  --study-title-leading: 0.98;
+  --study-title-width: 9ch;
+  --study-body-font: "Cormorant Garamond", Georgia, serif;
+  --study-body-size: clamp(1.9rem, 1.5vw, 2.25rem);
+  --study-body-mobile: 1.8rem;
+  --study-body-leading: 1.35;
+  --study-label-tracking: 0.12em;
+}
+
+/* 04: light geometric capitals, with space for the accent and radial air. */
+.dither-canvas-page.dither-study-moire-halo {
+  --study-title-font: "Poppins", "Hanken Grotesk", sans-serif;
+  --study-title-size: clamp(4.4rem, 5.8vw, 8.6rem);
+  --study-title-mobile: clamp(3.4rem, 10.3vw, 6.2rem);
+  --study-title-weight: 200;
+  --study-title-case: uppercase;
+  --study-title-tracking: 0.075em;
+  --study-title-leading: 1.13;
+  --study-title-width: 10ch;
+  --study-body-leading: 1.65;
+  --study-label-tracking: 0.3em;
+}
+
+/* 05: a survey-map legend, deliberately smaller and precisely indexed. */
+.dither-canvas-page.dither-study-contour-drift {
+  --study-title-font: "JetBrains Mono", monospace;
+  --study-title-size: clamp(3.7rem, 4.25vw, 6.3rem);
+  --study-title-mobile: clamp(2.9rem, 8.8vw, 5.1rem);
+  --study-title-weight: 500;
+  --study-title-case: uppercase;
+  --study-title-tracking: 0.025em;
+  --study-title-leading: 1.12;
+  --study-title-width: 10ch;
+  --study-body-size: clamp(1.45rem, 1.12vw, 1.7rem);
+  --study-body-leading: 1.6;
+  --study-label-tracking: 0.09em;
+}
+
+/* 06: oversized, warm, retro serif forms, without changing the warm-up. */
+.dither-canvas-page.dither-study-lava-lamp {
+  --study-title-font: "Fraunces", Georgia, serif;
+  --study-title-size: clamp(5.2rem, 7.4vw, 10.8rem);
+  --study-title-mobile: clamp(4.3rem, 13.3vw, 7.8rem);
+  --study-title-weight: 800;
+  --study-title-case: lowercase;
+  --study-title-tracking: -0.06em;
+  --study-title-leading: 0.98;
+  --study-title-width: 8ch;
+  --study-body-size: clamp(1.6rem, 1.3vw, 1.9rem);
+  --study-label-font: "Hanken Grotesk", sans-serif;
+  --study-label-tracking: 0.18em;
+}
+
+/* 07: a lowercase laboratory readout for the growing reaction system. */
+.dither-canvas-page.dither-study-morphogen-divide {
+  --study-title-font: "JetBrains Mono", monospace;
+  --study-title-size: clamp(4rem, 4.85vw, 7.1rem);
+  --study-title-mobile: clamp(3.1rem, 9.6vw, 5.4rem);
+  --study-title-weight: 400;
+  --study-title-case: lowercase;
+  --study-title-tracking: -0.065em;
+  --study-title-leading: 1.06;
+  --study-title-width: 12ch;
+  --study-body-size: clamp(1.5rem, 1.16vw, 1.75rem);
+  --study-label-tracking: 0.035em;
+}
+
+/* 08: faceted display capitals. The longest word sets the safe scale. */
+.dither-canvas-page.dither-study-quasicrystal-chorus {
+  --study-title-font: "Syne", "Hanken Grotesk", sans-serif;
+  --study-title-size: clamp(3.5rem, 4.1vw, 6.1rem);
+  --study-title-mobile: clamp(2.8rem, 8.6vw, 5rem);
+  --study-title-weight: 600;
+  --study-title-case: uppercase;
+  --study-title-tracking: 0.015em;
+  --study-title-leading: 1.12;
+  --study-title-width: 16ch;
+  --study-body-size: clamp(1.45rem, 1.18vw, 1.78rem);
+  --study-label-tracking: 0.2em;
+}
+
+/* 09: a botanical-book serif, upright rather than the tidal italic. */
+.dither-canvas-page.dither-study-hyperbolic-garden {
+  --study-title-font: "Cormorant Garamond", Georgia, serif;
+  --study-title-size: clamp(4.8rem, 6.1vw, 9rem);
+  --study-title-mobile: clamp(3.7rem, 11.7vw, 6.8rem);
+  --study-title-weight: 500;
+  --study-title-tracking: -0.025em;
+  --study-title-leading: 1.03;
+  --study-title-width: 13ch;
+  --study-body-size: clamp(1.6rem, 1.28vw, 1.9rem);
+  --study-body-leading: 1.6;
+  --study-label-tracking: 0.14em;
+}
+
+/* 10: dense terminal typography, aligned like the token lanes. */
+.dither-canvas-page.dither-study-forward-pass {
+  --study-title-font: "JetBrains Mono", monospace;
+  --study-title-size: clamp(4.1rem, 5vw, 7.3rem);
+  --study-title-mobile: clamp(3.2rem, 10vw, 5.8rem);
+  --study-title-weight: 500;
+  --study-title-case: uppercase;
+  --study-title-tracking: -0.075em;
+  --study-title-leading: 0.98;
+  --study-title-width: 10ch;
+  --study-body-font: "JetBrains Mono", monospace;
+  --study-body-size: clamp(1.25rem, 1vw, 1.5rem);
+  --study-body-mobile: 1.25rem;
+  --study-body-leading: 1.65;
+  --study-label-tracking: 0;
+}
+
+/* 11: open, humanist display type for the luminous production field. */
+.dither-canvas-page.dither-study-light-theme {
+  --study-title-size: clamp(4.9rem, 6.8vw, 10rem);
+  --study-title-mobile: clamp(3.8rem, 12.1vw, 7rem);
+  --study-title-weight: 400;
+  --study-title-tracking: -0.055em;
+  --study-title-leading: 1.02;
+  --study-title-width: 11ch;
+  --study-body-size: clamp(1.6rem, 1.32vw, 1.95rem);
+  --study-body-leading: 1.65;
+  --study-label-font: "Hanken Grotesk", sans-serif;
+  --study-label-tracking: 0.2em;
+}
+
+/* 12: widely spaced observatory capitals against the geodesic horizon. */
+.dither-canvas-page.dither-study-dark-theme {
+  --study-title-size: clamp(4.3rem, 5.25vw, 7.8rem);
+  --study-title-mobile: clamp(3.3rem, 10.1vw, 5.9rem);
+  --study-title-weight: 500;
+  --study-title-case: uppercase;
+  --study-title-tracking: 0.11em;
+  --study-title-leading: 1.16;
+  --study-title-width: 12ch;
+  --study-body-size: clamp(1.45rem, 1.14vw, 1.72rem);
+  --study-body-leading: 1.65;
+  --study-label-tracking: 0.28em;
+}
+
+.dither-canvas-page .rupture-copy h1 {
+  max-width: min(100%, var(--study-title-width));
+  font-family: var(--study-title-font);
+  font-size: var(--study-title-size, clamp(4rem, 6vw, 8rem));
+  font-weight: var(--study-title-weight);
+  font-style: var(--study-title-style);
+  font-synthesis: none;
+  font-optical-sizing: auto;
+  line-height: var(--study-title-leading);
+  letter-spacing: var(--study-title-tracking);
+  text-transform: var(--study-title-case);
+  text-wrap: balance;
+  /* Last-resort reflow for zoom or unavailable fonts, not clipped lettering. */
+  overflow-wrap: anywhere;
+}
+
+.dither-canvas-page .rupture-description {
+  font-family: var(--study-body-font);
+  font-size: var(--study-body-size);
+  font-weight: 400;
+  font-style: normal;
+  line-height: var(--study-body-leading);
+  letter-spacing: var(--study-body-tracking);
+  text-wrap: pretty;
+}
+
+.dither-canvas-page .rupture-eyebrow {
+  font-family: var(--study-label-font);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: var(--study-label-tracking);
+}
+
+/* Keep each identity on mobile rather than collapsing to one shared size. */
+@media (max-width: 700px) {
+  .dither-canvas-page .rupture-copy h1 {
+    font-size: var(--study-title-mobile, clamp(3rem, 10vw, 6rem));
+  }
+
+  .dither-canvas-page .rupture-description {
+    font-size: var(--study-body-mobile);
+    line-height: 1.45;
+  }
+}
+
+/* Short viewports retain the font, weight, case, and tracking of the study. */
+@media (max-height: 760px) and (min-width: 701px) {
+  .dither-canvas-page .rupture-copy h1 {
+    font-size: min(var(--study-title-size), 9dvh);
+  }
+
+  .dither-canvas-page .rupture-description {
+    font-size: min(var(--study-body-size), 1.5rem);
+    line-height: 1.45;
+  }
+}
+
+@media (max-height: 720px) and (max-width: 700px) {
+  .dither-canvas-page .rupture-copy h1 {
+    font-size: min(var(--study-title-mobile), 8.5dvh);
+  }
+
+  .dither-canvas-page .rupture-description {
+    font-size: min(var(--study-body-mobile), 1.35rem);
+    line-height: 1.4;
+  }
+}
+
+/* Side-by-side copy preserves room for the existing bottom controls in
+   phone landscape. No positioning, hit-testing, or animation overrides. */
+@media (max-height: 500px) and (min-width: 601px) and (max-width: 1080px) {
+  .dither-canvas-page .rupture-copy {
+    width: calc(100vw - 5.6rem);
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+    column-gap: 2.4rem;
+    row-gap: 0.6rem;
+  }
+
+  .dither-canvas-page .rupture-eyebrow {
+    grid-column: 1 / -1;
+    margin-bottom: 0;
+  }
+
+  .dither-canvas-page .rupture-copy h1 {
+    font-size: min(var(--study-title-mobile), 8dvh);
+  }
+
+  .dither-canvas-page .rupture-description {
+    margin-top: 0;
+    font-size: 1.2rem;
+    line-height: 1.4;
+  }
+}
