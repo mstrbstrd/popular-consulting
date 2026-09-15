@@ -126,6 +126,14 @@ const ENGINEERING_CARD_LINK =
 const WORK_TYPOGRAPHY_LINK =
   '<link rel="stylesheet" href="/work-typography.css?v=20260730c" />';
 
+/* The field lab is a type specimen, not a new site-wide font dependency.
+   Keep the shared shell fonts; request only the additional display faces and
+   weights used by its studies. Blocked/slow fonts retain the CSS fallbacks. */
+const DITHER_FONTS_HREF =
+  "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,500&family=Fraunces:wght@800&family=Space+Grotesk:wght@400;500;700&family=Syne:wght@600;800&display=swap";
+const DITHER_TYPOGRAPHY_LINK =
+  '<link rel="stylesheet" href="/dither-typography.css?v=20260915a" />';
+
 const writeRoute = (routeKey, destinationDirectory) => {
   const metadata = metadataByRoute[routeKey];
   if (!metadata) {
@@ -155,6 +163,14 @@ const writeRoute = (routeKey, destinationDirectory) => {
       /<\/head>/i,
       `${WORK_TYPOGRAPHY_LINK}</head>`,
       "closing head tag for work typography",
+    );
+  }
+  if (routeKey === "ditherCanvas") {
+    html = replaceOnce(
+      html,
+      /<\/head>/i,
+      `<link rel="stylesheet" href="${escapeAttribute(DITHER_FONTS_HREF)}" />${DITHER_TYPOGRAPHY_LINK}</head>`,
+      "closing head tag for field lab typography",
     );
   }
   const targetDirectory = path.join(buildDirectory, destinationDirectory);
