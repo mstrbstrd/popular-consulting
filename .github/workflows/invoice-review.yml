@@ -1,7 +1,6 @@
 name: Invoice workspace review
 on:
-  push:
-    branches: [refine/invoice-workspace-20260915]
+  workflow_dispatch:
 permissions:
   contents: read
 concurrency:
@@ -21,6 +20,7 @@ jobs:
       - run: node scripts/review-invoice-workspace.mjs
         env:
           VISUAL_CAPTURE_BROWSER: /usr/bin/google-chrome
+          INVOICE_REVIEW_ORIGIN: https://popular-consulting.com
           INVOICE_REVIEW_LOG_IMAGES: '1'
       - uses: actions/upload-artifact@v4
         if: always()

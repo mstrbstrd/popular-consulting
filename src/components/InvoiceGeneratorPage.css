@@ -110,8 +110,8 @@ html[data-theme="dark"] .invoice-page {
 .invoice-error h2 { font-size: 18px; }
 .invoice-error ul { margin: 8px 0 0; padding-left: 20px; }
 .invoice-workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: clamp(24px, 3vw, 48px); max-width: 1600px; margin: 0 auto; align-items: start; }
-.invoice-editor, .invoice-preview { min-width: 0; scroll-margin-top: 170px; }
-.invoice-editor .invoice-error, .invoice-field { scroll-margin-top: 190px; }
+.invoice-editor, .invoice-preview { min-width: 0; scroll-margin-top: calc(var(--invoice-actions-height, 170px) + 20px); }
+.invoice-editor .invoice-error, .invoice-field, .invoice-field :is(input, textarea, select) { scroll-margin-top: calc(var(--invoice-actions-height, 170px) + 24px); }
 .invoice-privacy, .invoice-help { font-size: 12px; line-height: 1.6; color: var(--invoice-muted); }
 .invoice-form { display: grid; gap: 20px; }
 .invoice-form fieldset { min-width: 0; padding: 20px; border: 1px solid var(--invoice-line); border-radius: 14px; background: var(--invoice-panel); }
@@ -156,11 +156,11 @@ html[data-theme="dark"] .invoice-page {
 .invoice-device-options { margin: 22px 0; font-size: 13px; color: var(--invoice-muted); }
 .invoice-device-options summary { min-height: 44px; padding: 12px 0; cursor: pointer; }
 .invoice-device-options p { margin: 0 0 12px; }
-.invoice-preview { position: sticky; top: 150px; }
+.invoice-preview { position: sticky; top: calc(var(--invoice-actions-height, 120px) + 16px); }
 .invoice-preview-heading { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-size: 12px; color: var(--invoice-muted); }
 .invoice-readiness { padding: 4px 10px; border: 1px solid var(--invoice-line); border-radius: 999px; }
 .invoice-readiness[data-complete="true"] { color: var(--invoice-accent); border-color: currentColor; }
-.invoice-preview-document { max-height: calc(100dvh - 240px); overflow-y: auto; overscroll-behavior-y: contain; scrollbar-width: thin; scrollbar-color: var(--invoice-line) transparent; padding: 2px; }
+.invoice-preview-document { max-height: max(200px, calc(100dvh - var(--invoice-actions-height, 120px) - 120px)); overflow-y: auto; overscroll-behavior-y: contain; scrollbar-width: thin; scrollbar-color: var(--invoice-line) transparent; padding: 2px; }
 .invoice-preview > .invoice-help { margin-top: 12px; }
 /* Always white paper. Screen card layout below is not used by print. */
 .invoice-paper { --paper-ink: #201a1b; color-scheme: light; background: #fff; color: var(--paper-ink); border: 1px solid #ddd6d7; border-top: 3px solid #007e8c; border-radius: 2px; padding: clamp(20px, 2vw, 36px); font: 400 12px/1.5 var(--invoice-sans); overflow-wrap: anywhere; }
@@ -268,7 +268,7 @@ html[data-theme="dark"] .invoice-page {
 @media screen and (max-height: 600px) {
   .invoice-actions, .invoice-preview { position: static; }
   .invoice-preview-document { max-height: none; overflow: visible; }
-  .invoice-editor, .invoice-preview, .invoice-field { scroll-margin-top: 16px; }
+  .invoice-editor, .invoice-preview, .invoice-editor .invoice-error, .invoice-field, .invoice-field :is(input, textarea, select) { scroll-margin-top: 16px; }
 }
 @media (prefers-reduced-motion: reduce) { .invoice-page button { transition: none; } }
 @media (forced-colors: active) {

@@ -14,6 +14,7 @@ on:
       - 'vercel.json'
       - 'scripts/generate-route-html.mjs'
       - 'scripts/verify-invoice-generator.mjs'
+      - 'scripts/review-invoice-workspace.mjs'
       - '.github/workflows/invoice-generator.yml'
   push:
     branches: [main]
@@ -29,6 +30,7 @@ on:
       - 'vercel.json'
       - 'scripts/generate-route-html.mjs'
       - 'scripts/verify-invoice-generator.mjs'
+      - 'scripts/review-invoice-workspace.mjs'
       - '.github/workflows/invoice-generator.yml'
 
 permissions:
@@ -58,6 +60,12 @@ jobs:
         run: node scripts/verify-invoice-generator.mjs
         env:
           VISUAL_CAPTURE_BROWSER: /usr/bin/google-chrome
+      - name: Verify mobile views, action targets, focus, and print layout
+        run: node scripts/review-invoice-workspace.mjs
+        env:
+          VISUAL_CAPTURE_BROWSER: /usr/bin/google-chrome
+          INVOICE_REVIEW_ORIGIN: http://127.0.0.1:4173
+          INVOICE_REVIEW_LOG_IMAGES: '1'
       - name: Preserve invoice verification evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -66,5 +74,6 @@ jobs:
           path: |
             invoice-evidence/*.json
             invoice-evidence/*.png
+            invoice-review-evidence/
           if-no-files-found: ignore
           retention-days: 7
