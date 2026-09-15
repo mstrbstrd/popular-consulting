@@ -86,6 +86,7 @@ describe("Untrusted invoice drafts", () => {
     const draft = normalizeInvoiceDraft(createInvoice());
     expect(validateInvoice(draft).length).toBeGreaterThan(0);
   });
+  // eslint-disable-next-line no-script-url -- Deliberately hostile draft data is rejected, never executed.
   test.each(["https://evil.example/logo.png", "data:image/svg+xml,<svg/>", "javascript:alert(1)"])("rejects non-raster or remote logo %s", (logoDataUrl) => {
     expect(() => normalizeInvoiceDraft({ ...complete(), logoDataUrl })).toThrow(/PNG/);
   });

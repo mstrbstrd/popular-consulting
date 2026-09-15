@@ -231,6 +231,7 @@ export const InvoiceGeneratorContent = () => {
       </section>
       <div className="invoice-workspace">
         <section className="invoice-editor invoice-no-print" aria-label="Invoice editor">
+          <h2 className="invoice-sr-only">Invoice editor</h2>
           <div className="invoice-toolbar">
             <button type="button" onClick={saveDraft} disabled={logoPending}>Save draft</button>
             <button type="button" onClick={loadDraft}>Load saved</button>

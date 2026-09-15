@@ -60,19 +60,23 @@ describe("dual-audience public copy", () => {
 
     expect(allCopy).not.toMatch(/236[\s-]?882[\s-]?2411/);
     expect(allCopy).not.toMatch(/10,?000/);
-    expect(allCopy).not.toContain("—");
+    expect(allCopy).not.toContain("\u2014");
   });
 
-  test("defines static metadata for every public route", () => {
+  test("defines static metadata for every public route and the unlisted invoice utility", () => {
     expect(Object.keys(routeMetadata).sort()).toEqual(
-      ["ditherCanvas", "engineering", "game", "orb", "root", "work"].sort(),
+      ["ditherCanvas", "engineering", "game", "invoiceGenerator", "orb", "root", "work"].sort(),
     );
 
     Object.values(routeMetadata).forEach((metadata) => {
       expect(metadata.title).toBeTruthy();
       expect(metadata.description).toBeTruthy();
       expect(metadata.canonical).toMatch(/^https:\/\/popular-consulting\.com/);
-      expect(metadata.robots).toMatch(/^(index|noindex),follow$/);
+      if (metadata.path === "/invoice-generator") {
+        expect(metadata.robots).toBe("noindex,nofollow,noarchive");
+      } else {
+        expect(metadata.robots).toMatch(/^(index|noindex),follow$/);
+      }
     });
   });
 });

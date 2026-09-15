@@ -10,7 +10,7 @@ export const invoiceDateToday = (now = new Date()) =>
   `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
 export const generateInvoiceNumber = (date, cryptoObject = globalThis.crypto) => {
-  if (!cryptoObject?.getRandomValues) return ""; // User can supply a number.
+  if (!cryptoObject?.getRandomValues) return "";
   const bytes = cryptoObject.getRandomValues(new Uint8Array(6));
   const suffix = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("").toUpperCase();
   return `INV-${date.replace(/-/g, "")}-${suffix}`;
@@ -42,15 +42,15 @@ export const parseInvoiceDecimal = (value, places = 2, maximum = MAX_CENTS) => {
     throw new Error(`Use a non-negative number with at most ${places} decimal places.`);
   }
   const [whole = "0", fraction = ""] = text.split(".");
-  const scaled = BigInt(whole || "0") * (10n ** BigInt(places))
-    + BigInt(fraction.padEnd(places, "0"));
-  if (scaled > BigInt(maximum)) throw new Error("This value exceeds the supported limit.");
+  const scaled = globalThis.BigInt(whole || "0") * (10n ** globalThis.BigInt(places))
+    + globalThis.BigInt(fraction.padEnd(places, "0"));
+  if (scaled > globalThis.BigInt(maximum)) throw new Error("This value exceeds the supported limit.");
   return scaled;
 };
 
 const roundInvoice = (numerator, denominator) => (numerator + denominator / 2n) / denominator;
 const centsNumber = (value) => {
-  if (value < 0n || value > BigInt(MAX_CENTS)) throw new Error("Invoice amounts must not exceed 1 billion.");
+  if (value < 0n || value > globalThis.BigInt(MAX_CENTS)) throw new Error("Invoice amounts must not exceed 1 billion.");
   return Number(value);
 };
 
@@ -78,7 +78,7 @@ export const calculateInvoice = (invoice) => {
     }
   });
   const totals = Object.fromEntries(["gross", "discount", "net", "gst", "pst", "total"].map((key) => [
-    key, centsNumber(lines.reduce((sum, line) => sum + BigInt(line[key]), 0n)),
+    key, centsNumber(lines.reduce((sum, line) => sum + globalThis.BigInt(line[key]), 0n)),
   ]));
   return { lines, ...totals };
 };
