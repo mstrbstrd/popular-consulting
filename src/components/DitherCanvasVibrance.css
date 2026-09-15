@@ -54,3 +54,104 @@
     --dither-glass-filter: blur(0.16rem) saturate(146%) contrast(108%) brightness(103%);
   }
 }
+
+/* Field-lab readability refinements. Keep the artwork, renderer budgets,
+   controls, and existing study identities outside this presentation boundary.
+   These selectors intentionally outrank the route's later typography sheet. */
+.dither-canvas-page.dither-study-metabloom .rupture-copy h1 {
+  /* Conservative fallback for browsers without container query units. */
+  font-size: min(var(--study-title-size, 5.6rem), 5.6rem, 9dvh);
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+@media (max-width: 700px) {
+  .dither-canvas-page.dither-study-metabloom .rupture-copy h1 {
+    font-size: min(var(--study-title-mobile, 3rem), 8vw, 8.5dvh);
+  }
+}
+
+@media (max-height: 500px) and (min-width: 601px) and (max-width: 1080px) {
+  .dither-canvas-page.dither-study-metabloom .rupture-copy h1 {
+    font-size: min(var(--study-title-mobile, 3rem), 3vw, 8dvh);
+  }
+}
+
+@supports (font-size: 1cqi) {
+  .dither-canvas-page.dither-study-metabloom .rupture-copy {
+    container-type: inline-size;
+  }
+
+  .dither-canvas-page.dither-study-metabloom .rupture-copy h1 {
+    /* Fit the real expanded Syne 800 word, not its narrower fallback face. */
+    font-size: min(var(--study-title-size, 5.6rem), 10.5cqi, 9dvh);
+  }
+
+  @media (max-width: 700px) {
+    .dither-canvas-page.dither-study-metabloom .rupture-copy h1 {
+      font-size: min(var(--study-title-mobile, 3rem), 10.5cqi, 8.5dvh);
+    }
+  }
+
+  @media (max-height: 500px) and (min-width: 601px) and (max-width: 1080px) {
+    .dither-canvas-page.dither-study-metabloom .rupture-copy h1 {
+      /* Landscape gives the title 45% of the grid after its 2.4rem gap. */
+      font-size: min(var(--study-title-mobile, 3rem), calc((100cqi - 2.4rem) * 0.04725), 8dvh);
+    }
+  }
+}
+
+.dither-canvas-page[data-theme-mode="light"] .rupture-copy {
+  --study-copy-ink: #202c3a;
+  --study-caption-ink: #344256;
+  --study-copy-wash: rgba(255, 248, 247, 0.78);
+  isolation: isolate;
+}
+
+.dither-canvas-page[data-theme-mode="light"] .rupture-copy :is(.rupture-eyebrow, .rupture-description, .rupture-instruction) {
+  color: var(--study-caption-ink);
+  text-shadow: none;
+}
+
+.dither-canvas-page[data-theme-mode="light"] .rupture-copy .rupture-description {
+  color: var(--study-copy-ink);
+  font-weight: 500;
+}
+
+/* A feathered, copy-local wash keeps even dark moving pigment from washing
+   out the small text. One soft reading area, not a box behind each paragraph.
+   No full-screen overlay, backdrop blur, or hit target. */
+.dither-canvas-page[data-theme-mode="light"] .rupture-copy::before {
+  content: "";
+  position: absolute;
+  inset: -1.2rem -10rem -6rem -4rem;
+  z-index: -1;
+  background: var(--study-copy-wash);
+  /* Fade only outside the text box so contrast never falls at a glyph edge. */
+  -webkit-mask-image:
+    linear-gradient(to right, transparent, #000 4rem, #000 calc(100% - 10rem), transparent),
+    linear-gradient(to bottom, transparent, #000 1.2rem, #000 calc(100% - 6rem), transparent);
+  mask-image:
+    linear-gradient(to right, transparent, #000 4rem, #000 calc(100% - 10rem), transparent),
+    linear-gradient(to bottom, transparent, #000 1.2rem, #000 calc(100% - 6rem), transparent);
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .dither-canvas-page[data-theme-mode="light"] .rupture-copy {
+    --study-copy-wash: #fff8f7;
+  }
+}
+
+@media (forced-colors: active) {
+  .dither-canvas-page[data-theme-mode="light"] .rupture-copy :is(.rupture-eyebrow, .rupture-description, .rupture-instruction) {
+    color: CanvasText;
+  }
+
+  .dither-canvas-page[data-theme-mode="light"] .rupture-copy::before {
+    content: none;
+  }
+}

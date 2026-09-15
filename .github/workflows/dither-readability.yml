@@ -1,0 +1,57 @@
+name: Dither readability
+
+on:
+  pull_request:
+    paths:
+      - 'src/components/Dither*'
+      - 'src/components/CreatorOS*.css'
+      - 'src/index.css'
+      - 'public/dither-typography.css'
+      - 'scripts/generate-route-html.mjs'
+      - 'scripts/verify-dither-readability.mjs'
+      - '.github/workflows/dither-readability.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/components/Dither*'
+      - 'src/components/CreatorOS*.css'
+      - 'src/index.css'
+      - 'public/dither-typography.css'
+      - 'scripts/generate-route-html.mjs'
+      - 'scripts/verify-dither-readability.mjs'
+      - '.github/workflows/dither-readability.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dither-readability-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  real-font-readability:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Check actual webfonts, title fit, and light/dark copy
+        env:
+          VISUAL_CAPTURE_BROWSER: /usr/bin/google-chrome
+        run: |
+          test -x "$VISUAL_CAPTURE_BROWSER"
+          node scripts/verify-dither-readability.mjs
+      - name: Preserve screenshot and numerical evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dither-readability-evidence
+          path: |
+            dither-readability-evidence/*.json
+            dither-readability-evidence/*.png
+          if-no-files-found: ignore
+          retention-days: 7
