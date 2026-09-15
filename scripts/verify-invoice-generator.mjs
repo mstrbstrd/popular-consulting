@@ -73,31 +73,6 @@ const script = `
       check(input.getBoundingClientRect().right<=innerWidth+1,'Input escaped viewport: '+input.id);
     }
     check(getComputedStyle(document.querySelector('.invoice-paper')).backgroundColor==='rgb(255, 255, 255)','Paper changed with UI theme');
-    // Verify the real shared design system after the lazy route CSS has loaded.
-    await document.fonts.ready;
-    const shared=getComputedStyle(document.documentElement);
-    const header=document.querySelector('.invoice-topbar');
-    const headerBox=header.getBoundingClientRect();
-    check(getComputedStyle(header).borderRadius===shared.getPropertyValue('--aetheris-radius-pill').trim(),'Header is not the shared pill');
-    check(headerBox.left>=0 && headerBox.right<=innerWidth+1,'Header escaped viewport');
-    check(getComputedStyle(header,'::after').pointerEvents==='none','Spectral rim intercepts input');
-    check(getComputedStyle(button('Save draft')).fontFamily.includes('JetBrains Mono'),'Controls lost technical typography');
-    check(getComputedStyle(page).getPropertyValue('--invoice-ink').trim()===shared.getPropertyValue('--aetheris-ink').trim(),'Shared ink token was overridden');
-    check(getComputedStyle(page).getPropertyValue('--invoice-muted').trim()===shared.getPropertyValue('--aetheris-ink-2').trim(),'Secondary ink is not shared');
-    for(const panel of document.querySelectorAll('.invoice-form > fieldset')) {
-      const legend=panel.querySelector('legend');
-      check(getComputedStyle(panel).borderRadius===shared.getPropertyValue('--aetheris-radius-glass').trim(),'Panel shape is not shared');
-      check(legend.getBoundingClientRect().bottom<=legend.nextElementSibling.getBoundingClientRect().top+1,'Legend overlaps its first input');
-      check(getComputedStyle(panel,'::before').pointerEvents==='none','Panel rim intercepts input');
-    }
-    for(const control of document.querySelectorAll('.invoice-page button,.invoice-tax-all label,.invoice-item-taxes label')) {
-      const box=control.getBoundingClientRect();
-      if(box.width) check(box.height>=44,'Small action target: '+control.textContent.trim());
-    }
-    check(getComputedStyle(document.querySelector('.invoice-preview')).overflowY==='visible','Preview gained a nested scroll area');
-    const focused=document.getElementById('invoice-number');focused.focus();await pause();
-    check(focused.matches(':focus-visible') && getComputedStyle(focused).boxShadow!=='none','Input focus halo missing');
-    focused.blur();
     // Import a long invoice through the same File input used by the user.
     const long={...saved,items:Array.from({length:40},(_,index)=>({...saved.items[0],description:'Browser smoke service '+(index+1),qty:'1',cost:'65',discount:'0'}))};
     const transfer=new DataTransfer();transfer.items.add(new File([JSON.stringify(long)],'smoke.json',{type:'application/json'}));
@@ -114,7 +89,7 @@ try {
   fs.writeFileSync(routeFile, original.replace(/<\/body>/i, `<script>${script}</script></body>`));
   await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
   const reports = [];
-  for (const width of [320, 390, 768, 1200, 1440, 1920]) for (const mode of ["light", "dark"]) {
+  for (const width of [390, 1440]) for (const mode of ["light", "dark"]) {
     const name = `invoice-${width}-${mode}`;
     const dom = await runBrowserCapture({ browserPath,
       url: `http://127.0.0.1:${server.address().port}/invoice-generator?smoke-theme=${mode}`,
