@@ -18,8 +18,9 @@ This is an unlisted browser tool, not an authenticated accounting system.
 - Round half-up to cents for each gross line, its discount, and each independent
   tax on the discounted line. Sum rounded lines. GST and PST do not compound.
 - The supplied 5% and 7% rates are editable input defaults, not tax eligibility
-  decisions. Every new line starts untaxed. CAD/USD selection labels amounts;
-  it does not convert currencies. Check tax applicability before issuing.
+  decisions. Every new line starts untaxed. Duplicate creates an independent
+  copy with the original rates and taxes. CAD/USD labels amounts; it does not
+  convert currencies. Check tax applicability before issuing.
 - Invoice numbers are stable and editable. Date plus a random 48-bit suffix
   reduces same-day collisions, but no centralized registry guarantees uniqueness.
   No crypto capability means a manually supplied number is required.
@@ -33,12 +34,20 @@ This is an unlisted browser tool, not an authenticated accounting system.
 
 ## Use
 
-Edit sender/client details, invoice number/date, due date, line items, taxes and
-payment notes. Review the live document. Use Print / save PDF, choose Save as PDF
-and Letter paper, and disable the browser's automatic headers and footers.
-Print is native browser output, not an image of the invoice. The tool cannot
-know whether the print dialog saved, printed or was cancelled. Long invoices
-flow onto additional pages. Mobile previews scroll the table horizontally.
+Edit the invoice details, client, line items and payment notes. Expand From your
+studio for sender details and logo, or Tax settings for rates and bulk selection.
+Save draft and Print / save PDF remain in the action bar. Load saved, Export
+draft, Import draft and New invoice are in Draft options. Saving, loading and
+importing remain explicit actions; switching views never replaces invoice data.
+
+On smaller screens, switch between Edit invoice and View preview. Mobile screen
+previews use labelled line cards without sideways scrolling. Desktop shows the
+editor alongside a scrollable document. PDFs always use the standard table.
+
+Print / save PDF opens the browser dialog. Choose Save as PDF and Letter paper,
+and disable browser headers and footers. Print is native browser output, not
+an image of the invoice. The tool cannot know whether that dialog saved, printed
+or was cancelled. Long invoices flow onto additional pages.
 
 Save draft explicitly to this device, or export JSON for a backup. Import accepts
 version 1 drafts of at most 1 MB with at most 100 lines. Logos accept PNG, JPEG
@@ -51,7 +60,13 @@ editable. Keep sensitive banking or personal data out of shared-device drafts.
 ## Verification
 
 Jest covers arithmetic, rounding, invalid input, bounds, draft schemas, XSS-safe
-rendering, explicit persistence, line/tax controls, accessibility, print validation
-and route cleanup. The browser smoke runs only against the local production
-build with fictional line items and an intercepted print function. It is not a
-physical Safari/iOS certification or an accounting/tax compliance audit.
+rendering, explicit persistence, line/tax controls, accessibility, print validation,
+view preservation, duplicate independence, focus recovery and route cleanup.
+The invoice workflow verifies the local production build with fictional items
+and intercepted print calls. Its CDP checks use desktop/tablet/mobile viewports,
+light/dark themes and print-media assertions, and produce a 40-line PDF.
+
+The separately triggered live review is read-only and uses a new blank invoice
+in a fresh Chrome profile. It never accesses a user's actual saved drafts.
+Neither workflow certifies physical Safari/iOS or accounting/tax compliance.
+See `invoice-workspace-review.md` for the original live review findings.
