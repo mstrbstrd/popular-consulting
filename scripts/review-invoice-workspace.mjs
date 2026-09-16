@@ -63,6 +63,11 @@ try {
         return result.result.value;
       };
       const settle = () => evaluate('new Promise(resolve => setTimeout(resolve, 100))');
+      const waitForMotion = (motion) => evaluate(`new Promise(resolve=>{
+        let attempts=0;const timer=setInterval(()=>{
+          if(document.querySelector('.invoice-scene')?.dataset.motion===${JSON.stringify(motion)}||++attempts>=60){clearInterval(timer);resolve();}
+        },50);
+      })`);
       const report = { origin, width, height, mode, checks: 0, failures: [] };
       const check = (condition, message) => { report.checks++; if (!condition) report.failures.push(message); };
       const click = async selector => {
@@ -176,10 +181,10 @@ try {
           check(await evaluate(`window.__invoiceFieldDraws===${draws} && document.querySelector('.invoice-scene').dataset.motion==='paused'`),'Paused field continues drawing');
           await click('.invoice-scene-options button');
           await call('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});
-          await settle();
+          await waitForMotion('static');
           check(await evaluate(`!document.querySelector('.invoice-scene-options button') && document.querySelector('.invoice-scene').dataset.motion==='static'`),'Reduced motion was ignored');
           await call('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'no-preference'}]});
-          await settle();
+          await waitForMotion('running');
           report.fieldContexts=await evaluate('window.__invoiceFieldContexts');
         }
         await capture('top');

@@ -178,6 +178,13 @@ export const InvoiceGeneratorContent = () => {
 
   useEffect(() => {
     if (!focusRequest) return;
+    // Status text can grow the sticky bar in this same commit. Read its new
+    // height before scrolling, rather than waiting for ResizeObserver's frame.
+    const bar = actionsRef.current;
+    const page = bar?.closest(".invoice-page");
+    const header = siteNavRef.current?.querySelector(".nav-header");
+    if (bar) page?.style.setProperty("--invoice-actions-height", `${Math.ceil(bar.getBoundingClientRect().height)}px`);
+    if (header) page?.style.setProperty("--invoice-nav-height", `${Math.ceil(header.getBoundingClientRect().height)}px`);
     const target = focusRequest.id === "preview" ? previewRef.current
       : focusRequest.id === "editor" ? editorRef.current
         : focusRequest.id === "errors" ? errorRef.current : document.getElementById(focusRequest.id);

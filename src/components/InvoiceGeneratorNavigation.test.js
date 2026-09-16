@@ -114,3 +114,18 @@ test("a failed canvas falls back locally and cannot take down or clear the invoi
   expect(screen.getByLabelText("Client name")).toHaveValue("Retained client");
   expect(screen.getByRole("button", { name: /Print \/ save PDF/ })).toBeEnabled();
 });
+
+
+test("measures a newly expanded status bar before focusing an added invoice item", () => {
+  render(<InvoiceGeneratorPage />);
+  const bar = screen.getByRole("region", { name: "Invoice actions" });
+  const header = screen.getByRole("navigation", { name: "Primary navigation" }).closest("header");
+  jest.spyOn(bar, "getBoundingClientRect").mockReturnValue({ height: 280 });
+  jest.spyOn(header, "getBoundingClientRect").mockReturnValue({ height: 96 });
+  fireEvent.click(screen.getByRole("button", { name: /Add line item/ }));
+  expect(screen.getByLabelText("Item 2 description")).toHaveFocus();
+  const page = screen.getByRole("main");
+  expect(page.style.getPropertyValue("--invoice-actions-height")).toBe("280px");
+  expect(page.style.getPropertyValue("--invoice-nav-height")).toBe("96px");
+  jest.restoreAllMocks();
+});
