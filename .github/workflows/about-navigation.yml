@@ -1,0 +1,54 @@
+name: About navigation regression
+on:
+  pull_request:
+    paths:
+      - 'src/App.js'
+      - 'src/components/BioSection.js'
+      - 'src/components/BusinessSystemsVisual*'
+      - 'src/components/NavMenu.js'
+      - 'src/components/ParallaxBackground.js'
+      - 'src/components/SectionDeepLinkBridge.js'
+      - 'scripts/verify-about-navigation.mjs'
+      - '.github/workflows/about-navigation.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/App.js'
+      - 'src/components/BioSection.js'
+      - 'src/components/BusinessSystemsVisual*'
+      - 'src/components/NavMenu.js'
+      - 'src/components/ParallaxBackground.js'
+      - 'src/components/SectionDeepLinkBridge.js'
+      - 'scripts/verify-about-navigation.mjs'
+      - '.github/workflows/about-navigation.yml'
+permissions:
+  contents: read
+concurrency:
+  group: about-navigation-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  mobile-about:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+        env:
+          CI: true
+      - name: Check remounts, real mobile taps, themes, motion and About links
+        run: node scripts/verify-about-navigation.mjs
+        env:
+          VISUAL_CAPTURE_BROWSER: /usr/bin/google-chrome
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: about-navigation-evidence
+          path: about-evidence/
+          retention-days: 7

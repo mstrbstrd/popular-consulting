@@ -1,0 +1,72 @@
+name: Apply reviewed About lifecycle fix
+on:
+  push:
+    branches: [fix/mobile-about-lifecycle-20260916]
+    paths: ['.github/about-lifecycle-delta.json', '.github/workflows/apply-about-lifecycle.yml']
+permissions:
+  contents: write
+jobs:
+  apply:
+    if: github.ref == 'refs/heads/fix/mobile-about-lifecycle-20260916'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Build unchanged production sources for the regression capture
+        run: npm run build
+        env:
+          CI: true
+      - name: Reproduce the detached About animation before applying the fix
+        run: node scripts/verify-about-navigation.mjs
+        env:
+          VISUAL_CAPTURE_BROWSER: /usr/bin/google-chrome
+          ABOUT_EXPECT_MISSING: '1'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: about-before-evidence
+          path: about-before-evidence/
+          retention-days: 7
+      - name: Apply only hash-verified reviewed source changes
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          allowed = {'src/App.js', 'src/components/BioSection.js', 'src/components/BusinessSystemsVisual.js', 'src/App.copy-audience.test.js', 'src/components/BusinessSystemsVisual.test.js'}
+          changes = json.loads(Path('.github/about-lifecycle-delta.json').read_text())
+          assert len(changes) == len(allowed) and {c['path'] for c in changes} == allowed
+          output = {}
+          for change in changes:
+              p = Path(change['path'])
+              assert not p.is_symlink()
+              original = p.read_bytes()
+              assert hashlib.sha256(original).hexdigest() == change['before'], str(p) + ': base changed'
+              lines = original.decode('utf-8').splitlines(True)
+              for start, end, text in reversed(change['edits']):
+                  assert isinstance(start, int) and 0 <= start <= end <= len(lines)
+                  lines[start:end] = [text]
+              updated = ''.join(lines).encode('utf-8')
+              assert hashlib.sha256(updated).hexdigest() == change['after'], str(p) + ': output differs'
+              output[p] = updated
+          for p, content in output.items():
+              p.write_bytes(content)
+          PY
+      - name: Test actual navigation and visual lifecycle
+        run: npm test -- --watchAll=false --runInBand --runTestsByPath src/components/AboutNavigationLifecycle.test.js src/components/BusinessSystemsVisual.test.js src/App.copy-audience.test.js
+        env:
+          CI: true
+      - name: Commit the reviewed files only to the feature branch
+        shell: bash
+        run: |
+          test "$(git ls-remote origin refs/heads/fix/mobile-about-lifecycle-20260916 | cut -f1)" = "$GITHUB_SHA"
+          git add src/App.js src/components/BioSection.js src/components/BusinessSystemsVisual.js src/App.copy-audience.test.js src/components/BusinessSystemsVisual.test.js
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Keep the About systems animation in its section lifecycle'
+          git push origin HEAD:refs/heads/fix/mobile-about-lifecycle-20260916
