@@ -104,6 +104,11 @@ try {
       await evaluate("document.querySelectorAll('[data-about-test-target]').forEach(el=>el.removeAttribute('data-about-test-target'))");
       await until(`location.hash==='#section-${index}' && document.querySelector('.section-container.active')?.dataset.section==='${index}'`);
       await pause(700);
+      if(!baseline && index===1 && route==='/') {
+        // The authored photo-shell fade outlasts the section transition.
+        await until(`(() => { const visual=document.querySelector('#bio .business-systems-visual');
+          return !!visual && getComputedStyle(visual.parentElement.parentElement).opacity==='1'; })()`);
+      }
     };
     const snapshot = () => evaluate(`(() => {
       const section=document.querySelector('#bio');
