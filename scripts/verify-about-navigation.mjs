@@ -153,6 +153,23 @@ try {
           check(reduced ? state.animation==='none' : state.active && state.motion==='running','Motion state incorrect');
         }
       }
+      if(!baseline) {
+        // Verify the entire reveal, not just the SVG arriving ahead of the typewriter.
+        await until(`(() => {
+          const title=document.querySelector('#bio h2');
+          const copy=[...document.querySelectorAll('#bio .bio-card > p')];
+          return title?.firstElementChild?.textContent===title?.getAttribute('aria-label')
+            && copy.length===2 && copy.every(el=>Number(getComputedStyle(el).opacity)>.98);
+        })()`);
+        check(true,'About heading and body finished revealing');
+        if(route==='/') {
+          const transforms = () => evaluate(`[...document.querySelectorAll('.business-systems-visual__node-logo-image')].map(el=>getComputedStyle(el).transform).join('|')`);
+          const before=await transforms();
+          await pause(250);
+          const after=await transforms();
+          check(reduced ? before===after : before!==after,'SVG motion failed to advance or ignored reduced motion');
+        }
+      }
       await capture('return');
       if(!baseline && route==='/') {
         await navigate('Services',2);
