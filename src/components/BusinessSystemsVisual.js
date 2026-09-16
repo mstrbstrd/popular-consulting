@@ -1,12 +1,7 @@
 import React from "react";
-import { createPortal } from "react-dom";
 import { useThemeMode } from "../contexts/ThemeContext";
-import { getSiteCopy, SITE_AUDIENCES } from "../content/siteCopy";
 import nodeLogo from "../assets/icons/popcon_svg.svg";
 import "./BusinessSystemsVisual.css";
-
-const BUSINESS_BIO_COPY = getSiteCopy(SITE_AUDIENCES.BUSINESS).bio;
-const BUSINESS_SECTION_INDEX = 1;
 
 const SYSTEM_NODES = Object.freeze([
   Object.freeze({
@@ -81,18 +76,6 @@ const DELIVERY_STAGES = Object.freeze([
   "Support",
 ]);
 
-const escapeCssAttribute = (value) =>
-  value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-
-const findPortraitImage = (photoAlt) =>
-  Array.from(document.querySelectorAll("#bio img")).find(
-    (image) => image.getAttribute("alt") === photoAlt,
-  ) || null;
-
-const getInitialSectionActive = () =>
-  typeof window !== "undefined" &&
-  window.location.hash === `#section-${BUSINESS_SECTION_INDEX}`;
-
 const useReducedMotion = () => {
   const [reducedMotion, setReducedMotion] = React.useState(() => {
     if (typeof window === "undefined" || !window.matchMedia) return false;
@@ -118,96 +101,26 @@ const useReducedMotion = () => {
   return reducedMotion;
 };
 
-const BusinessSystemsVisual = () => {
+const BusinessSystemsVisual = ({ isActive = false }) => {
   const { isDark } = useThemeMode();
   const logoContrastFilterId = React.useId();
   const lightModeLogoContrastFilter = `url(#${logoContrastFilterId})`;
-  const photoAlt = BUSINESS_BIO_COPY.photoAlt;
-  const escapedPhotoAlt = escapeCssAttribute(photoAlt);
   const reducedMotion = useReducedMotion();
-  const [hostElement, setHostElement] = React.useState(null);
-  const [sectionActive, setSectionActive] = React.useState(
-    getInitialSectionActive,
-  );
   const [documentVisible, setDocumentVisible] = React.useState(
     () => typeof document === "undefined" || !document.hidden,
   );
 
-  React.useLayoutEffect(() => {
-    let boundImage = null;
-    let boundHost = null;
-    let observer = null;
-    let previousDisplay = "";
-    let previousAriaHidden = null;
-
-    const attachToPortraitHost = () => {
-      if (boundHost) return true;
-
-      const image = findPortraitImage(photoAlt);
-      const host = image?.parentElement;
-      if (!image || !host) return false;
-
-      boundImage = image;
-      boundHost = host;
-      previousDisplay = image.style.display;
-      previousAriaHidden = image.getAttribute("aria-hidden");
-
-      image.style.display = "none";
-      image.setAttribute("aria-hidden", "true");
-      image.setAttribute("data-business-portrait-hidden", "true");
-      host.setAttribute("data-business-visual-host", "true");
-      setHostElement(host);
-      return true;
-    };
-
-    if (!attachToPortraitHost() && typeof MutationObserver !== "undefined") {
-      observer = new MutationObserver(() => {
-        if (attachToPortraitHost()) observer?.disconnect();
-      });
-      observer.observe(document.body, { childList: true, subtree: true });
-    }
-
-    return () => {
-      observer?.disconnect();
-      if (boundImage) {
-        boundImage.style.display = previousDisplay;
-        if (previousAriaHidden === null) {
-          boundImage.removeAttribute("aria-hidden");
-        } else {
-          boundImage.setAttribute("aria-hidden", previousAriaHidden);
-        }
-        boundImage.removeAttribute("data-business-portrait-hidden");
-      }
-
-      boundHost?.removeAttribute("data-business-visual-host");
-    };
-  }, [photoAlt]);
-
+  // About owns this subtree. Its lifetime follows section virtualization, so a
+  // return from Contact cannot keep rendering into a detached portrait host.
   React.useEffect(() => {
-    const handleSectionStart = (event) => {
-      const nextSection = Number(event.detail?.to);
-      setSectionActive(nextSection === BUSINESS_SECTION_INDEX);
-    };
-    const handleSectionEnd = (event) => {
-      const currentSection = Number(event.detail?.index);
-      setSectionActive(currentSection === BUSINESS_SECTION_INDEX);
-    };
     const handleVisibilityChange = () => setDocumentVisible(!document.hidden);
-
-    window.addEventListener("sectionChangeStart", handleSectionStart);
-    window.addEventListener("sectionChangeEnd", handleSectionEnd);
     document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    return () => {
-      window.removeEventListener("sectionChangeStart", handleSectionStart);
-      window.removeEventListener("sectionChangeEnd", handleSectionEnd);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, []);
 
-  const animationActive = sectionActive && documentVisible && !reducedMotion;
+  const animationActive = isActive && documentVisible && !reducedMotion;
 
-  const visual = (
+  return (
     <div
       className={`business-systems-visual${
         animationActive ? " business-systems-visual--active" : ""
@@ -440,17 +353,6 @@ const BusinessSystemsVisual = () => {
       </div>
     </div>
   );
-
-  return (
-    <>
-      <style>{`
-        [data-site-audience="business"] #bio img[alt="${escapedPhotoAlt}"] {
-          display: none !important;
-        }
-      `}</style>
-      {hostElement ? createPortal(visual, hostElement) : null}
-    </>
-  );
 };
 
-export default BusinessSystemsVisual;
+export default React.memo(BusinessSystemsVisual);
