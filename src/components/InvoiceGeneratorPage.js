@@ -1,11 +1,14 @@
 import React, { useEffect, useRef, useState } from "react";
 import logo from "../assets/icons/logo2026_128.png";
-import { ThemeProvider, useThemeMode } from "../contexts/ThemeContext";
+import { ThemeProvider } from "../contexts/ThemeContext";
+import NavMenu from "./NavMenu";
+import InvoiceGeneratorBackground from "./InvoiceGeneratorBackground";
 import { calculateInvoice, createInvoice, createInvoiceItem, formatInvoiceMoney,
   INVOICE_DRAFT_KEY, MAX_DRAFT_BYTES, MAX_INVOICE_ITEMS, normalizeInvoiceDraft,
   parseInvoiceDraft, validateInvoice } from "../utils/invoice";
 import { readInvoiceLogo } from "../utils/invoiceLogo";
 import "./InvoiceGeneratorPage.css";
+import "./InvoiceGeneratorScene.css";
 
 const InvoiceField = ({ id, label, value, onChange, multiline = false, ...props }) => {
   const Tag = multiline ? "textarea" : "input";
@@ -84,7 +87,6 @@ export const InvoiceDocument = ({ invoice, calculation }) => {
 };
 
 export const InvoiceGeneratorContent = () => {
-  const { isDark, toggleTheme } = useThemeMode();
   const [invoice, setInvoice] = useState(createInvoice);
   const [status, setStatus] = useState("");
   const [actionError, setActionError] = useState("");
@@ -103,6 +105,7 @@ export const InvoiceGeneratorContent = () => {
   const fileRequest = useRef(0);
   const revisionRef = useRef(0);
   const titleRef = useRef("");
+  const siteNavRef = useRef(null);
   let calculation = null;
   let calculationError = "";
   try { calculation = calculateInvoice(invoice); } catch (error) { calculationError = error.message; }
@@ -137,13 +140,17 @@ export const InvoiceGeneratorContent = () => {
     // Match the sticky document and focus offsets to the real action-bar height,
     // including wrapped status text, zoom, font loading and viewport changes.
     const bar = actionsRef.current;
+    const header = siteNavRef.current?.querySelector(".nav-header");
     const measureActions = () => {
       const height = Math.ceil(bar?.getBoundingClientRect().height || 0);
       if (height) bar.closest(".invoice-page")?.style.setProperty("--invoice-actions-height", `${height}px`);
+      const navHeight = Math.ceil(header?.getBoundingClientRect().height || 0);
+      if (navHeight) bar?.closest(".invoice-page")?.style.setProperty("--invoice-nav-height", `${navHeight}px`);
     };
     measureActions();
     const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measureActions) : null;
     if (bar) observer?.observe(bar);
+    if (header) observer?.observe(header);
     window.addEventListener("resize", measureActions);
     return () => {
       fileRequest.current += 1;
@@ -267,20 +274,17 @@ export const InvoiceGeneratorContent = () => {
     onChange={(value) => change(key, value)} {...props} />;
 
   return (
+    <>
+    <div ref={siteNavRef} className="invoice-site-navigation invoice-no-print"><NavMenu standalone /></div>
     <main className="invoice-page" data-ready={ready ? "true" : "false"} data-view={view}>
       <a className="invoice-skip-link invoice-no-print" href="#invoice-editor" onClick={(event) => { event.preventDefault(); navigateView("editor"); }}>Skip to invoice editor</a>
-      <header className="invoice-topbar invoice-no-print">
-        <a className="invoice-brand" href="/"><img src={logo} alt="" /><span>Popular Consulting</span></a>
-        <div className="invoice-topbar-actions"><a href="/">Back to site <span aria-hidden="true">↗</span></a>
-          <button type="button" onClick={toggleTheme} aria-label={isDark ? "Use light mode" : "Use dark mode"}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><defs><linearGradient id="invoice-theme-gradient"><stop stopColor="#00eeff"/><stop offset=".5" stopColor="#ff00ff"/><stop offset="1" stopColor="#9d00ff"/></linearGradient></defs>
-              <circle cx="12" cy="12" r="8" stroke="url(#invoice-theme-gradient)" strokeWidth="1.8"/><path d="M12 4a8 8 0 0 1 0 16Z" fill="url(#invoice-theme-gradient)"/></svg>
-          </button></div>
-      </header>
       <section className="invoice-intro invoice-no-print">
         <div><p className="invoice-eyebrow">Studio tools / 01</p><h1>Invoice generator<span>.</span></h1>
           <p className="invoice-lede">Make it clear. Make it yours.</p></div>
-        <p className="invoice-local-note">Local-only workspace<span>No account. No server uploads.</span></p>
+        <div className="invoice-environment">
+          <InvoiceGeneratorBackground />
+          <p className="invoice-local-note">Local-only workspace<span>No account. No server uploads.</span></p>
+        </div>
       </section>
       <section ref={actionsRef} className="invoice-actions invoice-no-print" aria-label="Invoice actions">
         <div className="invoice-action-main">
@@ -387,6 +391,7 @@ export const InvoiceGeneratorContent = () => {
       </div>
       <p className="invoice-print-warning">This invoice is incomplete. Return to the editor and resolve the validation errors before printing.</p>
     </main>
+    </>
   );
 };
 
