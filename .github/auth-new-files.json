@@ -1,0 +1,20 @@
+{
+  "api/auth/[action].js": "201ea83878d6b34cb2797f4f1af939bb234cff607f7808910b2fee6749afc7c9",
+  "docs/authentication.env.example": "1b34cd8d72b876dab0df5e04e625a38bb1b50337009050edc463f59c6a84da3b",
+  "docs/authentication.md": "888291f8082cc37f8f3ca87d0d3508e56539b017152b828adb451d89e4e0bd17",
+  "middleware.js": "f9000e2d24804a77ca53f0568e6e2df5fb34b998f6bccecb7d1b3c8419a5b5e6",
+  "scripts/auth-invoice-test-server.mjs": "f13f55919487326401adaf282a92b8d4b505ddb1add6ad9a2b85b82d42674b0b",
+  "scripts/build-private-invoice.mjs": "73235e140f92a27cbe8b5ffe74f54813af09561c1b0501a7bbf5aab3b7f2c226",
+  "scripts/verify-auth-ui.mjs": "f8f576c5c5b00670acd97af32b8f2a847607800d9ece5b9f626a9366eb6201ff",
+  "server/auth-handler.mjs": "5d4a3a9c5d50fa23e50967f103487bd436d0862a3e85a5dc301dd453476e0b13",
+  "server/auth-session.mjs": "4eea5fd7a2a684a5ff1be1b4aa128fb0198b942cbd62da8d3a8e9d6417e848f9",
+  "server/auth-tests/auth.test.mjs": "a40f5eb9d6c53071da84d7d655eba9cd61354cfda30f4ddfb939f6f2d8e0952e",
+  "src/components/AuthAccess.test.js": "3198017bed5156493c4b8e1ba68f632c14e89e623de4a20dafdc12339b454d2c",
+  "src/components/AuthNavControl.js": "4279db328b52cce93355f2c68ca9bbb7fb0ce4dbd74820a416cab250c75fd7c9",
+  "src/components/AuthPage.css": "91d291f7a515865a00d77c9007e15aa6d84a1b0fe7b626ee139f7e52900347c7",
+  "src/components/AuthPage.js": "47f164ee5aa556b00a39cf8bb590be43aad52641d59d0a781ed083c6695470e1",
+  "src/components/RequireAdmin.js": "ce1994e8f8740a0ed7ef1d5441592266537dc4783edee5d8ec45f0b1f7152ea9",
+  "src/contexts/AuthContext.js": "025540d229db0beee441451547d795949c8094c8c8581309a94ce916286bb839",
+  "src/invoice-entry.js": "2d44b4c3dbb77f8051a45b8586e96d397a7a0b489ba012fb86f0768fcf19c1fb",
+  "src/utils/invoiceDraftKey.js": "c095d23cb95472ce80b4a52def9980771723a430f1e75983b4d2f8bab7af7a27"
+}

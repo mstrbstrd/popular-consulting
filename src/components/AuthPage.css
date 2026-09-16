@@ -1,0 +1,40 @@
+/* Account chrome shares the existing Aetheris tokens. No styling of invoice paper. */
+.site-account-control { display: inline-flex; justify-content: center; align-items: center; flex: 0 0 44px; width: 44px; min-height: 44px; padding: 0; border: 1px solid var(--aetheris-line-strong); border-radius: 50%; color: var(--aetheris-ink, inherit); background: transparent; cursor: pointer; list-style: none; text-decoration: none; }
+.site-account-control::-webkit-details-marker { display: none; }
+.site-account-menu { position: relative; flex-shrink: 0; margin-left: 6px; }
+.site-account-panel { position: absolute; right: 0; top: calc(100% + 12px); z-index: 1010; width: 210px; padding: 12px; display: grid; gap: 4px; color: #30262c; background: #fff8f7; border: 1px solid rgba(103,92,104,.3); border-radius: var(--aetheris-radius-lg); box-shadow: 0 14px 40px #0002; font: 400 13px/1.5 var(--aetheris-font-mono); }
+.site-account-panel > span { padding: 8px; font-size: 11px; opacity: .75; }
+.site-account-panel a { color: inherit; text-decoration: none; display: flex; align-items: center; min-height: 44px; padding: 8px; border-radius: var(--aetheris-radius-md); }
+.site-account-panel a:hover { background: #8a7c8815; }
+[data-theme="dark"] .site-account-panel { color: #f6eef2; background: #18151a; border-color: #605563; }
+.site-account-control:focus-visible, .site-account-panel a:focus-visible { outline: 2px solid currentColor; outline-offset: 4px; }
+.auth-page { min-height: 100dvh; padding: 140px 24px 60px; color: #30262c; background: radial-gradient(ellipse at 10% 20%, #24ccff12, transparent 60%), radial-gradient(ellipse at 90% 80%, #ff56d610, transparent 60%), #fff8f7; font: 400 16px/1.6 var(--aetheris-font-sans); }
+.auth-card, .auth-lock { width: min(100%, 520px); margin: 4vh auto 0; padding: clamp(24px, 4vw, 44px); border: 1px solid transparent; border-radius: var(--aetheris-radius-glass); background: linear-gradient(#fffaf9, #fffaf9) padding-box, var(--aetheris-spectral-border-soft) border-box; box-shadow: 0 16px 48px #43323a0a; }
+.auth-page .auth-eyebrow, .auth-lock .auth-eyebrow { margin: 0 0 22px; font: 400 11px/1.6 var(--aetheris-font-mono); letter-spacing: .12em; text-transform: uppercase; }
+.auth-page h1, .auth-lock h1 { margin: 0 0 18px; font: 500 clamp(32px, 4vw, 46px)/1.08 var(--aetheris-font-sans); letter-spacing: -.035em; }
+.auth-page .auth-intro, .auth-lock p { font-size: 16px; line-height: 1.65; margin: 0 0 26px; }
+.auth-page form { margin: 24px 0 0; }
+.auth-primary, .auth-lock button, .auth-notice button { display: flex; align-items: center; justify-content: space-between; gap: 20px; width: 100%; min-height: 48px; padding: 12px 16px; color: inherit; text-decoration: none; font: 500 13px/1.5 var(--aetheris-font-mono); background: transparent; border: 1px solid #998998; border-radius: var(--aetheris-radius-md); cursor: pointer; }
+.auth-primary:focus-visible, .auth-lock button:focus-visible, .auth-page a:focus-visible { outline: 2px solid currentColor; outline-offset: 4px; }
+.auth-primary:hover { background: #97749110; }
+.auth-page button:disabled { opacity: .6; cursor: wait; }
+.auth-page .auth-note { font-size: 13px; line-height: 1.55; margin: 14px 0 0; }
+.auth-notice { padding: 14px; margin: 20px 0; border: 1px solid #9b8c98; border-radius: var(--aetheris-radius-md); font-size: 14px; }
+.auth-notice p { margin: 0 0 12px; font-size: inherit; }
+.auth-back { display: inline-flex; align-items: center; min-height: 44px; color: inherit; margin-top: 26px; font-size: 13px; }
+.auth-checkbox { display: flex; gap: 12px; min-height: 44px; align-items: center; margin-bottom: 20px; font-size: 14px; }
+.auth-checkbox input { width: 18px; height: 18px; flex: 0 0 18px; }
+[data-theme="dark"] .auth-page { background: radial-gradient(ellipse at 10% 20%, #24ccff09, transparent 60%), #080809; color: #f6edf3; }
+[data-theme="dark"] .auth-card, [data-theme="dark"] .auth-lock { color: #f6edf3; background: linear-gradient(#141216, #141216) padding-box, var(--aetheris-spectral-border-soft) border-box; }
+.auth-lock { font: 400 16px/1.6 var(--aetheris-font-sans); color: #30262c; }
+.auth-lock button { margin: 12px 0; }
+.auth-lock > a:last-child { display: inline-flex; min-height: 44px; align-items: center; margin-top: 12px; color: inherit; }
+.auth-protected-content[hidden], .auth-revalidating .auth-protected-content { display: none !important; }
+.auth-print-lock { display: none; }
+@media (max-width: 768px) { .auth-page { padding: 100px 20px 40px; } .auth-card { margin-top: 14px; } }
+@media (forced-colors: active) { .auth-card, .auth-lock { border: 1px solid CanvasText; background: Canvas; color: CanvasText; } }
+@media print {
+  .auth-lock, .auth-page, .site-account-menu, .site-account-control { display: none !important; }
+  .auth-workspace-locked .auth-protected-content, .auth-revalidating .auth-protected-content { display: none !important; }
+  .auth-workspace-locked .auth-print-lock, .auth-revalidating .auth-print-lock { display: block; color: #000; font-size: 14pt; }
+}

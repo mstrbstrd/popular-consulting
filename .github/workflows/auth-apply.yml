@@ -1,0 +1,77 @@
+name: Apply reviewed authentication integration
+on:
+  push:
+    branches: [feat/site-authentication]
+    paths: [.github/workflows/auth-apply.yml]
+permissions:
+  contents: write
+  actions: read
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v4
+        with:
+          name: auth-development
+          run-id: 35146504731
+          github-token: ${{ github.token }}
+          path: /tmp/auth-prepared
+      - name: Verify reviewed source hashes and apply only listed integration files
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, tarfile
+          from pathlib import Path
+          digest = lambda data: hashlib.sha256(data).hexdigest()
+          allowed = {'.gitignore', 'docs/invoice-generator.md', 'package.json', 'scripts/generate-route-html.mjs', 'scripts/review-invoice-workspace.mjs', 'scripts/verify-invoice-generator.mjs', 'src/InvoiceGeneratorRoute.test.js', 'src/SiteRouter.js', 'src/components/InvoiceGeneratorBackground.js', 'src/components/InvoiceGeneratorNavigation.test.js', 'src/components/InvoiceGeneratorPage.js', 'src/components/NavMenu.js', 'src/components/WorkPage.js', 'src/content/routeMetadata.json', 'src/content/siteCopy.test.js', 'src/index.js', 'src/utils/invoice.js', 'vercel.json'}
+          for name, expected in json.loads(Path('.github/auth-new-files.json').read_text()).items():
+              path = Path(name)
+              assert not path.is_symlink() and path.is_file()
+              actual = digest(path.read_bytes())
+              assert actual == expected, name + ': reviewed source mismatch ' + actual
+          changes = json.loads(Path('.github/auth-edits.json').read_text())
+          assert len(changes) == len(allowed) and {c['path'] for c in changes} == allowed
+          output = {}
+          for change in changes:
+              path = Path(change['path'])
+              assert not path.is_symlink()
+              original = path.read_bytes()
+              assert digest(original) == change['before'], str(path) + ': base changed'
+              lines = original.decode('utf-8').splitlines(True)
+              for start, end, replacement in reversed(change['edits']):
+                  assert isinstance(start, int) and 0 <= start <= end <= len(lines)
+                  lines[start:end] = [replacement]
+              updated = ''.join(lines).encode('utf-8')
+              assert digest(updated) == change['after'], str(path) + ': output mismatch ' + digest(updated)
+              output[path] = updated
+          with tarfile.open('/tmp/auth-prepared/auth-development.tar.gz') as archive:
+              member = archive.getmember('package-lock.json')
+              assert member.isfile() and member.size < 2000000
+              lock = archive.extractfile(member).read()
+          assert digest(lock) == '9c4eb10f87fd57e25647266edaa41f043112ae9536b4a3ba623ca1e4e261e936'
+          output[Path('package-lock.json')] = lock
+          for path, data in output.items():
+              path.write_bytes(data)
+          print('Verified and applied all reviewed source and lockfile hashes.')
+          PY
+      - run: npm ci --no-audit --no-fund
+      - run: npm run lint && npm run test:auth
+      - run: npm test -- --watchAll=false --runInBand
+        env:
+          CI: true
+      - run: npm run build
+        env:
+          CI: true
+      - name: Commit only source integration to the review branch, never main or workflows
+        run: |
+          test "$(git ls-remote origin refs/heads/feat/site-authentication | cut -f1)" = "$GITHUB_SHA"
+          git add .gitignore docs/invoice-generator.md package.json package-lock.json scripts/generate-route-html.mjs scripts/review-invoice-workspace.mjs scripts/verify-invoice-generator.mjs src/InvoiceGeneratorRoute.test.js src/SiteRouter.js src/components/InvoiceGeneratorBackground.js src/components/InvoiceGeneratorNavigation.test.js src/components/InvoiceGeneratorPage.js src/components/NavMenu.js src/components/WorkPage.js src/content/routeMetadata.json src/content/siteCopy.test.js src/index.js src/utils/invoice.js vercel.json
+          git rm .github/auth-edits.json .github/auth-new-files.json
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Integrate verified site authentication, private invoice entrypoint and conditional navigation'
+          git push origin HEAD:refs/heads/feat/site-authentication
