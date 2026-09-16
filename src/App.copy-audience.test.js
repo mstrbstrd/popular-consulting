@@ -82,12 +82,12 @@ describe("App audience wiring", () => {
     ).toBe(audience);
   });
 
-  test("renders the business systems visual only for business mode", () => {
+  test("leaves the systems visual inside BioSection, not an orphan App sibling", () => {
     const { rerender } = render(
       <App immersiveMode={IMMERSIVE_MODES.ORIGINAL} />,
     );
 
-    expect(screen.getByTestId("business-systems-visual")).toBeInTheDocument();
+    expect(screen.queryByTestId("business-systems-visual")).not.toBeInTheDocument();
 
     rerender(<App immersiveMode={IMMERSIVE_MODES.ENGINEERING} />);
 

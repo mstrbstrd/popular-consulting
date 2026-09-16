@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Box, Typography } from "@mui/material";
+import BusinessSystemsVisual from "./BusinessSystemsVisual";
 import mePhoto from "../assets/img/me.webp";
 import { useThemeMode } from "../contexts/ThemeContext";
 import { isMobileTier, hasHardwareWebGL } from "../utils/deviceTier";
@@ -25,7 +26,7 @@ const computeTargetRect = () => ({
   height: Math.round(window.innerHeight * 0.83),
 });
 
-const BioPhoto = ({ visible, blurred, photoAlt }) => {
+const BioPhoto = ({ visible, blurred, photoAlt, audience, isActive }) => {
   const shellRef = React.useRef(null);
   const cardRef = React.useRef(null);
   const causticsRef = React.useRef(null);
@@ -117,6 +118,7 @@ const BioPhoto = ({ visible, blurred, photoAlt }) => {
     >
       <Box
         ref={cardRef}
+        data-business-visual-host={audience === SITE_AUDIENCES.BUSINESS ? "true" : undefined}
         sx={{
           position: "relative",
           width: { xs: "clamp(180px, 60vw, 280px)", md: "clamp(220px, 24vw, 360px)" },
@@ -131,18 +133,22 @@ const BioPhoto = ({ visible, blurred, photoAlt }) => {
           willChange: "transform",
         }}
       >
-        <Box
-          component="img"
-          src={mePhoto}
-          alt={photoAlt}
-          sx={{
-            width: "100%",
-            height: "100%",
-            objectFit: "cover",
-            objectPosition: "center top",
-            display: "block",
-          }}
-        />
+        {audience === SITE_AUDIENCES.BUSINESS ? (
+          <BusinessSystemsVisual isActive={isActive} />
+        ) : (
+          <Box
+            component="img"
+            src={mePhoto}
+            alt={photoAlt}
+            sx={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              objectPosition: "center top",
+              display: "block",
+            }}
+          />
+        )}
         {/* Caustics overlay */}
         <Box
           ref={causticsRef}
@@ -1178,6 +1184,8 @@ const BioSection = ({
           visible={sectionVisible}
           blurred={!!expandedOrigin}
           photoAlt={copy.photoAlt}
+          audience={audience}
+          isActive={isActive}
         />
       </Box>
       </Box>

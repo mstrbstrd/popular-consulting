@@ -14,6 +14,7 @@ import '../../testHelpers/a11ySetup';
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { ThemeProvider } from '../../contexts/ThemeContext';
+import { SITE_AUDIENCES } from '../../content/siteCopy';
 import NavMenu from '../../components/NavMenu';
 import HeroLogo from '../../components/HeroLogo';
 import BioSection from '../../components/BioSection';
@@ -51,8 +52,8 @@ describe('HeroLogo', () => {
 // ── BioSection ────────────────────────────────────────────────────────────
 
 describe('BioSection images', () => {
-  test('profile photo has a descriptive (non-empty) alt attribute', () => {
-    wrap(<BioSection isActive={true} />);
+  test('engineering profile photo has a descriptive (non-empty) alt attribute', () => {
+    wrap(<BioSection isActive={true} audience={SITE_AUDIENCES.ENGINEERING} />);
     // The photo renders in a Box component="img"
     const imgs = document.querySelectorAll('img');
     const profilePhoto = Array.from(imgs).find(
@@ -62,6 +63,14 @@ describe('BioSection images', () => {
     expect(profilePhoto.alt).toBeTruthy();
     expect(profilePhoto.alt.length).toBeGreaterThan(3); // not just "Photo"
     expect(profilePhoto.alt.toLowerCase()).not.toBe('photo');
+  });
+
+  test('business systems map has one descriptive accessible image without a hidden portrait', () => {
+    const { container } = wrap(<BioSection isActive={true} audience={SITE_AUDIENCES.BUSINESS} />);
+    const visual = screen.getByRole('img', { name: /animated systems map.*strategy, software, AI, and commerce/i });
+    expect(visual).toHaveAccessibleName(/client.*business.*discovery through support/i);
+    expect(visual.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
+    expect(container.querySelector('#bio img')).toBeNull();
   });
 });
 
@@ -99,6 +108,7 @@ describe('No missing alt attributes', () => {
     { name: 'NavMenu',         el: <NavMenu /> },
     { name: 'HeroLogo',        el: <HeroLogo /> },
     { name: 'BioSection',      el: <BioSection isActive={true} /> },
+    { name: 'Engineering BioSection', el: <BioSection isActive={true} audience={SITE_AUDIENCES.ENGINEERING} /> },
     { name: 'ContactSection',  el: <ContactSection isActive={true} /> },
   ];
 

@@ -5,36 +5,18 @@ import { act, cleanup, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import BusinessSystemsVisual from "./BusinessSystemsVisual";
 import { useThemeMode } from "../contexts/ThemeContext";
-import { getSiteCopy, SITE_AUDIENCES } from "../content/siteCopy";
 
 jest.mock("../contexts/ThemeContext", () => ({
   useThemeMode: jest.fn(),
 }));
 
-const BUSINESS_PHOTO_ALT = getSiteCopy(
-  SITE_AUDIENCES.BUSINESS,
-).bio.photoAlt;
+const TestThemeContext = React.createContext({ isDark: false });
+const useTestTheme = () => React.useContext(TestThemeContext);
+
 const VISUAL_CSS = fs.readFileSync(
   path.join(process.cwd(), "src/components/BusinessSystemsVisual.css"),
   "utf8",
 );
-
-const createPortraitHost = () => {
-  const section = document.createElement("section");
-  section.id = "bio";
-
-  const host = document.createElement("div");
-  const image = document.createElement("img");
-  image.alt = BUSINESS_PHOTO_ALT;
-  image.style.display = "block";
-  image.setAttribute("aria-hidden", "false");
-
-  host.appendChild(image);
-  section.appendChild(host);
-  document.body.appendChild(section);
-
-  return { host, image };
-};
 
 describe("BusinessSystemsVisual", () => {
   const originalMatchMedia = window.matchMedia;
@@ -65,30 +47,16 @@ describe("BusinessSystemsVisual", () => {
     window.matchMedia = originalMatchMedia;
   });
 
-  test("replaces the business portrait in its existing card and restores it on cleanup", () => {
-    const { host, image } = createPortraitHost();
-    const { unmount } = render(<BusinessSystemsVisual />);
-
-    expect(image.style.display).toBe("none");
-    expect(image).toHaveAttribute("aria-hidden", "true");
-    expect(image).toHaveAttribute("data-business-portrait-hidden", "true");
-    expect(host).toHaveAttribute("data-business-visual-host", "true");
-    expect(
-      screen.getByRole("img", {
-        name: /strategy, software, AI, and commerce connected around the client's business/i,
-      }),
-    ).toBeInTheDocument();
-
+  test("renders inside its React parent and releases the visual on unmount", () => {
+    const { container, unmount } = render(<BusinessSystemsVisual isActive />);
+    const visual = screen.getByTestId("business-systems-visual");
+    expect(container).toContainElement(visual);
+    expect(visual).toHaveClass("business-systems-visual--active");
     unmount();
-
-    expect(image.style.display).toBe("block");
-    expect(image).toHaveAttribute("aria-hidden", "false");
-    expect(image).not.toHaveAttribute("data-business-portrait-hidden");
-    expect(host).not.toHaveAttribute("data-business-visual-host");
+    expect(visual).not.toBeInTheDocument();
   });
 
   test("uses the Work-page system-map language and four rotating logo marks", () => {
-    createPortraitHost();
     render(<BusinessSystemsVisual />);
 
     const visual = screen.getByTestId("business-systems-visual");
@@ -112,7 +80,6 @@ describe("BusinessSystemsVisual", () => {
   });
 
   test("keeps every node label inside the system frame", () => {
-    createPortraitHost();
     render(<BusinessSystemsVisual />);
 
     const visual = screen.getByTestId("business-systems-visual");
@@ -148,7 +115,6 @@ describe("BusinessSystemsVisual", () => {
   });
 
   test("darkens every pale SVG mark with a local sRGB SVG filter in light mode", () => {
-    createPortraitHost();
     render(<BusinessSystemsVisual />);
 
     const visual = screen.getByTestId("business-systems-visual");
@@ -183,14 +149,16 @@ describe("BusinessSystemsVisual", () => {
   });
 
   test("preserves dark styling and restores light contrast after repeated theme switches", () => {
-    createPortraitHost();
-    const { rerender } = render(<BusinessSystemsVisual />);
+    useThemeMode.mockImplementation(useTestTheme);
+    const themedVisual = (isDark) => <TestThemeContext.Provider value={{ isDark }}>
+      <BusinessSystemsVisual />
+    </TestThemeContext.Provider>;
+    const { rerender } = render(themedVisual(false));
     const visual = screen.getByTestId("business-systems-visual");
     const filterId = visual.querySelector("filter").id;
 
     [true, false, true, false].forEach((isDark) => {
-      useThemeMode.mockReturnValue({ isDark });
-      rerender(<BusinessSystemsVisual />);
+      rerender(themedVisual(isDark));
       expect(visual.querySelector("filter").id).toBe(filterId);
       const logos = visual.querySelectorAll(
         ".business-systems-visual__node-logo-image, .business-systems-visual__core-logo",
@@ -203,32 +171,36 @@ describe("BusinessSystemsVisual", () => {
     });
   });
 
-  test("runs motion only while Section 1 is active", () => {
-    createPortraitHost();
-    render(<BusinessSystemsVisual />);
-
+  test("uses section state rather than a stale URL or global transition event", () => {
+    window.history.replaceState({}, "", "/#section-1");
+    const { rerender } = render(<BusinessSystemsVisual isActive={false} />);
     const visual = screen.getByTestId("business-systems-visual");
     expect(visual).not.toHaveClass("business-systems-visual--active");
-
     act(() => {
-      window.dispatchEvent(
-        new CustomEvent("sectionChangeStart", {
-          detail: { from: 0, to: 1 },
-        }),
-      );
+      window.dispatchEvent(new CustomEvent("sectionChangeStart", { detail: { to: 1 } }));
     });
-
-    expect(visual).toHaveClass("business-systems-visual--active");
-
-    act(() => {
-      window.dispatchEvent(
-        new CustomEvent("sectionChangeStart", {
-          detail: { from: 1, to: 2 },
-        }),
-      );
-    });
-
     expect(visual).not.toHaveClass("business-systems-visual--active");
+    rerender(<BusinessSystemsVisual isActive />);
+    expect(visual).toHaveClass("business-systems-visual--active");
+    rerender(<BusinessSystemsVisual isActive={false} />);
+    expect(visual).not.toHaveClass("business-systems-visual--active");
+  });
+
+  test("suspends hidden-document motion without changing topology", () => {
+    const { unmount } = render(<BusinessSystemsVisual isActive />);
+    const visual = screen.getByTestId("business-systems-visual");
+    const map = visual.querySelector("svg");
+    const remove = jest.spyOn(document, "removeEventListener");
+    Object.defineProperty(document, "hidden", { configurable: true, value: true });
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    expect(visual).not.toHaveClass("business-systems-visual--active");
+    Object.defineProperty(document, "hidden", { configurable: true, value: false });
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    expect(visual).toHaveClass("business-systems-visual--active");
+    expect(visual.querySelector("svg")).toBe(map);
+    unmount();
+    expect(remove).toHaveBeenCalledWith("visibilitychange", expect.any(Function));
+    remove.mockRestore();
   });
 
   test("keeps the topology static when reduced motion is requested", () => {
@@ -242,16 +214,7 @@ describe("BusinessSystemsVisual", () => {
       removeListener: jest.fn(),
       dispatchEvent: jest.fn(),
     }));
-    createPortraitHost();
-    render(<BusinessSystemsVisual />);
-
-    act(() => {
-      window.dispatchEvent(
-        new CustomEvent("sectionChangeStart", {
-          detail: { from: 0, to: 1 },
-        }),
-      );
-    });
+    render(<BusinessSystemsVisual isActive />);
 
     const visual = screen.getByTestId("business-systems-visual");
     expect(visual).toHaveClass("business-systems-visual--reduced");
