@@ -1,31 +1,52 @@
-name: Invoice field review
+name: Apply reviewed invoice field changes
 on:
   push:
     branches: [design/invoice-field-navigation-20260915]
-    paths: [.github/workflows/invoice-field-review.yml]
+    paths: [.github/invoice-field-delta.json]
 permissions:
   contents: read
 jobs:
-  review-bundle:
+  apply-reviewed-delta:
+    if: github.repository == 'mstrbstrd/popular-consulting' && github.actor == 'mstrbstrd'
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 3
     steps:
       - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-      - run: npm ci --no-audit --no-fund
-      - run: npm run build
-        env:
-          CI: true
-      - name: Package only source and local test dependencies
-        run: tar -czf invoice-review-bundle.tar.gz src public scripts docs .github package.json package-lock.json node_modules build
-      - uses: actions/upload-artifact@v4
-        with:
-          name: invoice-field-review-bundle
-          path: invoice-review-bundle.tar.gz
-          retention-days: 1
-          compression-level: 0
+      - name: Apply only the six reviewed files, checking input and output hashes
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, subprocess
+          from pathlib import Path
+          allowed = {'.github/workflows/invoice-generator.yml', 'docs/invoice-generator.md', 'scripts/review-invoice-workspace.mjs', 'scripts/verify-invoice-generator.mjs', 'src/components/InvoiceGeneratorPage.js', 'src/components/NavMenu.js'}
+          changes = json.loads(Path('.github/invoice-field-delta.json').read_text())
+          assert len(changes) == len(allowed) and {c['path'] for c in changes} == allowed
+          output = {}
+          for change in changes:
+              path = Path(change['path'])
+              assert not path.is_symlink()
+              original = path.read_bytes()
+              assert hashlib.sha256(original).hexdigest() == change['before'], str(path) + ': base changed'
+              lines = original.decode('utf-8').splitlines(True)
+              for start, end, replacement in reversed(change['edits']):
+                  assert isinstance(start, int) and 0 <= start <= end <= len(lines)
+                  lines[start:end] = [replacement]
+              updated = ''.join(lines).encode('utf-8')
+              assert hashlib.sha256(updated).hexdigest() == change['after'], str(path) + ': output differs from tested source'
+              output[path] = updated
+          for path, data in output.items():
+              path.write_bytes(data)
+          assert set(subprocess.check_output(['git', 'diff', '--name-only'], text=True).splitlines()) == allowed
+          PY
+      - name: Commit to the isolated feature branch and remove transfer scaffolding
+        shell: bash
+        run: |
+          test "$(git ls-remote origin refs/heads/design/invoice-field-navigation-20260915 | cut -f1)" = "$GITHUB_SHA"
+          git rm .github/invoice-field-delta.json .github/workflows/invoice-field-review.yml
+          git add .github/workflows/invoice-generator.yml docs/invoice-generator.md scripts/review-invoice-workspace.mjs scripts/verify-invoice-generator.mjs src/components/InvoiceGeneratorPage.js src/components/NavMenu.js
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Reuse Contour Drift and the site NavMenu in the invoice workspace'
+          git push origin HEAD:refs/heads/design/invoice-field-navigation-20260915

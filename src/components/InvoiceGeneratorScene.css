@@ -1,0 +1,66 @@
+/* Shared navigation lives outside the invoice root so operational button
+   rules cannot restyle it. The existing paper/print system remains separate. */
+@media screen {
+  .invoice-site-navigation { position: relative; z-index: 1000; }
+  .invoice-page {
+    position: relative;
+    isolation: isolate;
+    padding-top: var(--invoice-nav-height, 104px);
+    background: var(--invoice-bg);
+  }
+  .invoice-scene {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    opacity: .38;
+  }
+  .invoice-scene .creatoros-field-shell,
+  .invoice-scene .creatoros-field-canvas { pointer-events: none; touch-action: auto; }
+  .invoice-environment { display: grid; gap: 8px; justify-items: end; }
+  .invoice-scene-options { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; color: var(--invoice-muted); font: 500 10px/1.5 var(--invoice-mono); letter-spacing: .05em; text-transform: uppercase; }
+  .invoice-scene-options button { padding: 8px 12px; min-height: 44px; background: var(--invoice-panel); }
+  .invoice-scene-static { opacity: .8; }
+  .invoice-actions { top: var(--invoice-nav-height, 104px); }
+  .invoice-preview { top: calc(var(--invoice-nav-height, 104px) + var(--invoice-actions-height, 120px) + 16px); }
+  .invoice-preview-document { max-height: max(160px, calc(100dvh - var(--invoice-nav-height, 104px) - var(--invoice-actions-height, 120px) - 120px)); }
+  .invoice-editor, .invoice-preview, .invoice-editor .invoice-error,
+  .invoice-field, .invoice-field :is(input, textarea, select) {
+    scroll-margin-top: calc(var(--invoice-nav-height, 104px) + var(--invoice-actions-height, 170px) + 24px);
+  }
+  /* The field is visible in the negative space; reading surfaces stay calm. */
+  .invoice-form > fieldset, .invoice-settings {
+    background: color-mix(in srgb, var(--invoice-panel) 95%, transparent);
+  }
+  .invoice-actions { background: color-mix(in srgb, var(--invoice-panel) 94%, transparent); }
+  .invoice-intro { align-items: center; }
+  html[data-theme="dark"] .invoice-scene { opacity: .48; }
+}
+@media screen and (max-width: 1200px) {
+  .invoice-preview { position: static; }
+  .invoice-preview-document { max-height: none; }
+}
+@media screen and (max-width: 700px) {
+  .invoice-intro { display: grid; gap: 16px; }
+  .invoice-environment { justify-items: start; }
+  .invoice-scene-options { gap: 10px; }
+  .invoice-local-note { display: none; }
+}
+@media screen and (max-height: 600px) {
+  .invoice-site-navigation .nav-header { position: absolute; }
+  .invoice-actions, .invoice-preview { position: static; }
+  .invoice-preview-document { max-height: none; overflow: visible; }
+  .invoice-editor, .invoice-preview, .invoice-editor .invoice-error,
+  .invoice-field, .invoice-field :is(input, textarea, select) { scroll-margin-top: 16px; }
+}
+@media screen and (prefers-reduced-transparency: reduce) {
+  .invoice-form > fieldset, .invoice-settings, .invoice-actions { background: var(--invoice-panel); }
+}
+@media screen and (forced-colors: active) {
+  .invoice-scene { display: none; }
+  .invoice-actions, .invoice-form > fieldset, .invoice-settings { background: Canvas; }
+}
+/* This includes the pause control even though it is already in the hidden intro. */
+@media print {
+  .invoice-site-navigation, .invoice-scene, .invoice-scene-options { display: none !important; }
+}
