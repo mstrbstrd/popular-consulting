@@ -133,7 +133,7 @@ try {
               sharedInk:page.getPropertyValue('--invoice-ink').trim()===shared.getPropertyValue('--aetheris-ink').trim(),
               sharedSecondaryInk:page.getPropertyValue('--invoice-muted').trim()===shared.getPropertyValue('--aetheris-ink-2').trim(),
               technicalControls:getComputedStyle(document.querySelector('.invoice-action-buttons > button')).fontFamily.includes('JetBrains Mono'),
-              pill:getComputedStyle(header).borderRadius===shared.getPropertyValue('--aetheris-radius-pill').trim(),
+              pill:parseFloat(getComputedStyle(header).borderRadius)>=Math.min(box.width,box.height)/2,
               headerFits:box.left>=0 && box.right<=innerWidth+1,
               headerRimIgnoresInput:getComputedStyle(header,'::after').pointerEvents==='none',
               panelRadii:panels.every(panel=>getComputedStyle(panel).borderRadius===shared.getPropertyValue('--aetheris-radius-glass').trim()),
@@ -179,8 +179,6 @@ try {
           check(await evaluate(`!document.querySelector('.invoice-scene-options button') && document.querySelector('.invoice-scene').dataset.motion==='static'`),'Reduced motion was ignored');
           await call('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'no-preference'}]});
           await settle();
-          // StrictMode may test-mount a component in development; this is the
-          // production bundle, so a single context must survive editing.
           report.fieldContexts=await evaluate('window.__invoiceFieldContexts');
         }
         await capture('top');

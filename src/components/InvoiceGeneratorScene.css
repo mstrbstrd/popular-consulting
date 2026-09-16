@@ -21,6 +21,7 @@
   .invoice-scene-options { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; color: var(--invoice-muted); font: 500 10px/1.5 var(--invoice-mono); letter-spacing: .05em; text-transform: uppercase; }
   .invoice-scene-options button { padding: 8px 12px; min-height: 44px; background: var(--invoice-panel); }
   .invoice-scene-static { opacity: .8; }
+  .invoice-scene .creatoros-field-shell.is-fallback .creatoros-field-fallback { background-color: var(--invoice-bg); }
   .invoice-actions { top: var(--invoice-nav-height, 104px); }
   .invoice-preview { top: calc(var(--invoice-nav-height, 104px) + var(--invoice-actions-height, 120px) + 16px); }
   .invoice-preview-document { max-height: max(160px, calc(100dvh - var(--invoice-nav-height, 104px) - var(--invoice-actions-height, 120px) - 120px)); }
@@ -45,6 +46,14 @@
   .invoice-environment { justify-items: start; }
   .invoice-scene-options { gap: 10px; }
   .invoice-local-note { display: none; }
+}
+/* Keep useful working space when a phone is shorter than its sticky controls. */
+@media screen and (min-height: 601px) and (max-height: 720px) and (max-width: 700px) {
+  .invoice-actions, .invoice-preview { position: static; }
+  .invoice-editor, .invoice-preview, .invoice-editor .invoice-error,
+  .invoice-field, .invoice-field :is(input, textarea, select) {
+    scroll-margin-top: calc(var(--invoice-nav-height, 104px) + 24px);
+  }
 }
 @media screen and (max-height: 600px) {
   .invoice-site-navigation .nav-header { position: absolute; }
