@@ -1,0 +1,64 @@
+name: Apply Metabloom streamed single-message response
+
+on:
+  push:
+    branches:
+      - fix/metabloom-streamed-single-message
+
+permissions:
+  contents: write
+
+concurrency:
+  group: metabloom-streamed-single-message
+  cancel-in-progress: false
+
+jobs:
+  apply-verify-clean:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Check out correction branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/metabloom-streamed-single-message
+          fetch-depth: 2
+
+      - name: Apply source correction
+        run: python scripts/apply-metabloom-streamed-single-message.py
+
+      - name: Validate patch shape
+        run: git diff --check
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Run complete test suite
+        run: npm test -- --watchAll=false --runInBand
+        env:
+          CI: true
+
+      - name: Build production bundle
+        run: npm run build
+        env:
+          CI: true
+
+      - name: Commit verified source and remove temporary tooling
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -f scripts/apply-metabloom-streamed-single-message.py
+          git rm -f .github/workflows/apply-metabloom-streamed-single-message.yml
+          git add -A
+          git diff --cached --check
+          git commit -m "Keep streamed emotes in one Metabloom message"
+          git push origin HEAD:fix/metabloom-streamed-single-message
