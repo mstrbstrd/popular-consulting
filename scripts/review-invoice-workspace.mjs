@@ -72,6 +72,7 @@ try {
         await settle();
       };
       const capture = async label => {
+        await evaluate('new Promise(resolve => setTimeout(resolve, 450))');
         const { data } = await call('Page.captureScreenshot', { format:'jpeg', quality:65, captureBeyondViewport:false });
         fs.writeFileSync(path.join(output, `${width}-${height}-${mode}-${label}.jpg`), Buffer.from(data,'base64'));
         if (process.env.INVOICE_REVIEW_LOG_IMAGES === '1' && mode === 'light' && [390,1440].includes(width) && label === 'top') {
@@ -133,7 +134,7 @@ try {
               sharedInk:page.getPropertyValue('--invoice-ink').trim()===shared.getPropertyValue('--aetheris-ink').trim(),
               sharedSecondaryInk:page.getPropertyValue('--invoice-muted').trim()===shared.getPropertyValue('--aetheris-ink-2').trim(),
               technicalControls:getComputedStyle(document.querySelector('.invoice-action-buttons > button')).fontFamily.includes('JetBrains Mono'),
-              pill:parseFloat(getComputedStyle(header).borderRadius)>=Math.min(box.width,box.height)/2,
+              pill:innerWidth<=768 ? getComputedStyle(header).borderRadius===(2*parseFloat(shared.fontSize))+'px' : getComputedStyle(header).borderRadius==='100px',
               headerFits:box.left>=0 && box.right<=innerWidth+1,
               headerRimIgnoresInput:getComputedStyle(header,'::after').pointerEvents==='none',
               panelRadii:panels.every(panel=>getComputedStyle(panel).borderRadius===shared.getPropertyValue('--aetheris-radius-glass').trim()),
