@@ -11,14 +11,18 @@ import { createBuildServer } from './dark-evidence-browser.mjs';
 const origin = process.env.INVOICE_REVIEW_ORIGIN || 'https://popular-consulting.com';
 assert(['https://popular-consulting.com', 'http://127.0.0.1:4173'].includes(origin));
 const local = origin === 'http://127.0.0.1:4173';
-const output = path.resolve('invoice-review-evidence');
+const fieldReview = process.env.INVOICE_REVIEW_FIELD === '1';
+assert(!fieldReview || local, 'Forced renderer checks are local-build only.');
+const output = path.resolve(fieldReview ? 'invoice-field-evidence' : 'invoice-review-evidence');
 fs.mkdirSync(output, { recursive: true });
 const server = local ? createBuildServer({ buildRoot: path.resolve('build') }) : null;
 if (server) await new Promise((resolve, reject) => { server.once('error', reject); server.listen(4173, '127.0.0.1', resolve); });
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'invoice-review-'));
 const browser = spawn(process.env.VISUAL_CAPTURE_BROWSER || '/usr/bin/google-chrome', [
   '--headless=new', '--remote-debugging-pipe', '--no-first-run', '--disable-sync',
-  '--disable-extensions', '--hide-scrollbars', `--user-data-dir=${profile}`, 'about:blank',
+  '--disable-extensions', '--hide-scrollbars',
+  ...(fieldReview ? ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] : []),
+  `--user-data-dir=${profile}`, 'about:blank',
 ], { stdio: ['ignore', 'ignore', 'pipe', 'pipe', 'pipe'] });
 let serial = 0;
 let buffer = '';
@@ -48,7 +52,7 @@ const send = (method, params = {}, sessionId) => new Promise((resolve, reject) =
 });
 const reports = [];
 try {
-  for (const [width, height] of [[1440,1000], [1280,800], [1024,768], [768,1024], [390,844], [320,640], [844,390], [1200,900], [1920,1080]]) {
+  for (const [width, height] of (fieldReview ? [[1440,1000], [390,844]] : [[1440,1000], [1920,1080], [1280,800], [1200,900], [1024,768], [768,1024], [390,844], [320,640], [844,390]])) {
     for (const mode of ['light', 'dark']) {
       const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
       const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
@@ -59,6 +63,11 @@ try {
         return result.result.value;
       };
       const settle = () => evaluate('new Promise(resolve => setTimeout(resolve, 100))');
+      const waitForMotion = (motion) => evaluate(`new Promise(resolve=>{
+        let attempts=0;const timer=setInterval(()=>{
+          if(document.querySelector('.invoice-scene')?.dataset.motion===${JSON.stringify(motion)}||++attempts>=60){clearInterval(timer);resolve();}
+        },50);
+      })`);
       const report = { origin, width, height, mode, checks: 0, failures: [] };
       const check = (condition, message) => { report.checks++; if (!condition) report.failures.push(message); };
       const click = async selector => {
@@ -68,6 +77,7 @@ try {
         await settle();
       };
       const capture = async label => {
+        await evaluate('new Promise(resolve => setTimeout(resolve, 450))');
         const { data } = await call('Page.captureScreenshot', { format:'jpeg', quality:65, captureBeyondViewport:false });
         fs.writeFileSync(path.join(output, `${width}-${height}-${mode}-${label}.jpg`), Buffer.from(data,'base64'));
         if (process.env.INVOICE_REVIEW_LOG_IMAGES === '1' && mode === 'light' && [390,1440].includes(width) && label === 'top') {
@@ -79,11 +89,29 @@ try {
         await call('Page.enable');
         await call('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor:1, mobile:width<=844 });
         await call('Emulation.setTouchEmulationEnabled', { enabled:width<=844 });
-        await call('Page.navigate', { url:`${origin}/invoice-generator` });
+        if (fieldReview) await call('Page.addScriptToEvaluateOnNewDocument', { source: `
+          window.__invoiceFieldDraws=0;window.__invoiceFieldContexts=0;
+          const contexts=new WeakSet();
+          const originalContext=HTMLCanvasElement.prototype.getContext;
+          HTMLCanvasElement.prototype.getContext=function(...args){
+            const context=originalContext.apply(this,args);
+            if(context&&this.classList.contains('creatoros-field-canvas')&&!contexts.has(context)){
+              contexts.add(context);window.__invoiceFieldContexts++;
+              const originalDraw=context.drawArrays.bind(context);
+              context.drawArrays=(...draw)=>{window.__invoiceFieldDraws++;return originalDraw(...draw)};
+            }
+            return context;
+          };
+        ` });
+        await call('Page.navigate', { url:`${origin}/invoice-generator${fieldReview ? '?graphics=webgl' : ''}` });
         await evaluate(`new Promise((resolve,reject)=>{let n=0;const t=setInterval(()=>{if(document.querySelector('.invoice-paper')){clearInterval(t);resolve(true)}else if(++n>300){clearInterval(t);reject(new Error('Invoice page not mounted'))}},100)})`);
         await evaluate('document.fonts.ready');
         const currentMode = await evaluate('document.documentElement.dataset.theme');
-        if (currentMode !== mode) await click('.invoice-topbar-actions button');
+        if (currentMode !== mode) {
+          if (width<=768) await click('.nav-burger');
+          await click(width<=768 ? '.nav-overlay-theme' : '.nav-header .nav-theme-toggle');
+          if (width<=768) await click('.nav-burger');
+        }
         await evaluate('scrollTo(0,0)'); await settle();
         report.geometry = await evaluate(`(() => {
           const rect=e=>{const r=e.getBoundingClientRect();return {x:Math.round(r.x),y:Math.round(r.y),width:Math.round(r.width),height:Math.round(r.height)}};
@@ -104,14 +132,14 @@ try {
           report.styling = await evaluate(`(() => {
             const shared=getComputedStyle(document.documentElement);
             const page=getComputedStyle(document.querySelector('.invoice-page'));
-            const header=document.querySelector('.invoice-topbar');
+            const header=document.querySelector('.nav-pill');
             const box=header.getBoundingClientRect();
             const panels=[...document.querySelectorAll('.invoice-form > fieldset')];
             return {
               sharedInk:page.getPropertyValue('--invoice-ink').trim()===shared.getPropertyValue('--aetheris-ink').trim(),
               sharedSecondaryInk:page.getPropertyValue('--invoice-muted').trim()===shared.getPropertyValue('--aetheris-ink-2').trim(),
               technicalControls:getComputedStyle(document.querySelector('.invoice-action-buttons > button')).fontFamily.includes('JetBrains Mono'),
-              pill:getComputedStyle(header).borderRadius===shared.getPropertyValue('--aetheris-radius-pill').trim(),
+              pill:innerWidth<=768 ? getComputedStyle(header).borderRadius===(2*parseFloat(shared.fontSize))+'px' : getComputedStyle(header).borderRadius==='100px',
               headerFits:box.left>=0 && box.right<=innerWidth+1,
               headerRimIgnoresInput:getComputedStyle(header,'::after').pointerEvents==='none',
               panelRadii:panels.every(panel=>getComputedStyle(panel).borderRadius===shared.getPropertyValue('--aetheris-radius-glass').trim()),
@@ -125,6 +153,39 @@ try {
           const focusHalo = await evaluate(`(() => {const input=document.getElementById('invoice-number');input.focus({preventScroll:true});const visible=input.matches(':focus-visible')&&getComputedStyle(input).boxShadow!=='none';input.blur();return visible;})()`);
           check(focusHalo,'Input focus halo missing');
           await settle();
+        }
+        check(await evaluate(`JSON.stringify([...document.querySelectorAll('.invoice-site-navigation .nav-links a,.invoice-site-navigation .nav-overlay-links a')].map(a=>a.getAttribute('href')))==='["/#section-1","/#section-2","/work","/engineering","/#section-3"]'`),'Shared menu destinations differ from the main site');
+        check(await evaluate(`!document.querySelector('.invoice-site-navigation [aria-current],.invoice-topbar') && getComputedStyle(document.querySelector('.nav-header')).opacity==='1'`),'Standalone menu has a false active section or is hidden');
+        check(await evaluate(`document.querySelector('.invoice-scene').dataset.study==='contour-drift' && getComputedStyle(document.querySelector('.invoice-scene')).pointerEvents==='none'`),'Invoice backdrop is not decorative Contour Drift');
+        check(await evaluate(`document.querySelector('.invoice-actions').getBoundingClientRect().top>=document.querySelector('.nav-header').getBoundingClientRect().bottom`),'Site menu overlaps invoice actions');
+        if (width<=768) {
+          await click('.nav-burger');
+          check(await evaluate(`document.querySelector('.invoice-page').hasAttribute('inert') && document.querySelector('.nav-overlay--open').contains(document.activeElement)`),'Mobile menu did not isolate the form or move focus');
+          await call('Input.dispatchKeyEvent',{type:'keyDown',key:'Tab',code:'Tab',modifiers:8});
+          await call('Input.dispatchKeyEvent',{type:'keyUp',key:'Tab',code:'Tab',modifiers:8});
+          check(await evaluate(`document.activeElement.classList.contains('nav-overlay-theme')`),'Mobile menu focus escaped');
+          await capture('navigation');
+          await call('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape'});
+          await call('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape'});
+          await settle();
+          check(await evaluate(`!document.querySelector('.invoice-page').hasAttribute('inert') && document.activeElement.classList.contains('nav-burger') && document.documentElement.style.overflow==='auto'`),'Mobile menu failed to restore focus or scrolling');
+        }
+        if (fieldReview) {
+          await evaluate('new Promise(resolve=>setTimeout(resolve,1800))');
+          check(await evaluate(`document.querySelector('.creatoros-field-shell').dataset.fieldSpecialization==='sceneContourDrift' && !document.querySelector('.creatoros-field-shell.is-fallback') && window.__invoiceFieldDraws>0`),'Actual Contour Drift shader did not render');
+          await capture('field');
+          await click('.invoice-scene-options button');
+          await evaluate('new Promise(resolve=>setTimeout(resolve,250))');
+          const draws=await evaluate('window.__invoiceFieldDraws');
+          await evaluate('new Promise(resolve=>setTimeout(resolve,300))');
+          check(await evaluate(`window.__invoiceFieldDraws===${draws} && document.querySelector('.invoice-scene').dataset.motion==='paused'`),'Paused field continues drawing');
+          await click('.invoice-scene-options button');
+          await call('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'reduce'}]});
+          await waitForMotion('static');
+          check(await evaluate(`!document.querySelector('.invoice-scene-options button') && document.querySelector('.invoice-scene').dataset.motion==='static'`),'Reduced motion was ignored');
+          await call('Emulation.setEmulatedMedia',{features:[{name:'prefers-reduced-motion',value:'no-preference'}]});
+          await waitForMotion('running');
+          report.fieldContexts=await evaluate('window.__invoiceFieldContexts');
         }
         await capture('top');
         await click('.invoice-draft-menu > summary');
@@ -184,7 +245,9 @@ try {
             await evaluate('const viewer=document.querySelector(".invoice-preview-document");viewer.scrollTop=viewer.scrollHeight;');
             check(await evaluate('document.querySelector(".invoice-document-footer").getBoundingClientRect().bottom<=innerHeight'),'Document end unreachable');
           }
+          if (fieldReview) check(await evaluate(`window.__invoiceFieldContexts===${report.fieldContexts}`),'Editing recreated the decorative graphics context');
           await call('Emulation.setEmulatedMedia',{media:'print'});
+          check(await evaluate(`getComputedStyle(document.querySelector('.invoice-site-navigation')).display==='none' && getComputedStyle(document.querySelector('.invoice-scene')).display==='none'`),'Menu or artwork leaked into the PDF');
           check(await evaluate('getComputedStyle(document.querySelector(".invoice-document-table")).display==="table" && getComputedStyle(document.querySelector(".invoice-document-table tr")).display==="table-row"'),'Mobile cards leaked into print');
           check(await evaluate('getComputedStyle(document.querySelector(".invoice-editor")).display==="none" && getComputedStyle(document.querySelector(".invoice-actions")).display==="none"'),'Editor/actions printed');
           check(await evaluate('getComputedStyle(document.querySelector(".invoice-preview-document")).maxHeight==="none" && getComputedStyle(document.querySelector(".invoice-paper")).display!=="none"'),'Print clipped or hidden');

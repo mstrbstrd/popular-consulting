@@ -26,8 +26,14 @@ This is an unlisted browser tool, not an authenticated accounting system.
   No crypto capability means a manually supplied number is required.
 - Print only a complete document. Invalid browser-print attempts show a warning.
   No print, preview, save or export marks anything sent, paid, or issued.
-- No full-screen animated renderer on this page. ThemeProvider's default
-  background behavior is unchanged; the invoice route explicitly opts out.
+- Only the reused Contour Drift field may render behind this workspace. It never
+  receives invoice data, intercepts input, or appears in print. Pause is explicit;
+  reduced motion renders a static scene, hidden tabs stop drawing, and safe mode
+  or a failed context falls back locally without losing the draft. ThemeProvider's
+  default background is still disabled here to avoid a second renderer.
+- Use the shared NavMenu in standalone mode with the site's existing destinations.
+  The invoice route is never advertised in the menu or marked as another page.
+  Navigation and action-bar heights must not cover focused fields or the preview.
 - New CSS is route-scoped. Print uses a named Letter page with 14mm margins,
   repeatable table headings and kept-together line rows/totals. Other pages keep
   their existing typography, backgrounds, navigation, and print behavior.

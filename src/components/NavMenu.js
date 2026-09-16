@@ -1,21 +1,30 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import logo from "../assets/icons/logo2026_128.png";
 import { useThemeMode } from "../contexts/ThemeContext";
 import { SITE_AUDIENCES, getSiteCopy } from "../content/siteCopy";
+import { getImmersiveRouteDestination } from "./ImmersiveRouteNavigationBridge";
 
-const NavMenu = ({ audience = SITE_AUDIENCES.BUSINESS }) => {
+// Standalone pages use real route links, not homepage-only section-dot clicks.
+const NavMenu = ({ audience = SITE_AUDIENCES.BUSINESS, standalone = false }) => {
   const { isDark, toggleTheme } = useThemeMode();
   const navigation = getSiteCopy(audience).navigation;
   const navLinks = navigation.links;
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  const [isVisible, setIsVisible] = useState(false);
-  const [activeSection, setActiveSection] = useState(0);
+  const [isVisible, setIsVisible] = useState(standalone);
+  const [activeSection, setActiveSection] = useState(standalone ? -1 : 0);
+  const overlayRef = useRef(null);
+  const burgerRef = useRef(null);
+  const Brand = standalone ? "a" : "button";
 
   useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth <= 768);
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 768);
+      if (standalone && window.innerWidth > 768) setIsMobileMenuOpen(false);
+    };
 
     const checkActiveSection = () => {
+      if (standalone) { setIsVisible(true); setActiveSection(-1); return; }
       const dots = document.querySelectorAll(".section-dot");
       const activeDot = document.querySelector(".section-dot.active");
       if (!activeDot) return;
@@ -38,7 +47,45 @@ const NavMenu = ({ audience = SITE_AUDIENCES.BUSINESS }) => {
       window.removeEventListener("resize", checkMobile);
       observer.disconnect();
     };
-  }, []);
+  }, [standalone]);
+
+  useEffect(() => {
+    if (!standalone || !isMobile || !isMobileMenuOpen) return undefined;
+    const overlay = overlayRef.current;
+    const burger = burgerRef.current;
+    const main = document.querySelector("main");
+    const html = document.documentElement;
+    const body = document.body;
+    const previous = { html: html.style.overflow, body: body.style.overflow,
+      inert: main?.hasAttribute("inert") };
+    main?.setAttribute("inert", "");
+    html.style.overflow = "hidden";
+    body.style.overflow = "hidden";
+    const controls = () => Array.from(overlay?.querySelectorAll("a[href], button:not(:disabled)") || []);
+    controls()[0]?.focus({ preventScroll: true });
+    const handleKey = (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault(); setIsMobileMenuOpen(false); return;
+      }
+      if (event.key !== "Tab") return;
+      const items = controls();
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (event.shiftKey && (document.activeElement === first || !overlay?.contains(document.activeElement))) {
+        event.preventDefault(); last?.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !overlay?.contains(document.activeElement))) {
+        event.preventDefault(); first?.focus();
+      }
+    };
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("keydown", handleKey);
+      if (!previous.inert) main?.removeAttribute("inert");
+      html.style.overflow = previous.html;
+      body.style.overflow = previous.body;
+      if (burger?.isConnected) burger.focus({ preventScroll: true });
+    };
+  }, [standalone, isMobile, isMobileMenuOpen]);
 
   const navigate = (sectionIndex) => {
     const dots = document.querySelectorAll(".section-dot");
@@ -49,12 +96,13 @@ const NavMenu = ({ audience = SITE_AUDIENCES.BUSINESS }) => {
   const renderLink = ({ label, section, href }, mobile = false) => {
     const className = mobile ? "nav-overlay-link" : "nav-link";
 
-    if (href) {
-      const external = /^https?:\/\//.test(href);
+    const destination = href || (standalone ? getImmersiveRouteDestination(section) : null);
+    if (destination) {
+      const external = /^https?:\/\//.test(destination);
 
       return (
         <a
-          href={href}
+          href={destination}
           target={external ? "_blank" : undefined}
           rel={external ? "noopener noreferrer" : undefined}
           className={className}
@@ -92,16 +140,17 @@ const NavMenu = ({ audience = SITE_AUDIENCES.BUSINESS }) => {
 
   return (
     <>
-      <header className={`nav-header ${isVisible ? "nav-in" : "nav-out"}`}>
+      <header data-nav-theme={isDark ? "dark" : "light"} className={`nav-header ${isVisible ? "nav-in" : "nav-out"}`}>
         <nav className="nav-pill" aria-label="Primary navigation">
-          <button
+          <Brand
             className="nav-brand"
-            onClick={() => navigate(0)}
+            href={standalone ? "/" : undefined}
+            onClick={standalone ? undefined : () => navigate(0)}
             aria-label={navigation.brandAriaLabel}
           >
             <img src={logo} alt="" aria-hidden="true" className="nav-logo" />
             <span className="nav-brand-name">{navigation.brandLabel}</span>
-          </button>
+          </Brand>
 
           {!isMobile && (
             <>
@@ -148,6 +197,7 @@ const NavMenu = ({ audience = SITE_AUDIENCES.BUSINESS }) => {
 
           {isMobile && (
             <button
+              ref={burgerRef}
               className={`nav-burger${isMobileMenuOpen ? " nav-burger--open" : ""}`}
               onClick={() => setIsMobileMenuOpen((open) => !open)}
               aria-label={isMobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
@@ -164,7 +214,10 @@ const NavMenu = ({ audience = SITE_AUDIENCES.BUSINESS }) => {
 
       {isMobile && (
         <div
+          ref={overlayRef}
           id="mobile-nav-overlay"
+          aria-hidden={standalone ? !isMobileMenuOpen : undefined}
+          inert={standalone && !isMobileMenuOpen ? "" : undefined}
           role="dialog"
           aria-modal="true"
           aria-label="Navigation menu"
