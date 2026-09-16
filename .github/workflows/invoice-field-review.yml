@@ -1,0 +1,31 @@
+name: Invoice field review
+on:
+  push:
+    branches: [design/invoice-field-navigation-20260915]
+    paths: [.github/workflows/invoice-field-review.yml]
+permissions:
+  contents: read
+jobs:
+  review-bundle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+        env:
+          CI: true
+      - name: Package only source and local test dependencies
+        run: tar -czf invoice-review-bundle.tar.gz src public scripts docs .github package.json package-lock.json node_modules build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: invoice-field-review-bundle
+          path: invoice-review-bundle.tar.gz
+          retention-days: 1
+          compression-level: 0
