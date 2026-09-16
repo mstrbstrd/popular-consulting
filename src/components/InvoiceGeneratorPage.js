@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import logo from "../assets/icons/logo2026_128.png";
 import { ThemeProvider } from "../contexts/ThemeContext";
+import { useWorkspaceLocked } from "./RequireAdmin";
 import NavMenu from "./NavMenu";
 import InvoiceGeneratorBackground from "./InvoiceGeneratorBackground";
 import { calculateInvoice, createInvoice, createInvoiceItem, formatInvoiceMoney,
@@ -87,6 +88,7 @@ export const InvoiceDocument = ({ invoice, calculation }) => {
 };
 
 export const InvoiceGeneratorContent = () => {
+  const locked = useWorkspaceLocked();
   const [invoice, setInvoice] = useState(createInvoice);
   const [status, setStatus] = useState("");
   const [actionError, setActionError] = useState("");
@@ -255,6 +257,7 @@ export const InvoiceGeneratorContent = () => {
     finally { if (request === fileRequest.current) setLogoPending(false); }
   };
   const printInvoice = () => {
+    if (locked) return;
     setShowErrors(true);
     if (!ready) {
       setView("editor");
@@ -385,7 +388,7 @@ export const InvoiceGeneratorContent = () => {
             <fieldset><legend><span>04</span> Payment &amp; notes</legend>{field("notes", "invoice-notes", "Payment instructions / notes (optional)", { multiline: true, maxLength: 1500, placeholder: "Payment terms, reference numbers, or a note of thanks." })}</fieldset>
           </form>
           <details className="invoice-device-options"><summary>Privacy &amp; device storage</summary>
-            <p className="invoice-privacy">This unlisted page is not password-protected. Invoice details stay in this browser. Saving is optional, unencrypted, and limited to one draft per browser. Shared-device users and other scripts on this site can access a saved draft. Export a draft for a portable backup.</p>
+            <p className="invoice-privacy">This workspace requires administrator sign-in. Authentication does not encrypt browser-local drafts. Invoice details stay in this browser. Saving is optional, unencrypted, and limited to one draft per browser. Shared-device users and other scripts on this site can access a saved draft. Export a draft for a portable backup.</p>
             <button type="button" onClick={() => { if (window.confirm("Delete the saved device draft? The open invoice will not be changed.")) { try { localStorage.removeItem(INVOICE_DRAFT_KEY); setSavedOnDevice(false); setDirty(true); setStatus("Saved device draft deleted. The open invoice is unchanged."); } catch { setActionError("The browser did not allow deleting the saved draft."); } } }}>Delete saved draft</button>
           </details>
         </section>

@@ -1,3 +1,4 @@
+import AuthNavControl from "./AuthNavControl";
 import React from "react";
 import logo from "../assets/icons/popcon_svg.svg";
 import brandLogo from "../assets/icons/logo2026_128.png";
@@ -406,6 +407,7 @@ const WorkPageContent = () => {
               </span>
               <span>{isDark ? "Light" : "Dark"}</span>
             </button>
+            <AuthNavControl />
           </nav>
         </div>
 
@@ -427,6 +429,7 @@ const WorkPageContent = () => {
                 {link.label}
               </a>
             ))}
+            <AuthNavControl mobile menuRole="menuitem" onNavigate={() => setMenuOpen(false)} />
           </div>
         )}
       </header>

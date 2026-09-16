@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import AuthNavControl from "./AuthNavControl";
 import logo from "../assets/icons/logo2026_128.png";
 import { useThemeMode } from "../contexts/ThemeContext";
 import { SITE_AUDIENCES, getSiteCopy } from "../content/siteCopy";
@@ -195,6 +196,8 @@ const NavMenu = ({ audience = SITE_AUDIENCES.BUSINESS, standalone = false }) => 
             )}
           </button>
 
+          {!isMobile && <AuthNavControl />}
+
           {isMobile && (
             <button
               ref={burgerRef}
@@ -231,6 +234,7 @@ const NavMenu = ({ audience = SITE_AUDIENCES.BUSINESS, standalone = false }) => 
             {navLinks.map((link) => (
               <li key={link.label}>{renderLink(link, true)}</li>
             ))}
+            <li><AuthNavControl mobile onNavigate={() => setIsMobileMenuOpen(false)} /></li>
           </ul>
 
           <button

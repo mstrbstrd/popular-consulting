@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { createBuildServer, findBrowser, runBrowserCapture } from "./dark-evidence-browser.mjs";
+import { createBuildServer } from "./auth-invoice-test-server.mjs";
+import { findBrowser, runBrowserCapture } from "./dark-evidence-browser.mjs";
 
 // Interact with the real local production bundle, not a duplicate form.
 // No writes to production, actual invoices, or external services.

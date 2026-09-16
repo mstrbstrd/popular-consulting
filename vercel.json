@@ -1,6 +1,66 @@
 {
   "headers": [
     {
+      "source": "/_private/:path*",
+      "headers": [
+        { "key": "Cache-Control", "value": "private, no-store, max-age=0" },
+        { "key": "Vercel-CDN-Cache-Control", "value": "no-store" },
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow, noarchive" },
+        { "key": "Referrer-Policy", "value": "no-referrer" },
+        { "key": "X-Frame-Options", "value": "DENY" }
+      ]
+    },
+    {
+      "source": "/login",
+      "headers": [
+        { "key": "Cache-Control", "value": "private, no-store, max-age=0" },
+        { "key": "Vercel-CDN-Cache-Control", "value": "no-store" },
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow, noarchive" },
+        { "key": "Referrer-Policy", "value": "no-referrer" },
+        { "key": "X-Frame-Options", "value": "DENY" }
+      ]
+    },
+    {
+      "source": "/login/:path*",
+      "headers": [
+        { "key": "Cache-Control", "value": "private, no-store, max-age=0" },
+        { "key": "Vercel-CDN-Cache-Control", "value": "no-store" },
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow, noarchive" },
+        { "key": "Referrer-Policy", "value": "no-referrer" },
+        { "key": "X-Frame-Options", "value": "DENY" }
+      ]
+    },
+    {
+      "source": "/logout",
+      "headers": [
+        { "key": "Cache-Control", "value": "private, no-store, max-age=0" },
+        { "key": "Vercel-CDN-Cache-Control", "value": "no-store" },
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow, noarchive" },
+        { "key": "Referrer-Policy", "value": "no-referrer" },
+        { "key": "X-Frame-Options", "value": "DENY" }
+      ]
+    },
+    {
+      "source": "/logout/:path*",
+      "headers": [
+        { "key": "Cache-Control", "value": "private, no-store, max-age=0" },
+        { "key": "Vercel-CDN-Cache-Control", "value": "no-store" },
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow, noarchive" },
+        { "key": "Referrer-Policy", "value": "no-referrer" },
+        { "key": "X-Frame-Options", "value": "DENY" }
+      ]
+    },
+    {
+      "source": "/api/auth/:path*",
+      "headers": [
+        { "key": "Cache-Control", "value": "private, no-store, max-age=0" },
+        { "key": "Vercel-CDN-Cache-Control", "value": "no-store" },
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow, noarchive" },
+        { "key": "Referrer-Policy", "value": "no-referrer" },
+        { "key": "X-Frame-Options", "value": "DENY" }
+      ]
+    },
+    {
       "source": "/invoice-generator",
       "headers": [
         { "key": "X-Robots-Tag", "value": "noindex, nofollow, noarchive" },
@@ -55,6 +115,8 @@
     }
   ],
   "rewrites": [
+    { "source": "/login", "destination": "/login/index.html" },
+    { "source": "/logout", "destination": "/logout/index.html" },
     { "source": "/invoice-generator", "destination": "/invoice-generator/index.html" },
     { "source": "/invoice-generator/:path*", "destination": "/invoice-generator/index.html" },
     { "source": "/engineering", "destination": "/engineering/index.html" },
@@ -65,9 +127,10 @@
     { "source": "/orb/:path*", "destination": "/orb/index.html" },
     { "source": "/game", "destination": "/game/index.html" },
     { "source": "/game/:path*", "destination": "/game/index.html" },
-    { "source": "/((?!static/|api/).*)", "destination": "/index.html" }
+    { "source": "/((?!static/|api/|_private/).*)", "destination": "/index.html" }
   ],
   "functions": {
-    "api/metabloom.js": { "maxDuration": 30 }
+    "api/metabloom.js": { "maxDuration": 30 },
+    "api/auth/[action].js": { "maxDuration": 30 }
   }
 }

@@ -10,7 +10,7 @@ import SectionDeepLinkBridge from "./components/SectionDeepLinkBridge";
 const App = React.lazy(() => import("./App"));
 const WorkPage = React.lazy(() => import("./components/WorkPage"));
 const OrbPage = React.lazy(() => import("./components/OrbPage"));
-const InvoiceGeneratorPage = React.lazy(() => import("./components/InvoiceGeneratorPage"));
+const AuthPage = React.lazy(() => import("./components/AuthPage"));
 const DitherCanvasPage = React.lazy(() =>
   import("./components/DitherCanvasPage"),
 );
@@ -31,11 +31,15 @@ export const SITE_VIEWS = Object.freeze({
   GAME: "game",
   DITHER_CANVAS: "dither-canvas",
   INVOICE_GENERATOR: "invoice-generator",
+  LOGIN: "login",
+  LOGOUT: "logout",
 });
 
 export const resolveSiteView = (pathname = "/") => {
   const normalized = pathname.replace(/\/+$/, "") || "/";
 
+  if (normalized === "/login" || normalized === "/login/index.html") return SITE_VIEWS.LOGIN;
+  if (normalized === "/logout" || normalized === "/logout/index.html") return SITE_VIEWS.LOGOUT;
   if (normalized === "/work") return SITE_VIEWS.WORK;
   if (normalized === "/engineering") return SITE_VIEWS.ENGINEERING;
   if (normalized === "/orb") return SITE_VIEWS.ORB;
@@ -65,7 +69,10 @@ const SiteRouter = ({ pathname = window.location.pathname }) => {
   if (view === SITE_VIEWS.WORK) {
     page = <WorkPage />;
   } else if (view === SITE_VIEWS.INVOICE_GENERATOR) {
-    page = <InvoiceGeneratorPage />;
+    // The actual editor exists only in the middleware-protected private build.
+    page = <AuthPage />;
+  } else if (view === SITE_VIEWS.LOGIN || view === SITE_VIEWS.LOGOUT) {
+    page = <AuthPage logoutPage={view === SITE_VIEWS.LOGOUT} />;
   } else if (view === SITE_VIEWS.ORB) {
     page = <OrbPage />;
   } else if (view === SITE_VIEWS.GAME) {

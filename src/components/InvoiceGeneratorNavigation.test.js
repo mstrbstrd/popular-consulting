@@ -37,9 +37,9 @@ test("uses the real menu with working standalone routes, no invented active link
   render(<InvoiceGeneratorPage />);
   const menu = screen.getByRole("navigation", { name: "Primary navigation" });
   expect(menu.closest("header")).toHaveClass("nav-in");
-  const expected = ["/", "/#section-1", "/#section-2", "/work", "/engineering", "/#section-3"];
+  const expected = ["/", "/#section-1", "/#section-2", "/work", "/engineering", "/#section-3", "/login"];
   expect(within(menu).getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual(expected);
-  expect(within(menu).getAllByRole("link").slice(1).map((link) => link.textContent))
+  expect(within(menu).getAllByRole("link").slice(1, -1).map((link) => link.textContent))
     .toEqual(getSiteCopy().navigation.links.map((link) => link.label));
   expect(menu.querySelector("[aria-current]")).toBeNull();
   expect(document.querySelector(".invoice-topbar")).toBeNull();

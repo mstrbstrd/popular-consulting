@@ -1,7 +1,8 @@
 # Invoice generator
 
 Route: `/invoice-generator`. Direct access only, absent from site navigation.
-This is an unlisted browser tool, not an authenticated accounting system.
+The hosted workspace is administrator-only. See `authentication.md` for session
+configuration and release checks. It is not an accounting system.
 
 ## Boundaries
 
@@ -32,7 +33,8 @@ This is an unlisted browser tool, not an authenticated accounting system.
   or a failed context falls back locally without losing the draft. ThemeProvider's
   default background is still disabled here to avoid a second renderer.
 - Use the shared NavMenu in standalone mode with the site's existing destinations.
-  The invoice route is never advertised in the menu or marked as another page.
+  The invoice route is advertised only by the authenticated administrator account
+  control, never to anonymous visitors or marked as another page.
   Navigation and action-bar heights must not cover focused fields or the preview.
 - New CSS is route-scoped. Print uses a named Letter page with 14mm margins,
   repeatable table headings and kept-together line rows/totals. Other pages keep

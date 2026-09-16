@@ -7,14 +7,14 @@ import SiteRouter, { resolveSiteView, SITE_VIEWS } from "./SiteRouter";
 import metadata from "./content/routeMetadata.json";
 
 jest.mock("./utils/deviceTier", () => ({ hasHardwareWebGL: false }));
-jest.mock("./components/InvoiceGeneratorPage", () => () => <div data-testid="invoice-route">Invoice</div>);
+jest.mock("./components/AuthPage", () => () => <div data-testid="login-route">Sign in</div>);
 jest.mock("./components/SectionDeepLinkBridge", () => ({ enabled }) => <div data-testid="invoice-deep-link" data-enabled={String(enabled)} />);
 const read = (file) => fs.readFileSync(path.join(process.cwd(), file), "utf8");
 
-test.each(["/invoice-generator", "/invoice-generator/", "/invoice-generator/index.html"])("resolves the unlisted utility at %s without WebGL", async (pathname) => {
+test.each(["/invoice-generator", "/invoice-generator/", "/invoice-generator/index.html"])("resolves the private route at %s without importing its editor into the public app", async (pathname) => {
   expect(resolveSiteView(pathname)).toBe(SITE_VIEWS.INVOICE_GENERATOR);
   render(<SiteRouter pathname={pathname} />);
-  expect(await screen.findByTestId("invoice-route")).toBeInTheDocument();
+  expect(await screen.findByTestId("login-route")).toBeInTheDocument();
   expect(screen.getByTestId("invoice-deep-link")).toHaveAttribute("data-enabled", "false");
 });
 
@@ -34,9 +34,12 @@ test("generates noindex HTML and places invoice rewrites before the catch-all", 
   }
 });
 
-test("no public component navigation link points to the invoice generator", () => {
+test("only authorization-aware controls advertise the invoice generator", () => {
+  expect(read("src/SiteRouter.js")).not.toContain('import("./components/InvoiceGeneratorPage")');
+  expect(read("middleware.js")).toContain("protectInvoiceRequest");
+  expect(read("src/components/AuthNavControl.js")).toContain("signedIn &&");
   const directory = path.join(process.cwd(), "src/components");
-  fs.readdirSync(directory).filter((name) => name.endsWith(".js") && !name.includes(".test.") && name !== "InvoiceGeneratorPage.js").forEach((name) => {
+  fs.readdirSync(directory).filter((name) => name.endsWith(".js") && !name.includes(".test.") && !["InvoiceGeneratorPage.js", "AuthNavControl.js", "AuthPage.js"].includes(name)).forEach((name) => {
     expect(read(`src/components/${name}`)).not.toMatch(/href(?:=|:)\s*["']\/invoice-generator/);
   });
 });
