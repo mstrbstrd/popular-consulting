@@ -34,6 +34,11 @@
 @media (max-width: 768px) { .auth-page { padding: 100px 20px 40px; } .auth-card { margin-top: 14px; } }
 @media (forced-colors: active) { .auth-card, .auth-lock { border: 1px solid CanvasText; background: Canvas; color: CanvasText; } }
 @media print {
+  /* The legacy print shell only admitted a direct .invoice-page under #root.
+     Admit its auth wrapper, not locked content. The attribute makes this win
+     over that old selector regardless of public/private CSS bundle ordering. */
+  html.invoice-route #root > .auth-guard[data-authorized] { display: block !important; }
+  .auth-guard[data-authorized="false"] > .auth-protected-content { display: none !important; }
   .auth-lock, .auth-page, .site-account-menu, .site-account-control { display: none !important; }
   .auth-workspace-locked .auth-protected-content, .auth-revalidating .auth-protected-content { display: none !important; }
   .auth-workspace-locked .auth-print-lock, .auth-revalidating .auth-print-lock { display: block; color: #000; font-size: 14pt; }
