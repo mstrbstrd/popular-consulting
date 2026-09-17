@@ -1,7 +1,7 @@
 import * as oidc from 'openid-client';
 import { SESSION_COOKIE, LOGIN_COOKIE, SESSION_SECONDS, LOGIN_SECONDS, PRIVATE_HEADERS,
   readAuthConfig, createAuthStore, readAdminSession, readCookie, randomToken, digest, cookie,
-  sameOriginPost, authResponse, isToken, readPasskeyProof, SESSION_VERSION } from './auth-session.mjs';
+  sameOriginPost, authResponse, isToken, readPasskeyProof, getPasskeyProofFailure, SESSION_VERSION } from './auth-session.mjs';
 
 let discovered;
 let discoveryKey;
@@ -23,7 +23,7 @@ const redirect = (location, cookies = []) => {
 };
 
 // Dependencies are injectable only in server tests, never through request flags or environment bypasses.
-export function createAuthHandler({ env = process.env, storeFactory = createAuthStore, getOidcConfig = discover, now = () => Date.now() } = {}) {
+export function createAuthHandler({ env = process.env, storeFactory = createAuthStore, getOidcConfig = discover, now = () => Date.now(), reportFailure = entry => console.warn(JSON.stringify(entry)) } = {}) {
   return async function handleAuth(request, address = 'unknown') {
     let config;
     try { config = readAuthConfig(env); }
@@ -90,8 +90,15 @@ export function createAuthHandler({ env = process.env, storeFactory = createAuth
         // Exact owner AND a fresh signed passkey attestation, never password/MFA
         // fallback or merely having a passkey enrolled on the Auth0 user profile.
         if (!claims || claims.iss !== config.issuer || !config.adminSubjects.includes(claims.sub)) return failed();
-        const authentication = readPasskeyProof(claims, transaction.createdAt, now());
-        if (!authentication) return failed('passkey_required');
+        const verifiedAt = now();
+        const authentication = readPasskeyProof(claims, transaction.createdAt, verifiedAt);
+        if (!authentication) {
+          // Static categories only. Never log claims, tokens, IDs, email, cookies,
+          // callback URLs, exception objects or Auth0 method timestamps.
+          try { reportFailure({ event: 'auth_passkey_denied', reason: getPasskeyProofFailure(claims, transaction.createdAt, verifiedAt) }); }
+          catch { /* Diagnostics must never change an authorization decision. */ }
+          return failed('passkey_required');
+        }
         const sessionToken = randomToken();
         const issuedAt = now();
         const name = typeof claims.name === 'string' ? claims.name.replace(/[\x00-\x1f\x7f]/g, '').slice(0, 80) : 'Administrator';
