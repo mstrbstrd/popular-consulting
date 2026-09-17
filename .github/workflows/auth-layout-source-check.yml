@@ -1,0 +1,34 @@
+name: Authentication layout review source
+on:
+  push:
+    branches: [verify/auth-layout-source-20260917]
+permissions:
+  contents: read
+jobs:
+  review-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      - name: Verify released application source
+        run: git diff --exit-code 1132d393e1c10b606dd318b22d29393b3bdae284 -- src server scripts public api auth0 middleware.js vercel.json package.json package-lock.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+        env:
+          CI: true
+      - name: Package public source and isolated test dependencies, never runtime secrets
+        run: |
+          tar -czf auth-layout-review.tar.gz src server scripts public api auth0 middleware.js vercel.json package.json package-lock.json CLAUDE.md docs .github/workflows node_modules build
+          sha256sum auth-layout-review.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: auth-layout-review-source
+          path: auth-layout-review.tar.gz
+          retention-days: 1
