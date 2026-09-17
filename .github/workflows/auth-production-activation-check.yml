@@ -1,0 +1,145 @@
+name: Production auth activation check
+on:
+  push:
+    branches: [verify/auth-production-20260917]
+permissions:
+  contents: read
+jobs:
+  anonymous-production:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+      - name: Verify production source is unchanged
+        run: git diff --exit-code 1132d393e1c10b606dd318b22d29393b3bdae284 -- src server api auth0 middleware.js vercel.json package.json package-lock.json scripts public
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+        env:
+          CI: true
+      - name: Check live routes and isolated assets without authentication
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import path from 'node:path';
+          const origin = 'https://popular-consulting.com';
+          const rows = [];
+          const failures = [];
+          const check = (condition, message) => { if (!condition) failures.push(message); };
+          const json = text => { try { return JSON.parse(text); } catch { return null; } };
+          async function request(route, options = {}) {
+            const response = await fetch(origin + route, {
+              method: options.method || 'GET', redirect: 'manual', credentials: 'omit',
+              signal: AbortSignal.timeout(15000),
+              headers: { 'Cache-Control': 'no-cache', ...options.headers },
+            });
+            const body = await response.text();
+            const location = response.headers.get('location');
+            let safeLocation = null;
+            if (location) {
+              const parsed = new URL(location, origin);
+              safeLocation = parsed.origin + parsed.pathname;
+            }
+            rows.push({ route, method: options.method || 'GET', status: response.status,
+              location: safeLocation, cacheControl: response.headers.get('cache-control'),
+              contentType: response.headers.get('content-type'), bytes: Buffer.byteLength(body) });
+            return { response, body, location };
+          }
+          async function run(label, action) {
+            try { await action(); } catch { failures.push(label + ': request or verification failed'); }
+          }
+          function denied(result, label, { page = false, encoded = false } = {}) {
+            const { response, body, location } = result;
+            const redirect = [302, 303, 307, 308].includes(response.status) &&
+              location && new URL(location, origin).href === origin + '/login';
+            check(page ? redirect : (redirect || response.status === 401 || (encoded && response.status === 400)), label + ': unexpected access response');
+            check(/no-store/i.test(response.headers.get('cache-control') || ''), label + ': missing no-store');
+            check(!body.includes('popcon-invoice-draft-v1') && !body.includes('/_private/invoice/app-') &&
+              !body.includes('Your totals appear here once each item'), label + ': private content returned');
+          }
+          for (const route of ['/', '/work', '/login', '/logout']) await run(route, async () => {
+            const { response, body } = await request(route);
+            check(response.status === 200 && /text\/html/i.test(response.headers.get('content-type') || '') &&
+              body.includes('id="root"'), route + ': public document unavailable');
+            if (route === '/login') {
+              const expected = fs.readFileSync('build/login/index.html', 'utf8').match(/<title>(.*?)<\/title>/)?.[1];
+              check(expected && body.includes('<title>' + expected + '</title>'), 'login document: wrong route/build');
+            }
+          });
+          await run('anonymous session', async () => {
+            const { response, body } = await request('/api/auth/session');
+            const session = json(body);
+            check(response.status === 200 && session?.authenticated === false && !session?.user && !session?.csrfToken,
+              'session endpoint: expected anonymous JSON');
+            check(/no-store/i.test(response.headers.get('cache-control') || ''), 'session endpoint: missing no-store');
+          });
+          for (const route of ['/invoice-generator', '/invoice-generator/', '/invoice-generator/index.html', '/invoice-generator/nested']) {
+            for (const method of ['GET', 'HEAD']) await run(method + ' ' + route, async () => denied(await request(route, { method }), method + ' ' + route, { page: true }));
+          }
+          function files(directory) {
+            return fs.readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
+              const file = path.join(directory, entry.name);
+              return entry.isDirectory() ? files(file) : [file];
+            });
+          }
+          const assets = files('build/_private/invoice');
+          check(assets.some(file => file.endsWith('.js')) && assets.some(file => file.endsWith('.css')), 'private build: missing JS/CSS');
+          check(assets.length <= 30, 'private build: unexpected asset count');
+          for (const asset of assets.slice(0, 30)) {
+            const route = '/' + path.relative('build', asset).split(path.sep).join('/');
+            await run(route, async () => denied(await request(route), route));
+          }
+          for (const route of ['/%69nvoice-generator/index.html', '/%5Fprivate/invoice/app.js', '/%255Fprivate/invoice/app.js', '/static/..%2f_private/invoice/app.js']) {
+            await run(route, async () => denied(await request(route), route, { encoded: true }));
+          }
+          // Prove login initiation can reach discovery and create its Redis transaction.
+          // This is not a completed Auth0/passkey login. No owner credential is used.
+          let loginCookie;
+          await run('login initiation', async () => {
+            try {
+              const result = await request('/api/auth/login', { method: 'POST', headers: { Origin: origin, 'Sec-Fetch-Site': 'same-origin' } });
+              const data = json(result.body);
+              check(result.response.status === 200 && typeof data?.authorizationUrl === 'string', 'login initiation: not ready');
+              const cookies = result.response.headers.getSetCookie();
+              const rawCookie = cookies.find(value => value.startsWith('__Host-popcon-login='));
+              loginCookie = rawCookie?.split(';')[0];
+              if (result.response.status === 200) {
+                const target = new URL(data.authorizationUrl);
+                check(target.protocol === 'https:' && target.searchParams.get('redirect_uri') === origin + '/api/auth/callback' &&
+                  target.searchParams.get('code_challenge_method') === 'S256' && target.searchParams.get('state') &&
+                  target.searchParams.get('nonce'), 'login initiation: incorrect authorization parameters');
+                check(rawCookie && ['HttpOnly', 'Secure', 'SameSite=Lax', 'Path=/'].every(flag => rawCookie.includes(flag)) &&
+                  !rawCookie.includes('Domain='), 'login initiation: incorrect transaction cookie flags');
+              }
+            } finally {
+              if (loginCookie) {
+                const result = await request('/api/auth/logout', { method: 'POST', headers: { Origin: origin,
+                  'Sec-Fetch-Site': 'same-origin', Cookie: loginCookie } });
+                check(result.response.status === 200 && json(result.body)?.loggedOut === true,
+                  'disposable login transaction cleanup failed');
+              }
+            }
+          });
+          const report = { origin, releasedCommit: '1132d393e1c10b606dd318b22d29393b3bdae284',
+            checkedAt: new Date().toISOString(), privateAssets: assets.length, rows, failures,
+            limitations: ['No real passkey, owner session, authenticated cache or revocation test.',
+              'No deployment-alias or historical-deployment coverage; main domain only.',
+              'Private asset paths are from the rebuilt released source.'] };
+          fs.writeFileSync('production-auth-check.json', JSON.stringify(report, null, 2));
+          for (const row of rows) console.log(JSON.stringify(row));
+          console.log(JSON.stringify({ requests: rows.length, privateAssets: assets.length, failures }));
+          if (failures.length) process.exitCode = 1;
+          NODE
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: production-auth-check
+          path: production-auth-check.json
+          if-no-files-found: ignore
+          retention-days: 7
