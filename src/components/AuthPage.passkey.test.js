@@ -24,8 +24,10 @@ test('normal login directs the owner to passkeys, not paid MFA or public registr
 test('enrollment/password callback explains the next passkey login without granting access', () => {
   window.history.replaceState({}, '', '/login?error=passkey_required');
   render(<AuthPage />);
-  expect(screen.getByRole('alert')).toHaveTextContent('If you just created your first passkey, sign in again using it.');
-  expect(screen.getByRole('alert')).toHaveTextContent('Password-only sign-in does not unlock');
+  expect(screen.getByRole('alert')).toHaveTextContent('Passkey verification incomplete.');
+  expect(screen.getByRole('alert')).toHaveTextContent('Your workspace stays locked');
+  expect(screen.getByText('Need help signing in?')).toBeVisible();
+  expect(screen.getByText(/If you just created your first passkey/)).not.toBeVisible();
   expect(screen.queryByRole('link', { name: /invoice generator/i })).not.toBeInTheDocument();
 });
 test('a rejected identity remains generic and arbitrary query strings never render as errors', () => {
@@ -37,4 +39,16 @@ test('a rejected identity remains generic and arbitrary query strings never rend
   render(<AuthPage />);
   expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   expect(screen.queryByRole('link', { name: /invoice generator/i })).not.toBeInTheDocument();
+});
+
+test('account page uses a normal-flow content shell without changing the shared navigation', () => {
+  const { container } = render(<AuthPage />);
+  expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Sign in.');
+  expect(container.querySelector('.auth-content > main.auth-card')).toBeInTheDocument();
+});
+test('a stale login error does not appear on the logout page', () => {
+  window.history.replaceState({}, '', '/logout?error=passkey_required');
+  render(<AuthPage logoutPage />);
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  expect(screen.queryByText('Need help signing in?')).not.toBeInTheDocument();
 });

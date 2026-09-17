@@ -50,20 +50,25 @@ export default function AuthPage({ logoutPage = false }) {
   const passkeyRequired = error === 'passkey_required';
   return <ThemeProvider enableBackground={false}><div className="auth-page">
     <NavMenu standalone />
-    <main className="auth-card" aria-labelledby="auth-title">
+    <div className="auth-content"><main className="auth-card" aria-labelledby="auth-title">
       <p className="auth-eyebrow">Popular Consulting / Account</p>
-      <h1 id="auth-title">{logoutPage ? 'End this session.' : signedIn ? 'Welcome back.' : 'Your workspace awaits.'}</h1>
-      <p className="auth-intro">{logoutPage ? 'Save or export unfinished invoices before signing out. Signing out also closes invoice workspaces in your other open tabs.' : 'Sign in securely to access your private tools. The public site stays open to everyone.'}</p>
+      <h1 id="auth-title">{logoutPage ? 'Sign out.' : signedIn ? 'Welcome back.' : 'Sign in.'}</h1>
+      <p className="auth-intro">{logoutPage ? 'Save or export unfinished invoices before signing out. Signing out also closes invoice workspaces in your other open tabs.' : 'Use your passkey to open your private workspace.'}</p>
       {status === 'loading' && <p role="status">Checking your session…</p>}
       {status === 'unavailable' && <div className="auth-notice" role="status"><p>Sign-in is temporarily unavailable. Private tools remain locked.</p><button type="button" onClick={refresh}>Try again</button></div>}
-      {denied && !signedIn && <p className="auth-notice" role="alert">Access was not granted. Use the approved administrator account and sign in with a passkey. Expired sign-in links can be retried below.</p>}
-      {passkeyRequired && !signedIn && <p className="auth-notice" role="alert">A passkey sign-in could not be verified. Choose Continue with a passkey in Auth0. If you just created your first passkey, sign in again using it. Password-only sign-in does not unlock this workspace.</p>}
+      {!logoutPage && denied && !signedIn && <p className="auth-notice" role="alert">Use the approved administrator account and sign in with a passkey. You can retry an expired sign-in below.</p>}
+      {!logoutPage && passkeyRequired && !signedIn && <div className="auth-notice" role="alert"><strong>Passkey verification incomplete.</strong><p>Choose Continue with a passkey in Auth0. Your workspace stays locked until it is verified.</p></div>}
       {!logoutPage && signedIn && <a className="auth-primary" href="/invoice-generator">Open invoice generator <span aria-hidden="true">↗</span></a>}
       {!logoutPage && !signedIn && status !== 'unavailable' && status !== 'loading' && <form method="post" action="/api/auth/login" onSubmit={event => { event.preventDefault(); signIn(); }}><button className="auth-primary" type="submit" disabled={busy}>{busy ? 'Opening sign-in…' : 'Continue to secure sign-in'} <span aria-hidden="true">↗</span></button><p className="auth-note">Use your passkey in Auth0 to continue. Public account registration is not available.</p></form>}
+      {!logoutPage && passkeyRequired && !signedIn && <details className="auth-help">
+        <summary>Need help signing in?</summary>
+        <p>If you just created your first passkey, sign in again using it. Password-only sign-in does not unlock this workspace.</p>
+        <p>Already used a passkey? Do not reset it or recreate your account. The Auth0 Action or its verification may need checking.</p>
+      </details>}
       {logoutPage && signedIn && <form onSubmit={event => { event.preventDefault(); signOut(); }}><label className="auth-checkbox"><input type="checkbox" checked={clearDraft} onChange={event => setClearDraft(event.target.checked)}/>Delete the saved invoice draft on this device</label><button className="auth-primary" disabled={busy} type="submit">{busy ? 'Signing out…' : 'Sign out'}</button><p className="auth-note">Without deletion, browser-local drafts remain unencrypted on this device. Exported files are not affected.</p></form>}
       {message && <p className="auth-notice" role="status">{message}</p>}
       {logoutPage && !signedIn && status === 'anonymous' && !message && <p role="status">You are not signed in on this device.</p>}
       <a className="auth-back" href="/">Back to Popular Consulting</a>
-    </main>
+    </main></div>
   </div></ThemeProvider>;
 }

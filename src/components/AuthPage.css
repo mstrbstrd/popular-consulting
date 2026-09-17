@@ -8,7 +8,7 @@
 .site-account-panel a:hover { background: #8a7c8815; }
 [data-theme="dark"] .site-account-panel { color: #f6eef2; background: #18151a; border-color: #605563; }
 .site-account-control:focus-visible, .site-account-panel a:focus-visible { outline: 2px solid currentColor; outline-offset: 4px; }
-.auth-page { min-height: 100dvh; padding: 140px 24px 60px; color: #30262c; background: radial-gradient(ellipse at 10% 20%, #24ccff12, transparent 60%), radial-gradient(ellipse at 90% 80%, #ff56d610, transparent 60%), #fff8f7; font: 400 16px/1.6 var(--aetheris-font-sans); }
+.auth-page { min-height: 100dvh; display: flex; flex-direction: column; padding: 0; color: #30262c; background: radial-gradient(ellipse at 10% 20%, #24ccff12, transparent 60%), radial-gradient(ellipse at 90% 80%, #ff56d610, transparent 60%), #fff8f7; font: 400 16px/1.6 var(--aetheris-font-sans); }
 .auth-card, .auth-lock { width: min(100%, 520px); margin: 4vh auto 0; padding: clamp(24px, 4vw, 44px); border: 1px solid transparent; border-radius: var(--aetheris-radius-glass); background: linear-gradient(#fffaf9, #fffaf9) padding-box, var(--aetheris-spectral-border-soft) border-box; box-shadow: 0 16px 48px #43323a0a; }
 .auth-page .auth-eyebrow, .auth-lock .auth-eyebrow { margin: 0 0 22px; font: 400 11px/1.6 var(--aetheris-font-mono); letter-spacing: .12em; text-transform: uppercase; }
 .auth-page h1, .auth-lock h1 { margin: 0 0 18px; font: 500 clamp(32px, 4vw, 46px)/1.08 var(--aetheris-font-sans); letter-spacing: -.035em; }
@@ -31,7 +31,34 @@
 .auth-lock > a:last-child { display: inline-flex; min-height: 44px; align-items: center; margin-top: 12px; color: inherit; }
 .auth-protected-content[hidden], .auth-revalidating .auth-protected-content { display: none !important; }
 .auth-print-lock { display: none; }
-@media (max-width: 768px) { .auth-page { padding: 100px 20px 40px; } .auth-card { margin-top: 14px; } }
+/* The actual NavMenu stays in document flow on account pages only. Fixed
+   navigation plus a guessed top spacer let tall desktop error cards scroll
+   underneath it. Neither the card nor its controls become an inner scroller. */
+.auth-page > .nav-header { position: relative; inset: auto; flex: none; width: 100%; padding: max(16px, env(safe-area-inset-top)) 24px 12px; }
+.auth-page .auth-content { flex: 1; display: grid; place-items: center; min-width: 0; width: 100%; padding: clamp(16px, 3vh, 32px) clamp(16px, 3vw, 32px) max(24px, env(safe-area-inset-bottom)); }
+.auth-page .auth-card { width: min(100%, 560px); min-width: 0; margin: 0; padding: clamp(24px, 3vw, 36px); overflow-wrap: anywhere; }
+.auth-page .auth-eyebrow { margin-bottom: 16px; font-size: 10px; letter-spacing: .1em; }
+.auth-page h1 { margin-bottom: 12px; font-size: clamp(32px, 3vw, 42px); line-height: 1.08; }
+.auth-page .auth-intro { margin-bottom: 20px; font-size: 15px; line-height: 1.55; }
+.auth-page form { margin-top: 18px; }
+.auth-page .auth-notice { margin: 16px 0; padding: 12px 14px; font-size: 14px; line-height: 1.5; }
+.auth-page .auth-notice strong { display: block; font-weight: 600; margin-bottom: 6px; }
+.auth-page .auth-notice p:last-child { margin-bottom: 0; }
+.auth-page .auth-primary { gap: 12px; }
+.auth-page .auth-primary > span { flex: none; }
+.auth-page .auth-note { font-size: 12px; margin-top: 10px; }
+.auth-page .auth-back { margin-top: 18px; font-size: 12px; }
+.auth-page .auth-help { margin-top: 12px; font-size: 13px; line-height: 1.55; }
+.auth-page .auth-help summary { display: list-item; min-height: 44px; padding: 12px 0; cursor: pointer; font-size: 13px; }
+.auth-page .auth-help summary:focus-visible { outline: 2px solid currentColor; outline-offset: 4px; }
+.auth-page .auth-help p { font-size: 13px; line-height: 1.55; margin: 0 0 12px; }
+@media (max-width: 768px) {
+  .auth-page > .nav-header { padding-right: max(16px, env(safe-area-inset-right)); padding-left: max(16px, env(safe-area-inset-left)); }
+}
+@media (max-height: 700px) {
+  .auth-page .auth-content { padding-top: 12px; padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+  .auth-page .auth-card { padding-block: 24px; }
+}
 @media (forced-colors: active) { .auth-card, .auth-lock { border: 1px solid CanvasText; background: Canvas; color: CanvasText; } }
 @media print {
   /* The legacy print shell only admitted a direct .invoice-page under #root.

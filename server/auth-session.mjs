@@ -141,20 +141,26 @@ export function createAuthStore(config, fetchImpl = fetch) {
 
 // Call ONLY after the OIDC library has verified signature, issuer, audience,
 // nonce and auth_time. This is an Auth0 Action claim, not a browser assertion.
-export function readPasskeyProof(claims, startedAt, now = Date.now()) {
+export function getPasskeyProofFailure(claims, startedAt, now = Date.now()) {
   const proof = claims?.[PASSKEY_CLAIM];
-  const seconds = Math.floor(now / 1000);
+  if (proof === undefined) return 'proof_missing';
   if (!proof || typeof proof !== 'object' || Array.isArray(proof) ||
     Object.keys(proof).length !== 3 || proof.version !== 1 || proof.method !== 'passkey' ||
-    !Number.isSafeInteger(proof.authenticatedAt) || proof.authenticatedAt <= 0 ||
-    !Number.isSafeInteger(claims.auth_time) || claims.auth_time <= 0 ||
-    !Number.isSafeInteger(now) || now <= 0 ||
-    !Number.isSafeInteger(startedAt) || startedAt <= 0 || startedAt > now ||
-    proof.authenticatedAt < Math.floor(startedAt / 1000) - AUTH_CLOCK_SKEW_SECONDS ||
-    proof.authenticatedAt > seconds + AUTH_CLOCK_SKEW_SECONDS ||
-    seconds - proof.authenticatedAt > PASSKEY_MAX_AGE_SECONDS ||
-    Math.abs(proof.authenticatedAt - claims.auth_time) > AUTH_CLOCK_SKEW_SECONDS) return null;
-  return { authenticationMethod: 'passkey', authenticatedAt: proof.authenticatedAt };
+    !Number.isSafeInteger(proof.authenticatedAt) || proof.authenticatedAt <= 0) return 'proof_malformed';
+  if (!Number.isSafeInteger(claims.auth_time) || claims.auth_time <= 0) return 'auth_time_invalid';
+  if (!Number.isSafeInteger(now) || now <= 0 || !Number.isSafeInteger(startedAt) ||
+    startedAt <= 0 || startedAt > now) return 'transaction_time_invalid';
+  const seconds = Math.floor(now / 1000);
+  if (proof.authenticatedAt < Math.floor(startedAt / 1000) - AUTH_CLOCK_SKEW_SECONDS) return 'proof_before_login';
+  if (proof.authenticatedAt > seconds + AUTH_CLOCK_SKEW_SECONDS) return 'proof_in_future';
+  if (seconds - proof.authenticatedAt > PASSKEY_MAX_AGE_SECONDS) return 'proof_expired';
+  if (Math.abs(proof.authenticatedAt - claims.auth_time) > AUTH_CLOCK_SKEW_SECONDS) return 'auth_time_mismatch';
+  return null;
+}
+
+export function readPasskeyProof(claims, startedAt, now = Date.now()) {
+  if (getPasskeyProofFailure(claims, startedAt, now)) return null;
+  return { authenticationMethod: 'passkey', authenticatedAt: claims[PASSKEY_CLAIM].authenticatedAt };
 }
 
 export async function readAdminSession(request, config, store, now = Date.now()) {
