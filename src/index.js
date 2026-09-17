@@ -12,6 +12,7 @@ import './work-navigation-refinement.css';
 import './work-card-consistency.css';
 import './immersive-viewport.css';
 import SiteRouter from './SiteRouter';
+import { AuthProvider } from './contexts/AuthContext';
 import InteractionAccessibilityBridge from './components/InteractionAccessibilityBridge';
 import VisualRuntimeShellHost from './components/VisualRuntimeShellHost';
 import { initGraphicsContextGovernor } from './utils/graphicsContextGovernor';
@@ -84,7 +85,7 @@ root.render(
     <VisualRuntimeShellHost />
     <React.StrictMode>
       <InteractionAccessibilityBridge />
-      <SiteRouter />
+      <AuthProvider><SiteRouter /></AuthProvider>
     </React.StrictMode>
   </>
 );

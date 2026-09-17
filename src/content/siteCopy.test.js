@@ -65,14 +65,14 @@ describe("dual-audience public copy", () => {
 
   test("defines static metadata for every public route and the unlisted invoice utility", () => {
     expect(Object.keys(routeMetadata).sort()).toEqual(
-      ["ditherCanvas", "engineering", "game", "invoiceGenerator", "orb", "root", "work"].sort(),
+      ["ditherCanvas", "engineering", "game", "invoiceGenerator", "login", "logout", "orb", "root", "work"].sort(),
     );
 
     Object.values(routeMetadata).forEach((metadata) => {
       expect(metadata.title).toBeTruthy();
       expect(metadata.description).toBeTruthy();
       expect(metadata.canonical).toMatch(/^https:\/\/popular-consulting\.com/);
-      if (metadata.path === "/invoice-generator") {
+      if (["/invoice-generator", "/login", "/logout"].includes(metadata.path)) {
         expect(metadata.robots).toBe("noindex,nofollow,noarchive");
       } else {
         expect(metadata.robots).toMatch(/^(index|noindex),follow$/);

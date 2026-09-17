@@ -1,4 +1,5 @@
 import React, { memo, useEffect, useState } from "react";
+import { useWorkspaceLocked } from "./RequireAdmin";
 import { useThemeMode } from "../contexts/ThemeContext";
 import { hasHardwareWebGL } from "../utils/deviceTier";
 import { GRAPHICS_MODES, graphicsMode, shouldAttemptWebGL } from "../utils/graphicsPolicy";
@@ -9,6 +10,7 @@ import "./CreatorOSFieldCanvas.css";
 // and editing a field must not rebuild a WebGL context or restart its clock.
 const InvoiceGeneratorBackground = memo(() => {
   const { isDark } = useThemeMode();
+  const locked = useWorkspaceLocked();
   const [paused, setPaused] = useState(false);
   const [printing, setPrinting] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(() =>
@@ -44,9 +46,9 @@ const InvoiceGeneratorBackground = memo(() => {
   return (
     <>
       <div className="invoice-scene invoice-no-print" aria-hidden="true" data-study="contour-drift"
-        data-motion={reducedMotion || !enabled || failed ? "static" : paused || printing ? "paused" : "running"}>
+        data-motion={reducedMotion || !enabled || failed ? "static" : paused || printing || locked ? "paused" : "running"}>
         {enabled && !failed ? <CreatorOSFieldCanvas mode={3} contourPalette="spectral" isDark={isDark}
-          paused={paused || printing || reducedMotion} onFieldStateChange={(state) => setFailed(state === "fallback")} />
+          paused={paused || printing || locked || reducedMotion} onFieldStateChange={(state) => setFailed(state === "fallback")} />
           : <div className="creatoros-field-shell creatoros-field-mode-3 creatoros-field-contour-palette-spectral is-fallback">
             <div className="creatoros-field-fallback" />
           </div>}

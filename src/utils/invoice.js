@@ -1,7 +1,7 @@
 // All money is integer cents. Quantity has 3 decimal places; rates have 2.
 // Round half-up per line, then discount, then each independent tax. Never
 // silently turn invalid numbers into zero, or accept totals from a draft file.
-export const INVOICE_DRAFT_KEY = "popcon-invoice-draft-v1";
+export { INVOICE_DRAFT_KEY } from "./invoiceDraftKey";
 export const MAX_INVOICE_ITEMS = 100;
 export const MAX_DRAFT_BYTES = 1000000;
 const MAX_CENTS = 100000000000;

@@ -68,5 +68,25 @@
     "socialDescription": "An unlisted browser-only invoice workspace. No invoice data is stored on the server.",
     "robots": "noindex,nofollow,noarchive",
     "noscript": "The invoice generator requires JavaScript. It is a browser-only tool; no invoice data is stored on the server."
+  },
+  "login": {
+    "path": "/login",
+    "title": "Sign in | Popular Consulting",
+    "description": "Secure account access for Popular Consulting.",
+    "canonical": "https://popular-consulting.com/login",
+    "socialTitle": "Sign in | Popular Consulting",
+    "socialDescription": "Secure account access for Popular Consulting.",
+    "robots": "noindex,nofollow,noarchive",
+    "noscript": "JavaScript is required for account access. Return to the public Popular Consulting site."
+  },
+  "logout": {
+    "path": "/logout",
+    "title": "Sign out | Popular Consulting",
+    "description": "Secure account access for Popular Consulting.",
+    "canonical": "https://popular-consulting.com/logout",
+    "socialTitle": "Sign out | Popular Consulting",
+    "socialDescription": "Secure account access for Popular Consulting.",
+    "robots": "noindex,nofollow,noarchive",
+    "noscript": "JavaScript is required for account access. Return to the public Popular Consulting site."
   }
 }

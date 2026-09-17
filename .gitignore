@@ -42,3 +42,6 @@ contact.local.json
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Authentication browser verification (fictional local data)
+/auth-ui-evidence/
