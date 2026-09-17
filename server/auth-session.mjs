@@ -4,6 +4,11 @@ export const SESSION_COOKIE = '__Host-popcon-session';
 export const LOGIN_COOKIE = '__Host-popcon-login';
 export const SESSION_SECONDS = 8 * 60 * 60;
 export const LOGIN_SECONDS = 10 * 60;
+// Version 1 sessions attested paid MFA; never reinterpret them as passkey sessions.
+export const SESSION_VERSION = 2;
+export const PASSKEY_CLAIM = 'https://popular-consulting.com/claims/passkey';
+const PASSKEY_MAX_AGE_SECONDS = 300;
+const AUTH_CLOCK_SKEW_SECONDS = 30;
 export const PRIVATE_HEADERS = Object.freeze({
   'Cache-Control': 'private, no-store, max-age=0',
   'CDN-Cache-Control': 'no-store',
@@ -134,12 +139,33 @@ export function createAuthStore(config, fetchImpl = fetch) {
   };
 }
 
+// Call ONLY after the OIDC library has verified signature, issuer, audience,
+// nonce and auth_time. This is an Auth0 Action claim, not a browser assertion.
+export function readPasskeyProof(claims, startedAt, now = Date.now()) {
+  const proof = claims?.[PASSKEY_CLAIM];
+  const seconds = Math.floor(now / 1000);
+  if (!proof || typeof proof !== 'object' || Array.isArray(proof) ||
+    Object.keys(proof).length !== 3 || proof.version !== 1 || proof.method !== 'passkey' ||
+    !Number.isSafeInteger(proof.authenticatedAt) || proof.authenticatedAt <= 0 ||
+    !Number.isSafeInteger(claims.auth_time) || claims.auth_time <= 0 ||
+    !Number.isSafeInteger(now) || now <= 0 ||
+    !Number.isSafeInteger(startedAt) || startedAt <= 0 || startedAt > now ||
+    proof.authenticatedAt < Math.floor(startedAt / 1000) - AUTH_CLOCK_SKEW_SECONDS ||
+    proof.authenticatedAt > seconds + AUTH_CLOCK_SKEW_SECONDS ||
+    seconds - proof.authenticatedAt > PASSKEY_MAX_AGE_SECONDS ||
+    Math.abs(proof.authenticatedAt - claims.auth_time) > AUTH_CLOCK_SKEW_SECONDS) return null;
+  return { authenticationMethod: 'passkey', authenticatedAt: proof.authenticatedAt };
+}
+
 export async function readAdminSession(request, config, store, now = Date.now()) {
   const token = readCookie(request.headers, SESSION_COOKIE);
   if (!token) return null;
   const session = await store.get('session', token);
-  if (!session || session.version !== 1 || session.issuer !== config.issuer ||
-    !config.adminSubjects.includes(session.subject) || session.mfa !== true ||
+  if (!session || session.version !== SESSION_VERSION || session.issuer !== config.issuer ||
+    !config.adminSubjects.includes(session.subject) || session.authenticationMethod !== 'passkey' ||
+    !Number.isSafeInteger(session.authenticatedAt) || session.authenticatedAt <= 0 ||
+    session.authenticatedAt > Math.floor(session.issuedAt / 1000) + AUTH_CLOCK_SKEW_SECONDS ||
+    Math.floor(session.issuedAt / 1000) - session.authenticatedAt > PASSKEY_MAX_AGE_SECONDS ||
     !isToken(session.csrf) || typeof session.name !== 'string' || session.name.length > 80 ||
     !Number.isSafeInteger(session.issuedAt) || !Number.isSafeInteger(session.expiresAt) ||
     session.issuedAt > now || session.expiresAt <= now ||

@@ -2,9 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { generateKeyPairSync, sign } from 'node:crypto';
 import * as oidc from 'openid-client';
+import passkeyAction from '../../auth0/actions/passkey-proof.js';
 import { createAuthHandler } from '../auth-handler.mjs';
 import { readAuthConfig, readAdminSession, protectInvoiceRequest, createAuthStore, cookie,
-  randomToken, SESSION_COOKIE, LOGIN_COOKIE, SESSION_SECONDS, isPrivatePath, digest } from '../auth-session.mjs';
+  randomToken, SESSION_COOKIE, LOGIN_COOKIE, SESSION_SECONDS, isPrivatePath, digest, PASSKEY_CLAIM, SESSION_VERSION } from '../auth-session.mjs';
 
 const env = Object.freeze({ AUTH_APP_ORIGIN: 'https://site.example.test', AUTH0_ISSUER: 'https://identity.example.test/',
   AUTH0_CLIENT_ID: 'fixture-client', AUTH0_CLIENT_SECRET: 'fixture-secret-not-a-credential',
@@ -19,7 +20,7 @@ const request = (path, { method = 'GET', cookies = '', csrf, origin = config.ori
   method, headers: { cookie: cookies, ...(method === 'POST' ? { Origin: origin, 'sec-fetch-site': 'same-origin' } : {}), ...(csrf ? { 'x-csrf-token': csrf } : {}), ...headers },
 });
 const cookieValue = (response, name) => response.headers.getSetCookie().find(value => value.startsWith(`${name}=`))?.split(';')[0] || '';
-function fixture({ claims = {}, signingKey = privateKey, expiredTransaction = false } = {}) {
+function fixture({ claims = {}, signingKey = privateKey, expiredTransaction = false, methods, omitAction = false } = {}) {
   const records = new Map(); let transaction; let tokenRequests = 0; let failedStore = false;
   const store = {
     put: async (kind, token, value) => { if (failedStore) throw new Error('offline'); records.set(`${kind}:${token}`, structuredClone(value)); },
@@ -46,8 +47,16 @@ function fixture({ claims = {}, signingKey = privateKey, expiredTransaction = fa
     assert.equal(body.get('client_secret'), config.clientSecret);
     tokenRequests++;
     const seconds = Math.floor(Date.now() / 1000);
+    const actionClaims = {};
+    if (!omitAction) await passkeyAction.onExecutePostLogin({
+      secrets: { AUTH0_CLIENT_ID: config.clientId }, client: { client_id: config.clientId },
+      connection: { strategy: 'auth0' }, transaction: { protocol: 'oidc-basic-profile' },
+      authentication: { methods: methods ? methods(seconds) : [{ name: 'passkey', timestamp: new Date(seconds * 1000).toISOString() }] },
+    }, { idToken: { setCustomClaim: (key, value) => { actionClaims[key] = value; } } });
+    // Exercise the exact Action file, then sign its claims and verify through the
+    // real OIDC library. No MFA/amr claim is needed for this passkey release.
     const payload = { iss: config.issuer, aud: config.clientId, sub: 'auth0|owner', nonce: transaction.nonce,
-      auth_time: seconds, iat: seconds, exp: seconds + 300, amr: ['pwd', 'mfa'], name: 'Fixture admin', ...claims };
+      auth_time: seconds, iat: seconds, exp: seconds + 300, name: 'Fixture admin', ...actionClaims, ...claims };
     const encoded = `${Buffer.from(JSON.stringify({ alg: 'RS256', kid: 'test-key' })).toString('base64url')}.${Buffer.from(JSON.stringify(payload)).toString('base64url')}`;
     const id_token = `${encoded}.${sign('RSA-SHA256', Buffer.from(encoded), signingKey).toString('base64url')}`;
     return Response.json({ token_type: 'Bearer', access_token: 'fixture-not-retained', expires_in: 300, id_token });
@@ -74,12 +83,14 @@ test('configuration fails closed without an explicit single administrator and en
   assert.equal((await protectInvoiceRequest(request('/invoice-generator'), { env: {} })).status, 503);
 });
 
-test('real OIDC exchange verifies PKCE, nonce, signature and admin MFA, then logout revokes access', async () => {
+test('real OIDC exchange verifies PKCE, nonce, signature and admin passkey proof, then logout revokes access', async () => {
   const f = fixture(); const login = await f.begin();
   assert.equal(login.url.origin, config.issuer.slice(0, -1));
   assert.equal(login.url.searchParams.get('code_challenge_method'), 'S256');
   assert.equal(login.url.searchParams.get('code_challenge'), await oidc.calculatePKCECodeChallenge(login.transaction.verifier));
   assert.equal(login.url.searchParams.get('prompt'), 'login');
+  assert.equal(login.url.searchParams.get('max_age'), '300');
+  assert.equal(login.url.searchParams.has('acr_values'), false);
   assert.match(cookieValue(login.response, LOGIN_COOKIE), /^__Host-popcon-login=[0-9a-f]{64}$/);
   const callback = await f.finish(login);
   assert.equal(callback.status, 303); assert.equal(callback.headers.get('location'), `${config.origin}/invoice-generator`);
@@ -95,6 +106,8 @@ test('real OIDC exchange verifies PKCE, nonce, signature and admin MFA, then log
   assert.equal(await protectInvoiceRequest(request('/_private/invoice/app-test.js', { cookies: sessionCookie }), { env, storeFactory: () => f.store }), null);
   const record = [...f.records.values()][0];
   assert.equal(record.expiresAt - record.issuedAt, SESSION_SECONDS * 1000);
+  assert.equal(record.version, SESSION_VERSION); assert.equal(record.authenticationMethod, 'passkey');
+  assert.ok(Number.isSafeInteger(record.authenticatedAt)); assert.ok(!('mfa' in record));
   assert.ok(!JSON.stringify(record).includes('access_token')); assert.ok(!JSON.stringify(record).includes('fixture-not-retained'));
   assert.equal((await f.handler(request('/api/auth/logout', { method: 'POST', cookies: sessionCookie }))).status, 403);
   const logout = await f.handler(request('/api/auth/logout', { method: 'POST', cookies: sessionCookie, csrf: session.csrfToken }));
@@ -104,7 +117,7 @@ test('real OIDC exchange verifies PKCE, nonce, signature and admin MFA, then log
   assert.match(response.headers.get('Cache-Control'), /no-store/);
 });
 
-for (const [name, claims] of Object.entries({ nonAdmin: { sub: 'auth0|other' }, missingMfa: { amr: ['pwd'] }, malformedMfa: { amr: 'mfa' },
+for (const [name, claims] of Object.entries({ nonAdmin: { sub: 'auth0|other' },
   forgedRole: { sub: 'auth0|other', role: 'admin' }, wrongIssuer: { iss: 'https://attacker.example.test/' },
   wrongAudience: { aud: 'other-client' }, wrongNonce: { nonce: 'wrong' }, expired: { exp: 1 }, staleAuthentication: { auth_time: 1 } })) {
   test(`OIDC refuses ${name}`, async () => {
@@ -147,7 +160,7 @@ test('forged, expired, removed-admin and duplicate-cookie sessions cannot open t
   assert.equal(await readAdminSession(sessionRequest, { ...config, adminSubjects: ['other'] }, f.store), null);
   assert.equal(await readAdminSession(sessionRequest, config, f.store, Date.now() + SESSION_SECONDS * 1000 + 1000), null);
   assert.equal(await readAdminSession(request('/invoice-generator', { cookies: `${cookies}; ${cookies}` }), config, f.store), null);
-  f.records.get(`session:${token}`).mfa = false;
+  f.records.get(`session:${token}`).authenticationMethod = 'pwd';
   assert.equal(await readAdminSession(sessionRequest, config, f.store), null);
   assert.equal(await readAdminSession(request('/invoice-generator', { cookies: `${SESSION_COOKIE}=admin` }), config, f.store), null);
 });
@@ -181,4 +194,71 @@ test('Redis adapter hashes opaque keys, namespaces sessions and uses atomic one-
   const unavailable = createAuthStore(config, async () => Response.json({ error: 'oops' }));
   await assert.rejects(unavailable.get('session', token));
   assert.throws(() => cookie(SESSION_COOKIE, 'injection;admin=true', 1));
+});
+
+
+const methodsAt = (name, seconds) => [{ name, timestamp: new Date(seconds * 1000).toISOString() }];
+for (const name of ['pwd', 'mfa', 'federated', 'email', 'mock']) {
+  test(`a real signed ${name} login without a passkey cannot create an admin session`, async () => {
+    const f = fixture({ methods: seconds => methodsAt(name, seconds) });
+    const response = await f.finish(await f.begin());
+    assert.equal(response.headers.get('location'), `${config.origin}/login?error=passkey_required`);
+    assert.equal(cookieValue(response, SESSION_COOKIE), ''); assert.equal(f.records.size, 0);
+  });
+}
+test('a missing Action is not replaced by amr, role, enrollment metadata or browser flags', async () => {
+  const f = fixture({ omitAction: true, claims: {
+    amr: ['phr', 'mfa'], role: 'admin', passkey: true, user_metadata: { passkey: true },
+    authentication_methods: [{ type: 'passkey', confirmed: true }],
+  } });
+  const login = await f.begin();
+  const response = await f.finish(login, `code=x&state=${login.transaction.state}&passkey=true&role=admin`);
+  assert.equal(response.headers.get('location'), `${config.origin}/login?error=passkey_required`);
+  assert.equal(cookieValue(response, SESSION_COOKIE), ''); assert.equal(f.records.size, 0);
+});
+for (const [name, proof] of Object.entries({
+  absent: undefined, null: null, boolean: true, string: 'passkey', array: [],
+  malformed: { version: 1, method: 'passkey' },
+  stringTimestamp: { version: 1, method: 'passkey', authenticatedAt: '123' },
+  oldProof: { version: 1, method: 'passkey', authenticatedAt: 1 },
+  wrongVersion: { version: 2, method: 'passkey', authenticatedAt: 1 },
+  password: { version: 1, method: 'pwd', authenticatedAt: 1 },
+  extraKey: { version: 1, method: 'passkey', authenticatedAt: 1, admin: true },
+})) {
+  test(`signed ${name} passkey proof still fails closed`, async () => {
+    const f = fixture({ claims: { [PASSKEY_CLAIM]: proof } });
+    const response = await f.finish(await f.begin());
+    assert.equal(response.headers.get('location'), `${config.origin}/login?error=passkey_required`);
+    assert.equal(cookieValue(response, SESSION_COOKIE), ''); assert.equal(f.records.size, 0);
+  });
+}
+test('a newer password login cannot reuse a passkey from the same Auth0 session', async () => {
+  const f = fixture({ methods: seconds => [...methodsAt('passkey', seconds - 1), ...methodsAt('pwd', seconds)] });
+  const response = await f.finish(await f.begin());
+  assert.equal(response.headers.get('location'), `${config.origin}/login?error=passkey_required`);
+  assert.equal(f.records.size, 0);
+});
+test('enrollment/password callback grants nothing; a subsequent passkey login can succeed', async () => {
+  let enrolled = false;
+  const f = fixture({ methods: seconds => methodsAt(enrolled ? 'passkey' : 'pwd', seconds) });
+  const first = await f.begin(); const response = await f.finish(first);
+  assert.equal(cookieValue(response, SESSION_COOKIE), ''); assert.equal(f.records.size, 0);
+  enrolled = true;
+  const callback = await f.finish(await f.begin());
+  const cookies = cookieValue(callback, SESSION_COOKIE);
+  assert.ok(cookies);
+  assert.equal(await protectInvoiceRequest(request('/invoice-generator', { cookies }), { env, storeFactory: () => f.store }), null);
+  assert.equal(cookieValue(await f.finish(first), SESSION_COOKIE), '');
+});
+test('session schema never upgrades old MFA or password sessions into passkey access', async () => {
+  const f = fixture(); const response = await f.finish(await f.begin());
+  const cookies = cookieValue(response, SESSION_COOKIE); const token = cookies.split('=')[1];
+  const original = structuredClone(f.records.get(`session:${token}`));
+  for (const patch of [{ version: 1, mfa: true }, { authenticationMethod: 'mfa', mfa: true },
+    { authenticationMethod: 'pwd' }, { authenticatedAt: '123' }, { authenticatedAt: 1 },
+    { authenticatedAt: Math.floor(original.issuedAt / 1000) + 31 }]) {
+    f.records.set(`session:${token}`, { ...original, ...patch });
+    assert.equal(await readAdminSession(request('/invoice-generator', { cookies }), config, f.store), null);
+    assert.equal((await protectInvoiceRequest(request('/_private/invoice/app.js', { cookies }), { env, storeFactory: () => f.store })).status, 401);
+  }
 });

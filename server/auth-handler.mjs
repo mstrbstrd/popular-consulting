@@ -1,7 +1,7 @@
 import * as oidc from 'openid-client';
 import { SESSION_COOKIE, LOGIN_COOKIE, SESSION_SECONDS, LOGIN_SECONDS, PRIVATE_HEADERS,
   readAuthConfig, createAuthStore, readAdminSession, readCookie, randomToken, digest, cookie,
-  sameOriginPost, authResponse, isToken } from './auth-session.mjs';
+  sameOriginPost, authResponse, isToken, readPasskeyProof, SESSION_VERSION } from './auth-session.mjs';
 
 let discovered;
 let discoveryKey;
@@ -60,14 +60,14 @@ export function createAuthHandler({ env = process.env, storeFactory = createAuth
           redirect_uri: `${config.origin}/api/auth/callback`, scope: 'openid profile',
           response_mode: 'query', code_challenge_method: 'S256',
           code_challenge: await oidc.calculatePKCECodeChallenge(verifier), state, nonce,
-          prompt: 'login', max_age: '300', acr_values: 'http://schemas.openid.net/pape/policies/2007/06/multi-factor',
+          prompt: 'login', max_age: '300',
         });
         const response = authResponse({ authorizationUrl: authorization.href });
         response.headers.append('Set-Cookie', cookie(LOGIN_COOKIE, token, LOGIN_SECONDS));
         return response;
       }
       if (action === '/api/auth/callback') {
-        const failed = () => redirect(`${config.origin}/login?error=denied`, [cookie(LOGIN_COOKIE, '', 0)]);
+        const failed = (reason = 'denied') => redirect(`${config.origin}/login?error=${reason}`, [cookie(LOGIN_COOKIE, '', 0)]);
         const token = readCookie(request.headers, LOGIN_COOKIE);
         if (!token) return failed();
         // Atomic one-use transaction, bound to this browser, state, nonce and PKCE.
@@ -87,16 +87,18 @@ export function createAuthHandler({ env = process.env, storeFactory = createAuth
           });
           claims = tokens.claims();
         } catch { return failed(); }
-        // A valid identity is not an administrator. MFA is required, not just requested.
-        if (!claims || claims.iss !== config.issuer || !config.adminSubjects.includes(claims.sub) ||
-          !Array.isArray(claims.amr) || !claims.amr.includes('mfa')) return failed();
+        // Exact owner AND a fresh signed passkey attestation, never password/MFA
+        // fallback or merely having a passkey enrolled on the Auth0 user profile.
+        if (!claims || claims.iss !== config.issuer || !config.adminSubjects.includes(claims.sub)) return failed();
+        const authentication = readPasskeyProof(claims, transaction.createdAt, now());
+        if (!authentication) return failed('passkey_required');
         const sessionToken = randomToken();
         const issuedAt = now();
         const name = typeof claims.name === 'string' ? claims.name.replace(/[\x00-\x1f\x7f]/g, '').slice(0, 80) : 'Administrator';
         const previous = readCookie(request.headers, SESSION_COOKIE);
         if (previous) await store.remove('session', previous);
-        await store.put('session', sessionToken, { version: 1, subject: claims.sub, issuer: config.issuer,
-          name, mfa: true, csrf: randomToken(), issuedAt, expiresAt: issuedAt + SESSION_SECONDS * 1000 }, SESSION_SECONDS);
+        await store.put('session', sessionToken, { version: SESSION_VERSION, subject: claims.sub, issuer: config.issuer,
+          name, ...authentication, csrf: randomToken(), issuedAt, expiresAt: issuedAt + SESSION_SECONDS * 1000 }, SESSION_SECONDS);
         // No access token, refresh token, ID token or password is retained or sent to React.
         return redirect(`${config.origin}/invoice-generator`, [cookie(LOGIN_COOKIE, '', 0), cookie(SESSION_COOKIE, sessionToken, SESSION_SECONDS)]);
       }
