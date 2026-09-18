@@ -1,33 +1,49 @@
-// Auth0 Post Login Action. Install separately using docs/authentication.md.
-// Set this Action's AUTH0_CLIENT_ID secret to the app's Client ID (NOT its secret).
-// Never build this claim from user metadata, request parameters or enrolled keys.
-// Source: https://support.auth0.com/center/s/article/detecting-passkey-usage-in-auth0-post-login-actions
+// Auth0 Post Login Action. Keep AUTH0_CLIENT_ID in this Action's Secrets panel.
+// Log only fixed reason codes, never event data, tokens, secrets or timestamps.
 const PASSKEY_CLAIM = 'https://popular-consulting.com/claims/passkey';
 
 exports.onExecutePostLogin = async (event, api) => {
+  const report = reason => {
+    try {
+      console.log(JSON.stringify({
+        event: 'popcon_passkey_action', revision: 'diag-1', reason,
+      }));
+    } catch { /* Logging must not change authentication behavior. */ }
+  };
+
   const clientId = event.secrets?.AUTH0_CLIENT_ID;
-  if (typeof clientId !== 'string' || !clientId || clientId !== clientId.trim() ||
-    event.client?.client_id !== clientId) return;
-  // Only the confidential browser code flow on an Auth0 database connection.
-  if (event.connection?.strategy !== 'auth0' || event.transaction?.protocol !== 'oidc-basic-profile') return;
+  if (typeof clientId !== 'string' || !clientId) return report('client_id_missing');
+  if (clientId !== clientId.trim()) return report('client_id_whitespace');
+  if (event.client?.client_id !== clientId) return report('client_id_mismatch');
+  if (event.connection?.strategy !== 'auth0') return report('not_database_connection');
+  if (event.transaction?.protocol !== 'oidc-basic-profile') return report('unexpected_login_flow');
+
   const methods = event.authentication?.methods;
-  if (!Array.isArray(methods) || !methods.length || methods.length > 20) return;
+  if (!Array.isArray(methods) || !methods.length || methods.length > 20) {
+    return report('methods_missing_or_invalid');
+  }
   let passkeyTime = -1;
   let otherTime = -1;
+  let passwordUsed = false;
   for (const method of methods) {
-    if (!method || typeof method.name !== 'string' || typeof method.timestamp !== 'string') return;
+    if (!method || typeof method.name !== 'string' || typeof method.timestamp !== 'string') {
+      return report('method_fields_invalid');
+    }
     const time = Date.parse(method.timestamp);
-    if (!Number.isFinite(time) || time <= 0) return;
+    if (!Number.isFinite(time) || time <= 0) return report('method_timestamp_invalid');
     if (method.name === 'passkey') passkeyTime = Math.max(passkeyTime, time);
     else if (method.name !== 'mfa') otherTime = Math.max(otherTime, time);
+    if (method.name === 'pwd') passwordUsed = true;
   }
-  // Methods can describe earlier activity in the Auth0 session. An older passkey
-  // must not attest a newer password, recovery, federated or unknown login.
+  if (passkeyTime < 0) return report(passwordUsed ? 'password_without_passkey' : 'no_passkey_method');
+  if (passkeyTime <= otherTime) return report('passkey_not_latest');
   const now = Date.now();
-  if (passkeyTime <= otherTime || passkeyTime > now + 30000 || now - passkeyTime > 300000) return;
+  if (passkeyTime > now + 30000) return report('passkey_time_in_future');
+  if (now - passkeyTime > 300000) return report('passkey_too_old');
+
   api.idToken.setCustomClaim(PASSKEY_CLAIM, {
     version: 1, method: 'passkey', authenticatedAt: Math.floor(passkeyTime / 1000),
   });
-  // Do not deny password logins here: Auth0 may need to finish initial progressive
-  // enrollment. Without this claim the application still creates NO admin session.
+  report('proof_added');
+  // Password enrollment may finish at Auth0, but still grants no app session.
 };
