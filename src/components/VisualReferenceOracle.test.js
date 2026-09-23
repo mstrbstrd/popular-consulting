@@ -28,7 +28,7 @@ const withoutLoginExtension = (source) => {
   const additions = [
     'import { LOGIN_APERTURE_GLSL, LOGIN_PRESET } from "../utils/loginScene";\n',
     '  LOGIN_PRESET, // Login – Spectral aperture (reserved scene slot 6)\n',
-    '${LOGIN_APERTURE_GLSL}\n\n',
+    `\${LOGIN_APERTURE_GLSL}\n\n`,
     '  if(shape==8)return sceneLoginAperture(uv,t);\n',
   ];
   return additions.reduce((original, addition) => {

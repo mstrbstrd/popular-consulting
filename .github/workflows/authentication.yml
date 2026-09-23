@@ -54,6 +54,10 @@ jobs:
         run: node scripts/verify-auth-layout.mjs
         env:
           VISUAL_CAPTURE_BROWSER: /usr/bin/google-chrome
+      - name: Check embedded login navigation and both shader paths with software WebGL
+        run: node scripts/verify-login-section.mjs
+        env:
+          VISUAL_CAPTURE_BROWSER: /usr/bin/google-chrome
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -61,5 +65,6 @@ jobs:
           path: |
             auth-ui-evidence/
             auth-layout-evidence/
+            login-section-evidence/
           if-no-files-found: ignore
           retention-days: 7
