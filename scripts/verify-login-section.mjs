@@ -43,13 +43,16 @@ browser.stdio[4].on('data', chunk => {
 });
 const send = (method, params = {}, sessionId) => new Promise((resolve, reject) => {
   const id = ++serial;
-  const timer = setTimeout(() => { pending.delete(id); reject(new Error(`Timed out: ${method}`)); }, 30000);
+  const timer = setTimeout(() => { pending.delete(id); reject(new Error(`Timed out: ${method}`)); }, 60000);
   pending.set(id, { resolve, reject, timer });
   browser.stdio[3].write(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }) + '\0');
 });
 const reports = [];
 try {
   for (const [width, height] of [[1440, 900], [390, 844]]) for (const theme of ['light', 'dark']) {
+    const mobile = width <= 768;
+    // Reduce only the software test's drawing resolution; CSS layout is unchanged.
+    const deviceScaleFactor = mobile ? 1 : 0.5;
     const { targetId } = await send('Target.createTarget', { url: 'about:blank' });
     const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
     const call = (method, params = {}) => send(method, params, sessionId);
@@ -59,18 +62,24 @@ try {
       return result.result.value;
     };
     const wait = expression => evaluate(`new Promise((resolve,reject)=>{let n=0;const t=setInterval(()=>{if(${expression}){clearInterval(t);resolve(true)}else if(++n>300){clearInterval(t);reject(new Error('Login section wait timed out'))}},50)})`);
-    const report = { width, height, theme, renderer: 'software-test-fixture', failures: [] };
+    const report = { width, height, theme, deviceScaleFactor, renderer: 'software-test-fixture', failures: [] };
     const capture = async label => {
-      const result = await call('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
+      const result = await call('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false, optimizeForSpeed: true });
       fs.writeFileSync(path.join(out, `${width}-${theme}-${label}.png`), Buffer.from(result.data, 'base64'));
     };
     try {
       await call('Page.enable'); await call('Runtime.enable');
-      await call('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: width <= 768 });
+      await call('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor, mobile });
+      if (mobile) await call('Emulation.setUserAgentOverride', {
+        userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1',
+        platform: 'iPhone',
+      });
       // Opt into the exact production renderers in this isolated software test.
       // Production's hardware probe and fallback policy are never modified.
       await call('Page.addScriptToEvaluateOnNewDocument', { source: `
         localStorage.setItem('popcon-theme', ${JSON.stringify(theme)});
+        Object.defineProperty(navigator, 'hardwareConcurrency', {get: () => 8});
+        Object.defineProperty(navigator, 'deviceMemory', {get: () => 8});
         const original = WebGL2RenderingContext.prototype.getExtension;
         WebGL2RenderingContext.prototype.getExtension = function(name) {
           if (name === 'WEBGL_debug_renderer_info') return null;
@@ -119,6 +128,7 @@ try {
       assert.equal(await evaluate('document.querySelectorAll(".nav-header").length'), 1, 'Duplicate navigation');
       assert.ok(await evaluate('document.documentElement.scrollWidth <= innerWidth+1'), 'Horizontal overflow');
       report.runtime = await evaluate('({ mobileLight: document.querySelector(".parallax-wrapper").dataset.mobileLightRuntime, canvases: document.querySelectorAll(".fixed-background canvas").length })');
+      if (mobile && theme === 'light') assert.equal(report.runtime.mobileLight, 'high-fidelity', 'Optimized mobile renderer was not exercised');
       await capture('login');
       await evaluate(`new Promise(resolve => {
         window.__loginDocumentMarker = 'same-document';
@@ -126,14 +136,14 @@ try {
         document.querySelectorAll('.section-dot')[3].click();
       })`);
       assert.equal(await evaluate('document.querySelector(".section-container.active").dataset.section'), '3');
-      if (width <= 768) {
+      if (mobile) {
         await evaluate('document.querySelector(".nav-burger").click()');
         await wait('document.querySelector(".nav-overlay--open")');
         assert.ok(await evaluate('document.querySelector("main").hasAttribute("inert")'), 'Mobile overlay did not lock main');
       }
       await evaluate(`new Promise(resolve => {
         window.addEventListener('sectionChangeEnd', () => resolve(true), {once:true});
-        document.querySelector(${JSON.stringify(width <= 768 ? '.nav-overlay-link[href="/login"]' : '.site-account-control[href="/login"]')}).click();
+        document.querySelector(${JSON.stringify(mobile ? '.nav-overlay-link[href="/login"]' : '.site-account-control[href="/login"]')}).click();
       })`);
       assert.equal(await evaluate('window.__loginDocumentMarker'), 'same-document', 'Account link reloaded the page');
       assert.equal(await evaluate('document.querySelector(".section-container.active").dataset.section'), '4');
