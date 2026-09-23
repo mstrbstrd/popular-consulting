@@ -1,0 +1,70 @@
+/* Login is a section of the existing fixed-viewport shell, not a second page. */
+.auth-page.auth-page--embedded {
+  height: 100%; min-height: 0; width: 100%; margin: 0;
+  padding: var(--login-nav-space, 112px) 0 max(12px, env(safe-area-inset-bottom));
+  box-sizing: border-box; background: transparent; isolation: isolate;
+}
+.auth-page--embedded .auth-content {
+  display: flex; flex-direction: column; align-items: center;
+  flex: 1; min-height: 0; width: 100%; box-sizing: border-box;
+  padding: 12px 64px 20px; overflow-y: auto; overflow-x: hidden;
+  overscroll-behavior-y: contain; scrollbar-width: thin;
+  scroll-padding-block: 16px;
+}
+.auth-page--embedded .auth-card {
+  flex: 0 0 auto; width: min(100%, 560px); margin: auto 0;
+  padding: clamp(24px, 3vw, 36px); box-sizing: border-box;
+  background: linear-gradient(rgba(255,250,249,.88), rgba(255,250,249,.88)) padding-box,
+    var(--aetheris-spectral-border-soft) border-box;
+  backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+  box-shadow: 0 20px 64px rgba(50,30,45,.10);
+}
+.auth-page--embedded .auth-title {
+  margin: 0 0 12px; font: 500 clamp(32px, 3vw, 42px)/1.08 var(--aetheris-font-sans);
+  letter-spacing: -.035em; color: inherit;
+}
+[data-theme="dark"] .auth-page.auth-page--embedded { background: transparent; }
+[data-theme="dark"] .auth-page--embedded .auth-card {
+  background: linear-gradient(rgba(14,12,18,.90), rgba(14,12,18,.90)) padding-box,
+    var(--aetheris-spectral-border-soft) border-box;
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 20px 64px rgba(0,0,0,.25);
+}
+.auth-page--embedded .auth-primary {
+  border-color: transparent;
+  background: linear-gradient(#fffaf9, #fffaf9) padding-box,
+    var(--aetheris-spectral-border-soft) border-box;
+  transition: box-shadow .2s ease, transform .2s ease;
+}
+[data-theme="dark"] .auth-page--embedded .auth-primary {
+  background: linear-gradient(#19151d, #19151d) padding-box,
+    var(--aetheris-spectral-border-soft) border-box;
+}
+@media (hover: hover) {
+  .auth-page--embedded .auth-primary:hover:not(:disabled) {
+    transform: translateY(-1px); box-shadow: 0 4px 18px rgba(120,90,140,.14);
+  }
+}
+@media (max-width: 768px) {
+  .auth-page--embedded .auth-content {
+    padding: 12px max(44px, env(safe-area-inset-right)) 16px max(18px, env(safe-area-inset-left));
+  }
+  .auth-page--embedded .auth-card { padding: 24px 20px; }
+}
+@media (max-height: 700px) {
+  .auth-page.auth-page--embedded .auth-content { padding-block: 8px 12px; }
+  .auth-page--embedded .auth-card { padding-block: 22px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .auth-page--embedded .auth-primary { transition: none; transform: none !important; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .auth-page--embedded .auth-card { backdrop-filter: none; -webkit-backdrop-filter: none; background: #fffaf9; border-color: #998998; }
+  [data-theme="dark"] .auth-page--embedded .auth-card { background: #141216; }
+}
+@media (forced-colors: active) {
+  .auth-page--embedded .auth-card, .auth-page--embedded .auth-primary {
+    color: CanvasText; background: Canvas; border: 1px solid CanvasText;
+    backdrop-filter: none; -webkit-backdrop-filter: none;
+  }
+}

@@ -1,3 +1,5 @@
+import { LOGIN_APERTURE_GLSL } from "./loginScene";
+
 export const VISUAL_RUNTIME_LIGHT_VERTEX_SHADER = `#version 300 es
 precision highp float;
 layout(location=0) in vec2 a_pos;
@@ -100,7 +102,10 @@ float sceneRipples(vec2 uv,float t){
   return clamp(v+.5,0.,1.);
 }
 
+${LOGIN_APERTURE_GLSL}
+
 float sceneByShape(vec2 uv,float t,int shape){
+  if(shape==8)return sceneLoginAperture(uv,t);
   if(shape==0)return scenePlasma(uv,t);
   if(shape==3)return sceneWaves(uv,t);
   if(shape==4)return sceneMandala(uv,t);

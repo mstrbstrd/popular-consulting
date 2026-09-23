@@ -1,3 +1,5 @@
+import { isLoginPath } from "./loginScene";
+
 export const MOBILE_GRAPHICS_MIN_CORES = 4;
 export const MOBILE_GRAPHICS_MIN_MEMORY_GB = 4;
 
@@ -34,7 +36,7 @@ export const shouldUseHighFidelityMobileLight = ({
     isDark ||
     !hardwareWebGL ||
     !mobile ||
-    normalizePathname(pathname) !== "/"
+    (normalizePathname(pathname) !== "/" && !isLoginPath(pathname))
   ) {
     return false;
   }

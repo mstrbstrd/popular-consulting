@@ -1,23 +1,46 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { ThemeProvider } from '../contexts/ThemeContext';
 import { INVOICE_DRAFT_KEY } from '../utils/invoiceDraftKey';
 import NavMenu from './NavMenu';
 import './AuthPage.css';
+import './LoginSection.css';
 
-export default function AuthPage({ logoutPage = false }) {
+export default function AuthPage({ logoutPage = false, embedded = false }) {
+  const sectionRef = useRef(null);
   const { status, logout, refresh } = useAuth();
   const [busy, setBusy] = useState(false);
   const [clearDraft, setClearDraft] = useState(false);
   const [message, setMessage] = useState('');
   useEffect(() => {
+    if (embedded) return undefined;
     const html = document.documentElement; const body = document.body;
     const previous = { html: html.style.cssText, body: body.style.cssText, title: document.title };
     html.classList.add('auth-route'); html.style.fontSize = '62.5%'; html.style.overflow = 'auto'; html.style.height = 'auto';
     body.style.overflow = 'visible'; body.style.height = 'auto';
     document.title = `${logoutPage ? 'Sign out' : 'Sign in'} | Popular Consulting`;
     return () => { html.classList.remove('auth-route'); html.style.cssText = previous.html; body.style.cssText = previous.body; document.title = previous.title; };
-  }, [logoutPage]);
+  }, [logoutPage, embedded]);
+  useEffect(() => {
+    if (!embedded) return undefined;
+    const section = sectionRef.current;
+    const nav = document.querySelector('.nav-header');
+    if (!section || !nav) return undefined;
+    const measure = () => {
+      const bottom = Math.max(80, nav.getBoundingClientRect().bottom + 12);
+      section.style.setProperty('--login-nav-space', `${Math.ceil(bottom)}px`);
+    };
+    const frame = requestAnimationFrame(measure);
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
+    observer?.observe(nav);
+    window.addEventListener('resize', measure);
+    nav.addEventListener('transitionend', measure);
+    return () => {
+      cancelAnimationFrame(frame); observer?.disconnect();
+      window.removeEventListener('resize', measure);
+      nav.removeEventListener('transitionend', measure);
+    };
+  }, [embedded]);
   const signOut = async () => {
     setBusy(true); setMessage('');
     try {
@@ -48,11 +71,14 @@ export default function AuthPage({ logoutPage = false }) {
   const error = new URLSearchParams(window.location.search).get('error');
   const denied = error === 'denied';
   const passkeyRequired = error === 'passkey_required';
-  return <ThemeProvider enableBackground={false}><div className="auth-page">
-    <NavMenu standalone />
-    <div className="auth-content"><main className="auth-card" aria-labelledby="auth-title">
+  const Root = embedded ? 'section' : 'div';
+  const Card = embedded ? 'div' : 'main';
+  const Heading = embedded ? 'h2' : 'h1';
+  const content = <Root ref={sectionRef} id={embedded ? 'login' : undefined} className={`auth-page${embedded ? ' auth-page--embedded' : ''}`} aria-labelledby={embedded ? 'auth-title' : undefined}>
+    {!embedded && <NavMenu standalone />}
+    <div className="auth-content" tabIndex={embedded ? -1 : undefined}><Card className="auth-card" aria-labelledby="auth-title">
       <p className="auth-eyebrow">Popular Consulting / Account</p>
-      <h1 id="auth-title">{logoutPage ? 'Sign out.' : signedIn ? 'Welcome back.' : 'Sign in.'}</h1>
+      <Heading id="auth-title" className="auth-title">{logoutPage ? 'Sign out.' : signedIn ? 'Welcome back.' : 'Sign in.'}</Heading>
       <p className="auth-intro">{logoutPage ? 'Save or export unfinished invoices before signing out. Signing out also closes invoice workspaces in your other open tabs.' : 'Use your passkey to open your private workspace.'}</p>
       {status === 'loading' && <p role="status">Checking your session…</p>}
       {status === 'unavailable' && <div className="auth-notice" role="status"><p>Sign-in is temporarily unavailable. Private tools remain locked.</p><button type="button" onClick={refresh}>Try again</button></div>}
@@ -68,7 +94,12 @@ export default function AuthPage({ logoutPage = false }) {
       {logoutPage && signedIn && <form onSubmit={event => { event.preventDefault(); signOut(); }}><label className="auth-checkbox"><input type="checkbox" checked={clearDraft} onChange={event => setClearDraft(event.target.checked)}/>Delete the saved invoice draft on this device</label><button className="auth-primary" disabled={busy} type="submit">{busy ? 'Signing out…' : 'Sign out'}</button><p className="auth-note">Without deletion, browser-local drafts remain unencrypted on this device. Exported files are not affected.</p></form>}
       {message && <p className="auth-notice" role="status">{message}</p>}
       {logoutPage && !signedIn && status === 'anonymous' && !message && <p role="status">You are not signed in on this device.</p>}
-      <a className="auth-back" href="/">Back to Popular Consulting</a>
-    </main></div>
-  </div></ThemeProvider>;
+      <a className="auth-back" href={embedded ? '#section-0' : '/'} onClick={event => {
+        if (!embedded || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        const home = document.querySelector('.section-dot');
+        if (home) { event.preventDefault(); home.click(); }
+      }}>Back to Popular Consulting</a>
+    </Card></div>
+  </Root>;
+  return embedded ? content : <ThemeProvider enableBackground={false}>{content}</ThemeProvider>;
 }

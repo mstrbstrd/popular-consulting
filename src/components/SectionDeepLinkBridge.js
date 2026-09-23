@@ -1,7 +1,7 @@
 import React from "react";
 
 const SECTION_HASH_PATTERN = /^#section-(\d+)$/;
-const MAX_SECTION_INDEX = 5;
+const MAX_SECTION_INDEX = 6;
 const RETRY_INTERVAL_MS = 80;
 const MAX_RETRIES = 50;
 
@@ -60,11 +60,13 @@ const SectionDeepLinkBridge = ({ enabled = false }) => {
 
     activateHashTarget();
     window.addEventListener("hashchange", activateHashTarget);
+    window.addEventListener("popstate", activateHashTarget);
 
     return () => {
       cancelled = true;
       stopRetrying();
       window.removeEventListener("hashchange", activateHashTarget);
+      window.removeEventListener("popstate", activateHashTarget);
     };
   }, [enabled]);
 

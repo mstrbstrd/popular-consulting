@@ -6,14 +6,14 @@ import { SITE_AUDIENCES, getSiteCopy } from "../content/siteCopy";
 import { getImmersiveRouteDestination } from "./ImmersiveRouteNavigationBridge";
 
 // Standalone pages use real route links, not homepage-only section-dot clicks.
-const NavMenu = ({ audience = SITE_AUDIENCES.BUSINESS, standalone = false }) => {
+const NavMenu = ({ audience = SITE_AUDIENCES.BUSINESS, standalone = false, initialSection = 0 }) => {
   const { isDark, toggleTheme } = useThemeMode();
   const navigation = getSiteCopy(audience).navigation;
   const navLinks = navigation.links;
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  const [isVisible, setIsVisible] = useState(standalone);
-  const [activeSection, setActiveSection] = useState(standalone ? -1 : 0);
+  const [isVisible, setIsVisible] = useState(standalone || initialSection !== 0);
+  const [activeSection, setActiveSection] = useState(standalone ? -1 : initialSection);
   const overlayRef = useRef(null);
   const burgerRef = useRef(null);
   const Brand = standalone ? "a" : "button";
@@ -21,7 +21,7 @@ const NavMenu = ({ audience = SITE_AUDIENCES.BUSINESS, standalone = false }) => 
   useEffect(() => {
     const checkMobile = () => {
       setIsMobile(window.innerWidth <= 768);
-      if (standalone && window.innerWidth > 768) setIsMobileMenuOpen(false);
+      if (window.innerWidth > 768) setIsMobileMenuOpen(false);
     };
 
     const checkActiveSection = () => {
@@ -51,7 +51,7 @@ const NavMenu = ({ audience = SITE_AUDIENCES.BUSINESS, standalone = false }) => 
   }, [standalone]);
 
   useEffect(() => {
-    if (!standalone || !isMobile || !isMobileMenuOpen) return undefined;
+    if (!isMobile || !isMobileMenuOpen) return undefined;
     const overlay = overlayRef.current;
     const burger = burgerRef.current;
     const main = document.querySelector("main");
@@ -219,8 +219,8 @@ const NavMenu = ({ audience = SITE_AUDIENCES.BUSINESS, standalone = false }) => 
         <div
           ref={overlayRef}
           id="mobile-nav-overlay"
-          aria-hidden={standalone ? !isMobileMenuOpen : undefined}
-          inert={standalone && !isMobileMenuOpen ? "" : undefined}
+          aria-hidden={!isMobileMenuOpen}
+          inert={!isMobileMenuOpen ? "" : undefined}
           role="dialog"
           aria-modal="true"
           aria-label="Navigation menu"

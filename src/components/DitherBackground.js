@@ -15,6 +15,7 @@
 // Ripple interaction is forwarded from DitherHero via window.__addDitherRipple.
 
 import React, { useRef, useEffect } from "react";
+import { LOGIN_APERTURE_GLSL, LOGIN_PRESET } from "../utils/loginScene";
 import { isMobileTier, MOBILE_DITHER_OVERRIDES } from "../utils/deviceTier";
 
 // Per-section targets (all params lerp at lerpFactor ≈ 0.025/frame → ~2s settle)
@@ -26,6 +27,7 @@ const PRESETS = [
   { speed: 0.22, contrast: 1.55, warp: 0.18, rainbowSpeed: 0.32, shape: 0 }, // Contact  – Plasma
   { speed: 0.55, contrast: 1.1, warp: 0.0, rainbowSpeed: 1.5, shape: 7 }, // Orb      – Sphere 3D
   { speed: 0.32, contrast: 1.9, warp: 0.28, rainbowSpeed: 0.45, shape: 3 }, // Game     – Waves (matches Bio)
+  LOGIN_PRESET, // Login – Spectral aperture (reserved scene slot 6)
 ];
 
 const FIXED = {
@@ -702,8 +704,11 @@ float ambientBubbles(vec2 uv,float t){
   return result;
 }
 
+${LOGIN_APERTURE_GLSL}
+
 // Dispatch to one of the scene functions by index
 float getSceneByShape(int shape,vec2 uv,float t){
+  if(shape==8)return sceneLoginAperture(uv,t);
   if(shape==0)return scenePlasma(uv,t);
   if(shape==1)return sceneSpheres(uv,t);
   if(shape==2)return sceneTunnel(uv,t);
