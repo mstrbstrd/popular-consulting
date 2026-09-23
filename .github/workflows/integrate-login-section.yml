@@ -1,0 +1,90 @@
+name: Validate embedded login section
+on:
+  push:
+    branches: [work/login-section-20260922]
+    paths:
+      - scripts/apply-login-section.py
+      - .github/workflows/integrate-login-section.yml
+permissions:
+  contents: write
+concurrency:
+  group: embedded-login-validation
+  cancel-in-progress: true
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CI: true
+      VISUAL_CAPTURE_BROWSER: /usr/bin/google-chrome
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: work/login-section-20260922
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Apply scoped source changes on the validation branch
+        run: |
+          python3 scripts/apply-login-section.py
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src scripts/verify-auth-ui.mjs scripts/verify-auth-layout.mjs
+          if ! git diff --cached --quiet; then
+            git commit -m 'feat: integrate login into the immersive section layout'
+            git push origin HEAD:work/login-section-20260922
+          fi
+          git rev-parse HEAD
+      - id: dependencies
+        run: npm ci --no-audit --no-fund
+      - id: lint
+        continue-on-error: true
+        run: npm run lint
+      - id: tests
+        continue-on-error: true
+        run: |
+          set +e
+          npm test -- --watchAll=false --runInBand > /tmp/login-unit-tests.log 2>&1
+          result=$?
+          grep -A 45 '^FAIL ' /tmp/login-unit-tests.log || true
+          tail -30 /tmp/login-unit-tests.log
+          exit $result
+      - id: auth
+        continue-on-error: true
+        run: npm run test:auth
+      - id: build
+        continue-on-error: true
+        run: npm run build
+      - id: browser
+        if: steps.build.outcome == 'success'
+        continue-on-error: true
+        run: node scripts/verify-auth-ui.mjs
+      - id: layout
+        if: steps.build.outcome == 'success'
+        continue-on-error: true
+        run: node scripts/verify-auth-layout.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: embedded-login-validation
+          path: |
+            auth-ui-evidence/
+            auth-layout-evidence/
+            /tmp/login-unit-tests.log
+          if-no-files-found: ignore
+          retention-days: 3
+      - name: Require all validation gates
+        if: always()
+        env:
+          LINT: ${{ steps.lint.outcome }}
+          TESTS: ${{ steps.tests.outcome }}
+          AUTH: ${{ steps.auth.outcome }}
+          BUILD: ${{ steps.build.outcome }}
+          BROWSER: ${{ steps.browser.outcome }}
+          LAYOUT: ${{ steps.layout.outcome }}
+        run: |
+          printf 'lint=%s tests=%s auth=%s build=%s browser=%s layout=%s\n' "$LINT" "$TESTS" "$AUTH" "$BUILD" "$BROWSER" "$LAYOUT"
+          test "$LINT" = success && test "$TESTS" = success && test "$AUTH" = success && test "$BUILD" = success && test "$BROWSER" = success && test "$LAYOUT" = success
