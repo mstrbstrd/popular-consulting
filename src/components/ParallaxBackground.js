@@ -488,7 +488,11 @@ export const ParallaxBackground = ({ children, initialSection = 0 }) => {
       data-mobile-light-runtime={mobileLightRuntimeState}
       data-active-section={activeSection}
     >
-      <div className="fixed-background" ref={backgroundRef}>
+      <div
+        className="fixed-background"
+        ref={backgroundRef}
+        data-live-visual={shouldUseDither || isDark ? "expected" : "fallback"}
+      >
         <div className="background-css-fallback" aria-hidden="true">
           {fallbackOrbs.map((orb, index) => (
             <div
@@ -606,6 +610,12 @@ export const ParallaxBackground = ({ children, initialSection = 0 }) => {
         .background-css-fallback {
           overflow: hidden;
           background: ${isDark ? "#080809" : "#fff8f7"};
+          opacity: ${shouldUseDither || isDark ? "0" : "1"};
+          transition: opacity 180ms ease;
+        }
+
+        .fixed-background[data-live-visual="fallback"] .background-css-fallback {
+          opacity: 1;
         }
 
         .background-css-orb {
