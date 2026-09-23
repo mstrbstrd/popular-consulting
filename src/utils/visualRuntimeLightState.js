@@ -1,3 +1,5 @@
+import { LOGIN_PRESET } from "./loginScene";
+
 export const VISUAL_RUNTIME_LIGHT_PRESETS = Object.freeze([
   Object.freeze({
     speed: 0.7,
@@ -27,6 +29,7 @@ export const VISUAL_RUNTIME_LIGHT_PRESETS = Object.freeze([
     rainbowSpeed: 0.32,
     shape: 0,
   }),
+  LOGIN_PRESET,
 ]);
 
 export const VISUAL_RUNTIME_LIGHT_FIXED = Object.freeze({

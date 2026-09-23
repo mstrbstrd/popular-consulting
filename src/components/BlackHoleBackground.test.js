@@ -22,8 +22,8 @@ describe("persistent dark-mode black-hole invariants", () => {
     "utf8",
   );
 
-  test("preserves the original section camera choreography", () => {
-    expect(BLACK_HOLE_SECTION_ZOOMS).toEqual([14, 28, 44, 62, 22, 18]);
+  test("adds Login after Contact while preserving the original camera choreography", () => {
+    expect(BLACK_HOLE_SECTION_ZOOMS).toEqual([14, 28, 44, 62, 82, 22, 18]);
     expect(BLACK_HOLE_INITIAL_ZOOM).toBe(80);
     expect(BLACK_HOLE_ZOOM_LERP_RATE).toBe(0.025);
     expect(BLACK_HOLE_POINTER_LERP_RATE).toBe(0.035);
@@ -32,6 +32,7 @@ describe("persistent dark-mode black-hole invariants", () => {
   test("runs only on immersive routes", () => {
     expect(isImmersiveBlackHolePath("/")).toBe(true);
     expect(isImmersiveBlackHolePath("/engineering")).toBe(true);
+    expect(isImmersiveBlackHolePath("/login")).toBe(true);
     expect(isImmersiveBlackHolePath("/unknown-route")).toBe(true);
     expect(isImmersiveBlackHolePath("/work")).toBe(false);
     expect(isImmersiveBlackHolePath("/orb")).toBe(false);

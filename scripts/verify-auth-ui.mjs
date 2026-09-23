@@ -75,7 +75,7 @@ try {
       check(await evaluate('document.documentElement.scrollWidth<=innerWidth+1'), 'Login page overflow');
       check(await evaluate('document.querySelector(".nav-pill").getBoundingClientRect().right<=innerWidth+1'), 'Navigation overflow');
       check(await evaluate('!document.querySelector("a[href=\'/invoice-generator\']")'), 'Anonymous invoice link exposed');
-      check(await evaluate('document.querySelector("form").method === "post"'), 'Login is not POST');
+      check(await evaluate('document.querySelector("form[action=\'/api/auth/login\']").method === "post"'), 'Login is not POST');
       await capture('login');
       session = admin();
       await call('Page.navigate', { url: `${origin}/invoice-generator?graphics=css` });

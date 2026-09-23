@@ -7,6 +7,7 @@ import React, {
 } from "react";
 import ManagedDitherBackground from "./ManagedDitherBackground";
 import ProductionThemeCanvas from "./ProductionThemeCanvas";
+import { LOGIN_SECTION_INDEX, LOGIN_DITHER_SECTION } from "../utils/loginScene";
 import { useThemeMode } from "../contexts/ThemeContext";
 import { hasHardwareWebGL, isMobileTier } from "../utils/deviceTier";
 import { shouldUseHighFidelityMobileLight } from "../utils/mobileGraphicsCapability";
@@ -23,6 +24,7 @@ const SECTION_LABELS = [
   "About",
   "Services",
   "Contact",
+  "Sign in",
   "Interactive Orb",
   "Popcorn Game",
 ];
@@ -32,6 +34,7 @@ const CSS_SECTION_DARK = [
   ["#24CCFF", "#4FC3F7", "#52E5A0"],
   ["#FF56D6", "#9B72FF", "#6344F5"],
   ["#FF8C42", "#FF56D6", "#9B72FF"],
+  ["#52E5A0", "#24CCFF", "#FF56D6"],
   ["#24CCFF", "#52E5A0", "#6344F5"],
   ["#24CCFF", "#4FC3F7", "#52E5A0"],
 ];
@@ -40,6 +43,7 @@ const CSS_SECTION_LIGHT = [
   ["#38bdf8", "#7dd3fc", "#34d399"],
   ["#f472b6", "#a78bfa", "#818cf8"],
   ["#fb923c", "#f472b6", "#a78bfa"],
+  ["#34d399", "#38bdf8", "#f472b6"],
   ["#38bdf8", "#34d399", "#818cf8"],
   ["#38bdf8", "#7dd3fc", "#34d399"],
 ];
@@ -61,7 +65,9 @@ export const isContactTextEntryFocused = (
   );
 };
 
-export const ParallaxBackground = ({ children }) => {
+export const ParallaxBackground = ({ children, initialSection = 0 }) => {
+  const totalSections = Children.count(children) || 0;
+  const initialIndex = Math.max(0, Math.min(totalSections - 1, Math.floor(Number(initialSection) || 0)));
   const { isDark } = useThemeMode();
   const backgroundRef = useRef(null);
   const contentRef = useRef(null);
@@ -74,12 +80,14 @@ export const ParallaxBackground = ({ children }) => {
     lastNavAt: 0,
   });
 
-  const [activeSection, setActiveSection] = useState(0);
+  const [activeSection, setActiveSection] = useState(initialIndex);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [mobileLightRuntimeFailed, setMobileLightRuntimeFailed] =
     useState(false);
-  const totalSections = Children.count(children) || 0;
-  const activeSectionRef = useRef(0);
+  const activeSectionRef = useRef(initialIndex);
+  const ditherSection = activeSection === LOGIN_SECTION_INDEX
+    ? LOGIN_DITHER_SECTION
+    : activeSection > LOGIN_SECTION_INDEX ? activeSection - 1 : activeSection;
 
   const shouldUseDither = hasHardwareWebGL && !isDark;
   const mobileLightEligible = shouldUseHighFidelityMobileLight({
@@ -182,7 +190,7 @@ export const ParallaxBackground = ({ children }) => {
 
   const goToSection = React.useCallback(
     (index, transitionSpeed = 0.8) => {
-      if (index < 0 || index >= totalSections || isTransitioning) return;
+      if (index === activeSection || index < 0 || index >= totalSections || isTransitioning) return;
       const sections = sectionsRef.current;
       if (!sections.length) return;
 
@@ -451,6 +459,7 @@ export const ParallaxBackground = ({ children }) => {
           className={`section-container ${isActive ? "active" : ""}`}
           data-section={index}
           aria-hidden={!isActive}
+          inert={!isActive ? "" : undefined}
           style={{
             transform: initialTransform,
             opacity: isActive ? 1 : 0,
@@ -477,6 +486,7 @@ export const ParallaxBackground = ({ children }) => {
     <div
       className="parallax-wrapper"
       data-mobile-light-runtime={mobileLightRuntimeState}
+      data-active-section={activeSection}
     >
       <div className="fixed-background" ref={backgroundRef}>
         <div className="background-css-fallback" aria-hidden="true">
@@ -504,7 +514,7 @@ export const ParallaxBackground = ({ children }) => {
         {shouldUseLegacyDither && (
           <div className="background-dither-live">
             <ManagedDitherBackground
-              activeSection={activeSection}
+              activeSection={ditherSection}
               enabled={shouldUseLegacyDither}
               isDark={isDark}
               rendererId="main-dither"

@@ -1,6 +1,7 @@
 // Persistent dark-mode black hole for immersive routes.
 // Reuses the canonical pipeline and shader without duplicating their mathematics.
 import React from "react";
+import { LOGIN_SECTION_INDEX, LOGIN_BLACK_HOLE_ZOOM, isLoginPath } from "../utils/loginScene";
 import { createPortal } from "react-dom";
 import { hasHardwareWebGL, isMobileTier } from "../utils/deviceTier";
 import { recordGraphicsEvent } from "../utils/graphicsPolicy";
@@ -14,7 +15,7 @@ import {
 import { BlackHolePipeline } from "./blackHolePipeline";
 import { safeSessionSet } from "./blackHoleWebGL";
 
-export const BLACK_HOLE_SECTION_ZOOMS = Object.freeze([14, 28, 44, 62, 22, 18]);
+export const BLACK_HOLE_SECTION_ZOOMS = Object.freeze([14, 28, 44, 62, LOGIN_BLACK_HOLE_ZOOM, 22, 18]);
 export const BLACK_HOLE_INITIAL_ZOOM = 80;
 export const BLACK_HOLE_ZOOM_LERP_RATE = 0.025;
 export const BLACK_HOLE_POINTER_LERP_RATE = 0.035;
@@ -33,7 +34,7 @@ export const isImmersiveBlackHolePath = (pathname = "/") =>
   !NON_IMMERSIVE_PATHS.has(normalizePathname(pathname));
 
 export const isMobileBlackHolePath = (pathname = "/") =>
-  normalizePathname(pathname) === "/";
+  (normalizePathname(pathname) === "/" || isLoginPath(pathname));
 
 export const canAttemptMobileBlackHole = (signals = {}) =>
   canAttemptHighFidelityMobileGraphics(signals);
@@ -68,7 +69,9 @@ const readInitialSection = () => {
   if (typeof window === "undefined") return 0;
   const match = window.location.hash.match(/^#section-(\d+)$/);
   const index = Number(match?.[1]);
-  return Number.isInteger(index) && index >= 0 ? index : 0;
+  return Number.isInteger(index) && index >= 0
+    ? index
+    : isLoginPath(window.location.pathname) ? LOGIN_SECTION_INDEX : 0;
 };
 
 const useFixedBackgroundTarget = (enabled) => {

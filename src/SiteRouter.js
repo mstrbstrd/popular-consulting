@@ -6,6 +6,7 @@ import {
   graphicsMode,
 } from "./utils/graphicsPolicy";
 import SectionDeepLinkBridge from "./components/SectionDeepLinkBridge";
+import { LOGIN_SECTION_INDEX } from "./utils/loginScene";
 
 const App = React.lazy(() => import("./App"));
 const WorkPage = React.lazy(() => import("./components/WorkPage"));
@@ -71,8 +72,11 @@ const SiteRouter = ({ pathname = window.location.pathname }) => {
   } else if (view === SITE_VIEWS.INVOICE_GENERATOR) {
     // The actual editor exists only in the middleware-protected private build.
     page = <AuthPage />;
-  } else if (view === SITE_VIEWS.LOGIN || view === SITE_VIEWS.LOGOUT) {
-    page = <AuthPage logoutPage={view === SITE_VIEWS.LOGOUT} />;
+  } else if (view === SITE_VIEWS.LOGIN) {
+    // Keep callback errors and the /login URL, but use the real immersive shell.
+    page = <App initialSection={LOGIN_SECTION_INDEX} />;
+  } else if (view === SITE_VIEWS.LOGOUT) {
+    page = <AuthPage logoutPage />;
   } else if (view === SITE_VIEWS.ORB) {
     page = <OrbPage />;
   } else if (view === SITE_VIEWS.GAME) {
@@ -94,7 +98,7 @@ const SiteRouter = ({ pathname = window.location.pathname }) => {
   }
 
   const enableSectionDeepLinks =
-    view === SITE_VIEWS.ORIGINAL || view === SITE_VIEWS.ENGINEERING;
+    view === SITE_VIEWS.ORIGINAL || view === SITE_VIEWS.ENGINEERING || view === SITE_VIEWS.LOGIN;
 
   return (
     <>

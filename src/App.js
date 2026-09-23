@@ -15,10 +15,18 @@ import {
 } from "./immersiveMode";
 import { MAIN_APP_EXPERIENCE_PLAN } from "./experiencePlacement";
 import routeMetadata from "./content/routeMetadata.json";
+import { LOGIN_SECTION_INDEX } from "./utils/loginScene";
 import { SITE_AUDIENCES } from "./content/siteCopy";
 
 const OrbSection = lazy(() => import("./components/OrbSection"));
 const LoadingOverlay = lazy(() => import("./components/LoadingOverlay"));
+const LoginSection = lazy(() => import("./components/AuthPage"));
+
+const MainAppLoginSection = () => (
+  <Suspense fallback={null}>
+    <LoginSection embedded />
+  </Suspense>
+);
 
 const MainAppOrbSection = (props) => (
   <Suspense fallback={null}>
@@ -31,11 +39,13 @@ const IMMERSIVE_METADATA = {
   [IMMERSIVE_MODES.ENGINEERING]: routeMetadata.engineering,
 };
 
-const App = ({ immersiveMode = IMMERSIVE_MODES.ORIGINAL }) => {
+const App = ({ immersiveMode = IMMERSIVE_MODES.ORIGINAL, initialSection = 0 }) => {
   const [loading, setLoading] = useState(false);
   const [pageHidden, setPageHidden] = useState(false);
   const presentation = resolveImmersivePresentation(immersiveMode);
-  const metadata = IMMERSIVE_METADATA[presentation.mode];
+  const metadata = initialSection === LOGIN_SECTION_INDEX
+    ? routeMetadata.login
+    : IMMERSIVE_METADATA[presentation.mode];
   const audience =
     presentation.mode === IMMERSIVE_MODES.ENGINEERING
       ? SITE_AUDIENCES.ENGINEERING
@@ -143,6 +153,7 @@ const App = ({ immersiveMode = IMMERSIVE_MODES.ORIGINAL }) => {
     <BioSection key="about" audience={audience} />,
     <ServicesSection key="services" audience={audience} />,
     <ContactSection key="contact" audience={audience} />,
+    <MainAppLoginSection key="login" />,
   ];
 
   if (MAIN_APP_EXPERIENCE_PLAN.orbInMainApp) {
@@ -160,13 +171,13 @@ const App = ({ immersiveMode = IMMERSIVE_MODES.ORIGINAL }) => {
         </a>
 
         <div style={pageHideStyle}>
-          <NavMenu audience={audience} />
+          <NavMenu audience={audience} initialSection={initialSection} />
 
           {presentation.showAnimatedLogo && <HeroLogo />}
 
           <main id="main-content" aria-label={mainLabel}>
             {presentation.showProfessionalHero && <ProfessionalHero />}
-            <ParallaxBackground>{mainAppSections}</ParallaxBackground>
+            <ParallaxBackground initialSection={initialSection}>{mainAppSections}</ParallaxBackground>
           </main>
         </div>
 

@@ -60,11 +60,13 @@ const SectionDeepLinkBridge = ({ enabled = false }) => {
 
     activateHashTarget();
     window.addEventListener("hashchange", activateHashTarget);
+    window.addEventListener("popstate", activateHashTarget);
 
     return () => {
       cancelled = true;
       stopRetrying();
       window.removeEventListener("hashchange", activateHashTarget);
+      window.removeEventListener("popstate", activateHashTarget);
     };
   }, [enabled]);
 

@@ -61,14 +61,14 @@ try {
       const geometry = async label => {
         const value = await evaluate(`(() => {
           const rect = selector => { const e=document.querySelector(selector), r=e.getBoundingClientRect(), c=getComputedStyle(e); return { top:r.top, bottom:r.bottom, left:r.left, right:r.right, height:r.height, position:c.position, overflow:c.overflowY }; };
-          return { nav:rect('.nav-header'), pill:rect('.nav-pill'), card:rect('.auth-card'), back:rect('.auth-back'), overflow:document.documentElement.scrollWidth>innerWidth+1 };
+          return { embedded:!!document.querySelector('#login'), viewport:document.querySelector('#login')?rect('#login .auth-content'):null, nav:rect('.nav-header'), pill:rect('.nav-pill'), card:rect('.auth-card'), back:rect('.auth-back'), overflow:document.documentElement.scrollWidth>innerWidth+1 };
         })()`);
         report.geometry.push({ label, ...value });
         check(!value.overflow, `${label}: horizontal overflow`);
         check(value.pill.left >= 0 && value.pill.right <= width + 1, `${label}: navigation outside viewport`);
         check(value.card.left >= 0 && value.card.right <= width + 1, `${label}: card outside viewport`);
-        check(value.card.top >= value.nav.bottom + 8, `${label}: navigation and card overlap`);
-        check(!['fixed', 'sticky'].includes(value.nav.position), `${label}: account navigation can cover scrolled card`);
+        check((value.embedded ? value.viewport.top : value.card.top) >= value.nav.bottom + 8, `${label}: navigation and card overlap`);
+        check(value.embedded || !['fixed', 'sticky'].includes(value.nav.position), `${label}: account navigation can cover scrolled card`);
         check(!['auto', 'scroll', 'hidden', 'clip'].includes(value.card.overflow), `${label}: card has inner scrolling/clipping`);
         return value;
       };
@@ -87,10 +87,10 @@ try {
           check(await evaluate('!document.querySelector("a[href=\'/invoice-generator\']")'), `${label}: anonymous admin link`);
           await capture(label);
           // Document scroll must not move the card beneath a fixed navigation bar.
-          await evaluate('scrollTo(0,document.documentElement.scrollHeight)');
+          await evaluate("(()=>{const section=document.querySelector('#login .auth-content');if(section)section.scrollTop=section.scrollHeight;else scrollTo(0,document.documentElement.scrollHeight)})()");
           await geometry(`${label}-scrolled`);
           check(await evaluate('document.querySelector(".auth-back").getBoundingClientRect().bottom <= innerHeight + 1'), `${label}: return action is unreachable`);
-          await evaluate('scrollTo(0,0)');
+          await evaluate("(()=>{const section=document.querySelector('#login .auth-content');if(section)section.scrollTop=0;else scrollTo(0,0)})()");
           if (label === 'passkey-error' && !baseline) {
             check(await evaluate('!document.querySelector(".auth-help").open'), 'Help starts expanded');
             await evaluate('document.querySelector(".auth-help summary").click()');
