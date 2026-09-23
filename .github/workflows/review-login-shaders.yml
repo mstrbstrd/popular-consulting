@@ -1,0 +1,38 @@
+name: Review login shader and navigation
+on:
+  push:
+    branches: [work/login-section-20260922]
+    paths:
+      - scripts/verify-login-section.mjs
+      - .github/workflows/review-login-shaders.yml
+permissions:
+  contents: read
+concurrency:
+  group: login-shader-review
+  cancel-in-progress: true
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      CI: true
+      VISUAL_CAPTURE_BROWSER: /usr/bin/google-chrome
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: node --check scripts/verify-login-section.mjs
+      - run: npm run build
+      - run: node scripts/verify-login-section.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: login-shader-review
+          path: login-section-evidence/
+          if-no-files-found: ignore
+          retention-days: 3
