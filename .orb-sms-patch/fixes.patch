@@ -1,3 +1,184 @@
+diff --git a/docs/orb-sms.md b/docs/orb-sms.md
+index 71a7d6f..09fce5f 100644
+--- a/docs/orb-sms.md
++++ b/docs/orb-sms.md
+@@ -28,7 +28,7 @@ The website polls while visible, every three seconds normally, with backoff afte
+ ## Storage and delivery invariants
+ 
+ - A 256-bit random HttpOnly, Secure, SameSite=Strict cookie grants access to exactly one conversation. Only its SHA-256 digest indexes Redis. Every mutation requires the same-origin request and that conversation's independent CSRF token.
+-- Transcripts, CSRF records, and job bodies expire seven days after creation. Polling and new messages do not extend retention. Ending a chat removes its website transcript and queued job bodies. Delivered SMS and provider/carrier copies cannot be recalled and have separate retention policies.
++- Transcripts, CSRF records, and job bodies expire seven days after creation. Polling and new messages do not extend retention. Ending a chat removes its website transcript and queued job bodies. A send already in progress may still finish after closing. Submitted SMS and provider/carrier copies cannot be recalled and have separate retention policies.
+ - Code reservations deliberately do not expire and contain only a random conversation digest, not message text or a phone number. Do not delete/reuse them while maintaining the same namespace. This prevents an old text thread from reaching a new visitor after expiry or closing.
+ - Browser retries use the same message UUID. Redis atomically inserts the transcript and outbox job. Incoming MessageSids are deduplicated atomically. Replies from anyone other than the configured owner, even with a valid provider signature, are rejected.
+ - The Twilio SDK verifies signatures using all form fields and the exact configured URL. Account, direction, message ID, content type, body size, and attachment constraints are checked separately. Browser Origin checks are not incorrectly applied to provider callbacks.
+diff --git a/server/orb-sms-handler.mjs b/server/orb-sms-handler.mjs
+index 68afa7e..7ef3c6b 100644
+--- a/server/orb-sms-handler.mjs
++++ b/server/orb-sms-handler.mjs
+@@ -1,12 +1,11 @@
+ import {
+   OrbError, relayIsOff, readOrbConfig, authenticatedOrbUser, requireSameOrigin, requestUrl,
+   guestToken, guestCookie, hash, token, newCode, clientKey, sameSecret, readBody,
+-  MAX_GUEST_CHARS, MESSAGE_ID_PATTERN, SID_PATTERN, parseReply, validTwilioRequest, sendSms,
++  MAX_GUEST_CHARS, MESSAGE_ID_PATTERN, SID_PATTERN, parseReply, validTwilioRequest, sendSms, CLARIFICATION,
+ } from './orb-sms.mjs';
+ import { createOrbStore } from './orb-sms-store.mjs';
+ 
+ const JOB_PATTERN = /^[a-f0-9]{64}\.[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
+-const CLARIFICATION = 'Orb: reply with #CODE followed by your message. Use the 8-character code in the notification. Closed or expired chats cannot receive replies.';
+ const emptyXml = '<?xml version="1.0" encoding="UTF-8"?><Response/>';
+ export const PRIVATE_CHAT_HEADERS = Object.freeze({
+   'Cache-Control': 'private, no-store, max-age=0', 'CDN-Cache-Control': 'no-store',
+diff --git a/server/orb-sms-store.mjs b/server/orb-sms-store.mjs
+index df97575..859cc52 100644
+--- a/server/orb-sms-store.mjs
++++ b/server/orb-sms-store.mjs
+@@ -1,4 +1,4 @@
+-import { OrbError, boundedText, RETENTION_SECONDS, reservedSegments, smsBody } from './orb-sms.mjs';
++import { OrbError, boundedText, RETENTION_SECONDS, reservedSegments, smsBody, CLARIFICATION } from './orb-sms.mjs';
+ 
+ const CREATE = `
+ if redis.call('EXISTS', KEYS[1]) == 1 then return 0 end
+@@ -83,9 +83,9 @@ job.state=state; save(job); return 'saved'`;
+ const CLARIFY = `
+ if redis.call('EXISTS',KEYS[1])==1 then return 0 end
+ redis.call('SET',KEYS[1],'1','EX',${RETENTION_SECONDS + 86400})
+-if tonumber(redis.call('GET',KEYS[2]) or '0')>=3 or tonumber(redis.call('GET',KEYS[3]) or '0')>=500 then return 0 end
++if tonumber(redis.call('GET',KEYS[2]) or '0')>=3 or tonumber(redis.call('GET',KEYS[3]) or '0')+${reservedSegments(CLARIFICATION)}>500 then return 0 end
+ if redis.call('INCR',KEYS[2])==1 then redis.call('EXPIRE',KEYS[2],3600) end
+-if redis.call('INCR',KEYS[3])==1 then redis.call('EXPIRE',KEYS[3],86400) end
++if redis.call('INCRBY',KEYS[3],${reservedSegments(CLARIFICATION)})==${reservedSegments(CLARIFICATION)} then redis.call('EXPIRE',KEYS[3],86400) end
+ return 1`;
+ 
+ export function createOrbStore(config, fetchImpl = fetch) {
+diff --git a/server/orb-sms.mjs b/server/orb-sms.mjs
+index 41409de..449b297 100644
+--- a/server/orb-sms.mjs
++++ b/server/orb-sms.mjs
+@@ -11,6 +11,7 @@ export const CODE_PATTERN = /^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{8}$/;
+ export const TOKEN_PATTERN = /^[a-f0-9]{64}$/;
+ export const MESSAGE_ID_PATTERN = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
+ export const SID_PATTERN = /^SM[a-f0-9]{32}$/;
++export const CLARIFICATION = 'Orb: reply with #CODE followed by your message. Use the 8-character code in the notification. Closed or expired chats cannot receive replies.';
+ export const relayIsOff = (env = process.env) => !env.ORB_SMS_ENABLED || env.ORB_SMS_ENABLED === 'false';
+ export const token = () => randomBytes(32).toString('hex');
+ export const hash = value => createHash('sha256').update(value).digest('hex');
+diff --git a/server/orb-tests/integration.test.mjs b/server/orb-tests/integration.test.mjs
+index 322898a..ba3c19d 100644
+--- a/server/orb-tests/integration.test.mjs
++++ b/server/orb-tests/integration.test.mjs
+@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
+ import { randomUUID, createHmac } from 'node:crypto';
+ import { env, invoke } from './fixtures.mjs';
+ import { redisCommand, redisFetch } from './redis-fixture.mjs';
+-import { readOrbConfig, hash, token, newCode, guestCookie } from '../orb-sms.mjs';
++import { readOrbConfig, hash, token, newCode, guestCookie, CLARIFICATION, reservedSegments } from '../orb-sms.mjs';
+ import { createOrbStore } from '../orb-sms-store.mjs';
+ import { dispatchOne } from '../orb-sms-handler.mjs';
+ const integration = (name, fn) => test(name, { skip: !process.env.ORB_TEST_REDIS_PORT }, fn);
+@@ -123,3 +123,13 @@ integration('HTTP guests require their own cookie, CSRF token, and exact message
+   const other = await conversation(store); const response = await invoke('/api/orb/messages', { ...deps, headers: { cookie: guestCookie(other.secret) } });
+   assert.deepEqual(JSON.parse(response.body).messages, []);
+ });
++
++integration('clarifications reserve all their segments without exceeding the global SMS budget', async () => {
++  const { config, store } = fixture(); const segments = reservedSegments(CLARIFICATION);
++  await redisCommand(['SET', `${config.prefix}sms-budget:`, `${500 - segments + 1}`]);
++  assert.equal(await store.clarify(sid()), false);
++  await redisCommand(['SET', `${config.prefix}sms-budget:`, `${500 - segments}`]);
++  const messageSid = sid(); assert.equal(await store.clarify(messageSid), true);
++  assert.equal(await redisCommand(['GET', `${config.prefix}sms-budget:`]), '500');
++  assert.equal(await store.clarify(messageSid), false); assert.equal(await store.clarify(sid()), false);
++});
+diff --git a/src/__tests__/a11y/09_axe_automated.test.js b/src/__tests__/a11y/09_axe_automated.test.js
+index 19104c9..c0d6de9 100644
+--- a/src/__tests__/a11y/09_axe_automated.test.js
++++ b/src/__tests__/a11y/09_axe_automated.test.js
+@@ -15,7 +15,7 @@
+ 
+ import '../../testHelpers/a11ySetup';
+ import React from 'react';
+-import { render, screen } from '@testing-library/react';
++import { render, screen, waitFor } from '@testing-library/react';
+ import { axe, toHaveNoViolations } from 'jest-axe';
+ import { ThemeProvider } from '../../contexts/ThemeContext';
+ import NavMenu from '../../components/NavMenu';
+@@ -121,19 +121,29 @@ describe('axe: ProfessionalHero', () => {
+ });
+ 
+ describe('axe: OrbPage', () => {
+-  test('has no automatically detectable violations', async () => {
++  test.each([[false, 'Message Metabloom'], [true, 'Message Shaedan']])(
++    'has no automatically detectable violations with SMS enabled=%s', async (enabled, textboxName) => {
+     const previousPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+     window.history.replaceState({}, '', '/orb');
++    const originalFetch = global.fetch;
++    global.fetch = jest.fn(async url => {
++      const value = url === '/api/orb/config' ? { enabled }
++        : url === '/api/orb/messages' ? { session: null, messages: [] } : null;
++      if (!value) throw new Error(`Unexpected test request: ${url}`);
++      return { ok: true, status: 200, text: async () => JSON.stringify(value) };
++    });
+ 
+     let unmount = () => {};
+     try {
+       const rendered = render(<OrbPage />);
+       unmount = rendered.unmount;
+-      await screen.findByRole('textbox', { name: 'Message Metabloom' });
++      const textbox = await screen.findByRole('textbox', { name: textboxName });
++      await waitFor(() => expect(textbox).not.toBeDisabled());
+       const results = await axe(rendered.container);
+       expect(results).toHaveNoViolations();
+     } finally {
+       unmount();
++      global.fetch = originalFetch;
+       window.history.replaceState({}, '', previousPath || '/');
+     }
+   });
+diff --git a/src/components/GuestOrbSection.js b/src/components/GuestOrbSection.js
+index cc2546e..4400c90 100644
+--- a/src/components/GuestOrbSection.js
++++ b/src/components/GuestOrbSection.js
+@@ -41,7 +41,7 @@ export default function GuestOrbSection({ isActive = true, onConversationStateCh
+     if (await chat.send(draft)) setDraft('');
+   };
+   const close = async () => {
+-    if (!window.confirm('End this conversation and remove its website transcript? Texts already delivered to a phone cannot be recalled.')) return;
++    if (!window.confirm('End this conversation and remove its website transcript? Texts already submitted cannot be recalled, and forwarding already in progress may still finish.')) return;
+     if (await chat.close()) { setDraft(''); setConsent(false); }
+   };
+   return (
+diff --git a/src/components/GuestOrbSection.test.js b/src/components/GuestOrbSection.test.js
+index 1b971cb..21fb479 100644
+--- a/src/components/GuestOrbSection.test.js
++++ b/src/components/GuestOrbSection.test.js
+@@ -1,14 +1,24 @@
+ import React from 'react';
++import { randomFillSync } from 'crypto';
+ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+ import '@testing-library/jest-dom';
+ import GuestOrbSection from './GuestOrbSection';
+ jest.mock('../contexts/ThemeContext', () => ({ useThemeMode: () => ({ isDark: false }) }));
+ jest.mock('./MetabloomAvatar', () => () => <div data-testid="avatar" />);
+ const originalFetch = global.fetch;
++const originalCrypto = Object.getOwnPropertyDescriptor(window, 'crypto');
+ const session = { csrfToken: 'a'.repeat(64), expiresAt: Date.now() + 600000 };
+ const reply = value => ({ ok: true, status: 200, text: async () => JSON.stringify(value) });
+-beforeEach(() => { Object.defineProperty(document, 'hidden', { configurable: true, value: false }); });
+-afterEach(() => { cleanup(); global.fetch = originalFetch; });
++beforeEach(() => {
++  Object.defineProperty(document, 'hidden', { configurable: true, value: false });
++  // JSDOM does not provide the browser's Web Crypto API. Keep production randomness unchanged.
++  Object.defineProperty(window, 'crypto', { configurable: true, value: { getRandomValues: randomFillSync } });
++});
++afterEach(() => {
++  cleanup(); global.fetch = originalFetch;
++  if (originalCrypto) Object.defineProperty(window, 'crypto', originalCrypto);
++  else delete window.crypto;
++});
+ test('requires forwarding consent and renders human replies as escaped plain text', async () => {
+   const messages = [];
+   global.fetch = jest.fn(async (url, options) => {
 diff --git a/src/hooks/useGuestConversation.js b/src/hooks/useGuestConversation.js
 index c4902e1..65ec86a 100644
 --- a/src/hooks/useGuestConversation.js
