@@ -1272,7 +1272,7 @@ const ServicesSection = ({
       const navHeight = 96;
       const side = 12;
       const available = window.innerHeight - navHeight;
-      const cardHeight = Math.round(available * 0.65);
+      const cardHeight = Math.round(available * 0.72);
       const top = navHeight + Math.round((available - cardHeight) / 2);
       return {
         top,
