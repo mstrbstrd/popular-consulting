@@ -21,16 +21,34 @@ const gitBlobSha = (value) => {
     .digest('hex');
 };
 
+// The requested Login scene is additive. Remove only its four exact hooks,
+// then verify every original scene and renderer byte against the UNCHANGED
+// stage-zero oracle. This does not rebaseline or relax the existing graphics.
+const withoutLoginExtension = (source) => {
+  const additions = [
+    'import { LOGIN_APERTURE_GLSL, LOGIN_PRESET } from "../utils/loginScene";\n',
+    '  LOGIN_PRESET, // Login – Spectral aperture (reserved scene slot 6)\n',
+    '${LOGIN_APERTURE_GLSL}\n\n',
+    '  if(shape==8)return sceneLoginAperture(uv,t);\n',
+  ];
+  return additions.reduce((original, addition) => {
+    expect(original.split(addition)).toHaveLength(2);
+    return original.replace(addition, '');
+  }, normalizeLineEndings(source));
+};
+
 describe('reference visual oracle', () => {
   test.each(Object.entries(REFERENCE_BLOB_SHA))(
-    'keeps %s byte-identical to the stage-zero oracle',
+    'keeps the original %s byte-identical outside the additive Login hooks',
     (fileName, expectedSha) => {
       const source = fs.readFileSync(
         path.join(process.cwd(), 'src/components', fileName),
         'utf8',
       );
-
-      expect(gitBlobSha(source)).toBe(expectedSha);
+      const original = fileName === 'DitherBackground.js'
+        ? withoutLoginExtension(source)
+        : source;
+      expect(gitBlobSha(original)).toBe(expectedSha);
     },
   );
 });

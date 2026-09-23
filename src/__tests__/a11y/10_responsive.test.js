@@ -36,17 +36,13 @@ describe('NavMenu responsive rendering', () => {
   test('hamburger button is NOT rendered on desktop (>768px)', () => {
     setViewportWidth(1024);
     wrap(<NavMenu />);
-    // There may be a brief render before resize; check after
     const burger = document.querySelector('.nav-burger');
-    // On desktop, burger should not be in DOM (isMobile=false)
-    // Note: JSDOM may not update synchronously — we test the initial render
     expect(burger).toBeNull();
   });
 
   test('desktop nav links are rendered on desktop (>768px)', () => {
     setViewportWidth(1024);
     wrap(<NavMenu />);
-    // Desktop links use .nav-links class
     const navLinks = document.querySelector('.nav-links');
     expect(navLinks).toBeInTheDocument();
   });
@@ -54,9 +50,7 @@ describe('NavMenu responsive rendering', () => {
   test('hamburger IS rendered on mobile (375px)', () => {
     setViewportWidth(375);
     wrap(<NavMenu />);
-    // Force isMobile to true via resize
     fireEvent(window, new Event('resize'));
-    // Re-query after resize event processed
     const burger = document.querySelector('.nav-burger');
     expect(burger).toBeInTheDocument();
   });
@@ -83,10 +77,14 @@ describe('Nav is accessible at all viewports', () => {
     });
   });
 
-  test('theme toggle is always present regardless of viewport', () => {
+  test('theme toggle is reachable on desktop and through the mobile menu', () => {
     [375, 1024].forEach((width) => {
       setViewportWidth(width);
       const { unmount } = wrap(<NavMenu />);
+      if (width <= 768) {
+        expect(screen.queryByRole('button', { name: /toggle dark mode/i })).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: /open navigation menu/i }));
+      }
       const toggle = screen.getByRole('button', { name: /toggle dark mode/i });
       expect(toggle).toBeInTheDocument();
       unmount();

@@ -3,10 +3,11 @@ on:
   push:
     branches: [work/login-section-20260922]
     paths:
-      - scripts/apply-login-section.py
+      - src/**
+      - scripts/verify-auth-*.mjs
       - .github/workflows/integrate-login-section.yml
 permissions:
-  contents: write
+  contents: read
 concurrency:
   group: embedded-login-validation
   cancel-in-progress: true
@@ -20,26 +21,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-          ref: work/login-section-20260922
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
-      - name: Apply scoped source changes on the validation branch
-        run: |
-          python3 scripts/apply-login-section.py
-          git diff --check
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add src scripts/verify-auth-ui.mjs scripts/verify-auth-layout.mjs
-          if ! git diff --cached --quiet; then
-            git commit -m 'feat: integrate login into the immersive section layout'
-            git push origin HEAD:work/login-section-20260922
-          fi
-          git rev-parse HEAD
-      - id: dependencies
-        run: npm ci --no-audit --no-fund
+      - run: git diff --check
+      - run: npm ci --no-audit --no-fund
       - id: lint
         continue-on-error: true
         run: npm run lint
@@ -47,10 +35,10 @@ jobs:
         continue-on-error: true
         run: |
           set +e
-          npm test -- --watchAll=false --runInBand > /tmp/login-unit-tests.log 2>&1
+          npm test -- --watchAll=false --runInBand > login-unit-tests.log 2>&1
           result=$?
-          grep -A 45 '^FAIL ' /tmp/login-unit-tests.log || true
-          tail -30 /tmp/login-unit-tests.log
+          grep -A 45 '^FAIL ' login-unit-tests.log || true
+          tail -30 login-unit-tests.log
           exit $result
       - id: auth
         continue-on-error: true
@@ -65,7 +53,13 @@ jobs:
       - id: layout
         if: steps.build.outcome == 'success'
         continue-on-error: true
-        run: node scripts/verify-auth-layout.mjs
+        run: |
+          set +e
+          node scripts/verify-auth-layout.mjs > login-layout.log 2>&1
+          result=$?
+          node -e "const r=require('./auth-layout-evidence/report.json');console.log(JSON.stringify({reports:r.reports.map(({width,height,theme,failures,checks})=>({width,height,theme,failures,checks})),errors:r.errors}))"
+          if [ "$result" -ne 0 ]; then tail -25 login-layout.log; fi
+          exit $result
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -73,7 +67,8 @@ jobs:
           path: |
             auth-ui-evidence/
             auth-layout-evidence/
-            /tmp/login-unit-tests.log
+            login-unit-tests.log
+            login-layout.log
           if-no-files-found: ignore
           retention-days: 3
       - name: Require all validation gates

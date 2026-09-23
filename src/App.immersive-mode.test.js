@@ -26,6 +26,10 @@ jest.mock("./components/ServicesSection", () => () => (
 jest.mock("./components/DitherHero", () => () => (
   <section data-testid="main-hero" />
 ));
+jest.mock("./components/AuthPage", () => ({
+  __esModule: true,
+  default: ({ embedded }) => <section data-testid="main-login" data-embedded={String(embedded)} />,
+}));
 
 jest.mock("./components/HeroLogo", () => {
   const ReactModule = require("react");
@@ -75,16 +79,21 @@ const resetDocumentMetadata = () => {
   `;
 };
 
-const expectCoreSectionsOnly = () => {
+const expectCoreSectionsWithLogin = async () => {
+  const login = await screen.findByTestId("main-login");
   const sectionStack = screen.getByTestId("main-section-stack");
 
   expect(screen.getByTestId("main-hero")).toBeInTheDocument();
   expect(screen.getByTestId("main-about")).toBeInTheDocument();
   expect(screen.getByTestId("main-services")).toBeInTheDocument();
   expect(screen.getByTestId("main-contact")).toBeInTheDocument();
+  expect(login).toHaveAttribute("data-embedded", "true");
   expect(screen.queryByTestId("main-app-orb")).not.toBeInTheDocument();
-  expect(sectionStack).toHaveAttribute("data-react-child-count", "4");
-  expect(sectionStack.children).toHaveLength(4);
+  expect(sectionStack).toHaveAttribute("data-react-child-count", "5");
+  expect(sectionStack.children).toHaveLength(5);
+  expect(Array.from(sectionStack.children).map(section => section.dataset.testid)).toEqual([
+    "main-hero", "main-about", "main-services", "main-contact", "main-login",
+  ]);
 };
 
 describe("App immersive presentation", () => {
@@ -99,12 +108,12 @@ describe("App immersive presentation", () => {
     document.body.innerHTML = "";
   });
 
-  test("keeps the original root opening logo-only with core sections only", () => {
+  test("keeps the root opening logo-only and appends Login after Contact", async () => {
     render(<App immersiveMode={IMMERSIVE_MODES.ORIGINAL} />);
 
     expect(screen.getByTestId("animated-logo")).toBeInTheDocument();
     expect(screen.queryByTestId("professional-hero")).not.toBeInTheDocument();
-    expectCoreSectionsOnly();
+    await expectCoreSectionsWithLogin();
     expect(
       screen.getByRole("main", { name: "Popular Consulting immersive website" }),
     ).toBeInTheDocument();
@@ -118,12 +127,12 @@ describe("App immersive presentation", () => {
     );
   });
 
-  test("shows the professional card without logo or route-only experiences", () => {
+  test("shows the professional card without logo or route-only experiences", async () => {
     render(<App immersiveMode={IMMERSIVE_MODES.ENGINEERING} />);
 
     expect(screen.getByTestId("professional-hero")).toBeInTheDocument();
     expect(screen.queryByTestId("animated-logo")).not.toBeInTheDocument();
-    expectCoreSectionsOnly();
+    await expectCoreSectionsWithLogin();
     expect(
       screen.getByRole("main", {
         name: "Shaedan Hawse professional portfolio and Popular Consulting website",
@@ -147,11 +156,11 @@ describe("App immersive presentation", () => {
     );
   });
 
-  test("unknown immersive modes fail closed to the original opening", () => {
+  test("unknown immersive modes fail closed to the original opening", async () => {
     render(<App immersiveMode="unexpected" />);
 
     expect(screen.getByTestId("animated-logo")).toBeInTheDocument();
     expect(screen.queryByTestId("professional-hero")).not.toBeInTheDocument();
-    expectCoreSectionsOnly();
+    await expectCoreSectionsWithLogin();
   });
 });
