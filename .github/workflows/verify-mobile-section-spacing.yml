@@ -1,0 +1,48 @@
+name: Verify mobile section spacing
+on:
+  push:
+    branches: [fix/mobile-section-spacing-20260923]
+permissions:
+  contents: read
+concurrency:
+  group: mobile-section-spacing-validation
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CI: true
+      VISUAL_CAPTURE_BROWSER: /usr/bin/google-chrome
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run lint
+      - name: Unit and invariant tests
+        run: npm test -- --watchAll=false --runInBand
+      - run: npm run test:auth
+      - run: npm run build
+      - name: Install isolated browser test tool
+        run: |
+          npm install --prefix "$RUNNER_TEMP/spacing-browser" agent-browser@0.33.2 --no-audit --no-fund
+          echo "AGENT_BROWSER_BIN=$RUNNER_TEMP/spacing-browser/node_modules/.bin/agent-browser" >> "$GITHUB_ENV"
+      - name: Verify mobile centering, every section, and desktop isolation
+        run: node scripts/verify-mobile-section-spacing.mjs
+      - name: Existing account error and layout regressions
+        run: node scripts/verify-auth-layout.mjs > auth-layout.log 2>&1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mobile-section-spacing
+          path: |
+            mobile-section-spacing-evidence/
+            auth-layout-evidence/
+            auth-layout.log
+          retention-days: 3
+          if-no-files-found: ignore
