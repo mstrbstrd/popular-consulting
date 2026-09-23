@@ -47,7 +47,10 @@
 }
 @media (max-width: 768px) {
   .auth-page--embedded .auth-content {
-    padding: 12px max(44px, env(safe-area-inset-right)) 16px max(18px, env(safe-area-inset-left));
+    /* Equal gutters keep the form centered even with a one-sided safe area. */
+    --login-mobile-gutter: calc(24px + max(env(safe-area-inset-left), env(safe-area-inset-right)));
+    padding: 12px var(--login-mobile-gutter) 16px;
+    scrollbar-gutter: stable both-edges;
   }
   .auth-page--embedded .auth-card { padding: 24px 20px; }
 }

@@ -30,3 +30,40 @@
 .parallax-wrapper .section-dots {
   top: calc(var(--immersive-viewport-height, 100dvh) / 2) !important;
 }
+
+/* The mobile rail belongs to the viewport edge, not a content column.
+ * Keep its tap areas separated and bounded instead of covering nearby forms.
+ * Higher specificity overrides the shared component's desktop/hover rules.
+ */
+@media (max-width: 768px) {
+  .parallax-wrapper .section-dots {
+    right: max(2px, env(safe-area-inset-right));
+    padding: 0; /* Do not inherit the phone-wide nav padding from index.css. */
+    gap: 36px;
+    pointer-events: none;
+  }
+
+  .parallax-wrapper .section-dot {
+    width: 8px;
+    height: 8px;
+    pointer-events: auto;
+  }
+
+  .parallax-wrapper .section-dot,
+  .parallax-wrapper .section-dot:hover,
+  .parallax-wrapper .section-dot.active,
+  .parallax-wrapper .section-dot.active:hover {
+    transform: none;
+  }
+
+  .parallax-wrapper .section-dot::after {
+    left: auto;
+    right: -3px;
+    width: 24px;
+    height: 44px;
+    transform: translateY(-50%);
+  }
+
+  .parallax-wrapper .section-dot::before { display: none; }
+  .parallax-wrapper .section-dot:focus-visible { outline-offset: 0; }
+}
