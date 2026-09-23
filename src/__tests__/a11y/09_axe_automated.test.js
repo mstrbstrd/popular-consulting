@@ -15,7 +15,7 @@
 
 import '../../testHelpers/a11ySetup';
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { axe, toHaveNoViolations } from 'jest-axe';
 import { ThemeProvider } from '../../contexts/ThemeContext';
 import NavMenu from '../../components/NavMenu';
@@ -121,19 +121,29 @@ describe('axe: ProfessionalHero', () => {
 });
 
 describe('axe: OrbPage', () => {
-  test('has no automatically detectable violations', async () => {
+  test.each([[false, 'Message Metabloom'], [true, 'Message Shaedan']])(
+    'has no automatically detectable violations with SMS enabled=%s', async (enabled, textboxName) => {
     const previousPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
     window.history.replaceState({}, '', '/orb');
+    const originalFetch = global.fetch;
+    global.fetch = jest.fn(async url => {
+      const value = url === '/api/orb/config' ? { enabled }
+        : url === '/api/orb/messages' ? { session: null, messages: [] } : null;
+      if (!value) throw new Error(`Unexpected test request: ${url}`);
+      return { ok: true, status: 200, text: async () => JSON.stringify(value) };
+    });
 
     let unmount = () => {};
     try {
       const rendered = render(<OrbPage />);
       unmount = rendered.unmount;
-      await screen.findByRole('textbox', { name: 'Message Metabloom' });
+      const textbox = await screen.findByRole('textbox', { name: textboxName });
+      await waitFor(() => expect(textbox).not.toBeDisabled());
       const results = await axe(rendered.container);
       expect(results).toHaveNoViolations();
     } finally {
       unmount();
+      global.fetch = originalFetch;
       window.history.replaceState({}, '', previousPath || '/');
     }
   });

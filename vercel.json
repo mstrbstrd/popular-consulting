@@ -131,6 +131,9 @@
   ],
   "functions": {
     "api/metabloom.js": { "maxDuration": 30 },
-    "api/auth/[action].js": { "maxDuration": 30 }
+    "api/auth/[action].js": { "maxDuration": 30 },
+    "api/orb/[action].js": { "maxDuration": 60 },
+    "api/webhooks/twilio.js": { "maxDuration": 30 },
+    "api/webhooks/twilio-status.js": { "maxDuration": 30 }
   }
 }

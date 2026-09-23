@@ -42,7 +42,8 @@ jest.mock("./ImmersiveRouteNavigationBridge", () => {
     });
 });
 
-jest.mock("./OrbSection", () => {
+// Page composition is independent of the separately tested chat mode gate.
+jest.mock("./OrbChatGate", () => {
   const { useMetabloomPalette } = require(
     "../contexts/MetabloomPaletteContext"
   );
