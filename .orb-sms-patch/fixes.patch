@@ -1,0 +1,32 @@
+diff --git a/src/hooks/useGuestConversation.js b/src/hooks/useGuestConversation.js
+index c4902e1..65ec86a 100644
+--- a/src/hooks/useGuestConversation.js
++++ b/src/hooks/useGuestConversation.js
+@@ -14,6 +14,8 @@ export default function useGuestConversation() {
+   const timer = useRef(0);
+   const revision = useRef(0);
+   const attempt = useRef(null);
++  // This is a request generation, not a DOM ref. Invalidate stale async work on cleanup.
++  const invalidate = useCallback(() => { revision.current += 1; }, []);
+   const apply = useCallback(value => {
+     const data = validateGuestSnapshot(value);
+     current.current = data; setSnapshot(data);
+@@ -37,15 +39,15 @@ export default function useGuestConversation() {
+   useEffect(() => {
+     alive.current = true; refresh();
+     const visibility = () => {
+-      if (document.hidden) { ++revision.current; poll.current?.abort(); clearTimeout(timer.current); }
++      if (document.hidden) { invalidate(); poll.current?.abort(); clearTimeout(timer.current); }
+       else refresh();
+     };
+     document.addEventListener('visibilitychange', visibility);
+     return () => {
+-      alive.current = false; ++revision.current; poll.current?.abort(); post.current?.abort(); clearTimeout(timer.current);
++      alive.current = false; invalidate(); poll.current?.abort(); post.current?.abort(); clearTimeout(timer.current);
+       document.removeEventListener('visibilitychange', visibility);
+     };
+-  }, [refresh]);
++  }, [refresh, invalidate]);
+   const send = useCallback(async text => {
+     if (busy.current || !alive.current) return false;
+     const content = text.trim();
