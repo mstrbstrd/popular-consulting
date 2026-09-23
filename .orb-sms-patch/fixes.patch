@@ -11,6 +11,28 @@ index 71a7d6f..09fce5f 100644
  - Code reservations deliberately do not expire and contain only a random conversation digest, not message text or a phone number. Do not delete/reuse them while maintaining the same namespace. This prevents an old text thread from reaching a new visitor after expiry or closing.
  - Browser retries use the same message UUID. Redis atomically inserts the transcript and outbox job. Incoming MessageSids are deduplicated atomically. Replies from anyone other than the configured owner, even with a valid provider signature, are rejected.
  - The Twilio SDK verifies signatures using all form fields and the exact configured URL. Account, direction, message ID, content type, body size, and attachment constraints are checked separately. Browser Origin checks are not incorrectly applied to provider callbacks.
+diff --git a/scripts/verify-orb-sms-ui.mjs b/scripts/verify-orb-sms-ui.mjs
+index 140274b..dea5062 100644
+--- a/scripts/verify-orb-sms-ui.mjs
++++ b/scripts/verify-orb-sms-ui.mjs
+@@ -53,7 +53,7 @@ try {
+   const first = await browser('snapshot', '-i'); fs.writeFileSync(path.join(output, 'mobile-snapshot.txt'), first);
+   assert.match(first, /Send message/); assert.match(first, /Forward my messages/);
+   await browser('screenshot', path.join(output, 'mobile-initial.png'));
+-  const meaningful = await browser('eval', `document.body.innerText.includes('Human conversation') && !document.querySelector('#webpack-dev-server-client-overlay')`);
++  const meaningful = await browser('eval', `document.body.innerText.includes('Message me directly.') && !document.querySelector('#webpack-dev-server-client-overlay')`);
+   assert.match(meaningful, /true/);
+   await browser('check', '.orb-guest__consent input');
+   await browser('fill', '#orb-guest-message', 'Could you help with an ecommerce website?');
+@@ -70,7 +70,7 @@ try {
+     const root = document.querySelector('[data-chat-mode="human"]');
+     return field.width > 100 && field.left >= 0 && field.right <= innerWidth + 1 && root && document.documentElement.scrollWidth <= innerWidth + 1;
+   })()`); assert.match(layout, /true/);
+-  await browser('click', '.nav-theme-toggle');
++  await browser('click', '.nav-pill .nav-theme-toggle');
+   await browser('screenshot', path.join(output, 'desktop-alternate-theme.png'));
+   const errors = await browser('errors'); fs.writeFileSync(path.join(output, 'browser-errors.txt'), errors);
+   assert.ok(!/TypeError|ReferenceError|Uncaught|SyntaxError/.test(errors), errors);
 diff --git a/server/orb-sms-handler.mjs b/server/orb-sms-handler.mjs
 index 68afa7e..7ef3c6b 100644
 --- a/server/orb-sms-handler.mjs
@@ -135,8 +157,26 @@ index 19104c9..c0d6de9 100644
        window.history.replaceState({}, '', previousPath || '/');
      }
    });
+diff --git a/src/components/GuestOrbSection.css b/src/components/GuestOrbSection.css
+index 5b09447..3fb9b31 100644
+--- a/src/components/GuestOrbSection.css
++++ b/src/components/GuestOrbSection.css
+@@ -1,3 +1,13 @@
++.orb-page[data-chat-mode="human"] .orb-page__identity { display: none; }
++.orb-page .metabloom-chat--guest .orb-guest__title {
++  margin: 0 0 1rem;
++  color: var(--metabloom-chat-ink);
++  font-size: clamp(2.8rem, 5vw, 4rem);
++  font-weight: 600;
++  line-height: 1.12;
++  letter-spacing: -0.04em;
++}
++.orb-page .metabloom-chat--guest[data-conversation-started="true"] .orb-guest__title { display: none; }
+ .orb-page .metabloom-chat--guest .orb-guest__intro {
+   margin: 0 0 0.5rem;
+   color: var(--metabloom-chat-ink);
 diff --git a/src/components/GuestOrbSection.js b/src/components/GuestOrbSection.js
-index cc2546e..4400c90 100644
+index cc2546e..846ba69 100644
 --- a/src/components/GuestOrbSection.js
 +++ b/src/components/GuestOrbSection.js
 @@ -41,7 +41,7 @@ export default function GuestOrbSection({ isActive = true, onConversationStateCh
@@ -148,8 +188,16 @@ index cc2546e..4400c90 100644
      if (await chat.close()) { setDraft(''); setConsent(false); }
    };
    return (
+@@ -71,6 +71,7 @@ export default function GuestOrbSection({ isActive = true, onConversationStateCh
+           </div>
+         </div>
+         <div className="metabloom-chat__composer-area" ref={composer}>
++          <p className="orb-guest__title" aria-hidden="true">Message Shaedan</p>
+           <p className="orb-guest__intro">Message me directly. I’ll reply here from my phone.</p>
+           <p className="orb-guest__privacy" id="orb-guest-privacy">Messages are forwarded by SMS and kept on this site for 7 days. Return in this browser to see replies. Please avoid sensitive information.</p>
+           <label className="orb-guest__consent"><input type="checkbox" checked={consent} onChange={event => setConsent(event.target.checked)} disabled={chat.sending} />Forward my messages to Shaedan’s phone.</label>
 diff --git a/src/components/GuestOrbSection.test.js b/src/components/GuestOrbSection.test.js
-index 1b971cb..21fb479 100644
+index 1b971cb..806c7a4 100644
 --- a/src/components/GuestOrbSection.test.js
 +++ b/src/components/GuestOrbSection.test.js
 @@ -1,14 +1,24 @@
@@ -179,6 +227,82 @@ index 1b971cb..21fb479 100644
  test('requires forwarding consent and renders human replies as escaped plain text', async () => {
    const messages = [];
    global.fetch = jest.fn(async (url, options) => {
+@@ -48,6 +58,7 @@ test('network retries reuse the same clientMessageId', async () => {
+   await screen.findByRole('alert');
+   fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
+   await waitFor(() => expect(writes).toHaveLength(2));
++  await waitFor(() => expect(screen.getByRole('textbox')).toHaveValue(''));
+   expect(writes[1].clientMessageId).toBe(writes[0].clientMessageId);
+ });
+ test('restores messages without requesting consent to send or creating another session', async () => {
+diff --git a/src/components/OrbChatGate.js b/src/components/OrbChatGate.js
+index c7e0920..8a62f95 100644
+--- a/src/components/OrbChatGate.js
++++ b/src/components/OrbChatGate.js
+@@ -4,7 +4,7 @@ import OrbSection from './OrbSection';
+ import GuestOrbSection from './GuestOrbSection';
+ import { requestGuest } from './orbGuestApi';
+ 
+-export default function OrbChatGate(props) {
++export default function OrbChatGate({ onChatModeChange, ...props }) {
+   const { status } = useAuth();
+   const [mode, setMode] = useState('loading');
+   useEffect(() => {
+@@ -14,6 +14,9 @@ export default function OrbChatGate(props) {
+     }).catch(() => { if (alive) setMode('unavailable'); });
+     return () => { alive = false; controller.abort(); };
+   }, []);
++  useEffect(() => {
++    onChatModeChange?.(mode === 'relay' && status === 'anonymous' ? 'human' : 'ai');
++  }, [mode, status, onChatModeChange]);
+   if (mode === 'legacy') return <OrbSection {...props} />;
+   if (mode === 'relay' && status === 'authenticated') return <OrbSection {...props} />;
+   if (mode === 'relay' && status === 'anonymous') return <GuestOrbSection {...props} />;
+diff --git a/src/components/OrbChatGate.test.js b/src/components/OrbChatGate.test.js
+index c92e2d2..635aa14 100644
+--- a/src/components/OrbChatGate.test.js
++++ b/src/components/OrbChatGate.test.js
+@@ -27,7 +27,10 @@ test('unavailable authentication never falls back to human forwarding', async ()
+   expect(screen.queryByText('Human interface')).not.toBeInTheDocument(); expect(screen.queryByText('AI interface')).not.toBeInTheDocument();
+ });
+ test('switching identity unmounts the other conversation', async () => {
+-  mockStatus = 'anonymous'; config(true); const view = render(<OrbChatGate />);
+-  await screen.findByText('Human interface'); mockStatus = 'authenticated'; view.rerender(<OrbChatGate />);
++  mockStatus = 'anonymous'; config(true); const onChatModeChange = jest.fn();
++  const view = render(<OrbChatGate onChatModeChange={onChatModeChange} />);
++  await screen.findByText('Human interface'); expect(onChatModeChange).toHaveBeenLastCalledWith('human');
++  mockStatus = 'authenticated'; view.rerender(<OrbChatGate onChatModeChange={onChatModeChange} />);
++  expect(onChatModeChange).toHaveBeenLastCalledWith('ai');
+   expect(screen.getByText('AI interface')).toBeInTheDocument(); expect(screen.queryByText('Human interface')).not.toBeInTheDocument();
+ });
+diff --git a/src/components/OrbPage.js b/src/components/OrbPage.js
+index 449f2ab..e99e84b 100644
+--- a/src/components/OrbPage.js
++++ b/src/components/OrbPage.js
+@@ -28,6 +28,7 @@ const METADATA_SELECTORS = Object.freeze({
+ 
+ const OrbPageContent = () => {
+   const [conversationStarted, setConversationStarted] = React.useState(false);
++  const [chatMode, setChatMode] = React.useState("ai");
+   const [metabloomPalette, setMetabloomPalette] = React.useState(
+     METABLOOM_PALETTES.SPECTRAL,
+   );
+@@ -130,6 +131,7 @@ const OrbPageContent = () => {
+       <div
+         className="orb-page standalone-experience--orb"
+         data-conversation-started={conversationStarted ? "true" : "false"}
++        data-chat-mode={chatMode}
+         data-metabloom-palette={metabloomPalette}
+         data-site-audience={SITE_AUDIENCES.BUSINESS}
+       >
+@@ -252,6 +254,7 @@ const OrbPageContent = () => {
+             <OrbChatGate
+               isActive
+               onConversationStateChange={setConversationStarted}
++              onChatModeChange={setChatMode}
+             />
+           </main>
+         </div>
 diff --git a/src/hooks/useGuestConversation.js b/src/hooks/useGuestConversation.js
 index c4902e1..65ec86a 100644
 --- a/src/hooks/useGuestConversation.js
