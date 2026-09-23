@@ -1,0 +1,79 @@
+.orb-page[data-chat-mode="human"] .orb-page__identity { display: none; }
+.orb-page .metabloom-chat--guest .orb-guest__title {
+  margin: 0 0 1rem;
+  color: var(--metabloom-chat-ink);
+  font-size: clamp(2.8rem, 5vw, 4rem);
+  font-weight: 600;
+  line-height: 1.12;
+  letter-spacing: -0.04em;
+}
+.orb-page .metabloom-chat--guest[data-conversation-started="true"] .orb-guest__title { display: none; }
+.orb-page .metabloom-chat--guest .orb-guest__intro {
+  margin: 0 0 0.5rem;
+  color: var(--metabloom-chat-ink);
+  font-size: 1.5rem;
+  font-weight: 500;
+}
+.orb-page .metabloom-chat--guest .orb-guest__privacy {
+  max-width: 62rem;
+  margin: 0 0 1rem;
+  padding: 0.5rem 0.7rem;
+  border-radius: 0.6rem;
+  background: var(--aetheris-panel-raised);
+  font-size: 1.2rem;
+  line-height: 1.5;
+  color: var(--metabloom-chat-ink);
+}
+.orb-page .metabloom-chat--guest .orb-guest__consent {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  margin: 0 0 1rem;
+  min-height: 3.2rem;
+  font-size: 1.2rem;
+  color: var(--metabloom-chat-ink);
+  cursor: pointer;
+  pointer-events: auto;
+}
+.orb-guest__consent input { width: 1.6rem; height: 1.6rem; flex: 0 0 auto; }
+.orb-page .metabloom-chat--guest .orb-guest__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 0.8rem;
+  font-size: 1.1rem;
+  color: var(--metabloom-chat-muted);
+}
+.orb-guest__footer button {
+  border: 0;
+  background: none;
+  color: inherit;
+  min-height: 3.2rem;
+  padding: 0.4rem;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+  pointer-events: auto;
+}
+.orb-guest__footer button:focus-visible, .orb-guest__consent input:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+.orb-guest__gate {
+  position: absolute;
+  inset: 35% 2rem auto;
+  text-align: center;
+  font-size: 1.6rem;
+  color: var(--metabloom-chat-ink, currentColor);
+}
+.orb-guest__gate a { color: inherit; text-underline-offset: 0.4rem; }
+.orb-page .metabloom-chat--guest[data-conversation-started="true"] .orb-guest__intro { display: none; }
+@media (max-height: 600px) {
+  .orb-page .metabloom-chat--guest .orb-guest__privacy { font-size: 1.1rem; margin-bottom: 0.4rem; }
+  .orb-page .metabloom-chat--guest .orb-guest__consent { margin-bottom: 0.4rem; }
+}
+
+.orb-page .metabloom-chat--guest .metabloom-chat__messages {
+  padding-bottom: calc(var(--orb-guest-composer-height, 280px) + max(3rem, env(safe-area-inset-bottom)));
+  scroll-padding-bottom: calc(var(--orb-guest-composer-height, 280px) + 3rem);
+}
+
+.orb-page .metabloom-chat--guest .metabloom-chat__message--user .metabloom-chat__stream-status { color: inherit; opacity: 0.85; }

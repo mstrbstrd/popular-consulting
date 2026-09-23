@@ -8,7 +8,7 @@ import routeMetadata from "../content/routeMetadata.json";
 import ImmersiveRouteNavigationBridge from "./ImmersiveRouteNavigationBridge";
 import LoadingOverlay from "./LoadingOverlay";
 import NavMenu from "./NavMenu";
-import OrbSection from "./OrbSection";
+import OrbChatGate from "./OrbChatGate";
 import "./OrbPage.css";
 import "./OrbPageExperience.css";
 import "./OrbPageFinalPolish.css";
@@ -28,6 +28,7 @@ const METADATA_SELECTORS = Object.freeze({
 
 const OrbPageContent = () => {
   const [conversationStarted, setConversationStarted] = React.useState(false);
+  const [chatMode, setChatMode] = React.useState("ai");
   const [metabloomPalette, setMetabloomPalette] = React.useState(
     METABLOOM_PALETTES.SPECTRAL,
   );
@@ -130,6 +131,7 @@ const OrbPageContent = () => {
       <div
         className="orb-page standalone-experience--orb"
         data-conversation-started={conversationStarted ? "true" : "false"}
+        data-chat-mode={chatMode}
         data-metabloom-palette={metabloomPalette}
         data-site-audience={SITE_AUDIENCES.BUSINESS}
       >
@@ -249,9 +251,10 @@ const OrbPageContent = () => {
             aria-label="Metabloom"
             tabIndex={-1}
           >
-            <OrbSection
+            <OrbChatGate
               isActive
               onConversationStateChange={setConversationStarted}
+              onChatModeChange={setChatMode}
             />
           </main>
         </div>

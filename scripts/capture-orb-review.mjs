@@ -229,6 +229,17 @@ const server = http.createServer((request, response) => {
     request.url || "/",
     "http://127.0.0.1",
   );
+  // This isolated visual fixture exercises the original lab with SMS disabled.
+  // Return API responses explicitly instead of falling through to SPA HTML.
+  if (request.method === "GET" && ["/api/orb/config", "/api/auth/session"].includes(requestUrl.pathname)) {
+    response.writeHead(200, {
+      "Cache-Control": "no-store",
+      "Content-Type": "application/json; charset=utf-8",
+    });
+    response.end(JSON.stringify(requestUrl.pathname === "/api/orb/config"
+      ? { enabled: false } : { authenticated: false }));
+    return;
+  }
   const directPath = safeFilePath(requestUrl.pathname);
   let filePath = directPath;
 

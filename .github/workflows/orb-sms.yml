@@ -1,0 +1,54 @@
+name: Orb SMS relay
+on:
+  pull_request:
+    paths: ['api/**', 'server/**', 'src/**', 'scripts/verify-orb-sms-ui.mjs', 'package*.json', '.github/workflows/orb-sms.yml']
+  push:
+    branches: [main]
+    paths: ['api/**', 'server/**', 'src/**', 'scripts/verify-orb-sms-ui.mjs', 'package*.json', '.github/workflows/orb-sms.yml']
+permissions:
+  contents: read
+jobs:
+  relay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      redis:
+        image: redis:7.2-alpine
+        ports: ['6379:6379']
+        options: --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 3s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run test:orb-sms
+        env:
+          ORB_TEST_REDIS_PORT: '6379'
+      - run: npm run test:auth
+      - run: npm run lint
+      - run: npm test -- --watchAll=false --runInBand
+        env:
+          CI: true
+      - run: npm run build
+        env:
+          CI: true
+      - name: Use the browser verifier's supported Node runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install isolated browser verifier
+        run: |
+          npm install --prefix "$RUNNER_TEMP/orb-browser" agent-browser@0.38.1 --no-audit --no-fund
+          "$RUNNER_TEMP/orb-browser/node_modules/.bin/agent-browser" install
+      - name: Verify guest chat in browser
+        run: ORB_AGENT_BROWSER_BIN="$RUNNER_TEMP/orb-browser/node_modules/.bin/agent-browser" node scripts/verify-orb-sms-ui.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: orb-sms-ui
+          path: orb-sms-ui
+          retention-days: 7
