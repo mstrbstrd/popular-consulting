@@ -17,6 +17,7 @@ test('all mobile sections share an edge rail with bounded, non-scaling tap targe
   const mobile = css.split('@media (max-width: 768px) {')[1];
   expect(mobile).toContain('.parallax-wrapper .section-dots');
   expect(mobile).toContain('right: max(2px, env(safe-area-inset-right));');
+  expect(mobile).toContain('padding: 0;');
   expect(mobile).toContain('pointer-events: none;');
   expect(mobile).toContain('pointer-events: auto;');
   expect(mobile).toContain('width: 24px;');

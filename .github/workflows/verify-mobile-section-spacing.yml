@@ -25,9 +25,12 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npm run lint
       - name: Unit and invariant tests
-        run: npm test -- --watchAll=false --runInBand
+        run: npm test -- --watchAll=false --runInBand > unit-tests.log 2>&1
       - run: npm run test:auth
       - run: npm run build
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
       - name: Install isolated browser test tool
         run: |
           npm install --prefix "$RUNNER_TEMP/spacing-browser" agent-browser@0.33.2 --no-audit --no-fund
@@ -44,5 +47,6 @@ jobs:
             mobile-section-spacing-evidence/
             auth-layout-evidence/
             auth-layout.log
+            unit-tests.log
           retention-days: 3
           if-no-files-found: ignore

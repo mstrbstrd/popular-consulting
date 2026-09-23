@@ -38,6 +38,7 @@
 @media (max-width: 768px) {
   .parallax-wrapper .section-dots {
     right: max(2px, env(safe-area-inset-right));
+    padding: 0; /* Do not inherit the phone-wide nav padding from index.css. */
     gap: 36px;
     pointer-events: none;
   }
