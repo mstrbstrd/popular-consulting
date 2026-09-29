@@ -110,11 +110,13 @@
       ]
     },
     {
-      "source": "/(|engineering|work|game)",
+      "source": "/(|engineering|work|game|popcan)",
       "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }]
     }
   ],
   "rewrites": [
+    { "source": "/popcan", "destination": "/popcan/index.html" },
+    { "source": "/popcan/:path*", "destination": "/popcan/index.html" },
     { "source": "/login", "destination": "/login/index.html" },
     { "source": "/logout", "destination": "/logout/index.html" },
     { "source": "/invoice-generator", "destination": "/invoice-generator/index.html" },
