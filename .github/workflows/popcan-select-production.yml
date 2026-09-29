@@ -1,0 +1,52 @@
+name: Popcan selection production verification
+on:
+  push:
+    branches: [verify/popcan-select-production]
+permissions:
+  contents: read
+  statuses: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 4746a85f120fa6a0ef152f78cbf14354d3da05b3
+          persist-credentials: false
+      - name: Wait for this exact production deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for i in $(seq 1 40); do
+            status=$(gh api repos/mstrbstrd/popular-consulting/commits/4746a85f120fa6a0ef152f78cbf14354d3da05b3/status --jq '.statuses | map(select(.context == "Vercel")) | first | .state')
+            case "$status" in
+              success) exit 0 ;;
+              failure|error) echo 'Production deployment failed'; exit 1 ;;
+            esac
+            sleep 5
+          done
+          echo 'Production deployment did not become ready'; exit 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify live object selection and local persistence
+        run: node scripts/verify-popcan-selection.mjs
+        env:
+          CI: true
+          VISUAL_CAPTURE_BROWSER: /usr/bin/google-chrome
+          POPCAN_VERIFY_ORIGIN: https://popular-consulting.com
+          POPCAN_VERIFY_OUTPUT: ${{ runner.temp }}/popcan-selection-production/selection
+      - name: Verify live drawing, text, zoom and pan regressions
+        run: node scripts/verify-popcan-browser.mjs
+        env:
+          CI: true
+          VISUAL_CAPTURE_BROWSER: /usr/bin/google-chrome
+          POPCAN_VERIFY_ORIGIN: https://popular-consulting.com
+          POPCAN_VERIFY_OUTPUT: ${{ runner.temp }}/popcan-selection-production/regression
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: popcan-selection-production
+          path: ${{ runner.temp }}/popcan-selection-production
+          retention-days: 3
