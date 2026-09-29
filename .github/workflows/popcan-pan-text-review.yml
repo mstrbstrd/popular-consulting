@@ -37,6 +37,12 @@ jobs:
           for p, after in planned:
               p.parent.mkdir(parents=True, exist_ok=True)
               p.write_bytes(after)
+          p = Path('scripts/verify-popcan-browser.mjs')
+          s = p.read_text()
+          s = s.replace('if (await evaluate(expression)) return;', 'if (await evaluate(`Boolean(${expression})`)) return;')
+          s = s.replace("  await click('Brush settings'); await click('Warm paper canvas'); await sleep(80);", "  if (await evaluate(\"getComputedStyle(document.querySelector('.pc-inspector')).display==='none'\")) await click('Brush settings');\n  await click('Warm paper canvas'); await sleep(80);")
+          assert hashlib.sha256(s.encode()).hexdigest() == 'cb9780c457846555818954dcc4916a682c1de2e347e627ee42446360135fdc57'
+          p.write_text(s)
           PY
       - uses: actions/setup-node@v4
         with:
