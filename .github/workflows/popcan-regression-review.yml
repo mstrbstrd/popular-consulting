@@ -4,17 +4,33 @@ on:
     branches: [fix/popcan-drawing-regressions]
 permissions:
   contents: read
+concurrency:
+  group: popcan-regression-review
+  cancel-in-progress: true
 jobs:
-  source:
+  baseline:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - run: git archive --format=zip --output=popcan-regression-source.zip HEAD
-      - uses: actions/upload-artifact@v4
+      - uses: actions/setup-node@v4
         with:
-          name: popcan-regression-source
-          path: popcan-regression-source.zip
-          retention-days: 1
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+        env:
+          CI: true
+      - run: node .github/probe-popcan-regressions.mjs && node scripts/.popcan-regression-probe.mjs
+        env:
+          CI: true
+          VISUAL_CAPTURE_BROWSER: /usr/bin/google-chrome
+          POPCAN_VERIFY_OUTPUT: ${{ runner.temp }}/regression-baseline
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: regression-baseline
+          path: ${{ runner.temp }}/regression-baseline
+          retention-days: 3
