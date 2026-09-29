@@ -183,6 +183,7 @@ fs.writeFileSync(sourceIndexPath, rootHtml);
 
 writeRoute("engineering", "engineering");
 writeRoute("work", "work");
+writeRoute("popcan", "popcan");
 writeRoute("orb", "orb");
 writeRoute("game", "game");
 writeRoute("ditherCanvas", "dither-canvas");
@@ -191,5 +192,5 @@ writeRoute("login", "login");
 writeRoute("logout", "logout");
 
 console.log(
-  "Generated route-specific HTML metadata for /, /engineering, /work, /orb, /game, /dither-canvas, and /invoice-generator.",
+  "Generated route-specific HTML metadata for /, /engineering, /work, /popcan, /orb, /game, /dither-canvas, /invoice-generator, /login, and /logout.",
 );

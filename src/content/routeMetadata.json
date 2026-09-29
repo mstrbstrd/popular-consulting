@@ -88,5 +88,15 @@
     "socialDescription": "Secure account access for Popular Consulting.",
     "robots": "noindex,nofollow,noarchive",
     "noscript": "JavaScript is required for account access. Return to the public Popular Consulting site."
+  },
+  "popcan": {
+    "path": "/popcan",
+    "title": "Popular Canvas | Popcan by Popular Consulting",
+    "description": "A minimalist drawing studio with Morphogen-inspired sand pigment, colour flow, familiar paint tools and full-resolution PNG export.",
+    "canonical": "https://popular-consulting.com/popcan",
+    "socialTitle": "Popcan | Popular Canvas",
+    "socialDescription": "A little space to make something. Draw with sand, blend colours and keep your favourite marks.",
+    "robots": "index,follow",
+    "noscript": "Popular Canvas requires JavaScript and Canvas 2D. Return to https://popular-consulting.com/ or contact shae@popcon.dev."
   }
 }

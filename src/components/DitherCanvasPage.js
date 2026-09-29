@@ -1177,6 +1177,9 @@ const DitherFieldLab = () => {
                 />
               </label>
             </div>
+            <a className="morphogen-paint-option" href="/popcan" style={{ textDecoration: "none" }}>
+              Open Popular Canvas <span aria-hidden="true">↗</span>
+            </a>
           </aside>
         )}
 

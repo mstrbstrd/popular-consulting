@@ -63,6 +63,7 @@ const routeChecks = [
     requiresWebGL: true,
   },
   { route: "/work", markers: ['class="work-page"'] },
+  { route: "/popcan?graphics=css", markers: ['class="popcan-page"', 'id="popcan-canvas"'] },
   {
     route: "/orb",
     markers: ["standalone-experience--orb"],

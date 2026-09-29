@@ -65,7 +65,7 @@ describe("dual-audience public copy", () => {
 
   test("defines static metadata for every public route and the unlisted invoice utility", () => {
     expect(Object.keys(routeMetadata).sort()).toEqual(
-      ["ditherCanvas", "engineering", "game", "invoiceGenerator", "login", "logout", "orb", "root", "work"].sort(),
+      ["ditherCanvas", "engineering", "game", "invoiceGenerator", "login", "logout", "orb", "popcan", "root", "work"].sort(),
     );
 
     Object.values(routeMetadata).forEach((metadata) => {

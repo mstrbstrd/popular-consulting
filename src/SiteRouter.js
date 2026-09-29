@@ -9,6 +9,7 @@ import SectionDeepLinkBridge from "./components/SectionDeepLinkBridge";
 import { LOGIN_SECTION_INDEX } from "./utils/loginScene";
 
 const App = React.lazy(() => import("./App"));
+const PopcanPage = React.lazy(() => import("./components/PopcanPage"));
 const WorkPage = React.lazy(() => import("./components/WorkPage"));
 const OrbPage = React.lazy(() => import("./components/OrbPage"));
 const AuthPage = React.lazy(() => import("./components/AuthPage"));
@@ -28,6 +29,7 @@ export const SITE_VIEWS = Object.freeze({
   ORIGINAL: "original",
   ENGINEERING: "engineering",
   WORK: "work",
+  POPCAN: "popcan",
   ORB: "orb",
   GAME: "game",
   DITHER_CANVAS: "dither-canvas",
@@ -41,6 +43,7 @@ export const resolveSiteView = (pathname = "/") => {
 
   if (normalized === "/login" || normalized === "/login/index.html") return SITE_VIEWS.LOGIN;
   if (normalized === "/logout" || normalized === "/logout/index.html") return SITE_VIEWS.LOGOUT;
+  if (normalized === "/popcan" || normalized === "/popcan/index.html") return SITE_VIEWS.POPCAN;
   if (normalized === "/work") return SITE_VIEWS.WORK;
   if (normalized === "/engineering") return SITE_VIEWS.ENGINEERING;
   if (normalized === "/orb") return SITE_VIEWS.ORB;
@@ -67,7 +70,9 @@ const SiteRouter = ({ pathname = window.location.pathname }) => {
   const view = resolveSiteView(pathname);
 
   let page;
-  if (view === SITE_VIEWS.WORK) {
+  if (view === SITE_VIEWS.POPCAN) {
+    page = <PopcanPage />;
+  } else if (view === SITE_VIEWS.WORK) {
     page = <WorkPage />;
   } else if (view === SITE_VIEWS.INVOICE_GENERATOR) {
     // The actual editor exists only in the middleware-protected private build.
