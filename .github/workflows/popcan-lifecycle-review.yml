@@ -3,18 +3,59 @@ on:
   push:
     branches: [fix/popcan-paint-erase-lifecycle]
 permissions:
-  contents: read
+  contents: write
+concurrency:
+  group: popcan-lifecycle-review
+  cancel-in-progress: true
 jobs:
-  source:
+  validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 12
+    env:
+      CI: true
+      VISUAL_CAPTURE_BROWSER: /usr/bin/google-chrome
     steps:
       - uses: actions/checkout@v4
+      - name: Add the regression test without changing the application
+        run: |
+          echo '194e344cbc7d37239ae88a0b8b44ea3a7aeb4ae74504a6504aa1f416a0438e3a  .github/popcan-scroll.patch' | sha256sum --check
+          git apply --check .github/popcan-scroll.patch
+          git apply --exclude=src/components/PopcanPage.js .github/popcan-scroll.patch
+      - uses: actions/setup-node@v4
         with:
-          persist-credentials: false
-      - run: git archive --format=zip --output=popcan-current-source.zip HEAD
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+      - name: Prove the old application fails at the new scroll-interruption assertion
+        run: |
+          mkdir -p "$RUNNER_TEMP/popcan-lifecycle/baseline"
+          if POPCAN_VERIFY_OUTPUT="$RUNNER_TEMP/popcan-lifecycle/baseline" node scripts/verify-popcan-regressions.mjs > "$RUNNER_TEMP/popcan-lifecycle/baseline/check.log" 2>&1; then
+            echo 'Expected a reproducible failure on the unpatched application'; exit 1
+          fi
+          cat "$RUNNER_TEMP/popcan-lifecycle/baseline/check.log"
+          grep -F 'Scroll input must not cancel an active Brush (B)' "$RUNNER_TEMP/popcan-lifecycle/baseline/check.log"
+      - name: Apply the isolated input-ownership fix
+        run: git apply --include=src/components/PopcanPage.js .github/popcan-scroll.patch
+      - run: npm run lint
+      - run: npm test -- --watchAll=false --runInBand
+      - run: npm run build
+      - name: Verify all drawing and object regressions on the patched build
+        run: |
+          POPCAN_VERIFY_OUTPUT="$RUNNER_TEMP/popcan-lifecycle/fixed" node scripts/verify-popcan-regressions.mjs
+          POPCAN_VERIFY_OUTPUT="$RUNNER_TEMP/popcan-lifecycle/selection" node scripts/verify-popcan-selection.mjs
+          POPCAN_VERIFY_OUTPUT="$RUNNER_TEMP/popcan-lifecycle/drawing" node scripts/verify-popcan-browser.mjs
+      - name: Publish only the verified changes
+        run: |
+          git rm .github/popcan-scroll.patch .github/workflows/popcan-lifecycle-review.yml
+          git add src/components/PopcanPage.js scripts/verify-popcan-regressions.mjs docs/popcan.md
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix: keep wheel input from cancelling Popcan paint and eraser gestures'
+          git push origin HEAD:fix/popcan-paint-erase-lifecycle
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: popcan-current-source
-          path: popcan-current-source.zip
-          retention-days: 1
+          name: popcan-lifecycle-evidence
+          path: ${{ runner.temp }}/popcan-lifecycle
+          retention-days: 3
