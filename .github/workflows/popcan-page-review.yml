@@ -1,0 +1,18 @@
+name: Popcan page review
+on:
+  push:
+    branches: [fix/popcan-page-canvas]
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - run: git archive --format=zip --output=popcan-page-source.zip HEAD
+      - uses: actions/upload-artifact@v4
+        with:
+          name: popcan-page-source
+          path: popcan-page-source.zip
+          retention-days: 1
