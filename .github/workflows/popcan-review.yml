@@ -3,24 +3,51 @@ on:
   push:
     branches: [feat/popcan-studio]
 permissions:
-  contents: read
+  contents: write
 concurrency:
   group: popcan-review
   cancel-in-progress: true
 jobs:
-  dependencies:
+  validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+      - name: Apply reviewed route integration
+        run: |
+          echo '5262e9a77550c2acedd6f512ca6b29b9d50546fed6c63421eb8651a5b19ca778  .github/popcan-integration.patch' | sha256sum --check
+          git apply --check .github/popcan-integration.patch
+          git apply .github/popcan-integration.patch
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
       - run: npm ci --no-audit --no-fund
-      - run: tar -czf popcan-deps.tgz node_modules
-      - uses: actions/upload-artifact@v4
+      - run: npm run lint
+      - run: npm test -- --watchAll=false --runInBand
+        env:
+          CI: true
+      - run: npm run build
+        env:
+          CI: true
+      - uses: actions/setup-node@v4
         with:
-          name: popcan-deps
-          path: popcan-deps.tgz
-          retention-days: 1
+          node-version: 22
+      - name: Verify actual drawing, draft reload and touch
+        run: node scripts/verify-popcan-browser.mjs
+        env:
+          POPCAN_VERIFY_OUTPUT: ${{ runner.temp }}/popcan-functional
+      - name: Publish validated integration and remove temporary delivery files
+        run: |
+          git rm .github/popcan-integration.patch .github/workflows/popcan-review.yml
+          git add src scripts docs vercel.json
+          git config user.name 'mstrbstrd'
+          git config user.email '104603175+mstrbstrd@users.noreply.github.com'
+          git commit -m 'feat: integrate and validate Popular Canvas studio'
+          git push origin HEAD:feat/popcan-studio
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: popcan-functional
+          path: ${{ runner.temp }}/popcan-functional
+          retention-days: 3

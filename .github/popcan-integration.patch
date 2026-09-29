@@ -1,0 +1,169 @@
+diff --git a/scripts/generate-route-html.mjs b/scripts/generate-route-html.mjs
+index c63edcc..dd0ad00 100644
+--- a/scripts/generate-route-html.mjs
++++ b/scripts/generate-route-html.mjs
+@@ -183,6 +183,7 @@ fs.writeFileSync(sourceIndexPath, rootHtml);
+ 
+ writeRoute("engineering", "engineering");
+ writeRoute("work", "work");
++writeRoute("popcan", "popcan");
+ writeRoute("orb", "orb");
+ writeRoute("game", "game");
+ writeRoute("ditherCanvas", "dither-canvas");
+@@ -191,5 +192,5 @@ writeRoute("login", "login");
+ writeRoute("logout", "logout");
+ 
+ console.log(
+-  "Generated route-specific HTML metadata for /, /engineering, /work, /orb, /game, /dither-canvas, and /invoice-generator.",
++  "Generated route-specific HTML metadata for /, /engineering, /work, /popcan, /orb, /game, /dither-canvas, /invoice-generator, /login, and /logout.",
+ );
+diff --git a/scripts/windows-browser-smoke.mjs b/scripts/windows-browser-smoke.mjs
+index a5df98d..fad8317 100644
+--- a/scripts/windows-browser-smoke.mjs
++++ b/scripts/windows-browser-smoke.mjs
+@@ -63,6 +63,7 @@ const routeChecks = [
+     requiresWebGL: true,
+   },
+   { route: "/work", markers: ['class="work-page"'] },
++  { route: "/popcan?graphics=css", markers: ['class="popcan-page"', 'id="popcan-canvas"'] },
+   {
+     route: "/orb",
+     markers: ["standalone-experience--orb"],
+diff --git a/src/SiteRouter.js b/src/SiteRouter.js
+index 94d806b..b32b9a4 100644
+--- a/src/SiteRouter.js
++++ b/src/SiteRouter.js
+@@ -9,6 +9,7 @@ import SectionDeepLinkBridge from "./components/SectionDeepLinkBridge";
+ import { LOGIN_SECTION_INDEX } from "./utils/loginScene";
+ 
+ const App = React.lazy(() => import("./App"));
++const PopcanPage = React.lazy(() => import("./components/PopcanPage"));
+ const WorkPage = React.lazy(() => import("./components/WorkPage"));
+ const OrbPage = React.lazy(() => import("./components/OrbPage"));
+ const AuthPage = React.lazy(() => import("./components/AuthPage"));
+@@ -28,6 +29,7 @@ export const SITE_VIEWS = Object.freeze({
+   ORIGINAL: "original",
+   ENGINEERING: "engineering",
+   WORK: "work",
++  POPCAN: "popcan",
+   ORB: "orb",
+   GAME: "game",
+   DITHER_CANVAS: "dither-canvas",
+@@ -41,6 +43,7 @@ export const resolveSiteView = (pathname = "/") => {
+ 
+   if (normalized === "/login" || normalized === "/login/index.html") return SITE_VIEWS.LOGIN;
+   if (normalized === "/logout" || normalized === "/logout/index.html") return SITE_VIEWS.LOGOUT;
++  if (normalized === "/popcan" || normalized === "/popcan/index.html") return SITE_VIEWS.POPCAN;
+   if (normalized === "/work") return SITE_VIEWS.WORK;
+   if (normalized === "/engineering") return SITE_VIEWS.ENGINEERING;
+   if (normalized === "/orb") return SITE_VIEWS.ORB;
+@@ -67,7 +70,9 @@ const SiteRouter = ({ pathname = window.location.pathname }) => {
+   const view = resolveSiteView(pathname);
+ 
+   let page;
+-  if (view === SITE_VIEWS.WORK) {
++  if (view === SITE_VIEWS.POPCAN) {
++    page = <PopcanPage />;
++  } else if (view === SITE_VIEWS.WORK) {
+     page = <WorkPage />;
+   } else if (view === SITE_VIEWS.INVOICE_GENERATOR) {
+     // The actual editor exists only in the middleware-protected private build.
+diff --git a/src/components/DitherCanvasPage.js b/src/components/DitherCanvasPage.js
+index cfed2e4..95fc7df 100644
+--- a/src/components/DitherCanvasPage.js
++++ b/src/components/DitherCanvasPage.js
+@@ -1177,6 +1177,9 @@ const DitherFieldLab = () => {
+                 />
+               </label>
+             </div>
++            <a className="morphogen-paint-option" href="/popcan" style={{ textDecoration: "none" }}>
++              Open Popular Canvas <span aria-hidden="true">↗</span>
++            </a>
+           </aside>
+         )}
+ 
+diff --git a/src/components/InvoiceGeneratorNavigation.test.js b/src/components/InvoiceGeneratorNavigation.test.js
+index 12b3cb1..25d04fa 100644
+--- a/src/components/InvoiceGeneratorNavigation.test.js
++++ b/src/components/InvoiceGeneratorNavigation.test.js
+@@ -37,7 +37,7 @@ test("uses the real menu with working standalone routes, no invented active link
+   render(<InvoiceGeneratorPage />);
+   const menu = screen.getByRole("navigation", { name: "Primary navigation" });
+   expect(menu.closest("header")).toHaveClass("nav-in");
+-  const expected = ["/", "/#section-1", "/#section-2", "/work", "/engineering", "/#section-3", "/login"];
++  const expected = ["/", "/#section-1", "/#section-2", "/work", "/popcan", "/engineering", "/#section-3", "/login"];
+   expect(within(menu).getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual(expected);
+   expect(within(menu).getAllByRole("link").slice(1, -1).map((link) => link.textContent))
+     .toEqual(getSiteCopy().navigation.links.map((link) => link.label));
+diff --git a/src/content/routeMetadata.json b/src/content/routeMetadata.json
+index 66fa38d..f5a01a6 100644
+--- a/src/content/routeMetadata.json
++++ b/src/content/routeMetadata.json
+@@ -88,5 +88,15 @@
+     "socialDescription": "Secure account access for Popular Consulting.",
+     "robots": "noindex,nofollow,noarchive",
+     "noscript": "JavaScript is required for account access. Return to the public Popular Consulting site."
++  },
++  "popcan": {
++    "path": "/popcan",
++    "title": "Popular Canvas | Popcan by Popular Consulting",
++    "description": "A minimalist drawing studio with Morphogen-inspired sand pigment, colour flow, familiar paint tools and full-resolution PNG export.",
++    "canonical": "https://popular-consulting.com/popcan",
++    "socialTitle": "Popcan | Popular Canvas",
++    "socialDescription": "A little space to make something. Draw with sand, blend colours and keep your favourite marks.",
++    "robots": "index,follow",
++    "noscript": "Popular Canvas requires JavaScript and Canvas 2D. Return to https://popular-consulting.com/ or contact shae@popcon.dev."
+   }
+ }
+diff --git a/src/content/siteCopy.js b/src/content/siteCopy.js
+index b00aac0..2bdacb8 100644
+--- a/src/content/siteCopy.js
++++ b/src/content/siteCopy.js
+@@ -16,6 +16,7 @@ const BUSINESS_COPY = Object.freeze({
+       Object.freeze({ label: "About", section: 1 }),
+       Object.freeze({ label: "Services", section: 2 }),
+       Object.freeze({ label: "Work", href: "/work" }),
++      Object.freeze({ label: "Popcan", href: "/popcan" }),
+       Object.freeze({ label: "Engineering", href: "/engineering" }),
+       Object.freeze({ label: "Contact", section: 3 }),
+     ]),
+@@ -121,6 +122,7 @@ const ENGINEERING_COPY = Object.freeze({
+       Object.freeze({ label: "Approach", section: 1 }),
+       Object.freeze({ label: "Capabilities", section: 2 }),
+       Object.freeze({ label: "Work", href: "/work" }),
++      Object.freeze({ label: "Popcan", href: "/popcan" }),
+       Object.freeze({ label: "Consulting", href: "/" }),
+       Object.freeze({ label: "Contact", section: 3 }),
+     ]),
+diff --git a/src/content/siteCopy.test.js b/src/content/siteCopy.test.js
+index 014ac47..b82ac9f 100644
+--- a/src/content/siteCopy.test.js
++++ b/src/content/siteCopy.test.js
+@@ -65,7 +65,7 @@ describe("dual-audience public copy", () => {
+ 
+   test("defines static metadata for every public route and the unlisted invoice utility", () => {
+     expect(Object.keys(routeMetadata).sort()).toEqual(
+-      ["ditherCanvas", "engineering", "game", "invoiceGenerator", "login", "logout", "orb", "root", "work"].sort(),
++      ["ditherCanvas", "engineering", "game", "invoiceGenerator", "login", "logout", "orb", "popcan", "root", "work"].sort(),
+     );
+ 
+     Object.values(routeMetadata).forEach((metadata) => {
+diff --git a/vercel.json b/vercel.json
+index 660a3ad..39afffc 100644
+--- a/vercel.json
++++ b/vercel.json
+@@ -110,11 +110,13 @@
+       ]
+     },
+     {
+-      "source": "/(|engineering|work|game)",
++      "source": "/(|engineering|work|game|popcan)",
+       "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }]
+     }
+   ],
+   "rewrites": [
++    { "source": "/popcan", "destination": "/popcan/index.html" },
++    { "source": "/popcan/:path*", "destination": "/popcan/index.html" },
+     { "source": "/login", "destination": "/login/index.html" },
+     { "source": "/logout", "destination": "/logout/index.html" },
+     { "source": "/invoice-generator", "destination": "/invoice-generator/index.html" },
