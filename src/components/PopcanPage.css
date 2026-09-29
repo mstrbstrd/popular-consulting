@@ -214,3 +214,15 @@ html.popcan-route { height: 100%; overflow: hidden; font-size: 62.5% !important;
 .pc-text-preview { white-space: pre; overflow: auto; padding: 16px; margin-top: 16px; border: 1px solid var(--pc-line); border-radius: 8px; max-height: 160px; min-height: 70px; line-height: 1.3; }
 .pc-dialog .pc-primary:disabled { opacity: .45; cursor: not-allowed; }
 @media (max-width: 760px) { .pc-view-controls .pc-button { min-width: 32px; height: 36px; } }
+
+/* The outline is screen-space chrome, never painted, exported or hit-tested. */
+.pc-selection { position: absolute; pointer-events: none; border: 1px dashed #b6a1ec;
+  box-shadow: 0 0 0 1px rgba(0,0,0,.65); z-index: 4; }
+.pc-stage[data-tool='select'] { cursor: default; }
+.pc-stage[data-tool='select']:active { cursor: move; }
+.pc-selection-actions { position: absolute; top: var(--pc-chrome-bottom); left: 50%; transform: translateX(-50%);
+  z-index: 5; pointer-events: auto; display: flex; align-items: center; gap: 6px; padding: 4px 8px 4px 14px;
+  max-width: calc(100% - 32px); border: 1px solid var(--pc-line); border-radius: 12px;
+  background: var(--pc-glass); color: var(--pc-ink); box-shadow: 0 5px 24px rgba(0,0,0,.08); }
+.pc-selection-actions > span { font-size: 11px; white-space: nowrap; }
+.pc-selection-actions .pc-button { min-width: 40px; min-height: 40px; }

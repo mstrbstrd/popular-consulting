@@ -1,5 +1,7 @@
 import React from 'react';
 const paths = {
+  select: 'M5 3l15 10-7 1-3 7zM13 14l5 7',
+  trash: 'M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7',
   brush: 'M14 4l6 6M13 5l3-3 6 6-3 3-6 6-6-6zM7 13c-5 0-1 6-5 7 6 2 9-1 7-5',
   eraser: 'M3 14l9-11a2 2 0 013 0l6 6a2 2 0 010 3l-8 9H9zM7 10l10 9M13 21h9',
   line: 'M4 20L20 4M3 18v3h3M18 3h3v3',
