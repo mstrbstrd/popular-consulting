@@ -11,11 +11,31 @@ tools and collapsible brush settings above it. The structural wrappers ignore
 pointer input; only visible controls intercept it. Every exposed page edge is
 drawable, including in graphics safe mode.
 
-A uniform cover scale fills the viewport without stretching artwork. Portrait
-screens may show only part of a landscape document; Hand reveals the rest.
-Zoom keeps the current document focal point, and reset recentres the page.
-Display resizing never changes the stored bitmap, history or export dimensions.
-Changing orientation during a gesture cancels only that unfinished gesture.
+The viewport is a camera over stable world coordinates. Buttons, the mouse wheel,
+and pinch gestures zoom from 10% to 800%; Hand, Space-drag, middle-drag and
+two-finger dragging move the view even at minimum zoom. Wheel zoom anchors at
+the pointer; button zoom anchors at the viewport centre. The percentage/fit
+control reveals the complete document. Resize preserves the visible world centre.
+
+Drawing outside existing bounds grows the bitmap in 128-pixel blocks, including
+left and top. Existing pixels move by integer offsets, not resampling; the camera
+does not jump when the bitmap origin changes. A cancelled gesture restores its
+original pixels, origin and dimensions. Pan/zoom alone never allocate or save a
+larger document. Growth is explicitly bounded to 4,194,304 pixels and 4,096 pixels
+per side to protect device memory; refused growth leaves the previous document
+intact. Fill stays inside the current bounds, and erasing never allocates space.
+
+The Text tool (T) opens a plain-text editor at the clicked world position, with
+sans/serif/mono, 12–240px size, bold, colour and a preview. Up to 1,000 characters
+and 20 lines are measured before allocation. Add commits raster text as one undo
+step; empty text, Escape and closing the dialog do not write pixels. Text is not
+HTML, is never evaluated, and remains local. It is not an editable object after
+placement, matching the existing raster drawing model.
+
+Zoom, pan, viewport rotation and a second touch must never commit a partial
+stroke. Two-finger navigation cancels the first finger's preview and suppresses
+painting until both fingers are released. Unmount removes listeners and releases
+pointer capture, and hidden/blurred contexts cancel incomplete gestures.
 
 ## Drawing model
 
@@ -31,7 +51,7 @@ grain and shape fill are editable. Shift constrains geometry. Each gesture is
 one undo step; cancellation does not alter the document. History is bounded to
 40 MiB; old snapshots expire. New canvases and paper changes are undoable.
 
-Document sizes are landscape 1200 x 800, square 1000 x 1000 and portrait
+Starting document sizes are landscape 1200 x 800, square 1000 x 1000 and portrait
 800 x 1200. Display zoom never changes document resolution. Paper is separate
 from the transparent paint bitmap; PNG export optionally composites that paper.
 Local PNG/JPEG/WebP imports are limited to 12 MiB and 24 megapixels.
@@ -42,10 +62,13 @@ One current draft is saved to IndexedDB on this device after committed changes
 or renaming. PNG blobs are captured before queued writes; a generation counter
 prevents stale asynchronous saves replacing newer work. No drawing data is sent
 to a server. Storage failure leaves drawing usable and asks the user to export.
+Snapshots and saved drafts include the world origin and base pigment dimensions.
+Old drafts without those fields are restored at origin (0,0). Saves and PNG
+export capture only committed snapshots, including during an unfinished gesture.
 Undo history is session-only. Clearing site data removes the draft.
 
-Canvas work is event-driven with at most one pending animation frame. Resize
-only changes CSS display scale, not pixels. Pointer capture handles strokes
+Canvas work is event-driven with at most one pending animation frame. Viewport resize
+changes only the camera, not pixels. Pointer capture handles strokes
 outside the board; pointer cancellation and Escape restore the committed image.
 Unmount cancels pending work and removes listeners. The editor requires Canvas
 2D, not WebGL, and works in graphics safe mode.
@@ -63,3 +86,12 @@ and dark themes, touch input, changing orientation and zooming before drawing.
 Built-route storage and touch smoke: use Node 22+ with Chrome/Edge installed,
 then run `node scripts/verify-popcan-browser.mjs` after the production build.
 This creates only a temporary browser profile and local drawing data.
+
+## Pan, zoom and text regression checks
+
+`popcanView.test.js` checks anchor invariance, bounded zoom/space, growing bounds
+and text validation. `verify-popcan-browser.mjs` uses real pointer/touch events
+and canvas pixels to verify expansion, cancellation, colour preservation, text
+undo/redo, persisted origins, export size and mobile gestures. It can run against
+the built site or the allowlisted production origin. No production user data is
+read or changed: browser verification uses its own disposable local profile.
