@@ -26,6 +26,7 @@ jobs:
           PY
           git apply --check /tmp/popcan-page.patch
           git apply /tmp/popcan-page.patch
+          python3 .github/popcan-page-amend.py
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -49,7 +50,7 @@ jobs:
           POPCAN_VERIFY_OUTPUT: ${{ runner.temp }}/popcan-page-evidence
       - name: Publish only verified changes on the review branch
         run: |
-          git rm .github/popcan-page.patch.b64 .github/workflows/popcan-page-review.yml
+          git rm .github/popcan-page.patch.b64 .github/popcan-page-amend.py .github/workflows/popcan-page-review.yml
           git add src/components/PopcanPage.js src/components/PopcanPage.css src/components/PopcanIntegration.test.js scripts/verify-popcan-browser.mjs docs/popcan.md
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
