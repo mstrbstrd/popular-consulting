@@ -4,14 +4,23 @@ on:
     branches: [feat/popcan-studio]
 permissions:
   contents: read
+concurrency:
+  group: popcan-review
+  cancel-in-progress: true
 jobs:
-  source:
+  dependencies:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - run: git archive --format=zip --output=popcan-source.zip HEAD
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: tar -czf popcan-deps.tgz node_modules
       - uses: actions/upload-artifact@v4
         with:
-          name: popcan-source
-          path: popcan-source.zip
+          name: popcan-deps
+          path: popcan-deps.tgz
           retention-days: 1
