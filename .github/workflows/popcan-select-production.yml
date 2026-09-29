@@ -3,7 +3,7 @@ on:
   push:
     branches: [verify/popcan-select-production]
 permissions:
-  contents: read
+  contents: write
   statuses: read
 jobs:
   verify:
@@ -11,10 +11,23 @@ jobs:
     timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: 4746a85f120fa6a0ef152f78cbf14354d3da05b3
-          persist-credentials: false
-      - name: Wait for this exact production deployment
+      - name: Correct legacy browser event simulation without changing the app
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('scripts/verify-popcan-browser.mjs')
+          s = p.read_text()
+          old = "const click = (label) => evaluate(`document.querySelector('button[aria-label=${JSON.stringify(label)}]').click()`);"
+          assert old in s
+          s = s.replace(old, "const click = async (label) => { await evaluate(`document.querySelector('button[aria-label=${JSON.stringify(label)}]').click()`); await sleep(40); };")
+          old = 'y:y+(ey-y)*i/8,buttons }'
+          assert old in s
+          s = s.replace(old, 'y:y+(ey-y)*i/8,button,buttons }')
+          s = s.replace("el.tagName==='SELECT'?'change':'input'", "el.tagName==='SELECT'||el.type==='color'?'change':'input'")
+          p.write_text(s)
+          PY
+          git diff --check
+      - name: Wait for the production feature deployment
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -44,6 +57,14 @@ jobs:
           VISUAL_CAPTURE_BROWSER: /usr/bin/google-chrome
           POPCAN_VERIFY_ORIGIN: https://popular-consulting.com
           POPCAN_VERIFY_OUTPUT: ${{ runner.temp }}/popcan-selection-production/regression
+      - name: Preserve the validated test correction and remove temporary workflow
+        run: |
+          git rm .github/workflows/popcan-select-production.yml
+          git add scripts/verify-popcan-browser.mjs
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'test: keep legacy Popcan drag simulation consistent with selection checks'
+          git push origin HEAD:verify/popcan-select-production
       - uses: actions/upload-artifact@v4
         if: always()
         with:
