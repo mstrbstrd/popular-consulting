@@ -49,7 +49,7 @@ html.popcan-route { height: 100%; overflow: hidden; font-size: 62.5% !important;
 .pc-tools .pc-button { width: 42px; height: 42px; }
 .pc-tools .pc-button.is-active { background: linear-gradient(var(--pc-panel),var(--pc-panel)) padding-box, var(--pc-spectral) border-box; border: 1px solid transparent; box-shadow: 0 3px 10px rgba(0,0,0,.05); }
 .pc-tool-spacer { flex: 1; min-height: 8px; }
-.pc-stage { position: absolute; inset: 0; overflow: hidden; touch-action: none; cursor: crosshair; outline: none; overscroll-behavior: none; scrollbar-width: none; pointer-events: auto; }
+.pc-stage { position: absolute; inset: 0; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; cursor: crosshair; outline: none; overscroll-behavior: none; scrollbar-width: none; pointer-events: auto; }
 .pc-artboard { position: absolute; top: 0; left: 0; transform-origin: 0 0; pointer-events: none; isolation: isolate; }
 .pc-paint, .pc-preview { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 .pc-preview { z-index: 2; pointer-events: none; }
@@ -96,7 +96,7 @@ html.popcan-route { height: 100%; overflow: hidden; font-size: 62.5% !important;
 .pc-check { display: flex; align-items: center; gap: 7px; font-size: 12px; margin-top: 16px; }
 .pc-check input { accent-color: var(--pc-ring); }
 .pc-hint { font-size: 10px; color: var(--pc-muted); line-height: 1.6; margin: 12px 0 0; }
-.pc-papers { display: flex; gap: 12px; }
+.pc-papers { display: flex; flex-wrap: wrap; gap: 8px; }
 .pc-papers button { padding: 0; flex-shrink: 0; width: 30px; height: 30px; border: 1px solid var(--pc-line); border-radius: 7px; }
 .pc-papers button[aria-pressed='true'] { outline: 1px solid var(--pc-ring); outline-offset: 3px; }
 .popcan-page .is-transparent { background-color: var(--pc-check-a); background-image: conic-gradient(var(--pc-check-b) 25%, transparent 0 50%, var(--pc-check-b) 0 75%, transparent 0); background-size: 16px 16px; }

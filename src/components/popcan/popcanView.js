@@ -23,6 +23,22 @@ export const panView = (view, dx, dy) => ({
 export const validSize = (width, height) => Number.isInteger(width) && Number.isInteger(height)
   && width > 0 && height > 0 && width <= MAX_CANVAS_SIDE && height <= MAX_CANVAS_SIDE
   && width * height <= MAX_CANVAS_PIXELS;
+// Logical page bounds are not bitmap allocation bounds. Empty space costs no pixels.
+export const validWorldSize = (width, height) => Number.isInteger(width) && Number.isInteger(height)
+  && width > 0 && height > 0 && width <= WORLD_LIMIT * 2 && height <= WORLD_LIMIT * 2;
+export function rasterFrame(bounds, pixelBudget = MAX_CANVAS_PIXELS) {
+  const width = Math.max(1, Math.ceil(bounds.right) - Math.floor(bounds.left));
+  const height = Math.max(1, Math.ceil(bounds.bottom) - Math.floor(bounds.top));
+  if (!Number.isInteger(pixelBudget) || pixelBudget < 1 || pixelBudget > MAX_CANVAS_PIXELS
+    || ![bounds.left, bounds.top, bounds.right, bounds.bottom].every(Number.isFinite)
+    || bounds.left > bounds.right || bounds.top > bounds.bottom || !validWorldSize(width, height)) throw new Error('Invalid render bounds.');
+  let pixelSize = 1;
+  while (!validSize(Math.ceil(width / pixelSize), Math.ceil(height / pixelSize))
+    || Math.ceil(width / pixelSize) * Math.ceil(height / pixelSize) > pixelBudget) pixelSize *= 2;
+  return { originX: Math.floor(bounds.left), originY: Math.floor(bounds.top),
+    width: Math.ceil(width / pixelSize) * pixelSize, height: Math.ceil(height / pixelSize) * pixelSize,
+    pixelWidth: Math.ceil(width / pixelSize), pixelHeight: Math.ceil(height / pixelSize), pixelSize };
+}
 export function expandedBounds(doc, bounds) {
   const values = [bounds.left, bounds.top, bounds.right, bounds.bottom];
   if (!values.every(Number.isFinite) || bounds.left > bounds.right || bounds.top > bounds.bottom) throw new Error('Invalid drawing bounds.');
@@ -31,8 +47,8 @@ export function expandedBounds(doc, bounds) {
   const top = Math.min(doc.originY, Math.floor(bounds.top / 128) * 128);
   const right = Math.max(doc.originX + doc.width, Math.ceil(bounds.right / 128) * 128);
   const bottom = Math.max(doc.originY + doc.height, Math.ceil(bounds.bottom / 128) * 128);
-  if (Math.max(Math.abs(left), Math.abs(top), Math.abs(right), Math.abs(bottom)) > WORLD_LIMIT || !validSize(right - left, bottom - top)) {
-    throw new Error('Canvas space limit reached. Draw closer to your artwork, or export and start a new canvas.');
+  if (Math.max(Math.abs(left), Math.abs(top), Math.abs(right), Math.abs(bottom)) > WORLD_LIMIT || !validWorldSize(right - left, bottom - top)) {
+    throw new Error('Workspace edge limit reached. Move back toward your artwork to continue drawing.');
   }
   return { originX: left, originY: top, width: right - left, height: bottom - top };
 }

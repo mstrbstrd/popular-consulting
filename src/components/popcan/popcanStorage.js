@@ -1,3 +1,6 @@
+import { validSize, validWorldSize, rasterFrame, WORLD_LIMIT } from './popcanView';
+import { checkObjectPng } from './popcanObjects';
+
 const DB_NAME = 'popcan-local';
 const STORE = 'drafts';
 const KEY = 'current';
@@ -13,12 +16,22 @@ function database() {
 }
 export async function readDraft() {
   const db = await database();
-  return new Promise((resolve, reject) => {
+  const draft = await new Promise((resolve, reject) => {
     const tx = db.transaction(STORE, 'readonly'), request = tx.objectStore(STORE).get(KEY);
     request.onsuccess = () => resolve(request.result || null);
     request.onerror = () => reject(request.error);
     tx.oncomplete = () => db.close(); tx.onabort = () => { db.close(); reject(tx.error); };
   });
+  if (draft?.blob) {
+    const { width, height, originX = 0, originY = 0 } = draft;
+    if (!(draft.version === 3 ? validWorldSize : validSize)(width, height)
+      || ![originX, originY].every((n) => Number.isInteger(n) && Math.abs(n) <= WORLD_LIMIT)
+      || Math.abs(originX + width) > WORLD_LIMIT || Math.abs(originY + height) > WORLD_LIMIT
+      || !(draft.blob instanceof Blob) || draft.blob.size > 40 * 1024 * 1024) throw new Error('Invalid saved canvas.');
+    const frame = rasterFrame({ left: originX, top: originY, right: originX + width, bottom: originY + height });
+    await checkObjectPng({ blob: draft.blob, width: frame.pixelWidth, height: frame.pixelHeight });
+  }
+  return draft;
 }
 export async function writeDraft(draft) {
   const db = await database();
