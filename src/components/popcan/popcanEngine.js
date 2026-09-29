@@ -1,3 +1,5 @@
+import { alphaBounds, checkObjects, objectBounds, objectBytes, intersects, validateObjectRecords, checkObjectPng } from './popcanObjects';
+import { loadImage } from './popcanStorage';
 import { expandedBounds, validSize, WORLD_LIMIT, TEXT_FONTS, textSettings, textLines } from './popcanView';
 
 // A stationary, document-space adaptation of Morphogen Divide's sand pigment.
@@ -54,7 +56,7 @@ export const shapeEnd = (start, end, tool, constrain) => {
 
 // Iterative four-connected fill: each pixel is queued once, with a bounded
 // typed-array queue (no recursive call stack or unbounded JS point objects).
-export function floodPixels(data, width, height, x, y, replacement, tolerance = 22) {
+export function floodPixels(data, width, height, x, y, replacement, tolerance = 22, coverage = null) {
   x = Math.floor(x); y = Math.floor(y);
   if (x < 0 || y < 0 || x >= width || y >= height) return false;
   const origin = (y * width + x) * 4;
@@ -71,6 +73,7 @@ export function floodPixels(data, width, height, x, y, replacement, tolerance = 
       (target[3] === 0 || [0, 1, 2].every((c) => Math.abs(data[p + c] - target[c]) <= tolerance));
     if (!matches) continue;
     data.set(replacement, p);
+    if (coverage) coverage[index] = 1;
     if (index % width > 0) enqueue(index - 1);
     if (index % width < width - 1) enqueue(index + 1);
     if (index >= width) enqueue(index - width);
@@ -124,6 +127,8 @@ export class PopcanEngine {
     this.originX = 0; this.originY = 0; this.baseWidth = 1200; this.baseHeight = 800;
     this.paper = PAPERS.midnight; this.hasInk = false; this.history = []; this.index = -1;
     this.frame = 0; this.stroke = null; this.texture = null; this.textureKey = '';
+    this.objects = []; this.selectedId = null; this.drag = null; this.nextId = 1;
+    this.destroyed = false; this.objectBlobs = new WeakMap();
     this.resize(1200, 800); this.commit();
   }
   resize(width, height) {
@@ -132,18 +137,22 @@ export class PopcanEngine {
     this.textureKey = ''; this.canvas.style.visibility = '';
   }
   state(committed = false) {
-    if (committed) { const { pixels, ...data } = this.history[this.index]; return data; }
+    if (committed) { const { objects, ...data } = this.history[this.index]; return data; }
     return { width: this.width, height: this.height, originX: this.originX, originY: this.originY,
       baseWidth: this.baseWidth, baseHeight: this.baseHeight, paper: this.paper, hasInk: this.hasInk,
-      canUndo: this.index > 0, canRedo: this.index < this.history.length - 1 };
+      canUndo: this.index > 0, canRedo: this.index < this.history.length - 1,
+      objectCount: this.objects.length, selection: this.selection() };
   }
   emit() { this.onChange(this.state()); }
   commit() {
-    const snapshot = { ...this.state(), pixels: this.ctx.getImageData(0, 0, this.width, this.height) };
-    this.history.splice(this.index + 1);
-    this.history.push(snapshot);
-    let bytes = this.history.reduce((total, item) => total + item.pixels.data.byteLength, 0);
-    while (this.history.length > 2 && bytes > HISTORY_BYTES) bytes -= this.history.shift().pixels.data.byteLength;
+    checkObjects(this.objects);
+    this.hasInk = this.objects.length > 0;
+    const snapshot = { ...this.state(), selection: null, objects: this.objects.slice() };
+    this.history.splice(this.index + 1); this.history.push(snapshot);
+    // Shared immutable assets make moves cheap. Count each retained bitmap once,
+    // with a finite metadata history as well as the 40 MiB pixel budget.
+    while (this.history.length > 2 && (this.history.length > 100
+      || objectBytes(this.history.flatMap((item) => item.objects)) > HISTORY_BYTES)) this.history.shift();
     this.index = this.history.length - 1; this.emit();
   }
   travel(delta) {
@@ -157,7 +166,9 @@ export class PopcanEngine {
     this.originX = item.originX; this.originY = item.originY;
     this.baseWidth = item.baseWidth; this.baseHeight = item.baseHeight;
     if (this.width !== item.width || this.height !== item.height) this.resize(item.width, item.height);
-    this.ctx.putImageData(item.pixels, 0, 0); this.paper = item.paper; this.hasInk = item.hasInk;
+    this.objects = item.objects.slice(); this.paper = item.paper; this.hasInk = this.objects.length > 0;
+    if (!this.objects.some((object) => object.id === this.selectedId)) this.selectedId = null;
+    this.paintObjects();
     this.textureKey = '';
   }
   local(point) { return { ...point, x: point.x - this.originX, y: point.y - this.originY }; }
@@ -178,6 +189,7 @@ export class PopcanEngine {
   newDocument(format, paper) {
     this.cancel(); const [w, h] = FORMATS[format] || FORMATS.landscape;
     this.originX = 0; this.originY = 0; this.baseWidth = w; this.baseHeight = h;
+    this.objects = []; this.selectedId = null;
     this.resize(w, h); this.paper = PAPERS[paper] || PAPERS.midnight; this.hasInk = false; this.commit();
   }
   setPaper(paper) { if (paper === this.paper) return; this.cancel(); this.paper = paper; this.commit(); }
@@ -189,9 +201,11 @@ export class PopcanEngine {
   start(point, settings) {
     this.cancel();
     const ink = { ...DEFAULT_INK, ...settings };
+    if (ink.tool === 'select') { this.beginMove(point, settings.hitTolerance); return; }
+    this.selectedId = null; this.onChange(this.state(), true);
     if (ink.tool === 'fill') { this.fill(point, ink.colorA); return; }
     if (ink.tool === 'pick' || ink.tool === 'hand' || ink.tool === 'text') return;
-    this.stroke = { ink, start: point, last: point };
+    this.stroke = { ink, start: point, last: point, bounds: null };
     if (ink.tool !== 'eraser') this.ensureBounds({ left: point.x - ink.size, top: point.y - ink.size, right: point.x + ink.size, bottom: point.y + ink.size });
     if (ink.tool !== 'eraser') this.getTexture(ink);
     this.maskCtx.clearRect(0, 0, this.width, this.height);
@@ -200,6 +214,11 @@ export class PopcanEngine {
     this.render();
   }
   stamp(point) {
+    const size = this.stroke.ink.size;
+    const bounds = { left: point.x - size, top: point.y - size, right: point.x + size, bottom: point.y + size };
+    const previous = this.stroke.bounds;
+    this.stroke.bounds = previous ? { left: Math.min(previous.left, bounds.left), top: Math.min(previous.top, bounds.top),
+      right: Math.max(previous.right, bounds.right), bottom: Math.max(previous.bottom, bounds.bottom) } : bounds;
     point = this.local(point);
     const { ink } = this.stroke, ctx = this.maskCtx;
     const radius = Math.max(0.5, ink.size * (0.35 + point.pressure * 0.65) / 2);
@@ -211,6 +230,7 @@ export class PopcanEngine {
     ctx.beginPath(); ctx.arc(point.x, point.y, radius, 0, Math.PI * 2); ctx.fill();
   }
   move(point, constrain = false) {
+    if (this.drag) { this.moveSelection(point, constrain); return; }
     if (!this.stroke) return;
     const { ink, start, last } = this.stroke;
     const end = shapeEnd(start, point, ink.tool, constrain);
@@ -245,7 +265,17 @@ export class PopcanEngine {
     ctx.clearRect(0, 0, this.width, this.height); ctx.drawImage(this.canvas, 0, 0);
     ctx.globalAlpha = ink.opacity;
     if (ink.tool === 'eraser') {
-      ctx.globalCompositeOperation = 'destination-out'; ctx.drawImage(this.mask, 0, 0);
+      // Erase each affected object, not the merged page, so the hole moves
+      // with its object. The preview uses the same compositing as commit.
+      ctx.globalAlpha = 1; ctx.clearRect(0, 0, this.width, this.height);
+      for (const object of this.objects) {
+        const x = object.x - this.originX, y = object.y - this.originY;
+        if (!intersects(objectBounds(object), this.stroke.bounds)) { ctx.drawImage(object.bitmap, x, y); continue; }
+        const tint = this.tintCtx; tint.globalCompositeOperation = 'source-over'; tint.globalAlpha = 1;
+        tint.clearRect(0, 0, this.width, this.height); tint.drawImage(object.bitmap, x, y);
+        tint.globalCompositeOperation = 'destination-out'; tint.globalAlpha = ink.opacity; tint.drawImage(this.mask, 0, 0);
+        tint.globalAlpha = 1; tint.globalCompositeOperation = 'source-over'; ctx.drawImage(this.tint, 0, 0);
+      }
     } else {
       const tint = this.tintCtx;
       tint.globalCompositeOperation = 'source-over'; tint.clearRect(0, 0, this.width, this.height);
@@ -255,24 +285,50 @@ export class PopcanEngine {
     ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
   }
   finish() {
+    if (this.drag) {
+      const { original } = this.drag, selected = this.objects.find((item) => item.id === original.id);
+      const moved = selected.x !== original.x || selected.y !== original.y;
+      this.drag = null;
+      if (moved) this.commit();
+      else { this.loadSnapshot(this.history[this.index]); this.onChange(this.state(), true); }
+      return;
+    }
     if (!this.stroke) return;
     cancelAnimationFrame(this.frame); this.frame = 0; this.render();
-    this.ctx.clearRect(0, 0, this.width, this.height); this.ctx.drawImage(this.preview, 0, 0);
-    if (this.stroke.ink.tool !== 'eraser') this.hasInk = true;
-    this.commit(); this.stroke = null; this.cancel();
+    const { ink } = this.stroke;
+    try {
+      if (ink.tool === 'eraser') {
+        const objects = this.objects.map((object) => {
+          if (!intersects(objectBounds(object), this.stroke.bounds)) return object;
+          const bitmap = surface(object.bitmap.width, object.bitmap.height), ctx = context(bitmap);
+          ctx.drawImage(object.bitmap, 0, 0); ctx.globalCompositeOperation = 'destination-out'; ctx.globalAlpha = ink.opacity;
+          ctx.drawImage(this.mask, this.originX - object.x, this.originY - object.y);
+          const erased = this.captureObject(bitmap, object.x, object.y, object.kind, 1, object.id);
+          return erased;
+        }).filter(Boolean);
+        this.objects = objects;
+      } else {
+        const object = this.captureObject(this.tint, this.originX, this.originY, ink.tool, ink.opacity);
+        if (object) { const objects = [...this.objects, object]; checkObjects(objects); this.objects = objects; this.selectedId = object.id; }
+      }
+      this.paintObjects(); this.commit(); this.stroke = null; this.cancel();
+    } catch (failure) { this.cancel(); throw failure; }
   }
   cancel() {
-    const changedBounds = this.history[this.index] && (this.width !== this.history[this.index].width || this.height !== this.history[this.index].height);
-    if (this.stroke) { this.loadSnapshot(this.history[this.index]); if (changedBounds) this.onChange(this.state(), true); }
-    cancelAnimationFrame(this.frame); this.frame = 0; this.stroke = null;
+    const active = this.stroke || this.drag;
+    if (active) this.loadSnapshot(this.history[this.index]);
+    cancelAnimationFrame(this.frame); this.frame = 0; this.stroke = null; this.drag = null;
     this.previewCtx.clearRect(0, 0, this.width, this.height); this.canvas.style.visibility = '';
+    if (active) this.onChange(this.state(), true);
   }
   fill(point, color) {
-    point = this.local(point);
+    this.cancel(); point = this.local(point);
     if (point.x < 0 || point.y < 0 || point.x >= this.width || point.y >= this.height) throw new Error('Draw an outline here first. Fill operates inside the current canvas bounds.');
-    const image = this.ctx.getImageData(0, 0, this.width, this.height);
-    if (floodPixels(image.data, this.width, this.height, point.x, point.y, [...rgb(color), 255])) {
-      this.ctx.putImageData(image, 0, 0); this.hasInk = true; this.commit();
+    const image = this.ctx.getImageData(0, 0, this.width, this.height), coverage = new Uint8Array(this.width * this.height);
+    if (floodPixels(image.data, this.width, this.height, point.x, point.y, [...rgb(color), 255], 22, coverage)) {
+      for (let i = 0; i < coverage.length; i++) if (!coverage[i]) image.data.fill(0, i * 4, i * 4 + 4);
+      const bitmap = surface(this.width, this.height); context(bitmap).putImageData(image, 0, 0);
+      this.appendObject(this.captureObject(bitmap, this.originX, this.originY, 'fill'));
     }
   }
   pick(point) {
@@ -286,9 +342,10 @@ export class PopcanEngine {
   placeImage(image) {
     this.cancel();
     const scale = Math.min(this.width / image.naturalWidth, this.height / image.naturalHeight);
-    const w = image.naturalWidth * scale, h = image.naturalHeight * scale;
-    this.ctx.drawImage(image, (this.width - w) / 2, (this.height - h) / 2, w, h);
-    this.hasInk = true; this.commit();
+    const w = Math.max(1, Math.round(image.naturalWidth * scale)), h = Math.max(1, Math.round(image.naturalHeight * scale));
+    const bitmap = surface(w, h); context(bitmap).drawImage(image, 0, 0, w, h);
+    this.appendObject(this.captureObject(bitmap, this.originX + Math.round((this.width - w) / 2),
+      this.originY + Math.round((this.height - h) / 2), 'image'));
   }
   addText(point, value, options) {
     this.cancel();
@@ -302,32 +359,154 @@ export class PopcanEngine {
     const height = lines.length * settings.size * 1.3;
     try {
     this.ensureBounds({ left: point.x - inset, top: point.y - inset, right: point.x + width + inset, bottom: point.y + height + inset });
-    const local = this.local(point);
-    this.ctx.save(); this.ctx.font = font; this.ctx.textBaseline = 'top'; this.ctx.textAlign = 'left';
-    this.ctx.fillStyle = settings.color; this.ctx.globalAlpha = 1; this.ctx.globalCompositeOperation = 'source-over';
-    lines.forEach((line, i) => this.ctx.fillText(line, local.x, local.y + i * settings.size * 1.3));
-    this.ctx.restore(); this.hasInk = true; this.commit(); return true;
+    const local = this.local(point), ctx = this.tintCtx;
+    ctx.clearRect(0, 0, this.width, this.height);
+    ctx.save(); ctx.font = font; ctx.textBaseline = 'top'; ctx.textAlign = 'left';
+    ctx.fillStyle = settings.color; ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+    lines.forEach((line, i) => ctx.fillText(line, local.x, local.y + i * settings.size * 1.3));
+    ctx.restore(); this.appendObject(this.captureObject(this.tint, this.originX, this.originY, 'text')); return true;
     } catch (failure) { this.loadSnapshot(this.history[this.index]); this.onChange(this.state(), true); throw failure; }
   }
-  restore(image, draft) {
+  async restore(image, draft) {
     if (!validSize(draft.width, draft.height) || image.naturalWidth !== draft.width || image.naturalHeight !== draft.height) throw new Error('Invalid draft size.');
     const originX = draft.originX ?? 0, originY = draft.originY ?? 0;
     if (![originX, originY].every((value) => Number.isInteger(value) && Math.abs(value) <= WORLD_LIMIT)) throw new Error('Invalid draft origin.');
     if (Math.abs(originX + draft.width) > WORLD_LIMIT || Math.abs(originY + draft.height) > WORLD_LIMIT) throw new Error('Invalid draft bounds.');
+    let objects = [], recovered = false;
+    if (draft.version === 2) {
+      try {
+        validateObjectRecords(draft.objects, { ...draft, originX, originY });
+        if (Boolean(draft.hasInk) !== Boolean(draft.objects.length)) throw new Error('Missing saved objects.');
+        for (const item of draft.objects) {
+          await checkObjectPng(item);
+          const image = await loadImage(item.blob);
+          if (this.destroyed) return;
+          const bitmap = surface(item.width, item.height); context(bitmap).drawImage(image, 0, 0);
+          objects.push({ id: item.id, kind: item.kind, x: item.x, y: item.y, bitmap });
+          this.objectBlobs.set(bitmap, Promise.resolve(item.blob));
+        }
+      } catch { objects = []; recovered = true; }
+    }
+    if (this.destroyed) return;
+    if (draft.version !== 2 || recovered) {
+      const bitmap = surface(draft.width, draft.height); context(bitmap).drawImage(image, 0, 0);
+      const object = this.captureObject(bitmap, originX, originY, 'legacy');
+      if (object) objects = [object];
+    }
+    this.objects = objects; this.nextId = Math.max(this.nextId, ...objects.map((item) => item.id + 1)); this.selectedId = null;
     this.originX = originX; this.originY = originY;
     this.baseWidth = validSize(draft.baseWidth, draft.baseHeight) ? draft.baseWidth : draft.width;
     this.baseHeight = validSize(draft.baseWidth, draft.baseHeight) ? draft.baseHeight : draft.height;
     this.resize(draft.width, draft.height);
     this.paper = Object.values(PAPERS).includes(draft.paper) ? draft.paper : PAPERS.midnight;
-    this.ctx.drawImage(image, 0, 0, this.width, this.height); this.hasInk = Boolean(draft.hasInk);
-    this.history = []; this.index = -1; this.commit();
+    this.paintObjects(); this.history = []; this.index = -1; this.commit();
+    return recovered ? 'Saved artwork recovered as one movable layer.' : objects.some((item) => item.kind === 'legacy')
+      ? 'Earlier artwork is one movable layer. New marks can be selected separately.' : 'Your last canvas is back.';
   }
-  blob(includePaper = false) {
-    const snapshot = this.history[this.index];
+  selection() {
+    const item = this.objects.find((object) => object.id === this.selectedId);
+    return item ? { id: item.id, kind: item.kind, x: item.x, y: item.y, width: item.bitmap.width, height: item.bitmap.height } : null;
+  }
+  select(id) {
+    this.selectedId = this.objects.some((item) => item.id === id) ? id : null;
+    this.onChange(this.state(), true);
+  }
+  cycleSelection(direction) {
+    this.cancel(); if (!this.objects.length) return;
+    const index = this.objects.findIndex((item) => item.id === this.selectedId);
+    const next = index < 0 ? (direction > 0 ? 0 : this.objects.length - 1) : (index + direction + this.objects.length) % this.objects.length;
+    this.select(this.objects[next].id);
+  }
+  hitTest(point, tolerance = 4) {
+    const radius = clamp(Number.isFinite(tolerance) ? Math.ceil(tolerance) : 4, 0, 32);
+    for (let i = this.objects.length - 1; i >= 0; i--) {
+      const item = this.objects[i], x = Math.floor(point.x - item.x), y = Math.floor(point.y - item.y);
+      const left = Math.max(0, x - radius), top = Math.max(0, y - radius);
+      const right = Math.min(item.bitmap.width, x + radius + 1), bottom = Math.min(item.bitmap.height, y + radius + 1);
+      if (right <= left || bottom <= top) continue;
+      const pixels = context(item.bitmap).getImageData(left, top, right - left, bottom - top).data;
+      for (let p = 3; p < pixels.length; p += 4) if (pixels[p] > 0) return item;
+    }
+    return null;
+  }
+  beginMove(point, tolerance) {
+    let item = this.hitTest(point, tolerance);
+    const selected = this.objects.find((object) => object.id === this.selectedId);
+    if (!item && selected && point.x >= selected.x && point.y >= selected.y
+      && point.x < selected.x + selected.bitmap.width && point.y < selected.y + selected.bitmap.height) item = selected;
+    this.select(item?.id ?? null);
+    if (item) this.drag = { original: item, start: point };
+  }
+  moveSelection(point, constrain = false) {
+    if (!this.drag || ![point.x, point.y].every(Number.isFinite)) return;
+    const { original, start } = this.drag;
+    let dx = Math.round(point.x - start.x), dy = Math.round(point.y - start.y);
+    if (constrain) { if (Math.abs(dx) >= Math.abs(dy)) dy = 0; else dx = 0; }
+    const moved = { ...original, x: original.x + dx, y: original.y + dy };
+    this.ensureBounds(objectBounds(moved));
+    this.objects = this.objects.map((item) => item.id === original.id ? moved : item);
+    this.paintObjects(); this.onChange(this.state(), true);
+  }
+  nudge(dx, dy) {
+    this.cancel(); const item = this.objects.find((object) => object.id === this.selectedId);
+    if (!item) return;
+    this.drag = { original: item, start: { x: 0, y: 0 } };
+    try { this.moveSelection({ x: dx, y: dy }); this.finish(); }
+    catch (failure) { this.cancel(); throw failure; }
+  }
+  deleteSelection() {
+    this.cancel(); if (!this.selection()) return;
+    this.objects = this.objects.filter((item) => item.id !== this.selectedId); this.selectedId = null;
+    this.paintObjects(); this.commit();
+  }
+  captureObject(canvas, x, y, kind, opacity = 1, id = this.nextId++) {
+    const ctx = context(canvas), pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const bounds = alphaBounds(pixels.data, canvas.width, canvas.height);
+    if (!bounds) return null;
+    const bitmap = surface(bounds.width, bounds.height), output = context(bitmap);
+    output.globalAlpha = opacity;
+    output.drawImage(canvas, bounds.left, bounds.top, bounds.width, bounds.height, 0, 0, bounds.width, bounds.height);
+    return { id, kind, x: Math.round(x + bounds.left), y: Math.round(y + bounds.top), bitmap };
+  }
+  appendObject(object) {
+    if (!object) return;
+    const objects = [...this.objects, object]; checkObjects(objects);
+    this.objects = objects; this.selectedId = object.id; this.paintObjects(); this.commit();
+  }
+  paintObjects(ctx = this.ctx, snapshot = this) {
+    ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
+    ctx.clearRect(0, 0, snapshot.width, snapshot.height);
+    for (const item of snapshot.objects) ctx.drawImage(item.bitmap, item.x - snapshot.originX, item.y - snapshot.originY);
+  }
+  bitmapBlob(bitmap) {
+    if (!this.objectBlobs.has(bitmap)) {
+      const pending = new Promise((resolve, reject) => bitmap.toBlob((blob) => {
+        if (blob) resolve(blob); else { this.objectBlobs.delete(bitmap); reject(new Error('Could not save an object.')); }
+      }, 'image/png'));
+      this.objectBlobs.set(bitmap, pending);
+    }
+    return this.objectBlobs.get(bitmap);
+  }
+  async draft() {
+    // Capture one committed snapshot before awaiting PNG encodes. Selection and
+    // drag previews are not document changes and never enter saved/exported data.
+    const snapshot = this.history[this.index], { objects, ...data } = snapshot;
+    const blob = await this.blob(false, snapshot), records = [];
+    for (const item of objects) records.push({ id: item.id, kind: item.kind, x: item.x, y: item.y,
+      width: item.bitmap.width, height: item.bitmap.height, blob: await this.bitmapBlob(item.bitmap) });
+    return { ...data, version: 2, objects: records, blob };
+  }
+  blob(includePaper = false, snapshot = this.history[this.index]) {
     const output = surface(snapshot.width, snapshot.height), ctx = context(output);
-    ctx.putImageData(snapshot.pixels, 0, 0);
+    this.paintObjects(ctx, snapshot);
     if (includePaper && snapshot.paper !== 'transparent') { ctx.globalCompositeOperation = 'destination-over'; ctx.fillStyle = snapshot.paper; ctx.fillRect(0, 0, snapshot.width, snapshot.height); }
-    return new Promise((resolve, reject) => output.toBlob((blob) => blob ? resolve(blob) : reject(new Error('Could not create a PNG.')), 'image/png'));
+    return new Promise((resolve, reject) => output.toBlob((blob) => {
+      output.width = output.height = 0;
+      if (blob) resolve(blob); else reject(new Error('Could not create a PNG.'));
+    }, 'image/png'));
   }
-  destroy() { this.onChange = () => {}; this.cancel(); this.history = []; this.texture = null; }
+  destroy() {
+    this.onChange = () => {}; this.cancel(); this.destroyed = true; this.history = []; this.objects = []; this.texture = null;
+    this.mask.width = this.tint.width = 0; this.objectBlobs = new WeakMap();
+  }
 }

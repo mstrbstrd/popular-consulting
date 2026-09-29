@@ -52,3 +52,16 @@ test('viewport changes cannot resize or clear saved artwork', () => {
   expect(viewportEffects).toContain("stage.removeEventListener('wheel', onWheel)");
   expect(viewportEffects).toContain('observer?.disconnect()');
 });
+
+test('selection is explicit, touch-capable and separate from moving the camera', () => {
+  const editor = source('src/components/PopcanPage.js');
+  expect(editor).toContain("['select', 'Select & move', 'V']");
+  expect(editor).toContain("pointer.tool === 'select'");
+  expect(editor).toContain('engineRef.current.move(point(event), event.shiftKey)');
+  expect(editor).toContain('Delete selected item');
+  expect(editor).toContain('engine.cycleSelection');
+  expect(editor).toContain('engine.nudge');
+  expect(editor).toContain('await engine.draft()');
+  expect(editor).toContain('await engine.restore(image, draft)');
+  expect(source('src/components/PopcanPage.css')).toMatch(/\.pc-selection \{[^}]*pointer-events: none;/);
+});

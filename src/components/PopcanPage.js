@@ -9,6 +9,7 @@ import { MIN_ZOOM, MAX_ZOOM, screenPoint, zoomView, panView, TEXT_FONTS } from '
 import './PopcanPage.css';
 
 const TOOLS = [
+  ['select', 'Select & move', 'V'],
   ['brush', 'Brush', 'B'], ['eraser', 'Eraser', 'E'], ['line', 'Line', 'L'],
   ['rectangle', 'Rectangle', 'R'], ['ellipse', 'Ellipse', 'O'], ['fill', 'Fill', 'G'],
   ['text', 'Text', 'T'], ['pick', 'Colour picker', 'I'], ['hand', 'Hand', 'H'],
@@ -19,7 +20,7 @@ const PALETTES = [
   ['Dune', '#f4c89b', '#cc768d'], ['Graphite', '#eeeeef', '#76768e'],
 ];
 const PAPER_LABELS = { midnight: 'Midnight', warm: 'Warm paper', white: 'White', transparent: 'Transparent' };
-const SHORTCUTS = [['B / E', 'Brush / eraser'], ['L / R / O', 'Line / rectangle / ellipse'], ['G / I / H', 'Fill / colour picker / hand'], ['T', 'Place text'], ['Scroll / pinch', 'Zoom at the pointer'], ['Space + drag', 'Move the canvas'], ['+ / − / 0', 'Zoom in / out / fit all'], ['[ / ]', 'Smaller / larger brush'], ['X', 'Swap colours'], ['Shift + drag', 'Square, circle or 45° line'], ['⌘ or Ctrl + Z', 'Undo'], ['⌘ or Ctrl + Shift + Z', 'Redo'], ['⌘ or Ctrl + S', 'Export PNG'], ['Escape', 'Cancel current stroke']];
+const SHORTCUTS = [['V', 'Select and drag an item'], ['Arrow keys', 'Move selection (Shift: 10 px)'], ['Page Up / Down', 'Select previous / next item'], ['Delete', 'Remove selected item'], ['B / E', 'Brush / eraser'], ['L / R / O', 'Line / rectangle / ellipse'], ['G / I / H', 'Fill / colour picker / hand'], ['T', 'Place text'], ['Scroll / pinch', 'Zoom at the pointer'], ['Space + drag', 'Move the canvas'], ['+ / − / 0', 'Zoom in / out / fit all'], ['[ / ]', 'Smaller / larger brush'], ['X', 'Swap colours'], ['Shift + drag', 'Square, circle or 45° line'], ['⌘ or Ctrl + Z', 'Undo'], ['⌘ or Ctrl + Shift + Z', 'Redo'], ['⌘ or Ctrl + S', 'Export PNG'], ['Escape', 'Cancel current stroke']];
 const INITIAL_DOCUMENT = { originX: 0, originY: 0, width: 1200, height: 800, paper: PAPERS.midnight, hasInk: false, canUndo: false, canRedo: false };
 
 function ToolButton({ icon, label, children, className = '', ...props }) {
@@ -73,7 +74,10 @@ export function PopcanContent() {
     const stage = stageRef.current;
     applyView(zoomView(viewRef.current, viewRef.current.scale * factor, anchor || { x: stage.clientWidth / 2, y: stage.clientHeight / 2 }));
   }, [applyView, cancelGesture]);
-  const setOption = (key, value) => setInk((current) => ({ ...current, [key]: value }));
+  const setOption = (key, value) => {
+    if (key === 'tool') cancelGesture();
+    setInk((current) => ({ ...current, [key]: value }));
+  };
   const swapColors = () => setInk((current) => ({ ...current, colorA: current.colorB, colorB: current.colorA }));
 
   const save = useCallback(() => {
@@ -84,12 +88,12 @@ export function PopcanContent() {
     saveTimer.current = window.setTimeout(async () => {
       const engine = engineRef.current;
       if (!engine || !aliveRef.current) return;
-      const data = { ...engine.state(true), title: titleRef.current };
+      const savedTitle = titleRef.current;
       try {
-        const blob = await engine.blob();
+        const data = await engine.draft();
         saveChain.current = saveChain.current.catch(() => {}).then(async () => {
           if (version !== saveVersion.current || !aliveRef.current) return;
-          await writeDraft({ ...data, blob });
+          await writeDraft({ ...data, title: savedTitle });
           if (aliveRef.current && version === saveVersion.current) {
             dirtyRef.current = false; setSaveStatus('Saved on this device');
           }
@@ -116,9 +120,10 @@ export function PopcanContent() {
         if (draft?.blob) {
           const image = await loadImage(draft.blob);
           if (!active) return;
-          engine.restore(image, draft);
+          const restoredNotice = await engine.restore(image, draft);
+          if (!active) return;
           const restoredTitle = typeof draft.title === 'string' ? draft.title.slice(0, 80) : 'Untitled canvas';
-          titleRef.current = restoredTitle; setTitle(restoredTitle); setNotice('Your last canvas is back.');
+          titleRef.current = restoredTitle; setTitle(restoredTitle); setNotice(restoredNotice || 'Your last canvas is back.');
         }
         if (active) setSaveStatus('Local canvas · no upload');
       } catch { if (active) setSaveStatus('Local saving unavailable · export to keep'); }
@@ -222,10 +227,19 @@ export function PopcanContent() {
         return;
       }
       const tool = TOOLS.find((item) => item[2].toLowerCase() === key);
-      if (tool) { event.preventDefault(); setInk((current) => ({ ...current, tool: tool[0] })); }
+      if (tool) { event.preventDefault(); cancelGesture(); setInk((current) => ({ ...current, tool: tool[0] })); }
       if (key === 'x') { event.preventDefault(); setInk((current) => ({ ...current, colorA: current.colorB, colorB: current.colorA })); }
       if (key === '[' || key === ']') { event.preventDefault(); setInk((current) => ({ ...current, size: clamp(current.size + (key === ']' ? 4 : -4), 2, 160) })); }
-      if (key === 'escape') { cancelGesture(); setInspectorOpen(false); }
+      if (key === 'escape') { cancelGesture(); engineRef.current.select(null); setInspectorOpen(false); }
+      if (ink.tool === 'select' && ['arrowleft', 'arrowright', 'arrowup', 'arrowdown', 'delete', 'backspace', 'pageup', 'pagedown'].includes(key)) {
+        event.preventDefault(); cancelGesture();
+        try {
+          const engine = engineRef.current, step = event.shiftKey ? 10 : 1;
+          if (key === 'delete' || key === 'backspace') engine.deleteSelection();
+          else if (key === 'pageup' || key === 'pagedown') engine.cycleSelection(key === 'pagedown' ? 1 : -1);
+          else engine.nudge(key === 'arrowleft' ? -step : key === 'arrowright' ? step : 0, key === 'arrowup' ? -step : key === 'arrowdown' ? step : 0);
+        } catch (failure) { setNotice(failure.message); }
+      }
       if (event.code === 'Space' && !event.target.closest?.('button, a')) { event.preventDefault(); spaceRef.current = true; setSpacePan(true); }
       if (key === '+' || key === '=') { event.preventDefault(); changeZoom(1.25); }
       if (key === '-') { event.preventDefault(); changeZoom(0.8); }
@@ -235,7 +249,7 @@ export function PopcanContent() {
     const onBlur = () => { releaseSpace(); cancelGesture(); };
     document.addEventListener('keydown', onKey); document.addEventListener('keyup', releaseSpace); window.addEventListener('blur', onBlur);
     return () => { document.removeEventListener('keydown', onKey); document.removeEventListener('keyup', releaseSpace); window.removeEventListener('blur', onBlur); };
-  }, [ready, busy, modal, exportPng, cancelGesture, changeZoom, resetView]);
+  }, [ready, busy, modal, ink.tool, exportPng, cancelGesture, changeZoom, resetView]);
 
   const updateCursor = (event) => {
     const cursor = cursorRef.current;
@@ -276,7 +290,7 @@ export function PopcanContent() {
       const color = engineRef.current.pick(position);
       if (color) { setInk((current) => ({ ...current, colorA: color, gradient: 'solid', tool: 'brush' })); setNotice(`Picked ${color.toUpperCase()}`); }
       else setNotice('There is no pigment at this point.');
-    } else if (tool !== 'hand' && tool !== 'text' && tool !== 'fill') safeDraw(() => engineRef.current.start(position, ink));
+    } else if (tool !== 'hand' && tool !== 'text' && tool !== 'fill') safeDraw(() => engineRef.current.start(position, { ...ink, hitTolerance: 6 / viewRef.current.scale }));
     updateCursor(event);
   };
   const move = (event) => {
@@ -295,6 +309,7 @@ export function PopcanContent() {
     if (!pointer || pointer.id !== event.pointerId) return;
     if (pointer.tool === 'hand') { applyView(panView(pointer.view, event.clientX - pointer.x, event.clientY - pointer.y)); return; }
     if (pointer.tool === 'text' || pointer.tool === 'pick') return;
+    if (pointer.tool === 'select') { safeDraw(() => engineRef.current.move(point(event), event.shiftKey)); return; }
     safeDraw(() => {
       const events = event.nativeEvent.getCoalescedEvents?.() || [];
       if (events.length) events.slice(-64).forEach((sample) => engineRef.current.move(point(sample), event.shiftKey));
@@ -322,7 +337,7 @@ export function PopcanContent() {
   const addText = (event) => {
     event.preventDefault();
     try {
-      if (engineRef.current.addText(textPoint, text, textStyle)) { setModal(null); setNotice('Text added. Undo removes it as one step.'); }
+      if (engineRef.current.addText(textPoint, text, textStyle)) { setModal(null); setInk((current) => ({ ...current, tool: 'select' })); setNotice('Text added. Drag it to move it.'); }
     } catch (failure) { setTextError(failure.message); }
   };
   const importImage = async (event) => {
@@ -336,7 +351,7 @@ export function PopcanContent() {
       const image = await loadImage(file);
       if (image.naturalWidth * image.naturalHeight > 24000000) throw new Error('Choose an image smaller than 24 megapixels.');
       if (!aliveRef.current) return;
-      engineRef.current.placeImage(image); setNotice('Image added. Undo will remove it.');
+      engineRef.current.placeImage(image); setInk((current) => ({ ...current, tool: 'select' })); setNotice('Image added. Drag it to move it.');
     } catch (failure) { if (aliveRef.current) setNotice(failure.message || 'This image could not be opened.'); }
     finally { if (aliveRef.current) setBusy(false); }
   };
@@ -347,6 +362,8 @@ export function PopcanContent() {
   };
   const activeTool = TOOLS.find((item) => item[0] === ink.tool);
   const isShape = ['rectangle', 'ellipse'].includes(ink.tool);
+  const selection = ink.tool === 'select' ? doc.selection : null;
+  const selectionLabel = selection?.kind === 'legacy' ? 'Earlier artwork' : selection ? selection.kind[0].toUpperCase() + selection.kind.slice(1) : '';
 
   return <div className="popcan-page" ref={pageRef}>
     <a className="pc-skip" href="#popcan-canvas">Skip to canvas</a>
@@ -372,7 +389,7 @@ export function PopcanContent() {
         <section className={`pc-stage ${doc.paper === 'transparent' ? 'is-transparent' : ''}`} ref={stageRef}
           id="popcan-canvas" role="img" aria-label="Drawing canvas" aria-describedby="pc-canvas-help" tabIndex={0}
           data-tool={spacePan ? 'hand' : ink.tool} data-scale={scale} data-view-x={view.x} data-view-y={view.y}
-          data-origin-x={doc.originX} data-origin-y={doc.originY}
+          data-origin-x={doc.originX} data-origin-y={doc.originY} data-object-count={doc.objectCount || 0}
           style={{ backgroundColor: doc.paper, '--pc-paper-ink': doc.paper === PAPERS.midnight ? '#eeeaf0' : '#37323e' }}
           onPointerDown={start} onPointerMove={move} onPointerUp={(event) => end(event)} onPointerCancel={(event) => end(event, true)}
           onLostPointerCapture={(event) => end(event, true)} onPointerLeave={() => { if (cursorRef.current) cursorRef.current.style.opacity = '0'; }} onContextMenu={(event) => event.preventDefault()}>
@@ -381,10 +398,18 @@ export function PopcanContent() {
             <canvas ref={canvasRef} className="pc-paint" aria-hidden="true" />
             <canvas ref={previewRef} className="pc-preview" aria-hidden="true" />
           </div>
+          {selection && <div className="pc-selection" aria-hidden="true" data-selection-id={selection.id}
+            style={{ left: view.x + selection.x * scale - 4, top: view.y + selection.y * scale - 4,
+              width: selection.width * scale + 8, height: selection.height * scale + 8 }} />}
           <span ref={cursorRef} className="pc-cursor" aria-hidden="true" style={{ width: Math.max(4, ink.size * scale), height: Math.max(4, ink.size * scale) }} />
           {!doc.hasInk && !busy && ready && <div className="pc-empty" aria-hidden="true"><Icon name="mark" size={40} /><span>The whole page is your canvas.</span><small>Draw. Scroll to zoom. Drag with Hand to explore.</small></div>}
           {(!ready || busy || error) && <div className="pc-canvas-message" role="status">{error || (busy ? 'Preparing your image…' : 'Opening your canvas…')}</div>}
         </section>
+        {selection && <div className="pc-selection-actions" role="group" aria-label="Selected item actions">
+          <span role="status">{selectionLabel} selected</span>
+          <ToolButton icon="trash" label="Delete selected item" disabled={!ready || busy} onClick={() => { cancelGesture(); engineRef.current.deleteSelection(); }} />
+          <ToolButton icon="close" label="Deselect item" onClick={() => { cancelGesture(); engineRef.current.select(null); }} />
+        </div>}
         <aside className={`pc-inspector ${inspectorOpen ? 'is-open' : ''}`} id="pc-inspector" aria-label="Brush and canvas settings">
           <div className="pc-panel-heading"><span>The essentials</span><ToolButton className="pc-panel-close" icon="close" label="Close brush settings" onClick={() => setInspectorOpen(false)} /></div>
           <fieldset className="pc-group"><legend>01 / PIGMENT</legend>
@@ -407,14 +432,14 @@ export function PopcanContent() {
       </div>
       <footer className="pc-statusbar">
         <div className="pc-status"><span className={`pc-status-dot ${dirtyRef.current ? 'is-pending' : ''}`} /><span role="status">{notice || saveStatus}</span></div>
-        <span className="pc-tool-status" id="pc-canvas-help">{activeTool[1]}<span> / </span>{isShape || ink.tool === 'line' ? 'Shift to constrain' : ink.tool === 'text' ? 'Click to place text' : 'Scroll to zoom · Space to pan'}</span>
+        <span className="pc-tool-status" id="pc-canvas-help">{activeTool[1]}<span> / </span>{ink.tool === 'select' ? 'Click a mark, then drag' : isShape || ink.tool === 'line' ? 'Shift to constrain' : ink.tool === 'text' ? 'Click to place text' : 'Scroll to zoom · Space to pan'}</span>
         <div className="pc-view-controls"><ToolButton className="pc-settings-toggle" icon="sliders" label="Brush settings" aria-expanded={inspectorOpen} aria-controls="pc-inspector" onClick={() => setInspectorOpen((open) => !open)} /><ToolButton icon="hand" label="Move canvas (H)" aria-pressed={ink.tool === 'hand'} onClick={() => setOption('tool', ink.tool === 'hand' ? 'brush' : 'hand')} /><ToolButton icon="minus" label="Zoom out" disabled={scale <= MIN_ZOOM} onClick={() => changeZoom(0.8)} /><button type="button" className="pc-zoom-value" title="Fit all artwork (0)" aria-label="Fit all artwork" onClick={resetView}>{Math.round(scale * 100)}%</button><ToolButton icon="plus" label="Zoom in" disabled={scale >= MAX_ZOOM} onClick={() => changeZoom(1.25)} /><ToolButton className="pc-fit" icon="fit" label="Reset canvas view" onClick={resetView} /></div>
       </footer>
     </main>
     {modal && <dialog ref={dialogRef} className="pc-dialog" aria-labelledby="pc-dialog-title" onCancel={() => setModal(null)} onClick={(event) => { if (event.target === event.currentTarget) setModal(null); }}>
       <div className="pc-dialog-heading"><h2 id="pc-dialog-title">{modal === 'new' ? 'A fresh canvas.' : modal === 'text' ? 'Say something.' : 'Less menu. More making.'}</h2><ToolButton icon="close" label="Close dialog" onClick={() => setModal(null)} /></div>
       {modal === 'text' ? <form onSubmit={addText}>
-        <p>Text will be placed where you clicked. It becomes part of your drawing, with its own undo step.</p>
+        <p>Text will be placed where you clicked. It stays independently selectable and movable, with its own undo step.</p>
         <label className="pc-field">Your text<textarea autoFocus aria-label="Text to add" maxLength={1000} rows={4} value={text} onChange={(event) => { setText(event.target.value); setTextError(''); }} placeholder="Make your mark." /></label>
         <div className="pc-text-options">
           <label className="pc-field">Font<select aria-label="Text font" value={textStyle.font} onChange={(event) => setTextStyle((current) => ({ ...current, font: event.target.value }))}><option value="sans">Sans</option><option value="serif">Serif</option><option value="mono">Mono</option></select></label>
@@ -425,7 +450,7 @@ export function PopcanContent() {
         <div className="pc-text-preview" aria-label="Text preview" style={{ fontFamily: TEXT_FONTS[textStyle.font], fontWeight: textStyle.bold ? 700 : 400, fontSize: clamp(textStyle.size, 12, 240), color: textStyle.color, background: doc.paper === 'transparent' ? PAPERS.midnight : doc.paper }}>{text || 'Your words, here.'}</div>
         {textError && <p role="alert">{textError}</p>}
         <button className="pc-primary" type="submit" disabled={!text.trim()}>Add text <span aria-hidden="true">↗</span></button>
-      </form> : modal === 'new' ? <form onSubmit={newCanvas}><p>Your current canvas stays in undo history. Export a PNG to keep a separate copy.</p><label className="pc-field">Canvas format<select aria-label="Canvas format" value={newFormat} onChange={(event) => setNewFormat(event.target.value)}>{Object.entries(FORMATS).map(([name, dimensions]) => <option key={name} value={name}>{name[0].toUpperCase() + name.slice(1)} · {dimensions.join(' × ')}</option>)}</select></label><label className="pc-field">Canvas surface<select aria-label="Canvas surface" value={newPaper} onChange={(event) => setNewPaper(event.target.value)}>{Object.keys(PAPERS).map((name) => <option key={name} value={name}>{PAPER_LABELS[name]}</option>)}</select></label><button className="pc-primary" type="submit">Create canvas <span aria-hidden="true">↗</span></button></form> : <><p>Morphogen-inspired pigment, without the drift. Draw with a mouse, touch or pressure-sensitive pen. Scroll or pinch to zoom in and out. Use Hand, hold Space, or drag with two fingers to move the page. New marks expand your canvas. Choose Text, then click where your words belong. Export includes the whole document.</p><dl>{SHORTCUTS.map(([key, action]) => <div key={key}><dt><kbd>{key}</kbd></dt><dd>{action}</dd></div>)}</dl><p className="pc-hint">Canvas growth is limited to 4 megapixels to protect device memory. Fill operates inside the current document bounds. One draft is saved in this browser when storage is available. Nothing is uploaded. Export your favourites before starting over.</p></>}
+      </form> : modal === 'new' ? <form onSubmit={newCanvas}><p>Your current canvas stays in undo history. Export a PNG to keep a separate copy.</p><label className="pc-field">Canvas format<select aria-label="Canvas format" value={newFormat} onChange={(event) => setNewFormat(event.target.value)}>{Object.entries(FORMATS).map(([name, dimensions]) => <option key={name} value={name}>{name[0].toUpperCase() + name.slice(1)} · {dimensions.join(' × ')}</option>)}</select></label><label className="pc-field">Canvas surface<select aria-label="Canvas surface" value={newPaper} onChange={(event) => setNewPaper(event.target.value)}>{Object.keys(PAPERS).map((name) => <option key={name} value={name}>{PAPER_LABELS[name]}</option>)}</select></label><button className="pc-primary" type="submit">Create canvas <span aria-hidden="true">↗</span></button></form> : <><p>Morphogen-inspired pigment, without the drift. Draw with a mouse, touch or pressure-sensitive pen. Scroll or pinch to zoom in and out. Use Hand, hold Space, or drag with two fingers to move the page. New marks expand your canvas. Choose Select (V), click any stroke, shape, image or text, then drag to move just that item. Click empty space to deselect. Arrow keys nudge a selection; Page Up/Down cycles items. Choose Text, then click where your words belong. Export includes the whole document.</p><dl>{SHORTCUTS.map(([key, action]) => <div key={key}><dt><kbd>{key}</kbd></dt><dd>{action}</dd></div>)}</dl><p className="pc-hint">Canvas growth is limited to 4 megapixels to protect device memory. Fill operates inside the current document bounds. Older saved artwork is one movable layer; new items stay separate. Object pixels are limited to 20 MiB and 512 items, without silently flattening your work. One draft is saved in this browser when storage is available. Nothing is uploaded. Export your favourites before starting over.</p></>}
     </dialog>}
   </div>;
 }

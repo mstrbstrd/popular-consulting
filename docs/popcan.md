@@ -29,8 +29,8 @@ The Text tool (T) opens a plain-text editor at the clicked world position, with
 sans/serif/mono, 12–240px size, bold, colour and a preview. Up to 1,000 characters
 and 20 lines are measured before allocation. Add commits raster text as one undo
 step; empty text, Escape and closing the dialog do not write pixels. Text is not
-HTML, is never evaluated, and remains local. It is not an editable object after
-placement, matching the existing raster drawing model.
+HTML, is never evaluated, and remains local. Its pixels are a separate selectable and movable object after placement; editing
+the wording itself is not yet supported.
 
 Zoom, pan, viewport rotation and a second touch must never commit a partial
 stroke. Two-finger navigation cancels the first finger's preview and suppresses
@@ -48,8 +48,9 @@ still: changing a brush palette never recolours previous strokes.
 Tools: pressure-aware brush, eraser, line, rectangle, ellipse, four-connected
 fill, colour picker and pan. Sand/ink, two colours, presets, size, opacity,
 grain and shape fill are editable. Shift constrains geometry. Each gesture is
-one undo step; cancellation does not alter the document. History is bounded to
-40 MiB; old snapshots expire. New canvases and paper changes are undoable.
+one undo step; cancellation does not alter the document. History shares immutable
+object bitmaps and is bounded to 40 MiB of retained bitmap pixels and 100 states;
+old snapshots expire. New canvases and paper changes are undoable.
 
 Starting document sizes are landscape 1200 x 800, square 1000 x 1000 and portrait
 800 x 1200. Display zoom never changes document resolution. Paper is separate
@@ -59,7 +60,8 @@ Local PNG/JPEG/WebP imports are limited to 12 MiB and 24 megapixels.
 ## Storage and lifecycle
 
 One current draft is saved to IndexedDB on this device after committed changes
-or renaming. PNG blobs are captured before queued writes; a generation counter
+or renaming. A composite PNG and the individual object PNGs are captured from one committed
+snapshot before queued writes; a generation counter
 prevents stale asynchronous saves replacing newer work. No drawing data is sent
 to a server. Storage failure leaves drawing usable and asks the user to export.
 Snapshots and saved drafts include the world origin and base pigment dimensions.
@@ -95,3 +97,36 @@ and canvas pixels to verify expansion, cancellation, colour preservation, text
 undo/redo, persisted origins, export size and mobile gestures. It can run against
 the built site or the allowlisted production origin. No production user data is
 read or changed: browser verification uses its own disposable local profile.
+
+## Select and move
+
+Select (V) hit-tests visible object pixels from front to back. Dragging moves just
+that item in integer world pixels and preserves stack order and baked colours.
+The selected box also permits dragging its empty interior when no other object
+is hit. Hand (H), Space/middle drag and two fingers still move only the camera.
+New strokes, shapes, fills, imported images and placed text are separate cropped
+bitmap objects. Text/image insertion enters Select for immediate positioning.
+Erasing changes copies of affected objects, so erased holes move with each item.
+Arrow keys nudge by one document pixel, Shift by ten; Page Up/Down cycles items.
+Delete/Backspace or the selected-item action removes one item. Moves, nudges and
+deletions are undoable. Click empty space or press Escape to deselect.
+
+Invariants: no cut-and-paste from the merged page; no colour regeneration on move;
+no partial drag in saves or exports; no selection outline in pixels; no camera
+movement from object dragging; no silent flattening at memory limits. Escape,
+pointer cancellation, rotation and pinch restore an unfinished drag. New content
+is refused above 512 objects or 20 MiB of live object bitmap pixels. Stored
+objects validate type, count, ids, coordinates, aggregate memory and PNG headers
+before decoding. The canvas dimension limits still apply to object movement.
+
+Version 2 local drafts store the independent objects and a flattened recovery
+PNG. Old bitmap-only drafts remain intact as one movable 'Earlier artwork' layer;
+their original separate strokes cannot be reconstructed. Invalid object records
+fall back to that saved PNG with a visible notice, never silently discard art.
+Undo state remains session-only; objects remain separate after reload.
+
+`node scripts/verify-popcan-selection.mjs` tests real mouse/touch selection,
+overlap reveal, camera invariance, undo/redo, cancellation, keyboard operations,
+per-object erasure, fill, imported images, text, migration and layered persistence.
+It supports the same allowlisted production origins and disposable browser profile
+as the existing pan/zoom/text browser suite.

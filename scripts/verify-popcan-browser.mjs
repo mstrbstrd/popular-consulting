@@ -159,7 +159,7 @@ try {
   await click('Undo (Ctrl or ⌘ Z)'); assert.equal(await digest(),grown,'Text insertion is one undo step');
   await click('Redo (Ctrl or ⌘ Shift Z)'); assert.equal(await digest(),withText);
   // Blank/cancelled text does not create a history entry.
-  await stroke(160,600,160,600); await until(`document.querySelector('.pc-dialog')`);
+  await click('Text (T)'); await stroke(160,600,160,600); await until(`document.querySelector('.pc-dialog')`);
   assert.equal(await evaluate("document.querySelector('.pc-dialog button[type=submit]').disabled"),true);
   await click('Close dialog'); assert.equal(await digest(),withText);
   await until(`document.querySelector('.pc-status').textContent.includes('Saved on this device')`);
@@ -202,6 +202,7 @@ try {
   await call('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{id:0,x:130,y:470}]});
   await call('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
   assert.equal(await digest(),withText,'Pinch and its trailing finger never paint');
+  await click('Brush (B)');
   await call('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:140,y:450}]});
   await call('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:240,y:460}]});
   await call('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
