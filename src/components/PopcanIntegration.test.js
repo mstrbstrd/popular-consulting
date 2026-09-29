@@ -30,3 +30,24 @@ test('keeps the editor local and usable without WebGL', () => {
   expect(source('src/components/popcan/popcanEngine.js')).toContain("getContext('2d'");
   expect(source('src/components/popcan/popcanStorage.js')).toContain('indexedDB.open');
 });
+
+
+test('the document fills the viewport instead of fitting inside editor chrome', () => {
+  const editor = source('src/components/PopcanPage.js');
+  const css = source('src/components/PopcanPage.css');
+  expect(editor).toContain('Math.max(viewport.width / doc.width, viewport.height / doc.height)');
+  expect(editor).toContain('disabled={zoom <= 1}');
+  expect(css).toMatch(/\.pc-stage \{ position: absolute; inset: 0;/);
+  expect(css).toMatch(/\.pc-studio \{[^}]*pointer-events: none;/);
+  expect(css).toMatch(/\.pc-workspace \{[^}]*pointer-events: none;/);
+  expect(css).not.toMatch(/grid-template-columns: 62px|background-image: radial-gradient\(var\(--pc-dot\)/);
+});
+
+test('viewport changes cannot resize or clear saved artwork', () => {
+  const editor = source('src/components/PopcanPage.js');
+  const viewportEffects = editor.slice(editor.indexOf('  useLayoutEffect'), editor.indexOf('  const resetView'));
+  expect(viewportEffects).not.toMatch(/engine\.resize|newDocument|\.clearRect|canvas\.width\s*=/);
+  expect(viewportEffects).toContain('engineRef.current?.cancel()');
+  expect(viewportEffects).toContain("stage.removeEventListener('scroll', remember)");
+  expect(viewportEffects).toContain('observer?.disconnect()');
+});

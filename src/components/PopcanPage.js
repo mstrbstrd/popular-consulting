@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ThemeProvider } from '../contexts/ThemeContext';
 import routeMetadata from '../content/routeMetadata.json';
 import NavMenu from './NavMenu';
@@ -27,15 +27,19 @@ function ToolButton({ icon, label, children, className = '', ...props }) {
 
 export function PopcanContent() {
   const canvasRef = useRef(null), previewRef = useRef(null), stageRef = useRef(null), engineRef = useRef(null);
+  const pageRef = useRef(null), topbarRef = useRef(null), viewRef = useRef(null);
   const pointerRef = useRef(null), cursorRef = useRef(null), inputRef = useRef(null), dialogRef = useRef(null);
   const aliveRef = useRef(false), readyRef = useRef(false), dirtyRef = useRef(false), titleRef = useRef('Untitled canvas');
   const saveTimer = useRef(0), saveVersion = useRef(0), saveChain = useRef(Promise.resolve());
   const [doc, setDoc] = useState(INITIAL_DOCUMENT), [ink, setInk] = useState(DEFAULT_INK);
   const [title, setTitle] = useState('Untitled canvas'), [ready, setReady] = useState(false), [error, setError] = useState('');
   const [busy, setBusy] = useState(false), [saveStatus, setSaveStatus] = useState('Opening local canvas…');
-  const [notice, setNotice] = useState(''), [zoom, setZoom] = useState(1), [fit, setFit] = useState(0.5);
-  const [inspectorOpen, setInspectorOpen] = useState(false), [modal, setModal] = useState(null);
+  const [notice, setNotice] = useState(''), [zoom, setZoom] = useState(1);
+  const [viewport, setViewport] = useState(() => ({ width: window.innerWidth, height: window.innerHeight }));
+  const [inspectorOpen, setInspectorOpen] = useState(() => window.innerWidth > 760), [modal, setModal] = useState(null);
   const [newFormat, setNewFormat] = useState('landscape'), [newPaper, setNewPaper] = useState('midnight');
+  // Cover, never stretch: every exposed page pixel is part of the document.
+  const fit = Math.max(viewport.width / doc.width, viewport.height / doc.height);
   const scale = fit * zoom;
   const setOption = (key, value) => setInk((current) => ({ ...current, [key]: value }));
   const swapColors = () => setInk((current) => ({ ...current, colorA: current.colorB, colorB: current.colorA }));
@@ -106,17 +110,53 @@ export function PopcanContent() {
     return () => { html.classList.remove('popcan-route'); document.title = previousTitle; };
   }, []);
 
-  useEffect(() => {
-    const stage = stageRef.current;
+  useLayoutEffect(() => {
+    const stage = stageRef.current, page = pageRef.current;
+    const nav = page.querySelector('.nav-header'), topbar = topbarRef.current;
     const measure = () => {
-      if (!stage) return;
-      setFit(Math.max(0.08, Math.min((stage.clientWidth - 48) / doc.width, (stage.clientHeight - 48) / doc.height, 1)));
+      // The navigation and floating controls never subtract from drawing space.
+      page.style.setProperty('--pc-nav-height', `${nav?.getBoundingClientRect().height || 0}px`);
+      page.style.setProperty('--pc-chrome-bottom', `${topbar.getBoundingClientRect().bottom + 12}px`);
+      const width = Math.max(1, stage.clientWidth), height = Math.max(1, stage.clientHeight);
+      setViewport((current) => current.width === width && current.height === height ? current : { width, height });
     };
     measure();
     const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null;
-    observer?.observe(stage); window.addEventListener('resize', measure);
+    [stage, nav, topbar].forEach((element) => { if (element) observer?.observe(element); });
+    window.addEventListener('resize', measure);
     return () => { observer?.disconnect(); window.removeEventListener('resize', measure); };
-  }, [doc.width, doc.height]);
+  }, []);
+
+  useLayoutEffect(() => {
+    const stage = stageRef.current, previous = viewRef.current;
+    const sameDocument = previous?.width === doc.width && previous?.height === doc.height;
+    const x = sameDocument ? previous.x : doc.width / 2;
+    const y = sameDocument ? previous.y : doc.height / 2;
+    // A changing coordinate transform must not turn an unfinished gesture into
+    // a long diagonal. Cancel that gesture, but never resize the paint bitmap.
+    const pointer = pointerRef.current;
+    if (pointer) {
+      engineRef.current?.cancel(); pointerRef.current = null;
+      if (previewRef.current.hasPointerCapture?.(pointer.id)) previewRef.current.releasePointerCapture(pointer.id);
+    }
+    if (cursorRef.current) cursorRef.current.style.opacity = '0';
+    stage.scrollLeft = Math.max(0, x * scale - viewport.width / 2);
+    stage.scrollTop = Math.max(0, y * scale - viewport.height / 2);
+    const remember = () => {
+      viewRef.current = { width: doc.width, height: doc.height,
+        x: (stage.scrollLeft + viewport.width / 2) / scale,
+        y: (stage.scrollTop + viewport.height / 2) / scale };
+    };
+    remember(); stage.addEventListener('scroll', remember, { passive: true });
+    return () => stage.removeEventListener('scroll', remember);
+  }, [doc.width, doc.height, scale, viewport.width, viewport.height]);
+
+  const resetView = () => {
+    viewRef.current = null;
+    setZoom(1);
+    stageRef.current.scrollLeft = Math.max(0, (doc.width * fit - viewport.width) / 2);
+    stageRef.current.scrollTop = Math.max(0, (doc.height * fit - viewport.height) / 2);
+  };
 
   useEffect(() => {
     if (!modal) return;
@@ -227,16 +267,16 @@ export function PopcanContent() {
   const newCanvas = (event) => {
     event.preventDefault(); engineRef.current.newDocument(newFormat, newPaper);
     titleRef.current = 'Untitled canvas'; setTitle('Untitled canvas'); save();
-    setZoom(1); setModal(null); setNotice('Fresh canvas. Undo restores the previous one.');
+    resetView(); setModal(null); setNotice('Fresh canvas. Undo restores the previous one.');
   };
   const activeTool = TOOLS.find((item) => item[0] === ink.tool);
   const isShape = ['rectangle', 'ellipse'].includes(ink.tool);
 
-  return <div className="popcan-page">
+  return <div className="popcan-page" ref={pageRef}>
     <a className="pc-skip" href="#popcan-canvas">Skip to canvas</a>
     <NavMenu standalone />
     <main className="pc-studio" aria-label="Popular Canvas editor">
-      <header className="pc-topbar">
+      <header className="pc-topbar" ref={topbarRef}>
         <div className="pc-identity"><span className="pc-logo"><Icon name="mark" size={27} /></span><div><h1>popcan<span>.</span></h1><p>POPULAR CANVAS</p></div></div>
         <div className="pc-document"><label className="pc-sr" htmlFor="pc-title">Canvas name</label><input id="pc-title" value={title} maxLength={80} onChange={(event) => { setTitle(event.target.value); titleRef.current = event.target.value; save(); }} /><span>{doc.width} × {doc.height} <span className="pc-document-kind">/ MORPHOGEN STUDIO</span></span></div>
         <div className="pc-actions">
@@ -253,15 +293,15 @@ export function PopcanContent() {
           <div className="pc-tool-spacer" />
           <ToolButton icon="help" label="Keyboard shortcuts and help" onClick={() => setModal('help')} />
         </div>
-        <section className="pc-stage" ref={stageRef} aria-label="Canvas workspace">
-          <div className="pc-board-space" style={{ minWidth: doc.width * scale + 48, minHeight: doc.height * scale + 48 }}>
+        <section className="pc-stage" ref={stageRef} aria-label="Full-page drawing canvas workspace">
+          <div className="pc-board-space" style={{ width: doc.width * scale, height: doc.height * scale }}>
             <div className={`pc-artboard ${doc.paper === 'transparent' ? 'is-transparent' : ''}`} data-tool={ink.tool} style={{ width: doc.width * scale, height: doc.height * scale, '--pc-paper': doc.paper, '--pc-paper-ink': doc.paper === PAPERS.midnight ? '#eeeaf0' : '#37323e' }}>
               <canvas ref={canvasRef} className="pc-paint" aria-hidden="true" />
               <canvas ref={previewRef} id="popcan-canvas" className="pc-preview" role="img" aria-label="Drawing canvas" aria-describedby="pc-canvas-help" tabIndex={0}
                 onPointerDown={start} onPointerMove={move} onPointerUp={(event) => end(event)} onPointerCancel={(event) => end(event, true)}
                 onLostPointerCapture={(event) => end(event, true)} onPointerLeave={() => { if (cursorRef.current) cursorRef.current.style.opacity = '0'; }} onContextMenu={(event) => event.preventDefault()} />
               <span ref={cursorRef} className="pc-cursor" aria-hidden="true" style={{ width: Math.max(4, ink.size * scale), height: Math.max(4, ink.size * scale) }} />
-              {!doc.hasInk && !busy && ready && <div className="pc-empty" aria-hidden="true"><Icon name="mark" size={40} /><span>A little space to make something.</span><small>Pick a colour. Leave a mark.</small></div>}
+              {!doc.hasInk && !busy && ready && <div className="pc-empty" aria-hidden="true"><Icon name="mark" size={40} /><span>The whole page is your canvas.</span><small>Pick a colour. Leave a mark.</small></div>}
               {(!ready || busy || error) && <div className="pc-canvas-message" role="status">{error || (busy ? 'Preparing your image…' : 'Opening your canvas…')}</div>}
             </div>
           </div>
@@ -289,12 +329,12 @@ export function PopcanContent() {
       <footer className="pc-statusbar">
         <div className="pc-status"><span className={`pc-status-dot ${dirtyRef.current ? 'is-pending' : ''}`} /><span role="status">{notice || saveStatus}</span></div>
         <span className="pc-tool-status" id="pc-canvas-help">{activeTool[1]}<span> / </span>{isShape || ink.tool === 'line' ? 'Shift to constrain' : 'Made of small things'}</span>
-        <div className="pc-view-controls"><ToolButton className="pc-settings-toggle" icon="sliders" label="Brush settings" aria-expanded={inspectorOpen} aria-controls="pc-inspector" onClick={() => setInspectorOpen((open) => !open)} /><ToolButton icon="minus" label="Zoom out" disabled={zoom <= 0.5} onClick={() => setZoom((value) => Math.max(0.5, value - 0.25))} /><button type="button" className="pc-zoom-value" title="Fit canvas to workspace" aria-label="Fit canvas to workspace" onClick={() => setZoom(1)}>{Math.round(scale * 100)}%</button><ToolButton icon="plus" label="Zoom in" disabled={zoom >= 4} onClick={() => setZoom((value) => Math.min(4, value + 0.25))} /><ToolButton className="pc-fit" icon="fit" label="Reset canvas view" onClick={() => { setZoom(1); stageRef.current.scrollTo?.(0, 0); }} /></div>
+        <div className="pc-view-controls"><ToolButton className="pc-settings-toggle" icon="sliders" label="Brush settings" aria-expanded={inspectorOpen} aria-controls="pc-inspector" onClick={() => setInspectorOpen((open) => !open)} /><ToolButton icon="minus" label="Zoom out" disabled={zoom <= 1} onClick={() => setZoom((value) => Math.max(1, value - 0.25))} /><button type="button" className="pc-zoom-value" title="Fill page and centre canvas" aria-label="Fill page and centre canvas" onClick={resetView}>{Math.round(scale * 100)}%</button><ToolButton icon="plus" label="Zoom in" disabled={zoom >= 4} onClick={() => setZoom((value) => Math.min(4, value + 0.25))} /><ToolButton className="pc-fit" icon="fit" label="Reset canvas view" onClick={resetView} /></div>
       </footer>
     </main>
     {modal && <dialog ref={dialogRef} className="pc-dialog" aria-labelledby="pc-dialog-title" onCancel={() => setModal(null)} onClick={(event) => { if (event.target === event.currentTarget) setModal(null); }}>
       <div className="pc-dialog-heading"><h2 id="pc-dialog-title">{modal === 'new' ? 'A fresh canvas.' : 'Less menu. More making.'}</h2><ToolButton icon="close" label="Close dialog" onClick={() => setModal(null)} /></div>
-      {modal === 'new' ? <form onSubmit={newCanvas}><p>Your current canvas stays in undo history. Export a PNG to keep a separate copy.</p><label className="pc-field">Canvas format<select aria-label="Canvas format" value={newFormat} onChange={(event) => setNewFormat(event.target.value)}>{Object.entries(FORMATS).map(([name, dimensions]) => <option key={name} value={name}>{name[0].toUpperCase() + name.slice(1)} · {dimensions.join(' × ')}</option>)}</select></label><label className="pc-field">Canvas surface<select aria-label="Canvas surface" value={newPaper} onChange={(event) => setNewPaper(event.target.value)}>{Object.keys(PAPERS).map((name) => <option key={name} value={name}>{PAPER_LABELS[name]}</option>)}</select></label><button className="pc-primary" type="submit">Create canvas <span aria-hidden="true">↗</span></button></form> : <><p>Morphogen-inspired pigment, without the drift. Draw with a mouse, touch or pressure-sensitive pen. Zoom in, then use Hand to move around.</p><dl>{SHORTCUTS.map(([key, action]) => <div key={key}><dt><kbd>{key}</kbd></dt><dd>{action}</dd></div>)}</dl><p className="pc-hint">One draft is saved in this browser when storage is available. Nothing is uploaded. Export your favourites before starting over.</p></>}
+      {modal === 'new' ? <form onSubmit={newCanvas}><p>Your current canvas stays in undo history. Export a PNG to keep a separate copy.</p><label className="pc-field">Canvas format<select aria-label="Canvas format" value={newFormat} onChange={(event) => setNewFormat(event.target.value)}>{Object.entries(FORMATS).map(([name, dimensions]) => <option key={name} value={name}>{name[0].toUpperCase() + name.slice(1)} · {dimensions.join(' × ')}</option>)}</select></label><label className="pc-field">Canvas surface<select aria-label="Canvas surface" value={newPaper} onChange={(event) => setNewPaper(event.target.value)}>{Object.keys(PAPERS).map((name) => <option key={name} value={name}>{PAPER_LABELS[name]}</option>)}</select></label><button className="pc-primary" type="submit">Create canvas <span aria-hidden="true">↗</span></button></form> : <><p>Morphogen-inspired pigment, without the drift. Draw with a mouse, touch or pressure-sensitive pen. The canvas fills your screen. Use Hand to explore the parts outside the view, or zoom in for detail. Export always includes the whole document.</p><dl>{SHORTCUTS.map(([key, action]) => <div key={key}><dt><kbd>{key}</kbd></dt><dd>{action}</dd></div>)}</dl><p className="pc-hint">One draft is saved in this browser when storage is available. Nothing is uploaded. Export your favourites before starting over.</p></>}
     </dialog>}
   </div>;
 }
