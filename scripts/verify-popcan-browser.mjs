@@ -212,6 +212,9 @@ try {
   await call('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
   assert.equal(await digest(),withText,'Rotation cancels an unfinished mark');
   await call('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});await click('Reset canvas view');await sleep(150);
+  const fitEvidence = await evaluate(`(() => {const r=document.querySelector('.pc-artboard').getBoundingClientRect();return {rect:r.toJSON(),width:innerWidth,height:innerHeight,view:{...document.querySelector('#popcan-canvas').dataset}}})()`);
+  fs.writeFileSync(path.join(output,'mobile-fit.json'),JSON.stringify(fitEvidence,null,2));
+  assert.ok(fitEvidence.rect.left>=0 && fitEvidence.rect.right<=fitEvidence.width && fitEvidence.rect.top>=0 && fitEvidence.rect.bottom<=fitEvidence.height,'Fit after rotation must bring the entire document into view');
   await screenshot('mobile-canvas');
   await click('Text (T)');await screenStroke(150,450,150,450);await until(`document.querySelector('.pc-dialog')`);
   await fillInput('Text to add','Hello from mobile');await screenshot('mobile-text');await click('Close dialog');

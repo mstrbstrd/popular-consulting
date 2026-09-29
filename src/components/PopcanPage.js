@@ -42,6 +42,7 @@ export function PopcanContent() {
   const [viewport, setViewport] = useState(() => ({ width: window.innerWidth, height: window.innerHeight }));
   const [inspectorOpen, setInspectorOpen] = useState(() => window.innerWidth > 760), [modal, setModal] = useState(null);
   const [newFormat, setNewFormat] = useState('landscape'), [newPaper, setNewPaper] = useState('midnight');
+  const lastViewport = useRef(viewport);
   const scale = view.scale;
   const applyView = useCallback((next) => { viewRef.current = next; setView(next); }, []);
   const cancelGesture = useCallback(() => {
@@ -57,6 +58,10 @@ export function PopcanContent() {
     cancelGesture();
     const engine = engineRef.current, stage = stageRef.current;
     if (!engine || !stage) return;
+    // Consume a resize that may not have reached ResizeObserver yet. Otherwise
+    // its later effect would recenter this freshly fitted view a second time.
+    lastViewport.current = { width: stage.clientWidth, height: stage.clientHeight };
+    setViewport(lastViewport.current);
     const top = Math.min(stage.clientHeight / 3, topbarRef.current?.getBoundingClientRect().bottom || 0) + 16;
     const height = Math.max(150, stage.clientHeight - top - 100);
     const scale = clamp(Math.min((stage.clientWidth - 64) / engine.width, height / engine.height), MIN_ZOOM, MAX_ZOOM);
@@ -154,7 +159,6 @@ export function PopcanContent() {
     return () => { observer?.disconnect(); window.removeEventListener('resize', measure); };
   }, []);
 
-  const lastViewport = useRef(viewport);
   useLayoutEffect(() => {
     const previous = lastViewport.current;
     if (previous.width !== viewport.width || previous.height !== viewport.height) {
