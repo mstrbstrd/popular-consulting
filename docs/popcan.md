@@ -4,6 +4,19 @@ Public route `/popcan`, linked from both shared navigation audiences and the
 Morphogen Divide paint toolbar. Uses the existing theme provider and navigation,
 a lazy-loaded editor, generated route metadata, and Vercel route rewrites.
 
+## Full-page workspace
+
+The document is the full-page background, with floating navigation, actions,
+tools and collapsible brush settings above it. The structural wrappers ignore
+pointer input; only visible controls intercept it. Every exposed page edge is
+drawable, including in graphics safe mode.
+
+A uniform cover scale fills the viewport without stretching artwork. Portrait
+screens may show only part of a landscape document; Hand reveals the rest.
+Zoom keeps the current document focal point, and reset recentres the page.
+Display resizing never changes the stored bitmap, history or export dimensions.
+Changing orientation during a gesture cancels only that unfinished gesture.
+
 ## Drawing model
 
 `popcanEngine.js` is an event-driven Canvas 2D document engine. Its baked pigment
