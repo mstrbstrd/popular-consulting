@@ -21,9 +21,10 @@ try {
   assert.ok(browser, 'Chrome or Edge is required');
   profile = fs.mkdtempSync(path.join(os.tmpdir(), 'popcan-browser-'));
   child = spawn(browser, ['--headless=new', '--no-first-run', '--no-default-browser-check', '--disable-background-networking',
-    '--remote-debugging-port=0', `--user-data-dir=${profile}`, ...(process.getuid?.() === 0 ? ['--no-sandbox'] : []), 'about:blank'], { stdio: 'ignore' });
+    '--remote-debugging-port=0', `--user-data-dir=${profile}`, ...(process.getuid?.() === 0 || process.env.CI ? ['--no-sandbox'] : []), 'about:blank'], { stdio: ['ignore', 'ignore', 'pipe'] });
+  child.stderr.on('data', (chunk) => fs.appendFileSync(path.join(output, 'browser.log'), chunk));
   const portFile = path.join(profile, 'DevToolsActivePort');
-  for (let i = 0; i < 100 && !fs.existsSync(portFile); i++) await sleep(100);
+  for (let i = 0; i < 300 && !fs.existsSync(portFile); i++) await sleep(100);
   assert.ok(fs.existsSync(portFile), 'Browser did not start');
   const port = fs.readFileSync(portFile, 'utf8').split('\n')[0];
   const tabs = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
