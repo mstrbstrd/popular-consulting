@@ -1,0 +1,67 @@
+name: Popcan lifecycle production verification
+on:
+  push:
+    branches: [verify/popcan-lifecycle-production]
+permissions:
+  contents: read
+  statuses: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 276324e213b7356430c7c295a238f8bf1b5c0dee
+          persist-credentials: false
+      - name: Wait for the exact production deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for i in $(seq 1 36); do
+            state=$(gh api repos/mstrbstrd/popular-consulting/commits/276324e213b7356430c7c295a238f8bf1b5c0dee/status --jq '[.statuses[] | select(.context == "Vercel")][0].state')
+            if [ "$state" = success ]; then exit 0; fi
+            if [ "$state" = failure ] || [ "$state" = error ]; then echo 'Deployment failed'; exit 1; fi
+            sleep 5
+          done
+          echo 'Deployment did not become ready'; exit 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Exercise the normal page without forcing graphics safe mode
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          for name in ('verify-popcan-regressions.mjs', 'verify-popcan-selection.mjs', 'verify-popcan-browser.mjs'):
+              path = Path('scripts') / name
+              source = path.read_text()
+              assert '/popcan?graphics=css' in source
+              path.write_text(source.replace('/popcan?graphics=css', '/popcan'))
+          PY
+      - name: Verify live paint erase wheel input and fresh canvas pixels
+        run: node scripts/verify-popcan-regressions.mjs
+        env:
+          CI: true
+          VISUAL_CAPTURE_BROWSER: /usr/bin/google-chrome
+          POPCAN_VERIFY_ORIGIN: https://popular-consulting.com
+          POPCAN_VERIFY_OUTPUT: ${{ runner.temp }}/popcan-lifecycle-production/fixes
+      - name: Verify live object selection and persisted artwork
+        run: node scripts/verify-popcan-selection.mjs
+        env:
+          CI: true
+          VISUAL_CAPTURE_BROWSER: /usr/bin/google-chrome
+          POPCAN_VERIFY_ORIGIN: https://popular-consulting.com
+          POPCAN_VERIFY_OUTPUT: ${{ runner.temp }}/popcan-lifecycle-production/selection
+      - name: Verify live text camera and touch controls
+        run: node scripts/verify-popcan-browser.mjs
+        env:
+          CI: true
+          VISUAL_CAPTURE_BROWSER: /usr/bin/google-chrome
+          POPCAN_VERIFY_ORIGIN: https://popular-consulting.com
+          POPCAN_VERIFY_OUTPUT: ${{ runner.temp }}/popcan-lifecycle-production/drawing
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: popcan-lifecycle-production
+          path: ${{ runner.temp }}/popcan-lifecycle-production
+          retention-days: 3
