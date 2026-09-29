@@ -109,6 +109,8 @@ try {
     await click('New canvas'); await until(`document.querySelector('.pc-dialog')`);
     await evaluate("document.querySelector('.pc-dialog button[type=submit]').click()");
     await until(`!document.querySelector('.pc-dialog')`); await sleep(100);
+    assert.equal(await count(),0,'A fresh canvas has no objects');
+    assert.ok(await evaluate(`(() => {const c=${painted},p=c.getContext('2d').getImageData(0,0,c.width,c.height).data;for(let i=3;i<p.length;i+=4)if(p[i])return false;return true})()`),'A fresh canvas must contain no stale pixels');
   };
   const textAt = async (value,x,y) => {
     await click('Text (T)'); await stroke(x,y,x,y); await until(`document.querySelector('.pc-dialog')`);
@@ -116,6 +118,69 @@ try {
     await evaluate("document.querySelector('.pc-dialog button[type=submit]').click()");
     await until(`!document.querySelector('.pc-dialog')`); await sleep(100);
   };
+  // Use native wheel events, not synthetic capture-loss injection. A trackpad
+  // can emit momentum or zero-delta wheel events while a mouse button is held.
+  // Neither the camera nor committed pixels may change until that press ends.
+  await evaluate("window.__pcWheels=[];document.querySelector('#popcan-canvas').addEventListener('wheel',e=>window.__pcWheels.push({trusted:e.isTrusted,x:e.deltaX,y:e.deltaY}))");
+  const wheelCases = [
+    { deltaX: 0, deltaY: 0 }, { deltaX: 0, deltaY: 1 },
+    { deltaX: 2, deltaY: 0 }, { deltaX: 0, deltaY: 2, modifiers: 8 },
+  ];
+  const wheelGesture = async (tool, wheel, x=460, y=430, ex=590, ey=470) => {
+    const beforeView=await camera(), beforePixels=await digest();
+    await call('Input.dispatchMouseEvent',{type:'mouseMoved',x,y});
+    await call('Input.dispatchMouseEvent',{type:'mousePressed',x,y,button:'left',buttons:1,clickCount:1});
+    await call('Input.dispatchMouseEvent',{type:'mouseMoved',x:(x+ex)/2,y:(y+ey)/2,button:'left',buttons:1});
+    await sleep(30);
+    await call('Input.dispatchMouseEvent',{type:'mouseWheel',x:(x+ex)/2,y:(y+ey)/2,buttons:1,...wheel});
+    await sleep(60);
+    assert.equal(await evaluate(`${painted}.style.visibility`),'hidden',`Scroll input must not cancel an active ${tool}`);
+    assert.deepEqual(await camera(),beforeView,'A held pointer owns the camera, including during Shift-scroll');
+    assert.equal(await digest(),beforePixels,'Wheel input cannot commit or change document pixels mid-gesture');
+    await call('Input.dispatchMouseEvent',{type:'mouseMoved',x:ex,y:ey,button:'left',buttons:1});
+    await call('Input.dispatchMouseEvent',{type:'mouseReleased',x:ex,y:ey,button:'left',buttons:0,clickCount:1});
+    await sleep(80);
+  };
+  for (const material of ['Sand','Ink']) {
+    if(await evaluate("getComputedStyle(document.querySelector('.pc-inspector')).display==='none'")) await click('Brush settings');
+    await evaluate(`[...document.querySelectorAll('.pc-segment button')].find(b=>b.textContent===${JSON.stringify(material)}).click()`);
+    await click('Close brush settings');
+    for (const tool of ['Brush (B)','Rectangle (R)','Ellipse (O)']) {
+      await click(tool);
+      for (const wheel of wheelCases) {
+        await newCanvas(); const blank=await digest();
+        await wheelGesture(tool,wheel);
+        assert.equal(await count(),1,`${material} ${tool}: interrupted mark must commit exactly once`);
+        const committed=await digest(); assert.notEqual(committed,blank,'The committed mark contains real pixels');
+        await click('Undo (Ctrl or ⌘ Z)'); assert.equal(await count(),0); assert.equal(await digest(),blank);
+        await click('Redo (Ctrl or ⌘ Shift Z)'); assert.equal(await digest(),committed);
+      }
+    }
+    await newCanvas(); await click('Brush (B)'); await screenStroke(450,430,610,470);
+    const paintedPixels=await digest(); await click('Eraser (E)');
+    for (const wheel of wheelCases) {
+      await wheelGesture('eraser',wheel,490,440,550,455);
+      const erasedPixels=await digest();
+      assert.notEqual(erasedPixels,paintedPixels,'Erasing must remove actual pixels despite wheel input');
+      await click('Undo (Ctrl or ⌘ Z)'); assert.equal(await digest(),paintedPixels);
+      await click('Redo (Ctrl or ⌘ Shift Z)'); assert.equal(await digest(),erasedPixels);
+      await click('Undo (Ctrl or ⌘ Z)'); assert.equal(await digest(),paintedPixels);
+    }
+  }
+  assert.equal(await evaluate('window.__pcWheels.length'),32);
+  assert.ok(await evaluate('window.__pcWheels.every(e=>e.trusted)'),'Wheel events must be browser-generated input');
+  await wheelGesture('eraser',wheelCases[1],490,440,550,455);
+  const savedErase=await digest(); await saved();
+  await evaluate("document.documentElement.dataset.pcReloadProbe='pending'");
+  await call('Page.reload'); await until(`!document.documentElement.hasAttribute('data-pc-reload-probe') && (${ready})`); await sleep(150);
+  assert.equal(await digest(),savedErase,'Erased pixels must stay erased after saving and reloading');
+  if(await evaluate("getComputedStyle(document.querySelector('.pc-inspector')).display!=='none'")) await click('Close brush settings');
+  // The guard must not disable wheel navigation once the stroke has finished.
+  const idleView=await camera();
+  await call('Input.dispatchMouseEvent',{type:'mouseWheel',x:700,y:550,deltaX:0,deltaY:-70}); await sleep(100);
+  assert.ok((await camera()).scale>idleView.scale,'Wheel zoom resumes after pointer-up');
+  results.push('24 Sand/Ink marks and 9 erasures survive native zero-delta, momentum, horizontal and Shift-wheel input; one-step undo/redo, persisted erasure and idle zoom');
+
   // Exercise the unchanged tool repeatedly, including queued capture bookkeeping
   // from the preceding press. Synthetic loss is injected; the drags are native.
   await settings('#cc4477','18');

@@ -223,7 +223,10 @@ export class PopcanEngine {
     this.cancel(); const [w, h] = FORMATS[format] || FORMATS.landscape;
     this.originX = 0; this.originY = 0; this.baseWidth = w; this.baseHeight = h;
     this.objects = []; this.selectedId = null;
-    this.resize(w, h); this.paper = PAPERS[paper] || PAPERS.theme; this.hasInk = false; this.commit();
+    this.resize(w, h); this.paper = PAPERS[paper] || PAPERS.theme; this.hasInk = false;
+    // Reusing an equal-sized output does not clear its pixels. An empty scene
+    // must be painted explicitly instead of relying on resize side effects.
+    this.paintObjects(); this.commit();
   }
   setPaper(paper) { if (paper === this.paper) return; this.cancel(); this.paper = paper; this.commit(); }
   getTexture(ink) {

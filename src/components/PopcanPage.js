@@ -186,10 +186,16 @@ export function PopcanContent() {
     const onWheel = (event) => {
       if (!ready || busy || modal || stage.closest('[inert]')) return;
       event.preventDefault();
+      // A pointer gesture owns the canvas until it ends. Trackpads can keep
+      // emitting wheel/momentum events during a press, including zero deltas.
+      // Consume those events without cancelling the mark or moving its camera.
+      if (pointerRef.current || touchesRef.current.size || pinchRef.current) return;
+      if (!event.deltaX && !event.deltaY) return;
       const units = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? stage.clientHeight : 1;
       if (event.shiftKey && !event.ctrlKey) {
         cancelGesture(); applyView(panView(viewRef.current, -(event.deltaX || event.deltaY) * units, 0));
       } else {
+        if (!event.deltaY) return;
         const rect = stage.getBoundingClientRect();
         changeZoom(Math.exp(-clamp(event.deltaY * units, -1000, 1000) * 0.002), { x: event.clientX - rect.left, y: event.clientY - rect.top });
       }
