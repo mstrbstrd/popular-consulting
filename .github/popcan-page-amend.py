@@ -1,9 +1,8 @@
 from pathlib import Path
 p = Path('src/components/PopcanPage.css')
 s = p.read_text()
-old = '.pc-statusbar { position: absolute;'
-assert old in s
-s = s.replace(old, '.pc-statusbar { background: transparent; position: absolute;')
+assert '.pc-statusbar { position: absolute;' in s
+s = s.replace('.pc-statusbar { position: absolute;', '.pc-statusbar { background: transparent; position: absolute;')
 s = s.replace('.pc-status { display: flex; align-items: center; gap: 7px; min-width: 0; flex: 1; }', '.pc-status { display: flex; align-items: center; gap: 7px; min-width: 0; flex: 0 1 auto; }')
 p.write_text(s)
 p = Path('scripts/verify-popcan-browser.mjs')
@@ -30,4 +29,4 @@ s = s.replace(old, """  const panEvidence = await evaluate(`(() => {const s=docu
   fs.writeFileSync(path.join(output,'pan.json'),JSON.stringify({before:zoomCentre,after:await centre(),...panEvidence},null,2));
   await screenshot('desktop-panned');
   assert.ok((await centre()).x > zoomCentre.x + 20, 'Hand must actually pan');""")
-p.write_text(s)"}
+p.write_text(s)
