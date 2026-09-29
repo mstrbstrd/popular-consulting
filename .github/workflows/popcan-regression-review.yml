@@ -1,0 +1,20 @@
+name: Popcan regression review
+on:
+  push:
+    branches: [fix/popcan-drawing-regressions]
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: git archive --format=zip --output=popcan-regression-source.zip HEAD
+      - uses: actions/upload-artifact@v4
+        with:
+          name: popcan-regression-source
+          path: popcan-regression-source.zip
+          retention-days: 1
