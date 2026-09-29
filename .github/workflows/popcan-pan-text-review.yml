@@ -1,0 +1,81 @@
+name: Popcan pan and text review
+on:
+  push:
+    branches: [feat/popcan-pan-zoom-text]
+permissions:
+  contents: write
+concurrency:
+  group: popcan-pan-text-review
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve fit and viewport resize ordering
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          from pathlib import Path
+          p = Path('src/components/PopcanPage.js')
+          s = p.read_text()
+          assert s.count('  const lastViewport = useRef(viewport);') == 1
+          s = s.replace('  const lastViewport = useRef(viewport);\n', '')
+          s = s.replace('  const scale = view.scale;', '  const lastViewport = useRef(viewport);\n  const scale = view.scale;')
+          old = '    if (!engine || !stage) return;\n    const top ='
+          assert old in s
+          s = s.replace(old, '''    if (!engine || !stage) return;
+              // Consume a resize that may not have reached ResizeObserver yet. Otherwise
+              // its later effect would recenter this freshly fitted view a second time.
+              lastViewport.current = { width: stage.clientWidth, height: stage.clientHeight };
+              setViewport(lastViewport.current);
+              const top =''')
+          assert hashlib.sha256(s.encode()).hexdigest() == 'f4262abd31efcf56b28c5015bfb43211bd884e1b7c22c61d7189b19b20ba10dc'
+          p.write_text(s)
+          p = Path('scripts/verify-popcan-browser.mjs')
+          s = p.read_text()
+          old = "  await screenshot('mobile-canvas');"
+          assert old in s
+          s = s.replace(old, '''  const fitEvidence = await evaluate(`(() => {const r=document.querySelector('.pc-artboard').getBoundingClientRect();return {rect:r.toJSON(),width:innerWidth,height:innerHeight,view:{...document.querySelector('#popcan-canvas').dataset}}})()`);
+            fs.writeFileSync(path.join(output,'mobile-fit.json'),JSON.stringify(fitEvidence,null,2));
+            assert.ok(fitEvidence.rect.left>=0 && fitEvidence.rect.right<=fitEvidence.width && fitEvidence.rect.top>=0 && fitEvidence.rect.bottom<=fitEvidence.height,'Fit after rotation must bring the entire document into view');
+            await screenshot('mobile-canvas');''')
+          assert hashlib.sha256(s.encode()).hexdigest() == '22f4b2de8b5dae3c0145bd79d7d71724757501f192e79f210a8a5259cc104466'
+          p.write_text(s)
+          PY
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run lint
+      - run: npm test -- --watchAll=false --runInBand
+        env:
+          CI: true
+      - run: npm run build
+        env:
+          CI: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify full-page zoom, text, expansion and mobile fit
+        run: node scripts/verify-popcan-browser.mjs
+        env:
+          CI: true
+          VISUAL_CAPTURE_BROWSER: /usr/bin/google-chrome
+          POPCAN_VERIFY_OUTPUT: ${{ runner.temp }}/popcan-pan-text
+      - name: Commit verified viewport fix
+        run: |
+          git rm .github/workflows/popcan-pan-text-review.yml
+          git add src/components/PopcanPage.js scripts/verify-popcan-browser.mjs
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix: keep fitted Popcan artwork centred across rotation'
+          git push origin HEAD:feat/popcan-pan-zoom-text
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: popcan-pan-text-evidence
+          path: ${{ runner.temp }}/popcan-pan-text
+          retention-days: 3
