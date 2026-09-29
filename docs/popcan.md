@@ -155,3 +155,17 @@ ellipse input, delayed and genuine capture loss, paper modes, minimum-zoom drawi
 beyond the old bitmap bounds, panning, unchanged original object hashes, layered
 reload, memory-bounded PNG export, old-draft migration and consecutive touch input.
 Run it alongside the existing drawing and selection browser suites.
+
+## Wheel input during drawing
+
+An active pointer gesture owns the drawing surface. Wheel events, including
+trackpad momentum, horizontal input, zero deltas and Shift-scroll, are consumed
+without cancelling paint, erasing, object movement or touch navigation. They are
+not queued for later replay. Wheel zoom resumes after the gesture ends. Genuine
+pointer cancellation and Escape still discard unfinished work. Browser checks
+cover both Sand and Ink, repeated brush/shape strokes, pixel erasure, one-step
+undo/redo, saved erasure after reload and idle wheel zoom.
+
+Starting a new canvas explicitly redraws the empty scene even when output buffer
+dimensions are unchanged. Visible pixels must agree with the object list: no old
+artwork may remain on an empty canvas, and undo still restores the previous scene.
