@@ -4,44 +4,50 @@ on:
     branches: [feat/popcan-studio]
 permissions:
   contents: write
-concurrency:
-  group: popcan-review
-  cancel-in-progress: true
 jobs:
-  finalize:
+  browser:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
-      - name: Apply validated route integration
+      - name: Make browser startup diagnostic and CI-safe
         run: |
-          echo '5262e9a77550c2acedd6f512ca6b29b9d50546fed6c63421eb8651a5b19ca778  .github/popcan-integration.patch' | sha256sum --check
-          git apply --check .github/popcan-integration.patch
-          git apply .github/popcan-integration.patch
-          git rm .github/popcan-integration.patch
-          git add src scripts docs vercel.json
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('scripts/verify-popcan-browser.mjs')
+          s = p.read_text()
+          s = s.replace("process.getuid?.() === 0 ? ['--no-sandbox'] : []", "process.getuid?.() === 0 || process.env.CI ? ['--no-sandbox'] : []")
+          s = s.replace("{ stdio: 'ignore' });", "{ stdio: ['ignore', 'ignore', 'pipe'] });\n  child.stderr.on('data', (chunk) => fs.appendFileSync(path.join(output, 'browser.log'), chunk));")
+          s = s.replace('i < 100 && !fs.existsSync(portFile)', 'i < 300 && !fs.existsSync(portFile)')
+          p.write_text(s)
+          PY
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+        env:
+          CI: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Test real drawing, persistence and touch
+        run: node scripts/verify-popcan-browser.mjs
+        env:
+          CI: true
+          VISUAL_CAPTURE_BROWSER: /usr/bin/google-chrome
+          POPCAN_VERIFY_OUTPUT: ${{ runner.temp }}/popcan-functional
+      - name: Commit browser verification improvement
+        run: |
+          git add scripts/verify-popcan-browser.mjs
           git config user.name 'mstrbstrd'
           git config user.email '104603175+mstrbstrd@users.noreply.github.com'
-          git commit -m 'feat: integrate validated Popular Canvas studio routes and navigation'
+          git commit -m 'test: verify Popular Canvas persistence and touch in Chrome'
           git push origin HEAD:feat/popcan-studio
-      - name: Inspect installed browser startup
-        run: |
-          command -v google-chrome || true
-          command -v microsoft-edge || true
-          google-chrome --version || true
-          microsoft-edge --version || true
-          mkdir -p "$RUNNER_TEMP/popcan-diagnostic"
-          BROWSER=$(command -v google-chrome || command -v microsoft-edge || true)
-          if [ -n "$BROWSER" ]; then
-            PROFILE=$(mktemp -d)
-            timeout 12 "$BROWSER" --headless=new --no-sandbox --no-first-run --remote-debugging-port=0 --user-data-dir="$PROFILE" about:blank > "$RUNNER_TEMP/popcan-diagnostic/stdout.log" 2> "$RUNNER_TEMP/popcan-diagnostic/stderr.log" || true
-            find "$PROFILE" -maxdepth 2 -name '*DevTools*' -print
-            cat "$RUNNER_TEMP/popcan-diagnostic/stdout.log" "$RUNNER_TEMP/popcan-diagnostic/stderr.log"
-            rm -rf "$PROFILE"
-          fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: popcan-diagnostic
-          path: ${{ runner.temp }}/popcan-diagnostic
-          retention-days: 1
+          name: popcan-functional
+          path: ${{ runner.temp }}/popcan-functional
+          retention-days: 3
