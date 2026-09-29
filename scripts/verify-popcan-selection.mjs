@@ -173,7 +173,7 @@ try {
   const textHit=await firstPixel(200,500,400,65), textId=await selection(); assert.ok(textHit);
   await stroke(textHit.x,textHit.y,textHit.x+160,textHit.y+80);
   assert.equal(await selection(),textId); const withText=await digest();
-  await saved(); const recordData=await readLocal(); assert.equal(recordData.version,2); assert.equal(recordData.objects.length,3);
+  await saved(); const recordData=await readLocal(); assert.equal(recordData.version,3); assert.equal(recordData.objects.length,3);
   await call('Page.reload'); await until(ready); await sleep(150);
   assert.equal(await digest(),withText,'Layered draft restores pixels exactly'); assert.equal(await count(),3);
   if (await evaluate("getComputedStyle(document.querySelector('.pc-inspector')).display!=='none'")) await click('Close brush settings');

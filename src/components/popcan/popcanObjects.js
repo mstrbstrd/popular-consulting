@@ -7,7 +7,7 @@ export const MAX_OBJECT_BYTES = 20 * 1024 * 1024;
 export const OBJECT_KINDS = ['brush', 'line', 'rectangle', 'ellipse', 'fill', 'text', 'image', 'legacy'];
 export const objectBounds = (object) => ({
   left: object.x, top: object.y,
-  right: object.x + object.bitmap.width, bottom: object.y + object.bitmap.height,
+  right: object.x + object.bitmap.width * (object.pixelSize || 1), bottom: object.y + object.bitmap.height * (object.pixelSize || 1),
 });
 export const intersects = (a, b) => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
 export function objectBytes(objects) {
@@ -34,9 +34,10 @@ export function validateObjectRecords(records, doc) {
   for (const item of records) {
     if (!item || !Number.isSafeInteger(item.id) || item.id < 1 || item.id >= Number.MAX_SAFE_INTEGER || ids.has(item.id)
       || !OBJECT_KINDS.includes(item.kind) || !validSize(item.width, item.height)
+      || ![1, 2, 4, 8, 16, 32, 64].includes(item.pixelSize ?? 1)
       || ![item.x, item.y].every((n) => Number.isInteger(n) && Math.abs(n) <= WORLD_LIMIT)
       || item.x < doc.originX || item.y < doc.originY
-      || item.x + item.width > doc.originX + doc.width || item.y + item.height > doc.originY + doc.height
+      || item.x + item.width * (item.pixelSize || 1) > doc.originX + doc.width || item.y + item.height * (item.pixelSize || 1) > doc.originY + doc.height
       || !(item.blob instanceof Blob) || item.blob.type !== 'image/png' || !item.blob.size) {
       throw new Error('Invalid saved object.');
     }

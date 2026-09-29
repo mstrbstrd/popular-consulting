@@ -17,17 +17,24 @@ two-finger dragging move the view even at minimum zoom. Wheel zoom anchors at
 the pointer; button zoom anchors at the viewport centre. The percentage/fit
 control reveals the complete document. Resize preserves the visible world centre.
 
-Drawing outside existing bounds grows the bitmap in 128-pixel blocks, including
-left and top. Existing pixels move by integer offsets, not resampling; the camera
-does not jump when the bitmap origin changes. A cancelled gesture restores its
-original pixels, origin and dimensions. Pan/zoom alone never allocate or save a
-larger document. Growth is explicitly bounded to 4,194,304 pixels and 4,096 pixels
-per side to protect device memory; refused growth leaves the previous document
-intact. Fill stays inside the current bounds, and erasing never allocates space.
+Drawing outside existing bounds grows logical world bounds in 128-pixel blocks.
+Empty space does not allocate a document-sized bitmap. Cropped independent objects
+retain their stored pigment and resolution. Large scenes render only a bounded
+view; camera changes never change object pixels. World edges remain explicitly
+bounded to +/-32,768. Each render/export target is limited to 4 megapixels and
+4,096 pixels per side. Per-gesture scratch work is bounded to 1 megapixel using
+power-of-two sampling for very broad marks. Only that new mark uses the coarser
+sampling; existing items are never downsampled or flattened. Very large PNG
+exports are scaled to the render budget, with the output dimensions reported.
+
+The default surface is Match theme: warm in light mode, midnight in dark mode.
+Explicit white/warm/midnight/transparent surfaces remain fixed until changed.
+Theme changes do not write pigment or add history. Older drafts using the former
+implicit Midnight default migrate to Match theme; other old surfaces are retained.
 
 The Text tool (T) opens a plain-text editor at the clicked world position, with
 sans/serif/mono, 12–240px size, bold, colour and a preview. Up to 1,000 characters
-and 20 lines are measured before allocation. Add commits raster text as one undo
+and 20 lines are measured before allocation. Add commits a separate raster text object as one undo
 step; empty text, Escape and closing the dialog do not write pixels. Text is not
 HTML, is never evaluated, and remains local. Its pixels are a separate selectable and movable object after placement; editing
 the wording itself is not yet supported.
@@ -117,9 +124,9 @@ movement from object dragging; no silent flattening at memory limits. Escape,
 pointer cancellation, rotation and pinch restore an unfinished drag. New content
 is refused above 512 objects or 20 MiB of live object bitmap pixels. Stored
 objects validate type, count, ids, coordinates, aggregate memory and PNG headers
-before decoding. The canvas dimension limits still apply to object movement.
+before decoding. World-edge limits still apply to object movement; empty distance is not a bitmap-memory cost.
 
-Version 2 local drafts store the independent objects and a flattened recovery
+Version 3 local drafts store the independent objects and a flattened recovery
 PNG. Old bitmap-only drafts remain intact as one movable 'Earlier artwork' layer;
 their original separate strokes cannot be reconstructed. Invalid object records
 fall back to that saved PNG with a visible notice, never silently discard art.
@@ -130,3 +137,21 @@ overlap reveal, camera invariance, undo/redo, cancellation, keyboard operations,
 per-object erasure, fill, imported images, text, migration and layered persistence.
 It supports the same allowlisted production origins and disposable browser profile
 as the existing pan/zoom/text browser suite.
+
+## Drawing regression invariants
+
+A completed pointer gesture is retired before commit. A delayed capture-loss
+notification cannot cancel a newer gesture that already owns pointer capture;
+genuine capture loss, Escape, rotation and pinch still cancel uncommitted work.
+Each completed gesture creates exactly one independent object and undo step.
+
+Version 3 drafts validate logical bounds separately from PNG allocation sizes,
+and record each object's power-of-two pixel size. Versions 1 and 2 remain readable.
+Recovery PNG dimensions are checked before image decoding. Drafts preserve
+independent object PNGs even when the flattened preview/export is scaled.
+
+`node scripts/verify-popcan-regressions.mjs` checks repeated native brush/rectangle/
+ellipse input, delayed and genuine capture loss, paper modes, minimum-zoom drawing
+beyond the old bitmap bounds, panning, unchanged original object hashes, layered
+reload, memory-bounded PNG export, old-draft migration and consecutive touch input.
+Run it alongside the existing drawing and selection browser suites.

@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { ThemeProvider } from '../contexts/ThemeContext';
+import { ThemeProvider, useThemeMode } from '../contexts/ThemeContext';
 import routeMetadata from '../content/routeMetadata.json';
 import NavMenu from './NavMenu';
 import Icon from './popcan/PopcanIcon';
 import { PopcanEngine, DEFAULT_INK, FORMATS, PAPERS, clamp } from './popcan/popcanEngine';
 import { readDraft, writeDraft, loadImage, exportName } from './popcan/popcanStorage';
-import { MIN_ZOOM, MAX_ZOOM, screenPoint, zoomView, panView, TEXT_FONTS } from './popcan/popcanView';
+import { MIN_ZOOM, MAX_ZOOM, screenPoint, zoomView, panView, TEXT_FONTS, rasterFrame } from './popcan/popcanView';
 import './PopcanPage.css';
 
 const TOOLS = [
@@ -19,15 +19,17 @@ const PALETTES = [
   ['Ember', '#ff7348', '#ff42a1'], ['Iris', '#a794ff', '#4bcfe2'],
   ['Dune', '#f4c89b', '#cc768d'], ['Graphite', '#eeeeef', '#76768e'],
 ];
-const PAPER_LABELS = { midnight: 'Midnight', warm: 'Warm paper', white: 'White', transparent: 'Transparent' };
+const PAPER_LABELS = { theme: 'Match theme', midnight: 'Midnight', warm: 'Warm paper', white: 'White', transparent: 'Transparent' };
 const SHORTCUTS = [['V', 'Select and drag an item'], ['Arrow keys', 'Move selection (Shift: 10 px)'], ['Page Up / Down', 'Select previous / next item'], ['Delete', 'Remove selected item'], ['B / E', 'Brush / eraser'], ['L / R / O', 'Line / rectangle / ellipse'], ['G / I / H', 'Fill / colour picker / hand'], ['T', 'Place text'], ['Scroll / pinch', 'Zoom at the pointer'], ['Space + drag', 'Move the canvas'], ['+ / − / 0', 'Zoom in / out / fit all'], ['[ / ]', 'Smaller / larger brush'], ['X', 'Swap colours'], ['Shift + drag', 'Square, circle or 45° line'], ['⌘ or Ctrl + Z', 'Undo'], ['⌘ or Ctrl + Shift + Z', 'Redo'], ['⌘ or Ctrl + S', 'Export PNG'], ['Escape', 'Cancel current stroke']];
-const INITIAL_DOCUMENT = { originX: 0, originY: 0, width: 1200, height: 800, paper: PAPERS.midnight, hasInk: false, canUndo: false, canRedo: false };
+const INITIAL_DOCUMENT = { originX: 0, originY: 0, width: 1200, height: 800, paper: PAPERS.theme, hasInk: false, canUndo: false, canRedo: false };
 
 function ToolButton({ icon, label, children, className = '', ...props }) {
   return <button type="button" className={`pc-button ${className}`} title={label} aria-label={label} {...props}><Icon name={icon} />{children}</button>;
 }
 
 export function PopcanContent() {
+  const { isDark } = useThemeMode();
+  const themeRef = useRef(isDark); themeRef.current = isDark;
   const canvasRef = useRef(null), previewRef = useRef(null), stageRef = useRef(null), engineRef = useRef(null);
   const pageRef = useRef(null), topbarRef = useRef(null), viewRef = useRef({ x: 0, y: 0, scale: 1 });
   const touchesRef = useRef(new Map()), pinchRef = useRef(null), spaceRef = useRef(false);
@@ -42,9 +44,15 @@ export function PopcanContent() {
   const [textStyle, setTextStyle] = useState({ font: 'sans', size: 48, bold: false, color: DEFAULT_INK.colorA });
   const [viewport, setViewport] = useState(() => ({ width: window.innerWidth, height: window.innerHeight }));
   const [inspectorOpen, setInspectorOpen] = useState(() => window.innerWidth > 760), [modal, setModal] = useState(null);
-  const [newFormat, setNewFormat] = useState('landscape'), [newPaper, setNewPaper] = useState('midnight');
+  const [newFormat, setNewFormat] = useState('landscape'), [newPaper, setNewPaper] = useState('theme');
   const lastViewport = useRef(viewport);
   const scale = view.scale;
+  const paper = doc.paper === PAPERS.theme ? (isDark ? PAPERS.midnight : PAPERS.warm) : doc.paper;
+  const renderFrame = doc.renderFrame || { originX: doc.originX, originY: doc.originY, width: doc.width, height: doc.height };
+  useLayoutEffect(() => { engineRef.current?.setTheme(isDark); }, [isDark]);
+  useLayoutEffect(() => {
+    engineRef.current?.setViewport(view, viewport.width, viewport.height);
+  }, [view, viewport, ready]);
   const applyView = useCallback((next) => { viewRef.current = next; setView(next); }, []);
   const cancelGesture = useCallback(() => {
     const pointer = pointerRef.current;
@@ -112,7 +120,7 @@ export function PopcanContent() {
     let engine;
     try {
       engine = new PopcanEngine(canvasRef.current, previewRef.current, (next, transient = false) => { setDoc(next); if (!transient) save(); });
-      engineRef.current = engine;
+      engine.setTheme(themeRef.current); engineRef.current = engine;
     } catch (failure) { setError(failure.message); return () => { aliveRef.current = false; }; }
     const open = async () => {
       try {
@@ -212,7 +220,9 @@ export function PopcanContent() {
       const url = URL.createObjectURL(blob), link = document.createElement('a');
       link.href = url; link.download = exportName(titleRef.current); document.body.appendChild(link); link.click(); link.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 10000);
-      setNotice('PNG exported at full canvas resolution.');
+      const state = engineRef.current.state(true);
+      const frame = rasterFrame({ left: state.originX, top: state.originY, right: state.originX + state.width, bottom: state.originY + state.height });
+      setNotice(frame.pixelSize === 1 ? 'PNG exported at full canvas resolution.' : `PNG exported at ${frame.pixelWidth} × ${frame.pixelHeight}. Individual items retain their stored detail.`);
     } catch { if (aliveRef.current) setNotice('Export failed. Please try again.'); }
     finally { if (aliveRef.current) setBusy(false); }
   }, []);
@@ -268,7 +278,10 @@ export function PopcanContent() {
   };
   const start = (event) => {
     if (!ready || busy || modal || (event.button !== 0 && event.button !== 1)) return;
-    event.preventDefault(); event.currentTarget.focus({ preventScroll: true });
+    event.preventDefault();
+    // A new mouse press starts a new gesture even if its previous up was lost.
+    if (event.pointerType !== 'touch' && pointerRef.current?.id === event.pointerId) cancelGesture();
+    if (document.activeElement !== event.currentTarget) event.currentTarget.focus({ preventScroll: true });
     if (event.pointerType === 'touch') {
       if (touchesRef.current.size >= 2) return;
       touchesRef.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
@@ -285,7 +298,7 @@ export function PopcanContent() {
     }
     if (pointerRef.current || pinchRef.current) return;
     const position = point(event), tool = spaceRef.current || event.button === 1 ? 'hand' : ink.tool;
-    pointerRef.current = { id: event.pointerId, tool, x: event.clientX, y: event.clientY, view: viewRef.current, position };
+    pointerRef.current = { id: event.pointerId, startedAt: event.timeStamp, tool, x: event.clientX, y: event.clientY, view: viewRef.current, position };
     if (tool === 'pick') {
       const color = engineRef.current.pick(position);
       if (color) { setInk((current) => ({ ...current, colorA: color, gradient: 'solid', tool: 'brush' })); setNotice(`Picked ${color.toUpperCase()}`); }
@@ -317,10 +330,15 @@ export function PopcanContent() {
     });
   };
   const end = (event, cancelled = false) => {
+    const active = pointerRef.current;
+    if (active?.id === event.pointerId && event.timeStamp < active.startedAt) return;
     touchesRef.current.delete(event.pointerId);
     if (pinchRef.current) { if (!touchesRef.current.size) pinchRef.current = null; }
     else if (pointerRef.current?.id === event.pointerId) {
       const pointer = pointerRef.current;
+      // Retire the gesture before committing or emitting React updates. Capture
+      // release is bookkeeping, not a second chance to cancel a completed mark.
+      pointerRef.current = null;
       if (cancelled) engineRef.current.cancel();
       else if (pointer.tool === 'text') {
         setTextPoint(pointer.position); setText(''); setTextError(''); setTextStyle((current) => ({ ...current, color: ink.colorA })); setModal('text');
@@ -333,6 +351,12 @@ export function PopcanContent() {
       pointerRef.current = null;
     }
     if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+  };
+  const lostCapture = (event) => {
+    // Some devices dispatch a queued loss after this pointer has been captured
+    // for the next press. That event must not cancel the new gesture.
+    if (event.target !== event.currentTarget || event.currentTarget.hasPointerCapture(event.pointerId)) return;
+    end(event, true);
   };
   const addText = (event) => {
     event.preventDefault();
@@ -390,11 +414,11 @@ export function PopcanContent() {
           id="popcan-canvas" role="img" aria-label="Drawing canvas" aria-describedby="pc-canvas-help" tabIndex={0}
           data-tool={spacePan ? 'hand' : ink.tool} data-scale={scale} data-view-x={view.x} data-view-y={view.y}
           data-origin-x={doc.originX} data-origin-y={doc.originY} data-object-count={doc.objectCount || 0}
-          style={{ backgroundColor: doc.paper, '--pc-paper-ink': doc.paper === PAPERS.midnight ? '#eeeaf0' : '#37323e' }}
+          style={{ backgroundColor: paper, '--pc-paper-ink': paper === PAPERS.midnight ? '#eeeaf0' : '#37323e' }}
           onPointerDown={start} onPointerMove={move} onPointerUp={(event) => end(event)} onPointerCancel={(event) => end(event, true)}
-          onLostPointerCapture={(event) => end(event, true)} onPointerLeave={() => { if (cursorRef.current) cursorRef.current.style.opacity = '0'; }} onContextMenu={(event) => event.preventDefault()}>
-          <div className="pc-artboard" style={{ width: doc.width, height: doc.height,
-            transform: `translate(${view.x + doc.originX * scale}px, ${view.y + doc.originY * scale}px) scale(${scale})` }}>
+          onLostPointerCapture={lostCapture} onPointerLeave={() => { if (cursorRef.current) cursorRef.current.style.opacity = '0'; }} onContextMenu={(event) => event.preventDefault()}>
+          <div className="pc-artboard" style={{ width: renderFrame.width, height: renderFrame.height,
+            transform: `translate(${view.x + renderFrame.originX * scale}px, ${view.y + renderFrame.originY * scale}px) scale(${scale})` }}>
             <canvas ref={canvasRef} className="pc-paint" aria-hidden="true" />
             <canvas ref={previewRef} className="pc-preview" aria-hidden="true" />
           </div>
@@ -426,7 +450,7 @@ export function PopcanContent() {
             {isShape && <label className="pc-check"><input type="checkbox" checked={ink.filled} onChange={(event) => setOption('filled', event.target.checked)} /> Filled shape</label>}
             {ink.tool === 'fill' && <p className="pc-hint">Fill uses your primary colour at full opacity.</p>}
           </fieldset>
-          <fieldset className="pc-group pc-paper-group"><legend>03 / SURFACE</legend><div className="pc-papers">{Object.entries(PAPERS).map(([name, color]) => <button key={name} type="button" aria-label={`${PAPER_LABELS[name]} canvas`} aria-pressed={doc.paper === color} title={PAPER_LABELS[name]} className={name === 'transparent' ? 'is-transparent' : ''} style={{ backgroundColor: color }} disabled={!ready || busy} onClick={() => engineRef.current.setPaper(color)} />)}</div><p className="pc-hint">{Object.entries(PAPERS).find(([, value]) => value === doc.paper)?.[0] === 'transparent' ? 'Transparent PNG. Just your marks.' : 'Your surface is included in the PNG.'}</p></fieldset>
+          <fieldset className="pc-group pc-paper-group"><legend>03 / SURFACE</legend><div className="pc-papers">{Object.entries(PAPERS).map(([name, color]) => <button key={name} type="button" aria-label={`${PAPER_LABELS[name]} canvas`} aria-pressed={doc.paper === color} title={PAPER_LABELS[name]} className={name === 'transparent' ? 'is-transparent' : ''} style={{ background: name === 'theme' ? 'linear-gradient(135deg, #fff8f7 50%, #111116 50%)' : color }} disabled={!ready || busy} onClick={() => engineRef.current.setPaper(color)} />)}</div><p className="pc-hint">{Object.entries(PAPERS).find(([, value]) => value === doc.paper)?.[0] === 'transparent' ? 'Transparent PNG. Just your marks.' : doc.paper === PAPERS.theme ? 'Follows light and dark mode. Export includes the current surface.' : 'Your surface is included in the PNG.'}</p></fieldset>
           <a className="pc-origin" href="/dither-canvas">Born in Morphogen Divide <span aria-hidden="true">↗</span></a>
         </aside>
       </div>
