@@ -1,0 +1,20 @@
+name: Popcan lifecycle review
+on:
+  push:
+    branches: [fix/popcan-paint-erase-lifecycle]
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: git archive --format=zip --output=popcan-current-source.zip HEAD
+      - uses: actions/upload-artifact@v4
+        with:
+          name: popcan-current-source
+          path: popcan-current-source.zip
+          retention-days: 1
