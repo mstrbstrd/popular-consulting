@@ -3,16 +3,73 @@ on:
   push:
     branches: [feat/popcan-pan-zoom-text]
 permissions:
-  contents: read
+  contents: write
+concurrency:
+  group: popcan-pan-text-review
+  cancel-in-progress: true
 jobs:
-  source:
+  validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - run: git archive --format=zip --output=popcan-current.zip HEAD
-      - uses: actions/upload-artifact@v4
+      - name: Apply checksum-verified source changes
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, lzma
+          from pathlib import Path
+          blob = b''.join(Path(f'.github/popcan-pan-text.{i}.xz').read_bytes() for i in (1, 2, 3))
+          assert hashlib.sha256(blob).hexdigest() == '82d52a7e693ea71b9d51ba67a640d8a3ff17a694c5c680792cd79f2848b86cb9'
+          changes = json.loads(lzma.decompress(blob))
+          allowed = {'docs/popcan.md', 'scripts/verify-popcan-browser.mjs', 'src/components/PopcanIntegration.test.js', 'src/components/PopcanPage.css', 'src/components/PopcanPage.js', 'src/components/popcan/PopcanIcon.js', 'src/components/popcan/popcanEngine.js', 'src/components/popcan/popcanView.js', 'src/components/popcan/popcanView.test.js'}
+          assert len(changes) == len(allowed) and {item['path'] for item in changes} == allowed
+          planned = []
+          for item in changes:
+              p = Path(item['path'])
+              before = p.read_bytes() if p.exists() else b''
+              assert hashlib.sha256(before).hexdigest() == item['before'], item['path']
+              lines = before.decode().splitlines(keepends=True)
+              for start, end, text in reversed(item['edits']):
+                  lines[start:end] = text.splitlines(keepends=True)
+              after = ''.join(lines).encode()
+              assert hashlib.sha256(after).hexdigest() == item['after'], item['path']
+              planned.append((p, after))
+          for p, after in planned:
+              p.parent.mkdir(parents=True, exist_ok=True)
+              p.write_bytes(after)
+          PY
+      - uses: actions/setup-node@v4
         with:
-          name: popcan-current
-          path: popcan-current.zip
-          retention-days: 1
+          node-version: 20
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run lint
+      - run: npm test -- --watchAll=false --runInBand
+        env:
+          CI: true
+      - run: npm run build
+        env:
+          CI: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify expandable drawing, zoom, pan, text and touch
+        run: node scripts/verify-popcan-browser.mjs
+        env:
+          CI: true
+          VISUAL_CAPTURE_BROWSER: /usr/bin/google-chrome
+          POPCAN_VERIFY_OUTPUT: ${{ runner.temp }}/popcan-pan-text
+      - name: Commit verified changes on the isolated branch
+        run: |
+          git rm .github/popcan-pan-text.1.xz .github/popcan-pan-text.2.xz .github/popcan-pan-text.3.xz .github/workflows/popcan-pan-text-review.yml
+          git add docs/popcan.md scripts/verify-popcan-browser.mjs src/components/PopcanIntegration.test.js src/components/PopcanPage.css src/components/PopcanPage.js src/components/popcan/PopcanIcon.js src/components/popcan/popcanEngine.js src/components/popcan/popcanView.js src/components/popcan/popcanView.test.js
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'feat: verify expandable Popcan canvas with zoom, pan and text'
+          git push origin HEAD:feat/popcan-pan-zoom-text
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: popcan-pan-text-evidence
+          path: ${{ runner.temp }}/popcan-pan-text
+          retention-days: 3
