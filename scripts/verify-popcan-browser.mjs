@@ -51,7 +51,7 @@ try {
     return result.result.value;
   };
   const until = async (expression) => {
-    for (let i = 0; i < 150; i++) { if (await evaluate(expression)) return; await sleep(100); }
+    for (let i = 0; i < 150; i++) { if (await evaluate(`Boolean(${expression})`)) return; await sleep(100); }
     fs.writeFileSync(path.join(output, 'failure.html'), await evaluate('document.documentElement.outerHTML'));
     await screenshot('failure');
     throw new Error(`Assertion timed out: ${expression}`);
@@ -78,128 +78,148 @@ try {
   await until(ready);
   await sleep(150);
   assert.match(await evaluate('document.title'), /Popular Canvas/);
-  const stroke = async (x1, y1, x2, y2) => {
-    const r = await evaluate(`(() => {const r=document.querySelector('#popcan-canvas').getBoundingClientRect();return {x:r.x,y:r.y,w:r.width,h:r.height};})()`);
-    const x = r.x + x1 / 1200 * r.w, y = r.y + y1 / 800 * r.h;
-    await call('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y });
-    await call('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', buttons: 1, clickCount: 1 });
-    for (let i = 1; i <= 10; i++) await call('Input.dispatchMouseEvent', { type: 'mouseMoved', x: x + (x2 - x1) / 1200 * r.w * i / 10, y: y + (y2 - y1) / 800 * r.h * i / 10, buttons: 1 });
-    await call('Input.dispatchMouseEvent', { type: 'mouseReleased', x: r.x + x2 / 1200 * r.w, y: r.y + y2 / 800 * r.h, button: 'left', buttons: 0, clickCount: 1 });
+  // The hit surface is always the viewport. Paint remains in document pixels.
+  const camera = () => evaluate(`(() => {const d=document.querySelector('#popcan-canvas').dataset;return {x:+d.viewX,y:+d.viewY,scale:+d.scale,originX:+d.originX,originY:+d.originY}})()`);
+  const dimensions = () => evaluate(`({width:${painted}.width,height:${painted}.height})`);
+  const worldPixel = async (x, y) => { const v=await camera(); return pixel(Math.floor(x-v.originX), Math.floor(y-v.originY)); };
+  const alphaCount = (x, y, w, h) => evaluate(`(() => {const d=document.querySelector('#popcan-canvas').dataset;const a=${painted}.getContext('2d').getImageData(${x}-+d.originX,${y}-+d.originY,${w},${h}).data;let n=0;for(let i=3;i<a.length;i+=4)if(a[i]>0)n++;return n})()`);
+  const screenStroke = async (x, y, ex, ey, button='left') => {
+    const buttons=button==='middle'?4:1;
+    await call('Input.dispatchMouseEvent', { type:'mouseMoved', x,y });
+    await call('Input.dispatchMouseEvent', { type:'mousePressed', x,y,button,buttons,clickCount:1 });
+    for(let i=1;i<=8;i++) await call('Input.dispatchMouseEvent', { type:'mouseMoved', x:x+(ex-x)*i/8,y:y+(ey-y)*i/8,buttons });
+    await call('Input.dispatchMouseEvent', { type:'mouseReleased', x:ex,y:ey,button,buttons:0,clickCount:1 });
+    await sleep(80);
   };
-  const pageCoverage = () => evaluate(`(() => {
-    const c=document.querySelector('#popcan-canvas'), r=c.getBoundingClientRect();
-    const stage=document.querySelector('.pc-stage').getBoundingClientRect();
-    const board=getComputedStyle(document.querySelector('.pc-artboard'));
-    return Math.abs(stage.x)<1 && Math.abs(stage.y)<1 && Math.abs(stage.width-innerWidth)<1 && Math.abs(stage.height-innerHeight)<1
-      && r.left<=1 && r.top<=1 && r.right>=innerWidth-1 && r.bottom>=innerHeight-1
-      && Math.abs(r.width/c.width-r.height/c.height)<.002 && board.boxShadow==='none';
-  })()`);
-  assert.ok(await pageCoverage(), 'Canvas must cover the full page without a frame or distortion');
-  assert.ok(await evaluate(`[[5,innerHeight/2],[innerWidth-5,innerHeight/2],[innerWidth/2,innerHeight-5]].every(([x,y]) => document.elementFromPoint(x,y)?.id==='popcan-canvas')`), 'Chrome wrappers must not swallow drawing input');
-  await stroke(150, 200, 900, 600);
-  const drawing = await digest();
-  assert.ok((await pixel(525, 400))[3] > 200);
-  await click('Undo (Ctrl or ⌘ Z)'); assert.equal((await pixel(525, 400))[3], 0);
-  await click('Redo (Ctrl or ⌘ Shift Z)'); assert.equal(await digest(), drawing);
-  await click('Use Ember palette'); assert.equal(await digest(), drawing);
-  await click('Warm paper canvas'); assert.equal(await digest(), drawing);
-  results.push('real strokes, undo/redo, non-destructive palette and paper changes');
+  const stroke = async (x,y,ex,ey) => {const v=await camera(); await screenStroke(v.x+x*v.scale,v.y+y*v.scale,v.x+ex*v.scale,v.y+ey*v.scale)};
+  const fillInput = (label, value) => evaluate(`(() => {const el=document.querySelector('[aria-label=${JSON.stringify(label)}]');const proto=el instanceof HTMLTextAreaElement?HTMLTextAreaElement.prototype:el instanceof HTMLSelectElement?HTMLSelectElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(proto,'value').set.call(el,${JSON.stringify(value)});el.dispatchEvent(new Event(el.tagName==='SELECT'?'change':'input',{bubbles:true}));})()`);
+  const coverage = () => evaluate(`(() => {const r=document.querySelector('#popcan-canvas').getBoundingClientRect();return r.x===0&&r.y===0&&r.width===innerWidth&&r.height===innerHeight&&[[5,innerHeight/2],[innerWidth-5,innerHeight/2],[innerWidth/2,innerHeight-5]].every(([x,y])=>document.elementFromPoint(x,y)?.id==='popcan-canvas')})()`);
+  assert.ok(await coverage(), 'Every exposed page edge must accept gestures');
+  if (await evaluate("getComputedStyle(document.querySelector('.pc-inspector')).display!=='none'")) await click('Close brush settings');
+  await stroke(300,300,900,500);
+  const original = await digest(), oldPixel = await worldPixel(600,400);
+  assert.ok(oldPixel[3]>200, 'Mouse must deposit actual pigment');
+  await click('Undo (Ctrl or ⌘ Z)'); assert.equal((await worldPixel(600,400))[3],0);
+  await click('Redo (Ctrl or ⌘ Shift Z)'); assert.equal(await digest(),original);
+  const initialCamera=await camera(), beforeSize=await dimensions();
+  const anchor={x:720,y:500};
+  const worldAt=(v,a)=>({x:(a.x-v.x)/v.scale,y:(a.y-v.y)/v.scale});
+  const centre=worldAt(initialCamera,anchor);
+  await click('Zoom out'); await sleep(100);
+  const zoomed=await camera(), centred=worldAt(zoomed,anchor);
+  assert.ok(zoomed.scale<initialCamera.scale && zoomed.scale<1, 'Zoom out must shrink existing marks');
+  assert.ok(Math.abs(centre.x-centred.x)<.001 && Math.abs(centre.y-centred.y)<.001, 'Button zoom preserves centre');
+  assert.deepEqual(await dimensions(),beforeSize); assert.equal(await digest(),original);
+  const mouseAnchor={x:640,y:460}, beforeWheel=worldAt(await camera(),mouseAnchor);
+  await call('Input.dispatchMouseEvent',{type:'mouseWheel',...mouseAnchor,deltaY:-250,deltaX:0}); await sleep(150);
+  const afterWheel=worldAt(await camera(),mouseAnchor);
+  assert.ok(Math.abs(beforeWheel.x-afterWheel.x)<.01 && Math.abs(beforeWheel.y-afterWheel.y)<.01,'Wheel zoom is pointer anchored');
+  assert.equal(await digest(),original);
+  await click('Reset canvas view'); await sleep(80);
+  await click('Move canvas (H)'); await sleep(50);
+  const beforePan=await camera(); await screenStroke(640,480,940,620);
+  const afterPan=await camera(); assert.ok(Math.abs(afterPan.x-beforePan.x-300)<1 && Math.abs(afterPan.y-beforePan.y-140)<1, 'Hand can pan at the original zoom');
+  assert.equal(await digest(),original);
+  // Space drag temporarily navigates without replacing the selected brush.
+  await click('Brush (B)'); await evaluate("document.querySelector('#popcan-canvas').focus()");
+  await call('Input.dispatchKeyEvent',{type:'keyDown',key:' ',code:'Space',windowsVirtualKeyCode:32});
+  const beforeSpace=await camera(); await screenStroke(620,470,700,470);
+  await call('Input.dispatchKeyEvent',{type:'keyUp',key:' ',code:'Space',windowsVirtualKeyCode:32});
+  assert.ok((await camera()).x>beforeSpace.x+70); assert.equal(await digest(),original);
+  assert.equal(await evaluate("document.querySelector('#popcan-canvas').dataset.tool"),'brush');
+  results.push('mouse drawing, reversible history, non-destructive zoom, pointer-anchored wheel, Hand and Space-drag');
+  // Add a mark in genuinely new document space, not on a decorative margin.
+  await click('Zoom out'); await click('Zoom out'); await sleep(100);
+  await stroke(-250,-160,-80,-80);
+  const expanded=await dimensions(), expandedCamera=await camera();
+  assert.ok(expanded.width>1200 && expanded.height>800 && expandedCamera.originX<0 && expandedCamera.originY<0,'Drawing must grow left/top');
+  assert.ok((await worldPixel(-165,-120))[3]>0);
+  assert.deepEqual(await worldPixel(600,400),oldPixel,'Growth must not resample old pixels');
+  const grown=await digest(), grownCamera=await camera();
+  await click('Undo (Ctrl or ⌘ Z)'); assert.equal(await digest(),original); assert.equal((await camera()).originX,0);
+  await click('Redo (Ctrl or ⌘ Shift Z)'); assert.equal(await digest(),grown);
+  assert.equal((await camera()).x,grownCamera.x, 'History must not jump the camera');
+  // Cancelling an expansion restores dimensions and origin as well as pixels.
+  const cp=await camera(), cx=cp.x-550*cp.scale,cy=cp.y-160*cp.scale;
+  await call('Input.dispatchMouseEvent',{type:'mousePressed',x:cx,y:cy,button:'left',buttons:1,clickCount:1});
+  await call('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape',windowsVirtualKeyCode:27});
+  await call('Input.dispatchMouseEvent',{type:'mouseReleased',x:cx,y:cy,button:'left',buttons:0,clickCount:1});
+  assert.equal(await digest(),grown); assert.deepEqual(await dimensions(),expanded);
+  await click('Reset canvas view'); await sleep(100);
+  await click('Text (T)'); await stroke(160,600,160,600);
+  await until(`document.querySelector('textarea[aria-label="Text to add"]')`);
+  await fillInput('Text to add','Popular Canvas\nZoom. Pan. Create.');
+  await fillInput('Text font','mono'); await fillInput('Text size','42'); await fillInput('Text colour','#f37eb6');
+  await evaluate("document.querySelector('.pc-dialog input[type=checkbox]').click()");
+  await screenshot('text-dialog');
+  await evaluate("document.querySelector('.pc-dialog button[type=submit]').click()");
+  await until(`!document.querySelector('.pc-dialog')`);
+  assert.ok(await alphaCount(160,600,480,115)>500,'Text must be actual canvas pixels');
+  const withText=await digest(); assert.notEqual(withText,grown);
+  await click('Undo (Ctrl or ⌘ Z)'); assert.equal(await digest(),grown,'Text insertion is one undo step');
+  await click('Redo (Ctrl or ⌘ Shift Z)'); assert.equal(await digest(),withText);
+  // Blank/cancelled text does not create a history entry.
+  await stroke(160,600,160,600); await until(`document.querySelector('.pc-dialog')`);
+  assert.equal(await evaluate("document.querySelector('.pc-dialog button[type=submit]').disabled"),true);
+  await click('Close dialog'); assert.equal(await digest(),withText);
   await until(`document.querySelector('.pc-status').textContent.includes('Saved on this device')`);
-  const draft = await evaluate(`new Promise((resolve,reject)=>{const r=indexedDB.open('popcan-local',1);r.onsuccess=()=>{const db=r.result;const tx=db.transaction('drafts');const q=tx.objectStore('drafts').get('current');q.onsuccess=()=>resolve({width:q.result.width,height:q.result.height,size:q.result.blob.size,paper:q.result.paper});tx.oncomplete=()=>db.close()};r.onerror=()=>reject(r.error)})`);
-  assert.equal(draft.width, 1200); assert.equal(draft.height, 800); assert.equal(draft.paper, '#fff8f7'); assert.ok(draft.size > 0);
-  await evaluate('window.__popcanReloadMarker = true');
-  await call('Page.reload'); await until(`typeof window.__popcanReloadMarker === 'undefined' && (${ready})`); assert.equal(await digest(), drawing);
-  assert.equal(await evaluate("document.querySelector('[aria-label=\"Warm paper canvas\"]').getAttribute('aria-pressed')"), 'true');
-  results.push('IndexedDB PNG draft and paper restore exactly after reload');
-  await click('Eraser (E)'); await stroke(525, 350, 525, 450); assert.equal((await pixel(525, 400))[3], 0);
-  await click('Undo (Ctrl or ⌘ Z)'); assert.equal(await digest(), drawing);
-  results.push('erase and undo preserve alpha');
-  assert.ok(await navigationContrast(), 'Light navigation must stay readable on any paper');
-  assert.equal(await evaluate("getComputedStyle(document.querySelector('.pc-statusbar')).backgroundColor"), 'rgba(0, 0, 0, 0)', 'Floating status gaps must stay transparent');
-  await screenshot('desktop-light');
-  const centre = () => evaluate(`(() => {const c=document.querySelector('#popcan-canvas'),r=c.getBoundingClientRect();return {x:(innerWidth/2-r.x)*c.width/r.width,y:(innerHeight/2-r.y)*c.height/r.height};})()`);
-  const initialCentre = await centre();
-  await click('Zoom in'); await sleep(150);
-  assert.ok(await pageCoverage());
-  const zoomCentre = await centre();
-  assert.ok(Math.abs(zoomCentre.x-initialCentre.x)<2 && Math.abs(zoomCentre.y-initialCentre.y)<2, 'Zoom must keep the same document focal point');
-  assert.equal(await digest(), drawing, 'Zoom must not change pixels');
-  await click('Hand (H)');
-  await until(`document.querySelector('[aria-label="Hand (H)"]').getAttribute('aria-pressed')==='true'`);
-  await evaluate(`(() => {
-    window.__pcPanEvents=[];
-    for (const type of ['pointerdown','pointermove','pointerup','pointercancel','gotpointercapture','lostpointercapture','scroll']) {
-      document.addEventListener(type, e => {
-        if(window.__pcPanEvents.length>=60)return;
-        const s=document.querySelector('.pc-stage');
-        window.__pcPanEvents.push({type,target:e.target.id||e.target.className,x:e.clientX,y:e.clientY,id:e.pointerId,left:s.scrollLeft,top:s.scrollTop,tool:document.querySelector('.pc-artboard').dataset.tool});
-      },{capture:true,passive:true});
-    }
-  })()`);
-  await call('Input.dispatchMouseEvent', { type:'mouseMoved', x:650, y:500 });
-  await call('Input.dispatchMouseEvent', { type:'mousePressed', x:650, y:500, button:'left', buttons:1, clickCount:1 });
-  await call('Input.dispatchMouseEvent', { type:'mouseMoved', x:540, y:420, buttons:1 });
-  await call('Input.dispatchMouseEvent', { type:'mouseReleased', x:540, y:420, button:'left', buttons:0, clickCount:1 });
-  await sleep(100);
-  const panEvidence = await evaluate(`(() => {const s=document.querySelector('.pc-stage');return {events:window.__pcPanEvents,left:s.scrollLeft,top:s.scrollTop,width:s.clientWidth,height:s.clientHeight,scrollWidth:s.scrollWidth,scrollHeight:s.scrollHeight,tool:document.querySelector('.pc-artboard').dataset.tool,hit:document.elementFromPoint(650,500)?.outerHTML.slice(0,250),rect:document.querySelector('#popcan-canvas').getBoundingClientRect().toJSON()};})()`);
-  fs.writeFileSync(path.join(output,'pan.json'),JSON.stringify({before:zoomCentre,after:await centre(),...panEvidence},null,2));
-  await screenshot('desktop-panned');
-  assert.ok((await centre()).x > zoomCentre.x + 20, 'Hand must actually pan');
-  assert.equal(await digest(), drawing);
-  await click('Reset canvas view'); await sleep(150);
-  const resetCentre = await centre();
-  assert.ok(Math.abs(resetCentre.x-600)<2 && Math.abs(resetCentre.y-400)<2, 'Reset must centre the document');
-  assert.ok(await evaluate(`document.querySelector('[aria-label="Zoom out"]').disabled`), 'Zooming out must never expose non-drawable margins');
-  await click('Brush (B)');
-  // A toolbar click must never paint through the floating control.
-  const control = await evaluate(`document.querySelector('[aria-label="Use Tide palette"]').getBoundingClientRect().toJSON()`);
-  await call('Input.dispatchMouseEvent', { type:'mousePressed', x:control.x+control.width/2, y:control.y+control.height/2, button:'left', buttons:1, clickCount:1 });
-  await call('Input.dispatchMouseEvent', { type:'mouseReleased', x:control.x+control.width/2, y:control.y+control.height/2, button:'left', buttons:0, clickCount:1 });
-  assert.equal(await digest(), drawing, 'Controls must never paint behind themselves');
-  await click('Toggle dark mode'); await sleep(350); assert.ok(await navigationContrast(), 'Dark navigation must stay readable on light paper'); await screenshot('desktop-dark');
-  results.push('full-page coverage, proportional zoom, pan, centred reset and isolated toolbar input');
-  for (const width of [320, 390, 768, 800, 1024]) {
-    await call('Emulation.setDeviceMetricsOverride', { width, height: 844, deviceScaleFactor: 1, mobile: width < 500 });
-    await sleep(150);
-    assert.ok(await pageCoverage(), `Canvas must fill viewport at ${width}`);
-    assert.equal(await digest(), drawing, `Resize must preserve pixels at ${width}`);
-    assert.ok(await evaluate(`(() => {const r=document.querySelector('[aria-label="Export PNG"]').getBoundingClientRect();return r.left>=0&&r.right<=innerWidth&&document.documentElement.scrollWidth===innerWidth})()`), `Overflow at ${width}`);
+  const savedCamera=await camera();
+  await call('Page.reload'); await until(ready); await sleep(150);
+  assert.equal(await digest(),withText,'Expanded draft including text reloads exactly');
+  assert.equal((await camera()).originX,savedCamera.originX); assert.equal((await camera()).originY,savedCamera.originY);
+  results.push('growth beyond old bounds, pixel/origin preservation, atomic growth cancellation, multiline text, undo/redo and draft reload');
+  if (await evaluate("getComputedStyle(document.querySelector('.pc-inspector')).display==='none'")) await click('Brush settings');
+  await click('Warm paper canvas'); await sleep(80);
+  assert.equal(await digest(),withText,'Paper does not mutate ink');
+  assert.ok(await navigationContrast(),'Light navigation contrast');
+  await click('Close brush settings'); await screenshot('desktop-light');
+  await click('Toggle dark mode'); await sleep(200); assert.ok(await navigationContrast(),'Dark navigation contrast'); await screenshot('desktop-dark');
+  // Export uses the expanded document, independent of camera scale and pan.
+  const downloads=path.join(output,'downloads'); fs.mkdirSync(downloads,{recursive:true});
+  await call('Browser.setDownloadBehavior',{behavior:'allow',downloadPath:downloads});
+  await click('Export PNG');
+  for(let i=0;i<100&&!fs.readdirSync(downloads).some(n=>n.endsWith('.png'));i++)await sleep(100);
+  const pngName=fs.readdirSync(downloads).find(n=>n.endsWith('.png'));assert.ok(pngName,'A PNG was actually downloaded');
+  const png=fs.readFileSync(path.join(downloads,pngName)), size=await dimensions();
+  assert.equal(png.readUInt32BE(16),size.width);assert.equal(png.readUInt32BE(20),size.height);
+  for (const width of [320,390,768,1024]) {
+    await call('Emulation.setDeviceMetricsOverride',{width,height:844,deviceScaleFactor:1,mobile:width<500});await sleep(100);
+    assert.ok(await coverage(),`Hit surface covers ${width}`);assert.equal(await digest(),withText);
+    assert.ok(await evaluate(`document.documentElement.scrollWidth===innerWidth`),'No page overflow');
   }
-  await call('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
-  await call('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
-  await click('Brush (B)'); await sleep(150);
-  if (await evaluate("getComputedStyle(document.querySelector('.pc-inspector')).display !== 'none'")) await click('Close brush settings');
-  // Screen coordinates matter now: the aspect-preserved document can extend
-  // beyond the viewport, so document fractions may be outside the browser.
-  const r = await evaluate(`document.querySelector('#popcan-canvas').getBoundingClientRect().toJSON()`);
-  const touchX = 190, touchY = 410;
-  const px = Math.floor((touchX-r.x)*1200/r.width), py = Math.floor((touchY-r.y)*800/r.height);
-  await call('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 110, y: touchY }] });
-  await call('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 280, y: touchY }] });
-  await call('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-  assert.ok((await pixel(px, py))[3] > 0, 'Touch must paint where the finger lands');
-  const mobileDrawing = await digest();
-  // Exposed page margins are real canvas, not a decorative backdrop.
-  await call('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 4, y: 520 }] });
-  await call('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-  assert.notEqual(await digest(), mobileDrawing, 'The far page edge must be drawable');
-  await click('Undo (Ctrl or ⌘ Z)'); assert.equal(await digest(), mobileDrawing);
-  // Changing orientation mid-gesture must cancel the transient mark.
-  await call('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 150, y: 480 }] });
-  await call('Emulation.setDeviceMetricsOverride', { width: 844, height: 390, deviceScaleFactor: 1, mobile: true });
-  await sleep(200);
-  await call('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-  assert.ok(await pageCoverage()); assert.equal(await digest(), mobileDrawing, 'Rotation must not commit an unfinished gesture or erase the draft');
-  await call('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
-  await sleep(200);
-  await screenshot('mobile-drawing');
-  await click('Brush settings'); await sleep(150);
-  assert.notEqual(await evaluate("getComputedStyle(document.querySelector('.pc-inspector')).display"), 'none');
-  await screenshot('mobile-settings');
-  results.push('touch alignment, drawable page edges, narrow viewports, orientation cancellation and mobile settings');
-  assert.equal(errors.length, 0, JSON.stringify(errors));
-  fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ success: true, origin, results, errors }, null, 2));
-  console.log(JSON.stringify({ success: true, origin, results }));
+  await call('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});
+  await call('Emulation.setTouchEmulationEnabled',{enabled:true,maxTouchPoints:5});
+  await click('Reset canvas view');await click('Brush (B)');await sleep(100);
+  // A second finger cancels the first finger's transient mark, then navigates.
+  const pinchBefore=await camera();
+  await call('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{id:0,x:130,y:430},{id:1,x:250,y:430}]});
+  await call('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{id:0,x:110,y:450},{id:1,x:290,y:450}]});
+  await sleep(100);
+  const pinchAfter=await camera();assert.ok(pinchAfter.scale>pinchBefore.scale*1.4,'Pinch must zoom canvas');
+  const fixedWorld=worldAt(pinchBefore,{x:190,y:430}), movedWorld=worldAt(pinchAfter,{x:200,y:450});
+  assert.ok(Math.abs(fixedWorld.x-movedWorld.x)<1&&Math.abs(fixedWorld.y-movedWorld.y)<1,'Pinch and two-finger pan share a stable anchor');
+  await call('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[{id:0,x:110,y:450}]});
+  await call('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{id:0,x:130,y:470}]});
+  await call('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+  assert.equal(await digest(),withText,'Pinch and its trailing finger never paint');
+  await call('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:140,y:450}]});
+  await call('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:240,y:460}]});
+  await call('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+  assert.notEqual(await digest(),withText,'One finger still draws');
+  await click('Undo (Ctrl or ⌘ Z)');assert.equal(await digest(),withText);
+  await call('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:150,y:420}]});
+  await call('Emulation.setDeviceMetricsOverride',{width:844,height:390,deviceScaleFactor:1,mobile:true});await sleep(120);
+  await call('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+  assert.equal(await digest(),withText,'Rotation cancels an unfinished mark');
+  await call('Emulation.setDeviceMetricsOverride',{width:390,height:844,deviceScaleFactor:1,mobile:true});await click('Reset canvas view');await sleep(150);
+  await screenshot('mobile-canvas');
+  await click('Text (T)');await screenStroke(150,450,150,450);await until(`document.querySelector('.pc-dialog')`);
+  await fillInput('Text to add','Hello from mobile');await screenshot('mobile-text');await click('Close dialog');
+  assert.equal(await digest(),withText);
+  results.push('full-document PNG export, responsive layout, pinch zoom, two-finger pan, single-finger drawing, rotation cancellation and mobile text');
+  assert.equal(errors.length,0,JSON.stringify(errors));
+  fs.writeFileSync(path.join(output,'result.json'),JSON.stringify({success:true,origin,results,errors},null,2));
+  console.log(JSON.stringify({success:true,origin,results}));
 } catch (error) {
   fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ success: false, origin, results, errors, error: error.message }, null, 2));
   throw error;
