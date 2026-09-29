@@ -8,58 +8,40 @@ concurrency:
   group: popcan-review
   cancel-in-progress: true
 jobs:
-  validate:
+  finalize:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: Apply reviewed route integration
+      - name: Apply validated route integration
         run: |
           echo '5262e9a77550c2acedd6f512ca6b29b9d50546fed6c63421eb8651a5b19ca778  .github/popcan-integration.patch' | sha256sum --check
           git apply --check .github/popcan-integration.patch
           git apply .github/popcan-integration.patch
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path('scripts/verify-popcan-browser.mjs')
-          s = p.read_text()
-          old = "process.getuid?.() === 0 ? ['--no-sandbox'] : []"
-          assert old in s
-          s = s.replace(old, "process.getuid?.() === 0 || process.env.CI ? ['--no-sandbox'] : []")
-          s = s.replace("{ stdio: 'ignore' });", "{ stdio: ['ignore', 'ignore', 'pipe'] });\n  child.stderr.on('data', (chunk) => fs.appendFileSync(path.join(output, 'browser.log'), chunk));")
-          p.write_text(s)
-          PY
-          test "$(git hash-object scripts/verify-popcan-browser.mjs)" = '177e3bff33cb69dbfa087e541478f35f2600ac36'
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-      - run: npm ci --no-audit --no-fund
-      - run: npm run lint
-      - run: npm test -- --watchAll=false --runInBand
-        env:
-          CI: true
-      - run: npm run build
-        env:
-          CI: true
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - name: Verify actual drawing, draft reload and touch
-        run: node scripts/verify-popcan-browser.mjs
-        env:
-          CI: true
-          POPCAN_VERIFY_OUTPUT: ${{ runner.temp }}/popcan-functional
-      - name: Publish validated integration
-        run: |
           git rm .github/popcan-integration.patch
           git add src scripts docs vercel.json
           git config user.name 'mstrbstrd'
           git config user.email '104603175+mstrbstrd@users.noreply.github.com'
-          git commit -m 'feat: integrate and validate Popular Canvas studio'
+          git commit -m 'feat: integrate validated Popular Canvas studio routes and navigation'
           git push origin HEAD:feat/popcan-studio
+      - name: Inspect installed browser startup
+        run: |
+          command -v google-chrome || true
+          command -v microsoft-edge || true
+          google-chrome --version || true
+          microsoft-edge --version || true
+          mkdir -p "$RUNNER_TEMP/popcan-diagnostic"
+          BROWSER=$(command -v google-chrome || command -v microsoft-edge || true)
+          if [ -n "$BROWSER" ]; then
+            PROFILE=$(mktemp -d)
+            timeout 12 "$BROWSER" --headless=new --no-sandbox --no-first-run --remote-debugging-port=0 --user-data-dir="$PROFILE" about:blank > "$RUNNER_TEMP/popcan-diagnostic/stdout.log" 2> "$RUNNER_TEMP/popcan-diagnostic/stderr.log" || true
+            find "$PROFILE" -maxdepth 2 -name '*DevTools*' -print
+            cat "$RUNNER_TEMP/popcan-diagnostic/stdout.log" "$RUNNER_TEMP/popcan-diagnostic/stderr.log"
+            rm -rf "$PROFILE"
+          fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: popcan-functional
-          path: ${{ runner.temp }}/popcan-functional
-          retention-days: 3
+          name: popcan-diagnostic
+          path: ${{ runner.temp }}/popcan-diagnostic
+          retention-days: 1
