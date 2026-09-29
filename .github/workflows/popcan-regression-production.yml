@@ -1,0 +1,57 @@
+name: Popcan regression production verification
+on:
+  push:
+    branches: [verify/popcan-regression-production]
+permissions:
+  contents: read
+  statuses: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 64bb672623e9de37f6e11e2aee8f5fc806f881fb
+          persist-credentials: false
+      - name: Wait for this exact Vercel deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for i in $(seq 1 36); do
+            state=$(gh api repos/mstrbstrd/popular-consulting/commits/64bb672623e9de37f6e11e2aee8f5fc806f881fb/status --jq '.statuses[] | select(.context == "Vercel") | .state')
+            if [ "$state" = success ]; then exit 0; fi
+            if [ "$state" = failure ] || [ "$state" = error ]; then exit 1; fi
+            sleep 5
+          done
+          exit 1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify live consecutive drawing theme and minimum zoom
+        run: node scripts/verify-popcan-regressions.mjs
+        env:
+          CI: true
+          VISUAL_CAPTURE_BROWSER: /usr/bin/google-chrome
+          POPCAN_VERIFY_ORIGIN: https://popular-consulting.com
+          POPCAN_VERIFY_OUTPUT: ${{ runner.temp }}/popcan-production/fixes
+      - name: Verify live selection and saved objects
+        run: node scripts/verify-popcan-selection.mjs
+        env:
+          CI: true
+          VISUAL_CAPTURE_BROWSER: /usr/bin/google-chrome
+          POPCAN_VERIFY_ORIGIN: https://popular-consulting.com
+          POPCAN_VERIFY_OUTPUT: ${{ runner.temp }}/popcan-production/selection
+      - name: Verify live drawing text and camera controls
+        run: node scripts/verify-popcan-browser.mjs
+        env:
+          CI: true
+          VISUAL_CAPTURE_BROWSER: /usr/bin/google-chrome
+          POPCAN_VERIFY_ORIGIN: https://popular-consulting.com
+          POPCAN_VERIFY_OUTPUT: ${{ runner.temp }}/popcan-production/drawing
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: popcan-regression-production
+          path: ${{ runner.temp }}/popcan-production
+          retention-days: 3
