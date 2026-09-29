@@ -57,6 +57,13 @@ try {
     throw new Error(`Assertion timed out: ${expression}`);
   };
   const click = (label) => evaluate(`document.querySelector('button[aria-label=${JSON.stringify(label)}]').click()`);
+  const navigationContrast = () => evaluate(`(() => {
+  const bg=getComputedStyle(document.querySelector('.nav-pill')).backgroundColor.match(/[0-9.]+/g).map(Number);
+  const fg=getComputedStyle(document.querySelector('.nav-link')).color.match(/[0-9.]+/g).map(Number);
+  const luminance=c=>c.slice(0,3).map(v=>{v/=255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4}).reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);
+  const a=luminance(bg),b=luminance(fg);
+  return (bg.length===3||bg[3]===1)&&(Math.max(a,b)+.05)/(Math.min(a,b)+.05)>=4.5;
+})()`);
   const painted = `document.querySelector('.pc-paint')`;
   const digest = () => evaluate(`${painted}.toDataURL()`);
   const pixel = (x, y) => evaluate(`Array.from(${painted}.getContext('2d').getImageData(${x},${y},1,1).data)`);
@@ -107,6 +114,8 @@ try {
   await click('Eraser (E)'); await stroke(525, 350, 525, 450); assert.equal((await pixel(525, 400))[3], 0);
   await click('Undo (Ctrl or ⌘ Z)'); assert.equal(await digest(), drawing);
   results.push('erase and undo preserve alpha');
+  assert.ok(await navigationContrast(), 'Light navigation must stay readable on any paper');
+  assert.equal(await evaluate("getComputedStyle(document.querySelector('.pc-statusbar')).backgroundColor"), 'rgba(0, 0, 0, 0)', 'Floating status gaps must stay transparent');
   await screenshot('desktop-light');
   const centre = () => evaluate(`(() => {const c=document.querySelector('#popcan-canvas'),r=c.getBoundingClientRect();return {x:(innerWidth/2-r.x)*c.width/r.width,y:(innerHeight/2-r.y)*c.height/r.height};})()`);
   const initialCentre = await centre();
@@ -147,7 +156,7 @@ try {
   await call('Input.dispatchMouseEvent', { type:'mousePressed', x:control.x+control.width/2, y:control.y+control.height/2, button:'left', buttons:1, clickCount:1 });
   await call('Input.dispatchMouseEvent', { type:'mouseReleased', x:control.x+control.width/2, y:control.y+control.height/2, button:'left', buttons:0, clickCount:1 });
   assert.equal(await digest(), drawing, 'Controls must never paint behind themselves');
-  await click('Toggle dark mode'); await sleep(350); await screenshot('desktop-dark');
+  await click('Toggle dark mode'); await sleep(350); assert.ok(await navigationContrast(), 'Dark navigation must stay readable on light paper'); await screenshot('desktop-dark');
   results.push('full-page coverage, proportional zoom, pan, centred reset and isolated toolbar input');
   for (const width of [320, 390, 768, 800, 1024]) {
     await call('Emulation.setDeviceMetricsOverride', { width, height: 844, deviceScaleFactor: 1, mobile: width < 500 });

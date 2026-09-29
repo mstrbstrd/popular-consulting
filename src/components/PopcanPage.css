@@ -23,6 +23,8 @@ html.popcan-route { height: 100%; overflow: hidden; font-size: 62.5% !important;
 .popcan-page button { -webkit-tap-highlight-color: transparent; }
 .popcan-page button:disabled { opacity: .32; cursor: not-allowed; }
 .popcan-page button:focus-visible, .popcan-page input:focus-visible, .popcan-page select:focus-visible, .popcan-page a:focus-visible { outline: 2px solid var(--pc-ring); outline-offset: 3px; }
+/* Canvas paper is independent of UI theme; navigation stays legible over both. */
+.popcan-page .nav-pill { --aetheris-glass-surface: var(--pc-panel); --aetheris-ink-2: var(--pc-muted); }
 .popcan-page .nav-header { position: absolute; inset: 0 0 auto; padding: max(14px,env(safe-area-inset-top)) 16px 12px; pointer-events: none; }
 .pc-studio { position: absolute; inset: 0; min-height: 0; pointer-events: none; }
 .pc-studio::before { content: none; }
