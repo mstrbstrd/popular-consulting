@@ -1,0 +1,49 @@
+name: Popcan browser regressions
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/components/Popcan*'
+      - 'src/components/popcan/**'
+      - 'src/contexts/ThemeContext.js'
+      - 'scripts/verify-popcan*.mjs'
+      - '.github/workflows/popcan-regressions.yml'
+  pull_request:
+    paths:
+      - 'src/components/Popcan*'
+      - 'src/components/popcan/**'
+      - 'src/contexts/ThemeContext.js'
+      - 'scripts/verify-popcan*.mjs'
+      - '.github/workflows/popcan-regressions.yml'
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+        env:
+          CI: true
+      - name: Verify drawing, selection and regressions
+        run: |
+          POPCAN_VERIFY_OUTPUT="$RUNNER_TEMP/popcan/drawing" node scripts/verify-popcan-browser.mjs
+          POPCAN_VERIFY_OUTPUT="$RUNNER_TEMP/popcan/selection" node scripts/verify-popcan-selection.mjs
+          POPCAN_VERIFY_OUTPUT="$RUNNER_TEMP/popcan/regressions" node scripts/verify-popcan-regressions.mjs
+        env:
+          CI: true
+          VISUAL_CAPTURE_BROWSER: /usr/bin/google-chrome
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: popcan-browser-evidence
+          path: ${{ runner.temp }}/popcan
+          retention-days: 7
