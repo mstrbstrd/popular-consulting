@@ -1,0 +1,73 @@
+name: Popcan page review
+on:
+  push:
+    branches: [fix/popcan-page-canvas]
+permissions:
+  contents: write
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Isolate navigation contrast from canvas paper
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('src/components/PopcanPage.css')
+          s = p.read_text()
+          anchor = '.popcan-page .nav-header { position: absolute;'
+          assert s.count(anchor) == 1
+          s = s.replace(anchor, '/* Canvas paper is independent of UI theme; navigation stays legible over both. */\n.popcan-page .nav-pill { --aetheris-glass-surface: var(--pc-panel); --aetheris-ink-2: var(--pc-muted); }\n' + anchor)
+          p.write_text(s)
+          p = Path('scripts/verify-popcan-browser.mjs')
+          s = p.read_text()
+          anchor = "  const painted = `document.querySelector('.pc-paint')`;"
+          assert s.count(anchor) == 1
+          s = s.replace(anchor, """  const navigationContrast = () => evaluate(`(() => {
+            const bg=getComputedStyle(document.querySelector('.nav-pill')).backgroundColor.match(/[0-9.]+/g).map(Number);
+            const fg=getComputedStyle(document.querySelector('.nav-link')).color.match(/[0-9.]+/g).map(Number);
+            const luminance=c=>c.slice(0,3).map(v=>{v/=255;return v<=.04045?v/12.92:((v+.055)/1.055)**2.4}).reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);
+            const a=luminance(bg),b=luminance(fg);
+            return (bg.length===3||bg[3]===1)&&(Math.max(a,b)+.05)/(Math.min(a,b)+.05)>=4.5;
+          })()`);
+          """ + anchor)
+          s = s.replace("  await screenshot('desktop-light');", "  assert.ok(await navigationContrast(), 'Light navigation must stay readable on any paper');\n  assert.equal(await evaluate(\"getComputedStyle(document.querySelector('.pc-statusbar')).backgroundColor\"), 'rgba(0, 0, 0, 0)', 'Floating status gaps must stay transparent');\n  await screenshot('desktop-light');")
+          s = s.replace("await sleep(350); await screenshot('desktop-dark');", "await sleep(350); assert.ok(await navigationContrast(), 'Dark navigation must stay readable on light paper'); await screenshot('desktop-dark');")
+          p.write_text(s)
+          PY
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run lint
+      - run: npm test -- --watchAll=false --runInBand
+        env:
+          CI: true
+      - run: npm run build
+        env:
+          CI: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify full-page canvas and navigation contrast
+        run: node scripts/verify-popcan-browser.mjs
+        env:
+          CI: true
+          VISUAL_CAPTURE_BROWSER: /usr/bin/google-chrome
+          POPCAN_VERIFY_OUTPUT: ${{ runner.temp }}/popcan-page-evidence
+      - name: Commit verified visual polish
+        run: |
+          git rm .github/workflows/popcan-page-review.yml
+          git add src/components/PopcanPage.css scripts/verify-popcan-browser.mjs
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix: preserve navigation contrast over every Popcan paper colour'
+          git push origin HEAD:fix/popcan-page-canvas
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: popcan-page-evidence
+          path: ${{ runner.temp }}/popcan-page-evidence
+          retention-days: 3
