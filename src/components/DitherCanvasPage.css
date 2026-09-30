@@ -573,6 +573,23 @@
   padding: 0;
 }
 
+.morphogen-popcan-link {
+  display: flex;
+  flex: 0 0 3.35rem;
+  align-items: center;
+  justify-content: center;
+  width: 3.35rem;
+  padding: 0;
+  text-decoration: none;
+}
+
+.morphogen-popcan-link img {
+  display: block;
+  width: 2.85rem;
+  height: 2.85rem;
+  object-fit: contain;
+}
+
 .morphogen-paint-option:hover {
   border-color: var(--rupture-border);
   color: var(--rupture-text);
@@ -922,6 +939,16 @@
 
   .morphogen-paint-option.is-compact {
     min-width: 3.1rem;
+  }
+
+  .morphogen-popcan-link {
+    flex-basis: 3.1rem;
+    width: 3.1rem;
+  }
+
+  .morphogen-popcan-link img {
+    width: 2.6rem;
+    height: 2.6rem;
   }
 
   .morphogen-color-control input {

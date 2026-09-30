@@ -10,10 +10,15 @@ test.each(['/popcan', '/popcan/', '/popcan/index.html'])('resolves direct editor
   expect(resolveSiteView(url)).toBe(SITE_VIEWS.POPCAN);
 });
 test('exposes Popcan from both shared navigation audiences and Morphogen paint', () => {
+  const morphogen = source('src/components/DitherCanvasPage.js');
   [SITE_AUDIENCES.BUSINESS, SITE_AUDIENCES.ENGINEERING].forEach((audience) => {
     expect(getSiteCopy(audience).navigation.links.some((link) => link.href === '/popcan')).toBe(true);
   });
-  expect(source('src/components/DitherCanvasPage.js')).toContain('href="/popcan"');
+  expect(morphogen).toContain('href="/popcan"');
+  expect(morphogen).toContain('aria-label="Open Popular Canvas"');
+  expect(morphogen).toContain('import popcanLogo from "../assets/img/popcan-logo.png"');
+  expect(morphogen).toContain('<img src={popcanLogo} alt="" />');
+  expect(morphogen).not.toContain('Open Popular Canvas <span');
 });
 test('publishes matching HTML metadata and Vercel rewrites', () => {
   expect(metadata.popcan.canonical).toBe('https://popular-consulting.com/popcan');
