@@ -115,6 +115,16 @@ const handler = async (request, response) => {
   }
   if (!requestOriginIsAllowed(request)) return sendJson(response, 403, { code: "origin_not_allowed" });
   if (!/^application\/json(?:\s*;|$)/i.test(request.headers?.["content-type"] || "")) return sendJson(response, 415, { code: "invalid_content_type" });
+  // Guest-to-SMS rollout also closes the direct anonymous AI endpoint.
+  // With the relay disabled, the existing public lab remains unchanged.
+  if (process.env.ORB_SMS_ENABLED && process.env.ORB_SMS_ENABLED !== 'false') {
+    try {
+      const { authenticatedOrbUser } = await import('../server/orb-sms.mjs');
+      if (!(await authenticatedOrbUser(request))) return sendJson(response, 401, { code: 'authentication_required' });
+    } catch {
+      return sendJson(response, 503, { code: 'authentication_unavailable' });
+    }
+  }
   const body = parseBody(request);
   if (!body) return sendJson(response, 400, { code: "invalid_request" });
   if (!configured(request)) return sendJson(response, 503, { code: "not_configured" });

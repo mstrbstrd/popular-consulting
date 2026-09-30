@@ -11,7 +11,8 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-scripts": "5.0.1",
-    "web-vitals": "^2.1.4"
+    "web-vitals": "^2.1.4",
+    "twilio": "6.0.2"
   },
   "engines": {
     "node": "20.x"
@@ -28,7 +29,8 @@
     "visual:dark-evidence:smoke": "npm run build && node scripts/capture-visual-dark-evidence.mjs --smoke --allow-software --skip-gpu-gate --skip-visual-gate --viewport=480x300",
     "visual:dark-evidence:physical": "node scripts/run-physical-dark-qualification.mjs",
     "visual:dark-evidence:physical:verify": "node scripts/verify-physical-dark-qualification.mjs",
-    "test:auth": "node --test server/auth-tests/*.test.mjs"
+    "test:auth": "node --test server/auth-tests/*.test.mjs",
+    "test:orb-sms": "node --test server/orb-tests/*.test.mjs"
   },
   "eslintConfig": {
     "extends": [

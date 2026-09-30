@@ -144,6 +144,12 @@ export const createBuildServer = ({ buildRoot }) => {
       request.url || "/",
       "http://127.0.0.1",
     );
+    // Static visual fixtures have no live relay credentials or messaging side effects.
+    if (requestUrl.pathname === "/api/orb/config") {
+      response.writeHead(200, { "Content-Type": "application/json", "Cache-Control": "no-store" });
+      response.end(JSON.stringify({ enabled: false }));
+      return;
+    }
     const directPath = safeFilePath(requestUrl.pathname);
     let filePath = directPath;
 
