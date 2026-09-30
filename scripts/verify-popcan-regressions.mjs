@@ -105,6 +105,7 @@ try {
   };
   const saved = () => until(`document.querySelector('.pc-status').textContent.includes('Saved on this device')`);
   const readLocal = () => evaluate(`new Promise((resolve,reject)=>{const r=indexedDB.open('popcan-local',1);r.onsuccess=()=>{const db=r.result,tx=db.transaction('drafts'),q=tx.objectStore('drafts').get('current');q.onsuccess=()=>resolve({version:q.result.version,objects:q.result.objects?.map(({blob,...item})=>item)});tx.oncomplete=()=>db.close();};r.onerror=()=>reject(r.error)})`);
+  const assets = () => evaluate(`new Promise((resolve,reject)=>{const r=indexedDB.open('popcan-local',1);r.onsuccess=()=>{const db=r.result,tx=db.transaction('drafts'),q=tx.objectStore('drafts').get('current');q.onsuccess=async()=>{try{const d=q.result;resolve({version:d.version,width:d.width,height:d.height,originX:d.originX,originY:d.originY,objects:await Promise.all(d.objects.map(async o=>({id:o.id,kind:o.kind,x:o.x,y:o.y,width:o.width,height:o.height,pixelSize:o.pixelSize||1,hash:Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',await o.blob.arrayBuffer()))).join(',')})))});}catch(e){reject(e)}};tx.oncomplete=()=>db.close()};r.onerror=()=>reject(r.error)})`);
   const newCanvas = async () => {
     await click('New canvas'); await until(`document.querySelector('.pc-dialog')`);
     await evaluate("document.querySelector('.pc-dialog button[type=submit]').click()");
@@ -216,6 +217,41 @@ try {
   }
   results.push('24 uninterrupted native draws, 12 late capture-loss cases, genuine cancellation and one-step undo/redo');
 
+  // A normal large brush previously stopped accepting input around 40 objects:
+  // every mark was a separate raw bitmap and the 20 MiB live-object guard was
+  // reached long before the advertised 512-item ceiling. Keep drawing through
+  // repeated bounded compactions and persist the resulting grouped layer.
+  await newCanvas();
+  if(await evaluate("getComputedStyle(document.querySelector('.pc-inspector')).display==='none'")) await click('Brush settings');
+  await evaluate("[...document.querySelectorAll('.pc-segment button')].find(b=>b.textContent==='Sand').click()");
+  await fillInput('Brush size','160'); await click('Close brush settings'); await click('Brush (B)');
+  for(let i=0;i<25&&(await camera()).scale>0.1;i++) await click('Zoom out');
+  let compactions=0;
+  for(let i=0;i<80;i++) {
+    const before=await digest(), previousCompactions=compactions;
+    const x=150+(i%10)*105, y=210+Math.floor(i/10)*85;
+    await screenStroke(x,y,x+52+(i%3)*8,y+(i%2?14:-14));
+    assert.notEqual(await digest(),before,`Large brush mark ${i+1} must change pixels`);
+    assert.doesNotMatch(await evaluate("document.querySelector('.pc-status').textContent"),/Object limit reached/);
+    compactions=await evaluate("+document.querySelector('#popcan-canvas').dataset.compactionCount");
+    if(compactions>previousCompactions) assert.match(await evaluate("document.querySelector('.pc-status').textContent"),/older items grouped/);
+  }
+  assert.ok(compactions>=2,'The stress fixture must cross the bitmap budget more than once');
+  await click('Fit all artwork'); await sleep(150);
+  const compactedPixels=await digest(), compactedCount=await count(); await saved();
+  const compactedAssets=await assets();
+  assert.equal(compactedAssets.objects.length,compactedCount,'Every grouped or recent item must reach IndexedDB');
+  await call('Page.reload'); await until(ready); await sleep(200);
+  await click('Fit all artwork'); await sleep(150);
+  assert.equal(await digest(),compactedPixels,'Compacted artwork must restore exactly');
+  assert.equal(await count(),compactedCount,'Grouped and recent items must persist');
+  assert.deepEqual(await assets(),compactedAssets,'Compacted object metadata and PNG bytes must persist');
+  await screenshot('continued-after-compaction');
+  results.push('80 large minimum-zoom brush marks continue through repeated visible compaction and exact draft reload');
+
+  // Keep the following independent rendering checks on a small document so
+  // their layer-count assertions are not coupled to the capacity fixture.
+  await newCanvas(); await click('Brush (B)'); await screenStroke(520,440,640,480);
   const background = () => evaluate("getComputedStyle(document.querySelector('#popcan-canvas')).backgroundColor");
   const pixels=await digest();
   if(await evaluate("document.documentElement.dataset.theme==='dark'")) await click('Toggle dark mode');
@@ -231,7 +267,6 @@ try {
 
   // PNG hashes of individual objects verify that empty-space expansion and view
   // changes never resample previous objects, even when the display is bounded.
-  const assets = () => evaluate(`new Promise((resolve,reject)=>{const r=indexedDB.open('popcan-local',1);r.onsuccess=()=>{const db=r.result,tx=db.transaction('drafts'),q=tx.objectStore('drafts').get('current');q.onsuccess=async()=>{try{const d=q.result;resolve({version:d.version,width:d.width,height:d.height,objects:await Promise.all(d.objects.map(async o=>({id:o.id,x:o.x,y:o.y,pixelSize:o.pixelSize||1,hash:Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',await o.blob.arrayBuffer()))).join(',')})))});}catch(e){reject(e)}};tx.oncomplete=()=>db.close()};r.onerror=()=>reject(r.error)})`);
   await saved(); const originalAssets=(await assets()).objects;
   for(let i=0;i<25&&(await camera()).scale>0.1;i++) await click('Zoom out');
   assert.equal((await camera()).scale,0.1);

@@ -1,4 +1,5 @@
-import { alphaBounds, checkObjects, objectBytes, MAX_OBJECT_BYTES, MAX_OBJECTS, objectBounds, intersects,
+import { alphaBounds, checkObjects, compactionPrefixLength, COMPACTED_OBJECT_PIXELS,
+  COMPACTION_TARGET_BYTES, objectBytes, MAX_OBJECT_BYTES, MAX_OBJECTS, objectBounds, intersects,
   validateObjectRecords, checkObjectPng } from './popcanObjects';
 
 const bitmap = (width = 10, height = 20) => ({ width, height });
@@ -28,6 +29,21 @@ test('refuses resource growth rather than silently flattening selectable objects
   expect(() => checkObjects(Array.from({ length: MAX_OBJECTS + 1 }, (_, i) => object(i)))).toThrow(/not been flattened/);
   expect(() => checkObjects([object(1, bitmap(1, MAX_OBJECT_BYTES / 4 + 1))])).toThrow(/Object limit/);
   expect(() => checkObjects([object()])).not.toThrow();
+});
+test('plans bounded compaction before ordinary brush objects exhaust the live budget', () => {
+  const objects = Array.from({ length: 41 }, (_, i) => object(i + 1, bitmap(512, 256)));
+  const prefix = compactionPrefixLength(objects);
+  expect(prefix).toBeGreaterThan(1);
+  const retained = objects.slice(prefix);
+  expect(objectBytes(retained) + COMPACTED_OBJECT_PIXELS * 4).toBeLessThanOrEqual(COMPACTION_TARGET_BYTES);
+  expect(1 + retained.length).toBeLessThanOrEqual(MAX_OBJECTS);
+});
+test('groups enough old items to keep the persisted object count valid', () => {
+  const objects = Array.from({ length: MAX_OBJECTS + 1 }, (_, i) => object(i + 1));
+  const prefix = compactionPrefixLength(objects);
+  expect(prefix).toBeGreaterThanOrEqual(2);
+  expect(1 + objects.length - prefix).toBeLessThanOrEqual(MAX_OBJECTS);
+  expect(compactionPrefixLength(objects.slice(0, MAX_OBJECTS))).toBe(0);
 });
 test('accepts bounded local PNG records and does not trust persisted positions or ids', () => {
   expect(() => validateObjectRecords([record()], doc)).not.toThrow();
