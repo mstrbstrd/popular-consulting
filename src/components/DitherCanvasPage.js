@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import logo from "../assets/icons/logo2026_128.png";
+import popcanLogo from "../assets/img/popcan-logo.png";
 import { ThemeProvider, useThemeMode } from "../contexts/ThemeContext";
 import { hasHardwareWebGL, isMobileTier } from "../utils/deviceTier";
 import { canAttemptHighFidelityMobileGraphics } from "../utils/mobileGraphicsCapability";
@@ -1177,8 +1178,13 @@ const DitherFieldLab = () => {
                 />
               </label>
             </div>
-            <a className="morphogen-paint-option" href="/popcan" style={{ textDecoration: "none" }}>
-              Open Popular Canvas <span aria-hidden="true">↗</span>
+            <a
+              className="morphogen-paint-option morphogen-popcan-link"
+              href="/popcan"
+              aria-label="Open Popular Canvas"
+              title="Open Popular Canvas"
+            >
+              <img src={popcanLogo} alt="" />
             </a>
           </aside>
         )}
