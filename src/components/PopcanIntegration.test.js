@@ -31,6 +31,15 @@ test('keeps the editor local and usable without WebGL', () => {
   expect(source('src/components/popcan/popcanStorage.js')).toContain('indexedDB.open');
 });
 
+test('uses the dedicated transparent Popcan logo artwork', () => {
+  const editor = source('src/components/PopcanPage.js');
+  const logo = fs.readFileSync(path.resolve(__dirname, '..', 'assets', 'img', 'popcan-logo.png'));
+  expect(editor).toContain("import popcanLogo from '../assets/img/popcan-logo.png'");
+  expect(editor).toContain('<img src={popcanLogo} alt="" />');
+  expect(logo.readUInt32BE(16)).toBe(256);
+  expect(logo.readUInt32BE(20)).toBe(256);
+  expect(logo[25]).toBe(6);
+});
 
 test('the document fills the viewport instead of fitting inside editor chrome', () => {
   const editor = source('src/components/PopcanPage.js');
