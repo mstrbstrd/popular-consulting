@@ -30,7 +30,8 @@ html.popcan-route { height: 100%; overflow: hidden; font-size: 62.5% !important;
 .pc-studio::before { content: none; }
 .pc-topbar { position: absolute; top: var(--pc-nav-height); left: max(22px,env(safe-area-inset-left)); right: max(22px,env(safe-area-inset-right)); z-index: 3; display: flex; align-items: center; gap: 30px; min-height: 80px; padding: 14px 20px; }
 .pc-identity { display: flex; gap: 12px; align-items: center; flex-shrink: 0; }
-.pc-logo { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 12px; background: linear-gradient(var(--pc-panel),var(--pc-panel)) padding-box, var(--pc-spectral) border-box; border: 1px solid transparent; }
+.pc-logo { display: grid; place-items: center; width: 52px; height: 52px; flex-shrink: 0; }
+.pc-logo img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .pc-identity h1 { font: 600 27px/1 'Hanken Grotesk', sans-serif; letter-spacing: -1.4px; margin: 0; }
 .pc-identity h1 span { color: var(--pc-ring); }
 .pc-identity p { font: 400 8px/1.4 'JetBrains Mono', monospace; margin: 5px 0 0; letter-spacing: 1.9px; color: var(--pc-muted); }

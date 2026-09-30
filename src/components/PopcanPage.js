@@ -6,6 +6,7 @@ import Icon from './popcan/PopcanIcon';
 import { PopcanEngine, DEFAULT_INK, FORMATS, PAPERS, clamp } from './popcan/popcanEngine';
 import { readDraft, writeDraft, loadImage, exportName } from './popcan/popcanStorage';
 import { MIN_ZOOM, MAX_ZOOM, screenPoint, zoomView, panView, TEXT_FONTS, rasterFrame } from './popcan/popcanView';
+import popcanLogo from '../assets/img/popcan-logo.png';
 import './PopcanPage.css';
 
 const TOOLS = [
@@ -402,7 +403,7 @@ export function PopcanContent() {
     <NavMenu standalone />
     <main className="pc-studio" aria-label="Popular Canvas editor">
       <header className="pc-topbar" ref={topbarRef}>
-        <div className="pc-identity"><span className="pc-logo"><Icon name="mark" size={27} /></span><div><h1>popcan<span>.</span></h1><p>POPULAR CANVAS</p></div></div>
+        <div className="pc-identity"><span className="pc-logo" aria-hidden="true"><img src={popcanLogo} alt="" /></span><div><h1>popcan<span>.</span></h1><p>POPULAR CANVAS</p></div></div>
         <div className="pc-document"><label className="pc-sr" htmlFor="pc-title">Canvas name</label><input id="pc-title" value={title} maxLength={80} onChange={(event) => { setTitle(event.target.value); titleRef.current = event.target.value; save(); }} /><span>{doc.width} × {doc.height} <span className="pc-document-kind">/ MORPHOGEN STUDIO</span></span></div>
         <div className="pc-actions">
           <div className="pc-history"><ToolButton icon="undo" label="Undo (Ctrl or ⌘ Z)" disabled={!doc.canUndo || busy || !ready} onClick={() => engineRef.current.travel(-1)} /><ToolButton icon="redo" label="Redo (Ctrl or ⌘ Shift Z)" disabled={!doc.canRedo || busy || !ready} onClick={() => engineRef.current.travel(1)} /></div>
