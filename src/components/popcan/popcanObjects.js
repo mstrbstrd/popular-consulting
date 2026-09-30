@@ -4,6 +4,8 @@ import { validSize, WORLD_LIMIT } from './popcanView';
 
 export const MAX_OBJECTS = 512;
 export const MAX_OBJECT_BYTES = 20 * 1024 * 1024;
+export const COMPACTED_OBJECT_PIXELS = 1024 * 1024;
+export const COMPACTION_TARGET_BYTES = 12 * 1024 * 1024;
 export const OBJECT_KINDS = ['brush', 'line', 'rectangle', 'ellipse', 'fill', 'text', 'image', 'legacy'];
 export const objectBounds = (object) => ({
   left: object.x, top: object.y,
@@ -18,6 +20,28 @@ export function checkObjects(objects) {
   if (objects.length > MAX_OBJECTS || objectBytes(objects) > MAX_OBJECT_BYTES) {
     throw new Error('Object limit reached. Export your work and start a new canvas. Existing items have not been flattened.');
   }
+}
+// Keep recent items independently editable while folding enough of the oldest
+// items into one bounded Earlier artwork layer to leave useful headroom. The
+// returned prefix is an upper-bound plan: the cropped composite is commonly
+// much smaller than COMPACTED_OBJECT_PIXELS.
+export function compactionPrefixLength(objects) {
+  const totalBytes = objectBytes(objects);
+  if (objects.length <= MAX_OBJECTS && totalBytes <= MAX_OBJECT_BYTES) return 0;
+  const seen = new Set();
+  let prefix = 0, removedBytes = 0;
+  while (prefix < objects.length) {
+    const remainingCount = objects.length - prefix + 1;
+    const upperBoundBytes = totalBytes - removedBytes + COMPACTED_OBJECT_PIXELS * 4;
+    if (prefix > 0 && remainingCount <= MAX_OBJECTS && upperBoundBytes <= COMPACTION_TARGET_BYTES) break;
+    const bitmap = objects[prefix]?.bitmap;
+    if (bitmap && !seen.has(bitmap)) {
+      seen.add(bitmap);
+      removedBytes += bitmap.width * bitmap.height * 4;
+    }
+    prefix += 1;
+  }
+  return prefix;
 }
 export function alphaBounds(data, width, height) {
   let left = width, top = height, right = -1, bottom = -1;

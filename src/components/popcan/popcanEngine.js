@@ -1,4 +1,5 @@
-import { alphaBounds, checkObjects, objectBounds, objectBytes, intersects, validateObjectRecords, checkObjectPng } from './popcanObjects';
+import { alphaBounds, checkObjects, compactionPrefixLength, COMPACTED_OBJECT_PIXELS,
+  objectBounds, objectBytes, intersects, validateObjectRecords, checkObjectPng } from './popcanObjects';
 import { loadImage } from './popcanStorage';
 import { expandedBounds, validSize, validWorldSize, rasterFrame, WORLD_LIMIT, TEXT_FONTS, textSettings, textLines } from './popcanView';
 
@@ -129,6 +130,7 @@ export class PopcanEngine {
     this.paper = PAPERS.theme; this.themePaper = PAPERS.warm; this.hasInk = false; this.history = []; this.index = -1;
     this.frame = 0; this.stroke = null; this.texture = null; this.textureKey = '';
     this.objects = []; this.selectedId = null; this.drag = null; this.nextId = 1;
+    this.compactionCount = 0; this.compactionNotice = '';
     this.destroyed = false; this.objectBlobs = new WeakMap(); this.viewport = null; this.outputFrame = null;
     this.resize(1200, 800); this.commit();
   }
@@ -161,9 +163,14 @@ export class PopcanEngine {
     return { width: this.width, height: this.height, originX: this.originX, originY: this.originY,
       baseWidth: this.baseWidth, baseHeight: this.baseHeight, paper: this.paper, hasInk: this.hasInk,
       canUndo: this.index > 0, canRedo: this.index < this.history.length - 1,
-      objectCount: this.objects.length, selection: this.selection(), renderFrame: this.outputFrame };
+      objectCount: this.objects.length, compactionCount: this.compactionCount,
+      selection: this.selection(), renderFrame: this.outputFrame };
   }
-  emit() { this.onChange(this.state()); }
+  emit() {
+    const notice = this.compactionNotice;
+    this.compactionNotice = '';
+    this.onChange(this.state(), false, notice);
+  }
   commit() {
     checkObjects(this.objects);
     this.hasInk = this.objects.length > 0;
@@ -185,6 +192,7 @@ export class PopcanEngine {
   loadSnapshot(item) {
     this.originX = item.originX; this.originY = item.originY;
     this.baseWidth = item.baseWidth; this.baseHeight = item.baseHeight;
+    this.compactionCount = item.compactionCount || 0;
     this.resize(item.width, item.height);
     this.objects = item.objects.slice(); this.paper = item.paper; this.hasInk = this.objects.length > 0;
     if (!this.objects.some((object) => object.id === this.selectedId)) this.selectedId = null;
@@ -222,7 +230,7 @@ export class PopcanEngine {
   newDocument(format, paper) {
     this.cancel(); const [w, h] = FORMATS[format] || FORMATS.landscape;
     this.originX = 0; this.originY = 0; this.baseWidth = w; this.baseHeight = h;
-    this.objects = []; this.selectedId = null;
+    this.objects = []; this.selectedId = null; this.compactionCount = 0; this.compactionNotice = '';
     this.resize(w, h); this.paper = PAPERS[paper] || PAPERS.theme; this.hasInk = false;
     // Reusing an equal-sized output does not clear its pixels. An empty scene
     // must be painted explicitly instead of relying on resize side effects.
@@ -355,7 +363,10 @@ export class PopcanEngine {
         this.objects = objects;
       } else {
         const object = this.captureObject(this.tint, this.stroke.frame.originX, this.stroke.frame.originY, ink.tool, ink.opacity, this.nextId++, this.stroke.frame.pixelSize);
-        if (object) { const objects = [...this.objects, object]; checkObjects(objects); this.ensureBounds(objectBounds(object)); this.objects = objects; this.selectedId = object.id; }
+        if (object) {
+          const objects = this.compactObjects([...this.objects, object]);
+          this.ensureBounds(objectBounds(object)); this.objects = objects; this.selectedId = object.id;
+        }
       }
       this.paintObjects(); this.commit(); this.stroke = null; this.cancel();
     } catch (failure) { this.cancel(); throw failure; }
@@ -449,6 +460,7 @@ export class PopcanEngine {
       if (object) objects = [object];
     }
     this.objects = objects; this.nextId = Math.max(this.nextId, ...objects.map((item) => item.id + 1)); this.selectedId = null;
+    this.compactionCount = 0; this.compactionNotice = '';
     this.originX = originX; this.originY = originY;
     this.baseWidth = validSize(draft.baseWidth, draft.baseHeight) ? draft.baseWidth : draft.width;
     this.baseHeight = validSize(draft.baseWidth, draft.baseHeight) ? draft.baseHeight : draft.height;
@@ -527,9 +539,29 @@ export class PopcanEngine {
   }
   appendObject(object) {
     if (!object) return;
-    const objects = [...this.objects, object]; checkObjects(objects);
+    const objects = this.compactObjects([...this.objects, object]);
     this.ensureBounds(objectBounds(object));
     this.objects = objects; this.selectedId = object.id; this.paintObjects(); this.commit();
+  }
+  compactObjects(objects) {
+    const prefixLength = compactionPrefixLength(objects);
+    if (!prefixLength) return objects;
+    const prefix = objects.slice(0, prefixLength);
+    const bounds = prefix.map(objectBounds).reduce((all, item) => ({
+      left: Math.min(all.left, item.left), top: Math.min(all.top, item.top),
+      right: Math.max(all.right, item.right), bottom: Math.max(all.bottom, item.bottom),
+    }));
+    const frame = rasterFrame(bounds, COMPACTED_OBJECT_PIXELS);
+    const bitmap = surface(frame.pixelWidth, frame.pixelHeight);
+    this.paintObjects(context(bitmap), { objects: prefix }, frame);
+    const compacted = this.captureObject(bitmap, frame.originX, frame.originY, 'legacy', 1, prefix[0].id, frame.pixelSize);
+    bitmap.width = bitmap.height = 0;
+    if (!compacted) throw new Error('Older artwork could not be grouped. Export your work before continuing.');
+    const next = [compacted, ...objects.slice(prefixLength)];
+    checkObjects(next);
+    this.compactionCount += 1;
+    this.compactionNotice = `${prefixLength} older items grouped to keep drawing. They now move as one Earlier artwork layer.`;
+    return next;
   }
   paintObjects(ctx = this.ctx, snapshot = this, frame = this.outputFrame) {
     ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
@@ -553,7 +585,7 @@ export class PopcanEngine {
   async draft() {
     // Capture one committed snapshot before awaiting PNG encodes. Selection and
     // drag previews are not document changes and never enter saved/exported data.
-    const snapshot = this.history[this.index], { objects, ...data } = snapshot;
+    const snapshot = this.history[this.index], { objects, compactionCount, ...data } = snapshot;
     const blob = await this.blob(false, snapshot), records = [];
     for (const item of objects) records.push({ id: item.id, kind: item.kind, x: item.x, y: item.y,
       width: item.bitmap.width, height: item.bitmap.height, pixelSize: item.pixelSize || 1, blob: await this.bitmapBlob(item.bitmap) });

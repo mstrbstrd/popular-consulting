@@ -120,9 +120,12 @@ deletions are undoable. Click empty space or press Escape to deselect.
 
 Invariants: no cut-and-paste from the merged page; no colour regeneration on move;
 no partial drag in saves or exports; no selection outline in pixels; no camera
-movement from object dragging; no silent flattening at memory limits. Escape,
+movement from object dragging; no invisible drawing failure at memory limits. Escape,
 pointer cancellation, rotation and pinch restore an unfinished drag. New content
-is refused above 512 objects or 20 MiB of live object bitmap pixels. Stored
+continues at the 20 MiB live bitmap boundary by visibly grouping enough of the
+oldest items into one bounded, movable Earlier artwork layer. Recent items remain
+independently editable, compaction is undoable, and the saved scene remains below
+512 live objects. Stored
 objects validate type, count, ids, coordinates, aggregate memory and PNG headers
 before decoding. World-edge limits still apply to object movement; empty distance is not a bitmap-memory cost.
 
