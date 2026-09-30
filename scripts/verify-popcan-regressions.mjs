@@ -83,13 +83,13 @@ try {
   const dimensions = () => evaluate(`({width:${painted}.width,height:${painted}.height})`);
   const worldPixel = async (x, y) => { const v=await camera(); return pixel(Math.floor(x-v.originX), Math.floor(y-v.originY)); };
   const alphaCount = (x, y, w, h) => evaluate(`(() => {const d=document.querySelector('#popcan-canvas').dataset;const a=${painted}.getContext('2d').getImageData(${x}-+d.originX,${y}-+d.originY,${w},${h}).data;let n=0;for(let i=3;i<a.length;i+=4)if(a[i]>0)n++;return n})()`);
-  const screenStroke = async (x, y, ex, ey, button='left') => {
+  const screenStroke = async (x, y, ex, ey, button='left', settle=80) => {
     const buttons=button==='middle'?4:1;
     await call('Input.dispatchMouseEvent', { type:'mouseMoved', x,y });
     await call('Input.dispatchMouseEvent', { type:'mousePressed', x,y,button,buttons,clickCount:1 });
     for(let i=1;i<=8;i++) await call('Input.dispatchMouseEvent', { type:'mouseMoved', x:x+(ex-x)*i/8,y:y+(ey-y)*i/8,button,buttons });
     await call('Input.dispatchMouseEvent', { type:'mouseReleased', x:ex,y:ey,button,buttons:0,clickCount:1 });
-    await sleep(80);
+    if(settle) await sleep(settle);
   };
   const stroke = async (x,y,ex,ey) => {const v=await camera(); await screenStroke(v.x+x*v.scale,v.y+y*v.scale,v.x+ex*v.scale,v.y+ey*v.scale)};
   const fillInput = (label, value) => evaluate(`(() => {const el=document.querySelector('[aria-label=${JSON.stringify(label)}]');const proto=el instanceof HTMLTextAreaElement?HTMLTextAreaElement.prototype:el instanceof HTMLSelectElement?HTMLSelectElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(proto,'value').set.call(el,${JSON.stringify(value)});el.dispatchEvent(new Event(el.tagName==='SELECT'||el.type==='color'?'change':'input',{bubbles:true}));})()`);
@@ -182,8 +182,23 @@ try {
   assert.ok((await camera()).scale>idleView.scale,'Wheel zoom resumes after pointer-up');
   results.push('24 Sand/Ink marks and 9 erasures survive native zero-delta, momentum, horizontal and Shift-wheel input; one-step undo/redo, persisted erasure and idle zoom');
 
+  // A real user can begin the next mark before React has rendered the state
+  // emitted by the preceding pointer-up. Exercise that cadence without the
+  // artificial post-gesture pause used by the rest of this visual suite.
+  await settings('#cc4477','18');
+  for(const tool of ['Brush (B)','Rectangle (R)','Ellipse (O)']) {
+    await newCanvas(); await click(tool);
+    for(let i=0;i<8;i++) {
+      const before=await count();
+      await screenStroke(180+i*130,300,230+i*130,360,'left',0);
+      assert.equal(await count(),before+1,`${tool}: rapid gesture ${i+1} must commit exactly once`);
+    }
+  }
+  results.push('24 back-to-back brush, rectangle and ellipse gestures commit without a pointer-capture settling delay');
+
   // Exercise the unchanged tool repeatedly, including queued capture bookkeeping
-  // from the preceding press. Synthetic loss is injected; the drags are native.
+  // from the preceding press. Capture is only an input optimization: even a real
+  // release must keep receiving the gesture through the window-level fallback.
   await settings('#cc4477','18');
   await evaluate("document.querySelector('#popcan-canvas').addEventListener('pointerdown',e=>{window.__pcPointerId=e.pointerId})");
   const interruptedStroke = async (x,y,ex,ey,release=false) => {
@@ -210,12 +225,19 @@ try {
     }
     const before=await count(), pixels=await digest(), v=await camera();
     await interruptedStroke(v.x+220*v.scale,v.y+550*v.scale,v.x+340*v.scale,v.y+610*v.scale,true);
-    assert.equal(await count(),before,'Genuine capture loss cancels an unfinished gesture');
-    assert.equal(await digest(),pixels,'Cancellation restores all pixels');
-    await click('Undo (Ctrl or ⌘ Z)'); assert.equal(await count(),before-1);
-    await click('Redo (Ctrl or ⌘ Shift Z)'); assert.equal(await count(),before);
+    assert.equal(await count(),before+1,`${tool}: capture loss must not discard the active gesture`);
+    assert.notEqual(await digest(),pixels,'The fallback must commit pixels after capture loss');
+    await click('Undo (Ctrl or ⌘ Z)'); assert.equal(await count(),before);
+    await click('Redo (Ctrl or ⌘ Shift Z)'); assert.equal(await count(),before+1);
   }
-  results.push('24 uninterrupted native draws, 12 late capture-loss cases, genuine cancellation and one-step undo/redo');
+  await newCanvas(); await click('Brush (B)'); await screenStroke(420,430,720,470);
+  const paintedPixels=await digest(); await click('Eraser (E)');
+  await interruptedStroke(420,430,720,470,true);
+  const erasedAfterLoss=await digest();
+  assert.notEqual(erasedAfterLoss,paintedPixels,'Eraser must finish after capture loss');
+  await click('Undo (Ctrl or ⌘ Z)'); assert.equal(await digest(),paintedPixels);
+  await click('Redo (Ctrl or ⌘ Shift Z)'); assert.equal(await digest(),erasedAfterLoss);
+  results.push('24 uninterrupted native draws, 12 late capture-loss cases, brush/shape/eraser capture-loss fallback and one-step undo/redo');
 
   // A normal large brush previously stopped accepting input around 40 objects:
   // every mark was a separate raw bitmap and the 20 MiB live-object guard was
