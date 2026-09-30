@@ -35,6 +35,7 @@ export function PopcanContent() {
   const pageRef = useRef(null), topbarRef = useRef(null), viewRef = useRef({ x: 0, y: 0, scale: 1 });
   const touchesRef = useRef(new Map()), pinchRef = useRef(null), spaceRef = useRef(false);
   const pointerRef = useRef(null), cursorRef = useRef(null), inputRef = useRef(null), dialogRef = useRef(null);
+  const gestureHandlersRef = useRef(null);
   const aliveRef = useRef(false), readyRef = useRef(false), dirtyRef = useRef(false), titleRef = useRef('Untitled canvas');
   const saveTimer = useRef(0), saveVersion = useRef(0), saveChain = useRef(Promise.resolve());
   const [doc, setDoc] = useState(INITIAL_DOCUMENT), [ink, setInk] = useState(DEFAULT_INK);
@@ -333,7 +334,7 @@ export function PopcanContent() {
     if (pointer.tool === 'text' || pointer.tool === 'pick') return;
     if (pointer.tool === 'select') { safeDraw(() => engineRef.current.move(point(event), event.shiftKey)); return; }
     safeDraw(() => {
-      const events = event.nativeEvent.getCoalescedEvents?.() || [];
+      const events = (event.nativeEvent || event).getCoalescedEvents?.() || [];
       if (events.length) events.slice(-64).forEach((sample) => engineRef.current.move(point(sample), event.shiftKey));
       else engineRef.current.move(point(event), event.shiftKey);
     });
@@ -359,14 +360,38 @@ export function PopcanContent() {
       });
       pointerRef.current = null;
     }
-    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    const stage = stageRef.current;
+    if (stage?.hasPointerCapture?.(event.pointerId)) stage.releasePointerCapture(event.pointerId);
   };
-  const lostCapture = (event) => {
-    // Some devices dispatch a queued loss after this pointer has been captured
-    // for the next press. That event must not cancel the new gesture.
-    if (event.target !== event.currentTarget || event.currentTarget.hasPointerCapture(event.pointerId)) return;
-    end(event, true);
-  };
+  gestureHandlersRef.current = { start, move, end };
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return undefined;
+    const onPointerDown = (event) => gestureHandlersRef.current.start(event);
+    const onPointerMove = (event) => {
+      const active = pointerRef.current?.id === event.pointerId || touchesRef.current.has(event.pointerId) || pinchRef.current;
+      if (active && event.cancelable) event.preventDefault();
+      if (active || event.target === stage || stage.contains(event.target)) gestureHandlersRef.current.move(event);
+    };
+    const onPointerUp = (event) => gestureHandlersRef.current.end(event);
+    const onPointerCancel = (event) => gestureHandlersRef.current.end(event, true);
+    const onPointerLeave = () => { if (!pointerRef.current && cursorRef.current) cursorRef.current.style.opacity = '0'; };
+    // Pointer capture improves delivery but is not authoritative. Browsers and
+    // input drivers may release it between press and release; window listeners
+    // still own and finish the active gesture instead of discarding the mark.
+    stage.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointermove', onPointerMove, { capture: true, passive: false });
+    window.addEventListener('pointerup', onPointerUp, true);
+    window.addEventListener('pointercancel', onPointerCancel, true);
+    stage.addEventListener('pointerleave', onPointerLeave);
+    return () => {
+      stage.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('pointermove', onPointerMove, true);
+      window.removeEventListener('pointerup', onPointerUp, true);
+      window.removeEventListener('pointercancel', onPointerCancel, true);
+      stage.removeEventListener('pointerleave', onPointerLeave);
+    };
+  }, []);
   const addText = (event) => {
     event.preventDefault();
     try {
@@ -425,8 +450,7 @@ export function PopcanContent() {
           data-origin-x={doc.originX} data-origin-y={doc.originY} data-object-count={doc.objectCount || 0}
           data-compaction-count={doc.compactionCount || 0}
           style={{ backgroundColor: paper, '--pc-paper-ink': paper === PAPERS.midnight ? '#eeeaf0' : '#37323e' }}
-          onPointerDown={start} onPointerMove={move} onPointerUp={(event) => end(event)} onPointerCancel={(event) => end(event, true)}
-          onLostPointerCapture={lostCapture} onPointerLeave={() => { if (cursorRef.current) cursorRef.current.style.opacity = '0'; }} onContextMenu={(event) => event.preventDefault()}>
+          onContextMenu={(event) => event.preventDefault()}>
           <div className="pc-artboard" style={{ width: renderFrame.width, height: renderFrame.height,
             transform: `translate(${view.x + renderFrame.originX * scale}px, ${view.y + renderFrame.originY * scale}px) scale(${scale})` }}>
             <canvas ref={canvasRef} className="pc-paint" aria-hidden="true" />
