@@ -107,7 +107,7 @@ export function createAuthHandler({ env = process.env, storeFactory = createAuth
         await store.put('session', sessionToken, { version: SESSION_VERSION, subject: claims.sub, issuer: config.issuer,
           name, ...authentication, csrf: randomToken(), issuedAt, expiresAt: issuedAt + SESSION_SECONDS * 1000 }, SESSION_SECONDS);
         // No access token, refresh token, ID token or password is retained or sent to React.
-        return redirect(`${config.origin}/invoice-generator`, [cookie(LOGIN_COOKIE, '', 0), cookie(SESSION_COOKIE, sessionToken, SESSION_SECONDS)]);
+        return redirect(`${config.origin}/home`, [cookie(LOGIN_COOKIE, '', 0), cookie(SESSION_COOKIE, sessionToken, SESSION_SECONDS)]);
       }
       const session = await readAdminSession(request, config, store, now());
       if (session && request.headers.get('x-csrf-token') !== session.csrf) return authResponse({ error: 'invalid_csrf' }, 403);

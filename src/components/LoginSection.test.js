@@ -27,7 +27,7 @@ test('embeds login without a duplicate navigation, theme, main landmark, or docu
   expect(screen.queryByTestId('extra-navigation')).not.toBeInTheDocument();
   expect(container.querySelector('form')).toHaveAttribute('action', '/api/auth/login');
   expect(container.querySelector('form')).toHaveAttribute('method', 'post');
-  expect(screen.queryByRole('link', { name: /Open invoice/ })).not.toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: /Open your workspace/ })).not.toBeInTheDocument();
   unmount();
   expect(document.documentElement.style.cssText).toBe(before.html);
   expect(document.body.style.cssText).toBe(before.body);
@@ -48,7 +48,7 @@ test('session availability and authorization still control private links', () =>
   expect(screen.queryByRole('button', { name: /Continue to secure/ })).not.toBeInTheDocument();
   useAuth.mockReturnValue({ status: 'authenticated' });
   rerender(<AuthPage embedded />);
-  expect(screen.getByRole('link', { name: /Open invoice generator/ })).toHaveAttribute('href', '/invoice-generator');
+  expect(screen.getByRole('link', { name: /Open your workspace/ })).toHaveAttribute('href', '/home');
 });
 
 test.each([false, true])('account navigation uses section five without reloading (mobile=%s)', mobile => {

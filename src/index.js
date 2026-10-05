@@ -11,7 +11,7 @@ import './work-responsive.css';
 import './work-navigation-refinement.css';
 import './work-card-consistency.css';
 import './immersive-viewport.css';
-import SiteRouter from './SiteRouter';
+import SiteRouter, { resolveSiteView, SITE_VIEWS } from './SiteRouter';
 import { AuthProvider } from './contexts/AuthContext';
 import InteractionAccessibilityBridge from './components/InteractionAccessibilityBridge';
 import VisualRuntimeShellHost from './components/VisualRuntimeShellHost';
@@ -90,6 +90,9 @@ root.render(
   </>
 );
 
-initCoreWebVitals();
-initSectionTiming();
-initLongTaskObserver();
+// The authenticated launcher shares this shell, but does not report public telemetry.
+if (resolveSiteView(window.location.pathname) !== SITE_VIEWS.HOME) {
+  initCoreWebVitals();
+  initSectionTiming();
+  initLongTaskObserver();
+}

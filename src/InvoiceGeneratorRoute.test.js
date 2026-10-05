@@ -39,7 +39,7 @@ test("only authorization-aware controls advertise the invoice generator", () => 
   expect(read("middleware.js")).toContain("protectInvoiceRequest");
   expect(read("src/components/AuthNavControl.js")).toContain("signedIn &&");
   const directory = path.join(process.cwd(), "src/components");
-  fs.readdirSync(directory).filter((name) => name.endsWith(".js") && !name.includes(".test.") && !["InvoiceGeneratorPage.js", "AuthNavControl.js", "AuthPage.js"].includes(name)).forEach((name) => {
+  fs.readdirSync(directory).filter((name) => name.endsWith(".js") && !name.includes(".test.") && !["InvoiceGeneratorPage.js", "AuthNavControl.js", "AuthPage.js", "HomePage.js"].includes(name)).forEach((name) => {
     expect(read(`src/components/${name}`)).not.toMatch(/href(?:=|:)\s*["']\/invoice-generator/);
   });
 });

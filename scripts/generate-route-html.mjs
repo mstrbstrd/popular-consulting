@@ -188,9 +188,10 @@ writeRoute("orb", "orb");
 writeRoute("game", "game");
 writeRoute("ditherCanvas", "dither-canvas");
 writeRoute("invoiceGenerator", "invoice-generator");
+writeRoute("home", "home");
 writeRoute("login", "login");
 writeRoute("logout", "logout");
 
 console.log(
-  "Generated route-specific HTML metadata for /, /engineering, /work, /popcan, /orb, /game, /dither-canvas, /invoice-generator, /login, and /logout.",
+  "Generated route-specific HTML metadata for /, /engineering, /work, /popcan, /orb, /game, /dither-canvas, /invoice-generator, /home, /login, and /logout.",
 );

@@ -84,7 +84,7 @@ export default function AuthPage({ logoutPage = false, embedded = false }) {
       {status === 'unavailable' && <div className="auth-notice" role="status"><p>Sign-in is temporarily unavailable. Private tools remain locked.</p><button type="button" onClick={refresh}>Try again</button></div>}
       {!logoutPage && denied && !signedIn && <p className="auth-notice" role="alert">Use the approved administrator account and sign in with a passkey. You can retry an expired sign-in below.</p>}
       {!logoutPage && passkeyRequired && !signedIn && <div className="auth-notice" role="alert"><strong>Passkey verification incomplete.</strong><p>Choose Continue with a passkey in Auth0. Your workspace stays locked until it is verified.</p></div>}
-      {!logoutPage && signedIn && <a className="auth-primary" href="/invoice-generator">Open invoice generator <span aria-hidden="true">↗</span></a>}
+      {!logoutPage && signedIn && <a className="auth-primary" href="/home">Open your workspace <span aria-hidden="true">↗</span></a>}
       {!logoutPage && !signedIn && status !== 'unavailable' && status !== 'loading' && <form method="post" action="/api/auth/login" onSubmit={event => { event.preventDefault(); signIn(); }}><button className="auth-primary" type="submit" disabled={busy}>{busy ? 'Opening sign-in…' : 'Continue to secure sign-in'} <span aria-hidden="true">↗</span></button><p className="auth-note">Use your passkey in Auth0 to continue. Public account registration is not available.</p></form>}
       {!logoutPage && passkeyRequired && !signedIn && <details className="auth-help">
         <summary>Need help signing in?</summary>

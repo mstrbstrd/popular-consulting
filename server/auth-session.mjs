@@ -185,7 +185,7 @@ export function isPrivatePath(pathname) {
     // Normalize encoded separators/dot segments as well as ordinary routing paths.
     // The fixed base and one leading slash prevent protocol-relative host interpretation.
     const normalized = new URL(`/${path.replace(/\\/g, '/').replace(/^\/+/, '')}`, 'https://routing.invalid').pathname;
-    if (/^\/(?:invoice-generator|_private)(?:[\/;]|$)/i.test(normalized)) return true;
+    if (/^\/(?:home|invoice-generator|_private)(?:[\/;]|$)/i.test(normalized)) return true;
     const decoded = decodeURIComponent(path);
     if (decoded === path) return false;
     path = decoded;
@@ -209,7 +209,7 @@ export async function protectInvoiceRequest(request, { env = process.env, storeF
     if (!['GET', 'HEAD'].includes(request.method)) return authResponse({ error: 'method_not_allowed' }, 405, { Allow: 'GET, HEAD' });
     const session = await readAdminSession(request, config, storeFactory(config), now);
     if (!session) {
-      const page = /^\/invoice-generator(?:\/|$)/.test(url.pathname);
+      const page = /^\/(?:home|invoice-generator)(?:\/|$)/.test(url.pathname);
       return page ? new Response(null, { status: 303, headers: { ...PRIVATE_HEADERS, Location: `${config.origin}/login` } })
         : authResponse({ error: 'authentication_required' }, 401);
     }
