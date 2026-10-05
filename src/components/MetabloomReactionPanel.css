@@ -54,24 +54,29 @@
 }
 
 .orb-page .metabloom-reactions__panel {
-  position: absolute;
-  bottom: calc(100% + 0.8rem);
+  position: fixed;
+  inset: auto;
   left: 0;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
   width: min(40rem, calc(100vw - 3.2rem));
   max-height: min(56rem, calc(100dvh - 18rem));
+  margin: 0;
   padding: 0;
   overflow: hidden;
   isolation: isolate;
   border: 1px solid transparent;
   border-radius: var(--aetheris-radius-glass);
   background: var(--aetheris-glass-panel);
+  color: inherit;
   box-shadow: var(--aetheris-glass-specular), var(--aetheris-shadow),
     0 1.6rem 4.8rem var(--metabloom-chat-shadow);
   backdrop-filter: var(--aetheris-glass-blur);
   -webkit-backdrop-filter: var(--aetheris-glass-blur);
+}
+.orb-page .metabloom-reactions__panel::backdrop {
+  background: rgba(8, 8, 9, 0.12);
 }
 /* A masked spectral edge leaves the glass interior translucent. */
 .orb-page .metabloom-reactions__panel::before,
