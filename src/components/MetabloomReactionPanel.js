@@ -13,6 +13,7 @@ const MetabloomReactionPanel = ({ onReact, disabled = false, intensity: controll
   const popoverRef = React.useRef(null);
   const action = resolveMetabloomAction(selected);
   const close = React.useCallback(() => {
+    if (popoverRef.current?.open) popoverRef.current.close();
     setOpen(false);
     toggleRef.current?.focus({ preventScroll: true });
   }, []);
@@ -25,6 +26,9 @@ const MetabloomReactionPanel = ({ onReact, disabled = false, intensity: controll
     const navigation = document.querySelector(".nav-pill");
     const page = anchor.closest(".orb-page");
     if (page) page.dataset.reactionsOpen = "true";
+    // A native modal lives above transformed glass/composer layers and makes
+    // the controls underneath inert, including Safari's touch hit testing.
+    panel.showModal();
     let frame = 0;
     const position = () => {
       const bounds = anchor.getBoundingClientRect();
@@ -51,10 +55,11 @@ const MetabloomReactionPanel = ({ onReact, disabled = false, intensity: controll
       const preferredLeft = bounds.left + bounds.width / 2 > viewportLeft + viewportWidth / 2
         ? bounds.right - width : bounds.left;
       const left = Math.max(viewportLeft + leftGutter, Math.min(preferredLeft, viewportLeft + viewportWidth - width - rightGutter));
-      panel.style.left = `${left - bounds.left}px`;
-      panel.style.maxHeight = `${Math.max(0, compact ? viewportBottom - top : availableAbove)}px`;
-      panel.style.top = compact ? `${top - bounds.top}px` : "auto";
-      panel.style.bottom = compact ? "auto" : `${bounds.bottom - panelBottom}px`;
+      const maxHeight = Math.max(0, compact ? viewportBottom - top : availableAbove);
+      panel.style.left = `${left}px`;
+      panel.style.maxHeight = `${maxHeight}px`;
+      const height = Math.min(panel.getBoundingClientRect().height, maxHeight);
+      panel.style.top = `${compact ? top : panelBottom - height}px`;
     };
     const schedule = () => {
       window.cancelAnimationFrame(frame);
@@ -71,6 +76,7 @@ const MetabloomReactionPanel = ({ onReact, disabled = false, intensity: controll
     viewport?.addEventListener("resize", schedule);
     viewport?.addEventListener("scroll", schedule);
     return () => {
+      if (panel.open) panel.close();
       if (page) delete page.dataset.reactionsOpen;
       window.cancelAnimationFrame(frame);
       observer?.disconnect();
@@ -81,30 +87,8 @@ const MetabloomReactionPanel = ({ onReact, disabled = false, intensity: controll
   }, [open]);
 
   React.useEffect(() => {
-    if (!open) return undefined;
-    const onKeyDown = (event) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        close();
-      }
-    };
-    const onPointerDown = (event) => {
-      if (!panelRef.current?.contains(event.target)) setOpen(false);
-    };
-    document.addEventListener("keydown", onKeyDown);
-    document.addEventListener("pointerdown", onPointerDown);
-    return () => {
-      document.removeEventListener("keydown", onKeyDown);
-      document.removeEventListener("pointerdown", onPointerDown);
-    };
-  }, [open, close]);
-
-  React.useEffect(() => {
-    if (disabled) {
-      if (panelRef.current?.contains(document.activeElement)) toggleRef.current?.focus();
-      setOpen(false);
-    }
-  }, [disabled]);
+    if (disabled && popoverRef.current) close();
+  }, [disabled, close]);
 
   const play = (id) => {
     if (disabled) return;
@@ -116,9 +100,7 @@ const MetabloomReactionPanel = ({ onReact, disabled = false, intensity: controll
   };
 
   return (
-    <div className="metabloom-reactions" ref={panelRef} data-reaction-set="2" onBlur={(event) => {
-      if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget)) setOpen(false);
-    }}>
+    <div className="metabloom-reactions" ref={panelRef} data-reaction-set="2">
       <div className="metabloom-reactions__toolbar">
         <button ref={toggleRef} type="button" aria-expanded={open} aria-controls="metabloom-reaction-panel" onClick={() => setOpen(!open)}>
           Reactions <span aria-hidden="true">{open ? "−" : "+"}</span>
@@ -128,7 +110,17 @@ const MetabloomReactionPanel = ({ onReact, disabled = false, intensity: controll
         </button>
       </div>
       {open && (
-        <section ref={popoverRef} id="metabloom-reaction-panel" className="metabloom-reactions__panel" aria-label="Reaction studio">
+        <dialog ref={popoverRef} id="metabloom-reaction-panel" className="metabloom-reactions__panel" aria-label="Reaction studio" onClose={close} onCancel={(event) => {
+          event.preventDefault();
+          close();
+        }} onClick={(event) => {
+          if (event.target !== event.currentTarget) return;
+          const bounds = event.currentTarget.getBoundingClientRect();
+          // Dismiss on a completed backdrop click, never on pointerdown. The
+          // same gesture must not reach a newly uncovered demo or composer.
+          if (event.clientX < bounds.left || event.clientX > bounds.right
+            || event.clientY < bounds.top || event.clientY > bounds.bottom) close();
+        }}>
           <div className="metabloom-reactions__heading">
             <div><strong>Reactions</strong><p>A little body language for the conversation.</p></div>
             <button type="button" onClick={close} aria-label="Close reactions">
@@ -154,7 +146,7 @@ const MetabloomReactionPanel = ({ onReact, disabled = false, intensity: controll
             <p className="metabloom-reactions__score"><strong>{action.label}</strong><span>{action.beats.join(" · ")}</span></p>
             {disabled && <p className="metabloom-reactions__waiting">Available when the current reply finishes.</p>}
           </div>
-        </section>
+        </dialog>
       )}
     </div>
   );

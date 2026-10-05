@@ -5,6 +5,17 @@
 import '@testing-library/jest-dom';
 import { configureAxe } from 'jest-axe';
 
+// JSDOM has dialog elements but no modal lifecycle. Browser verification covers
+// top-layer hit testing, focus trapping and native background inertness.
+HTMLDialogElement.prototype.showModal = function () {
+  this.setAttribute('open', '');
+};
+HTMLDialogElement.prototype.close = function () {
+  if (!this.open) return;
+  this.removeAttribute('open');
+  this.dispatchEvent(new Event('close'));
+};
+
 // Configure axe with reasonable rule set for this project.
 // Disable rules that don't apply in JSDOM (e.g. color-contrast needs real CSS):
 configureAxe({

@@ -230,9 +230,17 @@ Enter still sends, Shift+Enter adds a line, and Ctrl/Cmd+Enter remains available
 touch devices with hardware keyboards. IME composition never submits a draft.
 
 The mobile reaction studio expands below navigation with a persistent close button
-and a scrollable body. The material selector yields its space while the studio is
-open or the keyboard is taking room. On short viewports, conversation demos remain
-available inside Reactions. These changes add no renderer, request, or storage path.
+and a scrollable body. It opens with `dialog.showModal()` in the browser's top
+layer, outside the compositing of its transformed composer ancestors. Coordinates
+are measured against the visible viewport, not the composer. Covered suggestions,
+the composer and navigation are natively inert until it closes, and native dialog
+focus containment keeps keyboard navigation inside the studio. Escape, the close
+button and a completed backdrop click restore focus to Reactions. Blur and
+pointer-down do not dismiss the card before a preview tap can finish.
+
+The material selector yields its space while the studio is open or the keyboard
+is taking room. On short viewports, conversation demos remain available inside
+Reactions. These changes add no renderer, request, or storage path.
 
 ### Chat and renderer
 
