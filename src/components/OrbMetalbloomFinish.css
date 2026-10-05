@@ -93,7 +93,7 @@
 }
 
 .orb-page__finish-selector {
-  position: fixed;
+  position: absolute;
   top: max(9.6rem, calc(env(safe-area-inset-top) + 8.5rem));
   right: var(--orb-finish-gutter);
   left: auto;
@@ -388,4 +388,43 @@
   .orb-page .metabloom-chat__composer button svg path {
     stroke: ButtonText;
   }
+}
+
+/* The expanded studio owns this space. Chrome must not cover its heading. */
+.orb-page[data-reactions-open="true"] .orb-page__finish-selector,
+.orb-page[data-keyboard-open="true"] .orb-page__finish-selector {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+@media (max-width: 720px) {
+  .orb-page[data-conversation-started="true"] .orb-page__finish-selector {
+    top: max(8.6rem, calc(env(safe-area-inset-top) + 7.6rem));
+  }
+  .orb-page__finish-selector { transition: none; }
+  .orb-page .orb-page__finish-option { font-size: 1.1rem; }
+  .orb-page__finish-label { font-size: 0.85rem; }
+  .orb-page[data-conversation-started="true"] .metabloom-chat__messages {
+    padding-top: max(15rem, calc(env(safe-area-inset-top) + 14rem));
+  }
+}
+.orb-page[data-keyboard-open="true"] {
+  --orb-message-top: max(8.6rem, calc(env(safe-area-inset-top) + 7.6rem));
+}
+/* Padding alone allows scrolled messages to pass behind the fixed controls.
+   Bound the scroll viewport itself between the top chrome and composer. */
+@media (max-width: 720px) {
+  .orb-page[data-conversation-started="true"] .metabloom-chat .metabloom-chat__messages {
+    inset: var(--orb-message-top, max(15rem, calc(env(safe-area-inset-top) + 14rem))) 0
+      calc(var(--orb-composer-height, 13.2rem) + max(1.2rem, env(safe-area-inset-bottom)) + 1.2rem);
+    padding-block: 0 1.2rem;
+    scroll-padding-block: 1.2rem;
+  }
+}
+.orb-page[data-compact-viewport="true"][data-conversation-started="true"] .metabloom-chat .metabloom-chat__messages,
+.orb-page[data-keyboard-open="true"] .metabloom-chat .metabloom-chat__messages {
+  inset: var(--orb-message-top, max(15rem, calc(env(safe-area-inset-top) + 14rem))) 0
+    calc(var(--orb-composer-height, 13.2rem) + max(1.2rem, env(safe-area-inset-bottom)) + 1.2rem);
+  padding-block: 0 1.2rem;
+  scroll-padding-block: 1.2rem;
 }

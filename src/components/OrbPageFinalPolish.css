@@ -286,6 +286,7 @@
 .orb-page .metabloom-chat__message { max-width: min(62rem, 88%); }
 .orb-page .metabloom-chat__conversation-tools {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
   gap: 0.8rem;
@@ -385,11 +386,79 @@
   bottom: auto;
   height: var(--orb-viewport-height, 100dvh);
 }
-.orb-page .metabloom-chat__composer-area { position: absolute; }
+.orb-page .metabloom-chat__composer-area {
+  position: absolute;
+  left: calc((100% + max(1.2rem, var(--orb-safe-left, 0px)) - max(1.2rem, var(--orb-safe-right, 0px))) / 2);
+  max-width: calc(100% - max(1.2rem, var(--orb-safe-left, 0px)) - max(1.2rem, var(--orb-safe-right, 0px)));
+}
+.orb-page .metabloom-chat__messages {
+  padding-left: max(var(--orb-chat-gutter), var(--orb-safe-left, 0px));
+  padding-right: max(var(--orb-chat-gutter), var(--orb-safe-right, 0px));
+}
 .orb-page .metabloom-chat__suggestions { position: absolute; }
 .orb-page .metabloom-chat[data-agent-activity="deep-research"] .metabloom-chat__presence,
 .orb-page .metabloom-chat[data-agent-activity="analysis"] .metabloom-chat__presence {
   visibility: visible;
   opacity: 1;
   transform: translate3d(-50%, 0, 0);
+}
+
+/* Mobile chat keeps controls reachable, text readable, and chrome out of the
+   message area. Status remains available to assistive technology. */
+@media (max-width: 720px) {
+  .orb-page .metabloom-chat__presence {
+    width: 1px;
+    height: 1px;
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .orb-page .metabloom-chat__bubble > p { font-size: 1.6rem; line-height: 1.55; }
+  .orb-page .metabloom-chat__message { max-width: 94%; }
+  .orb-page[data-conversation-started="false"] .metabloom-chat__conversation-tools {
+    position: static;
+    justify-content: flex-end;
+  }
+  .orb-page .metabloom-chat__suggestions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-height: max(0px, calc(50% - var(--orb-composer-height, 5.6rem) / 2 - 5.6rem - env(safe-area-inset-bottom)));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+  }
+  .orb-page .metabloom-chat__suggestions button { font-size: 1.2rem; }
+  .orb-page .metabloom-chat__composer-area {
+    width: calc(100% - max(1.2rem, env(safe-area-inset-left)) - max(1.2rem, env(safe-area-inset-right)));
+  }
+  .orb-page .metabloom-chat__composer-help { font-size: 1.1rem; }
+}
+
+/* visualViewport can shrink without changing CSS media-query height. These
+   attributes also cover short landscape windows and restore when space returns. */
+.orb-page[data-compact-viewport="true"] .metabloom-chat__suggestions,
+.orb-page[data-keyboard-open="true"] .metabloom-chat__suggestions,
+.orb-page[data-compact-viewport="true"] .metabloom-chat__composer-help,
+.orb-page[data-keyboard-open="true"] .metabloom-chat__composer-help {
+  display: none;
+}
+.orb-page[data-compact-viewport="true"] .metabloom-chat__presence,
+.orb-page[data-keyboard-open="true"] .metabloom-chat__presence {
+  visibility: hidden;
+}
+.orb-page[data-compact-viewport="true"] .metabloom-chat__composer-area,
+.orb-page[data-keyboard-open="true"] .metabloom-chat__composer-area {
+  top: calc(100% - max(1.2rem, env(safe-area-inset-bottom)));
+  transform: translate3d(-50%, -100%, 0);
+  transition: none;
+}
+.orb-page[data-compact-viewport="true"] .metabloom-chat__conversation-tools,
+.orb-page[data-keyboard-open="true"] .metabloom-chat__conversation-tools {
+  position: static;
+}
+.orb-page[data-compact-viewport="true"] .metabloom-chat__composer textarea,
+.orb-page[data-keyboard-open="true"] .metabloom-chat__composer textarea {
+  max-height: clamp(4.6rem, calc(var(--orb-viewport-height, 100dvh) * 0.22), 11.6rem);
 }

@@ -417,6 +417,8 @@ const OrbSection = ({
   const [researchPhase, setResearchPhase] = React.useState(null);
   const [readingEarlier, setReadingEarlier] = React.useState(false);
   const [composerFocused, setComposerFocused] = React.useState(false);
+  const [touchComposer, setTouchComposer] = React.useState(() =>
+    Boolean(window.matchMedia?.("(hover: none) and (pointer: coarse)").matches));
   const [activeReaction, setActiveReaction] = React.useState(null);
   const [expressiveness, setExpressiveness] = React.useState(0.8);
   const expressivenessRef = React.useRef(expressiveness);
@@ -1234,14 +1236,25 @@ const OrbSection = ({
         event.key !== "Enter"
         || event.shiftKey
         || event.nativeEvent?.isComposing
+        || event.nativeEvent?.keyCode === 229
+        || (touchComposer && !event.ctrlKey && !event.metaKey)
       ) {
         return;
       }
       event.preventDefault();
       sendMessage(draft);
     },
-    [draft, sendMessage],
+    [draft, sendMessage, touchComposer],
   );
+
+  React.useEffect(() => {
+    const media = window.matchMedia?.("(hover: none) and (pointer: coarse)");
+    if (!media) return undefined;
+    const update = () => setTouchComposer(media.matches);
+    update();
+    media.addEventListener?.("change", update);
+    return () => media.removeEventListener?.("change", update);
+  }, []);
 
   React.useEffect(() => {
     if (isActive) return;
@@ -1306,21 +1319,44 @@ const OrbSection = ({
     return () => observer.disconnect();
   }, [scrollToLatest]);
 
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     const viewport = window.visualViewport;
-    if (!viewport) return undefined;
+    const section = sectionRef.current;
+    const page = section?.closest(".orb-page") || section;
+    if (!page) return undefined;
+    let frame = 0;
     const resize = () => {
-      if (!sectionRef.current || viewport.scale > 1.05) return;
-      sectionRef.current.style.setProperty("--orb-viewport-height", `${viewport.height}px`);
-      sectionRef.current.style.setProperty("--orb-viewport-top", `${viewport.offsetTop}px`);
+      // Follow the keyboard and browser chrome, never counteract pinch zoom.
+      if (viewport?.scale > 1.05) return;
+      const height = viewport?.height || window.innerHeight;
+      page.style.setProperty("--orb-viewport-height", `${height}px`);
+      page.style.setProperty("--orb-viewport-top", `${viewport?.offsetTop || 0}px`);
+      page.dataset.compactViewport = String(height < 520);
+      page.dataset.keyboardOpen = String(document.activeElement === composerRef.current
+        && (window.innerHeight - height > 100 || height < 520));
       if (followLatestRef.current) scrollToLatest();
     };
+    const schedule = () => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(resize);
+    };
     resize();
-    viewport.addEventListener("resize", resize);
-    viewport.addEventListener("scroll", resize);
+    window.addEventListener("resize", schedule);
+    viewport?.addEventListener("resize", schedule);
+    viewport?.addEventListener("scroll", schedule);
+    section.addEventListener("focusin", schedule);
+    section.addEventListener("focusout", schedule);
     return () => {
-      viewport.removeEventListener("resize", resize);
-      viewport.removeEventListener("scroll", resize);
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", schedule);
+      viewport?.removeEventListener("resize", schedule);
+      viewport?.removeEventListener("scroll", schedule);
+      section.removeEventListener("focusin", schedule);
+      section.removeEventListener("focusout", schedule);
+      page.style.removeProperty("--orb-viewport-height");
+      page.style.removeProperty("--orb-viewport-top");
+      delete page.dataset.compactViewport;
+      delete page.dataset.keyboardOpen;
     };
   }, [scrollToLatest]);
 
@@ -1706,6 +1742,7 @@ const OrbSection = ({
                 onKeyDown={handleComposerKeyDown}
                 placeholder="Message Metabloom"
                 rows={1}
+                enterKeyHint={touchComposer ? "enter" : "send"}
                 maxLength={MAX_USER_MESSAGE_CHARS}
               />
               {pending && draft.trim() && (
@@ -1736,7 +1773,7 @@ const OrbSection = ({
               </button>
             </form>
             <p id="metabloom-composer-help" className="metabloom-chat__composer-help">
-              {conversationStarted ? "Enter to send · Shift + Enter for a new line" : "Say what’s on your mind, or try a conversation below."}
+              {conversationStarted ? touchComposer ? "Return for a new line · Tap ↑ to send" : "Enter to send · Shift + Enter for a new line" : "Say what’s on your mind, or try a conversation below."}
             </p>
           </div>
         </div>

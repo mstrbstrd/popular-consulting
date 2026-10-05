@@ -275,7 +275,7 @@ describe("conversation presence and reading control", () => {
   });
 });
 
-test("the keyboard viewport is bounded, respects pinch zoom, and releases listeners", () => {
+test("the keyboard viewport is bounded, respects pinch zoom, and releases listeners", async () => {
   const original = window.visualViewport;
   const viewport = new EventTarget();
   Object.assign(viewport, { height: 420, offsetTop: 15, scale: 1 });
@@ -289,9 +289,11 @@ test("the keyboard viewport is bounded, respects pinch zoom, and releases listen
     viewport.height = 200;
     viewport.scale = 2;
     viewport.dispatchEvent(new Event("resize"));
+    await act(async () => { await new Promise(resolve => window.requestAnimationFrame(resolve)); });
     expect(section.style.getPropertyValue("--orb-viewport-height")).toBe("420px");
     viewport.scale = 1;
     viewport.dispatchEvent(new Event("resize"));
+    await act(async () => { await new Promise(resolve => window.requestAnimationFrame(resolve)); });
     expect(section.style.getPropertyValue("--orb-viewport-height")).toBe("200px");
     unmount();
     expect(remove).toHaveBeenCalledWith("resize", expect.any(Function));

@@ -1,9 +1,12 @@
 .orb-page {
+  --orb-safe-left: env(safe-area-inset-left, 0px);
+  --orb-safe-right: env(safe-area-inset-right, 0px);
+  --orb-safe-bottom: env(safe-area-inset-bottom, 0px);
   position: fixed;
-  inset: 0;
+  inset: var(--orb-viewport-top, 0px) 0 auto;
+  height: var(--orb-viewport-height, 100dvh);
   min-width: 0;
-  min-height: 100vh;
-  min-height: 100dvh;
+  min-height: 0;
   overflow: hidden;
   background: var(--aetheris-panel);
   color: var(--aetheris-ink);
@@ -15,6 +18,9 @@
 .orb-page *::after {
   box-sizing: border-box;
 }
+
+/* Keep navigation in the same visible viewport as the chat on mobile Safari. */
+.orb-page .nav-header { position: absolute; }
 
 .orb-page__skip {
   position: fixed;
