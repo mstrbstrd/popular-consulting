@@ -5,7 +5,7 @@ import "./MetabloomReactionPanel.css";
 const MetabloomReactionPanel = ({ onReact, disabled = false }) => {
   const [open, setOpen] = React.useState(false);
   const [selected, setSelected] = React.useState("curious");
-  const [intensity, setIntensity] = React.useState(0.65);
+  const [intensity, setIntensity] = React.useState(0.8);
   const toggleRef = React.useRef(null);
   const panelRef = React.useRef(null);
   const action = resolveMetabloomAction(selected);
