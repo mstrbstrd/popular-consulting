@@ -290,20 +290,6 @@
   align-items: center;
   gap: 0.8rem;
 }
-.orb-page .metabloom-chat__conversation-tools .metabloom-reactions {
-  position: relative;
-  inset: auto;
-  z-index: 5;
-  font-size: 1.2rem;
-}
-.orb-page .metabloom-chat__conversation-tools .metabloom-reactions__panel {
-  top: auto;
-  bottom: calc(100% + 0.8rem);
-  right: auto;
-  left: 0;
-  max-height: min(48rem, max(8rem, calc(var(--orb-viewport-height, 100dvh) - 25rem)));
-  background: var(--aetheris-panel-raised);
-}
 .orb-page .metabloom-chat .metabloom-reactions .metabloom-chat__stream-option {
   position: static;
   margin-top: 1rem;
@@ -381,10 +367,6 @@
   bottom: calc(100% + 0.8rem);
   right: 0;
 }
-.orb-page[data-conversation-started="false"] .metabloom-reactions__panel {
-  left: auto;
-  right: 0;
-}
 .orb-page[data-conversation-started="false"] .metabloom-chat__composer-help {
   position: absolute;
   top: calc(100% + 0.4rem);
@@ -405,9 +387,6 @@
 }
 .orb-page .metabloom-chat__composer-area { position: absolute; }
 .orb-page .metabloom-chat__suggestions { position: absolute; }
-.orb-page[data-conversation-started="false"] .metabloom-chat__conversation-tools .metabloom-reactions__panel {
-  max-height: max(8rem, calc(var(--orb-viewport-height, 100dvh) / 2 - 12rem));
-}
 .orb-page .metabloom-chat[data-agent-activity="deep-research"] .metabloom-chat__presence,
 .orb-page .metabloom-chat[data-agent-activity="analysis"] .metabloom-chat__presence {
   visibility: visible;

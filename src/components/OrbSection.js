@@ -1659,6 +1659,9 @@ const OrbSection = ({
                       {METABLOOM_REACTION_RECIPES.map((recipe) => (
                         <button key={recipe.id} type="button" disabled={pending || !isActive} onClick={() => { if (toolReact({ emote: recipe.id })) close(); }} title={recipe.description}>{recipe.label}</button>
                       ))}
+                    </div>
+                    <div className="metabloom-reactions__recipes" role="group" aria-label="Scene previews">
+                      <strong>Scene previews</strong>
                       <button type="button" disabled={pending || !isActive} onClick={() => { previewResearchScene(); close(); }}>Preview research scene</button>
                       <button type="button" disabled={pending || !isActive} title="Part Metabloom to reveal the Forward Pass neural-network visualization" onClick={() => { previewUnderHood(); close(); }}>Preview under the hood</button>
                     </div>
