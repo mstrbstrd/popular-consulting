@@ -973,11 +973,11 @@ const OrbSection = ({
 
   const previewResearchScene = React.useCallback(() => {
     if (stateRef.current?.pending || !isActive) return;
-    reactionPlayer.cancel();
-    setActiveReaction(null);
+    // Match the hood preview: retire old gestures and resume a paused field.
+    performAction({ action: "reform", intensity: 0, talking: false }, { pulse: false });
     setActivity("deep-research", true);
     activityPreviewTimerRef.current = window.setTimeout(completeActivity, 4000);
-  }, [completeActivity, isActive, reactionPlayer, setActivity]);
+  }, [completeActivity, isActive, performAction, setActivity]);
 
   const receiveModelResponse = React.useCallback((payload, options = {}) => {
     const expectedRequestId = options?.requestId;

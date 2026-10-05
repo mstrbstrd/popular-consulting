@@ -204,6 +204,17 @@ When no `window.__metabloomRequest` adapter and no event listener supplies a res
 
 The preview passes through the same parser as an external model response. It does not bypass the schema or action limits.
 
+Scene previews in Reactions run locally without a model request. Both reset prior
+gestures and resume a paused field. Research blends to Tidal Weave, shows the diving
+and surfacing cues, then returns; under the hood traces, opens and closes the seam.
+Their transitions use elapsed presentation time independently of the fluid
+simulation's capped steps, so a slow frame cannot stretch the reveal beyond its
+phase timer. Reduced motion still displays settled scenes without animation.
+
+`?graphics=css` prevents the field from creating a WebGL context. This path and
+WebGL failures retain the scene crossfade, a CSS weave study, and the opening
+network aperture in the same field, with no additional renderer.
+
 ## Runtime invariants
 
 ### Mobile layout and input

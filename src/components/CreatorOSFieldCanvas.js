@@ -10,6 +10,7 @@ import {
   getDitherCanvasSize,
 } from "../utils/ditherCanvasRuntime";
 import { isMobileTier } from "../utils/deviceTier";
+import { shouldAttemptWebGL } from "../utils/graphicsPolicy";
 import {
   CREATOROS_FIELD_FRAGMENT_SHADER,
   CREATOROS_FIELD_PAINT_FRAGMENT_SHADER,
@@ -697,6 +698,11 @@ const CreatorOSFieldCanvas = ({
     const root = rootRef.current;
     const canvas = canvasRef.current;
     if (!root || !canvas) return undefined;
+    if (!shouldAttemptWebGL) {
+      setFallback(true);
+      onFieldStateChangeRef.current?.("fallback");
+      return undefined;
+    }
 
     let gl;
     let displayProgram;
@@ -1267,12 +1273,14 @@ const CreatorOSFieldCanvas = ({
       return true;
     };
 
-    const simulate = (delta, now) => {
+    const simulate = (delta, now, presentationDelta) => {
       beginModeTransition(modeRef.current);
       if (activityScenes) {
         sceneTransition.target(modeRef.current);
-        sceneTransition.advance(delta);
-        hoodValues = hoodTransition.sample(underHoodPhaseRef.current, delta);
+        // Presentation follows elapsed time, like the preview's phase timers.
+        // Only the fluid physics use the capped step on slower devices.
+        sceneTransition.advance(presentationDelta);
+        hoodValues = hoodTransition.sample(underHoodPhaseRef.current, presentationDelta);
       }
       const avatarRestarted = applyMetabloomAvatarRestart();
       const avatarDuration = metabloomAvatarDurationRef.current;
@@ -1774,9 +1782,10 @@ const CreatorOSFieldCanvas = ({
       }
 
       const restarted = applyRestart();
-      const delta = restarted
+      const presentationDelta = restarted
         ? 0
-        : Math.min(deltaMs / 1000, 0.1);
+        : Math.max(0, deltaMs / 1000);
+      const delta = Math.min(presentationDelta, 0.1);
       const paintBrushPending =
         isMorphogenPaintActive()
         && (brush.down || brush.pending);
@@ -1792,7 +1801,7 @@ const CreatorOSFieldCanvas = ({
           INTRO_DURATION_SECONDS,
           introElapsed + delta,
         );
-        simulate(delta, performance.now());
+        simulate(delta, performance.now(), presentationDelta);
         advanceReaction();
       } else {
         currentMode = modeRef.current;

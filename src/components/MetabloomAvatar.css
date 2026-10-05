@@ -117,6 +117,19 @@
 .metabloom-avatar .creatoros-field-shell.is-fallback::after {
   transition: opacity 1.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
+/* Keep the research study recognizable when WebGL is unavailable. */
+.metabloom-avatar .creatoros-field-shell.is-fallback::before {
+  background:
+    repeating-linear-gradient(164deg, transparent 0 4.1rem, rgba(226, 255, 249, 0.6) 4.25rem 4.65rem, transparent 4.8rem 8.7rem),
+    repeating-linear-gradient(16deg, transparent 0 5.1rem, rgba(0, 190, 181, 0.34) 5.25rem 5.65rem, transparent 5.8rem 9.9rem),
+    linear-gradient(145deg, #bdfcf0 0%, #45dfd0 49%, #0aa3ad 100%);
+}
+[data-theme="dark"] .metabloom-avatar .creatoros-field-shell.is-fallback::before {
+  background:
+    repeating-linear-gradient(164deg, transparent 0 4.1rem, rgba(185, 255, 241, 0.32) 4.25rem 4.65rem, transparent 4.8rem 8.7rem),
+    repeating-linear-gradient(16deg, transparent 0 5.1rem, rgba(0, 190, 181, 0.24) 5.25rem 5.65rem, transparent 5.8rem 9.9rem),
+    linear-gradient(145deg, #021a22 0%, #005a66 49%, #00a99f 100%);
+}
 .metabloom-avatar .creatoros-field-shell.is-fallback .creatoros-field-fallback {
   transition:
     opacity 1.2s cubic-bezier(0.4, 0, 0.2, 1),

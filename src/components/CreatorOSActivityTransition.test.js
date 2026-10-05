@@ -4,9 +4,12 @@ import CreatorOSFieldCanvas, { specializeCreatorOSFieldFragmentShader } from "./
 import { CREATOROS_FIELD_FRAGMENT_SHADER } from "./CreatorOSFieldShader";
 import { createDitherCanvasContext, createDitherCanvasCadence } from "../utils/ditherCanvasRuntime";
 
-let mockGl, mockFrame, mockCadence, mockMotion;
+let mockGl, mockFrame, mockCadence, mockMotion, mockWebGLAllowed;
 const originalMatchMedia = window.matchMedia;
 jest.mock("../utils/deviceTier", () => ({ isMobileTier: false }));
+jest.mock("../utils/graphicsPolicy", () => ({
+  get shouldAttemptWebGL() { return mockWebGLAllowed; },
+}));
 jest.mock("../utils/ditherCanvasRuntime", () => ({
   createDitherCanvasContext: jest.fn(),
   createDitherCanvasCadence: jest.fn(),
@@ -20,6 +23,7 @@ const field = (mode, paused = false) => <CreatorOSFieldCanvas mode={mode} metabl
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockWebGLAllowed = true;
   mockGl = new Proxy({
     createShader: jest.fn(() => ({})), createProgram: jest.fn(() => ({})),
     createBuffer: jest.fn(() => ({})), createTexture: jest.fn(() => ({})),
@@ -39,6 +43,35 @@ beforeEach(() => {
   });
 });
 afterEach(() => { cleanup(); jest.restoreAllMocks(); window.matchMedia = originalMatchMedia; });
+
+test("slow frames cannot stretch scene previews beyond their presentation timers", () => {
+  const { rerender } = render(field(0));
+  frame();
+  rerender(field(1));
+  act(() => mockFrame({ deltaMs: 600 }));
+  expect(uniform("uniform3f", "u_activityWeights")).toEqual([0.5, 0.5, 0]);
+  act(() => mockFrame({ deltaMs: 600 }));
+  expect(uniform("uniform3f", "u_activityWeights")).toEqual([0, 1, 0]);
+  rerender(<CreatorOSFieldCanvas metabloomSceneTransitions metabloomAvatarEnabled metabloomUnderHoodPhase="open" />);
+  const time = uniform("uniform1f", "u_time")[0];
+  act(() => mockFrame({ deltaMs: 1700 }));
+  expect(uniform("uniform2f", "u_underHood")).toEqual([1, 1]);
+  // The fluid simulation still advances in bounded steps after a stall.
+  expect(uniform("uniform1f", "u_time")[0] - time).toBeLessThanOrEqual(0.101);
+  rerender(<CreatorOSFieldCanvas metabloomSceneTransitions metabloomAvatarEnabled metabloomUnderHoodPhase="closing" />);
+  act(() => mockFrame({ deltaMs: 1600 }));
+  uniform("uniform2f", "u_underHood").forEach((value) => expect(value).toBeCloseTo(0));
+});
+
+test("CSS graphics policy preserves scene changes without creating a WebGL context", () => {
+  mockWebGLAllowed = false;
+  const { container, rerender } = render(field(0));
+  expect(container.querySelector(".creatoros-field-fallback")).toBeInTheDocument();
+  rerender(field(1));
+  expect(container.querySelector(".creatoros-field-shell")).toHaveClass("is-fallback", "creatoros-field-mode-1");
+  expect(createDitherCanvasContext).not.toHaveBeenCalled();
+  expect(createDitherCanvasCadence).not.toHaveBeenCalled();
+});
 
 test("Orb theme changes preserve one program, clock, canvas and cadence", () => {
   const { container, rerender, unmount } = render(field(0));

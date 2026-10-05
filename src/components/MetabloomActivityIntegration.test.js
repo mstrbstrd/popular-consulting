@@ -229,6 +229,17 @@ const previewHood = () => {
   fireEvent.click(screen.getByRole("button", { name: "Preview under the hood" }));
 };
 
+test("research preview resumes a paused field and clears speech", async () => {
+  render(<OrbSection />);
+  act(() => window.__orbReact({ paused: true, talking: true }));
+  fireEvent.click(screen.getByRole("button", { name: /Reactions/ }));
+  fireEvent.click(screen.getByRole("button", { name: "Preview research scene" }));
+  expect(mockAvatar).toMatchObject({ paused: false, talking: false, activityTheme: "tidal-weave" });
+  await tick(2000);
+  expect(window.__orbState().sequenceId).toBeNull();
+  expect(mockAvatar.activityTheme).toBe("tidal-weave");
+});
+
 test("under the hood traces, opens, holds and seals without adding a message or requesting a model", async () => {
   const provider = jest.fn();
   window.__metabloomRequest = provider;
