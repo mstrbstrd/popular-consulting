@@ -2,6 +2,8 @@ import React from "react";
 import { useThemeMode } from "../contexts/ThemeContext";
 import MetabloomAvatar from "./MetabloomAvatar";
 import MetabloomReactionPanel from "./MetabloomReactionPanel";
+import MetabloomResearchStatus from "./MetabloomResearchStatus";
+import { METABLOOM_SCENE_TRANSITION_SECONDS } from "./metabloomSceneTransition";
 import {
   METABLOOM_ACTIONS,
   METABLOOM_ACTION_IDS,
@@ -52,6 +54,7 @@ const MAX_CHAT_MESSAGES = 24;
 const MAX_HISTORY_MESSAGES = 12;
 const RESPONSE_TIMEOUT_MS = 30000;
 const MAX_ACTIVITY_TIMEOUT_MS = 300000;
+const RESEARCH_SURFACING_LEAD_MS = 650;
 const MAX_TOOL_SEQUENCE_ID_CHARS = 48;
 const TOOL_SEQUENCE_ID_PATTERN = /^[a-z][a-z0-9-]*$/;
 const TOOL_EXPRESSION_KEYS = new Set([
@@ -405,8 +408,10 @@ const OrbSection = ({
   const reactionPlayerRef = React.useRef(null);
   const thinkingTimerRef = React.useRef(0);
   const activityPreviewTimerRef = React.useRef(0);
+  const activityReturnTimerRef = React.useRef(0);
   const [activityId, setActivityId] = React.useState("idle");
   const [activityPreview, setActivityPreview] = React.useState(false);
+  const [researchPhase, setResearchPhase] = React.useState(null);
   const [readingEarlier, setReadingEarlier] = React.useState(false);
   const [composerFocused, setComposerFocused] = React.useState(false);
   const [activeReaction, setActiveReaction] = React.useState(null);
@@ -444,6 +449,7 @@ const OrbSection = ({
   messagesRef.current = messages;
   stateRef.current = {
     activity: activityId,
+    researchPhase,
     theme: METABLOOM_ACTIVITIES[activityId].theme,
     action: activeAction.id,
     emote: emoteId,
@@ -483,12 +489,39 @@ const OrbSection = ({
   const setActivity = React.useCallback((id, preview = false) => {
     window.clearTimeout(activityPreviewTimerRef.current);
     activityPreviewTimerRef.current = 0;
-    updateStateSnapshot({ activity: id, theme: METABLOOM_ACTIVITIES[id].theme });
+    window.clearTimeout(activityReturnTimerRef.current);
+    activityReturnTimerRef.current = 0;
+    const phase = id === "deep-research" ? "diving" : null;
+    updateStateSnapshot({ activity: id, theme: METABLOOM_ACTIVITIES[id].theme, researchPhase: phase });
     if (mountedRef.current) {
       setActivityId(id);
       setActivityPreview(preview);
+      setResearchPhase(phase);
     }
   }, [updateStateSnapshot]);
+
+  const completeActivity = React.useCallback(() => {
+    if (stateRef.current?.researchPhase === "surfacing") return;
+    if (stateRef.current?.activity !== "deep-research" || document.hidden) {
+      setActivity("idle");
+      return;
+    }
+    window.clearTimeout(activityPreviewTimerRef.current);
+    activityPreviewTimerRef.current = 0;
+    updateStateSnapshot({ researchPhase: "surfacing" });
+    setResearchPhase("surfacing");
+    // Give the exit cue a readable lead, then retain it through the scene blend.
+    // Response text and its reactions never wait for this presentation timer.
+    activityReturnTimerRef.current = window.setTimeout(() => {
+      updateStateSnapshot({ activity: "idle", theme: METABLOOM_ACTIVITIES.idle.theme });
+      setActivityId("idle");
+      if (document.hidden || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+        setActivity("idle");
+      } else {
+        activityReturnTimerRef.current = window.setTimeout(() => setActivity("idle"), METABLOOM_SCENE_TRANSITION_SECONDS * 1000);
+      }
+    }, RESEARCH_SURFACING_LEAD_MS);
+  }, [setActivity, updateStateSnapshot]);
 
   const cancelResponse = React.useCallback((reason = "interrupted") => {
     setActivity("idle");
@@ -836,7 +869,7 @@ const OrbSection = ({
     const session = createMetabloomReplySession({
       allowMultiple,
       onEmote: (emote) => {
-        setActivity("idle");
+        completeActivity();
         window.clearTimeout(thinkingTimerRef.current);
         thinkingTimerRef.current = 0;
         const index = session.snapshot().segments.length - 1;
@@ -866,13 +899,13 @@ const OrbSection = ({
     }, 650);
     previewTimerRef.current = window.setTimeout(() => failReply(session), RESPONSE_TIMEOUT_MS);
     return session;
-  }, [appendMessage, cancelResponse, clearSequence, failReply, performAction, reactionPlayer, publishMessages, setActivity, updateStateSnapshot]);
+  }, [appendMessage, cancelResponse, clearSequence, completeActivity, failReply, performAction, reactionPlayer, publishMessages, updateStateSnapshot]);
 
   const finishReply = React.useCallback((session, payload) => {
     if (replyRef.current !== session || session.closed) return false;
     try {
       session.finish(payload);
-      setActivity("idle");
+      completeActivity();
       window.clearTimeout(previewTimerRef.current);
       previewTimerRef.current = 0;
       activeRequestRef.current = null;
@@ -882,7 +915,7 @@ const OrbSection = ({
       setPending(false);
       return true;
     } catch { return failReply(session); }
-  }, [failReply, setActivity, updateStateSnapshot]);
+  }, [completeActivity, failReply, updateStateSnapshot]);
 
   const reportActivity = React.useCallback((requestId, event) => {
     const request = activeRequestRef.current;
@@ -894,22 +927,23 @@ const OrbSection = ({
       reactionPlayer.cancel();
       setActiveReaction(null);
     }
-    setActivity(activity.state === "running" ? activity.activity : "idle");
+    if (activity.state === "running") setActivity(activity.activity);
+    else completeActivity();
     window.clearTimeout(previewTimerRef.current);
     // Long work has an absolute five-minute ceiling. Heartbeats cannot extend it.
     const remaining = Math.max(0, request.startedAt + MAX_ACTIVITY_TIMEOUT_MS - Date.now());
     const timeout = activity.state === "running" ? remaining : Math.min(RESPONSE_TIMEOUT_MS, remaining);
     previewTimerRef.current = window.setTimeout(() => failReply(request.session), timeout);
     return true;
-  }, [failReply, reactionPlayer, setActivity]);
+  }, [completeActivity, failReply, reactionPlayer, setActivity]);
 
   const previewResearchScene = React.useCallback(() => {
     if (stateRef.current?.pending || !isActive) return;
     reactionPlayer.cancel();
     setActiveReaction(null);
     setActivity("deep-research", true);
-    activityPreviewTimerRef.current = window.setTimeout(() => setActivity("idle"), 4000);
-  }, [isActive, reactionPlayer, setActivity]);
+    activityPreviewTimerRef.current = window.setTimeout(completeActivity, 4000);
+  }, [completeActivity, isActive, reactionPlayer, setActivity]);
 
   const receiveModelResponse = React.useCallback((payload, options = {}) => {
     const expectedRequestId = options?.requestId;
@@ -1215,7 +1249,7 @@ const OrbSection = ({
   React.useLayoutEffect(() => {
     // Never move the whole page or pull a reader away from an earlier reply.
     if (followLatestRef.current) scrollToLatest();
-  }, [messages, pending, scrollToLatest]);
+  }, [messages, pending, researchPhase, scrollToLatest]);
 
   React.useLayoutEffect(() => {
     const input = composerRef.current;
@@ -1406,7 +1440,7 @@ const OrbSection = ({
   }, []);
 
   const hasStreamingReply = messages.some((message) => message.status === "streaming");
-  const statusText = activityId !== "idle"
+  const statusText = researchPhase === "surfacing" ? "Surfacing..." : activityId !== "idle"
     ? (activityPreview ? "Research scene preview" : METABLOOM_ACTIVITIES[activityId].label)
     : pending
     ? (hasStreamingReply ? "Responding" : "Thinking")
@@ -1419,6 +1453,8 @@ const OrbSection = ({
           : activeReaction
             ? resolveMetabloomEmote(activeReaction.emote)?.label
             : composerFocused ? "Listening" : "Here with you";
+  const researchStatus = researchPhase ? <MetabloomResearchStatus phase={researchPhase} preview={activityPreview} /> : null;
+  const statusBeforeReply = researchPhase === "surfacing" && !activityPreview && messages[messages.length - 1]?.role === "assistant";
   return (
     <section
       id="orb"
@@ -1435,6 +1471,7 @@ const OrbSection = ({
       data-emote={emoteId}
       data-agent-activity={activityId}
       data-activity-preview={activityPreview ? "true" : "false"}
+      data-research-phase={researchPhase || undefined}
       data-activity-theme={METABLOOM_ACTIVITIES[activityId].theme}
       data-chat-phase={pending ? (hasStreamingReply ? "responding" : "thinking") : composerFocused ? "listening" : "ready"}
     >
@@ -1467,7 +1504,7 @@ const OrbSection = ({
           <div
             className="metabloom-chat__presence"
             role="status"
-            aria-live="polite"
+            aria-live={researchPhase ? "off" : "polite"}
           >
             <span className="metabloom-chat__presence-dot" aria-hidden="true" />
             <span>Metabloom</span>
@@ -1486,45 +1523,47 @@ const OrbSection = ({
             aria-relevant="additions text"
           >
             <div className="metabloom-chat__message-list">
-              {messages.map((message) => (
-                <article
-                  key={message.id}
-                  className={`metabloom-chat__message metabloom-chat__message--${message.role}`}
-                  aria-label={`${message.role === "assistant" ? "Metabloom" : "You"} message`}
-                  data-message-id={message.id}
-                  data-emote={message.emote || undefined}
-                  data-stream-status={message.status}
-                >
-                  <span className="metabloom-chat__speaker">
-                    {message.role === "assistant" ? "Metabloom" : "You"}
-                  </span>
-                  <div className="metabloom-chat__bubble">
-                    {message.segments?.length
-                      ? message.segments.map((segment, index) => (
-                        <React.Fragment key={index}>
-                          <button
-                            type="button"
-                            className="metabloom-chat__reaction-cue"
-                            aria-label={`Replay ${resolveMetabloomEmote(segment.emote)?.label.toLowerCase()} reaction for paragraph ${index + 1}`}
-                            aria-pressed={activeReaction?.messageId === message.id && activeReaction?.index === index}
-                            disabled={pending || !isActive || message.status !== "complete"}
-                            onClick={() => replaySegment(message, segment, index)}
-                          >
-                            <span aria-hidden="true">↻</span> {resolveMetabloomEmote(segment.emote)?.label}
-                          </button>
-                          <p data-segment-index={index} data-reaction-active={activeReaction?.messageId === message.id && activeReaction?.index === index ? "true" : "false"}>{segment.response}</p>
-                        </React.Fragment>
-                      ))
-                      : <p>{message.content}</p>}
-                    {message.status === "streaming" && <span className="metabloom-chat__stream-status">Receiving response…</span>}
-                    {["interrupted", "error"].includes(message.status) && <span className="metabloom-chat__stream-status">Response incomplete</span>}
-                    {message.source === "preview" && (
-                      <span className="metabloom-chat__preview-label">
-                        Preview response
-                      </span>
-                    )}
-                  </div>
-                </article>
+              {messages.map((message, messageIndex) => (
+                <React.Fragment key={message.id}>
+                  {statusBeforeReply && messageIndex === messages.length - 1 && researchStatus}
+                  <article
+                    className={`metabloom-chat__message metabloom-chat__message--${message.role}`}
+                    aria-label={`${message.role === "assistant" ? "Metabloom" : "You"} message`}
+                    data-message-id={message.id}
+                    data-emote={message.emote || undefined}
+                    data-stream-status={message.status}
+                  >
+                    <span className="metabloom-chat__speaker">
+                      {message.role === "assistant" ? "Metabloom" : "You"}
+                    </span>
+                    <div className="metabloom-chat__bubble">
+                      {message.segments?.length
+                        ? message.segments.map((segment, index) => (
+                          <React.Fragment key={index}>
+                            <button
+                              type="button"
+                              className="metabloom-chat__reaction-cue"
+                              aria-label={`Replay ${resolveMetabloomEmote(segment.emote)?.label.toLowerCase()} reaction for paragraph ${index + 1}`}
+                              aria-pressed={activeReaction?.messageId === message.id && activeReaction?.index === index}
+                              disabled={pending || !isActive || message.status !== "complete"}
+                              onClick={() => replaySegment(message, segment, index)}
+                            >
+                              <span aria-hidden="true">↻</span> {resolveMetabloomEmote(segment.emote)?.label}
+                            </button>
+                            <p data-segment-index={index} data-reaction-active={activeReaction?.messageId === message.id && activeReaction?.index === index ? "true" : "false"}>{segment.response}</p>
+                          </React.Fragment>
+                        ))
+                        : <p>{message.content}</p>}
+                      {message.status === "streaming" && <span className="metabloom-chat__stream-status">Receiving response…</span>}
+                      {["interrupted", "error"].includes(message.status) && <span className="metabloom-chat__stream-status">Response incomplete</span>}
+                      {message.source === "preview" && (
+                        <span className="metabloom-chat__preview-label">
+                          Preview response
+                        </span>
+                      )}
+                    </div>
+                  </article>
+                </React.Fragment>
               ))}
 
               {!conversationStarted && (
@@ -1545,7 +1584,8 @@ const OrbSection = ({
                 </div>
               )}
 
-              {pending && !hasStreamingReply && (
+              {conversationStarted && !statusBeforeReply && researchStatus}
+              {pending && !hasStreamingReply && !researchPhase && (
                 <article
                   className="metabloom-chat__message metabloom-chat__message--assistant"
                   aria-label={`Metabloom is ${statusText.toLowerCase()}`}
@@ -1564,6 +1604,7 @@ const OrbSection = ({
           </div>
 
           <div className="metabloom-chat__composer-area" ref={composerAreaRef}>
+            {!conversationStarted && researchStatus && <div className="metabloom-chat__research-preview">{researchStatus}</div>}
             <div className="metabloom-chat__conversation-tools">
               <MetabloomReactionPanel
                 onReact={previewReaction}

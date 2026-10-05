@@ -32,19 +32,25 @@ test("research keywords alone cannot start a scene; confirmed work can", async (
   const version = mockAvatar.actionVersion;
   act(() => expect(request.onActivity(research)).toBe(true));
   expect(mockAvatar.activityTheme).toBe("tidal-weave");
-  expect(screen.getByRole("article", { name: "Metabloom is researching" })).toBeInTheDocument();
+  expect(screen.getByRole("status", { name: "Research progress" })).toHaveTextContent("Diving deep...");
   await tick(30000);
   expect(window.__orbState()).toMatchObject({ pending: true, activity: "deep-research", theme: "tidal-weave" });
   expect(mockAvatar.actionVersion).toBe(version);
   expect(request.reactionQuestion.criteria["consider-and-resolve"]).toBeTruthy();
   expect(request.resolveDecision({ choice: "consider-and-resolve", confidence: 0.9 })).toBe("consider-and-resolve");
   act(() => request.onSegment(segment, 0));
-  expect(mockAvatar).toMatchObject({ activityTheme: "metabloom", action: "thinking" });
+  expect(mockAvatar).toMatchObject({ activityTheme: "tidal-weave", action: "thinking" });
   expect(screen.getByText(segment.response)).toBeInTheDocument();
+  expect(screen.getByRole("status", { name: "Research progress" })).toHaveTextContent("Surfacing...");
   act(() => expect(request.onActivity(research)).toBe(false));
   await act(async () => finish(reply));
   expect(window.__orbState().pending).toBe(false);
-  await tick(2240);
+  await tick(650);
+  expect(mockAvatar.activityTheme).toBe("metabloom");
+  expect(screen.getByRole("status", { name: "Research progress" })).toHaveTextContent("Surfacing...");
+  await tick(1200);
+  expect(screen.queryByRole("status", { name: "Research progress" })).not.toBeInTheDocument();
+  await tick(390);
   expect(mockAvatar.action).toBe("resolute");
   expect(window.__orbMessages().filter((message) => message.role === "assistant")).toHaveLength(1);
 });
@@ -132,8 +138,87 @@ test("local chain and scene previews run without a network request", async () =>
   fireEvent.click(screen.getByRole("button", { name: /Reactions/ }));
   fireEvent.click(screen.getByRole("button", { name: "Preview research scene" }));
   expect(screen.getByText("Research scene preview")).toBeInTheDocument();
+  expect(screen.getByRole("status", { name: "Research progress" })).toHaveTextContent("Scene preview. Diving deep...");
   expect(mockAvatar.activityTheme).toBe("tidal-weave");
   await tick(4000);
+  expect(screen.getByRole("status", { name: "Research progress" })).toHaveTextContent("Surfacing...");
+  expect(mockAvatar.activityTheme).toBe("tidal-weave");
+  await tick(650);
   expect(mockAvatar.activityTheme).toBe("metabloom");
+  await tick(1200);
+  expect(screen.queryByRole("status", { name: "Research progress" })).not.toBeInTheDocument();
+  expect(window.__orbMessages()).toHaveLength(0);
   expect(provider).not.toHaveBeenCalled();
+});
+
+test("a completed worker and arriving reply share one surfacing phase without delaying text", async () => {
+  render(<OrbSection />);
+  send();
+  await tick(0);
+  act(() => request.onActivity(research));
+  act(() => request.onActivity({ activity: "deep-research", state: "complete" }));
+  await tick(500);
+  act(() => request.onSegment(segment, 0));
+  await act(async () => finish(reply));
+  expect(screen.getByText(segment.response)).toBeInTheDocument();
+  expect(window.__orbState().pending).toBe(false);
+  await tick(149);
+  expect(mockAvatar.activityTheme).toBe("tidal-weave");
+  await tick(1);
+  expect(mockAvatar.activityTheme).toBe("metabloom");
+  await tick(1200);
+  expect(window.__orbState().researchPhase).toBeNull();
+});
+
+test.each(["stop", "reset", "message", "deactivate", "unmount", "error", "analysis"])("%s interrupts surfacing without leaving a delayed theme reset", async (operation) => {
+  const { rerender, unmount } = render(<OrbSection />);
+  send();
+  await tick(0);
+  act(() => request.onActivity(research));
+  act(() => request.onActivity({ activity: "deep-research", state: "complete" }));
+  await tick(300);
+  if (operation === "unmount") unmount();
+  else if (operation === "deactivate") rerender(<OrbSection isActive={false} />);
+  else if (operation === "message") {
+    send("A new request");
+    await tick(0);
+    act(() => request.onActivity(research));
+  } else if (operation === "error") await act(async () => reject(new Error("worker unavailable")));
+  else if (operation === "analysis") act(() => request.onActivity({ activity: "analysis", state: "running" }));
+  else act(() => operation === "stop" ? window.__orbStop() : window.__orbReset());
+  await tick(2000);
+  if (operation !== "unmount") {
+    expect(window.__orbState().researchPhase).toBe(operation === "message" ? "diving" : null);
+    expect(mockAvatar.activityTheme).toBe(operation === "message" ? "tidal-weave" : operation === "analysis" ? "contour-drift" : "metabloom");
+  }
+});
+
+test("a new activity during the return blend cancels the remaining status timer", async () => {
+  render(<OrbSection />);
+  send();
+  await tick(0);
+  act(() => request.onActivity(research));
+  act(() => request.onActivity({ activity: "deep-research", state: "complete" }));
+  await tick(700);
+  act(() => request.onActivity({ activity: "analysis", state: "running" }));
+  await tick(1400);
+  expect(window.__orbState()).toMatchObject({ activity: "analysis", researchPhase: null });
+  expect(mockAvatar.activityTheme).toBe("contour-drift");
+});
+
+test("reduced motion keeps the readable surfacing cue and skips the animated return interval", async () => {
+  const originalMatchMedia = window.matchMedia;
+  window.matchMedia = () => ({ matches: true });
+  try {
+    render(<OrbSection />);
+    send();
+    await tick(0);
+    act(() => request.onActivity(research));
+    act(() => request.onActivity({ activity: "deep-research", state: "complete" }));
+    await tick(649);
+    expect(screen.getByRole("status", { name: "Research progress" })).toHaveTextContent("Surfacing...");
+    await tick(1);
+    expect(mockAvatar.activityTheme).toBe("metabloom");
+    expect(window.__orbState().researchPhase).toBeNull();
+  } finally { window.matchMedia = originalMatchMedia; }
 });
