@@ -69,6 +69,16 @@
     "robots": "noindex,nofollow,noarchive",
     "noscript": "The invoice generator requires JavaScript. It is a browser-only tool; no invoice data is stored on the server."
   },
+  "home": {
+    "path": "/home",
+    "title": "Home | Popular Consulting",
+    "description": "Your Popular Consulting workspace for creating, exploring, and getting things done.",
+    "canonical": "https://popular-consulting.com/home",
+    "socialTitle": "Home | Popular Consulting",
+    "socialDescription": "Your Popular Consulting workspace.",
+    "robots": "noindex,nofollow,noarchive",
+    "noscript": "JavaScript is required to open your workspace. Return to the public Popular Consulting site."
+  },
   "login": {
     "path": "/login",
     "title": "Sign in | Popular Consulting",

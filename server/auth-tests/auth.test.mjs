@@ -81,6 +81,7 @@ test('configuration fails closed without an explicit single administrator and en
   assert.equal((await createAuthHandler({ env: {} })(request('/api/auth/session'))).status, 503);
   assert.equal(await protectInvoiceRequest(request('/work'), { env: {} }), null);
   assert.equal((await protectInvoiceRequest(request('/invoice-generator'), { env: {} })).status, 503);
+  assert.equal((await protectInvoiceRequest(request('/home'), { env: {} })).status, 503);
 });
 
 test('real OIDC exchange verifies PKCE, nonce, signature and admin passkey proof, then logout revokes access', async () => {
@@ -93,7 +94,7 @@ test('real OIDC exchange verifies PKCE, nonce, signature and admin passkey proof
   assert.equal(login.url.searchParams.has('acr_values'), false);
   assert.match(cookieValue(login.response, LOGIN_COOKIE), /^__Host-popcon-login=[0-9a-f]{64}$/);
   const callback = await f.finish(login);
-  assert.equal(callback.status, 303); assert.equal(callback.headers.get('location'), `${config.origin}/invoice-generator`);
+  assert.equal(callback.status, 303); assert.equal(callback.headers.get('location'), `${config.origin}/home`);
   const sessionCookie = cookieValue(callback, SESSION_COOKIE);
   assert.ok(sessionCookie);
   const fullCookie = callback.headers.getSetCookie().find(value => value.startsWith(SESSION_COOKIE));
@@ -103,6 +104,7 @@ test('real OIDC exchange verifies PKCE, nonce, signature and admin passkey proof
   const session = await response.json(); assert.equal(session.user.role, 'admin');
   assert.match(session.user.id, /^[0-9a-f]{64}$/);
   assert.equal(await protectInvoiceRequest(request('/invoice-generator/index.html', { cookies: sessionCookie }), { env, storeFactory: () => f.store }), null);
+  assert.equal(await protectInvoiceRequest(request('/home', { cookies: sessionCookie }), { env, storeFactory: () => f.store }), null);
   assert.equal(await protectInvoiceRequest(request('/_private/invoice/app-test.js', { cookies: sessionCookie }), { env, storeFactory: () => f.store }), null);
   const record = [...f.records.values()][0];
   assert.equal(record.expiresAt - record.issuedAt, SESSION_SECONDS * 1000);
@@ -174,13 +176,32 @@ test('store outage does not authorize a page or report successful logout', async
 });
 test('all private URL aliases are gated and public routes remain independent of auth configuration', async () => {
   for (const path of ['/invoice-generator', '/invoice-generator/', '/invoice-generator/index.html', '/invoice-generator/other',
+    '/home', '/home/', '/home/index.html', '/home/other', '/%68ome', '/%2568ome/index.html', '/static%2f..%2fhome/index.html', '/HOME', '/home;other',
     '/_private/invoice/app.js', '/%69nvoice-generator/index.html', '/%5Fprivate/invoice/app.js', '/%255Fprivate/invoice/app.js', '/static/..%2f_private/invoice/app.js', '//_private/invoice/app.js', '/static%2f..%2finvoice-generator/index.html']) {
     assert.equal(isPrivatePath(path), true, path);
     const result = await protectInvoiceRequest(request(path), { env, storeFactory: () => fixture().store });
     assert.ok([401, 303].includes(result.status), path);
     assert.match(result.headers.get('Cache-Control'), /no-store/);
   }
-  for (const path of ['/', '/work', '/engineering', '/login', '/static/js/public.js']) assert.equal(await protectInvoiceRequest(request(path), { env: {} }), null);
+  for (const path of ['/', '/work', '/engineering', '/login', '/popcan', '/dither-canvas', '/orb', '/homepage', '/static/js/public.js']) assert.equal(await protectInvoiceRequest(request(path), { env: {} }), null);
+});
+test('home GET/HEAD requests require a live session, canonical origin and available store', async () => {
+  const f = fixture(); const done = await f.finish(await f.begin()); const cookies = cookieValue(done, SESSION_COOKIE);
+  const options = { env, storeFactory: () => f.store };
+  for (const method of ['GET', 'HEAD']) {
+    for (const path of ['/home', '/home/', '/home/index.html']) {
+      const denied = await protectInvoiceRequest(request(path, { method }), options);
+      assert.equal(denied.status, 303);
+      assert.equal(denied.headers.get('location'), `${config.origin}/login`);
+      assert.match(denied.headers.get('Cache-Control'), /private, no-store/);
+      assert.equal(await protectInvoiceRequest(request(path, { method, cookies }), options), null);
+      assert.equal((await protectInvoiceRequest(request(path, { method, cookies }), { ...options, now: Date.now() + SESSION_SECONDS * 1000 + 1000 })).status, 303);
+    }
+  }
+  assert.equal((await protectInvoiceRequest(new Request('https://alias.example.test/home', { headers: { cookie: cookies } }), options)).status, 403);
+  assert.equal((await protectInvoiceRequest(request('/home', { method: 'POST', cookies }), options)).status, 405);
+  f.failStore();
+  assert.equal((await protectInvoiceRequest(request('/home', { cookies }), options)).status, 503);
 });
 test('Redis adapter hashes opaque keys, namespaces sessions and uses atomic one-use transactions', async () => {
   const calls = []; let result = 'OK';

@@ -3,6 +3,8 @@ import { cleanup, render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import SiteRouter, { resolveSiteView, SITE_VIEWS } from "./SiteRouter";
 import { IMMERSIVE_MODES } from "./immersiveMode";
+import metadata from "./content/routeMetadata.json";
+import deployment from "../vercel.json";
 
 let mockHasHardwareWebGL = true;
 let mockGraphicsMode = "auto";
@@ -43,6 +45,8 @@ jest.mock("./components/WorkPage", () => {
       "Work page",
     );
 });
+
+jest.mock("./components/HomePage", () => () => <div data-testid="home-page">Home</div>);
 
 jest.mock("./components/OrbPage", () => {
   const ReactModule = require("react");
@@ -121,6 +125,9 @@ describe("SiteRouter", () => {
     ["/game/", SITE_VIEWS.GAME],
     ["/dither-canvas", SITE_VIEWS.DITHER_CANVAS],
     ["/dither-canvas/", SITE_VIEWS.DITHER_CANVAS],
+    ["/home", SITE_VIEWS.HOME],
+    ["/home/", SITE_VIEWS.HOME],
+    ["/home/index.html", SITE_VIEWS.HOME],
   ])("resolves %s to %s", (pathname, expected) => {
     expect(resolveSiteView(pathname)).toBe(expected);
   });
@@ -175,6 +182,26 @@ describe("SiteRouter", () => {
       "data-enabled",
       "false",
     );
+  });
+
+  test("renders home without immersive section navigation and with private route metadata", async () => {
+    render(<SiteRouter pathname="/home" />);
+    expect(await screen.findByTestId("home-page")).toBeInTheDocument();
+    expect(screen.queryByTestId("immersive-site")).not.toBeInTheDocument();
+    expect(screen.getByTestId("section-deep-link-bridge")).toHaveAttribute("data-enabled", "false");
+    expect(metadata.home.canonical).toBe("https://popular-consulting.com/home");
+    expect(metadata.home.robots).toBe("noindex,nofollow,noarchive");
+    const catchAll = deployment.rewrites.findIndex(rule => rule.source.includes("?!static"));
+    for (const source of ["/home", "/home/:path*"]) {
+      const index = deployment.rewrites.findIndex(rule => rule.source === source);
+      expect(index).toBeGreaterThanOrEqual(0);
+      expect(index).toBeLessThan(catchAll);
+      expect(deployment.rewrites[index].destination).toBe("/home/index.html");
+      expect(deployment.headers.find(rule => rule.source === source).headers).toEqual(expect.arrayContaining([
+        { key: "Cache-Control", value: "private, no-store, max-age=0" },
+        { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" },
+      ]));
+    }
   });
 
   test("renders the shader canvas when the automatic hardware probe passes", async () => {

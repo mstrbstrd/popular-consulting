@@ -20,6 +20,7 @@ test('public content stays available while auth loads or fails', async () => {
   await waitFor(() => expect(screen.getByTestId('status')).toHaveTextContent('unavailable'));
   expect(screen.getByRole('link', { name: 'Sign in' })).toHaveAttribute('href', '/login');
   expect(screen.queryByRole('link', { name: 'Invoice generator' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('link', { name: 'Home' })).not.toBeInTheDocument();
 });
 test('anonymous and forged-role sessions never mount invoice content', async () => {
   const editor = jest.fn(() => <Invoice/>);
@@ -39,6 +40,7 @@ test('expiry locks and preserves unfinished work; same-account reauthentication 
   const input = await screen.findByLabelText('Fictional invoice');
   fireEvent.change(input, { target: { value: 'Unfinished work' } });
   expect(screen.getByRole('link', { name: 'Invoice generator' })).toHaveAttribute('href', '/invoice-generator');
+  expect(screen.getByRole('link', { name: 'Home' })).toHaveAttribute('href', '/home');
   global.fetch.mockImplementation(() => reply({ authenticated: false })); fireEvent.click(screen.getByText('Refresh session'));
   await waitFor(() => expect(input).not.toBeVisible());
   expect(input).toHaveValue('Unfinished work');

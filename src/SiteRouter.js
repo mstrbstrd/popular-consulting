@@ -13,6 +13,7 @@ const PopcanPage = React.lazy(() => import("./components/PopcanPage"));
 const WorkPage = React.lazy(() => import("./components/WorkPage"));
 const OrbPage = React.lazy(() => import("./components/OrbPage"));
 const AuthPage = React.lazy(() => import("./components/AuthPage"));
+const HomePage = React.lazy(() => import("./components/HomePage"));
 const DitherCanvasPage = React.lazy(() =>
   import("./components/DitherCanvasPage"),
 );
@@ -34,6 +35,7 @@ export const SITE_VIEWS = Object.freeze({
   GAME: "game",
   DITHER_CANVAS: "dither-canvas",
   INVOICE_GENERATOR: "invoice-generator",
+  HOME: "home",
   LOGIN: "login",
   LOGOUT: "logout",
 });
@@ -42,6 +44,7 @@ export const resolveSiteView = (pathname = "/") => {
   const normalized = pathname.replace(/\/+$/, "") || "/";
 
   if (normalized === "/login" || normalized === "/login/index.html") return SITE_VIEWS.LOGIN;
+  if (normalized === "/home" || normalized === "/home/index.html") return SITE_VIEWS.HOME;
   if (normalized === "/logout" || normalized === "/logout/index.html") return SITE_VIEWS.LOGOUT;
   if (normalized === "/popcan" || normalized === "/popcan/index.html") return SITE_VIEWS.POPCAN;
   if (normalized === "/work") return SITE_VIEWS.WORK;
@@ -70,7 +73,9 @@ const SiteRouter = ({ pathname = window.location.pathname }) => {
   const view = resolveSiteView(pathname);
 
   let page;
-  if (view === SITE_VIEWS.POPCAN) {
+  if (view === SITE_VIEWS.HOME) {
+    page = <HomePage />;
+  } else if (view === SITE_VIEWS.POPCAN) {
     page = <PopcanPage />;
   } else if (view === SITE_VIEWS.WORK) {
     page = <WorkPage />;

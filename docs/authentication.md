@@ -55,7 +55,7 @@ unchanged. Logout still revokes the server record through a same-origin CSRF-che
 POST before reporting success. It ends this application session, not all Auth0
 sessions. Every new application login still requests fresh authentication.
 
-Middleware continues to protect invoice HTML, direct/nested/encoded URL variants
+Middleware protects `/home` and invoice HTML, direct/nested/encoded URL variants
 and `/_private/**` assets before delivery. Configuration/store errors deny access.
 Public pages remain independent. The same project builds an isolated invoice
 entrypoint, so public JavaScript does not contain the invoice implementation.
@@ -173,6 +173,20 @@ auth endpoints and private assets reject an unexpected host. If the canonical
 production origin changes, update both settings together before deploying.
 
 ## Drafts, expiry and logout
+
+Successful sign-in now lands at `/home`, an authenticated bento launcher linking
+to Popcan, Dither Canvas, Orb and Invoice Generator. Signed-in account menus and
+the login page link back to this workspace. The public `/` remains the business
+website. The three creative tools retain their existing public access; the invoice
+editor and its isolated assets retain their server-side authorization boundary.
+
+Home uses the shared React shell, with public telemetry disabled on its route.
+Its static illustrations and navigation contain no invoice data or editor code.
+The server checks the session before delivering its HTML and returns private,
+no-store/noindex headers. The client shows tools only after the session endpoint
+confirms authorization, removes them on expiry/logout/failure, and hides them
+during bfcache revalidation. Session failures provide an explicit retry or sign-in
+path, without adding an authentication bypass or a new identity provider setting.
 
 Invoice values/exports still stay in the browser; no automatic upload/save is added.
 The local key remains `popcon-invoice-draft-v1`. On expiry or session-check failure,

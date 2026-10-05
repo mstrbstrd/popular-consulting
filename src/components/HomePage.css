@@ -1,0 +1,138 @@
+.home-page {
+  min-height: 100dvh;
+  color: var(--aetheris-ink);
+  background: radial-gradient(ellipse at 12% 25%, #00cddb0a, transparent 55%), radial-gradient(ellipse at 85% 70%, #cf4cc50b, transparent 55%), #fff8f7;
+  font: 400 16px/1.5 var(--aetheris-font-sans);
+}
+[data-theme="dark"] .home-page {
+  background: radial-gradient(ellipse at 12% 25%, #00cddb07, transparent 55%), radial-gradient(ellipse at 85% 70%, #cf4cc508, transparent 55%), #080809;
+}
+.home-page > .nav-header { position: relative; inset: auto; width: 100%; padding: max(16px, env(safe-area-inset-top)) 24px 12px; }
+.home-main { width: min(100%, 1168px); margin: 0 auto; padding: 44px 24px max(24px, env(safe-area-inset-bottom)); }
+.home-main:focus { outline: none; }
+.home-page .home-eyebrow { margin: 0 0 16px; color: var(--aetheris-ink-2); font: 400 10px/1.6 var(--aetheris-font-mono); letter-spacing: .12em; text-transform: uppercase; }
+.home-eyebrow > span { margin: 0 10px; color: var(--aetheris-teal); }
+.home-welcome { margin-bottom: 32px; }
+.home-page h1 { margin: 0 0 12px; font: 500 clamp(34px, 4vw, 50px)/1.12 var(--aetheris-font-sans); letter-spacing: -.045em; }
+.home-welcome > p:last-child { margin: 0; color: var(--aetheris-ink-2); font-size: 16px; }
+.home-bento { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 20px; }
+.home-tool {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  min-height: 280px;
+  min-width: 0;
+  padding: 24px;
+  border: 1px solid transparent;
+  border-radius: var(--aetheris-radius-glass);
+  color: inherit;
+  text-decoration: none;
+  background: var(--aetheris-glass-surface);
+  -webkit-backdrop-filter: var(--aetheris-glass-blur);
+  backdrop-filter: var(--aetheris-glass-blur);
+  box-shadow: var(--aetheris-glass-specular), var(--aetheris-shadow);
+  transition: background var(--aetheris-motion-medium), box-shadow var(--aetheris-motion-medium);
+}
+.home-tool--popcan, .home-tool--invoice { grid-column: span 7; }
+.home-tool--dither, .home-tool--orb { grid-column: span 5; }
+/* Mask the spectral layer to its edge. The glass interior stays transparent. */
+.home-tool::before, .home-tool-arrow::before, .home-session-action::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--aetheris-spectral);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+.home-tool::before { opacity: .48; transition: opacity var(--aetheris-motion-medium); }
+.home-tool-top { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.home-tool-top > span:first-child { color: var(--aetheris-ink-2); font: 400 10px/1.6 var(--aetheris-font-mono); letter-spacing: .025em; }
+.home-tool-arrow { position: relative; flex: 0 0 36px; width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50%; background: var(--aetheris-glass-panel); }
+.home-tool-arrow svg { display: block; }
+.home-tool-arrow::before { opacity: .65; }
+.home-tool-copy { position: relative; z-index: 1; width: 58%; margin-top: auto; padding-top: 30px; }
+.home-tool--dither .home-tool-copy, .home-tool--orb .home-tool-copy { width: 67%; }
+.home-tool h2 { margin: 0 0 8px; font: 500 clamp(24px, 2.5vw, 30px)/1.15 var(--aetheris-font-sans); letter-spacing: -.035em; }
+.home-tool-copy p { margin: 0; max-width: 290px; color: var(--aetheris-ink-2); font-size: 14px; line-height: 1.6; text-wrap: pretty; }
+.home-tool-action { display: flex; align-items: center; gap: 12px; margin-top: 24px; font-size: 12px; font-weight: 500; }
+.home-tool-action > span { transition: transform var(--aetheris-motion-fast); }
+.home-tool-art { position: absolute; width: 43%; right: 0; top: 65px; bottom: 18px; display: grid; place-items: center; pointer-events: none; }
+.home-tool-art > svg { width: 100%; max-height: 200px; overflow: visible; }
+.home-tool--dither .home-tool-art { width: 40%; right: -1px; top: 65px; bottom: 60px; }
+.home-tool--orb .home-tool-art { width: 36%; right: 8px; }
+.home-orb-art { position: relative; width: 118px; height: 134px; filter: drop-shadow(0 12px 20px #936bf51c); }
+.home-orb-art i { position: absolute; width: 86px; height: 96px; border-radius: 48% 52% 44% 56%; background: radial-gradient(ellipse at 32% 25%, #fff9, transparent 45%), radial-gradient(ellipse at 75% 72%, #ffc57b, transparent 55%), linear-gradient(140deg, #5de9ef 5%, #898aeb 38%, #e09bed 66%, #bc94f2); box-shadow: inset 2px 3px 10px #fff7, inset -6px -4px 12px #9856ce44; }
+.home-orb-art i:nth-child(1) { top: 0; left: 3px; transform: rotate(-20deg); }
+.home-orb-art i:nth-child(2) { bottom: 0; right: 0; transform: rotate(40deg) scale(.83); }
+.home-orb-art i:nth-child(3) { bottom: 8px; left: -5px; transform: rotate(-30deg) scale(.7); }
+.home-invoice-art { position: relative; width: 132px; height: 162px; transform: rotate(9deg); }
+.home-invoice-art::before { content: ""; position: absolute; inset: 0; border-radius: 10px; background: var(--aetheris-glass-panel); border: 1px solid var(--aetheris-line-strong); transform: rotate(-17deg); }
+.home-paper { position: relative; height: 100%; padding: 21px 17px; border: 1px solid var(--aetheris-line-strong); border-radius: 10px; background: var(--aetheris-glass-panel-raised); box-shadow: var(--aetheris-shadow); }
+.home-paper > span { display: block; margin-bottom: 15px; font: 500 9px/1 var(--aetheris-font-mono); letter-spacing: .12em; }
+.home-paper i { display: block; height: 3px; margin-bottom: 7px; width: 70%; border-radius: 2px; background: var(--aetheris-line-strong); }
+.home-paper > i:nth-of-type(2) { width: 40%; }
+.home-paper-items { margin-top: 19px; padding-top: 10px; border-top: 1px solid var(--aetheris-line-strong); }
+.home-paper-items i { width: 100%; }
+.home-paper b { display: block; height: 2px; width: 32%; margin: 13px 0 0 auto; background: var(--aetheris-spectral-h); }
+.home-footer { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px 24px; padding-top: 22px; color: var(--aetheris-ink-2); font-size: 12px; }
+.home-footer a, .home-return { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; color: inherit; text-underline-offset: 4px; }
+.home-footer a { text-decoration: none; }
+.home-footer a:hover { text-decoration: underline; }
+.home-session { max-width: 540px; margin: 10vh auto; }
+.home-session h1 { font-size: clamp(30px, 4vw, 42px); }
+.home-session > p[role="status"] { color: var(--aetheris-ink-2); margin: 24px 0; }
+.home-session-action { position: relative; display: flex; align-items: center; justify-content: space-between; min-height: 48px; padding: 12px 20px; width: 100%; border: 1px solid transparent; border-radius: var(--aetheris-radius-lg); color: inherit; background: var(--aetheris-glass-panel); font: 500 14px/1.5 var(--aetheris-font-sans); text-decoration: none; cursor: pointer; }
+.home-return { margin-top: 16px; font-size: 13px; }
+.home-skip { position: fixed; top: 12px; left: 12px; z-index: 2000; padding: 12px 20px; transform: translateY(-200%); background: var(--aetheris-panel); color: var(--aetheris-ink); border-radius: var(--aetheris-radius-lg); }
+.home-skip:focus { transform: none; }
+.home-page a:focus-visible, .home-session-action:focus-visible { outline: 2px solid var(--aetheris-teal); outline-offset: 5px; box-shadow: var(--aetheris-focus-halo); }
+.home-tool:focus-visible::before { opacity: 1; }
+@media (hover: hover) {
+  .home-tool:hover { background: var(--aetheris-glass-panel); }
+  .home-tool:hover::before { opacity: .95; }
+  .home-tool:hover .home-tool-action > span { transform: translateX(4px); }
+  .home-session-action:hover { background: var(--aetheris-glass-panel-raised); }
+}
+.home-tool:active { background: var(--aetheris-glass-panel-raised); }
+@media (max-width: 900px) {
+  .home-tool { grid-column: span 6; min-height: 320px; }
+  .home-tool .home-tool-copy { width: 100%; padding-top: 100px; }
+  .home-tool-art, .home-tool--dither .home-tool-art, .home-tool--orb .home-tool-art { width: 140px; height: 100px; top: 64px; bottom: auto; right: 22px; }
+  .home-tool-art > svg { height: 115px; }
+  .home-orb-art { transform: scale(.72); }
+  .home-invoice-art { transform: rotate(9deg) scale(.65); }
+}
+@media (max-width: 600px) {
+  .home-page > .nav-header { padding-inline: max(16px, env(safe-area-inset-left)) max(16px, env(safe-area-inset-right)); }
+  .home-main { padding: 28px max(16px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
+  .home-page .home-eyebrow { font-size: 9px; letter-spacing: .08em; }
+  .home-eyebrow > span { margin-inline: 6px; }
+  .home-welcome { margin-bottom: 26px; }
+  .home-welcome > p:last-child { font-size: 15px; max-width: 270px; }
+  .home-bento { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+  .home-tool { grid-column: auto; min-height: 264px; padding: 22px; }
+  .home-tool .home-tool-copy { width: 68%; padding-top: 26px; }
+  .home-tool-art, .home-tool--dither .home-tool-art, .home-tool--orb .home-tool-art { top: 85px; right: 8px; width: 32%; }
+  .home-tool-copy p { font-size: 13px; }
+  .home-tool h2 { font-size: 26px; }
+  .home-tool-top > span:first-child { font-size: 9px; }
+  .home-footer { align-items: flex-start; flex-direction: column; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-tool, .home-tool::before, .home-tool-action > span { transition: none; }
+  .home-tool:hover .home-tool-action > span { transform: none; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .home-tool { background: var(--aetheris-panel); -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+@media (forced-colors: active) {
+  .home-tool, .home-session-action, .home-tool-arrow { border: 1px solid ButtonText; background: Canvas; color: LinkText; box-shadow: none; }
+  .home-tool::before, .home-session-action::before, .home-tool-arrow::before, .home-tool-art { display: none; }
+  .home-page a:focus-visible, .home-session-action:focus-visible { outline-color: Highlight; }
+}

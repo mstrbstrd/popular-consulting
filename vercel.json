@@ -61,6 +61,26 @@
       ]
     },
     {
+      "source": "/home",
+      "headers": [
+        { "key": "Cache-Control", "value": "private, no-store, max-age=0" },
+        { "key": "Vercel-CDN-Cache-Control", "value": "no-store" },
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow, noarchive" },
+        { "key": "Referrer-Policy", "value": "no-referrer" },
+        { "key": "X-Frame-Options", "value": "DENY" }
+      ]
+    },
+    {
+      "source": "/home/:path*",
+      "headers": [
+        { "key": "Cache-Control", "value": "private, no-store, max-age=0" },
+        { "key": "Vercel-CDN-Cache-Control", "value": "no-store" },
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow, noarchive" },
+        { "key": "Referrer-Policy", "value": "no-referrer" },
+        { "key": "X-Frame-Options", "value": "DENY" }
+      ]
+    },
+    {
       "source": "/invoice-generator",
       "headers": [
         { "key": "X-Robots-Tag", "value": "noindex, nofollow, noarchive" },
@@ -119,6 +139,8 @@
     { "source": "/popcan/:path*", "destination": "/popcan/index.html" },
     { "source": "/login", "destination": "/login/index.html" },
     { "source": "/logout", "destination": "/logout/index.html" },
+    { "source": "/home", "destination": "/home/index.html" },
+    { "source": "/home/:path*", "destination": "/home/index.html" },
     { "source": "/invoice-generator", "destination": "/invoice-generator/index.html" },
     { "source": "/invoice-generator/:path*", "destination": "/invoice-generator/index.html" },
     { "source": "/engineering", "destination": "/engineering/index.html" },
