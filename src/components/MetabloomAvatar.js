@@ -114,7 +114,8 @@ const MetabloomAvatar = ({
         metabloomAvatarColorB={normalizedAction.colors[1]}
         metabloomAvatarColorC={normalizedAction.colors[2]}
         metabloomAvatarDuration={actionDuration}
-        metabloomAvatarEnabled={fieldMode === 0}
+        metabloomAvatarEnabled
+        metabloomSceneTransitions
         metabloomAvatarIntensity={actionIntensity}
         metabloomAvatarTalking={talking}
         metabloomAvatarVersion={actionVersion}

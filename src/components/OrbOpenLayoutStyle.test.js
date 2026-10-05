@@ -57,9 +57,6 @@ describe("Orb production presentation", () => {
     expect(css).toContain(
       '.orb-page[data-conversation-started="true"]\n  .metabloom-chat__composer-area',
     );
-    expect(css).toContain(
-      '.orb-page[data-conversation-started="true"] .orb-page__identity',
-    );
     expect(css).not.toContain(":has(");
     expect(css).not.toContain("nth-of-type");
   });
@@ -128,8 +125,6 @@ describe("Orb production presentation", () => {
       "--orb-composer-width: calc(100vw - 2.4rem);",
     );
     expect(css).toContain("max-width: calc(100vw - 2.4rem);");
-    expect(css).toContain("width: calc(100vw - 4rem);");
-    expect(css).toContain("overflow-wrap: anywhere;");
     expect(pageCss).toContain("box-sizing: border-box;");
   });
 

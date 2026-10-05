@@ -24,16 +24,66 @@
   height: 100%;
 }
 
-.metabloom-avatar[data-avatar-theme="metabloom"] .creatoros-field-shell {
+.metabloom-avatar .creatoros-field-shell {
+  --field-metabloom-weight: 1;
+  --field-tidal-weight: 0;
+  --field-contour-weight: 0;
   overflow: visible;
   background: transparent !important;
 }
 
+.metabloom-avatar .creatoros-field-mode-1 {
+  --field-metabloom-weight: 0;
+  --field-tidal-weight: 1;
+}
+.metabloom-avatar .creatoros-field-mode-3 {
+  --field-metabloom-weight: 0;
+  --field-contour-weight: 1;
+}
+
+/* Native scene backdrops follow the same blend as the single WebGL field. */
+.metabloom-avatar .creatoros-field-shell::before,
+.metabloom-avatar .creatoros-field-shell::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.metabloom-avatar .creatoros-field-shell::before {
+  opacity: var(--field-tidal-weight);
+  background:
+    radial-gradient(ellipse at 34% 28%, rgba(242, 255, 252, 0.48), transparent 27%),
+    radial-gradient(ellipse at 72% 72%, rgba(87, 240, 215, 0.24), transparent 39%),
+    linear-gradient(145deg, #bdfcf0 0%, #45dfd0 49%, #0aa3ad 100%);
+}
+.metabloom-avatar .creatoros-field-shell::after {
+  opacity: var(--field-contour-weight);
+  background:
+    radial-gradient(ellipse at 72% 20%, rgba(246, 244, 224, 0.42), transparent 29%),
+    radial-gradient(ellipse at 24% 76%, rgba(75, 138, 102, 0.24), transparent 39%),
+    linear-gradient(145deg, #b8d4c7 0%, #8fb47d 40%, #8b7659 72%, #d9d5c8 100%);
+}
+[data-theme="dark"] .metabloom-avatar .creatoros-field-shell::before {
+  background:
+    radial-gradient(ellipse at 34% 28%, rgba(155, 255, 235, 0.18), transparent 29%),
+    radial-gradient(ellipse at 72% 72%, rgba(0, 204, 190, 0.18), transparent 40%),
+    linear-gradient(145deg, #021a22 0%, #005a66 49%, #00a99f 100%);
+}
+[data-theme="dark"] .metabloom-avatar .creatoros-field-shell::after {
+  background:
+    radial-gradient(ellipse at 72% 20%, rgba(221, 223, 190, 0.12), transparent 30%),
+    radial-gradient(ellipse at 24% 76%, rgba(73, 133, 96, 0.16), transparent 40%),
+    linear-gradient(145deg, #071719 0%, #173425 42%, #493b2c 74%, #77776d 100%);
+}
+
 .metabloom-avatar .creatoros-field-canvas {
+  z-index: 1;
   cursor: inherit;
 }
 
-.metabloom-avatar[data-avatar-theme="metabloom"] .creatoros-field-fallback {
+.metabloom-avatar .creatoros-field-shell .creatoros-field-fallback {
+  z-index: 1;
+  opacity: var(--field-metabloom-weight);
   background:
     radial-gradient(
       ellipse at 28% 58%,
@@ -63,6 +113,18 @@
     filter 320ms ease;
 }
 
+.metabloom-avatar .creatoros-field-shell.is-fallback::before,
+.metabloom-avatar .creatoros-field-shell.is-fallback::after {
+  transition: opacity 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.metabloom-avatar .creatoros-field-shell.is-fallback .creatoros-field-fallback {
+  transition:
+    opacity 1.2s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 420ms ease,
+    background 420ms ease,
+    filter 320ms ease;
+}
+
 .metabloom-avatar:focus-visible {
   outline: 2px solid var(--avatar-color-c);
   outline-offset: -0.5rem;
@@ -73,7 +135,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .metabloom-avatar .creatoros-field-fallback {
+  .metabloom-avatar .creatoros-field-shell.is-fallback::before,
+  .metabloom-avatar .creatoros-field-shell.is-fallback::after,
+  .metabloom-avatar .creatoros-field-shell.is-fallback .creatoros-field-fallback,
+  .metabloom-avatar .creatoros-field-shell .creatoros-field-fallback {
     transition: none;
   }
 }

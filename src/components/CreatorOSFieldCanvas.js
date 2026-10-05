@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { METABLOOM_ACTION_IDS } from "./metabloomActions";
+import { createMetabloomSceneTransition, METABLOOM_SCENE_MODES } from "./metabloomSceneTransition";
 import {
   createDitherCanvasCadence,
   createDitherCanvasContext,
@@ -107,7 +108,7 @@ const normalizeMetabloomAvatarVersion = (value) => {
   return Number.isFinite(numericValue) ? Math.max(0, numericValue) : 0;
 };
 
-export const specializeCreatorOSFieldFragmentShader = (source, mode) => {
+export const specializeCreatorOSFieldFragmentShader = (source, mode, activityScenes = false) => {
   const activeMode = clampMode(mode);
   const sampleStart = source.indexOf(FIELD_SAMPLE_SCENE_MARKER);
   const mainStart = source.indexOf(FIELD_MAIN_MARKER, sampleStart);
@@ -118,7 +119,19 @@ export const specializeCreatorOSFieldFragmentShader = (source, mode) => {
     );
   }
 
-  const specializedSampleScene = [
+  const specializedSampleScene = activityScenes ? [
+    "uniform vec3 u_activityWeights;",
+    FIELD_SAMPLE_SCENE_MARKER,
+    "  vec4 blended = vec4(0.0);",
+    ...METABLOOM_SCENE_MODES.map((id, index) => [
+      `  if (u_activityWeights[${index}] > 0.0) {`,
+      `    vec4 scene = ${FIELD_SCENE_FUNCTIONS[id]}(uv, time);`,
+      `    blended += vec4(scene.rgb * scene.a, scene.a) * u_activityWeights[${index}];`,
+      "  }",
+    ].join("\n")),
+    "  return vec4(blended.rgb / max(blended.a, 0.00001), blended.a);",
+    "}",
+  ].join("\n") : [
     FIELD_SAMPLE_SCENE_MARKER,
     `  return ${FIELD_SCENE_FUNCTIONS[activeMode]}(uv, time);`,
     "}",
@@ -429,6 +442,7 @@ const CreatorOSFieldCanvas = ({
   metabloomAvatarTalking = false,
   metabloomAvatarVersion = 0,
   metabloomPalette = "spectral",
+  metabloomSceneTransitions = false,
   mode = 0,
   morphogenBrushSize = "medium",
   morphogenColorA = MORPHOGEN_DEFAULT_COLOR_A,
@@ -441,6 +455,8 @@ const CreatorOSFieldCanvas = ({
   resetVersion = 0,
   tidalPalette = "water",
 }) => {
+  const activityScenes = metabloomSceneTransitions && METABLOOM_SCENE_MODES.includes(clampMode(mode));
+  const rendererMode = activityScenes ? "metabloom-scenes" : mode;
   const rootRef = useRef(null);
   const canvasRef = useRef(null);
   const pausedRef = useRef(paused);
@@ -689,11 +705,18 @@ const CreatorOSFieldCanvas = ({
     let energy = 0;
     let pulseAge = PULSE_LIFETIME_SECONDS + 1;
     let documentVisible = document.visibilityState !== "hidden";
+    let contextLost = false;
     let reducedMotion = false;
     let forceRender = true;
     let currentMode = modeRef.current;
     let incomingMode = currentMode;
     let modeMix = 1;
+    const sceneTransition = createMetabloomSceneTransition(currentMode);
+    let publishedSceneWeights = "";
+    const snapScene = () => sceneTransition.target(modeRef.current, true);
+    const avatarIsVisible = () => metabloomAvatarEnabledRef.current && (
+      activityScenes ? sceneTransition.weights[0] > 0 : currentMode === 0 && incomingMode === 0
+    );
     let activeState = currentMode === REACTION_MODE
       ? morphogenPaintRef.current >= 0.5
         ? "ready"
@@ -792,7 +815,9 @@ const CreatorOSFieldCanvas = ({
 
     const handleContextLost = (event) => {
       event.preventDefault();
+      contextLost = true;
       frameCadence?.cancel();
+      ["metabloom", "tidal", "contour"].forEach((scene) => root.style.removeProperty(`--field-${scene}-weight`));
       setFallback(true);
       onFieldStateChangeRef.current?.("fallback");
     };
@@ -828,6 +853,7 @@ const CreatorOSFieldCanvas = ({
         specializeCreatorOSFieldFragmentShader(
           CREATOROS_FIELD_FRAGMENT_SHADER,
           activeMode,
+          activityScenes,
         ),
         "CreatorOS specialized field",
       );
@@ -918,6 +944,7 @@ const CreatorOSFieldCanvas = ({
       "u_modeA",
       "u_modeB",
       "u_modeMix",
+      "u_activityWeights",
       "u_metabloomPaletteMix",
       "u_contourPaletteMix",
       "u_tidalPaletteMix",
@@ -1166,6 +1193,7 @@ const CreatorOSFieldCanvas = ({
       currentMode = modeRef.current;
       incomingMode = currentMode;
       modeMix = 1;
+      snapScene();
       reactionStepsTaken = 0;
       reactionWarmupRemaining =
         currentMode === REACTION_MODE && morphogenPaintRef.current < 0.5
@@ -1229,6 +1257,10 @@ const CreatorOSFieldCanvas = ({
 
     const simulate = (delta, now) => {
       beginModeTransition(modeRef.current);
+      if (activityScenes) {
+        sceneTransition.target(modeRef.current);
+        sceneTransition.advance(delta);
+      }
       const avatarRestarted = applyMetabloomAvatarRestart();
       const avatarDuration = metabloomAvatarDurationRef.current;
       if (!metabloomAvatarEnabledRef.current) {
@@ -1248,10 +1280,7 @@ const CreatorOSFieldCanvas = ({
         if (modeMix >= 1) currentMode = incomingMode;
       }
 
-      const avatarEnabled =
-        metabloomAvatarEnabledRef.current
-        && currentMode === 0
-        && incomingMode === 0;
+      const avatarEnabled = avatarIsVisible();
       metabloomRenderedPaletteMix = dampMetabloomValue(
         metabloomRenderedPaletteMix,
         metabloomPaletteRef.current,
@@ -1304,7 +1333,7 @@ const CreatorOSFieldCanvas = ({
       const paintActive =
         currentMode === REACTION_MODE
         && morphogenPaintRef.current >= 0.5;
-      if (currentMode !== incomingMode) nextState = "crossfading";
+      if (activityScenes ? sceneTransition.active : currentMode !== incomingMode) nextState = "crossfading";
       else if (paintActive && (brush.down || brush.pending)) {
         nextState = morphogenToolRef.current >= 0.5 ? "erasing" : "painting";
       } else if (paintActive) nextState = "ready";
@@ -1488,9 +1517,22 @@ const CreatorOSFieldCanvas = ({
         pulseOrigin.y,
       );
       gl.uniform1f(activeDisplayUniforms.u_pulseAge, pulseAge);
-      gl.uniform1i(activeDisplayUniforms.u_modeA, currentMode);
-      gl.uniform1i(activeDisplayUniforms.u_modeB, incomingMode);
+      // The activity sampler already blends once. Keep the generic sampler's
+      // second-scene branch inactive for this three-scene program.
+      gl.uniform1i(activeDisplayUniforms.u_modeA, activityScenes ? 0 : currentMode);
+      gl.uniform1i(activeDisplayUniforms.u_modeB, activityScenes ? 0 : incomingMode);
       gl.uniform1f(activeDisplayUniforms.u_modeMix, modeMix);
+      if (activityScenes) {
+        const weights = sceneTransition.weights;
+        gl.uniform3f(activeDisplayUniforms.u_activityWeights, ...weights);
+        const key = weights.join(",");
+        if (key !== publishedSceneWeights) {
+          ["metabloom", "tidal", "contour"].forEach((scene, index) => {
+            root.style.setProperty(`--field-${scene}-weight`, weights[index]);
+          });
+          publishedSceneWeights = key;
+        }
+      }
       gl.uniform1f(
         activeDisplayUniforms.u_metabloomPaletteMix,
         metabloomRenderedPaletteMix,
@@ -1508,10 +1550,7 @@ const CreatorOSFieldCanvas = ({
       const avatarColorB = metabloomRenderedColorB;
       const avatarColorC = metabloomRenderedColorC;
       const avatarPose = metabloomMotionFrame.pose;
-      const avatarEnabled =
-        metabloomAvatarEnabledRef.current
-        && currentMode === 0
-        && incomingMode === 0;
+      const avatarEnabled = avatarIsVisible();
       gl.uniform1f(
         activeDisplayUniforms.u_avatarEnabled,
         avatarEnabled ? 1 : 0,
@@ -1639,6 +1678,7 @@ const CreatorOSFieldCanvas = ({
 
     const drawStatic = () => {
       applyRestart();
+      snapScene();
       const avatarRestarted = applyMetabloomAvatarRestart();
       if (
         metabloomAvatarEnabledRef.current
@@ -1712,7 +1752,7 @@ const CreatorOSFieldCanvas = ({
     };
 
     const renderFrame = ({ deltaMs }) => {
-      if (!documentVisible) return false;
+      if (!documentVisible || contextLost) return false;
       if (reducedMotion) {
         drawStatic();
         return false;
@@ -1743,6 +1783,7 @@ const CreatorOSFieldCanvas = ({
         currentMode = modeRef.current;
         incomingMode = currentMode;
         modeMix = 1;
+        snapScene();
         if (paintBrushPending) {
           drawReactionStep(0.62, true);
         }
@@ -1779,11 +1820,12 @@ const CreatorOSFieldCanvas = ({
     });
 
     const scheduleFrame = () => {
-      if (!documentVisible || reducedMotion) return false;
+      if (!documentVisible || reducedMotion || contextLost) return false;
       return frameCadence.schedule();
     };
 
     const start = () => {
+      if (contextLost) return;
       frameCadence.reset();
       applyRestart();
       updateSize();
@@ -1797,6 +1839,7 @@ const CreatorOSFieldCanvas = ({
 
     const handleVisibility = () => {
       documentVisible = document.visibilityState !== "hidden";
+      snapScene();
       if (!documentVisible) {
         frameCadence.cancel();
       } else {
@@ -1810,6 +1853,7 @@ const CreatorOSFieldCanvas = ({
     };
 
     redrawRef.current = () => {
+      if (contextLost) return;
       forceRender = true;
       if (reducedMotion) drawStatic();
       else scheduleFrame();
@@ -1845,6 +1889,7 @@ const CreatorOSFieldCanvas = ({
       frameCadence.dispose();
       triggerExternalPulseRef.current = () => {};
       redrawRef.current = () => {};
+      ["metabloom", "tidal", "contour"].forEach((scene) => root.style.removeProperty(`--field-${scene}-weight`));
       pointerSurface.removeEventListener("pointermove", handlePointerMove);
       pointerSurface.removeEventListener(
         "pointerdown",
@@ -1882,7 +1927,7 @@ const CreatorOSFieldCanvas = ({
       if (reactionProgram) gl.deleteProgram(reactionProgram);
       if (paintReactionProgram) gl.deleteProgram(paintReactionProgram);
     };
-  }, [contextVersion, mode, morphogenExperience]);
+  }, [contextVersion, rendererMode, activityScenes, morphogenExperience]);
 
   return (
     <div
@@ -1894,6 +1939,7 @@ const CreatorOSFieldCanvas = ({
       data-renderer-id="dither-canvas-field"
       data-runtime-profile={ditherCanvasRuntimeProfile.id}
       data-field-specialization={FIELD_SCENE_FUNCTIONS[clampMode(mode)]}
+      data-activity-scenes={activityScenes ? "true" : "false"}
       data-metabloom-avatar={metabloomAvatarEnabled ? "true" : "false"}
       data-metabloom-avatar-action={normalizeMetabloomAvatarAction(
         metabloomAvatarAction,

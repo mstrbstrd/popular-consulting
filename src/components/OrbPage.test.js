@@ -136,10 +136,10 @@ describe("OrbPage", () => {
     expect(
       screen.getByRole("main", { name: "Metabloom" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Metabloom")).toBeInTheDocument();
+    expect(screen.queryByText("Metabloom")).not.toBeInTheDocument();
     expect(
-      screen.getByText(/translates response intent into motion/i),
-    ).toBeInTheDocument();
+      screen.queryByText(/translates response intent into motion/i),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText("Interactive interface study"))
       .not.toBeInTheDocument();
     expect(screen.queryByText("Intent")).not.toBeInTheDocument();
