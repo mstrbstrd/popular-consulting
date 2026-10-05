@@ -58,7 +58,7 @@ describe("MetabloomAvatar", () => {
       metabloomAvatarColorA: "#ff315f",
       metabloomAvatarColorB: "#ff36d1",
       metabloomAvatarColorC: "#7138ff",
-      metabloomAvatarDuration: 820,
+      metabloomAvatarDuration: 1640,
       metabloomAvatarEnabled: true,
       metabloomAvatarIntensity: 0.54,
       metabloomAvatarTalking: false,
@@ -206,7 +206,7 @@ describe("MetabloomAvatar", () => {
   });
 
   test("normalizes legacy action names into the shader vocabulary", () => {
-    render(<MetabloomAvatar action="curious" />);
+    render(<MetabloomAvatar action="focus" />);
     expect(screen.getByTestId("metabloom-avatar")).toHaveAttribute(
       "data-avatar-action",
       "thinking",

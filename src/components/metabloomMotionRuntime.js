@@ -20,6 +20,7 @@ export const METABLOOM_POSE_KEYS = Object.freeze([
   "tremble",
   "expression",
   "voice",
+  "stillness",
 ]);
 
 export const METABLOOM_NEUTRAL_POSE = Object.freeze({
@@ -35,9 +36,11 @@ export const METABLOOM_NEUTRAL_POSE = Object.freeze({
   tremble: 0,
   expression: 0,
   voice: 0,
+  stillness: 0,
 });
 
 const CHANNEL_CONFIG = Object.freeze({
+  stillness: Object.freeze({ min: 0, max: 1, smoothTime: 0.12, maxSpeed: 6 }),
   offsetX: Object.freeze({
     min: -0.16,
     max: 0.16,
@@ -113,6 +116,12 @@ const CHANNEL_CONFIG = Object.freeze({
 });
 
 const ACTION_TIMING = Object.freeze({
+  curious: Object.freeze({ attackEnd: 0.28, releaseStart: 0.76, response: 0.12 }),
+  listening: Object.freeze({ attackEnd: 0.24, releaseStart: 0.82, response: 0.16 }),
+  skeptical: Object.freeze({ attackEnd: 0.30, releaseStart: 0.78, response: 0.13 }),
+  relieved: Object.freeze({ attackEnd: 0.14, releaseStart: 0.78, response: 0.17 }),
+  shy: Object.freeze({ attackEnd: 0.22, releaseStart: 0.80, response: 0.14 }),
+  resolute: Object.freeze({ attackEnd: 0.20, releaseStart: 0.82, response: 0.11 }),
   reform: Object.freeze({ attackEnd: 0.24, releaseStart: 0.66, response: 0.18 }),
   agree: Object.freeze({ attackEnd: 0.12, releaseStart: 0.82, response: 0.115 }),
   disagree: Object.freeze({ attackEnd: 0.10, releaseStart: 0.84, response: 0.10 }),
@@ -178,7 +187,7 @@ const addPhysiology = (pose, timeSeconds, seed, enabled) => {
 
   const time = finiteNumber(timeSeconds);
   const phaseSeed = finiteNumber(seed) * TAU;
-  const breath = Math.sin(time * 0.86 + phaseSeed * 0.73);
+  const breath = Math.sin(time * 0.86 + phaseSeed * 0.73) * (1 - pose.stillness * 0.85);
   const slowBreath = Math.sin(time * 0.41 + phaseSeed * 1.17);
   const sway = Math.sin(time * 0.27 + phaseSeed * 1.91);
 
@@ -200,6 +209,7 @@ export const sampleMetabloomActionPose = ({
   enabled = true,
   intensity,
   phase = 1,
+  physiology = true,
   seed = 0.5,
   talking = false,
   timeSeconds = 0,
@@ -211,7 +221,7 @@ export const sampleMetabloomActionPose = ({
   const normalizedIntensity = clamp(
     finiteNumber(intensity, resolvedAction.intensity),
   );
-  const gain = intensityGain(normalizedIntensity);
+  const gain = enabled ? intensityGain(normalizedIntensity) : 0;
   const envelope = enabled
     ? windowEnvelope(
         normalizedPhase,
@@ -220,7 +230,10 @@ export const sampleMetabloomActionPose = ({
       )
     : 0;
   const pose = resetPose(outputPose);
-  const decay = 1 - normalizedPhase * 0.24;
+  const beat = (start, peak, end) => pulseEnvelope(normalizedPhase, start, peak, end);
+  const hold = (start, end) => windowEnvelope(normalizedPhase, start, end);
+  // Authored close-up acting. Each action has a readable pause between the
+  // main gesture and recovery; the same pose channels drive both renderers.
 
   if (actionId === "reform") {
     const gather = envelope * gain;
@@ -230,90 +243,162 @@ export const sampleMetabloomActionPose = ({
     pose.scaleY = 1 - gather * 0.025;
     pose.expression = gather * 0.42;
   } else if (actionId === "agree") {
-    const nod = Math.sin(normalizedPhase * TAU * 2) * envelope * decay;
-    pose.offsetY = -nod * 0.092 * gain;
-    pose.scaleX = 1 + Math.abs(nod) * 0.025 * gain;
-    pose.scaleY = 1 - Math.abs(nod) * 0.052 * gain;
-    pose.rotation = Math.sin(normalizedPhase * TAU) * envelope * 0.010 * gain;
-    pose.expression = envelope * 0.68;
+    const anticipate = beat(0, 0.10, 0.22);
+    const nod = beat(0.13, 0.28, 0.43) + beat(0.45, 0.56, 0.72) * 0.55;
+    pose.offsetY = (anticipate * 0.032 - nod * 0.14) * gain;
+    pose.scaleX += nod * 0.055 * gain;
+    pose.scaleY -= nod * 0.10 * gain;
+    pose.centerScale -= envelope * 0.20 * gain;
+    pose.stillness = hold(0.60, 0.82) * gain;
+    pose.expression = envelope * 0.68 * gain;
   } else if (actionId === "disagree") {
-    const shake = Math.sin(normalizedPhase * TAU * 2.65) * envelope * decay;
-    pose.offsetX = shake * 0.104 * gain;
-    pose.rotation = shake * 0.047 * gain;
-    pose.scaleX = 1 + Math.abs(shake) * 0.012;
-    pose.expression = envelope * 0.74;
+    const shake = beat(0.10, 0.23, 0.37) - beat(0.29, 0.44, 0.59)
+      + beat(0.53, 0.64, 0.76) * 0.50;
+    pose.offsetX = shake * 0.15 * gain;
+    pose.rotation = shake * 0.12 * gain;
+    pose.scaleX -= envelope * 0.06 * gain;
+    pose.scaleY -= envelope * 0.04 * gain;
+    pose.centerScale -= envelope * 0.16 * gain;
+    pose.stillness = hold(0.64, 0.84) * gain;
+    pose.expression = envelope * 0.74 * gain;
   } else if (actionId === "happy") {
-    const swell = envelope * (0.92 + 0.08 * Math.sin(normalizedPhase * TAU * 1.5));
-    pose.offsetY = swell * 0.060 * gain;
-    pose.scaleX = 1 + swell * 0.070 * gain;
-    pose.scaleY = 1 + swell * 0.092 * gain;
-    pose.radiusScale = 1 + swell * 0.060 * gain;
-    pose.centerScale = 1 + swell * 0.025;
-    pose.expression = envelope * 0.78;
+    const dip = beat(0, 0.13, 0.30);
+    const welcome = hold(0.40, 0.70);
+    pose.offsetY = (-dip * 0.045 + welcome * 0.10) * gain;
+    pose.rotation = welcome * 0.065 * gain;
+    pose.scaleX += (welcome * 0.10 + dip * 0.06) * gain;
+    pose.scaleY += (welcome * 0.10 - dip * 0.10) * gain;
+    pose.radiusScale += welcome * 0.08 * gain;
+    pose.centerScale -= welcome * 0.13 * gain;
+    pose.stillness = welcome * 0.62 * gain;
+    pose.expression = welcome * 0.78 * gain;
   } else if (actionId === "excited") {
-    const compression = pulseEnvelope(normalizedPhase, 0.015, 0.10, 0.24);
-    const burst = pulseEnvelope(normalizedPhase, 0.17, 0.34, 0.80);
-    const followThrough = Math.sin(normalizedPhase * TAU * 2.25)
-      * windowEnvelope(normalizedPhase, 0.28, 0.90)
-      * (1 - normalizedPhase)
-      * 0.24;
-    pose.scaleX = 1 - compression * 0.19 * gain + followThrough * 0.10 * gain;
-    pose.scaleY = 1 - compression * 0.15 * gain + burst * 0.08 * gain;
-    pose.radiusScale = 1 - burst * 0.21 * gain;
-    pose.centerScale = 1 - compression * 0.22 * gain;
-    pose.burst = burst * 0.46 * gain;
-    pose.offsetY = burst * 0.030 * gain;
-    pose.expression = Math.max(compression * 0.72, burst);
+    const crouch = beat(0, 0.14, 0.27);
+    const spring = beat(0.20, 0.38, 0.58);
+    const rebound = beat(0.54, 0.68, 0.84);
+    pose.offsetY = (-crouch * 0.06 + spring * 0.15 + rebound * 0.065) * gain;
+    pose.scaleX += (crouch * 0.15 - spring * 0.10 + rebound * 0.06) * gain;
+    pose.scaleY += (-crouch * 0.21 + spring * 0.19 - rebound * 0.045) * gain;
+    pose.centerScale -= crouch * 0.33 * gain;
+    pose.radiusScale -= spring * 0.10 * gain;
+    pose.burst = spring * 0.32 * gain;
+    pose.rotation = (spring - rebound) * 0.07 * gain;
+    pose.expression = Math.max(crouch, spring, rebound) * gain;
   } else if (actionId === "sad") {
-    const settle = envelope;
-    pose.offsetY = -settle * 0.095 * gain;
-    pose.scaleX = 1 + settle * 0.105 * gain;
-    pose.scaleY = 1 - settle * 0.175 * gain;
-    pose.centerScale = 1 - settle * 0.105 * gain;
-    pose.radiusScale = 1 + settle * 0.020;
-    pose.rotation = -settle * 0.018 * gain;
-    pose.expression = settle * 0.76;
+    const sink = hold(0.46, 0.76);
+    pose.offsetY = -sink * 0.12 * gain;
+    pose.scaleX += sink * 0.10 * gain;
+    pose.scaleY -= sink * 0.19 * gain;
+    pose.centerScale -= sink * 0.18 * gain;
+    pose.rotation = -sink * 0.075 * gain;
+    pose.stillness = sink * gain;
+    pose.expression = sink * 0.76 * gain;
   } else if (actionId === "surprised") {
-    const contraction = pulseEnvelope(normalizedPhase, 0.005, 0.065, 0.20);
-    const rebound = pulseEnvelope(normalizedPhase, 0.12, 0.30, 0.72);
-    pose.scaleX = 1 - contraction * 0.20 * gain + rebound * 0.14 * gain;
-    pose.scaleY = 1 - contraction * 0.20 * gain + rebound * 0.16 * gain;
-    pose.radiusScale = 1 - contraction * 0.09 + rebound * 0.065 * gain;
-    pose.centerScale = 1 - contraction * 0.18 * gain;
-    pose.burst = rebound * 0.18 * gain;
-    pose.expression = Math.max(contraction, rebound) * 0.92;
+    const recoil = hold(0.14, 0.47);
+    const flinch = beat(0, 0.08, 0.19);
+    const peek = beat(0.52, 0.68, 0.88);
+    pose.offsetX = (-recoil * 0.06 + peek * 0.024) * gain;
+    pose.offsetY = recoil * 0.11 * gain;
+    pose.scaleX += (-flinch * 0.16 + recoil * 0.10) * gain;
+    pose.scaleY += (-flinch * 0.12 + recoil * 0.18) * gain;
+    pose.centerScale -= recoil * 0.32 * gain;
+    pose.rotation = (-recoil * 0.09 + peek * 0.07) * gain;
+    pose.stillness = hold(0.18, 0.48) * gain;
+    pose.expression = recoil * 0.92 * gain;
   } else if (actionId === "thinking") {
-    const consider = envelope;
-    pose.rotation = -consider * 0.120 * gain;
-    pose.offsetX = -consider * 0.026 * gain;
-    pose.offsetY = consider * 0.018 * gain;
-    pose.orbit = consider * 0.72 * gain;
-    pose.scaleX = 1 - consider * 0.018;
-    pose.scaleY = 1 + consider * 0.022;
-    pose.expression = consider * 0.68;
+    const consider = hold(0.32, 0.76);
+    pose.rotation = -consider * 0.18 * gain;
+    pose.offsetX = -consider * 0.045 * gain;
+    pose.offsetY = consider * 0.024 * gain;
+    pose.orbit = consider * 0.30 * gain;
+    pose.centerScale -= consider * 0.24 * gain;
+    pose.stillness = consider * 0.92 * gain;
+    pose.expression = consider * 0.68 * gain;
   } else if (actionId === "sleepy") {
-    const exhale = envelope;
-    pose.offsetY = -exhale * 0.112 * gain;
-    pose.scaleX = 1 + exhale * 0.145 * gain;
-    pose.scaleY = 1 - exhale * 0.215 * gain;
-    pose.centerScale = 1 - exhale * 0.145 * gain;
-    pose.radiusScale = 1 + exhale * 0.025;
-    pose.rotation = Math.sin(normalizedPhase * Math.PI) * -0.016 * gain;
-    pose.expression = exhale * 0.62;
+    const exhale = hold(0.42, 0.78);
+    const rouse = beat(0.54, 0.64, 0.76);
+    pose.offsetY = (-exhale * 0.13 + rouse * 0.04) * gain;
+    pose.scaleX += exhale * 0.15 * gain;
+    pose.scaleY -= exhale * 0.22 * gain;
+    pose.centerScale -= exhale * 0.20 * gain;
+    pose.rotation = -exhale * 0.08 * gain;
+    pose.stillness = exhale * gain;
+    pose.expression = exhale * 0.62 * gain;
   } else if (actionId === "angry") {
-    const brace = envelope;
-    const tremble = Math.sin(
-      finiteNumber(timeSeconds) * 32.0
-        + normalizedPhase * TAU * 7.0
-        + finiteNumber(seed) * TAU,
-    ) * brace;
-    pose.scaleX = 1 - brace * 0.075 * gain;
-    pose.scaleY = 1 - brace * 0.115 * gain;
-    pose.centerScale = 1 - brace * 0.085 * gain;
-    pose.radiusScale = 1 + brace * 0.055 * gain;
-    pose.tremble = tremble * 0.78 * gain;
-    pose.rotation = tremble * 0.012 * gain;
-    pose.expression = brace * 0.86;
+    const brace = hold(0.18, 0.78);
+    const insist = beat(0.26, 0.36, 0.49) + beat(0.50, 0.60, 0.74) * 0.65;
+    pose.scaleX -= brace * 0.10 * gain;
+    pose.scaleY += (-brace * 0.12 + insist * 0.17) * gain;
+    pose.offsetY = insist * 0.08 * gain;
+    pose.centerScale -= brace * 0.30 * gain;
+    pose.rotation = insist * 0.055 * gain;
+    pose.stillness = brace * 0.80 * gain;
+    pose.expression = brace * 0.86 * gain;
+  } else if (actionId === "curious") {
+    const approach = hold(0.34, 0.76);
+    const notice = beat(0, 0.12, 0.25);
+    pose.offsetX = (approach * 0.085 - notice * 0.02) * gain;
+    pose.offsetY = approach * 0.035 * gain;
+    pose.rotation = approach * 0.19 * gain;
+    pose.scaleX += approach * 0.045 * gain;
+    pose.scaleY += approach * 0.09 * gain;
+    pose.centerScale -= approach * 0.30 * gain;
+    pose.stillness = hold(0.40, 0.76) * gain;
+    pose.expression = approach * 0.78 * gain;
+  } else if (actionId === "listening") {
+    const attend = hold(0.26, 0.80);
+    const nod = beat(0.56, 0.64, 0.74);
+    pose.offsetY = (attend * 0.025 - nod * 0.035) * gain;
+    pose.offsetX = attend * 0.028 * gain;
+    pose.rotation = attend * 0.075 * gain;
+    pose.scaleX += attend * 0.06 * gain;
+    pose.scaleY += attend * 0.055 * gain;
+    pose.centerScale -= attend * 0.28 * gain;
+    pose.stillness = attend * gain;
+    pose.expression = attend * 0.50 * gain;
+  } else if (actionId === "skeptical") {
+    const withdraw = hold(0.26, 0.78);
+    const tilt = hold(0.45, 0.77);
+    pose.offsetX = -withdraw * 0.07 * gain;
+    pose.offsetY = withdraw * 0.02 * gain;
+    pose.rotation = tilt * 0.23 * gain;
+    pose.scaleX -= withdraw * 0.10 * gain;
+    pose.scaleY -= withdraw * 0.055 * gain;
+    pose.centerScale -= tilt * 0.22 * gain;
+    pose.stillness = hold(0.44, 0.78) * gain;
+    pose.expression = tilt * 0.75 * gain;
+  } else if (actionId === "relieved") {
+    const brace = beat(0, 0.14, 0.38);
+    const exhale = beat(0.20, 0.54, 0.82);
+    const lift = beat(0.63, 0.80, 1);
+    pose.offsetY = (-exhale * 0.055 + lift * 0.04) * gain;
+    pose.scaleX += (-brace * 0.09 + exhale * 0.12) * gain;
+    pose.scaleY += (brace * 0.10 - exhale * 0.12 + lift * 0.05) * gain;
+    pose.centerScale -= (brace * 0.24 + exhale * 0.10) * gain;
+    pose.rotation = -exhale * 0.065 * gain;
+    pose.stillness = exhale * 0.70 * gain;
+    pose.expression = Math.max(brace, exhale) * 0.68 * gain;
+  } else if (actionId === "shy") {
+    const tuck = hold(0.25, 0.69);
+    const peek = beat(0.57, 0.74, 0.91);
+    pose.offsetX = (-tuck * 0.065 + peek * 0.045) * gain;
+    pose.offsetY = -tuck * 0.055 * gain;
+    pose.rotation = (-tuck * 0.18 + peek * 0.12) * gain;
+    pose.scaleX -= tuck * 0.14 * gain;
+    pose.scaleY -= tuck * 0.10 * gain;
+    pose.centerScale -= tuck * 0.36 * gain;
+    pose.stillness = tuck * 0.85 * gain;
+    pose.expression = tuck * 0.68 * gain;
+  } else if (actionId === "resolute") {
+    const gather = beat(0, 0.16, 0.34);
+    const commit = hold(0.40, 0.80);
+    pose.offsetY = (-gather * 0.03 + commit * 0.045) * gain;
+    pose.scaleX += (-gather * 0.07 + commit * 0.06) * gain;
+    pose.scaleY += commit * 0.12 * gain;
+    pose.centerScale -= (gather * 0.30 + commit * 0.18) * gain;
+    pose.radiusScale += commit * 0.06 * gain;
+    pose.stillness = commit * gain;
+    pose.expression = commit * 0.78 * gain;
   }
 
   const voiceTarget = talking && enabled
@@ -324,10 +409,10 @@ export const sampleMetabloomActionPose = ({
       )
     : 0;
   // Preserve idle physiology but eliminate every deliberate gesture at zero intensity.
-  if (normalizedIntensity === 0) resetPose(pose);
+  if (normalizedIntensity === 0 || !enabled || normalizedPhase === 0 || normalizedPhase === 1) resetPose(pose);
   pose.voice = voiceTarget;
 
-  addPhysiology(pose, timeSeconds, seed, enabled);
+  addPhysiology(pose, timeSeconds, seed, enabled && physiology);
   return clampPose(pose);
 };
 

@@ -73,10 +73,17 @@ const LEGACY_ACTION_TO_EMOTE = Object.freeze({
   sleepy: "reflective",
   surprised: "whimsy",
   thinking: "reflective",
+  curious: "curious",
+  listening: "listening",
+  skeptical: "skeptical",
+  relieved: "relieved",
+  shy: "shy",
+  resolute: "resolute",
 });
 
 const mapLegacyActionToEmote = (action) =>
-  LEGACY_ACTION_TO_EMOTE[action] || "neutral";
+  Object.prototype.hasOwnProperty.call(LEGACY_ACTION_TO_EMOTE, action)
+    ? LEGACY_ACTION_TO_EMOTE[action] : "neutral";
 
 const METABLOOM_EMOTE_RESPONSE_SCHEMA = deepFreeze({
   type: "object",

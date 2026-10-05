@@ -3,23 +3,16 @@ import { useMetabloomPalette } from "../contexts/MetabloomPaletteContext";
 import CreatorOSFieldCanvas from "./CreatorOSFieldCanvas";
 import "./CreatorOSFieldCanvas.css";
 import {
+  METABLOOM_ACTION_IDS,
   getDefaultMetabloomAction,
   resolveMetabloomAction,
 } from "./metabloomActions";
 import "./MetabloomAvatar.css";
+import { sampleMetabloomActionPose } from "./metabloomMotionRuntime";
 
-const ACTION_CODES = Object.freeze({
-  reform: 0,
-  agree: 1,
-  disagree: 2,
-  happy: 3,
-  excited: 4,
-  sad: 5,
-  surprised: 6,
-  thinking: 7,
-  sleepy: 8,
-  angry: 9,
-});
+const ACTION_CODES = Object.freeze(Object.fromEntries(
+  METABLOOM_ACTION_IDS.map((id, index) => [id, index]),
+));
 
 const clamp = (value, minimum, maximum) =>
   Math.max(minimum, Math.min(maximum, value));
@@ -62,6 +55,12 @@ const MetabloomAvatar = ({
     intensity,
     normalizedAction.intensity,
   );
+  const fallbackPose = sampleMetabloomActionPose({
+    action: normalizedAction.id,
+    intensity: actionIntensity,
+    phase: normalizedAction.id === "reform" ? 1 : 0.5,
+    physiology: false,
+  });
   const materialLabel =
     metabloomPalette === "metalbloom" ? "liquid metal" : "spectral fluid";
 
@@ -97,6 +96,7 @@ const MetabloomAvatar = ({
       onClick={onPulse}
       onKeyDown={handleKeyDown}
       style={{
+        "--avatar-fallback-transform": `translate(${fallbackPose.offsetX * 100}%, ${-fallbackPose.offsetY * 100}%) rotate(${-fallbackPose.rotation}rad) scale(${fallbackPose.scaleX}, ${fallbackPose.scaleY})`,
         "--avatar-color-a": normalizedAction.colors[0],
         "--avatar-color-b": normalizedAction.colors[1],
         "--avatar-color-c": normalizedAction.colors[2],

@@ -1,0 +1,73 @@
+.orb-page .metabloom-reactions {
+  position: fixed;
+  top: max(15.4rem, calc(env(safe-area-inset-top) + 14.3rem));
+  right: var(--orb-finish-gutter, 2.4rem);
+  z-index: 35;
+  color: var(--aetheris-ink);
+  font: 1.4rem/1.4 var(--aetheris-font-sans);
+  pointer-events: auto;
+}
+.orb-page .metabloom-reactions button {
+  min-height: 4.4rem;
+  padding: 0.8rem 1.2rem;
+  border: 1px solid var(--aetheris-line-strong);
+  border-radius: 1.4rem;
+  background: var(--orb-control-surface, var(--aetheris-panel));
+  color: var(--aetheris-ink);
+  font: inherit;
+  cursor: pointer;
+}
+.orb-page .metabloom-reactions button:focus-visible,
+.orb-page .metabloom-reactions input:focus-visible {
+  outline: 2px solid var(--aetheris-focus-line);
+  outline-offset: 3px;
+}
+.orb-page .metabloom-reactions button:hover:not(:disabled),
+.orb-page .metabloom-reactions button[data-selected="true"] {
+  border-color: var(--aetheris-focus-line);
+  background: var(--aetheris-panel);
+}
+.orb-page .metabloom-reactions button:disabled { opacity: 0.5; cursor: default; }
+.metabloom-reactions__toolbar { display: flex; justify-content: flex-end; gap: 0.6rem; }
+.metabloom-reactions__toolbar span { margin-left: 1rem; }
+.orb-page .metabloom-reactions__panel {
+  position: absolute;
+  top: calc(100% + 0.8rem);
+  right: 0;
+  width: min(35rem, calc(100vw - 3.2rem));
+  max-height: calc(100dvh - 25rem);
+  padding: 1.6rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--aetheris-line-strong);
+  border-radius: 2rem;
+  background: var(--aetheris-glass-panel, var(--aetheris-panel));
+  box-shadow: var(--aetheris-shadow);
+  backdrop-filter: blur(20px);
+}
+.metabloom-reactions__heading { display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start; }
+.metabloom-reactions__heading strong { font-size: 1.6rem; }
+.metabloom-reactions__heading p { margin: 0.4rem 0 1.4rem; color: var(--aetheris-ink-2); }
+.orb-page .metabloom-reactions__heading button { flex: 0 0 4.4rem; font-size: 2rem; padding: 0; }
+.metabloom-reactions__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.6rem; }
+.orb-page .metabloom-reactions__grid button { padding: 0.6rem 0.2rem; font-size: 1.3rem; }
+.metabloom-reactions__intensity { display: grid; gap: 0.8rem; margin-top: 1.6rem; }
+.metabloom-reactions__intensity > span { display: flex; justify-content: space-between; }
+.orb-page .metabloom-reactions__intensity input { width: 100%; min-height: 3rem; margin: 0; accent-color: var(--aetheris-ink); }
+.metabloom-reactions__score { display: grid; gap: 0.4rem; margin: 1rem 0 0; }
+.metabloom-reactions__score span, .metabloom-reactions__waiting { color: var(--aetheris-ink-2); font-size: 1.3rem; }
+@media (max-width: 720px) {
+  .orb-page .metabloom-reactions { top: max(14.4rem, calc(env(safe-area-inset-top) + 13.4rem)); right: 1.6rem; }
+  .orb-page[data-conversation-started="true"] .metabloom-reactions { top: max(18.8rem, calc(env(safe-area-inset-top) + 17.8rem)); }
+  .orb-page .metabloom-reactions__panel { max-height: calc(100dvh - 30rem); }
+}
+@media (max-height: 650px) {
+  .orb-page .metabloom-reactions, .orb-page[data-conversation-started="true"] .metabloom-reactions { top: 14.6rem; }
+  .orb-page .metabloom-reactions__panel { max-height: calc(100dvh - 21rem); }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .orb-page .metabloom-reactions__panel { backdrop-filter: none; background: var(--aetheris-panel); }
+}
+@media (forced-colors: active) {
+  .orb-page .metabloom-reactions__panel, .orb-page .metabloom-reactions button { background: Canvas; color: CanvasText; border-color: ButtonText; }
+}

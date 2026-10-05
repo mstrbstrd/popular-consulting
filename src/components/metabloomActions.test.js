@@ -7,7 +7,7 @@ import {
 describe("Metabloom action language", () => {
   test("defines unique, bounded, complete action records", () => {
     expect(new Set(METABLOOM_ACTION_IDS).size).toBe(METABLOOM_ACTIONS.length);
-    expect(METABLOOM_ACTIONS).toHaveLength(10);
+    expect(METABLOOM_ACTIONS).toHaveLength(16);
 
     METABLOOM_ACTIONS.forEach((action) => {
       expect(action.id).toMatch(/^[a-z]+$/);
@@ -26,7 +26,7 @@ describe("Metabloom action language", () => {
 
   test("maps old form and mood names without accepting arbitrary values", () => {
     expect(resolveMetabloomAction("companion").id).toBe("reform");
-    expect(resolveMetabloomAction("curious").id).toBe("thinking");
+    expect(resolveMetabloomAction("curious").id).toBe("curious");
     expect(resolveMetabloomAction("grumpy").id).toBe("angry");
     expect(resolveMetabloomAction("not-real")).toBeNull();
     expect(resolveMetabloomAction({})).toBeNull();

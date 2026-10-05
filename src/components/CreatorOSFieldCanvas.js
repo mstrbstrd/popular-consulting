@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { METABLOOM_ACTION_IDS } from "./metabloomActions";
 import {
   createDitherCanvasCadence,
   createDitherCanvasContext,
@@ -65,18 +66,7 @@ const MORPHOGEN_GRADIENT_MODES = Object.freeze({
   linear: 1,
   radial: 2,
 });
-const METABLOOM_AVATAR_ACTION_IDS = Object.freeze([
-  "reform",
-  "agree",
-  "disagree",
-  "happy",
-  "excited",
-  "sad",
-  "surprised",
-  "thinking",
-  "sleepy",
-  "angry",
-]);
+const METABLOOM_AVATAR_ACTION_IDS = METABLOOM_ACTION_IDS;
 const METABLOOM_AVATAR_ACTION_COUNT = METABLOOM_AVATAR_ACTION_IDS.length;
 const METABLOOM_AVATAR_DEFAULT_COLOR_A = "#00eeff";
 const METABLOOM_AVATAR_DEFAULT_COLOR_B = "#ff00ff";
@@ -1739,7 +1729,10 @@ const CreatorOSFieldCanvas = ({
         return false;
       }
       if (!pausedRef.current) {
-        localTime += delta;
+        // Holds slow the organism's internal drift without rewinding its clock.
+        const attention = metabloomAvatarEnabledRef.current && modeRef.current === 0
+          ? metabloomMotionFrame.pose.stillness : 0;
+        localTime += delta * (1 - attention * 0.86);
         introElapsed = Math.min(
           INTRO_DURATION_SECONDS,
           introElapsed + delta,

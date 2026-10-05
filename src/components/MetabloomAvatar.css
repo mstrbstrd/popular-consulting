@@ -56,7 +56,9 @@
       transparent 70%
     );
   filter: saturate(1.08);
+  transform: var(--avatar-fallback-transform, none);
   transition:
+    transform 420ms ease,
     background 420ms ease,
     filter 320ms ease;
 }

@@ -396,6 +396,7 @@ describe("OrbSection", () => {
     expect(Object.isFrozen(window.__metabloomTools)).toBe(true);
     expect(Object.keys(window.__metabloomTools)).toEqual([
       "version",
+      "react",
       "express",
       "sequence",
       "talk",
@@ -403,7 +404,7 @@ describe("OrbSection", () => {
       "settle",
       "getState",
     ]);
-    expect(window.__metabloomTools.version).toBe("1.0.0");
+    expect(window.__metabloomTools.version).toBe("1.1.0");
     expect(window.__metabloomToolSchemas.express).toMatchObject({
       additionalProperties: false,
       required: ["action"],
@@ -524,7 +525,7 @@ describe("OrbSection", () => {
 
     act(() => {
       accepted = window.__orbPlaySequence([
-        { name: "curious", form: "focus", duration: 200 },
+        { name: "focus", form: "focus", duration: 200 },
         { expression: "sleepy", form: "drift", duration: 200 },
       ]);
     });
@@ -535,6 +536,19 @@ describe("OrbSection", () => {
       jest.advanceTimersByTime(200);
     });
     expect(mockAvatarProps.action).toBe("sleepy");
+  });
+
+  test("semantic reactions reject unknown fields without mutation and use distinct actions", () => {
+    render(<OrbSection isActive />);
+    const before = window.__orbState();
+    expect(window.__metabloomTools.react({ emote: "curious", intensity: 1 })).toBe(false);
+    expect(window.__metabloomTools.react({ emote: "constructor" })).toBe(false);
+    expect(window.__orbState()).toEqual(before);
+    act(() => { expect(window.__metabloomTools.react({ emote: "curious" })).toBe(true); });
+    expect(mockAvatarProps.action).toBe("curious");
+    expect(window.__orbState().pulseVersion).toBe(before.pulseVersion);
+    act(() => { expect(window.__metabloomTools.react({ emote: "resolute" })).toBe(true); });
+    expect(mockAvatarProps.action).toBe("resolute");
   });
 
   test("cleans up every owned global and pending preview timer", () => {

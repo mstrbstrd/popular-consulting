@@ -167,10 +167,10 @@ describe("intrinsic Metabloom chat runtime invariants", () => {
       "angry",
     ].forEach((action) => expect(actions).toContain(`id: "${action}"`));
 
-    expect(actions).toContain('motion: "Shakes side to side"');
-    expect(actions).toContain('motion: "Nods down and up twice"');
+    expect(actions).toContain('motion: "Draws back, gives two deliberate lateral shakes, then holds"');
+    expect(actions).toContain('motion: "A small lift, one clear nod, then a softer nod"');
     expect(actions).toContain(
-      'motion: "Compresses, explodes, and reforms"',
+      'motion: "Crouches, springs upward, and lands with a smaller rebound"',
     );
     expect(orb).toContain("MAX_METABLOOM_ACTION_STEPS");
     expect(orb).toContain("MAX_METABLOOM_CHAIN_DURATION_MS");
@@ -179,7 +179,7 @@ describe("intrinsic Metabloom chat runtime invariants", () => {
     expect(orb).toContain("actionIntensity");
     expect(orb).toContain("window.__metabloomTools");
     expect(orb).toContain("window.__metabloomToolSchemas");
-    expect(orb).toContain('version: "1.0.0"');
+    expect(orb).toContain('version: "1.1.0"');
 
     [
       "__metabloomTools",
