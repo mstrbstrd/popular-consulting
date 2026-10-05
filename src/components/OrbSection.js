@@ -1,5 +1,6 @@
 import React from "react";
 import { useThemeMode } from "../contexts/ThemeContext";
+import { METABLOOM_HOOD_SEQUENCE } from "./metabloomUnderHood";
 import MetabloomAvatar from "./MetabloomAvatar";
 import MetabloomReactionPanel from "./MetabloomReactionPanel";
 import MetabloomResearchStatus from "./MetabloomResearchStatus";
@@ -409,6 +410,8 @@ const OrbSection = ({
   const thinkingTimerRef = React.useRef(0);
   const activityPreviewTimerRef = React.useRef(0);
   const activityReturnTimerRef = React.useRef(0);
+  const underHoodTimerRef = React.useRef(0);
+  const [underHoodPhase, setUnderHoodPhase] = React.useState(null);
   const [activityId, setActivityId] = React.useState("idle");
   const [activityPreview, setActivityPreview] = React.useState(false);
   const [researchPhase, setResearchPhase] = React.useState(null);
@@ -448,6 +451,7 @@ const OrbSection = ({
 
   messagesRef.current = messages;
   stateRef.current = {
+    underHoodPhase,
     activity: activityId,
     researchPhase,
     theme: METABLOOM_ACTIVITIES[activityId].theme,
@@ -486,7 +490,15 @@ const OrbSection = ({
     if (mountedRef.current) setMessages(nextMessages);
   }, [updateStateSnapshot]);
 
+  const cancelUnderHood = React.useCallback(() => {
+    window.clearTimeout(underHoodTimerRef.current);
+    underHoodTimerRef.current = 0;
+    updateStateSnapshot({ underHoodPhase: null });
+    if (mountedRef.current) setUnderHoodPhase(null);
+  }, [updateStateSnapshot]);
+
   const setActivity = React.useCallback((id, preview = false) => {
+    cancelUnderHood();
     window.clearTimeout(activityPreviewTimerRef.current);
     activityPreviewTimerRef.current = 0;
     window.clearTimeout(activityReturnTimerRef.current);
@@ -498,7 +510,7 @@ const OrbSection = ({
       setActivityPreview(preview);
       setResearchPhase(phase);
     }
-  }, [updateStateSnapshot]);
+  }, [cancelUnderHood, updateStateSnapshot]);
 
   const completeActivity = React.useCallback(() => {
     if (stateRef.current?.researchPhase === "surfacing") return;
@@ -569,6 +581,7 @@ const OrbSection = ({
         setActiveReaction(null);
       }
 
+      cancelUnderHood();
       const duration = normalizeDuration(request.duration, resolved.duration);
       const intensity = normalizeIntensity(
         request.intensity,
@@ -602,7 +615,7 @@ const OrbSection = ({
       setPulseVersion(nextPulseVersion);
       return true;
     },
-    [clearSequence, updateStateSnapshot],
+    [cancelUnderHood, clearSequence, updateStateSnapshot],
   );
 
   const performEmote = React.useCallback((nextEmote, preserveReaction = false) => {
@@ -688,6 +701,7 @@ const OrbSection = ({
       const normalizedSteps = normalizeSequenceSteps(steps);
       clearSequence();
       if (normalizedSteps.length === 0) return false;
+      cancelUnderHood();
       reactionPlayerRef.current?.cancel();
       setActiveReaction(null);
 
@@ -747,7 +761,7 @@ const OrbSection = ({
       advance();
       return true;
     },
-    [clearSequence, updateStateSnapshot],
+    [cancelUnderHood, clearSequence, updateStateSnapshot],
   );
 
   const playExternalSequence = React.useCallback(
@@ -791,6 +805,7 @@ const OrbSection = ({
         return false;
       }
 
+      cancelUnderHood();
       reactionPlayerRef.current?.cancel();
       setActiveReaction(null);
       clearSequence();
@@ -837,7 +852,7 @@ const OrbSection = ({
       if (requestedPulse && !requestedAction) pulse();
       return true;
     },
-    [clearSequence, pulse, updateStateSnapshot],
+    [cancelUnderHood, clearSequence, pulse, updateStateSnapshot],
   );
 
   const appendMessage = React.useCallback(
@@ -936,6 +951,23 @@ const OrbSection = ({
     previewTimerRef.current = window.setTimeout(() => failReply(request.session), timeout);
     return true;
   }, [completeActivity, failReply, reactionPlayer, setActivity]);
+
+  const previewUnderHood = React.useCallback(() => {
+    if (stateRef.current?.pending || !isActive) return;
+    setActivity("idle");
+    performAction({ action: "reform", intensity: 0, talking: false }, { pulse: false });
+    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    const advance = (index) => {
+      const step = METABLOOM_HOOD_SEQUENCE[index];
+      if (!step || !mountedRef.current) { cancelUnderHood(); return; }
+      updateStateSnapshot({ underHoodPhase: step.phase });
+      setUnderHoodPhase(step.phase);
+      underHoodTimerRef.current = window.setTimeout(
+        () => reduced ? cancelUnderHood() : advance(index + 1), step.duration,
+      );
+    };
+    advance(reduced ? 1 : 0);
+  }, [cancelUnderHood, isActive, performAction, setActivity, updateStateSnapshot]);
 
   const previewResearchScene = React.useCallback(() => {
     if (stateRef.current?.pending || !isActive) return;
@@ -1219,13 +1251,14 @@ const OrbSection = ({
   React.useEffect(() => {
     const handleVisibility = () => {
       if (document.hidden) {
+        cancelUnderHood();
         reactionPlayer.cancel();
         setActiveReaction(null);
       }
     };
     document.addEventListener("visibilitychange", handleVisibility);
     return () => document.removeEventListener("visibilitychange", handleVisibility);
-  }, [reactionPlayer]);
+  }, [cancelUnderHood, reactionPlayer]);
 
   React.useEffect(() => {
     onConversationStateChange?.(conversationStarted);
@@ -1440,7 +1473,9 @@ const OrbSection = ({
   }, []);
 
   const hasStreamingReply = messages.some((message) => message.status === "streaming");
-  const statusText = researchPhase === "surfacing" ? "Surfacing..." : activityId !== "idle"
+  const statusText = underHoodPhase
+    ? (underHoodPhase === "seam" ? "Opening the seam..." : underHoodPhase === "closing" ? "Sealing the seam..." : "Under the hood · Forward Pass preview")
+    : researchPhase === "surfacing" ? "Surfacing..." : activityId !== "idle"
     ? (activityPreview ? "Research scene preview" : METABLOOM_ACTIVITIES[activityId].label)
     : pending
     ? (hasStreamingReply ? "Responding" : "Thinking")
@@ -1482,6 +1517,7 @@ const OrbSection = ({
       <div className="metabloom-chat__field">
         <MetabloomAvatar
           activityTheme={METABLOOM_ACTIVITIES[activityId].theme}
+          underHoodPhase={underHoodPhase}
           action={activeAction.id}
           actionVersion={actionVersion}
           duration={actionDuration}
@@ -1624,6 +1660,7 @@ const OrbSection = ({
                         <button key={recipe.id} type="button" disabled={pending || !isActive} onClick={() => { if (toolReact({ emote: recipe.id })) close(); }} title={recipe.description}>{recipe.label}</button>
                       ))}
                       <button type="button" disabled={pending || !isActive} onClick={() => { previewResearchScene(); close(); }}>Preview research scene</button>
+                      <button type="button" disabled={pending || !isActive} title="Part Metabloom to reveal the Forward Pass neural-network visualization" onClick={() => { previewUnderHood(); close(); }}>Preview under the hood</button>
                     </div>
                     <details className="metabloom-chat__demos">
                       <summary>Try a conversation demo</summary>
