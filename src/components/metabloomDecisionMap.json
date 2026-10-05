@@ -1,0 +1,16 @@
+{
+  "version": "1.0.0",
+  "minimumConfidence": 0.7,
+  "recipes": [
+    { "id": "support-and-reassure", "label": "Support and reassure", "description": "Acknowledge a difficulty, then offer grounded support. Use only when the response does both.", "steps": ["concerned", "reassuring"] },
+    { "id": "explore-and-consider", "label": "Explore and consider", "description": "Open a question or possibility, then thoughtfully weigh it. Use for exploration followed by interpretation.", "steps": ["curious", "reflective"] },
+    { "id": "consider-and-resolve", "label": "Consider and resolve", "description": "Weigh evidence or tradeoffs, then reach a clear recommendation. Do not use to imply certainty unsupported by the text.", "steps": ["reflective", "resolute"] },
+    { "id": "celebrate-and-appreciate", "label": "Celebrate and appreciate", "description": "Recognize meaningful progress, then express warmth or gratitude. Avoid celebration for routine facts.", "steps": ["celebratory", "warm"] }
+  ],
+  "activities": {
+    "idle": { "label": "Here with you", "theme": "metabloom", "mode": 0 },
+    "deep-research": { "label": "Researching", "theme": "tidal-weave", "mode": 1 },
+    "analysis": { "label": "Analyzing", "theme": "contour-drift", "mode": 3 },
+    "writing": { "label": "Writing", "theme": "metabloom", "mode": 0 }
+  }
+}

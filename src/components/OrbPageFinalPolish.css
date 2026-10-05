@@ -408,3 +408,9 @@
 .orb-page[data-conversation-started="false"] .metabloom-chat__conversation-tools .metabloom-reactions__panel {
   max-height: max(8rem, calc(var(--orb-viewport-height, 100dvh) / 2 - 12rem));
 }
+.orb-page .metabloom-chat[data-agent-activity="deep-research"] .metabloom-chat__presence,
+.orb-page .metabloom-chat[data-agent-activity="analysis"] .metabloom-chat__presence {
+  visibility: visible;
+  opacity: 1;
+  transform: translate3d(-50%, 0, 0);
+}

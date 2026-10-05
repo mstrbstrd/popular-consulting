@@ -32,6 +32,7 @@ const normalizeIntensity = (value, fallback) => {
 };
 
 const MetabloomAvatar = ({
+  activityTheme = "metabloom",
   action = "reform",
   actionVersion = 0,
   duration,
@@ -46,6 +47,8 @@ const MetabloomAvatar = ({
   talking = false,
 }) => {
   const metabloomPalette = useMetabloomPalette();
+  const fieldMode = activityTheme === "tidal-weave" ? 1 : activityTheme === "contour-drift" ? 3 : 0;
+  const themeLabel = fieldMode === 1 ? "Tidal Weave research scene" : "Contour Drift analysis scene";
   const normalizedAction =
     resolveMetabloomAction(action) || getDefaultMetabloomAction();
   const active = isActive && !paused;
@@ -70,7 +73,7 @@ const MetabloomAvatar = ({
     onPulse?.();
   };
 
-  const accessibleLabel =
+  const accessibleLabel = fieldMode !== 0 ? `${themeLabel}.` :
     `Faceless Metabloom avatar expressing ${normalizedAction.label.toLowerCase()}. `
     + `${normalizedAction.motion}. ${normalizedAction.colorway} colorway, `
     + `${materialLabel} finish.`;
@@ -78,6 +81,7 @@ const MetabloomAvatar = ({
   return (
     <div
       className="metabloom-avatar"
+      data-avatar-theme={fieldMode === 0 ? "metabloom" : activityTheme}
       data-avatar-action={normalizedAction.id}
       data-avatar-action-version={actionVersion}
       data-avatar-active={active ? "true" : "false"}
@@ -110,12 +114,12 @@ const MetabloomAvatar = ({
         metabloomAvatarColorB={normalizedAction.colors[1]}
         metabloomAvatarColorC={normalizedAction.colors[2]}
         metabloomAvatarDuration={actionDuration}
-        metabloomAvatarEnabled
+        metabloomAvatarEnabled={fieldMode === 0}
         metabloomAvatarIntensity={actionIntensity}
         metabloomAvatarTalking={talking}
         metabloomAvatarVersion={actionVersion}
         metabloomPalette={metabloomPalette}
-        mode={0}
+        mode={fieldMode}
         onFieldStateChange={onFieldStateChange}
         paused={!active}
         resetVersion={resetVersion}

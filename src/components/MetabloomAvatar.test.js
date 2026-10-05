@@ -191,6 +191,26 @@ describe("MetabloomAvatar", () => {
     expect(mockFieldProps.paused).toBe(true);
   });
 
+  test("activity themes reuse the field and restore the chosen material", () => {
+    const avatar = (activityTheme) => (
+      <MetabloomPaletteContext.Provider value="metalbloom">
+        <MetabloomAvatar activityTheme={activityTheme} />
+      </MetabloomPaletteContext.Provider>
+    );
+    const { rerender } = render(avatar("metabloom"));
+    const field = screen.getByTestId("creatoros-metabloom-field");
+    rerender(avatar("tidal-weave"));
+    expect(screen.getByTestId("creatoros-metabloom-field")).toBe(field);
+    expect(mockFieldProps).toMatchObject({ mode: 1, metabloomAvatarEnabled: false, metabloomPalette: "metalbloom" });
+    expect(screen.getByRole("button", { name: /Tidal Weave research scene/ })).toBeInTheDocument();
+    rerender(avatar("contour-drift"));
+    expect(mockFieldProps).toMatchObject({ mode: 3, metabloomAvatarEnabled: false });
+    rerender(avatar("arbitrary-mode"));
+    expect(mockFieldProps).toMatchObject({ mode: 0, metabloomAvatarEnabled: true, metabloomPalette: "metalbloom" });
+    expect(screen.getByTestId("creatoros-metabloom-field")).toBe(field);
+    expect(screen.getByTestId("metabloom-avatar")).toHaveAttribute("data-avatar-theme", "metabloom");
+  });
+
   test("keeps keyboard and pointer pulse activation on the live field", () => {
     const onPulse = jest.fn();
     render(<MetabloomAvatar onPulse={onPulse} />);

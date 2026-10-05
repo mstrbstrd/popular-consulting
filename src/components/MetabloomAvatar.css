@@ -24,7 +24,7 @@
   height: 100%;
 }
 
-.metabloom-avatar .creatoros-field-shell {
+.metabloom-avatar[data-avatar-theme="metabloom"] .creatoros-field-shell {
   overflow: visible;
   background: transparent !important;
 }
@@ -33,7 +33,7 @@
   cursor: inherit;
 }
 
-.metabloom-avatar .creatoros-field-fallback {
+.metabloom-avatar[data-avatar-theme="metabloom"] .creatoros-field-fallback {
   background:
     radial-gradient(
       ellipse at 28% 58%,

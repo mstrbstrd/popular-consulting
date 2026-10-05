@@ -23,6 +23,10 @@ describe("Metabloom emote library", () => {
       "relieved",
       "shy",
       "startled",
+      "support-and-reassure",
+      "explore-and-consider",
+      "consider-and-resolve",
+      "celebrate-and-appreciate",
     ]);
     expect(Object.isFrozen(METABLOOM_EMOTES)).toBe(true);
     expect(new Set(METABLOOM_EMOTE_IDS).size).toBe(

@@ -79,7 +79,7 @@ const MetabloomReactionPanel = ({ onReact, disabled = false, intensity: controll
             <input id="metabloom-reaction-intensity" type="range" min="0.2" max="1" step="0.05" value={intensity} onChange={(event) => setIntensity(Number(event.target.value))} />
           </label>
           <p className="metabloom-reactions__hint">Applies to previews and conversation reactions.</p>
-          {children}
+          {typeof children === "function" ? children({ close }) : children}
           <p className="metabloom-reactions__score"><strong>{action.label}</strong><span>{action.beats.join(" · ")}</span></p>
           {disabled && <p className="metabloom-reactions__waiting">Available when the current reply finishes.</p>}
         </section>

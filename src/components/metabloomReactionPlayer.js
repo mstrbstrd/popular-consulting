@@ -24,16 +24,20 @@ export const createMetabloomReactionPlayer = ({ onPlay, onIdle }) => {
   return {
     cancel,
     enqueue(emote, messageId, index, reducedMotion = false) {
-      if (!resolveMetabloomEmote(emote)) return false;
+      const choice = resolveMetabloomEmote(emote);
+      if (!choice) return false;
+      const steps = choice.steps || [emote];
       // Neutral is an intentional settle. Reduced motion never builds a backlog.
       if (emote === "neutral" || reducedMotion) {
         cancel();
-        onPlay(emote, messageId, index);
+        onPlay(reducedMotion ? steps[steps.length - 1] : emote, messageId, index);
         onIdle();
         return true;
       }
-      if (queue.length >= 4) return false;
-      queue.push({ emote, messageId, index });
+      // Four response paragraphs can select a two-step recipe each.
+      // Admission is atomic, so an over-capacity recipe never partially plays.
+      if (queue.length + steps.length + (timer ? 1 : 0) > 8) return false;
+      queue.push(...steps.map((step) => ({ emote: step, messageId, index })));
       if (!timer) advance();
       return true;
     },

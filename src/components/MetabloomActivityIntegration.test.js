@@ -1,0 +1,139 @@
+import React from "react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import OrbSection from "./OrbSection";
+
+let mockAvatar;
+jest.mock("./MetabloomAvatar", () => (props) => { mockAvatar = props; return null; });
+jest.mock("../contexts/ThemeContext", () => ({ useThemeMode: () => ({ isDark: false }) }));
+
+const research = { activity: "deep-research", state: "running" };
+const segment = { emote: "consider-and-resolve", response: "After weighing the evidence, here is my recommendation." };
+const reply = { version: "1.0.0", segments: [segment] };
+const tick = async (ms) => { await act(async () => { jest.advanceTimersByTime(ms); await Promise.resolve(); }); };
+const send = (message = "Please do deep research") => {
+  fireEvent.change(screen.getByRole("textbox"), { target: { value: message } });
+  fireEvent.submit(screen.getByRole("form", { name: "Message Metabloom" }));
+};
+let request, finish, reject;
+beforeEach(() => {
+  jest.useFakeTimers();
+  window.__metabloomRequest = (value) => {
+    request = value;
+    return new Promise((resolve, fail) => { finish = resolve; reject = fail; });
+  };
+});
+afterEach(() => { cleanup(); jest.clearAllTimers(); jest.useRealTimers(); window.__metabloomRequest = null; });
+
+test("research keywords alone cannot start a scene; confirmed work can", async () => {
+  render(<OrbSection />);
+  send();
+  await tick(0);
+  expect(mockAvatar.activityTheme).toBe("metabloom");
+  const version = mockAvatar.actionVersion;
+  act(() => expect(request.onActivity(research)).toBe(true));
+  expect(mockAvatar.activityTheme).toBe("tidal-weave");
+  expect(screen.getByRole("article", { name: "Metabloom is researching" })).toBeInTheDocument();
+  await tick(30000);
+  expect(window.__orbState()).toMatchObject({ pending: true, activity: "deep-research", theme: "tidal-weave" });
+  expect(mockAvatar.actionVersion).toBe(version);
+  expect(request.reactionQuestion.criteria["consider-and-resolve"]).toBeTruthy();
+  expect(request.resolveDecision({ choice: "consider-and-resolve", confidence: 0.9 })).toBe("consider-and-resolve");
+  act(() => request.onSegment(segment, 0));
+  expect(mockAvatar).toMatchObject({ activityTheme: "metabloom", action: "thinking" });
+  expect(screen.getByText(segment.response)).toBeInTheDocument();
+  act(() => expect(request.onActivity(research)).toBe(false));
+  await act(async () => finish(reply));
+  expect(window.__orbState().pending).toBe(false);
+  await tick(2240);
+  expect(mockAvatar.action).toBe("resolute");
+  expect(window.__orbMessages().filter((message) => message.role === "assistant")).toHaveLength(1);
+});
+
+test("activity changes are correlated and out-of-order completion cannot erase newer work", async () => {
+  render(<OrbSection />);
+  send();
+  await tick(0);
+  act(() => {
+    expect(window.__metabloomProtocol.reportActivity("stale-id", research)).toBe(false);
+    request.onActivity(research);
+    request.onActivity({ activity: "analysis", state: "running" });
+    expect(request.onActivity({ activity: "deep-research", state: "complete" })).toBe(false);
+  });
+  expect(mockAvatar.activityTheme).toBe("contour-drift");
+  act(() => request.onActivity({ activity: "analysis", state: "complete" }));
+  expect(mockAvatar.activityTheme).toBe("metabloom");
+  act(() => request.onActivity({ activity: "writing", state: "running" }));
+  expect(screen.getByRole("article", { name: "Metabloom is writing" })).toBeInTheDocument();
+  await act(async () => finish(reply));
+  expect(window.__orbState()).toMatchObject({ activity: "idle", pending: false });
+});
+
+test.each(["stop", "reset", "message", "deactivate", "unmount", "error"])("%s ends the activity and rejects late events", async (operation) => {
+  const { rerender, unmount } = render(<OrbSection />);
+  send();
+  await tick(0);
+  const previous = request;
+  const report = window.__metabloomProtocol.reportActivity;
+  act(() => previous.onActivity(research));
+  if (operation === "unmount") unmount();
+  else if (operation === "deactivate") rerender(<OrbSection isActive={false} />);
+  else if (operation === "message") send("Another question");
+  else if (operation === "error") await act(async () => reject(new Error("worker unavailable")));
+  else act(() => operation === "reset" ? window.__orbReset() : window.__orbStop());
+  await tick(0);
+  expect(previous.signal.aborted).toBe(true);
+  act(() => {
+    expect(previous.onActivity(research)).toBe(false);
+    expect(report(previous.requestId, research)).toBe(false);
+  });
+  if (operation !== "unmount") {
+    expect(mockAvatar.activityTheme).toBe("metabloom");
+    expect(window.__orbState().activity).toBe("idle");
+  }
+});
+
+test("activity heartbeats cannot extend the absolute lifetime", async () => {
+  render(<OrbSection />);
+  send();
+  await tick(0);
+  act(() => request.onActivity(research));
+  await tick(299000);
+  act(() => request.onActivity(research));
+  await tick(1000);
+  expect(mockAvatar.activityTheme).toBe("metabloom");
+  expect(window.__orbState().pending).toBe(false);
+  expect(request.signal.aborted).toBe(true);
+  expect(screen.getByRole("alert")).toBeInTheDocument();
+  act(() => expect(request.onActivity(research)).toBe(false));
+});
+
+test("completing activity restores the ordinary response timeout", async () => {
+  render(<OrbSection />);
+  send();
+  await tick(0);
+  act(() => request.onActivity(research));
+  await tick(31000);
+  act(() => request.onActivity({ activity: "deep-research", state: "complete" }));
+  await tick(30000);
+  expect(window.__orbState()).toMatchObject({ activity: "idle", pending: false });
+  expect(request.signal.aborted).toBe(true);
+});
+
+test("local chain and scene previews run without a network request", async () => {
+  const provider = jest.fn();
+  window.__metabloomRequest = provider;
+  render(<OrbSection />);
+  fireEvent.click(screen.getByRole("button", { name: /Reactions/ }));
+  fireEvent.click(screen.getByRole("button", { name: "Support and reassure" }));
+  expect(mockAvatar.action).toBe("sad");
+  await tick(2320);
+  expect(mockAvatar.action).toBe("agree");
+  expect(screen.getByRole("button", { name: /Reactions/ })).toHaveFocus();
+  fireEvent.click(screen.getByRole("button", { name: /Reactions/ }));
+  fireEvent.click(screen.getByRole("button", { name: "Preview research scene" }));
+  expect(screen.getByText("Research scene preview")).toBeInTheDocument();
+  expect(mockAvatar.activityTheme).toBe("tidal-weave");
+  await tick(4000);
+  expect(mockAvatar.activityTheme).toBe("metabloom");
+  expect(provider).not.toHaveBeenCalled();
+});
