@@ -180,7 +180,8 @@ const clampPose = (pose) => {
   return pose;
 };
 
-const intensityGain = (intensity) => clamp(intensity) * 1.44;
+// Give every authored reaction more presence while retaining the pose limits.
+const intensityGain = (intensity) => clamp(intensity) * 1.95;
 
 const addPhysiology = (pose, timeSeconds, seed, enabled) => {
   if (!enabled) return pose;
