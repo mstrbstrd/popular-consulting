@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { createMetabloomHoodTransition, METABLOOM_HOOD_SHADER } from "./metabloomUnderHood";
 import { METABLOOM_ACTION_IDS } from "./metabloomActions";
 import { createMetabloomSceneTransition, METABLOOM_SCENE_MODES } from "./metabloomSceneTransition";
 import {
@@ -121,11 +122,12 @@ export const specializeCreatorOSFieldFragmentShader = (source, mode, activitySce
 
   const specializedSampleScene = activityScenes ? [
     "uniform vec3 u_activityWeights;",
+    METABLOOM_HOOD_SHADER,
     FIELD_SAMPLE_SCENE_MARKER,
     "  vec4 blended = vec4(0.0);",
     ...METABLOOM_SCENE_MODES.map((id, index) => [
       `  if (u_activityWeights[${index}] > 0.0) {`,
-      `    vec4 scene = ${FIELD_SCENE_FUNCTIONS[id]}(uv, time);`,
+      `    vec4 scene = ${id === 0 ? "sceneMetabloomUnderHood" : FIELD_SCENE_FUNCTIONS[id]}(uv, time);`,
       `    blended += vec4(scene.rgb * scene.a, scene.a) * u_activityWeights[${index}];`,
       "  }",
     ].join("\n")),
@@ -443,6 +445,7 @@ const CreatorOSFieldCanvas = ({
   metabloomAvatarVersion = 0,
   metabloomPalette = "spectral",
   metabloomSceneTransitions = false,
+  metabloomUnderHoodPhase = null,
   mode = 0,
   morphogenBrushSize = "medium",
   morphogenColorA = MORPHOGEN_DEFAULT_COLOR_A,
@@ -462,6 +465,7 @@ const CreatorOSFieldCanvas = ({
   const pausedRef = useRef(paused);
   const lightRef = useRef(isDark ? 0 : 1);
   const modeRef = useRef(clampMode(mode));
+  const underHoodPhaseRef = useRef(metabloomUnderHoodPhase);
   const metabloomPaletteRef = useRef(
     resolveMetabloomPaletteMix(metabloomPalette),
   );
@@ -543,6 +547,11 @@ const CreatorOSFieldCanvas = ({
     lightRef.current = isDark ? 0 : 1;
     redrawRef.current();
   }, [isDark]);
+
+  useEffect(() => {
+    underHoodPhaseRef.current = metabloomUnderHoodPhase;
+    redrawRef.current();
+  }, [metabloomUnderHoodPhase]);
 
   useEffect(() => {
     modeRef.current = clampMode(mode);
@@ -712,6 +721,8 @@ const CreatorOSFieldCanvas = ({
     let incomingMode = currentMode;
     let modeMix = 1;
     const sceneTransition = createMetabloomSceneTransition(currentMode);
+    const hoodTransition = createMetabloomHoodTransition();
+    let hoodValues = [0, 0];
     let publishedSceneWeights = "";
     const snapScene = () => sceneTransition.target(modeRef.current, true);
     const avatarIsVisible = () => metabloomAvatarEnabledRef.current && (
@@ -945,6 +956,7 @@ const CreatorOSFieldCanvas = ({
       "u_modeB",
       "u_modeMix",
       "u_activityWeights",
+      "u_underHood",
       "u_metabloomPaletteMix",
       "u_contourPaletteMix",
       "u_tidalPaletteMix",
@@ -1260,6 +1272,7 @@ const CreatorOSFieldCanvas = ({
       if (activityScenes) {
         sceneTransition.target(modeRef.current);
         sceneTransition.advance(delta);
+        hoodValues = hoodTransition.sample(underHoodPhaseRef.current, delta);
       }
       const avatarRestarted = applyMetabloomAvatarRestart();
       const avatarDuration = metabloomAvatarDurationRef.current;
@@ -1518,13 +1531,14 @@ const CreatorOSFieldCanvas = ({
       );
       gl.uniform1f(activeDisplayUniforms.u_pulseAge, pulseAge);
       // The activity sampler already blends once. Keep the generic sampler's
-      // second-scene branch inactive for this three-scene program.
+      // second-scene branch inactive for this activity program.
       gl.uniform1i(activeDisplayUniforms.u_modeA, activityScenes ? 0 : currentMode);
       gl.uniform1i(activeDisplayUniforms.u_modeB, activityScenes ? 0 : incomingMode);
       gl.uniform1f(activeDisplayUniforms.u_modeMix, modeMix);
       if (activityScenes) {
         const weights = sceneTransition.weights;
         gl.uniform3f(activeDisplayUniforms.u_activityWeights, ...weights);
+        gl.uniform2f(activeDisplayUniforms.u_underHood, ...hoodValues);
         const key = weights.join(",");
         if (key !== publishedSceneWeights) {
           ["metabloom", "tidal", "contour"].forEach((scene, index) => {
@@ -1679,6 +1693,7 @@ const CreatorOSFieldCanvas = ({
     const drawStatic = () => {
       applyRestart();
       snapScene();
+      hoodValues = hoodTransition.sample(underHoodPhaseRef.current, 0, true);
       const avatarRestarted = applyMetabloomAvatarRestart();
       if (
         metabloomAvatarEnabledRef.current
@@ -1784,6 +1799,7 @@ const CreatorOSFieldCanvas = ({
         incomingMode = currentMode;
         modeMix = 1;
         snapScene();
+        hoodValues = hoodTransition.sample(underHoodPhaseRef.current, 0, true);
         if (paintBrushPending) {
           drawReactionStep(0.62, true);
         }

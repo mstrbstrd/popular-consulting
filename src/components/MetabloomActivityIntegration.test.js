@@ -222,3 +222,70 @@ test("reduced motion keeps the readable surfacing cue and skips the animated ret
     expect(window.__orbState().researchPhase).toBeNull();
   } finally { window.matchMedia = originalMatchMedia; }
 });
+
+
+const previewHood = () => {
+  fireEvent.click(screen.getByRole("button", { name: /Reactions/ }));
+  fireEvent.click(screen.getByRole("button", { name: "Preview under the hood" }));
+};
+
+test("under the hood traces, opens, holds and seals without adding a message or requesting a model", async () => {
+  const provider = jest.fn();
+  window.__metabloomRequest = provider;
+  render(<OrbSection />);
+  previewHood();
+  expect(mockAvatar).toMatchObject({ underHoodPhase: "seam", activityTheme: "metabloom" });
+  expect(screen.getByText("Opening the seam...")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /Reactions/ })).toHaveFocus();
+  await tick(700);
+  expect(mockAvatar.underHoodPhase).toBe("open");
+  expect(screen.getByText("Under the hood · Forward Pass preview")).toBeInTheDocument();
+  await tick(5100);
+  expect(mockAvatar.underHoodPhase).toBe("closing");
+  await tick(1600);
+  expect(mockAvatar.underHoodPhase).toBeNull();
+  expect(window.__orbMessages()).toHaveLength(0);
+  expect(provider).not.toHaveBeenCalled();
+});
+
+test.each(["stop", "reset", "message", "deactivate", "unmount", "hidden", "research", "reaction"])("%s cancels the hood sequence without a stale return", async (operation) => {
+  const { rerender, unmount } = render(<OrbSection />);
+  previewHood();
+  await tick(900);
+  let visibility;
+  if (operation === "unmount") unmount();
+  else if (operation === "deactivate") rerender(<OrbSection isActive={false} />);
+  else if (operation === "message") send("A new request");
+  else if (operation === "hidden") {
+    visibility = jest.spyOn(document, "hidden", "get").mockReturnValue(true);
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+  } else if (operation === "research" || operation === "reaction") {
+    fireEvent.click(screen.getByRole("button", { name: /Reactions/ }));
+    fireEvent.click(screen.getByRole("button", { name: operation === "research" ? "Preview research scene" : "Support and reassure" }));
+  } else act(() => operation === "reset" ? window.__orbReset() : window.__orbStop());
+  if (operation !== "unmount") expect(mockAvatar.underHoodPhase).toBeNull();
+  if (operation === "research") expect(mockAvatar.activityTheme).toBe("tidal-weave");
+  await tick(10000);
+  if (operation !== "unmount") expect(mockAvatar.underHoodPhase).toBeNull();
+  else expect(jest.getTimerCount()).toBe(0);
+  visibility?.mockRestore();
+});
+
+test("a repeated hood preview replaces its timer and reduced motion skips the opening and closing", async () => {
+  render(<OrbSection />);
+  previewHood();
+  await tick(2000);
+  previewHood();
+  await tick(700);
+  expect(mockAvatar.underHoodPhase).toBe("open");
+  await tick(4000);
+  expect(mockAvatar.underHoodPhase).toBe("open");
+  const original = window.matchMedia;
+  window.matchMedia = () => ({ matches: true });
+  try {
+    previewHood();
+    expect(mockAvatar.underHoodPhase).toBe("open");
+    await tick(5100);
+    expect(mockAvatar.underHoodPhase).toBeNull();
+  } finally { window.matchMedia = original; }
+});

@@ -134,7 +134,44 @@
   cursor: default;
 }
 
+/* The CSS path keeps the same single aperture, using a static network study. */
+.metabloom-avatar .creatoros-field-fallback::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  clip-path: polygon(0 72%, 100% 29%, 100% 29%, 0 72%);
+  background:
+    radial-gradient(circle, #b8fbff 0 2px, transparent 3px) 0 0 / 15% 16%,
+    repeating-linear-gradient(24deg, transparent 0 46px, #735bb66b 47px 48px, transparent 49px 85px),
+    repeating-linear-gradient(-24deg, transparent 0 46px, #4c91ae73 47px 48px, transparent 49px 85px),
+    repeating-linear-gradient(90deg, transparent 0 14%, #78caff88 14.2% 14.5%, transparent 14.7% 15%),
+    linear-gradient(135deg, #e5e9f4, #e8f6fa);
+}
+[data-theme="dark"] .metabloom-avatar .creatoros-field-fallback::before {
+  background-color: #03060f;
+  background-image:
+    radial-gradient(circle, #a8fbff 0 2px, transparent 3px),
+    repeating-linear-gradient(24deg, transparent 0 46px, #735bb66b 47px 48px, transparent 49px 85px),
+    repeating-linear-gradient(-24deg, transparent 0 46px, #4c91ae73 47px 48px, transparent 49px 85px),
+    repeating-linear-gradient(90deg, transparent 0 14%, #78caff88 14.2% 14.5%, transparent 14.7% 15%);
+}
+.metabloom-avatar[data-under-hood] .creatoros-field-fallback::before {
+  opacity: 1;
+  transition: clip-path 1.7s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.metabloom-avatar[data-under-hood="seam"] .creatoros-field-fallback::before {
+  clip-path: polygon(0 71.7%, 100% 28.7%, 100% 29.3%, 0 72.3%);
+}
+.metabloom-avatar[data-under-hood="open"] .creatoros-field-fallback::before {
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%);
+}
+.metabloom-avatar[data-under-hood="closing"] .creatoros-field-fallback::before {
+  transition-duration: 1.6s;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .metabloom-avatar[data-under-hood] .creatoros-field-fallback::before,
   .metabloom-avatar .creatoros-field-shell.is-fallback::before,
   .metabloom-avatar .creatoros-field-shell.is-fallback::after,
   .metabloom-avatar .creatoros-field-shell.is-fallback .creatoros-field-fallback,

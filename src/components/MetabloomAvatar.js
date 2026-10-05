@@ -33,6 +33,7 @@ const normalizeIntensity = (value, fallback) => {
 
 const MetabloomAvatar = ({
   activityTheme = "metabloom",
+  underHoodPhase = null,
   action = "reform",
   actionVersion = 0,
   duration,
@@ -73,7 +74,7 @@ const MetabloomAvatar = ({
     onPulse?.();
   };
 
-  const accessibleLabel = fieldMode !== 0 ? `${themeLabel}.` :
+  const accessibleLabel = underHoodPhase ? "Under the hood. Metabloom opens to reveal the Forward Pass neural-network visualization." : fieldMode !== 0 ? `${themeLabel}.` :
     `Faceless Metabloom avatar expressing ${normalizedAction.label.toLowerCase()}. `
     + `${normalizedAction.motion}. ${normalizedAction.colorway} colorway, `
     + `${materialLabel} finish.`;
@@ -81,6 +82,7 @@ const MetabloomAvatar = ({
   return (
     <div
       className="metabloom-avatar"
+      data-under-hood={underHoodPhase || undefined}
       data-avatar-theme={fieldMode === 0 ? "metabloom" : activityTheme}
       data-avatar-action={normalizedAction.id}
       data-avatar-action-version={actionVersion}
@@ -116,6 +118,7 @@ const MetabloomAvatar = ({
         metabloomAvatarDuration={actionDuration}
         metabloomAvatarEnabled
         metabloomSceneTransitions
+        metabloomUnderHoodPhase={underHoodPhase}
         metabloomAvatarIntensity={actionIntensity}
         metabloomAvatarTalking={talking}
         metabloomAvatarVersion={actionVersion}

@@ -109,10 +109,13 @@ test("a hidden document resumes at the latest scene without replaying transition
   expect(uniform("uniform3f", "u_activityWeights")).toEqual([0, 0, 1]);
 });
 
-test("the activity sampler exposes only three scenes and blends premultiplied colors", () => {
+test("the activity sampler keeps the optional seam reveal inside the Metabloom scene", () => {
   const source = specializeCreatorOSFieldFragmentShader(CREATOROS_FIELD_FRAGMENT_SHADER, 0, true);
   const sampler = source.slice(source.indexOf("uniform vec3 u_activityWeights"), source.indexOf("\n\nvoid main()", source.indexOf("vec4 sampleScene")));
-  expect(sampler).toContain("sceneMetabloom(uv, time)");
+  expect(sampler).toContain("sceneMetabloomUnderHood(uv, time)");
+  expect(sampler).toContain("if (u_underHood.y <= 0.0) return sceneMetabloom(uv, time)");
+  expect(sampler).toContain("if (inside > 0.0)");
+  expect(sampler).toContain("sceneForwardPass(uv, time)");
   expect(sampler).toContain("sceneTidalWeave(uv, time)");
   expect(sampler).toContain("sceneContourDrift(uv, time)");
   expect(sampler).not.toContain("sceneMorphogen");
@@ -138,4 +141,43 @@ test("context loss stops drawing, releases blend styles and restores the request
   expect(shell).not.toHaveClass("is-fallback");
   expect(uniform("uniform3f", "u_activityWeights")).toEqual([0, 0, 1]);
   expect(mockGl.createProgram).toHaveBeenCalledTimes(2);
+});
+
+
+test("the seam opens and closes in the existing program without resetting its clock or seed", () => {
+  const hood = (phase) => <CreatorOSFieldCanvas metabloomSceneTransitions metabloomAvatarEnabled metabloomUnderHoodPhase={phase} />;
+  const { rerender, container } = render(hood(null));
+  const canvas = container.querySelector("canvas");
+  frame(8);
+  const seed = uniform("uniform1f", "u_seed")[0];
+  const time = uniform("uniform1f", "u_time")[0];
+  rerender(hood("seam"));
+  frame(7);
+  expect(uniform("uniform2f", "u_underHood")).toEqual([0, 1]);
+  rerender(hood("open"));
+  frame(8);
+  expect(uniform("uniform2f", "u_underHood")[0]).toBeGreaterThan(0);
+  expect(uniform("uniform2f", "u_underHood")[0]).toBeLessThan(1);
+  frame(10);
+  expect(uniform("uniform2f", "u_underHood")).toEqual([1, 1]);
+  rerender(hood("closing"));
+  frame(8);
+  expect(uniform("uniform2f", "u_underHood")[0]).toBeCloseTo(0.5);
+  rerender(hood(null));
+  frame();
+  expect(uniform("uniform2f", "u_underHood")).toEqual([0, 0]);
+  expect(uniform("uniform1f", "u_seed")[0]).toBe(seed);
+  expect(uniform("uniform1f", "u_time")[0]).toBeGreaterThan(time);
+  expect(container.querySelector("canvas")).toBe(canvas);
+  expect(mockGl.createProgram).toHaveBeenCalledTimes(1);
+  expect(createDitherCanvasCadence).toHaveBeenCalledTimes(1);
+});
+
+test("reduced motion shows a static network and clears it without scheduling animation", () => {
+  mockMotion.matches = true;
+  const { rerender } = render(<CreatorOSFieldCanvas metabloomSceneTransitions metabloomUnderHoodPhase="open" />);
+  expect(uniform("uniform2f", "u_underHood")).toEqual([1, 1]);
+  rerender(<CreatorOSFieldCanvas metabloomSceneTransitions />);
+  expect(uniform("uniform2f", "u_underHood")).toEqual([0, 0]);
+  expect(mockCadence.schedule).not.toHaveBeenCalled();
 });
