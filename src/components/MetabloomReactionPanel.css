@@ -142,7 +142,52 @@
 .metabloom-reactions__intensity { display: grid; gap: 0.6rem; margin-top: 1.6rem; }
 .metabloom-reactions__intensity > span { display: flex; justify-content: space-between; gap: 1rem; }
 .metabloom-reactions__intensity output { color: var(--aetheris-ink-2); font-family: var(--aetheris-font-mono); font-variant-numeric: tabular-nums; }
-.orb-page .metabloom-reactions__intensity input { width: 100%; min-height: 3rem; margin: 0; accent-color: var(--aetheris-teal); }
+.orb-page .metabloom-reactions__intensity input {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  min-height: 3rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+/* Keep vendor tracks separate so each browser retains its supported rule. */
+.orb-page .metabloom-reactions__intensity input::-webkit-slider-runnable-track {
+  height: 0.6rem;
+  border: 0;
+  border-radius: var(--aetheris-radius-pill);
+  background: var(--aetheris-spectral-h);
+}
+.orb-page .metabloom-reactions__intensity input::-moz-range-track {
+  height: 0.6rem;
+  border: 0;
+  border-radius: var(--aetheris-radius-pill);
+  background: var(--aetheris-spectral-h);
+}
+.orb-page .metabloom-reactions__intensity input::-moz-range-progress { background: transparent; }
+.orb-page .metabloom-reactions__intensity input::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  box-sizing: border-box;
+  width: 1.8rem;
+  height: 1.8rem;
+  margin-top: -0.6rem;
+  border: 2px solid var(--aetheris-ink-2);
+  border-radius: 50%;
+  background: var(--aetheris-panel-raised);
+  box-shadow: var(--aetheris-shadow);
+}
+.orb-page .metabloom-reactions__intensity input::-moz-range-thumb {
+  box-sizing: border-box;
+  width: 1.8rem;
+  height: 1.8rem;
+  border: 2px solid var(--aetheris-ink-2);
+  border-radius: 50%;
+  background: var(--aetheris-panel-raised);
+  box-shadow: var(--aetheris-shadow);
+}
 .orb-page .metabloom-reactions__score {
   display: grid;
   gap: 0.4rem;
@@ -180,6 +225,10 @@
   }
 }
 @media (forced-colors: active) {
+  .orb-page .metabloom-reactions__intensity input::-webkit-slider-runnable-track { background: GrayText; }
+  .orb-page .metabloom-reactions__intensity input::-moz-range-track { background: GrayText; }
+  .orb-page .metabloom-reactions__intensity input::-webkit-slider-thumb { background: Highlight; border-color: CanvasText; box-shadow: none; }
+  .orb-page .metabloom-reactions__intensity input::-moz-range-thumb { background: Highlight; border-color: CanvasText; box-shadow: none; }
   .orb-page .metabloom-reactions__panel,
   .orb-page .metabloom-reactions button { background: Canvas; color: CanvasText; border-color: ButtonText; box-shadow: none; }
   .orb-page .metabloom-reactions__panel::before,
