@@ -27,7 +27,7 @@ try {
       await sleep(5000);
     }
     assert.equal(metadata?.presentation, "single-message-stream", "Production is not serving the streaming implementation");
-    assert.equal(metadata.emotes.length, 9);
+    assert.equal(metadata.emotes.length, 14);
   }
   const browser = findBrowser();
   assert.ok(browser, "Chromium or Edge is required");

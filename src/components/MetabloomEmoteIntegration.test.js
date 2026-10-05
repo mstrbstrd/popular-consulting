@@ -34,7 +34,7 @@ describe("streamed segments belong to one assistant reply", () => {
     expect(window.__orbState().pending).toBe(true);
     expect(screen.queryByLabelText("Metabloom is thinking")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Stop response" })).toBeInTheDocument();
-    expect(mockProps).toMatchObject({ actionVersion: 1, pulseVersion: 0, intensity: 0.25 });
+    expect(mockProps).toMatchObject({ actionVersion: 1, pulseVersion: 0, intensity: 0.35 });
     await tick(1540);
     expect(screen.getByRole("article", { name: "Metabloom message" })).toBe(article);
     expect(replies()[0].id).toBe(id);
@@ -57,7 +57,7 @@ describe("streamed segments belong to one assistant reply", () => {
     fireEvent.click(screen.getByRole("button", { name: "Show me a whimsical response" }));
     await tick(520);
     expect(replies()).toHaveLength(1);
-    expect(mockProps).toMatchObject({ action: "surprised", intensity: 0.25, talking: false, actionVersion: 1, pulseVersion: 0 });
+    expect(mockProps).toMatchObject({ action: "surprised", intensity: 0.35, talking: false, actionVersion: 1, pulseVersion: 0 });
     await tick(200);
     expect(replies()[0].status).toBe("complete");
     expect(mockProps.actionVersion).toBe(1);

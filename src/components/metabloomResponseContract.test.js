@@ -47,7 +47,7 @@ describe("Metabloom model response contract", () => {
           },
           {
             action: "agree",
-            duration: 920,
+            duration: 1540,
             intensity: 0.46,
             talking: true,
           },
@@ -102,7 +102,7 @@ describe("Metabloom model response contract", () => {
     expect(
       parseMetabloomModelResponse({
         response: "Aliases are not part of the strict model schema.",
-        actionChain: [{ action: "curious" }],
+        actionChain: [{ action: "focus" }],
       }),
     ).toMatchObject({ ok: false });
 

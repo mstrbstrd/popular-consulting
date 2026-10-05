@@ -49,8 +49,9 @@ The browser integration surface is a frozen registry:
 window.__metabloomTools
 ```
 
-Version `1.0.0` exposes:
+Version `1.1.0` exposes:
 
+- `react({ emote })` for a fixed semantic reaction
 - `express({ action, duration?, intensity?, talking? })`
 - `sequence({ id?, steps })`
 - `talk({ active })`
@@ -78,3 +79,5 @@ The shared renderer remains the only WebGL context. Desktop devices may render a
 - Agent tools cannot access arbitrary shader state.
 - Reduced motion, hidden tabs, pause, WebGL context loss, and unmount cleanup remain safe.
 - Per-frame motion updates reuse their pose and colour buffers to avoid garbage-collection stutter.
+
+The current close-up vocabulary and compatibility rules are documented in [reaction set 2](metabloom-reactions.md).

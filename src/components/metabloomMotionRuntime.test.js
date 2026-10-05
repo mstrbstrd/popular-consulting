@@ -1,3 +1,4 @@
+import { METABLOOM_ACTION_IDS } from "./metabloomActions";
 import {
   METABLOOM_NEUTRAL_POSE,
   METABLOOM_POSE_KEYS,
@@ -15,20 +16,7 @@ describe("Metabloom emotive motion runtime", () => {
   });
 
   test("keeps every authored pose finite and inside conservative geometry bounds", () => {
-    const actions = [
-      "reform",
-      "agree",
-      "disagree",
-      "happy",
-      "excited",
-      "sad",
-      "surprised",
-      "thinking",
-      "sleepy",
-      "angry",
-    ];
-
-    actions.forEach((action) => {
+    METABLOOM_ACTION_IDS.forEach((action) => {
       for (let index = 0; index <= 100; index += 1) {
         const pose = sampleMetabloomActionPose({
           action,
@@ -152,5 +140,39 @@ describe("Metabloom emotive motion runtime", () => {
     }
 
     expect(first.snapshot()).toEqual(second.snapshot());
+  });
+});
+
+describe("close-up reaction invariants", () => {
+  test.each(METABLOOM_ACTION_IDS)("%s returns to rest and has no gesture at zero intensity or when disabled", (action) => {
+    [0, 1].forEach((phase) => {
+      expect(sampleMetabloomActionPose({ action, phase, physiology: false, intensity: 1 }))
+        .toEqual(METABLOOM_NEUTRAL_POSE);
+    });
+    for (let frame = 0; frame <= 60; frame += 1) {
+      const phase = frame / 60;
+      expect(sampleMetabloomActionPose({ action, phase, physiology: false, intensity: 0 }))
+        .toEqual(METABLOOM_NEUTRAL_POSE);
+      expect(sampleMetabloomActionPose({ action, phase, physiology: false, enabled: false, intensity: 1 }))
+        .toEqual(METABLOOM_NEUTRAL_POSE);
+    }
+  });
+
+  test("curiosity leans in, skepticism withdraws, and conviction never shakes sideways", () => {
+    const sample = (action, phase) => sampleMetabloomActionPose({ action, phase, intensity: 0.65, physiology: false });
+    expect(sample("curious", 0.5).offsetX).toBeGreaterThan(0.05);
+    expect(sample("skeptical", 0.5).offsetX).toBeLessThan(-0.04);
+    expect(sample("curious", 0.5).rotation).toBeGreaterThan(0);
+    expect(sample("thinking", 0.5).rotation).toBeLessThan(0);
+    for (let frame = 0; frame < 60; frame += 1) {
+      expect(sample("resolute", frame / 60).offsetX).toBe(0);
+    }
+  });
+
+  test("surprise has a readable held recoil before recovery", () => {
+    const sample = (phase) => sampleMetabloomActionPose({ action: "surprised", phase, intensity: 0.65, physiology: false });
+    expect(sample(0.25)).toEqual(sample(0.40));
+    expect(sample(0.30).stillness).toBeGreaterThan(0.8);
+    expect(sample(0.90).offsetY).toBeLessThan(sample(0.30).offsetY);
   });
 });

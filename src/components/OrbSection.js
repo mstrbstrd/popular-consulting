@@ -1,6 +1,7 @@
 import React from "react";
 import { useThemeMode } from "../contexts/ThemeContext";
 import MetabloomAvatar from "./MetabloomAvatar";
+import MetabloomReactionPanel from "./MetabloomReactionPanel";
 import {
   METABLOOM_ACTIONS,
   METABLOOM_ACTION_IDS,
@@ -60,8 +61,17 @@ const TOOL_EXPRESSION_KEYS = new Set([
 const TOOL_SEQUENCE_KEYS = new Set(["id", "steps"]);
 const TOOL_TALK_KEYS = new Set(["active"]);
 const EMPTY_TOOL_KEYS = new Set();
+const TOOL_REACTION_KEYS = new Set(["emote"]);
 
 const METABLOOM_TOOL_SCHEMAS = Object.freeze({
+  react: {
+    $schema: "https://json-schema.org/draft/2020-12/schema",
+    title: "MetabloomReact",
+    type: "object",
+    additionalProperties: false,
+    required: ["emote"],
+    properties: { emote: { type: "string", enum: [...METABLOOM_EMOTE_IDS] } },
+  },
   express: {
     $schema: "https://json-schema.org/draft/2020-12/schema",
     title: "MetabloomExpress",
@@ -872,6 +882,17 @@ const OrbSection = ({
     [performAction],
   );
 
+  const toolReact = React.useCallback((request) => {
+    if (!isPlainObject(request) || !hasOnlyKeys(request, TOOL_REACTION_KEYS)
+      || !resolveMetabloomEmote(request.emote) || stateRef.current?.pending) return false;
+    return performEmote(request.emote);
+  }, [performEmote]);
+
+  const previewReaction = React.useCallback((request) => {
+    if (stateRef.current?.pending) return false;
+    return performAction(request, { pulse: false });
+  }, [performAction]);
+
   const toolSequence = React.useCallback(
     (request) => {
       const sequence = normalizeToolSequence(request);
@@ -1070,13 +1091,14 @@ const OrbSection = ({
 
   React.useEffect(() => {
     const publicActions = METABLOOM_ACTIONS.map(
-      ({ id, label, intent, motion, colorway, colors, duration, intensity }) => ({
+      ({ id, label, intent, motion, colorway, colors, duration, intensity, beats }) => ({
         id,
         label,
         intent,
         motion,
         colorway,
         colors: [...colors],
+        beats: [...beats],
         duration,
         intensity,
       }),
@@ -1093,7 +1115,8 @@ const OrbSection = ({
       ),
     );
     const metabloomTools = Object.freeze({
-      version: "1.0.0",
+      version: "1.1.0",
+      react: toolReact,
       express: toolExpress,
       sequence: toolSequence,
       talk: toolTalk,
@@ -1176,6 +1199,7 @@ const OrbSection = ({
     stop,
     stopTalking,
     toolExpress,
+    toolReact,
     toolGetState,
     toolPulse,
     toolSequence,
@@ -1235,6 +1259,8 @@ const OrbSection = ({
           talking={talking}
         />
       </div>
+
+      <MetabloomReactionPanel onReact={previewReaction} disabled={pending || !isActive} />
 
       <div className="metabloom-chat__scrim" aria-hidden="true" />
 
@@ -1386,7 +1412,7 @@ const OrbSection = ({
                 </svg>
               </button>
             </form>
-            {!conversationStarted && <p className="metabloom-chat__protocol-note">Emote protocol 1.0 · Stream segments into one reply</p>}
+            {!conversationStarted && <p className="metabloom-chat__protocol-note">Reaction set 2 · Explore the Reactions menu</p>}
           </div>
         </div>
       </div>
