@@ -25,7 +25,7 @@ performance/<description>
 
 ## Local validation
 
-Install and run the current application with Node.js 20.x:
+Install and run the current application with Node.js 24.x:
 
 ```bash
 npm install
