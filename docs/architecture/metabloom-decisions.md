@@ -117,8 +117,17 @@ the current request ID can also call
 stale IDs, closed requests and events after the first response segment. A late
 completion for research cannot clear a newer analysis activity.
 
-The first reply segment, normal completion, error, cancellation, reset, new
-request, deactivation and unmount restore Metabloom. Confirmed activity permits
+Research displays **Diving deep...** with a text shimmer and staggered ellipsis.
+A confirmed completion or first reply segment changes it to **Surfacing...**,
+holds Tidal Weave for a 650 ms lead, then retains the cue through the 1.2-second
+return blend. Duplicate completion signals cannot restart the cue. Reply text
+and reaction playback remain immediate, and the transient status never enters
+conversation history. Reduced motion removes the shimmer/dot animations and
+skips the return-blend wait. Preview status remains explicitly labeled.
+
+Errors, cancellation, reset, a new request, deactivation and unmount immediately
+clear the presentation timers and restore Metabloom without a completion cue.
+A newer activity also cancels any pending return. Confirmed activity permits
 an absolute five-minute UI request lifetime measured from request creation;
 heartbeats cannot extend it. Activity completion restores the ordinary 30-second
 response timeout, capped by the absolute deadline. This does not extend the
@@ -146,8 +155,9 @@ been removed; the chat retains its accessible heading, composer and status.
 ## Review and rollback
 
 The Reactions menu includes the four chains and **Preview research scene**.
-The latter shows Tidal Weave for four seconds with an explicit preview label;
-it neither creates a message nor calls a service. These selections close the
+The latter shows the diving state for four seconds, then the surfacing cue and
+return blend, with an explicit preview label. It neither creates a message nor
+calls a service. These selections close the
 panel and restore focus to its toggle so the scene stays visible.
 
 Tests cover provider selection and streaming of a chain, paced and reduced-motion

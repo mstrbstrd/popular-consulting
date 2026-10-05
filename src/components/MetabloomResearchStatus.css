@@ -1,0 +1,56 @@
+.orb-page .metabloom-research-status {
+  min-height: 3.2rem;
+  padding: 0.65rem 0.35rem;
+  color: var(--aetheris-ink);
+  font: 500 1.5rem/1.5 var(--aetheris-font-sans);
+  letter-spacing: -0.01em;
+  pointer-events: none;
+}
+.metabloom-research-status__visual {
+  display: inline-flex;
+  align-items: baseline;
+  white-space: nowrap;
+  animation: metabloomResearchArrive 240ms ease-out both;
+}
+.metabloom-research-status__dots { display: inline-flex; min-width: 1.2em; }
+.metabloom-research-status__dots > span {
+  width: 0.35em;
+  opacity: 0.35;
+  animation: metabloomResearchDots 1.5s ease-in-out infinite;
+}
+.metabloom-research-status__dots > span:nth-child(2) { animation-delay: 160ms; }
+.metabloom-research-status__dots > span:nth-child(3) { animation-delay: 320ms; }
+.orb-page .metabloom-research-status small { color: var(--aetheris-ink-2); font-size: 1.1rem; }
+@supports (background-clip: text) or (-webkit-background-clip: text) {
+  .metabloom-research-status__text {
+    background: linear-gradient(110deg, var(--aetheris-ink) 30%, var(--aetheris-teal) 46%, var(--aetheris-ink) 62%);
+    background-size: 240% 100%;
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    animation: metabloomResearchShimmer 2.4s linear infinite;
+  }
+}
+.orb-page .metabloom-chat__research-preview {
+  position: absolute;
+  bottom: calc(100% + 5.4rem);
+  left: 0;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+.orb-page .metabloom-chat__research-preview .metabloom-research-status { align-items: center; margin: 0; }
+@keyframes metabloomResearchShimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
+@keyframes metabloomResearchDots { 0%, 65%, 100% { opacity: 0.35; } 30% { opacity: 1; } }
+@keyframes metabloomResearchArrive { from { opacity: 0; transform: translateY(0.2rem); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .metabloom-research-status__visual,
+  .metabloom-research-status__text,
+  .metabloom-research-status__dots > span { animation: none; opacity: 1; transform: none; }
+  .metabloom-research-status__text { background: none; color: var(--aetheris-ink); }
+}
+@media (forced-colors: active) {
+  .metabloom-research-status__text { background: none; color: CanvasText; animation: none; }
+  .orb-page .metabloom-research-status,
+  .orb-page .metabloom-research-status small { color: CanvasText; }
+}
