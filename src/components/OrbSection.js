@@ -13,7 +13,6 @@ import {
   MAX_METABLOOM_ACTION_INTENSITY,
   MAX_METABLOOM_ACTION_STEPS,
   MAX_METABLOOM_CHAIN_DURATION_MS,
-  MAX_METABLOOM_RESPONSE_CHARS,
   MIN_METABLOOM_ACTION_DURATION_MS,
   MIN_METABLOOM_ACTION_INTENSITY,
   METABLOOM_MODEL_RESPONSE_SCHEMA,
@@ -22,6 +21,7 @@ import {
 import { METABLOOM_DEMO_PROMPTS, METABLOOM_DEMOS } from "./metabloomDemoResponses";
 import { parseMetabloomEmoteEnvelope, createMetabloomSegmentStreamDecoder } from "./metabloomEmoteProtocol";
 import { resolveMetabloomEmote, METABLOOM_PROTOCOL_VERSION, METABLOOM_EMOTE_IDS, METABLOOM_EMOTE_RESPONSE_SCHEMA } from "./metabloomEmoteLibrary";
+import { createMetabloomReactionPlayer } from "./metabloomReactionPlayer";
 import { createMetabloomReplySession } from "./metabloomReplySession";
 import { requestMetabloomResponse } from "./metabloomApiClient";
 import { streamMetabloomDemoResponse } from "./metabloomDemoStream";
@@ -395,7 +395,19 @@ const OrbSection = ({
   const replyRef = React.useRef(null);
   const messageCounterRef = React.useRef(0);
   const mountedRef = React.useRef(true);
-  const messagesEndRef = React.useRef(null);
+  const sectionRef = React.useRef(null);
+  const transcriptRef = React.useRef(null);
+  const composerRef = React.useRef(null);
+  const composerAreaRef = React.useRef(null);
+  const followLatestRef = React.useRef(true);
+  const reactionPlayerRef = React.useRef(null);
+  const thinkingTimerRef = React.useRef(0);
+  const [readingEarlier, setReadingEarlier] = React.useState(false);
+  const [composerFocused, setComposerFocused] = React.useState(false);
+  const [activeReaction, setActiveReaction] = React.useState(null);
+  const [expressiveness, setExpressiveness] = React.useState(0.8);
+  const expressivenessRef = React.useRef(expressiveness);
+  expressivenessRef.current = expressiveness;
   const stateRef = React.useRef(null);
   const [emoteId, setEmoteId] = React.useState("neutral");
   const [allowEmoteChanges, setAllowEmoteChanges] = React.useState(false);
@@ -462,6 +474,10 @@ const OrbSection = ({
   }, [updateStateSnapshot]);
 
   const cancelResponse = React.useCallback((reason = "interrupted") => {
+    window.clearTimeout(thinkingTimerRef.current);
+    thinkingTimerRef.current = 0;
+    reactionPlayerRef.current?.cancel();
+    if (mountedRef.current) setActiveReaction(null);
     requestAbortRef.current?.abort();
     requestAbortRef.current = null;
     requestTokenRef.current += 1;
@@ -497,6 +513,10 @@ const OrbSection = ({
         : { ...options, action: nextAction };
       const resolved = resolveMetabloomAction(request.action);
       if (!resolved) return false;
+      if (!options.preserveReaction) {
+        reactionPlayerRef.current?.cancel();
+        setActiveReaction(null);
+      }
 
       const duration = normalizeDuration(request.duration, resolved.duration);
       const intensity = normalizeIntensity(
@@ -534,13 +554,29 @@ const OrbSection = ({
     [clearSequence, updateStateSnapshot],
   );
 
-  const performEmote = React.useCallback((nextEmote) => {
+  const performEmote = React.useCallback((nextEmote, preserveReaction = false) => {
     const emote = resolveMetabloomEmote(nextEmote);
     if (!emote) return false;
     updateStateSnapshot({ emote: emote.id });
     setEmoteId(emote.id);
-    return performAction({ action: emote.action || "reform", duration: emote.duration, intensity: emote.intensity, talking: false }, { pulse: false });
+    return performAction({ action: emote.action || "reform", duration: emote.duration, intensity: Math.min(1, emote.intensity * (expressivenessRef.current / 0.8)), talking: false }, { pulse: false, preserveReaction });
   }, [performAction, updateStateSnapshot]);
+
+  const reactionPlayer = React.useMemo(() => createMetabloomReactionPlayer({
+    onPlay: (emote, messageId, index) => {
+      if (!mountedRef.current) return;
+      performEmote(emote, true);
+      setActiveReaction({ emote, messageId, index });
+    },
+    onIdle: () => { if (mountedRef.current) setActiveReaction(null); },
+  }), [performEmote]);
+  reactionPlayerRef.current = reactionPlayer;
+
+  const attendToComposer = React.useCallback(() => {
+    setComposerFocused(true);
+    if (!isActive || stateRef.current?.pending || stateRef.current?.sequenceId || activeReaction) return;
+    performAction({ action: "listening", intensity: 0.32 * expressivenessRef.current / 0.8, talking: false }, { pulse: false });
+  }, [activeReaction, isActive, performAction]);
 
   const transform = React.useCallback(
     (nextForm) => {
@@ -601,6 +637,8 @@ const OrbSection = ({
       const normalizedSteps = normalizeSequenceSteps(steps);
       clearSequence();
       if (normalizedSteps.length === 0) return false;
+      reactionPlayerRef.current?.cancel();
+      setActiveReaction(null);
 
       const token = sequenceTokenRef.current;
       let index = 0;
@@ -702,6 +740,8 @@ const OrbSection = ({
         return false;
       }
 
+      reactionPlayerRef.current?.cancel();
+      setActiveReaction(null);
       clearSequence();
       const snapshotUpdates = { sequenceId: null };
       if (requestedAction) {
@@ -777,7 +817,13 @@ const OrbSection = ({
     let messageId = null;
     const session = createMetabloomReplySession({
       allowMultiple,
-      onEmote: performEmote,
+      onEmote: (emote) => {
+        window.clearTimeout(thinkingTimerRef.current);
+        thinkingTimerRef.current = 0;
+        const index = session.snapshot().segments.length - 1;
+        reactionPlayer.enqueue(emote, messageId, index,
+          document.hidden || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches);
+      },
       onUpdate: (snapshot) => {
         if (!mountedRef.current) return;
         const replySource = replyRef.current === session ? stateRef.current.responseSource : source;
@@ -793,9 +839,15 @@ const OrbSection = ({
     setPending(true);
     setResponseSource(source);
     setErrorMessage("");
+    // Fast replies go straight into their own gesture without a distracting flash.
+    thinkingTimerRef.current = window.setTimeout(() => {
+      if (replyRef.current === session && !session.closed && !session.snapshot().segments.length) {
+        performAction({ action: "thinking", intensity: 0.3 * expressivenessRef.current / 0.8, talking: false }, { pulse: false });
+      }
+    }, 650);
     previewTimerRef.current = window.setTimeout(() => failReply(session), RESPONSE_TIMEOUT_MS);
     return session;
-  }, [appendMessage, cancelResponse, clearSequence, failReply, performEmote, publishMessages, updateStateSnapshot]);
+  }, [appendMessage, cancelResponse, clearSequence, failReply, performAction, reactionPlayer, publishMessages, updateStateSnapshot]);
 
   const finishReply = React.useCallback((session, payload) => {
     if (replyRef.current !== session || session.closed) return false;
@@ -890,8 +942,17 @@ const OrbSection = ({
 
   const previewReaction = React.useCallback((request) => {
     if (stateRef.current?.pending) return false;
+    reactionPlayer.cancel();
+    setActiveReaction(null);
     return performAction(request, { pulse: false });
-  }, [performAction]);
+  }, [performAction, reactionPlayer]);
+
+  const replaySegment = React.useCallback((message, segment, index) => {
+    if (!isActive || stateRef.current?.pending || message.status !== "complete") return;
+    reactionPlayer.cancel();
+    reactionPlayer.enqueue(segment.emote, message.id, index,
+      document.hidden || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches);
+  }, [isActive, reactionPlayer]);
 
   const toolSequence = React.useCallback(
     (request) => {
@@ -967,6 +1028,8 @@ const OrbSection = ({
         history.unshift({ role: item.role, content: item.content });
         historyChars += item.content.length;
       }
+      followLatestRef.current = true;
+      setReadingEarlier(false);
       appendMessage("user", message);
       const demo = METABLOOM_DEMOS.find((item) => item.prompt === message);
       const allowMultiple = demo ? demo.segments.length > 1 : allowEmoteChanges;
@@ -1063,15 +1126,79 @@ const OrbSection = ({
   }, [isActive, stop]);
 
   React.useEffect(() => {
+    const handleVisibility = () => {
+      if (document.hidden) {
+        reactionPlayer.cancel();
+        setActiveReaction(null);
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, [reactionPlayer]);
+
+  React.useEffect(() => {
     onConversationStateChange?.(conversationStarted);
   }, [conversationStarted, onConversationStateChange]);
 
+  const scrollToLatest = React.useCallback(() => {
+    followLatestRef.current = true;
+    setReadingEarlier(false);
+    const transcript = transcriptRef.current;
+    if (transcript) transcript.scrollTop = transcript.scrollHeight;
+  }, []);
+
+  const handleTranscriptScroll = () => {
+    const transcript = transcriptRef.current;
+    if (!transcript) return;
+    const nearBottom = transcript.scrollHeight - transcript.scrollTop - transcript.clientHeight < 72;
+    followLatestRef.current = nearBottom;
+    setReadingEarlier(!nearBottom);
+  };
+
+  React.useLayoutEffect(() => {
+    // Never move the whole page or pull a reader away from an earlier reply.
+    if (followLatestRef.current) scrollToLatest();
+  }, [messages, pending, scrollToLatest]);
+
+  React.useLayoutEffect(() => {
+    const input = composerRef.current;
+    if (!input) return;
+    input.style.height = "auto";
+    input.style.height = `${Math.min(116, Math.max(46, input.scrollHeight))}px`;
+  }, [draft]);
+
   React.useEffect(() => {
-    const end = messagesEndRef.current;
-    if (end && typeof end.scrollIntoView === "function") {
-      end.scrollIntoView({ behavior: window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "end" });
-    }
-  }, [messages, pending]);
+    const area = composerAreaRef.current;
+    if (!area || typeof ResizeObserver === "undefined") return undefined;
+    const resize = () => {
+      const height = area.getBoundingClientRect().height;
+      area.closest(".metabloom-chat")?.style.setProperty("--orb-composer-clearance", `${height + 48}px`);
+      area.closest(".metabloom-chat")?.style.setProperty("--orb-composer-height", `${height}px`);
+      if (followLatestRef.current) scrollToLatest();
+    };
+    const observer = new ResizeObserver(resize);
+    observer.observe(area);
+    resize();
+    return () => observer.disconnect();
+  }, [scrollToLatest]);
+
+  React.useEffect(() => {
+    const viewport = window.visualViewport;
+    if (!viewport) return undefined;
+    const resize = () => {
+      if (!sectionRef.current || viewport.scale > 1.05) return;
+      sectionRef.current.style.setProperty("--orb-viewport-height", `${viewport.height}px`);
+      sectionRef.current.style.setProperty("--orb-viewport-top", `${viewport.offsetTop}px`);
+      if (followLatestRef.current) scrollToLatest();
+    };
+    resize();
+    viewport.addEventListener("resize", resize);
+    viewport.addEventListener("scroll", resize);
+    return () => {
+      viewport.removeEventListener("resize", resize);
+      viewport.removeEventListener("scroll", resize);
+    };
+  }, [scrollToLatest]);
 
   React.useEffect(() => {
     const handleModelResponse = (event) => {
@@ -1224,10 +1351,13 @@ const OrbSection = ({
         ? "Paused"
         : talking
           ? "Speaking"
-          : activeAction.label;
+          : activeReaction
+            ? resolveMetabloomEmote(activeReaction.emote)?.label
+            : composerFocused ? "Listening" : "Here with you";
   return (
     <section
       id="orb"
+      ref={sectionRef}
       className="metabloom-chat"
       aria-label="Metabloom model chat interface"
       data-conversation-started={conversationStarted ? "true" : "false"}
@@ -1238,6 +1368,7 @@ const OrbSection = ({
       data-emote-protocol={METABLOOM_PROTOCOL_VERSION}
       data-response-presentation="single-message-stream"
       data-emote={emoteId}
+      data-chat-phase={pending ? (hasStreamingReply ? "responding" : "thinking") : composerFocused ? "listening" : "ready"}
     >
       <h1 className="metabloom-chat__sr-only">
         Metabloom model chat interface
@@ -1260,8 +1391,6 @@ const OrbSection = ({
         />
       </div>
 
-      <MetabloomReactionPanel onReact={previewReaction} disabled={pending || !isActive} />
-
       <div className="metabloom-chat__scrim" aria-hidden="true" />
 
       <div className="metabloom-chat__interface">
@@ -1278,6 +1407,9 @@ const OrbSection = ({
           </div>
 
           <div
+            ref={transcriptRef}
+            onScroll={handleTranscriptScroll}
+            tabIndex={0}
             className="metabloom-chat__messages"
             role="log"
             aria-live="polite"
@@ -1296,11 +1428,24 @@ const OrbSection = ({
                 >
                   <span className="metabloom-chat__speaker">
                     {message.role === "assistant" ? "Metabloom" : "You"}
-                    {message.emote && ` · ${resolveMetabloomEmote(message.emote)?.label}`}
                   </span>
                   <div className="metabloom-chat__bubble">
                     {message.segments?.length
-                      ? message.segments.map((segment, index) => <p key={index} data-segment-index={index}>{segment.response}</p>)
+                      ? message.segments.map((segment, index) => (
+                        <React.Fragment key={index}>
+                          <button
+                            type="button"
+                            className="metabloom-chat__reaction-cue"
+                            aria-label={`Replay ${resolveMetabloomEmote(segment.emote)?.label.toLowerCase()} reaction for paragraph ${index + 1}`}
+                            aria-pressed={activeReaction?.messageId === message.id && activeReaction?.index === index}
+                            disabled={pending || !isActive || message.status !== "complete"}
+                            onClick={() => replaySegment(message, segment, index)}
+                          >
+                            <span aria-hidden="true">↻</span> {resolveMetabloomEmote(segment.emote)?.label}
+                          </button>
+                          <p data-segment-index={index} data-reaction-active={activeReaction?.messageId === message.id && activeReaction?.index === index ? "true" : "false"}>{segment.response}</p>
+                        </React.Fragment>
+                      ))
                       : <p>{message.content}</p>}
                     {message.status === "streaming" && <span className="metabloom-chat__stream-status">Receiving response…</span>}
                     {["interrupted", "error"].includes(message.status) && <span className="metabloom-chat__stream-status">Response incomplete</span>}
@@ -1346,25 +1491,32 @@ const OrbSection = ({
                 </article>
               )}
 
-              <div ref={messagesEndRef} aria-hidden="true" />
             </div>
           </div>
 
-          <div className="metabloom-chat__composer-area">
-            {conversationStarted && (
-              <details className="metabloom-chat__demos">
-                <summary>Local emote demos</summary>
-                <div>
-                  {SUGGESTED_PROMPTS.map((prompt) => (
-                    <button key={prompt} type="button" onClick={() => sendMessage(prompt)}>{prompt}</button>
-                  ))}
-                </div>
-              </details>
-            )}
-            <label className="metabloom-chat__stream-option">
-              <input type="checkbox" checked={allowEmoteChanges} onChange={(event) => setAllowEmoteChanges(event.target.checked)} />
-              Allow emote changes within one reply
-            </label>
+          <div className="metabloom-chat__composer-area" ref={composerAreaRef}>
+            <div className="metabloom-chat__conversation-tools">
+              <MetabloomReactionPanel
+                onReact={previewReaction}
+                disabled={pending || !isActive}
+                intensity={expressiveness}
+                onIntensityChange={setExpressiveness}
+              >
+                <label className="metabloom-chat__stream-option">
+                  <input type="checkbox" checked={allowEmoteChanges} onChange={(event) => setAllowEmoteChanges(event.target.checked)} />
+                  Allow emote changes within one reply
+                </label>
+                <details className="metabloom-chat__demos">
+                  <summary>Try a conversation demo</summary>
+                  <div>
+                    {SUGGESTED_PROMPTS.map((prompt) => (
+                      <button key={prompt} type="button" disabled={pending || !isActive} onClick={() => sendMessage(prompt)}>{prompt}</button>
+                    ))}
+                  </div>
+                </details>
+              </MetabloomReactionPanel>
+              {readingEarlier && <button type="button" className="metabloom-chat__latest" onClick={scrollToLatest}>Latest message ↓</button>}
+            </div>
             {errorMessage && (
               <p className="metabloom-chat__error" role="alert">
                 {errorMessage}
@@ -1372,6 +1524,7 @@ const OrbSection = ({
             )}
             <form
               className="metabloom-chat__composer"
+              data-has-stop={pending && draft.trim() ? "true" : "false"}
               onSubmit={handleSubmit}
               aria-label="Message Metabloom"
             >
@@ -1382,7 +1535,11 @@ const OrbSection = ({
                 Message Metabloom
               </label>
               <textarea
+                ref={composerRef}
                 id="metabloom-message"
+                onFocus={attendToComposer}
+                onBlur={() => setComposerFocused(false)}
+                aria-describedby="metabloom-composer-help"
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
                 onKeyDown={handleComposerKeyDown}
@@ -1390,6 +1547,11 @@ const OrbSection = ({
                 rows={1}
                 maxLength={MAX_USER_MESSAGE_CHARS}
               />
+              {pending && draft.trim() && (
+                <button type="button" onClick={stop} aria-label="Stop response">
+                  <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 7H17V17H7Z" stroke="currentColor" strokeWidth="1.8" /></svg>
+                </button>
+              )}
               <button
                 type={pending && !draft.trim() ? "button" : "submit"}
                 disabled={!pending && !draft.trim()}
@@ -1412,15 +1574,13 @@ const OrbSection = ({
                 </svg>
               </button>
             </form>
-            {!conversationStarted && <p className="metabloom-chat__protocol-note">Reaction set 2 · Explore the Reactions menu</p>}
+            <p id="metabloom-composer-help" className="metabloom-chat__composer-help">
+              {conversationStarted ? "Enter to send · Shift + Enter for a new line" : "Say what’s on your mind, or try a conversation below."}
+            </p>
           </div>
         </div>
       </div>
 
-      <span className="metabloom-chat__sr-only" aria-live="polite">
-        {activeAction.label}: {activeAction.motion}. Maximum response length is
-        {` ${MAX_METABLOOM_RESPONSE_CHARS} characters.`}
-      </span>
     </section>
   );
 };

@@ -109,6 +109,10 @@ try {
     assert.ok(geometry.left >= -1 && geometry.right <= geometry.width + 1, "Composer overflow");
     for (const [label, emote] of [["Show me a whimsical response", "whimsy"], ["Give me a reflective response", "reflective"], ["Offer a reassuring response", "reassuring"]]) {
       const before = await evaluate("window.__orbState().actionVersion");
+      if (await evaluate("!document.querySelector('[data-demo-count]') && !document.querySelector('.metabloom-chat__demos')")) {
+        await evaluate("document.querySelector('[aria-controls=metabloom-reaction-panel]').click()");
+        await until("document.querySelector('.metabloom-chat__demos') !== null");
+      }
       await evaluate(`(() => { const d = document.querySelector('.metabloom-chat__demos'); if(d) d.open = true; Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim() === ${JSON.stringify(label)}).click(); if(d) d.open = false; })()`);
       await until(`window.__orbState().emote === ${JSON.stringify(emote)} && !window.__orbState().pending`);
       assert.equal(await evaluate("window.__orbState().actionVersion"), before + 1);
@@ -117,6 +121,8 @@ try {
       if (emote === "whimsy") await screenshot(config.id);
     }
     const before = await evaluate("({count:window.__orbMessages().length, version:window.__orbState().actionVersion})");
+    await evaluate("document.querySelector('[aria-controls=metabloom-reaction-panel]').click()");
+    await until("document.querySelector('.metabloom-chat__demos') !== null");
     await evaluate(`(() => { const d = document.querySelector('.metabloom-chat__demos'); d.open=true; Array.from(d.querySelectorAll('button')).find(b => b.textContent.includes('two-part')).click(); d.open=false; })()`);
     await until(`window.__orbMessages().length === ${before.count + 2} && window.__orbMessages().at(-1).segments.length === 1 && window.__orbState().pending`);
     const intermediate = await evaluate(`(() => { const m=window.__orbMessages().at(-1); window.__streamArticle=document.querySelector('[data-message-id="'+m.id+'"]'); return {id:m.id,count:window.__orbMessages().length,emote:m.emote,status:m.status,version:window.__orbState().actionVersion}; })()`);

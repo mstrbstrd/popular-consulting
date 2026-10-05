@@ -2,10 +2,12 @@ import React from "react";
 import { METABLOOM_ACTIONS, resolveMetabloomAction } from "./metabloomActions";
 import "./MetabloomReactionPanel.css";
 
-const MetabloomReactionPanel = ({ onReact, disabled = false }) => {
+const MetabloomReactionPanel = ({ onReact, disabled = false, intensity: controlledIntensity, onIntensityChange, children }) => {
   const [open, setOpen] = React.useState(false);
   const [selected, setSelected] = React.useState("curious");
-  const [intensity, setIntensity] = React.useState(0.8);
+  const [localIntensity, setLocalIntensity] = React.useState(0.8);
+  const intensity = controlledIntensity ?? localIntensity;
+  const setIntensity = onIntensityChange || setLocalIntensity;
   const toggleRef = React.useRef(null);
   const panelRef = React.useRef(null);
   const action = resolveMetabloomAction(selected);
@@ -32,6 +34,13 @@ const MetabloomReactionPanel = ({ onReact, disabled = false }) => {
       document.removeEventListener("pointerdown", onPointerDown);
     };
   }, [open, close]);
+
+  React.useEffect(() => {
+    if (disabled) {
+      if (panelRef.current?.contains(document.activeElement)) toggleRef.current?.focus();
+      setOpen(false);
+    }
+  }, [disabled]);
 
   const play = (id) => {
     if (disabled) return;
@@ -69,6 +78,8 @@ const MetabloomReactionPanel = ({ onReact, disabled = false }) => {
             <span>Expressiveness <output>{Math.round(intensity * 100)}%</output></span>
             <input id="metabloom-reaction-intensity" type="range" min="0.2" max="1" step="0.05" value={intensity} onChange={(event) => setIntensity(Number(event.target.value))} />
           </label>
+          <p className="metabloom-reactions__hint">Applies to previews and conversation reactions.</p>
+          {children}
           <p className="metabloom-reactions__score"><strong>{action.label}</strong><span>{action.beats.join(" · ")}</span></p>
           {disabled && <p className="metabloom-reactions__waiting">Available when the current reply finishes.</p>}
         </section>
