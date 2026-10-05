@@ -179,7 +179,8 @@ describe("Dither Field Lab runtime invariants", () => {
     expect(field).toContain("const paintProgramsRequired =");
     expect(field).toContain("paintDisplayProgram = paintProgramsRequired");
     expect(field).toContain("paintReactionProgram = paintProgramsRequired");
-    expect(field).toContain("[contextVersion, mode, morphogenExperience]");
+    expect(field).toContain('const rendererMode = activityScenes ? "metabloom-scenes" : mode');
+    expect(field).toContain("[contextVersion, rendererMode, activityScenes, morphogenExperience]");
   });
 
   test("full-screen compositor promotion exists only during transitions", () => {

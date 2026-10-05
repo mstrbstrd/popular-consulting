@@ -121,34 +121,6 @@
   outline: none;
 }
 
-.orb-page__identity {
-  position: fixed;
-  z-index: 20;
-  min-width: 0;
-  color: var(--aetheris-ink);
-  isolation: isolate;
-  pointer-events: none;
-}
-
-.orb-page__title {
-  margin: 0;
-  color: var(--aetheris-ink);
-  font-family: var(--aetheris-font-sans);
-  font-weight: 650;
-  letter-spacing: -0.055em;
-  line-height: 0.94;
-  text-wrap: balance;
-}
-
-.orb-page__description {
-  color: var(--aetheris-ink-2);
-  font-family: var(--aetheris-font-sans);
-  font-weight: 450;
-  letter-spacing: -0.012em;
-  line-height: 1.55;
-  text-wrap: balance;
-}
-
 @media (max-width: 720px) {
   .orb-page__grid {
     opacity: 0.1;

@@ -126,9 +126,22 @@ existing HTTP provider's timeouts; long jobs need an actual external adapter
 and worker lifecycle.
 
 Scene changes reuse the existing `CreatorOSFieldCanvas` and its native Tidal
-Weave / Contour Drift shaders. No second canvas or animation loop is mounted.
-The original Metabloom finish is preserved on return. Reduced-motion rendering,
-hidden-tab suspension, graphics budgets and CSS fallbacks remain authoritative.
+Weave / Contour Drift shaders. Orb opts into a program containing only its three
+activity scenes, so theme changes preserve the program, seed, animation clock,
+canvas and cadence. Other field pages retain their single-scene specialization.
+Visible scene weights blend over 1.2 seconds with eased endpoints. Interruptions
+retarget from the current mixture, including a third activity or an early return
+to Metabloom. Premultiplied color blending avoids dark fringes around transparent
+edges; the CSS scene backdrops follow the same weights. Only nonzero scenes are
+sampled, returning to one scene after the transition finishes.
+
+No second canvas or animation loop is mounted. The original Metabloom finish and
+avatar pose remain available through the blend. Reduced motion and paused or
+resumed hidden tabs settle directly on the requested scene. Context loss clears
+the blend styles and suspends drawing until the renderer recovers. The CSS
+fallback uses opacity transitions with reduced-motion overrides. Native graphics
+budgets remain authoritative. The decorative landing title and subtitle have
+been removed; the chat retains its accessible heading, composer and status.
 
 ## Review and rollback
 

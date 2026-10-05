@@ -201,10 +201,10 @@ describe("MetabloomAvatar", () => {
     const field = screen.getByTestId("creatoros-metabloom-field");
     rerender(avatar("tidal-weave"));
     expect(screen.getByTestId("creatoros-metabloom-field")).toBe(field);
-    expect(mockFieldProps).toMatchObject({ mode: 1, metabloomAvatarEnabled: false, metabloomPalette: "metalbloom" });
+    expect(mockFieldProps).toMatchObject({ mode: 1, metabloomAvatarEnabled: true, metabloomSceneTransitions: true, metabloomPalette: "metalbloom" });
     expect(screen.getByRole("button", { name: /Tidal Weave research scene/ })).toBeInTheDocument();
     rerender(avatar("contour-drift"));
-    expect(mockFieldProps).toMatchObject({ mode: 3, metabloomAvatarEnabled: false });
+    expect(mockFieldProps).toMatchObject({ mode: 3, metabloomAvatarEnabled: true, metabloomSceneTransitions: true });
     rerender(avatar("arbitrary-mode"));
     expect(mockFieldProps).toMatchObject({ mode: 0, metabloomAvatarEnabled: true, metabloomPalette: "metalbloom" });
     expect(screen.getByTestId("creatoros-metabloom-field")).toBe(field);

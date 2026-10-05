@@ -183,14 +183,6 @@ const OrbPageContent = () => {
           <ImmersiveRouteNavigationBridge />
           <NavMenu audience={SITE_AUDIENCES.BUSINESS} />
 
-          <div className="orb-page__identity" aria-hidden="true">
-            <p className="orb-page__title">Metabloom</p>
-            <p className="orb-page__description">
-              A living field that translates response intent into motion,
-              colour, and form.
-            </p>
-          </div>
-
           <div
             className="orb-page__finish-selector"
             role="group"
