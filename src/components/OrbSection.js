@@ -21,6 +21,7 @@ import {
 import { METABLOOM_DEMO_PROMPTS, METABLOOM_DEMOS } from "./metabloomDemoResponses";
 import { parseMetabloomEmoteEnvelope, createMetabloomSegmentStreamDecoder } from "./metabloomEmoteProtocol";
 import { resolveMetabloomEmote, METABLOOM_PROTOCOL_VERSION, METABLOOM_EMOTE_IDS, METABLOOM_EMOTE_RESPONSE_SCHEMA } from "./metabloomEmoteLibrary";
+import { METABLOOM_ACTIVITIES, METABLOOM_REACTION_RECIPES, METABLOOM_DECISION_SCHEMA, METABLOOM_REACTION_QUESTION, resolveMetabloomDecision, parseMetabloomActivity } from "./metabloomDecisionMapping";
 import { createMetabloomReactionPlayer } from "./metabloomReactionPlayer";
 import { createMetabloomReplySession } from "./metabloomReplySession";
 import { requestMetabloomResponse } from "./metabloomApiClient";
@@ -50,6 +51,7 @@ const MAX_USER_MESSAGE_CHARS = 1600;
 const MAX_CHAT_MESSAGES = 24;
 const MAX_HISTORY_MESSAGES = 12;
 const RESPONSE_TIMEOUT_MS = 30000;
+const MAX_ACTIVITY_TIMEOUT_MS = 300000;
 const MAX_TOOL_SEQUENCE_ID_CHARS = 48;
 const TOOL_SEQUENCE_ID_PATTERN = /^[a-z][a-z0-9-]*$/;
 const TOOL_EXPRESSION_KEYS = new Set([
@@ -402,6 +404,9 @@ const OrbSection = ({
   const followLatestRef = React.useRef(true);
   const reactionPlayerRef = React.useRef(null);
   const thinkingTimerRef = React.useRef(0);
+  const activityPreviewTimerRef = React.useRef(0);
+  const [activityId, setActivityId] = React.useState("idle");
+  const [activityPreview, setActivityPreview] = React.useState(false);
   const [readingEarlier, setReadingEarlier] = React.useState(false);
   const [composerFocused, setComposerFocused] = React.useState(false);
   const [activeReaction, setActiveReaction] = React.useState(null);
@@ -438,6 +443,8 @@ const OrbSection = ({
 
   messagesRef.current = messages;
   stateRef.current = {
+    activity: activityId,
+    theme: METABLOOM_ACTIVITIES[activityId].theme,
     action: activeAction.id,
     emote: emoteId,
     protocolVersion: METABLOOM_PROTOCOL_VERSION,
@@ -473,7 +480,18 @@ const OrbSection = ({
     if (mountedRef.current) setMessages(nextMessages);
   }, [updateStateSnapshot]);
 
+  const setActivity = React.useCallback((id, preview = false) => {
+    window.clearTimeout(activityPreviewTimerRef.current);
+    activityPreviewTimerRef.current = 0;
+    updateStateSnapshot({ activity: id, theme: METABLOOM_ACTIVITIES[id].theme });
+    if (mountedRef.current) {
+      setActivityId(id);
+      setActivityPreview(preview);
+    }
+  }, [updateStateSnapshot]);
+
   const cancelResponse = React.useCallback((reason = "interrupted") => {
+    setActivity("idle");
     window.clearTimeout(thinkingTimerRef.current);
     thinkingTimerRef.current = 0;
     reactionPlayerRef.current?.cancel();
@@ -486,7 +504,7 @@ const OrbSection = ({
     previewTimerRef.current = 0;
     replyRef.current?.interrupt(reason);
     replyRef.current = null;
-  }, []);
+  }, [setActivity]);
 
   const cancelSequenceTimer = React.useCallback(() => {
     sequenceTokenRef.current += 1;
@@ -818,6 +836,7 @@ const OrbSection = ({
     const session = createMetabloomReplySession({
       allowMultiple,
       onEmote: (emote) => {
+        setActivity("idle");
         window.clearTimeout(thinkingTimerRef.current);
         thinkingTimerRef.current = 0;
         const index = session.snapshot().segments.length - 1;
@@ -841,18 +860,19 @@ const OrbSection = ({
     setErrorMessage("");
     // Fast replies go straight into their own gesture without a distracting flash.
     thinkingTimerRef.current = window.setTimeout(() => {
-      if (replyRef.current === session && !session.closed && !session.snapshot().segments.length) {
+      if (replyRef.current === session && !session.closed && !session.snapshot().segments.length && stateRef.current?.activity === "idle") {
         performAction({ action: "thinking", intensity: 0.3 * expressivenessRef.current / 0.8, talking: false }, { pulse: false });
       }
     }, 650);
     previewTimerRef.current = window.setTimeout(() => failReply(session), RESPONSE_TIMEOUT_MS);
     return session;
-  }, [appendMessage, cancelResponse, clearSequence, failReply, performAction, reactionPlayer, publishMessages, updateStateSnapshot]);
+  }, [appendMessage, cancelResponse, clearSequence, failReply, performAction, reactionPlayer, publishMessages, setActivity, updateStateSnapshot]);
 
   const finishReply = React.useCallback((session, payload) => {
     if (replyRef.current !== session || session.closed) return false;
     try {
       session.finish(payload);
+      setActivity("idle");
       window.clearTimeout(previewTimerRef.current);
       previewTimerRef.current = 0;
       activeRequestRef.current = null;
@@ -862,7 +882,34 @@ const OrbSection = ({
       setPending(false);
       return true;
     } catch { return failReply(session); }
-  }, [failReply, updateStateSnapshot]);
+  }, [failReply, setActivity, updateStateSnapshot]);
+
+  const reportActivity = React.useCallback((requestId, event) => {
+    const request = activeRequestRef.current;
+    const activity = parseMetabloomActivity(event);
+    if (!activity || !request || request.requestId !== requestId || request.session.closed
+      || !mountedRef.current || request.session.snapshot().segments.length) return false;
+    if (activity.state === "complete" && stateRef.current?.activity !== activity.activity) return false;
+    if (activity.state === "running") {
+      reactionPlayer.cancel();
+      setActiveReaction(null);
+    }
+    setActivity(activity.state === "running" ? activity.activity : "idle");
+    window.clearTimeout(previewTimerRef.current);
+    // Long work has an absolute five-minute ceiling. Heartbeats cannot extend it.
+    const remaining = Math.max(0, request.startedAt + MAX_ACTIVITY_TIMEOUT_MS - Date.now());
+    const timeout = activity.state === "running" ? remaining : Math.min(RESPONSE_TIMEOUT_MS, remaining);
+    previewTimerRef.current = window.setTimeout(() => failReply(request.session), timeout);
+    return true;
+  }, [failReply, reactionPlayer, setActivity]);
+
+  const previewResearchScene = React.useCallback(() => {
+    if (stateRef.current?.pending || !isActive) return;
+    reactionPlayer.cancel();
+    setActiveReaction(null);
+    setActivity("deep-research", true);
+    activityPreviewTimerRef.current = window.setTimeout(() => setActivity("idle"), 4000);
+  }, [isActive, reactionPlayer, setActivity]);
 
   const receiveModelResponse = React.useCallback((payload, options = {}) => {
     const expectedRequestId = options?.requestId;
@@ -937,22 +984,27 @@ const OrbSection = ({
   const toolReact = React.useCallback((request) => {
     if (!isPlainObject(request) || !hasOnlyKeys(request, TOOL_REACTION_KEYS)
       || !resolveMetabloomEmote(request.emote) || stateRef.current?.pending) return false;
-    return performEmote(request.emote);
-  }, [performEmote]);
+    setActivity("idle");
+    reactionPlayer.cancel();
+    return reactionPlayer.enqueue(request.emote, null, 0,
+      document.hidden || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches);
+  }, [reactionPlayer, setActivity]);
 
   const previewReaction = React.useCallback((request) => {
     if (stateRef.current?.pending) return false;
+    setActivity("idle");
     reactionPlayer.cancel();
     setActiveReaction(null);
     return performAction(request, { pulse: false });
-  }, [performAction, reactionPlayer]);
+  }, [performAction, reactionPlayer, setActivity]);
 
   const replaySegment = React.useCallback((message, segment, index) => {
     if (!isActive || stateRef.current?.pending || message.status !== "complete") return;
+    setActivity("idle");
     reactionPlayer.cancel();
     reactionPlayer.enqueue(segment.emote, message.id, index,
       document.hidden || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches);
-  }, [isActive, reactionPlayer]);
+  }, [isActive, reactionPlayer, setActivity]);
 
   const toolSequence = React.useCallback(
     (request) => {
@@ -1037,7 +1089,7 @@ const OrbSection = ({
       const session = beginReply(source, allowMultiple);
       const requestToken = ++requestTokenRef.current;
       const requestId = `${mountIdRef.current}-${requestToken}`;
-      const activeRequest = { claimed: false, requestId, requestToken, allowMultiple, session };
+      const activeRequest = { claimed: false, requestId, requestToken, allowMultiple, session, startedAt: Date.now() };
       activeRequestRef.current = activeRequest;
       const controller = new AbortController();
       requestAbortRef.current = controller;
@@ -1050,7 +1102,12 @@ const OrbSection = ({
         if (!current()) return;
         session.append(segment, index);
       };
-      const request = { requestId, message, history, allowMultiple, signal: controller.signal, onSegment };
+      const request = {
+        requestId, message, history, allowMultiple, signal: controller.signal, onSegment,
+        onActivity: (event) => current() && reportActivity(requestId, event),
+        reactionQuestion: METABLOOM_REACTION_QUESTION,
+        resolveDecision: resolveMetabloomDecision,
+      };
       const runDemo = () => {
         if (!current()) return;
         // Source label belongs to this reply, not to every arriving segment.
@@ -1094,7 +1151,7 @@ const OrbSection = ({
       }).catch(() => { if (current()) failReply(session); });
       return true;
     },
-    [allowEmoteChanges, appendMessage, beginReply, cancelResponse, failReply, finishReply, isActive, publishMessages, receiveModelResponse, updateStateSnapshot],
+    [allowEmoteChanges, appendMessage, beginReply, cancelResponse, failReply, finishReply, isActive, publishMessages, receiveModelResponse, reportActivity, updateStateSnapshot],
   );
 
   const handleSubmit = React.useCallback(
@@ -1259,6 +1316,11 @@ const OrbSection = ({
       respond: receiveModelResponse,
       createStream,
       getState,
+      decisionSchema: cloneSchema(METABLOOM_DECISION_SCHEMA),
+      reactionQuestion: cloneSchema(METABLOOM_REACTION_QUESTION),
+      resolveDecision: resolveMetabloomDecision,
+      activities: cloneSchema(METABLOOM_ACTIVITIES),
+      reportActivity,
     });
     window.__metabloomProtocol = emoteProtocol;
     window.__bhModeActive = false;
@@ -1321,6 +1383,7 @@ const OrbSection = ({
     pulse,
     reactToUser,
     receiveModelResponse,
+    reportActivity,
     reset,
     startTalking,
     stop,
@@ -1343,7 +1406,9 @@ const OrbSection = ({
   }, []);
 
   const hasStreamingReply = messages.some((message) => message.status === "streaming");
-  const statusText = pending
+  const statusText = activityId !== "idle"
+    ? (activityPreview ? "Research scene preview" : METABLOOM_ACTIVITIES[activityId].label)
+    : pending
     ? (hasStreamingReply ? "Responding" : "Thinking")
     : sequenceId
       ? "Responding"
@@ -1368,6 +1433,9 @@ const OrbSection = ({
       data-emote-protocol={METABLOOM_PROTOCOL_VERSION}
       data-response-presentation="single-message-stream"
       data-emote={emoteId}
+      data-agent-activity={activityId}
+      data-activity-preview={activityPreview ? "true" : "false"}
+      data-activity-theme={METABLOOM_ACTIVITIES[activityId].theme}
       data-chat-phase={pending ? (hasStreamingReply ? "responding" : "thinking") : composerFocused ? "listening" : "ready"}
     >
       <h1 className="metabloom-chat__sr-only">
@@ -1376,6 +1444,7 @@ const OrbSection = ({
 
       <div className="metabloom-chat__field">
         <MetabloomAvatar
+          activityTheme={METABLOOM_ACTIVITIES[activityId].theme}
           action={activeAction.id}
           actionVersion={actionVersion}
           duration={actionDuration}
@@ -1479,14 +1548,14 @@ const OrbSection = ({
               {pending && !hasStreamingReply && (
                 <article
                   className="metabloom-chat__message metabloom-chat__message--assistant"
-                  aria-label="Metabloom is thinking"
+                  aria-label={`Metabloom is ${statusText.toLowerCase()}`}
                 >
                   <span className="metabloom-chat__speaker">Metabloom</span>
                   <div className="metabloom-chat__bubble metabloom-chat__typing">
                     <span aria-hidden="true" />
                     <span aria-hidden="true" />
                     <span aria-hidden="true" />
-                    <span className="metabloom-chat__sr-only">Thinking</span>
+                    <span className="metabloom-chat__sr-only">{statusText}</span>
                   </div>
                 </article>
               )}
@@ -1502,18 +1571,29 @@ const OrbSection = ({
                 intensity={expressiveness}
                 onIntensityChange={setExpressiveness}
               >
-                <label className="metabloom-chat__stream-option">
-                  <input type="checkbox" checked={allowEmoteChanges} onChange={(event) => setAllowEmoteChanges(event.target.checked)} />
-                  Allow emote changes within one reply
-                </label>
-                <details className="metabloom-chat__demos">
-                  <summary>Try a conversation demo</summary>
-                  <div>
-                    {SUGGESTED_PROMPTS.map((prompt) => (
-                      <button key={prompt} type="button" disabled={pending || !isActive} onClick={() => sendMessage(prompt)}>{prompt}</button>
-                    ))}
-                  </div>
-                </details>
+                {({ close }) => (
+                  <>
+                    <label className="metabloom-chat__stream-option">
+                      <input type="checkbox" checked={allowEmoteChanges} onChange={(event) => setAllowEmoteChanges(event.target.checked)} />
+                      Match reactions to each paragraph
+                    </label>
+                    <div className="metabloom-reactions__recipes" role="group" aria-label="Authored reaction chains">
+                      <strong>Reaction chains</strong>
+                      {METABLOOM_REACTION_RECIPES.map((recipe) => (
+                        <button key={recipe.id} type="button" disabled={pending || !isActive} onClick={() => { if (toolReact({ emote: recipe.id })) close(); }} title={recipe.description}>{recipe.label}</button>
+                      ))}
+                      <button type="button" disabled={pending || !isActive} onClick={() => { previewResearchScene(); close(); }}>Preview research scene</button>
+                    </div>
+                    <details className="metabloom-chat__demos">
+                      <summary>Try a conversation demo</summary>
+                      <div>
+                        {SUGGESTED_PROMPTS.map((prompt) => (
+                          <button key={prompt} type="button" disabled={pending || !isActive} onClick={() => sendMessage(prompt)}>{prompt}</button>
+                        ))}
+                      </div>
+                    </details>
+                  </>
+                )}
               </MetabloomReactionPanel>
               {readingEarlier && <button type="button" className="metabloom-chat__latest" onClick={scrollToLatest}>Latest message ↓</button>}
             </div>

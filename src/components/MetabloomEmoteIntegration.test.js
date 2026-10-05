@@ -89,7 +89,7 @@ describe("streamed segments belong to one assistant reply", () => {
     window.__metabloomRequest = (value) => { request = value; return new Promise((resolve) => { finish = resolve; }); };
     render(<OrbSection />);
     fireEvent.click(screen.getByRole("button", { name: /Reactions/ }));
-    fireEvent.click(screen.getByRole("checkbox", { name: "Allow emote changes within one reply" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Match reactions to each paragraph" }));
     send("One answer, with a change of tone");
     await tick(0);
     expect(request.allowMultiple).toBe(true);

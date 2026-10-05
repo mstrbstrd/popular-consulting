@@ -71,3 +71,5 @@
 @media (forced-colors: active) {
   .orb-page .metabloom-reactions__panel, .orb-page .metabloom-reactions button { background: Canvas; color: CanvasText; border-color: ButtonText; }
 }
+.metabloom-reactions__recipes { display: grid; gap: 0.6rem; margin-top: 1.4rem; }
+.metabloom-reactions__recipes strong { margin-bottom: 0.4rem; }

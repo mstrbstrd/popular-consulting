@@ -86,6 +86,17 @@ test("server streams using the shared prompt/schema and sends the current turn o
   const d = createMetabloomSegmentStreamDecoder({ allowMultiple: false }); d.push(res.body);
   assert.equal(d.finish().ok, true); assert.equal(res.body.includes("test-only"), false);
 });
+test("the provider can select an authored chain without another model call or extra segments", async () => {
+  local(); let calls = 0; let sent;
+  const value = envelope(segment("support-and-reassure", "That sounds difficult. We can take this one step at a time."));
+  global.fetch = async (_url, options) => { calls++; sent = JSON.parse(options.body); return reply(value); };
+  const res = response(); await handler(request(), res);
+  assert.equal(calls, 1);
+  assert.ok(sent.text.format.schema.properties.segments.items.properties.emote.enum.includes("support-and-reassure"));
+  const decoder = createMetabloomSegmentStreamDecoder({ allowMultiple: false });
+  decoder.push(res.body);
+  assert.deepEqual(decoder.finish().value, value);
+});
 test("ordinary streams reject extra segments without declaring the visible prefix complete", async () => {
   local(); global.fetch = async () => reply(envelope(segment("warm"), segment("reflective")));
   const res = response(); await handler(request(), res);

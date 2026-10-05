@@ -6,7 +6,7 @@ Protocol 1.0.0 carries semantic text/emote pairs. A response request owns exactl
 {"version":"1.0.0","segments":[{"emote":"whimsy","response":"A playful opening."},{"emote":"reflective","response":"A considered continuation."}]}
 ```
 
-The model chooses from nine restrained presets: neutral, warm, whimsy, reflective, curious, reassuring, concerned, celebratory, and resolute. Ordinary requests allow one segment. The checkbox **Allow emote changes within one reply** explicitly permits up to four. The shared system prompt explains that segments are consecutive paragraphs of ONE reply, not standalone messages. The model cannot control shader parameters, intensity, duration, or animation playlists.
+The model chooses from fourteen primitive emotes and four authored reaction chains. Ordinary requests allow one segment, which may select a single emote or a chain. The checkbox **Match reactions to each paragraph** explicitly permits up to four segments. The shared system prompt explains that segments are consecutive paragraphs of ONE reply, not standalone messages. The model cannot control shader parameters, intensity, duration, or arbitrary animation playlists. See [decision and activity mappings](metabloom-decisions.md) for the choice catalog and Jev adapter contract.
 
 ## Streaming path
 
@@ -18,7 +18,7 @@ The model chooses from nine restrained presets: neutral, warm, whimsy, reflectiv
 {"type":"done","version":"1.0.0"}
 ```
 
-The browser's HTTP reader invokes `onSegment` immediately when each record validates, before network completion. `metabloomReplySession.js` accumulates those paragraphs into one message. The matching emote is triggered once at arrival. There is no reading-delay scheduler, no second assistant bubble, and no replay at completion. A final envelope must match the already visible prefix exactly.
+The browser's HTTP reader invokes `onSegment` immediately when each record validates, before network completion. `metabloomReplySession.js` accumulates those paragraphs into one message. The matching emote or chain is queued once at arrival; the reaction player lets each beat finish before starting the next. Text never waits for animation. There is no second assistant bubble or replay at completion. A final envelope must match the already visible prefix exactly.
 
 This is **validated segment streaming**, not character-by-character display: a paragraph arrives when its complete emote/response object is available. The server emits it before later segments and the final envelope finish. Provider errors after a visible prefix produce an error record without `done`; the partial message remains explicitly incomplete. It is not relabelled as a successful demo.
 

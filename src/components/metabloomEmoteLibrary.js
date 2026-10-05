@@ -1,4 +1,5 @@
 const protocol = require("./metabloomProtocol.json");
+const decisionMap = require("./metabloomDecisionMap.json");
 
 const EMOTE_ID_PATTERN = /^[a-z][a-z0-9-]*$/;
 
@@ -38,6 +39,22 @@ const normalizedEmotes = rawEmotes.map((entry) => {
     intensity,
   });
 });
+
+// Recipes reference only primitive emotes, never arbitrary motion or nested recipes.
+const primitives = new Map(normalizedEmotes.map((entry) => [entry.id, entry]));
+for (const recipe of decisionMap.recipes) {
+  if (!EMOTE_ID_PATTERN.test(recipe.id) || seenIds.has(recipe.id)
+    || !Array.isArray(recipe.steps) || recipe.steps.length < 2 || recipe.steps.length > 3
+    || recipe.steps.some((id) => !primitives.has(id))) throw new Error("Invalid reaction recipe");
+  seenIds.add(recipe.id);
+  const first = primitives.get(recipe.steps[0]);
+  normalizedEmotes.push(deepFreeze({
+    id: recipe.id, label: recipe.label, description: recipe.description,
+    action: first.action, intensity: first.intensity,
+    duration: recipe.steps.reduce((total, id) => total + primitives.get(id).duration, 0),
+    steps: [...recipe.steps],
+  }));
+}
 
 if (normalizedEmotes.length === 0) {
   throw new Error("Metabloom requires at least one emote definition.");
@@ -124,6 +141,7 @@ const buildMetabloomSystemPrompt = ({ allowMultiple = false } = {}) => {
     protocol.systemPromptBase,
     modeInstruction,
     "All segments are consecutive paragraphs of ONE assistant reply, not separate messages. Do not repeat greetings or restart the answer. Preserve schema key order: version before segments; emote before response.",
+    "An emote may name one primitive reaction or one authored chain. Prefer a single reaction; choose a chain only when both stances are present in that paragraph. The client supplies the timing. Never invent a chain or add motion fields.",
     "Allowed emotes:",
     emoteGuide,
     "Choose the least intense emote that honestly supports the response.",
