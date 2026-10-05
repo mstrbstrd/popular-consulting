@@ -23,6 +23,8 @@ const MetabloomReactionPanel = ({ onReact, disabled = false, intensity: controll
     const panel = popoverRef.current;
     const viewport = window.visualViewport;
     const navigation = document.querySelector(".nav-pill");
+    const page = anchor.closest(".orb-page");
+    if (page) page.dataset.reactionsOpen = "true";
     let frame = 0;
     const position = () => {
       const bounds = anchor.getBoundingClientRect();
@@ -30,19 +32,25 @@ const MetabloomReactionPanel = ({ onReact, disabled = false, intensity: controll
       const viewportLeft = viewport?.offsetLeft || 0;
       const viewportWidth = viewport?.width || window.innerWidth;
       const viewportHeight = viewport?.height || window.innerHeight;
-      const viewportBottom = viewportTop + viewportHeight - 16;
+      const safeArea = getComputedStyle(anchor);
+      const leftGutter = Math.max(16, parseFloat(safeArea.getPropertyValue("--orb-safe-left")) || 0);
+      const rightGutter = Math.max(16, parseFloat(safeArea.getPropertyValue("--orb-safe-right")) || 0);
+      const bottomGutter = Math.max(16, parseFloat(safeArea.getPropertyValue("--orb-safe-bottom")) || 0);
+      const viewportBottom = viewportTop + viewportHeight - bottomGutter;
       // Measure before the first paint: the landing composer is centered, so
       // a viewport-height estimate can put the heading behind navigation.
       const top = Math.min(viewportBottom, Math.max(viewportTop + 16,
         (navigation?.getBoundingClientRect().bottom || 0) + 12));
       const panelBottom = Math.min(bounds.top - 8, viewportBottom);
       const availableAbove = panelBottom - top;
-      const compact = availableAbove < 160;
-      panel.style.maxWidth = `${Math.max(0, viewportWidth - 32)}px`;
+      // Phones use the space below navigation as a sheet, not a tiny slice
+      // above the centered landing composer. Desktop keeps its anchored popover.
+      const compact = viewportWidth <= 720 || availableAbove < 160;
+      panel.style.maxWidth = `${Math.max(0, viewportWidth - leftGutter - rightGutter)}px`;
       const width = panel.getBoundingClientRect().width;
       const preferredLeft = bounds.left + bounds.width / 2 > viewportLeft + viewportWidth / 2
         ? bounds.right - width : bounds.left;
-      const left = Math.max(viewportLeft + 16, Math.min(preferredLeft, viewportLeft + viewportWidth - width - 16));
+      const left = Math.max(viewportLeft + leftGutter, Math.min(preferredLeft, viewportLeft + viewportWidth - width - rightGutter));
       panel.style.left = `${left - bounds.left}px`;
       panel.style.maxHeight = `${Math.max(0, compact ? viewportBottom - top : availableAbove)}px`;
       panel.style.top = compact ? `${top - bounds.top}px` : "auto";
@@ -63,6 +71,7 @@ const MetabloomReactionPanel = ({ onReact, disabled = false, intensity: controll
     viewport?.addEventListener("resize", schedule);
     viewport?.addEventListener("scroll", schedule);
     return () => {
+      if (page) delete page.dataset.reactionsOpen;
       window.cancelAnimationFrame(frame);
       observer?.disconnect();
       window.removeEventListener("resize", schedule);

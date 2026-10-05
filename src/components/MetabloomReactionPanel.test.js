@@ -34,7 +34,7 @@ const rect = (left, top, width, height) => ({ left, top, right: left + width, bo
 
 test.each([
   ["landing desktop", 960, 636, rect(626, 368, 164, 44), 400, -236, 284, "auto", "52px"],
-  ["narrow phone", 390, 844, rect(210, 354, 164, 44), 358, -194, 270, "auto", "52px"],
+  ["narrow phone", 390, 844, rect(210, 354, 164, 44), 358, -194, 752, "-278px", "auto"],
   ["short landscape", 844, 390, rect(600, 136, 164, 44), 400, -236, 298, "-60px", "auto"],
   ["conversation", 960, 636, rect(100, 500, 164, 44), 400, 0, 416, "auto", "52px"],
 ])("%s fits below navigation and inside the viewport before painting", (_, width, height, anchor, panelWidth, left, maxHeight, top, bottom) => {
@@ -91,4 +91,17 @@ test("tabbing out dismisses the nonmodal panel without stealing focus", () => {
   fireEvent.blur(screen.getByRole("button", { name: "Close reactions" }), { relatedTarget: screen.getByRole("button", { name: "Next control" }) });
   expect(screen.queryByRole("region", { name: "Reaction studio" })).not.toBeInTheDocument();
   expect(screen.getByRole("button", { name: /Reactions/ })).toHaveAttribute("aria-expanded", "false");
+});
+
+test("opening the studio yields overlapping route chrome until it closes or unmounts", () => {
+  const { container, unmount } = render(<div className="orb-page"><MetabloomReactionPanel onReact={() => true} /></div>);
+  const page = container.firstChild;
+  const toggle = screen.getByRole("button", { name: /Reactions/ });
+  fireEvent.click(toggle);
+  expect(page).toHaveAttribute("data-reactions-open", "true");
+  fireEvent.click(screen.getByRole("button", { name: "Close reactions" }));
+  expect(page).not.toHaveAttribute("data-reactions-open");
+  fireEvent.click(toggle);
+  unmount();
+  expect(page).not.toHaveAttribute("data-reactions-open");
 });

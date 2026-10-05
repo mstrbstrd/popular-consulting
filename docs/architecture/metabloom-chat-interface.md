@@ -206,6 +206,25 @@ The preview passes through the same parser as an external model response. It doe
 
 ## Runtime invariants
 
+### Mobile layout and input
+
+The route follows `visualViewport` height and offset for browser chrome and software
+keyboards, with window resize as a fallback. Pinch zoom is left to the browser.
+Phone and short-window transcripts scroll inside the space between the top controls
+and measured composer, so older messages cannot pass behind them. Composer and
+reaction-panel bounds honor safe-area insets.
+
+On touch-first devices, Return adds a new line and the send button submits. Desktop
+Enter still sends, Shift+Enter adds a line, and Ctrl/Cmd+Enter remains available on
+touch devices with hardware keyboards. IME composition never submits a draft.
+
+The mobile reaction studio expands below navigation with a persistent close button
+and a scrollable body. The material selector yields its space while the studio is
+open or the keyboard is taking room. On short viewports, conversation demos remain
+available inside Reactions. These changes add no renderer, request, or storage path.
+
+### Chat and renderer
+
 - Exactly one `CreatorOSFieldCanvas` is mounted.
 - The Metabloom field fills the route instead of living inside a square or card.
 - Chat messages are plain text and never use `dangerouslySetInnerHTML`.
