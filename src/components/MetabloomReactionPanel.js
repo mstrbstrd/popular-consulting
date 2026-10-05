@@ -122,7 +122,11 @@ const MetabloomReactionPanel = ({ onReact, disabled = false, intensity: controll
         <section ref={popoverRef} id="metabloom-reaction-panel" className="metabloom-reactions__panel" aria-label="Reaction studio">
           <div className="metabloom-reactions__heading">
             <div><strong>Reactions</strong><p>A little body language for the conversation.</p></div>
-            <button type="button" onClick={close} aria-label="Close reactions">×</button>
+            <button type="button" onClick={close} aria-label="Close reactions">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false">
+                <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+            </button>
           </div>
           <div className="metabloom-reactions__content">
             <div className="metabloom-reactions__grid" role="group" aria-label="Preview a reaction">

@@ -110,20 +110,7 @@
   border: 1px solid transparent;
   border-radius: var(--aetheris-radius-pill);
   color: var(--aetheris-ink-2);
-  background:
-    linear-gradient(
-      color-mix(
-        in srgb,
-        var(--aetheris-glass-panel) 88%,
-        transparent
-      ),
-      color-mix(
-        in srgb,
-        var(--aetheris-glass-panel) 88%,
-        transparent
-      )
-    ) padding-box,
-    var(--aetheris-spectral-border-soft) border-box;
+  background: color-mix(in srgb, var(--aetheris-glass-panel) 88%, transparent);
   backdrop-filter: blur(18px) saturate(1.16);
   -webkit-backdrop-filter: blur(18px) saturate(1.16);
   box-shadow:
@@ -161,6 +148,7 @@
 }
 
 .orb-page .orb-page__finish-option {
+  position: relative;
   display: flex;
   min-width: 0;
   min-height: 4.4rem;
@@ -209,43 +197,31 @@
 .orb-page .orb-page__finish-option.is-active {
   border-color: transparent;
   color: var(--aetheris-ink);
-  background:
-    linear-gradient(
-      color-mix(
-        in srgb,
-        var(--aetheris-glass-panel-raised) 94%,
-        transparent
-      ),
-      color-mix(
-        in srgb,
-        var(--aetheris-glass-panel-raised) 94%,
-        transparent
-      )
-    ) padding-box,
-    var(--aetheris-spectral-border-soft) border-box;
+  background: color-mix(in srgb, var(--aetheris-glass-panel-raised) 94%, transparent);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.56),
     0 0 1.4rem var(--aetheris-spectral-glow);
 }
 
-.orb-page .orb-page__finish-option.is-active[data-palette="metalbloom"] {
-  color: color-mix(in srgb, var(--aetheris-ink) 90%, #11151c);
-  background:
-    linear-gradient(
-      135deg,
-      color-mix(in srgb, #f8fafc 88%, var(--aetheris-panel)) 0%,
-      color-mix(in srgb, #8c96a3 42%, var(--aetheris-panel)) 45%,
-      color-mix(in srgb, #eef2f5 90%, var(--aetheris-panel)) 100%
-    ) padding-box,
-    var(--aetheris-spectral-border-soft) border-box;
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.58);
+/* Mask the gradient to the edge so it cannot show through the glass fill. */
+.orb-page__finish-selector::before,
+.orb-page .orb-page__finish-option::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--aetheris-spectral-border-soft);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
 }
-
-[data-theme="dark"]
-  .orb-page
-  .orb-page__finish-option.is-active[data-palette="metalbloom"] {
-  color: #12151a;
-}
+.orb-page .orb-page__finish-option::before { opacity: 0; }
+.orb-page .orb-page__finish-option.is-active::before,
+.orb-page .orb-page__finish-option:hover::before,
+.orb-page .orb-page__finish-option:focus-visible::before { opacity: 1; }
 
 /* Focus is rendered after selection styles so active options remain visible. */
 .orb-page .orb-page__finish-option:focus-visible,
@@ -350,13 +326,9 @@
 }
 
 @media (prefers-reduced-transparency: reduce) {
-  .orb-page__finish-selector {
-    background:
-      linear-gradient(
-        var(--aetheris-panel-raised),
-        var(--aetheris-panel-raised)
-      ) padding-box,
-      var(--aetheris-spectral-border-soft) border-box;
+  .orb-page__finish-selector,
+  .orb-page .orb-page__finish-option.is-active {
+    background: var(--aetheris-panel-raised);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
   }
@@ -378,6 +350,9 @@
 }
 
 @media (forced-colors: active) {
+  .orb-page__finish-selector::before,
+  .orb-page .orb-page__finish-option::before { display: none; }
+
   .orb-page__finish-selector,
   .orb-page .orb-page__finish-option,
   .orb-page .orb-page__finish-option.is-active {
