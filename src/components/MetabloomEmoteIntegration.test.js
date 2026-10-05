@@ -41,8 +41,10 @@ describe("streamed segments belong to one assistant reply", () => {
     expect(replies()[0].segments.map((segment) => segment.emote)).toEqual(["whimsy", "reflective"]);
     expect(article.querySelectorAll("p[data-segment-index]")).toHaveLength(2);
     expect(window.__orbState().pending).toBe(true);
+    expect(mockProps.actionVersion).toBe(1); // The first reaction keeps its full recovery.
+    await tick(40);
     expect(mockProps.actionVersion).toBe(2);
-    await tick(200);
+    await tick(160);
     expect(replies()).toHaveLength(1);
     expect(replies()[0].status).toBe("complete");
     expect(window.__orbState().pending).toBe(false);
@@ -78,7 +80,7 @@ describe("streamed segments belong to one assistant reply", () => {
     expect(screen.queryByText(/Then let the response settle/)).not.toBeInTheDocument();
     if (operation !== "unmount") {
       expect(replies()[0].status).toBe("interrupted");
-      expect(mockProps.actionVersion).toBe(version + (operation === "reset" ? 1 : 0));
+      expect(mockProps.actionVersion).toBe(version + (["reset", "message"].includes(operation) ? 1 : 0));
     }
   });
 
@@ -86,6 +88,7 @@ describe("streamed segments belong to one assistant reply", () => {
     let request, finish;
     window.__metabloomRequest = (value) => { request = value; return new Promise((resolve) => { finish = resolve; }); };
     render(<OrbSection />);
+    fireEvent.click(screen.getByRole("button", { name: /Reactions/ }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Allow emote changes within one reply" }));
     send("One answer, with a change of tone");
     await tick(0);
@@ -98,8 +101,10 @@ describe("streamed segments belong to one assistant reply", () => {
     await act(async () => { finish(envelope(first, second)); });
     expect(replies()).toHaveLength(1);
     expect(replies()[0].content).toBe(first.response + "\n\n" + second.response);
-    expect(mockProps.actionVersion).toBe(2);
+    expect(mockProps.actionVersion).toBe(1);
     expect(window.__orbState().pending).toBe(false);
+    await tick(1580);
+    expect(mockProps.actionVersion).toBe(2);
     send("Continue this conversation");
     await tick(0);
     expect(request.history.filter((message) => message.role === "assistant")).toEqual([
@@ -131,6 +136,8 @@ describe("streamed segments belong to one assistant reply", () => {
     act(() => { stream.push(done); expect(stream.finish()).toBe(true); });
     expect(replies()).toHaveLength(1);
     expect(replies()[0]).toMatchObject({ id, status: "complete" });
+    expect(mockProps.actionVersion).toBe(1);
+    act(() => jest.advanceTimersByTime(1580));
     expect(mockProps.actionVersion).toBe(2);
     expect(stream.push(line(first, 2))).toBe(false);
   });
@@ -171,4 +178,125 @@ describe("streamed segments belong to one assistant reply", () => {
     act(() => request.onSegment(second, 0));
     expect(replies()[0].content).toBe(second.response);
   });
+});
+
+describe("conversation presence and reading control", () => {
+  beforeEach(() => { jest.useFakeTimers(); window.__metabloomRequest = null; });
+  afterEach(() => { cleanup(); jest.clearAllTimers(); jest.useRealTimers(); window.__metabloomRequest = null; });
+
+  test("acknowledges focus once and gives a waiting cue only after a slow reply", async () => {
+    let request;
+    window.__metabloomRequest = (value) => { request = value; return new Promise(() => {}); };
+    render(<OrbSection />);
+    const input = screen.getByRole("textbox");
+    fireEvent.focus(input);
+    expect(mockProps.action).toBe("listening");
+    const version = mockProps.actionVersion;
+    fireEvent.change(input, { target: { value: "One character at a time" } });
+    expect(mockProps.actionVersion).toBe(version);
+    send("Take your time");
+    await tick(649);
+    expect(mockProps.actionVersion).toBe(version);
+    await tick(1);
+    expect(mockProps.action).toBe("thinking");
+    act(() => request.onSegment(first, 0));
+    expect(mockProps.action).toBe("surprised");
+    await tick(1000);
+    expect(mockProps.action).toBe("surprised");
+  });
+
+  test("rapid complete replies show every paragraph immediately and pace their reactions", async () => {
+    render(<OrbSection />);
+    act(() => window.__orbRespond(envelope(first, second), { allowMultiple: true }));
+    expect(screen.getByText(first.response)).toBeInTheDocument();
+    expect(screen.getByText(second.response)).toBeInTheDocument();
+    expect(mockProps.action).toBe("surprised");
+    expect(screen.getByRole("button", { name: /Replay whimsy reaction for paragraph 1/ })).toHaveAttribute("aria-pressed", "true");
+    await tick(1580);
+    expect(mockProps.action).toBe("thinking");
+    expect(screen.getByRole("button", { name: /Replay reflective reaction for paragraph 2/ })).toHaveAttribute("aria-pressed", "true");
+    await tick(2240);
+    expect(screen.getByRole("button", { name: /Replay reflective reaction for paragraph 2/ })).toHaveAttribute("aria-pressed", "false");
+    const messages = window.__orbMessages();
+    fireEvent.click(screen.getByRole("button", { name: /Replay whimsy reaction for paragraph 1/ }));
+    expect(mockProps.action).toBe("surprised");
+    expect(window.__orbMessages()).toEqual(messages);
+  });
+
+  test.each(["stop", "reset", "unmount", "deactivate"])("%s cancels queued reactions even after text has finished", async (operation) => {
+    const { unmount, rerender } = render(<OrbSection />);
+    act(() => window.__orbRespond(envelope(first, second), { allowMultiple: true }));
+    if (operation === "unmount") unmount();
+    else if (operation === "deactivate") rerender(<OrbSection isActive={false} />);
+    else act(() => operation === "stop" ? window.__orbStop() : window.__orbReset());
+    const version = mockProps.actionVersion;
+    await tick(10000);
+    expect(mockProps.actionVersion).toBe(version);
+  });
+
+  test("the expressiveness control also scales incoming chat reactions", () => {
+    render(<OrbSection />);
+    fireEvent.click(screen.getByRole("button", { name: /Reactions/ }));
+    fireEvent.change(screen.getByRole("slider"), { target: { value: "0.4" } });
+    act(() => window.__orbRespond(envelope(first)));
+    expect(mockProps.intensity).toBeCloseTo(0.175);
+  });
+
+  test("reading an earlier message is not interrupted by new segments", () => {
+    render(<OrbSection />);
+    let stream;
+    act(() => { stream = window.__metabloomProtocol.createStream({ allowMultiple: true }); stream.push(line(first, 0)); });
+    const transcript = screen.getByRole("log", { name: "Conversation" });
+    Object.defineProperties(transcript, {
+      scrollHeight: { configurable: true, value: 1200 },
+      clientHeight: { configurable: true, value: 400 },
+    });
+    transcript.scrollTop = 100;
+    fireEvent.scroll(transcript);
+    act(() => stream.push(line(second, 1)));
+    expect(transcript.scrollTop).toBe(100);
+    fireEvent.click(screen.getByRole("button", { name: "Latest message ↓" }));
+    expect(transcript.scrollTop).toBe(1200);
+    expect(screen.queryByRole("button", { name: "Latest message ↓" })).not.toBeInTheDocument();
+  });
+
+  test("Stop stays available while drafting and preserves the unsent text", async () => {
+    window.__metabloomRequest = () => new Promise(() => {});
+    render(<OrbSection />);
+    send("A slow reply");
+    await tick(0);
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "My next thought" } });
+    expect(screen.getByRole("button", { name: "Send message" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Stop response" }));
+    expect(screen.getByRole("textbox")).toHaveValue("My next thought");
+    expect(window.__orbState().pending).toBe(false);
+    await tick(1000);
+    expect(mockProps.actionVersion).toBe(0);
+  });
+});
+
+test("the keyboard viewport is bounded, respects pinch zoom, and releases listeners", () => {
+  const original = window.visualViewport;
+  const viewport = new EventTarget();
+  Object.assign(viewport, { height: 420, offsetTop: 15, scale: 1 });
+  const remove = jest.spyOn(viewport, "removeEventListener");
+  Object.defineProperty(window, "visualViewport", { configurable: true, value: viewport });
+  try {
+    const { unmount } = render(<OrbSection />);
+    const section = screen.getByRole("region", { name: "Metabloom model chat interface" });
+    expect(section.style.getPropertyValue("--orb-viewport-height")).toBe("420px");
+    expect(section.style.getPropertyValue("--orb-viewport-top")).toBe("15px");
+    viewport.height = 200;
+    viewport.scale = 2;
+    viewport.dispatchEvent(new Event("resize"));
+    expect(section.style.getPropertyValue("--orb-viewport-height")).toBe("420px");
+    viewport.scale = 1;
+    viewport.dispatchEvent(new Event("resize"));
+    expect(section.style.getPropertyValue("--orb-viewport-height")).toBe("200px");
+    unmount();
+    expect(remove).toHaveBeenCalledWith("resize", expect.any(Function));
+    expect(remove).toHaveBeenCalledWith("scroll", expect.any(Function));
+  } finally {
+    Object.defineProperty(window, "visualViewport", { configurable: true, value: original });
+  }
 });

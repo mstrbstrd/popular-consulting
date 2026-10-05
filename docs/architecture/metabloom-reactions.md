@@ -51,3 +51,35 @@ The chat wire format stays at `1.0.0`: its envelope and limits are unchanged. Th
 - Manual page review is left to the owner: compare Curious/Thinking and Resolute/Disagree, replay Surprise, interrupt one preview with another, then check mobile, both finishes, keyboard access, and reduced motion.
 
 Rollback: revert the reaction-set commit. No data migration, credentials, or new dependencies are required.
+
+## Conversation refinement audit, October 2026
+
+The expressive vocabulary now participates in the conversation rather than only
+reacting after a completed answer.
+
+| Finding | Refinement |
+| --- | --- |
+| Composing and network waits had no physical acknowledgement | One listening cue on composer focus; one thinking cue only if a reply takes longer than 650 ms. The first segment cancels the waiting cue. |
+| Rapid segments overwrote each other's gestures | A bounded reaction player gives each authored gesture its full duration. Text remains immediate; it never waits for animation. Neutral interrupts the queue to settle. |
+| The expressiveness slider only affected previews | Its value now also scales incoming chat emotes, within the existing intensity limits. |
+| A message's final emote obscured earlier emotional changes | Each paragraph carries its own reaction label and replay button. The currently playing reaction is marked. Replaying does not alter history or make a network request. |
+| Every incoming update forced scrolling | Follow new replies only while near the bottom. A Latest message control returns from earlier history. |
+| A new draft hid the Stop control | Stop remains available alongside Send while composing during a response. Stopping preserves the draft. |
+| Conversation controls competed with the input | Reactions, expressive-reply settings, and local demos share one expandable panel beside the composer. Text entry grows to a bounded height; composer clearance follows its measured size. |
+| Mobile keyboards could cover the input | The chat follows the visual viewport at normal zoom and removes its listeners on unmount. Browser pinch zoom remains native. |
+| Screen readers heard redundant action descriptions | Conversation and presence announcements remain; the repeated action-description live region is removed. |
+
+Invariants: one existing field renderer; no extra animation loop; no artificial
+text delay; plain React text rendering; strict segment validation; one assistant
+message per reply; no changes to provider or authentication configuration. New
+requests, Stop, Reset, deactivation, and unmount cancel queued reactions. Hidden
+tabs discard queued gestures; reduced-motion sessions never queue playback.
+Explicit previews supersede finished-reply playback. All input paths remain
+available without WebGL. This is interface body language, not microphone access
+or a claim of consciousness.
+
+Verification covers burst arrivals, cancellation after text completion, replay
+without transcript mutation, reading-position preservation, waiting cues,
+expressiveness scaling, and stopping with an unsent draft. Visual review remains
+with Shae for this iteration. Roll back the conversation-refinement commit to
+restore the previous timing and layout without changing the reaction vocabulary.
