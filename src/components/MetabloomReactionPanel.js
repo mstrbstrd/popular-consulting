@@ -10,11 +10,66 @@ const MetabloomReactionPanel = ({ onReact, disabled = false, intensity: controll
   const setIntensity = onIntensityChange || setLocalIntensity;
   const toggleRef = React.useRef(null);
   const panelRef = React.useRef(null);
+  const popoverRef = React.useRef(null);
   const action = resolveMetabloomAction(selected);
   const close = React.useCallback(() => {
     setOpen(false);
-    toggleRef.current?.focus();
+    toggleRef.current?.focus({ preventScroll: true });
   }, []);
+
+  React.useLayoutEffect(() => {
+    if (!open) return undefined;
+    const anchor = panelRef.current;
+    const panel = popoverRef.current;
+    const viewport = window.visualViewport;
+    const navigation = document.querySelector(".nav-pill");
+    let frame = 0;
+    const position = () => {
+      const bounds = anchor.getBoundingClientRect();
+      const viewportTop = viewport?.offsetTop || 0;
+      const viewportLeft = viewport?.offsetLeft || 0;
+      const viewportWidth = viewport?.width || window.innerWidth;
+      const viewportHeight = viewport?.height || window.innerHeight;
+      const viewportBottom = viewportTop + viewportHeight - 16;
+      // Measure before the first paint: the landing composer is centered, so
+      // a viewport-height estimate can put the heading behind navigation.
+      const top = Math.min(viewportBottom, Math.max(viewportTop + 16,
+        (navigation?.getBoundingClientRect().bottom || 0) + 12));
+      const panelBottom = Math.min(bounds.top - 8, viewportBottom);
+      const availableAbove = panelBottom - top;
+      const compact = availableAbove < 160;
+      panel.style.maxWidth = `${Math.max(0, viewportWidth - 32)}px`;
+      const width = panel.getBoundingClientRect().width;
+      const preferredLeft = bounds.left + bounds.width / 2 > viewportLeft + viewportWidth / 2
+        ? bounds.right - width : bounds.left;
+      const left = Math.max(viewportLeft + 16, Math.min(preferredLeft, viewportLeft + viewportWidth - width - 16));
+      panel.style.left = `${left - bounds.left}px`;
+      panel.style.maxHeight = `${Math.max(0, compact ? viewportBottom - top : availableAbove)}px`;
+      panel.style.top = compact ? `${top - bounds.top}px` : "auto";
+      panel.style.bottom = compact ? "auto" : `${bounds.bottom - panelBottom}px`;
+    };
+    const schedule = () => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(position);
+    };
+    position();
+    panel.querySelector("button")?.focus({ preventScroll: true });
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(schedule);
+    observer?.observe(anchor);
+    const composer = anchor.closest(".metabloom-chat__composer-area");
+    if (composer) observer?.observe(composer);
+    if (navigation) observer?.observe(navigation);
+    window.addEventListener("resize", schedule);
+    viewport?.addEventListener("resize", schedule);
+    viewport?.addEventListener("scroll", schedule);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      observer?.disconnect();
+      window.removeEventListener("resize", schedule);
+      viewport?.removeEventListener("resize", schedule);
+      viewport?.removeEventListener("scroll", schedule);
+    };
+  }, [open]);
 
   React.useEffect(() => {
     if (!open) return undefined;
@@ -52,7 +107,9 @@ const MetabloomReactionPanel = ({ onReact, disabled = false, intensity: controll
   };
 
   return (
-    <div className="metabloom-reactions" ref={panelRef} data-reaction-set="2">
+    <div className="metabloom-reactions" ref={panelRef} data-reaction-set="2" onBlur={(event) => {
+      if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget)) setOpen(false);
+    }}>
       <div className="metabloom-reactions__toolbar">
         <button ref={toggleRef} type="button" aria-expanded={open} aria-controls="metabloom-reaction-panel" onClick={() => setOpen(!open)}>
           Reactions <span aria-hidden="true">{open ? "−" : "+"}</span>
@@ -62,26 +119,28 @@ const MetabloomReactionPanel = ({ onReact, disabled = false, intensity: controll
         </button>
       </div>
       {open && (
-        <section id="metabloom-reaction-panel" className="metabloom-reactions__panel" aria-label="Reaction studio">
+        <section ref={popoverRef} id="metabloom-reaction-panel" className="metabloom-reactions__panel" aria-label="Reaction studio">
           <div className="metabloom-reactions__heading">
-            <div><strong>A little body language</strong><p>Choose a reaction and watch it unfold.</p></div>
+            <div><strong>Reactions</strong><p>A little body language for the conversation.</p></div>
             <button type="button" onClick={close} aria-label="Close reactions">×</button>
           </div>
-          <div className="metabloom-reactions__grid" role="group" aria-label="Preview a reaction">
-            {METABLOOM_ACTIONS.map((reaction) => (
-              <button key={reaction.id} type="button" disabled={disabled} onClick={() => play(reaction.id)} title={reaction.intent} aria-label={`Preview ${reaction.label.toLowerCase()} reaction`} data-selected={selected === reaction.id ? "true" : "false"}>
-                {reaction.label}
-              </button>
-            ))}
+          <div className="metabloom-reactions__content">
+            <div className="metabloom-reactions__grid" role="group" aria-label="Preview a reaction">
+              {METABLOOM_ACTIONS.map((reaction) => (
+                <button key={reaction.id} type="button" disabled={disabled} onClick={() => play(reaction.id)} title={reaction.intent} aria-label={`Preview ${reaction.label.toLowerCase()} reaction`} aria-pressed={selected === reaction.id} data-selected={selected === reaction.id ? "true" : "false"}>
+                  {reaction.label}
+                </button>
+              ))}
+            </div>
+            <label className="metabloom-reactions__intensity" htmlFor="metabloom-reaction-intensity">
+              <span>Expressiveness <output>{Math.round(intensity * 100)}%</output></span>
+              <input id="metabloom-reaction-intensity" type="range" min="0.2" max="1" step="0.05" value={intensity} onChange={(event) => setIntensity(Number(event.target.value))} />
+            </label>
+            <p className="metabloom-reactions__hint">Applies to previews and conversation reactions.</p>
+            {typeof children === "function" ? children({ close }) : children}
+            <p className="metabloom-reactions__score"><strong>{action.label}</strong><span>{action.beats.join(" · ")}</span></p>
+            {disabled && <p className="metabloom-reactions__waiting">Available when the current reply finishes.</p>}
           </div>
-          <label className="metabloom-reactions__intensity" htmlFor="metabloom-reaction-intensity">
-            <span>Expressiveness <output>{Math.round(intensity * 100)}%</output></span>
-            <input id="metabloom-reaction-intensity" type="range" min="0.2" max="1" step="0.05" value={intensity} onChange={(event) => setIntensity(Number(event.target.value))} />
-          </label>
-          <p className="metabloom-reactions__hint">Applies to previews and conversation reactions.</p>
-          {typeof children === "function" ? children({ close }) : children}
-          <p className="metabloom-reactions__score"><strong>{action.label}</strong><span>{action.beats.join(" · ")}</span></p>
-          {disabled && <p className="metabloom-reactions__waiting">Available when the current reply finishes.</p>}
         </section>
       )}
     </div>
