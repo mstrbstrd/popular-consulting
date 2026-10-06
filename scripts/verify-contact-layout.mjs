@@ -108,7 +108,9 @@ try {
         await until(`document.documentElement.dataset.theme === ${JSON.stringify(theme)}`);
         await until("Number(getComputedStyle(document.querySelector('.contact-form-viewport')).opacity) === 1 && Number(getComputedStyle(document.querySelector('.contact-footer-viewport > div')).opacity) === 1");
         await evaluate("document.fonts.ready");
-        await sleep(250);
+        // The footer enters with a 200ms delay and 800ms transition. Measure
+        // settled layout after lazy-route loading, not its transient scroll area.
+        await sleep(1100);
         const geometry = await evaluate(`(() => {
           const card = document.querySelector('.contact-form');
           const viewport = document.querySelector('.contact-form-viewport');
@@ -123,9 +125,14 @@ try {
           return { card: rect(card), footer: rect(footer), viewport: rect(viewport),
             zoom: Number(getComputedStyle(card).zoom), overflow: getComputedStyle(viewport).overflowY,
             innerScroll: viewport.scrollHeight - viewport.clientHeight,
-            sectionScroll: section.scrollHeight - section.clientHeight, controls };
+            sectionScroll: section.scrollHeight - section.clientHeight, controls,
+            overflowing: [...section.querySelectorAll('*')].map(element => ({
+              name: element.className?.baseVal ?? element.className, bottom: element.getBoundingClientRect().bottom,
+              position: getComputedStyle(element).position,
+            })).filter(element => element.bottom > section.getBoundingClientRect().bottom + 1).slice(0, 20) };
         })()`);
         results.push({ id, ...geometry });
+        if (geometry.sectionScroll > 1 && !mobile) console.log(JSON.stringify({ id, ...geometry }));
         assert.equal(geometry.zoom, mobile ? 1 : 0.75, `${id}: incorrect scale`);
         if (!mobile) {
           assert.equal(geometry.overflow, "visible", `${id}: internal scroll pane returned`);

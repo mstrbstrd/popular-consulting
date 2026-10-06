@@ -85,12 +85,18 @@ try {
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, 'Route overflowed the viewport');
     };
     const graphics = profile.includes('webgl') || profile.startsWith('webkit') ? 'webgl' : 'css';
-    await page.goto(`${origin}/home?graphics=${graphics}`);
+    await page.goto(`${origin}/home?graphics=${graphics}`, { waitUntil: 'domcontentloaded' });
     await waitForCheck(page, () => document.querySelector('.intro-branding__hero')?.style.pointerEvents === 'auto');
     const opener = page.getByRole('button', { name: 'Popular Consulting, enter your workspace' });
     // The logo intentionally rotates continuously. Bypass only the automation
     // stability check, then send a real tap/click after it accepts pointer input.
-    if (mobile) await opener.tap({ force: true }); else await opener.click({ force: true });
+    if (mobile) {
+      const box = await opener.boundingBox();
+      assert(box && box.width > 0 && box.height > 0, 'Opening logo is not visible');
+      // Touch release intentionally removes this element. Use one physical
+      // gesture so a locator cannot retry against the now-detached target.
+      await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+    } else await opener.click({ force: true });
     try { await page.waitForSelector('.home-page[data-entry="open"]'); }
     catch (failure) {
       console.log(JSON.stringify({ profile, errors, opening: await page.evaluate(() => ({ url: location.href,
