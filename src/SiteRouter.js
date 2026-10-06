@@ -7,6 +7,22 @@ import {
 } from "./utils/graphicsPolicy";
 import SectionDeepLinkBridge from "./components/SectionDeepLinkBridge";
 import { LOGIN_SECTION_INDEX } from "./utils/loginScene";
+import logo from './assets/icons/logo2026_128.png';
+import { useAppNavigation } from './contexts/AppNavigationContext';
+import { resolveSectionDeepLink } from './components/SectionDeepLinkBridge';
+
+const routeLoaders = {
+  original: () => import('./App'), engineering: () => import('./App'), login: () => import('./App'),
+  popcan: () => import('./components/PopcanPage'), work: () => import('./components/WorkPage'),
+  orb: () => import('./components/OrbPage'), home: () => import('./components/HomePage'),
+  'invoice-generator': () => import('./components/PrivateInvoicePage'), logout: () => import('./components/AuthPage'),
+  game: () => import('./components/StandaloneExperiencePage'), 'dither-canvas': () => import('./components/DitherCanvasPage'),
+};
+export function preloadSiteRoute(pathname) {
+  const view = resolveSiteView(pathname);
+  if (view === SITE_VIEWS.DITHER_CANVAS && !shouldRenderDitherCanvas()) return import('./components/GraphicsFallbackPage');
+  return routeLoaders[view]();
+}
 
 const App = React.lazy(() => import("./App"));
 const PopcanPage = React.lazy(() => import("./components/PopcanPage"));
@@ -14,6 +30,7 @@ const WorkPage = React.lazy(() => import("./components/WorkPage"));
 const OrbPage = React.lazy(() => import("./components/OrbPage"));
 const AuthPage = React.lazy(() => import("./components/AuthPage"));
 const HomePage = React.lazy(() => import("./components/HomePage"));
+const PrivateInvoicePage = React.lazy(() => import('./components/PrivateInvoicePage'));
 const DitherCanvasPage = React.lazy(() =>
   import("./components/DitherCanvasPage"),
 );
@@ -42,6 +59,7 @@ export const SITE_VIEWS = Object.freeze({
 
 export const resolveSiteView = (pathname = "/") => {
   const normalized = pathname.replace(/\/+$/, "") || "/";
+  if (normalized.endsWith('/index.html')) return resolveSiteView(normalized.slice(0, -11) || '/');
 
   if (normalized === "/login" || normalized === "/login/index.html") return SITE_VIEWS.LOGIN;
   if (normalized === "/home" || normalized === "/home/index.html") return SITE_VIEWS.HOME;
@@ -65,12 +83,29 @@ export const shouldRenderDitherCanvas = ({
   return Boolean(hardwareWebGL);
 };
 
-const routeFallback = (
-  <div aria-hidden="true" style={{ minHeight: "100vh" }} />
-);
+const routeFallback = <div className="app-route-loading" role="status"><img src={logo} alt="" /><span>Opening…</span></div>;
 
-const SiteRouter = ({ pathname = window.location.pathname }) => {
+const RouteReady = ({ children, onReady }) => {
+  React.useEffect(() => { onReady?.(); }, [onReady]);
+  return children;
+};
+
+const SiteRouter = ({ pathname = window.location.pathname, onReady }) => {
   const view = resolveSiteView(pathname);
+  const navigation = useAppNavigation();
+  const sectionKey = `immersive:${view}`;
+  const rememberedSection = navigation?.getToolState(sectionKey)?.section || 0;
+  const requestedSection = navigation ? resolveSectionDeepLink(window.location.hash) ?? rememberedSection : 0;
+  const initialSection = requestedSection <= LOGIN_SECTION_INDEX ? requestedSection : 0;
+  React.useEffect(() => {
+    if (!navigation || ![SITE_VIEWS.ORIGINAL, SITE_VIEWS.ENGINEERING].includes(view)) return undefined;
+    const remember = event => {
+      const section = event.detail?.index;
+      if (Number.isInteger(section) && section >= 0 && section <= LOGIN_SECTION_INDEX) navigation.saveToolState(sectionKey, { section });
+    };
+    window.addEventListener('sectionChangeEnd', remember);
+    return () => window.removeEventListener('sectionChangeEnd', remember);
+  }, [navigation, view, sectionKey]);
 
   let page;
   if (view === SITE_VIEWS.HOME) {
@@ -81,7 +116,7 @@ const SiteRouter = ({ pathname = window.location.pathname }) => {
     page = <WorkPage />;
   } else if (view === SITE_VIEWS.INVOICE_GENERATOR) {
     // The actual editor exists only in the middleware-protected private build.
-    page = <AuthPage />;
+    page = <PrivateInvoicePage onReady={onReady} />;
   } else if (view === SITE_VIEWS.LOGIN) {
     // Keep callback errors and the /login URL, but use the real immersive shell.
     page = <App initialSection={LOGIN_SECTION_INDEX} />;
@@ -98,6 +133,7 @@ const SiteRouter = ({ pathname = window.location.pathname }) => {
   } else {
     page = (
       <App
+        initialSection={initialSection}
         immersiveMode={
           view === SITE_VIEWS.ENGINEERING
             ? IMMERSIVE_MODES.ENGINEERING
@@ -112,8 +148,9 @@ const SiteRouter = ({ pathname = window.location.pathname }) => {
 
   return (
     <>
-      <React.Suspense fallback={routeFallback}>{page}</React.Suspense>
-      <SectionDeepLinkBridge enabled={enableSectionDeepLinks} />
+      <React.Suspense fallback={routeFallback}><RouteReady key={`route:${pathname}`} onReady={view === SITE_VIEWS.INVOICE_GENERATOR ? undefined : onReady}>{page}</RouteReady>
+        <SectionDeepLinkBridge key={`sections:${pathname}`} enabled={enableSectionDeepLinks} />
+      </React.Suspense>
     </>
   );
 };

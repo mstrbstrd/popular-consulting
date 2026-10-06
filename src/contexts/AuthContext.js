@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 
 const anonymous = { status: 'anonymous', user: null, csrfToken: null, expiresAt: 0 };
-const AuthContext = createContext({ ...anonymous, logoutRevision: 0, refresh: async () => {}, logout: async () => {} });
+export const AuthContext = createContext({ ...anonymous, logoutRevision: 0, refresh: async () => {}, logout: async () => {} });
 export const useAuth = () => useContext(AuthContext);
 
 export const AuthProvider = ({ children }) => {

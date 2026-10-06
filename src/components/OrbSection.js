@@ -1,5 +1,6 @@
 import React from "react";
 import { useThemeMode } from "../contexts/ThemeContext";
+import { useAppNavigation } from '../contexts/AppNavigationContext';
 import { METABLOOM_HOOD_SEQUENCE } from "./metabloomUnderHood";
 import MetabloomAvatar from "./MetabloomAvatar";
 import MetabloomReactionPanel from "./MetabloomReactionPanel";
@@ -386,6 +387,8 @@ const OrbSection = ({
   onConversationStateChange,
 }) => {
   const { isDark } = useThemeMode();
+  const navigation = useAppNavigation();
+  const [savedConversation] = React.useState(() => navigation?.getToolState('orb'));
   const initialMessages = React.useMemo(
     () => INITIAL_MESSAGES.map((message) => ({ ...message, actionChain: [] })),
     [],
@@ -399,7 +402,7 @@ const OrbSection = ({
   const activeRequestRef = React.useRef(null);
   const requestAbortRef = React.useRef(null);
   const replyRef = React.useRef(null);
-  const messageCounterRef = React.useRef(0);
+  const messageCounterRef = React.useRef(savedConversation?.counter || 0);
   const mountedRef = React.useRef(true);
   const sectionRef = React.useRef(null);
   const transcriptRef = React.useRef(null);
@@ -420,12 +423,12 @@ const OrbSection = ({
   const [touchComposer, setTouchComposer] = React.useState(() =>
     Boolean(window.matchMedia?.("(hover: none) and (pointer: coarse)").matches));
   const [activeReaction, setActiveReaction] = React.useState(null);
-  const [expressiveness, setExpressiveness] = React.useState(0.8);
+  const [expressiveness, setExpressiveness] = React.useState(savedConversation?.expressiveness ?? 0.8);
   const expressivenessRef = React.useRef(expressiveness);
   expressivenessRef.current = expressiveness;
   const stateRef = React.useRef(null);
   const [emoteId, setEmoteId] = React.useState("neutral");
-  const [allowEmoteChanges, setAllowEmoteChanges] = React.useState(false);
+  const [allowEmoteChanges, setAllowEmoteChanges] = React.useState(savedConversation?.allowEmoteChanges || false);
   const [actionId, setActionId] = React.useState(DEFAULT_ACTION);
   const [actionDuration, setActionDuration] = React.useState(
     DEFAULT_ACTION_RECORD.duration,
@@ -435,17 +438,25 @@ const OrbSection = ({
   );
   const [actionVersion, setActionVersion] = React.useState(0);
   const [talking, setTalking] = React.useState(false);
-  const [paused, setPaused] = React.useState(false);
+  const [paused, setPaused] = React.useState(savedConversation?.paused || false);
   const [pulseVersion, setPulseVersion] = React.useState(0);
   const [resetVersion, setResetVersion] = React.useState(0);
   const [sequenceId, setSequenceId] = React.useState(null);
   const [fieldState, setFieldState] = React.useState("forming");
-  const [messages, setMessages] = React.useState(initialMessages);
-  const messagesRef = React.useRef(initialMessages);
-  const [draft, setDraft] = React.useState("");
+  const [messages, setMessages] = React.useState(savedConversation?.messages || initialMessages);
+  const messagesRef = React.useRef(messages);
+  const [draft, setDraft] = React.useState(savedConversation?.draft || '');
   const [pending, setPending] = React.useState(false);
-  const [errorMessage, setErrorMessage] = React.useState("");
-  const [responseSource, setResponseSource] = React.useState("interface");
+  const [errorMessage, setErrorMessage] = React.useState(savedConversation?.interrupted ? 'The response was interrupted when you changed tools. Any visible reply is incomplete. Send another message to continue.' : '');
+  const [responseSource, setResponseSource] = React.useState(savedConversation?.responseSource || 'interface');
+  const retainedConversation = React.useRef(null);
+  retainedConversation.current = { draft, expressiveness, pending, responseSource, paused, allowEmoteChanges };
+  const saveToolState = navigation?.saveToolState;
+  React.useEffect(() => () => {
+    const snapshot = retainedConversation.current;
+    saveToolState?.('orb', { ...snapshot, interrupted: snapshot.pending, counter: messageCounterRef.current,
+      messages: messagesRef.current.map(message => message.status === 'streaming' ? { ...message, status: 'interrupted' } : message) });
+  }, [saveToolState]);
   const activeAction =
     resolveMetabloomAction(actionId) || getDefaultMetabloomAction();
   const legacyForm = ACTION_FORMS[activeAction.id] || "companion";

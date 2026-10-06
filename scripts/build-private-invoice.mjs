@@ -16,12 +16,11 @@ const result = await build({
 const [entryPath, entry] = Object.entries(result.metafile.outputs).find(([, value]) => value.entryPoint === 'src/invoice-entry.js') || [];
 if (!entryPath || !entry.cssBundle) throw new Error('Missing private invoice JS/CSS.');
 const href = file => `/${path.relative('build', file).split(path.sep).join('/')}`;
-let html = fs.readFileSync(documentPath, 'utf8');
-html = html.replace(/<script\b[^>]*\bsrc=[^>]*><\/script>/gi, '')
-  .replace(/<link\b[^>]*\bhref=["']\/static\/css\/[^>]*>/gi, '');
-html = html.replace('</head>', `<link rel="stylesheet" href="${href(entry.cssBundle)}" /><script type="module" src="${href(entryPath)}"></script></head>`);
-if (/\/static\/js\//.test(html)) throw new Error('Public app script leaked into protected HTML.');
-fs.writeFileSync(documentPath, html);
+// Direct invoice URLs use the same navigation shell. The public shell knows
+// only this protected manifest URL; the editor remains a separate private build.
+fs.writeFileSync('build/_private/invoice/manifest.json', JSON.stringify({
+  version: 1, module: href(entryPath), css: href(entry.cssBundle),
+}));
 // Fail the build if private implementation/default data leaked back into a public chunk.
 for (const name of fs.readdirSync('build/static/js').filter(file => file.endsWith('.js'))) {
   const source = fs.readFileSync(`build/static/js/${name}`, 'utf8');

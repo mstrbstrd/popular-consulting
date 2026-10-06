@@ -212,11 +212,22 @@ test.each(['click', 'wheel', 'keyboard', 'touch'])('remembers early %s entry wit
   if (method === 'click') fireEvent.click(intro);
   if (method === 'wheel') fireEvent.wheel(window, { deltaY: 80 });
   if (method === 'keyboard') fireEvent.keyDown(window, { key: 'Tab' });
-  if (method === 'touch') fireEvent.touchStart(intro);
+  if (method === 'touch') fireEvent.touchEnd(intro);
   expect(screen.queryByRole('link', { name: 'Invoice Generator' })).not.toBeInTheDocument();
   expect(container.querySelector('.auth-protected-content')).toBeNull();
   expect(container.querySelector('canvas')).toBeNull();
   await act(async () => resolveSession({ ok: true, json: async () => identity() }));
+  expect(screen.getByRole('region', { name: 'Your tools' })).toBeInTheDocument();
+  expect(screen.getByRole('main')).toHaveFocus();
+});
+
+test('finishes a touch before revealing cards and consumes its synthesized click', async () => {
+  renderHome();
+  await screen.findByText('Interact to enter your workspace.');
+  const intro = screen.getByRole('region', { name: 'Welcome' });
+  fireEvent.touchStart(intro);
+  expect(screen.queryByRole('region', { name: 'Your tools' })).not.toBeInTheDocument();
+  expect(fireEvent.touchEnd(intro, { cancelable: true })).toBe(false);
   expect(screen.getByRole('region', { name: 'Your tools' })).toBeInTheDocument();
   expect(screen.getByRole('main')).toHaveFocus();
 });

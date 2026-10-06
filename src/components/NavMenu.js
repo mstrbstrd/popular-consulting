@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import AuthNavControl from "./AuthNavControl";
+import WorkspaceMenu from './WorkspaceMenu';
+import { useAuth } from '../contexts/AuthContext';
 import logo from "../assets/icons/logo2026_128.png";
 import { useThemeMode } from "../contexts/ThemeContext";
 import { SITE_AUDIENCES, getSiteCopy } from "../content/siteCopy";
@@ -8,6 +10,7 @@ import { getImmersiveRouteDestination } from "./ImmersiveRouteNavigationBridge";
 // Standalone pages use real route links, not homepage-only section-dot clicks.
 const NavMenu = ({ audience = SITE_AUDIENCES.BUSINESS, standalone = false, initialSection = 0 }) => {
   const { isDark, toggleTheme } = useThemeMode();
+  const { status } = useAuth();
   const navigation = getSiteCopy(audience).navigation;
   const navLinks = navigation.links;
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -145,7 +148,7 @@ const NavMenu = ({ audience = SITE_AUDIENCES.BUSINESS, standalone = false, initi
         <nav className="nav-pill" aria-label="Primary navigation">
           <Brand
             className="nav-brand"
-            href={standalone ? "/" : undefined}
+            href={standalone ? status === 'authenticated' ? '/home' : '/' : undefined}
             onClick={standalone ? undefined : () => navigate(0)}
             aria-label={navigation.brandAriaLabel}
           >
@@ -196,6 +199,7 @@ const NavMenu = ({ audience = SITE_AUDIENCES.BUSINESS, standalone = false, initi
             )}
           </button>
 
+          <WorkspaceMenu />
           {!isMobile && <AuthNavControl />}
 
           {isMobile && (

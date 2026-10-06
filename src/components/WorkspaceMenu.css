@@ -1,0 +1,24 @@
+.workspace-menu { position: relative; flex-shrink: 0; font-family: var(--aetheris-font-sans, sans-serif); color: var(--aetheris-ink, #242428); }
+.workspace-menu > summary {
+  list-style: none; display: grid; place-items: center; width: 44px; height: 44px; cursor: pointer;
+  border: 1px solid transparent; border-radius: 50%;
+  background: linear-gradient(#fff8f7, #fff8f7) padding-box, var(--aetheris-spectral) border-box;
+}
+.workspace-menu > summary::-webkit-details-marker { display: none; }
+[data-theme="dark"] .workspace-menu > summary { background: linear-gradient(#101014, #101014) padding-box, var(--aetheris-spectral) border-box; }
+.workspace-menu > summary:hover { color: var(--aetheris-teal, #007f8b); }
+.workspace-menu :focus-visible { outline: 3px solid var(--aetheris-teal, #007f8b); outline-offset: 4px; }
+.workspace-menu-panel {
+  position: absolute; top: calc(100% + 14px); right: 0; z-index: 1200; display: flex; flex-direction: column;
+  width: min(270px, calc(100vw - 40px)); max-height: 70dvh; overflow: auto; overscroll-behavior: contain;
+  padding: 12px; border: 1px solid transparent; border-radius: 18px;
+  background: linear-gradient(rgba(255,252,251,.97), rgba(255,252,251,.97)) padding-box, var(--aetheris-spectral) border-box;
+  box-shadow: var(--aetheris-glass-specular), var(--aetheris-shadow); backdrop-filter: var(--aetheris-glass-blur); -webkit-backdrop-filter: var(--aetheris-glass-blur);
+}
+[data-theme="dark"] .workspace-menu-panel { background: linear-gradient(rgba(13,13,18,.97), rgba(13,13,18,.97)) padding-box, var(--aetheris-spectral) border-box; }
+.workspace-menu-panel > span { padding: 10px 12px; font: 11px/1.5 var(--aetheris-font-mono, monospace); color: var(--aetheris-ink-2); letter-spacing: .08em; text-transform: uppercase; }
+.workspace-menu-panel a { display: flex !important; align-items: center; justify-content: space-between; min-height: 46px; padding: 10px 12px; border-radius: 10px; color: inherit !important; font: 500 14px/1.5 var(--aetheris-font-sans); text-decoration: none; }
+.workspace-menu-panel a:hover, .workspace-menu-panel a[aria-current="page"] { background: rgba(0,126,140,.12); }
+.workspace-menu-panel a > span { color: var(--aetheris-teal); }
+@media (forced-colors: active) { .workspace-menu > summary, .workspace-menu-panel { border-color: ButtonText; background: Canvas !important; color: CanvasText; } }
+@media print { .workspace-menu { display: none; } }
