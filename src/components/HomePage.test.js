@@ -194,6 +194,15 @@ test('a verified session stays behind the opening logo until the user enters', a
   expect(document.documentElement).not.toHaveClass('home-intro-active');
 });
 
+test('the opener preserves browser shortcuts and modifier-only keys', async () => {
+  renderHome();
+  await screen.findByText('Interact to enter your workspace.');
+  expect(fireEvent.keyDown(window, { key: 'F5' })).toBe(true);
+  expect(fireEvent.keyDown(window, { key: 'r', metaKey: true })).toBe(true);
+  expect(fireEvent.keyDown(window, { key: 'Shift' })).toBe(true);
+  expect(screen.queryByRole('region', { name: 'Your tools' })).not.toBeInTheDocument();
+});
+
 test.each(['click', 'wheel', 'keyboard', 'touch'])('remembers early %s entry without exposing unverified tools', async method => {
   let resolveSession;
   global.fetch.mockImplementation(() => new Promise(resolve => { resolveSession = resolve; }));

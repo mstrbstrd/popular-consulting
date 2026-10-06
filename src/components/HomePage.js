@@ -90,7 +90,8 @@ function HomeContent() {
     if (entry !== 'intro') return undefined;
     const wheel = event => { event.preventDefault(); if (Math.abs(event.deltaY) + Math.abs(event.deltaX) > 1) requestEntry(); };
     const key = event => {
-      if (event.metaKey || event.ctrlKey || event.altKey || ['Shift', 'Control', 'Alt', 'Meta'].includes(event.key)) return;
+      const entryKey = event.key.length === 1 || ['Enter', 'Tab', 'Escape', 'ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'PageDown', 'PageUp', 'Home', 'End'].includes(event.key);
+      if (event.defaultPrevented || event.isComposing || event.metaKey || event.ctrlKey || event.altKey || !entryKey) return;
       event.preventDefault(); requestEntry();
     };
     window.addEventListener('wheel', wheel, { passive: false });
