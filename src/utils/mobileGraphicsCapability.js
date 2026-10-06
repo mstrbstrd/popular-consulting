@@ -36,7 +36,7 @@ export const shouldUseHighFidelityMobileLight = ({
     isDark ||
     !hardwareWebGL ||
     !mobile ||
-    (normalizePathname(pathname) !== "/" && !isLoginPath(pathname))
+    (!["/", "/home"].includes(normalizePathname(pathname)) && !isLoginPath(pathname))
   ) {
     return false;
   }

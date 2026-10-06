@@ -46,13 +46,13 @@ describe("mobile graphics capability policy", () => {
     ).toBe(false);
   });
 
-  test("enables the high-fidelity light path only for the capable mobile index", () => {
+  test.each(["/", "/home", "/home/"])("enables the same high-fidelity light path on %s", (pathname) => {
     expect(
       shouldUseHighFidelityMobileLight({
         isDark: false,
         hardwareWebGL: true,
         mobile: true,
-        pathname: "/",
+        pathname,
         navigatorObject: capablePhone,
       }),
     ).toBe(true);

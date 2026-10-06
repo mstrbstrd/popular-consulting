@@ -10,13 +10,15 @@ jest.mock('./NavMenu', () => function MockNav() {
   const { toggleTheme } = require('../contexts/ThemeContext').useThemeMode();
   return <nav aria-label="Primary navigation"><button onClick={toggleTheme}>Toggle theme</button></nav>;
 });
-jest.mock('../components/BlackHoleBackground', () => () => null);
-jest.mock('./ProductionThemeCanvas', () => ({ theme, runtimeScope }) => <canvas data-theme={theme} data-runtime-scope={runtimeScope} />);
+jest.mock('../components/BlackHoleBackground', () => ({ isDark }) => isDark ? <canvas data-renderer="black-hole" /> : null);
+jest.mock('./ManagedDitherBackground', () => () => <canvas data-renderer="dither" />);
+jest.mock('./ProductionThemeCanvas', () => jest.fn(({ theme, highFidelityLight }) => <canvas data-renderer="mobile-light" data-theme={theme} data-detail={highFidelityLight ? 'full' : 'compatible'} />));
 jest.mock('../utils/deviceTier', () => ({ hasHardwareWebGL: false, isMobileTier: false }));
 jest.mock('../utils/graphicsPolicy', () => ({ GRAPHICS_MODES: { WEBGL: 'webgl' }, graphicsMode: 'auto', shouldAttemptWebGL: true }));
 
 const mockDeviceTier = require('../utils/deviceTier');
 const mockGraphicsPolicy = require('../utils/graphicsPolicy');
+const mockProductionTheme = require('./ProductionThemeCanvas');
 
 const identity = () => ({ authenticated: true, user: { id: 'a'.repeat(64), role: 'admin', name: 'Fictional account' }, csrfToken: 'b'.repeat(64), expiresAt: Date.now() + 3600000 });
 const reply = data => Promise.resolve({ ok: true, json: async () => data });
@@ -26,7 +28,10 @@ const renderHome = () => render(<AuthProvider><HomePage /><SignOut /></AuthProvi
 beforeEach(() => {
   localStorage.clear();
   mockDeviceTier.hasHardwareWebGL = false;
+  mockDeviceTier.isMobileTier = false;
   mockGraphicsPolicy.shouldAttemptWebGL = true;
+  jest.clearAllMocks();
+  mockProductionTheme.mockImplementation(({ theme, highFidelityLight }) => <canvas data-renderer="mobile-light" data-theme={theme} data-detail={highFidelityLight ? 'full' : 'compatible'} />);
   global.fetch = jest.fn(() => reply(identity()));
 });
 afterEach(() => { jest.restoreAllMocks(); delete global.fetch; });
@@ -58,18 +63,30 @@ test('uses one existing theme renderer after authentication and switches it with
   expect(container.querySelector('canvas')).toBeNull();
   await screen.findByRole('region', { name: 'Your tools' });
   expect(container.querySelectorAll('canvas')).toHaveLength(1);
-  expect(container.querySelector('canvas')).toHaveAttribute('data-theme', 'dark');
-  expect(container.querySelector('canvas')).toHaveAttribute('data-runtime-scope', 'home');
+  expect(container.querySelector('canvas')).toHaveAttribute('data-renderer', 'black-hole');
   const previousCanvas = container.querySelector('canvas');
   fireEvent.click(screen.getByRole('button', { name: 'Toggle theme' }));
   expect(container.querySelectorAll('canvas')).toHaveLength(1);
-  expect(container.querySelector('canvas')).toHaveAttribute('data-theme', 'light');
+  expect(container.querySelector('canvas')).toHaveAttribute('data-renderer', 'dither');
   expect(container.querySelector('canvas')).not.toBe(previousCanvas);
   expect(localStorage.getItem('popcon-theme')).toBe('light');
   global.fetch.mockImplementation(() => reply({ authenticated: false }));
   fireEvent.focus(window);
   await screen.findByRole('link', { name: 'Sign in' });
   expect(container.querySelector('canvas')).toBeNull();
+});
+
+test('a capable phone uses the normal full-detail mobile light pass, with local compatibility recovery', async () => {
+  mockDeviceTier.hasHardwareWebGL = true;
+  mockDeviceTier.isMobileTier = true;
+  const { container } = renderHome();
+  await screen.findByRole('region', { name: 'Your tools' });
+  expect(container.querySelectorAll('canvas')).toHaveLength(1);
+  expect(container.querySelector('canvas')).toHaveAttribute('data-renderer', 'mobile-light');
+  expect(container.querySelector('canvas')).toHaveAttribute('data-detail', 'full');
+  act(() => mockProductionTheme.mock.calls.at(-1)[0].onFieldStateChange('fallback'));
+  expect(container.querySelectorAll('canvas')).toHaveLength(1);
+  expect(container.querySelector('canvas')).toHaveAttribute('data-renderer', 'dither');
 });
 
 test('the CSS graphics policy keeps the complete workspace and footer without a canvas', async () => {

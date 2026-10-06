@@ -18,15 +18,16 @@ describe("mobile immersive dark theme", () => {
     connection: { saveData: false },
   };
 
-  test("allows the index on capable mobile hardware", () => {
+  test.each(["/", "/home", "/home/"])("allows the normal dark pipeline on %s with capable mobile hardware", (pathname) => {
     expect(isMobileBlackHolePath("/")).toBe(true);
+    expect(isMobileBlackHolePath(pathname)).toBe(true);
     expect(isMobileBlackHolePath("/engineering")).toBe(false);
     expect(
       shouldRenderImmersiveBlackHole({
         isDark: true,
         hardwareWebGL: true,
         mobile: true,
-        pathname: "/",
+        pathname,
         navigatorObject: capablePhone,
       }),
     ).toBe(true);

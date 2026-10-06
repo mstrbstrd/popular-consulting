@@ -34,7 +34,7 @@ export const isImmersiveBlackHolePath = (pathname = "/") =>
   !NON_IMMERSIVE_PATHS.has(normalizePathname(pathname));
 
 export const isMobileBlackHolePath = (pathname = "/") =>
-  (normalizePathname(pathname) === "/" || isLoginPath(pathname));
+  (["/", "/home"].includes(normalizePathname(pathname)) || isLoginPath(pathname));
 
 export const canAttemptMobileBlackHole = (signals = {}) =>
   canAttemptHighFidelityMobileGraphics(signals);
