@@ -494,6 +494,10 @@ const ContactSection = ({
             // a scroll pane. Mobile retains its keyboard-aware scrolling.
             maxHeight: isMobile ? "100%" : undefined,
             overflowY: isMobile ? "auto" : "visible",
+            // Keep the scaled card's paint inside its measured desktop row.
+            // Its visible bounds fit, but an extra route ancestor can expose
+            // CSS zoom's larger unscaled overflow area in Windows Chromium.
+            contain: isMobile ? undefined : "paint",
             touchAction: "pan-y",
             WebkitOverflowScrolling: "touch",
             overscrollBehavior: "contain",
