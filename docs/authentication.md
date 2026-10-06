@@ -182,10 +182,16 @@ editor and its isolated assets retain their server-side authorization boundary.
 
 Home uses the shared React shell, with public telemetry disabled on its route.
 Its static illustrations and navigation contain no invoice data or editor code.
-Its backdrop reuses `ProductionThemeCanvas` for the site's light dither and dark
-black-hole themes, following the saved theme preference. Only one decorative
-renderer mounts after session verification; session loss removes it. The shared
-runtime retains reduced-motion, hidden-tab, context-loss and pixel-budget guards.
+Its backdrop follows the same renderer selection as normal navigation: the
+original `BlackHoleBackground` pipeline in dark mode, `ManagedDitherBackground`
+for desktop/compatible light mode, and the full-detail `ProductionThemeCanvas`
+light pass on capable phones. `/home` shares the index's mobile eligibility checks.
+Only one renderer family mounts after session verification; session loss removes
+it. The existing runtimes retain reduced-motion, hidden-tab, context-loss and
+pixel-budget guards. The high-fidelity mobile light pass can recover locally to
+the compatibility dither, as on the public index. Stronger glass surfaces under
+the welcome copy, cards, navigation and footer protect text contrast against the
+moving field in both themes, including when backdrop blur is unavailable.
 CSS graphics policy, unsupported devices and forced colors retain the complete
 workspace without a live canvas. Route-scoped overflow rules keep native document
 scrolling available even while the renderer owns the background. The footer uses
