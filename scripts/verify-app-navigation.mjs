@@ -72,7 +72,27 @@ try {
     let documentLoads = 0;
     page.on('request', request => { if (request.isNavigationRequest() && request.frame() === page.mainFrame()) documentLoads += 1; });
     const press = async locator => mobile ? locator.tap() : locator.click();
-    const idle = () => page.waitForSelector('.app-route-curtain[data-phase="idle"]', { state: 'attached' });
+    const idle = async () => {
+      const started = Date.now();
+      try {
+        // WebKit's software adapter can compile a restored full-detail field
+        // slowly. Keep the real idle assertion and report prolonged warm-up.
+        await page.waitForSelector('.app-route-curtain[data-phase="idle"]', {
+          state: 'attached', timeout: browserType === playwright.webkit ? 60000 : 30000,
+        });
+        if (Date.now() - started > 5000) console.log(JSON.stringify({ profile, navigationWarmupMs: Date.now() - started }));
+      } catch (failure) {
+        console.log(JSON.stringify({ profile, errors, navigationFailure: await page.evaluate(() => ({
+          url: location.href, route: document.querySelector('.app-outlet')?.dataset.route,
+          phase: document.querySelector('.app-route-curtain')?.dataset.phase,
+          entry: document.querySelector('.home-page')?.dataset.entry,
+          heading: document.querySelector('main h1')?.textContent,
+          visibility: document.visibilityState,
+          graphics: window.__graphicsReport?.(),
+        })) }));
+        throw failure;
+      }
+    };
     const go = async (label, pathname) => {
       await press(page.locator('.workspace-menu > summary'));
       await press(page.getByRole('navigation', { name: 'Experiences', exact: true }).getByRole('link', { name: label, exact: true }));
