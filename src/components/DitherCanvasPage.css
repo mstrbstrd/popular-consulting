@@ -179,6 +179,8 @@
 }
 
 .rupture-header {
+  /* The open experience switcher must stay above scene copy and controls. */
+  z-index: 40;
   top: max(2.4rem, env(safe-area-inset-top));
   left: 50%;
   transform: translateX(-50%) translateY(var(--rupture-lift));
