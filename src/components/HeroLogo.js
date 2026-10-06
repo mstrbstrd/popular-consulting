@@ -11,20 +11,32 @@ import './IntroBranding.css';
 
 const WELCOME = 'Welcome';
 
-const HeroLogo = () => {
+const HeroLogo = ({ active, onEnter, immediate = false, label = 'Popular Consulting — enter the site' }) => {
+  const controlled = active !== undefined;
+  const [reducedMotion, setReducedMotion] = useState(() => Boolean(window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches));
   // ── Visibility ────────────────────────────────────────────────────────────
   const [logoVisible,   setLogoVisible]   = useState(false);
-  const [isHeroActive,  setIsHeroActive]  = useState(true);
+  const [observedHeroActive, setIsHeroActive] = useState(true);
+  const isHeroActive = controlled ? active : observedHeroActive;
   const [isExiting,     setIsExiting]     = useState(false);
 
   // Fade logo in after the dither reveal is underway (one-shot on load)
   useEffect(() => {
+    if (immediate || reducedMotion) { setLogoVisible(true); return undefined; }
     const t = setTimeout(() => setLogoVisible(true), 1700);
     return () => clearTimeout(t);
+  }, [immediate, reducedMotion]);
+
+  useEffect(() => {
+    const query = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+    const sync = () => setReducedMotion(Boolean(query?.matches));
+    query?.addEventListener?.('change', sync);
+    return () => query?.removeEventListener?.('change', sync);
   }, []);
 
   // Track active section via MutationObserver on section-dots (same pattern as NavMenu)
   useEffect(() => {
+    if (controlled) return undefined;
     const checkSection = () => {
       const dots      = document.querySelectorAll('.section-dot');
       const activeDot = document.querySelector('.section-dot.active');
@@ -50,7 +62,7 @@ const HeroLogo = () => {
       clearTimeout(pollTimer);
       if (obs) obs.disconnect();
     };
-  }, []);
+  }, [controlled]);
 
   // Exit: scale-up + fade when leaving hero; instant snap on return
   useEffect(() => {
@@ -67,6 +79,7 @@ const HeroLogo = () => {
 
   useEffect(() => {
     if (!logoVisible || !isFirstVisitRef.current) return;
+    if (reducedMotion) { setWelcomeVisible(true); setWelcomeText(WELCOME); return undefined; }
     typeTimeoutRef.current = setTimeout(() => {
       if (!isFirstVisitRef.current) return;
       setWelcomeVisible(true);
@@ -81,7 +94,7 @@ const HeroLogo = () => {
       clearTimeout(typeTimeoutRef.current);
       clearInterval(typeIntervalRef.current);
     };
-  }, [logoVisible]);
+  }, [logoVisible, reducedMotion]);
 
   useEffect(() => {
     if (!isHeroActive) {
@@ -96,6 +109,7 @@ const HeroLogo = () => {
   // ── Click: navigate to next section ──────────────────────────────────────
   const handleClick = (e) => {
     e.stopPropagation();
+    if (onEnter) { onEnter(); return; }
     const dots = document.querySelectorAll('.section-dot');
     if (dots[1]) dots[1].click();
   };
@@ -104,6 +118,9 @@ const HeroLogo = () => {
     <>
       {/* Fixed centred wrapper — never moves with section transitions */}
       <div
+        className="intro-branding__hero"
+        aria-hidden={!isHeroActive}
+        inert={!isHeroActive ? '' : undefined}
         style={{
           position:      'fixed',
           top:           '50%',
@@ -117,8 +134,8 @@ const HeroLogo = () => {
         <div
           style={{
             opacity:    !logoVisible ? 0 : isExiting ? 0 : 1,
-            transform:  isExiting ? 'scale(15.5)' : 'scale(1)',
-            transition: isExiting
+            transform:  isExiting && !reducedMotion ? 'scale(15.5)' : 'scale(1)',
+            transition: reducedMotion ? 'none' : isExiting
               ? 'opacity 0.45s ease-out, transform 0.72s cubic-bezier(0.4, 0, 1, 1)'
               : !logoVisible
                 ? 'opacity 1.0s ease-out'
@@ -126,8 +143,9 @@ const HeroLogo = () => {
           }}
         >
           <button
+            className="intro-branding__enter"
             onClick={handleClick}
-            aria-label="Popular Consulting — enter the site"
+            aria-label={label}
             style={{
               background: 'none',
               border: 'none',
@@ -146,7 +164,7 @@ const HeroLogo = () => {
                 height:    'auto',
                 display:   'block',
                 pointerEvents: 'none',
-                animation: logoVisible ? 'ditherLogoFlip 6s ease-in-out infinite' : 'none',
+                animation: logoVisible && !reducedMotion ? 'ditherLogoFlip 6s ease-in-out infinite' : 'none',
               }}
             />
           </button>
@@ -181,7 +199,7 @@ const HeroLogo = () => {
                 background:    'rgba(255, 255, 255, 0.85)',
                 marginLeft:    '3px',
                 verticalAlign: 'middle',
-                animation:     'cursorBlink 0.7s step-end infinite',
+                animation:     reducedMotion ? 'none' : 'cursorBlink 0.7s step-end infinite',
               }}
             />
           </div>
@@ -190,10 +208,14 @@ const HeroLogo = () => {
 
       <style>{`
         /* Hero logo button focus ring */
-        [aria-label="Popular Consulting — enter the site"]:focus { outline: none; }
-        [aria-label="Popular Consulting — enter the site"]:focus-visible {
+        .intro-branding__enter:focus { outline: none; }
+        .intro-branding__enter:focus-visible {
           outline: 2px solid rgba(255,255,255,0.8);
           outline-offset: 6px;
+        }
+        @media (forced-colors: active) {
+          .intro-branding__enter { outline: 2px solid ButtonText; }
+          .intro-branding__text { color: CanvasText !important; text-shadow: none !important; }
         }
         @keyframes ditherLogoFlip {
           0%   { transform: perspective(600px) rotateY(0deg);   }

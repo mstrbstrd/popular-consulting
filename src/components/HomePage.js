@@ -1,8 +1,10 @@
-import React, { useEffect, useId } from 'react';
+import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { ThemeProvider } from '../contexts/ThemeContext';
 import NavMenu from './NavMenu';
 import HomeBackground from './HomeBackground';
+import HeroLogo from './HeroLogo';
+import { consumeHomeEntryIntent, hasHomeEntryIntent } from '../utils/homeEntry';
 import logo from '../assets/icons/logo2026_128.png';
 import './HomePage.css';
 
@@ -50,6 +52,52 @@ function ToolArtwork({ kind }) {
 function HomeContent() {
   const { status, refresh } = useAuth();
   const signedIn = status === 'authenticated';
+  const [handoff] = useState(hasHomeEntryIntent);
+  const [entryRequested, setEntryRequested] = useState(handoff);
+  const [entry, setEntry] = useState('intro');
+  const mainRef = useRef(null);
+  const requestEntry = useCallback(() => setEntryRequested(true), []);
+
+  // Read without consuming in the initializer so StrictMode's repeated render
+  // preserves the gesture. The marker never establishes an authenticated session.
+  useEffect(() => { consumeHomeEntryIntent(); }, []);
+
+  useEffect(() => {
+    if (entry === 'open' || status === 'loading') return;
+    if (!signedIn) setEntry('open'); // Failed checks must expose recovery actions.
+    else if (entry === 'intro' && entryRequested) setEntry('revealing');
+  }, [entry, entryRequested, signedIn, status]);
+
+  useEffect(() => {
+    if (entry !== 'revealing') return undefined;
+    const query = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+    const finish = () => setEntry('open');
+    const sync = () => { if (query?.matches) finish(); };
+    if (query?.matches) { finish(); return undefined; }
+    // A bounded fallback also completes entry if animation events are suppressed.
+    const timer = window.setTimeout(finish, 1200);
+    query?.addEventListener?.('change', sync);
+    return () => { window.clearTimeout(timer); query?.removeEventListener?.('change', sync); };
+  }, [entry]);
+
+  useEffect(() => {
+    if (entry === 'open') { mainRef.current?.focus({ preventScroll: true }); return undefined; }
+    document.documentElement.classList.add('home-intro-active');
+    return () => document.documentElement.classList.remove('home-intro-active');
+  }, [entry]);
+
+  useEffect(() => {
+    if (entry !== 'intro') return undefined;
+    const wheel = event => { event.preventDefault(); if (Math.abs(event.deltaY) + Math.abs(event.deltaX) > 1) requestEntry(); };
+    const key = event => {
+      const entryKey = event.key.length === 1 || ['Enter', 'Tab', 'Escape', 'ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'PageDown', 'PageUp', 'Home', 'End'].includes(event.key);
+      if (event.defaultPrevented || event.isComposing || event.metaKey || event.ctrlKey || event.altKey || !entryKey) return;
+      event.preventDefault(); requestEntry();
+    };
+    window.addEventListener('wheel', wheel, { passive: false });
+    window.addEventListener('keydown', key);
+    return () => { window.removeEventListener('wheel', wheel); window.removeEventListener('keydown', key); };
+  }, [entry, requestEntry]);
 
   useEffect(() => {
     const html = document.documentElement;
@@ -65,11 +113,19 @@ function HomeContent() {
     };
   }, []);
 
-  return <div className="home-page">
+  return <div className="home-page" data-entry={entry}>
     <HomeBackground enabled={signedIn} />
+    {entry !== 'open' && <section className="home-intro" aria-label="Welcome"
+      onPointerDown={event => { if (event.button === 0) requestEntry(); }}
+      onTouchStart={requestEntry} onClick={requestEntry}>
+      <HeroLogo active={entry === 'intro'} onEnter={requestEntry} immediate={handoff}
+        label="Popular Consulting, enter your workspace" />
+      <p className="home-intro-status" role="status">{status === 'loading' || entryRequested ? 'Opening your workspace.' : 'Interact to enter your workspace.'}</p>
+    </section>}
+    <div className="home-stage" aria-hidden={entry !== 'open' ? true : undefined} inert={entry !== 'open' ? '' : undefined}>
     <a className="home-skip" href="#workspace">Skip to workspace</a>
     <NavMenu standalone />
-    <main id="workspace" className="home-main" tabIndex={-1} aria-labelledby="home-title">
+    <main ref={mainRef} id="workspace" className="home-main" tabIndex={-1} aria-labelledby="home-title">
       {signedIn ? <div className="auth-protected-content">
         <header className="home-welcome">
           <p className="home-eyebrow">Popular Consulting <span aria-hidden="true">/</span> Your workspace</p>
@@ -105,6 +161,7 @@ function HomeContent() {
         <img src={logo} width="26" height="26" alt="" aria-hidden="true" />
       </div>
     </footer>
+    </div>
   </div>;
 }
 

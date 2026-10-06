@@ -18,6 +18,7 @@ import { MAIN_APP_EXPERIENCE_PLAN } from "./experiencePlacement";
 import routeMetadata from "./content/routeMetadata.json";
 import { LOGIN_SECTION_INDEX } from "./utils/loginScene";
 import { SITE_AUDIENCES } from "./content/siteCopy";
+import { markHomeEntryIntent } from "./utils/homeEntry";
 
 const OrbSection = lazy(() => import("./components/OrbSection"));
 const LoadingOverlay = lazy(() => import("./components/LoadingOverlay"));
@@ -67,6 +68,7 @@ const App = ({ immersiveMode = IMMERSIVE_MODES.ORIGINAL, initialSection = 0 }) =
     if (status === "authenticated") {
       if (!introRedirecting.current) {
         introRedirecting.current = true;
+        markHomeEntryIntent();
         window.location.replace("/home");
       }
       return false;
