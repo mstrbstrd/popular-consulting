@@ -426,7 +426,7 @@ const ContactSection = ({
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        justifyContent: "center",
+        justifyContent: isMobile ? "center" : "safe center",
         overflowX: "hidden",
         // At extreme zoom/short heights, scroll the section as a whole,
         // never a clipped window inside the desktop form.
@@ -463,9 +463,13 @@ const ContactSection = ({
           justifyItems: "center",
           justifyContent: "center",
           width: "100%",
-          height: "100%",
+          // The desktop grid fills the viewport but can grow at text zoom.
+          // An intrinsic height also avoids stale percentage-grid overflow
+          // after the entrance transform settles in Windows Chromium.
+          height: isMobile ? "100%" : "auto",
           maxWidth: "1200px",
-          minHeight: isMobile ? undefined : 0,
+          minHeight: isMobile ? undefined : "100%",
+          flexShrink: isMobile ? undefined : 0,
           boxSizing: "border-box",
           padding: isMobile
             ? "2rem"
