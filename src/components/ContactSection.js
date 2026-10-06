@@ -30,6 +30,7 @@ const ContactSection = ({
   // Handle section transition effects for both form and footer
   React.useEffect(() => {
     let initTimer = 0;
+    let settleTimer = 0;
     const initContactSection = () => {
 
       // Wait for DOM to be ready
@@ -57,6 +58,16 @@ const ContactSection = ({
             "transform 0.8s ease-out 0.2s, opacity 0.8s ease-out 0.2s";
           footerEl.style.transform = "translateY(0)";
           footerEl.style.opacity = "1";
+
+          // Remove neutral entrance transforms after the delayed footer settles.
+          // Windows Chromium can otherwise retain its initial translated overflow
+          // in the section's scroll area even though the visible footer fits.
+          settleTimer = window.setTimeout(() => {
+            contentEl.style.transition = "";
+            footerEl.style.transition = "";
+            contentEl.style.transform = "none";
+            footerEl.style.transform = "none";
+          }, 1050);
         } else if (!scrollOutStarted) {
 
           // EXIT ANIMATION
@@ -80,7 +91,7 @@ const ContactSection = ({
     // Initialize the section
     initContactSection();
 
-    return () => clearTimeout(initTimer);
+    return () => { clearTimeout(initTimer); clearTimeout(settleTimer); };
   }, [isActive, scrollOutStarted]);
 
   const theme = useTheme();
@@ -426,7 +437,7 @@ const ContactSection = ({
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
-        justifyContent: isMobile ? "center" : "safe center",
+        justifyContent: "center",
         overflowX: "hidden",
         // At extreme zoom/short heights, scroll the section as a whole,
         // never a clipped window inside the desktop form.
@@ -463,13 +474,9 @@ const ContactSection = ({
           justifyItems: "center",
           justifyContent: "center",
           width: "100%",
-          // The desktop grid fills the viewport but can grow at text zoom.
-          // An intrinsic height also avoids stale percentage-grid overflow
-          // after the entrance transform settles in Windows Chromium.
-          height: isMobile ? "100%" : "auto",
+          height: "100%",
           maxWidth: "1200px",
-          minHeight: isMobile ? undefined : "100%",
-          flexShrink: isMobile ? undefined : 0,
+          minHeight: isMobile ? undefined : 0,
           boxSizing: "border-box",
           padding: isMobile
             ? "2rem"
