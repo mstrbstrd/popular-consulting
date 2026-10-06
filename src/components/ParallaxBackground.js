@@ -65,7 +65,7 @@ export const isContactTextEntryFocused = (
   );
 };
 
-export const ParallaxBackground = ({ children, initialSection = 0 }) => {
+export const ParallaxBackground = ({ children, initialSection = 0, onBeforeSectionChange }) => {
   const totalSections = Children.count(children) || 0;
   const initialIndex = Math.max(0, Math.min(totalSections - 1, Math.floor(Number(initialSection) || 0)));
   const { isDark } = useThemeMode();
@@ -193,6 +193,7 @@ export const ParallaxBackground = ({ children, initialSection = 0 }) => {
       if (index === activeSection || index < 0 || index >= totalSections || isTransitioning) return;
       const sections = sectionsRef.current;
       if (!sections.length) return;
+      if (onBeforeSectionChange?.({ from: activeSection, to: index }) === false) return;
 
       const direction = index > activeSection ? 1 : -1;
       const currentIndex = activeSection;
@@ -274,7 +275,7 @@ export const ParallaxBackground = ({ children, initialSection = 0 }) => {
         setIsTransitioning(false);
       }, enterDelay + enterDuration + 150);
     },
-    [activeSection, isTransitioning, totalSections],
+    [activeSection, isTransitioning, totalSections, onBeforeSectionChange],
   );
 
   useEffect(() => {

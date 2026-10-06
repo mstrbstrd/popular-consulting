@@ -1,6 +1,7 @@
 // App.js
 import React, { useState, lazy, Suspense } from "react";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import { useAuth } from "./contexts/AuthContext";
 import NavMenu from "./components/NavMenu";
 import BioSection from "./components/BioSection";
 import ContactSection from "./components/ContactSection";
@@ -42,6 +43,10 @@ const IMMERSIVE_METADATA = {
 const App = ({ immersiveMode = IMMERSIVE_MODES.ORIGINAL, initialSection = 0 }) => {
   const [loading, setLoading] = useState(false);
   const [pageHidden, setPageHidden] = useState(false);
+  const { status } = useAuth();
+  const [pendingIntroSection, setPendingIntroSection] = useState(null);
+  const introRedirecting = React.useRef(false);
+  const hasInitialDeepLink = React.useRef(Boolean(window.location.hash && window.location.hash !== "#section-0"));
   const presentation = resolveImmersivePresentation(immersiveMode);
   const metadata = initialSection === LOGIN_SECTION_INDEX
     ? routeMetadata.login
@@ -50,6 +55,32 @@ const App = ({ immersiveMode = IMMERSIVE_MODES.ORIGINAL, initialSection = 0 }) =
     presentation.mode === IMMERSIVE_MODES.ENGINEERING
       ? SITE_AUDIENCES.ENGINEERING
       : SITE_AUDIENCES.BUSINESS;
+
+  const handleBeforeSectionChange = React.useCallback(({ from, to }) => {
+    const pathname = window.location.pathname.replace(/\/+$/, "") || "/";
+    if (from !== 0 || initialSection !== 0 || hasInitialDeepLink.current || immersiveMode !== IMMERSIVE_MODES.ORIGINAL ||
+      !["/", "/index.html"].includes(pathname)) return true;
+    if (status === "loading") {
+      setPendingIntroSection(to);
+      return false;
+    }
+    if (status === "authenticated") {
+      if (!introRedirecting.current) {
+        introRedirecting.current = true;
+        window.location.replace("/home");
+      }
+      return false;
+    }
+    return true;
+  }, [status, initialSection, immersiveMode]);
+
+  React.useEffect(() => {
+    if (pendingIntroSection === null || status === "loading") return;
+    setPendingIntroSection(null);
+    if (handleBeforeSectionChange({ from: 0, to: pendingIntroSection })) {
+      document.querySelectorAll(".section-dot")[pendingIntroSection]?.click();
+    }
+  }, [pendingIntroSection, status, handleBeforeSectionChange]);
 
   React.useEffect(() => {
     const targets = {
@@ -177,7 +208,7 @@ const App = ({ immersiveMode = IMMERSIVE_MODES.ORIGINAL, initialSection = 0 }) =
 
           <main id="main-content" aria-label={mainLabel}>
             {presentation.showProfessionalHero && <ProfessionalHero />}
-            <ParallaxBackground initialSection={initialSection}>{mainAppSections}</ParallaxBackground>
+            <ParallaxBackground initialSection={initialSection} onBeforeSectionChange={handleBeforeSectionChange}>{mainAppSections}</ParallaxBackground>
           </main>
         </div>
 

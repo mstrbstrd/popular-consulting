@@ -42,6 +42,7 @@ test('opens the four tools after session verification with accessible card names
   expect(screen.queryByRole('region', { name: 'Your tools' })).not.toBeInTheDocument();
   const tools = within(await screen.findByRole('region', { name: 'Your tools' }));
   expect(tools.getAllByRole('link')).toHaveLength(4);
+  tools.getAllByRole('link').forEach(card => expect(card).toHaveClass('aetheris-card'));
   for (const [name, href] of [['Popcan', '/popcan'], ['Dither Canvas', '/dither-canvas'], ['Orb', '/orb'], ['Invoice Generator', '/invoice-generator']]) {
     expect(tools.getByRole('link', { name })).toHaveAttribute('href', href);
   }

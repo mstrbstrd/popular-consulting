@@ -65,6 +65,8 @@
   --aetheris-glass-surface: rgba(255, 252, 251, 0.58);
   --aetheris-glass-panel: rgba(255, 251, 250, 0.74);
   --aetheris-glass-panel-raised: rgba(255, 253, 252, 0.86);
+  --aetheris-card-panel: rgba(255, 251, 250, 0.90);
+  --aetheris-card-panel-raised: rgba(255, 253, 252, 0.96);
   --aetheris-glass-blur: blur(22px) saturate(1.25);
   --aetheris-glass-blur-chrome: blur(24px) saturate(1.3);
   --aetheris-glass-specular:
@@ -147,6 +149,8 @@
   --aetheris-glass-surface: rgba(13, 13, 18, 0.5);
   --aetheris-glass-panel: rgba(15, 15, 20, 0.64);
   --aetheris-glass-panel-raised: rgba(22, 22, 29, 0.74);
+  --aetheris-card-panel: rgba(15, 15, 20, 0.94);
+  --aetheris-card-panel-raised: rgba(22, 22, 29, 0.98);
   --aetheris-glass-blur: blur(22px) saturate(1.15);
   --aetheris-glass-blur-chrome: blur(24px) saturate(1.2);
   --aetheris-glass-specular:
@@ -538,20 +542,22 @@ html body #services .title-cursor-faster {
 
 html body .bio-card,
 html body .service-card,
+html body .aetheris-card,
 html body .contact-form,
 html body [data-a11y-dialog] > .MuiBox-root {
   position: relative;
   isolation: isolate;
   border: 1px solid var(--aetheris-line-strong) !important;
   color: var(--aetheris-ink) !important;
-  background: var(--aetheris-glass-panel) !important;
+  background: var(--aetheris-card-panel) !important;
   backdrop-filter: var(--aetheris-glass-blur) !important;
   -webkit-backdrop-filter: var(--aetheris-glass-blur) !important;
   box-shadow: var(--aetheris-shadow), var(--aetheris-glass-specular) !important;
 }
 
 html body .bio-card,
-html body .service-card {
+html body .service-card,
+html body .aetheris-card {
   border-radius: var(--aetheris-radius-xl) !important;
 }
 
@@ -562,6 +568,7 @@ html body [data-a11y-dialog] > .MuiBox-root {
 
 html body .bio-card::before,
 html body .service-card::before,
+html body .aetheris-card::before,
 html body .contact-form::before,
 html body [data-a11y-dialog] > .MuiBox-root::before {
   content: "";
@@ -587,6 +594,7 @@ html body [data-a11y-dialog] > .MuiBox-root::before {
 
 html body .bio-card::after,
 html body .service-card::after,
+html body .aetheris-card::after,
 html body .contact-form::after,
 html body [data-a11y-dialog] > .MuiBox-root::after {
   content: "";
@@ -615,9 +623,10 @@ html body [data-a11y-dialog] > .MuiBox-root::after {
 html body .bio-card:hover,
 html body .bio-card--hovered,
 html body .service-card:hover,
+html body .aetheris-card:hover,
 html body .service-card--hovered,
 html body .contact-form:hover {
-  background: var(--aetheris-glass-panel-raised) !important;
+  background: var(--aetheris-card-panel-raised) !important;
   box-shadow:
     var(--aetheris-shadow),
     var(--aetheris-glass-specular),
@@ -627,6 +636,7 @@ html body .contact-form:hover {
 html body .bio-card:hover::before,
 html body .bio-card--hovered::before,
 html body .service-card:hover::before,
+html body .aetheris-card:hover::before,
 html body .service-card--hovered::before,
 html body .contact-form:hover::before {
   opacity: 1;
@@ -635,6 +645,7 @@ html body .contact-form:hover::before {
 html body .bio-card:hover::after,
 html body .bio-card--hovered::after,
 html body .service-card:hover::after,
+html body .aetheris-card:hover::after,
 html body .service-card--hovered::after,
 html body .contact-form:hover::after {
   background:
@@ -1059,6 +1070,8 @@ html body #popcorn-game > div[style*="z-index: 20"] > div:not(:first-child) {
     --aetheris-glass-surface: #fdf1f2;
     --aetheris-glass-panel: #fdf1f2;
     --aetheris-glass-panel-raised: #f1e5e6;
+    --aetheris-card-panel: #fdf1f2;
+    --aetheris-card-panel-raised: #f1e5e6;
     --aetheris-glass-blur: none;
     --aetheris-glass-blur-chrome: none;
   }
@@ -1067,11 +1080,14 @@ html body #popcorn-game > div[style*="z-index: 20"] > div:not(:first-child) {
     --aetheris-glass-surface: #13131a;
     --aetheris-glass-panel: #13131a;
     --aetheris-glass-panel-raised: #18181f;
+    --aetheris-card-panel: #13131a;
+    --aetheris-card-panel-raised: #18181f;
   }
 
   html body .nav-pill,
   html body .bio-card,
   html body .service-card,
+  html body .aetheris-card,
   html body .contact-form,
   html body [data-a11y-dialog] > .MuiBox-root,
   html body .standalone-experience__header,
@@ -1090,6 +1106,7 @@ html body #popcorn-game > div[style*="z-index: 20"] > div:not(:first-child) {
   html body .scroll-indicator,
   html body .bio-card,
   html body .service-card,
+  html body .aetheris-card,
   html body .contact-form,
   html body .contact-form .MuiFilledInput-root,
   html body .contact-form .MuiButton-root,
@@ -1125,6 +1142,7 @@ html body #popcorn-game > div[style*="z-index: 20"] > div:not(:first-child) {
   html body .scroll-indicator,
   html body .bio-card,
   html body .service-card,
+  html body .aetheris-card,
   html body .contact-form,
   html body [data-a11y-dialog] > .MuiBox-root,
   html body [data-a11y-close],
@@ -1144,7 +1162,9 @@ html body #popcorn-game > div[style*="z-index: 20"] > div:not(:first-child) {
   html body .bio-card::before,
   html body .bio-card::after,
   html body .service-card::before,
+  html body .aetheris-card::before,
   html body .service-card::after,
+  html body .aetheris-card::after,
   html body .contact-form::before,
   html body .contact-form::after,
   html body [data-a11y-dialog] > .MuiBox-root::before,

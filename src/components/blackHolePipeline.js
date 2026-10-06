@@ -174,12 +174,14 @@ export class BlackHolePipeline {
     }
 
     if (
-      !this.resizeDirty &&
       this.canvas.width === target.width &&
       this.canvas.height === target.height &&
       this.frontTarget &&
       this.backTarget
     ) {
+      // Mobile browser chrome can report resize without changing the buffer.
+      // Keep the complete front frame instead of clearing it during a scroll.
+      this.resizeDirty = false;
       return true;
     }
 

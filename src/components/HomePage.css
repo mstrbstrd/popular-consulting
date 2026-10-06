@@ -1,7 +1,5 @@
 .home-page {
   --aetheris-glass-surface: rgba(255, 252, 251, 0.94);
-  --aetheris-glass-panel: rgba(255, 251, 250, 0.96);
-  --aetheris-glass-panel-raised: rgba(255, 253, 252, 0.98);
   position: relative;
   isolation: isolate;
   display: flex;
@@ -13,9 +11,6 @@
 }
 [data-theme="dark"] .home-page {
   --aetheris-glass-surface: rgba(13, 13, 18, 0.94);
-  --aetheris-glass-panel: rgba(16, 16, 22, 0.96);
-  --aetheris-glass-panel-raised: rgba(20, 20, 27, 0.98);
-  --aetheris-ink-2: #bbb4c5;
   background: #080809;
 }
 /* The immersive renderer also serves this naturally scrolling workspace. */
@@ -25,7 +20,7 @@ html.home-route[data-live-background-renderer] #root { overflow: visible !import
 html.home-route[data-live-background-renderer]::-webkit-scrollbar { width: auto; height: auto; display: block; }
 html.home-route:has(.nav-overlay--open),
 html.home-route:has(.nav-overlay--open) body { overflow: hidden !important; }
-.home-background { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+.home-background { position: fixed; inset: 0; bottom: auto; height: 100vh; height: 100lvh; z-index: 0; overflow: hidden; pointer-events: none; }
 .home-background .production-theme-shell { pointer-events: none; }
 .home-background__dither { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
 .home-page > .nav-header { position: relative; inset: auto; width: 100%; padding: max(16px, env(safe-area-inset-top)) 24px 12px; }
@@ -40,28 +35,21 @@ html.home-route:has(.nav-overlay--open) body { overflow: hidden !important; }
 .home-page h1 { margin: 0 0 12px; font: 500 clamp(34px, 4vw, 50px)/1.12 var(--aetheris-font-sans); letter-spacing: -.045em; }
 .home-welcome > p:last-child { margin: 0; color: var(--aetheris-ink-2); font-size: 16px; }
 .home-bento { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 20px; }
+/* Surface, spectral edge, radius and hover use the index's shared card recipe. */
 .home-tool {
-  position: relative;
-  isolation: isolate;
   display: flex;
   flex-direction: column;
   min-height: 280px;
   min-width: 0;
   padding: 24px;
-  border: 1px solid transparent;
-  border-radius: var(--aetheris-radius-glass);
-  color: inherit;
+  overflow: hidden;
   text-decoration: none;
-  background: var(--aetheris-glass-surface);
-  -webkit-backdrop-filter: var(--aetheris-glass-blur);
-  backdrop-filter: var(--aetheris-glass-blur);
-  box-shadow: var(--aetheris-glass-specular), var(--aetheris-shadow);
   transition: background var(--aetheris-motion-medium), box-shadow var(--aetheris-motion-medium);
 }
 .home-tool--popcan, .home-tool--invoice { grid-column: span 7; }
 .home-tool--dither, .home-tool--orb { grid-column: span 5; }
 /* Mask the spectral layer to its edge. The glass interior stays transparent. */
-.home-tool::before, .home-welcome::before, .home-session::before, .home-tool-arrow::before, .home-session-action::before {
+.home-welcome::before, .home-session::before, .home-tool-arrow::before, .home-session-action::before {
   content: "";
   position: absolute;
   inset: -1px;
@@ -74,7 +62,7 @@ html.home-route:has(.nav-overlay--open) body { overflow: hidden !important; }
   mask-composite: exclude;
   pointer-events: none;
 }
-.home-tool::before, .home-welcome::before, .home-session::before { opacity: .48; transition: opacity var(--aetheris-motion-medium); }
+.home-welcome::before, .home-session::before { opacity: .48; transition: opacity var(--aetheris-motion-medium); }
 .home-tool-top { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .home-tool-top > span:first-child { color: var(--aetheris-ink-2); font: 400 11px/1.6 var(--aetheris-font-mono); letter-spacing: .025em; }
 .home-tool-arrow { position: relative; flex: 0 0 36px; width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50%; background: var(--aetheris-glass-panel); }
@@ -119,14 +107,13 @@ html.home-route:has(.nav-overlay--open) body { overflow: hidden !important; }
 .home-skip { position: fixed; top: 12px; left: 12px; z-index: 2000; padding: 12px 20px; transform: translateY(-200%); background: var(--aetheris-panel); color: var(--aetheris-ink); border-radius: var(--aetheris-radius-lg); }
 .home-skip:focus { transform: none; }
 .home-page a:focus-visible, .home-session-action:focus-visible { outline: 2px solid var(--aetheris-teal); outline-offset: 5px; box-shadow: var(--aetheris-focus-halo); }
-.home-tool:focus-visible::before { opacity: 1; }
+.home-tool:focus-visible::after { opacity: 1 !important; }
+html body .aetheris-card:focus-visible { box-shadow: var(--aetheris-focus-halo), var(--aetheris-shadow) !important; }
 @media (hover: hover) {
-  .home-tool:hover { background: var(--aetheris-glass-panel); }
-  .home-tool:hover::before { opacity: .95; }
   .home-tool:hover .home-tool-action > span { transform: translateX(4px); }
   .home-session-action:hover { background: var(--aetheris-glass-panel-raised); }
 }
-.home-tool:active { background: var(--aetheris-glass-panel-raised); }
+.home-page .home-tool:active { background: var(--aetheris-card-panel-raised) !important; }
 @media (max-width: 900px) {
   .home-tool { grid-column: span 6; min-height: 320px; }
   .home-tool .home-tool-copy { width: 100%; padding-top: 100px; }
@@ -152,11 +139,11 @@ html.home-route:has(.nav-overlay--open) body { overflow: hidden !important; }
   .home-tool-top > span:first-child { font-size: 10px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .home-tool, .home-tool::before, .home-tool-action > span { transition: none; }
+  .home-tool, .home-tool::before, .home-tool::after, .home-tool-action > span { transition: none; }
   .home-tool:hover .home-tool-action > span { transform: none; }
 }
 @media (prefers-reduced-transparency: reduce) {
-  .home-tool, .home-welcome, .home-session, .home-page .home-footer-pill { background: var(--aetheris-panel); -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .home-welcome, .home-session, .home-page .home-footer-pill { background: var(--aetheris-panel); -webkit-backdrop-filter: none; backdrop-filter: none; }
 }
 @media (forced-colors: active) {
   .home-background { display: none; }
@@ -164,7 +151,7 @@ html.home-route:has(.nav-overlay--open) body { overflow: hidden !important; }
   .home-page .home-footer-pill > span { color: CanvasText; }
   .home-footer-separator { background: CanvasText; }
   .home-welcome, .home-session { border: 1px solid CanvasText; background: Canvas; color: CanvasText; box-shadow: none; }
-  .home-tool, .home-session-action, .home-tool-arrow { border: 1px solid ButtonText; background: Canvas; color: LinkText; box-shadow: none; }
-  .home-tool::before, .home-welcome::before, .home-session::before, .home-session-action::before, .home-tool-arrow::before, .home-tool-art { display: none; }
+  .home-session-action, .home-tool-arrow { border: 1px solid ButtonText; background: Canvas; color: LinkText; box-shadow: none; }
+  .home-welcome::before, .home-session::before, .home-session-action::before, .home-tool-arrow::before, .home-tool-art { display: none; }
   .home-page a:focus-visible, .home-session-action:focus-visible { outline-color: Highlight; }
 }
