@@ -6,9 +6,15 @@ import { navigateInApp } from '../contexts/AppNavigationContext';
 
 let mockAuth = { status: 'authenticated', user: { id: 'a'.repeat(64) }, logoutRevision: 0 };
 const mockLifecycle = [];
+const mockSceneLifecycle = [];
 let mockRestoreEnabled = false;
 const mockRestoreScroll = jest.fn();
 jest.mock('../contexts/AuthContext', () => ({ useAuth: () => mockAuth }));
+jest.mock('./ImmersiveBackground', () => function MockScene() {
+  const ReactModule = require('react');
+  ReactModule.useEffect(() => { mockSceneLifecycle.push('mount'); return () => mockSceneLifecycle.push('dispose'); }, []);
+  return <div data-testid="shared-scene"><canvas /></div>;
+});
 jest.mock('./BlackHoleBackground', () => () => null);
 jest.mock('../utils/privateInvoiceLoader', () => ({ syncPrivateInvoiceSession: jest.fn() }));
 jest.mock('../SiteRouter', () => ({ __esModule: true, preloadSiteRoute: async () => {}, default: function MockRouter({ pathname, onReady }) {
@@ -36,7 +42,7 @@ jest.mock('../SiteRouter', () => ({ __esModule: true, preloadSiteRoute: async ()
 const advance = ms => act(() => { jest.advanceTimersByTime(ms); });
 const complete = () => { advance(180); advance(32); advance(360); };
 beforeEach(() => {
-  jest.useFakeTimers(); mockLifecycle.length = 0;
+  jest.useFakeTimers(); mockLifecycle.length = 0; mockSceneLifecycle.length = 0;
   mockRestoreEnabled = false; mockRestoreScroll.mockClear();
   mockAuth = { status: 'authenticated', user: { id: 'a'.repeat(64) }, logoutRevision: 0 };
   window.history.replaceState({}, '', '/home'); localStorage.clear();
@@ -110,4 +116,25 @@ test('retains tool state across screens and clears it after explicit logout', ()
   rerender(<ApplicationShell />);
   fireEvent.click(screen.getByText('Home')); complete();
   expect(screen.getByLabelText('Draft')).toHaveValue('');
+});
+
+
+test('retains the same scene and canvas between index and home, then disposes it for a tool', () => {
+  window.history.replaceState({}, '', '/');
+  const { unmount } = render(<ApplicationShell />);
+  const scene = screen.getByTestId('shared-scene');
+  const canvas = scene.querySelector('canvas');
+  fireEvent.click(screen.getByText('Home'));
+  expect(document.querySelector('.app-route-curtain')).toHaveAttribute('data-continuous-scene', 'true');
+  expect(canvas.isConnected).toBe(true);
+  complete();
+  expect(screen.getByTestId('shared-scene')).toBe(scene);
+  expect(scene.querySelector('canvas')).toBe(canvas);
+  fireEvent.click(screen.getByText('Services')); complete();
+  expect(screen.getByTestId('shared-scene')).toBe(scene);
+  expect(mockSceneLifecycle).toEqual(['mount']);
+  fireEvent.click(screen.getByText('Orb')); complete();
+  expect(screen.queryByTestId('shared-scene')).toBeNull();
+  expect(mockSceneLifecycle).toEqual(['mount', 'dispose']);
+  unmount();
 });

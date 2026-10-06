@@ -61,6 +61,9 @@ function HomeContent() {
   const mainRef = useRef(null);
   const requestEntry = useCallback(() => setEntryRequested(true), []);
 
+  const setImmersiveSection = navigation?.setImmersiveSection;
+  React.useLayoutEffect(() => { setImmersiveSection?.(entry === 'intro' ? 0 : 1); }, [entry, setImmersiveSection]);
+
   // Read without consuming in the initializer so StrictMode's repeated render
   // preserves the gesture. The marker never establishes an authenticated session.
   useEffect(() => { consumeHomeEntryIntent(); }, []);
@@ -118,7 +121,7 @@ function HomeContent() {
   }, []);
 
   return <div className="home-page" data-entry={entry}>
-    <HomeBackground enabled={signedIn} />
+    {!navigation?.persistentImmersiveBackground && <HomeBackground activeSection={entry === 'intro' ? 0 : 1} />}
     {entry !== 'open' && <section className="home-intro" aria-label="Welcome"
       onTouchEnd={event => {
         // Complete the gesture before removing its target. In reduced motion,

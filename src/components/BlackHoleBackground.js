@@ -131,7 +131,7 @@ const useFixedBackgroundTarget = (enabled) => {
   return target;
 };
 
-const BlackHoleBackgroundCanvas = ({ mobile = false }) => {
+const BlackHoleBackgroundCanvas = ({ mobile = false, activeSection }) => {
   const canvasRef = React.useRef(null);
   const sectionRef = React.useRef(readInitialSection());
   const currentZoomRef = React.useRef(BLACK_HOLE_INITIAL_ZOOM);
@@ -141,6 +141,12 @@ const BlackHoleBackgroundCanvas = ({ mobile = false }) => {
   const hasRetriedRef = React.useRef(false);
   const [rendererGeneration, setRendererGeneration] = React.useState(0);
   const [failed, setFailed] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!Number.isInteger(activeSection) || activeSection < 0) return;
+    sectionRef.current = activeSection;
+    ensureAnimatingRef.current?.();
+  }, [activeSection]);
 
   React.useEffect(() => {
     const handleSectionChange = (event) => {
@@ -403,7 +409,7 @@ const BlackHoleBackgroundCanvas = ({ mobile = false }) => {
   );
 };
 
-const BlackHoleBackground = ({ isDark = false }) => {
+const BlackHoleBackground = ({ isDark = false, activeSection }) => {
   const pathname =
     typeof window !== "undefined" ? window.location.pathname : "/";
   const browserNavigator =
@@ -431,7 +437,7 @@ const BlackHoleBackground = ({ isDark = false }) => {
       }}
       aria-hidden="true"
     >
-      <BlackHoleBackgroundCanvas mobile={isMobileTier} />
+      <BlackHoleBackgroundCanvas mobile={isMobileTier} activeSection={activeSection} />
     </div>,
     portalTarget,
   );

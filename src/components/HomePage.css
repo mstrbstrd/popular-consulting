@@ -6,23 +6,20 @@
   flex-direction: column;
   min-height: 100dvh;
   color: var(--aetheris-ink);
-  background: #fff8f7;
+  background: transparent;
   font: 400 16px/1.5 var(--aetheris-font-sans);
 }
 [data-theme="dark"] .home-page {
   --aetheris-glass-surface: rgba(13, 13, 18, 0.94);
-  background: #080809;
+  background: transparent;
 }
 /* The immersive renderer also serves this naturally scrolling workspace. */
-html.home-route[data-live-background-renderer] { overflow: auto !important; scrollbar-width: auto; }
+html.home-route { overflow: auto !important; scrollbar-width: none; }
 html.home-route[data-live-background-renderer] body,
 html.home-route[data-live-background-renderer] #root { overflow: visible !important; }
-html.home-route[data-live-background-renderer]::-webkit-scrollbar { width: auto; height: auto; display: block; }
+html.home-route::-webkit-scrollbar { width: 0; height: 0; display: none; }
 html.home-route:has(.nav-overlay--open),
 html.home-route:has(.nav-overlay--open) body { overflow: hidden !important; }
-.home-background { position: fixed; inset: 0; bottom: auto; height: 100vh; height: 100lvh; z-index: 0; overflow: hidden; pointer-events: none; }
-.home-background .production-theme-shell { pointer-events: none; }
-.home-background__dither { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
 .home-stage > .nav-header { position: relative; inset: auto; width: 100%; padding: max(16px, env(safe-area-inset-top)) 24px 12px; }
 .home-page .nav-overlay { justify-content: flex-start; overflow-y: auto; overscroll-behavior: contain; padding: max(100px, calc(env(safe-area-inset-top) + 80px)) 16px max(24px, env(safe-area-inset-bottom)); }
 .home-page .nav-overlay > * { flex-shrink: 0; }
@@ -146,7 +143,6 @@ html body .aetheris-card:focus-visible { box-shadow: var(--aetheris-focus-halo),
   .home-welcome, .home-session, .home-page .home-footer-pill { background: var(--aetheris-panel); -webkit-backdrop-filter: none; backdrop-filter: none; }
 }
 @media (forced-colors: active) {
-  .home-background { display: none; }
   .home-page .home-footer-pill { border: 1px solid CanvasText; background: Canvas; box-shadow: none; }
   .home-page .home-footer-pill > span { color: CanvasText; }
   .home-footer-separator { background: CanvasText; }

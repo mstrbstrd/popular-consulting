@@ -5,12 +5,9 @@ import React, {
   Children,
   cloneElement,
 } from "react";
-import ManagedDitherBackground from "./ManagedDitherBackground";
-import ProductionThemeCanvas from "./ProductionThemeCanvas";
-import { LOGIN_SECTION_INDEX, LOGIN_DITHER_SECTION } from "../utils/loginScene";
+import ImmersiveBackground from "./ImmersiveBackground";
+import { useAppNavigation } from "../contexts/AppNavigationContext";
 import { useThemeMode } from "../contexts/ThemeContext";
-import { hasHardwareWebGL, isMobileTier } from "../utils/deviceTier";
-import { shouldUseHighFidelityMobileLight } from "../utils/mobileGraphicsCapability";
 
 const SUPPORTS_DVH =
   typeof CSS !== "undefined" && CSS.supports?.("height", "100dvh");
@@ -29,31 +26,6 @@ const SECTION_LABELS = [
   "Popcorn Game",
 ];
 
-const CSS_SECTION_DARK = [
-  ["#6344F5", "#9B72FF", "#24CCFF"],
-  ["#24CCFF", "#4FC3F7", "#52E5A0"],
-  ["#FF56D6", "#9B72FF", "#6344F5"],
-  ["#FF8C42", "#FF56D6", "#9B72FF"],
-  ["#52E5A0", "#24CCFF", "#FF56D6"],
-  ["#24CCFF", "#52E5A0", "#6344F5"],
-  ["#24CCFF", "#4FC3F7", "#52E5A0"],
-];
-const CSS_SECTION_LIGHT = [
-  ["#818cf8", "#a78bfa", "#38bdf8"],
-  ["#38bdf8", "#7dd3fc", "#34d399"],
-  ["#f472b6", "#a78bfa", "#818cf8"],
-  ["#fb923c", "#f472b6", "#a78bfa"],
-  ["#34d399", "#38bdf8", "#f472b6"],
-  ["#38bdf8", "#34d399", "#818cf8"],
-  ["#38bdf8", "#7dd3fc", "#34d399"],
-];
-
-const fallbackOrbs = [
-  { top: "12%", left: "14%", size: "55vmax", dur: "18s", delay: "0s" },
-  { top: "55%", left: "68%", size: "48vmax", dur: "22s", delay: "-6s" },
-  { top: "72%", left: "22%", size: "42vmax", dur: "26s", delay: "-11s" },
-];
-
 export const isContactTextEntryFocused = (
   documentObject =
     typeof document === "undefined" ? null : document,
@@ -69,7 +41,6 @@ export const ParallaxBackground = ({ children, initialSection = 0, onBeforeSecti
   const totalSections = Children.count(children) || 0;
   const initialIndex = Math.max(0, Math.min(totalSections - 1, Math.floor(Number(initialSection) || 0)));
   const { isDark } = useThemeMode();
-  const backgroundRef = useRef(null);
   const contentRef = useRef(null);
   const sectionsRef = useRef([]);
   const exitingSectionRef = useRef(null);
@@ -82,41 +53,10 @@ export const ParallaxBackground = ({ children, initialSection = 0, onBeforeSecti
 
   const [activeSection, setActiveSection] = useState(initialIndex);
   const [isTransitioning, setIsTransitioning] = useState(false);
-  const [mobileLightRuntimeFailed, setMobileLightRuntimeFailed] =
-    useState(false);
   const activeSectionRef = useRef(initialIndex);
-  const ditherSection = activeSection === LOGIN_SECTION_INDEX
-    ? LOGIN_DITHER_SECTION
-    : activeSection > LOGIN_SECTION_INDEX ? activeSection - 1 : activeSection;
-
-  const shouldUseDither = hasHardwareWebGL && !isDark;
-  const mobileLightEligible = shouldUseHighFidelityMobileLight({
-    isDark,
-    hardwareWebGL: hasHardwareWebGL,
-    mobile: isMobileTier,
-    pathname:
-      typeof window === "undefined" ? "/" : window.location.pathname,
-    navigatorObject:
-      typeof navigator === "undefined" ? null : navigator,
-  });
-  const shouldUseMobileLight =
-    shouldUseDither &&
-    mobileLightEligible &&
-    !mobileLightRuntimeFailed;
-  const shouldUseLegacyDither =
-    shouldUseDither && !shouldUseMobileLight;
-  const mobileLightRuntimeState = shouldUseMobileLight
-    ? "high-fidelity"
-    : shouldUseDither && isMobileTier
-      ? mobileLightRuntimeFailed
-        ? "compatibility-fallback"
-        : "compatibility"
-      : "inactive";
-  const fallbackColors = isDark ? CSS_SECTION_DARK : CSS_SECTION_LIGHT;
-
-  const handleMobileLightStateChange = React.useCallback((state) => {
-    if (state === "fallback") setMobileLightRuntimeFailed(true);
-  }, []);
+  const navigation = useAppNavigation();
+  const setImmersiveSection = navigation?.setImmersiveSection;
+  React.useLayoutEffect(() => { setImmersiveSection?.(activeSection); }, [activeSection, setImmersiveSection]);
 
   useEffect(() => {
     activeSectionRef.current = activeSection;
@@ -486,63 +426,9 @@ export const ParallaxBackground = ({ children, initialSection = 0, onBeforeSecti
   return (
     <div
       className="parallax-wrapper"
-      data-mobile-light-runtime={mobileLightRuntimeState}
       data-active-section={activeSection}
     >
-      <div
-        className="fixed-background"
-        ref={backgroundRef}
-        data-live-visual={shouldUseDither || isDark ? "expected" : "fallback"}
-      >
-        <div className="background-css-fallback" aria-hidden="true">
-          {fallbackOrbs.map((orb, index) => (
-            <div
-              key={index}
-              className={`background-css-orb background-css-orb-${index}`}
-              style={{
-                top: orb.top,
-                left: orb.left,
-                width: orb.size,
-                height: orb.size,
-                background: `radial-gradient(circle, ${
-                  fallbackColors[activeSection]?.[index] ??
-                  fallbackColors[0][index]
-                }55 0%, transparent 70%)`,
-                animation: `cssOrbDrift${index} ${orb.dur} ease-in-out infinite`,
-                animationDelay: orb.delay,
-              }}
-            />
-          ))}
-          <div className="background-css-grid" />
-        </div>
-
-        {shouldUseLegacyDither && (
-          <div className="background-dither-live">
-            <ManagedDitherBackground
-              activeSection={ditherSection}
-              enabled={shouldUseLegacyDither}
-              isDark={isDark}
-              rendererId="main-dither"
-            />
-          </div>
-        )}
-
-        {shouldUseMobileLight && (
-          <div className="background-mobile-light-live">
-            <ProductionThemeCanvas
-              theme="light"
-              activeSection={activeSection}
-              highFidelityLight
-              runtimeScope="mobile-index"
-              onFieldStateChange={handleMobileLightStateChange}
-            />
-          </div>
-        )}
-
-        <div className="glass-overlay">
-          <div className="glass-gradient" />
-        </div>
-      </div>
+      {!navigation?.persistentImmersiveBackground && <ImmersiveBackground activeSection={activeSection} />}
 
       <div className="sections-content" ref={contentRef}>
         {renderSections()}
@@ -590,78 +476,6 @@ export const ParallaxBackground = ({ children, initialSection = 0, onBeforeSecti
           height: 100vh;
           height: 100dvh;
           overflow: hidden;
-        }
-
-        .fixed-background,
-        .background-css-fallback,
-        .background-dither-live,
-        .background-mobile-light-live,
-        .glass-overlay,
-        .glass-gradient {
-          position: fixed;
-          inset: 0;
-        }
-
-        .fixed-background {
-          z-index: 1;
-          background: var(--bg-page);
-          transition: background-color 0.35s ease;
-        }
-
-        .background-css-fallback {
-          overflow: hidden;
-          background: ${isDark ? "#080809" : "#fff8f7"};
-          opacity: ${shouldUseDither || isDark ? "0" : "1"};
-          transition: opacity 180ms ease;
-        }
-
-        .fixed-background[data-live-visual="fallback"] .background-css-fallback {
-          opacity: 1;
-        }
-
-        .background-css-orb {
-          position: absolute;
-          border-radius: 50%;
-          transform: translate(-50%, -50%);
-          filter: blur(48px);
-          pointer-events: none;
-          transition: background 1.2s ease;
-        }
-
-        .background-css-grid {
-          position: absolute;
-          inset: 0;
-          background-image: ${
-            isDark
-              ? "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.12) 0 1px, transparent 1.5px)"
-              : "radial-gradient(circle at 1px 1px, rgba(40,40,90,0.10) 0 1px, transparent 1.5px)"
-          };
-          background-size: 24px 24px;
-          pointer-events: none;
-        }
-
-        .background-dither-live,
-        .background-mobile-light-live {
-          pointer-events: none;
-        }
-
-        .glass-overlay {
-          z-index: 3;
-          backdrop-filter: blur(2px) saturate(100%);
-          -webkit-backdrop-filter: blur(2px) saturate(100%);
-          pointer-events: none;
-          overflow: hidden;
-          opacity: 0;
-          animation: fadeIn 0.9s ease-out 2.1s forwards;
-        }
-
-        .glass-gradient {
-          background: linear-gradient(
-            to bottom,
-            rgba(255, 255, 255, 0.01) 0%,
-            rgba(255, 255, 255, 0.005) 50%,
-            rgba(99, 68, 245, 0.01) 100%
-          );
         }
 
         .sections-content {

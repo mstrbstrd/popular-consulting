@@ -72,7 +72,27 @@ try {
     let documentLoads = 0;
     page.on('request', request => { if (request.isNavigationRequest() && request.frame() === page.mainFrame()) documentLoads += 1; });
     const press = async locator => mobile ? locator.tap() : locator.click();
-    const idle = () => page.waitForSelector('.app-route-curtain[data-phase="idle"]', { state: 'attached' });
+    const idle = async () => {
+      const started = Date.now();
+      try {
+        // WebKit's software adapter can compile a restored full-detail field
+        // slowly. Keep the real idle assertion and report prolonged warm-up.
+        await page.waitForSelector('.app-route-curtain[data-phase="idle"]', {
+          state: 'attached', timeout: browserType === playwright.webkit ? 60000 : 30000,
+        });
+        if (Date.now() - started > 5000) console.log(JSON.stringify({ profile, navigationWarmupMs: Date.now() - started }));
+      } catch (failure) {
+        console.log(JSON.stringify({ profile, errors, navigationFailure: await page.evaluate(() => ({
+          url: location.href, route: document.querySelector('.app-outlet')?.dataset.route,
+          phase: document.querySelector('.app-route-curtain')?.dataset.phase,
+          entry: document.querySelector('.home-page')?.dataset.entry,
+          heading: document.querySelector('main h1')?.textContent,
+          visibility: document.visibilityState,
+          graphics: window.__graphicsReport?.(),
+        })) }));
+        throw failure;
+      }
+    };
     const go = async (label, pathname) => {
       await press(page.locator('.workspace-menu > summary'));
       await press(page.getByRole('navigation', { name: 'Experiences', exact: true }).getByRole('link', { name: label, exact: true }));
@@ -85,9 +105,10 @@ try {
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, 'Route overflowed the viewport');
     };
     const graphics = profile.includes('webgl') || profile.startsWith('webkit') ? 'webgl' : 'css';
-    await page.goto(`${origin}/home?graphics=${graphics}`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`${origin}/?graphics=${graphics}`, { waitUntil: 'domcontentloaded' });
     await waitForCheck(page, () => document.querySelector('.intro-branding__hero')?.style.pointerEvents === 'auto');
-    const opener = page.getByRole('button', { name: 'Popular Consulting, enter your workspace' });
+    await page.evaluate(() => { window.__openingScene = document.querySelector('.immersive-background'); window.__openingCanvas = window.__openingScene?.querySelector('canvas'); });
+    const opener = page.getByRole('button', { name: /Popular Consulting.*enter the site/ });
     // The logo intentionally rotates continuously. Bypass only the automation
     // stability check, then send a real tap/click after it accepts pointer input.
     if (mobile) {
@@ -106,6 +127,10 @@ try {
       if (evidence) await page.screenshot({ path: path.join(evidence, `${profile}-entry-failure.png`) });
       throw failure;
     }
+    assert.equal(await page.evaluate(() => window.__openingScene === document.querySelector('.immersive-background')), true, 'Opening scene was replaced entering Home');
+    assert.equal(await page.evaluate(() => window.__openingCanvas === document.querySelector('.immersive-background canvas')), true, 'Opening canvas was restarted entering Home');
+    assert.equal(await page.evaluate(() => innerWidth - document.documentElement.clientWidth), 0, 'Home exposed a scrollbar gutter');
+    assert.equal(await page.evaluate(() => { const r = document.querySelector('.immersive-background').getBoundingClientRect(); return r.left <= 0 && r.right >= innerWidth && r.bottom >= innerHeight; }), true, 'Background does not cover the viewport');
     const documentId = await page.evaluate(() => window.__appNavigationDocument);
     await go('Orb', '/orb');
     await press(page.getByRole('button', { name: 'Reactions', exact: false }).first());
@@ -176,6 +201,13 @@ try {
       await page.screenshot({ path: path.join(evidence, `${profile}-switcher.png`) });
       await press(page.locator('.workspace-menu > summary'));
     }
+    // The dark scene also remains the same canvas across Home/index/Home.
+    await page.evaluate(() => { window.__darkScene = document.querySelector('.immersive-background'); window.__darkCanvas = window.__darkScene?.querySelector('canvas'); });
+    await go('Popular Consulting', '/');
+    await go('Home', '/home');
+    assert.equal(await page.evaluate(() => window.__darkScene === document.querySelector('.immersive-background')), true, 'Dark scene was replaced');
+    assert.equal(await page.evaluate(() => window.__darkCanvas === document.querySelector('.immersive-background canvas')), true, 'Dark canvas was restarted');
+    assert.equal(await page.evaluate(() => innerWidth - document.documentElement.clientWidth), 0, 'Dark Home exposed a scrollbar gutter');
     await go('Invoice Generator', '/invoice-generator'); await page.waitForSelector('.invoice-page');
     assert.equal(await page.locator('html').getAttribute('data-theme'), 'dark');
     await go('Home', '/home');
@@ -187,7 +219,7 @@ try {
     const denied = await context.request.get(`${origin}/_private/invoice/manifest.json`);
     assert.equal(denied.status(), 401);
     assert.deepEqual(errors, [], 'Browser runtime errors');
-    console.log(JSON.stringify({ profile, passed: true, documentLoads, conversationRetained: true, invoiceRetained: true, canvasRetained: true, history: true, sessionRevocation: true }));
+    console.log(JSON.stringify({ profile, passed: true, documentLoads, conversationRetained: true, invoiceRetained: true, canvasRetained: true, history: true, sessionRevocation: true, openingBackgroundRetained: true, darkBackgroundRetained: true, fullViewport: true }));
     await context.close(); await browser.close(); activeBrowsers.delete(browser);
   }
 } finally {

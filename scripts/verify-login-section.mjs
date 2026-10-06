@@ -127,7 +127,7 @@ try {
       assert.equal(await evaluate('document.querySelectorAll("main").length'), 1, 'Duplicate main landmark');
       assert.equal(await evaluate('document.querySelectorAll(".nav-header").length'), 1, 'Duplicate navigation');
       assert.ok(await evaluate('document.documentElement.scrollWidth <= innerWidth+1'), 'Horizontal overflow');
-      report.runtime = await evaluate('({ mobileLight: document.querySelector(".parallax-wrapper").dataset.mobileLightRuntime, canvases: document.querySelectorAll(".fixed-background canvas").length })');
+      report.runtime = await evaluate('({ mobileLight: document.querySelector(".immersive-background").dataset.mobileLightRuntime, canvases: document.querySelectorAll(".fixed-background canvas").length })');
       if (mobile && theme === 'light') assert.equal(report.runtime.mobileLight, 'high-fidelity', 'Optimized mobile renderer was not exercised');
       await capture('login');
       await evaluate(`new Promise(resolve => {

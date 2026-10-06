@@ -116,8 +116,10 @@ try {
       await evaluate('[...document.querySelectorAll("button")].find(el=>el.textContent.trim()==="Save draft").click()');
       await evaluate('new Promise(resolve=>setTimeout(resolve,150))');
       await call('Page.navigate', { url: `${origin}/logout?graphics=css` });
-      await wait('document.querySelector(".auth-checkbox input")');
-      await evaluate('document.querySelector(".auth-checkbox input").click();document.querySelector(".auth-primary").click()');
+      await wait('document.querySelector(".auth-checkbox input") && document.querySelector(".auth-primary") && !document.querySelector(".auth-primary").disabled');
+      await evaluate('document.querySelector(".auth-checkbox input").click()');
+      await wait('document.querySelector(".auth-primary") && !document.querySelector(".auth-primary").disabled');
+      await evaluate('document.querySelector(".auth-primary").click()');
       await wait('document.querySelector(".auth-notice")?.textContent.includes("Signed out")');
       check(await evaluate('localStorage.getItem("popcon-invoice-draft-v1") === null'), 'Explicit draft deletion failed');
       check(!session.authenticated, 'Sign out not reflected by fixture');

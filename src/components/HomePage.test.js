@@ -64,12 +64,14 @@ test('opens the four tools after session verification with accessible card names
   expect(await axe(container)).toHaveNoViolations();
 });
 
-test('uses one existing theme renderer after authentication and switches it with the site theme', async () => {
+test('keeps the public opening background through verification and switches it with the site theme', async () => {
   mockDeviceTier.hasHardwareWebGL = true;
   localStorage.setItem('popcon-theme', 'dark');
   const { container } = renderHome();
-  expect(container.querySelector('canvas')).toBeNull();
+  const openingCanvas = container.querySelector('canvas');
+  expect(openingCanvas).not.toBeNull();
   await enterHome();
+  expect(container.querySelector('canvas')).toBe(openingCanvas);
   expect(container.querySelectorAll('canvas')).toHaveLength(1);
   expect(container.querySelector('canvas')).toHaveAttribute('data-renderer', 'black-hole');
   const previousCanvas = container.querySelector('canvas');
@@ -81,7 +83,8 @@ test('uses one existing theme renderer after authentication and switches it with
   global.fetch.mockImplementation(() => reply({ authenticated: false }));
   fireEvent.focus(window);
   await screen.findByRole('link', { name: 'Sign in' });
-  expect(container.querySelector('canvas')).toBeNull();
+  expect(container.querySelector('canvas')).toHaveAttribute('data-renderer', 'dither');
+  expect(screen.queryByRole('region', { name: 'Your tools' })).not.toBeInTheDocument();
 });
 
 test('a capable phone uses the normal full-detail mobile light pass, with local compatibility recovery', async () => {
@@ -103,7 +106,7 @@ test('the CSS graphics policy keeps the complete workspace and footer without a 
   const { container } = renderHome();
   await enterHome();
   expect(container.querySelector('canvas')).toBeNull();
-  expect(container.querySelector('.production-theme-fallback')).toBeInTheDocument();
+  expect(container.querySelector('.background-css-fallback')).toBeInTheDocument();
   expect(screen.getByRole('contentinfo')).toBeInTheDocument();
 });
 
@@ -215,7 +218,7 @@ test.each(['click', 'wheel', 'keyboard', 'touch'])('remembers early %s entry wit
   if (method === 'touch') fireEvent.touchEnd(intro);
   expect(screen.queryByRole('link', { name: 'Invoice Generator' })).not.toBeInTheDocument();
   expect(container.querySelector('.auth-protected-content')).toBeNull();
-  expect(container.querySelector('canvas')).toBeNull();
+  expect(container.querySelector('canvas')).toHaveAttribute('data-renderer', 'dither');
   await act(async () => resolveSession({ ok: true, json: async () => identity() }));
   expect(screen.getByRole('region', { name: 'Your tools' })).toBeInTheDocument();
   expect(screen.getByRole('main')).toHaveFocus();

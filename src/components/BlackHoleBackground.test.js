@@ -18,7 +18,7 @@ describe("persistent dark-mode black-hole invariants", () => {
     "utf8",
   );
   const parallaxSource = fs.readFileSync(
-    path.join(process.cwd(), "src/components/ParallaxBackground.js"),
+    path.join(process.cwd(), "src/components/ImmersiveBackground.js"),
     "utf8",
   );
 
@@ -59,7 +59,7 @@ describe("persistent dark-mode black-hole invariants", () => {
     expect(themeSource).toContain("<BlackHoleBackground isDark={value.isDark} />");
     expect(themeSource).toContain('const value = inherited ||');
     expect(parallaxSource).toContain(
-      "const shouldUseDither = hasHardwareWebGL && !isDark;",
+      "const shouldUseDither = live && !isDark;",
     );
     expect(componentSource).toContain(
       "shouldRenderImmersiveBlackHole({",
