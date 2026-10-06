@@ -25,6 +25,17 @@ server.on('request', (request, response) => {
 });
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const origin = `http://127.0.0.1:${server.address().port}`;
+const activeBrowsers = new Set();
+async function waitForCheck(page, predicate) {
+  const deadline = Date.now() + 30000;
+  while (Date.now() < deadline) {
+    // Protocol evaluation avoids waitForFunction's in-page eval helper so the
+    // fixture can enforce the real document CSP without unsafe-eval or bypass.
+    if (await page.evaluate(predicate)) return;
+    await page.waitForTimeout(50);
+  }
+  throw new Error(`Browser state did not settle: ${predicate.toString()}`);
+}
 
 try {
   for (const profile of profiles) {
@@ -36,6 +47,7 @@ try {
       ...(browserType === playwright.chromium && process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}),
       ...(browserType === playwright.chromium ? { args: ['--enable-unsafe-swiftshader'] } : {}),
     });
+    activeBrowsers.add(browser);
     const context = await browser.newContext({ viewport: mobile ? { width: 393, height: 700 } : { width: 1280, height: 900 }, isMobile: mobile, hasTouch: mobile, deviceScaleFactor: 1, reducedMotion: profile.includes('reduced') ? 'reduce' : 'no-preference' });
     await context.addInitScript(() => {
       window.__appNavigationDocument = Math.random().toString(36);
@@ -74,7 +86,11 @@ try {
     };
     const graphics = profile.includes('webgl') || profile.startsWith('webkit') ? 'webgl' : 'css';
     await page.goto(`${origin}/home?graphics=${graphics}`);
-    await press(page.getByRole('button', { name: 'Popular Consulting, enter your workspace' }));
+    await waitForCheck(page, () => document.querySelector('.intro-branding__hero')?.style.pointerEvents === 'auto');
+    const opener = page.getByRole('button', { name: 'Popular Consulting, enter your workspace' });
+    // The logo intentionally rotates continuously. Bypass only the automation
+    // stability check, then send a real tap/click after it accepts pointer input.
+    if (mobile) await opener.tap({ force: true }); else await opener.click({ force: true });
     try { await page.waitForSelector('.home-page[data-entry="open"]'); }
     catch (failure) {
       console.log(JSON.stringify({ profile, errors, opening: await page.evaluate(() => ({ url: location.href,
@@ -92,7 +108,7 @@ try {
     await go('Home', '/home'); await go('Orb', '/orb');
     await press(page.getByRole('button', { name: 'Reactions', exact: false }).first());
     await press(page.getByRole('button', { name: 'Preview under the hood', exact: true }));
-    await page.waitForFunction(() => document.querySelector('.metabloom-chat__presence')?.textContent.includes('seam') || document.querySelector('[data-under-hood]'));
+    await waitForCheck(page, () => document.querySelector('.metabloom-chat__presence')?.textContent.includes('seam') || document.querySelector('[data-under-hood]'));
     await go('Home', '/home'); await go('Orb', '/orb');
     await page.locator('.metabloom-chat__suggestions button').first().click();
     await page.waitForSelector('.metabloom-chat[data-chat-phase="ready"]', { timeout: 20000 });
@@ -117,7 +133,7 @@ try {
     await page.getByLabel('Canvas name').fill('Fictional canvas');
     await go('Home', '/home');
     await go('Popcan', '/popcan');
-    await page.waitForFunction(() => document.querySelector('#pc-title')?.value === 'Fictional canvas');
+    await waitForCheck(page, () => document.querySelector('#pc-title')?.value === 'Fictional canvas');
     await go('Selected work', '/work');
     assert.equal(await page.locator('link[href*="work-typography"]').count(), 1);
     await go('Home', '/home');
@@ -129,7 +145,7 @@ try {
       await go('Dither Canvas', '/dither-canvas');
       await press(page.getByRole('button', { name: /Tidal Weave/ }));
       await page.waitForSelector('.dither-study-option.is-active', { state: 'attached' });
-      await page.waitForFunction(() => document.querySelector('.dither-study-option.is-active')?.textContent.includes('Tidal Weave'));
+      await waitForCheck(page, () => document.querySelector('.dither-study-option.is-active')?.textContent.includes('Tidal Weave'));
       await go('Home', '/home'); await go('Dither Canvas', '/dither-canvas');
       assert.match(await page.locator('.dither-study-option.is-active').textContent(), /Tidal Weave/);
       await go('Home', '/home');
@@ -166,8 +182,9 @@ try {
     assert.equal(denied.status(), 401);
     assert.deepEqual(errors, [], 'Browser runtime errors');
     console.log(JSON.stringify({ profile, passed: true, documentLoads, conversationRetained: true, invoiceRetained: true, canvasRetained: true, history: true, sessionRevocation: true }));
-    await context.close(); await browser.close();
+    await context.close(); await browser.close(); activeBrowsers.delete(browser);
   }
 } finally {
+  await Promise.allSettled([...activeBrowsers].map(browser => browser.close()));
   server.closeAllConnections?.(); await new Promise(resolve => server.close(resolve));
 }
