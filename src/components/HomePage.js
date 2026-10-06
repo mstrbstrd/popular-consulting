@@ -2,6 +2,8 @@ import React, { useEffect, useId } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { ThemeProvider } from '../contexts/ThemeContext';
 import NavMenu from './NavMenu';
+import HomeBackground from './HomeBackground';
+import logo from '../assets/icons/logo2026_128.png';
 import './HomePage.css';
 
 const TOOLS = [
@@ -64,6 +66,7 @@ function HomeContent() {
   }, []);
 
   return <div className="home-page">
+    <HomeBackground enabled={signedIn} />
     <a className="home-skip" href="#workspace">Skip to workspace</a>
     <NavMenu standalone />
     <main id="workspace" className="home-main" tabIndex={-1} aria-labelledby="home-title">
@@ -86,7 +89,6 @@ function HomeContent() {
             </div>
           </a>)}
         </section>
-        <footer className="home-footer"><span>Room for a little curiosity.</span><a href="/">Back to the main site <span aria-hidden="true">↗</span></a></footer>
       </div> : <section className="home-session" aria-busy={status === 'loading'}>
         <p className="home-eyebrow">Popular Consulting / Your workspace</p>
         <h1 id="home-title">{status === 'loading' ? 'Opening your workspace.' : status === 'unavailable' ? 'Unable to check your session.' : 'Sign in to your workspace.'}</h1>
@@ -96,6 +98,13 @@ function HomeContent() {
         {status !== 'loading' && <a className="home-return" href="/">Back to the main site</a>}
       </section>}
     </main>
+    <footer className="home-footer">
+      <div className="home-footer-pill">
+        <span>Popular Consulting © {new Date().getFullYear()}</span>
+        <div className="home-footer-separator" aria-hidden="true" />
+        <img src={logo} width="26" height="26" alt="" aria-hidden="true" />
+      </div>
+    </footer>
   </div>;
 }
 

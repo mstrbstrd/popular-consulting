@@ -3,10 +3,20 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { axe, toHaveNoViolations } from 'jest-axe';
 import HomePage from './HomePage';
 import { AuthProvider, useAuth } from '../contexts/AuthContext';
+import logo from '../assets/icons/logo2026_128.png';
 
 expect.extend(toHaveNoViolations);
-jest.mock('./NavMenu', () => () => <nav aria-label="Primary navigation" />);
+jest.mock('./NavMenu', () => function MockNav() {
+  const { toggleTheme } = require('../contexts/ThemeContext').useThemeMode();
+  return <nav aria-label="Primary navigation"><button onClick={toggleTheme}>Toggle theme</button></nav>;
+});
 jest.mock('../components/BlackHoleBackground', () => () => null);
+jest.mock('./ProductionThemeCanvas', () => ({ theme, runtimeScope }) => <canvas data-theme={theme} data-runtime-scope={runtimeScope} />);
+jest.mock('../utils/deviceTier', () => ({ hasHardwareWebGL: false, isMobileTier: false }));
+jest.mock('../utils/graphicsPolicy', () => ({ GRAPHICS_MODES: { WEBGL: 'webgl' }, graphicsMode: 'auto', shouldAttemptWebGL: true }));
+
+const mockDeviceTier = require('../utils/deviceTier');
+const mockGraphicsPolicy = require('../utils/graphicsPolicy');
 
 const identity = () => ({ authenticated: true, user: { id: 'a'.repeat(64), role: 'admin', name: 'Fictional account' }, csrfToken: 'b'.repeat(64), expiresAt: Date.now() + 3600000 });
 const reply = data => Promise.resolve({ ok: true, json: async () => data });
@@ -15,6 +25,8 @@ const renderHome = () => render(<AuthProvider><HomePage /><SignOut /></AuthProvi
 
 beforeEach(() => {
   localStorage.clear();
+  mockDeviceTier.hasHardwareWebGL = false;
+  mockGraphicsPolicy.shouldAttemptWebGL = true;
   global.fetch = jest.fn(() => reply(identity()));
 });
 afterEach(() => { jest.restoreAllMocks(); delete global.fetch; });
@@ -31,7 +43,61 @@ test('opens the four tools after session verification with accessible card names
   expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Welcome back.');
   expect(screen.getByRole('link', { name: 'Skip to workspace' })).toHaveAttribute('href', '#workspace');
   expect(container.querySelector('canvas')).toBeNull();
+  const footer = screen.getByRole('contentinfo');
+  expect(footer).toHaveTextContent(`Popular Consulting © ${new Date().getFullYear()}`);
+  expect(footer.querySelector('img')).toHaveAttribute('src', logo);
+  expect(footer.querySelector('img')).toHaveAttribute('alt', '');
+  expect(within(footer).queryAllByRole('link')).toHaveLength(0);
   expect(await axe(container)).toHaveNoViolations();
+});
+
+test('uses one existing theme renderer after authentication and switches it with the site theme', async () => {
+  mockDeviceTier.hasHardwareWebGL = true;
+  localStorage.setItem('popcon-theme', 'dark');
+  const { container } = renderHome();
+  expect(container.querySelector('canvas')).toBeNull();
+  await screen.findByRole('region', { name: 'Your tools' });
+  expect(container.querySelectorAll('canvas')).toHaveLength(1);
+  expect(container.querySelector('canvas')).toHaveAttribute('data-theme', 'dark');
+  expect(container.querySelector('canvas')).toHaveAttribute('data-runtime-scope', 'home');
+  const previousCanvas = container.querySelector('canvas');
+  fireEvent.click(screen.getByRole('button', { name: 'Toggle theme' }));
+  expect(container.querySelectorAll('canvas')).toHaveLength(1);
+  expect(container.querySelector('canvas')).toHaveAttribute('data-theme', 'light');
+  expect(container.querySelector('canvas')).not.toBe(previousCanvas);
+  expect(localStorage.getItem('popcon-theme')).toBe('light');
+  global.fetch.mockImplementation(() => reply({ authenticated: false }));
+  fireEvent.focus(window);
+  await screen.findByRole('link', { name: 'Sign in' });
+  expect(container.querySelector('canvas')).toBeNull();
+});
+
+test('the CSS graphics policy keeps the complete workspace and footer without a canvas', async () => {
+  mockDeviceTier.hasHardwareWebGL = true;
+  mockGraphicsPolicy.shouldAttemptWebGL = false;
+  const { container } = renderHome();
+  await screen.findByRole('region', { name: 'Your tools' });
+  expect(container.querySelector('canvas')).toBeNull();
+  expect(container.querySelector('.production-theme-fallback')).toBeInTheDocument();
+  expect(screen.getByRole('contentinfo')).toBeInTheDocument();
+});
+
+test('forced colors removes the decorative renderer and the media listener is cleaned up', async () => {
+  mockDeviceTier.hasHardwareWebGL = true;
+  const originalMatchMedia = window.matchMedia;
+  const query = { matches: false, addEventListener: jest.fn(), removeEventListener: jest.fn() };
+  window.matchMedia = jest.fn(() => query);
+  try {
+    const { container, unmount } = renderHome();
+    await screen.findByRole('region', { name: 'Your tools' });
+    expect(container.querySelector('canvas')).not.toBeNull();
+    const sync = query.addEventListener.mock.calls.find(([name]) => name === 'change')[1];
+    act(() => { query.matches = true; sync(); });
+    expect(container.querySelector('canvas')).toBeNull();
+    expect(screen.getByRole('region', { name: 'Your tools' })).toBeInTheDocument();
+    unmount();
+    expect(query.removeEventListener).toHaveBeenCalledWith('change', sync);
+  } finally { window.matchMedia = originalMatchMedia; }
 });
 
 test('anonymous sessions get a sign-in path without mounting tool cards', async () => {

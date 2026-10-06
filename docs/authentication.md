@@ -182,6 +182,14 @@ editor and its isolated assets retain their server-side authorization boundary.
 
 Home uses the shared React shell, with public telemetry disabled on its route.
 Its static illustrations and navigation contain no invoice data or editor code.
+Its backdrop reuses `ProductionThemeCanvas` for the site's light dither and dark
+black-hole themes, following the saved theme preference. Only one decorative
+renderer mounts after session verification; session loss removes it. The shared
+runtime retains reduced-motion, hidden-tab, context-loss and pixel-budget guards.
+CSS graphics policy, unsupported devices and forced colors retain the complete
+workspace without a live canvas. Route-scoped overflow rules keep native document
+scrolling available even while the renderer owns the background. The footer uses
+the original site's centered glass copyright pill, separator and decorative logo.
 The server checks the session before delivering its HTML and returns private,
 no-store/noindex headers. The client shows tools only after the session endpoint
 confirms authorization, removes them on expiry/logout/failure, and hides them
