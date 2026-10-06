@@ -77,7 +77,36 @@ try {
     focusState: document.querySelector('#contact')?.dataset.mobileFocusActive,
     footerVisibility: document.querySelector('.contact-footer-viewport')?.style.visibility,
     nameElement: document.querySelector('#name')?.outerHTML.slice(0, 500),
-    nameInert: Boolean(document.querySelector('#name')?.closest('[inert]'))
+    nameInert: Boolean(document.querySelector('#name')?.closest('[inert]')),
+    scrollLayout: (() => {
+      const section = document.querySelector('#contact');
+      const measure = element => {
+        const style = getComputedStyle(element);
+        return { name: element.className || element.id || element.tagName,
+          rect: element.getBoundingClientRect().toJSON(),
+          clientHeight: element.clientHeight, scrollHeight: element.scrollHeight,
+          padding: style.padding, height: style.height, boxSizing: style.boxSizing,
+          overflow: style.overflow, transform: style.transform };
+      };
+      const ancestors = [];
+      for (let element = section; element; element = element.parentElement) ancestors.push(measure(element));
+      const changes = [
+        ['section padding', section, 'padding', '0px'],
+        ['layout height', section.querySelector('.contact-layout'), 'height', 'auto'],
+        ['layout clip', section.querySelector('.contact-layout'), 'overflow', 'clip'],
+        ['footer transform', section.querySelector('.contact-footer-viewport > div'), 'transform', 'none'],
+        ['form transform', section.querySelector('.contact-form-viewport'), 'transform', 'none'],
+        ['outlet box', document.querySelector('.app-outlet'), 'display', 'contents'],
+      ];
+      const experiments = changes.map(([name, element, property, value]) => {
+        const previous = element.style.getPropertyValue(property);
+        element.style.setProperty(property, value);
+        const result = { name, sectionScroll: section.scrollHeight - section.clientHeight };
+        if (previous) element.style.setProperty(property, previous); else element.style.removeProperty(property);
+        return result;
+      });
+      return { ancestors, children: [...section.children].map(measure), experiments };
+    })()
   })`);
   await call("Page.enable");
   await call("Page.bringToFront");

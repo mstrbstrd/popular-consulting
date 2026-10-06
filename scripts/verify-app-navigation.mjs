@@ -48,7 +48,7 @@ try {
       ...(browserType === playwright.chromium ? { args: ['--enable-unsafe-swiftshader'] } : {}),
     });
     activeBrowsers.add(browser);
-    const context = await browser.newContext({ viewport: mobile ? { width: 393, height: 700 } : { width: 1280, height: 900 }, isMobile: mobile, hasTouch: mobile, deviceScaleFactor: 1, reducedMotion: profile.includes('reduced') ? 'reduce' : 'no-preference' });
+    const context = await browser.newContext({ userAgent: mobile ? playwright.devices['iPhone 13'].userAgent : undefined, viewport: mobile ? { width: 393, height: 700 } : { width: 1280, height: 900 }, isMobile: mobile, hasTouch: mobile, deviceScaleFactor: 1, reducedMotion: profile.includes('reduced') ? 'reduce' : 'no-preference' });
     await context.addInitScript(() => {
       window.__appNavigationDocument = Math.random().toString(36);
       localStorage.setItem('popcon-theme', 'light');
@@ -91,7 +91,7 @@ try {
     // The logo intentionally rotates continuously. Bypass only the automation
     // stability check, then send a real tap/click after it accepts pointer input.
     if (mobile) {
-      const box = await opener.boundingBox();
+      const box = await opener.evaluate(element => element.getBoundingClientRect().toJSON());
       assert(box && box.width > 0 && box.height > 0, 'Opening logo is not visible');
       // Touch release intentionally removes this element. Use one physical
       // gesture so a locator cannot retry against the now-detached target.
