@@ -12,7 +12,7 @@ describe("shared Aetheris site styling", () => {
   const routeGenerator = readRepositoryFile("scripts/generate-route-html.mjs");
   const themeContext = readRepositoryFile("src/contexts/ThemeContext.js");
   const parallaxSource = readRepositoryFile(
-    "src/components/ParallaxBackground.js",
+    "src/components/ImmersiveBackground.js",
   );
   const standaloneSource = readRepositoryFile(
     "src/components/StandaloneExperiencePage.js",

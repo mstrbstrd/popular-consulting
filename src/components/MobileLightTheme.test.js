@@ -4,7 +4,7 @@ import { shouldUseHighFidelityMobileLight } from "../utils/mobileGraphicsCapabil
 
 describe("capability-aware mobile light theme", () => {
   const parallaxSource = fs.readFileSync(
-    path.join(process.cwd(), "src/components/ParallaxBackground.js"),
+    path.join(process.cwd(), "src/components/ImmersiveBackground.js"),
     "utf8",
   );
   const productionThemeSource = fs.readFileSync(

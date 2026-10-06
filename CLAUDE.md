@@ -56,7 +56,7 @@ npm run lint    # eslint --max-warnings 0 (CI-gated)
 
 ### Continuous application shell
 - `ApplicationShell.js` retains shared auth/theme providers, handles same-origin route links, history, entry-specific scroll restoration, opacity transitions, focus and recovery. External links, downloads, modified clicks, OAuth and startup renderer-policy changes keep native navigation.
-- Only the active route mounts its renderers. Tool snapshots are bounded tab-only state; explicit logout/account changes invalidate both snapshots and late cleanup writes. Route-scoped head styles are installed and removed by the shell.
+- The index and Home retain one canonical `ImmersiveBackground` outside the route outlet; their foreground changes must never recreate or cover its canvas. Other tools release that scene before mounting their renderers. Tool snapshots are bounded tab-only state; explicit logout/account changes invalidate both snapshots and late cleanup writes. Route-scoped head styles are installed and removed by the shell.
 - `invoice-entry.js` exports a separately built private module. Its manifest and every asset remain middleware protected. The public loader must never import the editor into a public chunk or serialize its data into route state. All app documents share script/framing restrictions; private-route telemetry remains disabled.
 - `scripts/verify-app-navigation.mjs` tests built desktop/mobile Chromium and WebKit flows with fictional local fixtures. Run it after navigation changes, alongside the full Jest/auth suites.
 

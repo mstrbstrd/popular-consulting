@@ -3,6 +3,9 @@ import metadata from '../content/routeMetadata.json';
 export const routeMetadataFor = pathname => Object.values(metadata).find(route =>
   route.path === (pathname.replace(/\/index\.html$/, '').replace(/\/+$/, '') || '/'));
 
+export const sharesImmersiveBackground = pathname =>
+  ['/', '/home', '/engineering', '/login'].includes(routeMetadataFor(pathname)?.path);
+
 export const isAppRoute = pathname => Boolean(routeMetadataFor(pathname));
 
 // These switches establish renderer policy before React mounts. Changing them

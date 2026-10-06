@@ -195,7 +195,7 @@ const App = ({ immersiveMode = IMMERSIVE_MODES.ORIGINAL, initialSection = 0 }) =
   }
 
   return (
-    <ThemeProvider>
+    <ThemeProvider enableBackground={false}>
       <div
         data-site-audience={audience}
         style={{ position: "relative" }}

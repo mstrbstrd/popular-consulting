@@ -7,7 +7,13 @@ Browser back and forward use the same route lifecycle with scroll positions held
 per history entry. Expensive screens remain lazy loaded and begin loading on link
 hover or focus.
 
-Navigation covers the outgoing screen with the shared logo and themed surface,
+The index, engineering/login sections and Home use one persistent
+`ImmersiveBackground` outside the route outlet. The opening and Home reveal share
+the same live canvas, shader time, camera and mobile graphics selection. Only the
+foreground fades during those route changes. Home remains naturally scrollable
+without a separate scrollbar gutter. Leaving for another tool disposes this scene.
+
+Other navigation covers the outgoing screen with the shared logo and themed surface,
 disposes that screen, then reveals the incoming screen after it commits. The
 transition changes opacity only. It does not transform glass panels or retain
 hidden renderers. Essential content works with CSS graphics, reduced motion or

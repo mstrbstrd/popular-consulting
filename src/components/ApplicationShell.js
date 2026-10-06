@@ -2,9 +2,10 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import SiteRouter, { preloadSiteRoute } from '../SiteRouter';
 import { AppNavigationContext } from '../contexts/AppNavigationContext';
 import { useAuth } from '../contexts/AuthContext';
-import { appDestination, clickedAppDestination, routeMetadataFor } from '../utils/appRoutes';
+import { appDestination, clickedAppDestination, routeMetadataFor, sharesImmersiveBackground } from '../utils/appRoutes';
 import { syncPrivateInvoiceSession } from '../utils/privateInvoiceLoader';
 import { markHomeEntryIntent } from '../utils/homeEntry';
+import ImmersiveBackground from './ImmersiveBackground';
 import logo from '../assets/icons/logo2026_128.png';
 import './ApplicationShell.css';
 
@@ -32,6 +33,8 @@ export default function ApplicationShell() {
   const { user, logoutRevision } = auth;
   const [location, setLocation] = useState(readLocation);
   const [phase, setPhase] = useState('idle');
+  const [continuousScene, setContinuousScene] = useState(false);
+  const [immersiveSection, setImmersiveSection] = useState(0);
   const [destination, setDestination] = useState('');
   const [slow, setSlow] = useState(false);
   const locationRef = useRef(location);
@@ -80,6 +83,7 @@ export default function ApplicationShell() {
     const nextEntryKey = pop ? historyEntryKey() : replace ? entryKey.current : newEntryKey();
     pending.current = { next, previous: locationRef.current, pop, entryKey: nextEntryKey, generation: current };
     setDestination(routeMetadataFor(url.pathname)?.title.split(' | ')[0] || 'Popular Consulting');
+    setContinuousScene(sharesImmersiveBackground(previous.pathname) && sharesImmersiveBackground(url.pathname));
     setPhase('covering');
     preloadSiteRoute(url.pathname).catch(() => {});
     later(() => {
@@ -217,6 +221,8 @@ export default function ApplicationShell() {
   }, [stateRevision]);
   const navigation = useMemo(() => ({
     pathname: new URL(location, window.location.origin).pathname, navigate,
+    persistentImmersiveBackground: sharesImmersiveBackground(new URL(location, window.location.origin).pathname),
+    setImmersiveSection,
     hasEnteredWorkspace: () => enteredWorkspace.current,
     enterWorkspace: () => { enteredWorkspace.current = true; },
     getToolState, saveToolState, setRouteScrollRestoration,
@@ -224,13 +230,14 @@ export default function ApplicationShell() {
   const busy = phase !== 'idle';
   const routeEpoch = ['/home', '/orb', '/popcan', '/dither-canvas', '/invoice-generator'].includes(routeMetadataFor(navigation.pathname)?.path) ? stateRevision : 0;
   return <AppNavigationContext.Provider value={navigation}>
+    {navigation.persistentImmersiveBackground && <ImmersiveBackground activeSection={immersiveSection} />}
     <RouteAssets pathname={navigation.pathname} />
-    <div ref={outletRef} className="app-outlet" data-route={navigation.pathname} inert={busy ? '' : undefined} aria-busy={busy}>
+    <div ref={outletRef} className="app-outlet" data-phase={phase} data-continuous-scene={continuousScene} data-route={navigation.pathname} inert={busy ? '' : undefined} aria-busy={busy}>
       <RouteErrorBoundary key={`${navigation.pathname}:${routeEpoch}`} onReady={ready}>
         <SiteRouter pathname={navigation.pathname} onReady={ready} />
       </RouteErrorBoundary>
     </div>
-    <div className="app-route-curtain" data-phase={phase} aria-hidden="true"><img src={logo} alt="" /></div>
+    <div className="app-route-curtain" data-phase={phase} data-continuous-scene={continuousScene} aria-hidden="true"><img src={logo} alt="" /></div>
     {slow && phase === 'loading' && <section className="app-navigation-recovery" role="alert">
       <p>This screen is taking longer to open.</p>
       <button type="button" onClick={() => navigate(pending.current?.previous || '/', { replace: true })}>Go back</button>
