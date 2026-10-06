@@ -11,7 +11,7 @@
 .app-route-curtain img { width: 64px; height: 64px; opacity: .8; }
 .app-route-curtain[data-phase="loading"] img { animation: app-loading-breathe 1.5s ease-in-out infinite; }
 @keyframes app-loading-breathe { 50% { opacity: .35; } }
-.app-navigation-status { position: fixed; width: 1px; height: 1px; clip-path: inset(50%); overflow: hidden; white-space: nowrap; }
+.app-navigation-status { position: fixed; top: 0; left: 0; margin: 0; padding: 0; width: 1px; height: 1px; clip-path: inset(50%); overflow: hidden; white-space: nowrap; }
 .app-route-loading { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; color: #242428; background: #fff8f7; font: 14px 'Hanken Grotesk', sans-serif; }
 .app-route-loading img { width: 64px; height: 64px; }
 .app-navigation-recovery { position: fixed; z-index: 2147483001; left: 50%; top: calc(50% + 60px); transform: translateX(-50%); width: min(320px, calc(100% - 40px)); text-align: center; color: #242428; font: 14px/1.5 var(--aetheris-font-sans); }

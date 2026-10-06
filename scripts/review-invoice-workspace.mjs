@@ -154,8 +154,8 @@ try {
           check(focusHalo,'Input focus halo missing');
           await settle();
         }
-        check(await evaluate(`JSON.stringify([...document.querySelectorAll('.invoice-site-navigation .nav-links a,.invoice-site-navigation .nav-overlay-links a')].map(a=>a.getAttribute('href')).filter(href=>!['/login','/logout','/invoice-generator'].includes(href)))==='["/#section-1","/#section-2","/work","/engineering","/#section-3"]'`),'Shared menu destinations differ from the main site');
-        check(await evaluate(`!document.querySelector('.invoice-site-navigation [aria-current],.invoice-topbar') && getComputedStyle(document.querySelector('.nav-header')).opacity==='1'`),'Standalone menu has a false active section or is hidden');
+        check(await evaluate(`JSON.stringify([...document.querySelectorAll('.invoice-site-navigation .nav-links a,.invoice-site-navigation .nav-overlay-links a')].map(a=>a.getAttribute('href')).filter(href=>!['/login','/logout','/home','/invoice-generator'].includes(href)))==='["/#section-1","/#section-2","/work","/popcan","/engineering","/#section-3"]'`),'Shared menu destinations differ from the main site');
+        check(await evaluate(`!document.querySelector('.invoice-site-navigation .nav-link[aria-current],.invoice-site-navigation .nav-overlay-link[aria-current],.invoice-topbar') && getComputedStyle(document.querySelector('.nav-header')).opacity==='1'`),'Standalone menu has a false active section or is hidden');
         check(await evaluate(`document.querySelector('.invoice-scene').dataset.study==='contour-drift' && getComputedStyle(document.querySelector('.invoice-scene')).pointerEvents==='none'`),'Invoice backdrop is not decorative Contour Drift');
         check(await evaluate(`document.querySelector('.invoice-actions').getBoundingClientRect().top>=document.querySelector('.nav-header').getBoundingClientRect().bottom`),'Site menu overlaps invoice actions');
         if (width<=768) {

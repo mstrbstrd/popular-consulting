@@ -545,7 +545,10 @@ const NavMenu = ({ audience = SITE_AUDIENCES.BUSINESS, standalone = false, initi
           display: flex;
           flex-direction: column;
           align-items: center;
-          justify-content: center;
+          justify-content: flex-start;
+          overflow-y: auto;
+          overscroll-behavior: contain;
+          padding: max(100px, calc(env(safe-area-inset-top) + 80px)) 16px max(24px, env(safe-area-inset-bottom));
           background: var(--mobile-overlay-bg);
           backdrop-filter: blur(36px) saturate(160%);
           -webkit-backdrop-filter: blur(36px) saturate(160%);
@@ -558,6 +561,8 @@ const NavMenu = ({ audience = SITE_AUDIENCES.BUSINESS, standalone = false, initi
           opacity: 1;
           pointer-events: all;
         }
+
+        .nav-overlay > * { flex-shrink: 0; }
 
         .nav-overlay-links {
           display: flex;
