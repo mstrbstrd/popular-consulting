@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { ThemeProvider } from '../contexts/ThemeContext';
+import { useAppNavigation } from '../contexts/AppNavigationContext';
 import NavMenu from './NavMenu';
 import HomeBackground from './HomeBackground';
 import HeroLogo from './HeroLogo';
@@ -50,17 +51,20 @@ function ToolArtwork({ kind }) {
 }
 
 function HomeContent() {
+  const navigation = useAppNavigation();
   const { status, refresh } = useAuth();
   const signedIn = status === 'authenticated';
-  const [handoff] = useState(hasHomeEntryIntent);
+  const [returning] = useState(() => Boolean(navigation?.hasEnteredWorkspace()));
+  const [handoff] = useState(() => returning || hasHomeEntryIntent());
   const [entryRequested, setEntryRequested] = useState(handoff);
-  const [entry, setEntry] = useState('intro');
+  const [entry, setEntry] = useState(returning ? 'open' : 'intro');
   const mainRef = useRef(null);
   const requestEntry = useCallback(() => setEntryRequested(true), []);
 
   // Read without consuming in the initializer so StrictMode's repeated render
   // preserves the gesture. The marker never establishes an authenticated session.
   useEffect(() => { consumeHomeEntryIntent(); }, []);
+  useEffect(() => { if (signedIn && entry === 'open') navigation?.enterWorkspace(); }, [signedIn, entry, navigation]);
 
   useEffect(() => {
     if (entry === 'open' || status === 'loading') return;
@@ -116,8 +120,11 @@ function HomeContent() {
   return <div className="home-page" data-entry={entry}>
     <HomeBackground enabled={signedIn} />
     {entry !== 'open' && <section className="home-intro" aria-label="Welcome"
-      onPointerDown={event => { if (event.button === 0) requestEntry(); }}
-      onTouchStart={requestEntry} onClick={requestEntry}>
+      onTouchEnd={event => {
+        // Complete the gesture before removing its target. In reduced motion,
+        // a synthesized click could otherwise land on a newly revealed card.
+        event.preventDefault(); requestEntry();
+      }} onClick={requestEntry}>
       <HeroLogo active={entry === 'intro'} onEnter={requestEntry} immediate={handoff}
         label="Popular Consulting, enter your workspace" />
       <p className="home-intro-status" role="status">{status === 'loading' || entryRequested ? 'Opening your workspace.' : 'Interact to enter your workspace.'}</p>

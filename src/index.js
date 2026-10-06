@@ -11,8 +11,10 @@ import './work-responsive.css';
 import './work-navigation-refinement.css';
 import './work-card-consistency.css';
 import './immersive-viewport.css';
-import SiteRouter, { resolveSiteView, SITE_VIEWS } from './SiteRouter';
+import { resolveSiteView, SITE_VIEWS } from './SiteRouter';
 import { AuthProvider } from './contexts/AuthContext';
+import { ThemeProvider } from './contexts/ThemeContext';
+import ApplicationShell from './components/ApplicationShell';
 import InteractionAccessibilityBridge from './components/InteractionAccessibilityBridge';
 import VisualRuntimeShellHost from './components/VisualRuntimeShellHost';
 import { initGraphicsContextGovernor } from './utils/graphicsContextGovernor';
@@ -85,7 +87,7 @@ root.render(
     <VisualRuntimeShellHost />
     <React.StrictMode>
       <InteractionAccessibilityBridge />
-      <AuthProvider><SiteRouter /></AuthProvider>
+      <AuthProvider><ThemeProvider enableBackground={false}><ApplicationShell /></ThemeProvider></AuthProvider>
     </React.StrictMode>
   </>
 );

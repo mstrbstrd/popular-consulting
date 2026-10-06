@@ -87,16 +87,16 @@ export const InvoiceDocument = ({ invoice, calculation }) => {
   );
 };
 
-export const InvoiceGeneratorContent = () => {
+export const InvoiceGeneratorContent = ({ initialWorkspace = null, onWorkspaceChange, onReady } = {}) => {
   const locked = useWorkspaceLocked();
-  const [invoice, setInvoice] = useState(createInvoice);
+  const [invoice, setInvoice] = useState(() => initialWorkspace?.invoice || createInvoice());
   const [status, setStatus] = useState("");
   const [actionError, setActionError] = useState("");
   const [showErrors, setShowErrors] = useState(false);
-  const [dirty, setDirty] = useState(false);
-  const [savedOnDevice, setSavedOnDevice] = useState(false);
+  const [dirty, setDirty] = useState(initialWorkspace?.dirty || false);
+  const [savedOnDevice, setSavedOnDevice] = useState(initialWorkspace?.savedOnDevice || false);
   const [logoPending, setLogoPending] = useState(false);
-  const [view, setView] = useState("editor");
+  const [view, setView] = useState(initialWorkspace?.view || 'editor');
   const [focusRequest, setFocusRequest] = useState(null);
   const errorRef = useRef(null);
   const previewRef = useRef(null);
@@ -114,6 +114,11 @@ export const InvoiceGeneratorContent = () => {
   const errors = validateInvoice(invoice);
   const ready = errors.length === 0 && !logoPending;
   const saveState = dirty ? "Unsaved changes" : savedOnDevice ? "Saved on this device" : "Not saved yet";
+  useEffect(() => { onReady?.(); }, [onReady]);
+
+  useEffect(() => {
+    onWorkspaceChange?.({ invoice, dirty, savedOnDevice, view });
+  }, [invoice, dirty, savedOnDevice, view, onWorkspaceChange]);
 
   useEffect(() => {
     const html = document.documentElement;

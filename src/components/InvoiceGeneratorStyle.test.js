@@ -58,11 +58,11 @@ describe("Invoice workspace Aetheris styling", () => {
   });
 
   test("retains the current layout, mobile cards and print definitions intact", () => {
-    // Snapshot the reconciled main stylesheet from PR #133, not the older
-    // invoice prototype. Deliberate future layout edits must review this pin.
+    // Keep the reconciled main stylesheet, including the reviewed continuous
+    // shell print ancestor. Future layout edits must review this pin.
     const baseline = css.slice(0, css.indexOf(marker)).trimEnd() + "\n";
     const blob = `blob ${Buffer.byteLength(baseline)}\0${baseline}`;
     expect(createHash("sha1").update(blob).digest("hex"))
-      .toBe("38dd83e758e5fc60eccf064f4eae4ff897c788cc");
+      .toBe("22aa36b21502baae6068284c48293c95d23d809d");
   });
 });

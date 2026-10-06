@@ -1,6 +1,7 @@
 // App.js
 import React, { useState, lazy, Suspense } from "react";
 import { ThemeProvider } from "./contexts/ThemeContext";
+import { navigateInApp } from './contexts/AppNavigationContext';
 import { useAuth } from "./contexts/AuthContext";
 import NavMenu from "./components/NavMenu";
 import BioSection from "./components/BioSection";
@@ -69,7 +70,7 @@ const App = ({ immersiveMode = IMMERSIVE_MODES.ORIGINAL, initialSection = 0 }) =
       if (!introRedirecting.current) {
         introRedirecting.current = true;
         markHomeEntryIntent();
-        window.location.replace("/home");
+        navigateInApp('/home', { replace: true });
       }
       return false;
     }

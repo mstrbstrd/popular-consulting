@@ -91,6 +91,9 @@ function beacon(sample) {
 
 // ── Core reporter ──────────────────────────────────────────────────────────
 function report(name, value, extra = {}) {
+  // Observers outlive client-side routes. Private workspaces never report events,
+  // URLs or timings through the public site's telemetry pipeline.
+  if (/^\/(?:home|invoice-generator|login|logout)(?:\/|$)/.test(window.location.pathname)) return;
   const rating = rate(name, value);
   const sample = { name, value, rating, ...extra };
   persist(name, sample);

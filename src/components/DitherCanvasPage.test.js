@@ -9,6 +9,7 @@ import {
 } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import DitherCanvasPage from "./DitherCanvasPage";
+import { AppNavigationContext } from "../contexts/AppNavigationContext";
 
 jest.mock("./RuptureCanvas", () => {
   const ReactModule = require("react");
@@ -166,6 +167,28 @@ describe("DitherCanvasPage", () => {
     jest.useRealTimers();
     window.localStorage.clear();
     document.documentElement.removeAttribute("data-theme");
+  });
+
+  test("restores a retained study's scroll position before measurement and shell reveal", () => {
+    let restore;
+    const release = jest.fn();
+    const saveToolState = jest.fn();
+    const navigation = {
+      getToolState: () => ({ index: 2, paused: true }),
+      saveToolState,
+      setRouteScrollRestoration: callback => { restore = callback; return release; },
+    };
+    const { unmount } = render(<AppNavigationContext.Provider value={navigation}><DitherCanvasPage /></AppNavigationContext.Provider>);
+    expect(screen.getByRole("heading", { name: "Tidal Weave" })).toBeInTheDocument();
+    expect(scrollPosition).toBeGreaterThan(0);
+    scrollPosition = 0;
+    act(() => restore());
+    flushScrollFrame();
+    finishStudyTransition();
+    expect(screen.getByRole("heading", { name: "Tidal Weave" })).toBeInTheDocument();
+    unmount();
+    expect(release).toHaveBeenCalledTimes(1);
+    expect(saveToolState).toHaveBeenCalledWith("dither", { index: 2, paused: true });
   });
 
   test("opens as a twelve-study scroll narrative with Second Surface first", () => {

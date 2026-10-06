@@ -1,0 +1,43 @@
+name: App navigation
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: app-navigation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm install --no-save --package-lock=false playwright@1.51.1
+      - run: npx playwright install --with-deps chromium webkit
+      - run: npm run build
+        env:
+          CI: true
+      - name: Verify continuous navigation, retained state, previews and session revocation
+        run: node scripts/verify-app-navigation.mjs
+        env:
+          APP_NAV_EVIDENCE: app-navigation-evidence
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: app-navigation-evidence
+          path: app-navigation-evidence/
+          if-no-files-found: ignore
+          retention-days: 7

@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import logo from "../assets/icons/logo2026_128.png";
+import WorkspaceMenu from './WorkspaceMenu';
+import { useAppNavigation } from '../contexts/AppNavigationContext';
 import popcanLogo from "../assets/img/popcan-logo.png";
 import { ThemeProvider, useThemeMode } from "../contexts/ThemeContext";
 import { hasHardwareWebGL, isMobileTier } from "../utils/deviceTier";
@@ -324,6 +326,9 @@ const ThemeIcon = ({ isDark }) =>
   );
 
 const DitherFieldLab = () => {
+  const navigation = useAppNavigation();
+  const [savedStudy] = useState(() => navigation?.getToolState('dither'));
+  const initialStudy = savedStudy?.index || 0;
   const { isDark, toggleTheme } = useThemeMode();
   const pageRef = useRef(null);
   const pageTopRef = useRef(0);
@@ -332,21 +337,21 @@ const DitherFieldLab = () => {
   const scrollProfileRef = useRef(DESKTOP_SCROLL_PROFILE);
   const viewportHeightRef = useRef(0);
   const viewportWidthRef = useRef(0);
-  const displayStudyIndexRef = useRef(0);
+  const displayStudyIndexRef = useRef(initialStudy);
   const directNavigationTargetRef = useRef(null);
   const syncedThemeStudyRef = useRef(null);
-  const [displayStudyIndex, setDisplayStudyIndex] = useState(0);
-  const [requestedStudyIndex, setRequestedStudyIndex] = useState(0);
+  const [displayStudyIndex, setDisplayStudyIndex] = useState(initialStudy);
+  const [requestedStudyIndex, setRequestedStudyIndex] = useState(initialStudy);
   const [transitionTargetIndex, setTransitionTargetIndex] = useState(null);
   const [transitionPhase, setTransitionPhase] = useState("idle");
   const [transitionStyle, setTransitionStyle] = useState(
-    STUDY_TRANSITIONS[STUDIES[0].id].enter,
+    STUDY_TRANSITIONS[STUDIES[initialStudy].id].enter,
   );
   const [transitionDirection, setTransitionDirection] = useState("forward");
   const [firstSurfaceProgress, setFirstSurfaceProgress] = useState(0);
-  const [paused, setPaused] = useState(false);
+  const [paused, setPaused] = useState(savedStudy?.paused || false);
   const [resetVersion, setResetVersion] = useState(0);
-  const [fieldState, setFieldState] = useState(STUDIES[0].initialState);
+  const [fieldState, setFieldState] = useState(STUDIES[initialStudy].initialState);
   const [mobileLightRuntimeFailed, setMobileLightRuntimeFailed] = useState(false);
   const [secondSurfaceStudyId, setSecondSurfaceStudyId] = useState(
     ORIGINAL_SECOND_SURFACE.id,
@@ -375,6 +380,11 @@ const DitherFieldLab = () => {
     MORPHOGEN_COLOR_B_DEFAULT,
   );
   const activeStudy = STUDIES[displayStudyIndex];
+  const retainedStudy = useRef(null);
+  retainedStudy.current = { index: requestedStudyIndex, paused };
+  const saveToolState = navigation?.saveToolState;
+  const setRouteScrollRestoration = navigation?.setRouteScrollRestoration;
+  useEffect(() => () => { saveToolState?.('dither', retainedStudy.current); }, [saveToolState]);
   const secondSurfaceOption = SECOND_SURFACE_OPTIONS.find(
     (study) => study.id === secondSurfaceStudyId,
   ) || ORIGINAL_SECOND_SURFACE;
@@ -586,16 +596,32 @@ const DitherFieldLab = () => {
     };
 
     updateScrollGeometry({ forceViewportHeight: true });
+    const restoreStudyPosition = () => {
+      const profile = scrollProfileRef.current;
+      window.scrollTo({
+        top: pageTopRef.current + scrollTargetUnitsForStudy(initialStudy, profile) * viewportHeightRef.current,
+        behavior: "instant",
+      });
+      syncScrollPosition();
+    };
+    // Study selection is driven by scroll. Restore both before the first
+    // measurement and at the shell reveal, so its normal top reset cannot
+    // replace the retained study with the opening scene.
+    if (savedStudy) restoreStudyPosition();
+    const releaseRestoration = savedStudy
+      ? setRouteScrollRestoration?.(restoreStudyPosition)
+      : undefined;
     syncScrollPosition();
     window.addEventListener("scroll", handleScroll, { passive: true });
     window.addEventListener("resize", handleResize);
 
     return () => {
+      releaseRestoration?.();
       window.cancelAnimationFrame(scrollFrameRef.current);
       window.removeEventListener("scroll", handleScroll);
       window.removeEventListener("resize", handleResize);
     };
-  }, []);
+  }, [initialStudy, savedStudy, setRouteScrollRestoration]);
 
   useEffect(() => {
     if (
@@ -825,6 +851,7 @@ const DitherFieldLab = () => {
             <span className="rupture-nav-rule" aria-hidden="true" />
 
             <div className="rupture-nav-actions">
+              <WorkspaceMenu />
               <button
                 type="button"
                 className="rupture-icon-button"

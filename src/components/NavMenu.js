@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import AuthNavControl from "./AuthNavControl";
+import WorkspaceMenu from './WorkspaceMenu';
+import { useAuth } from '../contexts/AuthContext';
 import logo from "../assets/icons/logo2026_128.png";
 import { useThemeMode } from "../contexts/ThemeContext";
 import { SITE_AUDIENCES, getSiteCopy } from "../content/siteCopy";
@@ -8,6 +10,7 @@ import { getImmersiveRouteDestination } from "./ImmersiveRouteNavigationBridge";
 // Standalone pages use real route links, not homepage-only section-dot clicks.
 const NavMenu = ({ audience = SITE_AUDIENCES.BUSINESS, standalone = false, initialSection = 0 }) => {
   const { isDark, toggleTheme } = useThemeMode();
+  const { status } = useAuth();
   const navigation = getSiteCopy(audience).navigation;
   const navLinks = navigation.links;
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -145,7 +148,7 @@ const NavMenu = ({ audience = SITE_AUDIENCES.BUSINESS, standalone = false, initi
         <nav className="nav-pill" aria-label="Primary navigation">
           <Brand
             className="nav-brand"
-            href={standalone ? "/" : undefined}
+            href={standalone ? status === 'authenticated' ? '/home' : '/' : undefined}
             onClick={standalone ? undefined : () => navigate(0)}
             aria-label={navigation.brandAriaLabel}
           >
@@ -196,6 +199,7 @@ const NavMenu = ({ audience = SITE_AUDIENCES.BUSINESS, standalone = false, initi
             )}
           </button>
 
+          <WorkspaceMenu />
           {!isMobile && <AuthNavControl />}
 
           {isMobile && (
@@ -541,7 +545,10 @@ const NavMenu = ({ audience = SITE_AUDIENCES.BUSINESS, standalone = false, initi
           display: flex;
           flex-direction: column;
           align-items: center;
-          justify-content: center;
+          justify-content: flex-start;
+          overflow-y: auto;
+          overscroll-behavior: contain;
+          padding: max(100px, calc(env(safe-area-inset-top) + 80px)) 16px max(24px, env(safe-area-inset-bottom));
           background: var(--mobile-overlay-bg);
           backdrop-filter: blur(36px) saturate(160%);
           -webkit-backdrop-filter: blur(36px) saturate(160%);
@@ -554,6 +561,8 @@ const NavMenu = ({ audience = SITE_AUDIENCES.BUSINESS, standalone = false, initi
           opacity: 1;
           pointer-events: all;
         }
+
+        .nav-overlay > * { flex-shrink: 0; }
 
         .nav-overlay-links {
           display: flex;

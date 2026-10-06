@@ -77,7 +77,36 @@ try {
     focusState: document.querySelector('#contact')?.dataset.mobileFocusActive,
     footerVisibility: document.querySelector('.contact-footer-viewport')?.style.visibility,
     nameElement: document.querySelector('#name')?.outerHTML.slice(0, 500),
-    nameInert: Boolean(document.querySelector('#name')?.closest('[inert]'))
+    nameInert: Boolean(document.querySelector('#name')?.closest('[inert]')),
+    scrollLayout: (() => {
+      const section = document.querySelector('#contact');
+      const measure = element => {
+        const style = getComputedStyle(element);
+        return { name: element.className || element.id || element.tagName,
+          rect: element.getBoundingClientRect().toJSON(),
+          clientHeight: element.clientHeight, scrollHeight: element.scrollHeight,
+          padding: style.padding, height: style.height, boxSizing: style.boxSizing,
+          overflow: style.overflow, transform: style.transform };
+      };
+      const ancestors = [];
+      for (let element = section; element; element = element.parentElement) ancestors.push(measure(element));
+      const changes = [
+        ['section padding', section, 'padding', '0px'],
+        ['layout height', section.querySelector('.contact-layout'), 'height', 'auto'],
+        ['layout clip', section.querySelector('.contact-layout'), 'overflow', 'clip'],
+        ['footer transform', section.querySelector('.contact-footer-viewport > div'), 'transform', 'none'],
+        ['form transform', section.querySelector('.contact-form-viewport'), 'transform', 'none'],
+        ['outlet box', document.querySelector('.app-outlet'), 'display', 'contents'],
+      ];
+      const experiments = changes.map(([name, element, property, value]) => {
+        const previous = element.style.getPropertyValue(property);
+        element.style.setProperty(property, value);
+        const result = { name, sectionScroll: section.scrollHeight - section.clientHeight };
+        if (previous) element.style.setProperty(property, previous); else element.style.removeProperty(property);
+        return result;
+      });
+      return { ancestors, children: [...section.children].map(measure), experiments };
+    })()
   })`);
   await call("Page.enable");
   await call("Page.bringToFront");
@@ -108,7 +137,9 @@ try {
         await until(`document.documentElement.dataset.theme === ${JSON.stringify(theme)}`);
         await until("Number(getComputedStyle(document.querySelector('.contact-form-viewport')).opacity) === 1 && Number(getComputedStyle(document.querySelector('.contact-footer-viewport > div')).opacity) === 1");
         await evaluate("document.fonts.ready");
-        await sleep(250);
+        // The footer enters with a 200ms delay and 800ms transition. Measure
+        // settled layout after lazy-route loading, not its transient scroll area.
+        await sleep(1100);
         const geometry = await evaluate(`(() => {
           const card = document.querySelector('.contact-form');
           const viewport = document.querySelector('.contact-form-viewport');
@@ -123,9 +154,14 @@ try {
           return { card: rect(card), footer: rect(footer), viewport: rect(viewport),
             zoom: Number(getComputedStyle(card).zoom), overflow: getComputedStyle(viewport).overflowY,
             innerScroll: viewport.scrollHeight - viewport.clientHeight,
-            sectionScroll: section.scrollHeight - section.clientHeight, controls };
+            sectionScroll: section.scrollHeight - section.clientHeight, controls,
+            overflowing: [...section.querySelectorAll('*')].map(element => ({
+              name: element.className?.baseVal ?? element.className, bottom: element.getBoundingClientRect().bottom,
+              position: getComputedStyle(element).position,
+            })).filter(element => element.bottom > section.getBoundingClientRect().bottom + 1).slice(0, 20) };
         })()`);
         results.push({ id, ...geometry });
+        if (geometry.sectionScroll > 1 && !mobile) console.log(JSON.stringify({ id, ...geometry }));
         assert.equal(geometry.zoom, mobile ? 1 : 0.75, `${id}: incorrect scale`);
         if (!mobile) {
           assert.equal(geometry.overflow, "visible", `${id}: internal scroll pane returned`);

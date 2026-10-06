@@ -3,6 +3,7 @@ import MetabloomPaletteContext, {
   METABLOOM_PALETTES,
 } from "../contexts/MetabloomPaletteContext";
 import { ThemeProvider } from "../contexts/ThemeContext";
+import { useAppNavigation } from '../contexts/AppNavigationContext';
 import { SITE_AUDIENCES } from "../content/siteCopy";
 import routeMetadata from "../content/routeMetadata.json";
 import ImmersiveRouteNavigationBridge from "./ImmersiveRouteNavigationBridge";
@@ -27,10 +28,15 @@ const METADATA_SELECTORS = Object.freeze({
 });
 
 const OrbPageContent = () => {
+  const navigation = useAppNavigation();
   const [conversationStarted, setConversationStarted] = React.useState(false);
   const [metabloomPalette, setMetabloomPalette] = React.useState(
-    METABLOOM_PALETTES.SPECTRAL,
+    () => navigation?.getToolState('orbAppearance')?.palette || METABLOOM_PALETTES.SPECTRAL,
   );
+  const appearance = React.useRef(null);
+  appearance.current = { palette: metabloomPalette };
+  const saveToolState = navigation?.saveToolState;
+  React.useEffect(() => () => { saveToolState?.('orbAppearance', appearance.current); }, [saveToolState]);
   const [loading, setLoading] = React.useState(false);
   const [pageHidden, setPageHidden] = React.useState(false);
   const metadata = routeMetadata.orb;

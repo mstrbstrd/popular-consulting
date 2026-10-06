@@ -1,4 +1,5 @@
 import React from "react";
+import { navigateInApp } from '../contexts/AppNavigationContext';
 
 const ROUTE_DESTINATIONS = Object.freeze([
   "/",
@@ -11,7 +12,7 @@ const ROUTE_DESTINATIONS = Object.freeze([
 export const getImmersiveRouteDestination = (sectionIndex) =>
   ROUTE_DESTINATIONS[sectionIndex] || ROUTE_DESTINATIONS[0];
 
-const defaultNavigate = (href) => window.location.assign(href);
+const defaultNavigate = href => navigateInApp(href);
 
 const ImmersiveRouteNavigationBridge = ({
   navigate = defaultNavigate,

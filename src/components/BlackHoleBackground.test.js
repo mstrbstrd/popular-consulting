@@ -56,7 +56,8 @@ describe("persistent dark-mode black-hole invariants", () => {
   });
 
   test("theme ownership mounts exactly one immersive renderer", () => {
-    expect(themeSource).toContain("<BlackHoleBackground isDark={isDark} />");
+    expect(themeSource).toContain("<BlackHoleBackground isDark={value.isDark} />");
+    expect(themeSource).toContain('const value = inherited ||');
     expect(parallaxSource).toContain(
       "const shouldUseDither = hasHardwareWebGL && !isDark;",
     );

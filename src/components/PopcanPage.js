@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ThemeProvider, useThemeMode } from '../contexts/ThemeContext';
+import { useAppNavigation } from '../contexts/AppNavigationContext';
 import routeMetadata from '../content/routeMetadata.json';
 import NavMenu from './NavMenu';
 import Icon from './popcan/PopcanIcon';
@@ -29,6 +30,9 @@ function ToolButton({ icon, label, children, className = '', ...props }) {
 }
 
 export function PopcanContent() {
+  const navigation = useAppNavigation();
+  const getToolState = navigation?.getToolState;
+  const saveToolState = navigation?.saveToolState;
   const { isDark } = useThemeMode();
   const themeRef = useRef(isDark); themeRef.current = isDark;
   const canvasRef = useRef(null), previewRef = useRef(null), stageRef = useRef(null), engineRef = useRef(null);
@@ -128,7 +132,7 @@ export function PopcanContent() {
     } catch (failure) { setError(failure.message); return () => { aliveRef.current = false; }; }
     const open = async () => {
       try {
-        const draft = await readDraft();
+        const draft = await getToolState?.('popcan') || await readDraft();
         if (draft?.blob) {
           const image = await loadImage(draft.blob);
           if (!active) return;
@@ -145,11 +149,18 @@ export function PopcanContent() {
     const beforeUnload = (event) => { if (dirtyRef.current) { event.preventDefault(); event.returnValue = ''; } };
     window.addEventListener('beforeunload', beforeUnload);
     return () => {
+      if (readyRef.current && saveToolState) {
+        const title = titleRef.current;
+        // draft() captures the committed frame synchronously, then encodes it.
+        // Retain that promise before releasing the engine, including a recent
+        // stroke whose debounced device save has not completed yet.
+        saveToolState('popcan', engine.draft().then(data => ({ ...data, title })).catch(() => null));
+      }
       active = false; aliveRef.current = false; readyRef.current = false; ++generation.current;
       clearTimeout(saveTimer.current); window.removeEventListener('beforeunload', beforeUnload);
       engine.destroy(); engineRef.current = null;
     };
-  }, [save, resetView]);
+  }, [save, resetView, getToolState, saveToolState]);
 
   useEffect(() => {
     const html = document.documentElement;

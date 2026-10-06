@@ -1,4 +1,5 @@
 import AuthNavControl from "./AuthNavControl";
+import WorkspaceMenu from './WorkspaceMenu';
 import React from "react";
 import logo from "../assets/icons/popcon_svg.svg";
 import brandLogo from "../assets/icons/logo2026_128.png";
@@ -407,6 +408,7 @@ const WorkPageContent = () => {
               </span>
               <span>{isDark ? "Light" : "Dark"}</span>
             </button>
+            <WorkspaceMenu />
             <AuthNavControl />
           </nav>
         </div>

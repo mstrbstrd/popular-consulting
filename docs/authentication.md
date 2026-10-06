@@ -58,11 +58,21 @@ sessions. Every new application login still requests fresh authentication.
 Middleware protects `/home` and invoice HTML, direct/nested/encoded URL variants
 and `/_private/**` assets before delivery. Configuration/store errors deny access.
 Public pages remain independent. The same project builds an isolated invoice
-entrypoint, so public JavaScript does not contain the invoice implementation.
+module, so public JavaScript does not contain the invoice implementation. The
+continuous application shell loads its server-protected manifest and assets only
+after session verification, including when navigating from a public screen.
 No UI flag, localStorage role or query parameter grants access. Private responses
 remain non-cacheable, disallow framing, restrict scripts/connections to self and
 omit public telemetry. Existing invoice calculations, drafts, print styling,
 Contour Drift and public navigation are not changed by the passkey update.
+
+All application documents now share script, framing and referrer restrictions
+because client navigation can host the private editor without a document load.
+Public documents retain their public indexing and caching policy. A configured
+HTTPS public telemetry origin is permitted explicitly; the shared reporter blocks
+private screens even when its observers began on a public screen. See
+[continuous application navigation](app-navigation.md) for lifecycle and tab-only
+state retention.
 
 ## Install the required Auth0 Action
 
