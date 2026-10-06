@@ -279,7 +279,9 @@ html[data-theme="dark"] .invoice-page {
 @page invoice { size: letter; margin: 14mm; }
 @media print {
   html.invoice-route, html.invoice-route body, html.invoice-route #root { height: auto !important; min-height: 0 !important; width: auto !important; overflow: visible !important; margin: 0 !important; padding: 0 !important; background: white !important; }
-  html.invoice-route body > :not(#root), html.invoice-route #root > :not(.invoice-page), .invoice-page .invoice-no-print { display: none !important; }
+  /* The continuous shell is an ancestor of the private editor. Keep that
+     wrapper printable while the existing auth guard still owns access. */
+  html.invoice-route body > :not(#root), html.invoice-route #root > :not(.invoice-page):not(.app-outlet), .invoice-page .invoice-no-print { display: none !important; }
   .invoice-page { padding: 0; min-height: 0; background: white; color: black; }
   .invoice-page .invoice-workspace, .invoice-page .invoice-preview, .invoice-page .invoice-preview-document { display: block; position: static; width: auto; max-width: none; max-height: none; overflow: visible; padding: 0; margin: 0; }
   .invoice-page .invoice-paper { page: invoice; padding: 0; border: 0; border-radius: 0; box-shadow: none; width: auto; max-width: none; font-size: 10pt; overflow: visible; }
