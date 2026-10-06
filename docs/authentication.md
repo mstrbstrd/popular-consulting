@@ -176,8 +176,12 @@ production origin changes, update both settings together before deploying.
 
 Successful sign-in now lands at `/home`, an authenticated bento launcher linking
 to Popcan, Dither Canvas, Orb and Invoice Generator. Signed-in account menus and
-the login page link back to this workspace. The public `/` remains the business
-website. The three creative tools retain their existing public access; the invoice
+the login page link back to this workspace. On the root intro, a verified session
+exits directly to `/home` through click, keyboard, wheel, touch or section controls.
+An early entry waits for the current server session check; anonymous or unavailable
+checks continue to the business sections. Explicit section deep links, engineering
+and login navigation remain available. Local storage never establishes the redirect.
+The three creative tools retain their existing public access; the invoice
 editor and its isolated assets retain their server-side authorization boundary.
 
 Home uses the shared React shell, with public telemetry disabled on its route.
@@ -192,6 +196,11 @@ pixel-budget guards. The high-fidelity mobile light pass can recover locally to
 the compatibility dither, as on the public index. Stronger glass surfaces under
 the welcome copy, cards, navigation and footer protect text contrast against the
 moving field in both themes, including when backdrop blur is unavailable.
+The bento links use the index's shared glass-card recipe, including its radius,
+masked spectral edge, elevation and hover treatment. Both sets use the same
+readable card surface tokens. Home's fixed field uses the large viewport height
+to avoid resizing with mobile toolbar movement. Redundant dark-pipeline resize
+notifications retain the current complete frame and in-progress tiles.
 CSS graphics policy, unsupported devices and forced colors retain the complete
 workspace without a live canvas. Route-scoped overflow rules keep native document
 scrolling available even while the renderer owns the background. The footer uses

@@ -77,7 +77,7 @@ function HomeContent() {
           <p>A little space to create, explore, and get things done.</p>
         </header>
         <section className="home-bento" aria-label="Your tools">
-          {TOOLS.map(tool => <a key={tool.id} className={`home-tool home-tool--${tool.id}`} href={tool.href}
+          {TOOLS.map(tool => <a key={tool.id} className={`aetheris-card home-tool home-tool--${tool.id}`} href={tool.href}
             aria-labelledby={`home-${tool.id}-title`} aria-describedby={`home-${tool.id}-description`}>
             <div className="home-tool-top"><span>{tool.category}</span><span className="home-tool-arrow" aria-hidden="true">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" focusable="false"><path d="M6 18 18 6M6 6h12v12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
