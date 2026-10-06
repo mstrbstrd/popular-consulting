@@ -15,6 +15,12 @@ forced colours. Route changes announce their destination and focus the incoming
 main region after it becomes interactive. Slow or failed loads expose recovery
 controls.
 
+Scroll-driven screens can register a route scroll-restoration callback. Dither
+restores its retained study's scroll position before measuring the field and
+again before the shell reveal. This prevents the normal top reset from replacing
+the selected study. History-entry scroll positions and explicit anchors take
+precedence, and the callback is released when the screen unmounts.
+
 The experience switcher uses ordinary links. Modified clicks, new tabs, external
 links, downloads, native page anchors and OAuth navigation retain browser behavior.
 Graphics-policy changes and explicit visual-runtime capture/trial URLs continue

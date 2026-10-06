@@ -42,6 +42,7 @@ export default function ApplicationShell() {
   const toolStateRevision = useRef(0);
   const [stateRevision, setStateRevision] = useState(0);
   const scrollPositions = useRef(new Map());
+  const routeScrollRestoration = useRef(null);
   const entryKey = useRef(historyEntryKey());
   const firstReady = useRef(true);
   const enteredWorkspace = useRef(false);
@@ -109,6 +110,7 @@ export default function ApplicationShell() {
       const target = hash && !hash.startsWith('#section-') ? document.getElementById(hash.slice(1)) : null;
       if (request.pop && scrollPositions.current.has(request.entryKey)) window.scrollTo(0, scrollPositions.current.get(request.entryKey));
       else if (target) target.scrollIntoView?.();
+      else if (routeScrollRestoration.current) routeScrollRestoration.current();
       else window.scrollTo(0, 0);
       setPhase('revealing');
       later(() => {
@@ -203,6 +205,12 @@ export default function ApplicationShell() {
   }, [location]);
 
   const getToolState = useCallback(key => toolState.current.get(key), []);
+  const setRouteScrollRestoration = useCallback(callback => {
+    routeScrollRestoration.current = callback;
+    return () => {
+      if (routeScrollRestoration.current === callback) routeScrollRestoration.current = null;
+    };
+  }, []);
   const saveToolState = useCallback((key, value) => {
     // A renderer's late cleanup cannot repopulate the previous account's cache.
     if (toolStateRevision.current === stateRevision) toolState.current.set(key, value);
@@ -211,8 +219,8 @@ export default function ApplicationShell() {
     pathname: new URL(location, window.location.origin).pathname, navigate,
     hasEnteredWorkspace: () => enteredWorkspace.current,
     enterWorkspace: () => { enteredWorkspace.current = true; },
-    getToolState, saveToolState,
-  }), [location, navigate, getToolState, saveToolState]);
+    getToolState, saveToolState, setRouteScrollRestoration,
+  }), [location, navigate, getToolState, saveToolState, setRouteScrollRestoration]);
   const busy = phase !== 'idle';
   const routeEpoch = ['/home', '/orb', '/popcan', '/dither-canvas', '/invoice-generator'].includes(routeMetadataFor(navigation.pathname)?.path) ? stateRevision : 0;
   return <AppNavigationContext.Provider value={navigation}>

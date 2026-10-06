@@ -6,6 +6,8 @@ import { navigateInApp } from '../contexts/AppNavigationContext';
 
 let mockAuth = { status: 'authenticated', user: { id: 'a'.repeat(64) }, logoutRevision: 0 };
 const mockLifecycle = [];
+let mockRestoreEnabled = false;
+const mockRestoreScroll = jest.fn();
 jest.mock('../contexts/AuthContext', () => ({ useAuth: () => mockAuth }));
 jest.mock('./BlackHoleBackground', () => () => null);
 jest.mock('../utils/privateInvoiceLoader', () => ({ syncPrivateInvoiceSession: jest.fn() }));
@@ -22,6 +24,10 @@ jest.mock('../SiteRouter', () => ({ __esModule: true, preloadSiteRoute: async ()
     mockLifecycle.push(`mount:${pathname}`);
     return () => mockLifecycle.push(`dispose:${pathname}`);
   }, [pathname]);
+  ReactModule.useEffect(() => {
+    if (mockRestoreEnabled && pathname === '/work') return navigation.setRouteScrollRestoration(mockRestoreScroll);
+    return undefined;
+  }, [navigation.setRouteScrollRestoration, pathname]);
   ReactModule.useEffect(() => { onReady(); }, [onReady]);
   return <main><h1>{pathname}</h1><a href="/orb">Orb</a><a href="/work">Work</a><a href="/home">Home</a>
     <a href="/#section-2">Services</a><button onClick={theme.toggleTheme}>Theme</button>
@@ -31,11 +37,23 @@ const advance = ms => act(() => { jest.advanceTimersByTime(ms); });
 const complete = () => { advance(180); advance(32); advance(360); };
 beforeEach(() => {
   jest.useFakeTimers(); mockLifecycle.length = 0;
+  mockRestoreEnabled = false; mockRestoreScroll.mockClear();
   mockAuth = { status: 'authenticated', user: { id: 'a'.repeat(64) }, logoutRevision: 0 };
   window.history.replaceState({}, '', '/home'); localStorage.clear();
   window.scrollTo = jest.fn();
 });
 afterEach(() => { cleanup(); jest.useRealTimers(); });
+
+test('lets scroll-driven scenes restore their position and releases the callback on exit', () => {
+  mockRestoreEnabled = true;
+  render(<ApplicationShell />);
+  fireEvent.click(screen.getByText('Work')); complete();
+  expect(mockRestoreScroll).toHaveBeenCalledTimes(1);
+  expect(window.scrollTo).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByText('Home')); complete();
+  expect(mockRestoreScroll).toHaveBeenCalledTimes(1);
+  expect(window.scrollTo).toHaveBeenCalledWith(0, 0);
+});
 
 test('changes screens in one document, disposes the old scene first, and moves focus', () => {
   render(<ThemeProvider enableBackground={false}><ApplicationShell /></ThemeProvider>);

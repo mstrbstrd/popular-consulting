@@ -383,6 +383,7 @@ const DitherFieldLab = () => {
   const retainedStudy = useRef(null);
   retainedStudy.current = { index: requestedStudyIndex, paused };
   const saveToolState = navigation?.saveToolState;
+  const setRouteScrollRestoration = navigation?.setRouteScrollRestoration;
   useEffect(() => () => { saveToolState?.('dither', retainedStudy.current); }, [saveToolState]);
   const secondSurfaceOption = SECOND_SURFACE_OPTIONS.find(
     (study) => study.id === secondSurfaceStudyId,
@@ -595,16 +596,32 @@ const DitherFieldLab = () => {
     };
 
     updateScrollGeometry({ forceViewportHeight: true });
+    const restoreStudyPosition = () => {
+      const profile = scrollProfileRef.current;
+      window.scrollTo({
+        top: pageTopRef.current + scrollTargetUnitsForStudy(initialStudy, profile) * viewportHeightRef.current,
+        behavior: "instant",
+      });
+      syncScrollPosition();
+    };
+    // Study selection is driven by scroll. Restore both before the first
+    // measurement and at the shell reveal, so its normal top reset cannot
+    // replace the retained study with the opening scene.
+    if (savedStudy) restoreStudyPosition();
+    const releaseRestoration = savedStudy
+      ? setRouteScrollRestoration?.(restoreStudyPosition)
+      : undefined;
     syncScrollPosition();
     window.addEventListener("scroll", handleScroll, { passive: true });
     window.addEventListener("resize", handleResize);
 
     return () => {
+      releaseRestoration?.();
       window.cancelAnimationFrame(scrollFrameRef.current);
       window.removeEventListener("scroll", handleScroll);
       window.removeEventListener("resize", handleResize);
     };
-  }, []);
+  }, [initialStudy, savedStudy, setRouteScrollRestoration]);
 
   useEffect(() => {
     if (
