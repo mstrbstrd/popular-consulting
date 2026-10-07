@@ -9,14 +9,18 @@ hover or focus.
 
 The index, engineering/login sections and Home use one persistent
 `ImmersiveBackground` outside the route outlet. The opening and Home reveal share
-the same live canvas, shader time, camera and mobile graphics selection. Only the
-foreground fades during those route changes. Home remains naturally scrollable
-without a separate scrollbar gutter. Leaving for another tool disposes this scene.
+the same live canvas, shader time and mobile graphics selection. Home remains
+naturally scrollable without a separate scrollbar gutter. Leaving for another
+tool releases this scene after the destination finishes revealing.
 
-Other navigation covers the outgoing screen with the shared logo and themed surface,
-disposes that screen, then reveals the incoming screen after it commits. The
-transition changes opacity only. It does not transform glass panels or retain
-hidden renderers. Essential content works with CSS graphics, reduced motion or
+Navigation reverses the light field's authored crystallization and Home's entry
+depths. Dark mode pulls the black-hole camera back while fading the scene out.
+The live layer also scales gently so slow, tiled GPU frames still show the exit.
+The 650ms exit has a bounded 720ms handoff, independent of shader frames or
+callbacks. The next page reveals over the theme background without a loading logo.
+Cancelled exits resume the current field; reduced motion skips the choreography.
+Fixed navigation stays in its viewport layer. CSS graphics use a fade and a dark
+zoom fallback; essential content works with reduced motion or
 forced colours. Route changes announce their destination and focus the incoming
 main region after it becomes interactive. Slow or failed loads expose recovery
 controls.

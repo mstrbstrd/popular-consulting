@@ -43,7 +43,7 @@ jest.mock('../SiteRouter', () => ({ __esModule: true, preloadSiteRoute: async ()
     <input aria-label="Draft" value={draft} onChange={event => { setDraft(event.target.value); navigation.saveToolState('mockDraft', event.target.value); }} /></main>;
 } }));
 const advance = ms => act(() => { jest.advanceTimersByTime(ms); });
-const complete = () => { advance(180); advance(32); advance(360); };
+const complete = () => { advance(720); advance(32); advance(360); };
 beforeEach(() => {
   jest.useFakeTimers(); mockLifecycle.length = 0; mockSceneLifecycle.length = 0;
   mockRestoreEnabled = false; mockRestoreScroll.mockClear();
@@ -150,7 +150,7 @@ test('retains the outgoing theme scene throughout a delayed tool load and releas
   const canvas = scene.querySelector('canvas');
   mockDelayReady = true;
   fireEvent.click(screen.getByText('Orb'));
-  advance(180);
+  advance(720);
   expect(document.querySelector('.app-outlet')).toHaveAttribute('data-phase', 'loading');
   expect(screen.getByTestId('shared-scene')).toBe(scene);
   expect(scene).toHaveAttribute('data-scene-path', '/home');
@@ -177,7 +177,7 @@ test('provides the theme background on direct tool loading and subsequent tool h
   expect(document.querySelector('.app-outlet')).toHaveAttribute('data-phase', 'loading');
   act(() => mockRouteReady()); advance(360);
   expect(screen.queryByTestId('shared-scene')).toBeNull();
-  fireEvent.click(screen.getByText('Work')); advance(180);
+  fireEvent.click(screen.getByText('Work')); advance(720);
   expect(screen.getByTestId('shared-scene')).toHaveAttribute('data-scene-path', '/');
   expect(document.querySelector('.app-outlet')).toHaveAttribute('data-phase', 'loading');
   act(() => mockRouteReady()); advance(32); advance(360);

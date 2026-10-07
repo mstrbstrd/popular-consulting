@@ -2,6 +2,7 @@ import {
   advanceVisualRuntimeLightAnimation,
   createVisualRuntimeLightAnimationState,
   hideVisualRuntimeLightReveal,
+  resetVisualRuntimeLightReveal,
   resolveVisualRuntimeLightFieldSize,
   resolveVisualRuntimeLightSceneSampleBudget,
   VISUAL_RUNTIME_LIGHT_FIXED,
@@ -9,6 +10,30 @@ import {
 } from "./visualRuntimeLightState";
 
 describe("optimized light animation state", () => {
+  test("reverses the current reveal without a flash, holds its endpoint, and resumes after cancellation", () => {
+    const state = createVisualRuntimeLightAnimationState();
+    state.reveal = 0.8;
+    hideVisualRuntimeLightReveal(state, { durationMs: 650, hold: true });
+    advanceVisualRuntimeLightAnimation(state, { timestamp: 1000, reducedMotion: false });
+    expect(state.reveal).toBe(0.8);
+    advanceVisualRuntimeLightAnimation(state, { timestamp: 1325, reducedMotion: false });
+    expect(state.reveal).toBeCloseTo(0.4);
+    resetVisualRuntimeLightReveal(state, { durationMs: 650, fromCurrent: true });
+    advanceVisualRuntimeLightAnimation(state, { timestamp: 1325, reducedMotion: false });
+    expect(state.reveal).toBeCloseTo(0.4);
+    advanceVisualRuntimeLightAnimation(state, { timestamp: 1975, reducedMotion: false });
+    expect(state.reveal).toBe(1);
+    hideVisualRuntimeLightReveal(state, { durationMs: 650, hold: true });
+    advanceVisualRuntimeLightAnimation(state, { timestamp: 2000, reducedMotion: false });
+    advanceVisualRuntimeLightAnimation(state, { timestamp: 2650, reducedMotion: false });
+    expect(state.revealOutCompleted).toBe(true);
+    advanceVisualRuntimeLightAnimation(state, { timestamp: 5000, reducedMotion: false });
+    expect(state.reveal).toBe(0);
+    resetVisualRuntimeLightReveal(state, { fromCurrent: true });
+    advanceVisualRuntimeLightAnimation(state, { reducedMotion: true });
+    expect(state.reveal).toBe(1);
+  });
+
   test("maps one field texel to each authored glyph cell", () => {
     expect(
       resolveVisualRuntimeLightFieldSize({

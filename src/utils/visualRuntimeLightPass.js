@@ -329,15 +329,15 @@ export const createVisualRuntimeLightPass = ({
   const lowerCanvas = () => {
     Object.assign(host.style, normalHostStyle);
   };
-  const revealIn = () => {
+  const revealIn = (options) => {
     revealOutCallback = null;
-    resetVisualRuntimeLightReveal(animation);
+    resetVisualRuntimeLightReveal(animation, options);
     invalidate("light-reveal-in");
   };
-  const revealOut = (onComplete) => {
+  const revealOut = (onComplete, options) => {
     revealOutCallback =
       typeof onComplete === "function" ? onComplete : null;
-    hideVisualRuntimeLightReveal(animation);
+    hideVisualRuntimeLightReveal(animation, options);
     invalidate("light-reveal-out");
   };
   const lockToHero = () => {
