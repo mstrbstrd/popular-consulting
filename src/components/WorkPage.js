@@ -421,6 +421,7 @@ const WorkPageContent = () => {
             role="menu"
             aria-label="Site navigation"
           >
+            <WorkspaceMenu inline menuRole="menuitem" onNavigate={() => setMenuOpen(false)} />
             {NAV_LINKS.map((link) => (
               <a
                 key={link.label}
@@ -431,7 +432,7 @@ const WorkPageContent = () => {
                 {link.label}
               </a>
             ))}
-            <AuthNavControl mobile menuRole="menuitem" onNavigate={() => setMenuOpen(false)} />
+            <AuthNavControl mobile showWorkspaceLinks={false} menuRole="menuitem" onNavigate={() => setMenuOpen(false)} />
           </div>
         )}
       </header>

@@ -93,9 +93,26 @@ try {
         throw failure;
       }
     };
+    const openNavigation = async () => {
+      const toggle = page.getByRole('button', { name: 'Open navigation menu', exact: true });
+      if (mobile && await toggle.isVisible()) {
+        assert.equal(await page.locator('.workspace-menu > summary:visible').count(), 0, 'Mobile header has two menu openers');
+        assert.equal(await page.locator('.site-account-menu > summary:visible').count(), 0, 'Mobile header has a separate account menu');
+        await press(toggle);
+        const overlay = page.locator('.nav-overlay--open');
+        if (await overlay.count()) assert.equal(await overlay.evaluate(menu => menu.scrollTop), 0, 'Reopened navigation retained its old scroll position');
+        return page.locator('.nav-overlay--open, #work-nav-menu');
+      }
+      await press(page.locator('.workspace-menu > summary:visible'));
+      return page.locator('.workspace-menu[open]');
+    };
     const go = async (label, pathname) => {
-      await press(page.locator('.workspace-menu > summary'));
-      await press(page.getByRole('navigation', { name: 'Experiences', exact: true }).getByRole('link', { name: label, exact: true }));
+      const menu = await openNavigation();
+      const experiences = menu.getByRole('navigation', { name: 'Experiences', exact: true });
+      const role = await menu.getAttribute('id') === 'work-nav-menu' ? 'menuitem' : 'link';
+      assert.equal(await menu.getByRole(role, { name: 'Home', exact: true }).count(), 1, 'Home appears twice in the menu');
+      assert.equal(await menu.getByRole(role, { name: 'Invoice Generator', exact: true }).count(), 1, 'Invoice appears twice in the menu');
+      await press(experiences.getByRole(role, { name: label, exact: true }));
       await page.waitForURL(url => url.pathname === pathname);
       try { await idle(); } catch (failure) {
         console.log(JSON.stringify({ pathname, errors, phase: await page.locator('.app-route-curtain').getAttribute('data-phase'), screen: await page.locator('.app-outlet').getAttribute('data-route') }));
@@ -132,6 +149,13 @@ try {
     assert.equal(await page.evaluate(() => innerWidth - document.documentElement.clientWidth), 0, 'Home exposed a scrollbar gutter');
     assert.equal(await page.evaluate(() => { const r = document.querySelector('.immersive-background').getBoundingClientRect(); return r.left <= 0 && r.right >= innerWidth && r.bottom >= innerHeight; }), true, 'Background does not cover the viewport');
     const documentId = await page.evaluate(() => window.__appNavigationDocument);
+    if (mobile) {
+      const menu = await openNavigation();
+      assert.equal(await menu.getByRole('link', { name: 'Sign out', exact: true }).count(), 1);
+      await page.keyboard.press('Escape');
+      assert.equal(await page.locator('main[inert]').count(), 0, 'Closing navigation left the page inert');
+      assert.equal(await page.getByRole('button', { name: 'Open navigation menu', exact: true }).evaluate(button => document.activeElement === button), true, 'Closing navigation did not restore focus');
+    }
     await go('Orb', '/orb');
     await press(page.getByRole('button', { name: 'Reactions', exact: false }).first());
     await press(page.getByRole('button', { name: 'Preview research scene', exact: true }));
@@ -197,9 +221,11 @@ try {
     }) }));
     if (evidence) {
       await page.screenshot({ path: path.join(evidence, `${profile}-home.png`) });
-      await press(page.locator('.workspace-menu > summary'));
+      await openNavigation();
+      if (mobile) await waitForCheck(page, () => getComputedStyle(document.querySelector('.nav-overlay--open')).opacity === '1');
       await page.screenshot({ path: path.join(evidence, `${profile}-switcher.png`) });
-      await press(page.locator('.workspace-menu > summary'));
+      if (mobile) await press(page.getByRole('button', { name: 'Close navigation menu', exact: true }));
+      else await press(page.locator('.workspace-menu > summary'));
     }
     // The dark scene also remains the same canvas across Home/index/Home.
     await page.evaluate(() => { window.__darkScene = document.querySelector('.immersive-background'); window.__darkCanvas = window.__darkScene?.querySelector('canvas'); });

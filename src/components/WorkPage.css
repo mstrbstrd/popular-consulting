@@ -495,6 +495,9 @@ html[data-theme="light"] .work-page {
 
 /* Dropdown: glass panel anchored under the sticky header. */
 .work-page__menu {
+  max-height: 70dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   position: absolute;
   top: 100%;
   left: max(1.2rem, env(safe-area-inset-left));
@@ -1703,6 +1706,11 @@ html[data-theme="light"] .work-page {
   /* Inline links collapse into the hamburger menu; the theme toggle
      stays in the bar. */
   .work-page__nav > a {
+    display: none;
+  }
+
+  .work-page__nav > .workspace-menu,
+  .work-page__nav > .site-account-menu {
     display: none;
   }
 
