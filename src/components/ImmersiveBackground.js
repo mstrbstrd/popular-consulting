@@ -33,9 +33,9 @@ const fallbackOrbs = [
   { top: "72%", left: "22%", size: "42vmax", dur: "26s", delay: "-11s" },
 ];
 
-// The index and workspace share this exact scene and its live canvas.
+// The index, workspace, and route handoffs share this scene and its live canvas.
 // Authentication controls the foreground, never the public decorative field.
-export default function ImmersiveBackground({ activeSection = 0 }) {
+export default function ImmersiveBackground({ activeSection = 0, pathname = window.location.pathname }) {
   const { isDark } = useThemeMode();
   const [mobileLightRuntimeFailed, setMobileLightRuntimeFailed] = useState(false);
   const [forcedColors, setForcedColors] = useState(() => Boolean(window.matchMedia?.('(forced-colors: active)')?.matches));
@@ -55,8 +55,7 @@ export default function ImmersiveBackground({ activeSection = 0 }) {
     isDark,
     hardwareWebGL: hasHardwareWebGL,
     mobile: isMobileTier,
-    pathname:
-      typeof window === "undefined" ? "/" : window.location.pathname,
+    pathname,
     navigatorObject:
       typeof navigator === "undefined" ? null : navigator,
   });
@@ -132,7 +131,7 @@ export default function ImmersiveBackground({ activeSection = 0 }) {
           </div>
         )}
 
-        {live && isDark && <BlackHoleBackground isDark activeSection={activeSection} />}
+        {live && isDark && <BlackHoleBackground isDark activeSection={activeSection} pathname={pathname} />}
 
         <div className="glass-overlay">
           <div className="glass-gradient" />
