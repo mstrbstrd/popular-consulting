@@ -131,16 +131,22 @@ const useFixedBackgroundTarget = (enabled) => {
   return target;
 };
 
-const BlackHoleBackgroundCanvas = ({ mobile = false, activeSection }) => {
+const BlackHoleBackgroundCanvas = ({ mobile = false, activeSection, exiting = false }) => {
   const canvasRef = React.useRef(null);
   const sectionRef = React.useRef(readInitialSection());
   const currentZoomRef = React.useRef(BLACK_HOLE_INITIAL_ZOOM);
+  const exitRef = React.useRef(null);
   const pointerRef = React.useRef([0.5, 0.35]);
   const smoothPointerRef = React.useRef([0.5, 0.35]);
   const ensureAnimatingRef = React.useRef(null);
   const hasRetriedRef = React.useRef(false);
   const [rendererGeneration, setRendererGeneration] = React.useState(0);
   const [failed, setFailed] = React.useState(false);
+
+  React.useEffect(() => {
+    exitRef.current = exiting ? { start: null, from: currentZoomRef.current } : null;
+    ensureAnimatingRef.current?.();
+  }, [exiting]);
 
   React.useEffect(() => {
     if (!Number.isInteger(activeSection) || activeSection < 0) return;
@@ -235,6 +241,12 @@ const BlackHoleBackgroundCanvas = ({ mobile = false, activeSection }) => {
 
       if (reduced) {
         currentZoomRef.current = targetZoom;
+      } else if (!calibration && exitRef.current) {
+        const exit = exitRef.current;
+        if (exit.start === null) exit.start = timestamp;
+        const progress = Math.min(Math.max((timestamp - exit.start) / 650, 0), 1);
+        const farZoom = Math.max(BLACK_HOLE_INITIAL_ZOOM, exit.from * 2.4);
+        currentZoomRef.current = exit.from + (farZoom - exit.from) * (1 - (1 - progress) ** 3);
       } else if (!calibration) {
         currentZoomRef.current +=
           (targetZoom - currentZoomRef.current) * BLACK_HOLE_ZOOM_LERP_RATE;
@@ -409,7 +421,7 @@ const BlackHoleBackgroundCanvas = ({ mobile = false, activeSection }) => {
   );
 };
 
-const BlackHoleBackground = ({ isDark = false, activeSection, pathname = typeof window !== "undefined" ? window.location.pathname : "/" }) => {
+const BlackHoleBackground = ({ isDark = false, activeSection, pathname = typeof window !== "undefined" ? window.location.pathname : "/", exiting = false }) => {
   const browserNavigator =
     typeof navigator === "undefined" ? null : navigator;
   const shouldRender = shouldRenderImmersiveBlackHole({
@@ -435,7 +447,7 @@ const BlackHoleBackground = ({ isDark = false, activeSection, pathname = typeof 
       }}
       aria-hidden="true"
     >
-      <BlackHoleBackgroundCanvas mobile={isMobileTier} activeSection={activeSection} />
+      <BlackHoleBackgroundCanvas mobile={isMobileTier} activeSection={activeSection} exiting={exiting} />
     </div>,
     portalTarget,
   );

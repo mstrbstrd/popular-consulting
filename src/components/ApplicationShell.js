@@ -96,7 +96,7 @@ export default function ApplicationShell() {
       locationRef.current = next;
       if (sharesImmersiveBackground(url.pathname)) setScenePathname(url.pathname);
       setPhase('loading'); setLocation(next);
-    }, reducedMotion() ? 0 : 180);
+    }, reducedMotion() ? 0 : 720);
   }, [clearTimers, later]);
 
   const ready = useCallback(() => {
@@ -235,7 +235,7 @@ export default function ApplicationShell() {
   const busy = phase !== 'idle';
   const routeEpoch = ['/home', '/orb', '/popcan', '/dither-canvas', '/invoice-generator'].includes(routeMetadataFor(navigation.pathname)?.path) ? stateRevision : 0;
   return <AppNavigationContext.Provider value={navigation}>
-    {(navigation.persistentImmersiveBackground || busy) && <ImmersiveBackground activeSection={immersiveSection} pathname={scenePathname} />}
+    {(navigation.persistentImmersiveBackground || busy) && <ImmersiveBackground activeSection={immersiveSection} pathname={scenePathname} transitionPhase={phase} />}
     <RouteAssets pathname={navigation.pathname} />
     <div ref={outletRef} className="app-outlet" data-phase={phase} data-continuous-scene={continuousScene} data-route={navigation.pathname} inert={busy ? '' : undefined} aria-busy={busy}>
       <RouteErrorBoundary key={`${navigation.pathname}:${routeEpoch}`} onReady={ready}>

@@ -35,8 +35,19 @@ const fallbackOrbs = [
 
 // The index, workspace, and route handoffs share this scene and its live canvas.
 // Authentication controls the foreground, never the public decorative field.
-export default function ImmersiveBackground({ activeSection = 0, pathname = window.location.pathname }) {
+export default function ImmersiveBackground({ activeSection = 0, pathname = window.location.pathname, transitionPhase = 'idle' }) {
   const { isDark } = useThemeMode();
+  const previousPhase = React.useRef(transitionPhase);
+  useEffect(() => {
+    // Child renderers own these existing reveal hooks. Resume from the current
+    // frame on a handoff or cancellation, without resetting shader time/presets.
+    const previous = previousPhase.current;
+    previousPhase.current = transitionPhase;
+    if (isDark) return;
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+    if (transitionPhase === 'covering' && !reduced) window.__ditherRevealOut?.(null, { durationMs: 650, fromCurrent: previous !== 'covering', hold: true });
+    else if (previous === 'covering' && transitionPhase !== 'covering') window.__ditherRevealIn?.({ durationMs: reduced ? 1 : 650, fromCurrent: true });
+  }, [isDark, transitionPhase]);
   const [mobileLightRuntimeFailed, setMobileLightRuntimeFailed] = useState(false);
   const [forcedColors, setForcedColors] = useState(() => Boolean(window.matchMedia?.('(forced-colors: active)')?.matches));
   useEffect(() => {
@@ -84,6 +95,7 @@ export default function ImmersiveBackground({ activeSection = 0, pathname = wind
         data-live-visual={live ? "expected" : "fallback"}
         data-mobile-light-runtime={mobileLightRuntimeState}
         data-active-section={activeSection}
+        data-transition-phase={transitionPhase}
         aria-hidden="true"
       >
         <div className="background-css-fallback" aria-hidden="true">
@@ -131,7 +143,7 @@ export default function ImmersiveBackground({ activeSection = 0, pathname = wind
           </div>
         )}
 
-        {live && isDark && <BlackHoleBackground isDark activeSection={activeSection} pathname={pathname} />}
+        {live && isDark && <BlackHoleBackground isDark activeSection={activeSection} pathname={pathname} exiting={transitionPhase === 'covering'} />}
 
         <div className="glass-overlay">
           <div className="glass-gradient" />

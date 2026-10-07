@@ -121,6 +121,10 @@ export const createVisualRuntimeLightAnimationState = () => ({
   hueOffset: 0,
   lockedSection: null,
   reveal: 0,
+  revealFrom: 0,
+  revealDurationMs: VISUAL_RUNTIME_LIGHT_FIXED.revealDurationMs,
+  revealHidden: false,
+  holdReveal: false,
   revealHiding: false,
   revealStartMs: null,
   revealHideStartMs: null,
@@ -157,18 +161,26 @@ const resolveTargetPreset = ({ section, mobile, lockedSection }) => {
   };
 };
 
-export const resetVisualRuntimeLightReveal = (state) => {
+export const resetVisualRuntimeLightReveal = (state, { durationMs = VISUAL_RUNTIME_LIGHT_FIXED.revealDurationMs, fromCurrent = false } = {}) => {
   state.revealHiding = false;
   state.revealStartMs = null;
   state.revealHideStartMs = null;
   state.revealOutCompleted = false;
-  state.reveal = 0;
+  state.revealHidden = false;
+  state.revealFrom = fromCurrent ? state.reveal : 0;
+  state.reveal = state.revealFrom;
+  state.revealDurationMs = Number.isFinite(durationMs) && durationMs > 0 ? durationMs : VISUAL_RUNTIME_LIGHT_FIXED.revealDurationMs;
 };
 
-export const hideVisualRuntimeLightReveal = (state) => {
+export const hideVisualRuntimeLightReveal = (state, { durationMs = VISUAL_RUNTIME_LIGHT_FIXED.revealDurationMs, fromCurrent = true, hold = false } = {}) => {
   state.revealHiding = true;
   state.revealHideStartMs = null;
   state.revealOutCompleted = false;
+  state.revealFrom = fromCurrent ? state.reveal : 1;
+  state.reveal = state.revealFrom;
+  state.holdReveal = hold;
+  state.revealHidden = false;
+  state.revealDurationMs = Number.isFinite(durationMs) && durationMs > 0 ? durationMs : VISUAL_RUNTIME_LIGHT_FIXED.revealDurationMs;
 };
 
 export const advanceVisualRuntimeLightAnimation = (
@@ -208,8 +220,9 @@ export const advanceVisualRuntimeLightAnimation = (
       state.reveal = 0;
       state.revealHiding = false;
       state.revealOutCompleted = true;
+      state.revealHidden = state.holdReveal;
     } else {
-      state.reveal = 1;
+      state.reveal = state.revealHidden ? 0 : 1;
       state.revealOutCompleted = false;
     }
 
@@ -256,7 +269,7 @@ export const advanceVisualRuntimeLightAnimation = (
     1;
 
   const now = Math.max(0, Number(timestamp) || 0);
-  const duration = VISUAL_RUNTIME_LIGHT_FIXED.revealDurationMs;
+  const duration = state.revealDurationMs;
   state.revealOutCompleted = false;
 
   if (state.revealHiding) {
@@ -267,21 +280,22 @@ export const advanceVisualRuntimeLightAnimation = (
       (now - state.revealHideStartMs) / duration,
       1,
     );
-    state.reveal = 1 - easeInOutCubic(progress);
+    state.reveal = state.revealFrom * (1 - easeInOutCubic(progress));
     if (progress >= 1) {
       state.reveal = 0;
       state.revealHiding = false;
       state.revealHideStartMs = null;
       state.revealOutCompleted = true;
+      state.revealHidden = state.holdReveal;
     }
-  } else {
+  } else if (!state.revealHidden) {
     if (state.revealStartMs === null) state.revealStartMs = now;
     if (state.reveal < 1) {
       const progress = Math.min(
         (now - state.revealStartMs) / duration,
         1,
       );
-      state.reveal = easeInOutCubic(progress);
+      state.reveal = state.revealFrom + (1 - state.revealFrom) * easeInOutCubic(progress);
       if (progress >= 1) state.reveal = 1;
     }
   }

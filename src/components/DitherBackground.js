@@ -982,6 +982,10 @@ const DitherBackground = ({ activeSection = 0, isDark = false }) => {
   const revealHidingRef        = useRef(false);
   const revealHideStartRef     = useRef(null);
   const revealHideCallbackRef  = useRef(null);
+  const revealFromRef = useRef(0);
+  const revealDurationRef = useRef(2500);
+  const revealHiddenRef = useRef(false);
+  const revealHoldRef = useRef(false);
 
   const paramsRef = useRef({
     speed: PRESETS[0].speed,
@@ -1166,20 +1170,30 @@ const DitherBackground = ({ activeSection = 0, isDark = false }) => {
     };
 
     // Replay the intro reveal from scratch (resets shader to white then crystallizes in)
-    window.__ditherRevealIn = () => {
+    const revealIn = ({ durationMs = 2500, fromCurrent = false } = {}) => {
       revealHidingRef.current = false;
       revealHideStartRef.current = null;
       revealHideCallbackRef.current = null;
-      revealRef.current = 0;
+      revealFromRef.current = fromCurrent ? revealRef.current : 0;
+      revealRef.current = revealFromRef.current;
+      revealHiddenRef.current = false;
+      revealDurationRef.current = Number.isFinite(durationMs) && durationMs > 0 ? durationMs : 2500;
       introStartRef.current = null;
     };
+    window.__ditherRevealIn = revealIn;
 
     // Reverse the reveal (crystallize back to white), then call onComplete
-    window.__ditherRevealOut = (onComplete) => {
+    const revealOut = (onComplete, { durationMs = 2500, fromCurrent = true, hold = false } = {}) => {
       revealHidingRef.current = true;
       revealHideStartRef.current = null;
       revealHideCallbackRef.current = onComplete || null;
+      revealFromRef.current = fromCurrent ? revealRef.current : 1;
+      revealRef.current = revealFromRef.current;
+      revealHiddenRef.current = false;
+      revealHoldRef.current = hold;
+      revealDurationRef.current = Number.isFinite(durationMs) && durationMs > 0 ? durationMs : 2500;
     };
+    window.__ditherRevealOut = revealOut;
 
     window.__orbExpressions = Object.keys(EXPRESSIONS).filter(k => k !== 'talking');
 
@@ -1241,8 +1255,8 @@ const DitherBackground = ({ activeSection = 0, isDark = false }) => {
       window.__orbPop = null;
       window.__orbTalk = null;
       window.__orbStopTalk = null;
-      window.__ditherRevealIn = null;
-      window.__ditherRevealOut = null;
+      if (window.__ditherRevealIn === revealIn) window.__ditherRevealIn = null;
+      if (window.__ditherRevealOut === revealOut) window.__ditherRevealOut = null;
       window.__ditherLockToHero = null;
       window.__ditherUnlock = null;
       window.__ditherRaiseCanvas = null;
@@ -1737,28 +1751,29 @@ const DitherBackground = ({ activeSection = 0, isDark = false }) => {
       cdBlendRef.current += (cdTargetBlendRef.current - cdBlendRef.current) * CD_LERP;
 
       // ── Intro reveal: crystallize from white on first load (re-triggerable) ──
-      const INTRO_DUR = 2500; // ms — ease-in-out over this window
+      const INTRO_DUR = revealDurationRef.current;
       const easeInOutCubic = (x) => x < 0.5 ? 4*x*x*x : 1 - Math.pow(-2*x+2, 3)/2;
       if (revealHidingRef.current) {
         // Reverse reveal: crystallize back to white
         if (revealHideStartRef.current === null) revealHideStartRef.current = ts;
         const t = Math.min((ts - revealHideStartRef.current) / INTRO_DUR, 1);
-        revealRef.current = 1 - easeInOutCubic(t);
+        revealRef.current = revealFromRef.current * (1 - easeInOutCubic(t));
         if (t >= 1) {
           revealRef.current = 0;
           revealHidingRef.current = false;
           revealHideStartRef.current = null;
+          revealHiddenRef.current = revealHoldRef.current;
           const cb = revealHideCallbackRef.current;
           revealHideCallbackRef.current = null;
           cb?.();
         }
-      } else {
+      } else if (!revealHiddenRef.current) {
         if (introStartRef.current === null) introStartRef.current = ts;
         if (revealRef.current < 1) {
           const t = Math.min((ts - introStartRef.current) / INTRO_DUR, 1);
           // easeInOutCubic: slow start builds anticipation, fast middle materialises,
           // slow end settles the last few pixels cleanly
-          revealRef.current = easeInOutCubic(t);
+          revealRef.current = revealFromRef.current + (1 - revealFromRef.current) * easeInOutCubic(t);
           if (t >= 1) revealRef.current = 1;
         }
       }
