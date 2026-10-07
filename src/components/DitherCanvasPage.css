@@ -253,6 +253,10 @@
   gap: 0.55rem;
 }
 
+.rupture-field-controls { display: flex; gap: 0.55rem; }
+.rupture-nav-actions > .workspace-menu { order: -1; }
+.rupture-brand .rupture-brand-mobile { display: none; }
+
 .rupture-nav button {
   border: 1px solid var(--rupture-border);
   background: var(--rupture-control);

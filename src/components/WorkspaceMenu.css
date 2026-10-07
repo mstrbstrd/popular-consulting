@@ -5,6 +5,7 @@
   background: linear-gradient(#fff8f7, #fff8f7) padding-box, var(--aetheris-spectral) border-box;
 }
 .workspace-menu > summary::-webkit-details-marker { display: none; }
+.workspace-menu-label, .workspace-menu-lines, .workspace-menu-close, .workspace-menu-controls { display: none; }
 [data-theme="dark"] .workspace-menu > summary { background: linear-gradient(#101014, #101014) padding-box, var(--aetheris-spectral) border-box; }
 .workspace-menu > summary:hover { color: var(--aetheris-teal, #007f8b); }
 .workspace-menu :focus-visible { outline: 3px solid var(--aetheris-teal, #007f8b); outline-offset: 4px; }
@@ -30,5 +31,118 @@
 .nav-overlay-links > li { width: 100%; }
 html body .nav-overlay-links .nav-overlay-link { min-height: 44px; padding: 12px 16px; font-size: 18px !important; }
 html body .work-page .work-page__menu .nav-overlay-link { font-size: 1.15rem !important; }
+
+/* Anchor the field-lab menu to the whole header, never its small trigger.
+   The panel owns overflow so short viewports retain access to every action. */
+@media (max-width: 768px) {
+  html body .nav-header { padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) 12px max(12px, env(safe-area-inset-left)); }
+  html body .nav-pill { min-height: 60px; padding: 7px; border-radius: 20px; gap: 8px; }
+  html body .nav-brand { min-width: 0; min-height: 44px; flex-shrink: 1; margin: 0; padding: 0 4px; gap: 9px; }
+  html body .nav-brand .nav-logo { width: 28px; }
+  html body .nav-brand .nav-brand-name { font-size: 14px !important; line-height: 1.25; white-space: normal; text-align: left; }
+  html body .nav-burger { margin: 0; border-radius: 14px !important; }
+  html body .nav-overlay {
+    height: 100dvh;
+    padding: max(88px, calc(env(safe-area-inset-top) + 76px)) max(16px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+    overflow-x: hidden;
+  }
+  html body .nav-overlay-links { width: min(100%, 420px); }
+  html body .nav-overlay-links .nav-overlay-link {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 48px;
+    padding: 11px 14px;
+    font: 500 16px/1.4 var(--aetheris-font-sans, sans-serif) !important;
+    letter-spacing: 0 !important;
+    text-transform: none;
+    text-align: left;
+    overflow-wrap: anywhere;
+  }
+  html body .nav-overlay .workspace-menu-heading,
+  html body .nav-overlay .nav-menu-label { padding: 14px 14px 8px; text-align: left; }
+  html body .nav-overlay .workspace-menu-inline a > span { display: block; color: var(--aetheris-teal); }
+  html body .nav-overlay .workspace-menu-inline a[aria-current="page"] { background: var(--aetheris-state-layer); }
+  html body .nav-overlay-theme { width: 48px; height: 48px; margin: 16px 0 0; }
+
+  .dither-canvas-page .rupture-header {
+    top: max(12px, env(safe-area-inset-top));
+    left: max(12px, env(safe-area-inset-left));
+    right: max(12px, env(safe-area-inset-right));
+    width: auto;
+    transform: none;
+  }
+  .dither-canvas-page .rupture-nav {
+    position: relative;
+    width: 100%;
+    min-height: 60px;
+    padding: 7px;
+    gap: 8px;
+    justify-content: space-between;
+    border-radius: 20px;
+  }
+  .dither-canvas-page .rupture-brand {
+    min-width: 0;
+    min-height: 44px;
+    padding: 0 4px;
+    gap: 9px;
+  }
+  .dither-canvas-page .rupture-brand img { width: 28px; flex-shrink: 0; }
+  .dither-canvas-page .rupture-brand .rupture-brand-desktop { display: none; }
+  .dither-canvas-page .rupture-brand .rupture-brand-mobile {
+    display: block;
+    white-space: normal;
+    font: 600 14px/1.25 var(--aetheris-font-sans, sans-serif);
+    letter-spacing: -.02em;
+  }
+  .dither-canvas-page .rupture-nav-rule,
+  .dither-canvas-page .rupture-field-controls { display: none; }
+  .dither-canvas-page .rupture-nav-actions { flex-shrink: 0; gap: 4px; }
+  .dither-canvas-page .rupture-icon-button { width: 44px; height: 44px; border: 0; background: transparent; }
+  .dither-canvas-page .rupture-nav .workspace-menu { position: static; order: 0; }
+  .rupture-nav .workspace-menu > summary {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    width: auto;
+    min-width: 84px;
+    padding: 0 12px;
+    border-radius: 14px;
+    font: 500 13px/1 var(--aetheris-font-sans, sans-serif);
+  }
+  .rupture-nav .workspace-menu-grid { display: none; }
+  .rupture-nav .workspace-menu-label,
+  .rupture-nav .workspace-menu-lines { display: block; }
+  .rupture-nav .workspace-menu[open] .workspace-menu-lines { display: none; }
+  .rupture-nav .workspace-menu[open] .workspace-menu-close { display: block; }
+  .rupture-nav .workspace-menu-panel {
+    top: calc(100% + 8px);
+    left: 0;
+    right: 0;
+    width: auto;
+    max-height: calc(100dvh - max(12px, env(safe-area-inset-top)) - 70px - max(12px, env(safe-area-inset-bottom)));
+    padding: 10px;
+    border-radius: 20px;
+    overflow-x: hidden;
+    scrollbar-width: thin;
+  }
+  .rupture-nav .workspace-menu-panel > span { padding: 10px 12px 12px; }
+  .rupture-nav .workspace-menu-panel a {
+    flex-shrink: 0;
+    min-height: 48px;
+    gap: 12px;
+    font-size: 15px;
+    overflow-wrap: anywhere;
+  }
+  .rupture-nav .workspace-menu-controls {
+    display: flex;
+    flex-shrink: 0;
+    gap: 8px;
+    margin-top: 10px;
+    padding: 12px 2px 2px;
+    border-top: 1px solid var(--aetheris-line);
+  }
+  .rupture-nav .workspace-menu-controls button { flex: 1; min-height: 44px; font-size: 12px; }
+}
 @media (forced-colors: active) { .workspace-menu > summary, .workspace-menu-panel { border-color: ButtonText; background: Canvas !important; color: CanvasText; } }
 @media print { .workspace-menu { display: none; } }

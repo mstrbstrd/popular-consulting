@@ -69,7 +69,7 @@ const NavMenu = ({ audience = SITE_AUDIENCES.BUSINESS, standalone = false, initi
     html.style.overflow = "hidden";
     body.style.overflow = "hidden";
     if (overlay) overlay.scrollTop = 0;
-    const controls = () => Array.from(overlay?.querySelectorAll("a[href], button:not(:disabled)") || []);
+    const controls = () => [burger, ...Array.from(overlay?.querySelectorAll("a[href], button:not(:disabled)") || [])].filter(Boolean);
     controls()[0]?.focus({ preventScroll: true });
     const handleKey = (event) => {
       if (event.key === "Escape") {
@@ -79,9 +79,10 @@ const NavMenu = ({ audience = SITE_AUDIENCES.BUSINESS, standalone = false, initi
       const items = controls();
       const first = items[0];
       const last = items[items.length - 1];
-      if (event.shiftKey && (document.activeElement === first || !overlay?.contains(document.activeElement))) {
+      const insideMenu = document.activeElement === burger || overlay?.contains(document.activeElement);
+      if (event.shiftKey && (document.activeElement === first || !insideMenu)) {
         event.preventDefault(); last?.focus();
-      } else if (!event.shiftKey && (document.activeElement === last || !overlay?.contains(document.activeElement))) {
+      } else if (!event.shiftKey && (document.activeElement === last || !insideMenu)) {
         event.preventDefault(); first?.focus();
       }
     };
@@ -226,9 +227,8 @@ const NavMenu = ({ audience = SITE_AUDIENCES.BUSINESS, standalone = false, initi
               aria-expanded={isMobileMenuOpen}
               aria-controls="mobile-nav-overlay"
             >
-              <span />
-              <span />
-              <span />
+              <b className="nav-burger-label">{isMobileMenuOpen ? "Close" : "Menu"}</b>
+              <i className="nav-burger-icon" aria-hidden="true"><span /><span /><span /></i>
             </button>
           )}
         </nav>
@@ -503,15 +503,15 @@ const NavMenu = ({ audience = SITE_AUDIENCES.BUSINESS, standalone = false, initi
 
         .nav-burger {
           display: flex;
-          flex-direction: column;
+          flex-direction: row;
           align-items: center;
           justify-content: center;
-          gap: 5px;
-          width: 44px;
+          gap: 8px;
+          width: 88px;
           height: 44px;
           flex-shrink: 0;
           margin-left: 1.2rem;
-          padding: 0;
+          padding: 0 12px;
           border: 1px solid rgba(255, 255, 255, 0.22);
           border-radius: 100px;
           background: rgba(255, 255, 255, 0.14);
@@ -532,7 +532,10 @@ const NavMenu = ({ audience = SITE_AUDIENCES.BUSINESS, standalone = false, initi
           outline-offset: 2px;
         }
 
-        .nav-burger span {
+        .nav-burger-label { font: 500 13px/1 var(--aetheris-font-sans, sans-serif); }
+        .nav-burger-icon { display: flex; flex-direction: column; gap: 5px; }
+
+        .nav-burger-icon span {
           display: block;
           width: 16px;
           height: 1.5px;
@@ -543,16 +546,16 @@ const NavMenu = ({ audience = SITE_AUDIENCES.BUSINESS, standalone = false, initi
                       opacity 0.25s ease;
         }
 
-        .nav-burger--open span:nth-child(1) {
+        .nav-burger--open .nav-burger-icon span:nth-child(1) {
           transform: translateY(6.5px) rotate(45deg);
         }
 
-        .nav-burger--open span:nth-child(2) {
+        .nav-burger--open .nav-burger-icon span:nth-child(2) {
           opacity: 0;
           transform: scaleX(0);
         }
 
-        .nav-burger--open span:nth-child(3) {
+        .nav-burger--open .nav-burger-icon span:nth-child(3) {
           transform: translateY(-6.5px) rotate(-45deg);
         }
 

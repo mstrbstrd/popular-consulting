@@ -806,6 +806,20 @@ const DitherFieldLab = () => {
     return renderStudy(activeStudy);
   };
 
+  const fieldControls = <>
+    <button
+      type="button"
+      className="rupture-text-button"
+      onClick={() => setPaused((value) => !value)}
+      aria-pressed={paused}
+    >
+      {paused ? "Resume" : "Pause"}
+    </button>
+    <button type="button" className="rupture-text-button" onClick={resetActiveStudy}>
+      {activeResetLabel}
+    </button>
+  </>;
+
   return (
     <main
       ref={pageRef}
@@ -845,13 +859,13 @@ const DitherFieldLab = () => {
               aria-label="Return to Popular Consulting"
             >
               <img src={logo} alt="" aria-hidden="true" />
-              <span>Popular Consulting</span>
+              <span className="rupture-brand-desktop">Popular Consulting</span>
+              <span className="rupture-brand-mobile">Dither Canvas</span>
             </a>
 
             <span className="rupture-nav-rule" aria-hidden="true" />
 
             <div className="rupture-nav-actions">
-              <WorkspaceMenu />
               <button
                 type="button"
                 className="rupture-icon-button"
@@ -861,20 +875,8 @@ const DitherFieldLab = () => {
               >
                 <ThemeIcon isDark={isDark} />
               </button>
-              <button
-                type="button"
-                className="rupture-text-button"
-                onClick={() => setPaused((value) => !value)}
-              >
-                {paused ? "Resume" : "Pause"}
-              </button>
-              <button
-                type="button"
-                className="rupture-text-button"
-                onClick={resetActiveStudy}
-              >
-                {activeResetLabel}
-              </button>
+              <div className="rupture-field-controls">{fieldControls}</div>
+              <WorkspaceMenu mobileControls={fieldControls} />
             </div>
           </nav>
         </header>
