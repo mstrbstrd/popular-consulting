@@ -29,3 +29,10 @@
 .app-outlet[data-phase="loading"] { opacity: 0; transition-duration: 180ms; }
 .app-route-curtain[data-continuous-scene="true"] img { display: none; }
 @media (prefers-reduced-motion: reduce) { .app-outlet { transition: none !important; } }
+@media print {
+  /* Printing must not depend on the current screen-reveal frame. Authorization
+     and invoice-completeness rules still control the printable content. */
+  .app-outlet { opacity: 1 !important; transition: none !important; }
+  .app-route-curtain, .app-navigation-status, .app-navigation-recovery,
+  .immersive-background { display: none !important; }
+}
