@@ -77,6 +77,22 @@ try {
   };
   await call("Page.enable");
   await call("Page.addScriptToEvaluateOnNewDocument", { source: `
+    window.__verificationActions = [];
+    const originalTimeout = window.setTimeout.bind(window);
+    window.setTimeout = function(callback, delay, ...args) {
+      if (typeof callback !== 'function') return originalTimeout(callback, delay, ...args);
+      return originalTimeout(function() {
+        const before = window.__orbState?.().actionVersion;
+        try { return callback.apply(this, args); }
+        finally {
+          const after = window.__orbState?.();
+          if (before !== undefined && after && after.actionVersion !== before) {
+            const loadingThinking = after.action === 'thinking' && after.pending && !window.__orbMessages?.().at(-1)?.segments.length;
+            window.__verificationActions.push({ action: after.action, emote: after.emote, loadingThinking, delta: after.actionVersion - before });
+          }
+        }
+      }, delay);
+    };
     window.__demoNetworkCalls = 0;
     const originalFetch = window.fetch.bind(window);
     window.fetch = (...args) => {
@@ -108,6 +124,7 @@ try {
     const geometry = await evaluate(`(() => { const r = document.querySelector('.metabloom-chat__composer').getBoundingClientRect(); return {left:r.left,right:r.right,width:innerWidth}; })()`);
     assert.ok(geometry.left >= -1 && geometry.right <= geometry.width + 1, "Composer overflow");
     for (const [label, emote] of [["Show me a whimsical response", "whimsy"], ["Give me a reflective response", "reflective"], ["Offer a reassuring response", "reassuring"]]) {
+      await evaluate("window.__verificationActions = []");
       const before = await evaluate("window.__orbState().actionVersion");
       if (await evaluate("!document.querySelector('[data-demo-count]') && !document.querySelector('.metabloom-chat__demos')")) {
         await evaluate("document.querySelector('[aria-controls=metabloom-reaction-panel]').click()");
@@ -115,11 +132,22 @@ try {
       }
       await evaluate(`(() => { const d = document.querySelector('.metabloom-chat__demos'); if(d) d.open = true; Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim() === ${JSON.stringify(label)}).click(); if(d) d.open = false; })()`);
       await until(`window.__orbState().emote === ${JSON.stringify(emote)} && !window.__orbState().pending`);
-      assert.equal(await evaluate("window.__orbState().actionVersion"), before + 1);
+      const actions = await evaluate("window.__verificationActions");
+      const thinking = actions.filter(action => action.loadingThinking);
+      const reactions = actions.filter(action => !action.loadingThinking);
+      // A slow software renderer can trigger the legitimate 650ms thinking
+      // gesture before the demo's first segment. Still require one reaction,
+      // no duplicate action, and no replay when the response completes.
+      assert(thinking.length <= 1 && thinking.every(action => action.delta === 1));
+      assert.equal(reactions.length, 1, JSON.stringify({ actions, before, state: await evaluate('window.__orbState()') }));
+      assert.equal(reactions[0].emote, emote);
+      assert.equal(reactions[0].delta, 1);
+      assert.equal(await evaluate("window.__orbState().actionVersion"), before + thinking.length + 1);
       assert.equal(await evaluate("window.__orbState().sequenceId"), null);
       assert.equal(await evaluate("window.__orbState().pulseVersion"), 0);
       if (emote === "whimsy") await screenshot(config.id);
     }
+    await evaluate("window.__verificationActions = []");
     const before = await evaluate("({count:window.__orbMessages().length, version:window.__orbState().actionVersion})");
     await evaluate("document.querySelector('[aria-controls=metabloom-reaction-panel]').click()");
     await until("document.querySelector('.metabloom-chat__demos') !== null");
@@ -128,7 +156,9 @@ try {
     const intermediate = await evaluate(`(() => { const m=window.__orbMessages().at(-1); window.__streamArticle=document.querySelector('[data-message-id="'+m.id+'"]'); return {id:m.id,count:window.__orbMessages().length,emote:m.emote,status:m.status,version:window.__orbState().actionVersion}; })()`);
     assert.equal(intermediate.emote, "whimsy");
     assert.equal(intermediate.status, "streaming");
-    assert.equal(intermediate.version, before.version + 1);
+    const thinking = await evaluate("window.__verificationActions.filter(action => action.loadingThinking)");
+    assert(thinking.length <= 1 && thinking.every(action => action.delta === 1));
+    assert.equal(intermediate.version, before.version + thinking.length + 1);
     await until(`!window.__orbState().pending && window.__orbMessages().at(-1).segments.length === 2`);
     const state = await evaluate(`(() => {const m=window.__orbMessages().at(-1);return {state:window.__orbState(),message:m,count:window.__orbMessages().length,calls:window.__demoNetworkCalls,sameNode:window.__streamArticle===document.querySelector('[data-message-id="'+m.id+'"]'),paragraphs:window.__streamArticle.querySelectorAll('p[data-segment-index]').length};})()`);
     assert.equal(state.count, before.count + 2, "Only one assistant message may be created");
@@ -136,7 +166,7 @@ try {
     assert.equal(state.sameNode, true, "The original message DOM node must survive streaming");
     assert.equal(state.paragraphs, 2);
     assert.equal(state.message.status, "complete");
-    assert.equal(state.state.actionVersion, before.version + 2, "Completion must not replay emotes");
+    assert.equal(state.state.actionVersion, before.version + thinking.length + 2, "Completion must not replay emotes");
     assert.deepEqual(state.message.segments.map((item) => item.emote), ["whimsy", "reflective"]);
     assert.equal(state.calls, 0, "Demos must never call the provider");
     await screenshot(`${config.id}-stream`);
