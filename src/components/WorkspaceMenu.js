@@ -12,7 +12,8 @@ const tools = [
   { label: 'Selected work', href: '/work' },
   { label: 'Popular Consulting', href: '/#section-1' },
 ];
-export default function WorkspaceMenu() {
+export const workspaceHrefs = new Set(tools.map(tool => tool.href));
+export default function WorkspaceMenu({ inline = false, onNavigate, menuRole }) {
   const navigation = useAppNavigation();
   const { status } = useAuth();
   const ref = useRef(null);
@@ -28,17 +29,24 @@ export default function WorkspaceMenu() {
     return () => { document.removeEventListener('keydown', close); document.removeEventListener('pointerdown', close); };
   }, []);
   if (!navigation) return null;
+  const links = tools.filter(tool => !tool.private || status === 'authenticated').map(tool =>
+    <a key={tool.href} href={tool.href} role={menuRole}
+      className={inline ? 'nav-overlay-link' : undefined}
+      aria-current={navigation.pathname === tool.href ? 'page' : undefined}
+      onClick={event => { if (ref.current) ref.current.open = false; onNavigate?.(event); }}>
+      {tool.label}<span aria-hidden="true">↗</span>
+    </a>);
+  if (inline) return <nav className="workspace-menu-inline" aria-label="Experiences">
+    <span className="workspace-menu-heading">Your space</span>
+    {links}
+  </nav>;
   return <details className="workspace-menu" ref={ref}>
     <summary aria-label="Switch experience" title="Switch experience">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="2" stroke="currentColor" strokeWidth="1.5"/><rect x="14" y="3" width="7" height="7" rx="2" stroke="currentColor" strokeWidth="1.5"/><rect x="3" y="14" width="7" height="7" rx="2" stroke="currentColor" strokeWidth="1.5"/><rect x="14" y="14" width="7" height="7" rx="2" stroke="currentColor" strokeWidth="1.5"/></svg>
     </summary>
     <nav className="workspace-menu-panel" aria-label="Experiences">
       <span>Explore your space</span>
-      {tools.filter(tool => !tool.private || status === 'authenticated').map(tool =>
-        <a key={tool.href} href={tool.href} aria-current={navigation.pathname === tool.href ? 'page' : undefined}
-          onClick={() => { if (ref.current) ref.current.open = false; }}>
-          {tool.label}<span aria-hidden="true">↗</span>
-        </a>)}
+      {links}
     </nav>
   </details>;
 }

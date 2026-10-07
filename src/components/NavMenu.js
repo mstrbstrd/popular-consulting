@@ -1,16 +1,19 @@
 import React, { useEffect, useRef, useState } from "react";
 import AuthNavControl from "./AuthNavControl";
-import WorkspaceMenu from './WorkspaceMenu';
+import WorkspaceMenu, { workspaceHrefs } from './WorkspaceMenu';
 import { useAuth } from '../contexts/AuthContext';
+import { useAppNavigation } from '../contexts/AppNavigationContext';
 import logo from "../assets/icons/logo2026_128.png";
 import { useThemeMode } from "../contexts/ThemeContext";
 import { SITE_AUDIENCES, getSiteCopy } from "../content/siteCopy";
 import { getImmersiveRouteDestination } from "./ImmersiveRouteNavigationBridge";
+import { clickedAppDestination } from '../utils/appRoutes';
 
 // Standalone pages use real route links, not homepage-only section-dot clicks.
 const NavMenu = ({ audience = SITE_AUDIENCES.BUSINESS, standalone = false, initialSection = 0 }) => {
   const { isDark, toggleTheme } = useThemeMode();
   const { status } = useAuth();
+  const appNavigation = useAppNavigation();
   const navigation = getSiteCopy(audience).navigation;
   const navLinks = navigation.links;
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -97,6 +100,17 @@ const NavMenu = ({ audience = SITE_AUDIENCES.BUSINESS, standalone = false, initi
     setIsMobileMenuOpen(false);
   };
 
+  const closeMobileMenu = (event) => {
+    // Closing makes the overlay inert before document-level link delegation.
+    // Hand the route to the shell while the selected link is still interactive.
+    const destination = appNavigation?.navigate && event && clickedAppDestination(event);
+    if (destination) {
+      event.preventDefault();
+      appNavigation.navigate(destination.href);
+    }
+    setIsMobileMenuOpen(false);
+  };
+
   const renderLink = ({ label, section, href }, mobile = false) => {
     const className = mobile ? "nav-overlay-link" : "nav-link";
 
@@ -115,7 +129,7 @@ const NavMenu = ({ audience = SITE_AUDIENCES.BUSINESS, standalone = false, initi
               ? `${label.replace(" ↗", "")} - opens in new tab`
               : undefined
           }
-          onClick={mobile ? () => setIsMobileMenuOpen(false) : undefined}
+          onClick={mobile ? closeMobileMenu : undefined}
         >
           {label}
         </a>
@@ -199,7 +213,7 @@ const NavMenu = ({ audience = SITE_AUDIENCES.BUSINESS, standalone = false, initi
             )}
           </button>
 
-          <WorkspaceMenu />
+          {!isMobile && <WorkspaceMenu />}
           {!isMobile && <AuthNavControl />}
 
           {isMobile && (
@@ -229,16 +243,19 @@ const NavMenu = ({ audience = SITE_AUDIENCES.BUSINESS, standalone = false, initi
           aria-modal="true"
           aria-label="Navigation menu"
           className={`nav-overlay${isMobileMenuOpen ? " nav-overlay--open" : ""}`}
-          onClick={() => setIsMobileMenuOpen(false)}
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setIsMobileMenuOpen(false);
+          }}
         >
           <ul
             className="nav-overlay-links"
-            onClick={(event) => event.stopPropagation()}
           >
-            {navLinks.map((link) => (
+            <li><WorkspaceMenu inline onNavigate={closeMobileMenu} /></li>
+            <li className="nav-menu-label" aria-hidden="true">Site</li>
+            {navLinks.filter(link => !appNavigation || !workspaceHrefs.has(link.href)).map((link) => (
               <li key={link.label}>{renderLink(link, true)}</li>
             ))}
-            <li><AuthNavControl mobile onNavigate={() => setIsMobileMenuOpen(false)} /></li>
+            <li><AuthNavControl mobile showWorkspaceLinks={!appNavigation} onNavigate={closeMobileMenu} /></li>
           </ul>
 
           <button
