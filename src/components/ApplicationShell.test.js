@@ -8,12 +8,14 @@ let mockAuth = { status: 'authenticated', user: { id: 'a'.repeat(64) }, logoutRe
 const mockLifecycle = [];
 const mockSceneLifecycle = [];
 let mockRestoreEnabled = false;
+let mockDelayReady = false;
+let mockRouteReady;
 const mockRestoreScroll = jest.fn();
 jest.mock('../contexts/AuthContext', () => ({ useAuth: () => mockAuth }));
-jest.mock('./ImmersiveBackground', () => function MockScene() {
+jest.mock('./ImmersiveBackground', () => function MockScene({ pathname }) {
   const ReactModule = require('react');
   ReactModule.useEffect(() => { mockSceneLifecycle.push('mount'); return () => mockSceneLifecycle.push('dispose'); }, []);
-  return <div data-testid="shared-scene"><canvas /></div>;
+  return <div data-testid="shared-scene" data-scene-path={pathname}><canvas /></div>;
 });
 jest.mock('./BlackHoleBackground', () => () => null);
 jest.mock('../utils/privateInvoiceLoader', () => ({ syncPrivateInvoiceSession: jest.fn() }));
@@ -34,7 +36,8 @@ jest.mock('../SiteRouter', () => ({ __esModule: true, preloadSiteRoute: async ()
     if (mockRestoreEnabled && pathname === '/work') return navigation.setRouteScrollRestoration(mockRestoreScroll);
     return undefined;
   }, [navigation.setRouteScrollRestoration, pathname]);
-  ReactModule.useEffect(() => { onReady(); }, [onReady]);
+  mockRouteReady = onReady;
+  ReactModule.useEffect(() => { if (!mockDelayReady) onReady(); }, [onReady]);
   return <main><h1>{pathname}</h1><a href="/orb">Orb</a><a href="/work">Work</a><a href="/home">Home</a>
     <a href="/#section-2">Services</a><button onClick={theme.toggleTheme}>Theme</button>
     <input aria-label="Draft" value={draft} onChange={event => { setDraft(event.target.value); navigation.saveToolState('mockDraft', event.target.value); }} /></main>;
@@ -44,6 +47,7 @@ const complete = () => { advance(180); advance(32); advance(360); };
 beforeEach(() => {
   jest.useFakeTimers(); mockLifecycle.length = 0; mockSceneLifecycle.length = 0;
   mockRestoreEnabled = false; mockRestoreScroll.mockClear();
+  mockDelayReady = false; mockRouteReady = undefined;
   mockAuth = { status: 'authenticated', user: { id: 'a'.repeat(64) }, logoutRevision: 0 };
   window.history.replaceState({}, '', '/home'); localStorage.clear();
   window.scrollTo = jest.fn();
@@ -52,7 +56,7 @@ afterEach(() => { cleanup(); jest.useRealTimers(); });
 
 test('lets scroll-driven scenes restore their position and releases the callback on exit', () => {
   mockRestoreEnabled = true;
-  render(<ApplicationShell />);
+  render(<ApplicationShell />); advance(360);
   fireEvent.click(screen.getByText('Work')); complete();
   expect(mockRestoreScroll).toHaveBeenCalledTimes(1);
   expect(window.scrollTo).not.toHaveBeenCalled();
@@ -62,7 +66,7 @@ test('lets scroll-driven scenes restore their position and releases the callback
 });
 
 test('changes screens in one document, disposes the old scene first, and moves focus', () => {
-  render(<ThemeProvider enableBackground={false}><ApplicationShell /></ThemeProvider>);
+  render(<ThemeProvider enableBackground={false}><ApplicationShell /></ThemeProvider>); advance(360);
   fireEvent.click(screen.getByText('Orb'));
   expect(document.querySelector('.app-outlet')).toHaveAttribute('inert');
   expect(screen.getByRole('heading', { name: '/home' })).toBeInTheDocument();
@@ -74,7 +78,7 @@ test('changes screens in one document, disposes the old scene first, and moves f
   expect(document.querySelector('link[href*="work-typography"]')).toBeNull();
 });
 test('preserves the shared theme through a route change and loads scoped route styles', () => {
-  render(<ThemeProvider enableBackground={false}><ApplicationShell /></ThemeProvider>);
+  render(<ThemeProvider enableBackground={false}><ApplicationShell /></ThemeProvider>); advance(360);
   fireEvent.click(screen.getByText('Theme'));
   expect(document.documentElement).toHaveAttribute('data-theme', 'dark');
   fireEvent.click(screen.getByText('Work')); complete();
@@ -84,7 +88,7 @@ test('preserves the shared theme through a route change and loads scoped route s
   expect(document.querySelector('link[href*="work-typography"]')).toBeNull();
 });
 test('handles replace navigation and popstate without adding a history entry', () => {
-  render(<ApplicationShell />);
+  render(<ApplicationShell />); advance(360);
   const length = window.history.length;
   act(() => navigateInApp('/orb', { replace: true })); complete();
   expect(window.history.length).toBe(length);
@@ -93,7 +97,7 @@ test('handles replace navigation and popstate without adding a history entry', (
   expect(window.history.length).toBe(length);
 });
 test('cancels stale navigation when back returns before the outgoing screen has changed', () => {
-  render(<ApplicationShell />);
+  render(<ApplicationShell />); advance(360);
   fireEvent.click(screen.getByText('Orb'));
   act(() => window.dispatchEvent(new PopStateEvent('popstate')));
   advance(1000);
@@ -102,13 +106,13 @@ test('cancels stale navigation when back returns before the outgoing screen has 
   expect(document.querySelector('.app-outlet')).not.toHaveAttribute('inert');
 });
 test('keeps browser commands and native same-page hash links intact', () => {
-  render(<ApplicationShell />);
+  render(<ApplicationShell />); advance(360);
   fireEvent.click(screen.getByText('Orb'), { ctrlKey: true });
   advance(1000); expect(mockLifecycle).toEqual(['mount:/home']);
 });
 
 test('retains tool state across screens and clears it after explicit logout', () => {
-  const { rerender } = render(<ApplicationShell />);
+  const { rerender } = render(<ApplicationShell />); advance(360);
   fireEvent.change(screen.getByLabelText('Draft'), { target: { value: 'Unfinished thought' } });
   fireEvent.click(screen.getByText('Orb')); complete();
   expect(screen.getByLabelText('Draft')).toHaveValue('Unfinished thought');
@@ -121,7 +125,7 @@ test('retains tool state across screens and clears it after explicit logout', ()
 
 test('retains the same scene and canvas between index and home, then disposes it for a tool', () => {
   window.history.replaceState({}, '', '/');
-  const { unmount } = render(<ApplicationShell />);
+  const { unmount } = render(<ApplicationShell />); advance(360);
   const scene = screen.getByTestId('shared-scene');
   const canvas = scene.querySelector('canvas');
   fireEvent.click(screen.getByText('Home'));
@@ -137,4 +141,46 @@ test('retains the same scene and canvas between index and home, then disposes it
   expect(screen.queryByTestId('shared-scene')).toBeNull();
   expect(mockSceneLifecycle).toEqual(['mount', 'dispose']);
   unmount();
+});
+
+test('retains the outgoing theme scene throughout a delayed tool load and releases it after the fade', () => {
+  render(<ThemeProvider enableBackground={false}><ApplicationShell /></ThemeProvider>); advance(360);
+  fireEvent.click(screen.getByText('Theme'));
+  const scene = screen.getByTestId('shared-scene');
+  const canvas = scene.querySelector('canvas');
+  mockDelayReady = true;
+  fireEvent.click(screen.getByText('Orb'));
+  advance(180);
+  expect(document.querySelector('.app-outlet')).toHaveAttribute('data-phase', 'loading');
+  expect(screen.getByTestId('shared-scene')).toBe(scene);
+  expect(scene).toHaveAttribute('data-scene-path', '/home');
+  expect(canvas.isConnected).toBe(true);
+  expect(document.documentElement).toHaveAttribute('data-theme', 'dark');
+  advance(12000);
+  expect(screen.getByRole('alert')).toHaveTextContent('taking longer');
+  expect(document.querySelector('.app-outlet')).toHaveAttribute('inert');
+  act(() => mockRouteReady()); advance(32);
+  expect(document.querySelector('.app-outlet')).toHaveAttribute('data-phase', 'revealing');
+  expect(canvas.isConnected).toBe(true);
+  advance(360);
+  expect(screen.queryByTestId('shared-scene')).toBeNull();
+  expect(mockSceneLifecycle).toEqual(['mount', 'dispose']);
+  expect(document.querySelector('.app-outlet')).not.toHaveAttribute('inert');
+  expect(document.activeElement).toBe(screen.getByRole('main'));
+});
+
+test('provides the theme background on direct tool loading and subsequent tool handoffs', () => {
+  window.history.replaceState({}, '', '/orb');
+  mockDelayReady = true;
+  render(<ApplicationShell />);
+  expect(screen.getByTestId('shared-scene')).toHaveAttribute('data-scene-path', '/');
+  expect(document.querySelector('.app-outlet')).toHaveAttribute('data-phase', 'loading');
+  act(() => mockRouteReady()); advance(360);
+  expect(screen.queryByTestId('shared-scene')).toBeNull();
+  fireEvent.click(screen.getByText('Work')); advance(180);
+  expect(screen.getByTestId('shared-scene')).toHaveAttribute('data-scene-path', '/');
+  expect(document.querySelector('.app-outlet')).toHaveAttribute('data-phase', 'loading');
+  act(() => mockRouteReady()); advance(32); advance(360);
+  expect(screen.queryByTestId('shared-scene')).toBeNull();
+  expect(mockSceneLifecycle).toEqual(['mount', 'dispose', 'mount', 'dispose']);
 });

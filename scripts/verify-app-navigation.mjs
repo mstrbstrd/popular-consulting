@@ -106,7 +106,7 @@ try {
       await press(page.locator('.workspace-menu > summary:visible'));
       return page.locator('.workspace-menu[open]');
     };
-    const go = async (label, pathname) => {
+    const go = async (label, pathname, duringLoad) => {
       const menu = await openNavigation();
       const experiences = menu.getByRole('navigation', { name: 'Experiences', exact: true });
       const role = await menu.getAttribute('id') === 'work-nav-menu' ? 'menuitem' : 'link';
@@ -114,6 +114,7 @@ try {
       assert.equal(await menu.getByRole(role, { name: 'Invoice Generator', exact: true }).count(), 1, 'Invoice appears twice in the menu');
       await press(experiences.getByRole(role, { name: label, exact: true }));
       await page.waitForURL(url => url.pathname === pathname);
+      await duringLoad?.();
       try { await idle(); } catch (failure) {
         console.log(JSON.stringify({ pathname, errors, phase: await page.locator('.app-route-curtain').getAttribute('data-phase'), screen: await page.locator('.app-outlet').getAttribute('data-route') }));
         throw failure;
@@ -122,6 +123,60 @@ try {
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, 'Route overflowed the viewport');
     };
     const graphics = profile.includes('webgl') || profile.startsWith('webkit') ? 'webgl' : 'css';
+    const openInvoiceThroughScene = async theme => {
+      // Hold the real private manifest request so loading is observable even
+      // with cached chunks. No production delay or session bypass is added.
+      let release;
+      const held = new Promise(resolve => { release = resolve; });
+      const handler = async route => { await held; await route.continue(); };
+      await page.route('**/_private/invoice/manifest.json', handler);
+      await page.evaluate(() => {
+        window.__handoffScene = document.querySelector('.immersive-background');
+        window.__handoffCanvas = window.__handoffScene?.querySelector('canvas');
+      });
+      try {
+        await go('Invoice Generator', '/invoice-generator', async () => {
+          await waitForCheck(page, () => document.querySelector('.app-route-curtain')?.dataset.phase === 'loading' && getComputedStyle(document.querySelector('.app-outlet')).opacity === '0');
+          const loading = await page.evaluate(() => {
+            const scene = document.querySelector('.immersive-background');
+            const rect = scene?.getBoundingClientRect();
+            return {
+              theme: document.documentElement.dataset.theme,
+              curtain: getComputedStyle(document.querySelector('.app-route-curtain')).backgroundColor,
+              hadScene: Boolean(window.__handoffScene),
+              hasScene: Boolean(scene),
+              sameScene: scene === window.__handoffScene,
+              sameCanvas: scene?.querySelector('canvas') === window.__handoffCanvas,
+              hasCanvas: Boolean(scene?.querySelector('canvas')),
+              mobileLight: scene?.dataset.mobileLightRuntime,
+              blackHole: Boolean(scene?.querySelector('[data-theme-renderer="black-hole"]')),
+              viewport: rect?.left <= 0 && rect?.right >= innerWidth && rect?.bottom >= innerHeight,
+              inert: document.querySelector('.app-outlet').hasAttribute('inert'),
+            };
+          });
+          assert.equal(loading.theme, theme);
+          assert.equal(loading.curtain, 'rgba(0, 0, 0, 0)', 'Loader flattened the theme background');
+          assert.equal(loading.hasScene, true, 'Loading theme scene is missing');
+          if (loading.hadScene) {
+            assert.equal(loading.sameScene, true, 'Loader replaced the shared scene');
+            assert.equal(loading.sameCanvas, true, 'Loader restarted the shared canvas');
+          }
+          assert.equal(loading.viewport, true, 'Loading background does not cover the viewport');
+          assert.equal(loading.inert, true, 'Loading screen accepts page interactions');
+          if (graphics === 'webgl') {
+            assert.equal(loading.hasCanvas, true, 'Full-detail loading renderer is missing');
+            if (theme === 'dark') assert.equal(loading.blackHole, true, 'URL change disabled the dark scene');
+            else if (mobile) assert.equal(loading.mobileLight, 'high-fidelity', 'URL change downgraded the light scene');
+          }
+          if (evidence) await page.screenshot({ path: path.join(evidence, `${profile}-loading-${theme}.png`) });
+          release();
+        });
+        assert.equal(await page.locator('.immersive-background').count(), 0, 'Tool retained the inactive background renderer');
+      } finally {
+        release();
+        await page.unroute('**/_private/invoice/manifest.json', handler);
+      }
+    };
     await page.goto(`${origin}/?graphics=${graphics}`, { waitUntil: 'domcontentloaded' });
     await waitForCheck(page, () => document.querySelector('.intro-branding__hero')?.style.pointerEvents === 'auto');
     await page.evaluate(() => { window.__openingScene = document.querySelector('.immersive-background'); window.__openingCanvas = window.__openingScene?.querySelector('canvas'); });
@@ -175,7 +230,7 @@ try {
     await go('Orb', '/orb');
     assert.deepEqual(await page.locator('.metabloom-chat__message').allTextContents(), transcript, 'Conversation was lost');
     assert.equal(await page.getByPlaceholder('Message Metabloom').inputValue(), 'An unfinished thought');
-    await go('Invoice Generator', '/invoice-generator');
+    await openInvoiceThroughScene('light');
     await page.waitForSelector('.invoice-page');
     await page.locator('#invoice-number').fill('FICTIONAL-ONLY');
     await go('Home', '/home');
@@ -234,7 +289,7 @@ try {
     assert.equal(await page.evaluate(() => window.__darkScene === document.querySelector('.immersive-background')), true, 'Dark scene was replaced');
     assert.equal(await page.evaluate(() => window.__darkCanvas === document.querySelector('.immersive-background canvas')), true, 'Dark canvas was restarted');
     assert.equal(await page.evaluate(() => innerWidth - document.documentElement.clientWidth), 0, 'Dark Home exposed a scrollbar gutter');
-    await go('Invoice Generator', '/invoice-generator'); await page.waitForSelector('.invoice-page');
+    await openInvoiceThroughScene('dark'); await page.waitForSelector('.invoice-page');
     assert.equal(await page.locator('html').getAttribute('data-theme'), 'dark');
     await go('Home', '/home');
     assert.equal(documentLoads, 1, 'A tool link triggered a document load');
@@ -245,7 +300,7 @@ try {
     const denied = await context.request.get(`${origin}/_private/invoice/manifest.json`);
     assert.equal(denied.status(), 401);
     assert.deepEqual(errors, [], 'Browser runtime errors');
-    console.log(JSON.stringify({ profile, passed: true, documentLoads, conversationRetained: true, invoiceRetained: true, canvasRetained: true, history: true, sessionRevocation: true, openingBackgroundRetained: true, darkBackgroundRetained: true, fullViewport: true }));
+    console.log(JSON.stringify({ profile, passed: true, documentLoads, conversationRetained: true, invoiceRetained: true, canvasRetained: true, history: true, sessionRevocation: true, openingBackgroundRetained: true, darkBackgroundRetained: true, loadingBackgroundRetained: true, fullViewport: true }));
     await context.close(); await browser.close(); activeBrowsers.delete(browser);
   }
 } finally {

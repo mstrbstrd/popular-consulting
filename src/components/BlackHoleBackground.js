@@ -409,9 +409,7 @@ const BlackHoleBackgroundCanvas = ({ mobile = false, activeSection }) => {
   );
 };
 
-const BlackHoleBackground = ({ isDark = false, activeSection }) => {
-  const pathname =
-    typeof window !== "undefined" ? window.location.pathname : "/";
+const BlackHoleBackground = ({ isDark = false, activeSection, pathname = typeof window !== "undefined" ? window.location.pathname : "/" }) => {
   const browserNavigator =
     typeof navigator === "undefined" ? null : navigator;
   const shouldRender = shouldRenderImmersiveBlackHole({
