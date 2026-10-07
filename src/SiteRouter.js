@@ -7,7 +7,6 @@ import {
 } from "./utils/graphicsPolicy";
 import SectionDeepLinkBridge from "./components/SectionDeepLinkBridge";
 import { LOGIN_SECTION_INDEX } from "./utils/loginScene";
-import logo from './assets/icons/logo2026_128.png';
 import { useAppNavigation } from './contexts/AppNavigationContext';
 import { resolveSectionDeepLink } from './components/SectionDeepLinkBridge';
 
@@ -83,7 +82,7 @@ export const shouldRenderDitherCanvas = ({
   return Boolean(hardwareWebGL);
 };
 
-const routeFallback = <div className="app-route-loading" role="status"><img src={logo} alt="" /><span>Opening…</span></div>;
+const routeFallback = <div className="app-route-loading" role="status"><span>Opening…</span></div>;
 
 const RouteReady = ({ children, onReady }) => {
   React.useEffect(() => { onReady?.(); }, [onReady]);
