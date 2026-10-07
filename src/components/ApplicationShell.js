@@ -6,7 +6,6 @@ import { appDestination, clickedAppDestination, routeMetadataFor, sharesImmersiv
 import { syncPrivateInvoiceSession } from '../utils/privateInvoiceLoader';
 import { markHomeEntryIntent } from '../utils/homeEntry';
 import ImmersiveBackground from './ImmersiveBackground';
-import logo from '../assets/icons/logo2026_128.png';
 import './ApplicationShell.css';
 
 const readLocation = () => window.location.pathname + window.location.search + window.location.hash;
@@ -243,7 +242,7 @@ export default function ApplicationShell() {
         <SiteRouter pathname={navigation.pathname} onReady={ready} />
       </RouteErrorBoundary>
     </div>
-    <div className="app-route-curtain" data-phase={phase} data-continuous-scene={continuousScene} aria-hidden="true"><img src={logo} alt="" /></div>
+    <div className="app-route-curtain" data-phase={phase} data-continuous-scene={continuousScene} aria-hidden="true" />
     {slow && phase === 'loading' && <section className="app-navigation-recovery" role="alert">
       <p>This screen is taking longer to open.</p>
       <button type="button" onClick={() => navigate(pending.current?.previous || '/', { replace: true })}>Go back</button>
