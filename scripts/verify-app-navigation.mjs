@@ -99,6 +99,8 @@ try {
         assert.equal(await page.locator('.workspace-menu > summary:visible').count(), 0, 'Mobile header has two menu openers');
         assert.equal(await page.locator('.site-account-menu > summary:visible').count(), 0, 'Mobile header has a separate account menu');
         await press(toggle);
+        const overlay = page.locator('.nav-overlay--open');
+        if (await overlay.count()) assert.equal(await overlay.evaluate(menu => menu.scrollTop), 0, 'Reopened navigation retained its old scroll position');
         return page.locator('.nav-overlay--open, #work-nav-menu');
       }
       await press(page.locator('.workspace-menu > summary:visible'));

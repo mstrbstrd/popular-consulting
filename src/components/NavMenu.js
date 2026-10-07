@@ -68,6 +68,7 @@ const NavMenu = ({ audience = SITE_AUDIENCES.BUSINESS, standalone = false, initi
     main?.setAttribute("inert", "");
     html.style.overflow = "hidden";
     body.style.overflow = "hidden";
+    if (overlay) overlay.scrollTop = 0;
     const controls = () => Array.from(overlay?.querySelectorAll("a[href], button:not(:disabled)") || []);
     controls()[0]?.focus({ preventScroll: true });
     const handleKey = (event) => {

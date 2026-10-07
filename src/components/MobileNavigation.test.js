@@ -59,7 +59,9 @@ describe('one mobile navigation menu', () => {
   test('Escape and a desktop resize release the page and preserve desktop navigation', () => {
     const { container } = render(menuWithSession('authenticated'));
     const toggle = screen.getByRole('button', { name: 'Open navigation menu' });
+    container.querySelector('.nav-overlay').scrollTop = 400;
     fireEvent.click(toggle);
+    expect(container.querySelector('.nav-overlay').scrollTop).toBe(0);
     expect(container.querySelector('main')).toHaveAttribute('inert');
     expect(document.body.style.overflow).toBe('hidden');
     fireEvent.keyDown(document, { key: 'Escape' });
