@@ -718,6 +718,7 @@ const CreatorOSFieldCanvas = ({
     let frameCadence;
     let localTime = 0;
     let novaTime = 0;
+    let novaWasPaused = pausedRef.current;
     let introElapsed = 0;
     let seed = Math.random();
     let energy = 0;
@@ -1197,6 +1198,7 @@ const CreatorOSFieldCanvas = ({
       restartRef.current = false;
       localTime = 0;
       novaTime = 0;
+      novaWasPaused = pausedRef.current;
       introElapsed = reducedMotion ? INTRO_DURATION_SECONDS : 0;
       seed = Math.random();
       energy = 0;
@@ -1739,6 +1741,7 @@ const CreatorOSFieldCanvas = ({
       modeMix = 1;
       localTime = STATIC_TIME_SECONDS;
       novaTime = STATIC_TIME_SECONDS;
+      novaWasPaused = pausedRef.current;
       introElapsed = INTRO_DURATION_SECONDS;
       metabloomRenderedPaletteMix = metabloomPaletteRef.current;
       metabloomRenderedNovaMix = metabloomNovaRef.current;
@@ -1817,7 +1820,8 @@ const CreatorOSFieldCanvas = ({
         localTime += delta * (1 - attention * 0.86);
         // Analytical fire uses elapsed time, not the gesture-slowed fluid clock.
         // The shared cadence resets on visibility changes; pause never advances it.
-        novaTime += presentationDelta;
+        if (!novaWasPaused) novaTime += presentationDelta;
+        novaWasPaused = false;
         introElapsed = Math.min(
           INTRO_DURATION_SECONDS,
           introElapsed + delta,
@@ -1825,6 +1829,7 @@ const CreatorOSFieldCanvas = ({
         simulate(delta, performance.now(), presentationDelta);
         advanceReaction();
       } else {
+        novaWasPaused = true;
         currentMode = modeRef.current;
         incomingMode = currentMode;
         modeMix = 1;

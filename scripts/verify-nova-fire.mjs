@@ -32,7 +32,7 @@ const names = new Map();
 const getUniform = proto.getUniformLocation;
 proto.getUniformLocation = function(p,n){const location=getUniform.call(this,p,n);if(location)names.set(location,n);return location;};
 const uniform = proto.uniform1f;
-proto.uniform1f=function(l,v){if(names.has(l))novaStats.uniforms[names.get(l)]=v;return uniform.call(this,l,v);};
+proto.uniform1f=function(l,v){if(names.has(l)){const name=names.get(l);novaStats.uniforms[name]=v;if(name==='u_novaTime'&&window.captureNovaResume){window.novaResumeTime=v;window.captureNovaResume=false;}}return uniform.call(this,l,v);};
 const draw=proto.drawArrays;
 proto.drawArrays=function(...a){novaStats.draws++;return draw.apply(this,a);};
 const program=proto.createProgram;
@@ -70,8 +70,25 @@ try {
   await page.waitForFunction(() => novaStats.uniforms.u_metabloomNovaMix===0);
   assert.equal(await page.evaluate(() => novaStats.uniforms.u_metabloomPaletteMix),1);
   assert.equal(await page.evaluate(() => novaStats.uniforms.u_novaTime),paused.uniforms.u_novaTime);
-  await page.evaluate(() => setNovaProps({metabloomPalette:'nova',paused:false}));
+  await page.waitForTimeout(400);
+  await page.evaluate(() => {window.captureNovaResume=true;setNovaProps({metabloomPalette:'nova',paused:false});});
+  await page.waitForFunction(() => Number.isFinite(window.novaResumeTime));
+  assert.equal(await page.evaluate(() => window.novaResumeTime),paused.uniforms.u_novaTime,'resume must not catch up paused wall time');
   await page.waitForFunction(() => novaStats.uniforms.u_metabloomNovaMix>.999);
+  await page.evaluate(() => {
+    window.hiddenNovaTime=novaStats.uniforms.u_novaTime;window.hiddenNovaDraws=novaStats.draws;
+    Object.defineProperty(document,'visibilityState',{configurable:true,value:'hidden'});
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await page.waitForTimeout(300);
+  assert(await page.evaluate(() => novaStats.draws===window.hiddenNovaDraws),'hidden tabs must not draw');
+  await page.evaluate(() => {
+    window.captureNovaResume=true;window.novaResumeTime=undefined;
+    Object.defineProperty(document,'visibilityState',{configurable:true,value:'visible'});
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await page.waitForFunction(() => Number.isFinite(window.novaResumeTime));
+  assert(await page.evaluate(() => window.novaResumeTime===window.hiddenNovaTime),'hidden wall time must not advance the fire');
   await page.emulateMedia({reducedMotion:'reduce'});
   await page.waitForFunction(() => novaStats.uniforms.u_novaTime===40);
   const reduced = await page.evaluate(() => novaStats.draws);
