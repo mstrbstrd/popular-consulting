@@ -11,6 +11,7 @@ jest.mock('../utils/graphicsPolicy', () => ({ recordGraphicsEvent: jest.fn() }))
 jest.mock('./blackHolePipeline', () => ({ BlackHolePipeline: jest.fn() }));
 beforeEach(() => {
   reduced = false; mockReadFrame = undefined; BlackHolePipeline.mockClear();
+  jest.spyOn(performance, 'now').mockReturnValue(200);
   BlackHolePipeline.mockImplementation(({ getFrameInput }) => {
     mockReadFrame = getFrameInput;
     return { initialize: () => true, schedule: { id: 'test' }, tick: () => false, destroy() {}, requestResize() {} };
@@ -42,4 +43,18 @@ test('keeps the settled section camera when reduced motion is enabled', () => {
   render(scene(true));
   expect(mockReadFrame(200, false).zoom).toBe(BLACK_HOLE_SECTION_ZOOMS[1]);
   expect(mockReadFrame(850, false).zoom).toBe(BLACK_HOLE_SECTION_ZOOMS[1]);
+});
+
+
+test('a delayed first GPU sample already includes elapsed camera travel', () => {
+  const { rerender } = render(scene(false));
+  const before = mockReadFrame(100, false).zoom;
+  rerender(scene(true));
+  // No sample at 200: rendering was busy when navigation began.
+  const firstPresented = mockReadFrame(525, false).zoom;
+  const last = mockReadFrame(850, false).zoom;
+  expect(firstPresented).toBeGreaterThan(before);
+  expect(last).toBeGreaterThan(firstPresented);
+  expect(mockReadFrame(2000, false).zoom).toBe(last);
+  expect(BlackHolePipeline).toHaveBeenCalledTimes(1);
 });

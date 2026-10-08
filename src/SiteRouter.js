@@ -122,7 +122,7 @@ const SiteRouter = ({ pathname = window.location.pathname, onReady }) => {
   } else if (view === SITE_VIEWS.LOGOUT) {
     page = <AuthPage logoutPage />;
   } else if (view === SITE_VIEWS.ORB) {
-    page = <OrbPage />;
+    page = <OrbPage onReady={onReady} />;
   } else if (view === SITE_VIEWS.GAME) {
     page = <StandaloneExperiencePage experience={EXPERIENCES.GAME} />;
   } else if (view === SITE_VIEWS.DITHER_CANVAS) {
@@ -147,7 +147,7 @@ const SiteRouter = ({ pathname = window.location.pathname, onReady }) => {
 
   return (
     <>
-      <React.Suspense fallback={routeFallback}><RouteReady key={`route:${pathname}`} onReady={view === SITE_VIEWS.INVOICE_GENERATOR ? undefined : onReady}>{page}</RouteReady>
+      <React.Suspense fallback={routeFallback}><RouteReady key={`route:${pathname}`} onReady={[SITE_VIEWS.INVOICE_GENERATOR, SITE_VIEWS.ORB].includes(view) ? undefined : onReady}>{page}</RouteReady>
         <SectionDeepLinkBridge key={`sections:${pathname}`} enabled={enableSectionDeepLinks} />
       </React.Suspense>
     </>

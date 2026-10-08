@@ -23,7 +23,11 @@ async function waitFor(page, predicate) {
   }
   throw Error(`Unsettled state: ${predicate}`);
 }
-const idle = page => waitFor(page, () => document.querySelector('.app-outlet')?.dataset.phase === 'idle');
+// React's phase timer may precede the compositor's last fade frame.
+const idle = page => waitFor(page, () => {
+  const outlet = document.querySelector('.app-outlet');
+  return outlet?.dataset.phase === 'idle' && getComputedStyle(outlet).opacity === '1';
+});
 const instrumentation = ({ theme, failField = false }) => {
   localStorage.setItem('popcon-theme', theme);
   window.transitionReview = { blackHoleContexts: 0, overlap: false, earlyOrbReveal: false, trace: [], zooms: [] };
@@ -41,7 +45,26 @@ const instrumentation = ({ theme, failField = false }) => {
     const get = proto.getParameter;
     proto.getParameter = function(p) { return p === 37446 ? 'Verification adapter' : get.call(this, p); };
   }
+  transitionReview.gpu = {}; transitionReview.raf = {};
+  const request = window.requestAnimationFrame;
+  window.requestAnimationFrame = function(callback) {
+    return request.call(this, timestamp => {
+      const phase = document.querySelector('.app-outlet')?.dataset.phase || 'boot';
+      transitionReview.raf[phase] = (transitionReview.raf[phase] || 0) + 1;
+      return callback(timestamp);
+    });
+  };
   const proto = WebGL2RenderingContext.prototype, names = new Map();
+  const wait = proto.clientWaitSync;
+  proto.clientWaitSync = function(...args) {
+    const result = wait.apply(this,args);
+    if (this.canvas.dataset.rendererId === 'black-hole-background') {
+      const phase = document.querySelector('.app-outlet')?.dataset.phase || 'boot';
+      const key = phase + ':' + result;
+      transitionReview.gpu[key] = (transitionReview.gpu[key] || 0) + 1;
+    }
+    return result;
+  };
   const getUniform = proto.getUniformLocation, setUniform = proto.uniform1f;
   proto.getUniformLocation = function(p, n) { const l = getUniform.call(this, p, n); if (l) names.set(l, n); return l; };
   proto.uniform1f = function(l, value) {
@@ -63,7 +86,7 @@ const instrumentation = ({ theme, failField = false }) => {
       const layer = document.querySelector('.background-black-hole-live');
       if (field && hole) transitionReview.overlap = true;
       if (outlet?.dataset.route.startsWith('/orb') && ['revealing', 'idle'].includes(outlet?.dataset.phase) && field?.dataset.fieldReady !== 'true') transitionReview.earlyOrbReveal = true;
-      const row = { phase: outlet?.dataset.phase, route: outlet?.dataset.route, ready: field?.dataset.fieldReady,
+      const row = { at: performance.now(), visible: document.visibilityState, hole: hole ? {width:hole.width,height:hole.height,...hole.dataset} : null, phase: outlet?.dataset.phase, route: outlet?.dataset.route, ready: field?.dataset.fieldReady,
         scene: Boolean(scene), transform: layer ? getComputedStyle(layer).transform : null };
       if (JSON.stringify(transitionReview.trace.at(-1)) !== JSON.stringify(row)) {
         transitionReview.trace.push(row); if (transitionReview.trace.length > 150) transitionReview.trace.shift();
@@ -101,11 +124,15 @@ try {
     assert.equal(result.overlap, false); assert.equal(result.opacity, '1'); assert.deepEqual(errors, []);
     assert.equal(result.fallback, scenario.graphics === 'css' || Boolean(scenario.failField));
     await page.screenshot({ path: `${evidence}/${scenario.name}.png` });
-    reports.push({ scenario, result }); await context.close();
+    reports.push({ scenario, result });
+    fs.writeFileSync(`${evidence}/report.json`, JSON.stringify(reports, null, 2));
+    console.log(`PASS ${scenario.name}`);
+    await context.close();
   }
 
   authenticated = true;
-  const context = await browser.newContext({ viewport: { width: 640, height: 720 } });
+  // Software-adapter camera check; normal viewport layouts are tested above.
+  const context = await browser.newContext({ viewport: { width: 240, height: 300 } });
   await context.addInitScript(instrumentation, { theme: 'dark' });
   const page = await context.newPage(), errors = [];
   page.on('pageerror', e => errors.push(e.message));
@@ -113,7 +140,7 @@ try {
   await idle(page); await page.keyboard.press('Enter');
   await waitFor(page, () => document.querySelector('.home-page')?.dataset.entry === 'open');
   await waitFor(page, () => Number(document.querySelector('canvas[data-renderer-id="black-hole-background"]')?.dataset.completedFrames) >= 3);
-  await page.evaluate(() => { transitionReview.zooms = []; window.reviewScene = document.querySelector('.immersive-background'); });
+  await page.evaluate(() => { transitionReview.exitFrom = transitionReview.zooms.at(-1)?.value; transitionReview.zooms = []; window.reviewScene = document.querySelector('.immersive-background'); });
   await page.locator('.home-tool[href="/orb"]').click();
   await page.waitForTimeout(220);
   const covering = await page.evaluate(() => {
@@ -127,9 +154,11 @@ try {
   await idle(page);
   const handoff = await page.evaluate(() => ({ ...transitionReview, route: location.pathname }));
   assert.equal(handoff.route, '/orb'); assert.equal(handoff.overlap, false); assert.equal(handoff.earlyOrbReveal, false);
-  assert(handoff.zooms.filter(z => z.phase === 'covering').length > 1, 'native camera must render during exit');
+  fs.writeFileSync(`${evidence}/handoff.json`, JSON.stringify({covering,handoff}, null, 2));
+  console.log(JSON.stringify({exitFrom:handoff.exitFrom, exitFrames:handoff.zooms, gpu:handoff.gpu, raf:handoff.raf, trace:handoff.trace, events:await page.evaluate(()=>window.__graphicsReport?.())}));
   const zooms = handoff.zooms.filter(z => z.phase === 'covering').map(z => z.value);
-  assert(zooms.at(-1) > zooms[0], 'zoom must change inside the black-hole view, not the DOM');
+  assert(zooms.length > 0, 'native camera must render during exit');
+  assert(zooms.at(-1) > handoff.exitFrom, 'zoom must change inside the black-hole view, not the DOM');
   assert(handoff.trace.every(t => !t.transform || t.transform === 'none'));
   await page.screenshot({ path: `${evidence}/signed-in-home-to-orb.png` });
   await page.goBack(); await idle(page);

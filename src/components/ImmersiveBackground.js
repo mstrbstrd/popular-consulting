@@ -45,8 +45,10 @@ export default function ImmersiveBackground({ activeSection = 0, pathname = wind
     previousPhase.current = transitionPhase;
     if (isDark) return;
     const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
-    if (transitionPhase === 'covering' && !reduced) window.__ditherRevealOut?.(null, { durationMs: 650, fromCurrent: previous !== 'covering', hold: true });
-    else if (previous === 'covering' && transitionPhase !== 'covering') window.__ditherRevealIn?.({ durationMs: reduced ? 1 : 650, fromCurrent: true });
+    const wasExiting = previous === 'covering' || previous === 'covered';
+    const isExiting = transitionPhase === 'covering' || transitionPhase === 'covered';
+    if (transitionPhase === 'covering' && !reduced) window.__ditherRevealOut?.(null, { durationMs: 650, fromCurrent: !wasExiting, hold: true });
+    else if (wasExiting && !isExiting) window.__ditherRevealIn?.({ durationMs: reduced ? 1 : 650, fromCurrent: true });
   }, [isDark, transitionPhase]);
   const [mobileLightRuntimeFailed, setMobileLightRuntimeFailed] = useState(false);
   const [forcedColors, setForcedColors] = useState(() => Boolean(window.matchMedia?.('(forced-colors: active)')?.matches));
@@ -143,7 +145,7 @@ export default function ImmersiveBackground({ activeSection = 0, pathname = wind
           </div>
         )}
 
-        {live && isDark && <BlackHoleBackground isDark activeSection={activeSection} pathname={pathname} exiting={transitionPhase === 'covering'} />}
+        {live && isDark && <BlackHoleBackground isDark activeSection={activeSection} pathname={pathname} exiting={transitionPhase === 'covering' || transitionPhase === 'covered'} />}
 
         <div className="glass-overlay">
           <div className="glass-gradient" />

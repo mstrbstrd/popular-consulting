@@ -144,7 +144,9 @@ const BlackHoleBackgroundCanvas = ({ mobile = false, activeSection, exiting = fa
   const [failed, setFailed] = React.useState(false);
 
   React.useEffect(() => {
-    exitRef.current = exiting ? { start: null, from: currentZoomRef.current } : null;
+    // Navigation owns the exit clock. A busy tiled GPU must not spend its
+    // first exit frame at progress zero after the foreground is already fading.
+    exitRef.current = exiting ? { start: performance.now(), from: currentZoomRef.current } : null;
     ensureAnimatingRef.current?.();
   }, [exiting]);
 
@@ -243,7 +245,6 @@ const BlackHoleBackgroundCanvas = ({ mobile = false, activeSection, exiting = fa
         currentZoomRef.current = targetZoom;
       } else if (!calibration && exitRef.current) {
         const exit = exitRef.current;
-        if (exit.start === null) exit.start = timestamp;
         const progress = Math.min(Math.max((timestamp - exit.start) / 650, 0), 1);
         const farZoom = Math.max(BLACK_HOLE_INITIAL_ZOOM, exit.from * 2.4);
         currentZoomRef.current = exit.from + (farZoom - exit.from) * (1 - (1 - progress) ** 3);

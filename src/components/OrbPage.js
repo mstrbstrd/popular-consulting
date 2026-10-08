@@ -28,7 +28,7 @@ const METADATA_SELECTORS = Object.freeze({
   twitterDescription: 'meta[name="twitter:description"]',
 });
 
-const OrbPageContent = () => {
+const OrbPageContent = ({ onReady }) => {
   const navigation = useAppNavigation();
   const [conversationStarted, setConversationStarted] = React.useState(false);
   const [metabloomPalette, setMetabloomPalette] = React.useState(
@@ -288,6 +288,7 @@ const OrbPageContent = () => {
             <OrbSection
               isActive
               onConversationStateChange={setConversationStarted}
+              onReady={onReady}
             />
           </main>
         </div>
@@ -301,9 +302,9 @@ const OrbPageContent = () => {
   );
 };
 
-const OrbPage = () => (
-  <ThemeProvider>
-    <OrbPageContent />
+const OrbPage = ({ onReady }) => (
+  <ThemeProvider enableBackground={false}>
+    <OrbPageContent onReady={onReady} />
   </ThemeProvider>
 );
 
