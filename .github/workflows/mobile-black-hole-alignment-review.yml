@@ -11,7 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 3
+          fetch-depth: 5
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -61,7 +61,7 @@ jobs:
           test "$(git branch --show-current)" = 'work/mobile-black-hole-alignment'
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add src/components/ImmersiveBackground.js
+          git add src/components/ImmersiveBackground.js scripts/verify-mobile-black-hole-alignment.mjs
           git commit -m 'Align mobile dark black-hole view with the fixed PopCon logo'
           git push origin HEAD:work/mobile-black-hole-alignment
       - name: Collect diagnostics
