@@ -5,14 +5,16 @@ p = Path('src/components/ImmersiveBackground.js')
 s = p.read_text()
 anchor = '        .background-css-fallback {\n          overflow: hidden;'
 assert s.count(anchor) == 1, 'Immersive background stylesheet changed; review before applying'
-rule = '''        /* The hero uses the fixed viewport's 50% anchor. Mobile browser bars
-           can make our stable 100lvh backing surface taller than that viewport.
-           Centre the existing surface on the same anchor without scaling it or
-           reallocating its drawing buffer as the browser chrome changes. */
+rule = '''        /* Match the fixed hero's viewport centre on mobile, even when browser
+           bars make the stable 100lvh backing surface taller than the viewport.
+           Equal vertical margins centre the excess above and below the screen
+           without moving the logo, transforming the scene or resizing its GPU
+           buffer. Keep desktop and light-mode positioning unchanged. */
         @media (max-width: 768px) {
           [data-theme="dark"] .fixed-background.immersive-background {
-            top: 50%;
-            transform: translateY(-50%);
+            bottom: 0;
+            margin-top: auto;
+            margin-bottom: auto;
           }
         }
 
@@ -24,7 +26,7 @@ def replace(old,new):
     global s
     assert s.count(old)==1, (old,s.count(old))
     s=s.replace(old,new)
-# Wait for the fixture's intentional height resize before comparing translation.
+# Wait for the fixture's intentional height resize before comparing centering.
 replace("        window.alignmentCanvas=document.querySelector('canvas[data-renderer-id=\"black-hole-background\"]');", "        window.alignmentCanvas=document.querySelector('canvas[data-renderer-id=\"black-hole-background\"]');\n        window.alignmentPreviousFrames=Number(alignmentCanvas.dataset.completedFrames);")
 replace('      await page.waitForTimeout(100);', '''      await page.waitForFunction(()=>{
         const canvas=window.alignmentCanvas;
