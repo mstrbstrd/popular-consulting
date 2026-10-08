@@ -16,8 +16,39 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - name: Apply bounded material changes
-        run: python scripts/apply-nova-soft-spectrum.py
+      - name: Apply bounded material changes and synchronize test probes
+        run: |
+          python scripts/apply-nova-soft-spectrum.py
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('scripts/verify-nova-fire.mjs')
+          s = p.read_text()
+          old = "import { createRoot } from 'react-dom/client';"
+          assert s.count(old) == 1
+          s = s.replace(old, old + "\nimport { flushSync } from 'react-dom';")
+          old = 'window.setNovaProps = patch => setProps(old => ({...old,...patch}));'
+          assert old in s
+          s = s.replace(old, 'window.setNovaProps = patch => flushSync(() => setProps(old => ({...old,...patch})));')
+          old = '  await page.evaluate(() => setNovaProps({paused:true}));\n  await page.waitForTimeout(200);'
+          assert old in s
+          new = '''  // Pausing intentionally requests one static redraw. Wait for that frame,
+            // rather than racing an arbitrary delay on a busy software GPU.
+            const pauseDraws = await page.evaluate(() => {
+              const draws = novaStats.draws;
+              setNovaProps({paused:true});
+              return draws;
+            });
+            await page.waitForFunction(draws => novaStats.draws > draws, pauseDraws);'''
+          s = s.replace(old, new)
+          p.write_text(s)
+          p = Path('scripts/verify-nova-soft-spectrum.mjs')
+          s = p.read_text()
+          old = 'return vec4(prismMask, step(1.75, flameSurface.w), flameSurface.x, 1.0);'
+          assert old in s
+          # Binary classification cannot be rounded across the seam cutoff by Bayer output.
+          s = s.replace(old, 'return vec4(prismMask, step(1.75, flameSurface.w), step(0.50, flameSurface.x), 1.0);')
+          p.write_text(s)
+          PY
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
       - name: Lint
@@ -53,18 +84,18 @@ jobs:
         env:
           NODE_PATH: /tmp/nova-browser/node_modules
         run: |
+          node scripts/verify-nova-soft-spectrum.mjs
           node scripts/verify-nova-fire.mjs > /tmp/nova-lifecycle.log 2>&1 || { tail -c 6000 /tmp/nova-lifecycle.log; exit 1; }
           grep '^{' /tmp/nova-lifecycle.log
           node scripts/verify-nova-floating.mjs
           node scripts/verify-nova-balance.mjs
           node scripts/verify-nova-rainbow.mjs
           node scripts/verify-metalnova.mjs
-          node scripts/verify-nova-soft-spectrum.mjs
       - name: Commit tested source to work branch only
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add src/components/MetabloomNovaShader.js src/components/MetalNovaFinish.test.js src/components/NovaFlameSurface.test.js scripts/verify-nova-surface.mjs scripts/verify-nova-rainbow.mjs
+          git add src/components/MetabloomNovaShader.js src/components/MetalNovaFinish.test.js src/components/NovaFlameSurface.test.js scripts/verify-nova-surface.mjs scripts/verify-nova-rainbow.mjs scripts/verify-nova-fire.mjs scripts/verify-nova-soft-spectrum.mjs
           git commit -m 'Soften both Nova flame seams and balance shared rainbow crests'
           git push origin HEAD:work/nova-soft-spectrum
       - uses: actions/upload-artifact@v4
