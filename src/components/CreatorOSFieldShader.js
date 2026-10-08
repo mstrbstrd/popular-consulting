@@ -617,9 +617,6 @@ vec4 fluidMaterial(
 ${METABLOOM_NOVA_SHADER}
 
 vec4 sceneMetabloom(vec2 uv, float time) {
-  // A uniform-only branch keeps all finishes in the same WebGL program.
-  if (u_metabloomNovaMix >= 0.999) return sceneNovaFire(uv, u_novaTime);
-  vec2 novaUv = uv;
   vec2 scale = aspectScale();
   uv = pointerFlow(uv, 0.075);
   vec2 p = (uv - 0.5) * scale;
@@ -675,6 +672,18 @@ vec4 sceneMetabloom(vec2 uv, float time) {
   float potential = 0.0;
   float nearest = 10.0;
   vec3 tintAccumulator = vec3(0.0);
+  // All finishes use this exact body. Nova samples only a short, rising fringe
+  // from the same centres and radii; no separate anchor, scale or fuel base.
+  vec3 novaFlow = vec3(0.0);
+  vec2 novaUp = vec2(0.0, 1.0);
+  float novaPotential = 0.0;
+  float novaEmbers = 0.0;
+  if (u_metabloomNovaMix > 0.001) {
+    novaUp = normalize(rotate2(avatarRotation)
+      * ((rotate2(-0.08 + sin(time * 0.07) * 0.035) * vec2(0.0, 1.0))
+        / max(avatarScale, vec2(0.62))));
+    novaFlow = novaEdgeFlow(p, novaUp);
+  }
 
   for (int index = 0; index < 7; index++) {
     float layer = float(index);
@@ -732,6 +741,11 @@ vec4 sceneMetabloom(vec2 uv, float time) {
       0.62 + layer * 0.137 + time * 0.012 + u_seed * 0.09
     ) * weight;
     nearest = min(nearest, sqrt(distanceSquared));
+    if (u_metabloomNovaMix > 0.001) {
+      vec2 fireDelta = delta - novaFlow.xy;
+      novaPotential += radius * radius / (dot(fireDelta, fireDelta) + 0.007);
+      novaEmbers += novaSurfaceEmber(delta, radius, layer, novaUp) * bloom;
+    }
   }
 
   vec2 pointer = (u_pointer - 0.5) * scale;
@@ -741,6 +755,12 @@ vec4 sceneMetabloom(vec2 uv, float time) {
   float pulse = pulseField(uv);
   float interaction = pointerWeight + pulse * (0.55 + u_energy * 0.85);
   potential = min(potential + interaction, 8.0);
+  if (u_metabloomNovaMix > 0.001) {
+    vec2 firePointerDelta = pointerDelta - novaFlow.xy;
+    novaPotential = min(novaPotential
+      + (0.018 + u_energy * 0.035) / (dot(firePointerDelta, firePointerDelta) + 0.012)
+      + pulse * (0.55 + u_energy * 0.85), 8.0);
+  }
   tintAccumulator += spectral(time * 0.017 + 0.08) * interaction;
 
   float membrane = 0.5 + 0.5 * sin(
@@ -817,6 +837,13 @@ spectralMaterial.a = max(
   spectralMaterial.a,
   density * (0.16 + membrane * 0.12)
 );
+
+vec4 novaMaterial = vec4(0.0);
+if (u_metabloomNovaMix > 0.001) {
+  novaMaterial = novaFireMaterial(spectralMaterial, vec3(potential, membrane, edge),
+    novaFlow, novaPotential, novaEmbers);
+  if (u_metabloomNovaMix >= 0.999) return novaMaterial;
+}
 
 // Metalbloom keeps the exact same field topology while separating its
 // optical surface from the oscillating membrane field. This prevents internal
@@ -1065,7 +1092,7 @@ return blendNovaFire(mix(
   spectralMaterial,
   metalMaterial,
   sat(u_metabloomPaletteMix)
-), novaUv);
+), novaMaterial);
 }
 
 vec4 sceneTidalWeave(vec2 uv, float time) {
