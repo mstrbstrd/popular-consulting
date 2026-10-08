@@ -45,3 +45,9 @@ replace('scripts/verify-orb-transitions.mjs',
   const zooms = handoff.zooms.filter(z => z.phase === 'covering').map(z => z.value);
   assert(zooms.length > 0, 'native camera must render during exit');
   assert(zooms.at(-1) > handoff.exitFrom, 'zoom must change inside the black-hole view, not the DOM');""")
+replace('scripts/verify-orb-transitions.mjs',
+    "  const context = await browser.newContext({ viewport: { width: 640, height: 720 } });",
+    """  // Keep the canonical ray-marching shader within the software adapter's
+  // test budget. Desktop/phone layout and startup are exercised above; this
+  // smaller viewport checks real camera uniforms, not physical-device FPS.
+  const context = await browser.newContext({ viewport: { width: 240, height: 300 } });""")
