@@ -259,6 +259,24 @@ const OrbPageContent = () => {
               />
               <span>Nova</span>
             </button>
+            <button
+              type="button"
+              className={`orb-page__finish-option${
+                metabloomPalette === METABLOOM_PALETTES.METALNOVA
+                  ? " is-active"
+                  : ""
+              }`}
+              data-palette="metalnova"
+              aria-pressed={metabloomPalette === METABLOOM_PALETTES.METALNOVA}
+              aria-label="Use MetalNova liquid-metal fire for Metabloom"
+              onClick={() => setMetabloomPalette(METABLOOM_PALETTES.METALNOVA)}
+            >
+              <span
+                className="orb-page__finish-swatch"
+                aria-hidden="true"
+              />
+              <span>MetalNova</span>
+            </button>
           </div>
 
           <main

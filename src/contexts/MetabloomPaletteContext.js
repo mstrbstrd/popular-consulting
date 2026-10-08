@@ -4,6 +4,7 @@ export const METABLOOM_PALETTES = Object.freeze({
   SPECTRAL: "spectral",
   METALBLOOM: "metalbloom",
   NOVA: "nova",
+  METALNOVA: "metalnova",
 });
 
 const MetabloomPaletteContext = React.createContext(

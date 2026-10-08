@@ -146,10 +146,14 @@ export const specializeCreatorOSFieldFragmentShader = (source, mode, activitySce
 };
 
 const normalizeMetabloomPalette = (palette) =>
-  palette === "nova" ? "nova" : palette === "metalbloom" ? "metalbloom" : "spectral";
+  palette === "metalnova" ? "metalnova" :
+    palette === "nova" ? "nova" : palette === "metalbloom" ? "metalbloom" : "spectral";
 
 const resolveMetabloomPaletteMix = (palette) =>
-  normalizeMetabloomPalette(palette) === "metalbloom" ? 1 : 0;
+  ["metalbloom", "metalnova"].includes(normalizeMetabloomPalette(palette)) ? 1 : 0;
+
+const resolveMetabloomNovaMix = (palette) =>
+  palette === "nova" || palette === "metalnova" ? 1 : 0;
 
 const normalizeTidalPalette = (palette) =>
   palette === "spectral" ? "spectral" : "water";
@@ -470,7 +474,7 @@ const CreatorOSFieldCanvas = ({
   const metabloomPaletteRef = useRef(
     resolveMetabloomPaletteMix(metabloomPalette),
   );
-  const metabloomNovaRef = useRef(metabloomPalette === "nova" ? 1 : 0);
+  const metabloomNovaRef = useRef(resolveMetabloomNovaMix(metabloomPalette));
   const metabloomAvatarActionRef = useRef(
     normalizeMetabloomAvatarAction(metabloomAvatarAction),
   );
@@ -564,7 +568,7 @@ const CreatorOSFieldCanvas = ({
     metabloomPaletteRef.current = resolveMetabloomPaletteMix(
       metabloomPalette,
     );
-    metabloomNovaRef.current = metabloomPalette === "nova" ? 1 : 0;
+    metabloomNovaRef.current = resolveMetabloomNovaMix(metabloomPalette);
     redrawRef.current();
   }, [metabloomPalette]);
 

@@ -1,7 +1,7 @@
 /* Nova motion and heat are rendered natively in the shared field shader. */
-/* The fourth grid item is the third finish, not a second row. */
+/* Four finishes share one control without moving the floating canvas. */
 .orb-page .orb-page__finish-selector {
-  grid-template-columns: auto repeat(3, minmax(0, auto));
+  grid-template-columns: auto repeat(4, minmax(0, auto));
 }
 
 .orb-page .orb-page__finish-option[data-palette="nova"]::before {
@@ -25,13 +25,56 @@
 @media (max-width: 380px) {
   /* The existing finish label is visually hidden at this breakpoint. */
   .orb-page .orb-page__finish-selector {
-    grid-template-columns: repeat(3, minmax(0, auto));
+    grid-template-columns: repeat(4, minmax(0, auto));
   }
 }
 
 @media (forced-colors: active) {
   .orb-page .orb-page__finish-option[data-palette="nova"]
     .orb-page__finish-swatch {
+    border-color: CanvasText;
+    background: CanvasText;
+    box-shadow: none;
+  }
+}
+
+.orb-page .orb-page__finish-option[data-palette="metalnova"] .orb-page__finish-swatch {
+  border-color: rgba(226, 233, 239, 0.82);
+  background: linear-gradient(135deg, #2f353e 0%, #f2f5f7 40%, #7f8996 67%, #ffffff 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82), 0 0 0.8rem rgba(145, 180, 222, 0.22);
+}
+
+@media (max-width: 520px) {
+  .orb-page .orb-page__finish-selector {
+    width: min(44rem, calc(100vw - 2.4rem));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.2rem;
+  }
+  .orb-page .orb-page__finish-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+  .orb-page .orb-page__finish-option {
+    padding: 0.68rem 0.3rem;
+    gap: 0.3rem;
+    font-size: clamp(0.95rem, 2.6vw, 1.1rem);
+    letter-spacing: 0.015em;
+  }
+  .orb-page .orb-page__finish-swatch {
+    width: 0.7rem;
+    height: 0.7rem;
+    flex-basis: 0.7rem;
+  }
+}
+
+@media (forced-colors: active) {
+  .orb-page .orb-page__finish-option[data-palette="metalnova"] .orb-page__finish-swatch {
     border-color: CanvasText;
     background: CanvasText;
     box-shadow: none;

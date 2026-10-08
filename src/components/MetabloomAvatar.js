@@ -14,6 +14,7 @@ const ACTION_CODES = Object.freeze(Object.fromEntries(
   METABLOOM_ACTION_IDS.map((id, index) => [id, index]),
 ));
 const NOVA_FALLBACK_COLORS = Object.freeze(["#ff4b14", "#ffb52e", "#fff0b3"]);
+const METALNOVA_FALLBACK_COLORS = Object.freeze(["#7a818b", "#c3cbd7", "#f3f6ff"]);
 
 const clamp = (value, minimum, maximum) =>
   Math.max(minimum, Math.min(maximum, value));
@@ -67,9 +68,12 @@ const MetabloomAvatar = ({
     physiology: false,
   });
   const isNova = metabloomPalette === "nova";
-  const fallbackColors = isNova ? NOVA_FALLBACK_COLORS : normalizedAction.colors;
-  const colorwayLabel = isNova ? "ember, flame, and gold" : normalizedAction.colorway;
-  const materialLabel = isNova ? "Nova fire" :
+  const isMetalNova = metabloomPalette === "metalnova";
+  const fallbackColors = isMetalNova ? METALNOVA_FALLBACK_COLORS :
+    isNova ? NOVA_FALLBACK_COLORS : normalizedAction.colors;
+  const colorwayLabel = isMetalNova ? "mercury, silver, and prismatic white" :
+    isNova ? "ember, flame, and gold" : normalizedAction.colorway;
+  const materialLabel = isMetalNova ? "MetalNova liquid-metal fire" : isNova ? "Nova fire" :
     metabloomPalette === "metalbloom" ? "liquid metal" : "spectral fluid";
 
   const handleKeyDown = (event) => {

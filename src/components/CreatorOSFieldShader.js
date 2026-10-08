@@ -842,7 +842,9 @@ vec4 novaMaterial = vec4(0.0);
 if (u_metabloomNovaMix > 0.001) {
   novaMaterial = novaFireMaterial(spectralMaterial, vec3(potential, membrane, edge),
     novaFlow, novaPotential, novaEmbers);
-  if (u_metabloomNovaMix >= 0.999) return novaMaterial;
+  if (u_metabloomNovaMix >= 0.999 && u_metabloomPaletteMix <= 0.001) {
+    return novaPrismaticEdges(novaMaterial, p, baseHue);
+  }
 }
 
 // Metalbloom keeps the exact same field topology while separating its
@@ -1087,6 +1089,12 @@ metalMaterial.a = max(
     spectralEdgeMask * mix(0.74, 0.68, u_light)
   )
 );
+
+if (u_metabloomNovaMix > 0.001) {
+  novaMaterial = novaPrismaticEdges(
+    novaMetalFinish(novaMaterial, metalMaterial, spectralMaterial.a), p, baseHue
+  );
+}
 
 return blendNovaFire(mix(
   spectralMaterial,

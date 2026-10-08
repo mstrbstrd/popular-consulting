@@ -61,6 +61,13 @@ try {
   assert.equal(active.programs,initial.programs,'finish change must not compile another program');
   assert.equal(active.contexts,initial.contexts,'finish change must not create another context');
   assert(active.uniforms.u_novaTime>0);
+  await page.evaluate(() => setNovaProps({metabloomPalette:'metalnova'}));
+  await page.waitForFunction(() => novaStats.uniforms.u_metabloomPaletteMix>.999 && novaStats.uniforms.u_metabloomNovaMix>.999);
+  assert(await page.evaluate(() => originalNovaCanvas===document.querySelector('canvas')));
+  const metal = await page.evaluate(() => ({...novaStats}));
+  assert.equal(metal.programs,initial.programs);assert.equal(metal.contexts,initial.contexts);
+  await page.evaluate(() => setNovaProps({metabloomPalette:'nova'}));
+  await page.waitForFunction(() => novaStats.uniforms.u_metabloomPaletteMix<.001);
   await page.evaluate(() => setNovaProps({paused:true}));
   await page.waitForTimeout(200);
   const paused = await page.evaluate(() => ({...novaStats}));
