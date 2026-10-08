@@ -1,0 +1,83 @@
+name: Native route transition review
+on:
+  push:
+    branches: [work/native-route-transitions]
+permissions:
+  contents: write
+concurrency:
+  group: native-route-transition-review
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Apply bounded transition changes
+        run: python scripts/apply-transition-review.py
+      - run: npm ci --no-audit --no-fund
+      - run: npm run lint
+      - name: Regression suite and unchanged baseline
+        env:
+          CI: true
+        run: |
+          npm test -- --watchAll=false --runInBand --json --outputFile=/tmp/current.json > /tmp/current.log 2>&1 || test -s /tmp/current.json
+          git worktree add --detach /tmp/baseline 4583fba12c313f8fbf8ca16d4dd5df54b9070d6b
+          ln -s "$PWD/node_modules" /tmp/baseline/node_modules
+          (cd /tmp/baseline && npm test -- --watchAll=false --runInBand --runTestsByPath src/components/InvoiceGeneratorNavigation.test.js --json --outputFile=/tmp/baseline.json > /tmp/baseline.log 2>&1) || test -s /tmp/baseline.json
+          node - <<'NODE'
+          const fs=require('fs'),assert=require('node:assert/strict');
+          const current=JSON.parse(fs.readFileSync('/tmp/current.json')),base=JSON.parse(fs.readFileSync('/tmp/baseline.json'));
+          const failures=r=>r.testResults.flatMap(s=>s.assertionResults.filter(t=>t.status==='failed').map(t=>t.fullName)).sort();
+          console.log({passed:current.numPassedTests,failed:current.numFailedTests,failures:failures(current)});
+          assert.equal(current.numRuntimeErrorTestSuites,0);assert.equal(current.numPendingTests,0);
+          assert(current.numPassedTests>=1027);assert(current.numFailedTests<=1);
+          if(current.numFailedTests)assert.deepEqual(failures(current),failures(base));
+          fs.mkdirSync('transition-review',{recursive:true});fs.writeFileSync('transition-review/tests.json',JSON.stringify({passed:current.numPassedTests,failed:current.numFailedTests,failures:failures(current)},null,2));
+          NODE
+      - name: Authentication regression suite
+        run: npm run test:auth > /tmp/auth.log 2>&1 || { tail -n 90 /tmp/auth.log; exit 1; }
+      - name: Production build
+        run: npm run build
+        env:
+          CI: true
+      - name: Browser prerequisites
+        run: |
+          npm install --prefix /tmp/browser --no-audit --no-fund --ignore-scripts playwright@1.56.1
+          /tmp/browser/node_modules/.bin/playwright install --with-deps chromium
+      - name: Real dark exits and cold Orb starts
+        run: node scripts/verify-orb-transitions.mjs
+        env:
+          NODE_PATH: /tmp/browser/node_modules
+      - name: Existing navigation regression
+        run: node scripts/verify-app-navigation.mjs
+        env:
+          PLAYWRIGHT_MODULE: /tmp/browser/node_modules/playwright/index.mjs
+          APP_NAV_PROFILE: desktop-css
+          APP_NAV_EVIDENCE: transition-review/navigation
+      - name: Commit tested source to work branch only
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src scripts/verify-app-navigation.mjs scripts/verify-orb-transitions.mjs
+          git commit -m 'Use native black-hole camera exits and renderer-ready Orb startup'
+          git push origin HEAD:work/native-route-transitions
+          git rev-parse HEAD > transition-review/commit.txt
+          git diff 4583fba12c313f8fbf8ca16d4dd5df54b9070d6b -- src scripts/verify-app-navigation.mjs scripts/verify-orb-transitions.mjs > transition-review/changes.patch
+      - name: Collect diagnostics
+        if: always()
+        run: |
+          mkdir -p transition-review
+          cp /tmp/current.log /tmp/auth.log transition-review/ 2>/dev/null || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-route-transition-review
+          path: transition-review
+          retention-days: 7
