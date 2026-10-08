@@ -1,0 +1,62 @@
+name: Nova fire workbench
+on:
+  push:
+    branches: [work/nova-fire-physics]
+permissions:
+  contents: write
+concurrency:
+  group: nova-fire-workbench
+  cancel-in-progress: true
+jobs:
+  validate:
+    if: github.ref == 'refs/heads/work/nova-fire-physics'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: work/nova-fire-physics
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Apply bounded source patch
+        run: |
+          python3 scripts/apply-nova-fire.py
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/components/CreatorOSFieldCanvas.js src/components/CreatorOSFieldShader.js src/components/MetabloomAvatar.js src/components/MetabloomNovaFilter.js src/components/OrbPage.js src/components/OrbNovaFinish.css src/components/OrbNovaFinish.test.js
+          if ! git diff --cached --quiet; then
+            git commit -m 'Wire native Nova fire into the existing field renderer'
+            git push origin HEAD:work/nova-fire-physics
+          fi
+          git ls-files -s src/components/CreatorOSFieldCanvas.js src/components/CreatorOSFieldShader.js src/components/MetabloomAvatar.js src/components/MetabloomNovaShader.js src/components/OrbPage.js src/components/OrbNovaFinish.css src/components/OrbNovaFinish.test.js
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Lint
+        run: npm run lint
+      - name: Full regression suite
+        run: npm test -- --watchAll=false --runInBand
+        env:
+          CI: true
+      - name: Production build
+        run: npm run build
+        env:
+          CI: true
+      - name: Browser prerequisites
+        if: hashFiles('scripts/verify-nova-fire.mjs') != ''
+        run: |
+          npm install --prefix /tmp/nova-browser --no-audit --no-fund playwright@1.56.1
+          /tmp/nova-browser/node_modules/.bin/playwright install --with-deps chromium
+      - name: Native fire browser regressions
+        if: hashFiles('scripts/verify-nova-fire.mjs') != ''
+        run: node scripts/verify-nova-fire.mjs
+        env:
+          NODE_PATH: /tmp/nova-browser/node_modules
+      - name: Upload visual evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nova-fire-review
+          path: nova-review
+          if-no-files-found: ignore
