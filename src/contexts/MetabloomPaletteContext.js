@@ -3,6 +3,7 @@ import React from "react";
 export const METABLOOM_PALETTES = Object.freeze({
   SPECTRAL: "spectral",
   METALBLOOM: "metalbloom",
+  NOVA: "nova",
 });
 
 const MetabloomPaletteContext = React.createContext(

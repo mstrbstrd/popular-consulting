@@ -13,6 +13,7 @@ import { sampleMetabloomActionPose } from "./metabloomMotionRuntime";
 const ACTION_CODES = Object.freeze(Object.fromEntries(
   METABLOOM_ACTION_IDS.map((id, index) => [id, index]),
 ));
+const NOVA_FALLBACK_COLORS = Object.freeze(["#ff4b14", "#ffb52e", "#fff0b3"]);
 
 const clamp = (value, minimum, maximum) =>
   Math.max(minimum, Math.min(maximum, value));
@@ -65,7 +66,10 @@ const MetabloomAvatar = ({
     phase: normalizedAction.id === "reform" ? 1 : 0.5,
     physiology: false,
   });
-  const materialLabel =
+  const isNova = metabloomPalette === "nova";
+  const fallbackColors = isNova ? NOVA_FALLBACK_COLORS : normalizedAction.colors;
+  const colorwayLabel = isNova ? "ember, flame, and gold" : normalizedAction.colorway;
+  const materialLabel = isNova ? "Nova fire" :
     metabloomPalette === "metalbloom" ? "liquid metal" : "spectral fluid";
 
   const handleKeyDown = (event) => {
@@ -76,7 +80,7 @@ const MetabloomAvatar = ({
 
   const accessibleLabel = underHoodPhase ? "Under the hood. Metabloom opens to reveal the Forward Pass neural-network visualization." : fieldMode !== 0 ? `${themeLabel}.` :
     `Faceless Metabloom avatar expressing ${normalizedAction.label.toLowerCase()}. `
-    + `${normalizedAction.motion}. ${normalizedAction.colorway} colorway, `
+    + `${normalizedAction.motion}. ${colorwayLabel} colorway, `
     + `${materialLabel} finish.`;
 
   return (
@@ -103,9 +107,9 @@ const MetabloomAvatar = ({
       onKeyDown={handleKeyDown}
       style={{
         "--avatar-fallback-transform": `translate(${fallbackPose.offsetX * 100}%, ${-fallbackPose.offsetY * 100}%) rotate(${-fallbackPose.rotation}rad) scale(${fallbackPose.scaleX}, ${fallbackPose.scaleY})`,
-        "--avatar-color-a": normalizedAction.colors[0],
-        "--avatar-color-b": normalizedAction.colors[1],
-        "--avatar-color-c": normalizedAction.colors[2],
+        "--avatar-color-a": fallbackColors[0],
+        "--avatar-color-b": fallbackColors[1],
+        "--avatar-color-c": fallbackColors[2],
       }}
     >
       <CreatorOSFieldCanvas
@@ -122,7 +126,7 @@ const MetabloomAvatar = ({
         metabloomAvatarIntensity={actionIntensity}
         metabloomAvatarTalking={talking}
         metabloomAvatarVersion={actionVersion}
-        metabloomPalette={metabloomPalette}
+        metabloomPalette={isNova ? "spectral" : metabloomPalette}
         mode={fieldMode}
         onFieldStateChange={onFieldStateChange}
         paused={!active}

@@ -8,6 +8,7 @@ import { SITE_AUDIENCES } from "../content/siteCopy";
 import routeMetadata from "../content/routeMetadata.json";
 import ImmersiveRouteNavigationBridge from "./ImmersiveRouteNavigationBridge";
 import LoadingOverlay from "./LoadingOverlay";
+import MetabloomNovaFilter from "./MetabloomNovaFilter";
 import NavMenu from "./NavMenu";
 import OrbSection from "./OrbSection";
 import "./OrbPage.css";
@@ -15,6 +16,7 @@ import "./OrbPageExperience.css";
 import "./OrbPageFinalPolish.css";
 import "./OrbComposerFocus.css";
 import "./OrbMetalbloomFinish.css";
+import "./OrbNovaFinish.css";
 
 const METADATA_SELECTORS = Object.freeze({
   description: 'meta[name="description"]',
@@ -151,6 +153,7 @@ const OrbPageContent = () => {
           focusable="false"
         >
           <defs>
+            <MetabloomNovaFilter />
             <linearGradient
               id="orb-send-gradient"
               x1="3"
@@ -238,6 +241,24 @@ const OrbPageContent = () => {
                 aria-hidden="true"
               />
               <span>Metalbloom</span>
+            </button>
+            <button
+              type="button"
+              className={`orb-page__finish-option${
+                metabloomPalette === METABLOOM_PALETTES.NOVA
+                  ? " is-active"
+                  : ""
+              }`}
+              data-palette="nova"
+              aria-pressed={metabloomPalette === METABLOOM_PALETTES.NOVA}
+              aria-label="Use Nova fire for Metabloom"
+              onClick={() => setMetabloomPalette(METABLOOM_PALETTES.NOVA)}
+            >
+              <span
+                className="orb-page__finish-swatch"
+                aria-hidden="true"
+              />
+              <span>Nova</span>
             </button>
           </div>
 

@@ -1,0 +1,46 @@
+/* Nova is an Orb-only colourway of the existing spectral fluid. Keep the
+   research scenes, neural-network reveal, page chrome, and alpha untouched. */
+.orb-page[data-metabloom-palette="nova"]
+  .metabloom-avatar[data-avatar-theme="metabloom"]:not([data-under-hood])
+  .creatoros-field-canvas {
+  filter: url("#orb-nova-fire");
+}
+
+/* The fourth grid item is the third finish, not a second row. */
+.orb-page .orb-page__finish-selector {
+  grid-template-columns: auto repeat(3, minmax(0, auto));
+}
+
+.orb-page .orb-page__finish-option[data-palette="nova"]::before {
+  background: linear-gradient(135deg, #c52a0c, #ff7922, #ffd36b, #ffefc2);
+}
+
+.orb-page .orb-page__finish-option[data-palette="nova"]
+  .orb-page__finish-swatch {
+  border-color: #d86a23;
+  background: radial-gradient(
+    circle at 68% 28%,
+    #fff0c2 0%,
+    #ffd15a 22%,
+    #ff7620 48%,
+    #df300c 76%,
+    #661307 100%
+  );
+  box-shadow: 0 0 0.8rem rgba(255, 112, 24, 0.32);
+}
+
+@media (max-width: 380px) {
+  /* The existing finish label is visually hidden at this breakpoint. */
+  .orb-page .orb-page__finish-selector {
+    grid-template-columns: repeat(3, minmax(0, auto));
+  }
+}
+
+@media (forced-colors: active) {
+  .orb-page .orb-page__finish-option[data-palette="nova"]
+    .orb-page__finish-swatch {
+    border-color: CanvasText;
+    background: CanvasText;
+    box-shadow: none;
+  }
+}
