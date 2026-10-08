@@ -33,8 +33,8 @@ patch('src/components/CreatorOSFieldCanvas.js', [
 ])
 patch('src/components/CreatorOSFieldShader.js', [
     ('export const CREATOROS_FIELD_VERTEX_SHADER', 'import { METABLOOM_NOVA_SHADER } from "./MetabloomNovaShader";\n\nexport const CREATOROS_FIELD_VERTEX_SHADER', 1),
-    ('vec4 sceneMetabloom(vec2 uv, float time) {', '${METABLOOM_NOVA_SHADER}\n\nvec4 sceneMetabloom(vec2 uv, float time) {\n  // A uniform-only branch keeps all finishes in the same WebGL program.\n  if (u_metabloomNovaMix >= 0.999) return sceneNovaFire(uv, u_novaTime);\n  vec2 novaUv = uv;', 1),
-    ('return mix(\n  spectralMaterial,\n  metalMaterial,\n  sat(u_metabloomPaletteMix)\n);', 'return blendNovaFire(mix(\n  spectralMaterial,\n  metalMaterial,\n  sat(u_metabloomPaletteMix)\n), novaUv);', 1),
+    ('vec4 sceneMetabloom(vec2 uv, float time) {', '${METABLOOM_NOVA_SHADER}\n\nvec4 sceneMetabloom(vec2 uv, float time) {\n  // A uniform-only branch keeps all finishes in the same WebGL program.\n  if (u_metabloomNovaMix >= 0.999) return sceneNovaFire(uv, u_novaTime);\n  vec2 novaUv = uv;', 2),
+    ('return mix(\n  spectralMaterial,\n  metalMaterial,\n  sat(u_metabloomPaletteMix)\n);', 'return blendNovaFire(mix(\n  spectralMaterial,\n  metalMaterial,\n  sat(u_metabloomPaletteMix)\n), novaUv);', 2),
 ])
 patch('src/components/MetabloomAvatar.js', [
     ('metabloomPalette={isNova ? "spectral" : metabloomPalette}', 'metabloomPalette={metabloomPalette}', 1),
