@@ -8,7 +8,6 @@ import { SITE_AUDIENCES } from "../content/siteCopy";
 import routeMetadata from "../content/routeMetadata.json";
 import ImmersiveRouteNavigationBridge from "./ImmersiveRouteNavigationBridge";
 import LoadingOverlay from "./LoadingOverlay";
-import MetabloomNovaFilter from "./MetabloomNovaFilter";
 import NavMenu from "./NavMenu";
 import OrbSection from "./OrbSection";
 import "./OrbPage.css";
@@ -153,7 +152,7 @@ const OrbPageContent = () => {
           focusable="false"
         >
           <defs>
-            <MetabloomNovaFilter />
+
             <linearGradient
               id="orb-send-gradient"
               x1="3"

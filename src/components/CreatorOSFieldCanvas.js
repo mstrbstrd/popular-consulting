@@ -146,7 +146,7 @@ export const specializeCreatorOSFieldFragmentShader = (source, mode, activitySce
 };
 
 const normalizeMetabloomPalette = (palette) =>
-  palette === "metalbloom" ? "metalbloom" : "spectral";
+  palette === "nova" ? "nova" : palette === "metalbloom" ? "metalbloom" : "spectral";
 
 const resolveMetabloomPaletteMix = (palette) =>
   normalizeMetabloomPalette(palette) === "metalbloom" ? 1 : 0;
@@ -470,6 +470,7 @@ const CreatorOSFieldCanvas = ({
   const metabloomPaletteRef = useRef(
     resolveMetabloomPaletteMix(metabloomPalette),
   );
+  const metabloomNovaRef = useRef(metabloomPalette === "nova" ? 1 : 0);
   const metabloomAvatarActionRef = useRef(
     normalizeMetabloomAvatarAction(metabloomAvatarAction),
   );
@@ -563,6 +564,7 @@ const CreatorOSFieldCanvas = ({
     metabloomPaletteRef.current = resolveMetabloomPaletteMix(
       metabloomPalette,
     );
+    metabloomNovaRef.current = metabloomPalette === "nova" ? 1 : 0;
     redrawRef.current();
   }, [metabloomPalette]);
 
@@ -715,6 +717,8 @@ const CreatorOSFieldCanvas = ({
     let resizeObserver;
     let frameCadence;
     let localTime = 0;
+    let novaTime = 0;
+    let novaWasPaused = pausedRef.current;
     let introElapsed = 0;
     let seed = Math.random();
     let energy = 0;
@@ -750,6 +754,7 @@ const CreatorOSFieldCanvas = ({
     const metabloomMotionRuntime = createMetabloomMotionRuntime();
     let metabloomMotionFrame = metabloomMotionRuntime.snapshot();
     let metabloomRenderedPaletteMix = metabloomPaletteRef.current;
+    let metabloomRenderedNovaMix = metabloomNovaRef.current;
     let metabloomRenderedIntensity = metabloomAvatarIntensityRef.current;
     let metabloomRenderedColorA = [...metabloomAvatarColorARef.current];
     let metabloomRenderedColorB = [...metabloomAvatarColorBRef.current];
@@ -964,6 +969,8 @@ const CreatorOSFieldCanvas = ({
       "u_activityWeights",
       "u_underHood",
       "u_metabloomPaletteMix",
+      "u_metabloomNovaMix",
+      "u_novaTime",
       "u_contourPaletteMix",
       "u_tidalPaletteMix",
       "u_avatarEnabled",
@@ -1190,6 +1197,8 @@ const CreatorOSFieldCanvas = ({
     const resetSimulation = () => {
       restartRef.current = false;
       localTime = 0;
+      novaTime = 0;
+      novaWasPaused = pausedRef.current;
       introElapsed = reducedMotion ? INTRO_DURATION_SECONDS : 0;
       seed = Math.random();
       energy = 0;
@@ -1233,6 +1242,7 @@ const CreatorOSFieldCanvas = ({
       metabloomMotionRuntime.reset();
       metabloomMotionFrame = metabloomMotionRuntime.snapshot();
       metabloomRenderedPaletteMix = metabloomPaletteRef.current;
+      metabloomRenderedNovaMix = metabloomNovaRef.current;
       metabloomRenderedIntensity = metabloomAvatarIntensityRef.current;
       metabloomRenderedColorA = [...metabloomAvatarColorARef.current];
       metabloomRenderedColorB = [...metabloomAvatarColorBRef.current];
@@ -1305,6 +1315,12 @@ const CreatorOSFieldCanvas = ({
       metabloomRenderedPaletteMix = dampMetabloomValue(
         metabloomRenderedPaletteMix,
         metabloomPaletteRef.current,
+        delta,
+        6.5,
+      );
+      metabloomRenderedNovaMix = dampMetabloomValue(
+        metabloomRenderedNovaMix,
+        metabloomNovaRef.current,
         delta,
         6.5,
       );
@@ -1559,6 +1575,8 @@ const CreatorOSFieldCanvas = ({
         activeDisplayUniforms.u_metabloomPaletteMix,
         metabloomRenderedPaletteMix,
       );
+      gl.uniform1f(activeDisplayUniforms.u_metabloomNovaMix, metabloomRenderedNovaMix);
+      gl.uniform1f(activeDisplayUniforms.u_novaTime, novaTime);
       gl.uniform1f(
         activeDisplayUniforms.u_contourPaletteMix,
         contourPaletteRef.current,
@@ -1722,8 +1740,11 @@ const CreatorOSFieldCanvas = ({
       incomingMode = currentMode;
       modeMix = 1;
       localTime = STATIC_TIME_SECONDS;
+      novaTime = STATIC_TIME_SECONDS;
+      novaWasPaused = pausedRef.current;
       introElapsed = INTRO_DURATION_SECONDS;
       metabloomRenderedPaletteMix = metabloomPaletteRef.current;
+      metabloomRenderedNovaMix = metabloomNovaRef.current;
       metabloomRenderedIntensity = metabloomAvatarIntensityRef.current;
       metabloomRenderedColorA = [...metabloomAvatarColorARef.current];
       metabloomRenderedColorB = [...metabloomAvatarColorBRef.current];
@@ -1797,6 +1818,10 @@ const CreatorOSFieldCanvas = ({
         const attention = metabloomAvatarEnabledRef.current && modeRef.current === 0
           ? metabloomMotionFrame.pose.stillness : 0;
         localTime += delta * (1 - attention * 0.86);
+        // Analytical fire uses elapsed time, not the gesture-slowed fluid clock.
+        // The shared cadence resets on visibility changes; pause never advances it.
+        if (!novaWasPaused) novaTime += presentationDelta;
+        novaWasPaused = false;
         introElapsed = Math.min(
           INTRO_DURATION_SECONDS,
           introElapsed + delta,
@@ -1804,11 +1829,15 @@ const CreatorOSFieldCanvas = ({
         simulate(delta, performance.now(), presentationDelta);
         advanceReaction();
       } else {
+        novaWasPaused = true;
         currentMode = modeRef.current;
         incomingMode = currentMode;
         modeMix = 1;
         snapScene();
         hoodValues = hoodTransition.sample(underHoodPhaseRef.current, 0, true);
+        // A finish can change on a paused frame without starting the simulation.
+        metabloomRenderedPaletteMix = metabloomPaletteRef.current;
+        metabloomRenderedNovaMix = metabloomNovaRef.current;
         if (paintBrushPending) {
           drawReactionStep(0.62, true);
         }

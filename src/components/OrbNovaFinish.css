@@ -1,11 +1,4 @@
-/* Nova is an Orb-only colourway of the existing spectral fluid. Keep the
-   research scenes, neural-network reveal, page chrome, and alpha untouched. */
-.orb-page[data-metabloom-palette="nova"]
-  .metabloom-avatar[data-avatar-theme="metabloom"]:not([data-under-hood])
-  .creatoros-field-canvas {
-  filter: url("#orb-nova-fire");
-}
-
+/* Nova motion and heat are rendered natively in the shared field shader. */
 /* The fourth grid item is the third finish, not a second row. */
 .orb-page .orb-page__finish-selector {
   grid-template-columns: auto repeat(3, minmax(0, auto));
