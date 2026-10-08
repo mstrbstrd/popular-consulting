@@ -21,7 +21,7 @@ describe("Nova flame surface corrections", () => {
   });
   test("shares dark flame roots and measures brightness outward rather than by opacity", () => {
     expect(METABLOOM_NOVA_SHADER).toContain("rootDistance / max(rootDistance + tipDistance, 0.0001)");
-    expect(METABLOOM_NOVA_SHADER).toContain("color = mix(rootColor, color, smoothstep(1.20, 1.75, materialField))");
+    expect(METABLOOM_NOVA_SHADER).toContain("color = mix(rootColor, color, smoothstep(0.90, 1.75, materialField))");
     expect(METABLOOM_NOVA_SHADER).toContain("mix(rootHeat, 0.92, flameProgress)");
     expect(METABLOOM_NOVA_SHADER).toContain("flameSurface = vec4(flameProgress, flame, ember, materialField)");
     expect(METABLOOM_NOVA_SHADER).toContain("float heat = flameSurface.x");

@@ -12,12 +12,13 @@ const bundle = await build({
     loader: 'jsx',
     contents: `import React from 'react';
 import { createRoot } from 'react-dom/client';
+import { flushSync } from 'react-dom';
 import CreatorOSFieldCanvas from './src/components/CreatorOSFieldCanvas';
 import { CREATOROS_FIELD_FRAGMENT_SHADER as fragment, CREATOROS_FIELD_VERTEX_SHADER as vertex, CREATOROS_FIELD_PAINT_FRAGMENT_SHADER as paint } from './src/components/CreatorOSFieldShader';
 window.novaShaders = { fragment, vertex, paint };
 function Harness() {
   const [props, setProps] = React.useState({metabloomPalette:'spectral',isDark:true});
-  window.setNovaProps = patch => setProps(old => ({...old,...patch}));
+  window.setNovaProps = patch => flushSync(() => setProps(old => ({...old,...patch})));
   return <CreatorOSFieldCanvas metabloomAvatarEnabled metabloomSceneTransitions {...props} />;
 }
 createRoot(document.getElementById('root')).render(<Harness/>);`,
@@ -68,8 +69,14 @@ try {
   assert.equal(metal.programs,initial.programs);assert.equal(metal.contexts,initial.contexts);
   await page.evaluate(() => setNovaProps({metabloomPalette:'nova'}));
   await page.waitForFunction(() => novaStats.uniforms.u_metabloomPaletteMix<.001);
-  await page.evaluate(() => setNovaProps({paused:true}));
-  await page.waitForTimeout(200);
+  // Pausing intentionally requests one static redraw. Wait for that frame,
+  // rather than racing an arbitrary delay on a busy software GPU.
+  const pauseDraws = await page.evaluate(() => {
+    const draws = novaStats.draws;
+    setNovaProps({paused:true});
+    return draws;
+  });
+  await page.waitForFunction(draws => novaStats.draws > draws, pauseDraws);
   const paused = await page.evaluate(() => ({...novaStats}));
   await page.waitForTimeout(300);
   assert.deepEqual(await page.evaluate(() => [novaStats.draws,novaStats.uniforms.u_novaTime]),[paused.draws,paused.uniforms.u_novaTime],'paused fire must not tick');

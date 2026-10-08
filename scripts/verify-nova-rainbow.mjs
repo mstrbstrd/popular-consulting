@@ -16,10 +16,10 @@ const inspect = ({before, current, vertex}) => {
   const canvas = document.querySelector('canvas');
   const gl = canvas.getContext('webgl2', {preserveDrawingBuffer:true, premultipliedAlpha:true});
   if (!gl) throw Error('WebGL2 is required for Nova palette verification');
-  const prismReturn = 'return vec4(mix(fire.rgb, outlineTint, prismMask * mix(0.92, 0.90, u_light)), fire.a);';
+  const prismReturn = 'return vec4(mix(fire.rgb, outlineTint, prismMask * mix(0.46, 0.45, u_light)), fire.a);';
   if (!current.includes(prismReturn)) throw Error('Missing prism inspection point');
   const mask = current.replace(prismReturn,
-    'return vec4(yellowFlame * exposedFlame, step(1.20, flameSurface.w), step(0.91, liftedSignal), 1.0);');
+    'return vec4(rainbowCrest * exposedFlame, step(1.75, flameSurface.w), step(0.91, liftedSignal), 1.0);');
   const bodyProbe = current.slice(0,current.lastIndexOf('void main()')) + `void main() {
     vec3 silver = vec3(0.80, 0.85, 0.90);
     vec4 fire = vec4(1.0, 0.5, 0.0, 0.8);
@@ -119,8 +119,8 @@ try {
   delete result.images;fs.writeFileSync('nova-review/rainbow-report.json',JSON.stringify(result,null,2));
   assert.equal(result.error,0);assert(result.unchanged,'other finishes and activity scenes must remain pixel-identical');
   assert(result.alphaUnchanged&&result.metalAlphaMatches,'both Nova silhouettes, placement and transparency must remain identical');
-  assert.equal(result.coreChanges,0,'the native Nova body must not be recoloured');
-  assert(result.yellowRegionPixels>100&&result.rainbowRegionChanges/result.yellowRegionPixels>.80,'rainbow must fill the yellow crest, not just its outline');
+  assert.equal(result.coreChanges,0,'the dense Nova interior must not be recoloured');
+  assert(result.yellowRegionPixels>100&&result.rainbowRegionChanges/result.yellowRegionPixels>.80,'the narrower outer crest must contain spectrum, not just its outline');
   assert(result.rainbowChromaticPixels>100,'the crest must contain visible non-fire spectrum, not just white');
   assert(result.metalBeforeDark>100&&result.metalAfterDark<result.metalBeforeDark*.25,'the added black perimeter must be removed');
   assert(result.probes.every(p=>p.bodyUntinted),'the supplied metal reflections must not receive extra dark body shading');

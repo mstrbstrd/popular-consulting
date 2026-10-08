@@ -93,12 +93,11 @@ vec4 novaFireMaterial(vec4 nativeMaterial, vec3 field, vec3 flow, float liftedPo
   vec3 rootColor = novaTemperatureColor(rootHeat) * 0.72 * mix(1.0, 0.88, u_light);
   // The same dark edge colour starts the flame, then the palette runs outward
   // toward the hot inner-body colour. The dense interior is left untouched.
-  color = mix(rootColor, color, smoothstep(1.20, 1.75, materialField));
+  color = mix(rootColor, color, smoothstep(0.90, 1.75, materialField));
 
   // Use the original body's alpha verbatim. Flames cannot hollow it out,
   // detach it from the native field, or shift its centre toward a fuel base.
   float alpha = nativeMaterial.a;
-  vec3 premultiplied = color * alpha;
   float outside = 1.0 - smoothstep(0.72, 1.20, materialField);
   float tongues = smoothstep(0.74, 1.16, liftedSignal);
   float flameOpacity = mix(mix(0.78, 0.86, u_light),
@@ -107,6 +106,15 @@ vec4 novaFireMaterial(vec4 nativeMaterial, vec3 field, vec3 flow, float liftedPo
   float fringeHeat = mix(rootHeat, 0.92, flameProgress);
   vec3 fireColor = novaTemperatureColor(fringeHeat)
     * mix(0.72, 1.08, flameProgress) * mix(1.0, 0.88, u_light);
+  // Diffuse the material junction only where a flame actually meets the body.
+  // Both layers approach the same colour; their opacity and motion stay intact.
+  float seam = smoothstep(0.0, 0.20, flame)
+    * smoothstep(0.0, 0.30, nativeMaterial.a)
+    * (1.0 - smoothstep(0.15, 0.50, flameProgress));
+  vec3 seamColor = mix(color, fireColor, 0.5);
+  color = mix(color, seamColor, seam);
+  fireColor = mix(fireColor, seamColor, seam);
+  vec3 premultiplied = color * alpha;
   premultiplied += fireColor * flame * (1.0 - alpha);
   alpha += flame * (1.0 - alpha);
   float ember = sat(embers);
@@ -118,23 +126,22 @@ vec4 novaFireMaterial(vec4 nativeMaterial, vec3 field, vec3 flow, float liftedPo
   return vec4(premultiplied / max(alpha, 0.00001), sat(alpha));
 }
 
-// Replace Nova's yellow outer flame band with spectrum, never the native orb.
-// MetalNova retains silver flames; both finishes keep pale rainbow tips/wisps.
+// Share a restrained outer rainbow crest between Nova and MetalNova.
+// Preserve yellow/white before the crest and pale spectrum through the wisps.
 // This stays RGB-only: no added glow, alpha expansion, or detached geometry.
 vec4 novaPrismaticEdges(vec4 fire, vec2 p, float baseHue, vec4 flameSurface, float liftedSignal) {
   float exposedFlame = (1.0 - smoothstep(0.72, 1.20, flameSurface.w))
     * smoothstep(0.015, 0.085, liftedSignal - flameSurface.w);
-  float distalFlame = smoothstep(0.55, 0.82, flameSurface.x);
+  float distalFlame = smoothstep(0.67, 0.82, flameSurface.x);
   float outlineWidth = clamp(fwidth(liftedSignal) * 0.72, 0.010, 0.045);
   float outline = 1.0 - smoothstep(
     outlineWidth, outlineWidth * 1.90, abs(liftedSignal - 0.90)
   );
   float wisps = 1.0 - smoothstep(0.78, 0.91, liftedSignal);
-  // This is the outward interval where the warm ramp becomes yellow/gold.
-  // Gate by finish and exposed surface so roots and the gold core stay intact.
-  float yellowFlame = smoothstep(0.34, 0.58, flameSurface.x)
-    * (1.0 - sat(u_metabloomPaletteMix));
-  float prismMask = exposedFlame * max(yellowFlame, distalFlame * max(outline, wisps));
+  // Halve the crest's outward interval: [0.34, 0.58] becomes [0.67, 0.79].
+  // Both finishes retain a yellow or white shoulder before the shared rainbow.
+  float rainbowCrest = smoothstep(0.67, 0.79, flameSurface.x);
+  float prismMask = exposedFlame * max(rainbowCrest, distalFlame * max(outline, wisps));
   vec3 outlineSpectrum = spectral(
     0.47 + p.x * 0.85 + p.y * 0.32 + baseHue * 0.12 + u_novaTime * 0.012
   );
@@ -142,11 +149,11 @@ vec4 novaPrismaticEdges(vec4 fire, vec2 p, float baseHue, vec4 flameSurface, flo
     mix(vec3(0.96), outlineSpectrum, mix(0.48, 0.42, u_light)),
     vec3(mix(0.70, 0.78, u_light))
   );
-  // More chroma in the replaced yellow band, fading into the existing pale
-  // rainbow at the very tips and smoky wisps. No additional opacity or halo.
+  // The smaller crest softens into pale rainbow tips and smoky wisps.
+  // Half the former colour mix keeps the underlying fire/silver visible.
   vec3 rainbowFlame = mix(vec3(1.05), outlineSpectrum, mix(0.78, 0.68, u_light));
-  outlineTint = mix(outlineTint, rainbowFlame, yellowFlame * (1.0 - max(outline, wisps)));
-  return vec4(mix(fire.rgb, outlineTint, prismMask * mix(0.92, 0.90, u_light)), fire.a);
+  outlineTint = mix(outlineTint, rainbowFlame, rainbowCrest * (1.0 - max(outline, wisps)));
+  return vec4(mix(fire.rgb, outlineTint, prismMask * mix(0.46, 0.45, u_light)), fire.a);
 }
 
 // Preserve Metalbloom's core optics, excluding its all-around spectral rim.
@@ -160,6 +167,13 @@ vec4 novaMetalFinish(vec4 fire, vec4 metalMaterial, float nativeAlpha, vec4 flam
   vec3 mercuryHighlight = mix(vec3(1.520, 1.560, 1.630), vec3(1.420, 1.455, 1.515), u_light);
   vec3 silverFlame = mix(mercuryMid, mercuryHighlight, smoothstep(0.08, 0.98, heat));
   vec3 bodyColor = metalMaterial.rgb;
+  // Match Nova's soft junction without a black perimeter or a canvas blur.
+  float seam = smoothstep(0.0, 0.20, flameSurface.y)
+    * smoothstep(0.0, 0.30, nativeAlpha)
+    * (1.0 - smoothstep(0.15, 0.50, flameSurface.x));
+  vec3 seamColor = mix(bodyColor, silverFlame, 0.5);
+  bodyColor = mix(bodyColor, seamColor, seam);
+  silverFlame = mix(silverFlame, seamColor, seam);
   float alpha = nativeAlpha;
   vec3 premultiplied = bodyColor * alpha;
   premultiplied += silverFlame * flameSurface.y * (1.0 - alpha);
