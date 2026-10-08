@@ -176,6 +176,19 @@ export default function ImmersiveBackground({ activeSection = 0, pathname = wind
           transition: background-color 0.35s ease;
         }
 
+        /* Match the fixed hero's viewport centre on mobile, even when browser
+           bars make the stable 100lvh backing surface taller than the viewport.
+           Equal vertical margins centre the excess above and below the screen
+           without moving the logo, transforming the scene or resizing its GPU
+           buffer. Keep desktop and light-mode positioning unchanged. */
+        @media (max-width: 768px) {
+          [data-theme="dark"] .fixed-background.immersive-background {
+            bottom: 0;
+            margin-top: auto;
+            margin-bottom: auto;
+          }
+        }
+
         .background-css-fallback {
           overflow: hidden;
           background: ${isDark ? "#080809" : "#fff8f7"};
