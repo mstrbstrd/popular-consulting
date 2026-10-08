@@ -17,7 +17,7 @@ const inspect = ({ before, current, vertex }) => {
   if (!gl) throw Error('WebGL2 required for Nova spectrum verification');
   const prismReturn = 'return vec4(mix(fire.rgb, outlineTint, prismMask * mix(0.46, 0.45, u_light)), fire.a);';
   if (!current.includes(prismReturn)) throw Error('Missing half-strength prism inspection point');
-  const diagnostic = current.replace(prismReturn, 'return vec4(prismMask, step(1.75, flameSurface.w), flameSurface.x, 1.0);');
+  const diagnostic = current.replace(prismReturn, 'return vec4(prismMask, step(1.75, flameSurface.w), step(0.50, flameSurface.x), 1.0);');
   let noSeam = current;
   for (const line of ['color = mix(color, seamColor, seam);', 'fireColor = mix(fireColor, seamColor, seam);', 'bodyColor = mix(bodyColor, seamColor, seam);', 'silverFlame = mix(silverFlame, seamColor, seam);']) {
     if (!noSeam.includes(line)) throw Error(`Missing material seam: ${line}`);

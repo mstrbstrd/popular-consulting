@@ -19,7 +19,7 @@ const inspect = ({ previous, current, vertex }) => {
   if (!gl) throw Error('WebGL2 required');
   const centred = current.replace('const float NOVA_VERTICAL_OFFSET = 0.10;', 'const float NOVA_VERTICAL_OFFSET = 0.0;');
   if (centred === current) throw Error('Headroom constant changed; update the placement oracle explicitly');
-  const prismReturn = 'return vec4(mix(fire.rgb, outlineTint, prismMask * mix(0.92, 0.90, u_light)), fire.a);';
+  const prismReturn = 'return vec4(mix(fire.rgb, outlineTint, prismMask * mix(0.46, 0.45, u_light)), fire.a);';
   if (!centred.includes(prismReturn)) throw Error('Missing prism return for mask inspection');
   const mask = centred.replace(prismReturn, 'return vec4(prismMask, step(1.20, flameSurface.w) * 0.5 + step(1.75, flameSurface.w) * 0.5, 1.0 - step(0.82, liftedSignal), 1.0);');
   const noPrism = centred.replace(prismReturn, 'return fire;');
