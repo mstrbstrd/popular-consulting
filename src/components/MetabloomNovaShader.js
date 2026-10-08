@@ -98,6 +98,40 @@ vec4 novaFireMaterial(vec4 nativeMaterial, vec3 field, vec3 flow, float liftedPo
   return vec4(premultiplied / max(alpha, 0.00001), sat(alpha));
 }
 
+// Apply Tidal Weave's pale spectrum to a narrow visible opacity contour.
+// This is RGB-only: no halo, alpha expansion, displacement, or interior tint.
+vec4 novaPrismaticEdges(vec4 fire, vec2 p, float baseHue) {
+  float outlineWidth = clamp(fwidth(fire.a) * 0.72, 0.010, 0.045);
+  float outline = 1.0 - smoothstep(
+    outlineWidth, outlineWidth * 1.90, abs(fire.a - 0.46)
+  );
+  vec3 outlineSpectrum = spectral(
+    0.47 + p.x * 0.85 + p.y * 0.32 + baseHue * 0.12 + u_novaTime * 0.012
+  );
+  vec3 outlineTint = max(
+    mix(vec3(0.96), outlineSpectrum, mix(0.48, 0.42, u_light)),
+    vec3(mix(0.70, 0.78, u_light))
+  );
+  return vec4(mix(fire.rgb, outlineTint, outline * mix(0.92, 0.90, u_light)), fire.a);
+}
+
+// Reuse the actual Metalbloom optical material on the core. The lifted flames
+// and sparks use its same mercury ramp, with Nova's existing heat modulation.
+// Palette changes cannot affect alpha, geometry, time, or the flame balance.
+vec4 novaMetalFinish(vec4 fire, vec4 metalMaterial, float nativeAlpha) {
+  float metalMix = sat(u_metabloomPaletteMix);
+  if (metalMix <= 0.001) return fire;
+  float heat = sat(dot(fire.rgb, vec3(0.2126, 0.7152, 0.0722)));
+  vec3 mercuryShadow = mix(vec3(0.010, 0.014, 0.020), vec3(0.070, 0.078, 0.090), u_light);
+  vec3 mercuryMid = mix(vec3(0.480, 0.505, 0.545), vec3(0.655, 0.675, 0.710), u_light);
+  vec3 mercuryHighlight = mix(vec3(1.520, 1.560, 1.630), vec3(1.420, 1.455, 1.515), u_light);
+  vec3 silverFlame = mix(mercuryShadow, mercuryMid, smoothstep(0.06, 0.54, heat));
+  silverFlame = mix(silverFlame, mercuryHighlight, smoothstep(0.48, 0.98, heat));
+  float exterior = 1.0 - smoothstep(0.30, 0.80, nativeAlpha);
+  vec3 metalColor = mix(metalMaterial.rgb, silverFlame, exterior);
+  return vec4(mix(fire.rgb, metalColor, metalMix), fire.a);
+}
+
 vec4 blendNovaFire(vec4 material, vec4 fire) {
   float amount = smoothstep(0.0, 1.0, sat(u_metabloomNovaMix));
   if (amount <= 0.001) return material;

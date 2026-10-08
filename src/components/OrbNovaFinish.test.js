@@ -46,13 +46,13 @@ beforeEach(() => useAppNavigation.mockReturnValue(null));
 afterEach(cleanup);
 
 describe("Nova Orb finish", () => {
-  test("adds a reversible third finish without remounting or clearing the conversation", () => {
+  test("keeps Nova reversible among four finishes without remounting or clearing the conversation", () => {
     const { container } = render(<OrbPage />);
     const experience = screen.getByTestId("nova-orb-experience");
     const group = screen.getByRole("group", { name: "Metabloom material finish" });
     const nova = within(group).getByRole("button", { name: "Use Nova fire for Metabloom" });
     expect(METABLOOM_PALETTES.NOVA).toBe("nova");
-    expect(within(group).getAllByRole("button")).toHaveLength(3);
+    expect(within(group).getAllByRole("button")).toHaveLength(4);
     expect(experience).toHaveAttribute("data-palette", "spectral");
     expect(nova).toHaveAttribute("aria-pressed", "false");
 
@@ -61,6 +61,13 @@ describe("Nova Orb finish", () => {
     expect(nova).toHaveAttribute("aria-pressed", "true");
     expect(experience).toHaveAttribute("data-palette", "nova");
     expect(container.querySelector(".orb-page")).toHaveAttribute("data-metabloom-palette", "nova");
+    expect(within(group).getAllByRole("button", { pressed: true })).toHaveLength(1);
+
+    const metalNova = within(group).getByRole("button", { name: "Use MetalNova liquid-metal fire for Metabloom" });
+    fireEvent.click(metalNova);
+    expect(METABLOOM_PALETTES.METALNOVA).toBe("metalnova");
+    expect(experience).toHaveAttribute("data-palette", "metalnova");
+    expect(metalNova).toHaveAttribute("aria-pressed", "true");
     expect(within(group).getAllByRole("button", { pressed: true })).toHaveLength(1);
 
     fireEvent.click(within(group).getByRole("button", { name: "Use liquid metal for Metabloom" }));
@@ -107,6 +114,15 @@ describe("Nova Orb finish", () => {
     expect(character.style.getPropertyValue("--avatar-color-c")).toBe("#fff0b3");
     fireEvent.keyDown(character, { key: "Enter" });
     expect(onPulse).toHaveBeenCalledTimes(1);
+    rerender(avatar("metalnova"));
+    expect(screen.getByTestId("nova-field-canvas")).toBe(canvas);
+    expect(canvas).toHaveAttribute("data-palette", "metalnova");
+    expect(canvas).toHaveAttribute("data-paused", "true");
+    expect(canvas).toHaveAttribute("data-version", "7");
+    expect(character).toHaveAccessibleName(/MetalNova liquid-metal fire finish/);
+    expect(character.style.getPropertyValue("--avatar-color-a")).toBe("#7a818b");
+    expect(character.style.getPropertyValue("--avatar-color-b")).toBe("#c3cbd7");
+    expect(character.style.getPropertyValue("--avatar-color-c")).toBe("#f3f6ff");
     rerender(avatar("metalbloom"));
     expect(canvas).toHaveAttribute("data-palette", "metalbloom");
     expect(character).toHaveAccessibleName(/liquid metal finish/);
@@ -118,10 +134,10 @@ describe("Nova Orb finish", () => {
     expect(container.querySelector("#orb-send-gradient").querySelectorAll("stop")).toHaveLength(4);
   });
 
-  test("keeps three mobile columns without an extra CSS animation or filter", () => {
+  test("keeps four mobile columns without an extra CSS animation or filter", () => {
     const css = fs.readFileSync(path.join(__dirname, "OrbNovaFinish.css"), "utf8");
-    expect(css).toContain("grid-template-columns: auto repeat(3, minmax(0, auto))");
-    expect(css).toContain("grid-template-columns: repeat(3, minmax(0, auto))");
+    expect(css).toContain("grid-template-columns: auto repeat(4, minmax(0, auto))");
+    expect(css).toContain("grid-template-columns: repeat(4, minmax(0, auto))");
     expect(css).toContain("@media (forced-colors: active)");
     expect(css).not.toContain("orb-nova-fire");
     expect(css).not.toMatch(/@keyframes|animation\s*:|backdrop-filter/);
