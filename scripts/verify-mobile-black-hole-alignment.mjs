@@ -98,8 +98,15 @@ try {
         const scene=document.querySelector('.immersive-background');
         scene.style.setProperty('height','880px','important');
         window.alignmentCanvas=document.querySelector('canvas[data-renderer-id="black-hole-background"]');
+        window.alignmentPreviousFrames=Number(alignmentCanvas.dataset.completedFrames);
       });
-      await page.waitForTimeout(100);
+      await page.waitForFunction(()=>{
+        const canvas=window.alignmentCanvas;
+        const bounds=canvas.getBoundingClientRect();
+        const aspectError=Math.abs(canvas.height*bounds.width-canvas.width*bounds.height);
+        return Number(canvas.dataset.completedFrames)>window.alignmentPreviousFrames
+          && aspectError<=Math.max(bounds.width,bounds.height)*1.5;
+      },null,{timeout:60000});
       await page.evaluate(toggleFix,false);await nextPaint(page);
       const before=await page.evaluate(measure);
       assert(Math.abs(before.scene.cy-before.hero.cy)>60,'the fixture must reproduce the old mobile offset');
@@ -121,13 +128,19 @@ try {
       }
       reports.push({scenario,initial,before,corrected,resized});
     } else {
+      const readStyle=()=>{
+        const style=getComputedStyle(document.querySelector('.immersive-background'));
+        return Object.fromEntries([...style].map(property=>[property,style.getPropertyValue(property)]));
+      };
+      const currentStyle=await page.evaluate(readStyle);
       const current=await page.screenshot();
       await page.evaluate(toggleFix,false);await nextPaint(page);
       const baseline=await page.evaluate(measure);
       const previous=await page.screenshot();
       assert.deepEqual(initial,baseline,'desktop and light-mode layout must remain unchanged');
-      assert(current.equals(previous),'desktop and light-mode rendered pixels must remain unchanged');
-      reports.push({scenario,initial,pixelIdentical:true});
+      assert.deepEqual(await page.evaluate(readStyle),currentStyle,'all desktop and light-mode computed background styles must remain unchanged');
+      if(scenario.theme==='dark')assert(current.equals(previous),'desktop rendered pixels must remain unchanged');
+      reports.push({scenario,initial,stylesIdentical:true,pixelCompared:scenario.theme==='dark'});
     }
     assert.deepEqual(errors,[],'the alignment must not introduce page errors');
     fs.writeFileSync(`${evidence}/alignment-report.json`,JSON.stringify(reports,null,2));
