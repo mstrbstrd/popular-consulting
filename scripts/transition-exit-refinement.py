@@ -39,15 +39,36 @@ replace('scripts/verify-orb-transitions.mjs',
 replace('scripts/verify-orb-transitions.mjs',
     "  assert(handoff.zooms.filter(z => z.phase === 'covering').length > 1, 'native camera must render during exit');\n  const zooms = handoff.zooms.filter(z => z.phase === 'covering').map(z => z.value);\n  assert(zooms.at(-1) > zooms[0], 'zoom must change inside the black-hole view, not the DOM');",
     """  fs.writeFileSync(`${evidence}/handoff.json`, JSON.stringify({covering,handoff}, null, 2));
-  console.log(JSON.stringify({exitFrom:handoff.exitFrom, exitFrames:handoff.zooms}));
-  // The software GPU is not a frame-rate benchmark. Even a delayed first
-  // exit sample must pull the actual camera back from the outgoing view.
+  console.log(JSON.stringify({exitFrom:handoff.exitFrom, exitFrames:handoff.zooms, gpu:handoff.gpu, raf:handoff.raf, trace:handoff.trace, events:await page.evaluate(()=>window.__graphicsReport?.())}));
   const zooms = handoff.zooms.filter(z => z.phase === 'covering').map(z => z.value);
   assert(zooms.length > 0, 'native camera must render during exit');
   assert(zooms.at(-1) > handoff.exitFrom, 'zoom must change inside the black-hole view, not the DOM');""")
 replace('scripts/verify-orb-transitions.mjs',
     "  const context = await browser.newContext({ viewport: { width: 640, height: 720 } });",
-    """  // Keep the canonical ray-marching shader within the software adapter's
-  // test budget. Desktop/phone layout and startup are exercised above; this
-  // smaller viewport checks real camera uniforms, not physical-device FPS.
+    """  // Software-adapter camera check; normal viewport layouts are tested above.
   const context = await browser.newContext({ viewport: { width: 240, height: 300 } });""")
+replace('scripts/verify-orb-transitions.mjs',
+    '  const proto = WebGL2RenderingContext.prototype, names = new Map();',
+    '''  transitionReview.gpu = {}; transitionReview.raf = {};
+  const request = window.requestAnimationFrame;
+  window.requestAnimationFrame = function(callback) {
+    return request.call(this, timestamp => {
+      const phase = document.querySelector('.app-outlet')?.dataset.phase || 'boot';
+      transitionReview.raf[phase] = (transitionReview.raf[phase] || 0) + 1;
+      return callback(timestamp);
+    });
+  };
+  const proto = WebGL2RenderingContext.prototype, names = new Map();
+  const wait = proto.clientWaitSync;
+  proto.clientWaitSync = function(...args) {
+    const result = wait.apply(this,args);
+    if (this.canvas.dataset.rendererId === 'black-hole-background') {
+      const phase = document.querySelector('.app-outlet')?.dataset.phase || 'boot';
+      const key = phase + ':' + result;
+      transitionReview.gpu[key] = (transitionReview.gpu[key] || 0) + 1;
+    }
+    return result;
+  };''')
+replace('scripts/verify-orb-transitions.mjs',
+    "const row = { phase: outlet?.dataset.phase, route: outlet?.dataset.route, ready: field?.dataset.fieldReady,",
+    "const row = { at: performance.now(), visible: document.visibilityState, hole: hole ? {width:hole.width,height:hole.height,...hole.dataset} : null, phase: outlet?.dataset.phase, route: outlet?.dataset.route, ready: field?.dataset.fieldReady,")
