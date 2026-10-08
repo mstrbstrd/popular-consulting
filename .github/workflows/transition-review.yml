@@ -14,7 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 5
+          fetch-depth: 8
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -37,6 +37,7 @@ jobs:
           s=s.replace('    reports.push({ scenario, result }); await context.close();', "    reports.push({ scenario, result });\n    fs.writeFileSync(`${evidence}/report.json`, JSON.stringify(reports, null, 2));\n    console.log(`PASS ${scenario.name}`);\n    await context.close();")
           p.write_text(s)
           PY
+          python scripts/transition-exit-refinement.py
       - run: npm ci --no-audit --no-fund
       - run: npm run lint
       - name: Regression suite and unchanged baseline
@@ -53,7 +54,7 @@ jobs:
           const failures=r=>r.testResults.flatMap(s=>s.assertionResults.filter(t=>t.status==='failed').map(t=>t.fullName)).sort();
           console.log({passed:current.numPassedTests,failed:current.numFailedTests,failures:failures(current)});
           assert.equal(current.numRuntimeErrorTestSuites,0);assert.equal(current.numPendingTests,0);
-          assert(current.numPassedTests>=1027);assert(current.numFailedTests<=1);
+          assert(current.numPassedTests>=1035);assert(current.numFailedTests<=1);
           if(current.numFailedTests)assert.deepEqual(failures(current),failures(base));
           fs.mkdirSync('transition-review',{recursive:true});fs.writeFileSync('transition-review/tests.json',JSON.stringify({passed:current.numPassedTests,failed:current.numFailedTests,failures:failures(current)},null,2));
           NODE
