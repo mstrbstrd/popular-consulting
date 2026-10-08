@@ -34,8 +34,6 @@ export default function ApplicationShell() {
   const [phase, setPhase] = useState('loading');
   const [continuousScene, setContinuousScene] = useState(false);
   const [immersiveSection, setImmersiveSection] = useState(0);
-  // Retain the outgoing scene's rendering policy when the URL becomes a tool.
-  const [scenePathname, setScenePathname] = useState(() => sharesImmersiveBackground(window.location.pathname) ? window.location.pathname : '/');
   const [destination, setDestination] = useState(() => routeMetadataFor(window.location.pathname)?.title.split(' | ')[0] || 'Popular Consulting');
   const [slow, setSlow] = useState(false);
   const locationRef = useRef(location);
@@ -94,7 +92,6 @@ export default function ApplicationShell() {
       entryKey.current = nextEntryKey;
       if (!pop && routeMetadataFor(url.pathname)?.path === '/home') markHomeEntryIntent();
       locationRef.current = next;
-      if (sharesImmersiveBackground(url.pathname)) setScenePathname(url.pathname);
       setPhase('loading'); setLocation(next);
     }, reducedMotion() ? 0 : 720);
   }, [clearTimers, later]);
@@ -112,7 +109,8 @@ export default function ApplicationShell() {
         if (target && !target.closest('[inert]')) target.scrollIntoView?.();
       }, 0);
     }
-    if (!request || request.next !== location || request.generation !== generation.current) return;
+    if (!request || request.ready || request.next !== location || request.generation !== generation.current) return;
+    request.ready = true;
     later(() => {
       if (generation.current !== request.generation) return;
       const hash = new URL(location, window.location.origin).hash;
@@ -235,7 +233,13 @@ export default function ApplicationShell() {
   const busy = phase !== 'idle';
   const routeEpoch = ['/home', '/orb', '/popcan', '/dither-canvas', '/invoice-generator'].includes(routeMetadataFor(navigation.pathname)?.path) ? stateRevision : 0;
   return <AppNavigationContext.Provider value={navigation}>
-    {(navigation.persistentImmersiveBackground || busy) && <ImmersiveBackground activeSection={immersiveSection} pathname={scenePathname} transitionPhase={phase} />}
+    {/* A tool never borrows the index renderer as a loader. Release the outgoing
+        live background at the covered handoff, before the tool creates its GPU context. */}
+    <div className="app-route-backdrop" data-route={routeMetadataFor(navigation.pathname)?.path} aria-hidden="true" />
+    {navigation.persistentImmersiveBackground && <ImmersiveBackground
+      activeSection={immersiveSection} pathname={navigation.pathname}
+      transitionPhase={phase === 'loading' && pending.current ? 'covered' : phase}
+    />}
     <RouteAssets pathname={navigation.pathname} />
     <div ref={outletRef} className="app-outlet" data-phase={phase} data-continuous-scene={continuousScene} data-route={navigation.pathname} inert={busy ? '' : undefined} aria-busy={busy}>
       <RouteErrorBoundary key={`${navigation.pathname}:${routeEpoch}`} onReady={ready}>

@@ -11,19 +11,29 @@ The index, engineering/login sections and Home use one persistent
 `ImmersiveBackground` outside the route outlet. The opening and Home reveal share
 the same live canvas, shader time and mobile graphics selection. Home remains
 naturally scrollable without a separate scrollbar gutter. Leaving for another
-tool releases this scene after the destination finishes revealing.
+tool completes the exit and releases this scene at the covered handoff, before
+the destination mounts its own renderer. Direct tool loads and tool-to-tool
+handoffs use a static theme-matched surface, never a temporary index renderer.
 
 Navigation reverses the light field's authored crystallization and Home's entry
 depths. Dark mode pulls the black-hole camera back while fading the scene out.
-The live layer also scales gently so slow, tiled GPU frames still show the exit.
+Camera travel uses the canonical black-hole zoom uniform, just like index
+section changes. The viewport, background wrapper and canvas never scale.
+An immersive-to-immersive handoff holds the exit through loading and resumes the
+same camera only when the destination is ready, without a loading-phase flash.
 The 650ms exit has a bounded 720ms handoff, independent of shader frames or
 callbacks. The next page reveals over the theme background without a loading logo.
 Cancelled exits resume the current field; reduced motion skips the choreography.
-Fixed navigation stays in its viewport layer. CSS graphics use a fade and a dark
-zoom fallback; essential content works with reduced motion or
-forced colours. Route changes announce their destination and focus the incoming
-main region after it becomes interactive. Slow or failed loads expose recovery
-controls.
+Fixed navigation stays in its viewport layer. CSS graphics use only a fade;
+essential content works with reduced motion or forced colours. Route changes
+announce their destination and focus the incoming main region after it becomes
+interactive. Slow or failed loads expose recovery controls.
+
+Orb signals readiness through `OrbPage` / `OrbSection` / `MetabloomAvatar` from
+`CreatorOSFieldCanvas`, after its first draw or committed CSS fallback. Module
+mount alone cannot dismiss the route loading state. The one-shot callback is
+cancelled on unmount and does not restart on palette changes. Restoring a paused
+conversation draws a visible static pose instead of an empty intro frame.
 
 Scroll-driven screens can register a route scroll-restoration callback. Dither
 restores its retained study's scroll position before measuring the field and
@@ -75,9 +85,10 @@ npm run test:auth
 npm run lint
 npm run build
 node scripts/verify-app-navigation.mjs
+node scripts/verify-orb-transitions.mjs
 ```
 
-The browser suite requires Playwright 1.51.1 and Chromium/WebKit. An external
+The navigation browser suite requires Playwright and Chromium/WebKit. An external
 installation can be selected with `PLAYWRIGHT_MODULE`; `CHROMIUM_PATH` and
 `WEBKIT_PATH` can select existing browser binaries. `APP_NAV_PROFILE` selects
 one profile and `APP_NAV_EVIDENCE` writes screenshots.
@@ -87,6 +98,12 @@ document load through tool switches, native history, state retention, mobile
 previews, scoped styles, shared themes and session revocation. GPU capability
 fixtures exercise the authored mobile branch on a software adapter; they do not
 represent physical device performance. Server authorization is tested separately.
+The Orb transition suite also checks cold dark/light/reduced-motion/CSS starts,
+local WebGL failure, native camera travel without DOM shrinking, renderer
+exclusivity, and signed-in back/forward navigation. It supports a local Playwright
+installation or `NODE_PATH` pointing to an external installation. Completed-fade
+checks wait for both the route state and the browser's last composited opacity
+frame, rather than sampling the transition on an arbitrary delay.
 
 Rollback by reverting the continuous-navigation change and rebuilding. No server
 data migration or session-cookie change is involved.

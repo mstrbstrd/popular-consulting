@@ -385,6 +385,7 @@ const extractCorrelatedResponse = (detail) => {
 const OrbSection = ({
   isActive = true,
   onConversationStateChange,
+  onReady,
 }) => {
   const { isDark } = useThemeMode();
   const navigation = useAppNavigation();
@@ -1572,6 +1573,7 @@ const OrbSection = ({
           isActive={isActive}
           isDark={isDark}
           onFieldStateChange={handleFieldStateChange}
+          onReady={onReady}
           onPulse={pulse}
           paused={paused}
           pulseVersion={pulseVersion}

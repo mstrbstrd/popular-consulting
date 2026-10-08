@@ -54,3 +54,24 @@ test('routes dark exits to the camera instead of the light reveal hooks', () => 
   expect(getByTestId('dark-field')).toHaveAttribute('data-exiting', 'true');
   expect(window.__ditherRevealOut).not.toHaveBeenCalled();
 });
+
+test('holds both native exits across a covered load instead of restarting them', () => {
+  const { rerender, getByTestId } = render(<ImmersiveBackground transitionPhase="idle" />);
+  rerender(<ImmersiveBackground transitionPhase="covering" />);
+  rerender(<ImmersiveBackground transitionPhase="covered" />);
+  expect(window.__ditherRevealOut).toHaveBeenCalledTimes(1);
+  expect(window.__ditherRevealIn).not.toHaveBeenCalled();
+  rerender(<ImmersiveBackground transitionPhase="revealing" />);
+  expect(window.__ditherRevealIn).toHaveBeenCalledTimes(1);
+  rerender(<ThemeCtx.Provider value={{ isDark: true }}><ImmersiveBackground transitionPhase="covered" /></ThemeCtx.Provider>);
+  expect(getByTestId('dark-field')).toHaveAttribute('data-exiting', 'true');
+  rerender(<ThemeCtx.Provider value={{ isDark: true }}><ImmersiveBackground transitionPhase="revealing" /></ThemeCtx.Provider>);
+  expect(getByTestId('dark-field')).toHaveAttribute('data-exiting', 'false');
+});
+
+test('never shrinks the black-hole canvas or fallback during route exits', () => {
+  const css = require('fs').readFileSync(require('path').join(__dirname, 'ApplicationShell.css'), 'utf8');
+  expect(css).not.toMatch(/transform:\s*scale\(/);
+  expect(css).toContain('transition: opacity 650ms ease;');
+  expect(css).toContain('[data-transition-phase="covered"]');
+});

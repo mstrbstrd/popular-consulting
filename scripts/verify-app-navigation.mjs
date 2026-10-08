@@ -139,7 +139,7 @@ try {
           await waitForCheck(page, () => document.querySelector('.app-route-curtain')?.dataset.phase === 'loading' && getComputedStyle(document.querySelector('.app-outlet')).opacity === '0');
           const loading = await page.evaluate(() => {
             const scene = document.querySelector('.immersive-background');
-            const rect = scene?.getBoundingClientRect();
+            const rect = document.querySelector('.app-route-backdrop')?.getBoundingClientRect();
             return {
               theme: document.documentElement.dataset.theme,
               curtain: getComputedStyle(document.querySelector('.app-route-curtain')).backgroundColor,
@@ -156,18 +156,10 @@ try {
           });
           assert.equal(loading.theme, theme);
           assert.equal(loading.curtain, 'rgba(0, 0, 0, 0)', 'Loader flattened the theme background');
-          assert.equal(loading.hasScene, true, 'Loading theme scene is missing');
-          if (loading.hadScene) {
-            assert.equal(loading.sameScene, true, 'Loader replaced the shared scene');
-            assert.equal(loading.sameCanvas, true, 'Loader restarted the shared canvas');
-          }
+          assert.equal(loading.hasScene, false, 'A tool load must not borrow the index renderer');
           assert.equal(loading.viewport, true, 'Loading background does not cover the viewport');
           assert.equal(loading.inert, true, 'Loading screen accepts page interactions');
-          if (graphics === 'webgl') {
-            assert.equal(loading.hasCanvas, true, 'Full-detail loading renderer is missing');
-            if (theme === 'dark') assert.equal(loading.blackHole, true, 'URL change disabled the dark scene');
-            else if (mobile) assert.equal(loading.mobileLight, 'high-fidelity', 'URL change downgraded the light scene');
-          }
+          assert.equal(loading.hasCanvas, false, 'The outgoing GPU renderer must be released before a tool starts');
           if (evidence) await page.screenshot({ path: path.join(evidence, `${profile}-loading-${theme}.png`) });
           release();
         });

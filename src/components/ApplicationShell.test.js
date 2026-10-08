@@ -12,10 +12,10 @@ let mockDelayReady = false;
 let mockRouteReady;
 const mockRestoreScroll = jest.fn();
 jest.mock('../contexts/AuthContext', () => ({ useAuth: () => mockAuth }));
-jest.mock('./ImmersiveBackground', () => function MockScene({ pathname }) {
+jest.mock('./ImmersiveBackground', () => function MockScene({ pathname, transitionPhase }) {
   const ReactModule = require('react');
   ReactModule.useEffect(() => { mockSceneLifecycle.push('mount'); return () => mockSceneLifecycle.push('dispose'); }, []);
-  return <div data-testid="shared-scene" data-scene-path={pathname}><canvas /></div>;
+  return <div data-testid="shared-scene" data-scene-path={pathname} data-transition-phase={transitionPhase}><canvas /></div>;
 });
 jest.mock('./BlackHoleBackground', () => () => null);
 jest.mock('../utils/privateInvoiceLoader', () => ({ syncPrivateInvoiceSession: jest.fn() }));
@@ -143,44 +143,60 @@ test('retains the same scene and canvas between index and home, then disposes it
   unmount();
 });
 
-test('retains the outgoing theme scene throughout a delayed tool load and releases it after the fade', () => {
+test('releases the outgoing renderer before the incoming tool starts, including delayed loads', () => {
   render(<ThemeProvider enableBackground={false}><ApplicationShell /></ThemeProvider>); advance(360);
   fireEvent.click(screen.getByText('Theme'));
   const scene = screen.getByTestId('shared-scene');
   const canvas = scene.querySelector('canvas');
   mockDelayReady = true;
   fireEvent.click(screen.getByText('Orb'));
+  expect(scene).toHaveAttribute('data-transition-phase', 'covering');
+  expect(canvas.isConnected).toBe(true);
   advance(720);
   expect(document.querySelector('.app-outlet')).toHaveAttribute('data-phase', 'loading');
-  expect(screen.getByTestId('shared-scene')).toBe(scene);
-  expect(scene).toHaveAttribute('data-scene-path', '/home');
-  expect(canvas.isConnected).toBe(true);
+  expect(screen.queryByTestId('shared-scene')).toBeNull();
+  expect(canvas.isConnected).toBe(false);
+  expect(document.querySelector('.app-route-backdrop')).toHaveAttribute('data-route', '/orb');
   expect(document.documentElement).toHaveAttribute('data-theme', 'dark');
   advance(12000);
   expect(screen.getByRole('alert')).toHaveTextContent('taking longer');
   expect(document.querySelector('.app-outlet')).toHaveAttribute('inert');
   act(() => mockRouteReady()); advance(32);
   expect(document.querySelector('.app-outlet')).toHaveAttribute('data-phase', 'revealing');
-  expect(canvas.isConnected).toBe(true);
   advance(360);
-  expect(screen.queryByTestId('shared-scene')).toBeNull();
   expect(mockSceneLifecycle).toEqual(['mount', 'dispose']);
   expect(document.querySelector('.app-outlet')).not.toHaveAttribute('inert');
   expect(document.activeElement).toBe(screen.getByRole('main'));
 });
 
-test('provides the theme background on direct tool loading and subsequent tool handoffs', () => {
-  window.history.replaceState({}, '', '/orb');
+test.each(['/orb', '/orb/index.html', '/work'])('never mounts the index scene on direct %s or tool-to-tool loading', path => {
+  window.history.replaceState({}, '', path);
   mockDelayReady = true;
   render(<ApplicationShell />);
-  expect(screen.getByTestId('shared-scene')).toHaveAttribute('data-scene-path', '/');
+  expect(screen.queryByTestId('shared-scene')).toBeNull();
+  expect(document.querySelector('.app-route-backdrop')).not.toBeNull();
   expect(document.querySelector('.app-outlet')).toHaveAttribute('data-phase', 'loading');
   act(() => mockRouteReady()); advance(360);
+  fireEvent.click(screen.getByText(path === '/work' ? 'Orb' : 'Work')); advance(720);
   expect(screen.queryByTestId('shared-scene')).toBeNull();
-  fireEvent.click(screen.getByText('Work')); advance(720);
-  expect(screen.getByTestId('shared-scene')).toHaveAttribute('data-scene-path', '/');
   expect(document.querySelector('.app-outlet')).toHaveAttribute('data-phase', 'loading');
   act(() => mockRouteReady()); advance(32); advance(360);
-  expect(screen.queryByTestId('shared-scene')).toBeNull();
-  expect(mockSceneLifecycle).toEqual(['mount', 'dispose', 'mount', 'dispose']);
+  expect(mockSceneLifecycle).toEqual([]);
+});
+
+test('holds the native exit while the next immersive route loads, without remounting', () => {
+  window.history.replaceState({}, '', '/');
+  render(<ApplicationShell />); advance(360);
+  const scene = screen.getByTestId('shared-scene');
+  mockDelayReady = true;
+  fireEvent.click(screen.getByText('Home')); advance(720);
+  expect(screen.getByTestId('shared-scene')).toBe(scene);
+  expect(scene).toHaveAttribute('data-transition-phase', 'covered');
+  advance(1000);
+  expect(scene).toHaveAttribute('data-transition-phase', 'covered');
+  act(() => { mockRouteReady(); mockRouteReady(); }); advance(32);
+  expect(scene).toHaveAttribute('data-transition-phase', 'revealing');
+  advance(360);
+  expect(mockSceneLifecycle).toEqual(['mount']);
+  expect(scene).toHaveAttribute('data-transition-phase', 'idle');
 });

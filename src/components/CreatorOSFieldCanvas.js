@@ -459,6 +459,7 @@ const CreatorOSFieldCanvas = ({
   morphogenGradient = "flow",
   morphogenTool = "draw",
   onFieldStateChange,
+  onReady,
   paused = false,
   resetVersion = 0,
   tidalPalette = "water",
@@ -542,6 +543,19 @@ const CreatorOSFieldCanvas = ({
   const restartRef = useRef(true);
   const redrawRef = useRef(() => {});
   const [fallback, setFallback] = useState(false);
+  const [presented, setPresented] = useState(false);
+  const readyNotifiedRef = useRef(false);
+
+  useEffect(() => {
+    if ((!presented && !fallback) || readyNotifiedRef.current) return undefined;
+    // Wait for the committed frame or CSS fallback, not just component mount.
+    // One callback per mounted field; palette changes/recovery cannot reveal a stale route.
+    const frame = window.requestAnimationFrame(() => {
+      readyNotifiedRef.current = true;
+      onReady?.();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [presented, fallback, onReady]);
   const [contextVersion, setContextVersion] = useState(0);
 
   useEffect(() => {
@@ -710,6 +724,7 @@ const CreatorOSFieldCanvas = ({
       return undefined;
     }
 
+    let hasPresented = false;
     let gl;
     let displayProgram;
     let paintDisplayProgram;
@@ -1718,6 +1733,10 @@ const CreatorOSFieldCanvas = ({
         1 / reactionSize,
       );
       gl.drawArrays(gl.TRIANGLES, 0, 3);
+      if (!hasPresented && !gl.isContextLost()) {
+        hasPresented = true;
+        setPresented(true);
+      }
     };
 
     const drawStatic = () => {
@@ -1887,6 +1906,8 @@ const CreatorOSFieldCanvas = ({
       frameCadence.reset();
       applyRestart();
       updateSize();
+      // Restoring a paused conversation still needs a visible first pose.
+      if (pausedRef.current) introElapsed = INTRO_DURATION_SECONDS;
       if (reducedMotion) {
         drawStatic();
         return;
@@ -1994,6 +2015,7 @@ const CreatorOSFieldCanvas = ({
         fallback ? " is-fallback" : ""
       }`}
       data-context-recovery="local"
+      data-field-ready={presented || fallback ? "true" : "false"}
       data-renderer-id="dither-canvas-field"
       data-runtime-profile={ditherCanvasRuntimeProfile.id}
       data-field-specialization={FIELD_SCENE_FUNCTIONS[clampMode(mode)]}

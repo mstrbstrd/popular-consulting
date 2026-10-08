@@ -43,6 +43,7 @@ const MetabloomAvatar = ({
   isActive = true,
   isDark = false,
   onFieldStateChange,
+  onReady,
   onPulse,
   paused = false,
   pulseVersion = 0,
@@ -133,6 +134,7 @@ const MetabloomAvatar = ({
         metabloomPalette={metabloomPalette}
         mode={fieldMode}
         onFieldStateChange={onFieldStateChange}
+        onReady={onReady}
         paused={!active}
         resetVersion={resetVersion}
       />

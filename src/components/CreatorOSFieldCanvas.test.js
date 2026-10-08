@@ -305,3 +305,17 @@ describe("CreatorOSFieldCanvas", () => {
     expect(source).toContain("gl.deleteProgram");
   });
 });
+
+test('signals startup only after its fallback has committed, once per field', async () => {
+  jest.spyOn(console, 'error').mockImplementation(() => {});
+  jest.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+  const onReady = jest.fn();
+  const { container, rerender, unmount } = render(<CreatorOSFieldCanvas onReady={onReady} />);
+  await waitFor(() => expect(onReady).toHaveBeenCalledTimes(1));
+  expect(container.querySelector('.creatoros-field-shell')).toHaveAttribute('data-field-ready', 'true');
+  expect(container.querySelector('.creatoros-field-fallback')).not.toBeNull();
+  rerender(<CreatorOSFieldCanvas onReady={onReady} metabloomPalette="metalnova" />);
+  expect(onReady).toHaveBeenCalledTimes(1);
+  unmount();
+  jest.restoreAllMocks();
+});
