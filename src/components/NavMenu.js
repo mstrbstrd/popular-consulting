@@ -248,17 +248,6 @@ const NavMenu = ({ audience = SITE_AUDIENCES.BUSINESS, standalone = false, initi
             if (event.target === event.currentTarget) setIsMobileMenuOpen(false);
           }}
         >
-          <ul
-            className="nav-overlay-links"
-          >
-            <li><WorkspaceMenu inline onNavigate={closeMobileMenu} /></li>
-            <li className="nav-menu-label" aria-hidden="true">Site</li>
-            {navLinks.filter(link => !appNavigation || !workspaceHrefs.has(link.href)).map((link) => (
-              <li key={link.label}>{renderLink(link, true)}</li>
-            ))}
-            <li><AuthNavControl mobile showWorkspaceLinks={!appNavigation} onNavigate={closeMobileMenu} /></li>
-          </ul>
-
           <button
             className="nav-theme-toggle nav-overlay-theme"
             onClick={(event) => {
@@ -289,6 +278,17 @@ const NavMenu = ({ audience = SITE_AUDIENCES.BUSINESS, standalone = false, initi
               </svg>
             )}
           </button>
+
+          <ul
+            className="nav-overlay-links"
+          >
+            <li><WorkspaceMenu inline onNavigate={closeMobileMenu} /></li>
+            <li className="nav-menu-label" aria-hidden="true">Site</li>
+            {navLinks.filter(link => !appNavigation || !workspaceHrefs.has(link.href)).map((link) => (
+              <li key={link.label}>{renderLink(link, true)}</li>
+            ))}
+            <li><AuthNavControl mobile showWorkspaceLinks={!appNavigation} onNavigate={closeMobileMenu} /></li>
+          </ul>
         </div>
       )}
 
@@ -636,7 +636,8 @@ const NavMenu = ({ audience = SITE_AUDIENCES.BUSINESS, standalone = false, initi
         .nav-overlay-theme {
           width: 72px;
           height: 72px;
-          margin-top: 3.2rem;
+          align-self: center;
+          margin: 0 0 1.6rem;
           border-color: rgba(255,255,255,0.20);
           background: rgba(255,255,255,0.10);
           color: var(--mobile-link);

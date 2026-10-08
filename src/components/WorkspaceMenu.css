@@ -63,7 +63,7 @@ html body .work-page .work-page__menu .nav-overlay-link { font-size: 1.15rem !im
   html body .nav-overlay .nav-menu-label { padding: 14px 14px 8px; text-align: left; }
   html body .nav-overlay .workspace-menu-inline a > span { display: block; color: var(--aetheris-teal); }
   html body .nav-overlay .workspace-menu-inline a[aria-current="page"] { background: var(--aetheris-state-layer); }
-  html body .nav-overlay-theme { width: 48px; height: 48px; margin: 16px 0 0; }
+  html body .nav-overlay-theme { width: 48px; height: 48px; margin: 0 0 12px; }
 
   .dither-canvas-page .rupture-header {
     top: max(12px, env(safe-area-inset-top));
