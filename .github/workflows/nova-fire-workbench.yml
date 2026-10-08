@@ -3,7 +3,7 @@ on:
   push:
     branches: [work/nova-fire-physics]
 permissions:
-  contents: read
+  contents: write
 concurrency:
   group: nova-fire-workbench
   cancel-in-progress: true
@@ -14,10 +14,47 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: work/nova-fire-physics
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
+      - name: Preserve the independent paint shader
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('src/components/CreatorOSFieldShader.js')
+          source = p.read_text()
+          marker = 'export const CREATOROS_FIELD_PAINT_FRAGMENT_SHADER'
+          assert source.count(marker) == 1
+          head, paint = source.split(marker, 1)
+          if '${METABLOOM_NOVA_SHADER}' in paint:
+              assert paint.count('${METABLOOM_NOVA_SHADER}') == 1
+              paint = paint.replace('${METABLOOM_NOVA_SHADER}\n\n', '', 1)
+              branch = '  // A uniform-only branch keeps all finishes in the same WebGL program.\n  if (u_metabloomNovaMix >= 0.999) return sceneNovaFire(uv, u_novaTime);\n  vec2 novaUv = uv;\n'
+              assert paint.count(branch) == 1
+              paint = paint.replace(branch, '', 1)
+              old = 'return blendNovaFire(mix(\n  spectralMaterial,\n  metalMaterial,\n  sat(u_metabloomPaletteMix)\n), novaUv);'
+              assert paint.count(old) == 1
+              paint = paint.replace(old, 'return mix(\n  spectralMaterial,\n  metalMaterial,\n  sat(u_metabloomPaletteMix)\n);', 1)
+              p.write_text(head + marker + paint)
+          assert 'u_metabloomNovaMix' not in paint
+          p = Path('scripts/verify-nova-fire.mjs')
+          source = p.read_text()
+          if 'as paint }' not in source:
+              source = source.replace('CREATOROS_FIELD_VERTEX_SHADER as vertex }', 'CREATOROS_FIELD_VERTEX_SHADER as vertex, CREATOROS_FIELD_PAINT_FRAGMENT_SHADER as paint }')
+              source = source.replace('window.novaShaders = { fragment, vertex };', 'window.novaShaders = { fragment, vertex, paint };')
+              source = source.replace('const p=gl.createProgram();const vs=shader', "const paintShader=shader(gl.FRAGMENT_SHADER,novaShaders.paint);gl.deleteShader(paintShader);\n    const p=gl.createProgram();const vs=shader")
+              p.write_text(source)
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/components/CreatorOSFieldShader.js scripts/verify-nova-fire.mjs
+          if ! git diff --cached --quiet; then
+            git commit -m 'Keep Nova in the Orb shader and validate the unchanged paint shader'
+            git push origin HEAD:work/nova-fire-physics
+          fi
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
       - name: Lint
