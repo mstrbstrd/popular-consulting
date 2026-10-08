@@ -34,7 +34,7 @@ vec3 novaEdgeFlow(vec2 p, vec2 up) {
       + sat(u_avatarExpression) * sat(u_avatarIntensity) * 0.18
       + clamp(u_avatarBurst, 0.0, 0.52)));
   float liftRange = mix(0.085 + flare * 0.025,
-    0.245 + flare * 0.075, NOVA_FIRE_BALANCE);
+    0.215 + flare * 0.075, NOVA_FIRE_BALANCE);
   float lift = mix(0.012, 0.020, NOVA_FIRE_BALANCE)
     + smoothstep(0.22, 0.76, eddy) * liftRange;
   float wind = clamp(u_pointer.x - 0.5, -0.5, 0.5) * sat(u_energy);
