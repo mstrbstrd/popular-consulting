@@ -1,0 +1,79 @@
+name: Mobile black-hole alignment review
+on:
+  push:
+    branches: [work/mobile-black-hole-alignment]
+permissions:
+  contents: write
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Apply mobile-only positioning
+        run: python scripts/apply-mobile-black-hole-alignment.py
+      - run: npm ci --no-audit --no-fund
+      - run: npm run lint
+      - name: Regression suite and unchanged baseline
+        env:
+          CI: true
+        run: |
+          mkdir -p alignment-review
+          npm test -- --watchAll=false --runInBand --json --outputFile=/tmp/current.json > /tmp/current.log 2>&1 || test -s /tmp/current.json
+          git worktree add --detach /tmp/baseline 821a9995413a691d8077652e81ffbd716e299495
+          ln -s "$PWD/node_modules" /tmp/baseline/node_modules
+          (cd /tmp/baseline && npm test -- --watchAll=false --runInBand --runTestsByPath src/components/InvoiceGeneratorNavigation.test.js --json --outputFile=/tmp/baseline.json > /tmp/baseline.log 2>&1) || test -s /tmp/baseline.json
+          node - <<'NODE'
+          const fs=require('fs'),assert=require('node:assert/strict');
+          const current=JSON.parse(fs.readFileSync('/tmp/current.json')),base=JSON.parse(fs.readFileSync('/tmp/baseline.json'));
+          const failures=r=>r.testResults.flatMap(s=>s.assertionResults.filter(t=>t.status==='failed').map(t=>t.fullName)).sort();
+          const report={passed:current.numPassedTests,failed:current.numFailedTests,failures:failures(current)};
+          fs.writeFileSync('alignment-review/tests.json',JSON.stringify(report,null,2));console.log(report);
+          assert.equal(current.numRuntimeErrorTestSuites,0);assert.equal(current.numPendingTests,0);
+          assert(current.numPassedTests>=1037);assert(current.numFailedTests<=1);
+          if(current.numFailedTests)assert.deepEqual(failures(current),failures(base));
+          NODE
+      - run: npm run test:auth > alignment-review/auth.log 2>&1
+      - name: Production build
+        env:
+          CI: true
+        run: npm run build
+      - name: Browser prerequisites
+        run: |
+          npm install --prefix /tmp/browser --no-audit --no-fund --ignore-scripts playwright@1.56.1
+          /tmp/browser/node_modules/.bin/playwright install chromium
+      - name: Mobile centre and unchanged desktop rendering
+        env:
+          NODE_PATH: /tmp/browser/node_modules
+        run: node scripts/verify-mobile-black-hole-alignment.mjs
+      - name: Preserve cold Orb and native route transitions
+        env:
+          NODE_PATH: /tmp/browser/node_modules
+        run: node scripts/verify-orb-transitions.mjs
+      - name: Commit tested source on work branch only
+        run: |
+          test "$(git branch --show-current)" = 'work/mobile-black-hole-alignment'
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/components/ImmersiveBackground.js
+          git commit -m 'Align mobile dark black-hole view with the fixed PopCon logo'
+          git push origin HEAD:work/mobile-black-hole-alignment
+      - name: Collect diagnostics
+        if: always()
+        run: |
+          mkdir -p alignment-review
+          cp /tmp/current.log alignment-review/ 2>/dev/null || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mobile-black-hole-alignment-review
+          path: |
+            alignment-review
+            transition-review
+          retention-days: 7
