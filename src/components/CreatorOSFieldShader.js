@@ -619,6 +619,11 @@ ${METABLOOM_NOVA_SHADER}
 vec4 sceneMetabloom(vec2 uv, float time) {
   vec2 scale = aspectScale();
   uv = pointerFlow(uv, 0.075);
+  // Move only Nova/MetalNova down inside the existing canvas, not the canvas
+  // itself. Blend placement with the finish; other activity scenes stay put.
+  float novaPlacementY = NOVA_VERTICAL_OFFSET * step(0.5, u_avatarEnabled)
+    * smoothstep(0.0, 1.0, sat(u_metabloomNovaMix));
+  uv.y += novaPlacementY;
   vec2 p = (uv - 0.5) * scale;
   p = viscousWarp(p, time, 0.08);
   p = rotate2(-0.08 + sin(time * 0.07) * 0.035) * p;
@@ -748,11 +753,11 @@ vec4 sceneMetabloom(vec2 uv, float time) {
     }
   }
 
-  vec2 pointer = (u_pointer - 0.5) * scale;
+  vec2 pointer = (u_pointer - 0.5 + vec2(0.0, novaPlacementY)) * scale;
   vec2 pointerDelta = p - pointer;
   float pointerWeight = (0.018 + u_energy * 0.035)
     / (dot(pointerDelta, pointerDelta) + 0.012);
-  float pulse = pulseField(uv);
+  float pulse = pulseField(uv - vec2(0.0, novaPlacementY));
   float interaction = pointerWeight + pulse * (0.55 + u_energy * 0.85);
   potential = min(potential + interaction, 8.0);
   if (u_metabloomNovaMix > 0.001) {
@@ -839,11 +844,13 @@ spectralMaterial.a = max(
 );
 
 vec4 novaMaterial = vec4(0.0);
+vec4 novaFlameSurface = vec4(0.0);
+float novaLiftedSignal = novaPotential * (1.10 + novaFlow.z * 0.18);
 if (u_metabloomNovaMix > 0.001) {
   novaMaterial = novaFireMaterial(spectralMaterial, vec3(potential, membrane, edge),
-    novaFlow, novaPotential, novaEmbers);
+    novaFlow, novaPotential, novaEmbers, novaFlameSurface);
   if (u_metabloomNovaMix >= 0.999 && u_metabloomPaletteMix <= 0.001) {
-    return novaPrismaticEdges(novaMaterial, p, baseHue);
+    return novaPrismaticEdges(novaMaterial, p, baseHue, novaFlameSurface, novaLiftedSignal);
   }
 }
 
@@ -1064,6 +1071,9 @@ metalMaterial.rgb += prismaticReflection
   * reflectionPrismMask
   * 0.055;
 
+// MetalNova keeps the native reflections but not Metalbloom's body outline.
+vec4 novaMetalCore = metalMaterial;
+
 // Compose the spectral rim last. Direct colour blending is required here:
 // channel-wise maxima against silver would neutralize the gradient back to white.
 float metalEdgeLuma = max(
@@ -1092,7 +1102,8 @@ metalMaterial.a = max(
 
 if (u_metabloomNovaMix > 0.001) {
   novaMaterial = novaPrismaticEdges(
-    novaMetalFinish(novaMaterial, metalMaterial, spectralMaterial.a), p, baseHue
+    novaMetalFinish(novaMaterial, novaMetalCore, spectralMaterial.a, novaFlameSurface),
+    p, baseHue, novaFlameSurface, novaLiftedSignal
   );
 }
 

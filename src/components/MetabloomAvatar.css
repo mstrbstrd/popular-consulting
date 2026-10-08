@@ -198,3 +198,10 @@
     outline-color: Highlight;
   }
 }
+
+/* Match Nova's shader headroom in the static fallback without moving controls,
+   the full-screen hit target, or the Tidal/Contour activity backdrops. */
+.metabloom-avatar:is([data-avatar-finish="nova"], [data-avatar-finish="metalnova"])[data-avatar-theme="metabloom"]
+  .creatoros-field-shell.is-fallback .creatoros-field-fallback {
+  transform: translateY(10%) var(--avatar-fallback-transform, none);
+}

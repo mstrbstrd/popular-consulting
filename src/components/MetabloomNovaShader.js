@@ -7,6 +7,8 @@ uniform float u_novaTime;
 // Halfway between the restrained floating finish and a fuller flame treatment.
 // This changes heat and fringe flow only, never the shared body's placement.
 const float NOVA_FIRE_BALANCE = 0.5;
+// Reserve headroom for the rising fringe without scaling the floating body.
+const float NOVA_VERTICAL_OFFSET = 0.10;
 
 vec3 novaTemperatureColor(float heat) {
   heat = sat(heat);
@@ -61,7 +63,7 @@ float novaSurfaceEmber(vec2 delta, float radius, float layer, vec2 up) {
     * (1.0 - smoothstep(0.45, 0.95, life)) * 0.62;
 }
 
-vec4 novaFireMaterial(vec4 nativeMaterial, vec3 field, vec3 flow, float liftedPotential, float embers) {
+vec4 novaFireMaterial(vec4 nativeMaterial, vec3 field, vec3 flow, float liftedPotential, float embers, out vec4 flameSurface) {
   float potential = field.x;
   float membrane = field.y;
   float edge = field.z;
@@ -77,34 +79,58 @@ vec4 novaFireMaterial(vec4 nativeMaterial, vec3 field, vec3 flow, float liftedPo
     * mix(0.14 + membrane * 0.09, 0.07 + flow.z * 0.10, NOVA_FIRE_BALANCE);
   color *= mix(1.0, 0.88, u_light);
 
+  float materialField = potential * (1.12 + membrane * 0.18) + edge * 0.24;
+  float liftedSignal = liftedPotential * (1.10 + flow.z * 0.18);
+  // Measure outward travel between the native surface and the lifted tip.
+  // Unlike opacity, this coordinate cannot turn a bright core into a dark tip.
+  float rootDistance = max(0.0, 1.20 - materialField)
+    / max(fwidth(materialField), 0.0001);
+  float tipDistance = max(0.0, liftedSignal - 0.74)
+    / max(fwidth(liftedSignal), 0.0001);
+  float flameProgress = smoothstep(0.0, 1.0,
+    rootDistance / max(rootDistance + tipDistance, 0.0001));
+  float rootHeat = 0.27 + flow.z * 0.055;
+  vec3 rootColor = novaTemperatureColor(rootHeat) * 0.72 * mix(1.0, 0.88, u_light);
+  // The same dark edge colour starts the flame, then the palette runs outward
+  // toward the hot inner-body colour. The dense interior is left untouched.
+  color = mix(rootColor, color, smoothstep(1.20, 1.75, materialField));
+
   // Use the original body's alpha verbatim. Flames cannot hollow it out,
   // detach it from the native field, or shift its centre toward a fuel base.
   float alpha = nativeMaterial.a;
   vec3 premultiplied = color * alpha;
-  float materialField = potential * (1.12 + membrane * 0.18) + edge * 0.24;
   float outside = 1.0 - smoothstep(0.72, 1.20, materialField);
-  float tongues = smoothstep(0.74, 1.16, liftedPotential * (1.10 + flow.z * 0.18));
+  float tongues = smoothstep(0.74, 1.16, liftedSignal);
   float flameOpacity = mix(mix(0.78, 0.86, u_light),
     mix(0.92, 0.96, u_light), NOVA_FIRE_BALANCE);
   float flame = tongues * outside * flameOpacity;
-  float fringeHeat = mix(0.30 + tongues * 0.38 + flow.z * 0.15,
-    0.20 + tongues * 0.55 + flow.z * 0.10, NOVA_FIRE_BALANCE);
-  vec3 fireColor = novaTemperatureColor(sat(fringeHeat));
+  float fringeHeat = mix(rootHeat, 0.92, flameProgress);
+  vec3 fireColor = novaTemperatureColor(fringeHeat)
+    * mix(0.72, 1.08, flameProgress) * mix(1.0, 0.88, u_light);
   premultiplied += fireColor * flame * (1.0 - alpha);
   alpha += flame * (1.0 - alpha);
   float ember = sat(embers);
   premultiplied += novaTemperatureColor(0.78) * ember * (1.0 - alpha);
   alpha += ember * (1.0 - alpha);
+  // x: outward progress, y: attached flame opacity, z: spark opacity,
+  // w: native material field. Both finishes and the prism use these same data.
+  flameSurface = vec4(flameProgress, flame, ember, materialField);
   return vec4(premultiplied / max(alpha, 0.00001), sat(alpha));
 }
 
-// Apply Tidal Weave's pale spectrum to a narrow visible opacity contour.
-// This is RGB-only: no halo, alpha expansion, displacement, or interior tint.
-vec4 novaPrismaticEdges(vec4 fire, vec2 p, float baseHue) {
-  float outlineWidth = clamp(fwidth(fire.a) * 0.72, 0.010, 0.045);
+// Colour only the exposed, distal flame surface, never the native orb contour.
+// The faint existing wisps beyond that surface carry the same pale spectrum.
+// This stays RGB-only: no added glow, alpha expansion, or detached geometry.
+vec4 novaPrismaticEdges(vec4 fire, vec2 p, float baseHue, vec4 flameSurface, float liftedSignal) {
+  float exposedFlame = (1.0 - smoothstep(0.72, 1.20, flameSurface.w))
+    * smoothstep(0.015, 0.085, liftedSignal - flameSurface.w);
+  float distalFlame = smoothstep(0.55, 0.82, flameSurface.x);
+  float outlineWidth = clamp(fwidth(liftedSignal) * 0.72, 0.010, 0.045);
   float outline = 1.0 - smoothstep(
-    outlineWidth, outlineWidth * 1.90, abs(fire.a - 0.46)
+    outlineWidth, outlineWidth * 1.90, abs(liftedSignal - 0.90)
   );
+  float wisps = 1.0 - smoothstep(0.78, 0.91, liftedSignal);
+  float prismMask = exposedFlame * distalFlame * max(outline, wisps);
   vec3 outlineSpectrum = spectral(
     0.47 + p.x * 0.85 + p.y * 0.32 + baseHue * 0.12 + u_novaTime * 0.012
   );
@@ -112,23 +138,29 @@ vec4 novaPrismaticEdges(vec4 fire, vec2 p, float baseHue) {
     mix(vec3(0.96), outlineSpectrum, mix(0.48, 0.42, u_light)),
     vec3(mix(0.70, 0.78, u_light))
   );
-  return vec4(mix(fire.rgb, outlineTint, outline * mix(0.92, 0.90, u_light)), fire.a);
+  return vec4(mix(fire.rgb, outlineTint, prismMask * mix(0.92, 0.90, u_light)), fire.a);
 }
 
-// Reuse the actual Metalbloom optical material on the core. The lifted flames
-// and sparks use its same mercury ramp, with Nova's existing heat modulation.
-// Palette changes cannot affect alpha, geometry, time, or the flame balance.
-vec4 novaMetalFinish(vec4 fire, vec4 metalMaterial, float nativeAlpha) {
+// Preserve Metalbloom's core optics, excluding its all-around spectral rim.
+// Recompose the very same Nova layers with a dark-root to bright-tip mercury
+// ramp, not the luminance of an already-composited orange flame.
+vec4 novaMetalFinish(vec4 fire, vec4 metalMaterial, float nativeAlpha, vec4 flameSurface) {
   float metalMix = sat(u_metabloomPaletteMix);
   if (metalMix <= 0.001) return fire;
-  float heat = sat(dot(fire.rgb, vec3(0.2126, 0.7152, 0.0722)));
+  float heat = flameSurface.x;
   vec3 mercuryShadow = mix(vec3(0.010, 0.014, 0.020), vec3(0.070, 0.078, 0.090), u_light);
   vec3 mercuryMid = mix(vec3(0.480, 0.505, 0.545), vec3(0.655, 0.675, 0.710), u_light);
   vec3 mercuryHighlight = mix(vec3(1.520, 1.560, 1.630), vec3(1.420, 1.455, 1.515), u_light);
   vec3 silverFlame = mix(mercuryShadow, mercuryMid, smoothstep(0.06, 0.54, heat));
   silverFlame = mix(silverFlame, mercuryHighlight, smoothstep(0.48, 0.98, heat));
-  float exterior = 1.0 - smoothstep(0.30, 0.80, nativeAlpha);
-  vec3 metalColor = mix(metalMaterial.rgb, silverFlame, exterior);
+  vec3 bodyColor = mix(mercuryShadow, metalMaterial.rgb,
+    smoothstep(1.20, 1.75, flameSurface.w));
+  float alpha = nativeAlpha;
+  vec3 premultiplied = bodyColor * alpha;
+  premultiplied += silverFlame * flameSurface.y * (1.0 - alpha);
+  alpha += flameSurface.y * (1.0 - alpha);
+  premultiplied += mercuryHighlight * flameSurface.z * (1.0 - alpha);
+  vec3 metalColor = premultiplied / max(fire.a, 0.00001);
   return vec4(mix(fire.rgb, metalColor, metalMix), fire.a);
 }
 
