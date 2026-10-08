@@ -118,8 +118,8 @@ vec4 novaFireMaterial(vec4 nativeMaterial, vec3 field, vec3 flow, float liftedPo
   return vec4(premultiplied / max(alpha, 0.00001), sat(alpha));
 }
 
-// Colour only the exposed, distal flame surface, never the native orb contour.
-// The faint existing wisps beyond that surface carry the same pale spectrum.
+// Replace Nova's yellow outer flame band with spectrum, never the native orb.
+// MetalNova retains silver flames; both finishes keep pale rainbow tips/wisps.
 // This stays RGB-only: no added glow, alpha expansion, or detached geometry.
 vec4 novaPrismaticEdges(vec4 fire, vec2 p, float baseHue, vec4 flameSurface, float liftedSignal) {
   float exposedFlame = (1.0 - smoothstep(0.72, 1.20, flameSurface.w))
@@ -130,7 +130,11 @@ vec4 novaPrismaticEdges(vec4 fire, vec2 p, float baseHue, vec4 flameSurface, flo
     outlineWidth, outlineWidth * 1.90, abs(liftedSignal - 0.90)
   );
   float wisps = 1.0 - smoothstep(0.78, 0.91, liftedSignal);
-  float prismMask = exposedFlame * distalFlame * max(outline, wisps);
+  // This is the outward interval where the warm ramp becomes yellow/gold.
+  // Gate by finish and exposed surface so roots and the gold core stay intact.
+  float yellowFlame = smoothstep(0.34, 0.58, flameSurface.x)
+    * (1.0 - sat(u_metabloomPaletteMix));
+  float prismMask = exposedFlame * max(yellowFlame, distalFlame * max(outline, wisps));
   vec3 outlineSpectrum = spectral(
     0.47 + p.x * 0.85 + p.y * 0.32 + baseHue * 0.12 + u_novaTime * 0.012
   );
@@ -138,23 +142,24 @@ vec4 novaPrismaticEdges(vec4 fire, vec2 p, float baseHue, vec4 flameSurface, flo
     mix(vec3(0.96), outlineSpectrum, mix(0.48, 0.42, u_light)),
     vec3(mix(0.70, 0.78, u_light))
   );
+  // More chroma in the replaced yellow band, fading into the existing pale
+  // rainbow at the very tips and smoky wisps. No additional opacity or halo.
+  vec3 rainbowFlame = mix(vec3(1.05), outlineSpectrum, mix(0.78, 0.68, u_light));
+  outlineTint = mix(outlineTint, rainbowFlame, yellowFlame * (1.0 - max(outline, wisps)));
   return vec4(mix(fire.rgb, outlineTint, prismMask * mix(0.92, 0.90, u_light)), fire.a);
 }
 
 // Preserve Metalbloom's core optics, excluding its all-around spectral rim.
-// Recompose the very same Nova layers with a dark-root to bright-tip mercury
-// ramp, not the luminance of an already-composited orange flame.
+// Keep its original bright body, rather than forcing the perimeter to black.
+// Recompose the same flames from silver roots to white tips using outward travel.
 vec4 novaMetalFinish(vec4 fire, vec4 metalMaterial, float nativeAlpha, vec4 flameSurface) {
   float metalMix = sat(u_metabloomPaletteMix);
   if (metalMix <= 0.001) return fire;
   float heat = flameSurface.x;
-  vec3 mercuryShadow = mix(vec3(0.010, 0.014, 0.020), vec3(0.070, 0.078, 0.090), u_light);
   vec3 mercuryMid = mix(vec3(0.480, 0.505, 0.545), vec3(0.655, 0.675, 0.710), u_light);
   vec3 mercuryHighlight = mix(vec3(1.520, 1.560, 1.630), vec3(1.420, 1.455, 1.515), u_light);
-  vec3 silverFlame = mix(mercuryShadow, mercuryMid, smoothstep(0.06, 0.54, heat));
-  silverFlame = mix(silverFlame, mercuryHighlight, smoothstep(0.48, 0.98, heat));
-  vec3 bodyColor = mix(mercuryShadow, metalMaterial.rgb,
-    smoothstep(1.20, 1.75, flameSurface.w));
+  vec3 silverFlame = mix(mercuryMid, mercuryHighlight, smoothstep(0.08, 0.98, heat));
+  vec3 bodyColor = metalMaterial.rgb;
   float alpha = nativeAlpha;
   vec3 premultiplied = bodyColor * alpha;
   premultiplied += silverFlame * flameSurface.y * (1.0 - alpha);

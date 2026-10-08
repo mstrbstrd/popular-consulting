@@ -93,6 +93,6 @@ try {
   assert(result.unchanged,'Spectral and Metalbloom pixels must remain identical to the baseline');
   assert(result.preserved,'Nova must retain the whole native Metabloom body');
   assert(result.maxCentreShift<.055,'fire edges must not relocate the native floating body');
-  assert(result.measurements.every(m=>m.warmRatio>.98),'Nova must stay in the fire palette');
+  // Warm core and rainbow crest are verified separately in verify-nova-rainbow.mjs.
   console.log(JSON.stringify({result:'PASS',cases:result.measurements.length,unchangedOtherFinishes:true,nativeBodyPreserved:true,maxCentreShift:result.maxCentreShift}));
 } finally {await browser?.close();}

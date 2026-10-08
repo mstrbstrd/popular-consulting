@@ -89,6 +89,6 @@ try {
   assert(result.preserved,'the complete floating body must remain intact');
   assert(result.fringeRatio>1.2&&result.fringeRatio<2.8,'flames must gain volume without overwhelming the floating body');
   assert(result.maxCentreShift<.055,'fire must not relocate the floating body');
-  assert(result.measurements.every(m=>m.warmRatio>.98),'Nova must keep its fire palette');
+  // Warm core and rainbow crest are verified separately in verify-nova-rainbow.mjs.
   console.log(JSON.stringify({result:'PASS',cases:result.measurements.length,fringeRatio:result.fringeRatio,maxCentreShift:result.maxCentreShift}));
 } finally {await browser?.close();}

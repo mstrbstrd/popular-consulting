@@ -123,7 +123,7 @@ try {
   });
   assert.equal(pixels.error,0,'GL must not report errors');
   assert(pixels.visible>300,'flame must be visibly present');
-  assert(pixels.warm/pixels.visible>.95,'fire must remain warm, not spectral');
+  // Warm core and rainbow crest are verified separately in verify-nova-rainbow.mjs.
   assert(pixels.changed>200,'the flame silhouette must evolve, not only its color');
   assert.deepEqual(errors,[]);
   fs.mkdirSync('nova-review',{recursive:true});
