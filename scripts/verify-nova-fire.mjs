@@ -13,8 +13,8 @@ const bundle = await build({
     contents: `import React from 'react';
 import { createRoot } from 'react-dom/client';
 import CreatorOSFieldCanvas from './src/components/CreatorOSFieldCanvas';
-import { CREATOROS_FIELD_FRAGMENT_SHADER as fragment, CREATOROS_FIELD_VERTEX_SHADER as vertex } from './src/components/CreatorOSFieldShader';
-window.novaShaders = { fragment, vertex };
+import { CREATOROS_FIELD_FRAGMENT_SHADER as fragment, CREATOROS_FIELD_VERTEX_SHADER as vertex, CREATOROS_FIELD_PAINT_FRAGMENT_SHADER as paint } from './src/components/CreatorOSFieldShader';
+window.novaShaders = { fragment, vertex, paint };
 function Harness() {
   const [props, setProps] = React.useState({metabloomPalette:'spectral',isDark:true});
   window.setNovaProps = patch => setProps(old => ({...old,...patch}));
@@ -82,6 +82,7 @@ try {
     const canvas=document.createElement('canvas');canvas.width=240;canvas.height=300;
     const gl=canvas.getContext('webgl2',{premultipliedAlpha:true,preserveDrawingBuffer:true});
     function shader(type,source){const s=gl.createShader(type);gl.shaderSource(s,source);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(s));return s;}
+    const paintShader=shader(gl.FRAGMENT_SHADER,novaShaders.paint);gl.deleteShader(paintShader);
     const p=gl.createProgram();const vs=shader(gl.VERTEX_SHADER,novaShaders.vertex),fs=shader(gl.FRAGMENT_SHADER,novaShaders.fragment);
     gl.attachShader(p,vs);gl.attachShader(p,fs);gl.linkProgram(p);if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(p));gl.useProgram(p);
     const b=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,b);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,3,-1,-1,3]),gl.STATIC_DRAW);
