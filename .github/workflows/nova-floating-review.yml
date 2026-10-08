@@ -1,0 +1,84 @@
+name: Nova floating field review
+on:
+  push:
+    branches: [work/nova-floating-field]
+permissions:
+  contents: write
+concurrency:
+  group: nova-floating-review
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Integrate the native floating field
+        run: |
+          python3 scripts/apply-nova-floating.py
+          git fetch --depth=1 origin b10aca04bbfa542d32316741c8ca4795d28d927b
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Lint
+        run: npm run lint
+      - name: Regression tests
+        run: |
+          npm test -- --watchAll=false --runInBand --json --outputFile=/tmp/nova-tests.json || test -s /tmp/nova-tests.json
+          git worktree add --detach /tmp/nova-baseline b10aca04bbfa542d32316741c8ca4795d28d927b
+          ln -s "$PWD/node_modules" /tmp/nova-baseline/node_modules
+          (cd /tmp/nova-baseline && npm test -- --watchAll=false --runInBand --runTestsByPath src/components/InvoiceGeneratorNavigation.test.js --json --outputFile=/tmp/nova-baseline-tests.json) || test -s /tmp/nova-baseline-tests.json
+          node - <<'NODE'
+          const fs = require('fs'), assert = require('node:assert/strict');
+          const current = JSON.parse(fs.readFileSync('/tmp/nova-tests.json'));
+          const baseline = JSON.parse(fs.readFileSync('/tmp/nova-baseline-tests.json'));
+          const failures = r => r.testResults.flatMap(s => s.assertionResults.filter(t => t.status === 'failed').map(t => t.fullName)).sort();
+          assert.equal(current.numRuntimeErrorTestSuites, 0);
+          assert.equal(current.numPendingTests, 0);
+          assert(current.numPassedTests >= 1013);
+          assert(current.numFailedTests <= 1);
+          if (current.numFailedTests) {
+            assert.deepEqual(failures(current), failures(baseline));
+            assert(failures(current)[0].includes('mobile menu isolates the invoice'));
+          }
+          console.log(JSON.stringify({passed: current.numPassedTests, failed: current.numFailedTests, newFailures: 0}));
+          fs.mkdirSync('nova-review', {recursive: true});
+          fs.copyFileSync('/tmp/nova-tests.json', 'nova-review/tests.json');
+          NODE
+        env:
+          CI: true
+      - name: Production build
+        run: npm run build
+        env:
+          CI: true
+      - name: Browser prerequisites
+        run: |
+          npm install --prefix /tmp/nova-browser --no-audit --no-fund --ignore-scripts playwright@1.56.1
+          /tmp/nova-browser/node_modules/.bin/playwright install --with-deps chromium
+      - name: Native fire lifecycle and floating-field checks
+        run: |
+          node scripts/verify-nova-fire.mjs > /tmp/nova-lifecycle.log 2>&1 || { tail -15 /tmp/nova-lifecycle.log; exit 1; }
+          tail -1 /tmp/nova-lifecycle.log
+          node scripts/verify-nova-floating.mjs
+        env:
+          NODE_PATH: /tmp/nova-browser/node_modules
+      - name: Commit the tested shader integration to the work branch only
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/components/CreatorOSFieldShader.js
+          git commit -m 'Use the native floating Metabloom body for Nova fire edges'
+          git push origin HEAD:work/nova-floating-field
+          git ls-files -s src/components/CreatorOSFieldShader.js src/components/MetabloomNovaShader.js src/components/NovaFloatingField.test.js scripts/verify-nova-floating.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nova-floating-review
+          path: |
+            nova-review
+            src/components/CreatorOSFieldShader.js
+            src/components/MetabloomNovaShader.js
+          if-no-files-found: error
