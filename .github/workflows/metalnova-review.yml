@@ -1,0 +1,92 @@
+name: MetalNova finish review
+on:
+  push:
+    branches: [work/nova-metalnova]
+permissions:
+  contents: write
+concurrency:
+  group: metalnova-review
+  cancel-in-progress: true
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 8
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Integrate the bounded finish changes
+        run: python3 scripts/apply-metalnova.py
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Lint
+        run: npm run lint
+      - name: Full regression suite and baseline comparison
+        env:
+          CI: true
+        run: |
+          mkdir -p nova-review
+          npm test -- --watchAll=false --runInBand --json --outputFile=/tmp/metalnova-tests.json > /tmp/metalnova-tests.log 2>&1 || test -s /tmp/metalnova-tests.json
+          git worktree add --detach /tmp/metalnova-base 2616cf6b14e96376b2f3676e4bda37c26c1ab8a8
+          ln -s "$PWD/node_modules" /tmp/metalnova-base/node_modules
+          (cd /tmp/metalnova-base && npm test -- --watchAll=false --runInBand --runTestsByPath src/components/InvoiceGeneratorNavigation.test.js --json --outputFile=/tmp/metalnova-base.json) > /tmp/metalnova-base.log 2>&1 || test -s /tmp/metalnova-base.json
+          node - <<'NODE'
+          const fs=require('fs'),assert=require('node:assert/strict');
+          const now=JSON.parse(fs.readFileSync('/tmp/metalnova-tests.json')),base=JSON.parse(fs.readFileSync('/tmp/metalnova-base.json'));
+          const failures=r=>r.testResults.flatMap(s=>s.assertionResults.filter(t=>t.status==='failed').map(t=>({name:t.fullName,message:t.failureMessages}))).sort((a,b)=>a.name.localeCompare(b.name));
+          const result={passed:now.numPassedTests,failed:now.numFailedTests,failures:failures(now)};
+          fs.writeFileSync('nova-review/test-summary.json',JSON.stringify(result,null,2));console.log(JSON.stringify(result));
+          assert.equal(now.numRuntimeErrorTestSuites,0);assert.equal(now.numPendingTests,0);assert(now.numPassedTests>=1018);
+          if(now.numFailedTests)assert.deepEqual(failures(now).map(t=>t.name),failures(base).map(t=>t.name));
+          NODE
+      - name: Production build
+        run: npm run build
+        env:
+          CI: true
+      - name: Browser prerequisites
+        run: |
+          npm install --prefix /tmp/nova-browser --no-audit --no-fund --ignore-scripts playwright@1.56.1
+          /tmp/nova-browser/node_modules/.bin/playwright install --with-deps chromium
+      - name: Shader, lifecycle and selector checks
+        env:
+          NODE_PATH: /tmp/nova-browser/node_modules
+        run: |
+          node scripts/verify-nova-fire.mjs > /tmp/metalnova-lifecycle.log 2>&1 || { tail -c 5000 /tmp/metalnova-lifecycle.log; exit 1; }
+          grep '^{' /tmp/metalnova-lifecycle.log
+          node scripts/verify-nova-floating.mjs
+          node scripts/verify-nova-balance.mjs
+          node scripts/verify-metalnova.mjs
+      - name: Commit tested integration to work branch only
+        run: |
+          test "${GITHUB_REF}" = refs/heads/work/nova-metalnova
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/contexts/MetabloomPaletteContext.js src/components/CreatorOSFieldCanvas.js src/components/MetabloomAvatar.js src/components/OrbPage.js src/components/OrbNovaFinish.css src/components/MetabloomNovaShader.js src/components/CreatorOSFieldShader.js src/components/OrbNovaFinish.test.js scripts/verify-nova-fire.mjs
+          if ! git diff --cached --quiet; then
+            git commit -m 'Wire selectable MetalNova and narrow prismatic Nova edges'
+            git push origin HEAD:work/nova-metalnova
+          fi
+      - name: Collect source and review evidence
+        if: always()
+        run: |
+          mkdir -p nova-review
+          python3 - <<'PY'
+          import json, subprocess, zipfile
+          from pathlib import Path
+          names=['src/contexts/MetabloomPaletteContext.js','src/components/CreatorOSFieldCanvas.js','src/components/MetabloomAvatar.js','src/components/OrbPage.js','src/components/OrbNovaFinish.css','src/components/MetabloomNovaShader.js','src/components/CreatorOSFieldShader.js','src/components/OrbNovaFinish.test.js','src/components/MetalNovaFinish.test.js','scripts/verify-nova-fire.mjs','scripts/verify-metalnova.mjs']
+          manifest={name:subprocess.check_output(['git','hash-object',name],text=True).strip() for name in names if Path(name).exists()}
+          Path('nova-review/manifest.json').write_text(json.dumps(manifest,indent=2))
+          with zipfile.ZipFile('nova-review/source.zip','w',zipfile.ZIP_DEFLATED) as z:
+            for name in subprocess.check_output(['git','ls-files'],text=True).splitlines():
+              if Path(name).is_file() and not name.startswith('public/'):
+                z.write(name,name)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: metalnova-review
+          path: nova-review
