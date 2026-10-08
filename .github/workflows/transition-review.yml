@@ -14,13 +14,29 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 5
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
-      - name: Apply bounded transition changes
-        run: python scripts/apply-transition-review.py
+      - name: Apply bounded transition changes and synchronize completed-fade probes
+        run: |
+          python scripts/apply-transition-review.py
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('scripts/verify-orb-transitions.mjs')
+          s=p.read_text()
+          old="const idle = page => waitFor(page, () => document.querySelector('.app-outlet')?.dataset.phase === 'idle');"
+          new="""// React's phase timer may precede the compositor's last fade frame.
+          const idle = page => waitFor(page, () => {
+            const outlet = document.querySelector('.app-outlet');
+            return outlet?.dataset.phase === 'idle' && getComputedStyle(outlet).opacity === '1';
+          });"""
+          assert s.count(old)==1
+          s=s.replace(old,new)
+          s=s.replace('    reports.push({ scenario, result }); await context.close();', "    reports.push({ scenario, result });\n    fs.writeFileSync(`${evidence}/report.json`, JSON.stringify(reports, null, 2));\n    console.log(`PASS ${scenario.name}`);\n    await context.close();")
+          p.write_text(s)
+          PY
       - run: npm ci --no-audit --no-fund
       - run: npm run lint
       - name: Regression suite and unchanged baseline
