@@ -1,3 +1,5 @@
+import { METABLOOM_NOVA_SHADER } from "./MetabloomNovaShader";
+
 export const CREATOROS_FIELD_VERTEX_SHADER = `#version 300 es
 in vec2 a_pos;
 out vec2 v_uv;
@@ -612,7 +614,12 @@ vec4 fluidMaterial(
   return vec4(color, sat(alpha * alphaScale));
 }
 
+${METABLOOM_NOVA_SHADER}
+
 vec4 sceneMetabloom(vec2 uv, float time) {
+  // A uniform-only branch keeps all finishes in the same WebGL program.
+  if (u_metabloomNovaMix >= 0.999) return sceneNovaFire(uv, u_novaTime);
+  vec2 novaUv = uv;
   vec2 scale = aspectScale();
   uv = pointerFlow(uv, 0.075);
   vec2 p = (uv - 0.5) * scale;
@@ -1054,11 +1061,11 @@ metalMaterial.a = max(
   )
 );
 
-return mix(
+return blendNovaFire(mix(
   spectralMaterial,
   metalMaterial,
   sat(u_metabloomPaletteMix)
-);
+), novaUv);
 }
 
 vec4 sceneTidalWeave(vec2 uv, float time) {
@@ -2319,7 +2326,12 @@ vec4 fluidMaterial(
   return vec4(color, sat(alpha * alphaScale));
 }
 
+${METABLOOM_NOVA_SHADER}
+
 vec4 sceneMetabloom(vec2 uv, float time) {
+  // A uniform-only branch keeps all finishes in the same WebGL program.
+  if (u_metabloomNovaMix >= 0.999) return sceneNovaFire(uv, u_novaTime);
+  vec2 novaUv = uv;
   vec2 scale = aspectScale();
   uv = pointerFlow(uv, 0.075);
   vec2 p = (uv - 0.5) * scale;
@@ -2659,11 +2671,11 @@ metalMaterial.a = max(
   )
 );
 
-return mix(
+return blendNovaFire(mix(
   spectralMaterial,
   metalMaterial,
   sat(u_metabloomPaletteMix)
-);
+), novaUv);
 }
 
 vec4 sceneTidalWeave(vec2 uv, float time) {

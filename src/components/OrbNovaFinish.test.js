@@ -97,7 +97,7 @@ describe("Nova Orb finish", () => {
     rerender(avatar("nova"));
     const character = screen.getByTestId("metabloom-avatar");
     expect(screen.getByTestId("nova-field-canvas")).toBe(canvas);
-    expect(canvas).toHaveAttribute("data-palette", "spectral");
+    expect(canvas).toHaveAttribute("data-palette", "nova");
     expect(canvas).toHaveAttribute("data-version", "7");
     expect(canvas).toHaveAttribute("data-paused", "true");
     expect(character).toHaveAttribute("data-avatar-finish", "nova");
@@ -112,36 +112,18 @@ describe("Nova Orb finish", () => {
     expect(character).toHaveAccessibleName(/liquid metal finish/);
   });
 
-  test("preserves every alpha value and uses a bounded warm colour ramp", () => {
+  test("uses native fire instead of filtering the canvas or the send arrow", () => {
     const { container } = render(<OrbPage />);
-    const filter = container.querySelector("#orb-nova-fire");
-    expect(filter).toHaveAttribute("color-interpolation-filters", "sRGB");
-    const matrix = filter.querySelector("feColorMatrix").getAttribute("values").trim().split(/\s+/).map(Number);
-    expect(matrix).toHaveLength(20);
-    expect(matrix.slice(15)).toEqual([0, 0, 0, 1, 0]);
-    expect(filter.querySelector("feFuncA")).toHaveAttribute("type", "identity");
-    const channels = ["feFuncR", "feFuncG", "feFuncB"].map((tag) =>
-      filter.querySelector(tag).getAttribute("tableValues").split(" ").map(Number));
-    channels.forEach((values) => {
-      expect(values).toHaveLength(5);
-      expect(values.every((value) => Number.isFinite(value) && value >= 0 && value <= 1)).toBe(true);
-    });
-    channels[0].forEach((red, index) => {
-      expect(red).toBeGreaterThanOrEqual(channels[1][index]);
-      expect(channels[1][index]).toBeGreaterThanOrEqual(channels[2][index]);
-    });
-    expect(filter.querySelector("feGaussianBlur, feDisplacementMap, animate")).toBeNull();
+    expect(container.querySelector("#orb-nova-fire")).toBeNull();
     expect(container.querySelector("#orb-send-gradient").querySelectorAll("stop")).toHaveLength(4);
   });
 
-  test("scopes colour processing to the Metabloom canvas and keeps three mobile columns", () => {
+  test("keeps three mobile columns without an extra CSS animation or filter", () => {
     const css = fs.readFileSync(path.join(__dirname, "OrbNovaFinish.css"), "utf8");
-    expect(css).toContain('.orb-page[data-metabloom-palette="nova"]');
-    expect(css).toContain('.metabloom-avatar[data-avatar-theme="metabloom"]:not([data-under-hood])');
-    expect(css).toContain('.creatoros-field-canvas {\n  filter: url("#orb-nova-fire");');
     expect(css).toContain("grid-template-columns: auto repeat(3, minmax(0, auto))");
     expect(css).toContain("grid-template-columns: repeat(3, minmax(0, auto))");
     expect(css).toContain("@media (forced-colors: active)");
+    expect(css).not.toContain("orb-nova-fire");
     expect(css).not.toMatch(/@keyframes|animation\s*:|backdrop-filter/);
   });
 });
