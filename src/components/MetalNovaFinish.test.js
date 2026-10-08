@@ -14,10 +14,10 @@ describe("MetalNova and prismatic Nova", () => {
     expect(canvas).toContain('["metalbloom", "metalnova"].includes');
     expect(canvas).toContain('palette === "nova" || palette === "metalnova" ? 1 : 0');
   });
-  test("restricts the rainbow to exposed flame tips and wisps without changing alpha", () => {
+  test("restricts the rainbow to exposed flames and wisps without changing alpha", () => {
     expect(prism).toContain("clamp(fwidth(liftedSignal) * 0.72, 0.010, 0.045)");
     expect(prism).toContain("abs(liftedSignal - 0.90)");
-    expect(prism).toContain("exposedFlame * distalFlame * max(outline, wisps)");
+    expect(prism).toContain("exposedFlame * max(yellowFlame, distalFlame * max(outline, wisps))");
     expect(prism).toContain("mix(0.48, 0.42, u_light)");
     expect(prism).toContain("mix(0.70, 0.78, u_light)");
     expect(prism).toContain("fire.a);");
@@ -31,4 +31,19 @@ describe("MetalNova and prismatic Nova", () => {
     expect(CREATOROS_FIELD_PAINT_FRAGMENT_SHADER).not.toContain("novaPrismaticEdges");
     expect(METABLOOM_NOVA_SHADER).not.toMatch(/sampler2D|requestAnimationFrame|setInterval/);
   });
+  test("replaces Nova's yellow flame crest without tinting the shared core or MetalNova's silver flames", () => {
+    expect(prism).toContain("float yellowFlame = smoothstep(0.34, 0.58, flameSurface.x)");
+    expect(prism).toContain("1.0 - sat(u_metabloomPaletteMix)");
+    expect(prism).toContain("1.0 - smoothstep(0.72, 1.20, flameSurface.w)");
+    expect(prism).toContain("vec3 rainbowFlame = mix(vec3(1.05), outlineSpectrum");
+    expect(prism).toContain("yellowFlame * (1.0 - max(outline, wisps))");
+  });
+  test("keeps MetalNova's original reflections without an added black perimeter", () => {
+    const metal = METABLOOM_NOVA_SHADER.split("vec4 novaMetalFinish")[1].split("vec4 blendNovaFire")[0];
+    expect(metal).toContain("vec3 bodyColor = metalMaterial.rgb;");
+    expect(metal).toContain("mix(mercuryMid, mercuryHighlight, smoothstep(0.08, 0.98, heat))");
+    expect(metal).not.toContain("mercuryShadow");
+    expect(metal).not.toContain("smoothstep(1.20, 1.75, flameSurface.w)");
+  });
+
 });
