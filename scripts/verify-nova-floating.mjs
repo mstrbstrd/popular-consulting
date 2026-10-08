@@ -39,7 +39,11 @@ try {
       if (!gl.getProgramParameter(value, gl.LINK_STATUS)) throw Error(gl.getProgramInfoLog(value));
       return value;
     }
-    const before = program(original), after = program(shaders.fragment);
+    // Compare topology before the intentional fire-only vertical placement.
+    // verify-nova-surface.mjs independently checks the production placement.
+    const topologySource = shaders.fragment.replace(/const float NOVA_VERTICAL_OFFSET = [\d.]+;/,
+      'const float NOVA_VERTICAL_OFFSET = 0.0;');
+    const before = program(original), after = program(topologySource);
     const buffer = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1,3,-1,-1,3]), gl.STATIC_DRAW);
     function frame(program, palette, seed, time, light, pose, width, height) {

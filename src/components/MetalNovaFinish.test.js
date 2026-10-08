@@ -14,17 +14,19 @@ describe("MetalNova and prismatic Nova", () => {
     expect(canvas).toContain('["metalbloom", "metalnova"].includes');
     expect(canvas).toContain('palette === "nova" || palette === "metalnova" ? 1 : 0');
   });
-  test("restricts the rainbow to a narrow contour without changing alpha", () => {
-    expect(prism).toContain("clamp(fwidth(fire.a) * 0.72, 0.010, 0.045)");
-    expect(prism).toContain("abs(fire.a - 0.46)");
+  test("restricts the rainbow to exposed flame tips and wisps without changing alpha", () => {
+    expect(prism).toContain("clamp(fwidth(liftedSignal) * 0.72, 0.010, 0.045)");
+    expect(prism).toContain("abs(liftedSignal - 0.90)");
+    expect(prism).toContain("exposedFlame * distalFlame * max(outline, wisps)");
     expect(prism).toContain("mix(0.48, 0.42, u_light)");
     expect(prism).toContain("mix(0.70, 0.78, u_light)");
     expect(prism).toContain("fire.a);");
-    expect(prism).not.toMatch(/fire\.a\s*[-+*/]?=|atan\(/);
+    expect(prism).not.toMatch(/fire\.a\s*[-+*/]?=|atan\(|fwidth\(fire\.a\)/);
   });
-  test("reuses the native metal optics while preserving the fire silhouette", () => {
-    expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain("novaMetalFinish(novaMaterial, metalMaterial, spectralMaterial.a)");
-    expect(METABLOOM_NOVA_SHADER).toContain("mix(metalMaterial.rgb, silverFlame, exterior)");
+  test("reuses the native metal optics without its all-around rainbow rim", () => {
+    expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain("novaMetalFinish(novaMaterial, novaMetalCore, spectralMaterial.a, novaFlameSurface)");
+    expect(CREATOROS_FIELD_FRAGMENT_SHADER).toContain("vec4 novaMetalCore = metalMaterial;");
+    expect(METABLOOM_NOVA_SHADER).toContain("float heat = flameSurface.x;");
     expect(METABLOOM_NOVA_SHADER).toContain("mix(fire.rgb, metalColor, metalMix), fire.a");
     expect(CREATOROS_FIELD_PAINT_FRAGMENT_SHADER).not.toContain("novaPrismaticEdges");
     expect(METABLOOM_NOVA_SHADER).not.toMatch(/sampler2D|requestAnimationFrame|setInterval/);
