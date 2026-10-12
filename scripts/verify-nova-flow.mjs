@@ -20,9 +20,13 @@ const inspect = ({ before, current, vertex }) => {
   if (!gl) throw Error('WebGL2 required for native flame checks');
   const flowProbe = source => source.slice(0, source.lastIndexOf('void main()')) + `void main() {
     vec3 flow = novaEdgeFlow(vec2((v_uv.x - 0.5) * 1.2, (v_uv.y - 0.5) * 0.6), vec2(0.0, 1.0));
-    fragColor = vec4(flow.z, flow.y / 0.216, flow.x + 0.5, 1.0);
+    bool valid = !any(isnan(flow)) && !any(isinf(flow))
+      && flow.y >= 0.0 && flow.y <= 0.216001;
+    fragColor = vec4(flow.z, flow.y / 0.216, flow.x + 0.5, valid ? 1.0 : 0.0);
   }`;
-  const native = current.replace(/vec4 blendNovaFire\([\s\S]*?\n\}/, 'vec4 blendNovaFire(vec4 material, vec4 fire) { return material; }');
+  // Both fire finishes inherit spectralMaterial.a, not Metalbloom's separate
+  // optical alpha. Inspect that exact source before Nova's early return.
+  const native = current.replace('vec4 novaMaterial = vec4(0.0);', 'return spectralMaterial;\nvec4 novaMaterial = vec4(0.0);');
   if (native === current) throw Error('Missing native material inspection point');
   function compile(type, source) {
     const shader = gl.createShader(type); gl.shaderSource(shader, source); gl.compileShader(shader);
@@ -116,7 +120,7 @@ const inspect = ({ before, current, vertex }) => {
   let boundedPulse = true;
   for (const pulse of [0, .2, 8]) {
     const values = frame('newFlow', { width: 128, height: 16, pulse });
-    if (values.some((v, i) => i % 4 === 1 && v > 255)) boundedPulse = false;
+    if (values.some((v, i) => i % 4 === 3 && v !== 255)) boundedPulse = false;
   }
   const error = gl.getError(); gl.deleteBuffer(buffer); Object.values(programs).forEach(p => gl.deleteProgram(p)); gl.deleteShader(vs);
   gl.getExtension('WEBGL_lose_context')?.loseContext();
@@ -134,6 +138,7 @@ try {
   fs.writeFileSync('nova-flow-review/render-report.json', JSON.stringify(result, null, 2));
   console.log(JSON.stringify(result));
   assert.equal(result.error, 0);
+  assert(result.boundedPulse, 'pulse extremes must stay finite and within the existing lift envelope');
   assert(result.unchangedOtherScenes, 'non-fire finishes and activity scenes must remain pixel-identical');
   assert(result.sharedSilhouette && result.nativeBodyPreserved, 'both finishes must share flow and retain the native body');
   assert.equal(result.visibleCases, result.cases, 'both finishes must remain visible');
