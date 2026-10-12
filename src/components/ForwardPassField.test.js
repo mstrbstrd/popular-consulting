@@ -53,7 +53,7 @@ describe("Forward Pass field", () => {
       "utf8",
     );
 
-    expect(canvas).toContain("const MODE_COUNT = 8");
+    expect(canvas).toContain("const MODE_COUNT = 9");
     expect(page).toContain('id: "forward-pass"');
     expect(page).toContain("mode: 7");
     expect(css).toContain(".creatoros-field-mode-7");

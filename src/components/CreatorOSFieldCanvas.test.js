@@ -42,7 +42,7 @@ describe("CreatorOSFieldCanvas", () => {
       "utf8",
     );
 
-    expect(source).toContain("const MODE_COUNT = 8");
+    expect(source).toContain("const MODE_COUNT = 9");
     expect(source).toContain("const RENDER_SCALE = 0.5");
     expect(source).toContain("const PREFERRED_FRAME_INTERVAL_MS = 1000 / 30");
     expect(source).toContain("const ACTIVE_FRAME_INTERVAL_MS =");
@@ -251,6 +251,7 @@ describe("CreatorOSFieldCanvas", () => {
       "sceneQuasicrystal",
       "sceneHyperbolic",
       "sceneForwardPass",
+      "sceneChiralWeave",
     ];
 
     sceneFunctions.forEach((sceneFunction, mode) => {

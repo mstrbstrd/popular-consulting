@@ -40,6 +40,7 @@ jest.mock("./RuptureCanvas", () => {
 jest.mock("./CreatorOSFieldCanvas", () => {
   const ReactModule = require("react");
   return ({
+    chiralHandedness = 1,
     contourPalette = "terrain",
     isDark,
     metabloomPalette = "spectral",
@@ -54,6 +55,7 @@ jest.mock("./CreatorOSFieldCanvas", () => {
         type: "button",
         "data-testid": "creatoros-field-renderer",
         "data-mode": String(mode),
+        "data-chiral-handedness": String(chiralHandedness),
         "data-metabloom-palette": metabloomPalette,
         "data-contour-palette": contourPalette,
         "data-tidal-palette": tidalPalette,
@@ -191,7 +193,7 @@ describe("DitherCanvasPage", () => {
     expect(saveToolState).toHaveBeenCalledWith("dither", { index: 2, paused: true });
   });
 
-  test("opens as a twelve-study scroll narrative with Second Surface first", () => {
+  test("opens as a thirteen-study scroll narrative with Second Surface first", () => {
     render(<DitherCanvasPage />);
 
     expect(
@@ -214,7 +216,7 @@ describe("DitherCanvasPage", () => {
       name: "Choose the theme beneath Second Surface",
     });
     expect(secondSurfaceSelect).toHaveValue("original-second-surface");
-    expect(within(secondSurfaceSelect).getAllByRole("option")).toHaveLength(12);
+    expect(within(secondSurfaceSelect).getAllByRole("option")).toHaveLength(13);
     expect(
       within(secondSurfaceSelect).getByRole("option", {
         name: "Default",
@@ -249,12 +251,12 @@ describe("DitherCanvasPage", () => {
       "data-reveal-underlay",
       "false",
     );
-    expect(document.querySelectorAll(".dither-scroll-step")).toHaveLength(12);
+    expect(document.querySelectorAll(".dither-scroll-step")).toHaveLength(13);
 
     const studyNavigation = screen.getByRole("navigation", {
       name: "Dither background studies",
     });
-    expect(within(studyNavigation).getAllByRole("button")).toHaveLength(12);
+    expect(within(studyNavigation).getAllByRole("button")).toHaveLength(13);
     expect(
       within(studyNavigation).getByRole("button", { name: /Second Surface/ }),
     ).toHaveAttribute("aria-pressed", "true");
@@ -423,6 +425,39 @@ describe("DitherCanvasPage", () => {
     );
     expect(spectralOption).toHaveAttribute("aria-pressed", "false");
     expect(metalbloomOption).toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("reflects Chiral Weave without resetting, resuming, or replacing its renderer", () => {
+    render(<DitherCanvasPage />);
+    fireEvent.click(screen.getByRole("button", { name: /Chiral Weave/ }));
+    flushScrollFrame();
+    finishStudyTransition();
+    expect(screen.getByRole("heading", { name: "Chiral Weave" })).toBeInTheDocument();
+    const renderer = screen.getByTestId("creatoros-field-renderer");
+    expect(renderer).toHaveAttribute("data-mode", "8");
+    expect(renderer).toHaveAttribute("data-chiral-handedness", "1");
+    const reset = renderer.getAttribute("data-reset-version");
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+    const group = screen.getByRole("group", { name: "Chiral Weave orientation" });
+    fireEvent.click(within(group).getByRole("button", { name: "Mirror" }));
+    expect(renderer).toHaveAttribute("data-chiral-handedness", "-1");
+    expect(renderer).toHaveAttribute("data-paused", "true");
+    expect(renderer).toHaveAttribute("data-reset-version", reset);
+    expect(within(group).getByRole("button", { name: "Mirror" }))
+      .toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(within(group).getByRole("button", { name: "Original" }));
+    expect(renderer).toHaveAttribute("data-chiral-handedness", "1");
+    expect(screen.getByTestId("creatoros-field-renderer")).toBe(renderer);
+    expect(screen.getAllByTestId("creatoros-field-renderer")).toHaveLength(1);
+  });
+
+  test("allows Chiral Weave underneath Second Surface", () => {
+    render(<DitherCanvasPage />);
+    fireEvent.change(screen.getByRole("combobox", {
+      name: "Choose the theme beneath Second Surface",
+    }), { target: { value: "chiral-weave" } });
+    expect(screen.getByTestId("creatoros-field-renderer")).toHaveAttribute("data-mode", "8");
+    expect(screen.getByTestId("rupture-renderer")).toHaveAttribute("data-reveal-underlay", "true");
   });
 
   test("defaults Tidal Weave to water and keeps spectral as a color-only option", () => {
