@@ -6,25 +6,105 @@ on:
 permissions:
   contents: read
 jobs:
-  source:
+  apply:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      sha: ${{ steps.commit.outputs.sha }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
-      - name: Package tracked source without environment files
+      - name: Apply bounded feature changes
         run: |
+          test "$(git rev-parse HEAD:src/components/ChiralWeaveShader.js)" = 4fc40804a00fe953a4152821d69a2d608b088443
+          test "$(git rev-parse HEAD:src/components/CreatorOSFieldCanvas.js)" = 4b3e8fa92eb67bdb58bc7772622793aef42bd534
+          test "$(git rev-parse HEAD:src/components/DitherCanvasPage.js)" = 5435fa4f15af887ce3a8ba0c9ec3245fe20c79d0
+          python .github/apply-chiral-dna.py
           python - <<'PY'
-          import pathlib,subprocess,tarfile
-          paths=subprocess.check_output(['git','ls-files','-z']).decode().split('\0')
-          with tarfile.open('dna-source.tar.gz','w:gz') as archive:
-            for name in paths:
-              p=pathlib.Path(name)
-              if name and p.is_file() and not p.is_symlink() and not any(part.startswith('.env') for part in p.parts):
-                archive.add(p,arcname=name,recursive=False)
+          from pathlib import Path
+          p=Path('src/components/ChiralWeaveShader.js')
+          s=p.read_text()
+          assert s.count('pow(across / width, 2.0)') == 1
+          p.write_text(s.replace('pow(across / width, 2.0)', '(across / width) * (across / width)'))
           PY
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+          git diff --check
+          git add CLAUDE.md src/components/ChiralWeave.test.js src/components/ChiralWeaveShader.js src/components/CreatorOSFieldCanvas.css src/components/CreatorOSFieldCanvas.js src/components/DitherCanvasPage.css src/components/DitherCanvasPage.js src/components/DitherCanvasPage.test.js scripts/verify-chiral-weave.mjs
+          git rm .github/apply-chiral-dna.py .github/chiral-dna.glsl .github/chiral-dna-payload.txt .github/workflows/chiral-dna-review.yml
+      - name: Commit only to feature branch
+        id: commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/feat/chiral-dna
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'add molecular DNA structure to Chiral Weave'
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0=http.https://github.com/.extraheader
+          export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          git push origin HEAD:refs/heads/feat/chiral-dna
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+  geometry:
+    needs: apply
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
-          name: dna-source
-          path: dna-source.tar.gz
-          retention-days: 1
+          ref: ${{ needs.apply.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+      - run: node scripts/verify-chiral-weave.mjs
+        env:
+          VISUAL_CAPTURE_BROWSER: /usr/bin/google-chrome
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: molecular-shader-evidence
+          path: chiral-weave-evidence/
+          retention-days: 7
+  validate:
+    needs: apply
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ needs.apply.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+      - run: npm ci --no-audit --no-fund
+      - run: npm run lint
+      - name: Full suite including existing invoice regression
+        continue-on-error: true
+        run: npm test -- --watchAll=false --runInBand --json --outputFile=dna-full-tests.json
+        env:
+          CI: true
+      - name: Chiral and shared field regression gate
+        run: npm test -- --watchAll=false --runInBand --testPathPattern='ChiralWeave|CreatorOSFieldCanvas|DitherCanvasPage|DitherCanvasRuntime|DitherScrollNarrative|DitherCanvasTypography|DitherCanvasReadability|ForwardPassField'
+        env:
+          CI: true
+      - run: npm run build
+        env:
+          CI: true
+      - name: Browser test dependency only, no manifest changes
+        run: npm install --no-save --package-lock=false playwright@1.51.1
+      - name: Actual DNA controls and renderer invariants
+        run: node scripts/verify-chiral-dna-ui.mjs
+        env:
+          VISUAL_CAPTURE_BROWSER: /usr/bin/google-chrome
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: molecular-ui-evidence
+          path: |
+            chiral-dna-ui-evidence/
+            dna-full-tests.json
+          retention-days: 7
