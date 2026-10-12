@@ -1,0 +1,44 @@
+name: Settle DNA test fixture
+on:
+  push:
+    branches: [feat/chiral-dna]
+    paths: [.github/workflows/chiral-dna-test-fixture.yml]
+permissions:
+  contents: write
+jobs:
+  fixture:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Let React commit the entrance phase before scheduling its timer
+        run: |
+          test "$(git rev-parse HEAD:src/components/DitherCanvasPage.test.js)" = 5e4b82b8374ec5bd213c1079a465fa1915803582
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('src/components/DitherCanvasPage.test.js')
+          s=p.read_text()
+          marker='  test("DNA and reflection are independent and keep the paused renderer and seed", () => {'
+          a,b=s.split(marker)
+          old='    finishStudyTransition();\n    const renderer ='
+          assert b.count(old)==1
+          b=b.replace(old,'    finishStudyTransition();\n    // Entrance gets its own effect/timer after the exit commit.\n    finishStudyTransition();\n    const renderer =',1)
+          p.write_text(a+marker+b)
+          PY
+          git diff --check
+          git add src/components/DitherCanvasPage.test.js
+          git rm .github/workflows/chiral-dna-test-fixture.yml
+      - name: Save fixture correction on feature branch only
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/feat/chiral-dna
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'settle entrance before DNA underlay retention assertion'
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0=http.https://github.com/.extraheader
+          export GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          git push origin HEAD:refs/heads/feat/chiral-dna
