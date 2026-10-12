@@ -438,9 +438,11 @@ const normalizeExternalPulseVersion = (value) => {
 
 // Only the two orientations are valid. Invalid external values fail to original.
 export const normalizeChiralHandedness = (value) => value === -1 ? -1 : 1;
+export const normalizeChiralStructure = (value) => value === "dna" ? "dna" : "classic";
 
 const CreatorOSFieldCanvas = ({
   chiralHandedness = 1,
+  chiralStructure = "classic",
   contourPalette = "terrain",
   externalPulseVersion = 0,
   isDark = false,
@@ -519,6 +521,7 @@ const CreatorOSFieldCanvas = ({
   );
   const tidalPaletteRef = useRef(resolveTidalPaletteMix(tidalPalette));
   const chiralHandednessRef = useRef(normalizeChiralHandedness(chiralHandedness));
+  const chiralStructureRef = useRef(normalizeChiralStructure(chiralStructure));
   const morphogenPaintRef = useRef(
     resolveMorphogenPaintMix(morphogenExperience),
   );
@@ -659,6 +662,11 @@ const CreatorOSFieldCanvas = ({
     chiralHandednessRef.current = normalizeChiralHandedness(chiralHandedness);
     redrawRef.current();
   }, [chiralHandedness]);
+
+  useEffect(() => {
+    chiralStructureRef.current = normalizeChiralStructure(chiralStructure);
+    redrawRef.current();
+  }, [chiralStructure]);
 
   useEffect(() => {
     tidalPaletteRef.current = resolveTidalPaletteMix(tidalPalette);
@@ -1004,6 +1012,7 @@ const CreatorOSFieldCanvas = ({
       "u_contourPaletteMix",
       "u_tidalPaletteMix",
       "u_chiralHandedness",
+      "u_chiralStructure",
       "u_avatarEnabled",
       "u_avatarAction",
       "u_avatarPhase",
@@ -1618,6 +1627,7 @@ const CreatorOSFieldCanvas = ({
       );
 
       gl.uniform1f(activeDisplayUniforms.u_chiralHandedness, chiralHandednessRef.current);
+      gl.uniform1f(activeDisplayUniforms.u_chiralStructure, chiralStructureRef.current === "dna" ? 1 : 0);
 
       const avatarColorA = metabloomRenderedColorA;
       const avatarColorB = metabloomRenderedColorB;
@@ -2029,6 +2039,7 @@ const CreatorOSFieldCanvas = ({
         fallback ? " is-fallback" : ""
       }`}
       data-chiral-handedness={normalizeChiralHandedness(chiralHandedness)}
+      data-chiral-structure={normalizeChiralStructure(chiralStructure)}
       data-context-recovery="local"
       data-field-ready={presented || fallback ? "true" : "false"}
       data-renderer-id="dither-canvas-field"

@@ -3,6 +3,7 @@ import { cleanup, render, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import CreatorOSFieldCanvas, {
   normalizeChiralHandedness,
+  normalizeChiralStructure,
   specializeCreatorOSFieldFragmentShader,
 } from "./CreatorOSFieldCanvas";
 import { CREATOROS_FIELD_FRAGMENT_SHADER } from "./CreatorOSFieldShader";
@@ -18,6 +19,23 @@ describe("Chiral Weave boundaries", () => {
       expect(normalizeChiralHandedness(value)).toBe(1);
     },
   );
+
+  test.each([null, undefined, "DNA", "unknown", 1, NaN, {}, []])(
+    "normalizes unsupported structure %p to classic", (value) => {
+      expect(normalizeChiralStructure(value)).toBe("classic");
+    },
+  );
+
+  test("DNA has a bounded independent branch with paired strands and molecular rings", () => {
+    expect(normalizeChiralStructure("dna")).toBe("dna");
+    expect(CHIRAL_WEAVE_SHADER).toContain("if (u_chiralStructure > 0.5) return sceneChiralDna(uv, time)");
+    expect(CHIRAL_WEAVE_SHADER).toContain("molecule < 2");
+    expect(CHIRAL_WEAVE_SHADER).toContain("strand < 2");
+    expect(CHIRAL_WEAVE_SHADER).toContain("floor(p.y / spacing + 0.5)");
+    expect(CHIRAL_WEAVE_SHADER).toContain("chiralDnaHexagon");
+    expect(CHIRAL_WEAVE_SHADER).toContain("chiralDnaPentagon");
+    expect(CHIRAL_WEAVE_SHADER).toContain("ringRadius * projection > pixel * 2.0");
+  });
 
   test.each([1, -1])("reflection is an involution for %p", (value) => {
     const mirror = normalizeChiralHandedness(-value);
@@ -46,7 +64,12 @@ describe("Chiral Weave boundaries", () => {
     const canvas = container.querySelector("canvas");
     await waitFor(() => expect(shell).toHaveClass("is-fallback"));
     expect(shell).toHaveAttribute("data-chiral-handedness", "1");
+    expect(shell).toHaveAttribute("data-chiral-structure", "classic");
     expect(shell).toHaveAttribute("data-reaction-runtime", "inactive");
+    rerender(<CreatorOSFieldCanvas mode={8} paused chiralStructure="dna" chiralHandedness={-1} />);
+    expect(shell).toHaveAttribute("data-chiral-structure", "dna");
+    expect(shell).toHaveAttribute("data-reaction-runtime", "inactive");
+    expect(container.querySelector("canvas")).toBe(canvas);
     rerender(<CreatorOSFieldCanvas mode={8} paused chiralHandedness={-1} />);
     expect(shell).toHaveAttribute("data-chiral-handedness", "-1");
     expect(container.querySelector("canvas")).toBe(canvas);

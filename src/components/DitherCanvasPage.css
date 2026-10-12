@@ -1157,18 +1157,18 @@
   }
 }
 
-/* Chiral orientation is a binary transform, never a new renderer or palette. */
-.chiral-orientation-selector .metabloom-palette-option {
+/* Structure and reflection update uniforms, never renderer ownership. */
+.chiral-controls .metabloom-palette-option {
   position: relative;
-  min-height: 4.4rem;
+  min-height: max(4.4rem, 44px);
 }
-.chiral-orientation-selector .metabloom-palette-option.is-active {
+.chiral-controls .metabloom-palette-option.is-active {
   color: var(--rupture-text);
   border-color: transparent;
   background: transparent;
   box-shadow: none;
 }
-.chiral-orientation-selector .metabloom-palette-option.is-active::before {
+.chiral-controls .metabloom-palette-option.is-active::before {
   content: "";
   position: absolute;
   inset: -1px;
@@ -1182,10 +1182,10 @@
   pointer-events: none;
 }
 @media (forced-colors: active) {
-  .chiral-orientation-selector .metabloom-palette-option.is-active {
+  .chiral-controls .metabloom-palette-option.is-active {
     border-color: Highlight;
   }
-  .chiral-orientation-selector .metabloom-palette-option.is-active::before {
+  .chiral-controls .metabloom-palette-option.is-active::before {
     display: none;
   }
 }

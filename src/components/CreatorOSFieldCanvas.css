@@ -303,3 +303,16 @@
 .creatoros-field-mode-8[data-chiral-handedness="-1"] .creatoros-field-fallback {
   transform: scaleX(-1);
 }
+
+/* Static molecular artwork also works with WebGL unavailable or lost. */
+.creatoros-field-mode-8[data-chiral-structure="dna"] .creatoros-field-fallback::before,
+.creatoros-field-mode-8[data-chiral-structure="dna"] .creatoros-field-fallback::after {
+  border-radius: 0;
+  background: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20160%20240%22%20fill%3D%22none%22%3E%3Cg%20stroke%3D%22%2352c8ec%22%20stroke-width%3D%223%22%3E%3Cpath%20d%3D%22M36%200C36%2040%20124%2080%20124%20120S36%20200%2036%20240%22%2F%3E%3Cpath%20d%3D%22M124%200C124%2040%2036%2080%2036%20120S124%20200%20124%20240%22%20stroke%3D%22%23bd77ed%22%2F%3E%3C%2Fg%3E%3Cg%20stroke%3D%22%23769ab7%22%20stroke-width%3D%221.5%22%3E%3Cpath%20d%3D%22M40%2024H120M58%2048H102M58%2072H102M40%2096H120M36%20120H124M40%20144H120M58%20168H102M58%20192H102M40%20216H120%22%2F%3E%3Cpath%20d%3D%22M60%2090l10-6%2010%206v12l-10%206-10-6zM88%20150l10-6%2010%206v12l-10%206-10-6z%22%2F%3E%3C%2Fg%3E%3Cg%20fill%3D%22%23d3edfa%22%3E%3Ccircle%20cx%3D%2240%22%20cy%3D%2224%22%20r%3D%224%22%2F%3E%3Ccircle%20cx%3D%22120%22%20cy%3D%2224%22%20r%3D%224%22%2F%3E%3Ccircle%20cx%3D%2240%22%20cy%3D%2296%22%20r%3D%224%22%2F%3E%3Ccircle%20cx%3D%22120%22%20cy%3D%2296%22%20r%3D%224%22%2F%3E%3Ccircle%20cx%3D%2236%22%20cy%3D%22120%22%20r%3D%224%22%2F%3E%3Ccircle%20cx%3D%22124%22%20cy%3D%22120%22%20r%3D%224%22%2F%3E%3Ccircle%20cx%3D%2240%22%20cy%3D%22216%22%20r%3D%224%22%2F%3E%3Ccircle%20cx%3D%22120%22%20cy%3D%22216%22%20r%3D%224%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E") center / 100% 24rem repeat-y;
+}
+.creatoros-field-mode-8[data-chiral-structure="dna"] .creatoros-field-fallback::before {
+  transform: none;
+}
+.creatoros-field-mode-8[data-chiral-structure="dna"] .creatoros-field-fallback::after {
+  transform: scaleX(-1);
+}
