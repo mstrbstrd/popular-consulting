@@ -41,6 +41,7 @@ jest.mock("./CreatorOSFieldCanvas", () => {
   const ReactModule = require("react");
   return ({
     chiralHandedness = 1,
+    chiralStructure = "classic",
     contourPalette = "terrain",
     isDark,
     metabloomPalette = "spectral",
@@ -56,6 +57,7 @@ jest.mock("./CreatorOSFieldCanvas", () => {
         "data-testid": "creatoros-field-renderer",
         "data-mode": String(mode),
         "data-chiral-handedness": String(chiralHandedness),
+        "data-chiral-structure": chiralStructure,
         "data-metabloom-palette": metabloomPalette,
         "data-contour-palette": contourPalette,
         "data-tidal-palette": tidalPalette,
@@ -449,6 +451,42 @@ describe("DitherCanvasPage", () => {
     expect(renderer).toHaveAttribute("data-chiral-handedness", "1");
     expect(screen.getByTestId("creatoros-field-renderer")).toBe(renderer);
     expect(screen.getAllByTestId("creatoros-field-renderer")).toHaveLength(1);
+  });
+
+  test("DNA and reflection are independent and keep the paused renderer and seed", () => {
+    render(<DitherCanvasPage />);
+    fireEvent.click(screen.getByRole("button", { name: /Chiral Weave/ }));
+    flushScrollFrame();
+    finishStudyTransition();
+    // Entrance gets its own effect/timer after the exit commit.
+    finishStudyTransition();
+    const renderer = screen.getByTestId("creatoros-field-renderer");
+    const reset = renderer.getAttribute("data-reset-version");
+    const structure = screen.getByRole("group", { name: "Chiral Weave structure" });
+    const orientation = screen.getByRole("group", { name: "Chiral Weave orientation" });
+    expect(within(structure).getByRole("button", { name: "Classic" })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+    fireEvent.click(within(structure).getByRole("button", { name: "DNA" }));
+    expect(renderer).toHaveAttribute("data-chiral-structure", "dna");
+    expect(within(structure).getByRole("button", { name: "DNA" })).toHaveAttribute("aria-pressed", "true");
+    expect(within(structure).getByRole("button", { name: "Classic" })).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(within(orientation).getByRole("button", { name: "Mirror" }));
+    expect(renderer).toHaveAttribute("data-chiral-handedness", "-1");
+    expect(renderer).toHaveAttribute("data-chiral-structure", "dna");
+    fireEvent.click(within(structure).getByRole("button", { name: "Classic" }));
+    expect(renderer).toHaveAttribute("data-chiral-structure", "classic");
+    expect(renderer).toHaveAttribute("data-chiral-handedness", "-1");
+    expect(renderer).toHaveAttribute("data-paused", "true");
+    expect(renderer).toHaveAttribute("data-reset-version", reset);
+    expect(screen.getByTestId("creatoros-field-renderer")).toBe(renderer);
+    expect(screen.getAllByTestId("creatoros-field-renderer")).toHaveLength(1);
+    fireEvent.click(within(structure).getByRole("button", { name: "DNA" }));
+    fireEvent.click(screen.getByRole("button", { name: /Second Surface/ }));
+    flushScrollFrame();
+    finishStudyTransition();
+    fireEvent.change(screen.getByRole("combobox", { name: "Choose the theme beneath Second Surface" }),
+      { target: { value: "chiral-weave" } });
+    expect(screen.getByTestId("creatoros-field-renderer")).toHaveAttribute("data-chiral-structure", "dna");
   });
 
   test("allows Chiral Weave underneath Second Surface", () => {

@@ -193,9 +193,9 @@ const STUDIES = [
     initialState: "drifting",
     resetLabel: "Reseed",
     description:
-      "Two ribbon families share a clock but wind in opposite directions. Liquid-chrome folds carry spectral edges: related by reflection, never interchangeable.",
+      "Opposite-winding threads share a clock. Keep the classic chrome folds or explore DNA-inspired double helices with beaded backbones, bonded rungs, and molecular rings.",
     instruction:
-      "Move to bend the ribbons · tap to send a pressure wave · reflect to exchange handedness without reversing time",
+      "Move to bend · tap to pulse · reflect without reversing time · DNA is a molecular illustration, not a simulation",
   },
 ];
 
@@ -376,6 +376,7 @@ const DitherFieldLab = () => {
   );
   const [tidalPalette, setTidalPalette] = useState(TIDAL_PALETTE_WATER);
   const [chiralHandedness, setChiralHandedness] = useState(1);
+  const [chiralStructure, setChiralStructure] = useState("classic");
   const [contourPalette, setContourPalette] = useState(
     CONTOUR_PALETTE_TERRAIN,
   );
@@ -780,6 +781,7 @@ const DitherFieldLab = () => {
         contourPalette={contourPalette}
         tidalPalette={tidalPalette}
         chiralHandedness={chiralHandedness}
+        chiralStructure={chiralStructure}
         morphogenExperience={morphogenExperience}
         morphogenTool={morphogenTool}
         morphogenBrushSize={morphogenBrushSize}
@@ -973,6 +975,7 @@ const DitherFieldLab = () => {
             </div>
           )}
           {activeStudy.id === "chiral-weave" && (
+            <div className="chiral-controls">
             <div className="metabloom-palette-selector chiral-orientation-selector"
               role="group" aria-label="Chiral Weave orientation">
               <span className="metabloom-palette-selector-label">Reflection</span>
@@ -984,6 +987,19 @@ const DitherFieldLab = () => {
                 className={`metabloom-palette-option${chiralHandedness === -1 ? " is-active" : ""}`}
                 aria-pressed={chiralHandedness === -1}
                 onClick={() => setChiralHandedness(-1)}>Mirror</button>
+            </div>
+            <div className="metabloom-palette-selector chiral-structure-selector"
+              role="group" aria-label="Chiral Weave structure">
+              <span className="metabloom-palette-selector-label">Structure</span>
+              <button type="button"
+                className={`metabloom-palette-option${chiralStructure === "classic" ? " is-active" : ""}`}
+                aria-pressed={chiralStructure === "classic"}
+                onClick={() => setChiralStructure("classic")}>Classic</button>
+              <button type="button"
+                className={`metabloom-palette-option${chiralStructure === "dna" ? " is-active" : ""}`}
+                aria-pressed={chiralStructure === "dna"}
+                onClick={() => setChiralStructure("dna")}>DNA</button>
+            </div>
             </div>
           )}
           {activeStudy.id === "morphogen-divide" && (
