@@ -1,0 +1,30 @@
+name: Chiral DNA review
+on:
+  push:
+    branches: [feat/chiral-dna]
+    paths: [.github/workflows/chiral-dna-review.yml]
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Package tracked source without environment files
+        run: |
+          python - <<'PY'
+          import pathlib,subprocess,tarfile
+          paths=subprocess.check_output(['git','ls-files','-z']).decode().split('\0')
+          with tarfile.open('dna-source.tar.gz','w:gz') as archive:
+            for name in paths:
+              p=pathlib.Path(name)
+              if name and p.is_file() and not p.is_symlink() and not any(part.startswith('.env') for part in p.parts):
+                archive.add(p,arcname=name,recursive=False)
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: dna-source
+          path: dna-source.tar.gz
+          retention-days: 1
