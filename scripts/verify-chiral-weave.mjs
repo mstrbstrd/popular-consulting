@@ -71,9 +71,18 @@ document.getElementById('chiral-report').textContent=JSON.stringify(result);
 </script></body></html>`;
 const server = http.createServer((request, response) => {
   const url = new URL(request.url, "http://127.0.0.1");
-  if (url.pathname !== "/") { response.writeHead(404); response.end(); return; }
+  if (!["/", "/scene"].includes(url.pathname)) { response.writeHead(404); response.end(); return; }
   response.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
-  response.end(fixture(url.searchParams.get("light") === "1"));
+  const light = url.searchParams.get("light") === "1";
+  if (url.pathname === "/scene") { response.end(fixture(light)); return; }
+  // Headless Chromium can impose a minimum outer window size. An exact iframe
+  // viewport avoids mislabelling a 500px render as a 390px mobile check.
+  const mobile = url.searchParams.get("width") === "390";
+  response.end(`<!doctype html><html><body style="margin:0;overflow:hidden;background:${light ? "#fff8f7" : "#080809"}">
+  <pre id="chiral-report" style="display:none">RUNNING</pre>
+  <iframe title="Chiral geometry fixture" style="display:block;border:0;width:${mobile ? 390 : 1440}px;height:${mobile ? 844 : 900}px"
+  src="/scene?light=${light ? 1 : 0}" onload="document.getElementById('chiral-report').textContent=this.contentDocument.getElementById('chiral-report').textContent"></iframe>
+  </body></html>`);
 });
 await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
 try {
@@ -83,11 +92,12 @@ try {
   for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
     for (const light of [0, 1]) {
       const screenshotPath = path.join(output, `chiral-${viewport.width}-${light ? "light" : "dark"}.png`);
-      const dom = await runBrowserCapture({ browserPath, url: `http://127.0.0.1:${server.address().port}/?light=${light}`,
+      const dom = await runBrowserCapture({ browserPath, url: `http://127.0.0.1:${server.address().port}/?light=${light}&width=${viewport.width}`,
         screenshotPath, profilePrefix: "chiral-weave-", viewport, allowSoftware: true, virtualTimeBudgetMs: 2000 });
-      const match = dom.match(/<pre id="chiral-report">([^<]+)<\/pre>/);
+      const match = dom.match(/<pre id="chiral-report"[^>]*>([^<]+)<\/pre>/);
       assert(match && match[1] !== "RUNNING", "Shader verification did not finish");
       const report = JSON.parse(match[1].replaceAll("&quot;", '"').replaceAll("&amp;", "&"));
+      assert.deepEqual(report.dimensions, [Math.ceil(viewport.width / 2), Math.ceil(viewport.height / 2)], "Incorrect shader viewport");
       reports.push(report);
       fs.rmSync(screenshotPath.replace(/\.png$/, ".html"), { force: true });
     }
