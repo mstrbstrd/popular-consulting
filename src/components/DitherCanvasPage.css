@@ -1156,3 +1156,36 @@
     -webkit-backdrop-filter: blur(0.12rem) saturate(102%);
   }
 }
+
+/* Chiral orientation is a binary transform, never a new renderer or palette. */
+.chiral-orientation-selector .metabloom-palette-option {
+  position: relative;
+  min-height: 4.4rem;
+}
+.chiral-orientation-selector .metabloom-palette-option.is-active {
+  color: var(--rupture-text);
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+.chiral-orientation-selector .metabloom-palette-option.is-active::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  padding: 1px;
+  border-radius: inherit;
+  background: linear-gradient(115deg, #00eeff, #9d00ff, #ff56d6, #00eeff);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+@media (forced-colors: active) {
+  .chiral-orientation-selector .metabloom-palette-option.is-active {
+    border-color: Highlight;
+  }
+  .chiral-orientation-selector .metabloom-palette-option.is-active::before {
+    display: none;
+  }
+}

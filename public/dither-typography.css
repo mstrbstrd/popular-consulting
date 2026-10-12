@@ -286,3 +286,20 @@
     line-height: 1.4;
   }
 }
+
+/* 13: precise humanist capitals paired with a compact mathematical readout. */
+.dither-canvas-page.dither-study-chiral-weave {
+  --study-title-font: "Hanken Grotesk", sans-serif;
+  --study-title-size: clamp(4.5rem, 6.2vw, 9rem);
+  --study-title-mobile: clamp(3.3rem, 10.8vw, 6.2rem);
+  --study-title-weight: 600;
+  --study-title-case: uppercase;
+  --study-title-tracking: -0.075em;
+  --study-title-leading: 0.97;
+  --study-title-width: 8ch;
+  --study-body-font: "JetBrains Mono", monospace;
+  --study-body-size: clamp(1.25rem, 1vw, 1.5rem);
+  --study-body-mobile: 1.25rem;
+  --study-body-leading: 1.65;
+  --study-label-tracking: 0.18em;
+}

@@ -671,3 +671,20 @@
     transform: none;
   }
 }
+
+/* Enter and leave with a small opposing shear; reduced-motion rules above win. */
+.dither-study-scene.is-exiting[data-transition="chiral-weave"],
+.dither-copy.is-exiting[data-transition="chiral-weave"] {
+  animation-name: dither-chiral-exit;
+}
+.dither-study-scene.is-entering[data-transition="chiral-weave"],
+.dither-copy.is-entering[data-transition="chiral-weave"] {
+  animation-name: dither-chiral-enter;
+}
+@keyframes dither-chiral-exit {
+  to { opacity: 0; transform: scale(0.94) skewY(-5deg); }
+}
+@keyframes dither-chiral-enter {
+  from { opacity: 0; transform: scale(1.06) skewY(5deg); }
+  to { opacity: 1; transform: scale(1) skewY(0); }
+}

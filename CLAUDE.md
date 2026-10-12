@@ -89,10 +89,11 @@ npm run lint    # eslint --max-warnings 0 (CI-gated)
 - Motion budget pinned by `WorkPageMotion.test.js`: exactly one CSS keyframe (`work-fade-in`), zero infinite animations.
 
 ### /dither-canvas (CreatorOS field lab)
-- `DitherCanvasPage.js` owns the ten-study selector and guarantees that only one visible renderer family is mounted at a time.
+- `DitherCanvasPage.js` owns the thirteen-study selector and guarantees that only one visible renderer family is mounted at a time.
 - `GraphicsFallbackPage.js` is the intentional policy-disabled route. It explains safe mode and provides explicit enhanced-graphics opt-in without making WebGL mandatory.
 - `CreatorOSLavaLampCanvas.js` is the direct port of `mstrbstrd/CreatorOS/apps/web/components/fluid-background.tsx`. Preserve its half-resolution WebGL1 canvas, 30fps cap, Bayer-8 quantization, exact spectral palette, transparent premultiplied output, viscous wax deformation, velocity stretch/pinch, and 3.2 second warm-up.
-- `CreatorOSFieldCanvas.js` is the shared WebGL2 renderer for Metabloom, Tidal Weave, Moiré Halo, Contour Drift, Morphogen Divide, Quasicrystal Chorus, Hyperbolic Garden, and Forward Pass. It carries the same CreatorOS rendering contract while preserving each study's independent scene mathematics.
+- `CreatorOSFieldCanvas.js` is the shared WebGL2 renderer for Metabloom, Tidal Weave, Moiré Halo, Contour Drift, Morphogen Divide, Quasicrystal Chorus, Hyperbolic Garden, Forward Pass, and Chiral Weave. It carries the same CreatorOS rendering contract while preserving each study's independent scene mathematics.
+- Chiral Weave appends mode 8 without reindexing existing studies. Its twelve analytic helicoid strips share one clock; the orientation uniform reflects space, never time or seed. Reflection redraws the same renderer, including while paused.
 - Morphogen Divide owns two RGBA8 ping-pong textures. It must never sample from the texture attached to the framebuffer currently being written.
 - CreatorOS-derived fields retain their authored 0.5 CSS resolution on normal desktops, upscale with `image-rendering: pixelated`, use transparent premultiplied alpha over `#080809` / `#fff8f7`, and disable the route's full-screen blur and grain so Bayer cells remain crisp. Windows and mobile drawing buffers are additionally bounded by `ditherCanvasRuntime.js` without changing scene mathematics.
 - Every field renderer declares local context recovery so a failed study cannot poison WebGL for the entire session. Windows uses a 600,000-pixel ceiling, a 24fps floor interval, and a high-performance adapter preference with strict-then-relaxed context creation.

@@ -277,3 +277,29 @@
     filter: saturate(120%) contrast(105%) brightness(106%);
   }
 }
+/* Static, bounded twin folds survive missing/lost WebGL without animation. */
+.creatoros-field-mode-8 .creatoros-field-fallback {
+  background: transparent;
+  filter: none;
+}
+.creatoros-field-mode-8 .creatoros-field-fallback::before,
+.creatoros-field-mode-8 .creatoros-field-fallback::after {
+  content: "";
+  position: absolute;
+  top: -15%;
+  width: 42%;
+  height: 130%;
+  border-radius: 48%;
+  background: repeating-linear-gradient(64deg, transparent 0 7%, #00b9c9 7.3% 8%, #9d00ff 8.2% 9%, #fff8f7 9.2% 10%, #ff56d6 10.2% 11%, transparent 11.3% 18%);
+}
+.creatoros-field-mode-8 .creatoros-field-fallback::before {
+  left: 7%;
+  transform: rotate(-12deg);
+}
+.creatoros-field-mode-8 .creatoros-field-fallback::after {
+  right: 7%;
+  transform: scaleX(-1) rotate(-12deg);
+}
+.creatoros-field-mode-8[data-chiral-handedness="-1"] .creatoros-field-fallback {
+  transform: scaleX(-1);
+}

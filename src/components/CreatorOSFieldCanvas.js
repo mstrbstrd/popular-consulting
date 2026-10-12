@@ -24,7 +24,7 @@ import {
   dampMetabloomVector,
 } from "./metabloomMotionRuntime";
 
-const MODE_COUNT = 8;
+const MODE_COUNT = 9;
 const REACTION_MODE = 4;
 const FIELD_SCENE_FUNCTIONS = Object.freeze([
   "sceneMetabloom",
@@ -35,6 +35,7 @@ const FIELD_SCENE_FUNCTIONS = Object.freeze([
   "sceneQuasicrystal",
   "sceneHyperbolic",
   "sceneForwardPass",
+  "sceneChiralWeave",
 ]);
 const FIELD_SAMPLE_SCENE_MARKER =
   "vec4 sampleScene(int mode, vec2 uv, float time) {";
@@ -435,7 +436,11 @@ const normalizeExternalPulseVersion = (value) => {
   return Number.isFinite(numericValue) ? numericValue : 0;
 };
 
+// Only the two orientations are valid. Invalid external values fail to original.
+export const normalizeChiralHandedness = (value) => value === -1 ? -1 : 1;
+
 const CreatorOSFieldCanvas = ({
+  chiralHandedness = 1,
   contourPalette = "terrain",
   externalPulseVersion = 0,
   isDark = false,
@@ -513,6 +518,7 @@ const CreatorOSFieldCanvas = ({
     resolveContourPaletteMix(contourPalette),
   );
   const tidalPaletteRef = useRef(resolveTidalPaletteMix(tidalPalette));
+  const chiralHandednessRef = useRef(normalizeChiralHandedness(chiralHandedness));
   const morphogenPaintRef = useRef(
     resolveMorphogenPaintMix(morphogenExperience),
   );
@@ -648,6 +654,11 @@ const CreatorOSFieldCanvas = ({
     contourPaletteRef.current = resolveContourPaletteMix(contourPalette);
     redrawRef.current();
   }, [contourPalette]);
+
+  useEffect(() => {
+    chiralHandednessRef.current = normalizeChiralHandedness(chiralHandedness);
+    redrawRef.current();
+  }, [chiralHandedness]);
 
   useEffect(() => {
     tidalPaletteRef.current = resolveTidalPaletteMix(tidalPalette);
@@ -992,6 +1003,7 @@ const CreatorOSFieldCanvas = ({
       "u_novaTime",
       "u_contourPaletteMix",
       "u_tidalPaletteMix",
+      "u_chiralHandedness",
       "u_avatarEnabled",
       "u_avatarAction",
       "u_avatarPhase",
@@ -1605,6 +1617,8 @@ const CreatorOSFieldCanvas = ({
         tidalPaletteRef.current,
       );
 
+      gl.uniform1f(activeDisplayUniforms.u_chiralHandedness, chiralHandednessRef.current);
+
       const avatarColorA = metabloomRenderedColorA;
       const avatarColorB = metabloomRenderedColorB;
       const avatarColorC = metabloomRenderedColorC;
@@ -2014,6 +2028,7 @@ const CreatorOSFieldCanvas = ({
       className={`creatoros-field-shell creatoros-field-mode-${clampMode(mode)} creatoros-field-metabloom-palette-${normalizeMetabloomPalette(metabloomPalette)} creatoros-field-palette-${normalizeTidalPalette(tidalPalette)} creatoros-field-contour-palette-${normalizeContourPalette(contourPalette)} creatoros-field-morphogen-${normalizeMorphogenExperience(morphogenExperience)} creatoros-field-morphogen-tool-${normalizeMorphogenTool(morphogenTool)}${
         fallback ? " is-fallback" : ""
       }`}
+      data-chiral-handedness={normalizeChiralHandedness(chiralHandedness)}
       data-context-recovery="local"
       data-field-ready={presented || fallback ? "true" : "false"}
       data-renderer-id="dither-canvas-field"

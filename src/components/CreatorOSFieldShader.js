@@ -1,3 +1,4 @@
+import { CHIRAL_WEAVE_SHADER } from "./ChiralWeaveShader";
 import { METABLOOM_NOVA_SHADER } from "./MetabloomNovaShader";
 
 export const CREATOROS_FIELD_VERTEX_SHADER = `#version 300 es
@@ -2151,6 +2152,7 @@ vec4 sceneForwardPass(vec2 uv, float time) {
   material.a = max(material.a, sat((field - 0.10) * 0.24));
   return material;
 }
+${CHIRAL_WEAVE_SHADER}
 vec4 sampleScene(int mode, vec2 uv, float time) {
   if (mode == 0) return sceneMetabloom(uv, time);
   if (mode == 1) return sceneTidalWeave(uv, time);
@@ -2159,6 +2161,7 @@ vec4 sampleScene(int mode, vec2 uv, float time) {
   if (mode == 4) return sceneMorphogen(uv, time);
   if (mode == 5) return sceneQuasicrystal(uv, time);
   if (mode == 6) return sceneHyperbolic(uv, time);
+  if (mode == 8) return sceneChiralWeave(uv, time);
   return sceneForwardPass(uv, time);
 }
 

@@ -183,6 +183,20 @@ const STUDIES = [
     instruction:
       "Move to bend the horizon · choose Restart to rebuild the dark transport",
   },
+  {
+    id: "chiral-weave",
+    number: "13",
+    title: "Chiral Weave",
+    type: "creatoros-field",
+    kind: "Chirality",
+    mode: 8,
+    initialState: "drifting",
+    resetLabel: "Reseed",
+    description:
+      "Two ribbon families share a clock but wind in opposite directions. Liquid-chrome folds carry spectral edges: related by reflection, never interchangeable.",
+    instruction:
+      "Move to bend the ribbons · tap to send a pressure wave · reflect to exchange handedness without reversing time",
+  },
 ];
 
 const ORIGINAL_SECOND_SURFACE = Object.freeze({
@@ -257,6 +271,7 @@ const STUDY_TRANSITIONS = {
     exit: "hyperbolic-garden",
   },
   "forward-pass": { enter: "forward-pass", exit: "forward-pass" },
+  "chiral-weave": { enter: "chiral-weave", exit: "chiral-weave" },
   "light-theme": { enter: "production-theme", exit: "production-theme" },
   "dark-theme": { enter: "production-theme", exit: "production-theme" },
 };
@@ -360,6 +375,7 @@ const DitherFieldLab = () => {
     METABLOOM_PALETTE_SPECTRAL,
   );
   const [tidalPalette, setTidalPalette] = useState(TIDAL_PALETTE_WATER);
+  const [chiralHandedness, setChiralHandedness] = useState(1);
   const [contourPalette, setContourPalette] = useState(
     CONTOUR_PALETTE_TERRAIN,
   );
@@ -763,6 +779,7 @@ const DitherFieldLab = () => {
         metabloomPalette={metabloomPalette}
         contourPalette={contourPalette}
         tidalPalette={tidalPalette}
+        chiralHandedness={chiralHandedness}
         morphogenExperience={morphogenExperience}
         morphogenTool={morphogenTool}
         morphogenBrushSize={morphogenBrushSize}
@@ -953,6 +970,20 @@ const DitherFieldLab = () => {
               >
                 Metalbloom
               </button>
+            </div>
+          )}
+          {activeStudy.id === "chiral-weave" && (
+            <div className="metabloom-palette-selector chiral-orientation-selector"
+              role="group" aria-label="Chiral Weave orientation">
+              <span className="metabloom-palette-selector-label">Reflection</span>
+              <button type="button"
+                className={`metabloom-palette-option${chiralHandedness === 1 ? " is-active" : ""}`}
+                aria-pressed={chiralHandedness === 1}
+                onClick={() => setChiralHandedness(1)}>Original</button>
+              <button type="button"
+                className={`metabloom-palette-option${chiralHandedness === -1 ? " is-active" : ""}`}
+                aria-pressed={chiralHandedness === -1}
+                onClick={() => setChiralHandedness(-1)}>Mirror</button>
             </div>
           )}
           {activeStudy.id === "morphogen-divide" && (
