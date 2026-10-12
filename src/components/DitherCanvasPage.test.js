@@ -458,6 +458,8 @@ describe("DitherCanvasPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /Chiral Weave/ }));
     flushScrollFrame();
     finishStudyTransition();
+    // Entrance gets its own effect/timer after the exit commit.
+    finishStudyTransition();
     const renderer = screen.getByTestId("creatoros-field-renderer");
     const reset = renderer.getAttribute("data-reset-version");
     const structure = screen.getByRole("group", { name: "Chiral Weave structure" });
