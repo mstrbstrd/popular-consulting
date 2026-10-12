@@ -15,7 +15,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Package public source for isolated validation
-        run: git archive --format=tar.gz --output=chiral-source.tar.gz HEAD src public scripts package.json package-lock.json config-overrides.js vercel.json CONTRIBUTING.md CLAUDE.md .github/workflows
+        run: git archive --format=tar.gz --output=chiral-source.tar.gz HEAD src public scripts package.json package-lock.json vercel.json CONTRIBUTING.md CLAUDE.md .github/workflows
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: chiral-source
