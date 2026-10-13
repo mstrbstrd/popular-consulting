@@ -28,10 +28,10 @@ test("each core contracts monotonically across the former 28-second reset", () =
   for (const time of [0, 10, 27.99, 28, 28.01, 56, 120, 100000]) {
     writeNavierCores(state, time, 0.37);
     const radii = Array.from({ length: 4 }, (_, i) => navierCoreRadius(state[i * 4 + 2]));
-    radii.forEach((radius, i) => {
-      expect(radius).toBeGreaterThan(0);
-      expect(radius).toBeLessThanOrEqual(previous[i]);
-    });
+    for (let i = 0; i < radii.length; i++) {
+      expect(radii[i]).toBeGreaterThan(0);
+      expect(radii[i]).toBeLessThanOrEqual(previous[i]);
+    }
     previous = radii;
   }
   expect(previous.every(radius => radius < 0.00003)).toBe(true);
