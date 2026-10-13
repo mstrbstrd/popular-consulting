@@ -42,9 +42,10 @@ vec4 sceneNavierStokes(vec2 uv, float time) {
   float angle = atan(q.y, q.x + 0.00001);
   float phase = 6.0 * angle + 13.0 * log(r + 0.16) + clock;
   float wave = sin(phase);
-  float aa = max(fwidth(phase) * 0.70, 0.025);
+  float aa = max(fwidth(wave) * 0.70, 0.025);
   float ribbon = 1.0 - smoothstep(0.16, 0.16 + aa, abs(wave));
-  float sheet = exp(-pow(wave * 2.8, 2.0)) * 0.30;
+  float ribbonDistance = wave * 2.8;
+  float sheet = exp(-ribbonDistance * ribbonDistance) * 0.30;
   float envelope = smoothstep(coreRadius * 0.55, coreRadius * 1.5, r)
     * (1.0 - smoothstep(reach * 0.74, reach, r));
   float tracer = pow(0.5 + 0.5 * cos(14.0 * r + clock * 2.0 + angle * 2.0), 8.0);
@@ -92,7 +93,8 @@ vec4 sceneNavierStokes(vec2 uv, float time) {
   float annularR = length(annular);
   float annularAngle = atan(annular.y, annular.x + 0.00001);
   float bandRadius = radius * 1.75 + 0.055;
-  float band = exp(-pow((annularR - bandRadius) / max(pixel * 1.5, 0.026), 2.0));
+  float bandDistance = (annularR - bandRadius) / max(pixel * 1.5, 0.026);
+  float band = exp(-bandDistance * bandDistance);
   float familyA = pow(0.5 + 0.5 * sin(annularAngle * 14.0 + clock * 2.0), 5.0);
   float familyB = pow(0.5 + 0.5 * sin(annularAngle * 11.0 - clock * 1.7), 5.0);
   vec3 annulus = mix(vec3(0.46, 0.30, 1.0), vec3(1.0, 0.24, 0.65), familyB);
