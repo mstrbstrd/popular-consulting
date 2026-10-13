@@ -42,6 +42,7 @@ jest.mock("./CreatorOSFieldCanvas", () => {
   return ({
     chiralHandedness = 1,
     chiralStructure = "classic",
+    navierProgress = -1,
     contourPalette = "terrain",
     isDark,
     metabloomPalette = "spectral",
@@ -58,6 +59,7 @@ jest.mock("./CreatorOSFieldCanvas", () => {
         "data-mode": String(mode),
         "data-chiral-handedness": String(chiralHandedness),
         "data-chiral-structure": chiralStructure,
+        "data-navier-progress": String(navierProgress),
         "data-metabloom-palette": metabloomPalette,
         "data-contour-palette": contourPalette,
         "data-tidal-palette": tidalPalette,
@@ -195,7 +197,7 @@ describe("DitherCanvasPage", () => {
     expect(saveToolState).toHaveBeenCalledWith("dither", { index: 2, paused: true });
   });
 
-  test("opens as a thirteen-study scroll narrative with Second Surface first", () => {
+  test("opens as a fourteen-study scroll narrative with Second Surface first", () => {
     render(<DitherCanvasPage />);
 
     expect(
@@ -218,7 +220,7 @@ describe("DitherCanvasPage", () => {
       name: "Choose the theme beneath Second Surface",
     });
     expect(secondSurfaceSelect).toHaveValue("original-second-surface");
-    expect(within(secondSurfaceSelect).getAllByRole("option")).toHaveLength(13);
+    expect(within(secondSurfaceSelect).getAllByRole("option")).toHaveLength(14);
     expect(
       within(secondSurfaceSelect).getByRole("option", {
         name: "Default",
@@ -253,12 +255,12 @@ describe("DitherCanvasPage", () => {
       "data-reveal-underlay",
       "false",
     );
-    expect(document.querySelectorAll(".dither-scroll-step")).toHaveLength(13);
+    expect(document.querySelectorAll(".dither-scroll-step")).toHaveLength(14);
 
     const studyNavigation = screen.getByRole("navigation", {
       name: "Dither background studies",
     });
-    expect(within(studyNavigation).getAllByRole("button")).toHaveLength(13);
+    expect(within(studyNavigation).getAllByRole("button")).toHaveLength(14);
     expect(
       within(studyNavigation).getByRole("button", { name: /Second Surface/ }),
     ).toHaveAttribute("aria-pressed", "true");
@@ -427,6 +429,33 @@ describe("DitherCanvasPage", () => {
     );
     expect(spectralOption).toHaveAttribute("aria-pressed", "false");
     expect(metalbloomOption).toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("inspects Finite Infinity on the paused renderer and permits it as an underlay", () => {
+    render(<DitherCanvasPage />);
+    fireEvent.click(screen.getByRole("button", { name: /Finite Infinity/ }));
+    flushScrollFrame();
+    finishStudyTransition();
+    finishStudyTransition();
+    const renderer = screen.getByTestId("creatoros-field-renderer");
+    expect(renderer).toHaveAttribute("data-mode", "9");
+    const reset = renderer.getAttribute("data-reset-version");
+    fireEvent.click(screen.getByRole("button", { name: "Pause" }));
+    fireEvent.click(screen.getByRole("button", { name: "Inspect" }));
+    fireEvent.change(screen.getByRole("slider", { name: /Concentration/ }), { target: { value: "80" } });
+    expect(renderer).toHaveAttribute("data-navier-progress", "0.8");
+    expect(renderer).toHaveAttribute("data-paused", "true");
+    expect(renderer).toHaveAttribute("data-reset-version", reset);
+    expect(screen.getByTestId("creatoros-field-renderer")).toBe(renderer);
+    fireEvent.click(screen.getByRole("button", { name: "Replay" }));
+    expect(renderer).toHaveAttribute("data-navier-progress", "-1");
+    expect(renderer).toHaveAttribute("data-paused", "true");
+    fireEvent.click(screen.getByRole("button", { name: /Second Surface/ }));
+    flushScrollFrame(); finishStudyTransition();
+    fireEvent.change(screen.getByRole("combobox", { name: "Choose the theme beneath Second Surface" }),
+      { target: { value: "finite-infinity" } });
+    expect(screen.getByTestId("creatoros-field-renderer")).toHaveAttribute("data-mode", "9");
+    expect(screen.getByTestId("rupture-renderer")).toHaveAttribute("data-reveal-underlay", "true");
   });
 
   test("reflects Chiral Weave without resetting, resuming, or replacing its renderer", () => {

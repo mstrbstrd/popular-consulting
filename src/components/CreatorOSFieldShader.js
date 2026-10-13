@@ -1,3 +1,4 @@
+import { NAVIER_STOKES_SHADER } from "./NavierStokesShader";
 import { CHIRAL_WEAVE_SHADER } from "./ChiralWeaveShader";
 import { METABLOOM_NOVA_SHADER } from "./MetabloomNovaShader";
 
@@ -2153,6 +2154,7 @@ vec4 sceneForwardPass(vec2 uv, float time) {
   return material;
 }
 ${CHIRAL_WEAVE_SHADER}
+${NAVIER_STOKES_SHADER}
 vec4 sampleScene(int mode, vec2 uv, float time) {
   if (mode == 0) return sceneMetabloom(uv, time);
   if (mode == 1) return sceneTidalWeave(uv, time);
@@ -2162,6 +2164,7 @@ vec4 sampleScene(int mode, vec2 uv, float time) {
   if (mode == 5) return sceneQuasicrystal(uv, time);
   if (mode == 6) return sceneHyperbolic(uv, time);
   if (mode == 8) return sceneChiralWeave(uv, time);
+  if (mode == 9) return sceneNavierStokes(uv, time);
   return sceneForwardPass(uv, time);
 }
 

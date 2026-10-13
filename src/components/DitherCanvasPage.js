@@ -10,6 +10,7 @@ import CreatorOSFieldCanvas from "./CreatorOSFieldCanvas";
 import CreatorOSLavaLampCanvas from "./CreatorOSLavaLampCanvas";
 import ProductionThemeCanvas from "./ProductionThemeCanvas";
 import RuptureCanvas from "./RuptureCanvas";
+import NavierStokesControls from "./NavierStokesControls";
 import "./DitherCanvasPage.css";
 import "./DitherCanvasVibrance.css";
 import "./CreatorOSLavaLampCanvas.css";
@@ -197,6 +198,20 @@ const STUDIES = [
     instruction:
       "Move to bend · tap to pulse · reflect without reversing time · DNA is a molecular illustration, not a simulation",
   },
+  {
+    id: "finite-infinity",
+    number: "14",
+    title: "Finite Infinity",
+    type: "creatoros-field",
+    kind: "Navier-Stokes",
+    mode: 9,
+    initialState: "concentrating",
+    resetLabel: "Replay",
+    description:
+      "A vortex folds inward. Its core narrows, its currents accelerate, yet its energy stays finite. A spectral interpretation of OpenAI’s smooth-forcing Navier-Stokes construction.",
+    instruction:
+      "Move to bend the currents · tap to pulse · inspect the collapse · schematic, not a fluid simulation",
+  },
 ];
 
 const ORIGINAL_SECOND_SURFACE = Object.freeze({
@@ -272,6 +287,7 @@ const STUDY_TRANSITIONS = {
   },
   "forward-pass": { enter: "forward-pass", exit: "forward-pass" },
   "chiral-weave": { enter: "chiral-weave", exit: "chiral-weave" },
+  "finite-infinity": { enter: "finite-infinity", exit: "finite-infinity" },
   "light-theme": { enter: "production-theme", exit: "production-theme" },
   "dark-theme": { enter: "production-theme", exit: "production-theme" },
 };
@@ -377,6 +393,7 @@ const DitherFieldLab = () => {
   const [tidalPalette, setTidalPalette] = useState(TIDAL_PALETTE_WATER);
   const [chiralHandedness, setChiralHandedness] = useState(1);
   const [chiralStructure, setChiralStructure] = useState("classic");
+  const [navierProgress, setNavierProgress] = useState(-1);
   const [contourPalette, setContourPalette] = useState(
     CONTOUR_PALETTE_TERRAIN,
   );
@@ -729,6 +746,7 @@ const DitherFieldLab = () => {
   };
 
   const resetActiveStudy = () => {
+    if (activeStudy.id === "finite-infinity") setNavierProgress(-1);
     if (displayStudyIndex === 0) scrollToStudy(0);
     if (activeStudy.id === "light-theme") {
       setMobileLightRuntimeFailed(false);
@@ -782,6 +800,7 @@ const DitherFieldLab = () => {
         tidalPalette={tidalPalette}
         chiralHandedness={chiralHandedness}
         chiralStructure={chiralStructure}
+        navierProgress={navierProgress}
         morphogenExperience={morphogenExperience}
         morphogenTool={morphogenTool}
         morphogenBrushSize={morphogenBrushSize}
@@ -973,6 +992,9 @@ const DitherFieldLab = () => {
                 Metalbloom
               </button>
             </div>
+          )}
+          {activeStudy.id === "finite-infinity" && (
+            <NavierStokesControls progress={navierProgress} onProgressChange={setNavierProgress} />
           )}
           {activeStudy.id === "chiral-weave" && (
             <div className="chiral-controls">

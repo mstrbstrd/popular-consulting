@@ -18,6 +18,7 @@ let fragment = literal(shaderFile, "CREATOROS_FIELD_FRAGMENT_SHADER");
 for (const [name, file] of [
   ["METABLOOM_NOVA_SHADER", "MetabloomNovaShader.js"],
   ["CHIRAL_WEAVE_SHADER", "ChiralWeaveShader.js"],
+  ["NAVIER_STOKES_SHADER", "NavierStokesShader.js"],
 ]) {
   fragment = fragment.replace(`\${${name}}`, literal(`src/components/${file}`, name));
 }
