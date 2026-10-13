@@ -206,9 +206,9 @@ const STUDIES = [
     kind: "Navier-Stokes",
     mode: 9,
     initialState: "concentrating",
-    resetLabel: "Replay",
+    resetLabel: "Reseed",
     description:
-      "Pigment folds into evolving currents. A contracting view evokes a narrowing core: rising speed, finite energy. An artistic interpretation of OpenAI’s reported smooth-forcing construction.",
+      "One connected fluid field. Several vortices tighten toward tiny, persistent cores while currents circulate from edge to edge. An artistic interpretation of OpenAI’s reported smooth-forcing construction.",
     instruction:
       "Move to stir · tap to pulse · pause to inspect · illustrative 2D flow, not the 3D solution",
   },

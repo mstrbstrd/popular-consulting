@@ -7,10 +7,13 @@ import { createBuildServer } from './dark-evidence-browser.mjs';
 
 const output = path.resolve('navier-stokes-evidence');
 fs.mkdirSync(output, { recursive: true });
+const fieldSource = fs.readFileSync('src/components/navierStokesField.js', 'utf8');
 const moduleSource = fs.readFileSync('src/components/navierStokesFluid.js', 'utf8');
 const server = http.createServer((req, res) => {
   if (req.url === '/solver.js') {
     res.writeHead(200, { 'Content-Type': 'text/javascript', 'Cache-Control': 'no-store' }); res.end(moduleSource);
+  } else if (req.url === '/navierStokesField') {
+    res.writeHead(200, { 'Content-Type': 'text/javascript', 'Cache-Control': 'no-store' }); res.end(fieldSource);
   } else if (req.url === '/') {
     res.writeHead(200, { 'Content-Type': 'text/html' }); res.end('<!doctype html><title>Local fluid verifier</title><canvas></canvas>');
   } else { res.writeHead(404); res.end(); }

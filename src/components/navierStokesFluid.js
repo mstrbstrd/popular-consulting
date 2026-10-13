@@ -115,7 +115,7 @@ void main() {
     outColor = vec4(clamp((l.x + r.x + b.x + t.x - h.x * h.x * divergence) * 0.25, -4.0, 4.0), 0.0, 0.0, 1.0); return;
   }
   if (u_pass == 7) {
-    vec2 velocity = texture(u_b, uv).xy - vec2(r.x - l.x, t.x - b.y) * 0.5 / h.x;
+    vec2 velocity = texture(u_b, uv).xy - vec2(r.x - l.x, t.x - b.x) * 0.5 / h.x;
     outColor = vec4(clamp(velocity, -1.25, 1.25), 0.0, 1.0); return;
   }
   // Transport existing pigment, so curls retain the history of the flow.

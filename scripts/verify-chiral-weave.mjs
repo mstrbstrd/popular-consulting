@@ -19,6 +19,7 @@ for (const [name, file] of [
   ["METABLOOM_NOVA_SHADER", "MetabloomNovaShader.js"],
   ["CHIRAL_WEAVE_SHADER", "ChiralWeaveShader.js"],
   ["NAVIER_STOKES_SHADER", "NavierStokesShader.js"],
+  ["NAVIER_CORE_SHADER", "navierStokesField.js"],
 ]) {
   fragment = fragment.replace(`\${${name}}`, literal(`src/components/${file}`, name));
 }

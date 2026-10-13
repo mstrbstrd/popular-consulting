@@ -20,7 +20,7 @@ const mockGl = () => {
     texImage2D: jest.fn(), texParameteri: jest.fn(),
     framebufferTexture2D: jest.fn(() => attached.set(framebuffer, boundTexture)),
     checkFramebufferStatus: jest.fn(() => 36053), useProgram: jest.fn(), viewport: jest.fn(),
-    uniform1i: jest.fn(), uniform1f: jest.fn(), uniform2f: jest.fn(), clearColor: jest.fn(), clear: jest.fn(),
+    uniform1i: jest.fn(), uniform1f: jest.fn(), uniform2f: jest.fn(), uniform4fv: jest.fn(), clearColor: jest.fn(), clear: jest.fn(),
     drawArrays: jest.fn(() => {
       for (const i of [0, 1]) expect(sampled.get(i)).not.toBe(attached.get(framebuffer));
     }),
@@ -44,7 +44,11 @@ test.each([false, true])("fixed fluid budget and distinct read/write targets (mo
   expect(gl.createTexture).toHaveBeenCalledTimes(9);
   expect(fluid.size).toBe(mobile ? 96 : 128);
   expect(fluid.dyeSize).toBe(mobile ? 256 : 384);
+  fluid.setAspect(1.6);
   fluid.reset(0.4);
+  expect(fluid.coreCount).toBe(mobile ? 3 : 4);
+  expect(fluid.cores).toHaveLength(16);
+  expect(gl.uniform1f).toHaveBeenCalledWith("u_navierAspect", 1.6);
   const previous = fluid.texture;
   gl.drawArrays.mockClear();
   fluid.step(1000, [NaN, Infinity], [-Infinity, 1000]);
@@ -61,6 +65,12 @@ test.each([false, true])("fixed fluid budget and distinct read/write targets (mo
   for (const dt of [NaN, Infinity, -1, 0, "0.1"]) fluid.step(dt);
   expect(gl.drawArrays).toHaveBeenCalledTimes(count);
   expect(gl.createTexture).toHaveBeenCalledTimes(9);
+  for (const [, values] of gl.uniform4fv.mock.calls) expect([...values].every(Number.isFinite)).toBe(true);
+  const time = fluid.time;
+  const cores = [...fluid.cores];
+  fluid.setAspect(NaN); // Resize/inspection is not a simulation step.
+  expect(fluid.time).toBe(time);
+  expect([...fluid.cores]).toEqual(cores);
   fluid.dispose(); fluid.dispose(); fluid.step(1 / 30); fluid.reset(0.3);
   expect(gl.drawArrays).toHaveBeenCalledTimes(count);
   expect(gl.deleteTexture).toHaveBeenCalledTimes(9);

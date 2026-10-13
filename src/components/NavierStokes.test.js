@@ -35,14 +35,16 @@ describe("Finite Infinity boundaries", () => {
       previous = next;
     }
   });
-  test("keeps one specialized display and a bounded replay", () => {
+  test("keeps one full-domain display without periodic fading", () => {
     const source = specializeCreatorOSFieldFragmentShader(CREATOROS_FIELD_FRAGMENT_SHADER, 9);
     const start = source.indexOf("vec4 sampleScene");
     expect(source.slice(start, source.indexOf("\n\nvoid main()", start))).toContain("return sceneNavierStokes(uv, time)");
     expect(NAVIER_STOKES_SHADER).toContain("u_navierDye");
     expect(NAVIER_STOKES_SHADER).toContain("u_navierFluidReady");
     expect(NAVIER_STOKES_SHADER).not.toMatch(/while\s*\(/);
-    expect(NAVIER_STOKES_SHADER).toContain("1.0 - smoothstep(0.94, 1.0, cycle)");
+    expect(NAVIER_STOKES_SHADER).not.toMatch(/float replay|float cycle|opacity \* crop/);
+    expect(NAVIER_STOKES_SHADER).toContain("vec2 q = uv;");
+    expect(NAVIER_STOKES_SHADER).toContain("max(navierRadius(progress), pixel * 1.15)");
   });
   test("inspection stays on the same paused canvas, including local fallback", async () => {
     jest.spyOn(console, "error").mockImplementation(() => {});

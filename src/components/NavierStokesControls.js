@@ -25,13 +25,13 @@ const NavierStokesControls = ({ progress, onProgressChange }) => {
           <span>Speed <strong>{scales.speed.toFixed(1)}×</strong></span>
           <span>Core energy <strong>{scales.energy.toFixed(3)}×</strong></span>
         </div>
-        <p id="navier-scale-note">Leading-order scales, not measured data. Inspect reframes the flow, not its history. Use Pause to freeze it.</p>
+        <p id="navier-scale-note">Leading-order scales, not measured data. Inspect adjusts the core markers, not flow history. Use Pause to freeze it.</p>
       </div>}
-      <p className="navier-principle">Shrinking core. Rising speed. Finite energy.</p>
+      <p className="navier-principle">One fluid. Several tightening cores. No fade-out.</p>
       <details className="navier-research">
         <summary>About the result</summary>
-        <p>Inspired by OpenAI’s reported smooth-forcing construction. Pigment rides an evolving 2D velocity field, folding into eddies and retaining the history of your gestures. Devices without floating-point render targets use an analytical illustration.</p>
-        <p>The contracting camera envelope illustrates the 3D core’s concentration, not simulated physical compression. This 2D artwork does not reproduce or verify the 3D proof. Reference scales are not live measurements. Pause freezes the flow; Inspect changes only its framing.</p>
+        <p>Inspired by OpenAI’s reported smooth-forcing construction. One continuous 2D pigment field surrounds four vortices, or three on mobile. Their core markers contract toward a tiny visible floor while the surrounding fluid keeps moving. Devices without floating-point render targets use an analytical illustration.</p>
+        <p>The multiple cores are an artistic extension, not a claim about simultaneous physical singularities. This bounded 2D flow does not reproduce or verify the reported 3D proof. Reference scales are not live measurements. Pause freezes the flow; Inspect changes only the displayed core concentration.</p>
         <a href="https://openai.com/index/navier-stokes-solution/" target="_blank" rel="noopener noreferrer">OpenAI research ↗</a>
       </details>
     </div>
