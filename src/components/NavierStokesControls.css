@@ -1,0 +1,23 @@
+.navier-controls { color: var(--rupture-text-soft); min-width: 0; }
+.navier-controls .metabloom-palette-option { min-height: 44px; }
+.navier-scrubber { padding: 0 0.8rem; }
+.navier-scrubber label { display: flex; justify-content: space-between; font-size: 1.2rem; }
+.navier-scrubber input { display: block; width: 100%; min-height: 44px; margin: 0; accent-color: #7050d4; cursor: pointer; }
+.navier-scales { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; font: 1rem/1.5 "JetBrains Mono", monospace; }
+.navier-scales span { display: grid; }
+.navier-scales strong { color: var(--rupture-text); font-weight: 600; }
+.navier-scrubber p, .navier-principle, .navier-research { font-size: 1.05rem; line-height: 1.5; }
+.navier-scrubber p { margin: 0.6rem 0; }
+.navier-principle { margin: 0.6rem 0.8rem 0; }
+.navier-research { margin: 0 0.8rem 0.6rem; }
+.navier-research summary { min-height: 44px; align-content: center; cursor: pointer; color: var(--rupture-text); }
+.navier-research p { margin: 0 0 1rem; }
+.navier-research a { display: inline-flex; min-height: 44px; align-items: center; color: var(--rupture-text); text-decoration: underline; text-underline-offset: 0.3em; }
+.navier-controls :is(button, input, summary, a):focus-visible { outline: 2px solid var(--rupture-text); outline-offset: 3px; }
+/* Native disclosure scrolls within the existing selector, never over the nav. */
+@media (max-width: 1080px) {
+  .navier-controls { max-height: 34dvh; overflow-y: auto; overscroll-behavior: contain; }
+  .navier-principle { display: none; }
+  .navier-scales { justify-content: space-between; }
+  .navier-controls .metabloom-palette-selector { margin-bottom: 0; }
+}
