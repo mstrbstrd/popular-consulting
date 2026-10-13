@@ -1,0 +1,52 @@
+name: Integrate persistent Navier field
+on:
+  push:
+    branches: [feat/navier-persistent-cores]
+permissions:
+  contents: read
+jobs:
+  integrate-and-validate:
+    if: github.repository == 'mstrbstrd/popular-consulting' && github.ref == 'refs/heads/feat/navier-persistent-cores'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+      - name: Apply hash-checked source integration
+        run: node scripts/apply-persistent-navier.cjs
+      - name: Save actual source and remove temporary integration tooling
+        run: |
+          git diff --check
+          git add src/components/CreatorOSFieldCanvas.js src/components/CreatorOSFieldCanvas.css src/components/DitherCanvasPage.js src/components/DitherCanvasPage.test.js src/components/NavierStokes.test.js src/components/NavierStokesControls.js src/components/NavierStokesFluid.test.js src/components/navierStokesFluid.js scripts/verify-chiral-weave.mjs scripts/verify-navier-fluid.mjs scripts/verify-navier-stokes-shader.mjs CLAUDE.md .github/workflows/navier-stokes-browser.yml
+          git rm scripts/apply-persistent-navier.cjs .github/workflows/navier-persistent-workbench.yml
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'feat: integrate persistent full-domain vortex cores'
+          git push origin HEAD:feat/navier-persistent-cores
+      - run: npm ci --no-audit --no-fund
+      - run: npm run lint
+      - name: Field regression tests
+        env:
+          CI: true
+        run: npm test -- --watchAll=false --runInBand --testPathPattern='NavierStokes|DitherCanvas|CreatorOSField|ChiralWeave|ForwardPassField'
+      - run: npm run build
+        env:
+          CI: true
+      - name: Install isolated browser verifier
+        run: npm install --no-save --package-lock=false --ignore-scripts --no-audit --no-fund playwright@1.51.1
+      - name: Actual shader, transport and responsive controls
+        env:
+          VISUAL_CAPTURE_BROWSER: /usr/bin/google-chrome
+        run: |
+          node scripts/verify-navier-stokes-shader.mjs
+          node scripts/verify-navier-fluid.mjs
+          node scripts/verify-navier-stokes.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: navier-persistent-evidence
+          path: navier-stokes-evidence/
+          if-no-files-found: ignore
+          retention-days: 7

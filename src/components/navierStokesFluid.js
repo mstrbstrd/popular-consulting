@@ -1,3 +1,5 @@
+import { NAVIER_CORE_SHADER, writeNavierCores } from "./navierStokesField";
+
 // Bounded 2D dye transport for artwork, not the reported 3D blowup solution.
 // Algorithm references: GPU Gems 38 and Pavel Dobryakov's separation of
 // low-resolution velocity from higher-resolution dye. Original implementation.
@@ -21,59 +23,73 @@ uniform float u_seed;
 uniform vec2 u_size;
 uniform vec2 u_pointer;
 uniform vec2 u_impulse;
+${NAVIER_CORE_SHADER}
 
 vec4 sampleLinear(sampler2D image, vec2 uv) {
-  vec2 size = vec2(textureSize(image, 0));
-  vec2 st = clamp(uv * size - 0.5, vec2(0.0), size - 1.0);
-  ivec2 cell = ivec2(floor(st));
-  ivec2 edge = ivec2(size) - 1;
+  ivec2 size = textureSize(image, 0);
+  vec2 st = fract(uv) * vec2(size) - 0.5;
+  ivec2 i = ivec2(floor(st)) + size;
   vec2 f = fract(st);
-  return mix(mix(texelFetch(image, cell, 0), texelFetch(image, min(cell + ivec2(1, 0), edge), 0), f.x),
-    mix(texelFetch(image, min(cell + ivec2(0, 1), edge), 0), texelFetch(image, min(cell + ivec2(1), edge), 0), f.x), f.y);
+  return mix(mix(texelFetch(image, i % size, 0), texelFetch(image, (i + ivec2(1, 0)) % size, 0), f.x),
+    mix(texelFetch(image, (i + ivec2(0, 1)) % size, 0), texelFetch(image, (i + ivec2(1)) % size, 0), f.x), f.y);
 }
 
-vec2 eddy(vec2 p, vec2 center, float strength, float width) {
-  vec2 d = p - center;
-  return strength * vec2(-d.y, d.x) * exp(-dot(d, d) / width);
+vec2 prescribed(vec2 uv) {
+  float phase = u_time * 0.09 + u_seed * 6.28318530718;
+  vec2 metric = navierMetric();
+  vec2 v = 0.045 * vec2(sin(uv.y * 12.56637061436 + phase),
+    sin(uv.x * 12.56637061436 - phase));
+  for (int i = 0; i < 4; i++) {
+    if (i >= u_navierCoreCount) break;
+    vec4 core = u_navierCores[i];
+    vec2 d = navierDelta(uv, core.xy);
+    float r2 = dot(d, d);
+    float envelope = (1.0 - smoothstep(0.22, 0.36, sqrt(r2))) * exp(-r2 / 0.047);
+    // Flow cannot resolve a sub-cell core. Only the presentation reaches the
+    // pixel floor. Tangential flow survives pressure projection, unlike sinks.
+    float radius = max(navierRadius(core.z), 2.0 * max(metric.x, metric.y) / u_size.x);
+    v += vec2(-d.y, d.x) / metric * (0.014 * core.w / (r2 + radius * radius)) * envelope;
+    // Local strain has an inward AND outward direction, not a drain of fluid.
+    v += 0.36 * vec2(d.x * (1.0 - 2.0 * d.y * d.y / 0.047),
+      -d.y * (1.0 - 2.0 * d.x * d.x / 0.047)) / metric * envelope;
+  }
+  return clamp(v, -0.65, 0.65);
 }
 
-vec2 prescribed(vec2 p) {
-  float t = u_time * 0.17 + u_seed * 6.28;
-  vec2 v = eddy(p, vec2(0.0), 1.5, 0.38);
-  v += eddy(p, vec2(0.29 * cos(t), 0.30 * sin(t)), -2.4, 0.085);
-  v += eddy(p, vec2(-0.34 * cos(t * 0.83), -0.30 * sin(t * 0.83)), 2.6, 0.10);
-  v += eddy(p, vec2(0.06 + 0.18 * sin(t), -0.22), -2.0, 0.032);
-  v += 0.07 * vec2(sin(p.y * 19.0 + t), sin(p.x * 17.0 - t));
-  v += vec2(-p.x, p.y) * 0.24 * exp(-dot(p,p) * 3.5);
-  return v;
-}
-
-vec3 pigment(vec2 p) {
-  float r = length(p);
-  float angle = r > 0.0001 ? atan(p.y, p.x) : 0.0;
-  float twist = angle + 9.0 * r + 0.6 * sin(angle * 3.0 - r * 9.0 + u_seed * 6.28);
-  float ringDistance = (r - 0.31) * 5.7;
-  float body = exp(-ringDistance * ringDistance) * (1.0 - smoothstep(0.54, 0.68, r));
-  float bands = 0.15 + 0.85 * pow(0.5 + 0.5 * sin(twist * 4.0), 2.0);
-  float threads = 0.65 + 0.35 * sin(twist * 13.0 + r * 70.0);
-  vec3 phases = 0.5 + 0.5 * cos(twist * 1.3 + vec3(0.0, 2.1, 4.2));
-  return body * bands * threads * phases * 1.5;
+vec3 pigment(vec2 uv) {
+  float phase = u_seed * 6.28318530718;
+  vec2 p = uv * 6.28318530718;
+  float wave = sin(p.x * 2.0 + sin(p.y * 3.0 + phase))
+    + cos(p.y * 2.0 + sin(p.x + phase));
+  vec3 tint = 0.5 + 0.5 * cos(p.x + p.y + wave + phase + vec3(0.0, 2.1, 4.2));
+  vec3 ink = tint * (0.075 + 0.24 * pow(0.5 + 0.5 * sin(wave * 5.0 + p.y), 2.0));
+  for (int i = 0; i < 4; i++) {
+    if (i >= u_navierCoreCount) break;
+    vec4 core = u_navierCores[i];
+    vec2 d = navierDelta(uv, core.xy);
+    float r = length(d);
+    float a = r > 0.0001 ? atan(d.y, d.x) : 0.0;
+    float spiral = a * 4.0 + log(r + 0.045) * 12.0 * sign(core.w);
+    float threads = pow(0.5 + 0.5 * sin(spiral), 3.0);
+    ink += exp(-r * r / 0.032) * threads * 0.55
+      * (0.5 + 0.5 * cos(a * 2.0 + float(i) * 1.7 + phase + vec3(0.0, 2.1, 4.2)));
+  }
+  return ink;
 }
 
 void main() {
   vec2 uv = v_uv;
-  vec2 p = uv - 0.5;
   vec2 h = 1.0 / u_size;
   vec4 center = texture(u_a, uv);
-  if (u_pass == 0) { outColor = vec4(prescribed(p), 0.0, 1.0); return; }
-  if (u_pass == 1) { outColor = vec4(pigment(p), 1.0); return; }
+  if (u_pass == 0) { outColor = vec4(prescribed(uv), 0.0, 1.0); return; }
+  if (u_pass == 1) { outColor = vec4(pigment(uv), 1.0); return; }
   if (u_pass == 2) {
     // Midpoint semi-Lagrangian self-advection, in UV/second units.
     vec2 mid = uv - 0.5 * u_dt * center.xy;
     vec2 back = uv - u_dt * sampleLinear(u_a, mid).xy;
     vec2 velocity = sampleLinear(u_a, back).xy * exp(-u_dt * 0.11);
-    velocity += prescribed(p) * u_dt * 0.45;
-    vec2 offset = uv - u_pointer;
+    velocity += prescribed(uv) * u_dt * 0.45;
+    vec2 offset = navierDelta(uv, u_pointer);
     velocity += u_impulse * exp(-dot(offset, offset) / 0.0035);
     outColor = vec4(clamp(velocity, -1.25, 1.25), 0.0, 1.0); return;
   }
@@ -92,10 +108,6 @@ void main() {
     outColor = vec4(clamp(velocity, -1.25, 1.25), 0.0, 1.0); return;
   }
   if (u_pass == 5) {
-    if (uv.x < h.x) l.x = -center.x;
-    if (uv.x > 1.0 - h.x) r.x = -center.x;
-    if (uv.y < h.y) b.y = -center.y;
-    if (uv.y > 1.0 - h.y) t.y = -center.y;
     outColor = vec4((r.x - l.x + t.y - b.y) * 0.5 / h.x, 0.0, 0.0, 1.0); return;
   }
   if (u_pass == 6) {
@@ -103,9 +115,7 @@ void main() {
     outColor = vec4(clamp((l.x + r.x + b.x + t.x - h.x * h.x * divergence) * 0.25, -4.0, 4.0), 0.0, 0.0, 1.0); return;
   }
   if (u_pass == 7) {
-    vec2 velocity = texture(u_b, uv).xy - vec2(r.x - l.x, t.x - b.x) * 0.5 / h.x;
-    if (uv.x < h.x || uv.x > 1.0 - h.x) velocity.x = 0.0;
-    if (uv.y < h.y || uv.y > 1.0 - h.y) velocity.y = 0.0;
+    vec2 velocity = texture(u_b, uv).xy - vec2(r.x - l.x, t.x - b.y) * 0.5 / h.x;
     outColor = vec4(clamp(velocity, -1.25, 1.25), 0.0, 1.0); return;
   }
   // Transport existing pigment, so curls retain the history of the flow.
@@ -113,19 +123,23 @@ void main() {
   vec2 mid = uv - 0.5 * u_dt * velocity;
   vec2 back = uv - u_dt * sampleLinear(u_b, mid).xy;
   vec3 dye = sampleLinear(u_a, back).rgb * exp(-u_dt * 0.17);
-  float phase = u_time * 0.19 + u_seed * 6.28;
-  for (int i = 0; i < 3; i++) {
-    float a = phase + float(i) * 2.094;
-    vec2 source = vec2(cos(a), sin(a)) * (0.30 + 0.045 * sin(phase * 2.7 + float(i)));
-    vec2 delta = p - source;
-    float ink = exp(-dot(delta, delta) / 0.00085) * u_dt * 2.7;
-    dye += ink * (0.5 + 0.5 * cos(a + vec3(0.0, 2.1, 4.2)));
+  float phase = u_time * 0.13 + u_seed * 6.28318530718;
+  // Feed the surrounding current, not just the tiny centers. Domain-wide
+  // low-rate replenishment balances dissipation without resetting history.
+  for (int i = 0; i < 4; i++) {
+    if (i >= u_navierCoreCount) break;
+    vec4 core = u_navierCores[i];
+    float a = phase + float(i) * 1.7;
+    vec2 source = core.xy + vec2(cos(a), sin(a)) * 0.105 / navierMetric();
+    vec2 delta = navierDelta(uv, source);
+    dye += exp(-dot(delta, delta) / 0.0018) * u_dt * 1.6
+      * (0.5 + 0.5 * cos(a + vec3(0.0, 2.1, 4.2)));
   }
-  vec2 delta = uv - u_pointer;
+  dye += pigment(uv) * u_dt * 0.10;
+  vec2 delta = navierDelta(uv, u_pointer);
   dye += min(length(u_impulse), 0.4) * 1.5 * exp(-dot(delta,delta) / 0.0016)
     * (0.5 + 0.5 * cos(phase + vec3(0.0, 2.1, 4.2)));
-  float edge = smoothstep(0.0, 0.04, min(min(uv.x, uv.y), min(1.0-uv.x, 1.0-uv.y)));
-  outColor = vec4(clamp(dye * edge, 0.0, 3.0), 1.0);
+  outColor = vec4(clamp(dye, 0.0, 3.0), 1.0);
 }
 `;
 
@@ -136,7 +150,9 @@ export const createNavierStokesFluid = (gl, mobile = false) => {
   const iterations = mobile ? 12 : 18;
   const textures = [], framebuffers = [], shaders = [];
   let program, vertexArray, vertexBuffer;
-  let disposed = false, elapsed = 0;
+  let disposed = false, elapsed = 0, seed = 0, aspect = 1;
+  const coreCount = mobile ? 3 : 4;
+  const cores = new Float32Array(16);
   const previousVertexArray = gl.getParameter(gl.VERTEX_ARRAY_BINDING);
   const dispose = () => {
     if (disposed) return;
@@ -173,7 +189,7 @@ export const createNavierStokesFluid = (gl, mobile = false) => {
     gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1,3,-1,-1,3]), gl.STATIC_DRAW);
     gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
-    const uniforms = Object.fromEntries(["u_a", "u_b", "u_pass", "u_dt", "u_time", "u_seed", "u_size", "u_pointer", "u_impulse"]
+    const uniforms = Object.fromEntries(["u_a", "u_b", "u_pass", "u_dt", "u_time", "u_seed", "u_size", "u_pointer", "u_impulse", "u_navierCores[0]", "u_navierCoreCount", "u_navierAspect"]
       .map(name => [name, gl.getUniformLocation(program, name)]));
     const target = resolution => {
       const texture = gl.createTexture();
@@ -187,8 +203,8 @@ export const createNavierStokesFluid = (gl, mobile = false) => {
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, resolution, resolution, 0, gl.RGBA, gl.HALF_FLOAT, null);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
       gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
       gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
       if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) throw new Error("Fluid target is incomplete.");
@@ -214,11 +230,20 @@ export const createNavierStokesFluid = (gl, mobile = false) => {
       gl.drawArrays(gl.TRIANGLES, 0, 3);
     };
     const finite = (value, low, high, fallback) => Number.isFinite(value) ? Math.max(low, Math.min(high, value)) : fallback;
+    const configureField = () => {
+      writeNavierCores(cores, elapsed, seed, coreCount);
+      gl.uniform4fv(uniforms["u_navierCores[0]"], cores);
+      gl.uniform1i(uniforms.u_navierCoreCount, coreCount);
+      gl.uniform1f(uniforms.u_navierAspect, aspect);
+    };
+    const setAspect = value => { aspect = finite(value, 0.125, 8, 1); };
     const reset = value => {
       if (disposed) return;
       elapsed = 0;
+      seed = finite(value, 0, 1, 0);
       gl.useProgram(program);
-      gl.uniform1f(uniforms.u_seed, finite(value, 0, 1, 0)); gl.uniform1f(uniforms.u_time, 0);
+      configureField();
+      gl.uniform1f(uniforms.u_seed, seed); gl.uniform1f(uniforms.u_time, 0);
       for (const buffer of framebuffers) {
         gl.bindFramebuffer(gl.FRAMEBUFFER, buffer); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
       }
@@ -231,6 +256,7 @@ export const createNavierStokesFluid = (gl, mobile = false) => {
       const dt = Math.min(delta, 1 / 30);
       elapsed += dt;
       gl.useProgram(program);
+      configureField();
       gl.uniform1f(uniforms.u_dt, dt); gl.uniform1f(uniforms.u_time, elapsed);
       gl.uniform2f(uniforms.u_pointer, finite(point?.[0], -1, 2, 0.5), finite(point?.[1], -1, 2, 0.5));
       gl.uniform2f(uniforms.u_impulse, finite(impulse?.[0], -0.4, 0.4, 0), finite(impulse?.[1], -0.4, 0.4, 0));
@@ -246,7 +272,8 @@ export const createNavierStokesFluid = (gl, mobile = false) => {
       finish();
     };
     finish();
-    return { reset, step, dispose, get texture() { return dye.texture; }, size, dyeSize, iterations };
+    return { reset, step, dispose, setAspect, cores, coreCount,
+      get texture() { return dye.texture; }, get time() { return elapsed; }, size, dyeSize, iterations };
   } catch (error) {
     dispose(); finish();
     return null; // Optional capability failure stays local to this study.

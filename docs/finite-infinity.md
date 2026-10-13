@@ -1,35 +1,40 @@
-# Finite Infinity: advected dye
+# Finite Infinity: persistent multi-core fluid
 
-Study 14 on `/dither-canvas`, shared field mode 9. Replaces procedural shells with pigment transported through a retained 2D velocity field. The current canvas, cadence, field indices, pause and local recovery remain the rendering owners.
+Study 14 on `/dither-canvas`, shared field mode 9. One connected dye field fills the viewport. Four persistent vortices on desktop, or three on mobile, tighten independently. There is no 28-second opacity fade, camera shrink, automatic reseed, synchronized replay, or tiled copy of a cropped image.
 
-## References
+## Motion and display
 
-The implementation is original code using standard semi-Lagrangian transport, vorticity confinement, Jacobi pressure projection and ping-pong storage. No third-party application code, remote assets or runtime packages are added.
+`navierStokesField.js` writes four fixed vector slots in place. Each contains a center, concentration and signed strength. Centers drift within separated regions. Concentration approaches one monotonically after a staggered start, and the reference display radius is `0.11 * 2^(-12 * concentration)`. The renderer limits the nucleus to 1.15 drawing-buffer pixels so it stays visible and finite. This pixel floor is not a mathematical infinity.
 
-- Pavel Dobryakov, WebGL Fluid Simulation: separate flow and dye resolutions, persistent transport. https://github.com/PavelDoGreat/WebGL-Fluid-Simulation
-- Mark Harris, GPU Gems chapter 38: GPU advection, pressure projection and boundary conditions. https://developer.nvidia.com/gpugems/gpugems/part-vi-beyond-triangles/chapter-38-fast-fluid-dynamics-simulation-gpu
-- Amanda Ghassaei, GPU-IO fluid: bounded state and motion history as visual structure. https://github.com/amandaghassaei/gpu-io/tree/main/examples/fluid
+The solver and display use the same center array and aspect metric. The flow regularizes its vortex cores at two simulation cells; the display can show a smaller nucleus. This distinction is intentional, not a claim that the solver resolves subpixel physical blowup. Surrounding circulation remains active after the nucleus becomes tiny. Opposite spins and local strain move the existing pigment rather than replacing it with a surface animation.
+
+Both native sampling and manual bilinear sampling use periodic boundaries, including across the half-texel seam. Pressure and velocity wrap consistently. Weak full-domain pigment replenishment balances dissipation; there is no absorbing border and no per-frame reset. Pointer and display coordinates now share full-frame UVs, including portrait layouts.
+
+Inspect changes only the displayed core concentration. It does not change the stored dye, force field, positions, clock or history. Pause freezes simulation and core evolution. Reseed is the only explicit restart. These controls retain the existing keyboard and touch behavior.
 
 ## Invariants and excluded states
 
-This is an approximate 2D visual solver, not scientific CFD or the reported 3D blowup solution. Numerical diffusion and residual divergence from fixed projection iterations are expected. The concentration slider changes framing, not stored dye, physical compression or simulation time. It does not rewind accumulated history. Use Pause to freeze the simulation.
-
-Desktop: 128x128 flow, 384x384 dye, 18 pressure iterations. Mobile: 96x96 flow, 256x256 dye, 12 iterations. Six additional simulation passes surround projection. Nine fixed RGBA16F targets, including a neutral sampler, plus one owned triangle buffer and vertex array. No per-frame GPU allocations, unbounded solver loops, particles or bloom passes. Existing half-resolution Bayer display is preserved.
-
-Never sample the output render target. Clamp timesteps to at most 1/30 second with no catch-up loop, pointer impulses and numerical values to finite limits. Invalid timesteps do no work. Unsupported targets and partial initialization release resources and fall back locally. The helper restores the shared vertex array after its passes. Other studies allocate no fluid targets.
-
-Pause, reduced motion, hidden tabs, theme changes and slider redraws must not step the solver. Moving the pointer while playing adds bounded impulses; controls are excluded. Reset reseeds existing targets. Cleanup is idempotent. Context restoration creates fresh locally owned state without affecting other routes.
+- One existing canvas and context. Other studies retain their indices, math, graphics policy and lifecycle.
+- Desktop: 128x128 flow, 384x384 dye, 18 pressure iterations. Mobile: 96x96 flow, 256x256 dye, 12 iterations. Six further simulation passes and one existing half-resolution Bayer display pass. Nine RGBA16F targets and one helper-owned triangle/vertex array remain the allocation budget.
+- Never sample an output texture while writing it. No per-frame GPU allocations, variable population, unbounded convergence loop, particle buffers or bloom chain.
+- Timesteps are positive and capped at 1/30 second. Invalid timesteps do no work. Velocities, pressure, dye, concentrations and denominators stay finite. Resize updates the aspect metric without allocating new simulation targets or advancing time.
+- Pause, hidden tabs, reduced motion, inspection and palette-only redraws do not step the solver. Pointer input from controls is excluded, and queued impulses are discarded while paused.
+- Unsupported float targets use an analytical full-domain illustration in the same renderer. Complete graphics failure uses a static, local CSS field. Partial allocations are released, disposal is idempotent, and context recovery remains local.
 
 ## Research boundary
 
-Source attribution: https://openai.com/index/navier-stokes-solution/
+Inspired by the reported three-dimensional smooth-forcing construction at https://openai.com/index/navier-stokes-solution/ . This bounded two-dimensional artwork does not reproduce or verify that construction. Multiple coexisting cores are an artistic extension, not evidence of simultaneous physical singularities. Color and brightness are not total-energy measurements.
 
-The reported construction is three-dimensional with smooth forcing. This 2D flow does not reproduce or verify it. The shrinking display envelope and 28-second fade/replay communicate the motif only; replay is not continuation through a singularity. Brightness and colors are artistic, not a total-energy measurement.
+The Inspect reference readout is unchanged: h=0.005, tau=10^(-4p), r=tau^(1/2), z=tau^(1/2-h), U=tau^(-1/2-h), E=tau^(1/2-3h). These reference scales satisfy E=U^2*r^2*z. They are not measurements from the solver, and the displayed interval ends before tau=0.
 
-The reference readout retains normalized leading-order core scales: h=0.005, tau=10^(-4p), r=tau^(1/2), z=tau^(1/2-h), U=tau^(-1/2-h), E=tau^(1/2-3h). These satisfy E=U^2*r^2*z. They are not values measured from the 2D solver. The displayed interval ends before tau=0.
+## References and verification
 
-## Verification
+Original code using standard GPU fluid methods, with no vendored demo or new runtime dependency:
 
-Jest covers finite inputs, reference scales, fixed budgets, no feedback, local fallback, partial cleanup and disposed no-op behavior. `scripts/verify-navier-fluid.mjs` checks actual native WebGL2 transport, deterministic reset, persistent pointer response and finite dye output. Existing shader and built-page browser checks cover display compilation, framing, paused clock and seed, one canvas, keyboard controls, both palettes and compact layouts.
+- Pavel Dobryakov, WebGL Fluid Simulation: https://github.com/PavelDoGreat/WebGL-Fluid-Simulation
+- Mark Harris, GPU Gems 38: https://developer.nvidia.com/gpugems/gpugems/part-vi-beyond-triangles/chapter-38-fast-fluid-dynamics-simulation-gpu
+- Amanda Ghassaei, GPU-IO fluid: https://github.com/amandaghassaei/gpu-io/tree/main/examples/fluid
 
-Software-WebGL checks are not physical iPhone/Safari GPU performance certification. Test fixtures, screenshots and local export scripts are not loaded by the site.
+Jest checks separated finite cores, monotonic contraction, invalid inputs, fixed allocation/pass budgets, no read/write feedback, and cleanup. Native browser checks compile the production shaders, test full-frame occupancy across the former replay boundaries, deterministic transport, persistent impulses and premultiplied output. Built-page checks cover one-canvas ownership, retained pause/seed/time, keyboard inspection, both palettes and compact layouts.
+
+Software-WebGL validation is not a physical iPhone/Safari performance certification. Test fixtures and screenshots are not loaded by the application.
