@@ -1,0 +1,64 @@
+name: Finite Infinity browser
+on:
+  pull_request:
+    paths:
+      - 'src/components/NavierStokes*'
+      - 'src/components/navierStokesModel.js'
+      - 'src/components/CreatorOSField*'
+      - 'src/components/DitherCanvasPage*'
+      - 'src/components/DitherScrollNarrative.css'
+      - 'public/dither-typography.css'
+      - 'scripts/verify-navier-stokes*'
+      - '.github/workflows/navier-stokes-browser.yml'
+  push:
+    branches: [main, feat/navier-stokes-study]
+    paths:
+      - 'src/components/NavierStokes*'
+      - 'src/components/navierStokesModel.js'
+      - 'src/components/CreatorOSField*'
+      - 'src/components/DitherCanvasPage*'
+      - 'src/components/DitherScrollNarrative.css'
+      - 'public/dither-typography.css'
+      - 'scripts/verify-navier-stokes*'
+      - '.github/workflows/navier-stokes-browser.yml'
+permissions:
+  contents: read
+concurrency:
+  group: finite-infinity-browser-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  shader-and-controls:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+      - run: npm ci --no-audit --no-fund
+      - run: npm run lint
+      - name: Field regression gate
+        env:
+          CI: true
+        run: npm test -- --watchAll=false --runInBand --testPathPattern='NavierStokes|DitherCanvas|CreatorOSField|ChiralWeave|ForwardPassField'
+      - run: npm run build
+        env:
+          CI: true
+      - name: Install browser verifier without modifying manifests
+        run: npm install --no-save --package-lock=false --ignore-scripts --no-audit --no-fund playwright@1.51.1
+      - name: Compile shader and verify controls in real Chromium
+        env:
+          VISUAL_CAPTURE_BROWSER: /usr/bin/google-chrome
+        run: |
+          node scripts/verify-navier-stokes-shader.mjs
+          node scripts/verify-navier-stokes.mjs
+      - name: Preserve screenshots and invariant results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: navier-stokes-evidence
+          path: navier-stokes-evidence/
+          if-no-files-found: ignore
+          retention-days: 7

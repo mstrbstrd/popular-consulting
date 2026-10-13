@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { normalizeNavierProgress } from "./navierStokesModel";
 import { createMetabloomHoodTransition, METABLOOM_HOOD_SHADER } from "./metabloomUnderHood";
 import { METABLOOM_ACTION_IDS } from "./metabloomActions";
 import { createMetabloomSceneTransition, METABLOOM_SCENE_MODES } from "./metabloomSceneTransition";
@@ -24,7 +25,7 @@ import {
   dampMetabloomVector,
 } from "./metabloomMotionRuntime";
 
-const MODE_COUNT = 9;
+const MODE_COUNT = 10;
 const REACTION_MODE = 4;
 const FIELD_SCENE_FUNCTIONS = Object.freeze([
   "sceneMetabloom",
@@ -36,6 +37,7 @@ const FIELD_SCENE_FUNCTIONS = Object.freeze([
   "sceneHyperbolic",
   "sceneForwardPass",
   "sceneChiralWeave",
+  "sceneNavierStokes",
 ]);
 const FIELD_SAMPLE_SCENE_MARKER =
   "vec4 sampleScene(int mode, vec2 uv, float time) {";
@@ -443,6 +445,7 @@ export const normalizeChiralStructure = (value) => value === "dna" ? "dna" : "cl
 const CreatorOSFieldCanvas = ({
   chiralHandedness = 1,
   chiralStructure = "classic",
+  navierProgress = -1,
   contourPalette = "terrain",
   externalPulseVersion = 0,
   isDark = false,
@@ -522,6 +525,7 @@ const CreatorOSFieldCanvas = ({
   const tidalPaletteRef = useRef(resolveTidalPaletteMix(tidalPalette));
   const chiralHandednessRef = useRef(normalizeChiralHandedness(chiralHandedness));
   const chiralStructureRef = useRef(normalizeChiralStructure(chiralStructure));
+  const navierProgressRef = useRef(normalizeNavierProgress(navierProgress));
   const morphogenPaintRef = useRef(
     resolveMorphogenPaintMix(morphogenExperience),
   );
@@ -667,6 +671,11 @@ const CreatorOSFieldCanvas = ({
     chiralStructureRef.current = normalizeChiralStructure(chiralStructure);
     redrawRef.current();
   }, [chiralStructure]);
+
+  useEffect(() => {
+    navierProgressRef.current = normalizeNavierProgress(navierProgress);
+    redrawRef.current();
+  }, [navierProgress]);
 
   useEffect(() => {
     tidalPaletteRef.current = resolveTidalPaletteMix(tidalPalette);
@@ -1013,6 +1022,7 @@ const CreatorOSFieldCanvas = ({
       "u_tidalPaletteMix",
       "u_chiralHandedness",
       "u_chiralStructure",
+      "u_navierProgress",
       "u_avatarEnabled",
       "u_avatarAction",
       "u_avatarPhase",
@@ -1626,6 +1636,7 @@ const CreatorOSFieldCanvas = ({
         tidalPaletteRef.current,
       );
 
+      gl.uniform1f(activeDisplayUniforms.u_navierProgress, navierProgressRef.current);
       gl.uniform1f(activeDisplayUniforms.u_chiralHandedness, chiralHandednessRef.current);
       gl.uniform1f(activeDisplayUniforms.u_chiralStructure, chiralStructureRef.current === "dna" ? 1 : 0);
 
@@ -2040,6 +2051,7 @@ const CreatorOSFieldCanvas = ({
       }`}
       data-chiral-handedness={normalizeChiralHandedness(chiralHandedness)}
       data-chiral-structure={normalizeChiralStructure(chiralStructure)}
+      data-navier-progress={normalizeNavierProgress(navierProgress)}
       data-context-recovery="local"
       data-field-ready={presented || fallback ? "true" : "false"}
       data-renderer-id="dither-canvas-field"

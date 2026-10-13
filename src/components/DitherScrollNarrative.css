@@ -688,3 +688,14 @@
   from { opacity: 0; transform: scale(1.06) skewY(5deg); }
   to { opacity: 1; transform: scale(1) skewY(0); }
 }
+
+/* Collapse into the axis; reduced-motion animation:none remains authoritative. */
+.dither-study-scene.is-exiting[data-transition="finite-infinity"],
+.dither-copy.is-exiting[data-transition="finite-infinity"] { animation-name: dither-navier-exit; }
+.dither-study-scene.is-entering[data-transition="finite-infinity"],
+.dither-copy.is-entering[data-transition="finite-infinity"] { animation-name: dither-navier-enter; }
+@keyframes dither-navier-exit { to { opacity: 0; transform: scaleX(0.82) scaleY(0.94); } }
+@keyframes dither-navier-enter {
+  from { opacity: 0; transform: scaleX(1.16) scaleY(1.04); }
+  to { opacity: 1; transform: scale(1); }
+}

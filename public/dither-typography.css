@@ -303,3 +303,16 @@
   --study-body-leading: 1.65;
   --study-label-tracking: 0.18em;
 }
+
+/* 14: condensed scientific display with a quiet numerical counterpoint. */
+.dither-canvas-page.dither-study-finite-infinity {
+  --study-title-font: "Space Grotesk", "Hanken Grotesk", sans-serif;
+  --study-title-size: clamp(4.8rem, 6.1vw, 8.8rem);
+  --study-title-mobile: clamp(3.4rem, 9.3vw, 5.8rem);
+  --study-title-weight: 500;
+  --study-title-tracking: -0.065em;
+  --study-title-leading: 0.97;
+  --study-title-width: 8ch;
+  --study-body-font: "Hanken Grotesk", sans-serif;
+  --study-label-font: "JetBrains Mono", monospace;
+}
