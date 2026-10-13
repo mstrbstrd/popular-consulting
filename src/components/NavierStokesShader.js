@@ -21,13 +21,22 @@ vec4 sceneNavierStokes(vec2 uv, float time) {
   float coreLength = mix(0.86, 0.62, progress);
   float reach = mix(1.20, 0.86, progress);
   float horizontal = clamp(aspectScale().x * 0.88, 0.30, 1.0);
+  // Portrait projection reserves space for copy and the inspection panel.
+  // This is camera framing, not a change to the core's mathematical scales.
+  float portrait = 1.0 - smoothstep(0.72, 1.05, aspectScale().x);
+  float compact = 1.0 - smoothstep(340.0, 410.0, u_res.y);
+  float inspecting = step(0.0, u_navierProgress);
+  float vertical = mix(1.0, mix(mix(0.53, 0.40, compact),
+    mix(0.40, 0.22, compact), inspecting), portrait);
+  float centerY = mix(-0.10, mix(mix(-0.10, -0.07, compact),
+    mix(0.06, 0.11, compact), inspecting), portrait);
   vec2 p = centeredUv(uv);
   p.x -= max(aspectScale().x - 1.0, 0.0) * 0.13;
   p.x /= horizontal;
-  p.y += 0.10;
+  p.y = (p.y - centerY) / vertical;
   vec2 pointer = centeredUv(u_pointer);
   p.x -= sin(p.y * 2.0) * pointer.x * u_energy * 0.055;
-  float pixel = max(2.0 / max(u_res.y, 1.0), 2.0 / max(u_res.x, 1.0));
+  float pixel = max(2.0 / (max(u_res.y, 1.0) * vertical), 2.0 / max(u_res.x, 1.0));
   float pulse = pulseField(uv);
   p.x += sin(p.y * 5.0) * pulse * 0.026;
   // The visual clock remains finite and shared with pause/reduced-motion.
@@ -39,7 +48,7 @@ vec4 sceneNavierStokes(vec2 uv, float time) {
   // front currents pass in front. No particles, feedback textures or ray march.
   vec2 q = vec2(p.x, p.y / 0.27);
   float r = max(length(q), 0.0001);
-  float angle = atan(q.y, q.x + 0.00001);
+  float angle = r > 0.0001 ? atan(q.y, q.x) : 0.0;
   float phase = 6.0 * angle + 13.0 * log(r + 0.16) + clock;
   float wave = sin(phase);
   float aa = max(fwidth(wave) * 0.70, 0.025);
@@ -91,7 +100,7 @@ vec4 sceneNavierStokes(vec2 uv, float time) {
   // internal transport, not an infinite external force or a proof diagnostic.
   vec2 annular = vec2(p.x, p.y / 0.38);
   float annularR = length(annular);
-  float annularAngle = atan(annular.y, annular.x + 0.00001);
+  float annularAngle = annularR > 0.0001 ? atan(annular.y, annular.x) : 0.0;
   float bandRadius = radius * 1.75 + 0.055;
   float bandDistance = (annularR - bandRadius) / max(pixel * 1.5, 0.026);
   float band = exp(-bandDistance * bandDistance);
