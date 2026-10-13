@@ -208,9 +208,9 @@ const STUDIES = [
     initialState: "concentrating",
     resetLabel: "Replay",
     description:
-      "A vortex folds inward. Its core narrows, its currents accelerate, yet its energy stays finite. A spectral interpretation of OpenAI’s smooth-forcing Navier-Stokes construction.",
+      "Pigment folds into evolving currents. A contracting view evokes a narrowing core: rising speed, finite energy. An artistic interpretation of OpenAI’s reported smooth-forcing construction.",
     instruction:
-      "Move to bend the currents · tap to pulse · inspect the collapse · schematic, not a fluid simulation",
+      "Move to stir · tap to pulse · pause to inspect · illustrative 2D flow, not the 3D solution",
   },
 ];
 

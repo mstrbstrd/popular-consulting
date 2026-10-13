@@ -3,23 +3,23 @@ on:
   pull_request:
     paths:
       - 'src/components/NavierStokes*'
-      - 'src/components/navierStokesModel.js'
+      - 'src/components/navierStokes*'
       - 'src/components/CreatorOSField*'
       - 'src/components/DitherCanvasPage*'
       - 'src/components/DitherScrollNarrative.css'
       - 'public/dither-typography.css'
-      - 'scripts/verify-navier-stokes*'
+      - 'scripts/verify-navier-*'
       - '.github/workflows/navier-stokes-browser.yml'
   push:
-    branches: [main, feat/navier-stokes-study]
+    branches: [main, feat/navier-advection]
     paths:
       - 'src/components/NavierStokes*'
-      - 'src/components/navierStokesModel.js'
+      - 'src/components/navierStokes*'
       - 'src/components/CreatorOSField*'
       - 'src/components/DitherCanvasPage*'
       - 'src/components/DitherScrollNarrative.css'
       - 'public/dither-typography.css'
-      - 'scripts/verify-navier-stokes*'
+      - 'scripts/verify-navier-*'
       - '.github/workflows/navier-stokes-browser.yml'
 permissions:
   contents: read
@@ -48,12 +48,13 @@ jobs:
           CI: true
       - name: Install browser verifier without modifying manifests
         run: npm install --no-save --package-lock=false --ignore-scripts --no-audit --no-fund playwright@1.51.1
-      - name: Compile shader and verify controls in real Chromium
+      - name: Compile display and verify native transport and page controls
         env:
           VISUAL_CAPTURE_BROWSER: /usr/bin/google-chrome
         run: |
           node scripts/verify-navier-stokes-shader.mjs
           node scripts/verify-navier-stokes.mjs
+          node scripts/verify-navier-fluid.mjs
       - name: Preserve screenshots and invariant results
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

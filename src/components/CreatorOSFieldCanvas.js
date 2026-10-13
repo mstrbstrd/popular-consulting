@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { normalizeNavierProgress } from "./navierStokesModel";
+import { createNavierStokesFluid } from "./navierStokesFluid";
 import { createMetabloomHoodTransition, METABLOOM_HOOD_SHADER } from "./metabloomUnderHood";
 import { METABLOOM_ACTION_IDS } from "./metabloomActions";
 import { createMetabloomSceneTransition, METABLOOM_SCENE_MODES } from "./metabloomSceneTransition";
@@ -760,6 +761,8 @@ const CreatorOSFieldCanvas = ({
     let paintReactionProgram;
     let positionBuffer;
     let reactionTargets;
+    let navierFluid;
+    let navierImpulse = [0, 0];
     let neutralReactionTexture;
     let resizeObserver;
     let frameCadence;
@@ -973,6 +976,8 @@ const CreatorOSFieldCanvas = ({
       }
 
       neutralReactionTexture = createNeutralReactionTexture(gl);
+      if (activeMode === 9) navierFluid = createNavierStokesFluid(gl, isMobileTier);
+      if (activeMode === 9) root.dataset.navierFluid = navierFluid ? "advected" : "analytical";
       reactionTargets = reactionProgramsRequired
         ? createReactionTargets(
             gl,
@@ -988,6 +993,7 @@ const CreatorOSFieldCanvas = ({
       onFieldStateChangeRef.current?.("fallback");
       canvas.removeEventListener("webglcontextlost", handleContextLost);
       canvas.removeEventListener("webglcontextrestored", handleContextRestored);
+      navierFluid?.dispose();
       destroyReactionTargets(gl, reactionTargets);
       if (neutralReactionTexture && gl) {
         gl.deleteTexture(neutralReactionTexture);
@@ -1023,6 +1029,8 @@ const CreatorOSFieldCanvas = ({
       "u_chiralHandedness",
       "u_chiralStructure",
       "u_navierProgress",
+      "u_navierFluidReady",
+      "u_navierDye",
       "u_avatarEnabled",
       "u_avatarAction",
       "u_avatarPhase",
@@ -1128,8 +1136,32 @@ const CreatorOSFieldCanvas = ({
       ),
     });
 
+    const navierPoint = (x, y) => {
+      const smooth = (a, b, value) => { const t = clamp((value - a) / (b - a)); return t * t * (3 - 2 * t); };
+      const mix = (a, b, t) => a + (b - a) * t;
+      const aspect = canvas.width / Math.max(canvas.height, 1);
+      const portrait = 1 - smooth(0.72, 1.05, aspect);
+      const compact = 1 - smooth(340, 410, canvas.height);
+      const inspecting = navierProgressRef.current >= 0 ? 1 : 0;
+      const vertical = mix(1, mix(mix(0.65, 0.43, compact), mix(0.45, 0.25, compact), inspecting), portrait);
+      const centerY = mix(-0.04, mix(-0.12, 0.06, inspecting), portrait);
+      const horizontal = clamp(aspect * 1.12, 0.36, 1.05);
+      const px = ((x * 2 - 1) * aspect - Math.max(aspect - 1, 0) * 0.36) / horizontal;
+      const py = ((y * 2 - 1) - centerY) / vertical;
+      const progress = inspecting ? navierProgressRef.current : smooth(0.04, 0.92, (localTime % 28) / 28);
+      const c = Math.cos(-0.22), s = Math.sin(-0.22);
+      return [(c * px + s * py) / mix(1.48, 0.58, progress) * 0.5 + 0.5,
+        (-s * px + c * py) / mix(1.26, 0.96, progress) * 0.5 + 0.5];
+    };
+
     const handlePointerMove = (event) => {
       const next = readPointer(event);
+      if (navierFluid && !pausedRef.current && !reducedMotion && !isInteractiveTarget(event.target)) {
+        const from = navierPoint(pointer.sampleX, pointer.sampleY);
+        const to = navierPoint(next.x, next.y);
+        navierImpulse = [clamp(navierImpulse[0] + (to[0] - from[0]) * 2, -0.4, 0.4),
+          clamp(navierImpulse[1] + (to[1] - from[1]) * 2, -0.4, 0.4)];
+      }
       const magnitude = Math.hypot(
         next.x - pointer.sampleX,
         next.y - pointer.sampleY,
@@ -1166,6 +1198,7 @@ const CreatorOSFieldCanvas = ({
       pulseOrigin.y = next.y;
       pulseAge = 0;
       energy = 1;
+      if (navierFluid && !pausedRef.current && !reducedMotion && !isInteractiveTarget(event.target)) navierImpulse = [0.12, 0.08];
       root.setPointerCapture?.(event.pointerId);
       forceRender = true;
       redrawRef.current();
@@ -1251,6 +1284,8 @@ const CreatorOSFieldCanvas = ({
       novaWasPaused = pausedRef.current;
       introElapsed = reducedMotion ? INTRO_DURATION_SECONDS : 0;
       seed = Math.random();
+      navierFluid?.reset(seed);
+      navierImpulse = [0, 0];
       energy = 0;
       pulseAge = PULSE_LIFETIME_SECONDS + 1;
       pulseOrigin.x = 0.52;
@@ -1334,6 +1369,10 @@ const CreatorOSFieldCanvas = ({
     };
 
     const simulate = (delta, now, presentationDelta) => {
+      if (navierFluid) {
+        navierFluid.step(delta, navierPoint(pointer.x, pointer.y), navierImpulse);
+        navierImpulse = [0, 0];
+      }
       beginModeTransition(modeRef.current);
       if (activityScenes) {
         sceneTransition.target(modeRef.current);
@@ -1637,6 +1676,12 @@ const CreatorOSFieldCanvas = ({
       );
 
       gl.uniform1f(activeDisplayUniforms.u_navierProgress, navierProgressRef.current);
+      if (modeRef.current === 9) {
+        gl.uniform1f(activeDisplayUniforms.u_navierFluidReady, navierFluid ? 1 : 0);
+        gl.activeTexture(gl.TEXTURE3);
+        gl.bindTexture(gl.TEXTURE_2D, navierFluid?.texture || neutralReactionTexture);
+        gl.uniform1i(activeDisplayUniforms.u_navierDye, 3);
+      }
       gl.uniform1f(activeDisplayUniforms.u_chiralHandedness, chiralHandednessRef.current);
       gl.uniform1f(activeDisplayUniforms.u_chiralStructure, chiralStructureRef.current === "dna" ? 1 : 0);
 
@@ -1775,6 +1820,7 @@ const CreatorOSFieldCanvas = ({
     };
 
     const drawStatic = () => {
+      navierImpulse = [0, 0];
       applyRestart();
       snapScene();
       hoodValues = hoodTransition.sample(underHoodPhaseRef.current, 0, true);
@@ -1888,6 +1934,7 @@ const CreatorOSFieldCanvas = ({
         advanceReaction();
       } else {
         novaWasPaused = true;
+        navierImpulse = [0, 0];
         currentMode = modeRef.current;
         incomingMode = currentMode;
         modeMix = 1;
@@ -1955,6 +2002,7 @@ const CreatorOSFieldCanvas = ({
       documentVisible = document.visibilityState !== "hidden";
       snapScene();
       if (!documentVisible) {
+        navierImpulse = [0, 0];
         frameCadence.cancel();
       } else {
         start();
@@ -2001,6 +2049,7 @@ const CreatorOSFieldCanvas = ({
 
     return () => {
       frameCadence.dispose();
+      navierFluid?.dispose();
       triggerExternalPulseRef.current = () => {};
       redrawRef.current = () => {};
       ["metabloom", "tidal", "contour"].forEach((scene) => root.style.removeProperty(`--field-${scene}-weight`));
