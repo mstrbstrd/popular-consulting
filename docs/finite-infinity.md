@@ -1,30 +1,30 @@
 # Finite Infinity: Navier-Stokes study
 
-Study 14 in `/dither-canvas`, field mode 9. Existing modes 0-8 and the other renderer families retain their identities.
+Study 14 on `/dither-canvas`, shared field mode 9. Existing modes 0-8 retain their identities.
 
 ## Research boundary
 
-Inspired by OpenAI's September 8, 2026 announcement, **On the Navier-Stokes Millennium Prize Problem**, and section 1.3 of **Finite Time Blowup for Navier-Stokes**. The reported construction uses smooth external forcing. This theme does not claim an unforced Navier-Stokes result, independently verify the proof, solve a PDE, or present computed fluid measurements.
+Inspired by OpenAI's September 8, 2026 announcement, **On the Navier-Stokes Millennium Prize Problem**, and section 1.3 of **Finite Time Blowup for Navier-Stokes**. This is artwork inspired by the reported smooth-forcing construction, not a numerical fluid solver, independent proof verification, or an unforced theorem claim.
 
 Sources:
 - https://openai.com/index/navier-stokes-solution/
 - https://cdn.openai.com/pdf/32d9f210-8b73-45e0-91bc-82a30aef8a9a/navier-stokes.pdf
 
-Teal inward spirals meet an amber axial vortex; violet counter-moving pulses mark the corrective annulus. Both core dimensions decrease while their ratio becomes more slender. Speed grows and total energy stays bounded. The shader deliberately exaggerates this geometric change for readability. Its colors, line density and visible brightness are artistic encodings, not quantitative energy maps.
+Iridescent fluid sheets fold inward around a luminous axial core. Nested folds merge, the radial envelope narrows faster than the axial extent, and etched currents curl across the surfaces. The core light is occluded by the front sheets. Shapes, brightness and color are qualitative artistic encodings, not literal solution level sets, computed energy maps, or force-balance measurements. The angular presentation phase accelerates with concentration. Geometry deliberately exaggerates slenderness for readability.
 
-Inspection reports normalized leading-order **core** scales, taking h = 0.005, within the paper's 0 < h < 0.01 range. For slider p in [0,1], tau = 10^(-4p), radius = tau^(1/2), axial length = tau^(1/2-h), speed = tau^(-1/2-h), and core energy = tau^(1/2-3h). These scale factors satisfy E = U^2 r^2 z. Core energy declines; this is not a claim that total energy is constant. The display ends at positive tau, never at the mathematical singularity.
+Inspection retains the normalized leading-order **core** scales with h = 0.005, within the paper's 0 < h < 0.01 range. For p in [0,1], tau = 10^(-4p), radius = tau^(1/2), axial length = tau^(1/2-h), speed = tau^(-1/2-h), and core energy = tau^(1/2-3h). These satisfy E = U^2 r^2 z. Core energy declines; this is not a claim that total energy is constant. The display ends at positive tau, before the mathematical singularity.
 
 ## Excluded states and invariants
 
-- No extra WebGL context, feedback texture, particle buffer, ray march or external runtime request. Two analytic cylinder roots encode many filaments in constant work.
-- No NaN, infinity or negative inspection scale reaches the uniform. Invalid input selects the automatic sentinel -1; finite inspection values clamp to [0,1]. Shader denominators have positive floors.
-- No time, seed, canvas, pause or renderer ownership changes when scrubbing. `u_navierProgress` changes through the existing invalidation path. Reduced motion and hidden-tab suspension remain owned by the shared renderer.
-- No animation beyond the finite display limit. The 28-second automatic cycle fades out before it restarts. Replay is a presentation device, not a continuation through blowup.
-- No reindexing of older studies, global graphics-policy override, new dependencies or security-policy change. The existing half-resolution, Bayer-8, premultiplied-alpha, pixel-budget and local-recovery rules remain intact.
-- WebGL failure has a static local SVG fallback; explanation, source link and keyboard-accessible controls remain usable. The fallback illustrates topology, not the selected geometric scale.
+- One existing renderer, canvas and display pass. No additional WebGL context, feedback texture, ray march, particle buffer, production dependency or runtime request.
+- Four curved material sheets, two analytic intersections each: at most eight surface evaluations. Empty regions exit before material work. A nearest-cell curl has constant cost; analytical pixel footprints suppress subpixel grooves rather than aliasing them. This replaces the old two-root wire lattice, not the shared renderer.
+- Invalid progress selects the automatic sentinel -1. Finite inspection values clamp to [0,1]. Positive denominator floors prevent invalid GPU math. No inspection scale is infinite or zero.
+- Scrubbing never resets the time, seed, pause state or canvas. Reduced motion, hidden-tab suspension, half-resolution Bayer-8 output, pixel budgets, premultiplied alpha and local context recovery stay with the existing shared renderer.
+- The 28-second presentation fades before replaying. The replay is not a continuation through blowup. The static local SVG fallback illustrates the topology, not the selected material geometry.
+- No reindexing of earlier studies, graphics-policy override, authentication or deployment-configuration changes. Source attribution and keyboard-accessible controls remain available.
 
 ## Verification
 
-Run the focused Jest suites `NavierStokes|DitherCanvas|CreatorOSField|ChiralWeave`, lint, and the production build. `scripts/verify-navier-stokes-shader.mjs` compiles the actual shader and checks replay boundaries, visible shrinkage, deterministic inspection, interactions and premultiplied output in both palettes. `scripts/verify-navier-stokes.mjs` uses a local production build to test 1440, 390 and 320 pixel layouts, keyboard scrubbing, one-canvas ownership, paused clock/seed preservation, zero settled idle draws, source access and touch targets.
+Run the focused Jest suites `NavierStokes|DitherCanvas|CreatorOSField|ChiralWeave|ForwardPassField`, lint and the production build. `scripts/verify-navier-stokes-shader.mjs` compiles the actual shader and checks contraction, time/pointer/pulse response, deterministic inspection, replay boundaries and premultiplied output in both palettes. `scripts/verify-navier-stokes.mjs` tests the built page at 1440, 390 and 320 pixel widths, including keyboard controls, one-canvas ownership, pause/seed preservation, settled idle rendering, touch targets and source access.
 
-Browser verification uses a software-adapter fixture confined to the test process. It is not a physical iPhone, Safari or GPU performance certification. No screenshots or test-only runtime are loaded by the production site.
+Browser software-adapter fixtures are test-only, not physical iPhone/Safari or GPU-performance certification. No test instrumentation or screenshots are loaded by the production site.
