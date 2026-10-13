@@ -18,11 +18,12 @@ jobs:
           node-version: 24
       - name: Apply hash-checked source integration
         run: node scripts/apply-persistent-navier.cjs
-      - name: Save actual source and remove temporary integration tooling
+      - name: Save actual source without changing workflow files
         run: |
+          git restore .github/workflows/navier-stokes-browser.yml
           git diff --check
-          git add src/components/CreatorOSFieldCanvas.js src/components/CreatorOSFieldCanvas.css src/components/DitherCanvasPage.js src/components/DitherCanvasPage.test.js src/components/NavierStokes.test.js src/components/NavierStokesControls.js src/components/NavierStokesFluid.test.js src/components/navierStokesFluid.js scripts/verify-chiral-weave.mjs scripts/verify-navier-fluid.mjs scripts/verify-navier-stokes-shader.mjs CLAUDE.md .github/workflows/navier-stokes-browser.yml
-          git rm scripts/apply-persistent-navier.cjs .github/workflows/navier-persistent-workbench.yml
+          git add src/components/CreatorOSFieldCanvas.js src/components/CreatorOSFieldCanvas.css src/components/DitherCanvasPage.js src/components/DitherCanvasPage.test.js src/components/NavierStokes.test.js src/components/NavierStokesControls.js src/components/NavierStokesFluid.test.js src/components/navierStokesFluid.js scripts/verify-chiral-weave.mjs scripts/verify-navier-fluid.mjs scripts/verify-navier-stokes-shader.mjs CLAUDE.md
+          git rm scripts/apply-persistent-navier.cjs
           git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'feat: integrate persistent full-domain vortex cores'
           git push origin HEAD:feat/navier-persistent-cores
       - run: npm ci --no-audit --no-fund
