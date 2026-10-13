@@ -16,7 +16,8 @@ replace(field, 'import { normalizeNavierProgress } from "./navierStokesModel";',
 replace(field, '    let reactionTargets;', '    let reactionTargets;\n    let navierFluid;\n    let navierImpulse = [0, 0];');
 replace(field, '      neutralReactionTexture = createNeutralReactionTexture(gl);',
   '      neutralReactionTexture = createNeutralReactionTexture(gl);\n      if (activeMode === 9) navierFluid = createNavierStokesFluid(gl, isMobileTier);\n      if (activeMode === 9) root.dataset.navierFluid = navierFluid ? "advected" : "analytical";');
-replace(field, '      destroyReactionTargets(gl, reactionTargets);', '      navierFluid?.dispose();\n      destroyReactionTargets(gl, reactionTargets);');
+replace(field, '      canvas.removeEventListener("webglcontextrestored", handleContextRestored);\n      destroyReactionTargets(gl, reactionTargets);',
+  '      canvas.removeEventListener("webglcontextrestored", handleContextRestored);\n      navierFluid?.dispose();\n      destroyReactionTargets(gl, reactionTargets);');
 replace(field, '      "u_navierProgress",', '      "u_navierProgress",\n      "u_navierFluidReady",\n      "u_navierDye",');
 replace(field, '    const handlePointerMove = (event) => {\n      const next = readPointer(event);', `    const navierPoint = (x, y) => {
       const smooth = (a, b, value) => { const t = clamp((value - a) / (b - a)); return t * t * (3 - 2 * t); };
