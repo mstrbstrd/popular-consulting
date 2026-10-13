@@ -42,7 +42,7 @@ jobs:
       - name: Field regression gate
         env:
           CI: true
-        run: npm test -- --watchAll=false --runInBand --testPathPattern='NavierStokes|DitherCanvas|CreatorOSField|ChiralWeave'
+        run: npm test -- --watchAll=false --runInBand --testPathPattern='NavierStokes|DitherCanvas|CreatorOSField|ChiralWeave|ForwardPassField'
       - run: npm run build
         env:
           CI: true

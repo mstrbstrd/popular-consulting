@@ -19,7 +19,7 @@ const studies = [...source.matchAll(/\{\s*id: "([\w-]+)",([\s\S]*?)\n\s*\},/g)].
     return [key, value[1]];
   })),
 }));
-assert.equal(studies.length, 13);
+assert.equal(studies.length, 14);
 const marker = "/* Field-lab readability refinements.";
 const vibrance = read("src/components/DitherCanvasVibrance.css");
 assert(vibrance.includes(marker));

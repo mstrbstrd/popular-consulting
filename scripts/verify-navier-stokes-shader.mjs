@@ -56,7 +56,10 @@ const early=draw(0),middle=draw(.55),late=draw(1);
 result.dimensions=[canvas.width,canvas.height];result.coverage=[cover(early),cover(middle),cover(late)];
 result.concentrationDifference=difference(early,late);result.repeatDifference=difference(middle,draw(.55));
 result.timeDifference=difference(middle,draw(.55,43));result.pointerDifference=difference(middle,draw(.55,40,1,[.8,.6]));
-result.pulseDifference=difference(middle,draw(.55,40,0,[.5,.5],1));
+// Sample the outward-moving pulse before it leaves the compact portrait core.
+// Retain the visibility threshold and check both palettes at every sample.
+result.pulseSamples=[.08,.2,.45,1].map(age=>difference(middle,draw(.55,40,0,[.5,.5],age)));
+result.pulseDifference=Math.max(...result.pulseSamples);
 check(result.coverage.every(x=>x>.015&&x<.65),'Core disappeared or lost negative space');
 check(result.coverage[2]<result.coverage[0],'Collapse does not shrink');
 check(result.concentrationDifference>1,'Concentration has no visible effect');check(result.repeatDifference===0,'Inspection is nondeterministic');
