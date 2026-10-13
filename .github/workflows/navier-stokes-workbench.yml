@@ -1,0 +1,62 @@
+name: Navier Stokes Workbench
+on:
+  push:
+    branches: [feat/navier-stokes-study]
+permissions:
+  contents: read
+jobs:
+  workbench:
+    if: github.repository == 'mstrbstrd/popular-consulting'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Apply reviewed source edits
+        if: hashFiles('scripts/apply-navier-stokes.cjs') != ''
+        run: node scripts/apply-navier-stokes.cjs
+      - name: Export source for review
+        run: |
+          mkdir -p /tmp/ns-source
+          git ls-files -z src public scripts docs package.json package-lock.json CLAUDE.md CONTRIBUTING.md .github/workflows | tar --null -T - -czf /tmp/ns-source/source.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: navier-stokes-source
+          path: /tmp/ns-source/source.tar.gz
+          retention-days: 2
+      - name: Install
+        if: hashFiles('src/components/NavierStokesShader.js') != ''
+        run: npm ci --no-audit --no-fund
+      - name: Lint
+        if: hashFiles('src/components/NavierStokesShader.js') != ''
+        run: npm run lint
+      - name: Focused tests
+        if: hashFiles('src/components/NavierStokesShader.js') != ''
+        run: CI=true npm test -- --watch=false --runInBand --testPathPattern='NavierStokes|DitherCanvas|CreatorOSField|ChiralWeave'
+      - name: Production build
+        if: hashFiles('src/components/NavierStokesShader.js') != ''
+        run: npm run build
+      - name: Browser validation
+        if: hashFiles('scripts/verify-navier-stokes.mjs') != ''
+        run: |
+          npx playwright install --with-deps chromium
+          node scripts/verify-navier-stokes.mjs
+      - name: Save reviewed integration
+        if: hashFiles('scripts/apply-navier-stokes.cjs') != ''
+        run: |
+          git add src/components public/dither-typography.css CLAUDE.md
+          if ! git diff --cached --quiet; then
+            git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'feat: integrate finite-energy Navier-Stokes dither study'
+            git push origin HEAD:feat/navier-stokes-study
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always() && hashFiles('navier-stokes-evidence/**') != ''
+        with:
+          name: navier-stokes-evidence
+          path: navier-stokes-evidence
+          retention-days: 7
