@@ -40,10 +40,11 @@ try {
         gl.bindFramebuffer(gl.FRAMEBUFFER,null); return data;
       };
       const diff = (a,b) => a.reduce((sum,value,i) => sum + Math.abs(value-b[i]),0)/a.length;
-      const advance = () => { for(let i=0;i<30;i++) fluid.step(1/30); };
+      // The disturbed and control runs each advance exactly 30 steps.
+      const advance = (count = 30) => { for(let i=0;i<count;i++) fluid.step(1/30); };
       fluid.reset(0.37); const initial = read(); advance(); const baseline = read();
       fluid.reset(0.37); const repeat = read(); advance(); const deterministic = read();
-      fluid.reset(0.37); fluid.step(1/30,[0.6,0.5],[0.3,-0.2]); advance(); const disturbed = read();
+      fluid.reset(0.37); fluid.step(1/30,[0.6,0.5],[0.3,-0.2]); advance(29); const disturbed = read();
       const settled = read(); fluid.step(0); fluid.step(NaN); fluid.step(Infinity); const invalid = read();
       const result = { mobile, size: fluid.size, dyeSize: fluid.dyeSize,
         evolves: diff(initial,baseline), deterministicReset: diff(initial,repeat),
