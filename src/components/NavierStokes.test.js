@@ -40,6 +40,10 @@ describe("Finite Infinity boundaries", () => {
     const start = source.indexOf("vec4 sampleScene");
     expect(source.slice(start, source.indexOf("\n\nvoid main()", start))).toContain("return sceneNavierStokes(uv, time)");
     expect(NAVIER_STOKES_SHADER).toContain("side < 2");
+    expect(NAVIER_STOKES_SHADER).toContain("sheet < 4");
+    expect(NAVIER_STOKES_SHADER).toContain("if (abs(x) > 1.0 || cap <= 0.0) continue;");
+    expect(NAVIER_STOKES_SHADER).toContain("if (footprint * 23.0 < 1.8)");
+    expect(NAVIER_STOKES_SHADER).toContain("if (side == 0) navierOver(color, alpha, core, coreOpacity)");
     expect(NAVIER_STOKES_SHADER).not.toMatch(/sampler2D|texture\(|while\s*\(/);
     expect(NAVIER_STOKES_SHADER).toContain("max(alpha, 0.0001)");
     expect(NAVIER_STOKES_SHADER).toContain("1.0 - smoothstep(0.94, 1.0, cycle)");

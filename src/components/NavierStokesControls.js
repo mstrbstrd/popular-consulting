@@ -30,7 +30,7 @@ const NavierStokesControls = ({ progress, onProgressChange }) => {
       <p className="navier-principle">Shrinking core. Rising speed. Finite energy.</p>
       <details className="navier-research">
         <summary>About the result</summary>
-        <p>Inspired by OpenAI’s September 2026 smooth-forcing construction. Teal currents spiral inward, amber trajectories stretch along the axis, and violet pulses mark the corrective annulus.</p>
+        <p>An artistic study of OpenAI’s reported smooth-forcing construction. Iridescent sheets roll inward around a hot axial core; nested folds and curled currents make the concentration visible.</p>
         <p>Both core dimensions shrink. Speed diverges while total energy remains bounded. This is schematic artwork, not a fluid solver or independent proof verification. Replay fades before the singularity.</p>
         <a href="https://openai.com/index/navier-stokes-solution/" target="_blank" rel="noopener noreferrer">OpenAI research ↗</a>
       </details>
