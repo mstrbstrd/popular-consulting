@@ -25,17 +25,16 @@ const NavierStokesControls = ({ progress, onProgressChange }) => {
           <span>Speed <strong>{scales.speed.toFixed(1)}×</strong></span>
           <span>Core energy <strong>{scales.energy.toFixed(3)}×</strong></span>
         </div>
-        <p id="navier-scale-note">Leading-order scales, not measured data. Visual proportions are exaggerated.</p>
+        <p id="navier-scale-note">Leading-order scales, not measured data. Inspect reframes the flow, not its history. Use Pause to freeze it.</p>
       </div>}
       <p className="navier-principle">Shrinking core. Rising speed. Finite energy.</p>
       <details className="navier-research">
         <summary>About the result</summary>
-        <p>An artistic study of OpenAI’s reported smooth-forcing construction. Iridescent sheets roll inward around a hot axial core; nested folds and curled currents make the concentration visible.</p>
-        <p>Both core dimensions shrink. Speed diverges while total energy remains bounded. This is schematic artwork, not a fluid solver or independent proof verification. Replay fades before the singularity.</p>
+        <p>Inspired by OpenAI’s reported smooth-forcing construction. Pigment rides an evolving 2D velocity field, folding into eddies and retaining the history of your gestures. Devices without floating-point render targets use an analytical illustration.</p>
+        <p>The contracting camera envelope illustrates the 3D core’s concentration, not simulated physical compression. This 2D artwork does not reproduce or verify the 3D proof. Reference scales are not live measurements. Pause freezes the flow; Inspect changes only its framing.</p>
         <a href="https://openai.com/index/navier-stokes-solution/" target="_blank" rel="noopener noreferrer">OpenAI research ↗</a>
       </details>
     </div>
   );
-
 };
 export default NavierStokesControls;

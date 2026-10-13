@@ -1,30 +1,35 @@
-# Finite Infinity: Navier-Stokes study
+# Finite Infinity: advected dye
 
-Study 14 on `/dither-canvas`, shared field mode 9. Existing modes 0-8 retain their identities.
+Study 14 on `/dither-canvas`, shared field mode 9. Replaces procedural shells with pigment transported through a retained 2D velocity field. The current canvas, cadence, field indices, pause and local recovery remain the rendering owners.
+
+## References
+
+The implementation is original code using standard semi-Lagrangian transport, vorticity confinement, Jacobi pressure projection and ping-pong storage. No third-party application code, remote assets or runtime packages are added.
+
+- Pavel Dobryakov, WebGL Fluid Simulation: separate flow and dye resolutions, persistent transport. https://github.com/PavelDoGreat/WebGL-Fluid-Simulation
+- Mark Harris, GPU Gems chapter 38: GPU advection, pressure projection and boundary conditions. https://developer.nvidia.com/gpugems/gpugems/part-vi-beyond-triangles/chapter-38-fast-fluid-dynamics-simulation-gpu
+- Amanda Ghassaei, GPU-IO fluid: bounded state and motion history as visual structure. https://github.com/amandaghassaei/gpu-io/tree/main/examples/fluid
+
+## Invariants and excluded states
+
+This is an approximate 2D visual solver, not scientific CFD or the reported 3D blowup solution. Numerical diffusion and residual divergence from fixed projection iterations are expected. The concentration slider changes framing, not stored dye, physical compression or simulation time. It does not rewind accumulated history. Use Pause to freeze the simulation.
+
+Desktop: 128x128 flow, 384x384 dye, 18 pressure iterations. Mobile: 96x96 flow, 256x256 dye, 12 iterations. Six additional simulation passes surround projection. Nine fixed RGBA16F targets, including a neutral sampler, plus one owned triangle buffer and vertex array. No per-frame GPU allocations, unbounded solver loops, particles or bloom passes. Existing half-resolution Bayer display is preserved.
+
+Never sample the output render target. Clamp timesteps to at most 1/30 second with no catch-up loop, pointer impulses and numerical values to finite limits. Invalid timesteps do no work. Unsupported targets and partial initialization release resources and fall back locally. The helper restores the shared vertex array after its passes. Other studies allocate no fluid targets.
+
+Pause, reduced motion, hidden tabs, theme changes and slider redraws must not step the solver. Moving the pointer while playing adds bounded impulses; controls are excluded. Reset reseeds existing targets. Cleanup is idempotent. Context restoration creates fresh locally owned state without affecting other routes.
 
 ## Research boundary
 
-Inspired by OpenAI's September 8, 2026 announcement, **On the Navier-Stokes Millennium Prize Problem**, and section 1.3 of **Finite Time Blowup for Navier-Stokes**. This is artwork inspired by the reported smooth-forcing construction, not a numerical fluid solver, independent proof verification, or an unforced theorem claim.
+Source attribution: https://openai.com/index/navier-stokes-solution/
 
-Sources:
-- https://openai.com/index/navier-stokes-solution/
-- https://cdn.openai.com/pdf/32d9f210-8b73-45e0-91bc-82a30aef8a9a/navier-stokes.pdf
+The reported construction is three-dimensional with smooth forcing. This 2D flow does not reproduce or verify it. The shrinking display envelope and 28-second fade/replay communicate the motif only; replay is not continuation through a singularity. Brightness and colors are artistic, not a total-energy measurement.
 
-Iridescent fluid sheets fold inward around a luminous axial core. Nested folds merge, the radial envelope narrows faster than the axial extent, and etched currents curl across the surfaces. The core light is occluded by the front sheets. Shapes, brightness and color are qualitative artistic encodings, not literal solution level sets, computed energy maps, or force-balance measurements. The angular presentation phase accelerates with concentration. Geometry deliberately exaggerates slenderness for readability.
-
-Inspection retains the normalized leading-order **core** scales with h = 0.005, within the paper's 0 < h < 0.01 range. For p in [0,1], tau = 10^(-4p), radius = tau^(1/2), axial length = tau^(1/2-h), speed = tau^(-1/2-h), and core energy = tau^(1/2-3h). These satisfy E = U^2 r^2 z. Core energy declines; this is not a claim that total energy is constant. The display ends at positive tau, before the mathematical singularity.
-
-## Excluded states and invariants
-
-- One existing renderer, canvas and display pass. No additional WebGL context, feedback texture, ray march, particle buffer, production dependency or runtime request.
-- Four curved material sheets, two analytic intersections each: at most eight surface evaluations. Empty regions exit before material work. A nearest-cell curl has constant cost; analytical pixel footprints suppress subpixel grooves rather than aliasing them. This replaces the old two-root wire lattice, not the shared renderer.
-- Invalid progress selects the automatic sentinel -1. Finite inspection values clamp to [0,1]. Positive denominator floors prevent invalid GPU math. No inspection scale is infinite or zero.
-- Scrubbing never resets the time, seed, pause state or canvas. Reduced motion, hidden-tab suspension, half-resolution Bayer-8 output, pixel budgets, premultiplied alpha and local context recovery stay with the existing shared renderer.
-- The 28-second presentation fades before replaying. The replay is not a continuation through blowup. The static local SVG fallback illustrates the topology, not the selected material geometry.
-- No reindexing of earlier studies, graphics-policy override, authentication or deployment-configuration changes. Source attribution and keyboard-accessible controls remain available.
+The reference readout retains normalized leading-order core scales: h=0.005, tau=10^(-4p), r=tau^(1/2), z=tau^(1/2-h), U=tau^(-1/2-h), E=tau^(1/2-3h). These satisfy E=U^2*r^2*z. They are not values measured from the 2D solver. The displayed interval ends before tau=0.
 
 ## Verification
 
-Run the focused Jest suites `NavierStokes|DitherCanvas|CreatorOSField|ChiralWeave|ForwardPassField`, lint and the production build. `scripts/verify-navier-stokes-shader.mjs` compiles the actual shader and checks contraction, time/pointer/pulse response, deterministic inspection, replay boundaries and premultiplied output in both palettes. `scripts/verify-navier-stokes.mjs` tests the built page at 1440, 390 and 320 pixel widths, including keyboard controls, one-canvas ownership, pause/seed preservation, settled idle rendering, touch targets and source access.
+Jest covers finite inputs, reference scales, fixed budgets, no feedback, local fallback, partial cleanup and disposed no-op behavior. `scripts/verify-navier-fluid.mjs` checks actual native WebGL2 transport, deterministic reset, persistent pointer response and finite dye output. Existing shader and built-page browser checks cover display compilation, framing, paused clock and seed, one canvas, keyboard controls, both palettes and compact layouts.
 
-Browser software-adapter fixtures are test-only, not physical iPhone/Safari or GPU-performance certification. No test instrumentation or screenshots are loaded by the production site.
+Software-WebGL checks are not physical iPhone/Safari GPU performance certification. Test fixtures, screenshots and local export scripts are not loaded by the site.
