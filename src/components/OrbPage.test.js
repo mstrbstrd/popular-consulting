@@ -199,7 +199,7 @@ describe("OrbPage", () => {
     const WithPreference = () => {
       const [orbBackgroundEnabled, setOrbBackgroundEnabled] = React.useState(true);
       return (
-        <AppNavigationContext.Provider value={{ orbBackgroundEnabled, setOrbBackgroundEnabled }}>
+        <AppNavigationContext.Provider value={{ orbBackgroundEnabled, setOrbBackgroundEnabled, getToolState: () => null, saveToolState: () => {} }}>
           <OrbPage />
         </AppNavigationContext.Provider>
       );

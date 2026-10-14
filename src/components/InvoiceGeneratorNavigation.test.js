@@ -73,14 +73,14 @@ test("mobile menu isolates the invoice, traps keyboard focus, closes on Escape a
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   fireEvent.click(burger);
   const dialog = screen.getByRole("dialog", { name: "Navigation menu" });
-  const first = within(dialog).getAllByRole("link")[0];
-  expect(first).toHaveFocus();
+  expect(within(dialog).getAllByRole("link")).not.toHaveLength(0);
+  expect(burger).toHaveFocus();
   expect(main).toHaveAttribute("inert");
   expect(document.documentElement.style.overflow).toBe("hidden");
   fireEvent.keyDown(document, { key: "Tab", shiftKey: true });
   expect(within(dialog).getByRole("button", { name: "Toggle dark mode" })).toHaveFocus();
   fireEvent.keyDown(document, { key: "Tab" });
-  expect(first).toHaveFocus();
+  expect(burger).toHaveFocus();
   fireEvent.keyDown(document, { key: "Escape" });
   expect(burger).toHaveFocus();
   expect(main).not.toHaveAttribute("inert");

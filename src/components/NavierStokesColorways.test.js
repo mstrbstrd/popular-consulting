@@ -39,7 +39,7 @@ test("seven fixed, immutable materials contain bounded GPU and authored CSS data
 });
 
 test("removing only color overrides exactly recovers the approved original shader", () => {
-  const source = fs.readFileSync(path.join(__dirname, "NavierStokesShader.js"), "utf8");
+  const source = fs.readFileSync(path.join(__dirname, "NavierStokesShader.js"), "utf8").replace(/\r\n/g, "\n");
   const original = source.replace(/\n\/\/ ART MATERIAL BEGIN[\s\S]*?\/\/ ART MATERIAL END\n/, "")
     .replace("  if (u_navierColorway > 0) color = navierArtColor(ink, density, slope, diffuse);\n", "")
     .replace("uniform int u_navierColorway;\nuniform vec3 u_navierColors[8];\n", "")
