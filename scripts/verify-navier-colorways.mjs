@@ -99,7 +99,7 @@ try {
       const summary = page.locator('.navier-colorways summary');
       await summary.scrollIntoViewIfNeeded();
       await summary.focus(); await summary.press('Enter');
-      const button = page.getByRole('group', { name: 'Finite Infinity colorways', hidden: true }).getByRole('button', { name: option.label, exact: true, hidden: true });
+      const button = page.getByRole('group', { name: 'Finite Infinity colorways', includeHidden: true }).getByRole('button', { name: option.label, exact: true, includeHidden: true });
       await button.scrollIntoViewIfNeeded();
       const box = await button.boundingBox();
       assert(box && box.height >= 44 && box.x >= 0 && box.x + box.width <= width + 1, 'Colorway target is clipped or too small');
