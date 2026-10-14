@@ -40,12 +40,25 @@ Jest checks separated finite cores, monotonic contraction, invalid inputs, fixed
 Software-WebGL validation is not a physical iPhone/Safari performance certification. Test fixtures and screenshots are not loaded by the application.
 
 
-## Colorways
+## Art-directed colorways
 
-Open **Colorway** in the Finite Infinity controls. Original retains the approved turquoise/ember/violet appearance exactly. Glacier adds blue/cyan/ice, Ember garnet/orange/gold, Aurora emerald/teal/ultraviolet, Rose Quartz wine/rose/blush, and Quicksilver neutral graphite/platinum/pearl.
+Original remains the approved turquoise/ember/violet rendering. Six materials replace the basic hue-family presets:
 
-These are display-only pigment, highlight, shadow and core-marker colors, not changes to flow physics. Selecting one invalidates the existing canvas through one enum uniform and one fixed eight-color array. It never changes dye or velocity textures, positions, concentration, seed, clocks, pause state, allocation or draw-pass budgets. The selection stays through Reseed, study changes and Second Surface underlay selection; no new persistent storage or runtime request is added. Invalid names select Original. The analytical and local CSS fallbacks use the selected colors too.
+- Eclipse Bloom: indigo and orchid with narrow acid-gold seams and blue countercurrents.
+- Verdigris Ember: malachite/mint patina, localized copper deposits and bone highlights.
+- Opaline Static: ink-blue depth, lilac/rose/mint interference and broad pearly crests.
+- Saffron Nocturne: cobalt/plum shadows, burnt-orange bridges and focused saffron light.
+- Abyssal Coral: petrol/jade currents against coral, with lavender edge accents.
+- Mercury Garden: muted celadon/silver, wine-colored troughs and sparse peach glints.
 
-The native disclosure is keyboard operable. Labeled 44px buttons expose the selected state with aria-pressed, a border and a checkmark rather than color alone. Selection closes the choices and restores summary focus. Compact screens retain the existing scrollable controls budget.
+This is not a whole-frame hue rotation. Each material has its own value progression and accent allocation. The shader derives color regions from retained pigment ratios and existing density gradients, so colors follow the flow rather than an unrelated time/noise layer. Shadows, body color, crest, counterpoint, secondary hue and veil are interpolated in Oklab. sRGB stops are converted once on module initialization; only the final Oklab-to-sRGB conversion runs per pixel. Out-of-gamut linear channels clamp at conversion. This is not a full perceptual gamut-mapping implementation.
 
-NavierStokesColorways tests check data bounds, fallback state and exact recovery of the approved shader after stripping only the color overrides. scripts/verify-navier-colorways.mjs tests actual paused dye/core/clock preservation, distinguishable rendered palettes, round-trip Original output, both themes, keyboard selection and compact viewports. Original shader references in older checks intentionally use the default zero colorway uniform.
+Color math reference: W3C CSS Color 4, Oklab and sample conversions, https://www.w3.org/TR/css-color-4/#ok-lab . Constants follow the Oklab forward/inverse matrices. Art direction and relative accent area are authored, not inferred physical quantities.
+
+### Excluded states
+
+No palette may change velocity/dye history, geometry, alpha, core locations, seed, clocks, concentration or pause state. The same eight-color uniform array and enum remain; no new textures, renderers, simulation passes, timers, dependencies, network calls or persistent storage. Original bypasses the material override, with source-hash and exact rendered round-trip checks. Slots 0-5 contain encoded Oklab (a/b biased by 0.5); slots 6-7 remain sRGB core-marker colors. Unknown and retired IDs return Original through an exact allowlist.
+
+Named swatches, borders, checkmarks and aria-pressed convey selection without relying only on color. Selection closes the disclosure and restores summary focus. Long names wrap, controls retain 44px minimum targets and the existing compact scroll budget. The selection persists through reseeding, study changes and Second Surface underlay selection. Analytical and CSS fallbacks recolor locally; CSS approximates the material with fixed gradients.
+
+`NavierStokesColorways.test.js` checks palette bounds, Oklab reference values, Original source preservation, no color input into the solver, invalid inputs, fallback recoloring and keyboard focus. `scripts/verify-navier-colorways.mjs` checks all seven choices in both site themes at 1440x900, 390x844 and 320x640, including unchanged alpha/clock/core/resource state while paused and exact Original round trips. GPU coverage uses a test-only software adapter and is not physical iPhone/Safari performance certification.
