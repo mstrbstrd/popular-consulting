@@ -447,7 +447,7 @@ describe("DitherCanvasPage", () => {
     expect(renderer).toHaveAttribute("data-paused", "true");
     expect(renderer).toHaveAttribute("data-reset-version", reset);
     expect(screen.getByTestId("creatoros-field-renderer")).toBe(renderer);
-    fireEvent.click(screen.getByRole("button", { name: "Replay" }));
+    fireEvent.click(screen.getByRole("button", { name: "Reseed" }));
     expect(renderer).toHaveAttribute("data-navier-progress", "-1");
     expect(renderer).toHaveAttribute("data-paused", "true");
     fireEvent.click(screen.getByRole("button", { name: /Second Surface/ }));

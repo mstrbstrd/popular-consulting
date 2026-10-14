@@ -1,85 +1,92 @@
-// Retained dye is transported by a bounded 2D solver. Camera compression
-// illustrates the reported 3D result, not simulated 3D blowup or proof data.
+import { NAVIER_CORE_SHADER } from "./navierStokesField";
+
+// One connected periodic dye field. Tiny cores are a bounded artistic
+// concentration cue, not numerical singularities or energy measurements.
 export const NAVIER_STOKES_SHADER = `
 uniform float u_navierProgress;
 uniform float u_navierFluidReady;
 uniform sampler2D u_navierDye;
+${NAVIER_CORE_SHADER}
 
 vec3 navierPigment(vec2 uv) {
   if (u_navierFluidReady > 0.5) {
-    // Manual interpolation avoids a float-linear extension requirement.
-    vec2 size = vec2(textureSize(u_navierDye, 0));
-    vec2 st = clamp(uv * size - 0.5, vec2(0.0), size - 1.0);
-    ivec2 i = ivec2(floor(st));
-    ivec2 edge = ivec2(size) - 1;
+    ivec2 size = textureSize(u_navierDye, 0);
+    vec2 st = fract(uv) * vec2(size) - 0.5;
+    ivec2 i = ivec2(floor(st)) + size;
     vec2 f = fract(st);
-    return mix(mix(texelFetch(u_navierDye, i, 0).rgb,
-      texelFetch(u_navierDye, min(i + ivec2(1,0),edge), 0).rgb, f.x),
-      mix(texelFetch(u_navierDye, min(i + ivec2(0,1),edge), 0).rgb,
-      texelFetch(u_navierDye, min(i + ivec2(1),edge), 0).rgb, f.x), f.y);
+    return mix(mix(texelFetch(u_navierDye, i % size, 0).rgb,
+      texelFetch(u_navierDye, (i + ivec2(1,0)) % size, 0).rgb, f.x),
+      mix(texelFetch(u_navierDye, (i + ivec2(0,1)) % size, 0).rgb,
+      texelFetch(u_navierDye, (i + ivec2(1)) % size, 0).rgb, f.x), f.y);
   }
-  // Stateless capability fallback, intentionally not called a simulation.
-  vec2 p = uv - 0.5;
-  float r = length(p);
-  float a = r > 0.0001 ? atan(p.y,p.x) : 0.0;
-  float phase = a + 10.0 * r - u_time * 0.2 + u_seed * TAU;
-  phase += 0.8 * sin(a * 3.0 - r * 12.0 + sin(u_time * 0.13));
-  float ringDistance = (r - 0.27) * 6.5;
-  float width = exp(-ringDistance * ringDistance);
-  return (0.5 + 0.5 * cos(phase * 1.2 + vec3(0.0, 2.1, 4.2)))
-    * width * pow(0.5 + 0.5 * sin(phase * 5.0), 2.0);
+  // Same full-domain composition when floating targets are unavailable.
+  // This path is a stateless illustration, never advertised as a solver.
+  vec2 p = uv * TAU;
+  float phase = u_time * 0.13 + u_seed * TAU;
+  float wave = sin(p.x * 2.0 + sin(p.y * 3.0 + phase))
+    + cos(p.y * 2.0 + sin(p.x + phase));
+  vec3 ink = (0.5 + 0.5 * cos(p.x + p.y + wave + vec3(0.0,2.1,4.2)))
+    * (0.085 + 0.28 * pow(0.5 + 0.5 * sin(wave * 5.0 + p.y), 2.0));
+  for (int i = 0; i < 4; i++) {
+    if (i >= u_navierCoreCount) break;
+    vec4 core = u_navierCores[i];
+    vec2 d = navierDelta(uv, core.xy);
+    float r = length(d);
+    float a = r > 0.0001 ? atan(d.y, d.x) : 0.0;
+    float spiral = 4.0 * a + log(r + 0.045) * 12.0 * sign(core.w) + phase;
+    ink += exp(-r * r / 0.032) * pow(0.5 + 0.5 * sin(spiral), 3.0) * 0.55
+      * (0.5 + 0.5 * cos(a * 2.0 + float(i) * 1.7 + vec3(0.0,2.1,4.2)));
+  }
+  return ink;
 }
 
 float navierDensity(vec3 ink) { return dot(ink, vec3(0.333333)); }
 
 vec4 sceneNavierStokes(vec2 uv, float time) {
-  float cycle = mod(max(time, 0.0), 28.0) / 28.0;
-  float progress = u_navierProgress < 0.0
-    ? smoothstep(0.04, 0.92, cycle) : clamp(u_navierProgress, 0.0, 1.0);
-  float replay = u_navierProgress < 0.0
-    ? smoothstep(0.0, 0.04, cycle) * (1.0 - smoothstep(0.94, 1.0, cycle)) : 1.0;
-  float aspect = aspectScale().x;
-  float portrait = 1.0 - smoothstep(0.72, 1.05, aspect);
-  float compact = 1.0 - smoothstep(340.0, 410.0, u_res.y);
-  float inspecting = step(0.0, u_navierProgress);
-  float vertical = mix(1.0, mix(mix(0.65, 0.43, compact),
-    mix(0.45, 0.25, compact), inspecting), portrait);
-  float centerY = mix(-0.04, mix(-0.12, 0.06, inspecting), portrait);
-  float horizontal = clamp(aspect * 1.12, 0.36, 1.05);
-  vec2 p = centeredUv(uv);
-  p.x -= max(aspect - 1.0, 0.0) * 0.36;
-  p /= vec2(horizontal, vertical);
-  p.y -= centerY / vertical;
-  p = rotate2(-0.22) * p;
-  vec2 pointer = centeredUv(u_pointer);
+  // Screen and simulation use identical UVs. No tiling a cropped square,
+  // camera contraction, 28-second wrap, global opacity fade or history reset.
+  vec2 metric = navierMetric();
+  vec2 q = uv;
   float pulse = pulseField(uv);
-  p.x -= sin(p.y * 2.4) * pointer.x * u_energy * 0.035;
-  p += p / max(length(p), 0.0001) * pulse * 0.018;
-  // Positive display limits. Scrubbing reframes retained state, not history.
-  vec2 scale = vec2(mix(1.48, 0.58, progress), mix(1.26, 0.96, progress));
-  vec2 q = p / scale * 0.5 + 0.5;
-  if (min(min(q.x, q.y), min(1.0-q.x, 1.0-q.y)) <= 0.0) return vec4(0.0);
+  vec2 pulseDelta = navierDelta(uv, u_pulseOrigin);
+  q += pulseDelta / max(length(pulseDelta), 0.0001) / metric * pulse * 0.012;
+  q += (u_pointer - 0.5) * u_energy * 0.006;
   vec3 ink = navierPigment(q);
   float density = navierDensity(ink);
-  vec2 texel = u_navierFluidReady > 0.5 ? 1.0 / vec2(textureSize(u_navierDye, 0)) : vec2(1.0/256.0);
-  float left = navierDensity(navierPigment(q - vec2(texel.x,0.0)));
-  float right = navierDensity(navierPigment(q + vec2(texel.x,0.0)));
-  float down = navierDensity(navierPigment(q - vec2(0.0,texel.y)));
-  float up = navierDensity(navierPigment(q + vec2(0.0,texel.y)));
-  vec2 slope = vec2(right-left, up-down);
-  vec3 normal = normalize(vec3(-slope * 10.0, 0.24));
+  vec2 texel = u_navierFluidReady > 0.5
+    ? 1.0 / vec2(textureSize(u_navierDye, 0)) : vec2(1.0 / 256.0);
+  vec2 slope = vec2(
+    navierDensity(navierPigment(q + vec2(texel.x,0.0))) - navierDensity(navierPigment(q - vec2(texel.x,0.0))),
+    navierDensity(navierPigment(q + vec2(0.0,texel.y))) - navierDensity(navierPigment(q - vec2(0.0,texel.y))));
+  vec3 normal = normalize(vec3(-slope * 9.0, 0.28));
   float diffuse = max(dot(normal, normalize(vec3(-0.55,0.65,1.0))), 0.0);
-  float edge = min(length(slope) * 9.0, 1.0);
+  float edge = min(length(slope) * 8.0, 1.0);
   float shine = pow(max(dot(normal, normalize(vec3(-0.25,0.65,1.0))), 0.0), 18.0);
   vec3 tint = (ink.r * vec3(0.04,0.79,0.90) + ink.g * vec3(1.0,0.29,0.07)
     + ink.b * vec3(0.40,0.09,0.86)) / max(ink.r + ink.g + ink.b, 0.0001);
-  float opacity = 1.0 - exp(-density * 7.0);
+  float opacity = 1.0 - exp(-density * 8.0);
   float glow = pow(max(density, 0.0), 0.6);
-  vec3 dark = tint * (0.42 + diffuse * 0.85 + glow * 0.8)
-    + vec3(0.73,0.94,1.0) * (edge * 0.2 + shine * 0.18);
-  vec3 light = tint * (0.42 + diffuse * 0.28) + vec3(0.04,0.03,0.09)
-    + vec3(0.62,0.78,0.9) * edge * 0.16;
-  float crop = smoothstep(0.0, 0.10, min(min(q.x,q.y),min(1.0-q.x,1.0-q.y)));
-  float intro = smoothstep(0.0,1.0,u_intro);
-  return vec4(mix(dark, light, u_light), opacity * crop * intro * replay);
+  vec3 dark = tint * (0.40 + diffuse * 0.85 + glow * 0.80)
+    + vec3(0.73,0.94,1.0) * (edge * 0.20 + shine * 0.12);
+  vec3 light = tint * (0.38 + diffuse * 0.27) + vec3(0.035,0.025,0.08)
+    + vec3(0.62,0.78,0.9) * edge * 0.12;
+  vec3 color = mix(dark, light, u_light);
+  // The mathematical display radius keeps shrinking. One drawing-pixel floor
+  // retains a finite, antialiased nucleus, not an ever-brighter screen flash.
+  float pixel = 1.0 / max(min(u_res.x, u_res.y), 1.0);
+  for (int i = 0; i < 4; i++) {
+    if (i >= u_navierCoreCount) break;
+    vec4 core = u_navierCores[i];
+    float progress = u_navierProgress < 0.0 ? core.z : clamp(u_navierProgress, 0.0, 1.0);
+    float radius = max(navierRadius(progress), pixel * 1.15);
+    float distance = length(navierDelta(uv, core.xy)) / radius;
+    float nucleus = exp(-distance * distance * 2.0);
+    float rimDistance = distance - 1.0;
+    float rim = exp(-rimDistance * rimDistance * 14.0) * 0.024;
+    float presence = clamp((nucleus * mix(0.12, 1.0, smoothstep(0.25, 0.8, progress)) + rim) * abs(core.w), 0.0, 1.0);
+    vec3 coreTint = mix(vec3(0.85,0.98,1.0), vec3(0.10,0.035,0.20), u_light);
+    color = mix(color, coreTint, presence * 0.88);
+    opacity = max(opacity, presence);
+  }
+  return vec4(color, opacity * smoothstep(0.0, 1.0, u_intro));
 }`;

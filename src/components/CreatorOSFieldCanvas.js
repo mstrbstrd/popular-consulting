@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { normalizeNavierProgress } from "./navierStokesModel";
 import { createNavierStokesFluid } from "./navierStokesFluid";
+import { writeNavierCores } from "./navierStokesField";
 import { createMetabloomHoodTransition, METABLOOM_HOOD_SHADER } from "./metabloomUnderHood";
 import { METABLOOM_ACTION_IDS } from "./metabloomActions";
 import { createMetabloomSceneTransition, METABLOOM_SCENE_MODES } from "./metabloomSceneTransition";
@@ -762,6 +763,8 @@ const CreatorOSFieldCanvas = ({
     let positionBuffer;
     let reactionTargets;
     let navierFluid;
+    const navierCores = modeRef.current === 9 ? new Float32Array(16) : null;
+    const navierCoreCount = isMobileTier ? 3 : 4;
     let navierImpulse = [0, 0];
     let neutralReactionTexture;
     let resizeObserver;
@@ -1031,6 +1034,9 @@ const CreatorOSFieldCanvas = ({
       "u_navierProgress",
       "u_navierFluidReady",
       "u_navierDye",
+      "u_navierCores[0]",
+      "u_navierCoreCount",
+      "u_navierAspect",
       "u_avatarEnabled",
       "u_avatarAction",
       "u_avatarPhase",
@@ -1114,6 +1120,7 @@ const CreatorOSFieldCanvas = ({
         bounds.height,
         RENDER_SCALE,
       );
+      navierFluid?.setAspect(target.width / Math.max(target.height, 1));
       pointerBounds.left = bounds.left;
       pointerBounds.top = bounds.top;
       pointerBounds.width = Math.max(bounds.width, 1);
@@ -1136,23 +1143,8 @@ const CreatorOSFieldCanvas = ({
       ),
     });
 
-    const navierPoint = (x, y) => {
-      const smooth = (a, b, value) => { const t = clamp((value - a) / (b - a)); return t * t * (3 - 2 * t); };
-      const mix = (a, b, t) => a + (b - a) * t;
-      const aspect = canvas.width / Math.max(canvas.height, 1);
-      const portrait = 1 - smooth(0.72, 1.05, aspect);
-      const compact = 1 - smooth(340, 410, canvas.height);
-      const inspecting = navierProgressRef.current >= 0 ? 1 : 0;
-      const vertical = mix(1, mix(mix(0.65, 0.43, compact), mix(0.45, 0.25, compact), inspecting), portrait);
-      const centerY = mix(-0.04, mix(-0.12, 0.06, inspecting), portrait);
-      const horizontal = clamp(aspect * 1.12, 0.36, 1.05);
-      const px = ((x * 2 - 1) * aspect - Math.max(aspect - 1, 0) * 0.36) / horizontal;
-      const py = ((y * 2 - 1) - centerY) / vertical;
-      const progress = inspecting ? navierProgressRef.current : smooth(0.04, 0.92, (localTime % 28) / 28);
-      const c = Math.cos(-0.22), s = Math.sin(-0.22);
-      return [(c * px + s * py) / mix(1.48, 0.58, progress) * 0.5 + 0.5,
-        (-s * px + c * py) / mix(1.26, 0.96, progress) * 0.5 + 0.5];
-    };
+    // Full-frame UVs are shared with the shader, including portrait layouts.
+    const navierPoint = (x, y) => [clamp(x), clamp(y)];
 
     const handlePointerMove = (event) => {
       const next = readPointer(event);
@@ -1677,6 +1669,10 @@ const CreatorOSFieldCanvas = ({
 
       gl.uniform1f(activeDisplayUniforms.u_navierProgress, navierProgressRef.current);
       if (modeRef.current === 9) {
+        gl.uniform4fv(activeDisplayUniforms["u_navierCores[0]"], navierFluid?.cores
+          || writeNavierCores(navierCores, localTime, seed, navierCoreCount));
+        gl.uniform1i(activeDisplayUniforms.u_navierCoreCount, navierCoreCount);
+        gl.uniform1f(activeDisplayUniforms.u_navierAspect, canvas.width / Math.max(canvas.height, 1));
         gl.uniform1f(activeDisplayUniforms.u_navierFluidReady, navierFluid ? 1 : 0);
         gl.activeTexture(gl.TEXTURE3);
         gl.bindTexture(gl.TEXTURE_2D, navierFluid?.texture || neutralReactionTexture);

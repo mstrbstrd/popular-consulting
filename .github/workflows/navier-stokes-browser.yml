@@ -11,7 +11,7 @@ on:
       - 'scripts/verify-navier-*'
       - '.github/workflows/navier-stokes-browser.yml'
   push:
-    branches: [main, feat/navier-advection]
+    branches: [main, feat/navier-persistent-cores]
     paths:
       - 'src/components/NavierStokes*'
       - 'src/components/navierStokes*'
