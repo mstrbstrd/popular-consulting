@@ -132,6 +132,7 @@ export const createVisualRuntimeLightPass = ({
   mobile = false,
   captureState = null,
   pointerReactive = () => true,
+  latticeAppearance = () => "day",
   invalidate = () => {},
 } = {}) => {
   if (!gl || !host || !canvas || !windowObject || !documentObject) {
@@ -255,6 +256,7 @@ export const createVisualRuntimeLightPass = ({
       "u_shapeMix",
       "u_rainbowSpeed",
       "u_reveal",
+      "u_latticeNight",
       "u_charCount",
       "u_atlasCols",
       "u_atlasRows",
@@ -487,6 +489,7 @@ export const createVisualRuntimeLightPass = ({
       params.rainbowSpeed,
     );
     gl.uniform1f(compositeUniforms.u_reveal, animation.reveal);
+    gl.uniform1f(compositeUniforms.u_latticeNight, latticeAppearance() === "night" ? 1 : 0);
     gl.uniform1i(compositeUniforms.u_charCount, CHARSET.length);
     gl.uniform1i(compositeUniforms.u_atlasCols, atlas.atlasCols);
     gl.uniform1i(compositeUniforms.u_atlasRows, atlas.atlasRows);
@@ -539,6 +542,7 @@ export const createVisualRuntimeLightPass = ({
       fieldSize,
       cellSize,
       rippleCount: ripples.length,
+      latticeAppearance: latticeAppearance(),
       presentedFrames,
       drawCalls,
       sceneSampleReductionEstimate: lastSceneSampleRatio,
