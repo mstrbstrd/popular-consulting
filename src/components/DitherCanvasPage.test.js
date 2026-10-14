@@ -716,6 +716,7 @@ describe("DitherCanvasPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /Event Horizon/ }));
     flushScrollFrame();
     finishStudyTransition();
+    finishStudyTransition();
     expect(screen.getByTestId("production-theme-renderer")).toHaveAttribute("data-production-theme", "dark");
     expect(screen.getByRole("heading", { name: "Event Horizon" })).toBeInTheDocument();
   });
