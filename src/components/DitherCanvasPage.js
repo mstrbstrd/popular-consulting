@@ -369,6 +369,7 @@ const DitherFieldLab = () => {
   const viewportHeightRef = useRef(0);
   const viewportWidthRef = useRef(0);
   const displayStudyIndexRef = useRef(initialStudy);
+  const requestedStudyIndexRef = useRef(initialStudy);
   const directNavigationTargetRef = useRef(null);
   const syncedThemeStudyRef = useRef(null);
   const [displayStudyIndex, setDisplayStudyIndex] = useState(initialStudy);
@@ -419,6 +420,12 @@ const DitherFieldLab = () => {
   retainedStudy.current = { index: requestedStudyIndex, paused };
   const saveToolState = navigation?.saveToolState;
   const setRouteScrollRestoration = navigation?.setRouteScrollRestoration;
+  const requestStudyIndex = useCallback((index) => {
+    // Exit callbacks must read the latest target, not the target selected when
+    // an earlier animation started. Avoid intermediate study remounts.
+    requestedStudyIndexRef.current = index;
+    setRequestedStudyIndex(index);
+  }, []);
   useEffect(() => () => { saveToolState?.('dither', retainedStudy.current); }, [saveToolState]);
   const secondSurfaceOption = SECOND_SURFACE_OPTIONS.find(
     (study) => study.id === secondSurfaceStudyId,
@@ -603,7 +610,7 @@ const DitherFieldLab = () => {
         scrollUnits / profile.ruptureOpenUnits,
       );
 
-      setRequestedStudyIndex(nextStudyIndex);
+      requestStudyIndex(nextStudyIndex);
       setFirstSurfaceProgress((previousProgress) =>
         Math.abs(previousProgress - ruptureProgress) >= 0.002
           ? ruptureProgress
@@ -657,7 +664,7 @@ const DitherFieldLab = () => {
       window.removeEventListener("scroll", handleScroll);
       window.removeEventListener("resize", handleResize);
     };
-  }, [initialStudy, savedStudy, setRouteScrollRestoration]);
+  }, [initialStudy, requestStudyIndex, savedStudy, setRouteScrollRestoration]);
 
   useEffect(() => {
     if (
@@ -689,9 +696,17 @@ const DitherFieldLab = () => {
     }
 
     const timer = window.setTimeout(() => {
-      const nextStudy = STUDIES[transitionTargetIndex];
+      // A second menu click during the exit supersedes the old destination.
+      // Keep one exit/entrance sequence rather than flashing the old target.
+      const latestIndex = requestedStudyIndexRef.current;
+      if (latestIndex === displayStudyIndexRef.current) {
+        setTransitionTargetIndex(null);
+        setTransitionPhase("idle");
+        return;
+      }
+      const nextStudy = STUDIES[latestIndex];
       const entranceStyle = STUDY_TRANSITIONS[nextStudy.id].enter;
-      setDisplayStudyIndex(transitionTargetIndex);
+      setDisplayStudyIndex(latestIndex);
       setFieldState(nextStudy.initialState);
 
       if (entranceStyle === "native") {
@@ -709,6 +724,23 @@ const DitherFieldLab = () => {
   }, [transitionPhase, transitionTargetIndex]);
 
   useEffect(() => {
+    if (transitionPhase !== "entering" || requestedStudyIndex === displayStudyIndex) {
+      return;
+    }
+
+    // If a second menu choice arrives during the incoming reveal, show the
+    // latest scene directly instead of completing an obsolete entrance and
+    // launching another exit. Changing the study key restarts its entrance.
+    const nextStudy = STUDIES[requestedStudyIndex];
+    setTransitionDirection(
+      requestedStudyIndex > displayStudyIndex ? "forward" : "backward",
+    );
+    setTransitionStyle(STUDY_TRANSITIONS[nextStudy.id].enter);
+    setDisplayStudyIndex(requestedStudyIndex);
+    setFieldState(nextStudy.initialState);
+  }, [displayStudyIndex, requestedStudyIndex, transitionPhase]);
+
+  useEffect(() => {
     if (transitionPhase !== "entering") return undefined;
 
     const timer = window.setTimeout(() => {
@@ -717,7 +749,7 @@ const DitherFieldLab = () => {
     }, ENTER_DURATION_MS);
 
     return () => window.clearTimeout(timer);
-  }, [transitionPhase]);
+  }, [displayStudyIndex, transitionPhase]);
 
   useEffect(() => {
     if (
@@ -739,11 +771,18 @@ const DitherFieldLab = () => {
     const targetUnits = scrollTargetUnitsForStudy(index, profile);
     const top = pageTop + targetUnits * viewportHeight;
 
-    directNavigationTargetRef.current =
-      index === displayStudyIndexRef.current ? null : index;
+    // The artwork is viewport-fixed and has its own authored transitions.
+    // Browser smooth-scroll used to walk the invisible scroll sentinels and
+    // reactivate intermediate studies after the selected study appeared.
+    // A menu choice is one discrete destination; wheel/touch scroll remains
+    // progressive and continues to drive the normal narrative.
+    directNavigationTargetRef.current = index;
+    requestStudyIndex(index);
+    window.cancelAnimationFrame(scrollFrameRef.current);
+    scrollFrameRef.current = 0;
     window.scrollTo({
       top,
-      behavior: reducedMotionRef.current ? "auto" : "smooth",
+      behavior: "instant",
     });
   };
 
