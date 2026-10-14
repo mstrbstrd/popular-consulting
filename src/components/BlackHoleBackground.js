@@ -18,6 +18,7 @@ import { safeSessionSet } from "./blackHoleWebGL";
 export const BLACK_HOLE_SECTION_ZOOMS = Object.freeze([14, 28, 44, 62, LOGIN_BLACK_HOLE_ZOOM, 22, 18]);
 export const BLACK_HOLE_INITIAL_ZOOM = 80;
 export const BLACK_HOLE_ZOOM_LERP_RATE = 0.025;
+export const BLACK_HOLE_POINTER_LERP_RATE = 0.035;
 export const resolveBlackHolePointerInput = ({ popcan = false, x = 0.5, y = 0.35 } = {}) =>
   popcan ? { x: 0.5, y: 0.35 } : { x, y };
 
