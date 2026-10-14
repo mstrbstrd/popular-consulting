@@ -62,16 +62,51 @@ const withoutNavigationExtension = (source) => {
   }, normalizeLineEndings(source));
 };
 
+// Popcan must never send pointer input to its persistent index background.
+// Remove ONLY these exact additive guards when comparing the legacy renderer
+// with the original stage-zero blob. The rest remains byte-identical.
+const withoutPopcanPointerExtension = (source) => {
+  const replacements = [
+    [
+      'const DitherBackground = ({ activeSection = 0, isDark = false, pointerReactive = true }) => {\n',
+      'const DitherBackground = ({ activeSection = 0, isDark = false }) => {\n',
+    ],
+    [
+      '  const pointerReactiveRef = useRef(pointerReactive);\n'
+        + '  pointerReactiveRef.current = pointerReactive;\n'
+        + '  useEffect(() => {\n'
+        + '    // Remove ripples inherited from the previous route without resetting GL.\n'
+        + '    if (!pointerReactive) ripplesRef.current = [];\n'
+        + '  }, [pointerReactive]);\n',
+      '',
+    ],
+    [
+      '    window.__addDitherRipple = (clientX, clientY) => {\n'
+        + '      if (!pointerReactiveRef.current) return;\n',
+      '    window.__addDitherRipple = (clientX, clientY) => {\n',
+    ],
+    [
+      '      if (\n        !pointerReactiveRef.current\n'
+        + '        || targetIdxRef.current !== 4\n',
+      '      if (\n        targetIdxRef.current !== 4\n',
+    ],
+  ];
+  return replacements.reduce((original, [extension, reference]) => {
+    expect(original.split(extension)).toHaveLength(2);
+    return original.replace(extension, reference);
+  }, normalizeLineEndings(source));
+};
+
 describe('reference visual oracle', () => {
   test.each(Object.entries(REFERENCE_BLOB_SHA))(
-    'keeps the original %s byte-identical outside the exact Login and navigation extensions',
+    'keeps the original %s byte-identical outside Login, navigation and Popcan pointer guards',
     (fileName, expectedSha) => {
       const source = fs.readFileSync(
         path.join(process.cwd(), 'src/components', fileName),
         'utf8',
       );
       const original = fileName === 'DitherBackground.js'
-        ? withoutLoginExtension(withoutNavigationExtension(source))
+        ? withoutLoginExtension(withoutNavigationExtension(withoutPopcanPointerExtension(source)))
         : source;
       expect(gitBlobSha(original)).toBe(expectedSha);
     },
