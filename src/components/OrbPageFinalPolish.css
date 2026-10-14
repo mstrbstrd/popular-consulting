@@ -486,3 +486,25 @@
     height: 100%;
   }
 }
+
+/* With the full index scene active, keep foreground controls readable instead
+   of letting the moving WebGL colours bleed through their glass surfaces.
+   This opt-in treatment never changes the Metabloom shader or the off state. */
+@media (max-width: 768px) {
+  .orb-page[data-background-enabled="true"] .metabloom-chat {
+    --orb-control-surface: color-mix(in srgb, var(--aetheris-panel) 94%, transparent);
+    --orb-control-surface-hover: color-mix(in srgb, var(--aetheris-panel) 98%, transparent);
+  }
+
+  .orb-page[data-background-enabled="true"] .metabloom-chat__suggestions button,
+  .orb-page[data-background-enabled="true"] .orb-page__finish-selector,
+  .orb-page[data-background-enabled="true"] .orb-page__background-toggle {
+    background: color-mix(in srgb, var(--aetheris-panel) 94%, transparent);
+    color: var(--aetheris-ink);
+  }
+
+  .orb-page[data-background-enabled="true"] .metabloom-chat__composer-help {
+    color: var(--aetheris-ink);
+    text-shadow: 0 1px 2px var(--aetheris-panel);
+  }
+}

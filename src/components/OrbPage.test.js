@@ -289,6 +289,8 @@ describe("OrbPage", () => {
     expect(chatCss).toMatch(/@media \(max-width: 768px\) \{[\s\S]*?\.orb-page \.metabloom-chat \{[\s\S]*?position: absolute;/);
     expect(chatCss).toMatch(/\.orb-page \.metabloom-chat \{[\s\S]*?top: 0;[\s\S]*?height: 100%;/);
     expect(chatCss).toContain("height: var(--orb-viewport-height, 100dvh);");
+    expect(chatCss).toContain('--orb-control-surface: color-mix(in srgb, var(--aetheris-panel) 94%, transparent)');
+    expect(chatCss).toContain('.orb-page[data-background-enabled="true"] .metabloom-chat__suggestions button');
   });
 
   test("keeps route controls at the shared 44px minimum target size", () => {
