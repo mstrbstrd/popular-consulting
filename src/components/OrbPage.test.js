@@ -195,7 +195,6 @@ describe("OrbPage", () => {
     expect(metalbloomOption).toHaveAttribute("aria-pressed", "true");
   });
 
-  test("lifts explicit conversation state to the page shell", async () => {
   test("toggles the shell-owned animated background without remounting the orb", async () => {
     const WithPreference = () => {
       const [orbBackgroundEnabled, setOrbBackgroundEnabled] = React.useState(true);
@@ -219,7 +218,7 @@ describe("OrbPage", () => {
     expect(orb).toBeInTheDocument();
   });
 
-
+  test("lifts explicit conversation state to the page shell", async () => {
     const { container } = render(<OrbPage />);
     await screen.findByTestId("orb-experience");
 
