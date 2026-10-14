@@ -28,8 +28,17 @@ sampling; existing items are never downsampled or flattened. Very large PNG
 exports are scaled to the render budget, with the output dimensions reported.
 
 The default surface is Match theme: warm in light mode, midnight in dark mode.
-Explicit white/warm/midnight/transparent surfaces remain fixed until changed.
-Theme changes do not write pigment or add history. Older drafts using the former
+The optional **Animated background** control (on by default) reuses the single
+index background scene behind the editor in both themes. Its separate on/off
+preference is stored in localStorage. When enabled, only the default
+theme-following paper is rendered as a translucent viewport wash so the
+background is visible beneath the artwork. Explicit white/warm/midnight/
+transparent surfaces retain their original previews. Reduced-transparency and
+forced-colors modes display an opaque theme-paper surface. Switching the scene
+off releases the WebGL background without recreating Popcan's 2D canvas,
+changing gestures, history, IndexedDB drafts or exported PNGs. The background
+is decorative and never included in exported artwork. Theme changes do not
+write pigment or add history. Older drafts using the former
 implicit Midnight default migrate to Match theme; other old surfaces are retained.
 
 The Text tool (T) opens a plain-text editor at the clicked world position, with

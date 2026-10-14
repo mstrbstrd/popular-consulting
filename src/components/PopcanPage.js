@@ -33,6 +33,7 @@ export function PopcanContent() {
   const navigation = useAppNavigation();
   const getToolState = navigation?.getToolState;
   const saveToolState = navigation?.saveToolState;
+  const backgroundEnabled = navigation?.popcanBackgroundEnabled === true;
   const { isDark } = useThemeMode();
   const themeRef = useRef(isDark); themeRef.current = isDark;
   const canvasRef = useRef(null), previewRef = useRef(null), stageRef = useRef(null), engineRef = useRef(null);
@@ -54,6 +55,11 @@ export function PopcanContent() {
   const lastViewport = useRef(viewport);
   const scale = view.scale;
   const paper = doc.paper === PAPERS.theme ? (isDark ? PAPERS.midnight : PAPERS.warm) : doc.paper;
+  // Only the theme-following paper gets a translucent *display* wash. Explicit
+  // paper choices, editable pixels, snapshots and PNG export remain unchanged.
+  const displayPaper = backgroundEnabled && doc.paper === PAPERS.theme
+    ? (isDark ? 'rgba(13, 13, 17, 0.55)' : 'rgba(255, 248, 247, 0.44)')
+    : paper;
   const renderFrame = doc.renderFrame || { originX: doc.originX, originY: doc.originY, width: doc.width, height: doc.height };
   useLayoutEffect(() => { engineRef.current?.setTheme(isDark); }, [isDark]);
   useLayoutEffect(() => {
@@ -434,7 +440,7 @@ export function PopcanContent() {
   const selection = ink.tool === 'select' ? doc.selection : null;
   const selectionLabel = selection?.kind === 'legacy' ? 'Earlier artwork' : selection ? selection.kind[0].toUpperCase() + selection.kind.slice(1) : '';
 
-  return <div className="popcan-page" ref={pageRef}>
+  return <div className="popcan-page" ref={pageRef} data-background-enabled={backgroundEnabled ? 'true' : 'false'}>
     <a className="pc-skip" href="#popcan-canvas">Skip to canvas</a>
     <NavMenu standalone />
     <main className="pc-studio" aria-label="Popular Canvas editor">
@@ -459,8 +465,8 @@ export function PopcanContent() {
           id="popcan-canvas" role="img" aria-label="Drawing canvas" aria-describedby="pc-canvas-help" tabIndex={0}
           data-tool={spacePan ? 'hand' : ink.tool} data-scale={scale} data-view-x={view.x} data-view-y={view.y}
           data-origin-x={doc.originX} data-origin-y={doc.originY} data-object-count={doc.objectCount || 0}
-          data-compaction-count={doc.compactionCount || 0}
-          style={{ backgroundColor: paper, '--pc-paper-ink': paper === PAPERS.midnight ? '#eeeaf0' : '#37323e' }}
+          data-compaction-count={doc.compactionCount || 0} data-paper={doc.paper === PAPERS.theme ? 'theme' : 'fixed'}
+          style={{ backgroundColor: displayPaper, '--pc-paper-ink': paper === PAPERS.midnight ? '#eeeaf0' : '#37323e' }}
           onContextMenu={(event) => event.preventDefault()}>
           <div className="pc-artboard" style={{ width: renderFrame.width, height: renderFrame.height,
             transform: `translate(${view.x + renderFrame.originX * scale}px, ${view.y + renderFrame.originY * scale}px) scale(${scale})` }}>
@@ -502,7 +508,15 @@ export function PopcanContent() {
       <footer className="pc-statusbar">
         <div className="pc-status"><span className={`pc-status-dot ${dirtyRef.current ? 'is-pending' : ''}`} /><span role="status">{notice || saveStatus}</span></div>
         <span className="pc-tool-status" id="pc-canvas-help">{activeTool[1]}<span> / </span>{ink.tool === 'select' ? 'Click a mark, then drag' : isShape || ink.tool === 'line' ? 'Shift to constrain' : ink.tool === 'text' ? 'Click to place text' : 'Scroll to zoom · Space to pan'}</span>
-        <div className="pc-view-controls"><ToolButton className="pc-settings-toggle" icon="sliders" label="Brush settings" aria-expanded={inspectorOpen} aria-controls="pc-inspector" onClick={() => setInspectorOpen((open) => !open)} /><ToolButton icon="hand" label="Move canvas (H)" aria-pressed={ink.tool === 'hand'} onClick={() => setOption('tool', ink.tool === 'hand' ? 'brush' : 'hand')} /><ToolButton icon="minus" label="Zoom out" disabled={scale <= MIN_ZOOM} onClick={() => changeZoom(0.8)} /><button type="button" className="pc-zoom-value" title="Fit all artwork (0)" aria-label="Fit all artwork" onClick={resetView}>{Math.round(scale * 100)}%</button><ToolButton icon="plus" label="Zoom in" disabled={scale >= MAX_ZOOM} onClick={() => changeZoom(1.25)} /><ToolButton className="pc-fit" icon="fit" label="Reset canvas view" onClick={resetView} /></div>
+        <div className="pc-view-controls">
+          <button type="button" className="pc-button pc-background-toggle" aria-label="Animated background"
+            aria-pressed={backgroundEnabled}
+            title={`Animated background ${backgroundEnabled ? 'on' : 'off'} (display only, not exported)`}
+            onClick={() => navigation?.setPopcanBackgroundEnabled?.(!backgroundEnabled)}>
+            <Icon name="scene" size={17} />
+            <span className="pc-background-toggle-label">BG {backgroundEnabled ? 'On' : 'Off'}</span>
+          </button>
+          <ToolButton className="pc-settings-toggle" icon="sliders" label="Brush settings" aria-expanded={inspectorOpen} aria-controls="pc-inspector" onClick={() => setInspectorOpen((open) => !open)} /><ToolButton icon="hand" label="Move canvas (H)" aria-pressed={ink.tool === 'hand'} onClick={() => setOption('tool', ink.tool === 'hand' ? 'brush' : 'hand')} /><ToolButton icon="minus" label="Zoom out" disabled={scale <= MIN_ZOOM} onClick={() => changeZoom(0.8)} /><button type="button" className="pc-zoom-value" title="Fit all artwork (0)" aria-label="Fit all artwork" onClick={resetView}>{Math.round(scale * 100)}%</button><ToolButton icon="plus" label="Zoom in" disabled={scale >= MAX_ZOOM} onClick={() => changeZoom(1.25)} /><ToolButton className="pc-fit" icon="fit" label="Reset canvas view" onClick={resetView} /></div>
       </footer>
     </main>
     {modal && <dialog ref={dialogRef} className="pc-dialog" aria-labelledby="pc-dialog-title" onCancel={() => setModal(null)} onClick={(event) => { if (event.target === event.currentTarget) setModal(null); }}>

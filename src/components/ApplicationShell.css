@@ -33,11 +33,13 @@
 [data-theme="light"] .app-outlet[data-phase="covering"],
 [data-theme="dark"] .app-outlet[data-phase="covering"] { transition: opacity 650ms cubic-bezier(.55, 0, 1, .45); }
 
-/* In iOS/WebKit the two independent full-screen WebGL canvases must have
-   explicit, isolated ancestor planes. Keep the Orb foreground above the
-   persistent index scene without transforming its viewport-fixed controls. */
+/* WebKit needs a distinct foreground compositor for Orb's WebGL avatar and
+   Popcan's Canvas 2D, both above the shared index WebGL. No transforms here:
+   viewport-fixed menus and pointer-to-canvas coordinates must stay unchanged. */
 .app-outlet[data-route="/orb"],
-.app-outlet[data-route="/orb/index.html"] {
+.app-outlet[data-route="/orb/index.html"],
+.app-outlet[data-route="/popcan"],
+.app-outlet[data-route="/popcan/index.html"] {
   z-index: 4;
   isolation: isolate;
 }

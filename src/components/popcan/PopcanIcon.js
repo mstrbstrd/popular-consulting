@@ -22,6 +22,7 @@ const paths = {
   close: 'M6 6l12 12M18 6L6 18',
   help: 'M12 17h.01M9.2 8a3 3 0 115.6 1.5c-1.3 1-2.8 1.5-2.8 3.5M22 12a10 10 0 11-20 0 10 10 0 1120 0',
   mark: 'M3 17c2-10 5-13 8-10s-3 10 0 11 8-10 10-9M3 22h18',
+  scene: 'M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4z',
 };
 export default function PopcanIcon({ name, size = 20 }) {
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[name] || paths.mark} /></svg>;

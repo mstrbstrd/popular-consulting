@@ -5,7 +5,7 @@ html.popcan-route { height: 100%; overflow: hidden; font-size: 62.5% !important;
   --pc-bg: #f4efed; --pc-panel: #fffcfa; --pc-work: #e8e4e3; --pc-ink: #292631;
   --pc-muted: #736c79; --pc-line: rgba(52, 38, 59, .12); --pc-hover: rgba(62, 43, 75, .055);
   --pc-dot: rgba(59, 43, 61, .13); --pc-ring: #7567aa; --pc-check-a: #e2dfe5; --pc-check-b: #f7f5f8;
-  --pc-glass: rgba(255,252,250,.94); --pc-nav-height: 80px; --pc-chrome-bottom: 172px;
+  --pc-glass: rgba(255,252,250,.94); --pc-theme-paper: #fff8f7; --pc-nav-height: 80px; --pc-chrome-bottom: 172px;
   --pc-spectral: linear-gradient(115deg, #40c9e7 2%, #b78bef 38%, #ed87c4 69%, #e5bc9e 100%);
   position: fixed; inset: 0; display: flex; flex-direction: column; min-height: 0; overflow: hidden;
   color: var(--pc-ink); background: var(--pc-bg); font-family: 'Hanken Grotesk', sans-serif;
@@ -13,7 +13,7 @@ html.popcan-route { height: 100%; overflow: hidden; font-size: 62.5% !important;
 }
 [data-theme='dark'] .popcan-page {
   --pc-glass: rgba(25,25,31,.94);
-  --pc-bg: #0d0d11; --pc-panel: #19191f; --pc-work: #111115; --pc-ink: #eeeaf0;
+  --pc-bg: #0d0d11; --pc-panel: #19191f; --pc-work: #111115; --pc-theme-paper: #111116; --pc-ink: #eeeaf0;
   --pc-muted: #a8a2b0; --pc-line: rgba(217, 203, 234, .12); --pc-hover: rgba(223, 208, 245, .065);
   --pc-dot: rgba(199, 189, 215, .1); --pc-ring: #b6a1ec; --pc-check-a: #26242d; --pc-check-b: #302e38;
 }
@@ -227,3 +227,60 @@ html.popcan-route { height: 100%; overflow: hidden; font-size: 62.5% !important;
   background: var(--pc-glass); color: var(--pc-ink); box-shadow: 0 5px 24px rgba(0,0,0,.08); }
 .pc-selection-actions > span { font-size: 11px; white-space: nowrap; }
 .pc-selection-actions .pc-button { min-width: 40px; min-height: 40px; }
+
+/* Reuse the one shell-owned index scene. The paint canvas and all hit-testing
+   remain foreground Canvas 2D; the decorative WebGL layer receives no input. */
+.popcan-page[data-background-enabled='true'] {
+  background: transparent;
+  isolation: isolate;
+}
+.pc-view-controls .pc-background-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  min-width: 44px;
+  height: 36px;
+  gap: 6px;
+  padding: 0 8px;
+  border: 1px solid var(--pc-line);
+  font: 500 10px/1 'JetBrains Mono', monospace;
+  white-space: nowrap;
+}
+.pc-background-toggle[aria-pressed='true'] { border-color: var(--pc-ring); }
+.pc-background-toggle::after {
+  content: '';
+  flex: 0 0 5px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--pc-muted);
+}
+.pc-background-toggle[aria-pressed='true']::after {
+  background: #40c9e7;
+  box-shadow: 0 0 6px rgba(64,201,231,.58);
+}
+@media (max-width: 760px) {
+  .pc-view-controls .pc-background-toggle {
+    width: 38px;
+    min-width: 38px;
+    height: 36px;
+    padding: 0;
+    gap: 4px;
+  }
+  .pc-background-toggle-label { display: none; }
+}
+/* A chosen opaque paper stays true to its export. Accessibility preferences
+   also keep the default theme paper opaque regardless of scene preference. */
+@media (prefers-reduced-transparency: reduce) {
+  .popcan-page[data-background-enabled='true'] .pc-stage[data-paper='theme'] {
+    background-color: var(--pc-theme-paper, #fff8f7) !important;
+  }
+}
+@media (forced-colors: active) {
+  .popcan-page[data-background-enabled='true'] .pc-stage[data-paper='theme'] {
+    background-color: Canvas !important;
+  }
+  .pc-background-toggle[aria-pressed='true'] { outline: 1px solid Highlight; }
+  .pc-background-toggle::after { background: ButtonText; box-shadow: none; }
+}

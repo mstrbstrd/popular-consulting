@@ -36,6 +36,32 @@ test('keeps the editor local and usable without WebGL', () => {
   expect(source('src/components/popcan/popcanStorage.js')).toContain('indexedDB.open');
 });
 
+test('uses the shell-owned index scene without changing Popcan pixels, paper exports, or gestures', () => {
+  const editor = source('src/components/PopcanPage.js');
+  const css = source('src/components/PopcanPage.css');
+  const shell = source('src/components/ApplicationShell.js');
+  const shellCss = source('src/components/ApplicationShell.css');
+  const engine = source('src/components/popcan/popcanEngine.js');
+
+  expect(shell).toContain("'popcon-popcan-background'");
+  expect(shell).toContain('popcanBackgroundEnabled, setPopcanBackgroundEnabled');
+  expect(shellCss).toContain('.app-outlet[data-route="/popcan"]');
+  expect(editor).toContain('aria-label="Animated background"');
+  expect(editor).toContain('aria-pressed={backgroundEnabled}');
+  expect(editor).toContain('data-background-enabled={backgroundEnabled');
+  expect(editor).toContain('data-paper={doc.paper === PAPERS.theme');
+  expect(editor).toContain('backgroundColor: displayPaper');
+  expect(editor).toContain("doc.paper === PAPERS.theme");
+  expect(editor).toContain('renderFrame.originX * scale');
+  expect(css).toContain(".popcan-page[data-background-enabled='true']");
+  expect(css).toContain('pointer-events: none;');
+  expect(css).toContain('prefers-reduced-transparency: reduce');
+  expect(css).toContain('forced-colors: active');
+  expect(engine).toContain("if (includePaper && snapshot.paper !== 'transparent')");
+  expect(engine).toContain("getContext('2d'");
+  expect(editor).not.toMatch(/ManagedDitherBackground|ProductionThemeCanvas|BlackHoleCanvas/);
+});
+
 test('uses the dedicated transparent Popcan logo artwork', () => {
   const editor = source('src/components/PopcanPage.js');
   const logo = fs.readFileSync(path.resolve(__dirname, '..', 'assets', 'img', 'popcan-logo.png'));

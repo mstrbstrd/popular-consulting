@@ -4,7 +4,7 @@ export const routeMetadataFor = pathname => Object.values(metadata).find(route =
   route.path === (pathname.replace(/\/index\.html$/, '').replace(/\/+$/, '') || '/'));
 
 export const sharesImmersiveBackground = pathname =>
-  ['/', '/home', '/engineering', '/login', '/orb'].includes(routeMetadataFor(pathname)?.path);
+  ['/', '/home', '/engineering', '/login', '/orb', '/popcan'].includes(routeMetadataFor(pathname)?.path);
 
 export const isAppRoute = pathname => Boolean(routeMetadataFor(pathname));
 

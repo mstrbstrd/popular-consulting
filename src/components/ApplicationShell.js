@@ -18,8 +18,16 @@ const readOrbBackgroundEnabled = () => {
   try { return window.localStorage.getItem('popcon-orb-background') !== 'off'; }
   catch { return true; }
 };
-const routeHasImmersiveBackground = (pathname, orbEnabled) =>
-  sharesImmersiveBackground(pathname) && (routeMetadataFor(pathname)?.path !== '/orb' || orbEnabled);
+const readPopcanBackgroundEnabled = () => {
+  try { return window.localStorage.getItem('popcon-popcan-background') !== 'off'; }
+  catch { return true; }
+};
+const routeHasImmersiveBackground = (pathname, orbEnabled, popcanEnabled) => {
+  const route = routeMetadataFor(pathname)?.path;
+  return sharesImmersiveBackground(pathname) &&
+    (route !== '/orb' || orbEnabled) &&
+    (route !== '/popcan' || popcanEnabled);
+};
 
 class RouteErrorBoundary extends React.Component {
   state = { failed: false };
@@ -42,6 +50,7 @@ export default function ApplicationShell() {
   const [continuousScene, setContinuousScene] = useState(false);
   const [immersiveSection, setImmersiveSection] = useState(0);
   const [orbBackgroundEnabled, setOrbBackgroundEnabled] = useState(readOrbBackgroundEnabled);
+  const [popcanBackgroundEnabled, setPopcanBackgroundEnabled] = useState(readPopcanBackgroundEnabled);
   const [destination, setDestination] = useState(() => routeMetadataFor(window.location.pathname)?.title.split(' | ')[0] || 'Popular Consulting');
   const [slow, setSlow] = useState(false);
   const locationRef = useRef(location);
@@ -64,6 +73,10 @@ export default function ApplicationShell() {
     try { window.localStorage.setItem('popcon-orb-background', orbBackgroundEnabled ? 'on' : 'off'); }
     catch { /* Storage is optional: the current tab's toggle still works. */ }
   }, [orbBackgroundEnabled]);
+  useEffect(() => {
+    try { window.localStorage.setItem('popcon-popcan-background', popcanBackgroundEnabled ? 'on' : 'off'); }
+    catch { /* Storage is optional: the current tab's toggle still works. */ }
+  }, [popcanBackgroundEnabled]);
 
   const clearTimers = useCallback(() => {
     timers.current.forEach(window.clearTimeout); timers.current.clear();
@@ -95,8 +108,8 @@ export default function ApplicationShell() {
     const nextEntryKey = pop ? historyEntryKey() : replace ? entryKey.current : newEntryKey();
     pending.current = { next, previous: locationRef.current, pop, entryKey: nextEntryKey, generation: current };
     setDestination(routeMetadataFor(url.pathname)?.title.split(' | ')[0] || 'Popular Consulting');
-    setContinuousScene(routeHasImmersiveBackground(previous.pathname, orbBackgroundEnabled) &&
-      routeHasImmersiveBackground(url.pathname, orbBackgroundEnabled));
+    setContinuousScene(routeHasImmersiveBackground(previous.pathname, orbBackgroundEnabled, popcanBackgroundEnabled) &&
+      routeHasImmersiveBackground(url.pathname, orbBackgroundEnabled, popcanBackgroundEnabled));
     setPhase('covering');
     preloadSiteRoute(url.pathname).catch(() => {});
     later(() => {
@@ -108,7 +121,7 @@ export default function ApplicationShell() {
       locationRef.current = next;
       setPhase('loading'); setLocation(next);
     }, reducedMotion() ? 0 : 720);
-  }, [clearTimers, later, orbBackgroundEnabled]);
+  }, [clearTimers, later, orbBackgroundEnabled, popcanBackgroundEnabled]);
 
   const ready = useCallback(() => {
     const request = pending.current;
@@ -238,18 +251,19 @@ export default function ApplicationShell() {
   }, [stateRevision]);
   const navigation = useMemo(() => ({
     pathname: new URL(location, window.location.origin).pathname, navigate,
-    persistentImmersiveBackground: routeHasImmersiveBackground(new URL(location, window.location.origin).pathname, orbBackgroundEnabled),
+    persistentImmersiveBackground: routeHasImmersiveBackground(new URL(location, window.location.origin).pathname, orbBackgroundEnabled, popcanBackgroundEnabled),
     orbBackgroundEnabled, setOrbBackgroundEnabled,
+    popcanBackgroundEnabled, setPopcanBackgroundEnabled,
     setImmersiveSection,
     hasEnteredWorkspace: () => enteredWorkspace.current,
     enterWorkspace: () => { enteredWorkspace.current = true; },
     getToolState, saveToolState, setRouteScrollRestoration,
-  }), [location, navigate, getToolState, saveToolState, setRouteScrollRestoration, orbBackgroundEnabled]);
+  }), [location, navigate, getToolState, saveToolState, setRouteScrollRestoration, orbBackgroundEnabled, popcanBackgroundEnabled]);
   const busy = phase !== 'idle';
   const routeEpoch = ['/home', '/orb', '/popcan', '/dither-canvas', '/invoice-generator'].includes(routeMetadataFor(navigation.pathname)?.path) ? stateRevision : 0;
   return <AppNavigationContext.Provider value={navigation}>
-    {/* The index, Home and opted-in Orb share one live scene. Other tools release
-        it at the covered handoff before they start their own graphics contexts. */}
+    {/* Index, Home, opted-in Orb and Popcan share one scene. Each tool can
+        release it independently without remounting its foreground content. */}
     <div className="app-route-backdrop" data-route={routeMetadataFor(navigation.pathname)?.path} aria-hidden="true" />
     {navigation.persistentImmersiveBackground && <ImmersiveBackground
       activeSection={immersiveSection} pathname={navigation.pathname}

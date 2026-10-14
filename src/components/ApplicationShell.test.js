@@ -38,9 +38,10 @@ jest.mock('../SiteRouter', () => ({ __esModule: true, preloadSiteRoute: async ()
   }, [navigation.setRouteScrollRestoration, pathname]);
   mockRouteReady = onReady;
   ReactModule.useEffect(() => { if (!mockDelayReady) onReady(); }, [onReady]);
-  return <main><h1>{pathname}</h1><a href="/orb">Orb</a><a href="/work">Work</a><a href="/home">Home</a>
+  return <main><h1>{pathname}</h1><a href="/orb">Orb</a><a href="/popcan">Popcan</a><a href="/work">Work</a><a href="/home">Home</a>
     <a href="/#section-2">Services</a><a href="/dither-canvas">Canvas</a><button onClick={theme.toggleTheme}>Theme</button>
     {pathname.startsWith('/orb') && <button type="button" onClick={() => navigation.setOrbBackgroundEnabled(!navigation.orbBackgroundEnabled)}>Background</button>}
+    {pathname.startsWith('/popcan') && <button type="button" aria-label="Popcan background" onClick={() => navigation.setPopcanBackgroundEnabled(!navigation.popcanBackgroundEnabled)}>Background</button>}
     <input aria-label="Draft" value={draft} onChange={event => { setDraft(event.target.value); navigation.saveToolState('mockDraft', event.target.value); }} /></main>;
 } }));
 const advance = ms => act(() => { jest.advanceTimersByTime(ms); });
@@ -124,7 +125,7 @@ test('retains tool state across screens and clears it after explicit logout', ()
 });
 
 
-test('retains the same scene and canvas between index, home and orb, then disposes it for another tool', () => {
+test('retains one scene between index, Home, Orb and Popcan, then disposes it for another tool', () => {
   window.history.replaceState({}, '', '/');
   const { unmount } = render(<ApplicationShell />); advance(360);
   const scene = screen.getByTestId('shared-scene');
@@ -139,6 +140,10 @@ test('retains the same scene and canvas between index, home and orb, then dispos
   expect(screen.getByTestId('shared-scene')).toBe(scene);
   expect(mockSceneLifecycle).toEqual(['mount']);
   fireEvent.click(screen.getByText('Orb')); complete();
+  expect(screen.getByTestId('shared-scene')).toBe(scene);
+  expect(scene.querySelector('canvas')).toBe(canvas);
+  expect(mockSceneLifecycle).toEqual(['mount']);
+  fireEvent.click(screen.getByText('Popcan')); complete();
   expect(screen.getByTestId('shared-scene')).toBe(scene);
   expect(scene.querySelector('canvas')).toBe(canvas);
   expect(mockSceneLifecycle).toEqual(['mount']);
@@ -189,7 +194,7 @@ test.each(['/work', '/dither-canvas'])('never mounts the index scene on direct %
   expect(mockSceneLifecycle).toEqual([]);
 });
 
-test.each(['/orb', '/orb/index.html'])('reuses the shared scene on direct %s loads', path => {
+test.each(['/orb', '/orb/index.html', '/popcan', '/popcan/index.html'])('reuses the shared scene on direct %s loads', path => {
   window.history.replaceState({}, '', path);
   render(<ApplicationShell />); advance(360);
   expect(screen.getByTestId('shared-scene')).toHaveAttribute('data-scene-path', path);
@@ -219,6 +224,43 @@ test('remembered Orb background off never suppresses the index or workspace scen
   expect(screen.getByTestId('shared-scene')).toBeInTheDocument();
   fireEvent.click(screen.getByText('Orb')); complete();
   expect(screen.queryByTestId('shared-scene')).toBeNull();
+});
+
+test('Popcan background toggle releases and restores only the decorative renderer', () => {
+  window.history.replaceState({}, '', '/popcan');
+  render(<ApplicationShell />); advance(360);
+  const editor = screen.getByRole('heading', { name: '/popcan' });
+  const scene = screen.getByTestId('shared-scene');
+  fireEvent.click(screen.getByRole('button', { name: 'Popcan background' }));
+  expect(screen.queryByTestId('shared-scene')).toBeNull();
+  expect(localStorage.getItem('popcon-popcan-background')).toBe('off');
+  expect(editor).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Popcan background' }));
+  expect(screen.getByTestId('shared-scene')).not.toBe(scene);
+  expect(localStorage.getItem('popcon-popcan-background')).toBe('on');
+  expect(editor).toBeInTheDocument();
+});
+
+test('Popcan, Orb, and Home background preferences remain independent', () => {
+  localStorage.setItem('popcon-popcan-background', 'off');
+  window.history.replaceState({}, '', '/popcan');
+  render(<ApplicationShell />); advance(360);
+  expect(screen.queryByTestId('shared-scene')).toBeNull();
+  fireEvent.click(screen.getByText('Home')); complete();
+  expect(screen.getByTestId('shared-scene')).toBeInTheDocument();
+  fireEvent.click(screen.getByText('Orb')); complete();
+  expect(screen.getByTestId('shared-scene')).toBeInTheDocument();
+  fireEvent.click(screen.getByText('Popcan')); complete();
+  expect(screen.queryByTestId('shared-scene')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Popcan background' }));
+  expect(localStorage.getItem('popcon-popcan-background')).toBe('on');
+  expect(localStorage.getItem('popcon-orb-background')).toBe('on');
+  fireEvent.click(screen.getByText('Orb')); complete();
+  expect(screen.getByTestId('shared-scene')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Background' }));
+  expect(localStorage.getItem('popcon-orb-background')).toBe('off');
+  fireEvent.click(screen.getByText('Popcan')); complete();
+  expect(screen.getByTestId('shared-scene')).toBeInTheDocument();
 });
 
 test('holds the native exit while the next immersive route loads, without remounting', () => {

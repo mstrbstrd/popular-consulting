@@ -27,13 +27,13 @@ const NON_IMMERSIVE_PATHS = new Set([
 ]);
 
 const normalizePathname = (pathname = "/") =>
-  String(pathname || "/").replace(/\/+$/, "") || "/";
+  String(pathname || "/").replace(/\/index\.html$/, "").replace(/\/+$/, "") || "/";
 
 export const isImmersiveBlackHolePath = (pathname = "/") =>
   !NON_IMMERSIVE_PATHS.has(normalizePathname(pathname));
 
 export const isMobileBlackHolePath = (pathname = "/") =>
-  (["/", "/home", "/orb"].includes(normalizePathname(pathname)) || isLoginPath(pathname));
+  (["/", "/home", "/orb", "/popcan"].includes(normalizePathname(pathname)) || isLoginPath(pathname));
 
 export const canAttemptMobileBlackHole = (signals = {}) =>
   canAttemptHighFidelityMobileGraphics(signals);

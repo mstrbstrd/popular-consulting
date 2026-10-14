@@ -78,6 +78,38 @@ try {
   await until(ready);
   await sleep(150);
   assert.match(await evaluate('document.title'), /Popular Canvas/);
+  // The animated scene is visual-only, optional, and independent of artwork.
+  // Run the existing paper/gesture regression suite with the scene switched
+  // off so its exact opaque-paper assertions remain meaningful.
+  const sceneEnabled = () => evaluate("document.querySelector('[aria-label=\\\"Animated background\\\"]').getAttribute('aria-pressed')==='true'");
+  const sceneVisible = () => evaluate("Boolean(document.querySelector('.immersive-background'))");
+  const stageSurface = () => evaluate("getComputedStyle(document.querySelector('#popcan-canvas')).backgroundColor");
+  assert.equal(await sceneEnabled(), true, 'Popcan scene is on by default');
+  assert.equal(await sceneVisible(), true, 'Popcan reuses the app-shell index scene');
+  assert.match(await stageSurface(), /^rgba\\(/, 'Theme paper lets the animated scene show through');
+  await evaluate("window.__pcPaintBeforeToggle=document.querySelector('.pc-paint')");
+  const unaltered = await evaluate("document.querySelector('.pc-paint').toDataURL()");
+  await click('Toggle dark mode');
+  assert.match(await stageSurface(), /^rgba\\(/, 'Dark theme preserves the background wash');
+  await click('Toggle dark mode');
+  await click('Animated background');
+  assert.equal(await sceneEnabled(), false);
+  assert.equal(await sceneVisible(), false);
+  assert.equal(await stageSurface(), 'rgb(255, 248, 247)');
+  assert.equal(await evaluate("document.querySelector('.pc-paint')===window.__pcPaintBeforeToggle"), true, 'The toggle never remounts the paint canvas');
+  assert.equal(await evaluate("document.querySelector('.pc-paint').toDataURL()"), unaltered, 'Toggle never changes artwork');
+  assert.equal(await evaluate("localStorage.getItem('popcon-popcan-background')"), 'off');
+  await click('Animated background');
+  assert.equal(await sceneEnabled(), true);
+  assert.equal(await sceneVisible(), true);
+  assert.equal(await evaluate("document.querySelector('.pc-paint').toDataURL()"), unaltered);
+  await call('Page.reload'); await until(ready); await sleep(150);
+  assert.equal(await sceneEnabled(), true, 'Enabled preference survives reload');
+  await click('Animated background');
+  await call('Page.reload'); await until(ready); await sleep(150);
+  assert.equal(await sceneEnabled(), false, 'Disabled preference survives reload');
+  assert.equal(await sceneVisible(), false);
+  results.push('theme-aware shared background, accessible toggle, saved preference, unchanged pixels and canvas ownership');
   // The hit surface is always the viewport. Paint remains in document pixels.
   const camera = () => evaluate(`(() => {const d=document.querySelector('#popcan-canvas').dataset;return {x:+d.viewX,y:+d.viewY,scale:+d.scale,originX:+d.originX,originY:+d.originY}})()`);
   const dimensions = () => evaluate(`({width:${painted}.width,height:${painted}.height})`);

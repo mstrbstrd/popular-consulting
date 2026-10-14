@@ -4,7 +4,7 @@ export const MOBILE_GRAPHICS_MIN_CORES = 4;
 export const MOBILE_GRAPHICS_MIN_MEMORY_GB = 4;
 
 const normalizePathname = (pathname = "/") =>
-  String(pathname || "/").replace(/\/+$/, "") || "/";
+  String(pathname || "/").replace(/\/index\.html$/, "").replace(/\/+$/, "") || "/";
 
 const readPositiveNumber = (value) => {
   const numeric = Number(value);
@@ -36,7 +36,7 @@ export const shouldUseHighFidelityMobileLight = ({
     isDark ||
     !hardwareWebGL ||
     !mobile ||
-    (!["/", "/home", "/orb"].includes(normalizePathname(pathname)) && !isLoginPath(pathname))
+    (!["/", "/home", "/orb", "/popcan"].includes(normalizePathname(pathname)) && !isLoginPath(pathname))
   ) {
     return false;
   }
