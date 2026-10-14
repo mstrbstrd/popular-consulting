@@ -162,7 +162,9 @@
 /* Metabloom and its chat stay above the shell-owned index scene. */
 .orb-page[data-background-enabled="true"],
 .orb-page[data-background-enabled="true"] .orb-page__background {
-  background: transparent;
+  /* A quiet optical buffer between the two live WebGL contexts. Metabloom
+     paints ABOVE this translucent veil, preserving its original material. */
+  background: color-mix(in srgb, var(--aetheris-panel) 24%, transparent);
 }
 
 .orb-page[data-background-enabled="true"] .orb-page__ambient,
@@ -226,6 +228,32 @@
 .orb-page[data-compact-viewport="true"] .orb-page__background-toggle {
   visibility: hidden;
   pointer-events: none;
+}
+
+@media (max-width: 768px) {
+  /* The decorative field must never share the mobile foreground compositor.
+     No transforms: visualViewport positioning and software keyboard stay native. */
+  .orb-page[data-background-enabled="true"] .orb-page__background {
+    background: radial-gradient(
+      ellipse 82% 62% at 50% 43%,
+      color-mix(in srgb, var(--aetheris-panel) 68%, transparent) 0%,
+      color-mix(in srgb, var(--aetheris-panel) 56%, transparent) 70%,
+      color-mix(in srgb, var(--aetheris-panel) 42%, transparent) 100%
+    );
+  }
+
+  [data-theme="dark"] .orb-page[data-background-enabled="true"] .orb-page__background {
+    background: radial-gradient(
+      ellipse 82% 62% at 50% 43%,
+      rgba(8, 8, 9, 0.56) 0%,
+      rgba(8, 8, 9, 0.42) 70%,
+      rgba(8, 8, 9, 0.30) 100%
+    );
+  }
+
+  .orb-page__content {
+    isolation: isolate;
+  }
 }
 
 @media (max-width: 720px) {

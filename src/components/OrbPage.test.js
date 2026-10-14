@@ -271,6 +271,22 @@ describe("OrbPage", () => {
     expect(source).not.toContain("orb-page__principles");
   });
 
+  test("keeps the mobile Orb foreground over the shared scene in both themes", () => {
+    const pageCss = fs.readFileSync(path.join(__dirname, "OrbPage.css"), "utf8");
+    const shellCss = fs.readFileSync(path.join(__dirname, "ApplicationShell.css"), "utf8");
+    const foreground = pageCss.match(/\.orb-page__content \{([^}]*)\}/)?.[1];
+
+    expect(shellCss).toContain('.app-outlet[data-route="/orb"]');
+    expect(shellCss).toContain("z-index: 4;");
+    expect(shellCss).toContain("isolation: isolate;");
+    expect(pageCss).toContain('.orb-page[data-background-enabled="true"] .orb-page__background');
+    expect(pageCss).toContain('[data-theme="dark"] .orb-page[data-background-enabled="true"] .orb-page__background');
+    expect(pageCss).toContain("ellipse 82% 62% at 50% 43%");
+    expect(foreground).toContain("z-index: 10;");
+    expect(pageCss).toContain("pointer-events: none;");
+    expect(pageCss).not.toContain("translateZ(0)");
+  });
+
   test("keeps route controls at the shared 44px minimum target size", () => {
     const pageSource = fs.readFileSync(
       path.join(__dirname, "OrbPage.js"),

@@ -24,6 +24,13 @@ const captureCases = Object.freeze([
     id: "orb-mobile",
     width: EDGE_NARROW_LAYOUT_WIDTH,
     height: 900,
+    theme: "light",
+  }),
+  Object.freeze({
+    id: "orb-mobile-dark",
+    width: EDGE_NARROW_LAYOUT_WIDTH,
+    height: 900,
+    theme: "dark",
   }),
   Object.freeze({ id: "orb-desktop", width: 1440, height: 900 }),
 ]);
@@ -108,7 +115,7 @@ const buildCaptureUrl = (origin, captureCase) => {
   url.searchParams.set("visual-runtime", "reference");
   url.searchParams.set("visual-capture", "reference");
   url.searchParams.set("capture-id", captureCase.id);
-  url.searchParams.set("capture-theme", "light");
+  url.searchParams.set("capture-theme", captureCase.theme || "light");
   url.searchParams.set("capture-section", "4");
   url.searchParams.set("capture-time", "9");
   url.searchParams.set("capture-expression", "happy");

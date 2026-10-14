@@ -33,6 +33,15 @@
 [data-theme="light"] .app-outlet[data-phase="covering"],
 [data-theme="dark"] .app-outlet[data-phase="covering"] { transition: opacity 650ms cubic-bezier(.55, 0, 1, .45); }
 
+/* In iOS/WebKit the two independent full-screen WebGL canvases must have
+   explicit, isolated ancestor planes. Keep the Orb foreground above the
+   persistent index scene without transforming its viewport-fixed controls. */
+.app-outlet[data-route="/orb"],
+.app-outlet[data-route="/orb/index.html"] {
+  z-index: 4;
+  isolation: isolate;
+}
+
 /* Reverse Home's entry depths while the light field decrystallizes. Fixed
    navigation stays in its own viewport layer throughout the handoff. */
 [data-theme="light"] .app-outlet[data-phase="covering"] :is(.home-main, .home-tool, .home-footer) {
