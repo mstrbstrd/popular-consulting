@@ -120,8 +120,9 @@ const buildCaptureUrl = (origin, captureCase) => {
   url.searchParams.set("capture-theme", captureCase.theme || "light");
   url.searchParams.set("capture-section", "4");
   url.searchParams.set("capture-time", "9");
-  url.searchParams.set("capture-expression", "happy");
-  url.searchParams.set("capture-expression-blend", "1");
+  // Current Metabloom uses semantic action IDs rather than the retired
+  // orb-dither "happy" expression. Leave the creature in its real idle state.
+  url.searchParams.set("capture-expression-blend", "0");
   url.searchParams.set("capture-settle-frames", "40");
   url.searchParams.set("capture-frame-step", "50");
   url.searchParams.set("capture-ready-timeout", "30000");
@@ -197,6 +198,16 @@ const assertOrbInterface = (captureCase, documentHtml, report) => {
         `${captureCase.id}: expected renderer ${report.expectedRenderer} did not draw.`,
       );
     }
+  }
+
+  // Element presence alone allowed a 1px-tall canvas to pass after a mobile
+  // stacking change. The renderer must also occupy a meaningful viewport.
+  const fieldHost = documentHtml.match(
+    /<div\b(?=[^>]*\bdata-renderer-id="dither-canvas-field")[^>]*>/i,
+  )?.[0] || "";
+  const renderedHeight = Number(fieldHost.match(/\bdata-render-height="(\d+)"/)?.[1] || 0);
+  if (renderedHeight < captureCase.height * 0.16) {
+    throw new Error(`${captureCase.id}: collapsed Metabloom field height ${renderedHeight}px.`);
   }
 
   const fieldCanvases = readFieldCanvases(documentHtml);
