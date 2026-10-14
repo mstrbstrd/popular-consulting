@@ -29,7 +29,12 @@ exports are scaled to the render budget, with the output dimensions reported.
 
 The default surface is Match theme: warm in light mode, midnight in dark mode.
 The optional **Animated background** control (on by default) reuses the single
-index background scene behind the editor in both themes. Its separate on/off
+index background scene in light mode and the nocturnal **Radiant Lattice** in
+dark mode. Its optimized glyph-field composite shares the Dither Canvas
+Radiant Lattice study, using a native deep-ink palette of moonlit cyan,
+periwinkle, amethyst, rose and rare warm highlights. Popcan does not
+mount the black hole in dark mode. No additional GPU pass is created,
+and the lattice never responds to cursor movement or brush gestures. Its separate on/off
 preference is stored in localStorage. When enabled, only the default
 theme-following paper is rendered as a translucent viewport wash so the
 background is visible beneath the artwork. Explicit white/warm/midnight/
