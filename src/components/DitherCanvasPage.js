@@ -166,9 +166,9 @@ const STUDIES = [
     initialState: "radiating",
     resetLabel: "Restart",
     description:
-      "The production light field enters the lab intact: responsive glyph ripples, spectral flow, and a full-resolution dither composite driven by the optimized field pass.",
+      "A living glyph lattice with two atmospheres: daylight spectral flow, or moonlit cyan, electric periwinkle, amethyst, and ember against a deep midnight field.",
     instruction:
-      "Move through the field · tap to launch a ripple · choose Restart to rebuild the light runtime",
+      "Switch light/dark mode for the two lattice palettes · tap to launch a ripple · choose Restart to rebuild the field",
   },
   {
     id: "dark-theme",
@@ -484,7 +484,8 @@ const DitherFieldLab = () => {
   }, [activeStudy.id, morphogenExperience]);
 
   useEffect(() => {
-    const forcedTheme = activeStudy.theme;
+    // Radiant Lattice supports both modes; Event Horizon remains dark-specific.
+    const forcedTheme = activeStudy.id === "light-theme" ? null : activeStudy.theme;
     if (!forcedTheme) {
       syncedThemeStudyRef.current = null;
       return;
@@ -781,6 +782,7 @@ const DitherFieldLab = () => {
           paused={rendererPaused}
           resetVersion={resetVersion}
           theme={study.theme}
+          latticeAppearance={study.id === "light-theme" && isDark ? "night" : "day"}
           highFidelityLight={asSecondSurface ? false : highFidelityMobileLight}
           runtimeScope={asSecondSurface ? "dither-canvas-second-surface" : "dither-canvas-lab"}
           onFieldStateChange={
