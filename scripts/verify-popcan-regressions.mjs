@@ -99,7 +99,7 @@ try {
   assert.equal(await sceneEnabled(), true, 'Popcan scene is on by default');
   assert.equal(await sceneVisible(), true, 'Popcan reuses the app-shell index scene');
   assert.ok((await stageSurface()).startsWith('rgba('), 'Theme paper lets the animated scene show through');
-  await evaluate("window.__pcPaintBeforeToggle=document.querySelector('.pc-paint')");
+  assert.equal(await evaluate("Boolean(window.__pcPaintBeforeToggle=document.querySelector('.pc-paint'))"), true);
   const unaltered = await evaluate("document.querySelector('.pc-paint').toDataURL()");
   await click('Toggle dark mode');
   assert.ok((await stageSurface()).startsWith('rgba('), 'Dark theme preserves the background wash');
