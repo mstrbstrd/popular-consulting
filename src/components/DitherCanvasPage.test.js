@@ -327,7 +327,7 @@ describe("DitherCanvasPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Lava Lamp/ }));
     const scrollOptions = window.scrollTo.mock.calls[0][0];
-    expect(scrollOptions.behavior).toBe("smooth");
+    expect(scrollOptions.behavior).toBe("instant");
     expect(scrollOptions.top).toBeCloseTo(6370, 0);
     flushScrollFrame();
     finishStudyTransition();
@@ -344,6 +344,71 @@ describe("DitherCanvasPage", () => {
       "data-reset-version",
       "1",
     );
+  });
+
+  test("jumps directly to a distant menu choice without rendering intervening studies", () => {
+    render(<DitherCanvasPage />);
+
+    const finalStudy = screen.getByRole("button", { name: /Finite Infinity/ });
+    fireEvent.click(finalStudy);
+
+    expect(window.scrollTo).toHaveBeenCalledTimes(1);
+    const destination = window.scrollTo.mock.calls[0][0];
+    expect(destination.behavior).toBe("instant");
+    expect(destination.top).toBeGreaterThan(10000);
+    expect(finalStudy).toHaveClass("is-targeted");
+
+    flushScrollFrame();
+    expect(screen.getByRole("heading", { name: "Second Surface" })).toBeInTheDocument();
+    expect(screen.getByRole("main")).toHaveClass("dither-transition-exiting");
+
+    act(() => jest.advanceTimersByTime(420));
+    expect(screen.getByRole("heading", { name: "Finite Infinity" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Tidal Weave" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Event Horizon" })).not.toBeInTheDocument();
+
+    act(() => jest.advanceTimersByTime(620));
+    expect(screen.getByRole("heading", { name: "Finite Infinity" })).toBeInTheDocument();
+    expect(screen.getByRole("main")).toHaveClass("dither-transition-idle");
+    expect(finalStudy).toHaveAttribute("aria-pressed", "true");
+    expect(window.scrollTo).toHaveBeenCalledTimes(1);
+  });
+
+  test("retargets an exiting study before it mounts and never shows a superseded theme", () => {
+    render(<DitherCanvasPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Metabloom/ }));
+    flushScrollFrame();
+    act(() => jest.advanceTimersByTime(120));
+    fireEvent.click(screen.getByRole("button", { name: /Radiant Lattice/ }));
+    flushScrollFrame();
+
+    // The original exit timer should use the most recent direct selection.
+    act(() => jest.advanceTimersByTime(300));
+    expect(screen.getByRole("heading", { name: "Radiant Lattice" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Metabloom" })).not.toBeInTheDocument();
+
+    act(() => jest.advanceTimersByTime(620));
+    expect(screen.getByRole("main")).toHaveClass("dither-transition-idle");
+    expect(screen.getByRole("heading", { name: "Radiant Lattice" })).toBeInTheDocument();
+  });
+
+  test("retargets an entering study without replaying the old scene's exit", () => {
+    render(<DitherCanvasPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Lava Lamp/ }));
+    flushScrollFrame();
+    act(() => jest.advanceTimersByTime(420));
+    expect(screen.getByRole("heading", { name: "Lava Lamp" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Hyperbolic Garden/ }));
+    flushScrollFrame();
+    expect(screen.getByRole("heading", { name: "Hyperbolic Garden" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Lava Lamp" })).not.toBeInTheDocument();
+
+    act(() => jest.advanceTimersByTime(620));
+    expect(screen.getByRole("main")).toHaveClass("dither-transition-idle");
+    expect(screen.getByRole("heading", { name: "Hyperbolic Garden" })).toBeInTheDocument();
   });
 
   test("slows coarse mobile scrolling and keeps toolbar resizing stable", () => {
