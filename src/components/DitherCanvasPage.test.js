@@ -374,6 +374,34 @@ describe("DitherCanvasPage", () => {
     expect(window.scrollTo).toHaveBeenCalledTimes(1);
   });
 
+  test("reselecting the current study never locks subsequent scroll navigation", () => {
+    render(<DitherCanvasPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Second Surface/ }));
+    expect(window.scrollTo.mock.calls.at(-1)[0].behavior).toBe("instant");
+
+    // This is genuine scroll input, not a menu click. It must be able to
+    // activate the next scene after reselecting the already-active scene.
+    moveScrollTo(1620);
+    expect(screen.getByRole("main")).toHaveClass("dither-transition-exiting");
+    act(() => jest.advanceTimersByTime(420));
+    expect(screen.getByRole("heading", { name: "Metabloom" })).toBeInTheDocument();
+  });
+
+  test("manual wheel/scroll navigation resumes after a direct menu transition", () => {
+    render(<DitherCanvasPage />);
+    fireEvent.click(screen.getByRole("button", { name: /Radiant Lattice/ }));
+    flushScrollFrame();
+    finishStudyTransition();
+    expect(screen.getByRole("heading", { name: "Radiant Lattice" })).toBeInTheDocument();
+    expect(screen.getByRole("main")).toHaveClass("dither-transition-idle");
+
+    moveScrollTo(1620);
+    expect(screen.getByRole("main")).toHaveClass("dither-transition-exiting");
+    finishStudyTransition();
+    expect(screen.getByRole("heading", { name: "Metabloom" })).toBeInTheDocument();
+  });
+
   test("retargets an exiting study before it mounts and never shows a superseded theme", () => {
     render(<DitherCanvasPage />);
 
@@ -396,15 +424,16 @@ describe("DitherCanvasPage", () => {
   test("retargets an entering study without replaying the old scene's exit", () => {
     render(<DitherCanvasPage />);
 
-    fireEvent.click(screen.getByRole("button", { name: /Lava Lamp/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Metabloom/ }));
     flushScrollFrame();
     act(() => jest.advanceTimersByTime(420));
-    expect(screen.getByRole("heading", { name: "Lava Lamp" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Metabloom" })).toBeInTheDocument();
+    expect(screen.getByRole("main")).toHaveClass("dither-transition-entering");
 
     fireEvent.click(screen.getByRole("button", { name: /Hyperbolic Garden/ }));
     flushScrollFrame();
     expect(screen.getByRole("heading", { name: "Hyperbolic Garden" })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Lava Lamp" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Metabloom" })).not.toBeInTheDocument();
 
     act(() => jest.advanceTimersByTime(620));
     expect(screen.getByRole("main")).toHaveClass("dither-transition-idle");
