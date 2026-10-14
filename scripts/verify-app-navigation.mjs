@@ -245,9 +245,50 @@ try {
     assert.equal(await page.evaluate(() => window.__appNavigationDocument), documentId);
     if (graphics === 'webgl') {
       await go('Dither Canvas', '/dither-canvas');
+      // Direct menu choices must never activate all the studies between the
+      // current position and the requested one. Observe actual DOM mounts:
+      // the study scene is keyed by data-active-study and changes on each
+      // intermediate theme flash, even when the final title looks correct.
+      const firstStudy = await page.evaluate(() => {
+        const stage = document.querySelector('.dither-canvas-page');
+        window.__ditherVisitedStudies = [stage.dataset.activeStudy];
+        window.__ditherStudyObserver = new MutationObserver(() => {
+          const id = stage.dataset.activeStudy;
+          const visited = window.__ditherVisitedStudies;
+          if (visited.at(-1) !== id) visited.push(id);
+        });
+        window.__ditherStudyObserver.observe(stage, {
+          attributes: true,
+          attributeFilter: ['data-active-study'],
+        });
+        return stage.dataset.activeStudy;
+      });
+      assert.equal(firstStudy, 'second-surface');
+
+      await press(page.getByRole('button', { name: /Radiant Lattice/ }));
+      await waitForCheck(page, () => {
+        const stage = document.querySelector('.dither-canvas-page');
+        return stage?.dataset.activeStudy === 'light-theme'
+          && stage.classList.contains('dither-transition-idle');
+      });
+      assert.deepEqual(
+        await page.evaluate(() => window.__ditherVisitedStudies),
+        ['second-surface', 'light-theme'],
+        'Distant Dither menu choice flashed intermediate studies',
+      );
+
       await press(page.getByRole('button', { name: /Tidal Weave/ }));
-      await page.waitForSelector('.dither-study-option.is-active', { state: 'attached' });
-      await waitForCheck(page, () => document.querySelector('.dither-study-option.is-active')?.textContent.includes('Tidal Weave'));
+      await waitForCheck(page, () => {
+        const stage = document.querySelector('.dither-canvas-page');
+        return stage?.dataset.activeStudy === 'tidal-weave'
+          && stage.classList.contains('dither-transition-idle');
+      });
+      assert.deepEqual(
+        await page.evaluate(() => window.__ditherVisitedStudies),
+        ['second-surface', 'light-theme', 'tidal-weave'],
+        'Direct Dither navigation remounted intermediate scene renderers',
+      );
+      await page.evaluate(() => window.__ditherStudyObserver.disconnect());
       await go('Home', '/home'); await go('Dither Canvas', '/dither-canvas');
       assert.match(await page.locator('.dither-study-option.is-active').textContent(), /Tidal Weave/);
       await go('Home', '/home');
