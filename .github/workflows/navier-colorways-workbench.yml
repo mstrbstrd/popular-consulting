@@ -1,0 +1,59 @@
+name: Integrate Finite Infinity colorways
+on:
+  push:
+    branches: [feat/navier-colorways]
+permissions:
+  contents: read
+jobs:
+  integrate:
+    if: github.repository == 'mstrbstrd/popular-consulting' && github.ref == 'refs/heads/feat/navier-colorways'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+      - name: Apply checked display-only edits
+        run: node scripts/apply-navier-colorways.cjs
+      - name: Save actual source on isolated branch
+        run: |
+          git diff --check
+          git add src/components/CreatorOSFieldCanvas.js src/components/CreatorOSFieldCanvas.css src/components/DitherCanvasPage.js src/components/DitherCanvasPage.test.js src/components/NavierStokesShader.js src/components/NavierStokesControls.js src/components/NavierStokesControls.css docs/finite-infinity.md
+          git rm scripts/apply-navier-colorways.cjs
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'feat: integrate Finite Infinity colorway selection'
+          git push origin HEAD:feat/navier-colorways
+      - name: Export integrated source for local review
+        run: git archive --format=tar.gz -o /tmp/navier-colorways-source.tar.gz HEAD src scripts docs public package.json package-lock.json CLAUDE.md CONTRIBUTING.md
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: navier-colorways-source
+          path: /tmp/navier-colorways-source.tar.gz
+          retention-days: 2
+      - run: npm ci --no-audit --no-fund
+      - run: npm run lint
+      - name: Field regression tests
+        env:
+          CI: true
+        run: npm test -- --watchAll=false --runInBand --testPathPattern='NavierStokes|DitherCanvas|CreatorOSField|ChiralWeave|ForwardPassField'
+      - run: npm run build
+        env:
+          CI: true
+      - run: npm install --no-save --package-lock=false --ignore-scripts --no-audit --no-fund playwright@1.51.1
+      - name: Shader, fluid and colorway browser verification
+        env:
+          VISUAL_CAPTURE_BROWSER: /usr/bin/google-chrome
+        run: |
+          node scripts/verify-navier-stokes-shader.mjs
+          node scripts/verify-navier-stokes.mjs
+          node scripts/verify-navier-fluid.mjs
+          node scripts/verify-navier-colorways.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: navier-colorways-evidence
+          path: navier-stokes-evidence/
+          if-no-files-found: ignore
+          retention-days: 7
