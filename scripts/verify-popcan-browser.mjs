@@ -76,6 +76,7 @@ try {
   await call('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
   await call('Page.navigate', { url: `${origin}/popcan?graphics=css` });
   await until(ready);
+  await until("document.querySelector('.app-outlet')?.dataset.phase==='idle'");
   await sleep(150);
   assert.match(await evaluate('document.title'), /Popular Canvas/);
   // The hit surface is always the viewport. Paint remains in document pixels.
@@ -94,7 +95,17 @@ try {
   const stroke = async (x,y,ex,ey) => {const v=await camera(); await screenStroke(v.x+x*v.scale,v.y+y*v.scale,v.x+ex*v.scale,v.y+ey*v.scale)};
   const fillInput = (label, value) => evaluate(`(() => {const el=document.querySelector('[aria-label=${JSON.stringify(label)}]');const proto=el instanceof HTMLTextAreaElement?HTMLTextAreaElement.prototype:el instanceof HTMLSelectElement?HTMLSelectElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(proto,'value').set.call(el,${JSON.stringify(value)});el.dispatchEvent(new Event(el.tagName==='SELECT'||el.type==='color'?'change':'input',{bubbles:true}));})()`);
   const coverage = () => evaluate(`(() => {const r=document.querySelector('#popcan-canvas').getBoundingClientRect();return r.x===0&&r.y===0&&r.width===innerWidth&&r.height===innerHeight&&[[5,innerHeight/2],[innerWidth-5,innerHeight/2],[innerWidth/2,innerHeight-5]].every(([x,y])=>document.elementFromPoint(x,y)?.id==='popcan-canvas')})()`);
-  assert.ok(await coverage(), 'Every exposed page edge must accept gestures');
+  const edgesAcceptGestures = await coverage();
+  if (!edgesAcceptGestures) {
+    const hitTargets = await evaluate(`(() => {
+      const points = [[5, innerHeight / 2], [innerWidth - 5, innerHeight / 2], [innerWidth / 2, innerHeight - 5]];
+      return { phase: document.querySelector('.app-outlet')?.dataset.phase,
+        stage: document.querySelector('#popcan-canvas').getBoundingClientRect().toJSON(),
+        hits: points.map(([x, y]) => ({ x, y, element: document.elementFromPoint(x, y)?.outerHTML.slice(0, 300) })) };
+    })()`);
+    await screenshot('edge-hit-failure');
+    throw new Error('Every exposed page edge must accept gestures: ' + JSON.stringify(hitTargets));
+  }
   if (await evaluate("getComputedStyle(document.querySelector('.pc-inspector')).display!=='none'")) await click('Close brush settings');
   await stroke(300,300,900,500);
   const original = await digest(), oldPixel = await worldPixel(600,400);
