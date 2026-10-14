@@ -151,6 +151,7 @@ uniform float u_contrast;
 uniform float u_shapeMix;
 uniform float u_rainbowSpeed;
 uniform float u_reveal;
+uniform float u_latticeNight;
 uniform int u_charCount;
 uniform int u_atlasCols;
 uniform int u_atlasRows;
@@ -177,6 +178,24 @@ vec3 getRainbow(vec2 uv,vec2 cellID,float bv,float totalFlow,vec2 grad){
   float newLum=dot(raw,vec3(.299,.587,.114));
   raw=mix(vec3(newLum),raw,1.2);
   return clamp(raw,vec3(0),vec3(1));
+}
+// Lattice gradients color five luminous night accents: glacier, periwinkle,
+// amethyst, orchid-rose and restrained ember. Continuous at the phase seam.
+vec3 getNocturnalInk(vec2 uv,float bv,float flow,vec2 grad){
+  float phase=fract(atan(grad.y,grad.x)/6.2831853
+    +bv*.33+u_hueOffset*.68+uv.x*.21-uv.y*.16);
+  vec3 glacier=vec3(.27,.90,.84);
+  vec3 periwinkle=vec3(.48,.67,1.);
+  vec3 amethyst=vec3(.73,.49,.96);
+  vec3 rose=vec3(1.,.59,.78);
+  vec3 ember=vec3(1.,.75,.48);
+  vec3 ink=mix(glacier,periwinkle,smoothstep(.02,.25,phase));
+  ink=mix(ink,amethyst,smoothstep(.23,.47,phase));
+  ink=mix(ink,rose,smoothstep(.48,.69,phase));
+  ink=mix(ink,ember,smoothstep(.71,.82,phase)*.65);
+  ink=mix(ink,glacier,smoothstep(.85,1.,phase));
+  return ink*(.66+.29*smoothstep(.12,.85,bv)
+    +.08*clamp(flow,0.,1.));
 }
 vec4 sampleChar(int charIdx,vec2 cellUV){
   if(charIdx<0)charIdx=0;
@@ -255,15 +274,24 @@ void main(){
   float alphaB=sampleChar(charB,distortedCellUV).r;
   float alpha=mix(alphaA,alphaB,blend);
 
-  vec3 bgc=vec3(1.);
-  vec3 charCol=getRainbow(v_uv,cellID,bv,totalFlow,grad);
+  bool nocturne=u_latticeNight>.5;
+  float nightDepth=1.-smoothstep(.12,.82,length((v_uv-.5)*vec2(1.1,.85)));
+  vec3 nightBg=mix(vec3(.018,.025,.051),vec3(.042,.061,.110),nightDepth*.82);
+  vec3 bgc=nocturne?nightBg:vec3(1.);
+  vec3 charCol=nocturne
+    ?getNocturnalInk(v_uv,bv,totalFlow,grad)
+    :getRainbow(v_uv,cellID,bv,totalFlow,grad);
   ivec2 ic2=ivec2(mod(floor(v_uv*u_res/2.),vec2(4.)));
   float dither=float(bayer4[ic2.y*4+ic2.x])/16.;
   alpha=alpha*step(dither*.4+.2,alpha);
   vec3 col=mix(bgc,charCol,alpha);
-  float glow=smoothstep(.1,.5,bv)*alpha*.08;
-  vec3 glowCol=getRainbow(v_uv,cellID,1.,totalFlow,grad);
+  float glow=smoothstep(.1,.5,bv)*alpha*(nocturne ? .15 : .08);
+  vec3 glowCol=nocturne?charCol:getRainbow(v_uv,cellID,1.,totalFlow,grad);
   col+=glowCol*glow;
+  if(nocturne){
+    float fieldHalo=smoothstep(.60,.97,bv)*(.013+.018*min(totalFlow,1.));
+    col+=charCol*fieldHalo;
+  }
 
   col*=1.-.2*pow(length(v_uv-.5),2.);
   if(u_reveal<.9999){
@@ -272,7 +300,7 @@ void main(){
     float c3=hash(floor(gl_FragCoord.xy/7.)+vec2(83.1,61.4));
     float thresh=(c1*.45+c2*.35+c3*.20)*.85;
     col=mix(
-      vec3(1.),
+      nocturne?nightBg:vec3(1.),
       col,
       smoothstep(thresh-.05,thresh+.05,u_reveal)
     );
