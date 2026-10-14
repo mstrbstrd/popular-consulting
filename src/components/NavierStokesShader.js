@@ -48,6 +48,84 @@ vec3 navierPigment(vec2 uv) {
 
 float navierDensity(vec3 ink) { return dot(ink, vec3(0.333333)); }
 
+// ART MATERIAL BEGIN
+// Oklab interpolation keeps value structure separate from chromatic accents.
+// Six stops share the existing color array. Only the final conversion is GPU
+// work; palette selection adds no samples, simulation passes or temporal state.
+vec3 navierArtRgb(vec3 encoded) {
+  vec3 lab = encoded - vec3(0.0, 0.5, 0.5);
+  vec3 lms = vec3(lab.x + 0.3963377774*lab.y + 0.2158037573*lab.z,
+    lab.x - 0.1055613458*lab.y - 0.0638541728*lab.z,
+    lab.x - 0.0894841775*lab.y - 1.291485548*lab.z);
+  lms = lms*lms*lms;
+  vec3 linear = clamp(vec3(4.0767416621*lms.x - 3.3077115913*lms.y + 0.2309699292*lms.z,
+    -1.2684380046*lms.x + 2.6097574011*lms.y - 0.3413193965*lms.z,
+    -0.0041960863*lms.x - 0.7034186147*lms.y + 1.707614701*lms.z), 0.0, 1.0);
+  return mix(12.92*linear, 1.055*pow(linear, vec3(1.0/2.4))-0.055,
+    step(vec3(0.0031308), linear));
+}
+
+vec3 navierArtColor(vec3 ink, float density, vec2 slope, float diffuse) {
+  vec3 weights = ink / max(ink.r + ink.g + ink.b, 0.0001);
+  // Color contours belong to transported pigment, not an unrelated time/noise
+  // overlay. They therefore freeze with the flow and follow a stirred filament.
+  float stream = clamp(weights.g * 0.82 + weights.b * 0.36, 0.0, 1.0);
+  float body = smoothstep(0.10, 0.68, stream);
+  float ridge = smoothstep(0.40, 0.80, stream);
+  float seam = 1.0 - smoothstep(0.016, 0.065, abs(stream - 0.53));
+  float relief = clamp(length(slope) * 13.0, 0.0, 1.0);
+  float load = 1.0 - exp(-max(density, 0.0) * 3.5);
+  vec3 c = mix(u_navierColors[0], u_navierColors[1], body);
+  c = mix(c, u_navierColors[2], ridge * 0.85);
+  float accent = 0.0;
+  float veil = 0.0;
+  if (u_navierColorway == 1) {
+    // Indigo/orchid dominates; acid gold appears only on narrow pigment seams.
+    c = mix(c, u_navierColors[4], smoothstep(0.48, 0.80, weights.b) * 0.62);
+    accent = seam * (0.22 + 0.65 * relief);
+    veil = relief * ridge * 0.10;
+  } else if (u_navierColorway == 2) {
+    // Matte mineral greens, isolated copper deposits and warm metallic crests.
+    float copper = smoothstep(0.40, 0.69, weights.r);
+    c = mix(c, u_navierColors[4], copper * 0.88);
+    accent = copper * smoothstep(0.08, 0.52, relief) * 0.8;
+    veil = pow(relief, 2.0) * 0.44;
+  } else if (u_navierColorway == 3) {
+    // Broader pearl with pastel interference; ink-blue troughs retain depth.
+    c = mix(u_navierColors[1], u_navierColors[2], smoothstep(0.16, 0.65, weights.r));
+    c = mix(c, u_navierColors[4], smoothstep(0.22, 0.66, weights.b) * 0.78);
+    c = mix(u_navierColors[0], c, 0.36 + 0.64 * smoothstep(0.10, 0.54, stream));
+    accent = seam * 0.40;
+    veil = smoothstep(0.12, 0.67, relief + ridge * 0.30) * 0.62;
+  } else if (u_navierColorway == 4) {
+    // Gold is a luminous focal band rather than a wash over the blue/plum body.
+    float gold = smoothstep(0.37, 0.65, weights.g);
+    c = mix(u_navierColors[0], u_navierColors[1], body);
+    c = mix(c, u_navierColors[4], smoothstep(0.33, 0.56, weights.g) * 0.80);
+    c = mix(c, u_navierColors[2], gold);
+    accent = smoothstep(0.52, 0.78, weights.r) * 0.58;
+    veil = gold * relief * 0.46;
+  } else if (u_navierColorway == 5) {
+    // Large petrol/jade currents with coral countercurrents and lavender edges.
+    c = mix(c, u_navierColors[4], seam * relief * 0.68);
+    accent = smoothstep(0.41, 0.67, weights.r) * 0.92;
+    veil = ridge * relief * 0.25;
+  } else {
+    // Muted celadon/silver, wine in troughs, restrained peach on glossy seams.
+    c = mix(c, u_navierColors[4], smoothstep(0.42, 0.75, weights.b) * 0.82);
+    accent = seam * relief * 0.54;
+    veil = pow(relief, 1.7) * 0.64;
+  }
+  c = mix(c, u_navierColors[3], clamp(accent, 0.0, 1.0));
+  c = mix(c, u_navierColors[5], clamp(veil, 0.0, 1.0));
+  // Separate light-mode value response, not a global faded copy of dark mode.
+  c.x = clamp(c.x + (diffuse - 0.65) * 0.08 + load * 0.025
+    + u_light * (0.065 - 0.13 * relief), 0.12, 0.95);
+  c.yz = vec2(0.5) + (c.yz - vec2(0.5)) * mix(1.0, 0.90, u_light);
+  return navierArtRgb(c);
+}
+// ART MATERIAL END
+
 vec4 sceneNavierStokes(vec2 uv, float time) {
   // Screen and simulation use identical UVs. No tiling a cropped square,
   // camera contraction, 28-second wrap, global opacity fade or history reset.
@@ -77,6 +155,7 @@ vec4 sceneNavierStokes(vec2 uv, float time) {
   vec3 light = tint * (0.38 + diffuse * 0.27) + navierColor(4, vec3(0.035,0.025,0.08))
     + navierColor(5, vec3(0.62,0.78,0.9)) * edge * 0.12;
   vec3 color = mix(dark, light, u_light);
+  if (u_navierColorway > 0) color = navierArtColor(ink, density, slope, diffuse);
   // The mathematical display radius keeps shrinking. One drawing-pixel floor
   // retains a finite, antialiased nucleus, not an ever-brighter screen flash.
   float pixel = 1.0 / max(min(u_res.x, u_res.y), 1.0);

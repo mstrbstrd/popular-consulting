@@ -27,12 +27,12 @@ const NavierStokesColorwaySelector = ({ colorway, onColorwayChange }) => {
             aria-label={option.label} aria-pressed={selected.id === option.id}
             title={option.description} onClick={() => chooseColorway(option.id)}>
             <span className="navier-colorway-swatch" style={{ background: option.gradient }} aria-hidden="true" />
-            <span>{option.label}</span>
+            <span className="navier-colorway-name">{option.label}</span>
             <span className="navier-colorway-check" aria-hidden="true">{selected.id === option.id ? "✓" : ""}</span>
           </button>
         ))}
       </div>
-      <p className="navier-colorway-hint">Change the pigment, keep the flow.</p>
+      <p className="navier-colorway-hint">{selected.harmony}. Same flow, different light.</p>
     </details>
   );
 };

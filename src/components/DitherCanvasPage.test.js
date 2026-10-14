@@ -446,21 +446,21 @@ describe("DitherCanvasPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Inspect" }));
     fireEvent.change(screen.getByRole("slider", { name: /Concentration/ }), { target: { value: "80" } });
     expect(renderer).toHaveAttribute("data-navier-progress", "0.8");
-    fireEvent.click(screen.getByRole("button", { name: "Glacier", hidden: true }));
-    expect(renderer).toHaveAttribute("data-navier-colorway", "glacier");
+    fireEvent.click(screen.getByRole("button", { name: "Eclipse Bloom", hidden: true }));
+    expect(renderer).toHaveAttribute("data-navier-colorway", "eclipse-bloom");
     expect(renderer).toHaveAttribute("data-paused", "true");
     expect(renderer).toHaveAttribute("data-reset-version", reset);
     expect(screen.getByTestId("creatoros-field-renderer")).toBe(renderer);
     fireEvent.click(screen.getByRole("button", { name: "Reseed" }));
     expect(renderer).toHaveAttribute("data-navier-progress", "-1");
-    expect(renderer).toHaveAttribute("data-navier-colorway", "glacier");
+    expect(renderer).toHaveAttribute("data-navier-colorway", "eclipse-bloom");
     expect(renderer).toHaveAttribute("data-paused", "true");
     fireEvent.click(screen.getByRole("button", { name: /Second Surface/ }));
     flushScrollFrame(); finishStudyTransition();
     fireEvent.change(screen.getByRole("combobox", { name: "Choose the theme beneath Second Surface" }),
       { target: { value: "finite-infinity" } });
     expect(screen.getByTestId("creatoros-field-renderer")).toHaveAttribute("data-mode", "9");
-    expect(screen.getByTestId("creatoros-field-renderer")).toHaveAttribute("data-navier-colorway", "glacier");
+    expect(screen.getByTestId("creatoros-field-renderer")).toHaveAttribute("data-navier-colorway", "eclipse-bloom");
     expect(screen.getByTestId("rupture-renderer")).toHaveAttribute("data-reveal-underlay", "true");
   });
 
