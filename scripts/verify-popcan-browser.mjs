@@ -175,8 +175,30 @@ try {
   await click('Close dialog'); assert.equal(await digest(),withText);
   await until(`document.querySelector('.pc-status').textContent.includes('Saved on this device')`);
   const savedCamera=await camera();
+  const savedDocument = await evaluate(`new Promise((resolve,reject)=>{
+    const req=indexedDB.open('popcan-local',1);
+    req.onsuccess=()=>{
+      const db=req.result,tx=db.transaction('drafts','readonly'),q=tx.objectStore('drafts').get('current');
+      q.onsuccess=()=>{const d=q.result;resolve(d?{version:d.version,width:d.width,height:d.height,originX:d.originX,originY:d.originY,objectCount:d.objects?.length,bytes:d.blob?.size}:null)};
+      q.onerror=()=>reject(q.error);tx.oncomplete=()=>db.close();
+    };req.onerror=()=>reject(req.error);
+  })`);
+  const beforeReloadState = await evaluate(`(() => ({status:document.querySelector('.pc-status')?.textContent,
+    dimensions:document.querySelector('.pc-document > span')?.textContent,
+    objects:document.querySelector('#popcan-canvas')?.dataset.objectCount,
+    paint:[document.querySelector('.pc-paint')?.width,document.querySelector('.pc-paint')?.height]}))()`);
   await call('Page.reload'); await until(ready); await sleep(150);
-  assert.equal(await digest(),withText,'Expanded draft including text reloads exactly');
+  const restoredPixels = await digest();
+  if (restoredPixels !== withText) {
+    const afterReloadState = await evaluate(`(() => ({status:document.querySelector('.pc-status')?.textContent,
+      dimensions:document.querySelector('.pc-document > span')?.textContent,
+      objects:document.querySelector('#popcan-canvas')?.dataset.objectCount,
+      paint:[document.querySelector('.pc-paint')?.width,document.querySelector('.pc-paint')?.height]}))()`);
+    fs.writeFileSync(path.join(output, 'restore-diagnostics.json'), JSON.stringify({ savedCamera,
+      savedDocument, beforeReloadState, afterReloadState }, null, 2));
+    await screenshot('draft-restore-mismatch');
+    throw new Error('Expanded draft including text reloads exactly: see restore-diagnostics.json');
+  }
   assert.equal((await camera()).originX,savedCamera.originX); assert.equal((await camera()).originY,savedCamera.originY);
   results.push('growth beyond old bounds, pixel/origin preservation, atomic growth cancellation, multiline text, undo/redo and draft reload');
   if (await evaluate("getComputedStyle(document.querySelector('.pc-inspector')).display==='none'")) await click('Brush settings');
