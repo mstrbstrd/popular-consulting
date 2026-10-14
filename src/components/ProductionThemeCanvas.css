@@ -26,6 +26,17 @@
     #fff8f7;
 }
 
+/* Native night material (not an inverse filter over white pixels). */
+.production-theme-lattice-night .production-theme-fallback {
+  background:
+    radial-gradient(ellipse at 32% 26%, rgba(47, 161, 179, .18), transparent 46%),
+    radial-gradient(ellipse at 74% 68%, rgba(146, 95, 217, .17), transparent 44%),
+    radial-gradient(ellipse at 54% 50%, rgba(234, 135, 165, .07), transparent 52%),
+    repeating-linear-gradient(90deg, transparent 0 21px, rgba(124, 145, 229, .07) 21px 22px),
+    repeating-linear-gradient(0deg, transparent 0 21px, rgba(124, 145, 229, .055) 21px 22px),
+    #080e1e;
+}
+
 .production-theme-dark .production-theme-fallback {
   background:
     radial-gradient(circle at 50% 52%, rgba(36, 204, 255, 0.12), transparent 16%),
