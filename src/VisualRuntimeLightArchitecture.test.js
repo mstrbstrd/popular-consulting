@@ -52,6 +52,19 @@ describe("stage-three optimized light architecture", () => {
     expect(passSource).not.toContain("DitherBackground");
   });
 
+  test("renders the genuine night lattice inside the same two GPU passes", () => {
+    expect(shaderSource).toContain("uniform float u_latticeNight;");
+    expect(shaderSource).toContain("vec3 getNocturnalInk(");
+    expect(shaderSource).toContain("vec3 nightBg=mix(");
+    expect(shaderSource).toContain("nocturne?nightBg:vec3(1.)");
+    expect(shaderSource).toContain("nocturne?charCol:getRainbow(");
+    expect(shaderSource).toContain("nocturne?nightBg:vec3(1.),");
+    expect(passSource).toContain('latticeAppearance = () => "day"');
+    expect(passSource).toContain('"u_latticeNight"');
+    expect(passSource).toContain('latticeAppearance() === "night" ? 1 : 0');
+    expect(passSource.match(/gl\.drawArrays\(/g)).toHaveLength(2);
+  });
+
   test("retains the authored state constants rather than time-normalizing them", () => {
     expect(stateSource).toContain("parameterLerp: 0.025");
     expect(stateSource).toContain("shapeBlendStep: 0.011");
