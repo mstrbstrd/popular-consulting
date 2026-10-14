@@ -55,6 +55,7 @@ const ProductionThemeCanvas = ({
   runtimeScope = "dither-canvas",
   onFieldStateChange = NOOP,
   pointerReactive = true,
+  latticeAppearance = "day",
 }) => {
   const hostRef = React.useRef(null);
   const canvasRef = React.useRef(null);
@@ -62,6 +63,9 @@ const ProductionThemeCanvas = ({
   const pausedRef = React.useRef(paused);
   const pointerReactiveRef = React.useRef(pointerReactive);
   pointerReactiveRef.current = pointerReactive;
+  // A palette toggle updates the existing composite without remounting WebGL.
+  const latticeAppearanceRef = React.useRef(latticeAppearance === "night" ? "night" : "day");
+  latticeAppearanceRef.current = latticeAppearance === "night" ? "night" : "day";
   const normalizedSection = Math.max(
     0,
     Math.floor(Number(activeSection) || 0),
@@ -165,6 +169,7 @@ const ProductionThemeCanvas = ({
                 canvas,
                 mobile: isMobileTier && !highFidelityLight,
                 pointerReactive: () => pointerReactiveRef.current,
+                latticeAppearance: () => latticeAppearanceRef.current,
                 invalidate: (reason) => candidateRuntime.invalidate(reason),
               });
         const guardedPass = guardRuntimePass({
@@ -218,9 +223,11 @@ const ProductionThemeCanvas = ({
     <div
       ref={hostRef}
       className={`production-theme-shell production-theme-${selectedTheme}${
-        fallbackActive ? " is-fallback" : ""
-      }`}
+        selectedTheme === "light" && latticeAppearanceRef.current === "night"
+          ? " production-theme-lattice-night" : ""
+      }${fallbackActive ? " is-fallback" : ""}`}
       data-production-theme={selectedTheme}
+      data-lattice-appearance={selectedTheme === "light" ? latticeAppearanceRef.current : undefined}
       data-runtime-scope={normalizedScope}
       data-active-section={normalizedSection}
       data-light-detail={
