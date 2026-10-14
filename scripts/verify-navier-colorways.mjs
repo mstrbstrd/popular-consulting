@@ -16,8 +16,10 @@ try {
   browser = await chromium.launch({ executablePath: process.env.VISUAL_CAPTURE_BROWSER,
     headless: true, args: ['--enable-unsafe-swiftshader', '--use-angle=swiftshader'] });
   for (const [width, height] of [[1440, 900], [390, 844], [320, 640]]) {
+    console.log(`Colorway verification: ${width}x${height}`);
     const context = await browser.newContext({ viewport: { width, height },
       isMobile: width < 500, hasTouch: width < 500, reducedMotion: width === 320 ? 'reduce' : 'no-preference' });
+    context.setDefaultTimeout(30000);
     await context.addInitScript(() => {
       localStorage.setItem('popcon-theme', 'dark');
       Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8 });
@@ -80,6 +82,9 @@ try {
     await page.locator('.creatoros-field-mode-9[data-field-ready="true"]').waitFor();
     assert.equal(await page.locator('.creatoros-field-mode-9.is-fallback').count(), 0);
     if (width !== 320) await page.waitForFunction(() => window.__colorwayProbe.steps > 40);
+    // Pause deliberately freezes the reveal too. Finish it before freezing,
+    // rather than assuming forty frames take the same wall time on every GPU.
+    await page.waitForFunction(() => window.__colorwayProbe.uniforms.u_intro === 1);
     await page.evaluate(() => {
       window.__colorwayProbe.capture = true;
       window.__colorwayCanvas = document.querySelector('.creatoros-field-mode-9 canvas');
@@ -134,7 +139,9 @@ try {
       await choose(NAVIER_COLORWAYS[0]);
       const original = await page.evaluate(() => window.__colorwayProbe.frame.hash);
       assert.equal(original, baseline.hash, 'Original round-trip changed the image');
-      reports.push({ width, height, theme, hashes, originalRoundTrip: true, stateUnchanged: true });
+      const report = { width, height, theme, hashes, originalRoundTrip: true, stateUnchanged: true };
+      reports.push(report);
+      console.log(JSON.stringify(report));
     }
     await choose(NAVIER_COLORWAYS[2]);
     const summary = page.locator('.navier-colorways summary');
