@@ -22,7 +22,6 @@ export const BLACK_HOLE_POINTER_LERP_RATE = 0.035;
 
 const NON_IMMERSIVE_PATHS = new Set([
   "/work",
-  "/orb",
   "/game",
   "/dither-canvas",
 ]);
@@ -34,7 +33,7 @@ export const isImmersiveBlackHolePath = (pathname = "/") =>
   !NON_IMMERSIVE_PATHS.has(normalizePathname(pathname));
 
 export const isMobileBlackHolePath = (pathname = "/") =>
-  (["/", "/home"].includes(normalizePathname(pathname)) || isLoginPath(pathname));
+  (["/", "/home", "/orb"].includes(normalizePathname(pathname)) || isLoginPath(pathname));
 
 export const canAttemptMobileBlackHole = (signals = {}) =>
   canAttemptHighFidelityMobileGraphics(signals);

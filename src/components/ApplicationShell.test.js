@@ -39,7 +39,8 @@ jest.mock('../SiteRouter', () => ({ __esModule: true, preloadSiteRoute: async ()
   mockRouteReady = onReady;
   ReactModule.useEffect(() => { if (!mockDelayReady) onReady(); }, [onReady]);
   return <main><h1>{pathname}</h1><a href="/orb">Orb</a><a href="/work">Work</a><a href="/home">Home</a>
-    <a href="/#section-2">Services</a><button onClick={theme.toggleTheme}>Theme</button>
+    <a href="/#section-2">Services</a><a href="/dither-canvas">Canvas</a><button onClick={theme.toggleTheme}>Theme</button>
+    {pathname.startsWith('/orb') && <button type="button" onClick={() => navigation.setOrbBackgroundEnabled(!navigation.orbBackgroundEnabled)}>Background</button>}
     <input aria-label="Draft" value={draft} onChange={event => { setDraft(event.target.value); navigation.saveToolState('mockDraft', event.target.value); }} /></main>;
 } }));
 const advance = ms => act(() => { jest.advanceTimersByTime(ms); });
@@ -123,7 +124,7 @@ test('retains tool state across screens and clears it after explicit logout', ()
 });
 
 
-test('retains the same scene and canvas between index and home, then disposes it for a tool', () => {
+test('retains the same scene and canvas between index, home and orb, then disposes it for another tool', () => {
   window.history.replaceState({}, '', '/');
   const { unmount } = render(<ApplicationShell />); advance(360);
   const scene = screen.getByTestId('shared-scene');
@@ -138,6 +139,10 @@ test('retains the same scene and canvas between index and home, then disposes it
   expect(screen.getByTestId('shared-scene')).toBe(scene);
   expect(mockSceneLifecycle).toEqual(['mount']);
   fireEvent.click(screen.getByText('Orb')); complete();
+  expect(screen.getByTestId('shared-scene')).toBe(scene);
+  expect(scene.querySelector('canvas')).toBe(canvas);
+  expect(mockSceneLifecycle).toEqual(['mount']);
+  fireEvent.click(screen.getByText('Work')); complete();
   expect(screen.queryByTestId('shared-scene')).toBeNull();
   expect(mockSceneLifecycle).toEqual(['mount', 'dispose']);
   unmount();
@@ -149,14 +154,14 @@ test('releases the outgoing renderer before the incoming tool starts, including 
   const scene = screen.getByTestId('shared-scene');
   const canvas = scene.querySelector('canvas');
   mockDelayReady = true;
-  fireEvent.click(screen.getByText('Orb'));
+  fireEvent.click(screen.getByText('Work'));
   expect(scene).toHaveAttribute('data-transition-phase', 'covering');
   expect(canvas.isConnected).toBe(true);
   advance(720);
   expect(document.querySelector('.app-outlet')).toHaveAttribute('data-phase', 'loading');
   expect(screen.queryByTestId('shared-scene')).toBeNull();
   expect(canvas.isConnected).toBe(false);
-  expect(document.querySelector('.app-route-backdrop')).toHaveAttribute('data-route', '/orb');
+  expect(document.querySelector('.app-route-backdrop')).toHaveAttribute('data-route', '/work');
   expect(document.documentElement).toHaveAttribute('data-theme', 'dark');
   advance(12000);
   expect(screen.getByRole('alert')).toHaveTextContent('taking longer');
@@ -169,7 +174,7 @@ test('releases the outgoing renderer before the incoming tool starts, including 
   expect(document.activeElement).toBe(screen.getByRole('main'));
 });
 
-test.each(['/orb', '/orb/index.html', '/work'])('never mounts the index scene on direct %s or tool-to-tool loading', path => {
+test.each(['/work', '/dither-canvas'])('never mounts the index scene on direct %s or tool-to-tool loading', path => {
   window.history.replaceState({}, '', path);
   mockDelayReady = true;
   render(<ApplicationShell />);
@@ -177,11 +182,43 @@ test.each(['/orb', '/orb/index.html', '/work'])('never mounts the index scene on
   expect(document.querySelector('.app-route-backdrop')).not.toBeNull();
   expect(document.querySelector('.app-outlet')).toHaveAttribute('data-phase', 'loading');
   act(() => mockRouteReady()); advance(360);
-  fireEvent.click(screen.getByText(path === '/work' ? 'Orb' : 'Work')); advance(720);
+  fireEvent.click(screen.getByText(path === '/work' ? 'Canvas' : 'Work')); advance(720);
   expect(screen.queryByTestId('shared-scene')).toBeNull();
   expect(document.querySelector('.app-outlet')).toHaveAttribute('data-phase', 'loading');
   act(() => mockRouteReady()); advance(32); advance(360);
   expect(mockSceneLifecycle).toEqual([]);
+});
+
+test.each(['/orb', '/orb/index.html'])('reuses the shared scene on direct %s loads', path => {
+  window.history.replaceState({}, '', path);
+  render(<ApplicationShell />); advance(360);
+  expect(screen.getByTestId('shared-scene')).toHaveAttribute('data-scene-path', path);
+});
+
+test('the Orb background switch releases and restores its renderer without remounting the conversation', () => {
+  window.history.replaceState({}, '', '/orb');
+  render(<ApplicationShell />); advance(360);
+  const orb = screen.getByRole('heading', { name: '/orb' });
+  expect(screen.getByTestId('shared-scene')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Background' }));
+  expect(screen.queryByTestId('shared-scene')).toBeNull();
+  expect(localStorage.getItem('popcon-orb-background')).toBe('off');
+  expect(orb).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Background' }));
+  expect(screen.getByTestId('shared-scene')).toBeInTheDocument();
+  expect(localStorage.getItem('popcon-orb-background')).toBe('on');
+  expect(orb).toBeInTheDocument();
+});
+
+test('remembered Orb background off never suppresses the index or workspace scenes', () => {
+  localStorage.setItem('popcon-orb-background', 'off');
+  window.history.replaceState({}, '', '/orb');
+  render(<ApplicationShell />); advance(360);
+  expect(screen.queryByTestId('shared-scene')).toBeNull();
+  fireEvent.click(screen.getByText('Home')); complete();
+  expect(screen.getByTestId('shared-scene')).toBeInTheDocument();
+  fireEvent.click(screen.getByText('Orb')); complete();
+  expect(screen.queryByTestId('shared-scene')).toBeNull();
 });
 
 test('holds the native exit while the next immersive route loads, without remounting', () => {

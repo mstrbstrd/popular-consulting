@@ -158,3 +158,113 @@
     box-shadow: none;
   }
 }
+
+/* Metabloom and its chat stay above the shell-owned index scene. */
+.orb-page[data-background-enabled="true"],
+.orb-page[data-background-enabled="true"] .orb-page__background {
+  background: transparent;
+}
+
+.orb-page[data-background-enabled="true"] .orb-page__ambient,
+.orb-page[data-background-enabled="true"] .orb-page__grid,
+.orb-page[data-background-enabled="true"] .orb-page__vignette {
+  display: none;
+}
+
+.orb-page__background-toggle {
+  position: absolute;
+  z-index: 30;
+  top: max(9.6rem, calc(env(safe-area-inset-top) + 8.5rem));
+  left: clamp(2rem, 4.5vw, 7.2rem);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.8rem;
+  min-height: 4.4rem;
+  padding: 0.8rem 1.2rem;
+  border: 1px solid var(--aetheris-line-strong);
+  border-radius: var(--aetheris-radius-pill);
+  color: var(--aetheris-ink);
+  background: color-mix(in srgb, var(--aetheris-glass-panel) 88%, transparent);
+  backdrop-filter: blur(18px) saturate(1.16);
+  -webkit-backdrop-filter: blur(18px) saturate(1.16);
+  box-shadow: 0 0.8rem 2.8rem color-mix(in srgb, var(--aetheris-ink) 9%, transparent);
+  font-family: var(--aetheris-font-sans);
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 180ms ease, border-color 180ms ease;
+}
+
+.orb-page__background-toggle:hover {
+  background: var(--aetheris-glass-panel-raised);
+}
+
+.orb-page__background-toggle:focus-visible {
+  outline: 2px solid var(--aetheris-teal);
+  outline-offset: 3px;
+  box-shadow: var(--aetheris-focus-halo);
+}
+
+.orb-page__background-indicator {
+  width: 0.8rem;
+  height: 0.8rem;
+  flex: 0 0 0.8rem;
+  border-radius: 50%;
+  background: var(--aetheris-ink-2);
+}
+
+.orb-page__background-toggle[aria-pressed="true"] .orb-page__background-indicator {
+  background: var(--aetheris-spectral);
+  box-shadow: 0 0 0.8rem var(--aetheris-spectral-glow);
+}
+
+.orb-page[data-keyboard-open="true"] .orb-page__background-toggle,
+.orb-page[data-reactions-open="true"] .orb-page__background-toggle,
+.orb-page[data-compact-viewport="true"] .orb-page__background-toggle {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+@media (max-width: 720px) {
+  .orb-page__background-toggle {
+    top: max(14.4rem, calc(env(safe-area-inset-top) + 13.4rem));
+    left: auto;
+    right: 1.2rem;
+    min-height: 4.4rem;
+    padding: 0.6rem 1rem;
+    font-size: 1.05rem;
+  }
+
+  .orb-page[data-conversation-started="true"] {
+    --orb-message-top: max(19.3rem, calc(env(safe-area-inset-top) + 18.3rem));
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .orb-page__background-toggle {
+    background: var(--aetheris-panel-raised);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .orb-page__background-toggle { transition: none; }
+}
+
+@media (forced-colors: active) {
+  .orb-page__background-toggle {
+    border-color: ButtonText;
+    color: ButtonText;
+    background: ButtonFace;
+    box-shadow: none;
+  }
+  .orb-page__background-indicator { background: ButtonText; }
+  .orb-page__background-toggle[aria-pressed="true"] .orb-page__background-indicator {
+    background: Highlight;
+    box-shadow: none;
+  }
+}

@@ -30,6 +30,7 @@ const METADATA_SELECTORS = Object.freeze({
 
 const OrbPageContent = ({ onReady }) => {
   const navigation = useAppNavigation();
+  const backgroundEnabled = navigation?.orbBackgroundEnabled !== false;
   const [conversationStarted, setConversationStarted] = React.useState(false);
   const [metabloomPalette, setMetabloomPalette] = React.useState(
     () => navigation?.getToolState('orbAppearance')?.palette || METABLOOM_PALETTES.SPECTRAL,
@@ -137,6 +138,7 @@ const OrbPageContent = ({ onReady }) => {
       <div
         className="orb-page standalone-experience--orb"
         data-conversation-started={conversationStarted ? "true" : "false"}
+        data-background-enabled={backgroundEnabled ? "true" : "false"}
         data-metabloom-palette={metabloomPalette}
         data-site-audience={SITE_AUDIENCES.BUSINESS}
       >
@@ -190,6 +192,17 @@ const OrbPageContent = ({ onReady }) => {
         <div style={pageHideStyle}>
           <ImmersiveRouteNavigationBridge />
           <NavMenu audience={SITE_AUDIENCES.BUSINESS} />
+
+          <button
+            type="button"
+            className="orb-page__background-toggle"
+            aria-label="Animated background"
+            aria-pressed={backgroundEnabled}
+            onClick={() => navigation?.setOrbBackgroundEnabled?.(!backgroundEnabled)}
+          >
+            <span className="orb-page__background-indicator" aria-hidden="true" />
+            <span>Background {backgroundEnabled ? "On" : "Off"}</span>
+          </button>
 
           <div
             className="orb-page__finish-selector"

@@ -46,7 +46,7 @@ describe("mobile graphics capability policy", () => {
     ).toBe(false);
   });
 
-  test.each(["/", "/home", "/home/"])("enables the same high-fidelity light path on %s", (pathname) => {
+  test.each(["/", "/home", "/home/", "/orb"])("enables the same high-fidelity light path on %s", (pathname) => {
     expect(
       shouldUseHighFidelityMobileLight({
         isDark: false,

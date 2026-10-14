@@ -14,6 +14,13 @@ const newEntryKey = () => `app-${Date.now().toString(36)}-${Math.random().toStri
 const historyEntryKey = () => window.history.state?.popconEntry || newEntryKey();
 const setHistoryEntry = (method, href, key) => window.history[method]({ ...window.history.state, popconEntry: key }, '', href);
 
+const readOrbBackgroundEnabled = () => {
+  try { return window.localStorage.getItem('popcon-orb-background') !== 'off'; }
+  catch { return true; }
+};
+const routeHasImmersiveBackground = (pathname, orbEnabled) =>
+  sharesImmersiveBackground(pathname) && (routeMetadataFor(pathname)?.path !== '/orb' || orbEnabled);
+
 class RouteErrorBoundary extends React.Component {
   state = { failed: false };
   static getDerivedStateFromError() { return { failed: true }; }
@@ -34,6 +41,7 @@ export default function ApplicationShell() {
   const [phase, setPhase] = useState('loading');
   const [continuousScene, setContinuousScene] = useState(false);
   const [immersiveSection, setImmersiveSection] = useState(0);
+  const [orbBackgroundEnabled, setOrbBackgroundEnabled] = useState(readOrbBackgroundEnabled);
   const [destination, setDestination] = useState(() => routeMetadataFor(window.location.pathname)?.title.split(' | ')[0] || 'Popular Consulting');
   const [slow, setSlow] = useState(false);
   const locationRef = useRef(location);
@@ -51,6 +59,11 @@ export default function ApplicationShell() {
   const authSnapshot = useRef({ owner: user?.id, logoutRevision });
   const outletRef = useRef(null);
   const focusPending = useRef(false);
+
+  useEffect(() => {
+    try { window.localStorage.setItem('popcon-orb-background', orbBackgroundEnabled ? 'on' : 'off'); }
+    catch { /* Storage is optional: the current tab's toggle still works. */ }
+  }, [orbBackgroundEnabled]);
 
   const clearTimers = useCallback(() => {
     timers.current.forEach(window.clearTimeout); timers.current.clear();
@@ -82,7 +95,8 @@ export default function ApplicationShell() {
     const nextEntryKey = pop ? historyEntryKey() : replace ? entryKey.current : newEntryKey();
     pending.current = { next, previous: locationRef.current, pop, entryKey: nextEntryKey, generation: current };
     setDestination(routeMetadataFor(url.pathname)?.title.split(' | ')[0] || 'Popular Consulting');
-    setContinuousScene(sharesImmersiveBackground(previous.pathname) && sharesImmersiveBackground(url.pathname));
+    setContinuousScene(routeHasImmersiveBackground(previous.pathname, orbBackgroundEnabled) &&
+      routeHasImmersiveBackground(url.pathname, orbBackgroundEnabled));
     setPhase('covering');
     preloadSiteRoute(url.pathname).catch(() => {});
     later(() => {
@@ -94,7 +108,7 @@ export default function ApplicationShell() {
       locationRef.current = next;
       setPhase('loading'); setLocation(next);
     }, reducedMotion() ? 0 : 720);
-  }, [clearTimers, later]);
+  }, [clearTimers, later, orbBackgroundEnabled]);
 
   const ready = useCallback(() => {
     const request = pending.current;
@@ -224,17 +238,18 @@ export default function ApplicationShell() {
   }, [stateRevision]);
   const navigation = useMemo(() => ({
     pathname: new URL(location, window.location.origin).pathname, navigate,
-    persistentImmersiveBackground: sharesImmersiveBackground(new URL(location, window.location.origin).pathname),
+    persistentImmersiveBackground: routeHasImmersiveBackground(new URL(location, window.location.origin).pathname, orbBackgroundEnabled),
+    orbBackgroundEnabled, setOrbBackgroundEnabled,
     setImmersiveSection,
     hasEnteredWorkspace: () => enteredWorkspace.current,
     enterWorkspace: () => { enteredWorkspace.current = true; },
     getToolState, saveToolState, setRouteScrollRestoration,
-  }), [location, navigate, getToolState, saveToolState, setRouteScrollRestoration]);
+  }), [location, navigate, getToolState, saveToolState, setRouteScrollRestoration, orbBackgroundEnabled]);
   const busy = phase !== 'idle';
   const routeEpoch = ['/home', '/orb', '/popcan', '/dither-canvas', '/invoice-generator'].includes(routeMetadataFor(navigation.pathname)?.path) ? stateRevision : 0;
   return <AppNavigationContext.Provider value={navigation}>
-    {/* A tool never borrows the index renderer as a loader. Release the outgoing
-        live background at the covered handoff, before the tool creates its GPU context. */}
+    {/* The index, Home and opted-in Orb share one live scene. Other tools release
+        it at the covered handoff before they start their own graphics contexts. */}
     <div className="app-route-backdrop" data-route={routeMetadataFor(navigation.pathname)?.path} aria-hidden="true" />
     {navigation.persistentImmersiveBackground && <ImmersiveBackground
       activeSection={immersiveSection} pathname={navigation.pathname}

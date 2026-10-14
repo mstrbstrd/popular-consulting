@@ -11,6 +11,7 @@ import {
 } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import OrbPage from "./OrbPage";
+import { AppNavigationContext } from "../contexts/AppNavigationContext";
 
 jest.mock("../contexts/ThemeContext", () => {
   const ReactModule = require("react");
@@ -195,6 +196,30 @@ describe("OrbPage", () => {
   });
 
   test("lifts explicit conversation state to the page shell", async () => {
+  test("toggles the shell-owned animated background without remounting the orb", async () => {
+    const WithPreference = () => {
+      const [orbBackgroundEnabled, setOrbBackgroundEnabled] = React.useState(true);
+      return (
+        <AppNavigationContext.Provider value={{ orbBackgroundEnabled, setOrbBackgroundEnabled }}>
+          <OrbPage />
+        </AppNavigationContext.Provider>
+      );
+    };
+    const { container } = render(<WithPreference />);
+    const toggle = screen.getByRole("button", { name: "Animated background" });
+    const orb = await screen.findByTestId("orb-experience");
+    expect(container.querySelector(".orb-page")).toHaveAttribute("data-background-enabled", "true");
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(toggle);
+    expect(container.querySelector(".orb-page")).toHaveAttribute("data-background-enabled", "false");
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+    expect(orb).toBeInTheDocument();
+    fireEvent.click(toggle);
+    expect(container.querySelector(".orb-page")).toHaveAttribute("data-background-enabled", "true");
+    expect(orb).toBeInTheDocument();
+  });
+
+
     const { container } = render(<OrbPage />);
     await screen.findByTestId("orb-experience");
 

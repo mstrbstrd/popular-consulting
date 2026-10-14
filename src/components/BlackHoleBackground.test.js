@@ -35,7 +35,7 @@ describe("persistent dark-mode black-hole invariants", () => {
     expect(isImmersiveBlackHolePath("/login")).toBe(true);
     expect(isImmersiveBlackHolePath("/unknown-route")).toBe(true);
     expect(isImmersiveBlackHolePath("/work")).toBe(false);
-    expect(isImmersiveBlackHolePath("/orb")).toBe(false);
+    expect(isImmersiveBlackHolePath("/orb")).toBe(true);
     expect(isImmersiveBlackHolePath("/game")).toBe(false);
     expect(isImmersiveBlackHolePath("/dither-canvas")).toBe(false);
   });
