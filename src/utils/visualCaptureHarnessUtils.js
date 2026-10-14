@@ -59,7 +59,7 @@ export const expectedRendererForCapture = (
   const normalizedPath =
     String(pathname || '/').replace(/\/+$/, '') || '/';
 
-  if (normalizedPath === '/orb') return 'orb-dither';
+  if (normalizedPath === '/orb') return 'dither-canvas-field';
   if (normalizedPath === '/game') return 'game-dither';
 
   if (

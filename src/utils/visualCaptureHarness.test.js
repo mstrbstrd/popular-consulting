@@ -51,7 +51,7 @@ describe('visual capture harness', () => {
     ).toBe('black-hole-background');
     expect(
       expectedRendererForCapture({ theme: 'dark' }, '/orb'),
-    ).toBe('orb-dither');
+    ).toBe('dither-canvas-field');
   });
 
   test('maps authored Orb phases to deterministic wall-clock offsets', () => {
