@@ -159,11 +159,13 @@
   }
 }
 
-/* Metabloom and its chat stay above the shell-owned index scene. */
-.orb-page[data-background-enabled="true"],
+/* The page stays transparent to the actual index renderer below it. Only
+   this decorative layer attenuates the index colours beneath Metabloom. */
+.orb-page[data-background-enabled="true"] {
+  background: transparent;
+}
+
 .orb-page[data-background-enabled="true"] .orb-page__background {
-  /* A quiet optical buffer between the two live WebGL contexts. Metabloom
-     paints ABOVE this translucent veil, preserving its original material. */
   background: color-mix(in srgb, var(--aetheris-panel) 24%, transparent);
 }
 

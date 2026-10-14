@@ -462,3 +462,25 @@
 .orb-page[data-keyboard-open="true"] .metabloom-chat__composer textarea {
   max-height: clamp(4.6rem, calc(var(--orb-viewport-height, 100dvh) * 0.22), 11.6rem);
 }
+
+/* The Orb page itself is fixed to visualViewport. On mobile WebKit, fixing
+   the nested field a second time creates a competing GPU/compositor plane and
+   applies the keyboard top offset twice. Anchor everything to that one page. */
+@media (max-width: 768px) {
+  .orb-page .orb-page__background {
+    position: absolute;
+    inset: 0;
+  }
+
+  .orb-page .orb-page__content {
+    height: 100%;
+  }
+
+  .orb-page .metabloom-chat {
+    position: absolute;
+    inset: 0;
+    top: 0;
+    bottom: 0;
+    height: 100%;
+  }
+}

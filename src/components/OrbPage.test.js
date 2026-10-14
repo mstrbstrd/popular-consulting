@@ -285,6 +285,9 @@ describe("OrbPage", () => {
     expect(foreground).toContain("z-index: 10;");
     expect(pageCss).toContain("pointer-events: none;");
     expect(pageCss).not.toContain("translateZ(0)");
+    const chatCss = fs.readFileSync(path.join(__dirname, "OrbPageFinalPolish.css"), "utf8");
+    expect(chatCss).toMatch(/@media \(max-width: 768px\) \{[\s\S]*?\.orb-page \.metabloom-chat \{[\s\S]*?position: absolute;/);
+    expect(chatCss).toMatch(/\.orb-page \.metabloom-chat \{[\s\S]*?top: 0;[\s\S]*?height: 100%;/);
   });
 
   test("keeps route controls at the shared 44px minimum target size", () => {

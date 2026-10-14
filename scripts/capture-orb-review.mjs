@@ -113,7 +113,9 @@ const buildCaptureUrl = (origin, captureCase) => {
   const url = new URL("/orb", origin);
   url.searchParams.set("graphics", "webgl");
   url.searchParams.set("visual-runtime", "reference");
-  url.searchParams.set("visual-capture", "reference");
+  // The Orb now owns a CreatorOS field; the old visual-capture contract still
+  // expects its removed orb-dither renderer. Capture the actual route instead.
+  // The screenshot assertions below continue to check the real field canvas.
   url.searchParams.set("capture-id", captureCase.id);
   url.searchParams.set("capture-theme", captureCase.theme || "light");
   url.searchParams.set("capture-section", "4");
