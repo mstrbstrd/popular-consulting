@@ -36,7 +36,13 @@ background is visible beneath the artwork. Explicit white/warm/midnight/
 transparent surfaces retain their original previews. Reduced-transparency and
 forced-colors modes display an opaque theme-paper surface. Switching the scene
 off releases the WebGL background without recreating Popcan's 2D canvas,
-changing gestures, history, IndexedDB drafts or exported PNGs. The background
+changing gestures, history, IndexedDB drafts or exported PNGs. For the
+GPU-intensive dark-mode black hole, the shared renderer uses smaller tiled
+batches on this route (2 tiles per RAF during mobile drawing, 4 when idle;
+desktop 4 while drawing, 8 when idle, still respecting slower safety schedules).
+This keeps the animation progressing while leaving the GPU room to commit
+Canvas 2D strokes. Pointer-up, cancellation, blur and route exit restore the
+regular budget; no shader equations, pixels, exports or brush events change. The background
 is decorative and never included in exported artwork. Theme changes do not
 write pigment or add history. Older drafts using the former
 implicit Midnight default migrate to Match theme; other old surfaces are retained.

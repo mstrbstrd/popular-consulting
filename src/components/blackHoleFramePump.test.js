@@ -50,4 +50,52 @@ describe("black-hole frame-pump evidence scheduling", () => {
       }),
     ).toBe(2);
   });
+
+  test.each([
+    { mobile: true, popcanDrawing: false, expected: 4 },
+    { mobile: true, popcanDrawing: true, expected: 2 },
+    { mobile: false, popcanDrawing: false, expected: 8 },
+    { mobile: false, popcanDrawing: true, expected: 4 },
+  ])("caps Popcan GPU tiles without ever pausing the renderer: %p", ({
+    mobile, popcanDrawing, expected,
+  }) => {
+    expect(resolveBlackHoleBatchSize({
+      scheduledTilesPerBatch: 16,
+      remainingTiles: 16,
+      popcanActive: true,
+      popcanDrawing,
+      mobile,
+    })).toBe(expected);
+    expect(resolveBlackHoleBatchSize({
+      scheduledTilesPerBatch: 1,
+      remainingTiles: 16,
+      popcanActive: true,
+      popcanDrawing,
+      mobile,
+    })).toBe(1);
+    expect(resolveBlackHoleBatchSize({
+      scheduledTilesPerBatch: 16,
+      remainingTiles: 1,
+      popcanActive: true,
+      popcanDrawing,
+      mobile,
+    })).toBe(1);
+  });
+
+  test("Popcan gesture status has no effect on other routes or strict evidence", () => {
+    expect(resolveBlackHoleBatchSize({
+      scheduledTilesPerBatch: 16,
+      remainingTiles: 16,
+      popcanDrawing: true,
+      mobile: true,
+    })).toBe(16);
+    expect(resolveBlackHoleBatchSize({
+      search: "?visual-runtime-evidence=dark",
+      scheduledTilesPerBatch: 16,
+      remainingTiles: 16,
+      popcanActive: true,
+      popcanDrawing: true,
+      mobile: false,
+    })).toBe(1);
+  });
 });

@@ -55,6 +55,20 @@ describe("persistent dark-mode black-hole invariants", () => {
     expect(componentSource).not.toContain("disableWebGLForSession");
   });
 
+  test("Popcan drawing prioritizes the 2D canvas without pausing WebGL or leaking listeners", () => {
+    expect(componentSource).toContain('event.target?.closest?.(".pc-stage")');
+    expect(componentSource).toContain('drawingPointersRef.current.add(event.pointerId)');
+    expect(componentSource).toContain('drawingPointersRef.current.delete(event.pointerId)');
+    expect(componentSource).toContain('pipeline.tick(timestamp, Boolean(reducedMotion?.matches), workload)');
+    for (const event of ["pointerdown", "pointerup", "pointercancel", "blur"]) {
+      expect(componentSource).toContain(`window.addEventListener("${event}"`);
+      expect(componentSource).toContain(`window.removeEventListener("${event}"`);
+    }
+    expect(componentSource).toContain('const popcanDrawing = popcanActive && drawingPointersRef.current.size > 0;');
+    expect(componentSource).not.toContain('if (popcanDrawing) stopAnimation()');
+    expect(componentSource).toContain('popcanRouteRef.current = normalizePathname(pathname) === "/popcan"');
+  });
+
   test("theme ownership mounts exactly one immersive renderer", () => {
     expect(themeSource).toContain("<BlackHoleBackground isDark={value.isDark} />");
     expect(themeSource).toContain('const value = inherited ||');

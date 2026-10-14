@@ -282,8 +282,8 @@ export class BlackHolePipeline {
     presentBlackHoleFrame(this);
   }
 
-  tick(timestamp, reducedMotion = false) {
-    return tickBlackHolePipeline(this, timestamp, reducedMotion);
+  tick(timestamp, reducedMotion = false, workload = {}) {
+    return tickBlackHolePipeline(this, timestamp, reducedMotion, workload);
   }
 
   destroy() {

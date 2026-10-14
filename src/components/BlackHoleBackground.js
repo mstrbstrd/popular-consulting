@@ -130,8 +130,11 @@ const useFixedBackgroundTarget = (enabled) => {
   return target;
 };
 
-const BlackHoleBackgroundCanvas = ({ mobile = false, activeSection, exiting = false }) => {
+const BlackHoleBackgroundCanvas = ({ mobile = false, activeSection, exiting = false, pathname = "/" }) => {
   const canvasRef = React.useRef(null);
+  const popcanRouteRef = React.useRef(normalizePathname(pathname) === "/popcan");
+  const drawingPointersRef = React.useRef(new Set());
+  popcanRouteRef.current = normalizePathname(pathname) === "/popcan";
   const sectionRef = React.useRef(readInitialSection());
   const currentZoomRef = React.useRef(BLACK_HOLE_INITIAL_ZOOM);
   const exitRef = React.useRef(null);
@@ -141,6 +144,10 @@ const BlackHoleBackgroundCanvas = ({ mobile = false, activeSection, exiting = fa
   const hasRetriedRef = React.useRef(false);
   const [rendererGeneration, setRendererGeneration] = React.useState(0);
   const [failed, setFailed] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!popcanRouteRef.current) drawingPointersRef.current.clear();
+  }, [pathname]);
 
   React.useEffect(() => {
     // Navigation owns the exit clock. A busy tiled GPU must not spend its
@@ -294,7 +301,18 @@ const BlackHoleBackgroundCanvas = ({ mobile = false, activeSection, exiting = fa
 
       let shouldContinue = false;
       try {
-        shouldContinue = pipeline.tick(timestamp, Boolean(reducedMotion?.matches));
+        const popcanActive = popcanRouteRef.current;
+        const popcanDrawing = popcanActive && drawingPointersRef.current.size > 0;
+        const workload = {
+          popcanActive,
+          popcanDrawing,
+          mobile,
+        };
+        const budgetLabel = !popcanActive ? "normal" : popcanDrawing ? "drawing" : "editor-idle";
+        if (canvas.dataset.backgroundBudget !== budgetLabel) {
+          canvas.dataset.backgroundBudget = budgetLabel;
+        }
+        shouldContinue = pipeline.tick(timestamp, Boolean(reducedMotion?.matches), workload);
       } catch (_) {
         failRenderer("render-exception", true);
         return;
@@ -328,6 +346,17 @@ const BlackHoleBackgroundCanvas = ({ mobile = false, activeSection, exiting = fa
       if (reducedMotion?.matches) ensureAnimating();
     };
 
+    // A Popcan gesture is a priority signal, not a pause. Keep completing
+    // black-hole frames using small GPU tile batches while the 2D editor paints.
+    const handlePopcanPointerDown = (event) => {
+      if (!popcanRouteRef.current || !event.target?.closest?.(".pc-stage")) return;
+      drawingPointersRef.current.add(event.pointerId);
+    };
+    const handlePopcanPointerEnd = (event) => {
+      drawingPointersRef.current.delete(event.pointerId);
+    };
+    const clearPopcanPointers = () => drawingPointersRef.current.clear();
+
     const handleContextLost = (event) => {
       event.preventDefault();
       failRenderer("context-lost", true);
@@ -339,8 +368,10 @@ const BlackHoleBackgroundCanvas = ({ mobile = false, activeSection, exiting = fa
     };
 
     const handleVisibility = () => {
-      if (document.visibilityState === "hidden") stopAnimation();
-      else ensureAnimating();
+      if (document.visibilityState === "hidden") {
+        clearPopcanPointers();
+        stopAnimation();
+      } else ensureAnimating();
     };
 
     const handleMotionChange = () => {
@@ -350,6 +381,10 @@ const BlackHoleBackgroundCanvas = ({ mobile = false, activeSection, exiting = fa
 
     canvas.addEventListener("webglcontextlost", handleContextLost, false);
     window.addEventListener("pointermove", handlePointerMove, { passive: true });
+    window.addEventListener("pointerdown", handlePopcanPointerDown, true);
+    window.addEventListener("pointerup", handlePopcanPointerEnd, true);
+    window.addEventListener("pointercancel", handlePopcanPointerEnd, true);
+    window.addEventListener("blur", clearPopcanPointers);
     window.addEventListener("resize", requestResize);
     document.addEventListener("visibilitychange", handleVisibility);
     if (reducedMotion?.addEventListener) {
@@ -381,6 +416,11 @@ const BlackHoleBackgroundCanvas = ({ mobile = false, activeSection, exiting = fa
       ensureAnimatingRef.current = null;
       canvas.removeEventListener("webglcontextlost", handleContextLost);
       window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerdown", handlePopcanPointerDown, true);
+      window.removeEventListener("pointerup", handlePopcanPointerEnd, true);
+      window.removeEventListener("pointercancel", handlePopcanPointerEnd, true);
+      window.removeEventListener("blur", clearPopcanPointers);
+      clearPopcanPointers();
       window.removeEventListener("resize", requestResize);
       document.removeEventListener("visibilitychange", handleVisibility);
       if (reducedMotion?.removeEventListener) {
@@ -447,7 +487,7 @@ const BlackHoleBackground = ({ isDark = false, activeSection, pathname = typeof 
       }}
       aria-hidden="true"
     >
-      <BlackHoleBackgroundCanvas mobile={isMobileTier} activeSection={activeSection} exiting={exiting} />
+      <BlackHoleBackgroundCanvas mobile={isMobileTier} activeSection={activeSection} exiting={exiting} pathname={pathname} />
     </div>,
     portalTarget,
   );

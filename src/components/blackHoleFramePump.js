@@ -9,6 +9,9 @@ export const resolveBlackHoleBatchSize = ({
   search = "",
   scheduledTilesPerBatch = 1,
   remainingTiles = 1,
+  popcanActive = false,
+  popcanDrawing = false,
+  mobile = false,
 } = {}) => {
   const scheduled = Math.max(
     1,
@@ -22,9 +25,14 @@ export const resolveBlackHoleBatchSize = ({
     readVisualRuntimeEvidenceRequest(search) ===
     VISUAL_RUNTIME_EVIDENCE_DARK;
 
+  // During Popcan gestures the Canvas 2D renderer owns responsiveness.
+  // Budget the WebGL work per RAF rather than freezing the scene or touching
+  // its shader/resolution. Cap idle Popcan too, so paint starts with free GPU.
+  const popcanLimit = !popcanActive ? scheduled
+    : popcanDrawing ? (mobile ? 2 : 4) : (mobile ? 4 : 8);
   return Math.max(
     1,
-    Math.min(darkEvidenceActive ? 1 : scheduled, remaining),
+    Math.min(darkEvidenceActive ? 1 : scheduled, popcanLimit, remaining),
   );
 };
 
@@ -93,7 +101,7 @@ const completeBatch = (pipeline) => {
   return true;
 };
 
-const submitBatch = (pipeline) => {
+const submitBatch = (pipeline, workload = {}) => {
   const {
     gl,
     backTarget,
@@ -110,6 +118,7 @@ const submitBatch = (pipeline) => {
       typeof window === "undefined" ? "" : window.location.search,
     scheduledTilesPerBatch: pipeline.schedule.tilesPerBatch,
     remainingTiles: pipeline.tiles.length - pipeline.tileCursor,
+    ...workload,
   });
   gl.bindFramebuffer(gl.FRAMEBUFFER, backTarget.framebuffer);
   gl.enable(gl.SCISSOR_TEST);
@@ -153,6 +162,7 @@ export const tickBlackHolePipeline = (
   pipeline,
   timestamp,
   reducedMotion = false,
+  workload = {},
 ) => {
   if (!pipeline.gl) return false;
   if (!pollBatch(pipeline)) return false;
@@ -163,7 +173,7 @@ export const tickBlackHolePipeline = (
   }
   if (timestamp < pipeline.nextFrameEarliestAt) return true;
   if (!pipeline.frameInProgress) beginFrame(pipeline, timestamp);
-  if (!submitBatch(pipeline)) return false;
+  if (!submitBatch(pipeline, workload)) return false;
   return (
     !reducedMotion ||
     pipeline.frameInProgress ||
