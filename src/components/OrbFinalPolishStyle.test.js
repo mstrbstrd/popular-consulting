@@ -162,6 +162,31 @@ describe("Orb final presentation guardrails", () => {
     expect(activeRule).toContain("opacity: 1;");
   });
 
+  test("fades scrolled chat bubbles toward the screen top without masking controls", () => {
+    const messagesRule = ruleFor(
+      css,
+      '.orb-page[data-conversation-started="true"] .metabloom-chat__messages',
+    );
+
+    expect(messagesRule).toContain("-webkit-mask-image: linear-gradient(");
+    expect(messagesRule).toContain("mask-image: linear-gradient(");
+    expect(messagesRule).toContain("transparent 0%");
+    expect(messagesRule).toContain("rgba(0, 0, 0, 0.76) 25%");
+    expect(messagesRule).toContain("#000 38%");
+    expect(messagesRule).not.toContain("transform:");
+    expect(css).toContain("Masking the scrollport rather than the");
+    expect(css).not.toMatch(/\.metabloom-chat__message-list\s*\{[^}]*mask-image:/);
+    expect(css).not.toMatch(/\.metabloom-chat__composer-area\s*\{[^}]*mask-image:/);
+
+    const accessibilityOverrides = css.slice(
+      css.lastIndexOf("@media (prefers-reduced-transparency: reduce),"),
+    );
+    expect(accessibilityOverrides).toContain("(prefers-contrast: more)");
+    expect(accessibilityOverrides).toContain("(forced-colors: active)");
+    expect(accessibilityOverrides).toContain("-webkit-mask-image: none;");
+    expect(accessibilityOverrides).toContain("mask-image: none;");
+  });
+
   test("bounds narrow-screen composer, prompts, and finish controls", () => {
     expect(css).toContain("width: calc(100% - 2.4rem);");
     expect(css).toContain("grid-template-columns: minmax(0, 1fr) 4.4rem;");

@@ -508,3 +508,32 @@
     text-shadow: 0 1px 2px var(--aetheris-panel);
   }
 }
+
+/* Fade the conversation into the living scene as earlier bubbles reach the
+   top of the *visible scrollport*. Masking the scrollport rather than the
+   scrolling message list anchors the gradient to the screen. The Orb, composer,
+   reaction panel, and landing prompts are outside this mask. */
+.orb-page[data-conversation-started="true"] .metabloom-chat__messages {
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(0, 0, 0, 0.26) 10%,
+    rgba(0, 0, 0, 0.76) 25%,
+    #000 38%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(0, 0, 0, 0.26) 10%,
+    rgba(0, 0, 0, 0.76) 25%,
+    #000 38%
+  );
+}
+
+/* Accessibility overrides restore complete message visibility and contrast. */
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more), (forced-colors: active) {
+  .orb-page[data-conversation-started="true"] .metabloom-chat__messages {
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+}
