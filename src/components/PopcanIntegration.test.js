@@ -71,7 +71,8 @@ test('the shared Popcan scene ignores cursor movement in both themes without rem
   const optimizedLight = source('src/utils/visualRuntimeLightPass.js');
   const dark = source('src/components/BlackHoleBackground.js');
 
-  expect(immersive).toContain("routeMetadataFor(pathname)?.path !== '/popcan'");
+  expect(immersive).toContain("const isPopcan = routeMetadataFor(pathname)?.path === '/popcan';");
+  expect(immersive).toContain('const pointerReactive = !isPopcan;');
   expect(immersive).toContain('pointerReactive={pointerReactive}');
   expect(legacyDither).toContain('if (!pointerReactiveRef.current) return;');
   expect(legacyDither).toContain('if (!pointerReactive) ripplesRef.current = [];');
