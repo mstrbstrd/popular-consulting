@@ -42,7 +42,13 @@ batches on this route (2 tiles per RAF during mobile drawing, 4 when idle;
 desktop 4 while drawing, 8 when idle, still respecting slower safety schedules).
 This keeps the animation progressing while leaving the GPU room to commit
 Canvas 2D strokes. Pointer-up, cancellation, blur and route exit restore the
-regular budget; no shader equations, pixels, exports or brush events change. The background
+regular budget; no shader equations, pixels, exports or brush events change.
+In both themes, the shared scene is autonomous on the Popcan route: pointer
+movement and click/drag input never control its light-field ripple system or
+the dark black-hole mouse uniform. The dark-mode pointer is held at neutral
+UV (0.5, 0.35); the shader's time and scene movement keep running. On return
+to other immersive routes, pointer reactions resume without a renderer
+restart, and any inherited light-field ripples are cleared on entering Popcan. The background
 is decorative and never included in exported artwork. Theme changes do not
 write pigment or add history. Older drafts using the former
 implicit Midnight default migrate to Match theme; other old surfaces are retained.

@@ -931,7 +931,7 @@ const EXPRESSIONS = {
   talking: { id: 8, eyeOpen: 0.65, eyeY: 0.12, mouthCurve: 0.38, mouthOpen: 0.0 },
 };
 
-const DitherBackground = ({ activeSection = 0, isDark = false }) => {
+const DitherBackground = ({ activeSection = 0, isDark = false, pointerReactive = true }) => {
   const canvasRef = useRef(null);
   const animFrameRef = useRef(null);
   const glDataRef = useRef(null);
@@ -939,6 +939,12 @@ const DitherBackground = ({ activeSection = 0, isDark = false }) => {
   const hueOffsetRef = useRef(0); // accumulated in [0,1) at hue scale — no large products in shader
   const lastTRef = useRef(0);
   const ripplesRef = useRef([]);
+  const pointerReactiveRef = useRef(pointerReactive);
+  pointerReactiveRef.current = pointerReactive;
+  useEffect(() => {
+    // Remove ripples inherited from the previous route without resetting GL.
+    if (!pointerReactive) ripplesRef.current = [];
+  }, [pointerReactive]);
   const targetIdxRef = useRef(0);
   const lockedPresetIdxRef = useRef(null); // non-null locks shader to that preset (ignores activeSection)
   const isDarkRef = useRef(isDark);
@@ -1269,6 +1275,7 @@ const DitherBackground = ({ activeSection = 0, isDark = false }) => {
   // Expose ripple adder for DitherHero
   useEffect(() => {
     window.__addDitherRipple = (clientX, clientY) => {
+      if (!pointerReactiveRef.current) return;
       const canvas = canvasRef.current;
       if (!canvas) return;
       const rect = canvas.getBoundingClientRect();
@@ -1436,7 +1443,8 @@ const DitherBackground = ({ activeSection = 0, isDark = false }) => {
       );
     const handleCanvasClick = (event) => {
       if (
-        targetIdxRef.current !== 4
+        !pointerReactiveRef.current
+        || targetIdxRef.current !== 4
         || event.button > 0
         || isInteractiveClickTarget(event.target)
       ) {

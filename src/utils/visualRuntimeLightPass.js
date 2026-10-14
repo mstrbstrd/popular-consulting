@@ -131,6 +131,7 @@ export const createVisualRuntimeLightPass = ({
   documentObject = typeof document === "undefined" ? null : document,
   mobile = false,
   captureState = null,
+  pointerReactive = () => true,
   invalidate = () => {},
 } = {}) => {
   if (!gl || !host || !canvas || !windowObject || !documentObject) {
@@ -357,6 +358,7 @@ export const createVisualRuntimeLightPass = ({
     invalidate("light-unlock");
   };
   const addRipple = (clientX, clientY) => {
+    if (!pointerReactive()) return;
     const bounds = canvas.getBoundingClientRect();
     const width = Math.max(bounds.width, 1);
     const height = Math.max(bounds.height, 1);
@@ -406,6 +408,9 @@ export const createVisualRuntimeLightPass = ({
       return { continue: false };
     }
 
+    // Route handoffs retain this GL context. Clear any old pointer ripples as
+    // soon as Popcan becomes the foreground; leave autonomous drift intact.
+    if (!pointerReactive()) ripples.length = 0;
     if (!pinnedCapture) {
       advanceVisualRuntimeLightAnimation(animation, {
         timestamp,

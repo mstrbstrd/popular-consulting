@@ -54,11 +54,14 @@ const ProductionThemeCanvas = ({
   highFidelityLight = false,
   runtimeScope = "dither-canvas",
   onFieldStateChange = NOOP,
+  pointerReactive = true,
 }) => {
   const hostRef = React.useRef(null);
   const canvasRef = React.useRef(null);
   const runtimeRef = React.useRef(null);
   const pausedRef = React.useRef(paused);
+  const pointerReactiveRef = React.useRef(pointerReactive);
+  pointerReactiveRef.current = pointerReactive;
   const normalizedSection = Math.max(
     0,
     Math.floor(Number(activeSection) || 0),
@@ -108,6 +111,7 @@ const ProductionThemeCanvas = ({
     const handlePointerDown = (event) => {
       if (
         selectedTheme !== "light"
+        || !pointerReactiveRef.current
         || pausedRef.current
         || fallbackStarted
       ) {
@@ -160,6 +164,7 @@ const ProductionThemeCanvas = ({
                 host,
                 canvas,
                 mobile: isMobileTier && !highFidelityLight,
+                pointerReactive: () => pointerReactiveRef.current,
                 invalidate: (reason) => candidateRuntime.invalidate(reason),
               });
         const guardedPass = guardRuntimePass({

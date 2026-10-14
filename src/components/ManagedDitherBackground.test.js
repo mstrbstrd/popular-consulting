@@ -31,11 +31,12 @@ jest.mock("../utils/graphicsPolicy", () => ({
   recordGraphicsEvent: (...args) => mockRecordGraphicsEvent(...args),
 }));
 
-jest.mock("./DitherBackground", () => ({ activeSection, isDark }) => (
+jest.mock("./DitherBackground", () => ({ activeSection, isDark, pointerReactive }) => (
   <canvas
     data-testid="dither-canvas"
     data-section={activeSection}
     data-dark={String(isDark)}
+    data-pointer-reactive={String(pointerReactive)}
     width="640"
     height="360"
   />
@@ -110,6 +111,20 @@ describe("ManagedDitherBackground", () => {
       expect(screen.getByTestId("dither-canvas").width).toBe(320);
       expect(screen.getByTestId("dither-canvas").height).toBe(180);
     });
+  });
+
+  test("updates pointer interactivity without remounting the shared light canvas", () => {
+    const { rerender } = render(
+      <ManagedDitherBackground rendererId="main-dither" pointerReactive={true} />,
+    );
+    const canvas = screen.getByTestId("dither-canvas");
+    expect(canvas).toHaveAttribute("data-pointer-reactive", "true");
+    rerender(<ManagedDitherBackground rendererId="main-dither" pointerReactive={false} />);
+    expect(screen.getByTestId("dither-canvas")).toBe(canvas);
+    expect(canvas).toHaveAttribute("data-pointer-reactive", "false");
+    rerender(<ManagedDitherBackground rendererId="main-dither" pointerReactive={true} />);
+    expect(screen.getByTestId("dither-canvas")).toBe(canvas);
+    expect(canvas).toHaveAttribute("data-pointer-reactive", "true");
   });
 
   test("claims live ownership only while its renderer is running", () => {

@@ -7,6 +7,7 @@ import { LOGIN_SECTION_INDEX, LOGIN_DITHER_SECTION } from '../utils/loginScene';
 import ManagedDitherBackground from './ManagedDitherBackground';
 import ProductionThemeCanvas from './ProductionThemeCanvas';
 import BlackHoleBackground from './BlackHoleBackground';
+import { routeMetadataFor } from '../utils/appRoutes';
 
 const CSS_SECTION_DARK = [
   ["#6344F5", "#9B72FF", "#24CCFF"],
@@ -37,6 +38,9 @@ const fallbackOrbs = [
 // Authentication controls the foreground, never the public decorative field.
 export default function ImmersiveBackground({ activeSection = 0, pathname = window.location.pathname, transitionPhase = 'idle' }) {
   const { isDark } = useThemeMode();
+  // Popcan is an editor, not an interactive hero. Keep both shared light
+  // renderers autonomous even when the index scene survives navigation.
+  const pointerReactive = routeMetadataFor(pathname)?.path !== '/popcan';
   const previousPhase = React.useRef(transitionPhase);
   useEffect(() => {
     // Child renderers own these existing reveal hooks. Resume from the current
@@ -129,6 +133,7 @@ export default function ImmersiveBackground({ activeSection = 0, pathname = wind
               enabled={shouldUseLegacyDither}
               isDark={isDark}
               rendererId="main-dither"
+              pointerReactive={pointerReactive}
             />
           </div>
         )}
@@ -141,6 +146,7 @@ export default function ImmersiveBackground({ activeSection = 0, pathname = wind
               highFidelityLight
               runtimeScope="mobile-index"
               onFieldStateChange={handleMobileLightStateChange}
+              pointerReactive={pointerReactive}
             />
           </div>
         )}

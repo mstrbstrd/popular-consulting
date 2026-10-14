@@ -6,6 +6,7 @@ import {
   BLACK_HOLE_SECTION_ZOOMS,
   BLACK_HOLE_ZOOM_LERP_RATE,
   isImmersiveBlackHolePath,
+  resolveBlackHolePointerInput,
 } from "./BlackHoleBackground";
 
 describe("persistent dark-mode black-hole invariants", () => {
@@ -53,6 +54,18 @@ describe("persistent dark-mode black-hole invariants", () => {
     expect(componentSource).not.toContain("schwarzschildAccel");
     expect(componentSource).not.toContain("setOrbBlackHoleModeActive");
     expect(componentSource).not.toContain("disableWebGLForSession");
+  });
+
+  test("pins Popcan black-hole pointer uniforms while preserving autonomous time", () => {
+    expect(resolveBlackHolePointerInput({ popcan: true, x: 0.12, y: 0.91 }))
+      .toEqual({ x: 0.5, y: 0.35 });
+    expect(resolveBlackHolePointerInput({ popcan: true, x: 0.98, y: 0.07 }))
+      .toEqual({ x: 0.5, y: 0.35 });
+    expect(resolveBlackHolePointerInput({ popcan: false, x: 0.12, y: 0.91 }))
+      .toEqual({ x: 0.12, y: 0.91 });
+    expect(componentSource).toContain("if (popcanRouteRef.current) return;");
+    expect(componentSource).toContain("popcan: popcanRouteRef.current");
+    expect(componentSource).toContain("time: calibration || reduced ? 8 : timestamp * 0.001");
   });
 
   test("Popcan drawing prioritizes the 2D canvas without pausing WebGL or leaking listeners", () => {

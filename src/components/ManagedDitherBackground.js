@@ -30,6 +30,7 @@ const ManagedDitherBackground = ({
   isDark = false,
   onRuntimeFailure,
   rendererId = "dither-background",
+  pointerReactive = true,
 }) => {
   const rootRef = React.useRef(null);
   const [documentVisible, setDocumentVisible] = React.useState(
@@ -218,7 +219,7 @@ const ManagedDitherBackground = ({
       aria-hidden="true"
     >
       {shouldRender ? (
-        <DitherBackground activeSection={activeSection} isDark={isDark} />
+        <DitherBackground activeSection={activeSection} isDark={isDark} pointerReactive={pointerReactive} />
       ) : (
         fallback
       )}

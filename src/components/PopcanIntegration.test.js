@@ -64,6 +64,25 @@ test('uses the shell-owned index scene without changing Popcan pixels, paper exp
   expect(editor).not.toMatch(/ManagedDitherBackground|ProductionThemeCanvas|BlackHoleCanvas/);
 });
 
+test('the shared Popcan scene ignores cursor movement in both themes without remounting renderers', () => {
+  const immersive = source('src/components/ImmersiveBackground.js');
+  const legacyDither = source('src/components/DitherBackground.js');
+  const mobileLight = source('src/components/ProductionThemeCanvas.js');
+  const optimizedLight = source('src/utils/visualRuntimeLightPass.js');
+  const dark = source('src/components/BlackHoleBackground.js');
+
+  expect(immersive).toContain("routeMetadataFor(pathname)?.path !== '/popcan'");
+  expect(immersive).toContain('pointerReactive={pointerReactive}');
+  expect(legacyDither).toContain('if (!pointerReactiveRef.current) return;');
+  expect(legacyDither).toContain('if (!pointerReactive) ripplesRef.current = [];');
+  expect(mobileLight).toContain('|| !pointerReactiveRef.current');
+  expect(mobileLight).toContain('pointerReactive: () => pointerReactiveRef.current');
+  expect(optimizedLight).toContain('if (!pointerReactive()) return;');
+  expect(optimizedLight).toContain('if (!pointerReactive()) ripples.length = 0;');
+  expect(dark).toContain('if (popcanRouteRef.current) return;');
+  expect(dark).toContain('popcan: popcanRouteRef.current');
+});
+
 test('uses the dedicated transparent Popcan logo artwork', () => {
   const editor = source('src/components/PopcanPage.js');
   const logo = fs.readFileSync(path.resolve(__dirname, '..', 'assets', 'img', 'popcan-logo.png'));

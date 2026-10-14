@@ -18,7 +18,8 @@ import { safeSessionSet } from "./blackHoleWebGL";
 export const BLACK_HOLE_SECTION_ZOOMS = Object.freeze([14, 28, 44, 62, LOGIN_BLACK_HOLE_ZOOM, 22, 18]);
 export const BLACK_HOLE_INITIAL_ZOOM = 80;
 export const BLACK_HOLE_ZOOM_LERP_RATE = 0.025;
-export const BLACK_HOLE_POINTER_LERP_RATE = 0.035;
+export const resolveBlackHolePointerInput = ({ popcan = false, x = 0.5, y = 0.35 } = {}) =>
+  popcan ? { x: 0.5, y: 0.35 } : { x, y };
 
 const NON_IMMERSIVE_PATHS = new Set([
   "/work",
@@ -261,7 +262,12 @@ const BlackHoleBackgroundCanvas = ({ mobile = false, activeSection, exiting = fa
 
       const pointer = pointerRef.current;
       const smoothPointer = smoothPointerRef.current;
-      if (calibration || reduced) {
+      if (popcanRouteRef.current) {
+        // The Popcan scene runs autonomously: the mouse uniform cannot follow
+        // drawing, panning, hover or stylus input, even during a route handoff.
+        pointer[0] = smoothPointer[0] = 0.5;
+        pointer[1] = smoothPointer[1] = 0.35;
+      } else if (calibration || reduced) {
         smoothPointer[0] = pointer[0];
         smoothPointer[1] = pointer[1];
       } else {
@@ -271,10 +277,15 @@ const BlackHoleBackgroundCanvas = ({ mobile = false, activeSection, exiting = fa
           (pointer[1] - smoothPointer[1]) * BLACK_HOLE_POINTER_LERP_RATE;
       }
 
+      const inputPointer = resolveBlackHolePointerInput({
+        popcan: popcanRouteRef.current,
+        x: calibration ? 0.5 : smoothPointer[0],
+        y: calibration ? 0.35 : smoothPointer[1],
+      });
       return {
         time: calibration || reduced ? 8 : timestamp * 0.001,
-        mouseX: calibration ? 0.5 : smoothPointer[0],
-        mouseY: calibration ? 0.35 : smoothPointer[1],
+        mouseX: inputPointer.x,
+        mouseY: inputPointer.y,
         zoom: currentZoomRef.current,
         lightMode: 0,
       };
@@ -340,6 +351,7 @@ const BlackHoleBackgroundCanvas = ({ mobile = false, activeSection, exiting = fa
     };
 
     const handlePointerMove = (event) => {
+      if (popcanRouteRef.current) return;
       pointerRef.current[0] = event.clientX / Math.max(window.innerWidth, 1);
       pointerRef.current[1] =
         1 - event.clientY / Math.max(window.innerHeight, 1);
