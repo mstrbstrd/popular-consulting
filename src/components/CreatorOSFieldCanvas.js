@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { normalizeNavierProgress } from "./navierStokesModel";
+import { getNavierColorway } from "./navierStokesColorways";
 import { createNavierStokesFluid } from "./navierStokesFluid";
 import { writeNavierCores } from "./navierStokesField";
 import { createMetabloomHoodTransition, METABLOOM_HOOD_SHADER } from "./metabloomUnderHood";
@@ -448,6 +449,7 @@ const CreatorOSFieldCanvas = ({
   chiralHandedness = 1,
   chiralStructure = "classic",
   navierProgress = -1,
+  navierColorway = "original",
   contourPalette = "terrain",
   externalPulseVersion = 0,
   isDark = false,
@@ -528,6 +530,8 @@ const CreatorOSFieldCanvas = ({
   const chiralHandednessRef = useRef(normalizeChiralHandedness(chiralHandedness));
   const chiralStructureRef = useRef(normalizeChiralStructure(chiralStructure));
   const navierProgressRef = useRef(normalizeNavierProgress(navierProgress));
+  const navierColorwayRef = useRef(getNavierColorway(navierColorway));
+  const navierColorsRef = useRef(new Float32Array(navierColorwayRef.current.colors));
   const morphogenPaintRef = useRef(
     resolveMorphogenPaintMix(morphogenExperience),
   );
@@ -678,6 +682,12 @@ const CreatorOSFieldCanvas = ({
     navierProgressRef.current = normalizeNavierProgress(navierProgress);
     redrawRef.current();
   }, [navierProgress]);
+
+  useEffect(() => {
+    navierColorwayRef.current = getNavierColorway(navierColorway);
+    navierColorsRef.current.set(navierColorwayRef.current.colors);
+    redrawRef.current();
+  }, [navierColorway]);
 
   useEffect(() => {
     tidalPaletteRef.current = resolveTidalPaletteMix(tidalPalette);
@@ -1032,6 +1042,8 @@ const CreatorOSFieldCanvas = ({
       "u_chiralHandedness",
       "u_chiralStructure",
       "u_navierProgress",
+      "u_navierColorway",
+      "u_navierColors[0]",
       "u_navierFluidReady",
       "u_navierDye",
       "u_navierCores[0]",
@@ -1672,6 +1684,8 @@ const CreatorOSFieldCanvas = ({
         gl.uniform4fv(activeDisplayUniforms["u_navierCores[0]"], navierFluid?.cores
           || writeNavierCores(navierCores, localTime, seed, navierCoreCount));
         gl.uniform1i(activeDisplayUniforms.u_navierCoreCount, navierCoreCount);
+        gl.uniform1i(activeDisplayUniforms.u_navierColorway, navierColorwayRef.current.index);
+        gl.uniform3fv(activeDisplayUniforms["u_navierColors[0]"], navierColorsRef.current);
         gl.uniform1f(activeDisplayUniforms.u_navierAspect, canvas.width / Math.max(canvas.height, 1));
         gl.uniform1f(activeDisplayUniforms.u_navierFluidReady, navierFluid ? 1 : 0);
         gl.activeTexture(gl.TEXTURE3);
@@ -2097,6 +2111,9 @@ const CreatorOSFieldCanvas = ({
       data-chiral-handedness={normalizeChiralHandedness(chiralHandedness)}
       data-chiral-structure={normalizeChiralStructure(chiralStructure)}
       data-navier-progress={normalizeNavierProgress(navierProgress)}
+      data-navier-colorway={clampMode(mode) === 9 ? getNavierColorway(navierColorway).id : undefined}
+      style={clampMode(mode) === 9 && getNavierColorway(navierColorway).index > 0
+        ? getNavierColorway(navierColorway).cssVariables : undefined}
       data-context-recovery="local"
       data-field-ready={presented || fallback ? "true" : "false"}
       data-renderer-id="dither-canvas-field"

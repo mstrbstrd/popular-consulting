@@ -38,3 +38,14 @@ Original code using standard GPU fluid methods, with no vendored demo or new run
 Jest checks separated finite cores, monotonic contraction, invalid inputs, fixed allocation/pass budgets, no read/write feedback, and cleanup. Native browser checks compile the production shaders, test full-frame occupancy across the former replay boundaries, deterministic transport, persistent impulses and premultiplied output. Built-page checks cover one-canvas ownership, retained pause/seed/time, keyboard inspection, both palettes and compact layouts.
 
 Software-WebGL validation is not a physical iPhone/Safari performance certification. Test fixtures and screenshots are not loaded by the application.
+
+
+## Colorways
+
+Open **Colorway** in the Finite Infinity controls. Original retains the approved turquoise/ember/violet appearance exactly. Glacier adds blue/cyan/ice, Ember garnet/orange/gold, Aurora emerald/teal/ultraviolet, Rose Quartz wine/rose/blush, and Quicksilver neutral graphite/platinum/pearl.
+
+These are display-only pigment, highlight, shadow and core-marker colors, not changes to flow physics. Selecting one invalidates the existing canvas through one enum uniform and one fixed eight-color array. It never changes dye or velocity textures, positions, concentration, seed, clocks, pause state, allocation or draw-pass budgets. The selection stays through Reseed, study changes and Second Surface underlay selection; no new persistent storage or runtime request is added. Invalid names select Original. The analytical and local CSS fallbacks use the selected colors too.
+
+The native disclosure is keyboard operable. Labeled 44px buttons expose the selected state with aria-pressed, a border and a checkmark rather than color alone. Selection closes the choices and restores summary focus. Compact screens retain the existing scrollable controls budget.
+
+NavierStokesColorways tests check data bounds, fallback state and exact recovery of the approved shader after stripping only the color overrides. scripts/verify-navier-colorways.mjs tests actual paused dye/core/clock preservation, distinguishable rendered palettes, round-trip Original output, both themes, keyboard selection and compact viewports. Original shader references in older checks intentionally use the default zero colorway uniform.

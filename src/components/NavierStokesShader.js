@@ -6,7 +6,13 @@ export const NAVIER_STOKES_SHADER = `
 uniform float u_navierProgress;
 uniform float u_navierFluidReady;
 uniform sampler2D u_navierDye;
+uniform int u_navierColorway;
+uniform vec3 u_navierColors[8];
 ${NAVIER_CORE_SHADER}
+
+vec3 navierColor(int index, vec3 original) {
+  return u_navierColorway > 0 ? u_navierColors[index] : original;
+}
 
 vec3 navierPigment(vec2 uv) {
   if (u_navierFluidReady > 0.5) {
@@ -62,14 +68,14 @@ vec4 sceneNavierStokes(vec2 uv, float time) {
   float diffuse = max(dot(normal, normalize(vec3(-0.55,0.65,1.0))), 0.0);
   float edge = min(length(slope) * 8.0, 1.0);
   float shine = pow(max(dot(normal, normalize(vec3(-0.25,0.65,1.0))), 0.0), 18.0);
-  vec3 tint = (ink.r * vec3(0.04,0.79,0.90) + ink.g * vec3(1.0,0.29,0.07)
-    + ink.b * vec3(0.40,0.09,0.86)) / max(ink.r + ink.g + ink.b, 0.0001);
+  vec3 tint = (ink.r * navierColor(0, vec3(0.04,0.79,0.90)) + ink.g * navierColor(1, vec3(1.0,0.29,0.07))
+    + ink.b * navierColor(2, vec3(0.40,0.09,0.86))) / max(ink.r + ink.g + ink.b, 0.0001);
   float opacity = 1.0 - exp(-density * 8.0);
   float glow = pow(max(density, 0.0), 0.6);
   vec3 dark = tint * (0.40 + diffuse * 0.85 + glow * 0.80)
-    + vec3(0.73,0.94,1.0) * (edge * 0.20 + shine * 0.12);
-  vec3 light = tint * (0.38 + diffuse * 0.27) + vec3(0.035,0.025,0.08)
-    + vec3(0.62,0.78,0.9) * edge * 0.12;
+    + navierColor(3, vec3(0.73,0.94,1.0)) * (edge * 0.20 + shine * 0.12);
+  vec3 light = tint * (0.38 + diffuse * 0.27) + navierColor(4, vec3(0.035,0.025,0.08))
+    + navierColor(5, vec3(0.62,0.78,0.9)) * edge * 0.12;
   vec3 color = mix(dark, light, u_light);
   // The mathematical display radius keeps shrinking. One drawing-pixel floor
   // retains a finite, antialiased nucleus, not an ever-brighter screen flash.
@@ -84,7 +90,7 @@ vec4 sceneNavierStokes(vec2 uv, float time) {
     float rimDistance = distance - 1.0;
     float rim = exp(-rimDistance * rimDistance * 14.0) * 0.024;
     float presence = clamp((nucleus * mix(0.12, 1.0, smoothstep(0.25, 0.8, progress)) + rim) * abs(core.w), 0.0, 1.0);
-    vec3 coreTint = mix(vec3(0.85,0.98,1.0), vec3(0.10,0.035,0.20), u_light);
+    vec3 coreTint = mix(navierColor(6, vec3(0.85,0.98,1.0)), navierColor(7, vec3(0.10,0.035,0.20)), u_light);
     color = mix(color, coreTint, presence * 0.88);
     opacity = max(opacity, presence);
   }
