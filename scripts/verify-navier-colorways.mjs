@@ -89,8 +89,15 @@ try {
       window.__colorwayProbe.capture = true;
       window.__colorwayCanvas = document.querySelector('.creatoros-field-mode-9 canvas');
     });
+    // Mobile moves Pause into the existing experience menu. Exercise its real
+    // keyboard path instead of programmatically clicking a hidden desktop copy.
+    if (width < 500) {
+      const menu = page.locator('.workspace-menu > summary');
+      await menu.focus(); await menu.press('Enter');
+    }
     await page.getByRole('button', { name: 'Pause', exact: true }).focus();
     await page.keyboard.press('Enter');
+    if (width < 500) await page.keyboard.press('Escape');
     await page.waitForTimeout(500);
     await page.waitForFunction(() => window.__colorwayProbe.frame && window.__colorwayProbe.uniforms.u_intro === 1);
     const state = () => page.evaluate(() => {
