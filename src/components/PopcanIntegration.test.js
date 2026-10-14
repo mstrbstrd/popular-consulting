@@ -83,6 +83,23 @@ test('the shared Popcan scene ignores cursor movement in both themes without rem
   expect(dark).toContain('popcan: popcanRouteRef.current');
 });
 
+test('uses shared nocturnal Radiant Lattice rather than dark black-hole rendering', () => {
+  const scene = source('src/components/ImmersiveBackground.js');
+  const popcan = source('src/components/PopcanPage.js');
+  const surface = source('src/components/ProductionThemeCanvas.js');
+
+  expect(scene).toContain('const popcanNightLattice = isDark && isPopcan;');
+  expect(scene).toContain('{live && popcanNightLattice && (');
+  expect(scene).toContain('latticeAppearance="night"');
+  expect(scene).toContain('runtimeScope="popcan-night-lattice"');
+  expect(scene).toContain('pointerReactive={false}');
+  expect(scene).toContain('{live && isDark && !isPopcan && <BlackHoleBackground');
+  expect(scene).toContain('data-scene-variant={popcanNightLattice');
+  expect(popcan).toContain("'rgba(8, 14, 30, 0.40)'");
+  expect(surface).toContain('latticeAppearance = "day"');
+  expect(surface).toContain('latticeAppearance: () => latticeAppearanceRef.current');
+});
+
 test('uses the dedicated transparent Popcan logo artwork', () => {
   const editor = source('src/components/PopcanPage.js');
   const logo = fs.readFileSync(path.resolve(__dirname, '..', 'assets', 'img', 'popcan-logo.png'));
