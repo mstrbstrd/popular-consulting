@@ -165,7 +165,7 @@ export default function ImmersiveBackground({ activeSection = 0, pathname = wind
             />
           </div>
         )}
-        {live && isDark && !isPopcan && <BlackHoleBackground isDark activeSection={activeSection} pathname={pathname} exiting={transitionPhase === 'covering' || transitionPhase === 'covered'} />
+        {live && isDark && !isPopcan && <BlackHoleBackground isDark activeSection={activeSection} pathname={pathname} exiting={transitionPhase === 'covering' || transitionPhase === 'covered'} />}
 
         <div className="glass-overlay">
           <div className="glass-gradient" />
