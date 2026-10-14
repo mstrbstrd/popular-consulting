@@ -95,13 +95,14 @@ jest.mock("./CreatorOSLavaLampCanvas", () => {
 
 jest.mock("./ProductionThemeCanvas", () => {
   const ReactModule = require("react");
-  return ({ theme, onFieldStateChange, paused, resetVersion }) =>
+  return ({ theme, latticeAppearance, onFieldStateChange, paused, resetVersion }) =>
     ReactModule.createElement(
       "button",
       {
         type: "button",
         "data-testid": "production-theme-renderer",
         "data-production-theme": theme,
+        "data-lattice-appearance": latticeAppearance,
         "data-paused": paused ? "true" : "false",
         "data-reset-version": String(resetVersion),
         onClick: () =>
@@ -680,6 +681,43 @@ describe("DitherCanvasPage", () => {
       "data-reset-version",
       "1",
     );
+  });
+
+  test('Radiant Lattice toggles between day and true night without replacing the light renderer', () => {
+    render(<DitherCanvasPage />);
+    fireEvent.click(screen.getByRole("button", { name: /Radiant Lattice/ }));
+    flushScrollFrame();
+    finishStudyTransition();
+    const lattice = screen.getByTestId("production-theme-renderer");
+    expect(lattice).toHaveAttribute("data-production-theme", "light");
+    expect(lattice).toHaveAttribute("data-lattice-appearance", "day");
+
+    fireEvent.click(screen.getByRole("button", { name: "Use dark mode" }));
+    expect(screen.getByRole("main")).toHaveAttribute("data-theme-mode", "dark");
+    expect(screen.getByRole("heading", { name: "Radiant Lattice" })).toBeInTheDocument();
+    expect(screen.getByTestId("production-theme-renderer")).toBe(lattice);
+    expect(lattice).toHaveAttribute("data-production-theme", "light");
+    expect(lattice).toHaveAttribute("data-lattice-appearance", "night");
+
+    fireEvent.click(screen.getByRole("button", { name: "Use light mode" }));
+    expect(screen.getByTestId("production-theme-renderer")).toBe(lattice);
+    expect(lattice).toHaveAttribute("data-lattice-appearance", "day");
+  });
+
+  test('Radiant Lattice respects an existing dark theme; Event Horizon stays dark-specific', () => {
+    render(<DitherCanvasPage />);
+    fireEvent.click(screen.getByRole("button", { name: "Use dark mode" }));
+    fireEvent.click(screen.getByRole("button", { name: /Radiant Lattice/ }));
+    flushScrollFrame();
+    finishStudyTransition();
+    expect(screen.getByRole("main")).toHaveAttribute("data-theme-mode", "dark");
+    expect(screen.getByTestId("production-theme-renderer")).toHaveAttribute("data-lattice-appearance", "night");
+
+    fireEvent.click(screen.getByRole("button", { name: /Event Horizon/ }));
+    flushScrollFrame();
+    finishStudyTransition();
+    expect(screen.getByTestId("production-theme-renderer")).toHaveAttribute("data-production-theme", "dark");
+    expect(screen.getByRole("heading", { name: "Event Horizon" })).toBeInTheDocument();
   });
 
   test.each([
