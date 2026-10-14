@@ -58,7 +58,7 @@ export function PopcanContent() {
   // Only the theme-following paper gets a translucent *display* wash. Explicit
   // paper choices, editable pixels, snapshots and PNG export remain unchanged.
   const displayPaper = backgroundEnabled && doc.paper === PAPERS.theme
-    ? (isDark ? 'rgba(13, 13, 17, 0.55)' : 'rgba(255, 248, 247, 0.44)')
+    ? (isDark ? 'rgba(8, 14, 30, 0.40)' : 'rgba(255, 248, 247, 0.44)')
     : paper;
   const renderFrame = doc.renderFrame || { originX: doc.originX, originY: doc.originY, width: doc.width, height: doc.height };
   useLayoutEffect(() => { engineRef.current?.setTheme(isDark); }, [isDark]);
