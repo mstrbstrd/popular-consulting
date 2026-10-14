@@ -56,6 +56,8 @@ test('uses the shell-owned index scene without changing Popcan pixels, paper exp
   expect(css).toContain(".popcan-page[data-background-enabled='true']");
   expect(css).toContain('pointer-events: none;');
   expect(css).toContain('prefers-reduced-transparency: reduce');
+  expect(css).toContain('min-height: 44px;');
+  expect(css).toContain('width: 44px;');
   expect(css).toContain('forced-colors: active');
   expect(engine).toContain("if (includePaper && snapshot.paper !== 'transparent')");
   expect(engine).toContain("getContext('2d'");

@@ -87,6 +87,7 @@ try {
   await call('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
   await call('Page.navigate', { url: `${origin}/popcan?graphics=css` });
   await until(ready);
+  await until("document.querySelector('.app-outlet')?.dataset.phase==='idle'");
   await sleep(150);
   assert.match(await evaluate('document.title'), /Popular Canvas/);
   // The animated scene is visual-only, optional, and independent of artwork.
