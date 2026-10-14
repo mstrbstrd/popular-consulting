@@ -31,9 +31,11 @@ try {
   socket = new WebSocket(tabs.find((tab) => tab.type === 'page').webSocketDebuggerUrl);
   await new Promise((resolve, reject) => { socket.addEventListener('open', resolve, { once: true }); socket.addEventListener('error', reject, { once: true }); });
   let sequence = 0;
+  let pageLoads = 0;
   const pending = new Map();
   socket.addEventListener('message', (event) => {
     const data = JSON.parse(event.data);
+    if (data.method === 'Page.loadEventFired') pageLoads += 1;
     if (data.method === 'Runtime.exceptionThrown') errors.push(data.params.exceptionDetails.text);
     const item = pending.get(data.id);
     if (!item) return;
@@ -68,6 +70,15 @@ try {
   const digest = () => evaluate(`${painted}.toDataURL()`);
   const pixel = (x, y) => evaluate(`Array.from(${painted}.getContext('2d').getImageData(${x},${y},1,1).data)`);
   const ready = `document.querySelector('[aria-label="Export PNG"]') && !document.querySelector('[aria-label="Export PNG"]').disabled`;
+  const reloadReady = async (settleMs = 150) => {
+    const before = pageLoads;
+    await call('Page.reload');
+    for (let i = 0; i < 300 && pageLoads === before; i++) await sleep(50);
+    assert.ok(pageLoads > before, 'Page.reload must load a new document');
+    await until(ready);
+    await until("document.querySelector('.app-outlet')?.dataset.phase==='idle'");
+    await sleep(settleMs);
+  };
   const screenshot = async (name) => {
     const result = await call('Page.captureScreenshot', { format: 'png' });
     fs.writeFileSync(path.join(output, `${name}.png`), Buffer.from(result.data, 'base64'));
@@ -103,10 +114,10 @@ try {
   assert.equal(await sceneEnabled(), true);
   assert.equal(await sceneVisible(), true);
   assert.equal(await evaluate("document.querySelector('.pc-paint').toDataURL()"), unaltered);
-  await call('Page.reload'); await until(ready); await sleep(150);
+  await reloadReady(150);
   assert.equal(await sceneEnabled(), true, 'Enabled preference survives reload');
   await click('Animated background');
-  await call('Page.reload'); await until(ready); await sleep(150);
+  await reloadReady(150);
   assert.equal(await sceneEnabled(), false, 'Disabled preference survives reload');
   assert.equal(await sceneVisible(), false);
   results.push('theme-aware shared background, accessible toggle, saved preference, unchanged pixels and canvas ownership');
@@ -205,7 +216,7 @@ try {
   await wheelGesture('eraser',wheelCases[1],490,440,550,455);
   const savedErase=await digest(); await saved();
   await evaluate("document.documentElement.dataset.pcReloadProbe='pending'");
-  await call('Page.reload'); await until(`!document.documentElement.hasAttribute('data-pc-reload-probe') && (${ready})`); await sleep(150);
+  await reloadReady(150); assert.equal(await evaluate("document.documentElement.hasAttribute('data-pc-reload-probe')"), false);
   assert.equal(await digest(),savedErase,'Erased pixels must stay erased after saving and reloading');
   if(await evaluate("getComputedStyle(document.querySelector('.pc-inspector')).display!=='none'")) await click('Close brush settings');
   // The guard must not disable wheel navigation once the stroke has finished.
@@ -295,7 +306,7 @@ try {
   const compactedPixels=await digest(), compactedCount=await count(); await saved();
   const compactedAssets=await assets();
   assert.equal(compactedAssets.objects.length,compactedCount,'Every grouped or recent item must reach IndexedDB');
-  await call('Page.reload'); await until(ready); await sleep(200);
+  await reloadReady(200);
   await click('Fit all artwork'); await sleep(150);
   assert.equal(await digest(),compactedPixels,'Compacted artwork must restore exactly');
   assert.equal(await count(),compactedCount,'Grouped and recent items must persist');
@@ -336,7 +347,7 @@ try {
   await saved();const wide=await assets();assert.equal(wide.version,3);assert.ok(wide.width>4096);
   assert.deepEqual(wide.objects.slice(0,originalAssets.length),originalAssets,'Previous object positions and PNG bytes survive sparse growth');
   await screenshot('minimum-zoom');
-  const wideCount=await count();await call('Page.reload');await until(ready);await sleep(200);
+  const wideCount=await count();await reloadReady(200);
   assert.equal(await count(),wideCount);assert.deepEqual((await assets()).objects,wide.objects,'Wide scenes reload without flattening objects');
   if(await evaluate("getComputedStyle(document.querySelector('.pc-inspector')).display!=='none'"))await click('Close brush settings');
   // A broad mark stores its own resolution. Selection still moves logical world coordinates.
@@ -358,7 +369,7 @@ try {
   await newCanvas();await settings('#cc4477','18');await click('Brush (B)');await stroke(300,300,400,330);await saved();
   const legacy=await digest();
   await evaluate(`new Promise((resolve,reject)=>{const r=indexedDB.open('popcan-local',1);r.onsuccess=()=>{const db=r.result,tx=db.transaction('drafts','readwrite'),store=tx.objectStore('drafts'),q=store.get('current');q.onsuccess=()=>store.put({...q.result,version:2,paper:'#111116'},'current');tx.oncomplete=()=>{db.close();resolve()};tx.onabort=()=>reject(tx.error)}})`);
-  await call('Page.reload');await until(ready);await sleep(150);
+  await reloadReady(150);
   assert.equal(await background(),'rgb(255, 248, 247)');assert.equal(await digest(),legacy);
   if(await evaluate("getComputedStyle(document.querySelector('.pc-inspector')).display!=='none'"))await click('Close brush settings');
   results.push('version-2 default paper migration with preserved original pixels');

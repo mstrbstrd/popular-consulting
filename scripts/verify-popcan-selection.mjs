@@ -31,9 +31,11 @@ try {
   socket = new WebSocket(tabs.find((tab) => tab.type === 'page').webSocketDebuggerUrl);
   await new Promise((resolve, reject) => { socket.addEventListener('open', resolve, { once: true }); socket.addEventListener('error', reject, { once: true }); });
   let sequence = 0;
+  let pageLoads = 0;
   const pending = new Map();
   socket.addEventListener('message', (event) => {
     const data = JSON.parse(event.data);
+    if (data.method === 'Page.loadEventFired') pageLoads += 1;
     if (data.method === 'Runtime.exceptionThrown') errors.push(data.params.exceptionDetails.text);
     const item = pending.get(data.id);
     if (!item) return;
@@ -68,6 +70,15 @@ try {
   const digest = () => evaluate(`${painted}.toDataURL()`);
   const pixel = (x, y) => evaluate(`Array.from(${painted}.getContext('2d').getImageData(${x},${y},1,1).data)`);
   const ready = `document.querySelector('[aria-label="Export PNG"]') && !document.querySelector('[aria-label="Export PNG"]').disabled`;
+  const reloadReady = async (settleMs = 150) => {
+    const before = pageLoads;
+    await call('Page.reload');
+    for (let i = 0; i < 300 && pageLoads === before; i++) await sleep(50);
+    assert.ok(pageLoads > before, 'Page.reload must load a new document');
+    await until(ready);
+    await until("document.querySelector('.app-outlet')?.dataset.phase==='idle'");
+    await sleep(settleMs);
+  };
   const screenshot = async (name) => {
     const result = await call('Page.captureScreenshot', { format: 'png' });
     fs.writeFileSync(path.join(output, `${name}.png`), Buffer.from(result.data, 'base64'));
@@ -174,7 +185,7 @@ try {
   await stroke(textHit.x,textHit.y,textHit.x+160,textHit.y+80);
   assert.equal(await selection(),textId); const withText=await digest();
   await saved(); const recordData=await readLocal(); assert.equal(recordData.version,3); assert.equal(recordData.objects.length,3);
-  await call('Page.reload'); await until(ready); await sleep(150);
+  await reloadReady(150);
   assert.equal(await digest(),withText,'Layered draft restores pixels exactly'); assert.equal(await count(),3);
   if (await evaluate("getComputedStyle(document.querySelector('.pc-inspector')).display!=='none'")) await click('Close brush settings');
   await click('Select & move (V)'); await stroke(textHit.x+160,textHit.y+80,textHit.x+180,textHit.y+80);
@@ -213,7 +224,7 @@ try {
   // A pre-object saved PNG cannot recover its historic strokes. Preserve it as
   // one movable layer, never discard it or pretend to reconstruct those objects.
   await evaluate(`new Promise((resolve,reject)=>{const r=indexedDB.open('popcan-local',1);r.onsuccess=()=>{const db=r.result,tx=db.transaction('drafts','readwrite'),store=tx.objectStore('drafts'),q=store.get('current');q.onsuccess=()=>{const d=q.result;delete d.version;delete d.objects;store.put(d,'current')};tx.oncomplete=()=>{db.close();resolve()};tx.onabort=()=>reject(tx.error)}})`);
-  await call('Page.reload');await until(ready);await sleep(100);
+  await reloadReady(100);
   assert.equal(await digest(),imported);assert.equal(await count(),1);
   if (await evaluate("getComputedStyle(document.querySelector('.pc-inspector')).display!=='none'")) await click('Close brush settings');
   await click('Select & move (V)');await stroke(800,550,750,500);assert.match(await evaluate("document.querySelector('.pc-selection-actions').textContent"),/Earlier artwork/);

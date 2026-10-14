@@ -31,9 +31,11 @@ try {
   socket = new WebSocket(tabs.find((tab) => tab.type === 'page').webSocketDebuggerUrl);
   await new Promise((resolve, reject) => { socket.addEventListener('open', resolve, { once: true }); socket.addEventListener('error', reject, { once: true }); });
   let sequence = 0;
+  let pageLoads = 0;
   const pending = new Map();
   socket.addEventListener('message', (event) => {
     const data = JSON.parse(event.data);
+    if (data.method === 'Page.loadEventFired') pageLoads += 1;
     if (data.method === 'Runtime.exceptionThrown') errors.push(data.params.exceptionDetails.text);
     const item = pending.get(data.id);
     if (!item) return;
@@ -68,6 +70,15 @@ try {
   const digest = () => evaluate(`${painted}.toDataURL()`);
   const pixel = (x, y) => evaluate(`Array.from(${painted}.getContext('2d').getImageData(${x},${y},1,1).data)`);
   const ready = `document.querySelector('[aria-label="Export PNG"]') && !document.querySelector('[aria-label="Export PNG"]').disabled`;
+  const reloadReady = async (settleMs = 150) => {
+    const before = pageLoads;
+    await call('Page.reload');
+    for (let i = 0; i < 300 && pageLoads === before; i++) await sleep(50);
+    assert.ok(pageLoads > before, 'Page.reload must load a new document');
+    await until(ready);
+    await until("document.querySelector('.app-outlet')?.dataset.phase==='idle'");
+    await sleep(settleMs);
+  };
   const screenshot = async (name) => {
     const result = await call('Page.captureScreenshot', { format: 'png' });
     fs.writeFileSync(path.join(output, `${name}.png`), Buffer.from(result.data, 'base64'));
@@ -187,7 +198,7 @@ try {
     dimensions:document.querySelector('.pc-document > span')?.textContent,
     objects:document.querySelector('#popcan-canvas')?.dataset.objectCount,
     paint:[document.querySelector('.pc-paint')?.width,document.querySelector('.pc-paint')?.height]}))()`);
-  await call('Page.reload'); await until(ready); await sleep(150);
+  await reloadReady(150);
   const restoredPixels = await digest();
   if (restoredPixels !== withText) {
     const afterReloadState = await evaluate(`(() => ({status:document.querySelector('.pc-status')?.textContent,
