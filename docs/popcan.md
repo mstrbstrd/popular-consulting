@@ -34,26 +34,19 @@ dark mode. Its optimized glyph-field composite shares the Dither Canvas
 Radiant Lattice study, using a native deep-ink palette of moonlit cyan,
 periwinkle, amethyst, rose and rare warm highlights. Popcan does not
 mount the black hole in dark mode. No additional GPU pass is created,
-and the lattice never responds to cursor movement or brush gestures. Its separate on/off
-preference is stored in localStorage. When enabled, only the default
+and the lattice never responds to cursor movement or brush gestures.
+Its separate on/off preference is stored in localStorage. When enabled, only the default
 theme-following paper is rendered as a translucent viewport wash so the
 background is visible beneath the artwork. Explicit white/warm/midnight/
 transparent surfaces retain their original previews. Reduced-transparency and
 forced-colors modes display an opaque theme-paper surface. Switching the scene
 off releases the WebGL background without recreating Popcan's 2D canvas,
-changing gestures, history, IndexedDB drafts or exported PNGs. For the
-GPU-intensive dark-mode black hole, the shared renderer uses smaller tiled
-batches on this route (2 tiles per RAF during mobile drawing, 4 when idle;
-desktop 4 while drawing, 8 when idle, still respecting slower safety schedules).
-This keeps the animation progressing while leaving the GPU room to commit
-Canvas 2D strokes. Pointer-up, cancellation, blur and route exit restore the
-regular budget; no shader equations, pixels, exports or brush events change.
-In both themes, the shared scene is autonomous on the Popcan route: pointer
-movement and click/drag input never control its light-field ripple system or
-the dark black-hole mouse uniform. The dark-mode pointer is held at neutral
-UV (0.5, 0.35); the shader's time and scene movement keep running. On return
-to other immersive routes, pointer reactions resume without a renderer
-restart, and any inherited light-field ripples are cleared on entering Popcan. The background
+changing gestures, history, IndexedDB drafts or exported PNGs. The night
+lattice uses the existing two-pass WebGL glyph-field renderer instead of the
+much heavier black-hole shader, letting the 2D drawing engine retain more
+graphics time. In both themes the background is autonomous on Popcan;
+cursor movement, pointer-down and drag gestures do not affect it. On return
+to other immersive routes, their original interactions resume. The background
 is decorative and never included in exported artwork. Theme changes do not
 write pigment or add history. Older drafts using the former
 implicit Midnight default migrate to Match theme; other old surfaces are retained.
