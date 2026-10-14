@@ -394,6 +394,7 @@ const DitherFieldLab = () => {
   const [chiralHandedness, setChiralHandedness] = useState(1);
   const [chiralStructure, setChiralStructure] = useState("classic");
   const [navierProgress, setNavierProgress] = useState(-1);
+  const [navierColorway, setNavierColorway] = useState("original");
   const [contourPalette, setContourPalette] = useState(
     CONTOUR_PALETTE_TERRAIN,
   );
@@ -801,6 +802,7 @@ const DitherFieldLab = () => {
         chiralHandedness={chiralHandedness}
         chiralStructure={chiralStructure}
         navierProgress={navierProgress}
+        navierColorway={navierColorway}
         morphogenExperience={morphogenExperience}
         morphogenTool={morphogenTool}
         morphogenBrushSize={morphogenBrushSize}
@@ -994,7 +996,8 @@ const DitherFieldLab = () => {
             </div>
           )}
           {activeStudy.id === "finite-infinity" && (
-            <NavierStokesControls progress={navierProgress} onProgressChange={setNavierProgress} />
+            <NavierStokesControls progress={navierProgress} onProgressChange={setNavierProgress}
+              colorway={navierColorway} onColorwayChange={setNavierColorway} />
           )}
           {activeStudy.id === "chiral-weave" && (
             <div className="chiral-controls">

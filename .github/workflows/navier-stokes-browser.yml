@@ -11,7 +11,7 @@ on:
       - 'scripts/verify-navier-*'
       - '.github/workflows/navier-stokes-browser.yml'
   push:
-    branches: [main, feat/navier-persistent-cores]
+    branches: [main, feat/navier-colorways]
     paths:
       - 'src/components/NavierStokes*'
       - 'src/components/navierStokes*'
@@ -55,6 +55,7 @@ jobs:
           node scripts/verify-navier-stokes-shader.mjs
           node scripts/verify-navier-stokes.mjs
           node scripts/verify-navier-fluid.mjs
+          node scripts/verify-navier-colorways.mjs
       - name: Preserve screenshots and invariant results
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

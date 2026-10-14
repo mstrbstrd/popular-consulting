@@ -1,13 +1,15 @@
 import React from "react";
+import NavierStokesColorwaySelector from "./NavierStokesColorwaySelector";
 import { navierCoreScales, normalizeNavierProgress } from "./navierStokesModel";
 import "./NavierStokesControls.css";
 
-const NavierStokesControls = ({ progress, onProgressChange }) => {
+const NavierStokesControls = ({ progress, onProgressChange, colorway = "original", onColorwayChange }) => {
   const value = normalizeNavierProgress(progress);
   const inspecting = value >= 0;
   const scales = navierCoreScales(value);
   return (
     <div className="navier-controls">
+      <NavierStokesColorwaySelector colorway={colorway} onColorwayChange={onColorwayChange} />
       <div className="metabloom-palette-selector" role="group" aria-label="Finite Infinity playback">
         <span className="metabloom-palette-selector-label">Collapse</span>
         <button type="button" className={`metabloom-palette-option${!inspecting ? " is-active" : ""}`}
