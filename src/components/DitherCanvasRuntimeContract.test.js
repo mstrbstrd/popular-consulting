@@ -70,6 +70,8 @@ describe("Dither Field Lab runtime invariants", () => {
     expect(page).toContain('type: "production-theme"');
     expect(page).toContain('<ProductionThemeCanvas');
     expect(page).toContain('theme={study.theme}');
+    expect(page).toContain('latticeAppearance={study.id === "light-theme" && isDark ? "night" : "day"}');
+    expect(page).toContain('activeStudy.id === "light-theme" ? null : activeStudy.theme');
     expect(page).toContain(
       "highFidelityLight={asSecondSurface ? false : highFidelityMobileLight}",
     );
