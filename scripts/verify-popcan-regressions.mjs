@@ -81,16 +81,16 @@ try {
   // The animated scene is visual-only, optional, and independent of artwork.
   // Run the existing paper/gesture regression suite with the scene switched
   // off so its exact opaque-paper assertions remain meaningful.
-  const sceneEnabled = () => evaluate("document.querySelector('[aria-label=\\\"Animated background\\\"]').getAttribute('aria-pressed')==='true'");
+  const sceneEnabled = () => evaluate("document.querySelector('button.pc-background-toggle').getAttribute('aria-pressed')==='true'");
   const sceneVisible = () => evaluate("Boolean(document.querySelector('.immersive-background'))");
   const stageSurface = () => evaluate("getComputedStyle(document.querySelector('#popcan-canvas')).backgroundColor");
   assert.equal(await sceneEnabled(), true, 'Popcan scene is on by default');
   assert.equal(await sceneVisible(), true, 'Popcan reuses the app-shell index scene');
-  assert.match(await stageSurface(), /^rgba\\(/, 'Theme paper lets the animated scene show through');
+  assert.ok((await stageSurface()).startsWith('rgba('), 'Theme paper lets the animated scene show through');
   await evaluate("window.__pcPaintBeforeToggle=document.querySelector('.pc-paint')");
   const unaltered = await evaluate("document.querySelector('.pc-paint').toDataURL()");
   await click('Toggle dark mode');
-  assert.match(await stageSurface(), /^rgba\\(/, 'Dark theme preserves the background wash');
+  assert.ok((await stageSurface()).startsWith('rgba('), 'Dark theme preserves the background wash');
   await click('Toggle dark mode');
   await click('Animated background');
   assert.equal(await sceneEnabled(), false);
