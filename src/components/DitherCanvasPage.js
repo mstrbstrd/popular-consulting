@@ -776,7 +776,10 @@ const DitherFieldLab = () => {
     // reactivate intermediate studies after the selected study appeared.
     // A menu choice is one discrete destination; wheel/touch scroll remains
     // progressive and continues to drive the normal narrative.
-    directNavigationTargetRef.current = index;
+    directNavigationTargetRef.current =
+      index === displayStudyIndexRef.current && transitionPhase === "idle"
+        ? null
+        : index;
     requestStudyIndex(index);
     window.cancelAnimationFrame(scrollFrameRef.current);
     scrollFrameRef.current = 0;
