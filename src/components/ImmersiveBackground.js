@@ -40,7 +40,9 @@ export default function ImmersiveBackground({ activeSection = 0, pathname = wind
   const { isDark } = useThemeMode();
   // Popcan is an editor, not an interactive hero. Keep both shared light
   // renderers autonomous even when the index scene survives navigation.
-  const pointerReactive = routeMetadataFor(pathname)?.path !== '/popcan';
+  const isPopcan = routeMetadataFor(pathname)?.path === '/popcan';
+  const pointerReactive = !isPopcan;
+  const popcanNightLattice = isDark && isPopcan;
   const previousPhase = React.useRef(transitionPhase);
   useEffect(() => {
     // Child renderers own these existing reveal hooks. Resume from the current
@@ -100,6 +102,7 @@ export default function ImmersiveBackground({ activeSection = 0, pathname = wind
         className="fixed-background immersive-background"
         data-live-visual={live ? "expected" : "fallback"}
         data-mobile-light-runtime={mobileLightRuntimeState}
+        data-scene-variant={popcanNightLattice ? "radiant-lattice-night" : "canonical"}
         data-active-section={activeSection}
         data-transition-phase={transitionPhase}
         aria-hidden="true"
@@ -151,7 +154,18 @@ export default function ImmersiveBackground({ activeSection = 0, pathname = wind
           </div>
         )}
 
-        {live && isDark && <BlackHoleBackground isDark activeSection={activeSection} pathname={pathname} exiting={transitionPhase === 'covering' || transitionPhase === 'covered'} />}
+        {live && popcanNightLattice && (
+          <div className="background-popcan-lattice-live" data-popcan-night-lattice="true">
+            <ProductionThemeCanvas
+              theme="light"
+              latticeAppearance="night"
+              activeSection={0}
+              runtimeScope="popcan-night-lattice"
+              pointerReactive={false}
+            />
+          </div>
+        )}
+        {live && isDark && !isPopcan && <BlackHoleBackground isDark activeSection={activeSection} pathname={pathname} exiting={transitionPhase === 'covering' || transitionPhase === 'covered'} />
 
         <div className="glass-overlay">
           <div className="glass-gradient" />
@@ -163,6 +177,7 @@ export default function ImmersiveBackground({ activeSection = 0, pathname = wind
         .background-css-fallback,
         .background-dither-live,
         .background-mobile-light-live,
+        .background-popcan-lattice-live,
         .glass-overlay,
         .glass-gradient {
           position: absolute;
@@ -229,8 +244,19 @@ export default function ImmersiveBackground({ activeSection = 0, pathname = wind
         }
 
         .background-dither-live,
-        .background-mobile-light-live {
+        .background-mobile-light-live,
+        .background-popcan-lattice-live {
           pointer-events: none;
+        }
+
+        /* CSS-only night lattice remains distinct in safe graphics mode. */
+        .fixed-background[data-scene-variant="radiant-lattice-night"] .background-css-fallback {
+          background:
+            radial-gradient(ellipse at 30% 28%, rgba(47,161,179,.19), transparent 47%),
+            radial-gradient(ellipse at 74% 67%, rgba(146,95,217,.18), transparent 44%),
+            repeating-linear-gradient(0deg, transparent 0 23px, rgba(133,164,236,.065) 23px 24px),
+            repeating-linear-gradient(90deg, transparent 0 23px, rgba(133,164,236,.065) 23px 24px),
+            #080e1e;
         }
 
         .glass-overlay {
