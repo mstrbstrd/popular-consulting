@@ -393,6 +393,7 @@ describe("DitherCanvasPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /Radiant Lattice/ }));
     flushScrollFrame();
     finishStudyTransition();
+    finishStudyTransition();
     expect(screen.getByRole("heading", { name: "Radiant Lattice" })).toBeInTheDocument();
     expect(screen.getByRole("main")).toHaveClass("dither-transition-idle");
 
