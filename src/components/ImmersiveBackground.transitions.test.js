@@ -6,7 +6,12 @@ import { ThemeCtx } from '../contexts/ThemeContext';
 jest.mock('../utils/deviceTier', () => ({ hasHardwareWebGL: true, isMobileTier: false }));
 jest.mock('../utils/graphicsPolicy', () => ({ shouldAttemptWebGL: true }));
 jest.mock('./ManagedDitherBackground', () => () => <canvas />);
-jest.mock('./ProductionThemeCanvas', () => () => <canvas />);
+jest.mock('./ProductionThemeCanvas', () => ({ theme, latticeAppearance, pointerReactive, runtimeScope }) => (
+  <canvas data-testid="lattice-field" data-theme-pipeline={theme}
+    data-lattice-appearance={latticeAppearance || "day"}
+    data-pointer-reactive={String(pointerReactive)}
+    data-runtime-scope={runtimeScope} />
+));
 jest.mock('./BlackHoleBackground', () => ({ exiting }) => <canvas data-testid="dark-field" data-exiting={String(exiting)} />);
 const originalMatchMedia = window.matchMedia;
 let reduced;
@@ -67,6 +72,31 @@ test('holds both native exits across a covered load instead of restarting them',
   expect(getByTestId('dark-field')).toHaveAttribute('data-exiting', 'true');
   rerender(<ThemeCtx.Provider value={{ isDark: true }}><ImmersiveBackground transitionPhase="revealing" /></ThemeCtx.Provider>);
   expect(getByTestId('dark-field')).toHaveAttribute('data-exiting', 'false');
+});
+
+test('routes dark Popcan to nocturnal Radiant Lattice rather than the black hole', () => {
+  const theme = { isDark: true, toggleTheme: () => {} };
+  const { rerender, queryByTestId, getByTestId, container } = render(
+    <ThemeCtx.Provider value={theme}>
+      <ImmersiveBackground pathname="/popcan" />
+    </ThemeCtx.Provider>,
+  );
+  const lattice = getByTestId('lattice-field');
+  expect(lattice).toHaveAttribute('data-theme-pipeline', 'light');
+  expect(lattice).toHaveAttribute('data-lattice-appearance', 'night');
+  expect(lattice).toHaveAttribute('data-pointer-reactive', 'false');
+  expect(lattice).toHaveAttribute('data-runtime-scope', 'popcan-night-lattice');
+  expect(queryByTestId('dark-field')).toBeNull();
+  expect(container.querySelector('.fixed-background')).toHaveAttribute('data-scene-variant', 'radiant-lattice-night');
+
+  rerender(
+    <ThemeCtx.Provider value={theme}>
+      <ImmersiveBackground pathname="/orb" />
+    </ThemeCtx.Provider>,
+  );
+  expect(queryByTestId('lattice-field')).toBeNull();
+  expect(getByTestId('dark-field')).toBeInTheDocument();
+  expect(container.querySelector('.fixed-background')).toHaveAttribute('data-scene-variant', 'canonical');
 });
 
 test('never shrinks the black-hole canvas or fallback during route exits', () => {
