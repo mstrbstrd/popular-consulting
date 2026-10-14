@@ -43,7 +43,7 @@ test("six fixed, immutable palettes contain bounded GPU and authored CSS data", 
 test("removing only color overrides exactly recovers the approved original shader", () => {
   const source = fs.readFileSync(path.join(__dirname, "NavierStokesShader.js"), "utf8");
   const original = source.replace("uniform int u_navierColorway;\nuniform vec3 u_navierColors[8];\n", "")
-    .replace(/\nvec3 navierColor\(int index, vec3 original\) \{\n  return u_navierColorway > 0 \? u_navierColors\[index\] : original;\n\}\n/, "")
+    .replace("\nvec3 navierColor(int index, vec3 original) {\n  return u_navierColorway > 0 ? u_navierColors[index] : original;\n}\n", "")
     .replace(/navierColor\([0-7], (vec3\([^)]*\))\)/g, "$1");
   const bytes = Buffer.from(original);
   const sha = crypto.createHash("sha1").update(`blob ${bytes.length}\0`).update(bytes).digest("hex");
