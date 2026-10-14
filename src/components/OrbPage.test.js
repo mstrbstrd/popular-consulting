@@ -288,6 +288,7 @@ describe("OrbPage", () => {
     const chatCss = fs.readFileSync(path.join(__dirname, "OrbPageFinalPolish.css"), "utf8");
     expect(chatCss).toMatch(/@media \(max-width: 768px\) \{[\s\S]*?\.orb-page \.metabloom-chat \{[\s\S]*?position: absolute;/);
     expect(chatCss).toMatch(/\.orb-page \.metabloom-chat \{[\s\S]*?top: 0;[\s\S]*?height: 100%;/);
+    expect(chatCss).toContain("height: var(--orb-viewport-height, 100dvh);");
   });
 
   test("keeps route controls at the shared 44px minimum target size", () => {

@@ -473,7 +473,9 @@
   }
 
   .orb-page .orb-page__content {
-    height: 100%;
+    /* The immediate route wrapper has no assigned height. Resolve directly
+       against OrbSection's measured visualViewport contract, not its parent. */
+    height: var(--orb-viewport-height, 100dvh);
   }
 
   .orb-page .metabloom-chat {
