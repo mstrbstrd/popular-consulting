@@ -57,6 +57,18 @@
   isolation: isolate;
 }
 
+/* Idle is a terminal visibility state, not another opacity animation. WebKit
+   can retain the loading transition at opacity zero over a live GPU canvas
+   even after the route is idle. Cancel that transition once reveal is done;
+   the existing covering/revealing phases still own the entrance and exit. */
+.app-outlet[data-phase="idle"]:is(
+  [data-route="/orb"], [data-route="/orb/"],
+  [data-route="/orb/index.html"], [data-route="/orb/index.html/"]
+) {
+  opacity: 1;
+  transition: none;
+}
+
 /* Reverse Home's entry depths while the light field decrystallizes. Fixed
    navigation stays in its own viewport layer throughout the handoff. */
 [data-theme="light"] .app-outlet[data-phase="covering"] :is(.home-main, .home-tool, .home-footer) {
