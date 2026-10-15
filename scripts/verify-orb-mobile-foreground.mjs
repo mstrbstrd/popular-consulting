@@ -44,6 +44,12 @@ try {
           await page.goto(`${origin}/orb?graphics=webgl`, { waitUntil: 'domcontentloaded' });
           await page.locator('.orb-page').waitFor({ state: 'attached', timeout: 45000 });
           await page.locator('.app-outlet[data-phase="idle"]').waitFor({ state: 'attached', timeout: 45000 });
+          // A DOM state alone does not prove that WebKit painted the foreground.
+          for (let i = 0; i < 60; i++) {
+            if (await page.evaluate(() => Number(getComputedStyle(document.querySelector('.app-outlet')).opacity) >= 0.99)) break;
+            await page.waitForTimeout(50);
+          }
+          await page.locator('.creatoros-field-shell[data-field-ready="true"]').waitFor({ state: 'attached', timeout: 30000 });
           const geometry = await page.evaluate(() => {
             const rect = element => {
               if (!element) return null;
@@ -70,6 +76,7 @@ try {
           fs.writeFileSync(path.join(output, `${name}.html`), await page.content());
           assert.equal(geometry.theme, theme);
           assert.ok(geometry.outlet.height >= 600, `${name}: foreground compositor has no viewport-sized layout box`);
+          assert.ok(Number(geometry.outlet.opacity) >= 0.99, `${name}: foreground is still transparent`);
           assert.ok(geometry.page.height >= 600, `${name}: Orb page collapsed`);
           assert.ok(geometry.avatar.width > 100 && geometry.avatar.height > 100, `${name}: avatar collapsed`);
           assert.equal(geometry.hitComposer, true, `${name}: background or loading layer covers composer`);

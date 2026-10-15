@@ -33,11 +33,24 @@
 [data-theme="light"] .app-outlet[data-phase="covering"],
 [data-theme="dark"] .app-outlet[data-phase="covering"] { transition: opacity 650ms cubic-bezier(.55, 0, 1, .45); }
 
+/* The fixed Orb page contributes no height to normal flow. Its opacity and
+   isolation owner still needs a real viewport-sized layout/compositing box.
+   Do not add a transform: OrbSection owns visualViewport/keyboard offsets. */
+.app-outlet[data-route="/orb"],
+.app-outlet[data-route="/orb/"],
+.app-outlet[data-route="/orb/index.html"],
+.app-outlet[data-route="/orb/index.html/"] {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
 /* WebKit needs a distinct foreground compositor for Orb's WebGL avatar and
    Popcan's Canvas 2D, both above the shared index WebGL. No transforms here:
    viewport-fixed menus and pointer-to-canvas coordinates must stay unchanged. */
 .app-outlet[data-route="/orb"],
+.app-outlet[data-route="/orb/"],
 .app-outlet[data-route="/orb/index.html"],
+.app-outlet[data-route="/orb/index.html/"],
 .app-outlet[data-route="/popcan"],
 .app-outlet[data-route="/popcan/index.html"] {
   z-index: 4;
