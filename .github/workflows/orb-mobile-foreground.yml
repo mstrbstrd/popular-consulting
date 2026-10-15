@@ -1,0 +1,41 @@
+name: Orb mobile foreground
+on:
+  push:
+    branches: [main, fix/orb-mobile-foreground]
+    paths:
+      - 'src/components/Orb*'
+      - 'src/components/MetabloomAvatar*'
+      - 'src/components/CreatorOSFieldCanvas*'
+      - 'src/components/ApplicationShell*'
+      - 'src/SiteRouter.js'
+      - 'scripts/verify-orb-mobile-foreground.mjs'
+      - '.github/workflows/orb-mobile-foreground.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: orb-mobile-foreground-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+        env:
+          CI: true
+      - run: npm install --no-save --package-lock=false playwright@1.51.1
+      - run: npx playwright install --with-deps chromium webkit
+      - run: node scripts/verify-orb-mobile-foreground.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: orb-mobile-foreground-evidence
+          path: orb-mobile-evidence
+          retention-days: 7
