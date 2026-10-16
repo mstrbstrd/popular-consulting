@@ -6,15 +6,7 @@ const { METABLOOM_PROTOCOL_VERSION, METABLOOM_CHAT_PROTOCOL_VERSION } = require(
 const JSON_STRING = '"(?:[^"\\\\\\u0000-\\u001f]|\\\\(?:["\\\\/bfnrt]|u[0-9a-fA-F]{4}))*"';
 const SEGMENT = new RegExp(`^\\{\\s*"emote"\\s*:\\s*${JSON_STRING}\\s*,\\s*"response"\\s*:\\s*${JSON_STRING}\\s*\\}$`);
 const PREFIX = /^\s*\{\s*"version"\s*:\s*"1\.0\.0"\s*,\s*"segments"\s*:\s*\[/;
-const TEXT_SEGMENT = new RegExp(`^\\{\\s*"response"\\s*:\\s*${JSON_STRING}\\s*\\}const { parseMetabloomEmoteEnvelope, parseMetabloomChatEnvelope } = require("../src/components/metabloomEmoteProtocol");
-const { METABLOOM_PROTOCOL_VERSION, METABLOOM_CHAT_PROTOCOL_VERSION } = require("../src/components/metabloomEmoteLibrary");
-
-// A deliberately small incremental grammar for the ordered structured-output schema.
-// Only complete, validated segment objects escape this boundary. Never repair JSON.
-const JSON_STRING = '"(?:[^"\\\\\\u0000-\\u001f]|\\\\(?:["\\\\/bfnrt]|u[0-9a-fA-F]{4}))*"';
-const SEGMENT = new RegExp(`^\\{\\s*"emote"\\s*:\\s*${JSON_STRING}\\s*,\\s*"response"\\s*:\\s*${JSON_STRING}\\s*\\}$`);
-const PREFIX = /^\s*\{\s*"version"\s*:\s*"1\.0\.0"\s*,\s*"segments"\s*:\s*\[/;
-);
+const TEXT_SEGMENT = new RegExp(`^\\{\\s*"response"\\s*:\\s*${JSON_STRING}\\s*\\}$`);
 const CHAT_PREFIX = /^\s*\{\s*"version"\s*:\s*"2\.0\.0"\s*,\s*"segments"\s*:\s*\[/;
 
 const createEnvelopeReader = ({ allowMultiple = false, onSegment, textOnly = false }) => {
