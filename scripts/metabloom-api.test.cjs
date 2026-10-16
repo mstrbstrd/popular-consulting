@@ -8,7 +8,7 @@ const originalFetch = global.fetch;
 const env = { ...process.env };
 afterEach(() => {
   global.fetch = originalFetch;
-  for (const key of ["OPENAI_API_KEY", "METABLOOM_MODEL", "TYPESAFE_API_KEY", "JEV_MODEL", "VERCEL", "VERCEL_ENV", "NODE_ENV", "UPSTASH_REDIS_REST_URL", "UPSTASH_REDIS_REST_TOKEN"]) {
+  for (const key of ["OPENAI_API_KEY", "METABLOOM_OPENAI_MODEL", "METABLOOM_MODEL", "TYPESAFE_API_KEY", "JEV_MODEL", "VERCEL", "VERCEL_ENV", "NODE_ENV", "UPSTASH_REDIS_REST_URL", "UPSTASH_REDIS_REST_TOKEN"]) {
     if (env[key] === undefined) delete process.env[key]; else process.env[key] = env[key];
   }
   handler._internals.localBuckets.clear();
@@ -97,6 +97,27 @@ test("live endpoint streams response-only paragraphs with two neutral fallbacks 
   assert.deepEqual(d.finish().value, textEnvelope("A careful thought."));
   assert.deepEqual(phases, [{ phase: "input", emote: "neutral" }, { phase: "response", emote: "neutral" }]);
   assert.equal(res.body.includes("test-only"), false);
+});
+
+test("provider-specific OpenAI model config selects the requested model and ignores the legacy name", async () => {
+  local();
+  process.env.METABLOOM_MODEL = "legacy-model-is-ignored";
+  let sent;
+  global.fetch = async (url, options) => {
+    assert.equal(new URL(url).host, "api.openai.com");
+    sent = JSON.parse(options.body);
+    return reply(textEnvelope("A careful thought."));
+  };
+  process.env.METABLOOM_OPENAI_MODEL = "gpt-5-nano";
+  const configuredResponse = response();
+  await handler(request(), configuredResponse);
+  assert.equal(configuredResponse.statusCode, 200);
+  assert.equal(sent.model, "gpt-5-nano");
+  delete process.env.METABLOOM_OPENAI_MODEL;
+  const fallbackResponse = response();
+  await handler(request(), fallbackResponse);
+  assert.equal(fallbackResponse.statusCode, 200);
+  assert.equal(sent.model, "gpt-5-mini");
 });
 
 test("Jev runs twice, selecting different emotes before and after the validated chat text", async () => {

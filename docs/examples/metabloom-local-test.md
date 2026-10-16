@@ -24,6 +24,6 @@ The smoke client makes one billable request when configured. CI only uses contro
 
 ## Production configuration
 
-Set server-only `OPENAI_API_KEY`, optionally `METABLOOM_MODEL`, and `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`, then redeploy. The shared quota limits public requests to 12 per client per minute and 300 per project per rolling 24-hour window. Local loopback development supports key-only testing. Never use `REACT_APP_` for a secret.
+Set server-only `OPENAI_API_KEY`, optionally `METABLOOM_OPENAI_MODEL`, and `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`, then redeploy. The shared quota limits public requests to 12 per client per minute and 300 per project per rolling 24-hour window. Local loopback development supports key-only testing. Never use `REACT_APP_` for a secret.
 
 `GET /api/metabloom` is a free metadata check. `configured: true` means the required variables exist, not that a paid provider request has succeeded. Missing/unconfigured service may use a clearly labelled local preview; provider failures, malformed streams, refusal, and quota errors are not disguised as successful demos.

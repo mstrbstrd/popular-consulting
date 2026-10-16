@@ -159,7 +159,7 @@ const handler = async (request, response) => {
       method: "POST", redirect: "error", signal: controller.signal,
       headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: process.env.METABLOOM_MODEL || "gpt-5-mini",
+        model: process.env.METABLOOM_OPENAI_MODEL || "gpt-5-mini",
         instructions: buildMetabloomChatSystemPrompt({ allowMultiple: body.allowMultiple }),
         input: [...body.history, { role: "user", content: body.message }],
         max_output_tokens: 2400, store: false, stream: true,
