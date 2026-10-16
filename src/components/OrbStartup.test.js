@@ -1,6 +1,7 @@
 import React from 'react';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import SiteRouter from '../SiteRouter';
+import { AuthContext } from '../contexts/AuthContext';
 
 let mockReady;
 jest.mock('./NavMenu', () => () => null);
@@ -11,9 +12,11 @@ jest.mock('./CreatorOSFieldCanvas', () => function MockField({ onReady }) {
 });
 afterEach(() => { cleanup(); mockReady = undefined; });
 
-test('direct Orb startup waits for its own renderer rather than the route module mounting', async () => {
+test('authenticated Orb startup waits for its own renderer rather than the route module mounting', async () => {
   const onReady = jest.fn();
-  render(<SiteRouter pathname="/orb" onReady={onReady} />);
+  render(<AuthContext.Provider value={{ status: 'authenticated', user: { id: 'a'.repeat(64) } }}>
+    <SiteRouter pathname="/orb" onReady={onReady} />
+  </AuthContext.Provider>);
   const field = await screen.findByTestId('startup-field');
   expect(onReady).not.toHaveBeenCalled();
   expect(typeof mockReady).toBe('function');

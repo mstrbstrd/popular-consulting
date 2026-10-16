@@ -176,6 +176,7 @@ test('store outage does not authorize a page or report successful logout', async
 });
 test('all private URL aliases are gated and public routes remain independent of auth configuration', async () => {
   for (const path of ['/invoice-generator', '/invoice-generator/', '/invoice-generator/index.html', '/invoice-generator/other',
+    '/orb', '/orb/', '/orb/index.html', '/%6frb',
     '/home', '/home/', '/home/index.html', '/home/other', '/%68ome', '/%2568ome/index.html', '/static%2f..%2fhome/index.html', '/HOME', '/home;other',
     '/_private/invoice/app.js', '/%69nvoice-generator/index.html', '/%5Fprivate/invoice/app.js', '/%255Fprivate/invoice/app.js', '/static/..%2f_private/invoice/app.js', '//_private/invoice/app.js', '/static%2f..%2finvoice-generator/index.html']) {
     assert.equal(isPrivatePath(path), true, path);
@@ -183,7 +184,7 @@ test('all private URL aliases are gated and public routes remain independent of 
     assert.ok([401, 303].includes(result.status), path);
     assert.match(result.headers.get('Cache-Control'), /no-store/);
   }
-  for (const path of ['/', '/work', '/engineering', '/login', '/popcan', '/dither-canvas', '/orb', '/homepage', '/static/js/public.js']) assert.equal(await protectInvoiceRequest(request(path), { env: {} }), null);
+  for (const path of ['/', '/work', '/engineering', '/login', '/popcan', '/dither-canvas', '/homepage', '/static/js/public.js']) assert.equal(await protectInvoiceRequest(request(path), { env: {} }), null);
 });
 test('home GET/HEAD requests require a live session, canonical origin and available store', async () => {
   const f = fixture(); const done = await f.finish(await f.begin()); const cookies = cookieValue(done, SESSION_COOKIE);

@@ -53,7 +53,7 @@ describe('one mobile navigation menu', () => {
     expect(menu.queryByRole('link', { name: 'Home', exact: true })).not.toBeInTheDocument();
     expect(menu.queryByRole('link', { name: 'Invoice Generator', exact: true })).not.toBeInTheDocument();
     expect(menu.getByRole('link', { name: 'Sign in' })).toBeInTheDocument();
-    expect(menu.getByRole('link', { name: 'Orb', exact: true })).toBeInTheDocument();
+    expect(menu.queryByRole('link', { name: 'Orb', exact: true })).not.toBeInTheDocument();
   });
 
   test('Escape and a desktop resize release the page and preserve desktop navigation', () => {
