@@ -170,7 +170,7 @@ const createMetabloomSegmentStreamDecoder = ({
   };
   const drain = () => {
     let newline;
-    while ((newline = buffer.indexOf("\\n")) >= 0) {
+    while ((newline = buffer.indexOf("\n")) >= 0) {
       const line = buffer.slice(0, newline);
       buffer = buffer.slice(newline + 1);
       if (!consume(line)) return false;
