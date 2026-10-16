@@ -36,9 +36,10 @@ const parseBody = (request) => {
     const text = typeof request.body === "string" ? request.body : JSON.stringify(request.body);
     if (typeof text !== "string" || Buffer.byteLength(text, "utf8") > MAX_BODY_BYTES) return null;
     const value = JSON.parse(text);
-    if (!exactKeys(value, ["message"], ["requestId", "history", "allowMultiple"])) return null;
+    if (!exactKeys(value, ["message"], ["requestId", "history", "allowMultiple", "streamText"])) return null;
     if (typeof value.message !== "string" || !value.message.trim() || value.message.length > 1600) return null;
     if (value.allowMultiple !== undefined && typeof value.allowMultiple !== "boolean") return null;
+    if (value.streamText !== undefined && typeof value.streamText !== "boolean") return null;
     if (value.requestId !== undefined && (typeof value.requestId !== "string" || !/^[a-zA-Z0-9-]{1,160}$/.test(value.requestId))) return null;
     const history = value.history === undefined ? [] : value.history;
     if (!Array.isArray(history) || history.length > 12) return null;
@@ -182,6 +183,11 @@ const handler = async (request, response) => {
     const finalReply = await streamMetabloomProvider(upstream, {
       textOnly: true, allowMultiple: body.allowMultiple,
       signal: controller.signal,
+      // Older cached clients keep receiving complete segments until they opt in.
+      onTextDelta: body.streamText === true ? async (delta, index) => {
+        await initialReactionPromise;
+        await sendStreamEvent({ type: "text_delta", index, delta });
+      } : undefined,
       onSegment: async (segment, index) => {
         await initialReactionPromise;
         await sendStreamEvent({ type: "segment", index, ...segment });

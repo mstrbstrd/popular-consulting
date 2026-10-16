@@ -11,17 +11,27 @@ validation. The reply stays a single assistant message regardless of segment cou
 
 ```jsonl
 {"type":"emote","phase":"input","emote":"curious"}
+{"type":"text_delta","index":0,"delta":"Let me examine"}
+{"type":"text_delta","index":0,"delta":" the evidence."}
 {"type":"segment","index":0,"response":"Let me examine the evidence."}
 {"type":"text_complete"}
 {"type":"emote","phase":"response","emote":"reflective"}
 {"type":"done","version":"2.0.0"}
 ```
 
-Live response segments contain **text only**. The browser dispatches the input
+Live response segments contain **text only**. The current browser opts into
+incremental text with `streamText: true` in the request body. Decoded response
+text appears as provider deltas arrive, before its paragraph closes. The
+following validated `segment` commits that same paragraph without appending it
+again. Its normalized text must exactly match the concatenated visible deltas.
+Older clients that omit the capability keep receiving complete segments.
+
+The browser dispatches the input
 reaction immediately, then dispatches the final reaction **only after verifying
 the terminal `done` event**. This prevents interrupted streams from expressing a
-premature conclusion. The user sees the same validated paragraph streaming and
-one chat bubble. No second rendering layer is mounted. The old per-paragraph
+premature conclusion. The user sees one growing chat bubble. Partial text remains
+provisional until the response completes. An error or cancellation preserves the
+visible prefix with an incomplete status and excludes it from history. The old per-paragraph
 reactions are not selected by the chat model anymore.
 
 Jev receives a constrained `type: "choice"` question with the same 14 primitive
@@ -45,7 +55,9 @@ Legacy emote-response adapters may choose from fourteen primitive emotes and fou
 
 ## Streaming path
 
-`api/metabloom.js` requests `stream: true` from the Responses API. Its live output uses protocol 2.0.0. The version 1 example below describes the intentionally retained legacy parser. `server/metabloomProviderStream.js` incrementally reads provider SSE text deltas, recognizing the ordered JSON schema. A complete segment must pass the exact emote/text schema and aggregate limits before it is emitted as NDJSON. Incomplete JSON never reaches the UI, and arbitrary JSON is never repaired. The parser handles chunk boundaries, escaped strings, nested-looking text, and UTF-8 splits.
+`api/metabloom.js` requests `stream: true` from the Responses API. Its live output uses protocol 2.0.0. `server/metabloomProviderStream.js` reads provider SSE text deltas with an incremental grammar for the ordered JSON schema. For clients requesting incremental text, it emits only decoded characters from a `response` string as `text_delta` records. Keys, delimiters, incomplete escapes, and incomplete surrogate pairs stay inside the parser. Leading whitespace and potentially trailing whitespace are withheld so the visible text exactly matches the normalized final paragraph. Text and envelope limits apply before additional previews are published. Arbitrary JSON is never repaired.
+
+Each complete paragraph must still pass the exact segment schema and match its visible preview before its `segment` commit is emitted. The full provider envelope must validate before `text_complete` or the final Jev request. The version 1 example below describes the retained legacy path, which emits complete emote/text segments:
 
 ```json
 {"type":"segment","index":0,"emote":"whimsy","response":"A playful opening."}
@@ -53,9 +65,9 @@ Legacy emote-response adapters may choose from fourteen primitive emotes and fou
 {"type":"done","version":"1.0.0"}
 ```
 
-The browser's HTTP reader invokes `onSegment` immediately when each record validates, before network completion. `metabloomReplySession.js` accumulates those paragraphs into one message. The matching emote or chain is queued once at arrival; the reaction player lets each beat finish before starting the next. Text never waits for animation. There is no second assistant bubble or replay at completion. A final envelope must match the already visible prefix exactly.
+The browser's HTTP reader invokes `onTextDelta(delta, index)` for progressive v2 text and `onSegment(segment, index)` for validated paragraph commits. `metabloomReplySession.js` keeps one provisional paragraph at its original index and replaces it on commit, preserving one message and one DOM node. Legacy segment emotes are queued once at arrival; the live v2 Jev reactions remain separate. A final envelope must match the visible text exactly. Streaming articles use `aria-busy` so the live region can announce the completed or interrupted reply coherently.
 
-This is **validated segment streaming**, not character-by-character display: a paragraph arrives when its complete emote/response object is available. The server emits it before later segments and the final envelope finish. Provider errors after a visible prefix produce an error record without `done`; the partial message remains explicitly incomplete. It is not relabelled as a successful demo.
+There is no client-side typing delay: live text updates when provider chunks arrive. Provider errors after a visible prefix produce an error record without `done`; the partial message remains explicitly incomplete and cannot fall back to a successful demo. NDJSON transport is bounded at 320,000 bytes to accommodate framing for up to 4,800 single-character deltas. Individual decoder records and its pending buffer stay bounded at 24,000 characters; semantic limits remain 1,600 characters per paragraph and 4,800 total.
 
 ## Local demonstration and integration
 
@@ -72,12 +84,12 @@ stream.push('{"type":"done","version":"1.0.0"}\n');
 stream.finish();
 ```
 
-`push` accepts arbitrarily divided text chunks. `finish` requires terminal completion. `cancel` closes this response. The existing request adapter can instead call the provided `onSegment(segment, index)` callback as data arrives and resolve its promise with the matching final envelope. Legacy complete envelopes remain compatible, but cannot retroactively simulate streaming.
+`push` accepts arbitrarily divided text chunks. `finish` requires terminal completion. `cancel` closes this response. Request adapters can call `onTextDelta(delta, index)` for progressive v2 text, followed by `onSegment(segment, index)` to commit the matching paragraph, then resolve their promise with the matching final envelope. Legacy complete envelopes and v1 demos remain compatible.
 
 ## Invariants and verification
 
 New input, stop, reset, deactivation, and unmount abort obsolete network work and reject stale chunks. Partial responses are marked incomplete and excluded from future history. Combined assistant history allows 4,806 characters including paragraph separators, within the existing 16,000-character history and 24,000-byte body budgets. Unknown emotes, extra fields, duplicate provider keys, wrong ordering, excess segments, oversized data, missing completion, inconsistent final text, and provider refusal fail closed.
 
-Origin validation, shared atomic client/project quotas, server-only credentials, bounded body readers, backpressure, and lifetime limits remain enforced. CI uses mocked provider streams without paid requests. Node tests hold the upstream stream open to prove the first segment is actually emitted early. React tests pin one DOM node, one history entry, exact emote counts, cancellation, and partial failure. The browser workflow exercises the actual demos in desktop, mobile dark mode, and reduced motion; on main it also checks the production domain.
+Origin validation, shared atomic client/project quotas, server-only credentials, bounded body readers, backpressure, and lifetime limits remain enforced. Tests use mocked provider streams without paid requests. Node tests hold the upstream open inside a response string to prove text arrives before paragraph and provider completion. Parser tests split JSON escapes and Unicode, enforce limits, and reject mismatched commits. React tests pin one DOM node, one history entry, cancellation, and incomplete prefix handling. The existing browser workflow also exercises the legacy demos in desktop, mobile dark mode, and reduced motion.
 
 Primary references: OpenAI Responses streaming (`https://developers.openai.com/api/docs/guides/streaming-responses`), Structured Outputs (`https://developers.openai.com/api/docs/guides/structured-outputs`), Vercel Functions streaming (`https://vercel.com/docs/functions/streaming-functions`).

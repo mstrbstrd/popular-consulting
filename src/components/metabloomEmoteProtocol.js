@@ -9,6 +9,8 @@ const {
 } = require("./metabloomEmoteLibrary");
 
 const MAX_SERIALIZED_CHARS = 24000;
+// Allow bounded NDJSON framing even when all 4,800 text characters arrive singly.
+const MAX_METABLOOM_STREAM_BYTES = 320000;
 const isPlainObject = (value) => {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const prototype = Object.getPrototypeOf(value);
@@ -79,14 +81,15 @@ const cloneChatSegment = (segment) => segment.emote === undefined
   ? { response: segment.response } : cloneSegment(segment);
 
 // Protocol v1 remains supported for previews and external adapters. Live model
-// responses use v2: exactly one input emote, text segments, a verified text
-// completion, and one final emote before the terminal done record.
+// responses use v2: one input emote, optional provisional text deltas committed
+// by exact segments, verified text completion, then a final emote and done.
 const createMetabloomSegmentStreamDecoder = ({
   allowMultiple = true,
   maxBufferChars = MAX_SERIALIZED_CHARS,
   onDone,
   onError,
   onSegment,
+  onTextDelta,
   onReaction,
 } = {}) => {
   const limit = Number.isInteger(maxBufferChars) && maxBufferChars > 0
@@ -100,6 +103,7 @@ const createMetabloomSegmentStreamDecoder = ({
   let inputEmote = null;
   let responseEmote = null;
   let textComplete = false;
+  let partialResponse = null;
   const segments = [];
   const fail = (message) => {
     if (!errorMessage) {
@@ -114,6 +118,19 @@ const createMetabloomSegmentStreamDecoder = ({
     if (completed) return fail("Metabloom stream continued after completion.");
     let event;
     try { event = JSON.parse(line); } catch { return fail("Malformed stream JSON."); }
+    if (event?.type === "text_delta") {
+      if (!exactKeys(event, ["type", "index", "delta"]) || version !== METABLOOM_CHAT_PROTOCOL_VERSION
+        || textComplete || event.index !== segments.length || typeof event.delta !== "string" || !event.delta.length
+        || segments.length >= (allowMultiple ? MAX_METABLOOM_EMOTE_SEGMENTS : 1)) {
+        return fail("Invalid or out-of-order text delta.");
+      }
+      const next = (partialResponse || "") + event.delta;
+      if (next.length > MAX_METABLOOM_EMOTE_RESPONSE_CHARS
+        || totalResponseChars + next.length > MAX_METABLOOM_EMOTE_TOTAL_CHARS) return fail("Stream text limit exceeded.");
+      partialResponse = next;
+      onTextDelta?.(event.delta, event.index);
+      return true;
+    }
     if (event?.type === "emote") {
       if (!exactKeys(event, ["type", "phase", "emote"]) || !resolveMetabloomEmote(event.emote)) return fail("Invalid Jev emote.");
       if (event.phase === "input" && version === null && segments.length === 0) {
@@ -131,7 +148,7 @@ const createMetabloomSegmentStreamDecoder = ({
     }
     if (event?.type === "text_complete") {
       if (!exactKeys(event, ["type"]) || version !== METABLOOM_CHAT_PROTOCOL_VERSION
-        || !segments.length || textComplete) return fail("Invalid text completion.");
+        || !segments.length || partialResponse !== null || textComplete) return fail("Invalid text completion.");
       textComplete = true;
       return true;
     }
@@ -162,8 +179,12 @@ const createMetabloomSegmentStreamDecoder = ({
     if (!segment || segments.length >= (allowMultiple ? MAX_METABLOOM_EMOTE_SEGMENTS : 1)) {
       return fail("Invalid stream segment or segment limit exceeded.");
     }
+    if (partialResponse !== null && segment.response !== partialResponse) {
+      return fail("Completed segment did not match the streamed text.");
+    }
     totalResponseChars += event.response.length;
     if (totalResponseChars > MAX_METABLOOM_EMOTE_TOTAL_CHARS) return fail("Stream text limit exceeded.");
+    partialResponse = null;
     segments.push(segment);
     onSegment?.(cloneChatSegment(segment), segments.length - 1);
     return true;
@@ -171,18 +192,19 @@ const createMetabloomSegmentStreamDecoder = ({
   const drain = () => {
     let newline;
     while ((newline = buffer.indexOf("\n")) >= 0) {
+      if (newline > limit) return fail("Stream record limit exceeded.");
       const line = buffer.slice(0, newline);
       buffer = buffer.slice(newline + 1);
       if (!consume(line)) return false;
     }
-    return true;
+    return buffer.length <= limit || fail("Stream buffer limit exceeded.");
   };
   return Object.freeze({
     push(chunk) {
       if (errorMessage) return false;
       if (typeof chunk !== "string") return fail("Stream chunks must be text.");
       receivedChars += chunk.length;
-      if (receivedChars > limit) return fail("Stream buffer limit exceeded.");
+      if (receivedChars > MAX_METABLOOM_STREAM_BYTES) return fail("Stream size limit exceeded.");
       buffer += chunk;
       return drain();
     },
@@ -200,4 +222,4 @@ const createMetabloomSegmentStreamDecoder = ({
   });
 };
 
-module.exports = { parseMetabloomEmoteEnvelope, parseMetabloomChatEnvelope, createMetabloomSegmentStreamDecoder };
+module.exports = { MAX_METABLOOM_STREAM_BYTES, parseMetabloomEmoteEnvelope, parseMetabloomChatEnvelope, createMetabloomSegmentStreamDecoder };

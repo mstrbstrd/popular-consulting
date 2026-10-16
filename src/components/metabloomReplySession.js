@@ -1,17 +1,36 @@
 const { parseMetabloomChatEnvelope } = require("./metabloomEmoteProtocol");
-const { METABLOOM_PROTOCOL_VERSION, METABLOOM_CHAT_PROTOCOL_VERSION } = require("./metabloomEmoteLibrary");
+const {
+  METABLOOM_PROTOCOL_VERSION, METABLOOM_CHAT_PROTOCOL_VERSION,
+  MAX_METABLOOM_EMOTE_SEGMENTS, MAX_METABLOOM_EMOTE_RESPONSE_CHARS, MAX_METABLOOM_EMOTE_TOTAL_CHARS,
+} = require("./metabloomEmoteLibrary");
 
 // One request owns one reply. Completion validates the streamed prefix, never replays it.
 const createMetabloomReplySession = ({ allowMultiple = false, onUpdate, onEmote }) => {
   let segments = [];
+  let partialResponse = null;
   let version = null;
   let status = "streaming";
-  const snapshot = () => ({
-    segments: segments.map((segment) => ({ ...segment })),
-    content: segments.map((segment) => segment.response).join("\n\n"),
-    emote: segments.at(-1)?.emote || "neutral",
-    status,
-  });
+  const snapshot = () => {
+    const visible = segments.map((segment) => ({ ...segment }));
+    if (partialResponse !== null) visible.push({ response: partialResponse });
+    return { segments: visible, content: visible.map((segment) => segment.response).join("\n\n"),
+      emote: segments.at(-1)?.emote || "neutral", status };
+  };
+  const appendText = (delta, index) => {
+    if (status !== "streaming") return false;
+    if (index !== segments.length || typeof delta !== "string" || !delta.length
+      || (version && version !== METABLOOM_CHAT_PROTOCOL_VERSION)
+      || segments.length >= (allowMultiple ? MAX_METABLOOM_EMOTE_SEGMENTS : 1)) throw new Error("Unexpected response text delta.");
+    const next = (partialResponse || "") + delta;
+    if (next.length > MAX_METABLOOM_EMOTE_RESPONSE_CHARS
+      || segments.reduce((total, segment) => total + segment.response.length, 0) + next.length > MAX_METABLOOM_EMOTE_TOTAL_CHARS) {
+      throw new Error("Response text limit exceeded.");
+    }
+    version = METABLOOM_CHAT_PROTOCOL_VERSION;
+    partialResponse = next;
+    onUpdate(snapshot());
+    return true;
+  };
   const append = (segment, index) => {
     if (status !== "streaming") return false;
     if (index !== segments.length) throw new Error("Unexpected response segment index.");
@@ -19,14 +38,19 @@ const createMetabloomReplySession = ({ allowMultiple = false, onUpdate, onEmote 
     if (version && version !== segmentVersion) throw new Error("Response segment protocol changed.");
     const parsed = parseMetabloomChatEnvelope({ version: segmentVersion, segments: [...segments, segment] }, { allowMultiple });
     if (!parsed.ok) throw new Error(parsed.error);
+    if (partialResponse !== null && parsed.value.segments[index].response !== partialResponse) {
+      throw new Error("Completed segment did not match the visible stream.");
+    }
     version = parsed.value.version;
     segments = parsed.value.segments;
+    partialResponse = null;
     onUpdate(snapshot());
     if (segments[index].emote !== undefined) onEmote?.(segments[index].emote);
     return true;
   };
   return Object.freeze({
     append,
+    appendText,
     snapshot,
     get closed() { return status !== "streaming"; },
     finish(payload) {
@@ -34,7 +58,7 @@ const createMetabloomReplySession = ({ allowMultiple = false, onUpdate, onEmote 
       const parsed = parseMetabloomChatEnvelope(payload, { allowMultiple });
       if (!parsed.ok || (version && parsed.value.version !== version)) throw new Error(parsed.error || "Response protocol changed.");
       const final = parsed.value.segments;
-      if (segments.length > final.length || segments.some((segment, index) =>
+      if (segments.length > final.length || (partialResponse !== null && !final[segments.length]) || segments.some((segment, index) =>
         segment.emote !== final[index].emote || segment.response !== final[index].response)) {
         throw new Error("Completed response did not match the visible stream.");
       }
@@ -47,7 +71,7 @@ const createMetabloomReplySession = ({ allowMultiple = false, onUpdate, onEmote 
     interrupt(reason = "interrupted") {
       if (status !== "streaming") return;
       status = reason === "error" ? "error" : "interrupted";
-      if (segments.length) onUpdate(snapshot());
+      if (segments.length || partialResponse !== null) onUpdate(snapshot());
     },
   });
 };
