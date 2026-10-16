@@ -193,7 +193,7 @@ const OrbPageContent = ({ onReady }) => {
           <div className="orb-page__vignette" />
         </div>
 
-        <div style={pageHideStyle}>
+        <div className="orb-page__foreground" style={pageHideStyle}>
           <ImmersiveRouteNavigationBridge />
           <NavMenu audience={SITE_AUDIENCES.BUSINESS} />
 

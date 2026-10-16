@@ -473,8 +473,8 @@
   }
 
   .orb-page .orb-page__content {
-    /* The immediate route wrapper has no assigned height. Resolve directly
-       against OrbSection's measured visualViewport contract, not its parent. */
+    /* Follow OrbSection's measured visualViewport through keyboard resizing
+       and browser chrome changes, matching the surrounding foreground. */
     height: var(--orb-viewport-height, 100dvh);
   }
 
