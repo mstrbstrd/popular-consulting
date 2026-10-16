@@ -827,6 +827,7 @@ const DitherFieldLab = () => {
           latticeAppearance={study.id === "light-theme" && isDark ? "night" : "day"}
           highFidelityLight={asSecondSurface ? false : highFidelityMobileLight}
           runtimeScope={asSecondSurface ? "dither-canvas-second-surface" : "dither-canvas-lab"}
+          claimBackgroundOwnership={false}
           onFieldStateChange={
             asSecondSurface ? ignoreFieldStateChange : handleProductionThemeStateChange
           }
