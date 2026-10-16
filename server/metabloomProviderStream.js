@@ -1,12 +1,27 @@
-const { parseMetabloomEmoteEnvelope } = require("../src/components/metabloomEmoteProtocol");
-const { METABLOOM_PROTOCOL_VERSION } = require("../src/components/metabloomEmoteLibrary");
+const { parseMetabloomEmoteEnvelope, parseMetabloomChatEnvelope } = require("../src/components/metabloomEmoteProtocol");
+const { METABLOOM_PROTOCOL_VERSION, METABLOOM_CHAT_PROTOCOL_VERSION } = require("../src/components/metabloomEmoteLibrary");
 
 // A deliberately small incremental grammar for the ordered structured-output schema.
 // Only complete, validated segment objects escape this boundary. Never repair JSON.
 const JSON_STRING = '"(?:[^"\\\\\\u0000-\\u001f]|\\\\(?:["\\\\/bfnrt]|u[0-9a-fA-F]{4}))*"';
 const SEGMENT = new RegExp(`^\\{\\s*"emote"\\s*:\\s*${JSON_STRING}\\s*,\\s*"response"\\s*:\\s*${JSON_STRING}\\s*\\}$`);
 const PREFIX = /^\s*\{\s*"version"\s*:\s*"1\.0\.0"\s*,\s*"segments"\s*:\s*\[/;
-const createEnvelopeReader = ({ allowMultiple = false, onSegment }) => {
+const TEXT_SEGMENT = new RegExp(`^\\{\\s*"response"\\s*:\\s*${JSON_STRING}\\s*\\}const { parseMetabloomEmoteEnvelope, parseMetabloomChatEnvelope } = require("../src/components/metabloomEmoteProtocol");
+const { METABLOOM_PROTOCOL_VERSION, METABLOOM_CHAT_PROTOCOL_VERSION } = require("../src/components/metabloomEmoteLibrary");
+
+// A deliberately small incremental grammar for the ordered structured-output schema.
+// Only complete, validated segment objects escape this boundary. Never repair JSON.
+const JSON_STRING = '"(?:[^"\\\\\\u0000-\\u001f]|\\\\(?:["\\\\/bfnrt]|u[0-9a-fA-F]{4}))*"';
+const SEGMENT = new RegExp(`^\\{\\s*"emote"\\s*:\\s*${JSON_STRING}\\s*,\\s*"response"\\s*:\\s*${JSON_STRING}\\s*\\}$`);
+const PREFIX = /^\s*\{\s*"version"\s*:\s*"1\.0\.0"\s*,\s*"segments"\s*:\s*\[/;
+);
+const CHAT_PREFIX = /^\s*\{\s*"version"\s*:\s*"2\.0\.0"\s*,\s*"segments"\s*:\s*\[/;
+
+const createEnvelopeReader = ({ allowMultiple = false, onSegment, textOnly = false }) => {
+  const expectedVersion = textOnly ? METABLOOM_CHAT_PROTOCOL_VERSION : METABLOOM_PROTOCOL_VERSION;
+  const segmentGrammar = textOnly ? TEXT_SEGMENT : SEGMENT;
+  const prefixGrammar = textOnly ? CHAT_PREFIX : PREFIX;
+  const validate = textOnly ? parseMetabloomChatEnvelope : parseMetabloomEmoteEnvelope;
   let text = "", cursor = 0, state = "prefix", start = 0;
   let inString = false, escape = false, depth = 0;
   const segments = [];
@@ -15,7 +30,7 @@ const createEnvelopeReader = ({ allowMultiple = false, onSegment }) => {
       if (typeof delta !== "string" || text.length + delta.length > 24000) throw new Error("Invalid output length");
       text += delta;
       if (state === "prefix") {
-        const match = text.match(PREFIX);
+        const match = text.match(prefixGrammar);
         if (!match) { if (text.length > 128) throw new Error("Invalid output prefix"); return; }
         cursor = match[0].length;
         state = "segment";
@@ -40,9 +55,9 @@ const createEnvelopeReader = ({ allowMultiple = false, onSegment }) => {
           else if (char === "}") depth--;
           if (depth !== 0 || inString) continue;
           const serialized = text.slice(start, cursor);
-          if (!SEGMENT.test(serialized)) throw new Error("Invalid segment grammar");
+          if (!segmentGrammar.test(serialized)) throw new Error("Invalid segment grammar");
           const candidate = JSON.parse(serialized);
-          const parsed = parseMetabloomEmoteEnvelope({ version: METABLOOM_PROTOCOL_VERSION, segments: [...segments, candidate] }, { allowMultiple });
+          const parsed = validate({ version: expectedVersion, segments: [...segments, candidate] }, { allowMultiple });
           if (!parsed.ok) throw new Error(parsed.error);
           segments.push(parsed.value.segments[segments.length]);
           await onSegment(segments[segments.length - 1], segments.length - 1);
@@ -66,20 +81,20 @@ const createEnvelopeReader = ({ allowMultiple = false, onSegment }) => {
     },
     finish(finalText) {
       if (state !== "end" || (finalText !== undefined && finalText !== text)) throw new Error("Incomplete or inconsistent output");
-      const parsed = parseMetabloomEmoteEnvelope(text, { allowMultiple });
+      const parsed = validate(text, { allowMultiple });
       if (!parsed.ok || JSON.stringify(parsed.value.segments) !== JSON.stringify(segments)) throw new Error("Invalid completed envelope");
       return parsed.value;
     },
   };
 };
 
-const streamMetabloomProvider = async (upstream, { allowMultiple = false, onSegment, signal }) => {
+const streamMetabloomProvider = async (upstream, { allowMultiple = false, onSegment, signal, textOnly = false }) => {
   if (!upstream.body?.getReader || !upstream.headers.get("content-type")?.includes("text/event-stream")) throw new Error("Expected provider SSE");
   const reader = upstream.body.getReader();
   const abort = () => { reader.cancel().catch(() => {}); };
   signal?.addEventListener("abort", abort, { once: true });
   const utf8 = new TextDecoder("utf-8", { fatal: true });
-  const envelope = createEnvelopeReader({ allowMultiple, onSegment });
+  const envelope = createEnvelopeReader({ allowMultiple, onSegment, textOnly });
   let buffer = "", data = [], bytes = 0, completed = false, outputKey = null;
   let outputTextDone;
   let result;
