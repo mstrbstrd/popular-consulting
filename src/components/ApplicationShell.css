@@ -37,11 +37,22 @@
    Popcan's Canvas 2D, both above the shared index WebGL. No transforms here:
    viewport-fixed menus and pointer-to-canvas coordinates must stay unchanged. */
 .app-outlet[data-route="/orb"],
+.app-outlet[data-route="/orb/"],
 .app-outlet[data-route="/orb/index.html"],
 .app-outlet[data-route="/popcan"],
 .app-outlet[data-route="/popcan/index.html"] {
   z-index: 4;
   isolation: isolate;
+}
+
+/* Orb is viewport-fixed and contributes no flow height. Keep its fading
+   outlet and the overflow-clipped #root viewport-sized so WebKit cannot
+   discard the foreground's paint while leaving its touch targets active. */
+.app-outlet[data-route="/orb"],
+.app-outlet[data-route="/orb/"],
+.app-outlet[data-route="/orb/index.html"] {
+  min-height: 100vh;
+  min-height: var(--immersive-viewport-height, 100dvh);
 }
 
 /* Reverse Home's entry depths while the light field decrystallizes. Fixed

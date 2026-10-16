@@ -22,6 +22,15 @@
 /* Keep navigation in the same visible viewport as the chat on mobile Safari. */
 .orb-page .nav-header { position: absolute; }
 
+/* Navigation, avatar, and chat share one full-size foreground above the
+   decorative wash. Keep fixed descendants anchored to the visual viewport. */
+.orb-page__foreground {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+}
+
 .orb-page__skip {
   position: fixed;
   top: -100%;
