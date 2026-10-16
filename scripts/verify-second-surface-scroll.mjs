@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url';
 import { createBuildServer } from './auth-invoice-test-server.mjs';
 
 const playwright = await import(process.env.PLAYWRIGHT_MODULE ? pathToFileURL(process.env.PLAYWRIGHT_MODULE).href : 'playwright');
-const profiles = (process.env.SECOND_SURFACE_PROFILE || 'chromium-phone,webkit-phone').split(',');
+const profiles = (process.env.SECOND_SURFACE_PROFILE || 'chromium-phone,webkit-narrow').split(',');
 const themes = (process.env.SECOND_SURFACE_THEMES || 'light,dark').split(',');
 const requestedOptions = process.env.SECOND_SURFACE_OPTIONS?.split(',');
 const evidence = process.env.SECOND_SURFACE_EVIDENCE;
@@ -34,11 +34,13 @@ async function waitFor(page, predicate, argument, timeout = 5000) {
 async function snapshot(page) {
   return page.evaluate(() => {
     const stage = document.querySelector('.dither-canvas-page');
+    const rupture = stage.querySelector('canvas[data-renderer-id="dither-canvas-rupture"]');
     return {
       y: Math.round(scrollY), height: innerHeight,
       study: stage?.dataset.activeStudy,
       progress: Number(getComputedStyle(stage).getPropertyValue('--dither-study-progress')),
-      energy: Number(getComputedStyle(stage).getPropertyValue('--rupture-energy')),
+      energy: window.__secondSurfaceGl.get(rupture)?.energy ?? null,
+      cssEnergy: Number(getComputedStyle(stage).getPropertyValue('--rupture-energy')),
       state: [...stage.classList].find(name => name.startsWith('rupture-')),
       owner: document.documentElement.getAttribute('data-live-background-renderer'),
       overflow: ['html', 'body', '#root'].map(selector => getComputedStyle(document.querySelector(selector)).overflowY),
@@ -82,7 +84,7 @@ async function heal(page) {
 }
 
 function check(condition, label, detail) {
-  if (!condition) failures.push(`${label}: ${detail}`);
+  if (!condition) { failures.push(`${label}: ${detail}`); console.error(failures.at(-1)); }
 }
 
 try {
@@ -96,7 +98,10 @@ try {
     for (const theme of themes) {
       const context = await browser.newContext({ viewport: { width: 360, height: 640 },
         userAgent: playwright.devices[webkit ? 'iPhone 13' : 'Pixel 7'].userAgent,
-        isMobile: true, hasTouch: true, deviceScaleFactor: 1 });
+        // Playwright forbids wheel input in WebKit's mobile-emulation mode.
+        // Keep the narrow viewport, mobile shader UA and touch capability;
+        // Chromium separately covers actual emulated mobile touch scrolling.
+        isMobile: !webkit, hasTouch: true, deviceScaleFactor: 1 });
       await context.route('**/*', route => {
         const url = new URL(route.request().url());
         if (url.origin !== origin || url.pathname.startsWith('/api/metabloom')) return route.abort();
@@ -109,6 +114,7 @@ try {
         // Permit genuine software-GL rendering in this fixture. This does not
         // change scrolling, motion preferences, shaders, or layout CSS.
         window.__secondSurfaceGl = new WeakMap();
+        const uniformNames = new WeakMap();
         const getContext = HTMLCanvasElement.prototype.getContext;
         HTMLCanvasElement.prototype.getContext = function(type, ...args) {
           const gl = getContext.call(this, type, ...args);
@@ -124,12 +130,27 @@ try {
           prototype.getParameter = function(parameter) {
             return parameter === 37446 ? 'Verification adapter' : getParameter.call(this, parameter);
           };
+          // Several underlays also write the page's decorative energy CSS.
+          // Observe the rupture shader's own submitted uniform instead.
+          const getUniformLocation = prototype.getUniformLocation;
+          prototype.getUniformLocation = function(program, name) {
+            const location = getUniformLocation.call(this, program, name);
+            if (location) uniformNames.set(location, name);
+            return location;
+          };
+          const uniform1f = prototype.uniform1f;
+          prototype.uniform1f = function(location, value) {
+            const result = uniform1f.call(this, location, value);
+            const observed = window.__secondSurfaceGl.get(this.canvas);
+            if (observed && uniformNames.get(location) === 'u_energy') observed.pendingEnergy = value;
+            return result;
+          };
           for (const name of ['drawArrays', 'drawElements']) {
             const draw = prototype[name];
             prototype[name] = function(...args) {
               const result = draw.apply(this, args);
               const observed = window.__secondSurfaceGl.get(this.canvas);
-              if (observed) observed.draws += 1;
+              if (observed) { observed.draws += 1; observed.energy = observed.pendingEnergy; }
               return result;
             };
           }
@@ -146,10 +167,25 @@ try {
       const scroll = async distance => {
         // Input is delivered by the browser. No scrollTo or synthetic DOM
         // wheel dispatch can bypass overflow:hidden and create a false pass.
-        if (cdp) await cdp.send('Input.synthesizeScrollGesture', {
-          x: 270, y: 360, yDistance: -distance, gestureSourceType: 'touch',
-          preventFling: true, speed: 650,
-        });
+        if (cdp) {
+          // Headless Chrome's synthesized touch-scroll gesture is a no-op on
+          // the plain-content control. Native touch events do scroll it.
+          let remaining = Math.abs(distance);
+          const direction = Math.sign(distance);
+          while (remaining > 0) {
+            const segment = Math.min(300, remaining + 16);
+            const startY = direction > 0 ? 510 : 130;
+            await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 270, y: startY }] });
+            for (let step = 1; step <= 12; step += 1) {
+              await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 270, y: startY - direction * segment * step / 12 }] });
+              await page.waitForTimeout(20);
+            }
+            await page.waitForTimeout(130); // Release without a fling past the selected study.
+            await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+            await page.waitForTimeout(70);
+            remaining -= segment - 16;
+          }
+        }
         else { await page.mouse.move(270, 360); await page.mouse.wheel(0, distance); }
       };
       try {
@@ -173,7 +209,7 @@ try {
             if (affected) await capture(page, `${label}-sealed`);
             await scroll(950);
             await waitFor(page, () => scrollY > 850
-              && document.querySelector('.dither-canvas-page')?.classList.contains('rupture-open'), undefined, 3000);
+              && document.querySelector('.dither-canvas-page')?.classList.contains('rupture-open'), undefined, 5000);
             const opened = await snapshot(page);
             if (affected) await capture(page, `${label}-open`);
             check(opened.y > 850, label, `native ${touch ? 'touch' : 'wheel'} did not open document (y=${opened.y})`);
@@ -181,12 +217,12 @@ try {
             check(opened.study === 'second-surface', label, 'Opening skipped into another study');
             await scroll(-1100);
             await waitFor(page, () => scrollY < 2
-              && document.querySelector('.dither-canvas-page')?.classList.contains('rupture-sealed'), undefined, 3000);
+              && document.querySelector('.dither-canvas-page')?.classList.contains('rupture-sealed'), undefined, 5000);
             const closed = await snapshot(page);
             check(closed.y < 2 && closed.state === 'rupture-sealed', label, `native reverse scroll did not close (y=${closed.y}, energy=${closed.energy}, state=${closed.state})`);
             await scroll(550);
             await waitFor(page, () => scrollY > 300
-              && Number(getComputedStyle(document.querySelector('.dither-canvas-page')).getPropertyValue('--rupture-energy')) > 0.1, undefined, 1800);
+              && window.__secondSurfaceGl.get(document.querySelector('canvas[data-renderer-id="dither-canvas-rupture"]'))?.energy > 0.1, undefined, 1800);
             const reopened = await snapshot(page);
             check(reopened.y > 300 && reopened.energy > 0.1, label, 'Native scroll could not reopen before Heal');
             await heal(page);
