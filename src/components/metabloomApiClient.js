@@ -1,4 +1,4 @@
-import { createMetabloomSegmentStreamDecoder, parseMetabloomEmoteEnvelope } from "./metabloomEmoteProtocol";
+import { createMetabloomSegmentStreamDecoder, parseMetabloomChatEnvelope } from "./metabloomEmoteProtocol";
 
 const MAX_RESPONSE_BYTES = 96000;
 export class MetabloomApiError extends Error {
@@ -18,6 +18,7 @@ export const requestMetabloomResponse = async ({
   history = [],
   message,
   onSegment,
+  onReaction,
   optional = false,
   requestId,
   signal,
@@ -44,6 +45,10 @@ export const requestMetabloomResponse = async ({
     const isStream = contentType.includes("application/x-ndjson");
     const decoder = createMetabloomSegmentStreamDecoder({
       allowMultiple,
+      onReaction: (reaction) => {
+        if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
+        onReaction?.(reaction);
+      },
       onSegment: (segment, index) => {
         if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
         onSegment?.(segment, index);
@@ -89,7 +94,7 @@ export const requestMetabloomResponse = async ({
       if (optional && isMetabloomApiUnavailable(error)) return null;
       throw error;
     }
-    const result = isStream ? decoder.finish() : parseMetabloomEmoteEnvelope(text, { allowMultiple });
+    const result = isStream ? decoder.finish() : parseMetabloomChatEnvelope(text, { allowMultiple });
     if (!result.ok) throw new MetabloomApiError(result.error, { code: "invalid_response" });
     // JSON compatibility responses use the same callback, exactly once per segment.
     if (!isStream) result.value.segments.forEach((segment, index) => onSegment?.(segment, index));
