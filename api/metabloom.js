@@ -1,5 +1,6 @@
 const { createHmac } = require("node:crypto");
 const { once } = require("node:events");
+const metabloomAuth = require("../server/metabloomAuth");
 const { METABLOOM_CHAT_PROTOCOL_VERSION, METABLOOM_EMOTE_IDS, METABLOOM_CHAT_RESPONSE_SCHEMA, buildMetabloomChatSystemPrompt } = require("../src/components/metabloomEmoteLibrary");
 const { decideMetabloomReaction } = require("../server/jevReactionService");
 const { streamMetabloomProvider } = require("../server/metabloomProviderStream");
@@ -103,9 +104,17 @@ const sendJson = (response, status, body) => {
   response.end(JSON.stringify(body));
 };
 const handler = async (request, response) => {
-  response.setHeader("Cache-Control", "no-store, no-transform");
+  response.setHeader("Cache-Control", "private, no-store, no-transform");
+  response.setHeader("CDN-Cache-Control", "no-store");
+  response.setHeader("Vercel-CDN-Cache-Control", "no-store");
+  response.setHeader("Vary", "Cookie");
+  response.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
   response.setHeader("X-Content-Type-Options", "nosniff");
   response.setHeader("X-Metabloom-Protocol", METABLOOM_CHAT_PROTOCOL_VERSION);
+  // No metadata, quota consumption, OpenAI request, or Jev decision without a live session.
+  const denial = await metabloomAuth.requireMetabloomSession(request);
+  if (denial) return sendJson(response, denial.status, { code: denial.code });
+  if (response.destroyed || request.aborted) return;
   if (request.method === "GET") return sendJson(response, 200, {
     version: METABLOOM_CHAT_PROTOCOL_VERSION, release: "jev-dual-reactions-v2", presentation: "single-message-stream",
     streaming: "validated-text-and-reactions", configured: configured(request),

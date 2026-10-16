@@ -13,7 +13,7 @@ import { resolveSectionDeepLink } from './components/SectionDeepLinkBridge';
 const routeLoaders = {
   original: () => import('./App'), engineering: () => import('./App'), login: () => import('./App'),
   popcan: () => import('./components/PopcanPage'), work: () => import('./components/WorkPage'),
-  orb: () => import('./components/OrbPage'), home: () => import('./components/HomePage'),
+  orb: () => import('./components/AuthenticatedOrbPage'), home: () => import('./components/HomePage'),
   'invoice-generator': () => import('./components/PrivateInvoicePage'), logout: () => import('./components/AuthPage'),
   game: () => import('./components/StandaloneExperiencePage'), 'dither-canvas': () => import('./components/DitherCanvasPage'),
 };
@@ -26,7 +26,7 @@ export function preloadSiteRoute(pathname) {
 const App = React.lazy(() => import("./App"));
 const PopcanPage = React.lazy(() => import("./components/PopcanPage"));
 const WorkPage = React.lazy(() => import("./components/WorkPage"));
-const OrbPage = React.lazy(() => import("./components/OrbPage"));
+const OrbPage = React.lazy(() => import("./components/AuthenticatedOrbPage"));
 const AuthPage = React.lazy(() => import("./components/AuthPage"));
 const HomePage = React.lazy(() => import("./components/HomePage"));
 const PrivateInvoicePage = React.lazy(() => import('./components/PrivateInvoicePage'));

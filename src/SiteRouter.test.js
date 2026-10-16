@@ -5,6 +5,7 @@ import SiteRouter, { resolveSiteView, SITE_VIEWS } from "./SiteRouter";
 import { IMMERSIVE_MODES } from "./immersiveMode";
 import metadata from "./content/routeMetadata.json";
 import deployment from "../vercel.json";
+import { AuthContext } from "./contexts/AuthContext";
 
 let mockHasHardwareWebGL = true;
 let mockGraphicsMode = "auto";
@@ -237,8 +238,10 @@ describe("SiteRouter", () => {
     expect(screen.queryByTestId("dither-canvas-page")).not.toBeInTheDocument();
   });
 
-  test("renders /orb through the integrated Orb page", async () => {
-    render(<SiteRouter pathname="/orb" />);
+  test("renders /orb through the authenticated Orb page", async () => {
+    render(<AuthContext.Provider value={{ status: "authenticated", user: { id: "fixture-owner" } }}>
+      <SiteRouter pathname="/orb" />
+    </AuthContext.Provider>);
 
     expect(await screen.findByTestId("orb-page")).toBeInTheDocument();
     expect(screen.queryByTestId("standalone-experience")).not.toBeInTheDocument();

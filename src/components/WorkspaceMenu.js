@@ -7,7 +7,7 @@ const tools = [
   { label: 'Home', href: '/home', private: true },
   { label: 'Popcan', href: '/popcan' },
   { label: 'Dither Canvas', href: '/dither-canvas' },
-  { label: 'Orb', href: '/orb' },
+  { label: 'Orb', href: '/orb', private: true },
   { label: 'Invoice Generator', href: '/invoice-generator', private: true },
   { label: 'Selected work', href: '/work' },
   { label: 'Popular Consulting', href: '/#section-1' },

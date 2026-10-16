@@ -1,4 +1,7 @@
-const { test, afterEach } = require("node:test");
+const { test, beforeEach, afterEach, mock } = require("node:test");
+const metabloomAuth = require("../server/metabloomAuth");
+// Provider tests assume a verified session; orb-access.test.mjs tests the real gate.
+beforeEach(() => mock.method(metabloomAuth, "requireMetabloomSession", async () => null));
 const assert = require("node:assert/strict");
 const { EventEmitter } = require("node:events");
 const handler = require("../api/metabloom");
@@ -7,6 +10,7 @@ const { buildMetabloomChatSystemPrompt } = require("../src/components/metabloomE
 const originalFetch = global.fetch;
 const env = { ...process.env };
 afterEach(() => {
+  mock.restoreAll();
   global.fetch = originalFetch;
   for (const key of ["OPENAI_API_KEY", "METABLOOM_OPENAI_MODEL", "METABLOOM_MODEL", "TYPESAFE_API_KEY", "JEV_MODEL", "VERCEL", "VERCEL_ENV", "NODE_ENV", "UPSTASH_REDIS_REST_URL", "UPSTASH_REDIS_REST_TOKEN"]) {
     if (env[key] === undefined) delete process.env[key]; else process.env[key] = env[key];

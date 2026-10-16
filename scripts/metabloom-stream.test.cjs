@@ -1,4 +1,7 @@
-const { test, afterEach } = require("node:test");
+const { test, beforeEach, afterEach, mock } = require("node:test");
+const metabloomAuth = require("../server/metabloomAuth");
+// Provider tests assume a verified session; orb-access.test.mjs tests the real gate.
+beforeEach(() => mock.method(metabloomAuth, "requireMetabloomSession", async () => null));
 const assert = require("node:assert/strict");
 const { EventEmitter } = require("node:events");
 const { setTimeout: delay } = require("node:timers/promises");
@@ -9,6 +12,7 @@ const { createMetabloomSegmentStreamDecoder } = require("../src/components/metab
 const oldFetch = global.fetch;
 const env = { ...process.env };
 afterEach(() => {
+  mock.restoreAll();
   global.fetch = oldFetch;
   for (const key of ["VERCEL_ENV", "OPENAI_API_KEY", "TYPESAFE_API_KEY", "JEV_MODEL"]) {
     if (env[key] === undefined) delete process.env[key]; else process.env[key] = env[key];
