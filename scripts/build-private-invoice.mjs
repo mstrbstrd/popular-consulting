@@ -24,7 +24,7 @@ fs.writeFileSync('build/_private/invoice/manifest.json', JSON.stringify({
 // Fail the build if private implementation/default data leaked back into a public chunk.
 for (const name of fs.readdirSync('build/static/js').filter(file => file.endsWith('.js'))) {
   const source = fs.readFileSync(`build/static/js/${name}`, 'utf8');
-  for (const marker of ['Your totals appear here once each item', '1077-2B Clement Ave', 'Your company', 'Draft not loaded.']) {
+  for (const marker of ['Your totals appear here once each item', '1077-2B Clement Ave', 'Your company', 'Draft not loaded.', '79078225']) {
     if (source.includes(marker)) throw new Error(`Private invoice content in public bundle: ${name}`);
   }
 }

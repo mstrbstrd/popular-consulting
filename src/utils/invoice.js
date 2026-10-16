@@ -24,7 +24,7 @@ export const createInvoice = () => {
   const date = invoiceDateToday();
   return {
     version: 1, invoiceNumber: generateInvoiceNumber(date), invoiceDate: date,
-    dueDate: "", currency: "CAD", businessNumber: "", taxNumber: "",
+    dueDate: "", currency: "CAD", businessNumber: "79078225", taxNumber: "",
     companyName: "Popular Consulting", companyEmail: "shae@popcon.dev",
     companyAddress: "1077-2B Clement Ave, Kelowna, BC, Canada",
     companyWebsite: "popular-consulting.com", companyPhone: "236-882-2411",

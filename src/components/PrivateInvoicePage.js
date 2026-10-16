@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useThemeMode } from '../contexts/ThemeContext';
-import { useAppNavigation } from '../contexts/AppNavigationContext';
+import { navigateInApp, useAppNavigation } from '../contexts/AppNavigationContext';
 import { loadPrivateInvoice, syncPrivateInvoiceSession } from '../utils/privateInvoiceLoader';
 import AuthPage from './AuthPage';
 
@@ -9,7 +9,8 @@ export default function PrivateInvoicePage({ onReady }) {
   const auth = useAuth();
   const theme = useThemeMode();
   const navigation = useAppNavigation();
-  const { status, refresh } = auth;
+  const { status, refresh, user, logoutRevision } = auth;
+  const owner = user?.id;
   const [entry, setEntry] = useState(null);
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
@@ -21,6 +22,11 @@ export default function PrivateInvoicePage({ onReady }) {
     if (error || (status !== 'loading' && status !== 'authenticated')) onReady?.();
   }, [error, status, onReady]);
 
+  // Match direct-URL protection for SPA entry without discarding an already-open draft.
+  useEffect(() => {
+    if (!entry && status === 'anonymous') navigateInApp('/login', { replace: true });
+  }, [entry, status]);
+
   useEffect(() => {
     if (entry || status !== 'authenticated') return undefined;
     const abort = new AbortController();
@@ -29,12 +35,14 @@ export default function PrivateInvoicePage({ onReady }) {
     }, 12000);
     setError('');
     loadPrivateInvoice(abort.signal).then(value => {
-      if (!abort.signal.aborted) setEntry(value);
+      const session = current.current.auth;
+      if (!abort.signal.aborted && session.status === 'authenticated' &&
+        session.user?.id === owner && session.logoutRevision === logoutRevision) setEntry(value);
     }).catch(failure => {
       if (!abort.signal.aborted) { setError(failure.message); refresh(); }
     }).finally(() => window.clearTimeout(timer));
     return () => { abort.abort(); window.clearTimeout(timer); };
-  }, [status, refresh, entry, attempt]);
+  }, [status, refresh, entry, attempt, owner, logoutRevision]);
 
   useEffect(() => {
     if (!entry) return undefined;
