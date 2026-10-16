@@ -53,6 +53,7 @@ const ProductionThemeCanvas = ({
   activeSection = 0,
   highFidelityLight = false,
   runtimeScope = "dither-canvas",
+  claimBackgroundOwnership = true,
   onFieldStateChange = NOOP,
   pointerReactive = true,
   latticeAppearance = "day",
@@ -138,6 +139,8 @@ const ProductionThemeCanvas = ({
         host,
         canvas,
         rendererId,
+        // Embedded studies share the shader without owning document scrolling.
+        claimOwnership: claimBackgroundOwnership ? undefined : NOOP,
         maxDevicePixelRatio:
           selectedTheme === "dark"
             ? VISUAL_RUNTIME_DARK_FIXED.outputScale
@@ -200,6 +203,7 @@ const ProductionThemeCanvas = ({
       if (runtimeRef.current === runtime) runtimeRef.current = null;
     };
   }, [
+    claimBackgroundOwnership,
     highFidelityLight,
     onFieldStateChange,
     rendererId,
@@ -243,6 +247,7 @@ const ProductionThemeCanvas = ({
     >
       <div className="production-theme-fallback" />
       <canvas
+        key={resetVersion}
         ref={canvasRef}
         className="production-theme-canvas"
         data-renderer-id={rendererId}
