@@ -104,6 +104,17 @@ describe("OrbPage", () => {
     window.__triggerLoading = null;
   });
 
+  test("reveals the mobile Orb foreground even if the avatar never reports a WebGL frame", () => {
+    const onReady = jest.fn();
+    render(<OrbPage onReady={onReady} />);
+
+    // The mocked OrbSection deliberately does not call onReady. Its canvas
+    // cannot be a prerequisite for revealing chat controls on mobile Safari.
+    expect(onReady).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("orb-experience")).toBeInTheDocument();
+    expect(screen.getByRole("main", { name: "Metabloom" })).toBeInTheDocument();
+  });
+
   test("uses the shared site shell around the focused Metabloom experience", async () => {
     const { container } = render(<OrbPage />);
 
