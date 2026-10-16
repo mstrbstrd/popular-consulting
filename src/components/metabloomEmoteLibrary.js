@@ -157,7 +157,7 @@ const buildMetabloomChatSystemPrompt = ({ allowMultiple = false } = {}) => [
     ? `Use between one and ${MAX_METABLOOM_EMOTE_SEGMENTS} consecutive paragraphs of ONE assistant reply only when it genuinely improves readability. Do not repeat greetings or restart the answer.`
     : "Return exactly one response segment containing the entire assistant reply.",
   "Preserve JSON key order: version before segments and response as the only field within each segment. Each response must be a nonempty plain-text paragraph of at most 1600 characters; the total is at most 4800 characters.",
-].join("\\n\\n");
+].join("\n\n");
 
 const buildMetabloomSystemPrompt = ({ allowMultiple = false } = {}) => {
   const modeInstruction = allowMultiple
