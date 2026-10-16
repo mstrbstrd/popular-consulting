@@ -3,12 +3,12 @@ const assert = require("node:assert/strict");
 const { EventEmitter } = require("node:events");
 const handler = require("../api/metabloom");
 const { parseMetabloomEmoteEnvelope, createMetabloomSegmentStreamDecoder } = require("../src/components/metabloomEmoteProtocol");
-const { buildMetabloomSystemPrompt } = require("../src/components/metabloomEmoteLibrary");
+const { buildMetabloomChatSystemPrompt } = require("../src/components/metabloomEmoteLibrary");
 const originalFetch = global.fetch;
 const env = { ...process.env };
 afterEach(() => {
   global.fetch = originalFetch;
-  for (const key of ["OPENAI_API_KEY", "METABLOOM_MODEL", "VERCEL", "VERCEL_ENV", "NODE_ENV", "UPSTASH_REDIS_REST_URL", "UPSTASH_REDIS_REST_TOKEN"]) {
+  for (const key of ["OPENAI_API_KEY", "METABLOOM_MODEL", "TYPESAFE_API_KEY", "JEV_MODEL", "VERCEL", "VERCEL_ENV", "NODE_ENV", "UPSTASH_REDIS_REST_URL", "UPSTASH_REDIS_REST_TOKEN"]) {
     if (env[key] === undefined) delete process.env[key]; else process.env[key] = env[key];
   }
   handler._internals.localBuckets.clear();
@@ -17,7 +17,7 @@ const segment = (emote = "reflective", response = "A careful thought.") => ({ em
 const envelope = (...segments) => ({ version: "1.0.0", segments });
 const request = (body = { message: "Hello", history: [] }) => ({ method: "POST", headers: { host: "localhost:3000", origin: "http://localhost:3000", "content-type": "application/json" }, socket: { remoteAddress: "127.0.0.1" }, body });
 const response = () => Object.assign(new EventEmitter(), { statusCode: 0, headers: {}, body: "", setHeader(k, v) { this.headers[k] = v; }, write(s) { this.body += s; return true; }, end(s = "") { this.body += s; this.writableEnded = true; } });
-const local = () => { process.env.VERCEL_ENV = "development"; process.env.OPENAI_API_KEY = "test-only-not-a-credential"; };
+const local = () => { process.env.VERCEL_ENV = "development"; process.env.OPENAI_API_KEY = "test-only-not-a-credential"; delete process.env.TYPESAFE_API_KEY; };
 const reply = (value) => {
   const text = JSON.stringify(value);
   const events = [
@@ -73,42 +73,72 @@ test("shared atomic quota is checked before provider work and fails closed", asy
   global.fetch = async () => { throw new Error("Quota down"); };
   const failed = response(); await handler(req, failed); assert.equal(failed.statusCode, 502);
 });
-test("server streams using the shared prompt/schema and sends the current turn once", async () => {
+const textEnvelope = (...responses) => ({ version: "2.0.0", segments: responses.map((response) => ({ response })) });
+const jevReply = (emote, confidence = 0.97) => new Response(JSON.stringify({
+  model: "jev-latest", answers: { reaction: {
+    type: "choice", choice: emote, confidence,
+    probabilities: { [emote]: 0.97 },
+  } }, usage: { input_tokens: 40, output_tokens: 10 },
+}), { headers: { "content-type": "application/json" } });
+
+test("live endpoint streams response-only paragraphs with two neutral fallbacks when Jev is unconfigured", async () => {
   local(); let sent;
-  global.fetch = async (url, options) => { sent = JSON.parse(options.body); return reply(envelope(segment())); };
+  global.fetch = async (url, options) => { assert.match(String(url), /openai/); sent = JSON.parse(options.body); return reply(textEnvelope("A careful thought.")); };
   const res = response(); await handler(request(), res);
   assert.equal(res.statusCode, 200);
   assert.deepEqual(sent.input, [{ role: "user", content: "Hello" }]);
-  assert.equal(sent.instructions, buildMetabloomSystemPrompt());
-  assert.ok(sent.instructions.includes("ONE assistant reply"));
+  assert.equal(sent.instructions, buildMetabloomChatSystemPrompt());
   assert.equal(sent.stream, true);
   assert.equal(sent.text.format.schema.properties.segments.maxItems, 1);
-  const d = createMetabloomSegmentStreamDecoder({ allowMultiple: false }); d.push(res.body);
-  assert.equal(d.finish().ok, true); assert.equal(res.body.includes("test-only"), false);
+  assert.deepEqual(sent.text.format.schema.properties.segments.items.required, ["response"]);
+  const phases = [];
+  const d = createMetabloomSegmentStreamDecoder({ allowMultiple: false, onReaction: (event) => phases.push(event) });
+  assert.equal(d.push(res.body), true);
+  assert.deepEqual(d.finish().value, textEnvelope("A careful thought."));
+  assert.deepEqual(phases, [{ phase: "input", emote: "neutral" }, { phase: "response", emote: "neutral" }]);
+  assert.equal(res.body.includes("test-only"), false);
 });
-test("the provider can select an authored chain without another model call or extra segments", async () => {
-  local(); let calls = 0; let sent;
-  const value = envelope(segment("support-and-reassure", "That sounds difficult. We can take this one step at a time."));
-  global.fetch = async (_url, options) => { calls++; sent = JSON.parse(options.body); return reply(value); };
+
+test("Jev runs twice, selecting different emotes before and after the validated chat text", async () => {
+  local(); process.env.TYPESAFE_API_KEY = "test-only-jev-credential"; process.env.JEV_MODEL = "jev-latest";
+  const requests = [];
+  global.fetch = async (url, options) => {
+    requests.push({ url: String(url), body: JSON.parse(options.body), headers: options.headers });
+    if (String(url).includes("typesafe.ai")) {
+      const state = JSON.parse(options.body).state;
+      return jevReply(state.assistantResponse ? "resolute" : "curious");
+    }
+    return reply(textEnvelope("This is the complete assistant answer."));
+  };
   const res = response(); await handler(request(), res);
-  assert.equal(calls, 1);
-  assert.ok(sent.text.format.schema.properties.segments.items.properties.emote.enum.includes("support-and-reassure"));
-  const decoder = createMetabloomSegmentStreamDecoder({ allowMultiple: false });
-  decoder.push(res.body);
-  assert.deepEqual(decoder.finish().value, value);
+  assert.equal(res.statusCode, 200);
+  const records = res.body.trim().split("\n").map((line) => JSON.parse(line));
+  assert.deepEqual(records.map((record) => record.type), ["emote", "segment", "text_complete", "emote", "done"]);
+  assert.deepEqual(records.filter((record) => record.type === "emote").map((record) => [record.phase, record.emote]),
+    [["input", "curious"], ["response", "resolute"]]);
+  const jev = requests.filter((record) => record.url.includes("typesafe.ai"));
+  assert.equal(jev.length, 2);
+  assert.equal(jev[0].body.questions.reaction.type, "choice");
+  assert.equal(jev[0].body.model, "jev-latest");
+  assert.deepEqual(jev[1].body.state.assistantResponse, "This is the complete assistant answer.");
+  assert.equal(jev.every((record) => record.headers.Authorization === "Bearer test-only-jev-credential"), true);
+  assert.equal(res.body.includes("test-only-jev-credential"), false);
 });
-test("ordinary streams reject extra segments without declaring the visible prefix complete", async () => {
-  local(); global.fetch = async () => reply(envelope(segment("warm"), segment("reflective")));
+
+test("ordinary live chats fail closed on unauthorized extra paragraphs", async () => {
+  local(); global.fetch = async () => reply(textEnvelope("One paragraph.", "An unwanted second."));
   const res = response(); await handler(request(), res);
-  const d = createMetabloomSegmentStreamDecoder({ allowMultiple: false }); d.push(res.body);
+  const d = createMetabloomSegmentStreamDecoder({ allowMultiple: false });
+  d.push(res.body);
   assert.equal(d.finish().ok, false);
   assert.equal(res.body.includes('"type":"done"'), false);
-  assert.equal(res.body.includes('"emote":"reflective"'), false);
 });
 test("disconnect cancels provider work before sending a stale response", async () => {
   local(); let started; const ready = new Promise((resolve) => { started = resolve; }); let signal;
   global.fetch = async (_url, options) => { signal = options.signal; started(); return new Promise((_resolve, reject) => signal.addEventListener("abort", () => reject(new Error("cancelled")), { once: true })); };
   const res = response(); const pending = handler(request(), res); await ready;
   res.destroyed = true; res.emit("close"); await pending;
-  assert.equal(signal.aborted, true); assert.equal(res.body, "");
+  assert.equal(signal.aborted, true);
+  assert.equal(res.body.includes('"type":"segment"'), false);
+  assert.equal(res.body.includes('"type":"done"'), false);
 });

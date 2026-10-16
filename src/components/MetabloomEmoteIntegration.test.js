@@ -89,7 +89,7 @@ describe("streamed segments belong to one assistant reply", () => {
     window.__metabloomRequest = (value) => { request = value; return new Promise((resolve) => { finish = resolve; }); };
     render(<OrbSection />);
     fireEvent.click(screen.getByRole("button", { name: /Reactions/ }));
-    fireEvent.click(screen.getByRole("checkbox", { name: "Match reactions to each paragraph" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Allow separate response paragraphs" }));
     send("One answer, with a change of tone");
     await tick(0);
     expect(request.allowMultiple).toBe(true);
@@ -110,6 +110,33 @@ describe("streamed segments belong to one assistant reply", () => {
     expect(request.history.filter((message) => message.role === "assistant")).toEqual([
       { role: "assistant", content: first.response + "\n\n" + second.response },
     ]);
+  });
+
+  test("a live v2 turn plays its input gesture, streams text, then plays the response gesture once", async () => {
+    let request, resolve;
+    window.__metabloomRequest = (value) => {
+      request = value;
+      return new Promise((done) => { resolve = done; });
+    };
+    render(<OrbSection />);
+    send("How do you think about this?");
+    await tick(0);
+    act(() => request.onReaction({ phase: "input", emote: "curious" }));
+    expect(mockProps.action).toBe("curious");
+    const firstVersion = mockProps.actionVersion;
+    act(() => request.onSegment({ response: "I would examine the tradeoffs first." }, 0));
+    expect(screen.getByText("I would examine the tradeoffs first.")).toBeInTheDocument();
+    expect(replies()[0].status).toBe("streaming");
+    act(() => request.onReaction({ phase: "response", emote: "resolute" }));
+    await act(async () => { resolve({ version: "2.0.0", segments: [{ response: "I would examine the tradeoffs first." }] }); });
+    expect(replies()).toHaveLength(1);
+    expect(replies()[0].status).toBe("complete");
+    expect(mockProps.actionVersion).toBe(firstVersion);
+    await tick(2080);
+    expect(mockProps.action).toBe("resolute");
+    expect(mockProps.actionVersion).toBe(firstVersion + 1);
+    await tick(3000);
+    expect(mockProps.actionVersion).toBe(firstVersion + 1);
   });
 
   test("an ordinary adapter cannot silently opt into multiple emotes", async () => {

@@ -45,6 +45,24 @@ describe("HTTP segment arrival, not whole-response buffering", () => {
     expect(io.reader.releaseLock).toHaveBeenCalledTimes(1);
   });
 
+  test("Jev gestures bracket v2 streaming and the final reaction waits for verified done", async () => {
+    const io = transport(); const onSegment = jest.fn(); const onReaction = jest.fn();
+    const request = requestMetabloomResponse({ fetchImpl: io.fetchImpl, message: "Hello", onSegment, onReaction });
+    await flush();
+    await io.send('{"type":"emote","phase":"input","emote":"curious"}\n');
+    expect(onReaction).toHaveBeenCalledWith({ phase: "input", emote: "curious" });
+    await io.send('{"type":"segment","index":0,"response":"The answer starts now."}\n');
+    expect(onSegment).toHaveBeenCalledWith({ response: "The answer starts now." }, 0);
+    await io.send('{"type":"text_complete"}\n');
+    await io.send('{"type":"emote","phase":"response","emote":"resolute"}\n');
+    expect(onReaction).toHaveBeenCalledTimes(1);
+    await io.send('{"type":"done","version":"2.0.0"}\n');
+    expect(onReaction).toHaveBeenCalledWith({ phase: "response", emote: "resolute" });
+    await io.close();
+    await expect(request).resolves.toEqual({ version: "2.0.0", segments: [{ response: "The answer starts now." }] });
+    expect(onReaction).toHaveBeenCalledTimes(2);
+  });
+
   test("a disconnect after a valid prefix never becomes a successful demo response", async () => {
     const io = transport(); const onSegment = jest.fn();
     const request = requestMetabloomResponse({ fetchImpl: io.fetchImpl, message: "Hello", allowMultiple: true, onSegment, optional: true });

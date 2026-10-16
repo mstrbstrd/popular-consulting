@@ -1,11 +1,11 @@
 # Metabloom decision and activity mappings
 
 `metabloomDecisionMap.json` is the authored mapping. It separates expressive
-choices about a response from confirmed agent activity. The existing chat
-provider can select the new reaction chains immediately through its shared
-prompt and schema. The repo does not yet call Jev or run a deep-research worker.
-The decision question and activity callbacks are integration points for that
-orchestrator, not a claim that those services are connected.
+choices about a response from confirmed agent activity. Live conversations now use two server-side Jev Choice decisions: one to
+acknowledge the user's message and one to express the verified complete OpenAI
+reply. Legacy demo/adapters retain the original reaction schema. The repository
+still does not run a deep-research worker; activity callbacks are integration
+points, not confirmation of a connected worker.
 
 ## Response choices
 
@@ -43,8 +43,10 @@ same chain without modifying the transcript or making another model call.
 `metabloomDecisionMapping.js` exports a CommonJS question definition usable in a
 server adapter, plus a strict normalized-decision schema. The same metadata is
 available at `window.__metabloomProtocol.reactionQuestion` and on each request's
-`reactionQuestion` property. No new runtime dependency or client credential is
-needed.
+`reactionQuestion` property for external adapters. The server additionally
+uses `METABLOOM_INPUT_REACTION_QUESTION` for pre-response acknowledgement.
+The built-in endpoint calls `https://api.typesafe.ai/v1/systemone` with
+`JEV_MODEL` and the server-only `TYPESAFE_API_KEY`; the browser never sees a key.
 
 The question has Jev's `type: "choice"`, `instructions` and `criteria` shape.
 Use it as `questions.reaction` alongside the relevant conversational `state`

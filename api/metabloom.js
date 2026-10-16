@@ -1,6 +1,7 @@
 const { createHmac } = require("node:crypto");
 const { once } = require("node:events");
-const { METABLOOM_PROTOCOL_VERSION, METABLOOM_EMOTE_IDS, METABLOOM_EMOTE_RESPONSE_SCHEMA, buildMetabloomSystemPrompt } = require("../src/components/metabloomEmoteLibrary");
+const { METABLOOM_CHAT_PROTOCOL_VERSION, METABLOOM_EMOTE_IDS, METABLOOM_CHAT_RESPONSE_SCHEMA, buildMetabloomChatSystemPrompt } = require("../src/components/metabloomEmoteLibrary");
+const { decideMetabloomReaction } = require("../server/jevReactionService");
 const { streamMetabloomProvider } = require("../server/metabloomProviderStream");
 const MAX_BODY_BYTES = 24000;
 const localBuckets = new Map();
@@ -104,10 +105,11 @@ const sendJson = (response, status, body) => {
 const handler = async (request, response) => {
   response.setHeader("Cache-Control", "no-store, no-transform");
   response.setHeader("X-Content-Type-Options", "nosniff");
-  response.setHeader("X-Metabloom-Protocol", METABLOOM_PROTOCOL_VERSION);
+  response.setHeader("X-Metabloom-Protocol", METABLOOM_CHAT_PROTOCOL_VERSION);
   if (request.method === "GET") return sendJson(response, 200, {
-    version: METABLOOM_PROTOCOL_VERSION, release: "semantic-emotes-v1", presentation: "single-message-stream",
-    streaming: "validated-segments", configured: configured(request), emotes: METABLOOM_EMOTE_IDS,
+    version: METABLOOM_CHAT_PROTOCOL_VERSION, release: "jev-dual-reactions-v2", presentation: "single-message-stream",
+    streaming: "validated-text-and-reactions", configured: configured(request),
+    jevConfigured: Boolean(process.env.TYPESAFE_API_KEY), emotes: METABLOOM_EMOTE_IDS,
   });
   if (request.method !== "POST") {
     response.setHeader("Allow", "GET, POST");
@@ -124,6 +126,7 @@ const handler = async (request, response) => {
   response.on?.("close", onClose);
   let stage = "quota";
   let streaming = false;
+  let initialReactionPromise = Promise.resolve();
   try {
     if (!(await consumeRateLimit(request, controller.signal))) {
       response.setHeader("Retry-After", "60");
@@ -131,47 +134,73 @@ const handler = async (request, response) => {
     }
     if (controller.signal.aborted) throw new Error("Cancelled");
     stage = "provider";
-    const schema = JSON.parse(JSON.stringify(METABLOOM_EMOTE_RESPONSE_SCHEMA));
+    const sendStreamEvent = async (event) => {
+      if (controller.signal.aborted || response.destroyed) throw new Error("Cancelled");
+      if (!streaming) {
+        response.statusCode = 200;
+        response.setHeader("Content-Type", "application/x-ndjson; charset=utf-8");
+        response.flushHeaders?.();
+        streaming = true;
+      }
+      if (response.write(JSON.stringify(event) + "\n") === false) {
+        await once(response, "drain", { signal: controller.signal });
+      }
+    };
+    // Begin Jev immediately and in parallel with the chat provider. Its result
+    // always precedes the first text segment; a bounded failure becomes neutral.
+    initialReactionPromise = decideMetabloomReaction({
+      phase: "input",
+      state: { latestUserMessage: body.message, recentConversation: body.history.slice(-4) },
+      signal: controller.signal, timeoutMs: 950,
+    }).then((emote) => sendStreamEvent({ type: "emote", phase: "input", emote }));
+    const schema = JSON.parse(JSON.stringify(METABLOOM_CHAT_RESPONSE_SCHEMA));
     schema.properties.segments.maxItems = body.allowMultiple ? 4 : 1;
     const upstream = await fetch("https://api.openai.com/v1/responses", {
       method: "POST", redirect: "error", signal: controller.signal,
       headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model: process.env.METABLOOM_MODEL || "gpt-5-mini",
-        instructions: buildMetabloomSystemPrompt({ allowMultiple: body.allowMultiple }),
+        instructions: buildMetabloomChatSystemPrompt({ allowMultiple: body.allowMultiple }),
         input: [...body.history, { role: "user", content: body.message }],
         max_output_tokens: 2400, store: false, stream: true,
-        text: { format: { type: "json_schema", name: "metabloom_response", strict: true, schema } },
+        text: { format: { type: "json_schema", name: "metabloom_chat_response", strict: true, schema } },
       }),
     });
     if (!upstream.ok) {
       await upstream.body?.cancel?.();
-      return sendJson(response, 502, { code: "upstream_error" });
+      throw new Error("Chat provider unavailable");
     }
-    await streamMetabloomProvider(upstream, {
-      allowMultiple: body.allowMultiple,
+    const finalReply = await streamMetabloomProvider(upstream, {
+      textOnly: true, allowMultiple: body.allowMultiple,
       signal: controller.signal,
       onSegment: async (segment, index) => {
-        if (controller.signal.aborted || response.destroyed) throw new Error("Cancelled");
-        if (!streaming) {
-          response.statusCode = 200;
-          response.setHeader("Content-Type", "application/x-ndjson; charset=utf-8");
-          response.flushHeaders?.();
-          streaming = true;
-        }
-        if (response.write(`${JSON.stringify({ type: "segment", index, ...segment })}\n`) === false) {
-          await once(response, "drain", { signal: controller.signal });
-        }
+        await initialReactionPromise;
+        await sendStreamEvent({ type: "segment", index, ...segment });
       },
     });
+    await initialReactionPromise;
     if (controller.signal.aborted || response.destroyed) return;
-    response.end(`${JSON.stringify({ type: "done", version: METABLOOM_PROTOCOL_VERSION })}\n`);
+    // The full provider envelope is validated before Jev ever reads the answer.
+    await sendStreamEvent({ type: "text_complete" });
+    // OpenAI has completed successfully. Its 25-second generation deadline must
+    // not abort an otherwise good reply during Jev's separately bounded final choice.
+    clearTimeout(timeout);
+    const finalEmote = await decideMetabloomReaction({
+      phase: "response",
+      state: { latestUserMessage: body.message, assistantResponse: finalReply.segments.map((segment) => segment.response).join("\n\n") },
+      signal: controller.signal, timeoutMs: 1200,
+    });
+    await sendStreamEvent({ type: "emote", phase: "response", emote: finalEmote });
+    response.end(JSON.stringify({ type: "done", version: METABLOOM_CHAT_PROTOCOL_VERSION }) + "\n");
   } catch {
+    const timedOut = controller.signal.aborted;
+    controller.abort();
+    await initialReactionPromise.catch(() => {});
     if (response.destroyed) return;
     // Once bytes have been sent, never append a JSON error to a successful
     // envelope or claim completion. Preserve the visible prefix as incomplete.
-    if (streaming) return response.end(`${JSON.stringify({ type: "error", code: "stream_interrupted" })}\n`);
-    return sendJson(response, controller.signal.aborted ? 504 : 502, { code: stage === "quota" ? "quota_unavailable" : "upstream_unavailable" });
+    if (streaming) return response.end(JSON.stringify({ type: "error", code: "stream_interrupted" }) + "\n");
+    return sendJson(response, timedOut ? 504 : 502, { code: stage === "quota" ? "quota_unavailable" : "upstream_unavailable" });
   } finally {
     clearTimeout(timeout);
     response.off?.("close", onClose);

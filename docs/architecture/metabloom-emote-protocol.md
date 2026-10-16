@@ -1,4 +1,39 @@
-# Metabloom: one reply, streamed emotional segments
+# Metabloom: two-stage Jev reactions with streamed replies
+
+## Live conversation protocol 2.0.0
+
+The standard `/api/metabloom` endpoint uses **OpenAI for response text** and
+**TypeSafe Jev for the Orb's nonverbal decisions**. A server-only Jev Choice
+request reads the latest user message first. Its result (or neutral fallback) is
+published as soon as it is available, while the model builds the answer. A
+second Choice request starts only after OpenAI's complete text has passed schema
+validation. The reply stays a single assistant message regardless of segment count.
+
+```jsonl
+{"type":"emote","phase":"input","emote":"curious"}
+{"type":"segment","index":0,"response":"Let me examine the evidence."}
+{"type":"text_complete"}
+{"type":"emote","phase":"response","emote":"reflective"}
+{"type":"done","version":"2.0.0"}
+```
+
+Live response segments contain **text only**. The browser dispatches the input
+reaction immediately, then dispatches the final reaction **only after verifying
+the terminal `done` event**. This prevents interrupted streams from expressing a
+premature conclusion. The user sees the same validated paragraph streaming and
+one chat bubble. No second rendering layer is mounted. The old per-paragraph
+reactions are not selected by the chat model anymore.
+
+Jev receives a constrained `type: "choice"` question with the same 14 primitive
+emotes and four authored chains as the existing Metabloom vocabulary. Unknown or
+low-confidence decisions become `neutral`. Each phase has its own abortable,
+bounded call, and failures do not prevent successful chat responses from
+finishing. No credentials or conversation contents enter Jev diagnostic logs.
+Server-only Vercel settings: `TYPESAFE_API_KEY` and `JEV_MODEL` (default
+`jev-latest`). Missing Jev configuration produces neutral gestures, without
+falling back to model-selected motion.
+
+## Legacy demonstration and external adapter protocol 1.0.0
 
 Protocol 1.0.0 carries semantic text/emote pairs. A response request owns exactly one assistant message ID and one history entry, even when the reply contains several emotional segments. The same velocity-aware avatar remains mounted.
 
@@ -6,11 +41,11 @@ Protocol 1.0.0 carries semantic text/emote pairs. A response request owns exactl
 {"version":"1.0.0","segments":[{"emote":"whimsy","response":"A playful opening."},{"emote":"reflective","response":"A considered continuation."}]}
 ```
 
-The model chooses from fourteen primitive emotes and four authored reaction chains. Ordinary requests allow one segment, which may select a single emote or a chain. The checkbox **Match reactions to each paragraph** explicitly permits up to four segments. The shared system prompt explains that segments are consecutive paragraphs of ONE reply, not standalone messages. The model cannot control shader parameters, intensity, duration, or arbitrary animation playlists. See [decision and activity mappings](metabloom-decisions.md) for the choice catalog and Jev adapter contract.
+Legacy emote-response adapters may choose from fourteen primitive emotes and four authored reaction chains. Ordinary requests allow one segment, which may select a single emote or a chain. The live **Allow separate response paragraphs** checkbox permits up to four text segments; legacy demonstrations can still provide a distinct emote for each segment. The shared system prompt explains that segments are consecutive paragraphs of ONE reply, not standalone messages. The model cannot control shader parameters, intensity, duration, or arbitrary animation playlists. See [decision and activity mappings](metabloom-decisions.md) for the choice catalog and Jev adapter contract.
 
 ## Streaming path
 
-`api/metabloom.js` requests `stream: true` from the Responses API. `server/metabloomProviderStream.js` incrementally reads provider SSE text deltas, recognizing the ordered JSON schema. A complete segment must pass the exact emote/text schema and aggregate limits before it is emitted as NDJSON. Incomplete JSON never reaches the UI, and arbitrary JSON is never repaired. The parser handles chunk boundaries, escaped strings, nested-looking text, and UTF-8 splits.
+`api/metabloom.js` requests `stream: true` from the Responses API. Its live output uses protocol 2.0.0. The version 1 example below describes the intentionally retained legacy parser. `server/metabloomProviderStream.js` incrementally reads provider SSE text deltas, recognizing the ordered JSON schema. A complete segment must pass the exact emote/text schema and aggregate limits before it is emitted as NDJSON. Incomplete JSON never reaches the UI, and arbitrary JSON is never repaired. The parser handles chunk boundaries, escaped strings, nested-looking text, and UTF-8 splits.
 
 ```json
 {"type":"segment","index":0,"emote":"whimsy","response":"A playful opening."}

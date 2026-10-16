@@ -23,7 +23,7 @@ import {
   parseMetabloomModelResponse,
 } from "./metabloomResponseContract";
 import { METABLOOM_DEMO_PROMPTS, METABLOOM_DEMOS } from "./metabloomDemoResponses";
-import { parseMetabloomEmoteEnvelope, createMetabloomSegmentStreamDecoder } from "./metabloomEmoteProtocol";
+import { parseMetabloomChatEnvelope, createMetabloomSegmentStreamDecoder } from "./metabloomEmoteProtocol";
 import { resolveMetabloomEmote, METABLOOM_PROTOCOL_VERSION, METABLOOM_EMOTE_IDS, METABLOOM_EMOTE_RESPONSE_SCHEMA } from "./metabloomEmoteLibrary";
 import { METABLOOM_ACTIVITIES, METABLOOM_REACTION_RECIPES, METABLOOM_DECISION_SCHEMA, METABLOOM_REACTION_QUESTION, resolveMetabloomDecision, parseMetabloomActivity } from "./metabloomDecisionMapping";
 import { createMetabloomReactionPlayer } from "./metabloomReactionPlayer";
@@ -998,7 +998,7 @@ const OrbSection = ({
     if (expectedRequestId && (!activeRequest || activeRequest.requestId !== expectedRequestId)) return false;
     if (expectedRequestId && activeRequest.session.snapshot().segments.length && !activeRequest.claimed) return false;
     const allowMultiple = expectedRequestId ? activeRequest.allowMultiple : options?.allowMultiple === true;
-    const parsed = parseMetabloomEmoteEnvelope(payload, { allowMultiple });
+    const parsed = parseMetabloomChatEnvelope(payload, { allowMultiple });
     if (parsed.ok) {
       const session = expectedRequestId ? activeRequest.session : beginReply(source, allowMultiple);
       updateStateSnapshot({ responseSource: source });
@@ -1180,10 +1180,25 @@ const OrbSection = ({
         && activeRequestRef.current === activeRequest && !session.closed;
       const onSegment = (segment, index) => {
         if (!current()) return;
+        if (segment.emote === undefined && !session.snapshot().segments.length) {
+          completeActivity();
+          window.clearTimeout(thinkingTimerRef.current);
+          thinkingTimerRef.current = 0;
+        }
         session.append(segment, index);
       };
+      const onReaction = (reaction) => {
+        if (!current() || !reaction || !resolveMetabloomEmote(reaction.emote)
+          || !["input", "response"].includes(reaction.phase)) return;
+        if (reaction.phase === "input") {
+          window.clearTimeout(thinkingTimerRef.current);
+          thinkingTimerRef.current = 0;
+        }
+        reactionPlayer.enqueue(reaction.emote, requestId, reaction.phase === "input" ? -1 : -2,
+          document.hidden || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches);
+      };
       const request = {
-        requestId, message, history, allowMultiple, signal: controller.signal, onSegment,
+        requestId, message, history, allowMultiple, signal: controller.signal, onSegment, onReaction,
         onActivity: (event) => current() && reportActivity(requestId, event),
         reactionQuestion: METABLOOM_REACTION_QUESTION,
         resolveDecision: resolveMetabloomDecision,
@@ -1226,12 +1241,12 @@ const OrbSection = ({
       }).then((payload) => {
         if (!current()) return;
         if (!payload && !session.snapshot().segments.length) { runDemo(); return; }
-        if (parseMetabloomEmoteEnvelope(payload, { allowMultiple }).ok) finishReply(session, payload);
+        if (parseMetabloomChatEnvelope(payload, { allowMultiple }).ok) finishReply(session, payload);
         else receiveModelResponse(payload, { requestId, source: "model" });
       }).catch(() => { if (current()) failReply(session); });
       return true;
     },
-    [allowEmoteChanges, appendMessage, beginReply, cancelResponse, failReply, finishReply, isActive, publishMessages, receiveModelResponse, reportActivity, updateStateSnapshot],
+    [allowEmoteChanges, appendMessage, beginReply, cancelResponse, completeActivity, failReply, finishReply, isActive, publishMessages, reactionPlayer, receiveModelResponse, reportActivity, updateStateSnapshot],
   );
 
   const handleSubmit = React.useCallback(
@@ -1625,7 +1640,7 @@ const OrbSection = ({
                       {message.segments?.length
                         ? message.segments.map((segment, index) => (
                           <React.Fragment key={index}>
-                            <button
+                            {segment.emote && <button
                               type="button"
                               className="metabloom-chat__reaction-cue"
                               aria-label={`Replay ${resolveMetabloomEmote(segment.emote)?.label.toLowerCase()} reaction for paragraph ${index + 1}`}
@@ -1634,7 +1649,7 @@ const OrbSection = ({
                               onClick={() => replaySegment(message, segment, index)}
                             >
                               <span aria-hidden="true">↻</span> {resolveMetabloomEmote(segment.emote)?.label}
-                            </button>
+                            </button>}
                             <p data-segment-index={index} data-reaction-active={activeReaction?.messageId === message.id && activeReaction?.index === index ? "true" : "false"}>{segment.response}</p>
                           </React.Fragment>
                         ))
@@ -1701,7 +1716,7 @@ const OrbSection = ({
                   <>
                     <label className="metabloom-chat__stream-option">
                       <input type="checkbox" checked={allowEmoteChanges} onChange={(event) => setAllowEmoteChanges(event.target.checked)} />
-                      Match reactions to each paragraph
+                      Allow separate response paragraphs
                     </label>
                     <div className="metabloom-reactions__recipes" role="group" aria-label="Authored reaction chains">
                       <strong>Reaction chains</strong>
