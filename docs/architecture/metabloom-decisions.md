@@ -19,11 +19,17 @@ expand into deterministic sequences:
 | `consider-and-resolve` | Reflective → Resolute | Consider evidence, then reach a recommendation |
 | `celebrate-and-appreciate` | Celebratory → Warm | Recognize progress, then express warmth |
 
-Prefer one primitive unless both stances are present. The decision is about the
-meaning of the assistant's response, not keyword matching in the user's prompt.
-A chain does not imply certainty or success beyond the response text.
+Both live Jev prompts favor a decisive, contextual expression during ordinary
+conversation as well as emotional moments. Questions can invite curiosity,
+detailed requests attentive listening, and uncertainty reflection. Neutral is
+reserved in the instructions for deliberate stillness. Authored chains are
+appropriate when both stances are present; their meaning cannot imply certainty
+or task success beyond the actual conversation. The input phase acknowledges
+the user without anticipating the answer, while the response phase expresses
+the completed assistant reply. State text cannot override these instructions.
 
-The wire format remains version `1.0.0`:
+The legacy adapter wire format remains version `1.0.0`; live two-stage Jev
+reactions use [protocol 2.0.0](metabloom-emote-protocol.md):
 
 ```json
 {"version":"1.0.0","segments":[{"emote":"support-and-reassure","response":"That sounds difficult. We can take it one step at a time."}]}
@@ -69,9 +75,11 @@ const emote = resolveMetabloomDecision({
 `resolveMetabloomDecision` accepts a known choice with finite confidence from
 0.7 through 1. Unknown choices, missing or extra fields, and lower confidence
 return `neutral`. The 0.7 threshold is an application heuristic to tune against
-reviewed examples, not a calibrated probability of correctness. This optional
-confidence gate applies to a decision adapter; the current chat provider
-continues to choose directly from the strict emote enum in one generation.
+reviewed examples, not a calibrated probability of correctness. Both live Jev
+phases use this gate. More expressive prompt wording does not change the
+threshold, the 950 ms input and 1,200 ms response timeouts, or the existing
+neutral fallbacks for invalid, unavailable, or timed-out decisions. The chat
+provider generates text only.
 
 Official TypeSafe references: [Choice](https://docs.typesafe.ai/primitives/choice)
 and [Confidence](https://docs.typesafe.ai/confidence).

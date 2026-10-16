@@ -20,6 +20,64 @@ describe("streamed segments belong to one assistant reply", () => {
   beforeEach(() => { jest.useFakeTimers(); window.__metabloomRequest = null; });
   afterEach(() => { cleanup(); jest.clearAllTimers(); jest.useRealTimers(); window.__metabloomRequest = null; });
 
+  test("text grows inside one paragraph before its segment or request completes", async () => {
+    const requests = [];
+    let finish;
+    window.__metabloomRequest = (request) => {
+      requests.push(request);
+      return new Promise((resolve) => { finish = resolve; });
+    };
+    render(<OrbSection />);
+    send("Let this thought arrive progressively");
+    await tick(0);
+    const request = requests[0];
+    act(() => request.onTextDelta("An idea", 0));
+    const article = screen.getByRole("article", { name: "Metabloom message" });
+    const id = article.dataset.messageId;
+    expect(article).toHaveTextContent("An idea");
+    expect(article).toHaveAttribute("aria-busy", "true");
+    expect(replies()[0]).toMatchObject({ status: "streaming", content: "An idea" });
+    expect(window.__orbState().pending).toBe(true);
+    await tick(700);
+    expect(mockProps.actionVersion).toBe(0);
+    act(() => request.onTextDelta(" takes shape.", 0));
+    expect(screen.getByRole("article", { name: "Metabloom message" })).toBe(article);
+    expect(article.querySelectorAll("p[data-segment-index]")).toHaveLength(1);
+    expect(replies()[0].content).toBe("An idea takes shape.");
+    act(() => request.onSegment({ response: "An idea takes shape." }, 0));
+    await act(async () => { finish({ version: "2.0.0", segments: [{ response: "An idea takes shape." }] }); });
+    expect(replies()).toHaveLength(1);
+    expect(replies()[0]).toMatchObject({ id, content: "An idea takes shape.", status: "complete" });
+    expect(article).toHaveAttribute("aria-busy", "false");
+    expect(article.querySelectorAll("p[data-segment-index]")).toHaveLength(1);
+    send("Continue from that thought");
+    await tick(0);
+    expect(requests[1].history.filter((item) => item.role === "assistant")).toEqual([
+      { role: "assistant", content: "An idea takes shape." },
+    ]);
+  });
+
+  test.each(["stop", "new message"])("%s preserves partial text as incomplete and rejects late deltas", async (operation) => {
+    const requests = [];
+    window.__metabloomRequest = (request) => { requests.push(request); return new Promise(() => {}); };
+    render(<OrbSection />);
+    send("A reply that will be interrupted");
+    await tick(0);
+    act(() => requests[0].onTextDelta("An unfinished thought", 0));
+    if (operation === "stop") fireEvent.click(screen.getByRole("button", { name: "Stop response" }));
+    send("Start a fresh reply");
+    await tick(0);
+    expect(requests[0].signal.aborted).toBe(true);
+    act(() => requests[0].onTextDelta(" must never arrive.", 0));
+    expect(replies()[0]).toMatchObject({ content: "An unfinished thought", status: "interrupted" });
+    expect(screen.getByText("Response incomplete")).toBeInTheDocument();
+    expect(requests[1].history.some((item) => item.role === "assistant")).toBe(false);
+    act(() => requests[1].onTextDelta("The fresh reply", 0));
+    expect(replies()).toHaveLength(2);
+    expect(replies()[1].content).toBe("The fresh reply");
+    expect(screen.queryByText(/must never arrive/)).not.toBeInTheDocument();
+  });
+
   test("the real demo appends paragraphs to the same DOM node before completion", async () => {
     const provider = jest.fn(); window.__metabloomRequest = provider;
     render(<OrbSection />);

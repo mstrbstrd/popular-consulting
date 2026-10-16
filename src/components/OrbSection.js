@@ -909,6 +909,9 @@ const OrbSection = ({
         if (!mountedRef.current) return;
         const replySource = replyRef.current === session ? stateRef.current.responseSource : source;
         if (!messageId) {
+          completeActivity();
+          window.clearTimeout(thinkingTimerRef.current);
+          thinkingTimerRef.current = 0;
           messageId = appendMessage("assistant", snapshot.content, [], replySource, snapshot.emote, snapshot.segments, snapshot.status).id;
         } else {
           publishMessages(messagesRef.current.map((message) => message.id === messageId ? { ...message, ...snapshot, source: replySource } : message));
@@ -1027,6 +1030,7 @@ const OrbSection = ({
     const session = beginReply("external", allowMultiple);
     const decoder = createMetabloomSegmentStreamDecoder({
       allowMultiple,
+      onTextDelta: (delta, index) => session.appendText(delta, index),
       onSegment: (segment, index) => session.append(segment, index),
     });
     return Object.freeze({
@@ -1178,13 +1182,11 @@ const OrbSection = ({
       setTalking(false);
       const current = () => mountedRef.current && requestTokenRef.current === requestToken
         && activeRequestRef.current === activeRequest && !session.closed;
+      const onTextDelta = (delta, index) => {
+        if (current()) session.appendText(delta, index);
+      };
       const onSegment = (segment, index) => {
         if (!current()) return;
-        if (segment.emote === undefined && !session.snapshot().segments.length) {
-          completeActivity();
-          window.clearTimeout(thinkingTimerRef.current);
-          thinkingTimerRef.current = 0;
-        }
         session.append(segment, index);
       };
       const onReaction = (reaction) => {
@@ -1198,7 +1200,7 @@ const OrbSection = ({
           document.hidden || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches);
       };
       const request = {
-        requestId, message, history, allowMultiple, signal: controller.signal, onSegment, onReaction,
+        requestId, message, history, allowMultiple, signal: controller.signal, onTextDelta, onSegment, onReaction,
         onActivity: (event) => current() && reportActivity(requestId, event),
         reactionQuestion: METABLOOM_REACTION_QUESTION,
         resolveDecision: resolveMetabloomDecision,
@@ -1246,7 +1248,7 @@ const OrbSection = ({
       }).catch(() => { if (current()) failReply(session); });
       return true;
     },
-    [allowEmoteChanges, appendMessage, beginReply, cancelResponse, completeActivity, failReply, finishReply, isActive, publishMessages, reactionPlayer, receiveModelResponse, reportActivity, updateStateSnapshot],
+    [allowEmoteChanges, appendMessage, beginReply, cancelResponse, failReply, finishReply, isActive, publishMessages, reactionPlayer, receiveModelResponse, reportActivity, updateStateSnapshot],
   );
 
   const handleSubmit = React.useCallback(
@@ -1629,6 +1631,7 @@ const OrbSection = ({
                   <article
                     className={`metabloom-chat__message metabloom-chat__message--${message.role}`}
                     aria-label={`${message.role === "assistant" ? "Metabloom" : "You"} message`}
+                    aria-busy={message.status === "streaming"}
                     data-message-id={message.id}
                     data-emote={message.emote || undefined}
                     data-stream-status={message.status}

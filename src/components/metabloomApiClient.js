@@ -1,4 +1,4 @@
-import { createMetabloomSegmentStreamDecoder, parseMetabloomChatEnvelope } from "./metabloomEmoteProtocol";
+import { MAX_METABLOOM_STREAM_BYTES, createMetabloomSegmentStreamDecoder, parseMetabloomChatEnvelope } from "./metabloomEmoteProtocol";
 
 const MAX_RESPONSE_BYTES = 96000;
 export class MetabloomApiError extends Error {
@@ -18,6 +18,7 @@ export const requestMetabloomResponse = async ({
   history = [],
   message,
   onSegment,
+  onTextDelta,
   onReaction,
   optional = false,
   requestId,
@@ -38,13 +39,17 @@ export const requestMetabloomResponse = async ({
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json", Accept: "application/x-ndjson" },
-      body: JSON.stringify({ allowMultiple: allowMultiple === true, history, message, requestId }),
+      body: JSON.stringify({ allowMultiple: allowMultiple === true, streamText: true, history, message, requestId }),
       signal: controller.signal,
     });
     const contentType = response.headers?.get?.("content-type") || "";
     const isStream = contentType.includes("application/x-ndjson");
     const decoder = createMetabloomSegmentStreamDecoder({
       allowMultiple,
+      onTextDelta: (delta, index) => {
+        if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
+        onTextDelta?.(delta, index);
+      },
       onReaction: (reaction) => {
         if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
         onReaction?.(reaction);
@@ -67,7 +72,7 @@ export const requestMetabloomResponse = async ({
         if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
         if (chunk.done) break;
         bytes += chunk.value.byteLength;
-        if (bytes > (response.ok ? MAX_RESPONSE_BYTES : 4096)) throw new MetabloomApiError("Response exceeded its size limit.");
+        if (bytes > (response.ok ? (isStream ? MAX_METABLOOM_STREAM_BYTES : MAX_RESPONSE_BYTES) : 4096)) throw new MetabloomApiError("Response exceeded its size limit.");
         const part = textDecoder.decode(chunk.value, { stream: true });
         if (response.ok && isStream) {
           if (!decoder.push(part)) throw new MetabloomApiError("The response stream was interrupted or invalid.", { code: "invalid_response" });
@@ -77,7 +82,7 @@ export const requestMetabloomResponse = async ({
       if (response.ok && isStream) decoder.push(tail); else text += tail;
     } else if (typeof response.text === "function") {
       text = await response.text();
-      if (text.length > (response.ok ? 24000 : 4096)) throw new MetabloomApiError("Response exceeded its size limit.");
+      if (text.length > (response.ok ? (isStream ? MAX_METABLOOM_STREAM_BYTES : 24000) : 4096)) throw new MetabloomApiError("Response exceeded its size limit.");
       if (response.ok && isStream) decoder.push(text);
     } else if (!response.ok && typeof response.json === "function") {
       // Minimal test transports; real HTTP responses use the bounded reader above.
