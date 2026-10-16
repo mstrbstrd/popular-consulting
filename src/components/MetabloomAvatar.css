@@ -205,3 +205,15 @@
   .creatoros-field-shell.is-fallback .creatoros-field-fallback {
   transform: translateY(10%) var(--avatar-fallback-transform, none);
 }
+
+/* If mobile Safari is still compiling its first WebGL frame, show a lightweight
+   spectral presence rather than leaving the center of the revealed chat empty.
+   It disappears automatically when the canvas reports its first frame. */
+.metabloom-avatar[data-avatar-theme="metabloom"] .creatoros-field-shell[data-field-ready="false"]::after {
+  opacity: 1;
+  background:
+    radial-gradient(ellipse 19% 19% at 43% 46%, color-mix(in srgb, var(--avatar-color-a) 78%, transparent), transparent 100%),
+    radial-gradient(ellipse 18% 20% at 57% 49%, color-mix(in srgb, var(--avatar-color-b) 72%, transparent), transparent 100%),
+    radial-gradient(ellipse 17% 19% at 50% 56%, color-mix(in srgb, var(--avatar-color-c) 75%, transparent), transparent 100%);
+  filter: blur(8px) saturate(1.2);
+}
