@@ -10,7 +10,7 @@ const oldFetch = global.fetch;
 const env = { ...process.env };
 afterEach(() => {
   global.fetch = oldFetch;
-  for (const key of ["VERCEL_ENV", "OPENAI_API_KEY"]) {
+  for (const key of ["VERCEL_ENV", "OPENAI_API_KEY", "TYPESAFE_API_KEY", "JEV_MODEL"]) {
     if (env[key] === undefined) delete process.env[key]; else process.env[key] = env[key];
   }
   handler._internals.localBuckets.clear();
@@ -61,27 +61,27 @@ test("unknown, duplicate, oversized or out-of-order segments cannot change the v
   r.interrupt("error");assert.equal(r.snapshot().status,"error");assert.deepEqual(r.snapshot().segments,[first]);
 });
 test("the actual server writes the first segment while the upstream stream is still open", async () => {
-  process.env.VERCEL_ENV="development";process.env.OPENAI_API_KEY="test-not-a-credential";
+  process.env.VERCEL_ENV="development";process.env.OPENAI_API_KEY="test-not-a-credential";delete process.env.TYPESAFE_API_KEY;
   let upstream, sent;
   global.fetch=async (_url,options)=>{sent=JSON.parse(options.body);return new Response(new ReadableStream({start(c){upstream=c;}}),{headers:{"content-type":"text/event-stream"}});};
   const res=response();const running=handler(request(),res);
   await waitFor(()=>Boolean(upstream));
-  const prefix='{"version":"1.0.0","segments":['+JSON.stringify(first);
+  const prefix='{"version":"2.0.0","segments":['+JSON.stringify({response:first.response});
   const bytes=sse(delta(prefix));
   for(let i=0;i<bytes.length;i+=3) upstream.enqueue(bytes.slice(i,i+3));
-  await waitFor(()=>res.body.includes('"whimsy"'));
-  assert.equal(res.writableEnded,undefined);assert.equal(res.body.includes('"reflective"'),false);
+  await waitFor(()=>res.body.includes('"type":"segment"'));
+  assert.equal(res.writableEnded,undefined);assert.equal(res.body.includes(second.response),false);
   assert.equal(sent.stream,true);
-  const suffix=','+JSON.stringify(second)+']}';
+  const suffix=','+JSON.stringify({response:second.response})+']}';
   upstream.enqueue(sse(delta(suffix)));upstream.enqueue(sse(completed(prefix+suffix)));
   await running;
   const decoder=createMetabloomSegmentStreamDecoder();decoder.push(res.body);
-  assert.deepEqual(decoder.finish().value,envelope([first,second]));
+  assert.deepEqual(decoder.finish().value,{version:"2.0.0",segments:[{response:first.response},{response:second.response}]});
 });
 test("a failed upstream after one segment signals an incomplete stream, not a successful response", async () => {
-  process.env.VERCEL_ENV="development";process.env.OPENAI_API_KEY="test-not-a-credential";
+  process.env.VERCEL_ENV="development";process.env.OPENAI_API_KEY="test-not-a-credential";delete process.env.TYPESAFE_API_KEY;
   global.fetch=async ()=>new Response(new ReadableStream({start(c){
-    c.enqueue(sse(delta('{"version":"1.0.0","segments":['+JSON.stringify(first))));
+    c.enqueue(sse(delta('{"version":"2.0.0","segments":['+JSON.stringify({response:first.response}))));
     c.enqueue(sse({type:"error",message:"Private upstream diagnostic"}));c.close();
   }}),{headers:{"content-type":"text/event-stream"}});
   const res=response();await handler(request(),res);
