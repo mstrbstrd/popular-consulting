@@ -30,6 +30,10 @@ const METADATA_SELECTORS = Object.freeze({
 
 const OrbPageContent = ({ onReady }) => {
   const navigation = useAppNavigation();
+  // The route's foreground is interactive as soon as React mounts. Do not
+  // block its reveal on WebGL's first frame: on mobile Safari a busy/failed
+  // GPU can otherwise leave the entire chat hidden behind the background.
+  React.useEffect(() => { onReady?.(); }, [onReady]);
   const backgroundEnabled = navigation?.orbBackgroundEnabled !== false;
   const [conversationStarted, setConversationStarted] = React.useState(false);
   const [metabloomPalette, setMetabloomPalette] = React.useState(
