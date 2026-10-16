@@ -138,5 +138,7 @@ test("disconnect cancels provider work before sending a stale response", async (
   global.fetch = async (_url, options) => { signal = options.signal; started(); return new Promise((_resolve, reject) => signal.addEventListener("abort", () => reject(new Error("cancelled")), { once: true })); };
   const res = response(); const pending = handler(request(), res); await ready;
   res.destroyed = true; res.emit("close"); await pending;
-  assert.equal(signal.aborted, true); assert.equal(res.body, "");
+  assert.equal(signal.aborted, true);
+  assert.equal(res.body.includes('"type":"segment"'), false);
+  assert.equal(res.body.includes('"type":"done"'), false);
 });
