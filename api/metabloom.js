@@ -190,13 +190,14 @@ const handler = async (request, response) => {
     await sendStreamEvent({ type: "emote", phase: "response", emote: finalEmote });
     response.end(JSON.stringify({ type: "done", version: METABLOOM_CHAT_PROTOCOL_VERSION }) + "\n");
   } catch {
+    const timedOut = controller.signal.aborted;
     controller.abort();
     await initialReactionPromise.catch(() => {});
     if (response.destroyed) return;
     // Once bytes have been sent, never append a JSON error to a successful
     // envelope or claim completion. Preserve the visible prefix as incomplete.
     if (streaming) return response.end(JSON.stringify({ type: "error", code: "stream_interrupted" }) + "\n");
-    return sendJson(response, controller.signal.aborted ? 504 : 502, { code: stage === "quota" ? "quota_unavailable" : "upstream_unavailable" });
+    return sendJson(response, timedOut ? 504 : 502, { code: stage === "quota" ? "quota_unavailable" : "upstream_unavailable" });
   } finally {
     clearTimeout(timeout);
     response.off?.("close", onClose);
