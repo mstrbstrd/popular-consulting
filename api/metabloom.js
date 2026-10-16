@@ -182,6 +182,9 @@ const handler = async (request, response) => {
     if (controller.signal.aborted || response.destroyed) return;
     // The full provider envelope is validated before Jev ever reads the answer.
     await sendStreamEvent({ type: "text_complete" });
+    // OpenAI has completed successfully. Its 25-second generation deadline must
+    // not abort an otherwise good reply during Jev's separately bounded final choice.
+    clearTimeout(timeout);
     const finalEmote = await decideMetabloomReaction({
       phase: "response",
       state: { latestUserMessage: body.message, assistantResponse: finalReply.segments.map((segment) => segment.response).join("\n\n") },
