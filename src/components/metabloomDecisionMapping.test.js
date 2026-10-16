@@ -1,6 +1,7 @@
 import {
   METABLOOM_REACTION_QUESTION, METABLOOM_DECISION_SCHEMA,
   resolveMetabloomDecision, parseMetabloomActivity,
+  METABLOOM_ACTION_IDS, METABLOOM_ACTION_QUESTION, resolveMetabloomActionDecision,
 } from "./metabloomDecisionMapping";
 import { METABLOOM_EMOTE_IDS } from "./metabloomEmoteLibrary";
 
@@ -39,4 +40,27 @@ test("only known activity lifecycle events are accepted", () => {
     .toEqual({ activity: "deep-research", state: "running" });
   expect(parseMetabloomActivity({ activity: "analysis", state: "complete" }))
     .toEqual({ activity: "analysis", state: "complete" });
+});
+
+test("scene choices are independently resolved without becoming emotes or worker events", () => {
+  expect(Object.keys(METABLOOM_ACTION_QUESTION.criteria)).toEqual(METABLOOM_ACTION_IDS);
+  for (const choice of METABLOOM_ACTION_IDS) {
+    expect(resolveMetabloomActionDecision({ choice, confidence: 0.7 })).toBe(choice);
+    expect(resolveMetabloomDecision({ choice, confidence: 1 })).toBe("neutral");
+    expect(parseMetabloomActivity({ action: choice })).toBeNull();
+  }
+  expect(resolveMetabloomActionDecision({ choice: "warm", confidence: 1 })).toBe("none");
+});
+
+test.each([
+  null, [], {}, { choice: "deep-research" },
+  { choice: "constructor", confidence: 1 },
+  { choice: "deep-research-diving", confidence: 1 },
+  { choice: "deep-research", confidence: 0.69 },
+  { choice: "deep-research", confidence: 1.1 },
+  { choice: "deep-research", confidence: NaN },
+  { choice: "deep-research", confidence: "0.9" },
+  { choice: "deep-research", confidence: 0.9, state: "complete" },
+])("uncertain or malformed action %j cannot start a scene", (decision) => {
+  expect(resolveMetabloomActionDecision(decision)).toBe("none");
 });

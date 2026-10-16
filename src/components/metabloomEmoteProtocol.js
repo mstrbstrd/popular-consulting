@@ -7,6 +7,7 @@ const {
   METABLOOM_CHAT_PROTOCOL_VERSION,
   resolveMetabloomEmote,
 } = require("./metabloomEmoteLibrary");
+const { METABLOOM_ACTION_IDS } = require("./metabloomDecisionMapping");
 
 const MAX_SERIALIZED_CHARS = 24000;
 // Allow bounded NDJSON framing even when all 4,800 text characters arrive singly.
@@ -91,6 +92,7 @@ const createMetabloomSegmentStreamDecoder = ({
   onSegment,
   onTextDelta,
   onReaction,
+  onAction,
 } = {}) => {
   const limit = Number.isInteger(maxBufferChars) && maxBufferChars > 0
     ? Math.min(maxBufferChars, MAX_SERIALIZED_CHARS) : MAX_SERIALIZED_CHARS;
@@ -104,6 +106,7 @@ const createMetabloomSegmentStreamDecoder = ({
   let responseEmote = null;
   let textComplete = false;
   let partialResponse = null;
+  let action = null;
   const segments = [];
   const fail = (message) => {
     if (!errorMessage) {
@@ -118,6 +121,16 @@ const createMetabloomSegmentStreamDecoder = ({
     if (completed) return fail("Metabloom stream continued after completion.");
     let event;
     try { event = JSON.parse(line); } catch { return fail("Malformed stream JSON."); }
+    if (event?.type === "action") {
+      if (!exactKeys(event, ["type", "action"]) || !METABLOOM_ACTION_IDS.includes(event.action)
+        || version !== METABLOOM_CHAT_PROTOCOL_VERSION || action !== null
+        || segments.length || partialResponse !== null || textComplete) {
+        return fail("Invalid or out-of-order action choice.");
+      }
+      action = event.action;
+      onAction?.(action);
+      return true;
+    }
     if (event?.type === "text_delta") {
       if (!exactKeys(event, ["type", "index", "delta"]) || version !== METABLOOM_CHAT_PROTOCOL_VERSION
         || textComplete || event.index !== segments.length || typeof event.delta !== "string" || !event.delta.length
@@ -217,7 +230,7 @@ const createMetabloomSegmentStreamDecoder = ({
     getState() {
       return { bufferLength: buffer.length, completed, failed: Boolean(errorMessage),
         nextIndex: segments.length, segments: segments.map(cloneChatSegment), version,
-        inputEmote, responseEmote, textComplete };
+        inputEmote, responseEmote, textComplete, action };
     },
   });
 };

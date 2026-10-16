@@ -1,4 +1,4 @@
-# Metabloom: two-stage Jev reactions with streamed replies
+# Metabloom: Jev reactions and actions with streamed replies
 
 ## Live conversation protocol 2.0.0
 
@@ -11,6 +11,7 @@ validation. The reply stays a single assistant message regardless of segment cou
 
 ```jsonl
 {"type":"emote","phase":"input","emote":"curious"}
+{"type":"action","action":"deep-research"}
 {"type":"text_delta","index":0,"delta":"Let me examine"}
 {"type":"text_delta","index":0,"delta":" the evidence."}
 {"type":"segment","index":0,"response":"Let me examine the evidence."}
@@ -26,6 +27,21 @@ following validated `segment` commits that same paragraph without appending it
 again. Its normalized text must exactly match the concatenated visible deltas.
 Older clients that omit the capability keep receiving complete segments.
 
+The browser also sends `actionMode: "auto"` to request an independent action
+choice in the input Jev call. A selected explicit mode (`none`, `deep-research`,
+or `under-the-hood`) overrides classification. Only clients sending `actionMode`
+receive the single `action` record. It must follow the input emote and precede
+all text; unknown IDs, extra fields, duplicate records, and late records fail
+validation. Older v2 streams without action records remain supported.
+
+`onAction(action)` opens the request-owned scene. Deep Research holds through
+partial text and surfaces on successful terminal completion; Under the Hood
+holds its reveal and then closes. Completion comes from the existing validated
+reply lifecycle, without another action event or another Jev call. Cancellation
+and failure retire the scene and preserve any incomplete reply. The action
+catalog and the confirmed external-worker contract are documented in
+[decision and activity mappings](metabloom-decisions.md).
+
 The browser dispatches the input
 reaction immediately, then dispatches the final reaction **only after verifying
 the terminal `done` event**. This prevents interrupted streams from expressing a
@@ -40,8 +56,8 @@ low-confidence decisions become `neutral`. Each phase has its own abortable,
 bounded call, and failures do not prevent successful chat responses from
 finishing. No credentials or conversation contents enter Jev diagnostic logs.
 Server-only Vercel settings: `TYPESAFE_API_KEY` and `JEV_MODEL` (default
-`jev-latest`). Missing Jev configuration produces neutral gestures, without
-falling back to model-selected motion.
+`jev-latest`). Missing Jev configuration produces neutral gestures and `none`
+for automatic actions. An explicitly selected presentation mode still applies.
 
 ## Legacy demonstration and external adapter protocol 1.0.0
 

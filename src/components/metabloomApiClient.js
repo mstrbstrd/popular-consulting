@@ -1,4 +1,5 @@
 import { MAX_METABLOOM_STREAM_BYTES, createMetabloomSegmentStreamDecoder, parseMetabloomChatEnvelope } from "./metabloomEmoteProtocol";
+import { METABLOOM_ACTION_MODES } from "./metabloomDecisionMapping";
 
 const MAX_RESPONSE_BYTES = 96000;
 export class MetabloomApiError extends Error {
@@ -13,6 +14,7 @@ export const isMetabloomApiUnavailable = (error) => error instanceof MetabloomAp
   && (error.code === "not_configured" || error.status === 404);
 
 export const requestMetabloomResponse = async ({
+  actionMode = "auto",
   allowMultiple = false,
   fetchImpl = globalThis.fetch,
   history = [],
@@ -20,10 +22,14 @@ export const requestMetabloomResponse = async ({
   onSegment,
   onTextDelta,
   onReaction,
+  onAction,
   optional = false,
   requestId,
   signal,
 } = {}) => {
+  if (!METABLOOM_ACTION_MODES.includes(actionMode)) {
+    throw new MetabloomApiError("Unknown presentation mode.", { code: "invalid_request" });
+  }
   if (typeof fetchImpl !== "function") {
     if (optional) return null;
     throw new MetabloomApiError("Fetch is unavailable.");
@@ -39,13 +45,17 @@ export const requestMetabloomResponse = async ({
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json", Accept: "application/x-ndjson" },
-      body: JSON.stringify({ allowMultiple: allowMultiple === true, streamText: true, history, message, requestId }),
+      body: JSON.stringify({ actionMode, allowMultiple: allowMultiple === true, streamText: true, history, message, requestId }),
       signal: controller.signal,
     });
     const contentType = response.headers?.get?.("content-type") || "";
     const isStream = contentType.includes("application/x-ndjson");
     const decoder = createMetabloomSegmentStreamDecoder({
       allowMultiple,
+      onAction: (action) => {
+        if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
+        onAction?.(action);
+      },
       onTextDelta: (delta, index) => {
         if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
         onTextDelta?.(delta, index);

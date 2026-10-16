@@ -78,11 +78,13 @@ test("shared atomic quota is checked before provider work and fails closed", asy
   const failed = response(); await handler(req, failed); assert.equal(failed.statusCode, 502);
 });
 const textEnvelope = (...responses) => ({ version: "2.0.0", segments: responses.map((response) => ({ response })) });
-const jevReply = (emote, confidence = 0.97) => new Response(JSON.stringify({
+const jevReply = (emote, confidence = 0.97, action) => new Response(JSON.stringify({
   model: "jev-latest", answers: { reaction: {
     type: "choice", choice: emote, confidence,
     probabilities: { [emote]: 0.97 },
-  } }, usage: { input_tokens: 40, output_tokens: 10 },
+  }, ...(action === undefined ? {} : { action: {
+    type: "choice", choice: action, confidence: 0.97, probabilities: { [action]: 0.97 },
+  } }) }, usage: { input_tokens: 40, output_tokens: 10 },
 }), { headers: { "content-type": "application/json" } });
 
 test("live endpoint streams response-only paragraphs with two neutral fallbacks when Jev is unconfigured", async () => {
@@ -166,4 +168,123 @@ test("disconnect cancels provider work before sending a stale response", async (
   assert.equal(signal.aborted, true);
   assert.equal(res.body.includes('"type":"segment"'), false);
   assert.equal(res.body.includes('"type":"done"'), false);
+});
+
+test("invalid action modes fail validation before quota or provider work", async () => {
+  local();
+  global.fetch = async () => assert.fail("Invalid modes cannot invoke providers");
+  for (const actionMode of [null, true, 1, {}, [], "", "research", "constructor"]) {
+    const res = response();
+    await handler(request({ message: "Hello", actionMode }), res);
+    assert.equal(res.statusCode, 400);
+    assert.deepEqual(JSON.parse(res.body), { code: "invalid_request" });
+  }
+  assert.equal(handler._internals.localBuckets.size, 0);
+});
+
+test("auto actions share the input Jev call, precede text, and never hold up starting OpenAI", async () => {
+  local(); process.env.TYPESAFE_API_KEY = "fixture";
+  const requests = [];
+  let releaseInput, inputSignal, providerStarted;
+  const started = new Promise((resolve) => { providerStarted = resolve; });
+  global.fetch = async (url, options) => {
+    const sent = JSON.parse(options.body);
+    requests.push({ url: String(url), body: sent });
+    if (String(url).includes("typesafe.ai")) {
+      if (sent.state.assistantResponse) return jevReply("resolute");
+      inputSignal = options.signal;
+      return new Promise((resolve, reject) => {
+        releaseInput = resolve;
+        options.signal.addEventListener("abort", () => reject(new Error("cancelled")), { once: true });
+      });
+    }
+    providerStarted();
+    return reply(textEnvelope("A considered answer."));
+  };
+  const res = response();
+  const running = handler(request({ message: "Please examine this carefully", actionMode: "auto", streamText: true }), res);
+  await started;
+  assert.equal(inputSignal.aborted, false);
+  assert.equal(res.body, "");
+  releaseInput(jevReply("curious", 0.97, "deep-research"));
+  await running;
+  const records = res.body.trim().split("\n").map(JSON.parse);
+  assert.deepEqual(records.map((entry) => entry.type), ["emote", "action", "text_delta", "segment", "text_complete", "emote", "done"]);
+  assert.deepEqual(records[1], { type: "action", action: "deep-research" });
+  const jev = requests.filter((entry) => entry.url.includes("typesafe.ai"));
+  assert.equal(jev.length, 2);
+  assert.equal(requests.filter((entry) => entry.url.includes("openai.com")).length, 1);
+  assert.deepEqual(Object.keys(jev[0].body.questions), ["reaction", "action"]);
+  assert.deepEqual(Object.keys(jev[1].body.questions), ["reaction"]);
+  assert.equal(jev[1].body.state.assistantResponse, "A considered answer.");
+  const actions = [];
+  const decoder = createMetabloomSegmentStreamDecoder({ onAction: (action) => actions.push(action) });
+  assert.equal(decoder.push(res.body), true);
+  assert.deepEqual(decoder.finish().value, textEnvelope("A considered answer."));
+  assert.deepEqual(actions, ["deep-research"]);
+});
+
+test("explicit modes and disabled auto mode stay deterministic when Jev is unavailable", async () => {
+  local();
+  for (const actionMode of ["none", "deep-research", "under-the-hood"]) {
+    let sent;
+    global.fetch = async (url, options) => {
+      assert.equal(new URL(url).host, "api.openai.com");
+      sent = JSON.parse(options.body);
+      return reply(textEnvelope("One careful paragraph.", "A useful continuation."));
+    };
+    const res = response();
+    await handler(request({ message: "Explain the idea", actionMode, allowMultiple: true }), res);
+    const records = res.body.trim().split("\n").map(JSON.parse);
+    assert.deepEqual(records.map((entry) => entry.type), ["emote", "action", "segment", "segment", "text_complete", "emote", "done"]);
+    assert.deepEqual(records[1], { type: "action", action: actionMode });
+    assert.deepEqual(records.filter((entry) => entry.type === "emote").map((entry) => entry.emote), ["neutral", "neutral"]);
+    assert.equal(sent.text.format.schema.properties.segments.maxItems, 4);
+    assert.equal(Object.prototype.hasOwnProperty.call(sent, "tools"), false);
+    const base = buildMetabloomChatSystemPrompt({ allowMultiple: true });
+    if (actionMode === "deep-research") assert.equal(sent.instructions.startsWith(base + "\n\n"), true);
+    else assert.equal(sent.instructions, base);
+  }
+});
+
+test("an action survives into an incomplete stream without a false final reaction or completion", async () => {
+  local(); process.env.TYPESAFE_API_KEY = "fixture";
+  let decisions = 0;
+  global.fetch = async (url) => {
+    if (String(url).includes("typesafe.ai")) { decisions++; return jevReply("whimsy", 0.97, "under-the-hood"); }
+    const events = [
+      { type: "response.output_text.delta", item_id: "m1", output_index: 0, content_index: 0,
+        delta: '{"version":"2.0.0","segments":[{"response":"A visible prefix' },
+      { type: "response.failed", message: "Private provider failure" },
+    ];
+    return new Response(events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(""), { headers: { "content-type": "text/event-stream" } });
+  };
+  const res = response();
+  await handler(request({ message: "Show me a trick", actionMode: "auto", streamText: true }), res);
+  const records = res.body.trim().split("\n").map(JSON.parse);
+  assert.deepEqual(records.map((entry) => entry.type), ["emote", "action", "text_delta", "error"]);
+  assert.equal(records[1].action, "under-the-hood");
+  assert.equal(records[2].delta, "A visible prefix");
+  assert.equal(decisions, 1);
+  assert.equal(res.body.includes("Private provider failure"), false);
+});
+
+test("disconnect cancels both the pending action decision and provider before any action can arrive", async () => {
+  local(); process.env.TYPESAFE_API_KEY = "fixture";
+  const signals = [];
+  let providerStarted;
+  const started = new Promise((resolve) => { providerStarted = resolve; });
+  global.fetch = async (url, options) => {
+    signals.push(options.signal);
+    if (String(url).includes("openai.com")) providerStarted();
+    return new Promise((_resolve, reject) => options.signal.addEventListener("abort", () => reject(new Error("cancelled")), { once: true }));
+  };
+  const res = response();
+  const running = handler(request({ message: "Research this", actionMode: "auto" }), res);
+  await started;
+  res.destroyed = true; res.emit("close");
+  await running;
+  assert.equal(signals.length, 2);
+  assert.equal(signals.every((signal) => signal.aborted), true);
+  assert.equal(res.body, "");
 });

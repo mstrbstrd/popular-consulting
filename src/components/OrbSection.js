@@ -25,7 +25,7 @@ import {
 import { METABLOOM_DEMO_PROMPTS, METABLOOM_DEMOS } from "./metabloomDemoResponses";
 import { parseMetabloomChatEnvelope, createMetabloomSegmentStreamDecoder } from "./metabloomEmoteProtocol";
 import { resolveMetabloomEmote, METABLOOM_PROTOCOL_VERSION, METABLOOM_EMOTE_IDS, METABLOOM_EMOTE_RESPONSE_SCHEMA } from "./metabloomEmoteLibrary";
-import { METABLOOM_ACTIVITIES, METABLOOM_REACTION_RECIPES, METABLOOM_DECISION_SCHEMA, METABLOOM_REACTION_QUESTION, resolveMetabloomDecision, parseMetabloomActivity } from "./metabloomDecisionMapping";
+import { METABLOOM_ACTIVITIES, METABLOOM_ACTIONS as METABLOOM_SCENE_ACTIONS, METABLOOM_REACTION_RECIPES, METABLOOM_DECISION_SCHEMA, METABLOOM_REACTION_QUESTION, resolveMetabloomDecision, parseMetabloomActivity } from "./metabloomDecisionMapping";
 import { createMetabloomReactionPlayer } from "./metabloomReactionPlayer";
 import { createMetabloomReplySession } from "./metabloomReplySession";
 import { requestMetabloomResponse } from "./metabloomApiClient";
@@ -57,6 +57,7 @@ const MAX_HISTORY_MESSAGES = 12;
 const RESPONSE_TIMEOUT_MS = 30000;
 const MAX_ACTIVITY_TIMEOUT_MS = 300000;
 const RESEARCH_SURFACING_LEAD_MS = 650;
+const SCENE_THINK_LEAD_MS = 400;
 const MAX_TOOL_SEQUENCE_ID_CHARS = 48;
 const TOOL_SEQUENCE_ID_PATTERN = /^[a-z][a-z0-9-]*$/;
 const TOOL_EXPRESSION_KEYS = new Set([
@@ -415,6 +416,9 @@ const OrbSection = ({
   const activityPreviewTimerRef = React.useRef(0);
   const activityReturnTimerRef = React.useRef(0);
   const underHoodTimerRef = React.useRef(0);
+  const requestSceneRef = React.useRef(null);
+  const requestSceneTimerRef = React.useRef(0);
+  const [requestScene, setRequestScene] = React.useState(null);
   const [underHoodPhase, setUnderHoodPhase] = React.useState(null);
   const [activityId, setActivityId] = React.useState("idle");
   const [activityPreview, setActivityPreview] = React.useState(false);
@@ -430,6 +434,7 @@ const OrbSection = ({
   const stateRef = React.useRef(null);
   const [emoteId, setEmoteId] = React.useState("neutral");
   const [allowEmoteChanges, setAllowEmoteChanges] = React.useState(savedConversation?.allowEmoteChanges || false);
+  const [deepResearch, setDeepResearch] = React.useState(savedConversation?.deepResearch === true);
   const [actionId, setActionId] = React.useState(DEFAULT_ACTION);
   const [actionDuration, setActionDuration] = React.useState(
     DEFAULT_ACTION_RECORD.duration,
@@ -451,7 +456,7 @@ const OrbSection = ({
   const [errorMessage, setErrorMessage] = React.useState(savedConversation?.interrupted ? 'The response was interrupted when you changed tools. Any visible reply is incomplete. Send another message to continue.' : '');
   const [responseSource, setResponseSource] = React.useState(savedConversation?.responseSource || 'interface');
   const retainedConversation = React.useRef(null);
-  retainedConversation.current = { draft, expressiveness, pending, responseSource, paused, allowEmoteChanges };
+  retainedConversation.current = { draft, expressiveness, pending, responseSource, paused, allowEmoteChanges, deepResearch };
   const saveToolState = navigation?.saveToolState;
   React.useEffect(() => () => {
     const snapshot = retainedConversation.current;
@@ -462,12 +467,22 @@ const OrbSection = ({
     resolveMetabloomAction(actionId) || getDefaultMetabloomAction();
   const legacyForm = ACTION_FORMS[activeAction.id] || "companion";
   const conversationStarted = messages.length > 0 || pending;
+  // A reply owns its presentation separately from confirmed worker activity and
+  // timed previews. Text and ordinary emotes can update without dismissing it.
+  const visibleTheme = requestScene ? requestScene.theme : METABLOOM_ACTIVITIES[activityId].theme;
+  const visibleResearchPhase = requestScene ? requestScene.researchPhase : researchPhase;
+  const visibleUnderHoodPhase = requestScene ? requestScene.underHoodPhase : underHoodPhase;
+  const visibleActivityPreview = !requestScene && activityPreview;
+  const sceneAction = requestScene?.sceneAction || "none";
+  const scenePhase = requestScene?.scenePhase || null;
 
   messagesRef.current = messages;
   stateRef.current = {
     underHoodPhase,
     activity: activityId,
     researchPhase,
+    sceneAction,
+    scenePhase,
     theme: METABLOOM_ACTIVITIES[activityId].theme,
     action: activeAction.id,
     emote: emoteId,
@@ -503,6 +518,53 @@ const OrbSection = ({
     updateStateSnapshot({ conversationStarted: nextMessages.length > 0, messageCount: nextMessages.length });
     if (mountedRef.current) setMessages(nextMessages);
   }, [updateStateSnapshot]);
+
+  const cancelRequestScene = React.useCallback(() => {
+    window.clearTimeout(requestSceneTimerRef.current);
+    requestSceneTimerRef.current = 0;
+    requestSceneRef.current = null;
+    updateStateSnapshot({ sceneAction: "none", scenePhase: null });
+    if (mountedRef.current) setRequestScene(null);
+  }, [updateStateSnapshot]);
+
+  const updateRequestScene = React.useCallback((owner, updates) => {
+    if (requestSceneRef.current !== owner || !mountedRef.current || document.hidden) return false;
+    owner.presentation = { ...owner.presentation, ...updates };
+    updateStateSnapshot({ sceneAction: owner.presentation.sceneAction, scenePhase: owner.presentation.scenePhase });
+    setRequestScene(owner.presentation);
+    return true;
+  }, [updateStateSnapshot]);
+
+  const completeRequestScene = React.useCallback((session) => {
+    const owner = requestSceneRef.current;
+    if (!owner || owner.session !== session || owner.complete) return false;
+    owner.complete = true;
+    window.clearTimeout(requestSceneTimerRef.current);
+    requestSceneTimerRef.current = 0;
+    // A fast reply never reopens a scene after completion. Text never waits for
+    // the think lead, entry animation, or return to the ordinary orb.
+    if (document.hidden || owner.presentation.scenePhase === "think") {
+      cancelRequestScene();
+      return true;
+    }
+    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    const finish = () => {
+      if (requestSceneRef.current === owner) cancelRequestScene();
+    };
+    if (owner.action === "deep-research") {
+      updateRequestScene(owner, { scenePhase: METABLOOM_SCENE_ACTIONS[owner.action].complete, researchPhase: "surfacing" });
+      requestSceneTimerRef.current = window.setTimeout(() => {
+        if (!updateRequestScene(owner, { theme: "metabloom" })) return;
+        if (reduced) finish();
+        else requestSceneTimerRef.current = window.setTimeout(finish, METABLOOM_SCENE_TRANSITION_SECONDS * 1000);
+      }, RESEARCH_SURFACING_LEAD_MS);
+    } else {
+      updateRequestScene(owner, { scenePhase: METABLOOM_SCENE_ACTIONS[owner.action].complete, underHoodPhase: "closing" });
+      requestSceneTimerRef.current = window.setTimeout(finish,
+        reduced ? RESEARCH_SURFACING_LEAD_MS : METABLOOM_HOOD_SEQUENCE[2].duration);
+    }
+    return true;
+  }, [cancelRequestScene, updateRequestScene]);
 
   const cancelUnderHood = React.useCallback(() => {
     window.clearTimeout(underHoodTimerRef.current);
@@ -550,6 +612,7 @@ const OrbSection = ({
   }, [setActivity, updateStateSnapshot]);
 
   const cancelResponse = React.useCallback((reason = "interrupted") => {
+    cancelRequestScene();
     setActivity("idle");
     window.clearTimeout(thinkingTimerRef.current);
     thinkingTimerRef.current = 0;
@@ -563,7 +626,7 @@ const OrbSection = ({
     previewTimerRef.current = 0;
     replyRef.current?.interrupt(reason);
     replyRef.current = null;
-  }, [setActivity]);
+  }, [cancelRequestScene, setActivity]);
 
   const cancelSequenceTimer = React.useCallback(() => {
     sequenceTokenRef.current += 1;
@@ -639,6 +702,38 @@ const OrbSection = ({
     setEmoteId(emote.id);
     return performAction({ action: emote.action || "reform", duration: emote.duration, intensity: Math.min(1, emote.intensity * (expressivenessRef.current / 0.8)), talking: false }, { pulse: false, preserveReaction });
   }, [performAction, updateStateSnapshot]);
+
+  const beginRequestScene = React.useCallback((action, session) => {
+    if (document.hidden || !mountedRef.current) return false;
+    cancelRequestScene();
+    window.clearTimeout(thinkingTimerRef.current);
+    thinkingTimerRef.current = 0;
+    const owner = { action, session, complete: false, presentation: {
+      sceneAction: action, scenePhase: METABLOOM_SCENE_ACTIONS[action].start[0],
+      theme: "metabloom", researchPhase: null, underHoodPhase: null,
+    } };
+    requestSceneRef.current = owner;
+    updateRequestScene(owner, {});
+    performAction({ action: "thinking", duration: SCENE_THINK_LEAD_MS, intensity: 0.3 * expressivenessRef.current / 0.8, talking: false },
+      { pulse: false, preserveReaction: true });
+    const enter = () => {
+      const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+      if (!updateRequestScene(owner, {
+        scenePhase: METABLOOM_SCENE_ACTIONS[action].start[1],
+        theme: action === "deep-research" ? "tidal-weave" : "metabloom",
+        researchPhase: action === "deep-research" ? "diving" : null,
+        underHoodPhase: action === "under-the-hood" ? (reduced ? "open" : "seam") : null,
+      })) return;
+      if (action === "under-the-hood" && !reduced) {
+        requestSceneTimerRef.current = window.setTimeout(() => {
+          if (updateRequestScene(owner, { underHoodPhase: "open" })) requestSceneTimerRef.current = 0;
+        }, METABLOOM_HOOD_SEQUENCE[0].duration);
+      } else requestSceneTimerRef.current = 0;
+    };
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) enter();
+    else requestSceneTimerRef.current = window.setTimeout(enter, SCENE_THINK_LEAD_MS);
+    return true;
+  }, [cancelRequestScene, performAction, updateRequestScene]);
 
   const reactionPlayer = React.useMemo(() => createMetabloomReactionPlayer({
     onPlay: (emote, messageId, index) => {
@@ -937,6 +1032,7 @@ const OrbSection = ({
     if (replyRef.current !== session || session.closed) return false;
     try {
       session.finish(payload);
+      completeRequestScene(session);
       completeActivity();
       window.clearTimeout(previewTimerRef.current);
       previewTimerRef.current = 0;
@@ -947,7 +1043,7 @@ const OrbSection = ({
       setPending(false);
       return true;
     } catch { return failReply(session); }
-  }, [completeActivity, failReply, updateStateSnapshot]);
+  }, [completeActivity, completeRequestScene, failReply, updateStateSnapshot]);
 
   const reportActivity = React.useCallback((requestId, event) => {
     const request = activeRequestRef.current;
@@ -971,6 +1067,7 @@ const OrbSection = ({
 
   const previewUnderHood = React.useCallback(() => {
     if (stateRef.current?.pending || !isActive) return;
+    cancelRequestScene();
     setActivity("idle");
     performAction({ action: "reform", intensity: 0, talking: false }, { pulse: false });
     const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -984,15 +1081,16 @@ const OrbSection = ({
       );
     };
     advance(reduced ? 1 : 0);
-  }, [cancelUnderHood, isActive, performAction, setActivity, updateStateSnapshot]);
+  }, [cancelRequestScene, cancelUnderHood, isActive, performAction, setActivity, updateStateSnapshot]);
 
   const previewResearchScene = React.useCallback(() => {
     if (stateRef.current?.pending || !isActive) return;
+    cancelRequestScene();
     // Match the hood preview: retire old gestures and resume a paused field.
     performAction({ action: "reform", intensity: 0, talking: false }, { pulse: false });
     setActivity("deep-research", true);
     activityPreviewTimerRef.current = window.setTimeout(completeActivity, 4000);
-  }, [completeActivity, isActive, performAction, setActivity]);
+  }, [cancelRequestScene, completeActivity, isActive, performAction, setActivity]);
 
   const receiveModelResponse = React.useCallback((payload, options = {}) => {
     const expectedRequestId = options?.requestId;
@@ -1050,7 +1148,7 @@ const OrbSection = ({
     });
   }, [beginReply, failReply, finishReply, stop]);
 
-  const getState = React.useCallback(() => ({ ...stateRef.current }), []);
+  const getState = React.useCallback(() => ({ ...stateRef.current, ...requestSceneRef.current?.presentation }), []);
 
   const getMessages = React.useCallback(
     () => messagesRef.current.map(cloneMessage),
@@ -1068,27 +1166,30 @@ const OrbSection = ({
   const toolReact = React.useCallback((request) => {
     if (!isPlainObject(request) || !hasOnlyKeys(request, TOOL_REACTION_KEYS)
       || !resolveMetabloomEmote(request.emote) || stateRef.current?.pending) return false;
+    cancelRequestScene();
     setActivity("idle");
     reactionPlayer.cancel();
     return reactionPlayer.enqueue(request.emote, null, 0,
       document.hidden || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches);
-  }, [reactionPlayer, setActivity]);
+  }, [cancelRequestScene, reactionPlayer, setActivity]);
 
   const previewReaction = React.useCallback((request) => {
     if (stateRef.current?.pending) return false;
+    cancelRequestScene();
     setActivity("idle");
     reactionPlayer.cancel();
     setActiveReaction(null);
     return performAction(request, { pulse: false });
-  }, [performAction, reactionPlayer, setActivity]);
+  }, [cancelRequestScene, performAction, reactionPlayer, setActivity]);
 
   const replaySegment = React.useCallback((message, segment, index) => {
     if (!isActive || stateRef.current?.pending || message.status !== "complete") return;
+    cancelRequestScene();
     setActivity("idle");
     reactionPlayer.cancel();
     reactionPlayer.enqueue(segment.emote, message.id, index,
       document.hidden || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches);
-  }, [isActive, reactionPlayer, setActivity]);
+  }, [cancelRequestScene, isActive, reactionPlayer, setActivity]);
 
   const toolSequence = React.useCallback(
     (request) => {
@@ -1168,7 +1269,7 @@ const OrbSection = ({
       setReadingEarlier(false);
       appendMessage("user", message);
       const demo = METABLOOM_DEMOS.find((item) => item.prompt === message);
-      const allowMultiple = demo ? demo.segments.length > 1 : allowEmoteChanges;
+      const allowMultiple = deepResearch || (demo ? demo.segments.length > 1 : allowEmoteChanges);
       const source = demo ? "preview" : "model";
       const session = beginReply(source, allowMultiple);
       const requestToken = ++requestTokenRef.current;
@@ -1199,8 +1300,15 @@ const OrbSection = ({
         reactionPlayer.enqueue(reaction.emote, requestId, reaction.phase === "input" ? -1 : -2,
           document.hidden || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches);
       };
+      const onAction = (action) => {
+        if (!current() || typeof action !== "string" || !Object.prototype.hasOwnProperty.call(METABLOOM_SCENE_ACTIONS, action)
+          || activeRequest.actionReceived || session.snapshot().segments.length) return false;
+        activeRequest.actionReceived = true;
+        return action === "none" || beginRequestScene(action, session);
+      };
       const request = {
-        requestId, message, history, allowMultiple, signal: controller.signal, onTextDelta, onSegment, onReaction,
+        requestId, message, history, allowMultiple, actionMode: deepResearch ? "deep-research" : "auto",
+        signal: controller.signal, onTextDelta, onSegment, onReaction, onAction,
         onActivity: (event) => current() && reportActivity(requestId, event),
         reactionQuestion: METABLOOM_REACTION_QUESTION,
         resolveDecision: resolveMetabloomDecision,
@@ -1210,6 +1318,7 @@ const OrbSection = ({
         // Source label belongs to this reply, not to every arriving segment.
         updateStateSnapshot({ responseSource: "preview" });
         setResponseSource("preview");
+        if (deepResearch) onAction("deep-research");
         return streamMetabloomDemoResponse(request).then((payload) => {
           if (!current()) return;
           // Unconfigured live requests use the same reply, honestly labelled preview.
@@ -1248,7 +1357,7 @@ const OrbSection = ({
       }).catch(() => { if (current()) failReply(session); });
       return true;
     },
-    [allowEmoteChanges, appendMessage, beginReply, cancelResponse, failReply, finishReply, isActive, publishMessages, reactionPlayer, receiveModelResponse, reportActivity, updateStateSnapshot],
+    [allowEmoteChanges, appendMessage, beginReply, beginRequestScene, cancelResponse, deepResearch, failReply, finishReply, isActive, publishMessages, reactionPlayer, receiveModelResponse, reportActivity, updateStateSnapshot],
   );
 
   const handleSubmit = React.useCallback(
@@ -1293,6 +1402,7 @@ const OrbSection = ({
   React.useEffect(() => {
     const handleVisibility = () => {
       if (document.hidden) {
+        cancelRequestScene();
         cancelUnderHood();
         reactionPlayer.cancel();
         setActiveReaction(null);
@@ -1300,7 +1410,7 @@ const OrbSection = ({
     };
     document.addEventListener("visibilitychange", handleVisibility);
     return () => document.removeEventListener("visibilitychange", handleVisibility);
-  }, [cancelUnderHood, reactionPlayer]);
+  }, [cancelRequestScene, cancelUnderHood, reactionPlayer]);
 
   React.useEffect(() => {
     onConversationStateChange?.(conversationStarted);
@@ -1324,7 +1434,7 @@ const OrbSection = ({
   React.useLayoutEffect(() => {
     // Never move the whole page or pull a reader away from an earlier reply.
     if (followLatestRef.current) scrollToLatest();
-  }, [messages, pending, researchPhase, scrollToLatest]);
+  }, [messages, pending, visibleResearchPhase, scenePhase, scrollToLatest]);
 
   React.useLayoutEffect(() => {
     const input = composerRef.current;
@@ -1538,9 +1648,10 @@ const OrbSection = ({
   }, []);
 
   const hasStreamingReply = messages.some((message) => message.status === "streaming");
-  const statusText = underHoodPhase
-    ? (underHoodPhase === "seam" ? "Opening the seam..." : underHoodPhase === "closing" ? "Sealing the seam..." : "Under the hood · Forward Pass preview")
-    : researchPhase === "surfacing" ? "Surfacing..." : activityId !== "idle"
+  const statusText = visibleUnderHoodPhase
+    ? (visibleUnderHoodPhase === "seam" ? "Opening the seam..." : visibleUnderHoodPhase === "closing" ? "Sealing the seam..." : `Under the hood · Forward Pass ${requestScene ? "scene" : "preview"}`)
+    : visibleResearchPhase === "surfacing" ? "Surfacing..." : scenePhase === "think" ? "Thinking"
+    : sceneAction === "deep-research" ? "Diving deep..." : activityId !== "idle"
     ? (activityPreview ? "Research scene preview" : METABLOOM_ACTIVITIES[activityId].label)
     : pending
     ? (hasStreamingReply ? "Responding" : "Thinking")
@@ -1553,8 +1664,9 @@ const OrbSection = ({
           : activeReaction
             ? resolveMetabloomEmote(activeReaction.emote)?.label
             : composerFocused ? "Listening" : "Here with you";
-  const researchStatus = researchPhase ? <MetabloomResearchStatus phase={researchPhase} preview={activityPreview} /> : null;
-  const statusBeforeReply = researchPhase === "surfacing" && !activityPreview && messages[messages.length - 1]?.role === "assistant";
+  const researchStatus = visibleResearchPhase ? <MetabloomResearchStatus phase={visibleResearchPhase} preview={visibleActivityPreview} /> : null;
+  const statusBeforeReply = visibleResearchPhase === "surfacing" && !visibleActivityPreview && messages[messages.length - 1]?.role === "assistant";
+  const showHoodStatus = sceneAction === "under-the-hood";
   return (
     <section
       id="orb"
@@ -1570,9 +1682,11 @@ const OrbSection = ({
       data-response-presentation="single-message-stream"
       data-emote={emoteId}
       data-agent-activity={activityId}
-      data-activity-preview={activityPreview ? "true" : "false"}
-      data-research-phase={researchPhase || undefined}
-      data-activity-theme={METABLOOM_ACTIVITIES[activityId].theme}
+      data-scene-action={sceneAction}
+      data-scene-phase={scenePhase || undefined}
+      data-activity-preview={visibleActivityPreview ? "true" : "false"}
+      data-research-phase={visibleResearchPhase || undefined}
+      data-activity-theme={visibleTheme}
       data-chat-phase={pending ? (hasStreamingReply ? "responding" : "thinking") : composerFocused ? "listening" : "ready"}
     >
       <h1 className="metabloom-chat__sr-only">
@@ -1581,8 +1695,8 @@ const OrbSection = ({
 
       <div className="metabloom-chat__field">
         <MetabloomAvatar
-          activityTheme={METABLOOM_ACTIVITIES[activityId].theme}
-          underHoodPhase={underHoodPhase}
+          activityTheme={visibleTheme}
+          underHoodPhase={visibleUnderHoodPhase}
           action={activeAction.id}
           actionVersion={actionVersion}
           duration={actionDuration}
@@ -1606,7 +1720,7 @@ const OrbSection = ({
           <div
             className="metabloom-chat__presence"
             role="status"
-            aria-live={researchPhase ? "off" : "polite"}
+            aria-live={visibleResearchPhase || showHoodStatus ? "off" : "polite"}
           >
             <span className="metabloom-chat__presence-dot" aria-hidden="true" />
             <span>Metabloom</span>
@@ -1688,7 +1802,8 @@ const OrbSection = ({
               )}
 
               {conversationStarted && !statusBeforeReply && researchStatus}
-              {pending && !hasStreamingReply && !researchPhase && (
+              {showHoodStatus && <div className="metabloom-chat__scene-status" role="status" aria-label="Scene progress" aria-live="polite" aria-atomic="true">{statusText}</div>}
+              {pending && !hasStreamingReply && !visibleResearchPhase && !showHoodStatus && (
                 <article
                   className="metabloom-chat__message metabloom-chat__message--assistant"
                   aria-label={`Metabloom is ${statusText.toLowerCase()}`}
@@ -1743,6 +1858,10 @@ const OrbSection = ({
                   </>
                 )}
               </MetabloomReactionPanel>
+              <label className="metabloom-chat__research-toggle" data-enabled={deepResearch ? "true" : "false"} data-disabled={pending || !isActive ? "true" : "false"}>
+                <input type="checkbox" checked={deepResearch} disabled={pending || !isActive} onChange={(event) => setDeepResearch(event.target.checked)} />
+                <span>Deep Research</span>
+              </label>
               {readingEarlier && <button type="button" className="metabloom-chat__latest" onClick={scrollToLatest}>Latest message ↓</button>}
             </div>
             {errorMessage && (

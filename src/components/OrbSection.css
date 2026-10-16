@@ -295,6 +295,58 @@
   pointer-events: auto;
 }
 
+.metabloom-chat__research-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-height: 4.4rem;
+  padding: 0.8rem 1.2rem;
+  border: 1px solid var(--metabloom-chat-line);
+  border-radius: 999px;
+  color: var(--metabloom-chat-ink);
+  background: var(--orb-control-surface, var(--metabloom-chat-control));
+  font: 1.2rem/1.4 var(--aetheris-font-sans, sans-serif);
+  cursor: pointer;
+}
+
+.metabloom-chat__research-toggle input {
+  width: 1.6rem;
+  height: 1.6rem;
+  margin: 0;
+  accent-color: var(--aetheris-focus-line, #6344f5);
+  cursor: inherit;
+}
+
+.metabloom-chat__research-toggle[data-enabled="true"] {
+  border-color: currentColor;
+}
+
+.metabloom-chat__research-toggle:focus-within {
+  outline: 2px solid var(--aetheris-focus-line, #6344f5);
+  outline-offset: 3px;
+}
+
+.metabloom-chat__research-toggle[data-disabled="true"] {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.metabloom-chat__scene-status {
+  align-self: flex-start;
+  max-width: 100%;
+  padding: 0.8rem 1.2rem;
+  border: 1px solid var(--metabloom-chat-line);
+  border-radius: 1.2rem;
+  color: var(--metabloom-chat-ink);
+  background: var(--metabloom-chat-control);
+  font: 1.2rem/1.5 var(--aetheris-font-sans, sans-serif);
+}
+
+@media (forced-colors: active) {
+  .metabloom-chat__research-toggle:focus-within { outline-color: Highlight; }
+  .metabloom-chat__research-toggle[data-disabled="true"] { opacity: 1; color: GrayText; }
+}
+
 .metabloom-chat__error {
   width: fit-content;
   max-width: 100%;

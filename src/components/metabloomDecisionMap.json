@@ -7,6 +7,26 @@
     { "id": "consider-and-resolve", "label": "Consider and resolve", "description": "Weigh evidence or tradeoffs, then reach a clear recommendation. Do not use to imply certainty unsupported by the text.", "steps": ["reflective", "resolute"] },
     { "id": "celebrate-and-appreciate", "label": "Celebrate and appreciate", "description": "Recognize meaningful progress, then express warmth or gratitude. Avoid celebration for routine facts.", "steps": ["celebratory", "warm"] }
   ],
+  "actions": {
+    "none": {
+      "label": "Conversation",
+      "description": "Ordinary conversation without a special scene. Includes brief explanations, quoted or hypothetical scene requests, declined research, and literal questions about a car's hood.",
+      "start": [],
+      "complete": null
+    },
+    "deep-research": {
+      "label": "Deep Research",
+      "description": "The user wants a deep dive, thorough investigation, or detailed exploration of a topic. Think, enter the Tidal Weave scene, hold while the answer streams, and surface when the reply completes.",
+      "start": ["think", "deep-research-diving"],
+      "complete": "deep-research-surfacing"
+    },
+    "under-the-hood": {
+      "label": "Under the Hood",
+      "description": "The user playfully asks Metabloom to show a trick, reveal its inner workings, or show what is under the hood. Think, open the orb to reveal the Forward Pass scene, and close it when the reply completes.",
+      "start": ["think", "under-the-hood-opening"],
+      "complete": "under-the-hood-closing"
+    }
+  },
   "activities": {
     "idle": { "label": "Here with you", "theme": "metabloom", "mode": 0 },
     "deep-research": { "label": "Researching", "theme": "tidal-weave", "mode": 1 },
