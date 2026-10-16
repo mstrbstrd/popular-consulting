@@ -2,7 +2,8 @@ const { createHmac } = require("node:crypto");
 const { once } = require("node:events");
 const metabloomAuth = require("../server/metabloomAuth");
 const { METABLOOM_CHAT_PROTOCOL_VERSION, METABLOOM_EMOTE_IDS, METABLOOM_CHAT_RESPONSE_SCHEMA, buildMetabloomChatSystemPrompt } = require("../src/components/metabloomEmoteLibrary");
-const { decideMetabloomReaction } = require("../server/jevReactionService");
+const { METABLOOM_ACTION_MODES } = require("../src/components/metabloomDecisionMapping");
+const { decideMetabloomReaction, decideMetabloomInput } = require("../server/jevReactionService");
 const { streamMetabloomProvider } = require("../server/metabloomProviderStream");
 const MAX_BODY_BYTES = 24000;
 const localBuckets = new Map();
@@ -36,10 +37,11 @@ const parseBody = (request) => {
     const text = typeof request.body === "string" ? request.body : JSON.stringify(request.body);
     if (typeof text !== "string" || Buffer.byteLength(text, "utf8") > MAX_BODY_BYTES) return null;
     const value = JSON.parse(text);
-    if (!exactKeys(value, ["message"], ["requestId", "history", "allowMultiple", "streamText"])) return null;
+    if (!exactKeys(value, ["message"], ["requestId", "history", "allowMultiple", "streamText", "actionMode"])) return null;
     if (typeof value.message !== "string" || !value.message.trim() || value.message.length > 1600) return null;
     if (value.allowMultiple !== undefined && typeof value.allowMultiple !== "boolean") return null;
     if (value.streamText !== undefined && typeof value.streamText !== "boolean") return null;
+    if (value.actionMode !== undefined && !METABLOOM_ACTION_MODES.includes(value.actionMode)) return null;
     if (value.requestId !== undefined && (typeof value.requestId !== "string" || !/^[a-zA-Z0-9-]{1,160}$/.test(value.requestId))) return null;
     const history = value.history === undefined ? [] : value.history;
     if (!Array.isArray(history) || history.length > 12) return null;
@@ -158,19 +160,30 @@ const handler = async (request, response) => {
     };
     // Begin Jev immediately and in parallel with the chat provider. Its result
     // always precedes the first text segment; a bounded failure becomes neutral.
-    initialReactionPromise = decideMetabloomReaction({
+    const inputDecision = {
       phase: "input",
       state: { latestUserMessage: body.message, recentConversation: body.history.slice(-4) },
       signal: controller.signal, timeoutMs: 950,
-    }).then((emote) => sendStreamEvent({ type: "emote", phase: "input", emote }));
+    };
+    initialReactionPromise = (body.actionMode === undefined
+      ? decideMetabloomReaction(inputDecision).then((emote) => ({ emote }))
+      : decideMetabloomInput({ ...inputDecision, actionMode: body.actionMode })
+    ).then(async ({ emote, action }) => {
+      await sendStreamEvent({ type: "emote", phase: "input", emote });
+      if (body.actionMode !== undefined) await sendStreamEvent({ type: "action", action });
+    });
     const schema = JSON.parse(JSON.stringify(METABLOOM_CHAT_RESPONSE_SCHEMA));
     schema.properties.segments.maxItems = body.allowMultiple ? 4 : 1;
+    const instructions = buildMetabloomChatSystemPrompt({ allowMultiple: body.allowMultiple })
+      + (body.actionMode === "deep-research"
+        ? "\n\nDeep Research mode is selected. Give a substantive analysis with evidence, assumptions, and uncertainty within the output limits. Use the information available; never claim to have searched, browsed, or verified sources you did not access."
+        : "");
     const upstream = await fetch("https://api.openai.com/v1/responses", {
       method: "POST", redirect: "error", signal: controller.signal,
       headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model: process.env.METABLOOM_OPENAI_MODEL || "gpt-5-mini",
-        instructions: buildMetabloomChatSystemPrompt({ allowMultiple: body.allowMultiple }),
+        instructions,
         input: [...body.history, { role: "user", content: body.message }],
         max_output_tokens: 2400, store: false, stream: true,
         text: { format: { type: "json_schema", name: "metabloom_chat_response", strict: true, schema } },

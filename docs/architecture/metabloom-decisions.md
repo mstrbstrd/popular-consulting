@@ -1,11 +1,13 @@
 # Metabloom decision and activity mappings
 
-`metabloomDecisionMap.json` is the authored mapping. It separates expressive
-choices about a response from confirmed agent activity. Live conversations now use two server-side Jev Choice decisions: one to
-acknowledge the user's message and one to express the verified complete OpenAI
-reply. Legacy demo/adapters retain the original reaction schema. The repository
-still does not run a deep-research worker; activity callbacks are integration
-points, not confirmation of a connected worker.
+`metabloomDecisionMap.json` is the authored mapping for emotional reactions,
+request-owned presentation actions, and confirmed external activity. Live
+conversations use two server-side Jev requests: an input decision and a reaction
+to the verified complete OpenAI reply. The input request can ask independent
+reaction and action questions together. Legacy demos/adapters retain the
+original reaction schema. Presentation actions use the current chat backend;
+the repository does not run a web-research worker. External activity callbacks
+remain integration points for actual worker lifecycles.
 
 ## Response choices
 
@@ -84,6 +86,50 @@ provider generates text only.
 Official TypeSafe references: [Choice](https://docs.typesafe.ai/primitives/choice)
 and [Confidence](https://docs.typesafe.ai/confidence).
 
+## Request-owned action choices
+
+Jev's input call can select a scene independently of its emotional reaction:
+
+| Action choice | Entry sequence | While the reply streams | Successful completion |
+| --- | --- | --- | --- |
+| `none` | Ordinary conversation | Existing Orb presentation | Existing final reaction |
+| `deep-research` | `think` → `deep-research-diving` | Hold Tidal Weave and the diving state | `deep-research-surfacing`, then return to Metabloom |
+| `under-the-hood` | `think` → `under-the-hood-opening` | Hold the Forward Pass reveal | `under-the-hood-closing`, then return to Metabloom |
+
+`METABLOOM_ACTION_QUESTION` asks about the latest user's intent. A genuine request
+for a deep dive can select research; a playful request for a trick or a look
+under Metabloom's hood can select the reveal. Quoted commands, declined research,
+ordinary questions, and literal vehicle-hood questions do not request a scene.
+The independent action resolver requires a known choice and finite confidence
+from 0.7 to 1; invalid or uncertain action answers become `none` without erasing
+a valid emotional reaction.
+
+The live client sends `actionMode: "auto"` by default. This adds `questions.action`
+beside `questions.reaction` in the existing input Jev request. TypeSafe supports
+[multiple Choice questions in one call](https://docs.typesafe.ai/primitives/choice#good-practice-ask-more-than-one-question-per-call),
+so the turn still uses two Jev requests; the extra question consumes tokens.
+The **Deep Research** toggle sends `actionMode: "deep-research"` and allows
+separate paragraphs. Explicit modes (`none`, `deep-research`, `under-the-hood`)
+take precedence, omit classification, and survive Jev failure. Omitting
+`actionMode` retains the older reaction/text-only stream.
+The toggle also selects the research presentation for local demos and an
+unconfigured endpoint's demo fallback; their authored content and preview
+source labels remain intact, without provider calls.
+
+An opted-in server emits one `{ "type": "action", "action": "deep-research" }`
+record after the input emote and before text. `request.onAction(action)` receives
+the selected ID. The existing successful terminal response closes the selected
+scene; Jev cannot declare completion or control arbitrary shaders, timings, or
+playlists. The first text delta and complete paragraphs do not close this mode.
+Text remains immediate while entry and exit animations run.
+
+Scene timers belong to one request. Stop, error, timeout, replacement, reset,
+deactivation, unmount, or hiding the document clears them without a successful
+surfacing cue. A reply that finishes before entry cannot reopen the scene later.
+Reduced motion presents the selected scene directly. Timed menu previews remain
+independent, and an action choice does not extend provider or UI timeouts or
+claim that an external worker or web search ran.
+
 ## Confirmed work selects the scene
 
 | Activity | Scene | Presence label |
@@ -93,7 +139,7 @@ and [Confidence](https://docs.typesafe.ai/confidence).
 | `analysis` | Contour Drift | Analyzing |
 | `writing` | Metabloom | Writing |
 
-Activity is not inferred from an emotional choice or the words “deep research.”
+External worker activity is not inferred from an emotional or action choice.
 The worker adapter reports `running` only after its actual job starts. Activity
 events contain exactly `{ activity, state }`, where state is `running` or
 `complete`; callers cannot supply arbitrary shader modes or initiate work via

@@ -53,7 +53,7 @@ compileFunction(readFileSync(apiUrl, 'utf8'), ['require', 'module', 'exports'], 
     METABLOOM_CHAT_PROTOCOL_VERSION: '2.0.0', METABLOOM_EMOTE_IDS: ['neutral'],
     METABLOOM_CHAT_RESPONSE_SCHEMA: {}, buildMetabloomChatSystemPrompt: paid,
   };
-  if (specifier === '../server/jevReactionService') return { decideMetabloomReaction: paid };
+  if (specifier === '../server/jevReactionService') return { decideMetabloomReaction: paid, decideMetabloomInput: paid };
   if (specifier === '../server/metabloomProviderStream') return { streamMetabloomProvider: paid };
   return apiRequire(specifier);
 }, module, module.exports);
@@ -151,6 +151,16 @@ test('local development and API keys do not bypass missing authentication', asyn
   const req = request(); req.socket.remoteAddress = '127.0.0.1';
   const res = response(); await handler(req, res);
   assert.equal(res.statusCode, 401); assert.equal(calls.length, 0);
+});
+
+test('automatic or explicit actions never bypass the session gate', async () => {
+  for (const actionMode of ['auto', 'none', 'deep-research', 'under-the-hood']) {
+    const req = request(); req.body = { message: 'Choose a mode', actionMode, streamText: true };
+    const res = response(); await handler(req, res);
+    assert.equal(res.statusCode, 401);
+    assert.deepEqual(JSON.parse(res.body), { code: 'authentication_required' });
+  }
+  assert.equal(calls.length, 0); assert.equal(paidCalls, 0);
 });
 
 test('a verified session can read metadata and reach the existing POST validation', async () => {
