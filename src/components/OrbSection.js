@@ -28,6 +28,7 @@ import { resolveMetabloomEmote, METABLOOM_PROTOCOL_VERSION, METABLOOM_EMOTE_IDS,
 import { METABLOOM_ACTIVITIES, METABLOOM_ACTIONS as METABLOOM_SCENE_ACTIONS, METABLOOM_REACTION_RECIPES, METABLOOM_DECISION_SCHEMA, METABLOOM_REACTION_QUESTION, resolveMetabloomDecision, parseMetabloomActivity } from "./metabloomDecisionMapping";
 import { createMetabloomReactionPlayer } from "./metabloomReactionPlayer";
 import { createMetabloomReplySession } from "./metabloomReplySession";
+import { createMetabloomResearchDisplayGate } from "./metabloomResearchDisplayGate";
 import { requestMetabloomResponse } from "./metabloomApiClient";
 import { streamMetabloomDemoResponse } from "./metabloomDemoStream";
 import "./OrbSection.css";
@@ -404,6 +405,7 @@ const OrbSection = ({
   const activeRequestRef = React.useRef(null);
   const requestAbortRef = React.useRef(null);
   const replyRef = React.useRef(null);
+  const replyDisplayRef = React.useRef(null);
   const messageCounterRef = React.useRef(savedConversation?.counter || 0);
   const mountedRef = React.useRef(true);
   const sectionRef = React.useRef(null);
@@ -535,36 +537,20 @@ const OrbSection = ({
     return true;
   }, [updateStateSnapshot]);
 
-  const completeRequestScene = React.useCallback((session) => {
-    const owner = requestSceneRef.current;
-    if (!owner || owner.session !== session || owner.complete) return false;
-    owner.complete = true;
-    window.clearTimeout(requestSceneTimerRef.current);
-    requestSceneTimerRef.current = 0;
-    // A fast reply never reopens a scene after completion. Text never waits for
-    // the think lead, entry animation, or return to the ordinary orb.
-    if (document.hidden || owner.presentation.scenePhase === "think") {
-      cancelRequestScene();
-      return true;
-    }
-    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    const finish = () => {
-      if (requestSceneRef.current === owner) cancelRequestScene();
+  const waitForRequestScenePaint = React.useCallback((owner, callback) => {
+    if (requestSceneRef.current !== owner) return;
+    if (stateRef.current?.fieldState !== "crossfading") { callback(); return; }
+    owner.onFieldSettled = () => {
+      if (requestSceneRef.current !== owner) return;
+      window.clearTimeout(requestSceneTimerRef.current);
+      requestSceneTimerRef.current = 0;
+      owner.onFieldSettled = null;
+      callback();
     };
-    if (owner.action === "deep-research") {
-      updateRequestScene(owner, { scenePhase: METABLOOM_SCENE_ACTIONS[owner.action].complete, researchPhase: "surfacing" });
-      requestSceneTimerRef.current = window.setTimeout(() => {
-        if (!updateRequestScene(owner, { theme: "metabloom" })) return;
-        if (reduced) finish();
-        else requestSceneTimerRef.current = window.setTimeout(finish, METABLOOM_SCENE_TRANSITION_SECONDS * 1000);
-      }, RESEARCH_SURFACING_LEAD_MS);
-    } else {
-      updateRequestScene(owner, { scenePhase: METABLOOM_SCENE_ACTIONS[owner.action].complete, underHoodPhase: "closing" });
-      requestSceneTimerRef.current = window.setTimeout(finish,
-        reduced ? RESEARCH_SURFACING_LEAD_MS : METABLOOM_HOOD_SEQUENCE[2].duration);
-    }
-    return true;
-  }, [cancelRequestScene, updateRequestScene]);
+    // Renderer confirmation avoids releasing text just before its last blend
+    // frame. A lost/static renderer still has a bounded path through the scene.
+    requestSceneTimerRef.current = window.setTimeout(owner.onFieldSettled, METABLOOM_SCENE_TRANSITION_SECONDS * 1000);
+  }, []);
 
   const cancelUnderHood = React.useCallback(() => {
     window.clearTimeout(underHoodTimerRef.current);
@@ -611,6 +597,47 @@ const OrbSection = ({
     }, RESEARCH_SURFACING_LEAD_MS);
   }, [setActivity, updateStateSnapshot]);
 
+  const completeRequestScene = React.useCallback((session) => {
+    const owner = requestSceneRef.current;
+    if (!owner || owner.session !== session || owner.complete) return false;
+    if (owner.action === "deep-research") {
+      owner.returnRequested = true;
+      // Early content waits for both the think lead and the entry blend. Its
+      // arrival requests the return; network completion is independent of it.
+      if (!owner.entryReady) return true;
+    }
+    owner.complete = true;
+    window.clearTimeout(requestSceneTimerRef.current);
+    requestSceneTimerRef.current = 0;
+    // The hood keeps its existing quick-reply behavior. Research completes its
+    // whole entry/return sequence before releasing its queued presentation.
+    if (document.hidden || owner.presentation.scenePhase === "think") {
+      cancelRequestScene();
+      return true;
+    }
+    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    const finish = () => {
+      if (requestSceneRef.current !== owner) return;
+      if (owner.action === "deep-research") setActivity("idle");
+      cancelRequestScene();
+      const display = replyDisplayRef.current;
+      if (owner.action === "deep-research" && display?.session === session) display.gate.release();
+    };
+    if (owner.action === "deep-research") {
+      updateRequestScene(owner, { scenePhase: METABLOOM_SCENE_ACTIONS[owner.action].complete, researchPhase: "surfacing" });
+      requestSceneTimerRef.current = window.setTimeout(() => {
+        if (!updateRequestScene(owner, { theme: "metabloom" })) return;
+        if (reduced) finish();
+        else requestSceneTimerRef.current = window.setTimeout(() => waitForRequestScenePaint(owner, finish), METABLOOM_SCENE_TRANSITION_SECONDS * 1000);
+      }, RESEARCH_SURFACING_LEAD_MS);
+    } else {
+      updateRequestScene(owner, { scenePhase: METABLOOM_SCENE_ACTIONS[owner.action].complete, underHoodPhase: "closing" });
+      requestSceneTimerRef.current = window.setTimeout(finish,
+        reduced ? RESEARCH_SURFACING_LEAD_MS : METABLOOM_HOOD_SEQUENCE[2].duration);
+    }
+    return true;
+  }, [cancelRequestScene, setActivity, updateRequestScene, waitForRequestScenePaint]);
+
   const cancelResponse = React.useCallback((reason = "interrupted") => {
     cancelRequestScene();
     setActivity("idle");
@@ -625,6 +652,8 @@ const OrbSection = ({
     window.clearTimeout(previewTimerRef.current);
     previewTimerRef.current = 0;
     replyRef.current?.interrupt(reason);
+    replyDisplayRef.current?.gate.cancel(reason);
+    replyDisplayRef.current = null;
     replyRef.current = null;
   }, [cancelRequestScene, setActivity]);
 
@@ -708,6 +737,7 @@ const OrbSection = ({
     cancelRequestScene();
     window.clearTimeout(thinkingTimerRef.current);
     thinkingTimerRef.current = 0;
+    if (action === "deep-research" && replyDisplayRef.current?.session === session) replyDisplayRef.current.gate.hold();
     const owner = { action, session, complete: false, presentation: {
       sceneAction: action, scenePhase: METABLOOM_SCENE_ACTIONS[action].start[0],
       theme: "metabloom", researchPhase: null, underHoodPhase: null,
@@ -728,12 +758,21 @@ const OrbSection = ({
         requestSceneTimerRef.current = window.setTimeout(() => {
           if (updateRequestScene(owner, { underHoodPhase: "open" })) requestSceneTimerRef.current = 0;
         }, METABLOOM_HOOD_SEQUENCE[0].duration);
-      } else requestSceneTimerRef.current = 0;
+      } else if (action === "deep-research" && !reduced) {
+        requestSceneTimerRef.current = window.setTimeout(() => waitForRequestScenePaint(owner, () => {
+          owner.entryReady = true;
+          requestSceneTimerRef.current = 0;
+          if (owner.returnRequested) completeRequestScene(session);
+        }), METABLOOM_SCENE_TRANSITION_SECONDS * 1000);
+      } else {
+        requestSceneTimerRef.current = 0;
+        owner.entryReady = true;
+      }
     };
     if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) enter();
     else requestSceneTimerRef.current = window.setTimeout(enter, SCENE_THINK_LEAD_MS);
     return true;
-  }, [cancelRequestScene, performAction, updateRequestScene]);
+  }, [cancelRequestScene, completeRequestScene, performAction, updateRequestScene, waitForRequestScenePaint]);
 
   const reactionPlayer = React.useMemo(() => createMetabloomReactionPlayer({
     onPlay: (emote, messageId, index) => {
@@ -990,29 +1029,61 @@ const OrbSection = ({
     cancelResponse();
     clearSequence();
     let messageId = null;
-    const session = createMetabloomReplySession({
-      allowMultiple,
-      onEmote: (emote) => {
+    let gate;
+    let deliveryKind = null;
+    const publishSnapshot = (snapshot) => {
+      if (!mountedRef.current) return;
+      const replySource = replyRef.current === session ? stateRef.current.responseSource : source;
+      if (!messageId) {
         completeActivity();
         window.clearTimeout(thinkingTimerRef.current);
         thinkingTimerRef.current = 0;
+        messageId = appendMessage("assistant", snapshot.content, [], replySource, snapshot.emote, snapshot.segments, snapshot.status).id;
+      } else {
+        publishMessages(messagesRef.current.map((message) => message.id === messageId ? { ...message, ...snapshot, source: replySource } : message));
+      }
+    };
+    const validationSession = createMetabloomReplySession({
+      allowMultiple,
+      onEmote: (emote) => {
         const index = session.snapshot().segments.length - 1;
-        reactionPlayer.enqueue(emote, messageId, index,
-          document.hidden || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches);
-      },
-      onUpdate: (snapshot) => {
-        if (!mountedRef.current) return;
-        const replySource = replyRef.current === session ? stateRef.current.responseSource : source;
-        if (!messageId) {
+        gate.deferReaction(`segment-${index}`, () => {
           completeActivity();
           window.clearTimeout(thinkingTimerRef.current);
           thinkingTimerRef.current = 0;
-          messageId = appendMessage("assistant", snapshot.content, [], replySource, snapshot.emote, snapshot.segments, snapshot.status).id;
-        } else {
-          publishMessages(messagesRef.current.map((message) => message.id === messageId ? { ...message, ...snapshot, source: replySource } : message));
+          reactionPlayer.enqueue(emote, messageId, index,
+            document.hidden || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches);
+        });
+      },
+      onUpdate: (snapshot) => {
+        if (!mountedRef.current) return;
+        const request = activeRequestRef.current;
+        // Custom adapters may return only a completed envelope. An explicit
+        // selection still owns its scene and display before that payload appears.
+        if (!gate.enabled && !gate.hasContent && request?.session === session && request.actionMode === "deep-research") {
+          request.actionReceived = true;
+          beginRequestScene("deep-research", session);
         }
+        gate.update(snapshot, { incremental: deliveryKind === "delta" });
       },
     });
+    const deliver = (kind, callback) => {
+      deliveryKind = kind;
+      try { return callback(); } finally { deliveryKind = null; }
+    };
+    const session = Object.freeze({
+      appendText: (delta, index) => deliver("delta", () => validationSession.appendText(delta, index)),
+      append: (segment, index) => deliver("segment", () => validationSession.append(segment, index)),
+      finish: (payload) => deliver("finish", () => validationSession.finish(payload)),
+      interrupt: (reason) => deliver("interrupt", () => validationSession.interrupt(reason)),
+      snapshot: validationSession.snapshot,
+      get closed() { return validationSession.closed; },
+    });
+    gate = createMetabloomResearchDisplayGate({
+      onUpdate: publishSnapshot,
+      onFirstContent: () => completeRequestScene(session),
+    });
+    replyDisplayRef.current = { session, gate };
     replyRef.current = session;
     updateStateSnapshot({ pending: true, responseSource: source });
     setPending(true);
@@ -1026,24 +1097,33 @@ const OrbSection = ({
     }, 650);
     previewTimerRef.current = window.setTimeout(() => failReply(session), RESPONSE_TIMEOUT_MS);
     return session;
-  }, [appendMessage, cancelResponse, clearSequence, completeActivity, failReply, performAction, reactionPlayer, publishMessages, updateStateSnapshot]);
+  }, [appendMessage, beginRequestScene, cancelResponse, clearSequence, completeActivity, completeRequestScene, failReply, performAction, reactionPlayer, publishMessages, updateStateSnapshot]);
+
+  const finishReplyPresentation = React.useCallback((session) => {
+    if (replyRef.current !== session || !mountedRef.current) return;
+    activeRequestRef.current = null;
+    requestAbortRef.current = null;
+    requestTokenRef.current += 1;
+    updateStateSnapshot({ pending: false });
+    setPending(false);
+  }, [updateStateSnapshot]);
 
   const finishReply = React.useCallback((session, payload) => {
     if (replyRef.current !== session || session.closed) return false;
     try {
       session.finish(payload);
-      completeRequestScene(session);
+      const display = replyDisplayRef.current;
+      if (!display?.gate.enabled) completeRequestScene(session);
       completeActivity();
+      // The network has validated. Its deadline must not cancel presentation
+      // still draining after a slow response; no network budget is extended.
       window.clearTimeout(previewTimerRef.current);
       previewTimerRef.current = 0;
-      activeRequestRef.current = null;
-      requestAbortRef.current = null;
-      requestTokenRef.current += 1;
-      updateStateSnapshot({ pending: false });
-      setPending(false);
+      if (display?.session === session) display.gate.complete(() => finishReplyPresentation(session));
+      else finishReplyPresentation(session);
       return true;
     } catch { return failReply(session); }
-  }, [completeActivity, completeRequestScene, failReply, updateStateSnapshot]);
+  }, [completeActivity, completeRequestScene, failReply, finishReplyPresentation]);
 
   const reportActivity = React.useCallback((requestId, event) => {
     const request = activeRequestRef.current;
@@ -1113,6 +1193,27 @@ const OrbSection = ({
       setErrorMessage(parsed.error);
       return false;
     }
+    const display = replyDisplayRef.current;
+    if (activeRequest && display?.session === activeRequest.session
+      && (display.gate.enabled || activeRequest.actionMode === "deep-research")) {
+      const session = activeRequest.session;
+      if (session.closed) return false;
+      if (!display.gate.enabled) beginRequestScene("deep-research", session);
+      // This explicit compatibility format has its own validator and character
+      // bound. Close its unused segment session without publishing its payload.
+      session.interrupt();
+      updateStateSnapshot({ responseSource: source });
+      setResponseSource(source);
+      display.gate.update({
+        content: legacy.value.response, segments: [{ response: legacy.value.response }],
+        actionChain: legacy.value.actionChain, emote: "neutral", status: "complete",
+      }, { legacy: true });
+      display.gate.deferReaction("legacy-actions", () => playSequence(legacy.value.actionChain, "legacy-model-response"));
+      window.clearTimeout(previewTimerRef.current);
+      previewTimerRef.current = 0;
+      display.gate.complete(() => finishReplyPresentation(session));
+      return true;
+    }
     cancelResponse();
     updateStateSnapshot({ pending: false, responseSource: source });
     setPending(false);
@@ -1121,7 +1222,7 @@ const OrbSection = ({
     appendMessage("assistant", legacy.value.response, legacy.value.actionChain, source);
     playSequence(legacy.value.actionChain, "legacy-model-response");
     return true;
-  }, [appendMessage, beginReply, cancelResponse, failReply, finishReply, playSequence, updateStateSnapshot]);
+  }, [appendMessage, beginReply, beginRequestScene, cancelResponse, failReply, finishReply, finishReplyPresentation, playSequence, updateStateSnapshot]);
 
   const createStream = React.useCallback((options = {}) => {
     const allowMultiple = options?.allowMultiple === true;
@@ -1148,7 +1249,12 @@ const OrbSection = ({
     });
   }, [beginReply, failReply, finishReply, stop]);
 
-  const getState = React.useCallback(() => ({ ...stateRef.current, ...requestSceneRef.current?.presentation }), []);
+  const getState = React.useCallback(() => ({
+    ...stateRef.current,
+    ...requestSceneRef.current?.presentation,
+    researchDisplayPhase: replyDisplayRef.current?.gate.enabled ? replyDisplayRef.current.gate.phase : null,
+    researchBufferedChars: replyDisplayRef.current?.gate.enabled ? replyDisplayRef.current.gate.bufferedChars : 0,
+  }), []);
 
   const getMessages = React.useCallback(
     () => messagesRef.current.map(cloneMessage),
@@ -1243,6 +1349,7 @@ const OrbSection = ({
   const handleFieldStateChange = React.useCallback((nextState) => {
     updateStateSnapshot({ fieldState: nextState });
     setFieldState(nextState);
+    if (nextState !== "crossfading") requestSceneRef.current?.onFieldSettled?.();
   }, [updateStateSnapshot]);
 
   const sendMessage = React.useCallback(
@@ -1274,7 +1381,8 @@ const OrbSection = ({
       const session = beginReply(source, allowMultiple);
       const requestToken = ++requestTokenRef.current;
       const requestId = `${mountIdRef.current}-${requestToken}`;
-      const activeRequest = { claimed: false, requestId, requestToken, allowMultiple, session, startedAt: Date.now() };
+      const activeRequest = { claimed: false, requestId, requestToken, allowMultiple,
+        actionMode: deepResearch ? "deep-research" : "auto", session, startedAt: Date.now() };
       activeRequestRef.current = activeRequest;
       const controller = new AbortController();
       requestAbortRef.current = controller;
@@ -1297,8 +1405,11 @@ const OrbSection = ({
           window.clearTimeout(thinkingTimerRef.current);
           thinkingTimerRef.current = 0;
         }
-        reactionPlayer.enqueue(reaction.emote, requestId, reaction.phase === "input" ? -1 : -2,
+        const play = () => reactionPlayer.enqueue(reaction.emote, requestId, reaction.phase === "input" ? -1 : -2,
           document.hidden || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches);
+        const display = replyDisplayRef.current;
+        if (reaction.phase === "response" && display?.session === session) display.gate.deferReaction("response", play);
+        else play();
       };
       const onAction = (action) => {
         if (!current() || typeof action !== "string" || !Object.prototype.hasOwnProperty.call(METABLOOM_SCENE_ACTIONS, action)
@@ -1307,7 +1418,7 @@ const OrbSection = ({
         return action === "none" || beginRequestScene(action, session);
       };
       const request = {
-        requestId, message, history, allowMultiple, actionMode: deepResearch ? "deep-research" : "auto",
+        requestId, message, history, allowMultiple, actionMode: activeRequest.actionMode,
         signal: controller.signal, onTextDelta, onSegment, onReaction, onAction,
         onActivity: (event) => current() && reportActivity(requestId, event),
         reactionQuestion: METABLOOM_REACTION_QUESTION,
@@ -1402,6 +1513,10 @@ const OrbSection = ({
   React.useEffect(() => {
     const handleVisibility = () => {
       if (document.hidden) {
+        if (replyDisplayRef.current?.gate.blocked) {
+          stop();
+          setErrorMessage("The response was interrupted when this page was hidden. Send another message to continue.");
+        }
         cancelRequestScene();
         cancelUnderHood();
         reactionPlayer.cancel();
@@ -1410,7 +1525,7 @@ const OrbSection = ({
     };
     document.addEventListener("visibilitychange", handleVisibility);
     return () => document.removeEventListener("visibilitychange", handleVisibility);
-  }, [cancelRequestScene, cancelUnderHood, reactionPlayer]);
+  }, [cancelRequestScene, cancelUnderHood, reactionPlayer, stop]);
 
   React.useEffect(() => {
     onConversationStateChange?.(conversationStarted);

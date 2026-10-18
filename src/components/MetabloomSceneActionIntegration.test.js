@@ -80,7 +80,7 @@ test("Deep Research is a visible saved option; ordinary requests keep their exis
   expect(screen.getByRole("checkbox", { name: "Deep Research" })).toBeChecked();
 });
 
-test("a research action holds through progressive paragraphs and the final emote until validated completion", async () => {
+test("research completes think, entry, and surfacing before revealing buffered paragraphs, then resumes live deltas", async () => {
   render(<OrbSection />);
   fireEvent.click(screen.getByRole("checkbox", { name: "Deep Research" }));
   send();
@@ -89,39 +89,50 @@ test("a research action holds through progressive paragraphs and the final emote
   act(() => {
     request.onReaction({ phase: "input", emote: "curious" });
     expect(request.onAction("deep-research")).toBe(true);
+    request.onTextDelta("The first paragraph explores the evidence.", 0);
+    request.onSegment({ response: "The first paragraph explores the evidence." }, 0);
+    request.onTextDelta("Another perspective", 1);
   });
   expect(state()).toMatchObject({ sceneAction: "deep-research", scenePhase: "think", action: "thinking", activity: "idle" });
+  expect(screen.queryByRole("article", { name: "Metabloom message" })).not.toBeInTheDocument();
   await tick(399);
   expect(mockAvatar.activityTheme).toBe("metabloom");
   await tick(1);
   expect(state()).toMatchObject({ scenePhase: "deep-research-diving", theme: "tidal-weave", researchPhase: "diving" });
   expect(screen.getByLabelText("Metabloom model chat interface", { selector: "section" })).toHaveAttribute("data-scene-phase", "deep-research-diving");
-  act(() => request.onTextDelta("The first", 0));
-  const firstBubble = screen.getByRole("article", { name: "Metabloom message" });
-  expect(firstBubble).toHaveTextContent("The first");
-  act(() => {
-    request.onTextDelta(" paragraph.", 0);
-    request.onSegment({ response: "The first paragraph." }, 0);
-    request.onTextDelta("Another perspective.", 1);
-  });
-  expect(screen.getByRole("article", { name: "Metabloom message" })).toBe(firstBubble);
-  expect(firstBubble).toHaveTextContent("Another perspective.");
-  await tick(7000);
-  expect(mockAvatar.activityTheme).toBe("tidal-weave");
-  expect(screen.getByRole("status", { name: "Research progress" })).toHaveTextContent("Diving deep");
-  act(() => {
-    request.onSegment({ response: "Another perspective." }, 1);
-    request.onReaction({ phase: "response", emote: "resolute" });
-  });
-  expect(state()).toMatchObject({ scenePhase: "deep-research-diving", pending: true, emote: "resolute" });
-  await act(async () => finish(envelope("The first paragraph.", "Another perspective.")));
-  expect(state()).toMatchObject({ scenePhase: "deep-research-surfacing", pending: false, emote: "resolute" });
-  expect(firstBubble).toHaveAttribute("data-stream-status", "complete");
-  expect(window.__orbMessages().filter((message) => message.role === "assistant")).toHaveLength(1);
+  await tick(1200);
+  expect(state()).toMatchObject({ scenePhase: "deep-research-surfacing", pending: true });
+  expect(screen.queryByRole("article", { name: "Metabloom message" })).not.toBeInTheDocument();
   await tick(650);
   expect(state()).toMatchObject({ scenePhase: "deep-research-surfacing", theme: "metabloom" });
   await tick(1200);
-  expect(state()).toMatchObject({ sceneAction: "none", scenePhase: null, researchPhase: null });
+  expect(state()).toMatchObject({ sceneAction: "none", scenePhase: null, researchPhase: null, pending: true });
+  expect(screen.queryByRole("article", { name: "Metabloom message" })).not.toBeInTheDocument();
+  await tick(16);
+  expect(screen.queryByRole("article", { name: "Metabloom message" })).not.toBeInTheDocument();
+  await tick(16);
+  const firstBubble = screen.getByRole("article", { name: "Metabloom message" });
+  const prefix = firstBubble.querySelector("p").textContent;
+  expect(prefix.length).toBeGreaterThan(0);
+  expect(prefix.length).toBeLessThan("The first paragraph explores the evidence.".length);
+  await tick(16);
+  expect(screen.getByRole("article", { name: "Metabloom message" })).toBe(firstBubble);
+  expect(firstBubble.querySelector("p").textContent.length).toBeGreaterThan(prefix.length);
+  await tick(64);
+  expect(state().researchDisplayPhase).toBe("live");
+  expect(firstBubble).toHaveTextContent("Another perspective");
+  act(() => {
+    request.onTextDelta(" adds nuance.", 1);
+    request.onSegment({ response: "Another perspective adds nuance." }, 1);
+    request.onReaction({ phase: "response", emote: "resolute" });
+  });
+  expect(firstBubble).toHaveTextContent("Another perspective adds nuance.");
+  expect(state().emote).not.toBe("resolute");
+  expect(firstBubble).toHaveAttribute("data-stream-status", "streaming");
+  await act(async () => finish(envelope("The first paragraph explores the evidence.", "Another perspective adds nuance.")));
+  expect(state()).toMatchObject({ sceneAction: "none", pending: false, emote: "resolute", researchDisplayPhase: "complete" });
+  expect(firstBubble).toHaveAttribute("data-stream-status", "complete");
+  expect(window.__orbMessages().filter((message) => message.role === "assistant")).toHaveLength(1);
 });
 
 test.each(["authored demo", "unconfigured fallback"])("Deep Research also selects the scene for an %s without changing its preview response", async (source) => {
@@ -134,12 +145,19 @@ test.each(["authored demo", "unconfigured fallback"])("Deep Research also select
   expect(state()).toMatchObject({ sceneAction: "deep-research", scenePhase: "think", responseSource: "preview" });
   await tick(400);
   expect(mockAvatar.activityTheme).toBe("tidal-weave");
-  await tick(120);
-  expect(screen.getByText("Preview response")).toBeInTheDocument();
-  if (source === "authored demo") expect(screen.getByText(METABLOOM_DEMOS[0].segments[0].response)).toBeInTheDocument();
+  await tick(320);
+  expect(screen.queryByText("Preview response")).not.toBeInTheDocument();
   expect(state().scenePhase).toBe("deep-research-diving");
-  await tick(200);
-  expect(state()).toMatchObject({ pending: false, scenePhase: "deep-research-surfacing", responseSource: "preview" });
+  expect(state()).toMatchObject({ pending: true, responseSource: "preview" });
+  await tick(2730);
+  expect(state().sceneAction).toBe("none");
+  expect(screen.queryByRole("article", { name: "Metabloom message" })).not.toBeInTheDocument();
+  await tick(32);
+  expect(screen.getByText("Preview response")).toBeInTheDocument();
+  expect(screen.getByRole("article", { name: "Metabloom message" })).toHaveAttribute("data-stream-status", "streaming");
+  await tick(500);
+  if (source === "authored demo") expect(screen.getByText(METABLOOM_DEMOS[0].segments[0].response)).toBeInTheDocument();
+  expect(state()).toMatchObject({ pending: false, scenePhase: null, responseSource: "preview" });
 });
 
 test("under the hood stays open across the input chain, ordinary emotes, and a held response", async () => {
@@ -177,13 +195,13 @@ test("under the hood stays open across the input chain, ordinary emotes, and a h
   expect(state()).toMatchObject({ sceneAction: "none", scenePhase: null, underHoodPhase: null });
 });
 
-test.each(["deep-research", "under-the-hood"])("a fast %s reply never delays text or opens after completion", async (action) => {
+test("a fast under-the-hood reply still displays immediately without a late opening", async () => {
   render(<OrbSection />);
   send();
   await tick(0);
   const { request, finish } = latest();
   act(() => {
-    request.onAction(action);
+    request.onAction("under-the-hood");
     request.onTextDelta("Already answered.", 0);
   });
   expect(screen.getByText("Already answered.")).toBeInTheDocument();
@@ -192,6 +210,230 @@ test.each(["deep-research", "under-the-hood"])("a fast %s reply never delays tex
   expect(state()).toMatchObject({ pending: false, sceneAction: "none", scenePhase: null });
   await tick(10000);
   expect(mockAvatarHistory.every(({ theme, hood }) => theme === "metabloom" && hood === null)).toBe(true);
+});
+
+test("a fast completed research response still enters, surfaces, and reveals multiple prefixes before its final emote", async () => {
+  render(<OrbSection />);
+  send();
+  await tick(0);
+  const { request, finish } = latest();
+  const answer = "Evidence and interpretation belong together. ".repeat(25).trim();
+  act(() => {
+    request.onAction("deep-research");
+    request.onTextDelta(answer, 0);
+    request.onSegment({ response: answer }, 0);
+    request.onReaction({ phase: "response", emote: "resolute" });
+  });
+  await act(async () => finish(envelope(answer)));
+  expect(state()).toMatchObject({ pending: true, scenePhase: "think" });
+  expect(screen.queryByRole("article", { name: "Metabloom message" })).not.toBeInTheDocument();
+  await tick(1600);
+  expect(state().scenePhase).toBe("deep-research-surfacing");
+  await tick(1850);
+  expect(state().sceneAction).toBe("none");
+  expect(screen.queryByRole("article", { name: "Metabloom message" })).not.toBeInTheDocument();
+  await tick(32);
+  const bubble = screen.getByRole("article", { name: "Metabloom message" });
+  const first = bubble.querySelector("p").textContent;
+  expect(first.length).toBeGreaterThan(0);
+  expect(first.length).toBeLessThan(answer.length);
+  expect(state()).toMatchObject({ pending: true, researchDisplayPhase: "revealing" });
+  expect(state().emote).not.toBe("resolute");
+  act(() => request.onTextDelta("Late transport data", 0));
+  await tick(16);
+  const second = bubble.querySelector("p").textContent;
+  expect(second.length).toBeGreaterThan(first.length);
+  expect(second.length).toBeLessThan(answer.length);
+  expect(second).not.toContain("Late transport data");
+  await tick(1200);
+  expect(bubble.querySelector("p").textContent).toBe(answer);
+  expect(bubble).toHaveAttribute("data-stream-status", "complete");
+  expect(state()).toMatchObject({ pending: false, emote: "resolute", researchDisplayPhase: "complete" });
+});
+
+test.each(["stop", "reset", "message", "deactivate", "unmount", "hidden"])("%s cancels a validated but still-revealing research reply", async (operation) => {
+  const { rerender, unmount } = render(<OrbSection />);
+  send();
+  await tick(0);
+  const previous = latest();
+  const answer = "A queued response must remain owned by its request. ".repeat(25).trim();
+  act(() => {
+    previous.request.onAction("deep-research");
+    previous.request.onReaction({ phase: "response", emote: "resolute" });
+  });
+  await act(async () => previous.finish(envelope(answer)));
+  await tick(3482);
+  const visible = window.__orbMessages().find((message) => message.role === "assistant");
+  expect(visible.content.length).toBeGreaterThan(0);
+  expect(visible.content.length).toBeLessThan(answer.length);
+  expect(state().pending).toBe(true);
+  if (operation === "unmount") unmount();
+  else if (operation === "deactivate") rerender(<OrbSection isActive={false} />);
+  else if (operation === "message") send("A fresh request");
+  else if (operation === "hidden") act(() => {
+    Object.defineProperty(document, "hidden", { configurable: true, value: true });
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  else act(() => operation === "reset" ? window.__orbReset() : window.__orbStop());
+  expect(previous.request.signal.aborted).toBe(true);
+  act(() => {
+    previous.request.onTextDelta("This late text must be ignored", 0);
+    previous.request.onReaction({ phase: "response", emote: "resolute" });
+    expect(previous.request.onAction("deep-research")).toBe(false);
+  });
+  await tick(2000);
+  if (operation === "unmount") expect(jest.getTimerCount()).toBe(0);
+  else {
+    const interrupted = window.__orbMessages().find((message) => message.id === visible.id);
+    expect(interrupted).toMatchObject({ content: visible.content, status: "interrupted" });
+    expect(state().emote).not.toBe("resolute");
+    expect(state().sceneAction).toBe("none");
+  }
+});
+
+test("research final validation still rejects an inconsistent hidden prefix before any text appears", async () => {
+  render(<OrbSection />);
+  send();
+  await tick(0);
+  const { request, finish } = latest();
+  act(() => {
+    request.onAction("deep-research");
+    request.onTextDelta("The validated prefix", 0);
+  });
+  await act(async () => finish(envelope("A different completed response")));
+  expect(state()).toMatchObject({ pending: false, sceneAction: "none" });
+  expect(screen.getByRole("alert")).toHaveTextContent("interrupted");
+  await tick(10000);
+  expect(screen.queryByRole("article", { name: "Metabloom message" })).not.toBeInTheDocument();
+});
+
+test.each(["complete envelope", "legacy action response"])("an explicit research selection gates an adapter's %s without an action callback", async (format) => {
+  render(<OrbSection />);
+  fireEvent.click(screen.getByRole("checkbox", { name: "Deep Research" }));
+  send();
+  await tick(0);
+  const answer = format === "legacy action response" ? "Older adapter content still uses its validated size limit. ".repeat(50).trim() : "A complete adapter response must wait for the scene.";
+  const payload = format === "legacy action response"
+    ? { response: answer, actionChain: [{ action: "curious", duration: 400, intensity: 0.3 }] }
+    : envelope(answer);
+  await act(async () => latest().finish(payload));
+  expect(state()).toMatchObject({ sceneAction: "deep-research", scenePhase: "think", pending: true });
+  expect(screen.queryByRole("article", { name: "Metabloom message" })).not.toBeInTheDocument();
+  await tick(3450);
+  expect(state().sceneAction).toBe("none");
+  expect(screen.queryByRole("article", { name: "Metabloom message" })).not.toBeInTheDocument();
+  await tick(32);
+  const bubble = screen.getByRole("article", { name: "Metabloom message" });
+  expect(bubble.querySelector("p").textContent.length).toBeLessThan(answer.length);
+  await tick(2500);
+  expect(bubble.querySelector("p").textContent).toBe(answer);
+  expect(bubble).toHaveAttribute("data-stream-status", "complete");
+  expect(state().pending).toBe(false);
+});
+
+test("a provider completion near its deadline is allowed to finish its bounded display queue", async () => {
+  render(<OrbSection />);
+  send();
+  await tick(0);
+  const { request, finish } = latest();
+  act(() => request.onAction("deep-research"));
+  await tick(29500);
+  await act(async () => finish(envelope("The provider completed before its existing deadline.")));
+  expect(state()).toMatchObject({ pending: true, scenePhase: "deep-research-surfacing" });
+  await tick(1850);
+  expect(state().sceneAction).toBe("none");
+  await tick(300);
+  expect(state().pending).toBe(false);
+  expect(request.signal.aborted).toBe(false);
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+});
+
+test("an overlapping legacy activity cannot start another return when the research display releases", async () => {
+  render(<OrbSection />);
+  send();
+  await tick(0);
+  const { request } = latest();
+  act(() => {
+    request.onActivity({ activity: "deep-research", state: "running" });
+    request.onAction("deep-research");
+    request.onTextDelta("This prefix follows the complete return.", 0);
+  });
+  await tick(3482);
+  expect(screen.getByRole("article", { name: "Metabloom message" })).toBeInTheDocument();
+  expect(state()).toMatchObject({ activity: "idle", sceneAction: "none", researchPhase: null, theme: "metabloom" });
+  expect(screen.queryByRole("status", { name: "Research progress" })).not.toBeInTheDocument();
+});
+
+test.each(["renderer confirmation", "bounded fallback"])("research waits for its final painted return using %s", async (mode) => {
+  render(<OrbSection />);
+  send();
+  await tick(0);
+  const { request } = latest();
+  act(() => request.onAction("deep-research"));
+  await tick(1600);
+  act(() => request.onTextDelta("The returned orb comes first.", 0));
+  await tick(650);
+  act(() => mockAvatar.onFieldStateChange("crossfading"));
+  await tick(1200);
+  expect(state().scenePhase).toBe("deep-research-surfacing");
+  expect(screen.queryByRole("article", { name: "Metabloom message" })).not.toBeInTheDocument();
+  if (mode === "renderer confirmation") act(() => mockAvatar.onFieldStateChange("drifting"));
+  else {
+    await tick(1199);
+    expect(state().scenePhase).toBe("deep-research-surfacing");
+    await tick(1);
+  }
+  expect(state().sceneAction).toBe("none");
+  await tick(16);
+  expect(screen.queryByRole("article", { name: "Metabloom message" })).not.toBeInTheDocument();
+  await tick(16);
+  expect(screen.getByRole("article", { name: "Metabloom message" })).toBeInTheDocument();
+});
+
+test("reduced-motion research keeps its 650 ms surfacing cue before progressive text", async () => {
+  window.matchMedia = (query) => ({ matches: query.includes("prefers-reduced-motion"), addEventListener() {}, removeEventListener() {} });
+  render(<OrbSection />);
+  send();
+  await tick(0);
+  const { request, finish } = latest();
+  act(() => {
+    request.onAction("deep-research");
+    request.onTextDelta("A motion-safe answer still begins after surfacing.", 0);
+  });
+  expect(state().scenePhase).toBe("deep-research-surfacing");
+  await tick(649);
+  expect(screen.queryByRole("article", { name: "Metabloom message" })).not.toBeInTheDocument();
+  await tick(1);
+  expect(state().sceneAction).toBe("none");
+  await tick(16);
+  expect(screen.queryByRole("article", { name: "Metabloom message" })).not.toBeInTheDocument();
+  await tick(16);
+  expect(screen.getByRole("article", { name: "Metabloom message" })).toHaveAttribute("data-stream-status", "streaming");
+  await act(async () => finish(envelope("A motion-safe answer still begins after surfacing.")));
+  await tick(100);
+  expect(state()).toMatchObject({ pending: false, researchDisplayPhase: "complete" });
+});
+
+test("hiding a caught-up research stream keeps ordinary background streaming behavior", async () => {
+  render(<OrbSection />);
+  send();
+  await tick(0);
+  const { request, finish } = latest();
+  act(() => {
+    request.onAction("deep-research");
+    request.onTextDelta("A live answer", 0);
+  });
+  await tick(3550);
+  expect(state().researchDisplayPhase).toBe("live");
+  act(() => {
+    Object.defineProperty(document, "hidden", { configurable: true, value: true });
+    document.dispatchEvent(new Event("visibilitychange"));
+    request.onTextDelta(" continues.", 0);
+  });
+  await act(async () => finish(envelope("A live answer continues.")));
+  expect(request.signal.aborted).toBe(false);
+  expect(state()).toMatchObject({ pending: false, sceneAction: "none" });
+  expect(screen.getByText("A live answer continues.")).toBeInTheDocument();
 });
 
 test("completion during the hood seam cancels the pending opening step", async () => {
@@ -240,7 +482,7 @@ describe.each(["deep-research", "under-the-hood"])("%s request ownership", (acti
     });
     else act(() => operation === "reset" ? window.__orbReset() : window.__orbStop());
     act(() => expect(previous.request.onAction(action)).toBe(false));
-    expect(previous.request.signal.aborted).toBe(operation !== "hidden");
+    expect(previous.request.signal.aborted).toBe(operation !== "hidden" || action === "deep-research");
     if (operation === "hidden") act(() => {
       Object.defineProperty(document, "hidden", { configurable: true, value: false });
       document.dispatchEvent(new Event("visibilitychange"));
@@ -264,7 +506,7 @@ test("an old surfacing timer cannot clear a newer scene", async () => {
   act(() => previous.request.onAction("deep-research"));
   await tick(400);
   await act(async () => previous.finish(envelope("First answer.")));
-  await tick(700);
+  await tick(1900);
   send("Show me a trick next");
   await tick(0);
   act(() => latest().request.onAction("under-the-hood"));
@@ -310,7 +552,8 @@ test("unknown, duplicate, none, and late actions cannot replace a request's deci
   expect(state().sceneAction).toBe("none");
 });
 
-test.each(["deep-research", "under-the-hood"])("reduced motion gives %s a static held scene and readable completion", async (action) => {
+test("reduced-motion under the hood keeps its static held scene and readable completion", async () => {
+  const action = "under-the-hood";
   window.matchMedia = (query) => ({ matches: query.includes("prefers-reduced-motion"), addEventListener() {}, removeEventListener() {} });
   render(<OrbSection />);
   send();

@@ -158,26 +158,27 @@ const handler = async (request, response) => {
         await once(response, "drain", { signal: controller.signal });
       }
     };
-    // Begin Jev immediately and in parallel with the chat provider. Its result
-    // always precedes the first text segment; a bounded failure becomes neutral.
+    // The same bounded Jev call supplies the input reaction and optional action.
+    // Auto waits for its actual scene choice; explicit and legacy modes already
+    // know their presentation and can start the chat provider in parallel.
     const inputDecision = {
       phase: "input",
       state: { latestUserMessage: body.message, recentConversation: body.history.slice(-4) },
       signal: controller.signal, timeoutMs: 950,
     };
-    initialReactionPromise = (body.actionMode === undefined
+    const inputDecisionPromise = body.actionMode === undefined
       ? decideMetabloomReaction(inputDecision).then((emote) => ({ emote }))
-      : decideMetabloomInput({ ...inputDecision, actionMode: body.actionMode })
-    ).then(async ({ emote, action }) => {
+      : decideMetabloomInput({ ...inputDecision, actionMode: body.actionMode });
+    initialReactionPromise = inputDecisionPromise.then(async ({ emote, action }) => {
       await sendStreamEvent({ type: "emote", phase: "input", emote });
       if (body.actionMode !== undefined) await sendStreamEvent({ type: "action", action });
     });
+    const presentationAction = body.actionMode === "auto"
+      ? (await inputDecisionPromise).action : body.actionMode || "none";
+    if (controller.signal.aborted || response.destroyed || request.aborted) throw new Error("Cancelled");
     const schema = JSON.parse(JSON.stringify(METABLOOM_CHAT_RESPONSE_SCHEMA));
     schema.properties.segments.maxItems = body.allowMultiple ? 4 : 1;
-    const instructions = buildMetabloomChatSystemPrompt({ allowMultiple: body.allowMultiple })
-      + (body.actionMode === "deep-research"
-        ? "\n\nDeep Research mode is selected. Give a substantive analysis with evidence, assumptions, and uncertainty within the output limits. Use the information available; never claim to have searched, browsed, or verified sources you did not access."
-        : "");
+    const instructions = buildMetabloomChatSystemPrompt({ allowMultiple: body.allowMultiple, presentationAction });
     const upstream = await fetch("https://api.openai.com/v1/responses", {
       method: "POST", redirect: "error", signal: controller.signal,
       headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "Content-Type": "application/json" },

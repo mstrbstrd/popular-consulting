@@ -16,7 +16,7 @@
     },
     "deep-research": {
       "label": "Deep Research",
-      "description": "The user wants a deep dive, thorough investigation, or detailed exploration of a topic. Think, enter the Tidal Weave scene, hold while the answer streams, and surface when the reply completes.",
+      "description": "The user wants a deep dive, thorough investigation, or detailed exploration of a topic. Think and enter Tidal Weave while preparing the answer. Begin surfacing when answer text starts arriving, finish the return to Metabloom, then reveal the answer progressively.",
       "start": ["think", "deep-research-diving"],
       "complete": "deep-research-surfacing"
     },
