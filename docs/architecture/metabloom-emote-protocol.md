@@ -5,7 +5,9 @@
 The standard `/api/metabloom` endpoint uses **OpenAI for response text** and
 **TypeSafe Jev for the Orb's nonverbal decisions**. A server-only Jev Choice
 request reads the latest user message first. Its result (or neutral fallback) is
-published as soon as it is available, while the model builds the answer. A
+published as soon as it is available. Automatic scene mode waits for that bounded
+decision so the text model knows the selected presentation; explicit modes and
+legacy requests start the text model in parallel with input Jev. A
 second Choice request starts only after OpenAI's complete text has passed schema
 validation. The reply stays a single assistant message regardless of segment count.
 
@@ -22,9 +24,9 @@ validation. The reply stays a single assistant message regardless of segment cou
 
 Live response segments contain **text only**. The current browser opts into
 incremental text with `streamText: true` in the request body. Decoded response
-text appears as provider deltas arrive, before its paragraph closes. The
+text reaches the client as provider deltas arrive, before its paragraph closes. The
 following validated `segment` commits that same paragraph without appending it
-again. Its normalized text must exactly match the concatenated visible deltas.
+again. Its normalized text must exactly match the concatenated text deltas.
 Older clients that omit the capability keep receiving complete segments.
 
 The browser also sends `actionMode: "auto"` to request an independent action
@@ -34,17 +36,20 @@ receive the single `action` record. It must follow the input emote and precede
 all text; unknown IDs, extra fields, duplicate records, and late records fail
 validation. Older v2 streams without action records remain supported.
 
-`onAction(action)` opens the request-owned scene. Deep Research holds through
-partial text and surfaces on successful terminal completion; Under the Hood
-holds its reveal and then closes. Completion comes from the existing validated
-reply lifecycle, without another action event or another Jev call. Cancellation
-and failure retire the scene and preserve any incomplete reply. The action
+`onAction(action)` opens the request-owned scene. Deep Research begins surfacing
+when the first response content arrives and withholds visible text until the
+return finishes. It then reveals buffered text progressively and continues the
+same streamed reply. Under the Hood holds its reveal during the text and closes
+on successful terminal completion. No additional action event or Jev call is
+needed. Cancellation and failure discard unpublished text, retire the scene, and
+preserve only an already-visible incomplete prefix. The action
 catalog and the confirmed external-worker contract are documented in
 [decision and activity mappings](metabloom-decisions.md).
 
 The browser dispatches the input
 reaction immediately, then dispatches the final reaction **only after verifying
-the terminal `done` event**. This prevents interrupted streams from expressing a
+the terminal `done` event**. The research display gate additionally holds that
+final reaction until the queued answer has been shown. This prevents interrupted streams from expressing a
 premature conclusion. The user sees one growing chat bubble. Partial text remains
 provisional until the response completes. An error or cancellation preserves the
 visible prefix with an incomplete status and excludes it from history. The old per-paragraph
@@ -81,9 +86,24 @@ Each complete paragraph must still pass the exact segment schema and match its v
 {"type":"done","version":"1.0.0"}
 ```
 
-The browser's HTTP reader invokes `onTextDelta(delta, index)` for progressive v2 text and `onSegment(segment, index)` for validated paragraph commits. `metabloomReplySession.js` keeps one provisional paragraph at its original index and replaces it on commit, preserving one message and one DOM node. Legacy segment emotes are queued once at arrival; the live v2 Jev reactions remain separate. A final envelope must match the visible text exactly. Streaming articles use `aria-busy` so the live region can announce the completed or interrupted reply coherently.
+The browser's HTTP reader invokes `onTextDelta(delta, index)` for progressive v2 text and `onSegment(segment, index)` for validated paragraph commits. `metabloomReplySession.js` keeps one provisional paragraph at its original index and replaces it on commit, preserving one message and one DOM node. Legacy segment emotes are queued once at arrival; the live v2 Jev reactions remain separate. A final envelope must match the received text exactly, including any text still held by the research display gate. Streaming articles use `aria-busy` so the live region can announce the completed or interrupted reply coherently.
 
-There is no client-side typing delay: live text updates when provider chunks arrive. Provider errors after a visible prefix produce an error record without `done`; the partial message remains explicitly incomplete and cannot fall back to a successful demo. NDJSON transport is bounded at 320,000 bytes to accommodate framing for up to 4,800 single-character deltas. Individual decoder records and its pending buffer stay bounded at 24,000 characters; semantic limits remain 1,600 characters per paragraph and 4,800 total.
+Ordinary conversation and Under the Hood update text as provider chunks arrive.
+Deep Research has a request-owned presentation gate: the first content starts
+the return sequence, text remains hidden until surfacing finishes, and the
+buffered prefix is then revealed across visible frames. The gate retains the
+existing semantic limits rather than an unbounded list of transport events.
+Validation continues while the scene is returning. The visible final status and
+response emote wait for the displayed prefix to catch up with a validated final
+reply. Provider completion ends its existing deadline without extending network
+work while the UI finishes this bounded presentation.
+
+Provider errors after a visible prefix produce an error record without `done`;
+the partial message remains explicitly incomplete and cannot fall back to a
+successful demo. NDJSON transport is bounded at 320,000 bytes to accommodate
+framing for up to 4,800 single-character deltas. Individual decoder records and
+its pending buffer stay bounded at 24,000 characters; semantic limits remain
+1,600 characters per paragraph and 4,800 total.
 
 ## Local demonstration and integration
 

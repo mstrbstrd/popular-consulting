@@ -1,0 +1,49 @@
+{
+  "passed": true,
+  "environment": "Production build served locally in installed Chromium; provider and authenticated-session fixtures; no external provider calls.",
+  "cases": [
+    {
+      "name": "desktop-light-research-before-text",
+      "surfacingToFirstTextMs": 2198.1,
+      "observablePrefixes": 2
+    },
+    {
+      "name": "desktop-light-fast-complete-progressive",
+      "surfacingToFirstTextMs": 2133.9,
+      "observablePrefixes": 28
+    },
+    {
+      "name": "desktop-light-ordinary-and-hood-unchanged"
+    },
+    {
+      "name": "mobile-dark-reduced-research-before-text",
+      "surfacingToFirstTextMs": 681.9,
+      "observablePrefixes": 2
+    },
+    {
+      "name": "mobile-dark-reduced-stop-during-return"
+    },
+    {
+      "name": "mobile-dark-reduced-replace-queued-reveal"
+    },
+    {
+      "name": "small-webgl-light-research-before-text",
+      "surfacingToFirstTextMs": 2062.2,
+      "observablePrefixes": 2
+    }
+  ],
+  "webgl": {
+    "verified": true,
+    "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+    "sceneWeightsAtFirstText": [
+      1,
+      0,
+      0
+    ],
+    "fieldStateAtFirstText": "expressing",
+    "sceneActionAtFirstText": "none",
+    "replyStatusAtFirstText": "streaming"
+  },
+  "serverErrors": [],
+  "unexpectedFetches": []
+}

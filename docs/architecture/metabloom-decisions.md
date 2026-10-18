@@ -38,7 +38,8 @@ reactions use [protocol 2.0.0](metabloom-emote-protocol.md):
 ```
 
 The client expands the selected choice. Each beat retains the existing authored
-duration, intensity scaling and recovery. Text appears immediately. The queue
+duration, intensity scaling and recovery. Emote playback does not delay text;
+the research scene has its own display gate described below. The queue
 admits up to eight beats including the playing beat, enough for four two-step
 paragraphs. Admission is atomic, so a rejected chain never partially plays.
 Neutral settles immediately. Reduced motion or a hidden document uses only a
@@ -90,10 +91,10 @@ and [Confidence](https://docs.typesafe.ai/confidence).
 
 Jev's input call can select a scene independently of its emotional reaction:
 
-| Action choice | Entry sequence | While the reply streams | Successful completion |
+| Action choice | Entry sequence | Text presentation | Return timing |
 | --- | --- | --- | --- |
 | `none` | Ordinary conversation | Existing Orb presentation | Existing final reaction |
-| `deep-research` | `think` → `deep-research-diving` | Hold Tidal Weave and the diving state | `deep-research-surfacing`, then return to Metabloom |
+| `deep-research` | `think` → `deep-research-diving` | Buffer incoming text, then reveal it progressively after surfacing finishes | First answer content requests `deep-research-surfacing`; the return completes before the first visible text |
 | `under-the-hood` | `think` → `under-the-hood-opening` | Hold the Forward Pass reveal | `under-the-hood-closing`, then return to Metabloom |
 
 `METABLOOM_ACTION_QUESTION` asks about the latest user's intent. A genuine request
@@ -118,17 +119,56 @@ source labels remain intact, without provider calls.
 
 An opted-in server emits one `{ "type": "action", "action": "deep-research" }`
 record after the input emote and before text. `request.onAction(action)` receives
-the selected ID. The existing successful terminal response closes the selected
-scene; Jev cannot declare completion or control arbitrary shaders, timings, or
-playlists. The first text delta and complete paragraphs do not close this mode.
-Text remains immediate while entry and exit animations run.
+the selected ID. Jev cannot declare completion or control arbitrary shaders,
+timings, or playlists.
 
-Scene timers belong to one request. Stop, error, timeout, replacement, reset,
-deactivation, unmount, or hiding the document clears them without a successful
-surfacing cue. A reply that finishes before entry cannot reopen the scene later.
-Reduced motion presents the selected scene directly. Timed menu previews remain
-independent, and an action choice does not extend provider or UI timeouts or
-claim that an external worker or web search ran.
+Research presentation follows **think, dive, surface, reveal**. The first
+arriving response content requests surfacing. Content that arrives during entry
+waits for the thinking lead and dive transition first. The UI continues to read
+and validate provider output throughout the 650 ms surfacing cue and 1.2-second
+return blend. It withholds the answer until the return finishes, then reveals
+the buffered prefix progressively in one chat bubble. New provider text keeps
+extending that reply. A fast completed response therefore cannot appear as one
+large dump at the end of the animation. The final response emote and visible
+completion follow the displayed text; terminal completion cannot surface twice.
+
+This research return means that answer content is ready to present. It does
+not assert successful research or provider completion. Under the Hood retains
+its separate behavior: text appears during the held reveal, and successful
+terminal completion starts closing it. Ordinary conversation remains immediate.
+
+Scene timers and buffered presentation belong to one request. Stop, error,
+timeout, replacement, reset, deactivation, and unmount discard unpublished text and retain
+only an already-visible incomplete prefix. A hidden page retires the scene;
+gated research is cancelled instead of replaying hidden text later. Reduced
+motion presents the selected scene directly and retains a brief static surfacing
+cue before revealing text. Timed menu previews and external worker activities
+remain independent. Provider deadlines and semantic response limits still apply.
+
+## Response model's scene awareness
+
+`buildMetabloomChatSystemPrompt` supplies the text model with the selected
+presentation: Conversation, Deep Research, or Under the Hood. It explains the
+Orb's separate nonverbal role, the timing of the first visible text, and the
+difference between an illustrative scene and actual model internals or browsing.
+The voice is a considerate, capable companion with curiosity, delight in
+discovery, and light whimsy. Ordinary turns default to one to three short,
+natural sentences with the answer or useful thought first. Requested depth,
+accuracy, and safety can justify more detail. Each paragraph must carry a
+distinct point; stock preambles, filler, repeated greetings, recaps, and automatic
+follow-up offers are discouraged. Serious or painful moments receive calm,
+direct care. Natural references to the Orb are appropriate when relevant to
+the user's request; raw action IDs, theatrical stage directions, and invented
+claims about what the user saw are not.
+
+Automatic mode waits for the existing bounded input Jev decision before
+constructing the response-model prompt, so the model receives the validated
+selected scene or `none` fallback. This adds at most the existing 950 ms decision
+wait before OpenAI starts; it does not add a Jev call. Explicit modes already
+know the scene and keep OpenAI parallel with input reaction selection. Legacy
+requests without action capability use Conversation context and retain that
+parallel path. The prompt describes the intended presentation because reduced
+motion, cancellation, or rendering fallback may simplify it.
 
 ## Confirmed work selects the scene
 
