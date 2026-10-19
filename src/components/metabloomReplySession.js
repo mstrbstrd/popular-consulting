@@ -1,4 +1,5 @@
 const { parseMetabloomChatEnvelope } = require("./metabloomEmoteProtocol");
+const { parseMetabloomResearchSources } = require("./metabloomResearchSources");
 const {
   METABLOOM_PROTOCOL_VERSION, METABLOOM_CHAT_PROTOCOL_VERSION,
   MAX_METABLOOM_EMOTE_SEGMENTS, MAX_METABLOOM_EMOTE_RESPONSE_CHARS, MAX_METABLOOM_EMOTE_TOTAL_CHARS,
@@ -10,11 +11,13 @@ const createMetabloomReplySession = ({ allowMultiple = false, onUpdate, onEmote 
   let partialResponse = null;
   let version = null;
   let status = "streaming";
+  let sources = null;
   const snapshot = () => {
     const visible = segments.map((segment) => ({ ...segment }));
     if (partialResponse !== null) visible.push({ response: partialResponse });
     return { segments: visible, content: visible.map((segment) => segment.response).join("\n\n"),
-      emote: segments.at(-1)?.emote || "neutral", status };
+      emote: segments.at(-1)?.emote || "neutral", status,
+      ...(sources ? { sources: sources.map((source) => ({ ...source })) } : {}) };
   };
   const appendText = (delta, index) => {
     if (status !== "streaming") return false;
@@ -49,6 +52,15 @@ const createMetabloomReplySession = ({ allowMultiple = false, onUpdate, onEmote 
     return true;
   };
   return Object.freeze({
+    attachSources(value) {
+      if (status !== "streaming") return false;
+      if (sources || segments.length || partialResponse !== null) throw new Error("Unexpected research sources.");
+      const parsed = parseMetabloomResearchSources(value);
+      if (!parsed) throw new Error("Invalid research sources.");
+      // Metadata alone must not create a reply or request the surfacing scene.
+      sources = parsed;
+      return true;
+    },
     append,
     appendText,
     snapshot,

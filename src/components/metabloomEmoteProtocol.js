@@ -8,6 +8,7 @@ const {
   resolveMetabloomEmote,
 } = require("./metabloomEmoteLibrary");
 const { METABLOOM_ACTION_IDS } = require("./metabloomDecisionMapping");
+const { parseMetabloomResearchSources } = require("./metabloomResearchSources");
 
 const MAX_SERIALIZED_CHARS = 24000;
 // Allow bounded NDJSON framing even when all 4,800 text characters arrive singly.
@@ -80,10 +81,12 @@ const parseMetabloomChatEnvelope = (input, { allowMultiple = true } = {}) => {
 
 const cloneChatSegment = (segment) => segment.emote === undefined
   ? { response: segment.response } : cloneSegment(segment);
+const cloneResearchSources = (sources) => sources?.map(({ id, title, url }) => ({ id, title, url })) || null;
 
 // Protocol v1 remains supported for previews and external adapters. Live model
 // responses use v2: one input emote, optional provisional text deltas committed
 // by exact segments, verified text completion, then a final emote and done.
+// Research records opt into searching, sources, then synthesis before any text.
 const createMetabloomSegmentStreamDecoder = ({
   allowMultiple = true,
   maxBufferChars = MAX_SERIALIZED_CHARS,
@@ -93,6 +96,8 @@ const createMetabloomSegmentStreamDecoder = ({
   onTextDelta,
   onReaction,
   onAction,
+  onResearch,
+  onSources,
 } = {}) => {
   const limit = Number.isInteger(maxBufferChars) && maxBufferChars > 0
     ? Math.min(maxBufferChars, MAX_SERIALIZED_CHARS) : MAX_SERIALIZED_CHARS;
@@ -107,6 +112,8 @@ const createMetabloomSegmentStreamDecoder = ({
   let textComplete = false;
   let partialResponse = null;
   let action = null;
+  let researchState = null;
+  let sources = null;
   const segments = [];
   const fail = (message) => {
     if (!errorMessage) {
@@ -131,9 +138,33 @@ const createMetabloomSegmentStreamDecoder = ({
       onAction?.(action);
       return true;
     }
+    if (event?.type === "research") {
+      if (!exactKeys(event, ["type", "state"]) || version !== METABLOOM_CHAT_PROTOCOL_VERSION
+        || action !== "deep-research" || segments.length || partialResponse !== null || textComplete
+        || !((event.state === "searching" && researchState === null && sources === null)
+          || (event.state === "synthesizing" && researchState === "searching" && sources !== null))) {
+        return fail("Invalid or out-of-order research state.");
+      }
+      researchState = event.state;
+      onResearch?.({ state: researchState });
+      return true;
+    }
+    if (event?.type === "sources") {
+      if (!exactKeys(event, ["type", "sources"]) || version !== METABLOOM_CHAT_PROTOCOL_VERSION
+        || action !== "deep-research" || researchState !== "searching" || sources !== null
+        || segments.length || partialResponse !== null || textComplete) {
+        return fail("Invalid or out-of-order research sources.");
+      }
+      const parsedSources = parseMetabloomResearchSources(event.sources);
+      if (!parsedSources) return fail("Invalid research sources.");
+      sources = parsedSources;
+      onSources?.(cloneResearchSources(sources));
+      return true;
+    }
     if (event?.type === "text_delta") {
       if (!exactKeys(event, ["type", "index", "delta"]) || version !== METABLOOM_CHAT_PROTOCOL_VERSION
         || textComplete || event.index !== segments.length || typeof event.delta !== "string" || !event.delta.length
+        || (researchState !== null && researchState !== "synthesizing")
         || segments.length >= (allowMultiple ? MAX_METABLOOM_EMOTE_SEGMENTS : 1)) {
         return fail("Invalid or out-of-order text delta.");
       }
@@ -161,6 +192,7 @@ const createMetabloomSegmentStreamDecoder = ({
     }
     if (event?.type === "text_complete") {
       if (!exactKeys(event, ["type"]) || version !== METABLOOM_CHAT_PROTOCOL_VERSION
+        || (researchState !== null && researchState !== "synthesizing")
         || !segments.length || partialResponse !== null || textComplete) return fail("Invalid text completion.");
       textComplete = true;
       return true;
@@ -171,6 +203,9 @@ const createMetabloomSegmentStreamDecoder = ({
       }
       if (version === METABLOOM_CHAT_PROTOCOL_VERSION && (!textComplete || !responseEmote)) {
         return fail("Jev stream ended without both reactions.");
+      }
+      if (researchState !== null && (researchState !== "synthesizing" || sources === null)) {
+        return fail("Research stream ended before synthesis.");
       }
       completed = true;
       // Only dispatch the final emote once the terminal record is verified.
@@ -183,6 +218,7 @@ const createMetabloomSegmentStreamDecoder = ({
     const expectedKeys = version === METABLOOM_CHAT_PROTOCOL_VERSION
       ? ["type", "index", "response"] : ["type", "index", "emote", "response"];
     if (!exactKeys(event, expectedKeys) || event.type !== "segment" || event.index !== segments.length
+      || (researchState !== null && researchState !== "synthesizing")
       || (version === METABLOOM_CHAT_PROTOCOL_VERSION && textComplete)) {
       return fail("Invalid or out-of-order stream segment.");
     }
@@ -230,7 +266,8 @@ const createMetabloomSegmentStreamDecoder = ({
     getState() {
       return { bufferLength: buffer.length, completed, failed: Boolean(errorMessage),
         nextIndex: segments.length, segments: segments.map(cloneChatSegment), version,
-        inputEmote, responseEmote, textComplete, action };
+        inputEmote, responseEmote, textComplete, action, researchState,
+        sources: cloneResearchSources(sources) };
     },
   });
 };

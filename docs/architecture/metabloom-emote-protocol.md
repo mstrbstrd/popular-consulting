@@ -6,17 +6,18 @@ The standard `/api/metabloom` endpoint uses **OpenAI for response text** and
 **TypeSafe Jev for the Orb's nonverbal decisions**. A server-only Jev Choice
 request reads the latest user message first. Its result (or neutral fallback) is
 published as soon as it is available. Automatic scene mode waits for that bounded
-decision so the text model knows the selected presentation; explicit modes and
-legacy requests start the text model in parallel with input Jev. A
+decision so the text model knows the selected presentation; ordinary explicit
+modes and legacy requests start the text model in parallel with input Jev. Live
+Deep Research first completes a bounded web pass, then writes the answer. A
 second Choice request starts only after OpenAI's complete text has passed schema
 validation. The reply stays a single assistant message regardless of segment count.
 
 ```jsonl
 {"type":"emote","phase":"input","emote":"curious"}
-{"type":"action","action":"deep-research"}
-{"type":"text_delta","index":0,"delta":"Let me examine"}
-{"type":"text_delta","index":0,"delta":" the evidence."}
-{"type":"segment","index":0,"response":"Let me examine the evidence."}
+{"type":"action","action":"none"}
+{"type":"text_delta","index":0,"delta":"A careful"}
+{"type":"text_delta","index":0,"delta":" answer."}
+{"type":"segment","index":0,"response":"A careful answer."}
 {"type":"text_complete"}
 {"type":"emote","phase":"response","emote":"reflective"}
 {"type":"done","version":"2.0.0"}
@@ -28,6 +29,39 @@ text reaches the client as provider deltas arrive, before its paragraph closes. 
 following validated `segment` commits that same paragraph without appending it
 again. Its normalized text must exactly match the concatenated text deltas.
 Older clients that omit the capability keep receiving complete segments.
+
+Live Deep Research opts into additional pre-text records:
+
+```jsonl
+{"type":"emote","phase":"input","emote":"curious"}
+{"type":"action","action":"deep-research"}
+{"type":"research","state":"searching"}
+{"type":"sources","sources":[{"id":1,"title":"Example source","url":"https://example.org/reference"}]}
+{"type":"research","state":"synthesizing"}
+{"type":"text_delta","index":0,"delta":"The sourced finding. [1]"}
+{"type":"segment","index":0,"response":"The sourced finding. [1]"}
+{"type":"text_complete"}
+{"type":"emote","phase":"response","emote":"reflective"}
+{"type":"done","version":"2.0.0"}
+```
+
+`onResearch({ state })` receives the two ordered progress states and
+`onSources(sources)` receives the one validated source table. These records are
+only accepted after a `deep-research` action and before answer content. Once
+research starts, the complete sequence is required before text or terminal
+success. A table contains 1 to 8 exact `{ id, title, url }` records with consecutive
+IDs, titles of at most 200 characters, and absolute HTTP(S) URLs of at most 2,048
+characters without credentials or control characters. The strict decoder copies
+the records at each public boundary. Legacy presentation-only research streams
+without these records remain supported.
+
+The research writer buffers its output until the full response and source IDs
+validate, then publishes each paragraph through the existing text events. This
+prevents fabricated IDs from becoming visible citations. The display gate still
+reveals that validated content progressively after surfacing. Source annotations
+from the provider populate the table; the writer can only refer to their IDs.
+Research progress and sources never independently trigger surfacing. See
+[live research limits and lifecycle](metabloom-decisions.md#live-web-research).
 
 The browser also sends `actionMode: "auto"` to request an independent action
 choice in the input Jev call. A selected explicit mode (`none`, `deep-research`,

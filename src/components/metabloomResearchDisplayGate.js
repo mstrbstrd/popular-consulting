@@ -12,7 +12,8 @@ const segmenter = typeof Intl.Segmenter === "function"
 const graphemes = (text) => segmenter
   ? Array.from(segmenter.segment(text), (part) => part.segment) : Array.from(text);
 const textLength = (snapshot) => snapshot?.segments.reduce((total, segment) => total + segment.response.length, 0) || 0;
-const cloneSnapshot = (snapshot) => ({ ...snapshot, segments: snapshot.segments.map((segment) => ({ ...segment })) });
+const cloneSnapshot = (snapshot) => ({ ...snapshot, segments: snapshot.segments.map((segment) => ({ ...segment })),
+  ...(snapshot.sources ? { sources: snapshot.sources.map((source) => ({ ...source })) } : {}) });
 
 // The reply session remains the authority for parsing and final validation. This
 // view holds one bounded, coalesced target instead of retaining every tiny delta.

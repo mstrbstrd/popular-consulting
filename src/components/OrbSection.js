@@ -29,7 +29,8 @@ import { METABLOOM_ACTIVITIES, METABLOOM_ACTIONS as METABLOOM_SCENE_ACTIONS, MET
 import { createMetabloomReactionPlayer } from "./metabloomReactionPlayer";
 import { createMetabloomReplySession } from "./metabloomReplySession";
 import { createMetabloomResearchDisplayGate } from "./metabloomResearchDisplayGate";
-import { requestMetabloomResponse } from "./metabloomApiClient";
+import { METABLOOM_RESEARCH_TIMEOUT_MS, requestMetabloomResponse } from "./metabloomApiClient";
+import { parseMetabloomResearchSources } from "./metabloomResearchSources";
 import { streamMetabloomDemoResponse } from "./metabloomDemoStream";
 import "./OrbSection.css";
 import "./OrbEmoteDemos.css";
@@ -344,16 +345,31 @@ const cloneActionChain = (actionChain = []) =>
     talking,
   }));
 
-const cloneMessage = ({ id, role, content, actionChain = [], source, emote, segments = [], status }) => ({
-  id,
-  emote,
-  segments: segments.map((segment) => ({ ...segment })),
-  status,
-  role,
-  content,
-  actionChain: cloneActionChain(actionChain),
-  source,
-});
+const cloneMessage = ({ id, role, content, actionChain = [], source, emote, segments = [], status, sources }) => {
+  const researchSources = parseMetabloomResearchSources(sources);
+  return {
+    id,
+    emote,
+    segments: segments.map((segment) => ({ ...segment })),
+    status,
+    role,
+    content,
+    actionChain: cloneActionChain(actionChain),
+    source,
+    ...(researchSources ? { sources: researchSources } : {}),
+  };
+};
+
+const renderMetabloomResearchText = (text, sources) => {
+  if (!sources?.length) return text;
+  return text.split(/(\[[1-8]\])/g).map((part, index) => {
+    const source = /^\[[1-8]\]$/.test(part) ? sources[Number(part.slice(1, -1)) - 1] : null;
+    return source ? (
+      <a key={index} className="metabloom-chat__citation" href={source.url} target="_blank" rel="noopener noreferrer"
+        aria-label={`Source ${source.id}: ${source.title}`}>{part}</a>
+    ) : part;
+  });
+};
 
 const extractCorrelatedResponse = (detail) => {
   if (!detail || typeof detail !== "object" || Array.isArray(detail)) {
@@ -425,6 +441,7 @@ const OrbSection = ({
   const [activityId, setActivityId] = React.useState("idle");
   const [activityPreview, setActivityPreview] = React.useState(false);
   const [researchPhase, setResearchPhase] = React.useState(null);
+  const [researchProgress, setResearchProgress] = React.useState(null);
   const [readingEarlier, setReadingEarlier] = React.useState(false);
   const [composerFocused, setComposerFocused] = React.useState(false);
   const [touchComposer, setTouchComposer] = React.useState(() =>
@@ -483,6 +500,7 @@ const OrbSection = ({
     underHoodPhase,
     activity: activityId,
     researchPhase,
+    researchProgress,
     sceneAction,
     scenePhase,
     theme: METABLOOM_ACTIVITIES[activityId].theme,
@@ -655,7 +673,9 @@ const OrbSection = ({
     replyDisplayRef.current?.gate.cancel(reason);
     replyDisplayRef.current = null;
     replyRef.current = null;
-  }, [cancelRequestScene, setActivity]);
+    updateStateSnapshot({ researchProgress: null });
+    if (mountedRef.current) setResearchProgress(null);
+  }, [cancelRequestScene, setActivity, updateStateSnapshot]);
 
   const cancelSequenceTimer = React.useCallback(() => {
     sequenceTokenRef.current += 1;
@@ -1004,10 +1024,11 @@ const OrbSection = ({
   );
 
   const appendMessage = React.useCallback(
-    (role, content, actionChain = [], source = "interface", emote = null, segments = [], status = "complete") => {
+    (role, content, actionChain = [], source = "interface", emote = null, segments = [], status = "complete", sources = null) => {
       const message = {
         id: `${role}-${++messageCounterRef.current}`, role, content, emote,
         actionChain: cloneActionChain(actionChain), source, segments, status,
+        ...(sources ? { sources: sources.map((item) => ({ ...item })) } : {}),
       };
       publishMessages([...messagesRef.current.slice(-(MAX_CHAT_MESSAGES - 1)), message]);
       return message;
@@ -1038,7 +1059,7 @@ const OrbSection = ({
         completeActivity();
         window.clearTimeout(thinkingTimerRef.current);
         thinkingTimerRef.current = 0;
-        messageId = appendMessage("assistant", snapshot.content, [], replySource, snapshot.emote, snapshot.segments, snapshot.status).id;
+        messageId = appendMessage("assistant", snapshot.content, [], replySource, snapshot.emote, snapshot.segments, snapshot.status, snapshot.sources).id;
       } else {
         publishMessages(messagesRef.current.map((message) => message.id === messageId ? { ...message, ...snapshot, source: replySource } : message));
       }
@@ -1072,6 +1093,7 @@ const OrbSection = ({
       try { return callback(); } finally { deliveryKind = null; }
     };
     const session = Object.freeze({
+      attachSources: validationSession.attachSources,
       appendText: (delta, index) => deliver("delta", () => validationSession.appendText(delta, index)),
       append: (segment, index) => deliver("segment", () => validationSession.append(segment, index)),
       finish: (payload) => deliver("finish", () => validationSession.finish(payload)),
@@ -1104,8 +1126,9 @@ const OrbSection = ({
     activeRequestRef.current = null;
     requestAbortRef.current = null;
     requestTokenRef.current += 1;
-    updateStateSnapshot({ pending: false });
+    updateStateSnapshot({ pending: false, researchProgress: null });
     setPending(false);
+    setResearchProgress(null);
   }, [updateStateSnapshot]);
 
   const finishReply = React.useCallback((session, payload) => {
@@ -1415,11 +1438,34 @@ const OrbSection = ({
         if (!current() || typeof action !== "string" || !Object.prototype.hasOwnProperty.call(METABLOOM_SCENE_ACTIONS, action)
           || activeRequest.actionReceived || session.snapshot().segments.length) return false;
         activeRequest.actionReceived = true;
+        activeRequest.action = action;
         return action === "none" || beginRequestScene(action, session);
+      };
+      const onResearch = (research) => {
+        if (!current() || !isPlainObject(research) || Object.keys(research).length !== 1
+          || !Object.prototype.hasOwnProperty.call(research, "state")
+          || activeRequest.action !== "deep-research" || session.snapshot().segments.length) return false;
+        if (research.state === "searching" && !activeRequest.researchState) {
+          // Confirmed research gets one absolute budget. Progress cannot renew it.
+          window.clearTimeout(previewTimerRef.current);
+          const remaining = Math.max(0, activeRequest.startedAt + METABLOOM_RESEARCH_TIMEOUT_MS - Date.now());
+          previewTimerRef.current = window.setTimeout(() => failReply(session), remaining);
+        } else if (research.state !== "synthesizing" || activeRequest.researchState !== "searching" || !activeRequest.sourcesReceived) return false;
+        activeRequest.researchState = research.state;
+        updateStateSnapshot({ researchProgress: research.state });
+        setResearchProgress(research.state);
+        return true;
+      };
+      const onSources = (sources) => {
+        if (!current() || activeRequest.researchState !== "searching" || activeRequest.sourcesReceived
+          || session.snapshot().segments.length) return false;
+        if (!session.attachSources(sources)) return false;
+        activeRequest.sourcesReceived = true;
+        return true;
       };
       const request = {
         requestId, message, history, allowMultiple, actionMode: activeRequest.actionMode,
-        signal: controller.signal, onTextDelta, onSegment, onReaction, onAction,
+        signal: controller.signal, onTextDelta, onSegment, onReaction, onAction, onResearch, onSources,
         onActivity: (event) => current() && reportActivity(requestId, event),
         reactionQuestion: METABLOOM_REACTION_QUESTION,
         resolveDecision: resolveMetabloomDecision,
@@ -1779,7 +1825,7 @@ const OrbSection = ({
           : activeReaction
             ? resolveMetabloomEmote(activeReaction.emote)?.label
             : composerFocused ? "Listening" : "Here with you";
-  const researchStatus = visibleResearchPhase ? <MetabloomResearchStatus phase={visibleResearchPhase} preview={visibleActivityPreview} /> : null;
+  const researchStatus = visibleResearchPhase ? <MetabloomResearchStatus phase={visibleResearchPhase} preview={visibleActivityPreview} progress={researchProgress} /> : null;
   const statusBeforeReply = visibleResearchPhase === "surfacing" && !visibleActivityPreview && messages[messages.length - 1]?.role === "assistant";
   const showHoodStatus = sceneAction === "under-the-hood";
   return (
@@ -1854,7 +1900,9 @@ const OrbSection = ({
             aria-relevant="additions text"
           >
             <div className="metabloom-chat__message-list">
-              {messages.map((message, messageIndex) => (
+              {messages.map((message, messageIndex) => {
+                const sources = message.role === "assistant" ? parseMetabloomResearchSources(message.sources) : null;
+                return (
                 <React.Fragment key={message.id}>
                   {statusBeforeReply && messageIndex === messages.length - 1 && researchStatus}
                   <article
@@ -1882,10 +1930,23 @@ const OrbSection = ({
                             >
                               <span aria-hidden="true">↻</span> {resolveMetabloomEmote(segment.emote)?.label}
                             </button>}
-                            <p data-segment-index={index} data-reaction-active={activeReaction?.messageId === message.id && activeReaction?.index === index ? "true" : "false"}>{segment.response}</p>
+                            <p data-segment-index={index} data-reaction-active={activeReaction?.messageId === message.id && activeReaction?.index === index ? "true" : "false"}>{renderMetabloomResearchText(segment.response, sources)}</p>
                           </React.Fragment>
                         ))
-                        : <p>{message.content}</p>}
+                        : <p>{renderMetabloomResearchText(message.content, sources)}</p>}
+                      {sources && message.status === "complete" && (
+                        <div className="metabloom-chat__sources" role="group" aria-label="Sources for this answer">
+                          <span className="metabloom-chat__sources-heading">Sources</span>
+                          <ol>
+                            {sources.map((source) => (
+                              <li key={source.id}>
+                                <a href={source.url} target="_blank" rel="noopener noreferrer">{source.title}</a>
+                                <span className="metabloom-chat__source-domain">{new URL(source.url).hostname}</span>
+                              </li>
+                            ))}
+                          </ol>
+                        </div>
+                      )}
                       {message.status === "streaming" && <span className="metabloom-chat__stream-status">Receiving response…</span>}
                       {["interrupted", "error"].includes(message.status) && <span className="metabloom-chat__stream-status">Response incomplete</span>}
                       {message.source === "preview" && (
@@ -1896,7 +1957,8 @@ const OrbSection = ({
                     </div>
                   </article>
                 </React.Fragment>
-              ))}
+                );
+              })}
 
               {!conversationStarted && (
                 <div

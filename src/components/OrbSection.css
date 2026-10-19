@@ -223,6 +223,41 @@
   text-transform: uppercase;
 }
 
+.metabloom-chat__citation {
+  color: inherit;
+  font-size: 0.85em;
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
+.metabloom-chat__sources {
+  margin-top: 1.2rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--metabloom-chat-line);
+  font: 400 1.2rem/1.5 "Poppins", sans-serif;
+  overflow-wrap: anywhere;
+}
+
+.metabloom-chat__sources-heading {
+  color: var(--metabloom-chat-muted);
+  font-size: 0.95rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.metabloom-chat__sources ol {
+  margin: 0.5rem 0 0;
+  padding-left: 1.6rem;
+}
+
+.metabloom-chat__sources li + li { margin-top: 0.6rem; }
+.metabloom-chat__sources a { color: inherit; text-underline-offset: 0.2em; }
+.metabloom-chat__source-domain { display: block; color: var(--metabloom-chat-muted); font-size: 0.95rem; }
+.metabloom-chat__citation:focus-visible,
+.metabloom-chat__sources a:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; border-radius: 2px; }
+
 .metabloom-chat__suggestions {
   display: flex;
   align-self: flex-start;

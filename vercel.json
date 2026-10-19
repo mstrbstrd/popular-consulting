@@ -154,7 +154,7 @@
     { "source": "/((?!static/|api/|_private/).*)", "destination": "/index.html" }
   ],
   "functions": {
-    "api/metabloom.js": { "maxDuration": 30 },
+    "api/metabloom.js": { "maxDuration": 180 },
     "api/auth/[action].js": { "maxDuration": 30 }
   }
 }

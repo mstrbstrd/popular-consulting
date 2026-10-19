@@ -326,3 +326,22 @@ describe("progressive Metabloom HTTP delivery", () => {
     expect(onTextDelta.mock.calls).toEqual([["An unfinished answer", 0]]);
   });
 });
+
+test("research sources stay independent of display, and reply snapshots cannot mutate their URLs", () => {
+  const onUpdate = jest.fn();
+  const reply = createMetabloomReplySession({ onUpdate });
+  const sources = [{ id: 1, title: "Published evidence", url: "https://example.org/evidence" }];
+  expect(reply.attachSources(sources)).toBe(true);
+  expect(onUpdate).not.toHaveBeenCalled();
+  expect(reply.snapshot().segments).toEqual([]);
+  expect(() => reply.attachSources(sources)).toThrow("Unexpected research sources");
+  sources[0].url = "https://changed.example/";
+  reply.appendText("A supported finding [1].", 0);
+  const snapshot = onUpdate.mock.calls[0][0];
+  expect(snapshot.sources[0].url).toBe("https://example.org/evidence");
+  // eslint-disable-next-line no-script-url -- A mutated snapshot must not change the validated source.
+  snapshot.sources[0].url = "javascript:alert(1)";
+  reply.finish({ version: "2.0.0", segments: [{ response: "A supported finding [1]." }] });
+  expect(reply.snapshot().sources[0].url).toBe("https://example.org/evidence");
+  expect(reply.attachSources(sources)).toBe(false);
+});

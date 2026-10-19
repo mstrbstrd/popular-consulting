@@ -5,9 +5,10 @@ request-owned presentation actions, and confirmed external activity. Live
 conversations use two server-side Jev requests: an input decision and a reaction
 to the verified complete OpenAI reply. The input request can ask independent
 reaction and action questions together. Legacy demos/adapters retain the
-original reaction schema. Presentation actions use the current chat backend;
-the repository does not run a web-research worker. External activity callbacks
-remain integration points for actual worker lifecycles.
+original reaction schema. Live Deep Research uses the current backend to perform
+bounded OpenAI web research before writing a cited reply. Local previews remain
+authored demonstrations. External activity callbacks remain integration points
+for other worker lifecycles.
 
 ## Response choices
 
@@ -109,8 +110,10 @@ The live client sends `actionMode: "auto"` by default. This adds `questions.acti
 beside `questions.reaction` in the existing input Jev request. TypeSafe supports
 [multiple Choice questions in one call](https://docs.typesafe.ai/primitives/choice#good-practice-ask-more-than-one-question-per-call),
 so the turn still uses two Jev requests; the extra question consumes tokens.
-The **Deep Research** toggle sends `actionMode: "deep-research"` and allows
-separate paragraphs. Explicit modes (`none`, `deep-research`, `under-the-hood`)
+The **Deep Research** toggle sends `actionMode: "deep-research"`, runs real web
+research when the endpoint is configured, and allows separate paragraphs.
+Automatic mode can also select research for investigation or sourced current
+facts. Explicit modes (`none`, `deep-research`, `under-the-hood`)
 take precedence, omit classification, and survive Jev failure. Omitting
 `actionMode` retains the older reaction/text-only stream.
 The toggle also selects the research presentation for local demos and an
@@ -165,10 +168,62 @@ Automatic mode waits for the existing bounded input Jev decision before
 constructing the response-model prompt, so the model receives the validated
 selected scene or `none` fallback. This adds at most the existing 950 ms decision
 wait before OpenAI starts; it does not add a Jev call. Explicit modes already
-know the scene and keep OpenAI parallel with input reaction selection. Legacy
+know the scene and keep ordinary writing parallel with input reaction selection.
+Deep Research first emits the input reaction and selected action, then announces
+searching and starts its bounded web pass. Legacy
 requests without action capability use Conversation context and retain that
 parallel path. The prompt describes the intended presentation because reduced
 motion, cancellation, or rendering fallback may simplify it.
+
+## Live web research
+
+`server/metabloomResearch.js` performs a non-streamed Responses request with the
+`web_search` tool, required tool use, medium reasoning, at most six tool calls,
+and at most 10,000 output tokens including reasoning. The pass searches and can
+follow up on evidence within that budget. It prefers primary sources, checks
+dates and disagreements, and returns a compact research brief. The model is
+`METABLOOM_RESEARCH_MODEL`, falling back to `METABLOOM_OPENAI_MODEL` and then
+`gpt-5-mini`. Both passes use the existing server-only `OPENAI_API_KEY`.
+The selected model must support Responses web search and reasoning. The optional
+research model setting can change research independently of ordinary chat.
+
+Only a completed response containing an actual completed search and usable URL
+annotations can advance to writing. The brief is capped at 16,000 characters
+and its response body at 512 KiB. Up to eight distinct annotated sources become
+consecutive source IDs. Unannotated URLs in model text or the wider consulted
+source list cannot manufacture a citation. Titles and URLs have shared server
+and browser validation; only absolute HTTP(S) links without credentials are
+rendered. Provider annotation ranges attach source IDs to the research notes;
+those offsets are never reused on the rewritten answer.
+
+The existing strict-schema writer receives the brief and source map as untrusted
+evidence, with the actual user question last. It has a 6,000-token output ceiling
+and low reasoning in research mode. Its complete answer must validate, contain
+at least one source ID, and contain no unknown numeric citation IDs before any
+answer text is published. The browser turns known `[1]` markers into inline links
+and lists the sources below the completed answer. Citation validation establishes
+provenance and valid IDs; it does not mechanically prove every factual claim.
+
+Research metadata follows `searching`, `sources`, then `synthesizing`, before the
+existing text records. These events update status without surfacing the Orb.
+Only answer content starts the established return and progressive reveal. Source
+metadata belongs to the reply session, follows the same display gate, and cannot
+leak from a cancelled or superseded request.
+
+The search pass has a 120-second deadline. Writing has at most 45 seconds, within
+an absolute 175-second backend budget. Vercel permits 180 seconds for this one
+endpoint. The browser's two request deadlines extend to 210 seconds from their
+original start only after confirmed `searching`; repeated activity cannot extend
+them. Ordinary chat keeps its 25-second provider and 30-second browser limits.
+Stop, disconnect, timeout, refusal, incomplete output, missing search evidence,
+or invalid citations stop the flow without a successful `done` record or a demo
+replacement. Existing session authorization, same-origin checks and atomic quotas
+run before billable work. Research adds bounded search and synthesis costs to the
+same request quota. Diagnostics contain only outcome, duration and usage counts.
+
+Official API contracts: [web search](https://developers.openai.com/api/docs/guides/tools-web-search),
+[Responses limits](https://developers.openai.com/api/reference/ruby/resources/responses/methods/create),
+and [Vercel function duration](https://vercel.com/docs/functions/configuring-functions/duration).
 
 ## Confirmed work selects the scene
 

@@ -2,6 +2,7 @@ import { MAX_METABLOOM_STREAM_BYTES, createMetabloomSegmentStreamDecoder, parseM
 import { METABLOOM_ACTION_MODES } from "./metabloomDecisionMapping";
 
 const MAX_RESPONSE_BYTES = 96000;
+export const METABLOOM_RESEARCH_TIMEOUT_MS = 210000;
 export class MetabloomApiError extends Error {
   constructor(message, { code = "request_failed", status = 0 } = {}) {
     super(message);
@@ -23,6 +24,8 @@ export const requestMetabloomResponse = async ({
   onTextDelta,
   onReaction,
   onAction,
+  onResearch,
+  onSources,
   optional = false,
   requestId,
   signal,
@@ -38,7 +41,9 @@ export const requestMetabloomResponse = async ({
   const abort = () => controller.abort();
   if (signal?.aborted) abort();
   signal?.addEventListener("abort", abort, { once: true });
-  const timeout = setTimeout(abort, 30000);
+  const startedAt = Date.now();
+  let researchStarted = false;
+  let timeout = setTimeout(abort, 30000);
   let reader;
   try {
     const response = await fetchImpl("/api/metabloom", {
@@ -55,6 +60,19 @@ export const requestMetabloomResponse = async ({
       onAction: (action) => {
         if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
         onAction?.(action);
+      },
+      onResearch: (research) => {
+        if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
+        if (research.state === "searching" && !researchStarted) {
+          researchStarted = true;
+          clearTimeout(timeout);
+          timeout = setTimeout(abort, Math.max(0, startedAt + METABLOOM_RESEARCH_TIMEOUT_MS - Date.now()));
+        }
+        onResearch?.(research);
+      },
+      onSources: (sources) => {
+        if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
+        onSources?.(sources);
       },
       onTextDelta: (delta, index) => {
         if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });

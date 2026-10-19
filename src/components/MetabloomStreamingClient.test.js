@@ -1,5 +1,5 @@
 import { TextEncoder, TextDecoder } from "util";
-import { requestMetabloomResponse } from "./metabloomApiClient";
+import { METABLOOM_RESEARCH_TIMEOUT_MS, requestMetabloomResponse } from "./metabloomApiClient";
 const first = { emote: "whimsy", response: "A playful 🪴 opening." };
 const second = { emote: "reflective", response: "A considered continuation." };
 const line = (segment, index) => JSON.stringify({ type: "segment", index, ...segment }) + "\n";
@@ -79,5 +79,87 @@ describe("HTTP segment arrival, not whole-response buffering", () => {
     await flush(); controller.abort(); await io.send(line(first, 0));
     expect(await failure).toMatchObject({ code: "cancelled" });
     expect(onSegment).not.toHaveBeenCalled();
+  });
+});
+
+describe("confirmed research metadata and request deadlines", () => {
+  const previousDecoder = global.TextDecoder;
+  const sources = [{ id: 1, title: "Published evidence", url: "https://example.org/evidence" }];
+  const researchStart = '{"type":"emote","phase":"input","emote":"curious"}\n'
+    + '{"type":"action","action":"deep-research"}\n';
+  const metadata = JSON.stringify({ type: "sources", sources }) + '\n{"type":"research","state":"synthesizing"}\n';
+  beforeAll(() => { global.TextDecoder = TextDecoder; });
+  afterAll(() => { global.TextDecoder = previousDecoder; });
+  beforeEach(() => { jest.useFakeTimers(); });
+  afterEach(() => { jest.clearAllTimers(); jest.useRealTimers(); });
+
+  test("a scene choice alone keeps the ordinary thirty-second HTTP deadline", async () => {
+    const io = transport();
+    const failure = requestMetabloomResponse({ fetchImpl: io.fetchImpl, message: "Investigate", actionMode: "deep-research" }).catch((error) => error);
+    await flush();
+    await io.send(researchStart);
+    const signal = io.fetchImpl.mock.calls[0][1].signal;
+    jest.advanceTimersByTime(29999);
+    expect(signal.aborted).toBe(false);
+    jest.advanceTimersByTime(1);
+    expect(signal.aborted).toBe(true);
+    await io.close();
+    expect(await failure).toMatchObject({ code: "cancelled" });
+  });
+
+  test("searching extends once from request start; late sources and synthesis do not renew the deadline", async () => {
+    const io = transport();
+    const onResearch = jest.fn();
+    const onSources = jest.fn();
+    const failure = requestMetabloomResponse({ fetchImpl: io.fetchImpl, message: "Investigate", onResearch, onSources }).catch((error) => error);
+    await flush();
+    await io.send(researchStart);
+    jest.advanceTimersByTime(20000);
+    await io.send('{"type":"research","state":"searching"}\n');
+    expect(onResearch).toHaveBeenCalledWith({ state: "searching" });
+    const signal = io.fetchImpl.mock.calls[0][1].signal;
+    jest.advanceTimersByTime(METABLOOM_RESEARCH_TIMEOUT_MS - 20001);
+    expect(signal.aborted).toBe(false);
+    await io.send(metadata);
+    expect(onSources).toHaveBeenCalledWith(sources);
+    expect(onResearch).toHaveBeenLastCalledWith({ state: "synthesizing" });
+    jest.advanceTimersByTime(1);
+    expect(signal.aborted).toBe(true);
+    await io.close();
+    expect(await failure).toMatchObject({ code: "cancelled" });
+  });
+
+  test("a sourced research reply can finish after the ordinary chat deadline", async () => {
+    const io = transport();
+    const onSources = jest.fn();
+    const onSegment = jest.fn();
+    const request = requestMetabloomResponse({ fetchImpl: io.fetchImpl, message: "Investigate", onSources, onSegment });
+    await flush();
+    await io.send(researchStart + '{"type":"research","state":"searching"}\n');
+    jest.advanceTimersByTime(45000);
+    await io.send(metadata);
+    expect(onSegment).not.toHaveBeenCalled();
+    await io.send('{"type":"text_delta","index":0,"delta":"A supported finding [1]."}\n'
+      + '{"type":"segment","index":0,"response":"A supported finding [1]."}\n'
+      + '{"type":"text_complete"}\n{"type":"emote","phase":"response","emote":"resolute"}\n'
+      + '{"type":"done","version":"2.0.0"}\n');
+    await io.close();
+    await expect(request).resolves.toEqual({ version: "2.0.0", segments: [{ response: "A supported finding [1]." }] });
+    expect(onSources).toHaveBeenCalledTimes(1);
+    expect(jest.getTimerCount()).toBe(0);
+  });
+
+  test("cancellation prevents late sources from reaching the reply", async () => {
+    const io = transport();
+    const controller = new AbortController();
+    const onSources = jest.fn();
+    const failure = requestMetabloomResponse({ fetchImpl: io.fetchImpl, message: "Investigate", signal: controller.signal, onSources }).catch((error) => error);
+    await flush();
+    await io.send(researchStart + '{"type":"research","state":"searching"}\n');
+    controller.abort();
+    await io.send(metadata);
+    expect(await failure).toMatchObject({ code: "cancelled" });
+    expect(onSources).not.toHaveBeenCalled();
+    expect(jest.getTimerCount()).toBe(0);
   });
 });
