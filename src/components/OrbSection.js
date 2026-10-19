@@ -467,6 +467,8 @@ const OrbSection = ({
   const sectionRef = React.useRef(null);
   const transcriptRef = React.useRef(null);
   const composerRef = React.useRef(null);
+  const composerComposingRef = React.useRef(false);
+  const composerLineBreakRef = React.useRef(false);
   const composerAreaRef = React.useRef(null);
   const followLatestRef = React.useRef(true);
   const reactionPlayerRef = React.useRef(null);
@@ -485,8 +487,6 @@ const OrbSection = ({
   const [researchSummary, setResearchSummary] = React.useState(null);
   const [readingEarlier, setReadingEarlier] = React.useState(false);
   const [composerFocused, setComposerFocused] = React.useState(false);
-  const [touchComposer, setTouchComposer] = React.useState(() =>
-    Boolean(window.matchMedia?.("(hover: none) and (pointer: coarse)").matches));
   const [activeReaction, setActiveReaction] = React.useState(null);
   const [expressiveness, setExpressiveness] = React.useState(savedConversation?.expressiveness ?? 0.8);
   const expressivenessRef = React.useRef(expressiveness);
@@ -1625,29 +1625,38 @@ const OrbSection = ({
 
   const handleComposerKeyDown = React.useCallback(
     (event) => {
+      composerLineBreakRef.current = event.shiftKey
+        || (event.key === "Enter" && event.nativeEvent?.keyCode === 229);
       if (
         event.key !== "Enter"
         || event.shiftKey
+        || composerComposingRef.current
         || event.nativeEvent?.isComposing
         || event.nativeEvent?.keyCode === 229
-        || (touchComposer && !event.ctrlKey && !event.metaKey)
       ) {
         return;
       }
       event.preventDefault();
-      sendMessage(draft);
+      if (!event.repeat) sendMessage(event.currentTarget.value);
     },
-    [draft, sendMessage, touchComposer],
+    [sendMessage],
   );
 
   React.useEffect(() => {
-    const media = window.matchMedia?.("(hover: none) and (pointer: coarse)");
-    if (!media) return undefined;
-    const update = () => setTouchComposer(media.matches);
-    update();
-    media.addEventListener?.("change", update);
-    return () => media.removeEventListener?.("change", update);
-  }, []);
+    const input = composerRef.current;
+    if (!input) return undefined;
+    // Some software keyboards omit Enter keydown. React's beforeinput polyfill
+    // does not expose every native inputType, so listen to the native event.
+    const beforeInput = (event) => {
+      if (!['insertLineBreak', 'insertParagraph'].includes(event.inputType)
+        || !event.cancelable || event.isComposing || composerComposingRef.current
+        || composerLineBreakRef.current) return;
+      event.preventDefault();
+      sendMessage(input.value);
+    };
+    input.addEventListener("beforeinput", beforeInput);
+    return () => input.removeEventListener("beforeinput", beforeInput);
+  }, [sendMessage]);
 
   React.useEffect(() => {
     if (isActive) return;
@@ -1695,17 +1704,31 @@ const OrbSection = ({
     if (followLatestRef.current) scrollToLatest();
   }, [messages, pending, visibleResearchPhase, scenePhase, scrollToLatest]);
 
-  React.useLayoutEffect(() => {
+  const resizeComposer = React.useCallback(() => {
     const input = composerRef.current;
     if (!input) return;
-    input.style.height = "auto";
-    input.style.height = `${Math.min(116, Math.max(46, input.scrollHeight))}px`;
-  }, [draft]);
+    const scrollTop = input.scrollTop;
+    // CSS owns the min/max height, including the software-keyboard limit.
+    // Measure from zero so deleting text or widening the viewport also shrinks.
+    input.style.height = "0px";
+    input.style.height = `${input.scrollHeight}px`;
+    input.scrollTop = scrollTop;
+  }, []);
+
+  React.useLayoutEffect(() => {
+    resizeComposer();
+  }, [draft, pending, resizeComposer]);
 
   React.useEffect(() => {
     const area = composerAreaRef.current;
     if (!area || typeof ResizeObserver === "undefined") return undefined;
+    let inputWidth = 0;
     const resize = () => {
+      const width = composerRef.current?.getBoundingClientRect().width;
+      if (width !== inputWidth) {
+        inputWidth = width;
+        resizeComposer();
+      }
       const height = area.getBoundingClientRect().height;
       area.closest(".metabloom-chat")?.style.setProperty("--orb-composer-clearance", `${height + 48}px`);
       area.closest(".metabloom-chat")?.style.setProperty("--orb-composer-height", `${height}px`);
@@ -1715,7 +1738,7 @@ const OrbSection = ({
     observer.observe(area);
     resize();
     return () => observer.disconnect();
-  }, [scrollToLatest]);
+  }, [resizeComposer, scrollToLatest]);
 
   React.useLayoutEffect(() => {
     const viewport = window.visualViewport;
@@ -1732,6 +1755,7 @@ const OrbSection = ({
       page.dataset.compactViewport = String(height < 520);
       page.dataset.keyboardOpen = String(document.activeElement === composerRef.current
         && (window.innerHeight - height > 100 || height < 520));
+      resizeComposer();
       if (followLatestRef.current) scrollToLatest();
     };
     const schedule = () => {
@@ -1756,7 +1780,7 @@ const OrbSection = ({
       delete page.dataset.compactViewport;
       delete page.dataset.keyboardOpen;
     };
-  }, [scrollToLatest]);
+  }, [resizeComposer, scrollToLatest]);
 
   React.useEffect(() => {
     const handleModelResponse = (event) => {
@@ -2170,14 +2194,21 @@ const OrbSection = ({
                 ref={composerRef}
                 id="metabloom-message"
                 onFocus={attendToComposer}
-                onBlur={() => setComposerFocused(false)}
+                onBlur={() => {
+                  setComposerFocused(false);
+                  composerComposingRef.current = false;
+                  composerLineBreakRef.current = false;
+                }}
                 aria-describedby="metabloom-composer-help"
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
                 onKeyDown={handleComposerKeyDown}
+                onKeyUp={() => { composerLineBreakRef.current = false; }}
+                onCompositionStart={() => { composerComposingRef.current = true; }}
+                onCompositionEnd={() => { composerComposingRef.current = false; }}
                 placeholder="Message Metabloom"
                 rows={1}
-                enterKeyHint={touchComposer ? "enter" : "send"}
+                enterKeyHint="send"
                 maxLength={MAX_USER_MESSAGE_CHARS}
               />
               {pending && draft.trim() && (
@@ -2208,7 +2239,7 @@ const OrbSection = ({
               </button>
             </form>
             <p id="metabloom-composer-help" className="metabloom-chat__composer-help">
-              {conversationStarted ? touchComposer ? "Return for a new line · Tap ↑ to send" : "Enter to send · Shift + Enter for a new line" : "Say what’s on your mind, or try a conversation below."}
+              {conversationStarted ? "Enter to send · Shift + Enter for a new line" : "Say what’s on your mind, or try a conversation below."}
             </p>
           </div>
         </div>

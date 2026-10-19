@@ -48,6 +48,7 @@
 .orb-page .metabloom-chat__composer {
   min-width: 0;
   grid-template-columns: minmax(0, 1fr) auto;
+  border-radius: 2.8rem;
   border-color: transparent;
   background: var(--orb-control-surface);
 }
@@ -346,10 +347,21 @@
 .orb-page .metabloom-chat__composer[data-has-stop="true"] {
   grid-template-columns: minmax(0, 1fr) auto auto;
 }
-.orb-page .metabloom-chat__composer { align-items: end; }
+.orb-page .metabloom-chat__composer {
+  align-items: end;
+  padding: 0.8rem 0.6rem 0.8rem 1.2rem;
+}
 .orb-page .metabloom-chat__composer textarea {
   font-size: 1.6rem;
+  box-sizing: border-box;
+  field-sizing: fixed;
+  overflow-x: hidden;
   overflow-y: auto;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  overscroll-behavior-y: contain;
+  scrollbar-width: thin;
+  scrollbar-color: var(--aetheris-ink-2) transparent;
   resize: none;
 }
 .orb-page .metabloom-chat__composer-help {
