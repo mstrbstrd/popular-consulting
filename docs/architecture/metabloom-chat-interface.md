@@ -225,9 +225,13 @@ Phone and short-window transcripts scroll inside the space between the top contr
 and measured composer, so older messages cannot pass behind them. Composer and
 reaction-panel bounds honor safe-area insets.
 
-On touch-first devices, Return adds a new line and the send button submits. Desktop
-Enter still sends, Shift+Enter adds a line, and Ctrl/Cmd+Enter remains available on
-touch devices with hardware keyboards. IME composition never submits a draft.
+Enter/Return sends on both desktop and touch devices, with a Send keyboard hint.
+Shift+Enter adds a line; pasted multiline text remains intact. Native `beforeinput`
+handles software keyboards that omit Enter keydown. IME composition and repeated
+keydown events never submit a draft. Empty drafts never send or stop a response.
+The textarea grows within CSS height limits, then scrolls vertically. Long words
+wrap inside the control, and resizing remeasures the draft without losing its
+scroll position. A fixed corner radius keeps multiline text inside the border.
 
 The mobile reaction studio expands below navigation with a persistent close button
 and a scrollable body. It opens with `dialog.showModal()` in the browser's top
