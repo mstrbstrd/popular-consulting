@@ -54,6 +54,28 @@ describe("Metabloom research source validation", () => {
     expect(parseMetabloomResearchSources(bounded)).toEqual(bounded);
   });
 
+  test("canonicalizes lone surrogate title units while preserving valid Unicode pairs", () => {
+    const original = [{ ...source, title: "  Good 🌍 high \ud800 low \udc00  " }];
+    expect(parseMetabloomResearchSources(original))
+      .toEqual([{ ...source, title: "Good 🌍 high \ufffd low \ufffd" }]);
+    expect(original[0].title).toBe("  Good 🌍 high \ud800 low \udc00  ");
+  });
+
+  test("trusted options allow a larger source set and contiguous later batches without changing the default", () => {
+    const larger = Array.from({ length: 70 }, (_, index) => ({ ...source, id: index + 1 }));
+    expect(parseMetabloomResearchSources(larger)).toBeNull();
+    expect(parseMetabloomResearchSources(larger, { maxSources: larger.length })).toEqual(larger);
+    expect(parseMetabloomResearchSources(larger.slice(64), { startId: 65 })).toEqual(larger.slice(64));
+    expect(parseMetabloomResearchSources(larger.slice(64), { startId: 64 })).toBeNull();
+  });
+
+  test.each([
+    { maxSources: 0 }, { maxSources: -1 }, { maxSources: 1.5 }, { maxSources: Infinity },
+    { maxSources: "8" }, { startId: 0 }, { startId: 1.5 }, { startId: "1" },
+  ])("rejects invalid trusted source limits %p", (options) => {
+    expect(parseMetabloomResearchSources([source], options)).toBeNull();
+  });
+
   test.each([
     ["a missing list", null],
     ["an object instead of a list", source],

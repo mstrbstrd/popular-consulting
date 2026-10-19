@@ -44,6 +44,22 @@ const researchDocument = () => {
   };
 };
 const researchReply = (value = researchDocument()) => new Response(`data: ${JSON.stringify({ type: "response.completed", response: value })}\n\n`, { headers: { "content-type": "text/event-stream" } });
+const largeResearchDocument = () => {
+  const value = researchDocument();
+  const paragraphs = Array.from({ length: 65 }, (_, index) =>
+    `Finding ${index + 1}: ${"This fictional evidence belongs in the full report. ".repeat(12)}`.trim());
+  const text = paragraphs.join("\n\n");
+  let offset = 0;
+  const annotations = paragraphs.map((paragraph, index) => {
+    const annotation = { type: "url_citation", title: `Research source ${index + 1}`,
+      url: `https://example.com/research-source-${index + 1}`, start_index: offset, end_index: offset + paragraph.length };
+    offset += paragraph.length + 2;
+    return annotation;
+  });
+  value.output[1].content = [{ type: "output_text", text, annotations }];
+  value.output.unshift({ type: "reasoning", summary: [{ text: "private-reasoning-fixture" }] });
+  return value;
+};
 
 test("one segment, exact enum, required version, no extra controls", () => {
   assert.equal(parseMetabloomEmoteEnvelope(envelope(segment())).ok, true);
@@ -198,15 +214,17 @@ test("invalid action modes fail validation before quota or provider work", async
   assert.equal(handler._internals.localBuckets.size, 0);
 });
 
-test("invalid research progress capabilities fail validation before quota or provider work", async () => {
+test("invalid research capabilities fail validation before quota or provider work", async () => {
   local();
   let calls = 0;
   global.fetch = async () => { calls++; assert.fail("Invalid capability cannot invoke providers"); };
-  for (const streamResearchProgress of [null, 0, 1, "true", "false", {}, []]) {
-    const res = response();
-    await handler(request({ message: "Research this", actionMode: "deep-research", streamResearchProgress }), res);
-    assert.equal(res.statusCode, 400);
-    assert.deepEqual(JSON.parse(res.body), { code: "invalid_request" });
+  for (const field of ["streamResearchProgress", "streamResearchDetails"]) {
+    for (const value of [null, 0, 1, "true", "false", {}, []]) {
+      const res = response();
+      await handler(request({ message: "Research this", actionMode: "deep-research", [field]: value }), res);
+      assert.equal(res.statusCode, 400);
+      assert.deepEqual(JSON.parse(res.body), { code: "invalid_request" });
+    }
   }
   assert.equal(calls, 0);
   assert.equal(handler._internals.localBuckets.size, 0);
@@ -518,7 +536,7 @@ test("explicit research searches with bounded tools before its schema-constraine
   assert.equal(research.body.store, false);
   assert.deepEqual(research.body.tools, [{ type: "web_search", search_context_size: "medium" }]);
   assert.equal(research.body.tool_choice, "required");
-  assert.deepEqual(research.body.include, ["web_search_call.action.sources"]);
+  assert.equal(research.body.include, undefined);
   assert.equal(research.body.max_tool_calls, 6);
   assert.equal(research.body.max_output_tokens, 10000);
   releaseResearch(researchReply());
@@ -730,4 +748,144 @@ test("research HTTP failures expose only a safe code and reference while preserv
   assert.ok(logged.includes("unsupported_parameter"));
   assert.ok(logged.includes("providerStatus"));
   assert.ok(logged.includes("req_fixture_provider"));
+});
+
+test("completed long research and every source reach an opted-in client before its bounded writer", async () => {
+  local();
+  const calls = [];
+  const res = response();
+  global.fetch = async (_url, options) => {
+    const body = JSON.parse(options.body);
+    calls.push(body);
+    if (body.tools) {
+      assert.equal(body.max_tool_calls, 6);
+      assert.equal(body.max_output_tokens, 10000);
+      return researchReply(largeResearchDocument());
+    }
+    const alreadySent = res.body.trim().split("\n").map(JSON.parse);
+    assert.ok(alreadySent.some((event) => event.type === "research_report_complete"));
+    assert.equal(alreadySent.some((event) => event.type === "segment"), false);
+    const supplied = body.input.find((item) => item.content.startsWith("Research evidence"));
+    const evidence = JSON.parse(supplied.content.slice(supplied.content.indexOf("\n") + 1));
+    assert.ok(evidence.notes.length <= 16000);
+    assert.equal(evidence.sources.length, 8);
+    assert.equal(evidence.notes.includes("Finding 65"), false);
+    assert.equal(evidence.notes.includes("[9]"), false);
+    assert.match(body.instructions, /selection of complete passages/);
+    assert.equal(body.max_output_tokens, 6000);
+    return reply(textEnvelope("The selected findings support this short answer. [1]"));
+  };
+  await handler(request({ message: "Research a broad question", actionMode: "deep-research", streamText: true,
+    streamResearchDetails: true, streamResearchProgress: true }), res);
+  assert.equal(calls.length, 2);
+  const events = res.body.trim().split("\n").map(JSON.parse);
+  const allSources = events.filter((event) => event.type === "research_report_sources").flatMap((event) => event.sources);
+  const textParts = events.filter((event) => event.type === "research_report_delta");
+  const notes = textParts.map((event, index) => {
+    assert.equal(event.index, index);
+    assert.ok(event.delta.length <= 2048);
+    return event.delta;
+  }).join("");
+  assert.equal(allSources.length, 65);
+  assert.ok(notes.length > 16000);
+  assert.match(notes, /Finding 65:.*\[65\]/);
+  assert.equal(res.body.includes("private-reasoning-fixture"), false);
+  assert.ok(res.body.trim().split("\n").every((line) => line.length <= 24000));
+  assert.ok(events.findIndex((event) => event.type === "research_report_complete") < events.findIndex((event) => event.type === "sources"));
+  const reports = [];
+  const decoder = createMetabloomSegmentStreamDecoder({ allowResearchDetails: true, onResearchDetails: (report) => reports.push(report) });
+  assert.equal(decoder.push(res.body), true);
+  assert.equal(decoder.finish().ok, true);
+  assert.deepEqual(reports, [{ notes, sources: allSources }]);
+});
+
+test("cached clients receive a bounded cited answer without new report records", async () => {
+  local();
+  for (const streamResearchDetails of [undefined, false]) {
+    let calls = 0;
+    global.fetch = async (_url, options) => {
+      calls++;
+      return JSON.parse(options.body).tools ? researchReply(largeResearchDocument())
+        : reply(textEnvelope("A concise finding from the available evidence. [1]"));
+    };
+    const res = response();
+    await handler(request({ message: "Research this", actionMode: "deep-research",
+      ...(streamResearchDetails === undefined ? {} : { streamResearchDetails }) }), res);
+    const events = res.body.trim().split("\n").map(JSON.parse);
+    assert.equal(events.some((event) => event.type.startsWith("research_report")), false);
+    assert.equal(events.find((event) => event.type === "sources").sources.length, 8);
+    assert.equal(events.at(-1).type, "done");
+    const decoder = createMetabloomSegmentStreamDecoder();
+    assert.equal(decoder.push(res.body), true);
+    assert.equal(decoder.finish().ok, true);
+    assert.equal(calls, 2);
+  }
+});
+
+test("a writer failure leaves the completed research report delivered without a retry", async () => {
+  local();
+  let calls = 0;
+  global.fetch = async (_url, options) => {
+    calls++;
+    return JSON.parse(options.body).tools ? researchReply(largeResearchDocument())
+      : new Response(JSON.stringify({ error: { message: "Private provider detail" } }), { status: 429, headers: { "content-type": "application/json" } });
+  };
+  const res = response();
+  await handler(request({ message: "Research this", actionMode: "deep-research", streamResearchDetails: true }), res);
+  const reports = [];
+  const decoder = createMetabloomSegmentStreamDecoder({ allowResearchDetails: true, onResearchDetails: (report) => reports.push(report) });
+  assert.equal(decoder.push(res.body), false);
+  assert.equal(decoder.finish().code, "provider_rate_limited");
+  assert.equal(reports.length, 1);
+  assert.equal(reports[0].sources.length, 65);
+  assert.match(reports[0].notes, /Finding 65/);
+  assert.equal(calls, 2);
+  assert.equal(res.body.includes("Private provider detail"), false);
+  assert.equal(res.body.includes('"type":"segment"'), false);
+});
+
+test("a completed report with no small cited passage can be delivered without a writer call", async () => {
+  local();
+  let calls = 0;
+  const value = researchDocument();
+  const content = value.output[1].content[0];
+  content.text = "Long complete research finding. ".repeat(700);
+  content.annotations[0].start_index = 0;
+  content.annotations[0].end_index = content.text.length;
+  global.fetch = async (_url, options) => {
+    calls++;
+    assert.ok(JSON.parse(options.body).tools, "No extra model request is needed to expose completed research.");
+    return researchReply(value);
+  };
+  const res = response();
+  await handler(request({ message: "Research this", actionMode: "deep-research", streamResearchDetails: true }), res);
+  const events = res.body.trim().split("\n").map(JSON.parse);
+  assert.equal(calls, 1);
+  assert.ok(events.some((event) => event.type === "research_report_complete"));
+  assert.match(events.find((event) => event.type === "segment").response, /Open Full research/);
+  assert.equal(events.at(-1).type, "done");
+});
+
+test("cancelling report delivery cannot expose a partial report or start a writer", async () => {
+  local();
+  let calls = 0;
+  global.fetch = async () => { calls++; return researchReply(largeResearchDocument()); };
+  const res = response();
+  res.write = function (chunk) {
+    this.body += chunk;
+    if (chunk.includes('"type":"research_report_delta"')) {
+      this.destroyed = true;
+      this.emit("close");
+    }
+    return true;
+  };
+  await handler(request({ message: "Research this", actionMode: "deep-research", streamResearchDetails: true }), res);
+  assert.equal(calls, 1);
+  assert.equal(res.body.includes('"type":"research_report_complete"'), false);
+  assert.equal(res.body.includes('"type":"sources"'), false);
+  const reports = [];
+  const decoder = createMetabloomSegmentStreamDecoder({ allowResearchDetails: true, onResearchDetails: (report) => reports.push(report) });
+  decoder.push(res.body);
+  assert.equal(decoder.finish().ok, false);
+  assert.deepEqual(reports, []);
 });

@@ -112,38 +112,97 @@ test("a failed page attempt does not discard completed research from another suc
   assert.throws(() => extractMetabloomResearch(value), { code: "research_no_sources", reason: "search_missing" });
 });
 
-test("research record parsing and normalized notes remain within independent safety bounds", () => {
-  const atLimit = document();
-  atLimit.output.unshift(...Array.from({ length: 62 }, () => ({ type: "reasoning", summary: [] })));
-  assert.equal(atLimit.output.length, 64);
-  assert.deepEqual(extractMetabloomResearch(atLimit).sources, [source]);
-  const tooManyCalls = document();
-  tooManyCalls.output.unshift(...Array.from({ length: 64 }, () => structuredClone(tooManyCalls.output[0])));
-  assert.throws(() => extractMetabloomResearch(tooManyCalls));
-  for (const length of [16000, 16001]) {
-    const tooLong = document();
-    tooLong.output[1].content[0].text = "x".repeat(length);
-    assert.throws(() => extractMetabloomResearch(tooLong));
+test("completed notes and metadata records are preserved beyond the old display limits", () => {
+  const value = document();
+  value.output.unshift(...Array.from({ length: 96 }, () => ({ type: "reasoning", summary: [] })));
+  assert.equal(value.output.length, 98);
+  assert.deepEqual(extractMetabloomResearch(value).sources, [source]);
+  for (const length of [15999, 16000, 16001, 64000]) {
+    const longReport = document();
+    const content = longReport.output[1].content[0];
+    content.text = "x".repeat(length);
+    content.annotations[0].end_index = length;
+    const actual = extractMetabloomResearch(longReport);
+    assert.equal(actual.notes, `${content.text} [1]`);
+    assert.equal(actual.notes.length, length + 4, "Citation expansion must not discard otherwise valid notes");
   }
-  const valid = document();
-  valid.output[1].content[0].text = "x".repeat(15996);
-  assert.equal(extractMetabloomResearch(valid).notes.length, 16000);
 });
 
-test("at most eight separately attested sources can enter the research source map", () => {
+test("all separately attested sources survive beyond eight and sixty-four sources", () => {
   const value = document();
   const content = value.output[1].content[0];
-  content.text = Array.from({ length: 9 }, (_, i) => `Claim ${i + 1}.`).join(" ");
-  content.annotations = Array.from({ length: 8 }, (_, i) => {
+  content.text = Array.from({ length: 80 }, (_, i) => `Claim ${i + 1}.`).join(" ");
+  content.annotations = Array.from({ length: 80 }, (_, i) => {
     const marker = `Claim ${i + 1}.`;
     return { type: "url_citation", title: `Source ${i + 1}`, url: `https://example.com/source-${i + 1}`,
       start_index: content.text.indexOf(marker), end_index: content.text.indexOf(marker) + marker.length };
   });
   const actual = extractMetabloomResearch(value);
-  assert.deepEqual(actual.sources.map(({ id }) => id), [1, 2, 3, 4, 5, 6, 7, 8]);
-  content.annotations.push({ type: "url_citation", title: "Source 9", url: "https://example.com/source-9",
-    start_index: content.text.indexOf("Claim 9."), end_index: content.text.length });
-  assert.throws(() => extractMetabloomResearch(value));
+  assert.deepEqual(actual.sources, Array.from({ length: 80 }, (_, i) => ({
+    id: i + 1, title: `Source ${i + 1}`, url: `https://example.com/source-${i + 1}`,
+  })));
+  assert.equal(actual.notes, Array.from({ length: 80 }, (_, i) => `Claim ${i + 1}. [${i + 1}]`).join(" "));
+  assert.equal(actual.notes.replace(/ \[\d+\]/g, ""), content.text);
+});
+
+test("citation insertion preserves text and IDs across unsorted and shared annotation positions", () => {
+  const value = document();
+  const content = value.output[1].content[0];
+  content.text = "First fact. Second fact. Final fact.";
+  content.annotations = [
+    { type: "url_citation", title: source.title, url: source.url, start_index: 24, end_index: content.text.length },
+    { type: "url_citation", title: "Second reference", url: "https://example.com/second", start_index: 0, end_index: 11 },
+    { type: "url_citation", title: "Third reference", url: "https://example.com/third", start_index: 0, end_index: 11 },
+    { type: "url_citation", title: source.title, url: source.url, start_index: 5, end_index: 24 },
+  ];
+  const actual = extractMetabloomResearch(value);
+  assert.equal(actual.notes, "First fact. [2] [3] Second fact. [1] Final fact. [1]");
+  assert.equal(actual.notes.replace(/ \[\d+\]/g, ""), content.text);
+  assert.deepEqual(actual.sources.map(({ id }) => id), [1, 2, 3]);
+});
+
+test("provider display-token citation positions retain their numbered source markers", () => {
+  for (const offset of [0, 5, "end"]) {
+    const value = document();
+    const content = value.output[1].content[0];
+    const claim = "A verified fact.";
+    const token = "citeturn0search0";
+    content.text = claim + token + " More verified detail.";
+    content.annotations[0].end_index = claim.length + (offset === "end" ? token.length : offset);
+    const actual = extractMetabloomResearch(value);
+    assert.equal(actual.notes, "A verified fact. [1] More verified detail.");
+  }
+});
+
+test("the normalized report limit measures serialized UTF-8 bytes including source and citation overhead", () => {
+  const limit = 1048576;
+  const overhead = Buffer.byteLength(JSON.stringify({ notes: " [1]", sources: [source] }), "utf8");
+  const atLimit = document();
+  const content = atLimit.output[1].content[0];
+  content.text = "x".repeat(limit - overhead);
+  content.annotations[0].end_index = content.text.length;
+  const actual = extractMetabloomResearch(atLimit);
+  assert.equal(Buffer.byteLength(JSON.stringify(actual), "utf8"), limit);
+  content.text += "x";
+  assert.throws(() => extractMetabloomResearch(atLimit), {
+    code: "research_response_too_large", reason: "report_byte_limit", limitName: "report_bytes", observed: limit + 1, limit,
+  });
+  const unicode = document();
+  unicode.output[1].content[0].text = "界".repeat(360000);
+  assert.ok(unicode.output[1].content[0].text.length < limit);
+  assert.throws(() => extractMetabloomResearch(unicode), {
+    code: "research_response_too_large", reason: "report_byte_limit", limitName: "report_bytes",
+  });
+});
+
+test("direct extraction bounds the full provider object before inspecting its evidence", () => {
+  const value = document();
+  value.output.unshift({ type: "reasoning", summary: [{ type: "summary_text", text: "x".repeat(8388608) }] });
+  const observed = Buffer.byteLength(JSON.stringify(value), "utf8");
+  assert.ok(observed > 8388608);
+  assert.throws(() => extractMetabloomResearch(value), {
+    code: "research_response_too_large", reason: "completed_response_byte_limit", limitName: "completed_response_bytes", observed, limit: 8388608,
+  });
 });
 
 test("citation ranges must point into the provider text and cannot invent provenance", () => {
@@ -201,7 +260,7 @@ test("research request enforces web search, bounded spend, no storage and the se
   assert.equal(body.store, false);
   assert.deepEqual(body.tools, [{ type: "web_search", search_context_size: "medium" }]);
   assert.equal(body.tool_choice, "required");
-  assert.deepEqual(body.include, ["web_search_call.action.sources"]);
+  assert.equal(Object.hasOwn(body, "include"), false, "Unused search-result metadata must not inflate the completed response");
   assert.equal(body.max_tool_calls, 6);
   assert.equal(body.max_output_tokens, 10000);
   assert.match(JSON.stringify(body.input), /We are studying an API/);
@@ -221,40 +280,72 @@ test("research model falls back to the configured chat model, then the project d
 
 test("research cancels an oversized single SSE event before accepting a later completion", async () => {
   configure();
-  let cancelled = false;
-  global.fetch = async () => new Response(new ReadableStream({
-    start(controller) { controller.enqueue(new TextEncoder().encode(sseEvent({ type: "response.reasoning_text.delta", delta: "x".repeat(524289) })
-      + sseEvent({ type: "response.completed", response: document() }))); },
-    cancel() { cancelled = true; },
-  }), { headers: { "content-type": "text/event-stream" } });
-  await assert.rejects(conduct(), { code: "research_response_too_large" });
+  let cancelled = false, providerSignal;
+  global.fetch = async (_url, options) => {
+    providerSignal = options.signal;
+    return new Response(new ReadableStream({
+      start(controller) { controller.enqueue(new TextEncoder().encode(sseEvent({ type: "response.reasoning_text.delta", delta: "x".repeat(8388609) })
+        + sseEvent({ type: "response.completed", response: document() }))); },
+      cancel() { cancelled = true; },
+    }), { headers: { "content-type": "text/event-stream" } });
+  };
+  await assert.rejects(conduct(), (error) => {
+    assert.equal(error.code, "research_response_too_large");
+    assert.equal(error.reason, "event_byte_limit");
+    assert.equal(error.limitName, "event_bytes");
+    assert.equal(error.limit, 8388608);
+    assert.ok(Number.isSafeInteger(error.observed) && error.observed > error.limit);
+    return true;
+  });
   assert.equal(cancelled, true);
+  assert.equal(providerSignal.aborted, true);
 });
 
-test("normal SSE framing overhead may exceed the final-object limit within the aggregate bound", async () => {
+test("a completed provider event larger than 512 KiB preserves its cited report", async () => {
+  configure();
+  const value = document();
+  value.output.unshift({ type: "reasoning", summary: [{ type: "summary_text", text: "x".repeat(600000) }] });
+  const wire = sseEvent({ type: "response.completed", response: value });
+  assert.ok(Buffer.byteLength(wire) > 524288);
+  assert.ok(Buffer.byteLength(wire) < 8388608);
+  global.fetch = async () => new Response(wire, { headers: { "content-type": "text/event-stream" } });
+  assert.deepEqual(await conduct(), { notes: "A verified fact. [1]", sources: [source] });
+});
+
+test("fragmented SSE metadata beyond 2 MiB does not discard a completed report", async () => {
   configure();
   const frame = sseEvent({ type: "response.output_text.delta", item_id: "msg_fixture", output_index: 1, content_index: 0, delta: "word" });
-  const wire = frame.repeat(4000) + sseEvent({ type: "response.completed", response: document() });
-  assert.ok(Buffer.byteLength(wire) > 524288);
-  assert.ok(Buffer.byteLength(wire) < 2097152);
-  global.fetch = async () => new Response(wire, { headers: { "content-type": "text/event-stream" } });
-  assert.deepEqual((await conduct()).sources, [source]);
+  const bytes = new TextEncoder().encode(frame.repeat(16000) + sseEvent({ type: "response.completed", response: document() }));
+  assert.ok(bytes.byteLength > 2097152);
+  assert.ok(bytes.byteLength < 33554432);
+  let offset = 0;
+  global.fetch = async () => new Response(new ReadableStream({ pull(controller) {
+    if (offset >= bytes.length) { controller.close(); return; }
+    controller.enqueue(bytes.slice(offset, offset + 65536));
+    offset += 65536;
+  } }), { headers: { "content-type": "text/event-stream" } });
+  assert.deepEqual(await conduct(), { notes: "A verified fact. [1]", sources: [source] });
 });
 
 test("aggregate research SSE rejects an over-limit chunk even when it starts with completion", async () => {
   configure();
   const comment = ": " + "x".repeat(120) + "\n\n";
-  const wire = sseEvent({ type: "response.completed", response: document() }) + comment.repeat(18000);
-  assert.ok(Buffer.byteLength(wire) > 2097152);
-  let cancelled = false;
-  global.fetch = async () => new Response(new ReadableStream({
-    start(controller) {
-      controller.enqueue(new TextEncoder().encode(wire));
-    },
-    cancel() { cancelled = true; },
-  }), { headers: { "content-type": "text/event-stream" } });
-  await assert.rejects(conduct(), { code: "research_response_too_large" });
+  const wire = sseEvent({ type: "response.completed", response: document() }) + comment.repeat(280000);
+  const observed = Buffer.byteLength(wire);
+  assert.ok(observed > 33554432);
+  let cancelled = false, providerSignal;
+  global.fetch = async (_url, options) => {
+    providerSignal = options.signal;
+    return new Response(new ReadableStream({
+      start(controller) { controller.enqueue(new TextEncoder().encode(wire)); },
+      cancel() { cancelled = true; },
+    }), { headers: { "content-type": "text/event-stream" } });
+  };
+  await assert.rejects(conduct(), {
+    code: "research_response_too_large", reason: "stream_byte_limit", limitName: "stream_bytes", observed, limit: 33554432,
+  });
   assert.equal(cancelled, true);
+  assert.equal(providerSignal.aborted, true);
 });
 
 test("cancellation stops an open research response reader", async () => {
@@ -340,6 +431,57 @@ test("HTTP configuration, authentication, rate and availability failures retain 
   assert.equal(logged.includes(privateMessage), false);
   assert.equal(logged.includes("do-not-log"), false);
   assert.equal(logged.includes("private.example"), false);
+  const records = logs.map(([value]) => JSON.parse(value)).filter((value) => value.event === "metabloom_research");
+  assert.equal(records.length, 7);
+  for (const record of records) {
+    assert.equal(record.toolRecords, null);
+    assert.equal(record.inputTokens, null);
+    assert.equal(record.outputTokens, null);
+    assert.equal(record.reasoningTokens, null);
+  }
+});
+
+test("size diagnostics identify the actual bound and retain known usage without logging research content", async (t) => {
+  configure();
+  const logs = [];
+  t.mock.method(console, "info", (value) => logs.push(JSON.parse(value)));
+  const value = document();
+  value.output[1].content[0].text = "private-research-content ".repeat(50000);
+  value.usage = { input_tokens: 31411, output_tokens: 5928, output_tokens_details: { reasoning_tokens: 2816 } };
+  global.fetch = async () => asResponse(value);
+  await assert.rejects(conduct({ requestRef: "3947c1edb5bf" }), { code: "research_response_too_large", reason: "report_byte_limit" });
+  assert.equal(logs.length, 1);
+  const [record] = logs;
+  assert.equal(record.event, "metabloom_research");
+  assert.equal(record.requestRef, "3947c1edb5bf");
+  assert.equal(record.outcome, "failed");
+  assert.equal(record.limitName, "report_bytes");
+  assert.equal(record.limit, 1048576);
+  assert.ok(Number.isSafeInteger(record.observed) && record.observed > record.limit);
+  assert.equal(record.requestedToolCalls, 6);
+  assert.equal(record.toolRecords, 1);
+  assert.equal(record.inputTokens, 31411);
+  assert.equal(record.outputTokens, 5928);
+  assert.equal(record.reasoningTokens, 2816);
+  const serialized = JSON.stringify(logs);
+  for (const privateText of ["private-research-content", source.url, "fixture-not-a-real-key"]) assert.equal(serialized.includes(privateText), false);
+});
+
+test("usage diagnostics distinguish valid zero values from unavailable or invalid counts", async (t) => {
+  configure();
+  const logs = [];
+  t.mock.method(console, "info", (value) => logs.push(JSON.parse(value)));
+  for (const usage of [undefined, { input_tokens: 0, output_tokens: 5, output_tokens_details: { reasoning_tokens: 0 } },
+    { input_tokens: -1, output_tokens: "private-usage-text", output_tokens_details: { reasoning_tokens: 1.5 } }]) {
+    const value = document();
+    value.usage = usage;
+    global.fetch = async () => asResponse(value);
+    await conduct();
+  }
+  assert.deepEqual(logs.map(({ inputTokens, outputTokens, reasoningTokens }) => [inputTokens, outputTokens, reasoningTokens]), [
+    [null, null, null], [0, 5, 0], [null, null, null],
+  ]);
+  assert.equal(JSON.stringify(logs).includes("private-usage-text"), false);
 });
 
 test("untrusted error metadata cannot inject text into operational diagnostics", async (t) => {

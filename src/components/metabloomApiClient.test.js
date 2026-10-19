@@ -31,7 +31,7 @@ describe("Metabloom API client", () => {
       "/api/metabloom",
       expect.objectContaining({ method: "POST" }),
     );
-    expect(JSON.parse(fetchImpl.mock.calls[0][1].body)).toMatchObject({ streamText: true, streamResearchProgress: true });
+    expect(JSON.parse(fetchImpl.mock.calls[0][1].body)).toMatchObject({ streamText: true, streamResearchProgress: true, streamResearchDetails: true });
   });
 
   test("decodes NDJSON without requiring a streaming reader", async () => {
@@ -106,6 +106,34 @@ describe("Metabloom API client", () => {
     await expect(requestMetabloomResponse({ fetchImpl, message: "Investigate", optional: true })).rejects.toMatchObject({
       code: "research_no_sources", requestRef: "012345abcdef", message: getMetabloomApiErrorMessage("research_no_sources"),
     });
+  });
+
+  test("delivers completed research separately from the unchanged reply envelope on a text-only transport", async () => {
+    const report = { notes: "All research notes. [1]", sources: [{ id: 1, title: "Evidence", url: "https://example.org/evidence" }] };
+    const onResearchDetails = jest.fn();
+    const records = [
+      { type: "emote", phase: "input", emote: "curious" },
+      { type: "action", action: "deep-research" },
+      { type: "research", state: "searching" },
+      { type: "research_report_sources", sources: report.sources },
+      { type: "research_report_delta", index: 0, delta: report.notes },
+      { type: "research_report_complete" },
+      { type: "sources", sources: report.sources },
+      { type: "research", state: "synthesizing" },
+      { type: "segment", index: 0, response: "The concise answer. [1]" },
+      { type: "text_complete" },
+      { type: "emote", phase: "response", emote: "resolute" },
+      { type: "done", version: "2.0.0" },
+    ];
+    const fetchImpl = jest.fn().mockResolvedValue({
+      ok: true, status: 200, headers: headers("application/x-ndjson"),
+      text: async () => records.map((record) => JSON.stringify(record)).join("\n"),
+    });
+    const value = await requestMetabloomResponse({ fetchImpl, message: "Investigate", onResearchDetails });
+    expect(value).toEqual({ version: "2.0.0", segments: [{ response: "The concise answer. [1]" }] });
+    expect(onResearchDetails).toHaveBeenCalledTimes(1);
+    expect(onResearchDetails).toHaveBeenCalledWith(report);
+    expect(JSON.parse(fetchImpl.mock.calls[0][1].body)).toMatchObject({ streamResearchDetails: true, history: [] });
   });
 
   test("error fields reject unknown codes, unsafe references and invalid status values", () => {

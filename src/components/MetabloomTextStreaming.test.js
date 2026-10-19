@@ -345,3 +345,45 @@ test("research sources stay independent of display, and reply snapshots cannot m
   expect(reply.snapshot().sources[0].url).toBe("https://example.org/evidence");
   expect(reply.attachSources(sources)).toBe(false);
 });
+
+test("a complete long research report retains its full source map without creating an answer", () => {
+  const onUpdate = jest.fn();
+  const reply = createMetabloomReplySession({ onUpdate });
+  const report = {
+    notes: `${"Detailed completed evidence. ".repeat(700)}[65]`,
+    sources: Array.from({ length: 65 }, (_, index) => ({ id: index + 1, title: `Source ${index + 1}`, url: `https://example.org/${index + 1}` })),
+  };
+  const originalNotes = report.notes;
+  expect(reply.attachResearchDetails(report)).toBe(true);
+  expect(onUpdate).not.toHaveBeenCalled();
+  expect(reply.snapshot().content).toBe("");
+  expect(reply.snapshot().researchDetails.sources).toHaveLength(65);
+  report.notes = "Changed original";
+  report.sources[64].url = "https://changed.example/";
+  const first = reply.snapshot();
+  expect(first.researchDetails.notes).toBe(originalNotes);
+  expect(first.researchDetails.sources[64].url).toBe("https://example.org/65");
+  first.researchDetails.sources[0].title = "Changed snapshot";
+  expect(reply.snapshot().researchDetails.sources[0].title).toBe("Source 1");
+  expect(reply.finishResearch()).toBe(true);
+  expect(reply.closed).toBe(true);
+  expect(onUpdate).toHaveBeenCalledTimes(1);
+  expect(onUpdate.mock.calls[0][0]).toMatchObject({ content: "", segments: [], status: "error", researchDetails: { notes: originalNotes } });
+  expect(reply.finishResearch()).toBe(false);
+  expect(reply.attachResearchDetails(report)).toBe(false);
+});
+
+test("research report metadata must be valid, unique and precede answer metadata or text", () => {
+  const report = { notes: "A completed finding [1].", sources: [{ id: 1, title: "Evidence", url: "https://example.org/" }] };
+  const reply = createMetabloomReplySession({ onUpdate: jest.fn() });
+  expect(reply.finishResearch()).toBe(false);
+  expect(() => reply.attachResearchDetails({ notes: "Only part of a report" })).toThrow("Invalid research details");
+  reply.attachResearchDetails(report);
+  expect(() => reply.attachResearchDetails(report)).toThrow("Unexpected research details");
+  const afterSources = createMetabloomReplySession({ onUpdate: jest.fn() });
+  afterSources.attachSources(report.sources);
+  expect(() => afterSources.attachResearchDetails(report)).toThrow("Unexpected research details");
+  const afterText = createMetabloomReplySession({ onUpdate: jest.fn() });
+  afterText.appendText("The answer has started", 0);
+  expect(() => afterText.attachResearchDetails(report)).toThrow("Unexpected research details");
+});

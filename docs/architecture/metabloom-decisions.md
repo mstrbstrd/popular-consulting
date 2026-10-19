@@ -190,24 +190,38 @@ The selected model must support Responses web search and reasoning. The optional
 research model setting can change research independently of ordinary chat.
 The provider's processed-call budget is distinct from its returned output records.
 A production response returned seven web-tool records for a six-call budget.
-Parsing therefore has its own 64-output-item bound and does not reject a valid
-completed brief merely because its tool-record count exceeds six. Failed attempts
+Parsing uses independent byte bounds and does not reject a valid completed brief
+merely because its tool-record count exceeds six. Failed attempts
 can coexist with a completed search and usable cited evidence. No automatic retry
 or increase to the provider's tool or token budget is introduced.
 
 Only a completed response containing an actual completed search and usable URL
-annotations can advance to writing. The brief is capped at 16,000 characters
-and each SSE event at 512 KiB. The full SSE transport is bounded to 2 MiB to allow
-repeated per-event metadata while retaining the same content and token limits.
-Up to eight distinct annotated sources become
-consecutive source IDs. Unannotated URLs in model text or the wider consulted
+annotations can produce a report. A normalized report is bounded to 1 MiB of
+serialized UTF-8 JSON, independently of the short answer. Completed provider
+objects and individual SSE events have an 8 MiB emergency limit, while the total
+provider SSE transport is bounded to 32 MiB. These resource protections are not
+spending controls: generated tokens and searches can already be billable when
+an application parser rejects them. Unavailable usage is logged as null.
+The unused `web_search_call.action.sources` inclusion is omitted to reduce
+redundant response metadata. All distinct annotated sources receive consecutive
+source IDs within the report byte bound, without an eight- or 64-source cutoff.
+Unannotated URLs in model text or the wider consulted
 source list cannot manufacture a citation. Titles and URLs have shared server
 and browser validation; only absolute HTTP(S) links without credentials are
 rendered. Provider annotation ranges attach source IDs to the research notes;
 those offsets are never reused on the rewritten answer.
 
-The existing strict-schema writer receives the brief and source map as untrusted
-evidence, with the actual user question last. It has a 6,000-token output ceiling
+Opted-in clients receive the full validated report before the short writer starts.
+Its text and full source map remain separate from the normal answer and are
+available through **Full research**, including when the later writer fails.
+The strict-schema writer receives at most 16,000 characters of whole
+passages using the first eight source IDs as untrusted evidence, with the actual
+user question last. Passages referring to sources outside that table are omitted
+from this writer view, while remaining intact in the full report. When the view
+is selective, the writer is told not to imply exhaustive coverage. If no whole
+cited passage fits, the app supplies a short report introduction without another
+model request. Cached clients receive only the established short-answer protocol.
+The writer retains its 6,000-token output ceiling
 and low reasoning in research mode. Its complete answer must validate, contain
 at least one source ID, and contain no unknown numeric citation IDs before any
 answer text is published. The browser turns known `[1]` markers into inline links
@@ -221,8 +235,9 @@ checked domains, completed searches, and the validated source count for writing.
 These summaries come from provider tool events, not private reasoning or timers.
 At most 24 summaries of 200 characters are accepted, replacing the previous one.
 These events update status without surfacing the Orb.
-Only answer content starts the established return and progressive reveal. Source
-metadata belongs to the reply session, follows the same display gate, and cannot
+Answer content starts the established return and progressive reveal. If the
+writer fails after report delivery, the completed report can independently start
+that return. Source metadata belongs to the reply session, follows the same display gate, and cannot
 leak from a cancelled or superseded request.
 
 The search pass has a 120-second deadline. Writing has at most 45 seconds, within
@@ -242,6 +257,8 @@ and parameter, and provider request ID are retained only in server logs. Raw
 provider error messages, prompts, source URLs and search queries are not logged.
 
 Official API contracts: [web search](https://developers.openai.com/api/docs/guides/tools-web-search),
+[reasoning token accounting](https://developers.openai.com/api/docs/guides/reasoning),
+[pricing](https://developers.openai.com/api/docs/pricing),
 [Responses limits](https://developers.openai.com/api/reference/ruby/resources/responses/methods/create),
 and [Vercel function duration](https://vercel.com/docs/functions/configuring-functions/duration).
 

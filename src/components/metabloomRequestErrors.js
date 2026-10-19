@@ -6,7 +6,7 @@ const METABLOOM_REQUEST_ERROR_MESSAGES = Object.freeze({
   research_incomplete: "The research did not finish. Please try again.",
   research_no_sources: "The research did not return usable sources. Try a more specific question.",
   research_invalid_citations: "The research returned citations that could not be verified. Please try again.",
-  research_response_too_large: "The research response exceeded its size limit. Try a narrower question.",
+  research_response_too_large: "The provider response exceeded the app’s data safety limit.",
   provider_authentication_failed: "The model service could not authenticate. Its connection needs to be checked.",
   model_configuration_error: "The selected model or research tool is unavailable with the current configuration.",
   provider_rate_limited: "The model service is busy or has reached a usage limit. Please try again later.",

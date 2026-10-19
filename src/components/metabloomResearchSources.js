@@ -12,8 +12,10 @@ const hasControlCharacters = (value) => {
 };
 
 // Return independent, canonical source records, or null for any invalid record.
-const parseMetabloomResearchSources = (value) => {
-  if (!Array.isArray(value) || value.length < 1 || value.length > MAX_METABLOOM_RESEARCH_SOURCES) return null;
+const parseMetabloomResearchSources = (value, { maxSources = MAX_METABLOOM_RESEARCH_SOURCES, startId = 1 } = {}) => {
+  if (!Number.isSafeInteger(maxSources) || maxSources < 1 || !Number.isSafeInteger(startId) || startId < 1
+    || !Array.isArray(value) || value.length < 1 || value.length > maxSources
+    || !Number.isSafeInteger(startId + value.length - 1)) return null;
   const sources = [];
   for (let index = 0; index < value.length; index += 1) {
     const source = value[index];
@@ -21,7 +23,7 @@ const parseMetabloomResearchSources = (value) => {
       || ![Object.prototype, null].includes(Object.getPrototypeOf(source))
       || Object.keys(source).length !== 3
       || !["id", "title", "url"].every((key) => Object.prototype.hasOwnProperty.call(source, key))
-      || !Number.isInteger(source.id) || source.id !== index + 1
+      || !Number.isInteger(source.id) || source.id !== startId + index
       || typeof source.title !== "string" || typeof source.url !== "string") return null;
 
     const title = source.title.trim();
@@ -38,7 +40,13 @@ const parseMetabloomResearchSources = (value) => {
     try { url = new URL(source.url); } catch { return null; }
     if (!["http:", "https:"].includes(url.protocol) || !url.hostname || url.username || url.password
       || url.href.length > MAX_METABLOOM_RESEARCH_SOURCE_URL_CHARS) return null;
-    sources.push({ id: source.id, title, url: url.href });
+    // Lone surrogates display as replacement characters and expand sixfold in JSON.
+    // Canonicalize them so bounded source batches also fit the stream record limit.
+    const canonicalTitle = Array.from(title, (character) => {
+      const code = character.charCodeAt(0);
+      return character.length === 1 && code >= 0xd800 && code <= 0xdfff ? "\ufffd" : character;
+    }).join("");
+    sources.push({ id: source.id, title: canonicalTitle, url: url.href });
   }
   return sources;
 };

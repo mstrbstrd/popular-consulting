@@ -177,3 +177,43 @@ test("snapshots and deferred effects stay within the existing semantic limits", 
   drain();
   expect(gate.bufferedChars).toBe(0);
 });
+
+test("a completed report without a short answer remains held until the scene releases", () => {
+  const { gate, updates, onFirstContent } = setup();
+  const report = { notes: "Complete research [1].", sources: [{ id: 1, title: "Evidence", url: "https://example.org/" }] };
+  const done = jest.fn();
+  gate.hold();
+  gate.update({ ...snapshot([], "error"), researchDetails: report }, { researchFailure: true });
+  gate.complete(done);
+  report.notes = "Changed original";
+  report.sources[0].url = "https://changed.example/";
+  expect(onFirstContent).toHaveBeenCalledTimes(1);
+  expect(updates).toHaveLength(0);
+  expect(gate.hasContent).toBe(true);
+  gate.release();
+  expect(done).toHaveBeenCalledTimes(1);
+  expect(updates).toHaveLength(1);
+  expect(updates[0]).toMatchObject({ content: "", status: "error", researchDetails: {
+    notes: "Complete research [1].", sources: [{ id: 1, title: "Evidence", url: "https://example.org/" }],
+  } });
+});
+
+test.each(["held", "visible"])("a research writer failure retains its report and only the %s answer that was already shown", (presentation) => {
+  const { gate, updates, frame, drain } = setup();
+  const report = { notes: "Complete research [1].", sources: [{ id: 1, title: "Evidence", url: "https://example.org/" }] };
+  const response = "A buffered but uncommitted answer. ".repeat(20);
+  gate.hold();
+  gate.update({ ...snapshot([response]), researchDetails: report });
+  if (presentation === "visible") {
+    gate.release();
+    frame();
+    frame();
+  }
+  const visiblePrefix = updates.at(-1)?.content || "";
+  gate.update({ ...snapshot([response], "error"), researchDetails: report }, { researchFailure: true });
+  gate.complete(jest.fn());
+  gate.release();
+  drain();
+  expect(updates.at(-1)).toMatchObject({ content: visiblePrefix, status: "error", researchDetails: report });
+  expect(updates.at(-1).content.length).toBeLessThan(response.length);
+});

@@ -12,8 +12,11 @@ const segmenter = typeof Intl.Segmenter === "function"
 const graphemes = (text) => segmenter
   ? Array.from(segmenter.segment(text), (part) => part.segment) : Array.from(text);
 const textLength = (snapshot) => snapshot?.segments.reduce((total, segment) => total + segment.response.length, 0) || 0;
+const hasDisplayContent = (snapshot) => textLength(snapshot) > 0 || Boolean(snapshot?.researchDetails && snapshot.status === "error");
 const cloneSnapshot = (snapshot) => ({ ...snapshot, segments: snapshot.segments.map((segment) => ({ ...segment })),
-  ...(snapshot.sources ? { sources: snapshot.sources.map((source) => ({ ...source })) } : {}) });
+  ...(snapshot.sources ? { sources: snapshot.sources.map((source) => ({ ...source })) } : {}),
+  ...(snapshot.researchDetails ? { researchDetails: { notes: snapshot.researchDetails.notes,
+    sources: snapshot.researchDetails.sources.map((source) => ({ ...source })) } } : {}) });
 
 // The reply session remains the authority for parsing and final validation. This
 // view holds one bounded, coalesced target instead of retaining every tiny delta.
@@ -105,8 +108,14 @@ export const createMetabloomResearchDisplayGate = ({
       enabled = true;
       return true;
     },
-    update(snapshot, { legacy = false, incremental = false } = {}) {
+    update(snapshot, { legacy = false, incremental = false, researchFailure = false } = {}) {
       if (cancelled || finished) return false;
+      if (researchFailure) {
+        // A writer failure may reveal its completed report, but not answer text
+        // that was still held for validation. Keep any already-visible prefix.
+        snapshot = { ...snapshot, segments: visible?.segments || [],
+          content: visible?.content || "", emote: visible?.emote || "neutral" };
+      }
       if (!enabled) {
         target = cloneSnapshot(snapshot);
         publish(snapshot);
@@ -115,7 +124,7 @@ export const createMetabloomResearchDisplayGate = ({
       if (snapshot.segments.length > MAX_METABLOOM_EMOTE_SEGMENTS
         || snapshot.segments.some((segment) => segment.response.length > (legacy ? MAX_METABLOOM_RESPONSE_CHARS : MAX_METABLOOM_EMOTE_RESPONSE_CHARS))
         || textLength(snapshot) > MAX_METABLOOM_EMOTE_TOTAL_CHARS) throw new Error("Research display limit exceeded.");
-      const firstContent = !textLength(target) && textLength(snapshot) > 0;
+      const firstContent = !hasDisplayContent(target) && hasDisplayContent(snapshot);
       const wasCaughtUp = released && !frame && !hasBacklog();
       target = cloneSnapshot(snapshot);
       if (firstContent) onFirstContent();
@@ -162,7 +171,7 @@ export const createMetabloomResearchDisplayGate = ({
       if (enabled && textLength(visible)) publish({ ...visible, status: reason === "error" ? "error" : "interrupted" });
     },
     get enabled() { return enabled; },
-    get hasContent() { return textLength(target) > 0 || textLength(visible) > 0; },
+    get hasContent() { return hasDisplayContent(target) || hasDisplayContent(visible); },
     get blocked() { return enabled && !cancelled && !finished && (!released || hasBacklog()); },
     get phase() { return cancelled ? "cancelled" : finished ? "complete" : !enabled ? "immediate" : !released ? "surfacing" : hasBacklog() ? "revealing" : "live"; },
     get bufferedChars() { return Math.max(0, textLength(target) - textLength(visible)); },

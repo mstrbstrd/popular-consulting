@@ -258,6 +258,47 @@
 .metabloom-chat__citation:focus-visible,
 .metabloom-chat__sources a:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; border-radius: 2px; }
 
+.metabloom-chat__full-research {
+  max-width: 100%;
+  margin-top: 1rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid var(--metabloom-chat-line);
+}
+.metabloom-chat__full-research summary {
+  padding: 0.35rem 0;
+  color: var(--metabloom-chat-ink);
+  font: 600 1.15rem/1.5 "Poppins", sans-serif;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.metabloom-chat__full-research summary:focus-visible,
+.metabloom-chat__more-sources:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+.metabloom-chat__research-report-text {
+  margin: 0.9rem 0 0;
+  font: 400 1.2rem/1.65 "Poppins", sans-serif;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.metabloom-chat__bubble > .metabloom-chat__research-notice {
+  margin-top: 0.9rem;
+  color: var(--metabloom-chat-muted);
+  font-size: 1.1rem;
+}
+.metabloom-chat__more-sources {
+  margin-top: 0.8rem;
+  padding: 0.5rem 0.8rem;
+  border: 1px solid var(--metabloom-chat-line);
+  border-radius: 0.7rem;
+  color: var(--metabloom-chat-ink);
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
 .metabloom-chat__suggestions {
   display: flex;
   align-self: flex-start;

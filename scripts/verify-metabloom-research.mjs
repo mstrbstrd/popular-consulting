@@ -48,11 +48,14 @@ const makeFixture = (id, kind, question) => {
   return fixture;
 };
 const researchDocument = () => {
-  const text = "The fictional release notes describe one-minute moisture readings. The fictional study describes reference calibration.";
-  const boundary = text.indexOf(" The fictional study");
+  const summary = "The fictional release notes describe one-minute moisture readings. The fictional study describes reference calibration.";
+  const text = summary + "\n\n" + Array.from({ length: 180 }, (_, index) =>
+    `Fictional research detail ${index + 1}: record the orchard row, sensor version and calibration date together so the imaginary team can compare its observations consistently.`
+  ).join("\n\n") + "\n\nEnd of the complete fictional orchard research report.";
+  const boundary = summary.indexOf(" The fictional study");
   return {
     status: "completed",
-    usage: { input_tokens: 450, output_tokens: 120, output_tokens_details: { reasoning_tokens: 40 } },
+    usage: { input_tokens: 450, output_tokens: 7900, output_tokens_details: { reasoning_tokens: 40 } },
     output: [
       { type: "web_search_call", status: "completed", action: { type: "search", query: "fictional orchard sensor release", sources: [{ type: "url", url: sourceList[0].url }] } },
       { type: "web_search_call", status: "completed", action: { type: "open_page", url: sourceList[0].url } },
@@ -61,7 +64,7 @@ const researchDocument = () => {
         action: { type: "open_page", url: sourceList[index % sourceList.length].url } })),
       { type: "message", role: "assistant", status: "completed", content: [{ type: "output_text", text, annotations: [
         { type: "url_citation", title: sourceList[0].title, url: sourceList[0].url, start_index: 0, end_index: boundary },
-        { type: "url_citation", title: sourceList[1].title, url: sourceList[1].url, start_index: boundary + 1, end_index: text.length },
+        { type: "url_citation", title: sourceList[1].title, url: sourceList[1].url, start_index: boundary + 1, end_index: summary.length },
       ] }] },
     ],
   };
@@ -115,7 +118,7 @@ globalThis.fetch = async (url, options = {}) => {
     assert.equal(body.stream, true);
     assert.deepEqual(body.tools, [{ type: "web_search", search_context_size: "medium" }]);
     assert.equal(body.tool_choice, "required");
-    assert.deepEqual(body.include, ["web_search_call.action.sources"]);
+    assert.equal(body.include, undefined);
     assert.equal(body.max_tool_calls, 6);
     assert.equal(body.max_output_tokens, 10000);
     assert.deepEqual(body.reasoning, { effort: "medium" });
@@ -153,7 +156,16 @@ globalThis.fetch = async (url, options = {}) => {
     assert.equal(fixture.calls.length, 2);
     assert.deepEqual(body.reasoning, { effort: "low" });
     assert(sourceList.every(({ url: sourceUrl }) => JSON.stringify(body.input).includes(sourceUrl)), "Synthesis must receive provider-attested sources.");
+    const evidence = body.input.find((item) => item.content.startsWith("Research evidence for the following question."));
+    assert(evidence && JSON.parse(evidence.content.slice(evidence.content.indexOf("\n") + 1)).notes.length <= 16000,
+      "The full report must not expand the paid writer context.");
   } else assert.equal(fixture.calls.length, 1);
+  if (fixture.kind === "writer-failure") {
+    fixture.writerRequested.resolve();
+    return new Response(JSON.stringify({ error: { code: "rate_limit_exceeded" } }), {
+      status: 429, headers: { "content-type": "application/json", "x-request-id": "fictional-writer-rate-limit" },
+    });
+  }
   const response = new Response(new ReadableStream({
     start(controller) {
       fixture.releaseWriter = () => {
@@ -198,11 +210,12 @@ server.on("request", async (request, response) => {
       fixture = fixtures.get(request.body.message);
       assert(fixture, "Only registered fictional requests may reach the verification handler.");
       fixture.api = { actionMode: request.body.actionMode, allowMultiple: request.body.allowMultiple,
-        streamText: request.body.streamText, historyLength: request.body.history.length, at: Date.now() };
+        streamText: request.body.streamText, streamResearchDetails: request.body.streamResearchDetails,
+        historyLength: request.body.history.length, at: Date.now() };
       let wire = "";
       const capture = (chunk) => {
         if (chunk) wire += String(chunk);
-        assert(wire.length <= 320000, "Verification wire capture exceeded the protocol bound.");
+        assert(wire.length <= 2 * 1048576, "Verification wire capture exceeded the protocol bound.");
       };
       const write = response.write.bind(response);
       const end = response.end.bind(response);
@@ -277,8 +290,9 @@ let browser;
 let page;
 let activePageErrors = [];
 const requestedProfile = process.env.METABLOOM_VERIFY_PROFILE || "all";
+const captureScreenshots = process.env.METABLOOM_VERIFY_SCREENSHOTS === "1";
 assert(["all", "desktop", "mobile"].includes(requestedProfile), "METABLOOM_VERIFY_PROFILE must be all, desktop or mobile.");
-const report = { mode: "built UI and actual API handler with fictional localhost auth and mocked OpenAI only", scenarios: [] };
+const report = { mode: "built UI and actual API handler with fictional localhost auth and mocked OpenAI only", captureScreenshots, scenarios: [] };
 try {
   await new Promise((resolve, reject) => {
     server.once("error", reject);
@@ -356,7 +370,25 @@ try {
     assert.deepEqual(research.calls.map((call) => call.phase), ["research", "writer"]);
     assert.deepEqual(research.wire.filter((event) => ["research", "sources"].includes(event.type)).map((event) => event.type === "research" ? event.state : event.type), ["searching", "sources", "synthesizing"]);
     assert.equal(research.wire.at(-1)?.type, "done");
-    await page.screenshot({ path: `${output}/${profile.id}-completed.png`, timeout: 45000 });
+    assert.equal(research.api.streamResearchDetails, true);
+    assert.equal(research.wire.filter((event) => event.type === "research_report_complete").length, 1);
+    const fullResearch = messages.first().locator(".metabloom-chat__full-research");
+    assert.equal(await fullResearch.getAttribute("open"), null, "The full report should start collapsed.");
+    await fullResearch.locator("summary").click();
+    const reportText = fullResearch.locator(".metabloom-chat__research-report-text");
+    await reportText.waitFor({ state: "visible" });
+    const displayedReport = await reportText.textContent();
+    assert(displayedReport.length > 16000, "The prior notes limit must not hide completed research.");
+    assert(displayedReport.endsWith("End of the complete fictional orchard research report."));
+    assert.equal(await reportText.locator("a.metabloom-chat__citation").count(), 2);
+    const reportGeometry = await reportText.evaluate((node) => {
+      const rect = node.getBoundingClientRect();
+      return { left: rect.left, right: rect.right, viewport: innerWidth };
+    });
+    assert(reportGeometry.left >= 0 && reportGeometry.right <= reportGeometry.viewport);
+    await fullResearch.locator(":scope > summary").click();
+    await reportText.waitFor({ state: "detached" });
+    if (captureScreenshots) await page.screenshot({ path: `${output}/${profile.id}-completed.png`, timeout: 45000 });
 
     const cancelled = makeFixture(`${profile.id}-cancelled`, "cancelled", `Investigate the fictional orchard ledger for the ${profile.id} cancellation fixture.`);
     await beginAudit(page);
@@ -424,6 +456,31 @@ try {
     assert(!ordinary.wire.some((event) => ["research", "sources"].includes(event.type)));
     assert.equal(ordinary.api.actionMode, "auto");
     assert.equal(research.api.actionMode, "deep-research");
+
+    const writerFailed = makeFixture(`${profile.id}-writer-failed`, "writer-failure", `Preserve the fictional orchard report when the ${profile.id} short writer fails.`);
+    await toggle.check();
+    await send(page, writerFailed.question);
+    await waitFor(writerFailed.researchRequested.promise, "research before writer failure");
+    assert.equal(writerFailed.releaseResearch(), true);
+    await waitFor(writerFailed.writerRequested.promise, "failing short writer");
+    await waitFor(writerFailed.finished.promise, "writer error after completed report delivery");
+    const writerFailure = writerFailed.wire.at(-1);
+    assert.equal(writerFailure.type, "error");
+    assert.equal(writerFailure.code, "provider_rate_limited");
+    assert.equal(writerFailed.wire.filter((event) => event.type === "research_report_complete").length, 1);
+    assert(!writerFailed.wire.some((event) => ["text_delta", "segment", "done"].includes(event.type)));
+    await page.getByText(new RegExp(writerFailure.requestRef)).waitFor({ state: "visible" });
+    await page.waitForFunction(() =>
+      document.querySelectorAll('article[aria-label="Metabloom message"]').length === 4
+      && document.querySelector('article[aria-label="Metabloom message"]:last-of-type')?.dataset.streamStatus === "error"
+      && document.querySelector('.metabloom-chat')?.dataset.chatPhase === "ready");
+    assert.equal(await messages.last().locator("p[data-segment-index]").count(), 0, "Writer failure must not manufacture short-answer text.");
+    const retainedReport = messages.last().locator(".metabloom-chat__full-research");
+    await retainedReport.locator("summary").click();
+    await retainedReport.locator(".metabloom-chat__research-report-text").waitFor({ state: "visible" });
+    assert.equal(await retainedReport.locator(".metabloom-chat__research-report-text").textContent(), displayedReport);
+    assert.deepEqual(writerFailed.calls.map((call) => call.phase), ["research", "writer"]);
+    await retainedReport.locator(":scope > summary").click();
     const geometry = await page.locator(".metabloom-chat__composer").evaluate((element) => {
       const rect = element.getBoundingClientRect();
       return { left: rect.left, right: rect.right, viewport: innerWidth, pageWidth: document.documentElement.scrollWidth };
@@ -433,11 +490,12 @@ try {
     assert.deepEqual(errors, []);
     assert.deepEqual(serverErrors, []);
     assert.deepEqual(unexpectedProviderRequests, []);
-    report.scenarios.push({ profile, reducedMotion: true, geometry, progressStyle, research: snapshotFixture(research),
+    report.scenarios.push({ profile, reducedMotion: true, geometry, reportGeometry, displayedReportChars: displayedReport.length,
+      progressStyle, research: snapshotFixture(research),
       researchAudit, cancelled: snapshotFixture(cancelled), cancelledAudit, background: snapshotFixture(background),
-      invalid: snapshotFixture(invalid), ordinary: snapshotFixture(ordinary), pageErrors: errors });
+      invalid: snapshotFixture(invalid), ordinary: snapshotFixture(ordinary), writerFailed: snapshotFixture(writerFailed), pageErrors: errors });
     fs.writeFileSync(`${output}/report.json`, JSON.stringify(report, null, 2));
-    console.log(`PASS ${profile.id}: seven tool records, observed progress, citations, visibility, cancellation, error reference, ordinary recovery`);
+    console.log(`PASS ${profile.id}: long full report, bounded writer, writer-failure recovery, progress, citations, visibility, cancellation, ordinary recovery`);
     await context.close();
     page = null;
   }
@@ -458,7 +516,7 @@ try {
       visibility: getComputedStyle(node).visibility, display: getComputedStyle(node).display,
     }))).catch(() => null);
     report.audit = await readAudit(page).catch(() => null);
-    await page.screenshot({ path: `${output}/failure.png` }).catch(() => {});
+    if (captureScreenshots) await page.screenshot({ path: `${output}/failure.png` }).catch(() => {});
   }
   fs.writeFileSync(`${output}/report.json`, JSON.stringify(report, null, 2));
   throw error;

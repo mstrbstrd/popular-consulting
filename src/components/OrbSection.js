@@ -32,6 +32,7 @@ import { createMetabloomResearchDisplayGate } from "./metabloomResearchDisplayGa
 import { METABLOOM_RESEARCH_TIMEOUT_MS, getMetabloomApiErrorMessage, requestMetabloomResponse } from "./metabloomApiClient";
 import { METABLOOM_REQUEST_ERROR_MESSAGES, parseMetabloomRequestRef } from "./metabloomRequestErrors";
 import { parseMetabloomResearchSources } from "./metabloomResearchSources";
+import { parseMetabloomResearchReport } from "./metabloomResearchReport";
 import { streamMetabloomDemoResponse } from "./metabloomDemoStream";
 import "./OrbSection.css";
 import "./OrbEmoteDemos.css";
@@ -346,8 +347,9 @@ const cloneActionChain = (actionChain = []) =>
     talking,
   }));
 
-const cloneMessage = ({ id, role, content, actionChain = [], source, emote, segments = [], status, sources }) => {
+const cloneMessage = ({ id, role, content, actionChain = [], source, emote, segments = [], status, sources, researchDetails }) => {
   const researchSources = parseMetabloomResearchSources(sources);
+  const researchReport = role === "assistant" ? parseMetabloomResearchReport(researchDetails) : null;
   return {
     id,
     emote,
@@ -358,18 +360,55 @@ const cloneMessage = ({ id, role, content, actionChain = [], source, emote, segm
     actionChain: cloneActionChain(actionChain),
     source,
     ...(researchSources ? { sources: researchSources } : {}),
+    ...(researchReport ? { researchDetails: researchReport } : {}),
   };
 };
 
 const renderMetabloomResearchText = (text, sources) => {
   if (!sources?.length) return text;
-  return text.split(/(\[[1-8]\])/g).map((part, index) => {
-    const source = /^\[[1-8]\]$/.test(part) ? sources[Number(part.slice(1, -1)) - 1] : null;
+  return text.split(/(\[[1-9]\d*\])/g).map((part, index) => {
+    const source = /^\[[1-9]\d*\]$/.test(part) ? sources[Number(part.slice(1, -1)) - 1] : null;
     return source ? (
       <a key={index} className="metabloom-chat__citation" href={source.url} target="_blank" rel="noopener noreferrer"
         aria-label={`Source ${source.id}: ${source.title}`}>{part}</a>
     ) : part;
   });
+};
+
+const MetabloomFullResearch = ({ report }) => {
+  const [expanded, setExpanded] = React.useState(false);
+  const [sourcesExpanded, setSourcesExpanded] = React.useState(false);
+  const [visibleSources, setVisibleSources] = React.useState(20);
+  return (
+    <details className="metabloom-chat__full-research" onToggle={(event) => setExpanded(event.currentTarget.open)}>
+      <summary>Full research</summary>
+      {expanded && (
+        <div className="metabloom-chat__research-report" role="group" aria-label="Completed research">
+          <p className="metabloom-chat__research-report-text">{renderMetabloomResearchText(report.notes, report.sources)}</p>
+          <details className="metabloom-chat__sources" onToggle={(event) => setSourcesExpanded(event.currentTarget.open)}>
+            <summary>Research sources ({report.sources.length})</summary>
+            {sourcesExpanded && (
+              <>
+                <ol>
+                  {report.sources.slice(0, visibleSources).map((source) => (
+                    <li key={source.id}>
+                      <a href={source.url} target="_blank" rel="noopener noreferrer">{source.title}</a>
+                      <span className="metabloom-chat__source-domain">{new URL(source.url).hostname}</span>
+                    </li>
+                  ))}
+                </ol>
+                {visibleSources < report.sources.length && (
+                  <button type="button" className="metabloom-chat__more-sources" onClick={() => setVisibleSources((count) => count + 20)}>
+                    Show {Math.min(20, report.sources.length - visibleSources)} more sources
+                  </button>
+                )}
+              </>
+            )}
+          </details>
+        </div>
+      )}
+    </details>
+  );
 };
 
 const extractCorrelatedResponse = (detail) => {
@@ -1030,17 +1069,29 @@ const OrbSection = ({
   );
 
   const appendMessage = React.useCallback(
-    (role, content, actionChain = [], source = "interface", emote = null, segments = [], status = "complete", sources = null) => {
+    (role, content, actionChain = [], source = "interface", emote = null, segments = [], status = "complete", sources = null, researchDetails = null) => {
       const message = {
         id: `${role}-${++messageCounterRef.current}`, role, content, emote,
         actionChain: cloneActionChain(actionChain), source, segments, status,
         ...(sources ? { sources: sources.map((item) => ({ ...item })) } : {}),
+        ...(researchDetails ? { researchDetails } : {}),
       };
       publishMessages([...messagesRef.current.slice(-(MAX_CHAT_MESSAGES - 1)), message]);
       return message;
     },
     [publishMessages],
   );
+
+  const finishReplyPresentation = React.useCallback((session) => {
+    if (replyRef.current !== session || !mountedRef.current) return;
+    activeRequestRef.current = null;
+    requestAbortRef.current = null;
+    requestTokenRef.current += 1;
+    updateStateSnapshot({ pending: false, researchProgress: null, researchSummary: null });
+    setPending(false);
+    setResearchProgress(null);
+    setResearchSummary(null);
+  }, [updateStateSnapshot]);
 
   const failReply = React.useCallback((session, error) => {
     if (replyRef.current !== session || session.closed) return false;
@@ -1051,13 +1102,32 @@ const OrbSection = ({
     const hasVisibleReply = messagesRef.current.some((message) => message.role === "assistant" && message.status === "streaming");
     // Never expose an adapter/provider message or request content in diagnostics.
     console.error("[Metabloom] Request failed", { code, requestRef, status });
+    if (session.snapshot().researchDetails) {
+      // A completed research pass remains useful even if its short writer fails.
+      // Close the request while its existing scene safely returns this report.
+      requestAbortRef.current?.abort();
+      window.clearTimeout(previewTimerRef.current);
+      previewTimerRef.current = 0;
+      window.clearTimeout(thinkingTimerRef.current);
+      thinkingTimerRef.current = 0;
+      reactionPlayerRef.current?.cancel();
+      setActiveReaction(null);
+      updateStateSnapshot({ responseSource: "error" });
+      setResponseSource("error");
+      setErrorMessage(`${getMetabloomApiErrorMessage(code)}${hasVisibleReply ? " Any visible short answer is incomplete." : ""} The completed research is retained. Code: ${code}.${requestRef ? ` Reference: ${requestRef}.` : ""}`);
+      session.finishResearch();
+      const display = replyDisplayRef.current;
+      if (display?.session === session) display.gate.complete(() => finishReplyPresentation(session));
+      else finishReplyPresentation(session);
+      return false;
+    }
     cancelResponse("error");
     updateStateSnapshot({ pending: false, responseSource: "error" });
     setPending(false);
     setResponseSource("error");
     setErrorMessage(`${getMetabloomApiErrorMessage(code)}${hasVisibleReply ? " Any visible reply is incomplete." : ""} Code: ${code}.${requestRef ? ` Reference: ${requestRef}.` : ""}`);
     return false;
-  }, [cancelResponse, updateStateSnapshot]);
+  }, [cancelResponse, finishReplyPresentation, updateStateSnapshot]);
 
   const beginReply = React.useCallback((source, allowMultiple = false) => {
     cancelResponse();
@@ -1072,7 +1142,7 @@ const OrbSection = ({
         completeActivity();
         window.clearTimeout(thinkingTimerRef.current);
         thinkingTimerRef.current = 0;
-        messageId = appendMessage("assistant", snapshot.content, [], replySource, snapshot.emote, snapshot.segments, snapshot.status, snapshot.sources).id;
+        messageId = appendMessage("assistant", snapshot.content, [], replySource, snapshot.emote, snapshot.segments, snapshot.status, snapshot.sources, snapshot.researchDetails).id;
       } else {
         publishMessages(messagesRef.current.map((message) => message.id === messageId ? { ...message, ...snapshot, source: replySource } : message));
       }
@@ -1098,7 +1168,7 @@ const OrbSection = ({
           request.actionReceived = true;
           beginRequestScene("deep-research", session);
         }
-        gate.update(snapshot, { incremental: deliveryKind === "delta" });
+        gate.update(snapshot, { incremental: deliveryKind === "delta", researchFailure: deliveryKind === "research-failure" });
       },
     });
     const deliver = (kind, callback) => {
@@ -1106,10 +1176,12 @@ const OrbSection = ({
       try { return callback(); } finally { deliveryKind = null; }
     };
     const session = Object.freeze({
+      attachResearchDetails: validationSession.attachResearchDetails,
       attachSources: validationSession.attachSources,
       appendText: (delta, index) => deliver("delta", () => validationSession.appendText(delta, index)),
       append: (segment, index) => deliver("segment", () => validationSession.append(segment, index)),
       finish: (payload) => deliver("finish", () => validationSession.finish(payload)),
+      finishResearch: () => deliver("research-failure", () => validationSession.finishResearch()),
       interrupt: (reason) => deliver("interrupt", () => validationSession.interrupt(reason)),
       snapshot: validationSession.snapshot,
       get closed() { return validationSession.closed; },
@@ -1133,17 +1205,6 @@ const OrbSection = ({
     previewTimerRef.current = window.setTimeout(() => failReply(session, { code: "answer_timeout" }), RESPONSE_TIMEOUT_MS);
     return session;
   }, [appendMessage, beginRequestScene, cancelResponse, clearSequence, completeActivity, completeRequestScene, failReply, performAction, reactionPlayer, publishMessages, updateStateSnapshot]);
-
-  const finishReplyPresentation = React.useCallback((session) => {
-    if (replyRef.current !== session || !mountedRef.current) return;
-    activeRequestRef.current = null;
-    requestAbortRef.current = null;
-    requestTokenRef.current += 1;
-    updateStateSnapshot({ pending: false, researchProgress: null, researchSummary: null });
-    setPending(false);
-    setResearchProgress(null);
-    setResearchSummary(null);
-  }, [updateStateSnapshot]);
 
   const finishReply = React.useCallback((session, payload) => {
     if (replyRef.current !== session || session.closed) return false;
@@ -1491,9 +1552,18 @@ const OrbSection = ({
         activeRequest.sourcesReceived = true;
         return true;
       };
+      const onResearchDetails = (details) => {
+        if (!current() || activeRequest.action !== "deep-research" || activeRequest.researchState !== "searching"
+          || activeRequest.researchDetailsReceived || activeRequest.sourcesReceived || session.snapshot().segments.length) return false;
+        try {
+          if (!session.attachResearchDetails(details)) return false;
+        } catch { return false; }
+        activeRequest.researchDetailsReceived = true;
+        return true;
+      };
       const request = {
         requestId, message, history, allowMultiple, actionMode: activeRequest.actionMode,
-        signal: controller.signal, onTextDelta, onSegment, onReaction, onAction, onResearch, onResearchProgress, onSources,
+        signal: controller.signal, onTextDelta, onSegment, onReaction, onAction, onResearch, onResearchProgress, onResearchDetails, onSources,
         onActivity: (event) => current() && reportActivity(requestId, event),
         reactionQuestion: METABLOOM_REACTION_QUESTION,
         resolveDecision: resolveMetabloomDecision,
@@ -1932,6 +2002,7 @@ const OrbSection = ({
             <div className="metabloom-chat__message-list">
               {messages.map((message, messageIndex) => {
                 const sources = message.role === "assistant" ? parseMetabloomResearchSources(message.sources) : null;
+                const researchDetails = message.role === "assistant" ? parseMetabloomResearchReport(message.researchDetails) : null;
                 return (
                 <React.Fragment key={message.id}>
                   {statusBeforeReply && messageIndex === messages.length - 1 && researchStatus}
@@ -1963,7 +2034,7 @@ const OrbSection = ({
                             <p data-segment-index={index} data-reaction-active={activeReaction?.messageId === message.id && activeReaction?.index === index ? "true" : "false"}>{renderMetabloomResearchText(segment.response, sources)}</p>
                           </React.Fragment>
                         ))
-                        : <p>{renderMetabloomResearchText(message.content, sources)}</p>}
+                        : message.content ? <p>{renderMetabloomResearchText(message.content, sources)}</p> : null}
                       {sources && message.status === "complete" && (
                         <div className="metabloom-chat__sources" role="group" aria-label="Sources for this answer">
                           <span className="metabloom-chat__sources-heading">Sources</span>
@@ -1977,8 +2048,15 @@ const OrbSection = ({
                           </ol>
                         </div>
                       )}
+                      {researchDetails && (
+                        <>
+                          {message.status === "error" && <p className="metabloom-chat__research-notice">Research completed. The short answer could not be prepared.</p>}
+                          {message.status === "interrupted" && <p className="metabloom-chat__research-notice">Research completed. The short answer was stopped.</p>}
+                          <MetabloomFullResearch report={researchDetails} />
+                        </>
+                      )}
                       {message.status === "streaming" && <span className="metabloom-chat__stream-status">Receiving response…</span>}
-                      {["interrupted", "error"].includes(message.status) && <span className="metabloom-chat__stream-status">Response incomplete</span>}
+                      {["interrupted", "error"].includes(message.status) && message.content && <span className="metabloom-chat__stream-status">{researchDetails ? "Short answer incomplete" : "Response incomplete"}</span>}
                       {message.source === "preview" && (
                         <span className="metabloom-chat__preview-label">
                           Preview response

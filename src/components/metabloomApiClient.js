@@ -1,4 +1,4 @@
-import { MAX_METABLOOM_STREAM_BYTES, createMetabloomSegmentStreamDecoder, parseMetabloomChatEnvelope } from "./metabloomEmoteProtocol";
+import { MAX_METABLOOM_RESEARCH_STREAM_BYTES, createMetabloomSegmentStreamDecoder, parseMetabloomChatEnvelope } from "./metabloomEmoteProtocol";
 import { METABLOOM_ACTION_MODES } from "./metabloomDecisionMapping";
 import { METABLOOM_REQUEST_ERROR_MESSAGES, parseMetabloomRequestError, parseMetabloomRequestRef, getMetabloomApiErrorMessage } from "./metabloomRequestErrors";
 
@@ -30,6 +30,7 @@ export const requestMetabloomResponse = async ({
   onAction,
   onResearch,
   onResearchProgress,
+  onResearchDetails,
   onSources,
   optional = false,
   requestId,
@@ -57,7 +58,8 @@ export const requestMetabloomResponse = async ({
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json", Accept: "application/x-ndjson" },
-      body: JSON.stringify({ actionMode, allowMultiple: allowMultiple === true, streamText: true, streamResearchProgress: true, history, message, requestId }),
+      body: JSON.stringify({ actionMode, allowMultiple: allowMultiple === true, streamText: true,
+        streamResearchProgress: true, streamResearchDetails: true, history, message, requestId }),
       signal: controller.signal,
     });
     const contentType = response.headers?.get?.("content-type") || "";
@@ -67,6 +69,7 @@ export const requestMetabloomResponse = async ({
     let streamError = null;
     const decoder = createMetabloomSegmentStreamDecoder({
       allowMultiple,
+      allowResearchDetails: true,
       onError: (error) => {
         const code = error.code || "invalid_response";
         streamError = new MetabloomApiError(getMetabloomApiErrorMessage(code), {
@@ -89,6 +92,10 @@ export const requestMetabloomResponse = async ({
       onResearchProgress: (progress) => {
         if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
         onResearchProgress?.(progress);
+      },
+      onResearchDetails: (report) => {
+        if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
+        onResearchDetails?.(report);
       },
       onSources: (sources) => {
         if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
@@ -120,7 +127,8 @@ export const requestMetabloomResponse = async ({
         if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
         if (chunk.done) break;
         bytes += chunk.value.byteLength;
-        if (bytes > (response.ok ? (isStream ? MAX_METABLOOM_STREAM_BYTES : MAX_RESPONSE_BYTES) : 4096)) throw new MetabloomApiError("Response exceeded its size limit.");
+        // The decoder enforces the ordinary 320k cap until searching is verified.
+        if (bytes > (response.ok ? (isStream ? MAX_METABLOOM_RESEARCH_STREAM_BYTES : MAX_RESPONSE_BYTES) : 4096)) throw new MetabloomApiError("Response exceeded its size limit.");
         const part = textDecoder.decode(chunk.value, { stream: true });
         if (response.ok && isStream) {
           if (!decoder.push(part)) throw streamError;
@@ -130,7 +138,7 @@ export const requestMetabloomResponse = async ({
       if (response.ok && isStream) decoder.push(tail); else text += tail;
     } else if (typeof response.text === "function") {
       text = await response.text();
-      if (text.length > (response.ok ? (isStream ? MAX_METABLOOM_STREAM_BYTES : 24000) : 4096)) throw new MetabloomApiError("Response exceeded its size limit.");
+      if (text.length > (response.ok ? (isStream ? MAX_METABLOOM_RESEARCH_STREAM_BYTES : 24000) : 4096)) throw new MetabloomApiError("Response exceeded its size limit.");
       if (response.ok && isStream) decoder.push(text);
     } else if (!response.ok && typeof response.json === "function") {
       // Minimal test transports; real HTTP responses use the bounded reader above.

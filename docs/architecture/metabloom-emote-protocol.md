@@ -67,6 +67,36 @@ after confirmed searching and before answer text. They replace the status detail
 and never renew the absolute deadline or create an answer bubble. Reasoning text,
 private research notes and provider objects are not forwarded as progress.
 
+The current client also sends `streamResearchDetails: true`. This independent
+capability preserves a completed research report before the short writer runs.
+Between `research: searching` and the ordinary `sources` record, the server sends:
+
+```json
+{"type":"research_report_sources","sources":[{"id":1,"title":"Official source","url":"https://example.com/source"}]}
+{"type":"research_report_delta","index":0,"delta":"The completed research finding. [1]"}
+{"type":"research_report_complete"}
+```
+
+Source batches contain at most eight records with consecutive global IDs; every
+source batch precedes the first text chunk. Text chunks have consecutive zero-based
+indices and at most 2,048 UTF-16 characters. The entire exact `{ notes, sources }`
+report must pass the shared 1 MiB serialized UTF-8 JSON boundary before
+`onResearchDetails(report)` fires once. Partial reports, gaps, duplicate completion,
+unsafe sources, and records after ordinary sources or text cannot become reports.
+The report has no eight-source or 64-source presentation cutoff.
+
+Individual records retain the 24,000-character limit. Confirmed, opted-in research
+permits a 2 MiB stream aggregate; ordinary streams retain their 320,000-byte limit.
+The full report stays separate from the normal answer envelope, its eight-source
+table, and future conversation history. Cached clients receive the established
+short-answer event vocabulary and a bounded writer view without report records.
+
+The UI retains the completed report in a collapsed **Full research** disclosure,
+with its own clickable citations and paginated source list. It remains behind the
+existing scene gate until surfacing finishes or a hidden tab skips the scene.
+A later writer failure preserves this completed report and labels the short-answer
+failure separately. Invalid or incomplete reports never receive that fallback.
+
 A terminal failure uses an exact record such as:
 
 ```json
