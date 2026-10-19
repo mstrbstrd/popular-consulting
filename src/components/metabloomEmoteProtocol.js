@@ -9,10 +9,13 @@ const {
 } = require("./metabloomEmoteLibrary");
 const { METABLOOM_ACTION_IDS } = require("./metabloomDecisionMapping");
 const { parseMetabloomResearchSources } = require("./metabloomResearchSources");
+const { METABLOOM_STREAM_ERROR_CODES, parseMetabloomRequestError, getMetabloomApiErrorMessage } = require("./metabloomRequestErrors");
 
 const MAX_SERIALIZED_CHARS = 24000;
 // Allow bounded NDJSON framing even when all 4,800 text characters arrive singly.
 const MAX_METABLOOM_STREAM_BYTES = 320000;
+const MAX_METABLOOM_RESEARCH_PROGRESS_CHARS = 200;
+const MAX_METABLOOM_RESEARCH_PROGRESS_EVENTS = 24;
 const isPlainObject = (value) => {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const prototype = Object.getPrototypeOf(value);
@@ -97,6 +100,7 @@ const createMetabloomSegmentStreamDecoder = ({
   onReaction,
   onAction,
   onResearch,
+  onResearchProgress,
   onSources,
 } = {}) => {
   const limit = Number.isInteger(maxBufferChars) && maxBufferChars > 0
@@ -106,6 +110,7 @@ const createMetabloomSegmentStreamDecoder = ({
   let totalResponseChars = 0;
   let completed = false;
   let errorMessage = "";
+  let errorDetails = null;
   let version = null;
   let inputEmote = null;
   let responseEmote = null;
@@ -113,12 +118,17 @@ const createMetabloomSegmentStreamDecoder = ({
   let partialResponse = null;
   let action = null;
   let researchState = null;
+  let researchSummary = null;
+  let researchProgressCount = 0;
   let sources = null;
   const segments = [];
-  const fail = (message) => {
+  const fail = (message, details = null) => {
     if (!errorMessage) {
       errorMessage = message;
-      onError?.(new Error(message));
+      errorDetails = details ? { ...details } : null;
+      const error = new Error(message);
+      if (errorDetails) Object.assign(error, errorDetails);
+      onError?.(error);
     }
     return false;
   };
@@ -128,6 +138,13 @@ const createMetabloomSegmentStreamDecoder = ({
     if (completed) return fail("Metabloom stream continued after completion.");
     let event;
     try { event = JSON.parse(line); } catch { return fail("Malformed stream JSON."); }
+    if (event?.type === "error") {
+      const legacy = exactKeys(event, ["type", "code"]) && event.code === "stream_interrupted";
+      if ((!legacy && !exactKeys(event, ["type", "code", "requestRef"]))
+        || !METABLOOM_STREAM_ERROR_CODES.includes(event.code)) return fail("Invalid stream error.");
+      const details = parseMetabloomRequestError({ code: event.code, ...(!legacy ? { requestRef: event.requestRef } : {}) });
+      return details ? fail(getMetabloomApiErrorMessage(details.code), details) : fail("Invalid stream error.");
+    }
     if (event?.type === "action") {
       if (!exactKeys(event, ["type", "action"]) || !METABLOOM_ACTION_IDS.includes(event.action)
         || version !== METABLOOM_CHAT_PROTOCOL_VERSION || action !== null
@@ -147,6 +164,21 @@ const createMetabloomSegmentStreamDecoder = ({
       }
       researchState = event.state;
       onResearch?.({ state: researchState });
+      return true;
+    }
+    if (event?.type === "research_progress") {
+      if (!exactKeys(event, ["type", "summary"]) || version !== METABLOOM_CHAT_PROTOCOL_VERSION
+        || action !== "deep-research" || !["searching", "synthesizing"].includes(researchState)
+        || segments.length || partialResponse !== null || textComplete
+        || typeof event.summary !== "string" || !event.summary.trim()
+        || event.summary.length > MAX_METABLOOM_RESEARCH_PROGRESS_CHARS || event.summary !== event.summary.trim()
+        || Array.from(event.summary).some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127)
+        || researchProgressCount >= MAX_METABLOOM_RESEARCH_PROGRESS_EVENTS) {
+        return fail("Invalid or out-of-order research progress.");
+      }
+      researchProgressCount += 1;
+      researchSummary = event.summary;
+      onResearchProgress?.({ summary: researchSummary });
       return true;
     }
     if (event?.type === "sources") {
@@ -261,15 +293,17 @@ const createMetabloomSegmentStreamDecoder = ({
       if (!errorMessage && buffer.trim()) consume(buffer);
       buffer = "";
       if (!errorMessage && !completed) fail("Stream ended before its completion record.");
-      return errorMessage ? { ok: false, error: errorMessage } : { ok: true, value: envelope() };
+      return errorMessage ? { ok: false, error: errorMessage, ...errorDetails } : { ok: true, value: envelope() };
     },
     getState() {
       return { bufferLength: buffer.length, completed, failed: Boolean(errorMessage),
         nextIndex: segments.length, segments: segments.map(cloneChatSegment), version,
         inputEmote, responseEmote, textComplete, action, researchState,
+        researchSummary, researchProgressCount,
         sources: cloneResearchSources(sources) };
     },
   });
 };
 
-module.exports = { MAX_METABLOOM_STREAM_BYTES, parseMetabloomEmoteEnvelope, parseMetabloomChatEnvelope, createMetabloomSegmentStreamDecoder };
+module.exports = { MAX_METABLOOM_STREAM_BYTES, MAX_METABLOOM_RESEARCH_PROGRESS_CHARS, MAX_METABLOOM_RESEARCH_PROGRESS_EVENTS,
+  parseMetabloomEmoteEnvelope, parseMetabloomChatEnvelope, createMetabloomSegmentStreamDecoder };

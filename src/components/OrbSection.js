@@ -23,13 +23,14 @@ import {
   parseMetabloomModelResponse,
 } from "./metabloomResponseContract";
 import { METABLOOM_DEMO_PROMPTS, METABLOOM_DEMOS } from "./metabloomDemoResponses";
-import { parseMetabloomChatEnvelope, createMetabloomSegmentStreamDecoder } from "./metabloomEmoteProtocol";
+import { parseMetabloomChatEnvelope, createMetabloomSegmentStreamDecoder, MAX_METABLOOM_RESEARCH_PROGRESS_CHARS, MAX_METABLOOM_RESEARCH_PROGRESS_EVENTS } from "./metabloomEmoteProtocol";
 import { resolveMetabloomEmote, METABLOOM_PROTOCOL_VERSION, METABLOOM_EMOTE_IDS, METABLOOM_EMOTE_RESPONSE_SCHEMA } from "./metabloomEmoteLibrary";
 import { METABLOOM_ACTIVITIES, METABLOOM_ACTIONS as METABLOOM_SCENE_ACTIONS, METABLOOM_REACTION_RECIPES, METABLOOM_DECISION_SCHEMA, METABLOOM_REACTION_QUESTION, resolveMetabloomDecision, parseMetabloomActivity } from "./metabloomDecisionMapping";
 import { createMetabloomReactionPlayer } from "./metabloomReactionPlayer";
 import { createMetabloomReplySession } from "./metabloomReplySession";
 import { createMetabloomResearchDisplayGate } from "./metabloomResearchDisplayGate";
-import { METABLOOM_RESEARCH_TIMEOUT_MS, requestMetabloomResponse } from "./metabloomApiClient";
+import { METABLOOM_RESEARCH_TIMEOUT_MS, getMetabloomApiErrorMessage, requestMetabloomResponse } from "./metabloomApiClient";
+import { METABLOOM_REQUEST_ERROR_MESSAGES, parseMetabloomRequestRef } from "./metabloomRequestErrors";
 import { parseMetabloomResearchSources } from "./metabloomResearchSources";
 import { streamMetabloomDemoResponse } from "./metabloomDemoStream";
 import "./OrbSection.css";
@@ -442,6 +443,7 @@ const OrbSection = ({
   const [activityPreview, setActivityPreview] = React.useState(false);
   const [researchPhase, setResearchPhase] = React.useState(null);
   const [researchProgress, setResearchProgress] = React.useState(null);
+  const [researchSummary, setResearchSummary] = React.useState(null);
   const [readingEarlier, setReadingEarlier] = React.useState(false);
   const [composerFocused, setComposerFocused] = React.useState(false);
   const [touchComposer, setTouchComposer] = React.useState(() =>
@@ -501,6 +503,7 @@ const OrbSection = ({
     activity: activityId,
     researchPhase,
     researchProgress,
+    researchSummary,
     sceneAction,
     scenePhase,
     theme: METABLOOM_ACTIVITIES[activityId].theme,
@@ -673,8 +676,11 @@ const OrbSection = ({
     replyDisplayRef.current?.gate.cancel(reason);
     replyDisplayRef.current = null;
     replyRef.current = null;
-    updateStateSnapshot({ researchProgress: null });
-    if (mountedRef.current) setResearchProgress(null);
+    updateStateSnapshot({ researchProgress: null, researchSummary: null });
+    if (mountedRef.current) {
+      setResearchProgress(null);
+      setResearchSummary(null);
+    }
   }, [cancelRequestScene, setActivity, updateStateSnapshot]);
 
   const cancelSequenceTimer = React.useCallback(() => {
@@ -1036,13 +1042,20 @@ const OrbSection = ({
     [publishMessages],
   );
 
-  const failReply = React.useCallback((session) => {
+  const failReply = React.useCallback((session, error) => {
     if (replyRef.current !== session || session.closed) return false;
+    const code = typeof error?.code === "string" && Object.prototype.hasOwnProperty.call(METABLOOM_REQUEST_ERROR_MESSAGES, error.code)
+      ? error.code : "stream_interrupted";
+    const requestRef = parseMetabloomRequestRef(error?.requestRef);
+    const status = Number.isInteger(error?.status) && error.status >= 100 && error.status <= 599 ? error.status : null;
+    const hasVisibleReply = messagesRef.current.some((message) => message.role === "assistant" && message.status === "streaming");
+    // Never expose an adapter/provider message or request content in diagnostics.
+    console.error("[Metabloom] Request failed", { code, requestRef, status });
     cancelResponse("error");
     updateStateSnapshot({ pending: false, responseSource: "error" });
     setPending(false);
     setResponseSource("error");
-    setErrorMessage("The response stream was interrupted. Any visible reply is incomplete. Try again or use a local demo.");
+    setErrorMessage(`${getMetabloomApiErrorMessage(code)}${hasVisibleReply ? " Any visible reply is incomplete." : ""} Code: ${code}.${requestRef ? ` Reference: ${requestRef}.` : ""}`);
     return false;
   }, [cancelResponse, updateStateSnapshot]);
 
@@ -1081,7 +1094,7 @@ const OrbSection = ({
         const request = activeRequestRef.current;
         // Custom adapters may return only a completed envelope. An explicit
         // selection still owns its scene and display before that payload appears.
-        if (!gate.enabled && !gate.hasContent && request?.session === session && request.actionMode === "deep-research") {
+        if (!gate.enabled && !gate.hasContent && request?.session === session && request.actionMode === "deep-research" && !request.skipScene) {
           request.actionReceived = true;
           beginRequestScene("deep-research", session);
         }
@@ -1117,7 +1130,7 @@ const OrbSection = ({
         performAction({ action: "thinking", intensity: 0.3 * expressivenessRef.current / 0.8, talking: false }, { pulse: false });
       }
     }, 650);
-    previewTimerRef.current = window.setTimeout(() => failReply(session), RESPONSE_TIMEOUT_MS);
+    previewTimerRef.current = window.setTimeout(() => failReply(session, { code: "answer_timeout" }), RESPONSE_TIMEOUT_MS);
     return session;
   }, [appendMessage, beginRequestScene, cancelResponse, clearSequence, completeActivity, completeRequestScene, failReply, performAction, reactionPlayer, publishMessages, updateStateSnapshot]);
 
@@ -1126,9 +1139,10 @@ const OrbSection = ({
     activeRequestRef.current = null;
     requestAbortRef.current = null;
     requestTokenRef.current += 1;
-    updateStateSnapshot({ pending: false, researchProgress: null });
+    updateStateSnapshot({ pending: false, researchProgress: null, researchSummary: null });
     setPending(false);
     setResearchProgress(null);
+    setResearchSummary(null);
   }, [updateStateSnapshot]);
 
   const finishReply = React.useCallback((session, payload) => {
@@ -1405,7 +1419,7 @@ const OrbSection = ({
       const requestToken = ++requestTokenRef.current;
       const requestId = `${mountIdRef.current}-${requestToken}`;
       const activeRequest = { claimed: false, requestId, requestToken, allowMultiple,
-        actionMode: deepResearch ? "deep-research" : "auto", session, startedAt: Date.now() };
+        actionMode: deepResearch ? "deep-research" : "auto", skipScene: document.hidden, session, startedAt: Date.now() };
       activeRequestRef.current = activeRequest;
       const controller = new AbortController();
       requestAbortRef.current = controller;
@@ -1439,7 +1453,7 @@ const OrbSection = ({
           || activeRequest.actionReceived || session.snapshot().segments.length) return false;
         activeRequest.actionReceived = true;
         activeRequest.action = action;
-        return action === "none" || beginRequestScene(action, session);
+        return action === "none" || activeRequest.skipScene || beginRequestScene(action, session);
       };
       const onResearch = (research) => {
         if (!current() || !isPlainObject(research) || Object.keys(research).length !== 1
@@ -1449,11 +1463,25 @@ const OrbSection = ({
           // Confirmed research gets one absolute budget. Progress cannot renew it.
           window.clearTimeout(previewTimerRef.current);
           const remaining = Math.max(0, activeRequest.startedAt + METABLOOM_RESEARCH_TIMEOUT_MS - Date.now());
-          previewTimerRef.current = window.setTimeout(() => failReply(session), remaining);
+          previewTimerRef.current = window.setTimeout(() => failReply(session, { code: "research_timeout" }), remaining);
         } else if (research.state !== "synthesizing" || activeRequest.researchState !== "searching" || !activeRequest.sourcesReceived) return false;
         activeRequest.researchState = research.state;
-        updateStateSnapshot({ researchProgress: research.state });
+        updateStateSnapshot({ researchProgress: research.state, researchSummary: null });
         setResearchProgress(research.state);
+        setResearchSummary(null);
+        return true;
+      };
+      const onResearchProgress = (progress) => {
+        if (!current() || !isPlainObject(progress) || Object.keys(progress).length !== 1
+          || !Object.prototype.hasOwnProperty.call(progress, "summary")
+          || activeRequest.action !== "deep-research" || !["searching", "synthesizing"].includes(activeRequest.researchState)
+          || session.snapshot().segments.length || typeof progress.summary !== "string" || !progress.summary.trim()
+          || progress.summary !== progress.summary.trim() || progress.summary.length > MAX_METABLOOM_RESEARCH_PROGRESS_CHARS
+          || Array.from(progress.summary).some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127)
+          || (activeRequest.researchProgressCount || 0) >= MAX_METABLOOM_RESEARCH_PROGRESS_EVENTS) return false;
+        activeRequest.researchProgressCount = (activeRequest.researchProgressCount || 0) + 1;
+        updateStateSnapshot({ researchSummary: progress.summary });
+        setResearchSummary(progress.summary);
         return true;
       };
       const onSources = (sources) => {
@@ -1465,7 +1493,7 @@ const OrbSection = ({
       };
       const request = {
         requestId, message, history, allowMultiple, actionMode: activeRequest.actionMode,
-        signal: controller.signal, onTextDelta, onSegment, onReaction, onAction, onResearch, onSources,
+        signal: controller.signal, onTextDelta, onSegment, onReaction, onAction, onResearch, onResearchProgress, onSources,
         onActivity: (event) => current() && reportActivity(requestId, event),
         reactionQuestion: METABLOOM_REACTION_QUESTION,
         resolveDecision: resolveMetabloomDecision,
@@ -1481,7 +1509,7 @@ const OrbSection = ({
           // Unconfigured live requests use the same reply, honestly labelled preview.
           publishMessages(messagesRef.current.map((item) => item.status === "streaming" ? { ...item, source: "preview" } : item));
           finishReply(session, payload);
-        }).catch(() => { if (current()) failReply(session); });
+        }).catch((error) => { if (current()) failReply(session, error); });
       };
       if (demo) { runDemo(); return true; }
       const claimRequest = () => {
@@ -1511,7 +1539,7 @@ const OrbSection = ({
         if (!payload && !session.snapshot().segments.length) { runDemo(); return; }
         if (parseMetabloomChatEnvelope(payload, { allowMultiple }).ok) finishReply(session, payload);
         else receiveModelResponse(payload, { requestId, source: "model" });
-      }).catch(() => { if (current()) failReply(session); });
+      }).catch((error) => { if (current()) failReply(session, error); });
       return true;
     },
     [allowEmoteChanges, appendMessage, beginReply, beginRequestScene, cancelResponse, deepResearch, failReply, finishReply, isActive, publishMessages, reactionPlayer, receiveModelResponse, reportActivity, updateStateSnapshot],
@@ -1559,11 +1587,11 @@ const OrbSection = ({
   React.useEffect(() => {
     const handleVisibility = () => {
       if (document.hidden) {
-        if (replyDisplayRef.current?.gate.blocked) {
-          stop();
-          setErrorMessage("The response was interrupted when this page was hidden. Send another message to continue.");
-        }
+        // A hidden tab may pause animation frames. Skip its scene without
+        // cancelling the request or discarding the bounded answer buffer.
+        if (activeRequestRef.current) activeRequestRef.current.skipScene = true;
         cancelRequestScene();
+        replyDisplayRef.current?.gate.release();
         cancelUnderHood();
         reactionPlayer.cancel();
         setActiveReaction(null);
@@ -1571,7 +1599,7 @@ const OrbSection = ({
     };
     document.addEventListener("visibilitychange", handleVisibility);
     return () => document.removeEventListener("visibilitychange", handleVisibility);
-  }, [cancelRequestScene, cancelUnderHood, reactionPlayer, stop]);
+  }, [cancelRequestScene, cancelUnderHood, reactionPlayer]);
 
   React.useEffect(() => {
     onConversationStateChange?.(conversationStarted);
@@ -1809,11 +1837,13 @@ const OrbSection = ({
   }, []);
 
   const hasStreamingReply = messages.some((message) => message.status === "streaming");
+  const showResearchStatus = Boolean(visibleResearchPhase || (pending && researchProgress && !hasStreamingReply));
   const statusText = visibleUnderHoodPhase
     ? (visibleUnderHoodPhase === "seam" ? "Opening the seam..." : visibleUnderHoodPhase === "closing" ? "Sealing the seam..." : `Under the hood · Forward Pass ${requestScene ? "scene" : "preview"}`)
     : visibleResearchPhase === "surfacing" ? "Surfacing..." : scenePhase === "think" ? "Thinking"
     : sceneAction === "deep-research" ? "Diving deep..." : activityId !== "idle"
     ? (activityPreview ? "Research scene preview" : METABLOOM_ACTIVITIES[activityId].label)
+    : showResearchStatus ? "Researching"
     : pending
     ? (hasStreamingReply ? "Responding" : "Thinking")
     : sequenceId
@@ -1825,7 +1855,7 @@ const OrbSection = ({
           : activeReaction
             ? resolveMetabloomEmote(activeReaction.emote)?.label
             : composerFocused ? "Listening" : "Here with you";
-  const researchStatus = visibleResearchPhase ? <MetabloomResearchStatus phase={visibleResearchPhase} preview={visibleActivityPreview} progress={researchProgress} /> : null;
+  const researchStatus = showResearchStatus ? <MetabloomResearchStatus phase={visibleResearchPhase} preview={visibleActivityPreview} progress={researchProgress} summary={researchSummary} /> : null;
   const statusBeforeReply = visibleResearchPhase === "surfacing" && !visibleActivityPreview && messages[messages.length - 1]?.role === "assistant";
   const showHoodStatus = sceneAction === "under-the-hood";
   return (
@@ -1881,7 +1911,7 @@ const OrbSection = ({
           <div
             className="metabloom-chat__presence"
             role="status"
-            aria-live={visibleResearchPhase || showHoodStatus ? "off" : "polite"}
+            aria-live={showResearchStatus || showHoodStatus ? "off" : "polite"}
           >
             <span className="metabloom-chat__presence-dot" aria-hidden="true" />
             <span>Metabloom</span>
@@ -1980,7 +2010,7 @@ const OrbSection = ({
 
               {conversationStarted && !statusBeforeReply && researchStatus}
               {showHoodStatus && <div className="metabloom-chat__scene-status" role="status" aria-label="Scene progress" aria-live="polite" aria-atomic="true">{statusText}</div>}
-              {pending && !hasStreamingReply && !visibleResearchPhase && !showHoodStatus && (
+              {pending && !hasStreamingReply && !showResearchStatus && !showHoodStatus && (
                 <article
                   className="metabloom-chat__message metabloom-chat__message--assistant"
                   aria-label={`Metabloom is ${statusText.toLowerCase()}`}

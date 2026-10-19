@@ -1,4 +1,4 @@
-const { createHmac } = require("node:crypto");
+const { createHmac, randomBytes } = require("node:crypto");
 const { once } = require("node:events");
 const metabloomAuth = require("../server/metabloomAuth");
 const { METABLOOM_CHAT_PROTOCOL_VERSION, METABLOOM_EMOTE_IDS, METABLOOM_CHAT_RESPONSE_SCHEMA, buildMetabloomChatSystemPrompt } = require("../src/components/metabloomEmoteLibrary");
@@ -6,6 +6,8 @@ const { METABLOOM_ACTION_MODES } = require("../src/components/metabloomDecisionM
 const { decideMetabloomReaction, decideMetabloomInput } = require("../server/jevReactionService");
 const { streamMetabloomProvider } = require("../server/metabloomProviderStream");
 const { conductMetabloomResearch, validateMetabloomResearchCitations } = require("../server/metabloomResearch");
+const { createMetabloomProviderError, readMetabloomProviderError, providerRequestId } = require("../server/metabloomProviderErrors");
+const { METABLOOM_STREAM_ERROR_CODES } = require("../src/components/metabloomRequestErrors");
 const MAX_BODY_BYTES = 24000;
 const localBuckets = new Map();
 // Atomic quotas across serverless instances, including a project-wide cost ceiling.
@@ -38,10 +40,11 @@ const parseBody = (request) => {
     const text = typeof request.body === "string" ? request.body : JSON.stringify(request.body);
     if (typeof text !== "string" || Buffer.byteLength(text, "utf8") > MAX_BODY_BYTES) return null;
     const value = JSON.parse(text);
-    if (!exactKeys(value, ["message"], ["requestId", "history", "allowMultiple", "streamText", "actionMode"])) return null;
+    if (!exactKeys(value, ["message"], ["requestId", "history", "allowMultiple", "streamText", "streamResearchProgress", "actionMode"])) return null;
     if (typeof value.message !== "string" || !value.message.trim() || value.message.length > 1600) return null;
     if (value.allowMultiple !== undefined && typeof value.allowMultiple !== "boolean") return null;
     if (value.streamText !== undefined && typeof value.streamText !== "boolean") return null;
+    if (value.streamResearchProgress !== undefined && typeof value.streamResearchProgress !== "boolean") return null;
     if (value.actionMode !== undefined && !METABLOOM_ACTION_MODES.includes(value.actionMode)) return null;
     if (value.requestId !== undefined && (typeof value.requestId !== "string" || !/^[a-zA-Z0-9-]{1,160}$/.test(value.requestId))) return null;
     const history = value.history === undefined ? [] : value.history;
@@ -132,18 +135,23 @@ const handler = async (request, response) => {
   if (!/^application\/json(?:\s*;|$)/i.test(request.headers?.["content-type"] || "")) return sendJson(response, 415, { code: "invalid_content_type" });
   const body = parseBody(request);
   if (!body) return sendJson(response, 400, { code: "invalid_request" });
+  const requestRef = randomBytes(6).toString("hex");
+  response.setHeader("X-Metabloom-Request-Ref", requestRef);
   if (!configured(request)) return sendJson(response, 503, { code: "not_configured" });
   const controller = new AbortController();
   const startedAt = Date.now();
-  let timeout = setTimeout(() => controller.abort(), 25000);
+  let deadlineExpired = false;
+  const expire = () => { deadlineExpired = true; controller.abort(); };
+  let timeout = setTimeout(expire, 25000);
   const armDeadline = (deadline) => {
     clearTimeout(timeout);
-    timeout = setTimeout(() => controller.abort(), Math.max(1, deadline - Date.now()));
+    timeout = setTimeout(expire, Math.max(1, deadline - Date.now()));
   };
   const onClose = () => { if (!response.writableEnded) controller.abort(); };
   response.on?.("close", onClose);
   let stage = "quota";
   let streaming = false;
+  let upstreamRequestId;
   let initialReactionPromise = Promise.resolve();
   try {
     if (!(await consumeRateLimit(request, controller.signal))) {
@@ -190,13 +198,20 @@ const handler = async (request, response) => {
       await initialReactionPromise;
       await sendStreamEvent({ type: "research", state: "searching" });
       stage = "research";
-      research = await conductMetabloomResearch({ message: body.message, history: body.history, signal: controller.signal });
+      research = await conductMetabloomResearch({
+        message: body.message, history: body.history, signal: controller.signal, requestRef,
+        onProgress: body.streamResearchProgress === true
+          ? (progress) => sendStreamEvent({ type: "research_progress", ...progress }) : undefined,
+      });
       if (controller.signal.aborted || response.destroyed || request.aborted) throw new Error("Cancelled");
       await sendStreamEvent({ type: "sources", sources: research.sources });
       await sendStreamEvent({ type: "research", state: "synthesizing" });
+      if (body.streamResearchProgress === true) {
+        await sendStreamEvent({ type: "research_progress", summary: `Writing an answer from ${research.sources.length} cited ${research.sources.length === 1 ? "source" : "sources"}.` });
+      }
       armDeadline(Math.min(startedAt + 175000, Date.now() + 45000));
     }
-    stage = "provider";
+    stage = "answer_request";
     const schema = JSON.parse(JSON.stringify(METABLOOM_CHAT_RESPONSE_SCHEMA));
     schema.properties.segments.maxItems = body.allowMultiple ? 4 : 1;
     const instructions = buildMetabloomChatSystemPrompt({ allowMultiple: body.allowMultiple, presentationAction, researchEnabled: Boolean(research) });
@@ -215,10 +230,9 @@ const handler = async (request, response) => {
         text: { format: { type: "json_schema", name: "metabloom_chat_response", strict: true, schema } },
       }),
     });
-    if (!upstream.ok) {
-      await upstream.body?.cancel?.();
-      throw new Error("Chat provider unavailable");
-    }
+    upstreamRequestId = providerRequestId(upstream);
+    if (!upstream.ok) throw await readMetabloomProviderError(upstream, controller.signal);
+    stage = "answer";
     const finalReply = await streamMetabloomProvider(upstream, {
       textOnly: true, allowMultiple: body.allowMultiple,
       signal: controller.signal,
@@ -256,15 +270,30 @@ const handler = async (request, response) => {
     });
     await sendStreamEvent({ type: "emote", phase: "response", emote: finalEmote });
     response.end(JSON.stringify({ type: "done", version: METABLOOM_CHAT_PROTOCOL_VERSION }) + "\n");
-  } catch {
-    const timedOut = controller.signal.aborted;
+  } catch (error) {
+    const disconnected = !deadlineExpired && (response.destroyed || request.aborted || controller.signal.aborted);
+    const known = METABLOOM_STREAM_ERROR_CODES.includes(error?.code);
+    const failure = deadlineExpired
+      ? createMetabloomProviderError(stage === "research" ? "research_timeout" : "answer_timeout", "request_deadline")
+      : known ? error : createMetabloomProviderError(
+        stage === "quota" ? "quota_unavailable" : stage === "answer" ? "answer_invalid" : "provider_unavailable",
+        stage === "answer" ? "answer_envelope_invalid" : "request_failed",
+      );
+    const log = disconnected ? console.info : console.error;
+    log(JSON.stringify({ event: disconnected ? "metabloom_request_cancelled" : "metabloom_request_failed", requestRef, stage,
+      code: failure.code, reason: failure.reason, durationMs: Date.now() - startedAt,
+      ...(failure.providerStatus ? { providerStatus: failure.providerStatus } : {}),
+      ...(failure.providerCode ? { providerCode: failure.providerCode } : {}),
+      ...(failure.providerParam ? { providerParam: failure.providerParam } : {}),
+      ...(failure.providerRequestId || upstreamRequestId ? { providerRequestId: failure.providerRequestId || upstreamRequestId } : {}),
+    }));
     controller.abort();
     await initialReactionPromise.catch(() => {});
     if (response.destroyed) return;
     // Once bytes have been sent, never append a JSON error to a successful
     // envelope or claim completion. Preserve the visible prefix as incomplete.
-    if (streaming) return response.end(JSON.stringify({ type: "error", code: "stream_interrupted" }) + "\n");
-    return sendJson(response, timedOut ? 504 : 502, { code: stage === "quota" ? "quota_unavailable" : "upstream_unavailable" });
+    if (streaming) return response.end(JSON.stringify({ type: "error", code: failure.code, requestRef }) + "\n");
+    return sendJson(response, deadlineExpired ? 504 : 502, { code: failure.code, requestRef });
   } finally {
     clearTimeout(timeout);
     response.off?.("close", onClose);

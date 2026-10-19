@@ -251,7 +251,7 @@ test("a fast completed research response still enters, surfaces, and reveals mul
   expect(state()).toMatchObject({ pending: false, emote: "resolute", researchDisplayPhase: "complete" });
 });
 
-test.each(["stop", "reset", "message", "deactivate", "unmount", "hidden"])("%s cancels a validated but still-revealing research reply", async (operation) => {
+test.each(["stop", "reset", "message", "deactivate", "unmount"])("%s cancels a validated but still-revealing research reply", async (operation) => {
   const { rerender, unmount } = render(<OrbSection />);
   send();
   await tick(0);
@@ -270,10 +270,6 @@ test.each(["stop", "reset", "message", "deactivate", "unmount", "hidden"])("%s c
   if (operation === "unmount") unmount();
   else if (operation === "deactivate") rerender(<OrbSection isActive={false} />);
   else if (operation === "message") send("A fresh request");
-  else if (operation === "hidden") act(() => {
-    Object.defineProperty(document, "hidden", { configurable: true, value: true });
-    document.dispatchEvent(new Event("visibilitychange"));
-  });
   else act(() => operation === "reset" ? window.__orbReset() : window.__orbStop());
   expect(previous.request.signal.aborted).toBe(true);
   act(() => {
@@ -289,6 +285,66 @@ test.each(["stop", "reset", "message", "deactivate", "unmount", "hidden"])("%s c
     expect(state().emote).not.toBe("resolute");
     expect(state().sceneAction).toBe("none");
   }
+});
+
+test.each([
+  ["think", 0],
+  ["diving", 400],
+  ["surfacing", 1600],
+  ["revealing", 3482],
+])("hiding during research %s keeps its completed answer available after returning", async (phase, elapsed) => {
+  render(<OrbSection />);
+  send();
+  await tick(0);
+  const { request, finish } = latest();
+  const answer = "The completed answer remains owned by this request. ".repeat(25).trim();
+  act(() => request.onAction("deep-research"));
+  await act(async () => finish(envelope(answer)));
+  await tick(elapsed);
+  expect(state().pending).toBe(true);
+  act(() => {
+    Object.defineProperty(document, "hidden", { configurable: true, value: true });
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  expect(request.signal.aborted).toBe(false);
+  expect(state().sceneAction).toBe("none");
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  // Do not run animation frames while hidden, as a suspended tab may not paint.
+  act(() => {
+    Object.defineProperty(document, "hidden", { configurable: true, value: false });
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  await tick(2000);
+  expect(request.signal.aborted).toBe(false);
+  expect(state()).toMatchObject({ pending: false, sceneAction: "none", researchDisplayPhase: "complete" });
+  const replies = screen.getAllByRole("article", { name: "Metabloom message" });
+  expect(replies).toHaveLength(1);
+  expect(replies[0]).toHaveTextContent(answer);
+  expect(replies[0]).toHaveAttribute("data-stream-status", "complete");
+});
+
+test.each(["late action", "completed adapter response"])("returning to a waiting request does not restart a skipped scene from its %s", async (mode) => {
+  render(<OrbSection />);
+  fireEvent.click(screen.getByRole("checkbox", { name: "Deep Research" }));
+  send();
+  await tick(0);
+  const { request, finish } = latest();
+  act(() => {
+    Object.defineProperty(document, "hidden", { configurable: true, value: true });
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  await tick(1000);
+  act(() => {
+    Object.defineProperty(document, "hidden", { configurable: true, value: false });
+    document.dispatchEvent(new Event("visibilitychange"));
+    if (mode === "late action") expect(request.onAction("deep-research")).toBe(true);
+  });
+  await act(async () => finish(envelope("The requested answer is ready.")));
+  await tick(4000);
+  expect(request.signal.aborted).toBe(false);
+  expect(state()).toMatchObject({ pending: false, sceneAction: "none", scenePhase: null });
+  expect(screen.getByText("The requested answer is ready.")).toBeInTheDocument();
+  expect(mockAvatarHistory.every(({ theme, hood }) => theme === "metabloom" && hood === null)).toBe(true);
 });
 
 test("research final validation still rejects an inconsistent hidden prefix before any text appears", async () => {
@@ -482,7 +538,7 @@ describe.each(["deep-research", "under-the-hood"])("%s request ownership", (acti
     });
     else act(() => operation === "reset" ? window.__orbReset() : window.__orbStop());
     act(() => expect(previous.request.onAction(action)).toBe(false));
-    expect(previous.request.signal.aborted).toBe(operation !== "hidden" || action === "deep-research");
+    expect(previous.request.signal.aborted).toBe(operation !== "hidden");
     if (operation === "hidden") act(() => {
       Object.defineProperty(document, "hidden", { configurable: true, value: false });
       document.dispatchEvent(new Event("visibilitychange"));

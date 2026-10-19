@@ -22,13 +22,14 @@ beforeEach(() => {
   requests = [];
   hiddenDescriptor = Object.getOwnPropertyDescriptor(document, "hidden");
   Object.defineProperty(document, "hidden", { configurable: true, value: false });
-  window.__metabloomRequest = (request) => new Promise((finish) => requests.push({ request, finish }));
+  window.__metabloomRequest = (request) => new Promise((finish, reject) => requests.push({ request, finish, reject }));
 });
 
 afterEach(() => {
   cleanup();
   jest.clearAllTimers();
   jest.useRealTimers();
+  jest.restoreAllMocks();
   window.__metabloomRequest = null;
   if (hiddenDescriptor) Object.defineProperty(document, "hidden", hiddenDescriptor);
   else delete document.hidden;
@@ -89,7 +90,7 @@ test("confirmed research stays submerged through source gathering and reveals ci
   expect(window.__orbMessages().find((message) => message.role === "assistant").sources).toEqual(sources);
 });
 
-test.each(["stop", "replacement", "hidden"])("%s discards held citations and rejects late research metadata", async (operation) => {
+test.each(["stop", "replacement"])("%s discards held citations and rejects late research metadata", async (operation) => {
   render(<OrbSection />);
   send();
   await tick(0);
@@ -97,20 +98,18 @@ test.each(["stop", "replacement", "hidden"])("%s discards held citations and rej
   act(() => {
     previous.request.onAction("deep-research");
     previous.request.onResearch({ state: "searching" });
+    previous.request.onResearchProgress({ summary: "Checked the published research brief." });
     previous.request.onSources(sources);
     previous.request.onResearch({ state: "synthesizing" });
     previous.request.onTextDelta(answer, 0);
   });
   if (operation === "replacement") send("A different question");
-  else if (operation === "hidden") act(() => {
-    Object.defineProperty(document, "hidden", { configurable: true, value: true });
-    document.dispatchEvent(new Event("visibilitychange"));
-  });
   else fireEvent.click(screen.getByRole("button", { name: "Stop response" }));
   expect(previous.request.signal.aborted).toBe(true);
   act(() => {
     expect(previous.request.onResearch({ state: "searching" })).toBe(false);
     expect(previous.request.onSources(sources)).toBe(false);
+    expect(previous.request.onResearchProgress({ summary: "Late research update." })).toBe(false);
     previous.request.onTextDelta("Late answer", 0);
   });
   await act(async () => previous.finish(envelope));
@@ -118,9 +117,227 @@ test.each(["stop", "replacement", "hidden"])("%s discards held citations and rej
   expect(screen.queryByRole("article", { name: "Metabloom message" })).not.toBeInTheDocument();
   expect(screen.queryByRole("link")).not.toBeInTheDocument();
   expect(window.__orbState().researchProgress).toBeNull();
+  expect(window.__orbState().researchSummary).toBeNull();
+});
+
+test("observed progress stays with a backgrounded request and clears when its answer completes", async () => {
+  render(<OrbSection />);
+  send();
+  await tick(0);
+  const { request, finish } = requests[0];
+  act(() => {
+    expect(request.onResearchProgress({ summary: "Too early." })).toBe(false);
+    request.onAction("deep-research");
+    expect(request.onResearchProgress({ summary: "Still too early." })).toBe(false);
+    request.onResearch({ state: "searching" });
+  });
+  await tick(1600);
+  expect(screen.getByRole("status", { name: "Research progress" })).toHaveTextContent("Searching sources");
+  const searchSummary = "Searched for the published evidence and checked example.org.";
+  act(() => expect(request.onResearchProgress({ summary: searchSummary })).toBe(true));
+  expect(screen.getByRole("status", { name: "Research progress" })).toHaveTextContent(searchSummary);
+  expect(screen.getByRole("status", { name: "Research progress" })).not.toHaveTextContent("Searching sources");
+  expect(screen.queryByRole("article", { name: "Metabloom message" })).not.toBeInTheDocument();
+  act(() => {
+    Object.defineProperty(document, "hidden", { configurable: true, value: true });
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  await tick(5000);
+  act(() => {
+    Object.defineProperty(document, "hidden", { configurable: true, value: false });
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  expect(request.signal.aborted).toBe(false);
+  expect(window.__orbState().sceneAction).toBe("none");
+  expect(screen.getByRole("status", { name: "Research progress" })).toHaveTextContent("Researching");
+  expect(screen.getByRole("status", { name: "Research progress" })).toHaveTextContent(searchSummary);
+  act(() => {
+    request.onSources(sources);
+    request.onResearch({ state: "synthesizing" });
+  });
+  expect(screen.getByRole("status", { name: "Research progress" })).toHaveTextContent("Writing a sourced answer");
+  expect(screen.getByRole("status", { name: "Research progress" })).not.toHaveTextContent(searchSummary);
+  act(() => expect(request.onResearchProgress({ summary: "Writing an answer from 1 cited source." })).toBe(true));
+  expect(screen.getByRole("status", { name: "Research progress" })).toHaveTextContent("Writing an answer from 1 cited source.");
+  act(() => {
+    request.onTextDelta(answer, 0);
+    expect(request.onResearchProgress({ summary: "Cannot change status after the answer starts." })).toBe(false);
+  });
+  await act(async () => finish(envelope));
+  await tick(200);
+  expect(screen.getByRole("article", { name: "Metabloom message" })).toHaveTextContent(answer);
+  expect(screen.queryByRole("status", { name: "Research progress" })).not.toBeInTheDocument();
+  expect(window.__orbState()).toMatchObject({ pending: false, researchProgress: null, researchSummary: null });
+});
+
+test("adapter progress accepts only bounded plain summaries and limits updates", async () => {
+  render(<OrbSection />);
+  send();
+  await tick(0);
+  const { request } = requests[0];
+  act(() => {
+    request.onAction("deep-research");
+    request.onResearch({ state: "searching" });
+    [null, {}, { summary: 1 }, { summary: "" }, { summary: " padded " }, { summary: "a\nb" },
+      { summary: "x".repeat(201) }, { summary: "A valid sentence.", url: "https://example.org" }]
+      .forEach((progress) => expect(request.onResearchProgress(progress)).toBe(false));
+  });
+  expect(window.__orbState().researchSummary).toBeNull();
+  const literalSummary = "Checked <img src=x onerror=alert(1)> as plain text.";
+  act(() => expect(request.onResearchProgress({ summary: literalSummary })).toBe(true));
+  expect(screen.getByRole("status", { name: "Research progress" })).toHaveTextContent(literalSummary);
+  expect(screen.queryByRole("img")).not.toBeInTheDocument();
+  act(() => {
+    for (let index = 2; index <= 24; index += 1) {
+      expect(request.onResearchProgress({ summary: `Checked source ${index}.` })).toBe(true);
+    }
+    expect(request.onResearchProgress({ summary: "An extra update." })).toBe(false);
+  });
+  expect(window.__orbState().researchSummary).toBe("Checked source 24.");
+});
+
+test("a research failure shows its safe reason and reference without exposing provider diagnostics", async () => {
+  const errorLog = jest.spyOn(console, "error").mockImplementation(() => {});
+  render(<OrbSection />);
+  send();
+  await tick(0);
+  const { request, reject } = requests[0];
+  act(() => {
+    request.onAction("deep-research");
+    request.onResearch({ state: "searching" });
+    request.onResearchProgress({ summary: "Checked the research brief." });
+  });
+  const error = Object.assign(new Error("Private provider diagnostics: https://private.example/prompt"), {
+    code: "research_token_limit", requestRef: "a1b2c3d4e5f6", status: 200,
+  });
+  await act(async () => reject(error));
+  const alert = screen.getByRole("alert");
+  expect(alert).toHaveTextContent("The research reached its output limit before finishing. Try a narrower question.");
+  expect(alert).toHaveTextContent("Code: research_token_limit. Reference: a1b2c3d4e5f6.");
+  expect(alert).not.toHaveTextContent(/private|local demo|visible reply is incomplete/i);
+  expect(screen.queryByRole("article", { name: "Metabloom message" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("status", { name: "Research progress" })).not.toBeInTheDocument();
+  expect(window.__orbState()).toMatchObject({ pending: false, researchProgress: null, researchSummary: null });
+  expect(errorLog).toHaveBeenCalledTimes(1);
+  expect(errorLog).toHaveBeenCalledWith("[Metabloom] Request failed", { code: "research_token_limit", requestRef: "a1b2c3d4e5f6", status: 200 });
+  act(() => expect(request.onResearchProgress({ summary: "A stale update." })).toBe(false));
+  expect(errorLog).toHaveBeenCalledTimes(1);
+});
+
+test("a specific failure after visible text preserves its incomplete prefix", async () => {
+  const errorLog = jest.spyOn(console, "error").mockImplementation(() => {});
+  render(<OrbSection />);
+  send();
+  await tick(0);
+  const { request, reject } = requests[0];
+  act(() => {
+    request.onAction("deep-research");
+    request.onResearch({ state: "searching" });
+    request.onSources(sources);
+    request.onResearch({ state: "synthesizing" });
+    request.onTextDelta(answer, 0);
+  });
+  await tick(4000);
+  const reply = screen.getByRole("article", { name: "Metabloom message" });
+  expect(reply).toHaveAttribute("data-stream-status", "streaming");
+  await act(async () => reject(Object.assign(new Error("Private answer diagnostics."), {
+    code: "answer_incomplete", requestRef: "a1b2c3d4e5f6", status: 200,
+  })));
+  expect(reply).toHaveTextContent(answer);
+  expect(reply).toHaveAttribute("data-stream-status", "error");
+  expect(reply).toHaveTextContent("Response incomplete");
+  expect(screen.getByRole("alert")).toHaveTextContent("The model did not finish the answer. Please try again. Any visible reply is incomplete.");
+  expect(screen.getByRole("alert")).not.toHaveTextContent(/private|local demo/i);
+  expect(within(reply).queryByRole("group", { name: "Sources for this answer" })).not.toBeInTheDocument();
+  expect(errorLog).toHaveBeenCalledTimes(1);
+});
+
+test("unrecognized adapter error fields are omitted from the user message and console", async () => {
+  const errorLog = jest.spyOn(console, "error").mockImplementation(() => {});
+  render(<OrbSection />);
+  send();
+  await tick(0);
+  const { reject } = requests[0];
+  await act(async () => reject(Object.assign(new Error("Private provider response."), {
+    code: "https://private.example/prompt", requestRef: "not-a-reference", status: "private status",
+  })));
+  expect(screen.getByRole("alert")).toHaveTextContent("The response stream was interrupted. Please try again. Code: stream_interrupted.");
+  expect(screen.getByRole("alert")).not.toHaveTextContent(/private|reference/i);
+  expect(errorLog).toHaveBeenCalledWith("[Metabloom] Request failed", { code: "stream_interrupted", requestRef: null, status: null });
+});
+
+test("research metadata and an answer arriving in a hidden tab retain their sources when the tab returns", async () => {
+  render(<OrbSection />);
+  send();
+  await tick(0);
+  const { request, finish } = requests[0];
+  act(() => {
+    request.onAction("deep-research");
+    request.onResearch({ state: "searching" });
+  });
+  await tick(1600);
+  act(() => {
+    Object.defineProperty(document, "hidden", { configurable: true, value: true });
+    document.dispatchEvent(new Event("visibilitychange"));
+    expect(request.onSources(sources)).toBe(true);
+    expect(request.onResearch({ state: "synthesizing" })).toBe(true);
+  });
+  expect(request.signal.aborted).toBe(false);
+  expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  act(() => {
+    request.onTextDelta(answer, 0);
+    request.onSegment({ response: answer }, 0);
+  });
+  await act(async () => finish(envelope));
+  expect(request.signal.aborted).toBe(false);
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  act(() => {
+    Object.defineProperty(document, "hidden", { configurable: true, value: false });
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  await tick(200);
+  const replies = screen.getAllByRole("article", { name: "Metabloom message" });
+  expect(replies).toHaveLength(1);
+  expect(replies[0]).toHaveTextContent(answer);
+  expect(replies[0]).toHaveAttribute("data-stream-status", "complete");
+  expect(within(replies[0]).getByRole("link", { name: "Source 1: Public research brief" })).toHaveAttribute("href", sources[0].url);
+  expect(within(replies[0]).getByRole("group", { name: "Sources for this answer" })).toBeInTheDocument();
+  expect(window.__orbState()).toMatchObject({ pending: false, sceneAction: "none", researchProgress: null });
+});
+
+test.each(["stop", "reset", "deactivate", "unmount"])("%s still cancels research while its tab is hidden", async (operation) => {
+  const { rerender, unmount } = render(<OrbSection />);
+  send();
+  await tick(0);
+  const { request, finish } = requests[0];
+  act(() => {
+    request.onAction("deep-research");
+    request.onResearch({ state: "searching" });
+    Object.defineProperty(document, "hidden", { configurable: true, value: true });
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  expect(request.signal.aborted).toBe(false);
+  if (operation === "unmount") unmount();
+  else if (operation === "deactivate") rerender(<OrbSection isActive={false} />);
+  else act(() => operation === "reset" ? window.__orbReset() : window.__orbStop());
+  expect(request.signal.aborted).toBe(true);
+  act(() => {
+    expect(request.onSources(sources)).toBe(false);
+    expect(request.onResearch({ state: "synthesizing" })).toBe(false);
+    request.onTextDelta(answer, 0);
+  });
+  await act(async () => finish(envelope));
+  act(() => {
+    Object.defineProperty(document, "hidden", { configurable: true, value: false });
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  await tick(5000);
+  expect(screen.queryByRole("article", { name: "Metabloom message" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("link")).not.toBeInTheDocument();
 });
 
 test("the reply watchdog grants confirmed research one absolute deadline", async () => {
+  const errorLog = jest.spyOn(console, "error").mockImplementation(() => {});
   render(<OrbSection />);
   send();
   await tick(0);
@@ -132,8 +349,10 @@ test("the reply watchdog grants confirmed research one absolute deadline", async
   expect(window.__orbState().pending).toBe(true);
   act(() => {
     expect(request.onResearch({ state: "searching" })).toBe(false);
+    expect(request.onResearchProgress({ summary: "Checked another source near the deadline." })).toBe(true);
     expect(request.onSources(sources)).toBe(true);
     expect(request.onResearch({ state: "synthesizing" })).toBe(true);
+    expect(request.onResearchProgress({ summary: "Writing an answer from 1 cited source." })).toBe(true);
   });
   await tick(999);
   expect(request.signal.aborted).toBe(false);
@@ -141,6 +360,8 @@ test("the reply watchdog grants confirmed research one absolute deadline", async
   expect(request.signal.aborted).toBe(true);
   expect(window.__orbState()).toMatchObject({ pending: false, researchProgress: null });
   expect(screen.getByRole("alert")).toBeInTheDocument();
+  expect(screen.getByRole("alert")).toHaveTextContent("Code: research_timeout.");
+  expect(errorLog).toHaveBeenCalledTimes(1);
 });
 
 test.each([

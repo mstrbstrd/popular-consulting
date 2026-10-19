@@ -24,7 +24,9 @@ const document = () => {
     ],
   };
 };
-const asResponse = (value) => new Response(JSON.stringify(value), { headers: { "content-type": "application/json" } });
+const sseEvent = (value) => `event: ${value.type}\ndata: ${JSON.stringify(value)}\n\n`;
+const asEventResponse = (events) => new Response(events.map(sseEvent).join(""), { headers: { "content-type": "text/event-stream" } });
+const asResponse = (value) => asEventResponse([{ type: "response.completed", response: value }]);
 const configure = () => { process.env.OPENAI_API_KEY = "fixture-not-a-real-key"; };
 const conduct = (options = {}) => conductMetabloomResearch({ message: "Verify the current facts", history: [], signal: new AbortController().signal, ...options });
 
@@ -89,9 +91,34 @@ test("research requires successful completion, actual search execution and usabl
   }
 });
 
-test("tool executions and normalized research notes remain within their accepted bounds", () => {
+test("returned web-search records are not mistaken for the provider tool-call budget", () => {
+  const value = document();
+  value.output.unshift(...Array.from({ length: 6 }, (_, index) => ({
+    id: `ws_open_${index}`, type: "web_search_call", status: "completed",
+    action: { type: "open_page", url: source.url },
+  })));
+  const actual = extractMetabloomResearch(value);
+  assert.equal(value.output.filter((item) => item.type === "web_search_call").length, 7);
+  assert.deepEqual(actual.sources, [source]);
+  assert.match(actual.notes, /A verified fact\. \[1\]/);
+});
+
+test("a failed page attempt does not discard completed research from another successful search", () => {
+  const value = document();
+  value.output.unshift({ id: "ws_blocked_page", type: "web_search_call", status: "failed",
+    action: { type: "open_page", url: "https://example.com/unavailable" } });
+  assert.deepEqual(extractMetabloomResearch(value).sources, [source]);
+  value.output[1].status = "failed";
+  assert.throws(() => extractMetabloomResearch(value), { code: "research_no_sources", reason: "search_missing" });
+});
+
+test("research record parsing and normalized notes remain within independent safety bounds", () => {
+  const atLimit = document();
+  atLimit.output.unshift(...Array.from({ length: 62 }, () => ({ type: "reasoning", summary: [] })));
+  assert.equal(atLimit.output.length, 64);
+  assert.deepEqual(extractMetabloomResearch(atLimit).sources, [source]);
   const tooManyCalls = document();
-  tooManyCalls.output.unshift(...Array.from({ length: 6 }, () => structuredClone(tooManyCalls.output[0])));
+  tooManyCalls.output.unshift(...Array.from({ length: 64 }, () => structuredClone(tooManyCalls.output[0])));
   assert.throws(() => extractMetabloomResearch(tooManyCalls));
   for (const length of [16000, 16001]) {
     const tooLong = document();
@@ -170,7 +197,7 @@ test("research request enforces web search, bounded spend, no storage and the se
   assert.equal(options.headers.Authorization, "Bearer fixture-not-a-real-key");
   assert.equal(options.signal.aborted, false);
   assert.equal(body.model, "research-model-fixture");
-  assert.equal(body.stream, false);
+  assert.equal(body.stream, true);
   assert.equal(body.store, false);
   assert.deepEqual(body.tools, [{ type: "web_search", search_context_size: "medium" }]);
   assert.equal(body.tool_choice, "required");
@@ -192,14 +219,41 @@ test("research model falls back to the configured chat model, then the project d
   assert.deepEqual(models, ["configured-chat-model", "gpt-5-mini"]);
 });
 
-test("research cancels an oversized provider body instead of accepting a valid JSON prefix", async () => {
+test("research cancels an oversized single SSE event before accepting a later completion", async () => {
   configure();
   let cancelled = false;
   global.fetch = async () => new Response(new ReadableStream({
-    start(controller) { controller.enqueue(new TextEncoder().encode(JSON.stringify(document()) + " ".repeat(524289))); },
+    start(controller) { controller.enqueue(new TextEncoder().encode(sseEvent({ type: "response.reasoning_text.delta", delta: "x".repeat(524289) })
+      + sseEvent({ type: "response.completed", response: document() }))); },
     cancel() { cancelled = true; },
-  }), { headers: { "content-type": "application/json" } });
-  await assert.rejects(conduct());
+  }), { headers: { "content-type": "text/event-stream" } });
+  await assert.rejects(conduct(), { code: "research_response_too_large" });
+  assert.equal(cancelled, true);
+});
+
+test("normal SSE framing overhead may exceed the final-object limit within the aggregate bound", async () => {
+  configure();
+  const frame = sseEvent({ type: "response.output_text.delta", item_id: "msg_fixture", output_index: 1, content_index: 0, delta: "word" });
+  const wire = frame.repeat(4000) + sseEvent({ type: "response.completed", response: document() });
+  assert.ok(Buffer.byteLength(wire) > 524288);
+  assert.ok(Buffer.byteLength(wire) < 2097152);
+  global.fetch = async () => new Response(wire, { headers: { "content-type": "text/event-stream" } });
+  assert.deepEqual((await conduct()).sources, [source]);
+});
+
+test("aggregate research SSE rejects an over-limit chunk even when it starts with completion", async () => {
+  configure();
+  const comment = ": " + "x".repeat(120) + "\n\n";
+  const wire = sseEvent({ type: "response.completed", response: document() }) + comment.repeat(18000);
+  assert.ok(Buffer.byteLength(wire) > 2097152);
+  let cancelled = false;
+  global.fetch = async () => new Response(new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode(wire));
+    },
+    cancel() { cancelled = true; },
+  }), { headers: { "content-type": "text/event-stream" } });
+  await assert.rejects(conduct(), { code: "research_response_too_large" });
   assert.equal(cancelled, true);
 });
 
@@ -211,7 +265,7 @@ test("cancellation stops an open research response reader", async () => {
   global.fetch = async () => new Response(new ReadableStream({
     pull() { readerStarted(); },
     cancel() { cancelled = true; },
-  }), { headers: { "content-type": "application/json" } });
+  }), { headers: { "content-type": "text/event-stream" } });
   const pending = conduct({ signal: controller.signal });
   await started;
   controller.abort();
@@ -238,18 +292,175 @@ test("the research deadline aborts pending work after 120 seconds", async (t) =>
   t.mock.timers.tick(119999);
   assert.equal(signal.aborted, false);
   t.mock.timers.tick(1);
-  await assert.rejects(pending);
+  await assert.rejects(pending, { code: "research_timeout" });
   assert.equal(signal.aborted, true);
 });
 
-test("HTTP failures and malformed research JSON never produce usable research", async () => {
+test("HTTP failures and malformed research streams never produce usable research", async () => {
   configure();
   for (const result of [
     () => new Response("Private provider failure", { status: 500 }),
-    () => new Response("{broken JSON", { headers: { "content-type": "application/json" } }),
-    () => new Response("null", { headers: { "content-type": "application/json" } }),
+    () => new Response("data: {broken JSON\n\n", { headers: { "content-type": "text/event-stream" } }),
+    () => new Response("data: null\n\n", { headers: { "content-type": "text/event-stream" } }),
+    () => new Response(JSON.stringify(document()), { headers: { "content-type": "application/json" } }),
   ]) {
     global.fetch = async () => result();
     await assert.rejects(conduct());
   }
+});
+
+test("HTTP configuration, authentication, rate and availability failures retain safe typed diagnostics", async (t) => {
+  configure();
+  const logs = [];
+  for (const method of ["info", "warn", "error"]) t.mock.method(console, method, (...args) => logs.push(args));
+  const privateMessage = "Private upstream text containing secret=do-not-log and https://private.example/query";
+  for (const [status, code] of [
+    [400, "model_configuration_error"], [404, "model_configuration_error"], [422, "model_configuration_error"],
+    [401, "provider_authentication_failed"], [403, "provider_authentication_failed"],
+    [429, "provider_rate_limited"], [500, "provider_unavailable"],
+  ]) {
+    let calls = 0;
+    global.fetch = async () => {
+      calls++;
+      return new Response(JSON.stringify({ error: {
+        message: privateMessage, type: "invalid_request_error", code: "unsupported_parameter", param: "tools",
+      } }), { status, headers: { "content-type": "application/json", "x-request-id": "req_safe_fixture_123" } });
+    };
+    await assert.rejects(conduct({ requestRef: "test-reference" }), (error) => {
+      assert.equal(error.code, code);
+      assert.match(error.reason, /^[a-z][a-z0-9_]{0,79}$/);
+      assert.equal(error.message.includes(privateMessage), false);
+      return true;
+    });
+    assert.equal(calls, 1, "HTTP errors cannot trigger an unbounded retry loop");
+  }
+  const logged = JSON.stringify(logs);
+  assert.ok(logged.includes("unsupported_parameter"), "Machine-readable provider code remains diagnosable");
+  assert.ok(logged.includes("req_safe_fixture_123"), "Safe provider request ID can correlate the failure");
+  assert.equal(logged.includes(privateMessage), false);
+  assert.equal(logged.includes("do-not-log"), false);
+  assert.equal(logged.includes("private.example"), false);
+});
+
+test("untrusted error metadata cannot inject text into operational diagnostics", async (t) => {
+  configure();
+  const logs = [];
+  for (const method of ["info", "warn", "error"]) t.mock.method(console, method, (...args) => logs.push(args));
+  global.fetch = async () => new Response(JSON.stringify({ error: {
+    message: "private-upstream-message", code: "private_code http://private.example/", param: "private_param\nsecret",
+  } }), { status: 400, headers: { "content-type": "application/json", "x-request-id": "private request / secret" } });
+  await assert.rejects(conduct(), { code: "model_configuration_error" });
+  const logged = JSON.stringify(logs);
+  for (const privateText of ["private-upstream-message", "private_code", "private_param", "private.example", "private request", "secret"]) {
+    assert.equal(logged.includes(privateText), false);
+  }
+});
+
+test("provider token exhaustion is distinct from another incomplete research response", async () => {
+  configure();
+  for (const [reason, code] of [["max_output_tokens", "research_token_limit"], ["content_filter", "research_incomplete"]]) {
+    const value = document();
+    value.status = "incomplete";
+    value.incomplete_details = { reason };
+    global.fetch = async () => asEventResponse([{ type: "response.incomplete", response: value }]);
+    await assert.rejects(conduct(), { code });
+  }
+});
+
+test("missing search execution and missing citations produce distinct safe reasons", async () => {
+  configure();
+  const noSearch = document(); noSearch.output.shift();
+  global.fetch = async () => asResponse(noSearch);
+  await assert.rejects(conduct(), { code: "research_no_sources", reason: "search_missing" });
+  const noCitations = document(); noCitations.output[1].content[0].annotations = [];
+  global.fetch = async () => asResponse(noCitations);
+  await assert.rejects(conduct(), { code: "research_no_sources", reason: "citations_missing" });
+});
+
+test("truncated SSE never promotes tool activity or draft notes to completed evidence", async () => {
+  configure();
+  global.fetch = async () => asEventResponse([
+    { type: "response.web_search_call.completed", item_id: "ws_fixture", output_index: 0 },
+    { type: "response.output_text.delta", item_id: "msg_fixture", output_index: 1, content_index: 0, delta: "A plausible but unverified draft." },
+  ]);
+  await assert.rejects(conduct(), { code: "research_incomplete" });
+});
+
+test("provider error and failed terminal SSE events cannot become successful research", async () => {
+  configure();
+  for (const event of [
+    { type: "error", code: "server_error", message: "Private provider detail", param: null },
+    { type: "response.failed", response: { status: "failed", error: { code: "server_error", message: "Private provider detail" }, output: [] } },
+  ]) {
+    global.fetch = async () => asEventResponse([event]);
+    await assert.rejects(conduct(), { code: "provider_unavailable" });
+  }
+});
+
+test("stream decoding preserves Unicode and provider evidence across fragmented SSE frames", async () => {
+  configure();
+  const value = document();
+  const content = value.output[1].content[0];
+  content.text = "A café study supports this finding 🌿.";
+  content.annotations[0].end_index = content.text.length;
+  const bytes = new TextEncoder().encode(": keepalive\r\n\r\n" + sseEvent({ type: "response.completed", response: value }).replaceAll("\n", "\r\n"));
+  global.fetch = async () => new Response(new ReadableStream({ start(controller) {
+    for (let index = 0; index < bytes.length; index += 7) controller.enqueue(bytes.slice(index, index + 7));
+    controller.close();
+  } }), { headers: { "content-type": "text/event-stream; charset=utf-8" } });
+  const actual = await conduct();
+  assert.deepEqual(actual.sources, [source]);
+  assert.equal(actual.notes, `${content.text} [1]`);
+});
+
+test("live research progress comes from provider activity without exposing raw reasoning or source text", async () => {
+  configure();
+  let upstream, started;
+  const opened = new Promise((resolve) => { started = resolve; });
+  global.fetch = async () => new Response(new ReadableStream({ start(controller) { upstream = controller; started(); } }),
+    { headers: { "content-type": "text/event-stream" } });
+  const summaries = [];
+  let finished = false;
+  const pending = conduct({ onProgress: (summary) => summaries.push(summary) }).then((value) => { finished = true; return value; });
+  await opened;
+  const emit = (event) => upstream.enqueue(new TextEncoder().encode(sseEvent(event)));
+  emit({ type: "response.created", response: { id: "resp_fixture", status: "in_progress", output: [] } });
+  emit({ type: "response.web_search_call.in_progress", item_id: "ws_fixture", output_index: 0 });
+  emit({ type: "response.web_search_call.searching", item_id: "ws_fixture", output_index: 0 });
+  emit({ type: "response.reasoning_text.delta", delta: "private-raw-reasoning", item_id: "rs_fixture", output_index: 1 });
+  emit({ type: "response.output_item.done", output_index: 0, item: { id: "ws_fixture", type: "web_search_call", status: "completed",
+    action: { type: "search", query: "private-user-query", sources: [{ type: "url", url: source.url }] } } });
+  emit({ type: "response.output_text.delta", item_id: "msg_fixture", output_index: 2, content_index: 0, delta: "private-unvalidated-notes" });
+  await new Promise((resolve) => setImmediate(resolve));
+  const beforeCompletion = { finished, summaries: structuredClone(summaries) };
+  emit({ type: "response.completed", response: document() });
+  upstream.close();
+  const actual = await pending;
+  assert.equal(beforeCompletion.finished, false);
+  assert.ok(beforeCompletion.summaries.length > 0);
+  assert.ok(beforeCompletion.summaries.length <= 23);
+  for (const summary of beforeCompletion.summaries) {
+    assert.deepEqual(Object.keys(summary), ["summary"]);
+    assert.equal(typeof summary.summary, "string");
+    assert.ok(summary.summary.length > 0 && summary.summary.length <= 200);
+  }
+  const exposed = JSON.stringify(beforeCompletion.summaries);
+  for (const privateText of ["private-raw-reasoning", "private-unvalidated-notes", source.url]) assert.equal(exposed.includes(privateText), false);
+  assert.deepEqual(actual.sources, [source]);
+});
+
+test("provider progress cannot exceed the reserved application update budget", async () => {
+  configure();
+  const events = [];
+  for (let index = 0; index < 80; index++) {
+    events.push({ type: "response.output_item.done", output_index: index, item: {
+      id: `ws_fixture_${index}`, type: "web_search_call", status: "completed", action: { type: "search", query: "fixture query" },
+    } });
+  }
+  events.push({ type: "response.completed", response: document() });
+  global.fetch = async () => asEventResponse(events);
+  const summaries = [];
+  await conduct({ onProgress: (summary) => summaries.push(summary) });
+  assert.ok(summaries.length > 0);
+  assert.ok(summaries.length <= 23);
 });

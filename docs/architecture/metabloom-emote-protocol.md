@@ -36,8 +36,10 @@ Live Deep Research opts into additional pre-text records:
 {"type":"emote","phase":"input","emote":"curious"}
 {"type":"action","action":"deep-research"}
 {"type":"research","state":"searching"}
+{"type":"research_progress","summary":"Searched: current API documentation"}
 {"type":"sources","sources":[{"id":1,"title":"Example source","url":"https://example.org/reference"}]}
 {"type":"research","state":"synthesizing"}
+{"type":"research_progress","summary":"Writing an answer from 1 cited source."}
 {"type":"text_delta","index":0,"delta":"The sourced finding. [1]"}
 {"type":"segment","index":0,"response":"The sourced finding. [1]"}
 {"type":"text_complete"}
@@ -54,6 +56,31 @@ IDs, titles of at most 200 characters, and absolute HTTP(S) URLs of at most 2,04
 characters without credentials or control characters. The strict decoder copies
 the records at each public boundary. Legacy presentation-only research streams
 without these records remain supported.
+
+The current client sends `streamResearchProgress: true` to opt into summary
+records. Clients that omit it keep the existing research/source sequence, so a
+cached browser does not fail on an unfamiliar record after a backend update.
+`onResearchProgress({ summary })` receives a short summary based on actual tool
+activity. Each exact record has a trimmed, nonempty summary of at most 200
+characters without control characters. Up to 24 updates are accepted, only
+after confirmed searching and before answer text. They replace the status detail
+and never renew the absolute deadline or create an answer bubble. Reasoning text,
+private research notes and provider objects are not forwarded as progress.
+
+A terminal failure uses an exact record such as:
+
+```json
+{"type":"error","code":"research_no_sources","requestRef":"a1b2c3d4e5f6"}
+```
+
+The code must belong to the shared safe vocabulary. `requestRef` is a random
+12-character lowercase hexadecimal value, also returned in
+`X-Metabloom-Request-Ref`. The decoder preserves this failure in
+`MetabloomApiError` instead of replacing it with a generic protocol error. The
+UI shows the mapped explanation, code and reference; browser diagnostics contain
+only these safe fields and HTTP status. Raw provider messages stay out of the
+wire and logs. The legacy `stream_interrupted` record without a reference remains
+accepted. A malformed error record still fails protocol validation.
 
 The research writer buffers its output until the full response and source IDs
 validate, then publishes each paragraph through the existing text events. This
@@ -79,6 +106,11 @@ needed. Cancellation and failure discard unpublished text, retire the scene, and
 preserve only an already-visible incomplete prefix. The action
 catalog and the confirmed external-worker contract are documented in
 [decision and activity mappings](metabloom-decisions.md).
+
+Hiding the document skips its scene and releases the presentation gate while
+the same request continues. A later visibility change cannot replay that scene
+or discard its valid result. Explicit Stop, reset, route deactivation and unmount
+still abort the request and reject late progress, sources and text.
 
 The browser dispatches the input
 reaction immediately, then dispatches the final reaction **only after verifying

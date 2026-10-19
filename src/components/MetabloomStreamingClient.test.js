@@ -1,11 +1,11 @@
 import { TextEncoder, TextDecoder } from "util";
-import { METABLOOM_RESEARCH_TIMEOUT_MS, requestMetabloomResponse } from "./metabloomApiClient";
+import { METABLOOM_RESEARCH_TIMEOUT_MS, getMetabloomApiErrorMessage, requestMetabloomResponse } from "./metabloomApiClient";
 const first = { emote: "whimsy", response: "A playful 🪴 opening." };
 const second = { emote: "reflective", response: "A considered continuation." };
 const line = (segment, index) => JSON.stringify({ type: "segment", index, ...segment }) + "\n";
 const done = '{"type":"done","version":"1.0.0"}\n';
 const flush = async () => { for (let i = 0; i < 10; i++) await Promise.resolve(); };
-const transport = () => {
+const transport = ({ status = 200, requestRef = null } = {}) => {
   let provide;
   const reader = {
     read: jest.fn(() => new Promise((resolve) => { provide = resolve; })),
@@ -13,7 +13,9 @@ const transport = () => {
   };
   return {
     reader,
-    fetchImpl: jest.fn(async () => ({ ok: true, headers: { get: () => "application/x-ndjson" }, body: { getReader: () => reader } })),
+    fetchImpl: jest.fn(async () => ({ ok: true, status, headers: {
+      get: (name) => name.toLowerCase() === "content-type" ? "application/x-ndjson" : requestRef,
+    }, body: { getReader: () => reader } })),
     send: async (text) => { provide({ value: new TextEncoder().encode(text), done: false }); await flush(); },
     close: async () => { provide({ done: true }); await flush(); },
   };
@@ -64,11 +66,11 @@ describe("HTTP segment arrival, not whole-response buffering", () => {
   });
 
   test("a disconnect after a valid prefix never becomes a successful demo response", async () => {
-    const io = transport(); const onSegment = jest.fn();
+    const io = transport({ requestRef: "abcdef012345" }); const onSegment = jest.fn();
     const request = requestMetabloomResponse({ fetchImpl: io.fetchImpl, message: "Hello", allowMultiple: true, onSegment, optional: true });
     const failure = request.catch((error) => error);
     await flush(); await io.send(line(first, 0)); await io.close();
-    expect(await failure).toMatchObject({ code: "invalid_response" });
+    expect(await failure).toMatchObject({ code: "invalid_response", requestRef: "abcdef012345", status: 200 });
     expect(onSegment).toHaveBeenCalledTimes(1);
   });
 
@@ -107,11 +109,12 @@ describe("confirmed research metadata and request deadlines", () => {
     expect(await failure).toMatchObject({ code: "cancelled" });
   });
 
-  test("searching extends once from request start; late sources and synthesis do not renew the deadline", async () => {
+  test("searching extends once from request start; progress, sources and synthesis do not renew the deadline", async () => {
     const io = transport();
     const onResearch = jest.fn();
     const onSources = jest.fn();
-    const failure = requestMetabloomResponse({ fetchImpl: io.fetchImpl, message: "Investigate", onResearch, onSources }).catch((error) => error);
+    const onResearchProgress = jest.fn();
+    const failure = requestMetabloomResponse({ fetchImpl: io.fetchImpl, message: "Investigate", onResearch, onSources, onResearchProgress }).catch((error) => error);
     await flush();
     await io.send(researchStart);
     jest.advanceTimersByTime(20000);
@@ -120,9 +123,11 @@ describe("confirmed research metadata and request deadlines", () => {
     const signal = io.fetchImpl.mock.calls[0][1].signal;
     jest.advanceTimersByTime(METABLOOM_RESEARCH_TIMEOUT_MS - 20001);
     expect(signal.aborted).toBe(false);
-    await io.send(metadata);
+    await io.send('{"type":"research_progress","summary":"Checked: example.org"}\n' + metadata
+      + '{"type":"research_progress","summary":"Writing an answer from 1 cited source."}\n');
     expect(onSources).toHaveBeenCalledWith(sources);
     expect(onResearch).toHaveBeenLastCalledWith({ state: "synthesizing" });
+    expect(onResearchProgress).toHaveBeenCalledTimes(2);
     jest.advanceTimersByTime(1);
     expect(signal.aborted).toBe(true);
     await io.close();
@@ -133,12 +138,16 @@ describe("confirmed research metadata and request deadlines", () => {
     const io = transport();
     const onSources = jest.fn();
     const onSegment = jest.fn();
-    const request = requestMetabloomResponse({ fetchImpl: io.fetchImpl, message: "Investigate", onSources, onSegment });
+    const onResearchProgress = jest.fn();
+    const request = requestMetabloomResponse({ fetchImpl: io.fetchImpl, message: "Investigate", onSources, onSegment, onResearchProgress });
     await flush();
     await io.send(researchStart + '{"type":"research","state":"searching"}\n');
     jest.advanceTimersByTime(45000);
-    await io.send(metadata);
+    await io.send('{"type":"research_progress","summary":"Searching: published evidence"}\n');
+    expect(onResearchProgress).toHaveBeenCalledWith({ summary: "Searching: published evidence" });
+    await io.send(metadata + '{"type":"research_progress","summary":"Writing an answer from 1 cited source."}\n');
     expect(onSegment).not.toHaveBeenCalled();
+    expect(onResearchProgress).toHaveBeenLastCalledWith({ summary: "Writing an answer from 1 cited source." });
     await io.send('{"type":"text_delta","index":0,"delta":"A supported finding [1]."}\n'
       + '{"type":"segment","index":0,"response":"A supported finding [1]."}\n'
       + '{"type":"text_complete"}\n{"type":"emote","phase":"response","emote":"resolute"}\n'
@@ -149,17 +158,67 @@ describe("confirmed research metadata and request deadlines", () => {
     expect(jest.getTimerCount()).toBe(0);
   });
 
-  test("cancellation prevents late sources from reaching the reply", async () => {
+  test("cancellation prevents late progress and sources from reaching the reply", async () => {
     const io = transport();
     const controller = new AbortController();
     const onSources = jest.fn();
-    const failure = requestMetabloomResponse({ fetchImpl: io.fetchImpl, message: "Investigate", signal: controller.signal, onSources }).catch((error) => error);
+    const onResearchProgress = jest.fn();
+    const failure = requestMetabloomResponse({ fetchImpl: io.fetchImpl, message: "Investigate", signal: controller.signal, onSources, onResearchProgress }).catch((error) => error);
     await flush();
     await io.send(researchStart + '{"type":"research","state":"searching"}\n');
     controller.abort();
-    await io.send(metadata);
+    await io.send('{"type":"research_progress","summary":"Searching: late evidence"}\n' + metadata);
     expect(await failure).toMatchObject({ code: "cancelled" });
     expect(onSources).not.toHaveBeenCalled();
+    expect(onResearchProgress).not.toHaveBeenCalled();
     expect(jest.getTimerCount()).toBe(0);
+  });
+
+  test("stopping inside a progress callback blocks later records already in the same chunk", async () => {
+    const io = transport();
+    const controller = new AbortController();
+    const onSources = jest.fn();
+    const onResearchProgress = jest.fn(() => controller.abort());
+    const failure = requestMetabloomResponse({ fetchImpl: io.fetchImpl, message: "Investigate", signal: controller.signal, onSources, onResearchProgress }).catch((error) => error);
+    await flush();
+    await io.send(researchStart + '{"type":"research","state":"searching"}\n'
+      + '{"type":"research_progress","summary":"Searching: published evidence"}\n'
+      + '{"type":"research_progress","summary":"Checked: example.org"}\n' + metadata);
+    expect(await failure).toMatchObject({ code: "cancelled" });
+    expect(onResearchProgress).toHaveBeenCalledTimes(1);
+    expect(onSources).not.toHaveBeenCalled();
+    expect(io.reader.cancel).toHaveBeenCalledTimes(1);
+    expect(jest.getTimerCount()).toBe(0);
+  });
+
+  test.each(["research_timeout", "research_token_limit", "model_configuration_error", "provider_rate_limited"])
+    ("surfaces %s immediately with its reference and no successful reply", async (code) => {
+      const requestRef = "012345abcdef";
+      const io = transport({ requestRef });
+      const onSegment = jest.fn();
+      const onReaction = jest.fn();
+      const failure = requestMetabloomResponse({ fetchImpl: io.fetchImpl, message: "Investigate", onSegment, onReaction, optional: true }).catch((error) => error);
+      await flush();
+      await io.send(researchStart + '{"type":"research","state":"searching"}\n');
+      const errorRecord = JSON.stringify({ type: "error", code, requestRef }) + "\n";
+      await io.send(errorRecord.slice(0, 20));
+      expect(io.reader.releaseLock).not.toHaveBeenCalled();
+      await io.send(errorRecord.slice(20));
+      expect(await failure).toMatchObject({ name: "MetabloomApiError", code, requestRef, status: 200, message: getMetabloomApiErrorMessage(code) });
+      expect(onSegment).not.toHaveBeenCalled();
+      expect(onReaction.mock.calls).toEqual([[{ phase: "input", emote: "curious" }]]);
+      expect(io.reader.cancel).toHaveBeenCalledTimes(1);
+      expect(io.reader.releaseLock).toHaveBeenCalledTimes(1);
+      expect(jest.getTimerCount()).toBe(0);
+    });
+
+  test("rejects an untrusted error record while retaining only the valid header reference", async () => {
+    const requestRef = "abcdef012345";
+    const io = transport({ requestRef });
+    const failure = requestMetabloomResponse({ fetchImpl: io.fetchImpl, message: "Investigate" }).catch((error) => error);
+    await flush();
+    await io.send(researchStart + '{"type":"research","state":"searching"}\n'
+      + JSON.stringify({ type: "error", code: "research_timeout", requestRef: "untrusted", message: "Private provider diagnostic" }) + "\n");
+    expect(await failure).toMatchObject({ code: "invalid_response", requestRef, status: 200, message: getMetabloomApiErrorMessage("invalid_response") });
   });
 });

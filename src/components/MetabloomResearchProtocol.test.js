@@ -1,4 +1,8 @@
-import { createMetabloomSegmentStreamDecoder } from "./metabloomEmoteProtocol";
+import {
+  MAX_METABLOOM_RESEARCH_PROGRESS_CHARS,
+  MAX_METABLOOM_RESEARCH_PROGRESS_EVENTS,
+  createMetabloomSegmentStreamDecoder,
+} from "./metabloomEmoteProtocol";
 import {
   MAX_METABLOOM_RESEARCH_SOURCES,
   MAX_METABLOOM_RESEARCH_SOURCE_TITLE_CHARS,
@@ -14,6 +18,7 @@ const input = record({ type: "emote", phase: "input", emote: "curious" });
 const action = (choice) => record({ type: "action", action: choice });
 const research = (state) => record({ type: "research", state });
 const searching = research("searching");
+const progress = (summary = "Searching: published evidence") => record({ type: "research_progress", summary });
 const sources = (value = [source]) => record({ type: "sources", sources: value });
 const synthesizing = research("synthesizing");
 const delta = (text, index = 0) => record({ type: "text_delta", index, delta: text });
@@ -123,6 +128,82 @@ describe("Metabloom research stream protocol", () => {
     expect(decoder.getState().sources).toEqual([source]);
     expect(decoder.push(synthesizing + completion)).toBe(true);
     expect(decoder.finish()).toEqual({ ok: true, value: envelope });
+  });
+
+  test("progress replaces its summary while searching and before synthesis text without changing the reply", () => {
+    const onResearchProgress = jest.fn();
+    const onSegment = jest.fn();
+    const decoder = createMetabloomSegmentStreamDecoder({ onResearchProgress, onSegment });
+    const updates = ["Searching: published evidence", "Checked: example.com", "Writing an answer from 1 cited source."];
+    const opening = selected + searching + progress(updates[0]) + sources() + progress(updates[1])
+      + synthesizing + progress(updates[2]);
+    for (let index = 0; index < opening.length; index += 9) {
+      expect(decoder.push(opening.slice(index, index + 9))).toBe(true);
+    }
+    expect(onResearchProgress.mock.calls).toEqual(updates.map((summary) => [{ summary }]));
+    expect(onSegment).not.toHaveBeenCalled();
+    expect(decoder.getState()).toMatchObject({ researchSummary: updates[2], researchProgressCount: 3 });
+    onResearchProgress.mock.calls[2][0].summary = "Changed";
+    expect(decoder.getState().researchSummary).toBe(updates[2]);
+    expect(decoder.push(completion)).toBe(true);
+    expect(decoder.finish()).toEqual({ ok: true, value: envelope });
+  });
+
+  test("progress accepts its exact length and count bounds, then stops on excess", () => {
+    const onResearchProgress = jest.fn();
+    const onSegment = jest.fn();
+    const decoder = createMetabloomSegmentStreamDecoder({ onResearchProgress, onSegment });
+    expect(decoder.push(selected + searching)).toBe(true);
+    for (let index = 0; index < MAX_METABLOOM_RESEARCH_PROGRESS_EVENTS; index++) {
+      expect(decoder.push(progress("q".repeat(MAX_METABLOOM_RESEARCH_PROGRESS_CHARS)))).toBe(true);
+    }
+    expect(onResearchProgress).toHaveBeenCalledTimes(MAX_METABLOOM_RESEARCH_PROGRESS_EVENTS);
+    expect(decoder.push(progress())).toBe(false);
+    expect(decoder.push(sources() + synthesizing + completion)).toBe(false);
+    expect(onResearchProgress).toHaveBeenCalledTimes(MAX_METABLOOM_RESEARCH_PROGRESS_EVENTS);
+    expect(onSegment).not.toHaveBeenCalled();
+    expect(decoder.finish().ok).toBe(false);
+  });
+
+  test.each([
+    ["before any input", "", progress()],
+    ["without an action", input, progress()],
+    ["without a research state", selected, progress()],
+    ["on an ordinary action", input + action("none"), progress()],
+    ["after a text delta", ready + delta("Started"), progress()],
+    ["after a segment", ready + segment(), progress()],
+    ["after text completion", ready + segment() + textComplete, progress()],
+    ["after done", ready + completion, progress()],
+    ["inside a legacy stream", record({ type: "segment", index: 0, emote: "warm", response: "Legacy" }), progress()],
+    ["with an empty summary", selected + searching, progress("")],
+    ["with only whitespace", selected + searching, progress("  ")],
+    ["with leading whitespace", selected + searching, progress(" Searching")],
+    ["with trailing whitespace", selected + searching, progress("Searching ")],
+    ["with a line break", selected + searching, progress("Searching\nagain")],
+    ["with a control character", selected + searching, progress("Search\u0000")],
+    ["with a delete character", selected + searching, progress("Search\u007f")],
+    ["with a non-string summary", selected + searching, progress({ text: "Search" })],
+    ["with an oversized summary", selected + searching, progress("s".repeat(MAX_METABLOOM_RESEARCH_PROGRESS_CHARS + 1))],
+    ["with extra fields", selected + searching, record({ type: "research_progress", summary: "Search", stage: "imagined" })],
+  ])("rejects progress %s", (_name, prefix, invalid) => {
+    const onResearchProgress = jest.fn();
+    const onError = jest.fn();
+    const decoder = createMetabloomSegmentStreamDecoder({ onResearchProgress, onError });
+    expect(decoder.push(prefix)).toBe(true);
+    expect(decoder.push(invalid)).toBe(false);
+    expect(decoder.push(progress())).toBe(false);
+    expect(onResearchProgress).not.toHaveBeenCalled();
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(decoder.finish().ok).toBe(false);
+  });
+
+  test("progress cannot replace verified sources, synthesis or completion", () => {
+    const onDone = jest.fn();
+    const decoder = createMetabloomSegmentStreamDecoder({ onDone });
+    expect(decoder.push(selected + searching + progress())).toBe(true);
+    expect(decoder.push(segment())).toBe(false);
+    expect(decoder.finish().ok).toBe(false);
+    expect(onDone).not.toHaveBeenCalled();
   });
 
   test.each([

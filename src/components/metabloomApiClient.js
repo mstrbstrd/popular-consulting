@@ -1,14 +1,18 @@
 import { MAX_METABLOOM_STREAM_BYTES, createMetabloomSegmentStreamDecoder, parseMetabloomChatEnvelope } from "./metabloomEmoteProtocol";
 import { METABLOOM_ACTION_MODES } from "./metabloomDecisionMapping";
+import { METABLOOM_REQUEST_ERROR_MESSAGES, parseMetabloomRequestError, parseMetabloomRequestRef, getMetabloomApiErrorMessage } from "./metabloomRequestErrors";
+
+export { getMetabloomApiErrorMessage } from "./metabloomRequestErrors";
 
 const MAX_RESPONSE_BYTES = 96000;
 export const METABLOOM_RESEARCH_TIMEOUT_MS = 210000;
 export class MetabloomApiError extends Error {
-  constructor(message, { code = "request_failed", status = 0 } = {}) {
+  constructor(message, { code = "request_failed", status = 0, requestRef = null } = {}) {
     super(message);
     this.name = "MetabloomApiError";
-    this.code = code;
-    this.status = status;
+    this.code = typeof code === "string" && Object.prototype.hasOwnProperty.call(METABLOOM_REQUEST_ERROR_MESSAGES, code) ? code : "request_failed";
+    this.status = Number.isInteger(status) && status >= 0 && status <= 599 ? status : 0;
+    this.requestRef = parseMetabloomRequestRef(requestRef);
   }
 }
 export const isMetabloomApiUnavailable = (error) => error instanceof MetabloomApiError
@@ -25,6 +29,7 @@ export const requestMetabloomResponse = async ({
   onReaction,
   onAction,
   onResearch,
+  onResearchProgress,
   onSources,
   optional = false,
   requestId,
@@ -45,18 +50,29 @@ export const requestMetabloomResponse = async ({
   let researchStarted = false;
   let timeout = setTimeout(abort, 30000);
   let reader;
+  let responseStatus = 0;
+  let responseRequestRef = null;
   try {
     const response = await fetchImpl("/api/metabloom", {
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json", Accept: "application/x-ndjson" },
-      body: JSON.stringify({ actionMode, allowMultiple: allowMultiple === true, streamText: true, history, message, requestId }),
+      body: JSON.stringify({ actionMode, allowMultiple: allowMultiple === true, streamText: true, streamResearchProgress: true, history, message, requestId }),
       signal: controller.signal,
     });
     const contentType = response.headers?.get?.("content-type") || "";
+    responseStatus = response.status;
+    responseRequestRef = parseMetabloomRequestRef(response.headers?.get?.("X-Metabloom-Request-Ref"));
     const isStream = contentType.includes("application/x-ndjson");
+    let streamError = null;
     const decoder = createMetabloomSegmentStreamDecoder({
       allowMultiple,
+      onError: (error) => {
+        const code = error.code || "invalid_response";
+        streamError = new MetabloomApiError(getMetabloomApiErrorMessage(code), {
+          code, status: responseStatus, requestRef: error.requestRef || responseRequestRef,
+        });
+      },
       onAction: (action) => {
         if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
         onAction?.(action);
@@ -69,6 +85,10 @@ export const requestMetabloomResponse = async ({
           timeout = setTimeout(abort, Math.max(0, startedAt + METABLOOM_RESEARCH_TIMEOUT_MS - Date.now()));
         }
         onResearch?.(research);
+      },
+      onResearchProgress: (progress) => {
+        if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
+        onResearchProgress?.(progress);
       },
       onSources: (sources) => {
         if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
@@ -103,7 +123,7 @@ export const requestMetabloomResponse = async ({
         if (bytes > (response.ok ? (isStream ? MAX_METABLOOM_STREAM_BYTES : MAX_RESPONSE_BYTES) : 4096)) throw new MetabloomApiError("Response exceeded its size limit.");
         const part = textDecoder.decode(chunk.value, { stream: true });
         if (response.ok && isStream) {
-          if (!decoder.push(part)) throw new MetabloomApiError("The response stream was interrupted or invalid.", { code: "invalid_response" });
+          if (!decoder.push(part)) throw streamError;
         } else text += part;
       }
       const tail = textDecoder.decode();
@@ -121,21 +141,32 @@ export const requestMetabloomResponse = async ({
     if (!response.ok) {
       let payload = {};
       try { payload = JSON.parse(text); } catch { /* Static host may return HTML. */ }
-      const error = new MetabloomApiError("The model request was not completed.", {
-        code: typeof payload.code === "string" ? payload.code : "request_failed", status: response.status,
+      // Older HTTP handlers may include a message field. Never copy its text;
+      // validate only the same safe code and reference used by stream errors.
+      const details = parseMetabloomRequestError({ code: payload?.code,
+        ...(payload?.requestRef !== undefined ? { requestRef: payload.requestRef } : {}) });
+      const code = details?.code || "request_failed";
+      const error = new MetabloomApiError(getMetabloomApiErrorMessage(code), {
+        code, status: responseStatus, requestRef: details?.requestRef || responseRequestRef,
       });
       if (optional && isMetabloomApiUnavailable(error)) return null;
       throw error;
     }
     const result = isStream ? decoder.finish() : parseMetabloomChatEnvelope(text, { allowMultiple });
-    if (!result.ok) throw new MetabloomApiError(result.error, { code: "invalid_response" });
+    if (!result.ok) throw streamError || new MetabloomApiError(getMetabloomApiErrorMessage("invalid_response"), {
+      code: "invalid_response", status: responseStatus, requestRef: responseRequestRef,
+    });
     // JSON compatibility responses use the same callback, exactly once per segment.
     if (!isStream) result.value.segments.forEach((segment, index) => onSegment?.(segment, index));
     return result.value;
   } catch (error) {
-    if (controller.signal.aborted) throw new MetabloomApiError("The model request was cancelled or timed out.", { code: "cancelled" });
+    if (controller.signal.aborted) throw new MetabloomApiError(getMetabloomApiErrorMessage("cancelled"), {
+      code: "cancelled", status: responseStatus, requestRef: responseRequestRef,
+    });
     if (error instanceof MetabloomApiError) throw error;
-    throw new MetabloomApiError("The model service could not be reached.", { code: "network_error" });
+    throw new MetabloomApiError(getMetabloomApiErrorMessage("network_error"), {
+      code: "network_error", status: responseStatus, requestRef: responseRequestRef,
+    });
   } finally {
     clearTimeout(timeout);
     signal?.removeEventListener("abort", abort);

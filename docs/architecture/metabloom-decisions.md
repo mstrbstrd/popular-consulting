@@ -142,8 +142,10 @@ terminal completion starts closing it. Ordinary conversation remains immediate.
 
 Scene timers and buffered presentation belong to one request. Stop, error,
 timeout, replacement, reset, deactivation, and unmount discard unpublished text and retain
-only an already-visible incomplete prefix. A hidden page retires the scene;
-gated research is cancelled instead of replaying hidden text later. Reduced
+only an already-visible incomplete prefix. A hidden page skips the current scene
+and releases its display gate without aborting the request. Received evidence and
+the answer remain attached to the same session; the skipped scene cannot restart
+when the tab returns. Navigation away, unmount and explicit Stop still cancel work. Reduced
 motion presents the selected scene directly and retains a brief static surfacing
 cue before revealing text. Timed menu previews and external worker activities
 remain independent. Provider deadlines and semantic response limits still apply.
@@ -177,8 +179,8 @@ motion, cancellation, or rendering fallback may simplify it.
 
 ## Live web research
 
-`server/metabloomResearch.js` performs a non-streamed Responses request with the
-`web_search` tool, required tool use, medium reasoning, at most six tool calls,
+`server/metabloomResearch.js` performs a streamed Responses request with the
+`web_search` tool, required tool use, medium reasoning, `max_tool_calls: 6`,
 and at most 10,000 output tokens including reasoning. The pass searches and can
 follow up on evidence within that budget. It prefers primary sources, checks
 dates and disagreements, and returns a compact research brief. The model is
@@ -186,10 +188,18 @@ dates and disagreements, and returns a compact research brief. The model is
 `gpt-5-mini`. Both passes use the existing server-only `OPENAI_API_KEY`.
 The selected model must support Responses web search and reasoning. The optional
 research model setting can change research independently of ordinary chat.
+The provider's processed-call budget is distinct from its returned output records.
+A production response returned seven web-tool records for a six-call budget.
+Parsing therefore has its own 64-output-item bound and does not reject a valid
+completed brief merely because its tool-record count exceeds six. Failed attempts
+can coexist with a completed search and usable cited evidence. No automatic retry
+or increase to the provider's tool or token budget is introduced.
 
 Only a completed response containing an actual completed search and usable URL
 annotations can advance to writing. The brief is capped at 16,000 characters
-and its response body at 512 KiB. Up to eight distinct annotated sources become
+and each SSE event at 512 KiB. The full SSE transport is bounded to 2 MiB to allow
+repeated per-event metadata while retaining the same content and token limits.
+Up to eight distinct annotated sources become
 consecutive source IDs. Unannotated URLs in model text or the wider consulted
 source list cannot manufacture a citation. Titles and URLs have shared server
 and browser validation; only absolute HTTP(S) links without credentials are
@@ -205,7 +215,12 @@ and lists the sources below the completed answer. Citation validation establishe
 provenance and valid IDs; it does not mechanically prove every factual claim.
 
 Research metadata follows `searching`, `sources`, then `synthesizing`, before the
-existing text records. These events update status without surfacing the Orb.
+existing text records. Bounded `research_progress` records may update the current
+summary between confirmed search start and answer text: actual search queries,
+checked domains, completed searches, and the validated source count for writing.
+These summaries come from provider tool events, not private reasoning or timers.
+At most 24 summaries of 200 characters are accepted, replacing the previous one.
+These events update status without surfacing the Orb.
 Only answer content starts the established return and progressive reveal. Source
 metadata belongs to the reply session, follows the same display gate, and cannot
 leak from a cancelled or superseded request.
@@ -219,7 +234,12 @@ Stop, disconnect, timeout, refusal, incomplete output, missing search evidence,
 or invalid citations stop the flow without a successful `done` record or a demo
 replacement. Existing session authorization, same-origin checks and atomic quotas
 run before billable work. Research adds bounded search and synthesis costs to the
-same request quota. Diagnostics contain only outcome, duration and usage counts.
+same request quota. Diagnostics contain safe outcome/error identifiers, failure
+stage, duration, usage counts, requested tool budget and returned tool-record
+count. A random 12-character hexadecimal `requestRef` ties the UI and response
+header to the server log. Provider HTTP status, allowlisted provider error code
+and parameter, and provider request ID are retained only in server logs. Raw
+provider error messages, prompts, source URLs and search queries are not logged.
 
 Official API contracts: [web search](https://developers.openai.com/api/docs/guides/tools-web-search),
 [Responses limits](https://developers.openai.com/api/reference/ruby/resources/responses/methods/create),

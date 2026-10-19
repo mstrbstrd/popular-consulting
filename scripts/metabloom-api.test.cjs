@@ -43,7 +43,7 @@ const researchDocument = () => {
     ],
   };
 };
-const researchReply = (value = researchDocument()) => new Response(JSON.stringify(value), { headers: { "content-type": "application/json" } });
+const researchReply = (value = researchDocument()) => new Response(`data: ${JSON.stringify({ type: "response.completed", response: value })}\n\n`, { headers: { "content-type": "text/event-stream" } });
 
 test("one segment, exact enum, required version, no extra controls", () => {
   assert.equal(parseMetabloomEmoteEnvelope(envelope(segment())).ok, true);
@@ -198,6 +198,51 @@ test("invalid action modes fail validation before quota or provider work", async
   assert.equal(handler._internals.localBuckets.size, 0);
 });
 
+test("invalid research progress capabilities fail validation before quota or provider work", async () => {
+  local();
+  let calls = 0;
+  global.fetch = async () => { calls++; assert.fail("Invalid capability cannot invoke providers"); };
+  for (const streamResearchProgress of [null, 0, 1, "true", "false", {}, []]) {
+    const res = response();
+    await handler(request({ message: "Research this", actionMode: "deep-research", streamResearchProgress }), res);
+    assert.equal(res.statusCode, 400);
+    assert.deepEqual(JSON.parse(res.body), { code: "invalid_request" });
+  }
+  assert.equal(calls, 0);
+  assert.equal(handler._internals.localBuckets.size, 0);
+});
+
+test("research progress is sent only to clients that explicitly opt in", async () => {
+  local();
+  for (const streamResearchProgress of [undefined, false, true]) {
+    let calls = 0;
+    global.fetch = async (_url, options) => {
+      calls++;
+      if (JSON.parse(options.body).tools) {
+        const events = [
+          { type: "response.web_search_call.searching", item_id: "ws_fixture", output_index: 0 },
+          { type: "response.completed", response: researchDocument() },
+        ];
+        return new Response(events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(""),
+          { headers: { "content-type": "text/event-stream" } });
+      }
+      return reply(textEnvelope("A supported answer for this client. [1]"));
+    };
+    const res = response();
+    await handler(request({ message: "Research this", actionMode: "deep-research",
+      ...(streamResearchProgress !== undefined ? { streamResearchProgress } : {}),
+    }), res);
+    const records = res.body.trim().split("\n").map(JSON.parse);
+    const progress = streamResearchProgress === true ? ["research_progress"] : [];
+    assert.deepEqual(records.map((record) => record.type), [
+      "emote", "action", "research", ...progress, "sources", "research", ...progress,
+      "segment", "text_complete", "emote", "done",
+    ]);
+    assert.deepEqual(records.find((record) => record.type === "sources").sources, researchSources);
+    assert.equal(calls, 2);
+  }
+});
+
 test("auto waits for its selected scene before starting OpenAI and preserves stream ordering", async () => {
   local(); process.env.TYPESAFE_API_KEY = "fixture";
   const requests = [];
@@ -215,10 +260,10 @@ test("auto waits for its selected scene before starting OpenAI and preserves str
         options.signal.addEventListener("abort", () => reject(new Error("cancelled")), { once: true });
       });
     }
-    return sent.stream === false ? researchReply() : reply(textEnvelope("A considered answer. [1]"));
+    return Boolean(sent.tools) ? researchReply() : reply(textEnvelope("A considered answer. [1]"));
   };
   const res = response();
-  const running = handler(request({ message: "Please examine this carefully", actionMode: "auto", streamText: true }), res);
+  const running = handler(request({ message: "Please examine this carefully", actionMode: "auto", streamText: true, streamResearchProgress: true }), res);
   await started;
   assert.equal(inputSignal.aborted, false);
   assert.equal(requests.some((entry) => entry.url.includes("openai.com")), false);
@@ -226,7 +271,7 @@ test("auto waits for its selected scene before starting OpenAI and preserves str
   releaseInput(jevReply("curious", 0.97, "deep-research"));
   await running;
   const records = res.body.trim().split("\n").map(JSON.parse);
-  assert.deepEqual(records.map((entry) => entry.type), ["emote", "action", "research", "sources", "research", "text_delta", "segment", "text_complete", "emote", "done"]);
+  assert.deepEqual(records.map((entry) => entry.type), ["emote", "action", "research", "sources", "research", "research_progress", "text_delta", "segment", "text_complete", "emote", "done"]);
   assert.deepEqual(records[1], { type: "action", action: "deep-research" });
   assert.deepEqual(records.slice(2, 5), [
     { type: "research", state: "searching" },
@@ -237,7 +282,7 @@ test("auto waits for its selected scene before starting OpenAI and preserves str
   assert.equal(jev.length, 2);
   const openai = requests.filter((entry) => entry.url.includes("openai.com"));
   assert.equal(openai.length, 2);
-  assert.equal(openai[0].body.stream, false);
+  assert.equal(openai[0].body.stream, true);
   assert.equal(openai[1].body.stream, true);
   assert.equal(openai[1].body.instructions, buildMetabloomChatSystemPrompt({ presentationAction: "deep-research", researchEnabled: true }));
   assert.deepEqual(Object.keys(jev[0].body.questions), ["reaction", "action"]);
@@ -259,13 +304,13 @@ test("missing Jev preserves explicit scenes and gives auto the ordinary presenta
       assert.equal(new URL(url).host, "api.openai.com");
       const sent = JSON.parse(options.body);
       requests.push(sent);
-      if (sent.stream === false) return researchReply();
+      if (Boolean(sent.tools)) return researchReply();
       return reply(textEnvelope(selectedAction === "deep-research" ? "One careful paragraph. [1]" : "One careful paragraph.", "A useful continuation."));
     };
     const res = response();
-    await handler(request({ message: "Explain the idea", actionMode, allowMultiple: true }), res);
+    await handler(request({ message: "Explain the idea", actionMode, allowMultiple: true, streamResearchProgress: true }), res);
     const records = res.body.trim().split("\n").map(JSON.parse);
-    assert.deepEqual(records.map((entry) => entry.type), ["emote", "action", ...(selectedAction === "deep-research" ? ["research", "sources", "research"] : []), "segment", "segment", "text_complete", "emote", "done"]);
+    assert.deepEqual(records.map((entry) => entry.type), ["emote", "action", ...(selectedAction === "deep-research" ? ["research", "sources", "research", "research_progress"] : []), "segment", "segment", "text_complete", "emote", "done"]);
     assert.deepEqual(records[1], { type: "action", action: selectedAction });
     assert.deepEqual(records.filter((entry) => entry.type === "emote").map((entry) => entry.emote), ["neutral", "neutral"]);
     assert.equal(requests.length, selectedAction === "deep-research" ? 2 : 1);
@@ -370,7 +415,7 @@ test("auto prompt context matches the validated action rather than words in the 
         return body.state.assistantResponse ? jevReply("resolute") : jevReply(emote, 0.97, action, confidence);
       }
       requests.push(body);
-      if (body.stream === false) return researchReply();
+      if (Boolean(body.tools)) return researchReply();
       return reply(textEnvelope(selected === "deep-research" ? "A grounded reply. [1]" : "A grounded reply."));
     };
     const res = response();
@@ -451,7 +496,7 @@ test("explicit research searches with bounded tools before its schema-constraine
   global.fetch = async (url, options) => {
     const body = JSON.parse(options.body);
     calls.push({ url: String(url), body, options });
-    if (body.stream === false) {
+    if (Boolean(body.tools)) {
       assert.deepEqual(res.body.trim().split("\n").map(JSON.parse), [
         { type: "emote", phase: "input", emote: "neutral" },
         { type: "action", action: "deep-research" },
@@ -514,7 +559,7 @@ test("research cannot begin before its initial reaction and action reach the str
       inputStarted();
       return new Promise((resolve) => { releaseInput = resolve; });
     }
-    return body.stream === false ? researchReply() : reply(textEnvelope("The source supports this finding. [1]"));
+    return Boolean(body.tools) ? researchReply() : reply(textEnvelope("The source supports this finding. [1]"));
   };
   const res = response();
   const running = handler(request({ message: "Research the current facts", actionMode: "deep-research" }), res);
@@ -539,7 +584,7 @@ test("disconnect during research aborts provider work and never starts synthesis
   global.fetch = async (url, options) => {
     const body = JSON.parse(options.body);
     calls.push(body);
-    assert.equal(body.stream, false);
+    assert.equal(body.stream, true); assert.ok(body.tools);
     signal = options.signal;
     researchStarted();
     return new Promise((_resolve, reject) => signal.addEventListener("abort", () => reject(new Error("cancelled")), { once: true }));
@@ -568,7 +613,7 @@ test("unverified research fails without invoking a writer or claiming completion
     let calls = 0;
     global.fetch = async (_url, options) => {
       calls++;
-      assert.equal(JSON.parse(options.body).stream, false);
+      assert.equal(JSON.parse(options.body).stream, true); assert.ok(JSON.parse(options.body).tools);
       return researchReply(value);
     };
     const res = response();
@@ -586,7 +631,7 @@ test("research writer requires actual source IDs before final text completion", 
     let calls = 0;
     global.fetch = async (_url, options) => {
       calls++;
-      return JSON.parse(options.body).stream === false ? researchReply() : reply(textEnvelope(text));
+      return Boolean(JSON.parse(options.body).tools) ? researchReply() : reply(textEnvelope(text));
     };
     const res = response();
     await handler(request({ message: "Research this", actionMode: "deep-research", streamText: true }), res);
@@ -603,7 +648,7 @@ test("research text stays private until both the writer's final envelope and cit
   let upstream, writerStarted;
   const started = new Promise((resolve) => { writerStarted = resolve; });
   global.fetch = async (_url, options) => {
-    if (JSON.parse(options.body).stream === false) return researchReply();
+    if (Boolean(JSON.parse(options.body).tools)) return researchReply();
     return new Response(new ReadableStream({ start(controller) { upstream = controller; writerStarted(); } }), { headers: { "content-type": "text/event-stream" } });
   };
   const res = response();
@@ -622,4 +667,67 @@ test("research text stays private until both the writer's final envelope and cit
   const records = res.body.trim().split("\n").map(JSON.parse);
   assert.deepEqual(records.filter((record) => record.type === "text_delta"), [{ type: "text_delta", index: 0, delta: "A supported answer. [1]" }]);
   assert.equal(records.at(-1).type, "done");
+});
+
+test("seven returned research tool records can yield a cited answer with the six-call request budget", async () => {
+  local();
+  const value = researchDocument();
+  value.output.unshift(...Array.from({ length: 6 }, (_, index) => ({
+    id: `ws_fixture_${index}`, type: "web_search_call", status: "completed",
+    action: { type: "open_page", url: researchSources[0].url },
+  })));
+  const calls = [];
+  global.fetch = async (_url, options) => {
+    const body = JSON.parse(options.body);
+    calls.push(body);
+    if (body.tools) {
+      assert.equal(body.max_tool_calls, 6);
+      assert.equal(body.max_output_tokens, 10000);
+      return researchReply(value);
+    }
+    return reply(textEnvelope("The completed sources support this finding. [1]"));
+  };
+  const res = response();
+  await handler(request({ message: "Research this", actionMode: "deep-research", streamText: true }), res);
+  assert.equal(calls.length, 2, "One research call and one writer call, without retries");
+  const records = res.body.trim().split("\n").map(JSON.parse);
+  assert.deepEqual(records.find((record) => record.type === "sources").sources, researchSources);
+  assert.equal(records.at(-1).type, "done");
+  assert.equal(records.some((record) => record.type === "error"), false);
+  assert.equal(records.find((record) => record.type === "segment").response, "The completed sources support this finding. [1]");
+});
+
+test("research HTTP failures expose only a safe code and reference while preserving server diagnostics", async (t) => {
+  local();
+  const logs = [];
+  for (const method of ["info", "warn", "error"]) t.mock.method(console, method, (...args) => logs.push(args));
+  for (const [status, code] of [[400, "model_configuration_error"], [429, "provider_rate_limited"]]) {
+    let calls = 0;
+    global.fetch = async (_url, options) => {
+      calls++;
+      assert.ok(JSON.parse(options.body).tools);
+      return new Response(JSON.stringify({ error: {
+        message: "Private model configuration detail that cannot reach the client", code: "unsupported_parameter", param: "tools",
+      } }), { status, headers: { "content-type": "application/json", "x-request-id": "req_fixture_provider" } });
+    };
+    const res = response();
+    await handler(request({ message: "Research this", actionMode: "deep-research" }), res);
+    const records = res.body.trim().split("\n").map(JSON.parse);
+    const error = records.at(-1);
+    assert.equal(error.type, "error");
+    assert.equal(error.code, code);
+    assert.match(error.requestRef, /^[a-f0-9]{12}$/);
+    assert.equal(res.headers["X-Metabloom-Request-Ref"], error.requestRef);
+    assert.deepEqual(Object.keys(error).sort(), ["code", "requestRef", "type"]);
+    assert.equal(calls, 1);
+    assert.equal(res.body.includes("Private model configuration"), false);
+    assert.equal(res.body.includes("unsupported_parameter"), false);
+    assert.equal(records.some((record) => ["sources", "segment", "text_delta", "text_complete", "done"].includes(record.type)), false);
+    assert.equal(records.some((record) => record.state === "synthesizing"), false);
+  }
+  const logged = JSON.stringify(logs);
+  assert.equal(logged.includes("Private model configuration detail"), false);
+  assert.ok(logged.includes("unsupported_parameter"));
+  assert.ok(logged.includes("providerStatus"));
+  assert.ok(logged.includes("req_fixture_provider"));
 });

@@ -57,6 +57,8 @@ const researchDocument = () => {
       { type: "web_search_call", status: "completed", action: { type: "search", query: "fictional orchard sensor release", sources: [{ type: "url", url: sourceList[0].url }] } },
       { type: "web_search_call", status: "completed", action: { type: "open_page", url: sourceList[0].url } },
       { type: "web_search_call", status: "completed", action: { type: "search", query: "fictional orchard reference calibration", sources: [{ type: "url", url: sourceList[1].url }] } },
+      ...Array.from({ length: 4 }, (_, index) => ({ type: "web_search_call", status: "completed",
+        action: { type: "open_page", url: sourceList[index % sourceList.length].url } })),
       { type: "message", role: "assistant", status: "completed", content: [{ type: "output_text", text, annotations: [
         { type: "url_citation", title: sourceList[0].title, url: sourceList[0].url, start_index: 0, end_index: boundary },
         { type: "url_citation", title: sourceList[1].title, url: sourceList[1].url, start_index: boundary + 1, end_index: text.length },
@@ -110,7 +112,7 @@ globalThis.fetch = async (url, options = {}) => {
   if (research) {
     assert.notEqual(fixture.kind, "ordinary");
     assert.equal(fixture.calls.length, 1);
-    assert.equal(body.stream, false);
+    assert.equal(body.stream, true);
     assert.deepEqual(body.tools, [{ type: "web_search", search_context_size: "medium" }]);
     assert.equal(body.tool_choice, "required");
     assert.deepEqual(body.include, ["web_search_call.action.sources"]);
@@ -123,16 +125,21 @@ globalThis.fetch = async (url, options = {}) => {
     }, { once: true });
     const response = new Response(new ReadableStream({
       start(controller) {
+        const emit = (event) => controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`));
+        fixture.reportSearch = () => emit({ type: "response.output_item.done", output_index: 0,
+          item: researchDocument().output[0] });
         fixture.releaseResearch = () => {
           try {
-            controller.enqueue(new TextEncoder().encode(JSON.stringify(researchDocument())));
+            const value = researchDocument();
+            if (fixture.kind === "invalid") value.output.at(-1).content[0].annotations = [];
+            emit({ type: "response.completed", response: value });
             controller.close();
             return true;
           } catch { return false; }
         };
       },
       cancel() { fixture.readerCancelled.resolve(); },
-    }), { headers: { "content-type": "application/json" } });
+    }), { headers: { "content-type": "text/event-stream" } });
     fixture.researchRequested.resolve();
     return response;
   }
@@ -268,6 +275,9 @@ const snapshotFixture = (fixture) => ({ id: fixture.id, api: fixture.api, calls:
 
 let browser;
 let page;
+let activePageErrors = [];
+const requestedProfile = process.env.METABLOOM_VERIFY_PROFILE || "all";
+assert(["all", "desktop", "mobile"].includes(requestedProfile), "METABLOOM_VERIFY_PROFILE must be all, desktop or mobile.");
 const report = { mode: "built UI and actual API handler with fictional localhost auth and mocked OpenAI only", scenarios: [] };
 try {
   await new Promise((resolve, reject) => {
@@ -281,7 +291,7 @@ try {
   for (const profile of [
     { id: "desktop", viewport: { width: 1280, height: 850 }, isMobile: false },
     { id: "mobile", viewport: { width: 375, height: 812 }, isMobile: true },
-  ]) {
+  ].filter((profile) => requestedProfile === "all" || profile.id === requestedProfile)) {
     const context = await browser.newContext({ viewport: profile.viewport, isMobile: profile.isMobile,
       hasTouch: profile.isMobile, deviceScaleFactor: 1, reducedMotion: "reduce" });
     await context.addCookies([{ name: "metabloom-research-fixture", value: "fictional-local-session", url: origin, httpOnly: true, sameSite: "Strict" }]);
@@ -290,6 +300,7 @@ try {
     page = await context.newPage();
     page.setDefaultTimeout(20000);
     const errors = [];
+    activePageErrors = errors;
     page.on("pageerror", (error) => errors.push(error.message));
     await page.goto(`${origin}/orb?graphics=webgl`, { waitUntil: "domcontentloaded" });
     await page.waitForFunction(() => {
@@ -308,9 +319,21 @@ try {
     await page.getByText("Searching sources", { exact: true }).waitFor({ state: "visible" });
     assert.equal(await messages.count(), 0, "Searching must not manufacture an answer bubble.");
     assert.equal(await page.locator(".metabloom-chat__sources").count(), 0);
+    research.reportSearch();
+    await page.getByText("Searched: fictional orchard sensor release", { exact: true }).waitFor({ state: "visible" });
+    assert.equal(await messages.count(), 0, "Observed progress must not become an answer.");
+    // Verify the new detail's contrast surface and bounds without forcing a GPU
+    // readback while Tidal Weave is continuously rendering in software Chromium.
+    const progressStyle = await page.getByText("Searched: fictional orchard sensor release", { exact: true }).evaluate((node) => {
+      const style = getComputedStyle(node), rect = node.getBoundingClientRect();
+      return { color: style.color, background: style.backgroundColor, left: rect.left, right: rect.right, viewport: innerWidth };
+    });
+    assert(!["transparent", "rgba(0, 0, 0, 0)"].includes(progressStyle.background));
+    assert.notEqual(progressStyle.color, progressStyle.background);
+    assert(progressStyle.left >= 0 && progressStyle.right <= progressStyle.viewport);
     assert.equal(research.releaseResearch(), true);
     await waitFor(research.writerRequested.promise, "schema-constrained synthesis request");
-    await page.getByText("Writing a sourced answer", { exact: true }).waitFor({ state: "visible" });
+    await page.getByText("Writing an answer from 2 cited sources.", { exact: true }).waitFor({ state: "visible" });
     assert.equal(await messages.count(), 0, "Synthesis must stay private until verified text returns.");
     research.releaseWriter();
     await waitFor(research.finished.promise, "completed research API handler");
@@ -353,14 +376,48 @@ try {
     const cancelledAudit = await readAudit(page);
     assert(cancelledAudit.rows.every((row) => row.messageCount === 0 && row.sourceGroups === 0));
 
+    const background = makeFixture(`${profile.id}-background`, "research", `Research the fictional orchard while this ${profile.id} tab is hidden.`);
+    await send(page, background.question);
+    await waitFor(background.researchRequested.promise, "research before tab visibility changes");
+    await page.evaluate(() => {
+      Object.defineProperty(document, "hidden", { configurable: true, value: true });
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    assert.equal(background.releaseResearch(), true);
+    await waitFor(background.writerRequested.promise, "hidden-tab research proceeds to synthesis");
+    background.releaseWriter();
+    await waitFor(background.finished.promise, "hidden-tab answer completes");
+    assert.equal(background.researchAborted, false, "Tab hiding must not abort research.");
+    await page.evaluate(() => {
+      delete document.hidden;
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await completedCount(page, 2);
+    assert.deepEqual(await messages.last().locator("p[data-segment-index]").allTextContents(), researchedParagraphs);
+    assert.equal(await messages.last().locator("a.metabloom-chat__citation").count(), 2);
+    assert.equal(background.wire.at(-1)?.type, "done");
+
+    const invalid = makeFixture(`${profile.id}-invalid`, "invalid", `Return an uncited fictional orchard research brief for ${profile.id}.`);
+    await send(page, invalid.question);
+    await waitFor(invalid.researchRequested.promise, "research with unusable evidence");
+    assert.equal(invalid.releaseResearch(), true);
+    await waitFor(invalid.finished.promise, "invalid evidence returns a safe error");
+    const failure = invalid.wire.at(-1);
+    assert.equal(failure.type, "error");
+    assert.equal(failure.code, "research_no_sources");
+    assert.match(failure.requestRef, /^[a-f0-9]{12}$/);
+    await page.getByText(new RegExp(failure.requestRef)).waitFor({ state: "visible" });
+    assert.equal(await messages.count(), 2, "Failed research must not create an answer bubble.");
+    assert.equal(invalid.calls.length, 1, "Unusable evidence must not trigger a writer or automatic retry.");
+
     const ordinary = makeFixture(`${profile.id}-ordinary`, "ordinary", `Say hello to the imaginary orchard team for the ${profile.id} recovery fixture.`);
     await toggle.uncheck();
     await send(page, ordinary.question);
     await waitFor(ordinary.writerRequested.promise, "ordinary writer request");
     ordinary.releaseWriter();
     await waitFor(ordinary.finished.promise, "ordinary API handler");
-    await completedCount(page, 2);
-    assert.equal(await messages.count(), 2);
+    await completedCount(page, 3);
+    assert.equal(await messages.count(), 3);
     assert.equal(await messages.last().locator("p[data-segment-index]").textContent(), ordinaryAnswer);
     assert.equal(await messages.last().locator("a").count(), 0);
     assert.deepEqual(ordinary.calls.map((call) => call.phase), ["writer"]);
@@ -376,10 +433,11 @@ try {
     assert.deepEqual(errors, []);
     assert.deepEqual(serverErrors, []);
     assert.deepEqual(unexpectedProviderRequests, []);
-    report.scenarios.push({ profile, reducedMotion: true, geometry, research: snapshotFixture(research),
-      researchAudit, cancelled: snapshotFixture(cancelled), cancelledAudit, ordinary: snapshotFixture(ordinary), pageErrors: errors });
+    report.scenarios.push({ profile, reducedMotion: true, geometry, progressStyle, research: snapshotFixture(research),
+      researchAudit, cancelled: snapshotFixture(cancelled), cancelledAudit, background: snapshotFixture(background),
+      invalid: snapshotFixture(invalid), ordinary: snapshotFixture(ordinary), pageErrors: errors });
     fs.writeFileSync(`${output}/report.json`, JSON.stringify(report, null, 2));
-    console.log(`PASS ${profile.id}: researched citations, scene return, one bubble, cancellation, ordinary recovery`);
+    console.log(`PASS ${profile.id}: seven tool records, observed progress, citations, visibility, cancellation, error reference, ordinary recovery`);
     await context.close();
     page = null;
   }
@@ -390,9 +448,15 @@ try {
   report.result = "FAIL";
   report.error = error.message;
   report.serverErrors = serverErrors;
+  report.activePageErrors = activePageErrors;
   report.fixtures = [...fixtures.values()].map(snapshotFixture);
   if (page) {
     report.dom = await page.locator("body").innerText().catch(() => "Unavailable");
+    report.controls = await page.locator('.metabloom-chat input[type="checkbox"]').evaluateAll((nodes) => nodes.map((node) => ({
+      label: node.closest("label")?.textContent, disabled: node.disabled,
+      blockedAncestor: node.closest('[hidden], [inert], [aria-hidden="true"]')?.outerHTML.slice(0, 500) || null,
+      visibility: getComputedStyle(node).visibility, display: getComputedStyle(node).display,
+    }))).catch(() => null);
     report.audit = await readAudit(page).catch(() => null);
     await page.screenshot({ path: `${output}/failure.png` }).catch(() => {});
   }

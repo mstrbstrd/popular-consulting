@@ -21,6 +21,16 @@
 .metabloom-research-status__dots > span:nth-child(2) { animation-delay: 160ms; }
 .metabloom-research-status__dots > span:nth-child(3) { animation-delay: 320ms; }
 .orb-page .metabloom-research-status small { color: var(--aetheris-ink-2); font-size: 1.1rem; }
+.orb-page .metabloom-research-status .metabloom-research-status__detail {
+  align-self: flex-start;
+  width: fit-content;
+  max-width: 100%;
+  padding: 0.3rem 0.6rem;
+  border-radius: 0.6rem;
+  color: var(--metabloom-chat-ink);
+  background: var(--metabloom-chat-control);
+  overflow-wrap: anywhere;
+}
 @supports (background-clip: text) or (-webkit-background-clip: text) {
   .metabloom-research-status__text {
     background: linear-gradient(110deg, var(--aetheris-ink) 30%, var(--aetheris-teal) 46%, var(--aetheris-ink) 62%);
@@ -53,4 +63,5 @@
   .metabloom-research-status__text { background: none; color: CanvasText; animation: none; }
   .orb-page .metabloom-research-status,
   .orb-page .metabloom-research-status small { color: CanvasText; }
+  .orb-page .metabloom-research-status .metabloom-research-status__detail { color: CanvasText; background: Canvas; }
 }

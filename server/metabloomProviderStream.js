@@ -1,4 +1,5 @@
 const { parseMetabloomEmoteEnvelope, parseMetabloomChatEnvelope } = require("../src/components/metabloomEmoteProtocol");
+const { createMetabloomProviderError, providerDetails } = require("./metabloomProviderErrors");
 const {
   METABLOOM_PROTOCOL_VERSION, METABLOOM_CHAT_PROTOCOL_VERSION,
   MAX_METABLOOM_EMOTE_SEGMENTS, MAX_METABLOOM_EMOTE_RESPONSE_CHARS, MAX_METABLOOM_EMOTE_TOTAL_CHARS,
@@ -182,7 +183,12 @@ const streamMetabloomProvider = async (upstream, { allowMultiple = false, onSegm
     const serialized = data.join("\n"); data = [];
     if (serialized === "[DONE]") { if (!completed) throw new Error("Premature SSE completion"); return; }
     const event = JSON.parse(serialized);
-    if (["error", "response.failed", "response.incomplete", "response.refusal.delta", "response.refusal.done"].includes(event.type)) throw new Error("Provider did not complete safely");
+    if (["error", "response.failed"].includes(event.type)) {
+      throw createMetabloomProviderError("provider_unavailable", "provider_stream_error", providerDetails(event.response?.error || event));
+    }
+    if (["response.incomplete", "response.refusal.delta", "response.refusal.done"].includes(event.type)) {
+      throw createMetabloomProviderError("answer_incomplete", event.response?.incomplete_details?.reason === "max_output_tokens" ? "output_token_limit" : "answer_not_completed");
+    }
     if (event.type === "response.output_text.delta" || event.type === "response.output_text.done") {
       const key = `${event.item_id}:${event.output_index}:${event.content_index}`;
       if (outputKey !== null && key !== outputKey) throw new Error("Multiple output channels");
@@ -218,7 +224,7 @@ const streamMetabloomProvider = async (upstream, { allowMultiple = false, onSegm
         else if (line.startsWith("data:")) data.push(line.slice(5).replace(/^ /, ""));
       }
     }
-    if (!completed) throw new Error("Provider stream ended without completion");
+    if (!completed) throw createMetabloomProviderError("answer_incomplete", "stream_ended_early");
     return result;
   } finally {
     signal?.removeEventListener("abort", abort);
