@@ -151,13 +151,13 @@ test('duplicate generation reaches the provider at most once', async () => {
   let claimed = false, calls = 0;
   const handler = createMetabloomVisualHandler({ authenticate, store: { claim: async () => {
     if (claimed) throw Object.assign(new Error(), { code: 'visual_claimed' }); claimed = true; return record();
-  } }, generate: async () => { calls++; return spec(); } });
+  }, complete: async () => {} }, generate: async () => { calls++; return spec(); } });
   const value = { id: offer().id, version: '1', designVersion: 'aetheris-1' }; const a = response(), b = response();
   await Promise.all([handler(request(value), a), handler(request(value), b)]);
   assert.equal(calls, 1); assert.deepEqual([a.statusCode, b.statusCode].sort(), [200, 409]);
 });
 test('failed visuals return safe codes and do not retry or expose provider content', async () => {
-  let calls = 0; const handler = createMetabloomVisualHandler({ authenticate, store: { claim: async () => record() }, generate: async () => { calls++; throw new Error('secret upstream content'); } });
+  let calls = 0; const handler = createMetabloomVisualHandler({ authenticate, store: { claim: async () => record(), complete: async () => {} }, generate: async () => { calls++; throw new Error('secret upstream content'); } });
   const res = response(); await handler(request({ id: offer().id, version: '1', designVersion: 'aetheris-1' }), res);
   assert.equal(calls, 1); assert.equal(res.statusCode, 502); assert.equal(JSON.parse(res.body).code, 'visual_unavailable'); assert.ok(!res.body.includes('secret'));
 });

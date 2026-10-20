@@ -24,6 +24,7 @@ export const requestMetabloomResponse = async ({
   allowMultiple = false,
   fetchImpl = globalThis.fetch,
   history = [],
+  artifactContext,
   message,
   onSegment,
   onTextDelta,
@@ -61,7 +62,8 @@ export const requestMetabloomResponse = async ({
       credentials: "same-origin",
       headers: { "Content-Type": "application/json", Accept: "application/x-ndjson", "X-Metabloom-Visuals": "1" },
       body: JSON.stringify({ actionMode, allowMultiple: allowMultiple === true, streamText: true,
-        streamResearchProgress: true, streamResearchDetails: true, history, message, requestId }),
+        streamResearchProgress: true, streamResearchDetails: true, history, message, requestId,
+        ...(artifactContext ? { artifactContext } : {}) }),
       signal: controller.signal,
     });
     const contentType = response.headers?.get?.("content-type") || "";

@@ -34,9 +34,41 @@ local total=tonumber(redis.call('GET',KEYS[3]) or '0')
 if client>=5 or total>=50 then return 'quota' end
 if redis.call('INCR',KEYS[2])==1 then redis.call('EXPIRE',KEYS[2],3600) end
 if redis.call('INCR',KEYS[3])==1 then redis.call('EXPIRE',KEYS[3],86400) end
-local tombstone=cjson.encode({owner=record.owner,status='claimed',offer=record.offer})
+local tombstone=cjson.encode({owner=record.owner,status='claimed',offer=record.offer,tool=record.context.tool})
 redis.call('SET',KEYS[1],tombstone,'KEEPTTL')
 return raw`;
+
+const FINISH_SCRIPT = `
+local raw=redis.call('GET',KEYS[1])
+if not raw then return 'expired' end
+local record=cjson.decode(raw)
+if record.owner~=ARGV[1] then return 'expired' end
+if record.status~='claimed' then return 'claimed' end
+record.status=ARGV[2]
+record.result=cjson.decode(ARGV[3])
+redis.call('SET',KEYS[1],cjson.encode(record),'EX',3600)
+return 'OK'`;
+const CONTINUE_SCRIPT = `
+local raw=redis.call('GET',KEYS[1])
+if not raw then return 'expired' end
+local record=cjson.decode(raw)
+if record.owner~=ARGV[1] then return 'expired' end
+if not record.tool then return 'invalid' end
+if record.status~='ready' and record.status~='failed' then return 'claimed' end
+record.status='continuing'
+redis.call('SET',KEYS[1],cjson.encode(record),'KEEPTTL')
+return raw`;
+const COMPLETE_CONTINUATION_SCRIPT = `
+local raw=redis.call('GET',KEYS[1])
+if not raw then return 'expired' end
+local record=cjson.decode(raw)
+if record.owner~=ARGV[1] then return 'expired' end
+if record.status~='continuing' then return 'claimed' end
+record.status='complete'
+record.reply=cjson.decode(ARGV[2])
+redis.call('SET',KEYS[1],cjson.encode(record),'KEEPTTL')
+return 'OK'`;
+
 async function visualCommand(args, { signal, fetchImpl = globalThis.fetch } = {}) {
   const url = new URL(process.env.UPSTASH_REDIS_REST_URL);
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
@@ -55,7 +87,57 @@ function createMetabloomVisualStore({ command = visualCommand, now = Date.now } 
     if (!validIdentity(identity)) throw visualError('visual_authentication');
     return `metabloom:{visual-${identity.scope}}:`;
   };
+  const recordKey = (identity, id) => {
+    if (typeof id !== 'string' || !/^[a-f0-9]{48}$/.test(id)) throw visualError('visual_expired');
+    return `${prefix(identity)}offer:${id}`;
+  };
+  const readRecord = async (identity, id, options = {}) => {
+    const raw = await command(['GET', recordKey(identity, id)], options);
+    if (typeof raw !== 'string' || Buffer.byteLength(raw, 'utf8') > 90000) return null;
+    let record;
+    try { record = JSON.parse(raw); } catch { return null; }
+    return record?.owner === identity.owner && parseMetabloomVisualOffer(record.offer) ? record : null;
+  };
   return Object.freeze({
+    async claimStart(identity, requestId, options = {}) {
+      if (typeof requestId !== 'string' || !/^[a-zA-Z0-9-]{1,160}$/.test(requestId))
+        throw visualError('visual_invalid');
+      const key = `${prefix(identity)}start:${identity.owner}:${requestId}`;
+      const result = await command(['SET', key, '1', 'EX', '600', 'NX'], options);
+      if (result !== 'OK') throw visualError('visual_claimed');
+    },
+    async complete(identity, id, result, options = {}) {
+      if (!result || !['ready', 'failed'].includes(result.status)
+        || Buffer.byteLength(JSON.stringify(result), 'utf8') > 65536) throw visualError('visual_invalid');
+      const outcome = await command(['EVAL', FINISH_SCRIPT, '1', recordKey(identity, id),
+        identity.owner, result.status, JSON.stringify(result)], options);
+      if (outcome !== 'OK') throw visualError('visual_unavailable');
+    },
+    async claimContinuation(identity, id, options = {}) {
+      const raw = await command(['EVAL', CONTINUE_SCRIPT, '1', recordKey(identity, id), identity.owner], options);
+      if (typeof raw !== 'string' || ['expired', 'invalid', 'claimed'].includes(raw)
+        || Buffer.byteLength(raw, 'utf8') > 90000) throw visualError('visual_expired');
+      let record;
+      try { record = JSON.parse(raw); } catch { throw visualError('visual_invalid'); }
+      if (record.owner !== identity.owner || !record.tool || !record.result
+        || !['ready', 'failed'].includes(record.status)) throw visualError('visual_invalid');
+      return record;
+    },
+    async completeContinuation(identity, id, reply, options = {}) {
+      if (!reply || Buffer.byteLength(JSON.stringify(reply), 'utf8') > 8000) throw visualError('visual_invalid');
+      const outcome = await command(['EVAL', COMPLETE_CONTINUATION_SCRIPT, '1',
+        recordKey(identity, id), identity.owner, JSON.stringify(reply)], options);
+      if (outcome !== 'OK') throw visualError('visual_unavailable');
+    },
+    async getArtifact(identity, id, options = {}) {
+      const record = await readRecord(identity, id, options);
+      return record && ['ready', 'continuing', 'complete'].includes(record.status)
+        && record.result?.status === 'ready' ? record.result.spec : null;
+    },
+    async getContinuation(identity, id, options = {}) {
+      const record = await readRecord(identity, id, options);
+      return record?.status === 'complete' && record.reply ? record.reply : null;
+    },
     async offer(identity, kind, context, options = {}) {
       if (!enabled() || !METABLOOM_VISUAL_KINDS.includes(kind)) return null;
       const key = prefix(identity);

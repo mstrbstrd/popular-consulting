@@ -3,10 +3,12 @@ import { act, fireEvent, render, screen, waitFor, cleanup } from '@testing-libra
 import MetabloomVisuals from './MetabloomVisuals';
 import MetabloomVisualFrame from './MetabloomVisualFrame';
 import { requestMetabloomVisual, METABLOOM_VISUAL_OFFER_EVENT } from './metabloomVisualApiClient';
+import { postMetabloomTool } from './metabloomToolClient';
 
 jest.mock('./metabloomVisualApiClient', () => ({
   METABLOOM_VISUAL_OFFER_EVENT: 'metabloom:visual-offer', requestMetabloomVisual: jest.fn(),
 }));
+jest.mock('./metabloomToolClient', () => ({ postMetabloomTool: jest.fn() }));
 const table = { version: '1', designVersion: 'aetheris-1', kind: 'table', title: 'Options compared', summary: 'Your supplied values.',
   provenance: { type: 'user', label: 'User-provided values.', sourceIds: [] }, columns: ['Option', 'Value'], rows: [['A', '10'], ['B', '20']] };
 const calculator = { version: '1', designVersion: 'aetheris-1', kind: 'calculator', title: 'Share the total', summary: 'Calculate from your inputs.', provenance: table.provenance, controls: [{ id: 'total', label: 'Total', unit: 'CAD', min: 0, max: 1000, step: 1, initial: 120 }, { id: 'people', label: 'People', unit: '', min: 0, max: 20, step: 1, initial: 3 }], formula: ['total', 'people', 'divide'], formulaDescription: 'Total divided by people.', unit: 'CAD per person' };
@@ -20,7 +22,7 @@ function startTurn(id = 'mount-1', userId = 'user-1') {
   return { controller, detail: { requestId: id, signal: controller.signal, offer: { version: '1', designVersion: 'aetheris-1', id: 'a'.repeat(48), kind: 'table', expiresAt: Date.now() + 600000 }, reply: { segments: [{ response: 'The original answer.' }] } } };
 }
 function completeTurn() { messages.push({ id: 'assistant-2', role: 'assistant', content: 'The original answer.', status: 'complete' }); }
-beforeEach(() => { messages = []; window.__orbMessages = () => messages.map(message => ({ ...message })); requestMetabloomVisual.mockReset(); });
+beforeEach(() => { messages = []; window.__orbMessages = () => messages.map(message => ({ ...message })); requestMetabloomVisual.mockReset(); postMetabloomTool.mockReset(); });
 afterEach(() => { cleanup(); delete window.__orbMessages; document.documentElement.removeAttribute('data-theme'); });
 
 test('waits for exact text completion and the visible scene gate before requesting a visual', async () => {
@@ -103,4 +105,41 @@ test('multi-series chart renders three labeled paths and accessible exact values
   fireEvent.click(screen.getByText('View exact values'));
   expect(screen.getByRole('table')).toHaveTextContent('33');
   expect(screen.getByRole('table')).toHaveTextContent('Business B');
+});
+
+test('explicit tool call generates an artifact before the closing response and passes current calculator state', async () => {
+  const offer = { version: '1', designVersion: 'aetheris-1', id: 'b'.repeat(48),
+    kind: 'calculator', expiresAt: Date.now() + 600000 };
+  postMetabloomTool.mockImplementation(({ phase }) => Promise.resolve(phase === 'start'
+    ? { offer, emote: 'neutral' }
+    : { reply: { version: '2.0.0', segments: [{ response: 'Your calculator is ready.' }] }, emote: 'neutral' }));
+  requestMetabloomVisual.mockResolvedValue({ spec: calculator, sources: [] });
+  messages = [{ id: 'user-1', role: 'user', content: 'Create an interactive calculator.' }];
+  const HostTool = ({ complete }) => <div className="orb-page">
+    <article data-message-id="user-1" data-stream-status="complete"><div className="metabloom-chat__bubble">Create an interactive calculator.</div></article>
+    {complete && <article data-message-id="assistant-2" data-stream-status="complete"><div className="metabloom-chat__bubble">Your calculator is ready.</div></article>}
+    <MetabloomVisuals />
+  </div>;
+  const host = render(<HostTool complete={false} />);
+  const controller = new AbortController();
+  const respond = jest.fn(() => {
+    messages.push({ id: 'assistant-2', role: 'assistant', content: 'Your calculator is ready.', status: 'complete' });
+  });
+  const event = new CustomEvent('metabloom:user-message', { cancelable: true, detail: {
+    requestId: 'mount-1', message: 'Create an interactive calculator.', history: [], actionMode: 'auto',
+    signal: controller.signal, claim: jest.fn(), respond, onToolActivity: jest.fn(), onReaction: jest.fn(),
+  } });
+  act(() => window.dispatchEvent(event));
+  expect(event.defaultPrevented).toBe(true);
+  await screen.findByRole('heading', { name: 'Share the total' });
+  await waitFor(() => expect(respond).toHaveBeenCalledTimes(1));
+  expect(postMetabloomTool).toHaveBeenCalledTimes(2);
+  expect(postMetabloomTool.mock.calls[1][0].display).toBe('mounted');
+  host.rerender(<HostTool complete />);
+  await waitFor(() => expect(document.querySelector('[data-message-id="assistant-2"] .metabloom-visual')).not.toBeNull());
+  fireEvent.change(screen.getByLabelText('People'), { target: { value: '4' } });
+  expect(window.__metabloomVisualSnapshot()).toEqual({ id: offer.id, inputs: { total: 120, people: 4 } });
+  fireEvent.change(screen.getByLabelText('People'), { target: { value: '' } });
+  expect(window.__metabloomVisualSnapshot()).toBeNull();
+  controller.abort();
 });

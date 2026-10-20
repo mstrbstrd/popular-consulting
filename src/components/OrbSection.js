@@ -511,6 +511,7 @@ const OrbSection = ({
   const messagesRef = React.useRef(messages);
   const [draft, setDraft] = React.useState(savedConversation?.draft || '');
   const [pending, setPending] = React.useState(false);
+  const [toolPending, setToolPending] = React.useState(false);
   const [errorMessage, setErrorMessage] = React.useState(savedConversation?.interrupted ? 'The response was interrupted when you changed tools. Any visible reply is incomplete. Send another message to continue.' : '');
   const [responseSource, setResponseSource] = React.useState(savedConversation?.responseSource || 'interface');
   const retainedConversation = React.useRef(null);
@@ -715,6 +716,7 @@ const OrbSection = ({
     replyRef.current = null;
     updateStateSnapshot({ researchProgress: null, researchSummary: null });
     if (mountedRef.current) {
+      setToolPending(false);
       setResearchProgress(null);
       setResearchSummary(null);
     }
@@ -1087,6 +1089,7 @@ const OrbSection = ({
     requestTokenRef.current += 1;
     updateStateSnapshot({ pending: false, researchProgress: null, researchSummary: null });
     setPending(false);
+    setToolPending(false);
     setResearchProgress(null);
     setResearchSummary(null);
   }, [updateStateSnapshot]);
@@ -1120,6 +1123,7 @@ const OrbSection = ({
       return false;
     }
     cancelResponse("error");
+    setToolPending(false);
     updateStateSnapshot({ pending: false, responseSource: "error" });
     setPending(false);
     setResponseSource("error");
@@ -1458,6 +1462,8 @@ const OrbSection = ({
         return false;
       }
       cancelResponse();
+      let artifactContext;
+      try { artifactContext = window.__metabloomVisualSnapshot?.(); } catch { /* Optional context only. */ }
       // A multi-segment reply remains one history entry. Exclude incomplete replies
       // and bound the history by characters as well as message count.
       let historyChars = 0;
@@ -1559,8 +1565,17 @@ const OrbSection = ({
         activeRequest.researchDetailsReceived = true;
         return true;
       };
+      const onToolActivity = (phase) => {
+        if (!current() || !['start', 'complete'].includes(phase)) return false;
+        setToolPending(phase === 'start');
+        window.clearTimeout(previewTimerRef.current);
+        const remaining = Math.max(0, activeRequest.startedAt + 95000 - Date.now());
+        previewTimerRef.current = window.setTimeout(() => failReply(session, { code: 'answer_timeout' }),
+          phase === 'start' ? remaining : Math.min(RESPONSE_TIMEOUT_MS, remaining));
+        return true;
+      };
       const request = {
-        requestId, message, history, allowMultiple, actionMode: activeRequest.actionMode,
+        requestId, message, history, artifactContext, allowMultiple, actionMode: activeRequest.actionMode, onToolActivity,
         signal: controller.signal, onTextDelta, onSegment, onReaction, onAction, onResearch, onResearchProgress, onResearchDetails, onSources,
         onActivity: (event) => current() && reportActivity(requestId, event),
         reactionQuestion: METABLOOM_REACTION_QUESTION,
@@ -1931,7 +1946,7 @@ const OrbSection = ({
     ? (activityPreview ? "Research scene preview" : METABLOOM_ACTIVITIES[activityId].label)
     : showResearchStatus ? "Researching"
     : pending
-    ? (hasStreamingReply ? "Responding" : "Thinking")
+    ? (toolPending ? "Building your visual" : hasStreamingReply ? "Responding" : "Thinking")
     : sequenceId
       ? "Responding"
       : paused
