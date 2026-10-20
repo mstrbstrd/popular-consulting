@@ -304,3 +304,50 @@ test('handoff-storage failure still completes the original answer and reaction',
     assert.equal(records.at(-1).type, 'done'); assert.equal(records.filter(record => record.type === 'segment').length, 1); assert.ok(!records.some(record => record.type === 'error'));
   } finally { global.fetch = originalFetch; }
 });
+
+const { classifyMetabloomVisualIntent, extractMetabloomVisualData } = require('../src/components/metabloomVisualIntent');
+const businessPrompt = 'Compare monthly revenue over six months and visualize the comparison. Business A: 20, 24, 28, 31, 36, 42. Business B: 30, 29, 33, 35, 34, 38. Business C: 15, 19, 23, 27, 32, 40. Values are in thousands of dollars.';
+test('input intent preserves user series without another model call', () => {
+  const result = classifyMetabloomVisualIntent(businessPrompt);
+  assert.equal(result.mode, 'requested');
+  assert.deepEqual(result.preferredKinds, ['line-chart']);
+  assert.deepEqual(result.dataHints.labels, ['M1', 'M2', 'M3', 'M4', 'M5', 'M6']);
+  assert.deepEqual(result.dataHints.series.map(series => series.values), [[20, 24, 28, 31, 36, 42], [30, 29, 33, 35, 34, 38], [15, 19, 23, 27, 32, 40]]);
+  assert.deepEqual(result.dataHints.series.map(series => series.label), ['Business A', 'Business B', 'Business C']);
+  assert.equal(classifyMetabloomVisualIntent('Just text only, no charts. Explain this.').mode, 'text_only');
+  assert.equal(classifyMetabloomVisualIntent('Explain curiosity.').mode, 'optional');
+  assert.equal(extractMetabloomVisualData('A: 1, 2. B: 3, 4, 5.'), null);
+});
+const multiChart = () => {
+  const { points, ...base } = spec('line-chart');
+  return { ...base, unit: 'thousands of dollars', labels: ['M1', 'M2', 'M3', 'M4', 'M5', 'M6'],
+    series: [{ id: 'series_1', label: 'Business A', values: [20, 24, 28, 31, 36, 42] },
+      { id: 'series_2', label: 'Business B', values: [30, 29, 33, 35, 34, 38] },
+      { id: 'series_3', label: 'Business C', values: [15, 19, 23, 27, 32, 40] }] };
+};
+test('multi-series contract preserves categories and rejects inconsistent or executable data', () => {
+  const value = multiChart();
+  assert.deepEqual(protocol.parseMetabloomVisual(value), value);
+  assert.equal(visualSchema('line-chart').properties.result.anyOf.length, 3);
+  assert.equal(protocol.parseMetabloomVisual({ ...value, series: [{ ...value.series[0], values: [1] }, ...value.series.slice(1)] }), null);
+  assert.equal(protocol.parseMetabloomVisual({ ...value, labels: ['M1', 'M1', 'M3', 'M4', 'M5', 'M6'] }), null);
+  assert.equal(protocol.parseMetabloomVisual({ ...value, series: [...value.series, { ...value.series[0] }] }), null);
+  assert.equal(protocol.parseMetabloomVisual({ ...value, series: [...value.series, { id: 'unsafe', label: '<script>', values: value.series[0].values }], js: 'alert(1)' }), null);
+});
+test('builder preserves original user series and rejects invented chart numbers', async () => {
+  const dataHints = extractMetabloomVisualData(businessPrompt);
+  const value = { ...record('line-chart'), context: { ...record().context, dataHints, visualIntent: 'requested' } };
+  const result = await generateMetabloomVisual(value, { fetchImpl: async () => Response.json(providerEnvelope(multiChart())) });
+  assert.deepEqual(result, multiChart());
+  const modified = multiChart(); modified.series[0].values[0] = 999;
+  await assert.rejects(generateMetabloomVisual(value, { fetchImpl: async () => Response.json(providerEnvelope(modified)) }), { code: 'visual_invalid' });
+});
+test('explicit visuals survive low-confidence or none Jev choices, while optional requests do not', async () => {
+  const opts = { state: { visualIntent: 'requested' }, visualKinds: ['line-chart', 'table'],
+    visualIntent: 'requested', preferredKinds: ['line-chart'],
+    fetchImpl: async () => Response.json({ answers: { reaction: choice('warm'), visualization: choice('none', 0.98) } }) };
+  assert.deepEqual(await jev.decideMetabloomResponse(opts), { emote: 'warm', visualization: 'line-chart' });
+  assert.deepEqual(await jev.decideMetabloomResponse({ ...opts, visualIntent: 'optional' }), { emote: 'warm', visualization: 'none' });
+  const abort = new AbortController(); abort.abort();
+  assert.deepEqual(await jev.decideMetabloomResponse({ ...opts, signal: abort.signal }), { emote: 'neutral', visualization: 'none' });
+});
