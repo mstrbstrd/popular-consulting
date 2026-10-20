@@ -316,6 +316,8 @@ test('input intent preserves user series without another model call', () => {
   assert.deepEqual(result.dataHints.series.map(series => series.label), ['Business A', 'Business B', 'Business C']);
   assert.equal(classifyMetabloomVisualIntent('Just text only, no charts. Explain this.').mode, 'text_only');
   assert.equal(classifyMetabloomVisualIntent('Explain curiosity.').mode, 'optional');
+  assert.equal(classifyMetabloomVisualIntent('Explain the SQL table schema.').mode, 'optional');
+  assert.equal(classifyMetabloomVisualIntent('Build an interactive calculator for these values.').mode, 'requested');
   assert.equal(extractMetabloomVisualData('A: 1, 2. B: 3, 4, 5.'), null);
 });
 const multiChart = () => {
