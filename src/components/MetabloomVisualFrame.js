@@ -91,7 +91,7 @@ class VisualCalculator extends React.Component {
   publishInputs = () => {
     const values = Object.fromEntries(this.props.spec.controls.map(control =>
       [control.id, this.state.inputs[control.id].trim() ? Number(this.state.inputs[control.id]) : NaN]));
-    if (Object.values(values).every(Number.isFinite)) this.props.onInputsChange?.(values);
+    this.props.onInputsChange?.(values);
   };
   componentWillUnmount() { this.mounted = false; }
   reset = () => this.setState({ inputs: Object.fromEntries(this.props.spec.controls.map(control => [control.id, String(control.initial)])), copyStatus: '' }, this.publishInputs);
