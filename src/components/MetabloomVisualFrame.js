@@ -12,41 +12,61 @@ const DataTable = ({ columns, rows, title }) => (
   </div>
 );
 function VisualChart({ spec, id }) {
-  const values = spec.points.map(point => point.value);
+  const multiple = Array.isArray(spec.series);
+  const labels = multiple ? spec.labels : spec.points.map(point => point.label);
+  const series = multiple ? spec.series : [{ id: 'single', label: spec.title, values: spec.points.map(point => point.value) }];
+  const values = series.flatMap(item => item.values);
   const min = Math.min(0, ...values), max = Math.max(0, ...values);
   const span = max - min || 1;
   const zero = (0 - min) / span * 100;
   const y = value => 172 - (value - min) / span * 144;
-  const x = index => 80 + index / Math.max(1, values.length - 1) * 408;
-  const path = spec.points.map((point, index) => `${index ? 'L' : 'M'} ${x(index)} ${y(point.value)}`).join(' ');
+  const x = index => 80 + index / Math.max(1, labels.length - 1) * 408;
+  const dataRows = labels.map((label, index) => [label, ...series.map(item => numberText(item.values[index]))]);
   return <>
+    {multiple && <ul className="metabloom-visual__legend" aria-label="Chart series">
+      {series.map((item, index) => <li key={item.id} className={`metabloom-visual__series-${index + 1}`}>
+        <span className="metabloom-visual__series-dot" aria-hidden="true" />{item.label}
+      </li>)}
+    </ul>}
     {spec.kind === 'bar-chart' ? (
       <ol className="metabloom-visual__bars" aria-label={spec.title}>
-        {spec.points.map((point, index) => {
-          const end = (point.value - min) / span * 100;
-          return <li key={index}><div className="metabloom-visual__bar-label"><span>{point.label}</span><strong>{numberText(point.value)} {spec.unit}</strong></div>
-            <div className="metabloom-visual__bar-track" aria-hidden="true">
-              <span className="metabloom-visual__bar-zero" style={{ left: `${zero}%` }} />
-              <span className="metabloom-visual__bar" style={{ left: `${Math.min(zero, end)}%`, width: `${Math.abs(end - zero)}%` }} />
-            </div></li>;
-        })}
+        {labels.map((label, index) => <li key={index}>
+          {multiple && <strong className="metabloom-visual__group-label">{label}</strong>}
+          <div className="metabloom-visual__group-bars">{series.map((item, seriesIndex) => {
+            const value = item.values[index];
+            const end = (value - min) / span * 100;
+            return <div key={item.id} className={`metabloom-visual__series-${seriesIndex + 1}`}>
+              <div className="metabloom-visual__bar-label"><span>{multiple ? item.label : label}</span><strong>{numberText(value)} {spec.unit}</strong></div>
+              <div className="metabloom-visual__bar-track" aria-hidden="true">
+                <span className="metabloom-visual__bar-zero" style={{ left: `${zero}%` }} />
+                <span className="metabloom-visual__bar" style={{ left: `${Math.min(zero, end)}%`, width: `${Math.abs(end - zero)}%` }} />
+              </div>
+            </div>;
+          })}</div>
+        </li>)}
       </ol>
     ) : (
       <figure className="metabloom-visual__line-chart">
-        <svg viewBox="0 0 520 206" role="img" aria-labelledby={`${id}-chart-title ${id}-chart-desc`}>
-          <title id={`${id}-chart-title`}>{spec.title}</title><desc id={`${id}-chart-desc`}>Ordered observations. Exact labels and values are available in the data table below.</desc>
+        <svg viewBox="0 0 520 212" role="img" aria-labelledby={`${id}-chart-title ${id}-chart-desc`}>
+          <title id={`${id}-chart-title`}>{spec.title}</title><desc id={`${id}-chart-desc`}>Ordered observations for {series.map(item => item.label).join(', ')}. Exact values are available in the data table below.</desc>
           {[min, (min + max) / 2, max].map((value, index) => <g key={index}>
             <text x="72" y={y(value) + 4} textAnchor="end" className="metabloom-visual__axis-label">{axisText(value)}</text>
             <line x1="80" x2="488" y1={y(value)} y2={y(value)} className="metabloom-visual__gridline" />
           </g>)}
-          <path d={path} className="metabloom-visual__line" />
-          {spec.points.map((point, index) => <circle key={index} cx={x(index)} cy={y(point.value)} r="3" className="metabloom-visual__point"><title>{point.label}: {numberText(point.value)} {spec.unit}</title></circle>)}
+          {series.map((item, seriesIndex) => <g key={item.id} className={`metabloom-visual__series-${seriesIndex + 1}`}>
+            <path d={item.values.map((value, index) => `${index ? 'L' : 'M'} ${x(index)} ${y(value)}`).join(' ')} className="metabloom-visual__line" />
+            {item.values.map((value, index) => <circle key={index} cx={x(index)} cy={y(value)} r="3" className="metabloom-visual__point">
+              <title>{item.label}, {labels[index]}: {numberText(value)} {spec.unit}</title>
+            </circle>)}
+          </g>)}
+          {labels.map((label, index) => (index === labels.length - 1 || index % Math.max(1, Math.ceil(labels.length / 6)) === 0)
+            ? <text key={index} x={x(index)} y="197" textAnchor="middle" className="metabloom-visual__axis-label">{label.length > 10 ? `${label.slice(0, 9)}…` : label}</text> : null)}
         </svg>
         <figcaption>Equal spacing represents observation order, not elapsed time. Values in {spec.unit || 'the supplied units'}.</figcaption>
       </figure>
     )}
     <details className="metabloom-visual__details"><summary>View exact values</summary>
-      <DataTable title={`${spec.title}: exact values`} columns={['Observation', spec.unit || 'Value']} rows={spec.points.map(point => [point.label, numberText(point.value)])} />
+      <DataTable title={`${spec.title}: exact values`} columns={['Observation', ...series.map(item => item.label)]} rows={dataRows} />
     </details>
   </>;
 }

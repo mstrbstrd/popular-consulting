@@ -2,7 +2,7 @@ name: Metabloom functional verification
 on:
   pull_request:
   push:
-    branches: [main, feat/orb-visual-responses]
+    branches: [main, feat/orb-visual-responses, feat/orb-visual-harness]
   workflow_dispatch:
 permissions:
   contents: read
