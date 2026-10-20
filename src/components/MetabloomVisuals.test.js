@@ -139,5 +139,7 @@ test('explicit tool call generates an artifact before the closing response and p
   await waitFor(() => expect(document.querySelector('[data-message-id="assistant-2"] .metabloom-visual')).not.toBeNull());
   fireEvent.change(screen.getByLabelText('People'), { target: { value: '4' } });
   expect(window.__metabloomVisualSnapshot()).toEqual({ id: offer.id, inputs: { total: 120, people: 4 } });
+  fireEvent.change(screen.getByLabelText('People'), { target: { value: '' } });
+  expect(window.__metabloomVisualSnapshot()).toBeNull();
   controller.abort();
 });
