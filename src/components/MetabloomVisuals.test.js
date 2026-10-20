@@ -87,3 +87,20 @@ test('ambiguous concurrent Orb surfaces never claim a visual offer', async () =>
   act(() => window.dispatchEvent(new CustomEvent(METABLOOM_VISUAL_OFFER_EVENT, { detail: turn.detail })));
   await act(async () => {}); expect(requestMetabloomVisual).not.toHaveBeenCalled();
 });
+
+test('multi-series chart renders three labeled paths and accessible exact values', () => {
+  const chart = { version: '1', designVersion: 'aetheris-1', kind: 'line-chart',
+    title: 'Business revenue', summary: 'Six months of user-supplied data.',
+    provenance: table.provenance, unit: 'thousands of dollars',
+    labels: ['M1', 'M2', 'M3'],
+    series: [{ id: 'a', label: 'Business A', values: [20, 24, 28] },
+      { id: 'b', label: 'Business B', values: [30, 29, 33] },
+      { id: 'c', label: 'Business C', values: [15, 19, 23] }] };
+  const { container } = render(<div className="orb-page"><MetabloomVisualFrame artifact={{ id: 'chart', status: 'ready', spec: chart }} /></div>);
+  expect(screen.getByRole('list', { name: 'Chart series' })).toHaveTextContent('Business A');
+  expect(screen.getByRole('list', { name: 'Chart series' })).toHaveTextContent('Business C');
+  expect(container.querySelectorAll('path.metabloom-visual__line')).toHaveLength(3);
+  fireEvent.click(screen.getByText('View exact values'));
+  expect(screen.getByRole('table')).toHaveTextContent('33');
+  expect(screen.getByRole('table')).toHaveTextContent('Business B');
+});
