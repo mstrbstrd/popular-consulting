@@ -331,6 +331,7 @@ test('multi-series contract preserves categories and rejects inconsistent or exe
   const value = multiChart();
   assert.deepEqual(protocol.parseMetabloomVisual(value), value);
   assert.equal(visualSchema('line-chart').properties.result.anyOf.length, 3);
+  assert.equal(visualSchema('line-chart', { multiSeriesOnly: true }).properties.result.anyOf.length, 2);
   assert.equal(protocol.parseMetabloomVisual({ ...value, series: [{ ...value.series[0], values: [1] }, ...value.series.slice(1)] }), null);
   assert.equal(protocol.parseMetabloomVisual({ ...value, labels: ['M1', 'M1', 'M3', 'M4', 'M5', 'M6'] }), null);
   assert.equal(protocol.parseMetabloomVisual({ ...value, series: [...value.series, { ...value.series[0] }] }), null);
