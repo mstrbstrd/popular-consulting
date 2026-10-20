@@ -6,6 +6,7 @@ const { METABLOOM_ACTION_MODES } = require("../src/components/metabloomDecisionM
 const { decideMetabloomReaction, decideMetabloomInput, decideMetabloomResponse } = require("../server/jevReactionService");
 const { enabled: visualsEnabled, createMetabloomVisualStore } = require("../server/metabloomVisualStore");
 const { METABLOOM_VISUAL_KINDS } = require("../src/components/metabloomVisualProtocol");
+const { classifyMetabloomVisualIntent } = require("../src/components/metabloomVisualIntent");
 const { streamMetabloomProvider } = require("../server/metabloomProviderStream");
 const { conductMetabloomResearch, validateMetabloomResearchCitations } = require("../server/metabloomResearch");
 const { createMetabloomProviderError, readMetabloomProviderError, providerRequestId } = require("../server/metabloomProviderErrors");
@@ -165,6 +166,7 @@ const handler = async (request, response) => {
   if (!/^application\/json(?:\s*;|$)/i.test(request.headers?.["content-type"] || "")) return sendJson(response, 415, { code: "invalid_content_type" });
   const body = parseBody(request);
   if (!body) return sendJson(response, 400, { code: "invalid_request" });
+  const visualIntent = classifyMetabloomVisualIntent(body.message);
   const requestRef = randomBytes(6).toString("hex");
   response.setHeader("X-Metabloom-Request-Ref", requestRef);
   if (!configured(request)) return sendJson(response, 503, { code: "not_configured" });
@@ -269,7 +271,7 @@ const handler = async (request, response) => {
       stage = "answer_request";
       const schema = JSON.parse(JSON.stringify(METABLOOM_CHAT_RESPONSE_SCHEMA));
       schema.properties.segments.maxItems = body.allowMultiple ? 4 : 1;
-      const instructions = buildMetabloomChatSystemPrompt({ allowMultiple: body.allowMultiple, presentationAction, researchEnabled: Boolean(research) })
+      const instructions = buildMetabloomChatSystemPrompt({ allowMultiple: body.allowMultiple, presentationAction, researchEnabled: Boolean(research), visualMode: visualsEnabled() ? visualIntent.mode : "disabled" })
         + (researchReport && research !== researchReport
           ? "\n\nThe research evidence is a selection of complete passages from a larger report. Summarize only the supplied findings and do not imply exhaustive coverage."
             + (body.streamResearchDetails === true ? " The full research report is available separately below the short answer." : "")
@@ -323,19 +325,25 @@ const handler = async (request, response) => {
     // OpenAI has completed successfully. Its 25-second generation deadline must
     // not abort an otherwise good reply during Jev's separately bounded final choice.
     if (!research) clearTimeout(timeout);
-    const canVisualize = request.headers?.["x-metabloom-visuals"] === "1" && body.requestId && visualIdentity && visualsEnabled() && !useResearchIntro;
+    const canVisualize = request.headers?.["x-metabloom-visuals"] === "1" && body.requestId && visualIdentity && visualsEnabled() && !useResearchIntro && visualIntent.mode !== "text_only";
     const assistantResponse = finalReply.segments.map((segment) => segment.response).join("\n\n");
     const finalOptions = {
       phase: "response",
       state: { latestUserMessage: body.message, assistantResponse,
         ...(canVisualize ? { recentConversation: body.history.slice(-2).map((item) => ({ role: item.role, content: item.content.slice(0, 1600) })),
-          evidence: research?.notes || "", sources: research?.sources || [], availableVisualizations: METABLOOM_VISUAL_KINDS } : {}) },
+          evidence: research?.notes || "", sources: research?.sources || [], availableVisualizations: METABLOOM_VISUAL_KINDS,
+          visualIntent: visualIntent.mode, dataHints: visualIntent.dataHints } : {}) },
       signal: controller.signal, timeoutMs: 1200,
     };
     const finalDecision = canVisualize
-      ? await decideMetabloomResponse({ ...finalOptions, visualKinds: METABLOOM_VISUAL_KINDS })
+      ? await decideMetabloomResponse({ ...finalOptions, visualKinds: METABLOOM_VISUAL_KINDS,
+        visualIntent: visualIntent.mode, preferredKinds: visualIntent.preferredKinds })
       : { emote: await decideMetabloomReaction(finalOptions), visualization: "none" };
     await sendStreamEvent({ type: "emote", phase: "response", emote: finalDecision.emote });
+    if (visualIntent.mode === "requested" || canVisualize) console.info("metabloom_visual_route", JSON.stringify({
+      intent: visualIntent.mode, outcome: canVisualize ? "decided" : "disabled",
+      kind: canVisualize ? finalDecision.visualization : "none", dataHints: Boolean(visualIntent.dataHints),
+    }));
     // Optional metadata has its own failure boundary. It never regenerates text,
     // runs a visual provider here, or consumes the remaining research deadline.
     if (canVisualize && METABLOOM_VISUAL_KINDS.includes(finalDecision.visualization)
@@ -344,8 +352,10 @@ const handler = async (request, response) => {
         const offer = await createMetabloomVisualStore().offer(visualIdentity, finalDecision.visualization, {
           message: body.message, answer: assistantResponse, evidence: research?.notes || "", sources: research?.sources || [],
           recentConversation: body.history.slice(-2).map((item) => ({ role: item.role, content: item.content.slice(0, 1600) })),
+          dataHints: visualIntent.dataHints, visualIntent: visualIntent.mode,
         }, { signal: controller.signal });
-        if (offer) await sendStreamEvent({ type: "visual_offer", offer });
+        if (offer) { await sendStreamEvent({ type: "visual_offer", offer });
+          console.info("metabloom_visual_route", JSON.stringify({ intent: visualIntent.mode, outcome: "offered", kind: offer.kind })); }
       } catch {
         console.info("metabloom_visual_offer", JSON.stringify({ outcome: "unavailable", requestRef }));
       }
