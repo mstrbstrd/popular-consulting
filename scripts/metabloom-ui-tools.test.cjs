@@ -153,3 +153,26 @@ test('follow-up context validates only bounded numeric input snapshots', () => {
     if (Object.keys(inputs).length) assert.equal(parseBody({ headers: {}, body: { ...valid, artifactContext: { ...valid.artifactContext, inputs } } }), null);
   }
 });
+
+test('Redis artifact completion and continuation require owned atomic state transitions', async () => {
+  const offer = { version: '1', designVersion: 'aetheris-1', id: 'd'.repeat(48), kind: 'calculator', expiresAt: Date.now() + 600000 };
+  const record = { owner: identity.owner, offer, tool: fixtureTool, status: 'ready', result: ready };
+  const calls = [];
+  const store = createMetabloomVisualStore({ command: async args => {
+    calls.push(args);
+    if (args[0] === 'GET') return JSON.stringify({ ...record, status: 'complete', reply: { emote: 'neutral', reply: { version: '2.0.0', segments: [{ response: 'Ready.' }] } } });
+    if (args[0] === 'EVAL' && args[1].includes("record.status=ARGV[2]")) return 'OK';
+    if (args[0] === 'EVAL' && args[1].includes("record.status='continuing'")) return JSON.stringify(record);
+    if (args[0] === 'EVAL' && args[1].includes("record.status='complete'")) return 'OK';
+    throw new Error('Unexpected command');
+  } });
+  await store.complete(identity, offer.id, ready);
+  assert.equal((await store.claimContinuation(identity, offer.id)).tool.callId, 'call_123');
+  await store.completeContinuation(identity, offer.id, { reply: { version: '2.0.0', segments: [{ response: 'Ready.' }] }, emote: 'neutral' });
+  assert.deepEqual(await store.getArtifact(identity, offer.id), spec);
+  assert.equal((await store.getContinuation(identity, offer.id)).emote, 'neutral');
+  assert.equal(calls.filter(c => c[0] === 'EVAL').length, 3);
+  assert.ok(calls[0][1].includes("record.status~='claimed'"));
+  assert.ok(calls[1][1].includes("record.status~='ready'"));
+  assert.ok(calls[2][1].includes("record.status~='continuing'"));
+});
