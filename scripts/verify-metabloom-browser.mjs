@@ -76,7 +76,8 @@ try {
   };
   const until = async (expression) => {
     for (let attempt = 0; attempt < 100; attempt++) {
-      if (await evaluate(expression)) return;
+      // A predicate may end in querySelector. Never serialize a live DOM node.
+      if (await evaluate(`Boolean(${expression})`)) return;
       await sleep(100);
     }
     const state = await evaluate("({path:location.pathname,title:document.title,gate:!!document.querySelector('.app-route-error'),login:!!document.querySelector('.auth-page'),orb:!!document.querySelector('.orb-page')})");

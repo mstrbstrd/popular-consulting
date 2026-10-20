@@ -134,7 +134,8 @@ try {
   };
   const until = async expression => {
     for (let i = 0; i < 150; i++) {
-      if (await evaluate(expression)) return;
+      // Return a boolean, not a React-owned DOM node with circular references.
+      if (await evaluate(`Boolean(${expression})`)) return;
       await sleep(100);
     }
     throw new Error(`Browser assertion timed out: ${expression}`);
@@ -173,7 +174,7 @@ try {
     await until("document.querySelector('.metabloom-visual[data-visual-state=\"ready\"]') && !window.__orbState().pending");
     assert.equal(await evaluate(value), '650');
     assert.equal(await evaluate("document.querySelectorAll('.metabloom-visual input[type=number]').length"), 2);
-    await evaluate("window.__testedArtifact = document.querySelector('.metabloom-visual')");
+    await evaluate("void (window.__testedArtifact = document.querySelector('.metabloom-visual'))");
     assert.equal(await evaluate("window.__testedArtifact.closest('article').dataset.messageId.startsWith('assistant-')"), true);
     await setInput('.metabloom-visual input[type=number]', 12);
     await until(`${value} === '780'`);
