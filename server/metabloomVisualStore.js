@@ -99,6 +99,13 @@ function createMetabloomVisualStore({ command = visualCommand, now = Date.now } 
     return record?.owner === identity.owner && parseMetabloomVisualOffer(record.offer) ? record : null;
   };
   return Object.freeze({
+    async claimStart(identity, requestId, options = {}) {
+      if (typeof requestId !== 'string' || !/^[a-zA-Z0-9-]{1,160}$/.test(requestId))
+        throw visualError('visual_invalid');
+      const key = `${prefix(identity)}start:${identity.owner}:${requestId}`;
+      const result = await command(['SET', key, '1', 'EX', '600', 'NX'], options);
+      if (result !== 'OK') throw visualError('visual_claimed');
+    },
     async complete(identity, id, result, options = {}) {
       if (!result || !['ready', 'failed'].includes(result.status)
         || Buffer.byteLength(JSON.stringify(result), 'utf8') > 65536) throw visualError('visual_invalid');
