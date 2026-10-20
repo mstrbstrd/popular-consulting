@@ -24,6 +24,10 @@ jobs:
       - run: npm test -- --watch=false --runInBand --runTestsByPath src/components/MetabloomVisuals.test.js
         env:
           CI: true
+      - run: npm run lint
+      - run: npm test -- --watchAll=false --runInBand
+        env:
+          CI: true
       - run: npm run build
         env:
           CI: true
