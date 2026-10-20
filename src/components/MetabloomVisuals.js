@@ -56,7 +56,8 @@ export default class MetabloomVisuals extends React.Component {
     const record = this.records.get(this.lastInteractedId)
       || Array.from(this.records.values()).reverse().find(item => item.status === 'ready' && item.spec?.kind === 'calculator');
     if (!record || record.status !== 'ready' || record.spec?.kind !== 'calculator') return null;
-    const inputs = record.inputs || Object.fromEntries(record.spec.controls.map(control => [control.id, control.initial]));
+    const inputs = record.inputs === undefined
+      ? Object.fromEntries(record.spec.controls.map(control => [control.id, control.initial])) : record.inputs;
     return record.spec.controls.every(control => Number.isFinite(inputs[control.id]))
       ? { id: record.id, inputs: { ...inputs } } : null;
   };
