@@ -2,7 +2,7 @@ name: Metabloom functional verification
 on:
   pull_request:
   push:
-    branches: [main, feat/orb-visual-responses, feat/orb-visual-harness, feat/orb-tool-aware-runtime, fix/orb-visual-routing-fallback]
+    branches: [main, feat/orb-visual-responses, feat/orb-visual-harness, feat/orb-tool-aware-runtime, fix/orb-visual-routing-fallback, test/orb-auth-browser-verification]
   workflow_dispatch:
 permissions:
   contents: read
@@ -29,26 +29,33 @@ jobs:
         env:
           CI: true
       - run: npm run build
+        id: build
         env:
           CI: true
-      - name: Verify built demos in a real browser
+      - name: Verify authenticated local demos in a real browser
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: node scripts/verify-metabloom-browser.mjs
+      - name: Verify native UI interactions with local HTTP fixtures
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: node scripts/verify-metabloom-ui-browser.mjs
       - name: Preserve functional evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: metabloom-functional-${{ github.sha }}
-          path: metabloom-functional/*
+          path: |
+            metabloom-functional/*
+            metabloom-ui-functional/*
           retention-days: 7
-      - name: Verify deployed demos on the production domain
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      - name: Verify production denies anonymous Orb and paid API access
+        if: ${{ !cancelled() && steps.build.outcome == 'success' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/test/orb-auth-browser-verification') }}
         run: node scripts/verify-metabloom-browser.mjs
         env:
           METABLOOM_VERIFY_ORIGIN: https://popular-consulting.com
-      - name: Preserve production evidence
-        if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+      - name: Preserve production guest-access evidence
+        if: ${{ always() && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/test/orb-auth-browser-verification') }}
         uses: actions/upload-artifact@v4
         with:
           name: metabloom-production-${{ github.sha }}
-          path: metabloom-functional/*
+          path: metabloom-production/*
           retention-days: 7

@@ -3,31 +3,41 @@ import os from "node:os";
 import path from "node:path";
 import assert from "node:assert/strict";
 import { spawn, execFileSync } from "node:child_process";
-import { findBrowser, createBuildServer } from "./dark-evidence-browser.mjs";
+import { findBrowser } from "./dark-evidence-browser.mjs";
+import { createBuildServer } from "./auth-invoice-test-server.mjs";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-const output = path.resolve("metabloom-functional");
-fs.mkdirSync(output, { recursive: true });
 const remote = process.env.METABLOOM_VERIFY_ORIGIN;
 if (remote && remote !== "https://popular-consulting.com") throw new Error("Unexpected production verification origin");
+// Only the loopback build server supplies a fictional session. Production checks
+// exercise the real anonymous access boundary and never inject credentials.
+const output = path.resolve(remote ? "metabloom-production" : "metabloom-functional");
+fs.mkdirSync(output, { recursive: true });
 const server = remote ? null : createBuildServer({ buildRoot: path.resolve("build") });
 if (server) await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
 const origin = remote || `http://127.0.0.1:${server.address().port}`;
 const results = [];
-let child, socket, profile;
+const mode = remote ? "production-anonymous-access" : "local-authenticated-demos";
+let child, socket, profile, evaluate, screenshot;
 try {
   if (remote) {
-    let metadata;
-    for (let attempt = 0; attempt < 36; attempt++) {
-      try {
-        const response = await fetch(`${origin}/api/metabloom`, { signal: AbortSignal.timeout(8000), cache: "no-store" });
-        metadata = await response.json();
-        if (metadata.version === "1.0.0" && metadata.presentation === "single-message-stream") break;
-      } catch { /* Deployment may still be replacing the previous release. */ }
-      await sleep(5000);
+    const page = await fetch(`${origin}/orb`, { redirect: "manual", cache: "no-store", signal: AbortSignal.timeout(10000) });
+    assert.equal(page.status, 303, "Anonymous Orb documents must redirect before serving private content");
+    assert.equal(new URL(page.headers.get("location"), origin).href, `${origin}/login`);
+    assert.match(page.headers.get("cache-control") || "", /no-store/);
+    await page.body?.cancel();
+    for (const [endpoint, method] of [["metabloom", "GET"], ["metabloom", "POST"], ["metabloom-visual", "POST"], ["metabloom-tool", "POST"]]) {
+      const response = await fetch(`${origin}/api/${endpoint}`, {
+        method, redirect: "manual", cache: "no-store", signal: AbortSignal.timeout(10000),
+        ...(method === "POST" ? { headers: { Origin: origin, "Content-Type": "application/json" }, body: "{}" } : {}),
+      });
+      assert.equal(response.status, 401, `${method} /api/${endpoint} must reject anonymous requests`);
+      assert.match(response.headers.get("content-type") || "", /application\/json/);
+      assert.match(response.headers.get("cache-control") || "", /no-store/);
+      const denial = await response.json();
+      assert(["authentication_required", "visual_authentication"].includes(denial.code), "Expected an authentication denial, not provider metadata");
+      results.push({ endpoint, method, status: response.status, denied: true });
     }
-    assert.equal(metadata?.presentation, "single-message-stream", "Production is not serving the streaming implementation");
-    assert.equal(metadata.emotes.length, 18);
   }
   const browser = findBrowser();
   assert.ok(browser, "Chromium or Edge is required");
@@ -59,7 +69,7 @@ try {
     pending.set(id, { resolve, reject, timer });
     socket.send(JSON.stringify({ id, method, params }));
   });
-  const evaluate = async (expression) => {
+  evaluate = async (expression) => {
     const result = await call("Runtime.evaluate", { expression, returnByValue: true, awaitPromise: true });
     if (result.exceptionDetails) throw new Error(JSON.stringify(result.exceptionDetails));
     return result.result.value;
@@ -69,9 +79,10 @@ try {
       if (await evaluate(expression)) return;
       await sleep(100);
     }
-    throw new Error(`Browser assertion timed out: ${expression}`);
+    const state = await evaluate("({path:location.pathname,title:document.title,gate:!!document.querySelector('.app-route-error'),login:!!document.querySelector('.auth-page'),orb:!!document.querySelector('.orb-page')})");
+    throw new Error(`Browser assertion timed out: ${expression}; route state: ${JSON.stringify(state)}`);
   };
-  const screenshot = async (name) => {
+  screenshot = async (name) => {
     const image = await call("Page.captureScreenshot", { format: "png" });
     fs.writeFileSync(path.join(output, `${name}.png`), Buffer.from(image.data, "base64"));
   };
@@ -102,7 +113,15 @@ try {
       }
       return originalFetch(...args);
     };` });
-  for (const config of [
+  if (remote) {
+    await call("Page.navigate", { url: `${origin}/orb` });
+    await until("location.pathname === '/login' && document.querySelector('.auth-page') && document.querySelector('form[action=\"/api/auth/login\"]')");
+    assert.equal(await evaluate("!!document.querySelector('.orb-page, .metabloom-chat__composer') || typeof window.__orbMessages === 'function'"), false, "Anonymous users must not mount Orb or restore its conversation");
+    assert.equal(await evaluate("window.__demoNetworkCalls"), 0, "Anonymous page must not request the paid APIs");
+    await screenshot("anonymous-orb-sign-in");
+    results.push({ anonymousOrbRedirect: true, privateChatMounted: false, providerRequests: 0 });
+  }
+  for (const config of remote ? [] : [
     { id: "desktop", width: 1440, height: 900, dark: false, reduced: false },
     { id: "mobile-dark", width: 390, height: 844, dark: true, reduced: false },
     { id: "reduced-motion", width: 390, height: 844, dark: false, reduced: true },
@@ -135,9 +154,7 @@ try {
       const actions = await evaluate("window.__verificationActions");
       const thinking = actions.filter(action => action.loadingThinking);
       const reactions = actions.filter(action => !action.loadingThinking);
-      // A slow software renderer can trigger the legitimate 650ms thinking
-      // gesture before the demo's first segment. Still require one reaction,
-      // no duplicate action, and no replay when the response completes.
+      // The slow software renderer may trigger the legitimate loading gesture.
       assert(thinking.length <= 1 && thinking.every(action => action.delta === 1));
       assert.equal(reactions.length, 1, JSON.stringify({ actions, before, state: await evaluate('window.__orbState()') }));
       assert.equal(reactions[0].emote, emote);
@@ -149,7 +166,10 @@ try {
     }
     await evaluate("window.__verificationActions = []");
     const before = await evaluate("({count:window.__orbMessages().length, version:window.__orbState().actionVersion})");
-    await evaluate("document.querySelector('[aria-controls=metabloom-reaction-panel]').click()");
+    // Do not blindly toggle a panel that may already be open from the preceding demo.
+    if (await evaluate("!document.querySelector('.metabloom-chat__demos')")) {
+      await evaluate("document.querySelector('[aria-controls=metabloom-reaction-panel]').click()");
+    }
     await until("document.querySelector('.metabloom-chat__demos') !== null");
     await evaluate(`(() => { const d = document.querySelector('.metabloom-chat__demos'); d.open=true; Array.from(d.querySelectorAll('button')).find(b => b.textContent.includes('two-part')).click(); d.open=false; })()`);
     await until(`window.__orbMessages().length === ${before.count + 2} && window.__orbMessages().at(-1).segments.length === 1 && window.__orbState().pending`);
@@ -172,10 +192,11 @@ try {
     await screenshot(`${config.id}-stream`);
     results.push({ viewport: config.id, theme: expectedTheme, reducedMotion: config.reduced, stream: state.message.segments.map((item) => item.emote), oneMessage: true, sameDomNode: state.sameNode, observedWhileStreaming: intermediate, networkCalls: state.calls, geometry });
   }
-  fs.writeFileSync(path.join(output, "result.json"), JSON.stringify({ origin, presentation: "single-message-stream", success: true, results }, null, 2));
-  console.log(JSON.stringify({ origin, success: true, results }));
+  fs.writeFileSync(path.join(output, "result.json"), JSON.stringify({ origin, mode, success: true, results }, null, 2));
+  console.log(JSON.stringify({ origin, mode, success: true, results }));
 } catch (error) {
-  fs.writeFileSync(path.join(output, "result.json"), JSON.stringify({ origin, success: false, error: error.message, results }, null, 2));
+  if (screenshot) { try { await screenshot("failure"); } catch { /* Browser may already be closed. */ } }
+  fs.writeFileSync(path.join(output, "result.json"), JSON.stringify({ origin, mode, success: false, error: error.message, results }, null, 2));
   throw error;
 } finally {
   socket?.close();

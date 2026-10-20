@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main
+      - test/orb-auth-browser-verification
 
 permissions:
   contents: read
@@ -26,7 +27,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
 
       - name: Install dependencies
@@ -67,7 +68,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
 
       - name: Install dependencies
@@ -95,3 +96,11 @@ jobs:
           --skip-visual-gate
           --viewport=480x300
           --output=visual-dark-evidence-smoke
+
+      - name: Preserve browser smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-browser-smoke-${{ github.sha }}
+          path: browser-smoke/*
+          retention-days: 7
