@@ -60,7 +60,7 @@ async function continueVisualTool({ tool, result, display = 'unknown', signal, f
   const answer = await requestVisualResponse({
     model, reasoning: visualReasoning(model, true),
     store: false, stream: false, max_output_tokens: 1600,
-    instructions: buildMetabloomChatSystemPrompt({ visualMode: 'requested' })
+    instructions: buildMetabloomChatSystemPrompt({ visualMode: 'requested', visualToolResult: true })
       + '\n\nA native create_visual tool was actually invoked. Its tool result is authoritative for this turn. '
       + 'Answer in one concise, helpful sentence using the real result. If status is generated and display is mounted, acknowledge the working component. '
       + 'If display is unknown, say the component was generated without claiming it is visible. If display_failed or failed, acknowledge the failure. '

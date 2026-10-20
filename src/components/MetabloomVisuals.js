@@ -85,7 +85,7 @@ export default class MetabloomVisuals extends React.Component {
       this.releaseTurn();
     };
     turn.signal.addEventListener('abort', this.onTurnAbort, { once: true });
-    const intent = classifyMetabloomVisualIntent(event.detail.message);
+    const intent = classifyMetabloomVisualIntent(event.detail.message, event.detail.history);
     if (intent.mode === 'requested' && intent.preferredKinds?.length
       && event.detail.actionMode !== 'deep-research' && !event.defaultPrevented) {
       event.preventDefault();
@@ -222,7 +222,8 @@ export default class MetabloomVisuals extends React.Component {
   };
   ready = record => {
     if (record.mode !== 'tool' || record.status !== 'ready' || record.continuing) return;
-    const mounted = Boolean(record.slot.querySelector('.metabloom-visual[data-visual-state="ready"]'));
+    const mounted = Boolean(record.slot.isConnected && this.root?.contains(record.slot)
+      && record.slot.querySelector('.metabloom-visual[data-visual-state="ready"]'));
     this.finishTool(record, mounted ? 'mounted' : 'unknown');
   };
   inputsChanged = (record, values) => {

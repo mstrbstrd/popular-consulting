@@ -101,4 +101,26 @@ describe("Metabloom emote library", () => {
     expect(METABLOOM_CHAT_RESPONSE_SCHEMA.properties.segments.items.required).toEqual(["response"]);
     expect(Object.keys(METABLOOM_CHAT_RESPONSE_SCHEMA.properties.segments.items.properties)).toEqual(["response"]);
   });
+
+  test("ordinary answer writers have the capability inventory without execution or display evidence", () => {
+    for (const visualMode of ["disabled", "text_only", "optional", "requested"]) {
+      const prompt = buildMetabloomChatSystemPrompt({ visualMode });
+      expect(prompt).toContain("Authoritative native visual capability inventory");
+      expect(prompt).toContain("No execution or mount evidence has been supplied");
+      expect(prompt).toContain("Do not say a visual is shown below, is loading, will appear, or will be created later");
+      expect(prompt).not.toContain("An actual create_visual function_call_output is supplied");
+      expect(prompt).not.toContain("will attempt to build");
+    }
+    expect(buildMetabloomSystemPrompt()).toContain("No native visual route is available for this request");
+    expect(buildMetabloomSystemPrompt()).toContain("No execution or mount evidence has been supplied");
+  });
+
+  test("only the explicit tool continuation prompt can acknowledge an observed component", () => {
+    const prompt = buildMetabloomChatSystemPrompt({ visualMode: "requested", visualToolResult: true });
+    expect(prompt).toContain("An actual create_visual function_call_output is supplied");
+    expect(prompt).toContain("Only status=generated with display=mounted");
+    expect(prompt).not.toContain("No execution or mount evidence has been supplied");
+    expect(buildMetabloomChatSystemPrompt({ visualMode: "requested", visualToolResult: "true" }))
+      .toContain("No execution or mount evidence has been supplied");
+  });
 });

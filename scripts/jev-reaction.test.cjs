@@ -1,6 +1,6 @@
 const { test, afterEach } = require("node:test");
 const assert = require("node:assert/strict");
-const { decideMetabloomReaction, decideMetabloomInput } = require("../server/jevReactionService");
+const { decideMetabloomReaction, decideMetabloomInput, decideMetabloomResponse } = require("../server/jevReactionService");
 
 const savedKey = process.env.TYPESAFE_API_KEY;
 const savedModel = process.env.JEV_MODEL;
@@ -143,5 +143,23 @@ test("the existing reaction API remains reaction-only even when passed an action
     } });
     assert.equal(emote, "warm");
     assert.deepEqual(Object.keys(sent.questions), ["reaction"]);
+  }
+});
+
+test("non-generation intents cannot select a visual even when a caller passes supported kinds", async () => {
+  process.env.TYPESAFE_API_KEY = "fixture";
+  for (const visualIntent of ["capabilities", "unsupported", "clarification", "visual_status", "text_only", "unknown"]) {
+    let sent;
+    const decision = await decideMetabloomResponse({
+      visualIntent, visualKinds: ["table", "pie-chart"], preferredKinds: ["pie-chart"], requiredKind: "pie-chart",
+      state: { latestUserMessage: "I do not see the map.", assistantResponse: "Maps are unavailable here." },
+      fetchImpl: async (_url, options) => {
+        sent = JSON.parse(options.body);
+        return Response.json({ answers: { reaction: choiceAnswer("reassuring"), visualization: choiceAnswer("pie-chart") } });
+      },
+    });
+    assert.deepEqual(Object.keys(sent.questions), ["reaction"]);
+    assert.equal(decision.emote, "reassuring");
+    assert.equal(decision.visualization, "none");
   }
 });

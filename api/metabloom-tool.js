@@ -79,23 +79,24 @@ function createMetabloomToolHandler({ store = createMetabloomVisualStore(), auth
     try {
       if (request.aborted || response.destroyed) { controller.abort(); controller.signal.throwIfAborted(); }
       if (body.phase === 'start') {
-        const intent = classifyMetabloomVisualIntent(body.message);
+        const intent = classifyMetabloomVisualIntent(body.message, body.history);
         const requiredKind = intent.requiredKind || intent.preferredKinds?.[0];
         if (intent.mode !== 'requested' || !requiredKind) return send(response, 400, { code: 'tool_not_requested' });
+        const message = intent.resolvedMessage || body.message;
         stage = 'claim';
         await store.claimStart(identity, body.requestId, { signal: controller.signal });
         stage = 'rate_limit';
         if (!(await rateLimit(request, controller.signal))) return send(response, 429, { code: 'rate_limited' });
         stage = 'provider';
         const [call, emote] = await Promise.all([
-          start({ message: body.message, history: body.history, requiredKind, signal: controller.signal, requestRef }),
-          Promise.resolve().then(() => reaction({ phase: 'input', state: { latestUserMessage: body.message },
+          start({ message, history: body.history, requiredKind, signal: controller.signal, requestRef }),
+          Promise.resolve().then(() => reaction({ phase: 'input', state: { latestUserMessage: message },
             signal: controller.signal, timeoutMs: 950 })).catch(() => 'neutral'),
         ]);
         if (controller.signal.aborted) throw new Error('cancelled');
         stage = 'offer';
         const offer = await store.offer(identity, call.kind, {
-          message: body.message, answer: '', toolBrief: call.brief, sources: [],
+          message, answer: '', toolBrief: call.brief, sources: [],
           recentConversation: body.history.slice(-2), tool: call.tool, visualIntent: 'requested',
           dataHints: intent.dataHints,
         }, { signal: controller.signal });

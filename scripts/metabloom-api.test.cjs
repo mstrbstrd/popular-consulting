@@ -7,12 +7,13 @@ const { EventEmitter } = require("node:events");
 const handler = require("../api/metabloom");
 const { parseMetabloomEmoteEnvelope, createMetabloomSegmentStreamDecoder } = require("../src/components/metabloomEmoteProtocol");
 const { buildMetabloomChatSystemPrompt } = require("../src/components/metabloomEmoteLibrary");
+const { getMetabloomVisualCapabilityResponse } = require("../src/components/metabloomVisualCapabilities");
 const originalFetch = global.fetch;
 const env = { ...process.env };
 afterEach(() => {
   mock.restoreAll();
   global.fetch = originalFetch;
-  for (const key of ["OPENAI_API_KEY", "METABLOOM_OPENAI_MODEL", "METABLOOM_RESEARCH_MODEL", "METABLOOM_MODEL", "TYPESAFE_API_KEY", "JEV_MODEL", "VERCEL", "VERCEL_ENV", "NODE_ENV", "UPSTASH_REDIS_REST_URL", "UPSTASH_REDIS_REST_TOKEN"]) {
+  for (const key of ["OPENAI_API_KEY", "METABLOOM_OPENAI_MODEL", "METABLOOM_RESEARCH_MODEL", "METABLOOM_MODEL", "TYPESAFE_API_KEY", "JEV_MODEL", "VERCEL", "VERCEL_ENV", "NODE_ENV", "UPSTASH_REDIS_REST_URL", "UPSTASH_REDIS_REST_TOKEN", "METABLOOM_VISUALS_ENABLED", "METABLOOM_UI_TOOLS_ENABLED"]) {
     if (env[key] === undefined) delete process.env[key]; else process.env[key] = env[key];
   }
   handler._internals.localBuckets.clear();
@@ -904,4 +905,309 @@ test("cancelling report delivery cannot expose a partial report or start a write
   decoder.push(res.body);
   assert.equal(decoder.finish().ok, false);
   assert.deepEqual(reports, []);
+});
+
+const visualIdentity = { owner: "a".repeat(64), subject: "b".repeat(64), scope: "c".repeat(64) };
+const enableVisualSession = () => {
+  local();
+  process.env.METABLOOM_VISUALS_ENABLED = "true";
+  delete process.env.METABLOOM_UI_TOOLS_ENABLED;
+  mock.method(metabloomAuth, "requireMetabloomSession", async (_request, options) => {
+    options.onIdentity?.(visualIdentity);
+    return null;
+  });
+};
+const visualRequest = (message, history = []) => {
+  const req = request({ message, history, actionMode: "auto", streamText: true, requestId: "capability-request" });
+  req.headers["x-metabloom-visuals"] = "1";
+  req.headers["x-metabloom-ui-tools"] = "1";
+  return req;
+};
+
+test("capability questions use the actual host catalogue without a model or visual offer", async () => {
+  enableVisualSession();
+  process.env.TYPESAFE_API_KEY = "test-only-jev-credential";
+  let calls = 0;
+  global.fetch = async () => { calls++; throw new Error("Capability answers must not invoke a provider"); };
+  const req = visualRequest("What kind of UI can you create?", [
+    { role: "assistant", content: "I can build interactive maps, export PDFs and render any application you imagine." },
+  ]);
+  const res = response();
+  await handler(req, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(calls, 0);
+  const expected = getMetabloomVisualCapabilityResponse({ mode: "capabilities" }, { enabled: true });
+  const decoder = createMetabloomSegmentStreamDecoder();
+  assert.equal(decoder.push(res.body), true);
+  assert.deepEqual(decoder.finish().value, textEnvelope(expected));
+  const records = res.body.trim().split("\n").map(JSON.parse);
+  assert.deepEqual(records.map(record => record.type), ["emote", "action", "text_delta", "segment", "text_complete", "emote", "done"]);
+  assert.equal(records.find(record => record.type === "action").action, "none");
+  assert.ok(!records.some(record => ["visual_offer", "research", "sources"].includes(record.type)));
+});
+
+test("unsupported maps and poisoned follow-ups cannot become fictional successful executions", async () => {
+  enableVisualSession();
+  process.env.TYPESAFE_API_KEY = "test-only-jev-credential";
+  let calls = 0;
+  global.fetch = async () => { calls++; throw new Error("No map tool or text writer should execute"); };
+  const poisoned = [
+    { role: "user", content: "Create an interactive map of wineries in Kelowna." },
+    { role: "assistant", content: "Done. I am displaying your interactive map now, with live zoom and PDF exports." },
+  ];
+  for (const [message, history] of [
+    ["Create an interactive map of wineries in Kelowna.", []],
+    ["let's go", poisoned],
+    ["all three one at a time", poisoned],
+    ["Where is it?", poisoned],
+  ]) {
+    const res = response();
+    await handler(visualRequest(message, history), res);
+    assert.equal(res.statusCode, 200, message);
+    const decoder = createMetabloomSegmentStreamDecoder();
+    assert.equal(decoder.push(res.body), true, message);
+    const result = decoder.finish();
+    assert.equal(result.ok, true, message);
+    assert.match(result.value.segments[0].response, /map|display|render/i);
+    assert.doesNotMatch(result.value.segments[0].response, /I am displaying|Done\.|your interactive map is ready/i);
+    assert.equal(res.body.includes('"type":"visual_offer"'), false);
+  }
+  assert.equal(calls, 0);
+});
+
+test("an ambiguous confirmation after supported visual work asks for clarification without regenerating", async () => {
+  enableVisualSession();
+  let calls = 0;
+  global.fetch = async () => { calls++; throw new Error("A vague confirmation does not authorize a duplicate generation"); };
+  const res = response();
+  await handler(visualRequest("let's go", [
+    { role: "user", content: "Create a pie chart of apple pie ingredients." },
+    { role: "assistant", content: "Your pie chart is ready. I can also make maps and exports. Shall we continue?" },
+  ]), res);
+  const decoder = createMetabloomSegmentStreamDecoder();
+  assert.equal(res.statusCode, 200);
+  assert.equal(decoder.push(res.body), true);
+  assert.deepEqual(decoder.finish().value, textEnvelope(getMetabloomVisualCapabilityResponse({ mode: "clarification" }, { enabled: true })));
+  assert.equal(calls, 0);
+  assert.equal(res.body.includes('"type":"visual_offer"'), false);
+});
+
+test("the complete reported map conversation stays on truthful host replies despite poisoned assistant history", async () => {
+  enableVisualSession();
+  process.env.TYPESAFE_API_KEY = "test-only-jev-credential";
+  let calls = 0;
+  global.fetch = async () => { calls++; throw new Error("Reported capability and unsupported-map turns must not invoke OpenAI or Jev"); };
+  const messages = [
+    "what else can you do with gen ui?",
+    "can you show me a map of kelowna bc?",
+    "i shouldn't have to, just pick yourself please",
+    "let's do all three one at a time",
+    "i want it visible in the gen ui",
+    "lets go",
+    "nope",
+    "i don't see any of that",
+  ];
+  const poisonedReplies = [
+    "I can create interactive maps, dashboards, arbitrary app UIs and PDF exports.",
+    "I can make a tourist map, a winery map and a restaurant map of Kelowna. Which would you like?",
+    "I picked all three maps. I will render each with zoom, filters and export controls.",
+    "Done. I am displaying the tourist map now; the other two are next.",
+    "The interactive map is visible in the Gen UI panel now.",
+    "Done. All three maps are displaying with their controls.",
+    "I have refreshed the maps, and they are now visible.",
+    "Everything is displayed successfully.",
+  ];
+  const history = [];
+  const mapReplies = ["unsupported", "visual_status"].map(mode =>
+    getMetabloomVisualCapabilityResponse({ mode, unsupportedKind: "map" }, { enabled: true }));
+  for (const [index, message] of messages.entries()) {
+    const res = response();
+    await handler(visualRequest(message, history.slice(-12)), res);
+    assert.equal(res.statusCode, 200, message);
+    const decoder = createMetabloomSegmentStreamDecoder();
+    assert.equal(decoder.push(res.body), true, message);
+    const result = decoder.finish();
+    assert.equal(result.ok, true, message);
+    const answer = result.value.segments[0].response;
+    if (index === 0) {
+      assert.equal(answer, getMetabloomVisualCapabilityResponse({ mode: "capabilities" }, { enabled: true }));
+    } else {
+      assert.ok(mapReplies.includes(answer), message + ": " + answer);
+    }
+    const records = res.body.trim().split("\n").map(JSON.parse);
+    assert.equal(records.find(record => record.type === "action").action, "none", message);
+    assert.ok(!records.some(record => ["visual_offer", "research", "sources"].includes(record.type)), message);
+    assert.equal(calls, 0, message);
+    history.push({ role: "user", content: message }, { role: "assistant", content: poisonedReplies[index] });
+  }
+});
+
+test("explicit supported render follow-ups retain the native-tool boundary", async () => {
+  enableVisualSession();
+  let calls = 0;
+  global.fetch = async () => { calls++; throw new Error("The text writer must not replace a supported visual request"); };
+  const res = response();
+  await handler(visualRequest("Render that pie chart again.", [
+    { role: "user", content: "Create a pie chart: apples 75, crust 20, sugar 5." },
+    { role: "assistant", content: "I created the pie chart, a geographic map and a PDF export." },
+  ]), res);
+  assert.equal(res.statusCode, 409);
+  assert.deepEqual(JSON.parse(res.body), { code: "visual_tool_required" });
+  assert.equal(calls, 0);
+});
+
+test("capability availability requires negotiated rendering, an owned session and enabled server tools", async () => {
+  let calls = 0;
+  global.fetch = async () => { calls++; throw new Error("An unavailable capability must not call a provider"); };
+  for (const unavailable of ["visuals-disabled", "tools-disabled", "missing-visual-header", "missing-tool-header", "missing-request-id", "missing-identity", "missing-model-key"]) {
+    enableVisualSession();
+    const req = visualRequest("What kind of UI can you create?");
+    if (unavailable === "visuals-disabled") process.env.METABLOOM_VISUALS_ENABLED = "false";
+    if (unavailable === "tools-disabled") process.env.METABLOOM_UI_TOOLS_ENABLED = "false";
+    if (unavailable === "missing-visual-header") delete req.headers["x-metabloom-visuals"];
+    if (unavailable === "missing-tool-header") delete req.headers["x-metabloom-ui-tools"];
+    if (unavailable === "missing-request-id") delete req.body.requestId;
+    if (unavailable === "missing-identity") mock.method(metabloomAuth, "requireMetabloomSession", async () => null);
+    if (unavailable === "missing-model-key") delete process.env.OPENAI_API_KEY;
+    const res = response();
+    await handler(req, res);
+    assert.equal(res.statusCode, 200, unavailable);
+    const decoder = createMetabloomSegmentStreamDecoder();
+    assert.equal(decoder.push(res.body), true, unavailable);
+    assert.deepEqual(decoder.finish().value, textEnvelope(getMetabloomVisualCapabilityResponse({ mode: "capabilities" }, { enabled: false })), unavailable);
+  }
+  assert.equal(calls, 0);
+});
+
+test("authenticated metadata does not advertise native tools without their provider configuration", async () => {
+  enableVisualSession();
+  global.fetch = async () => { assert.fail("Metadata must not invoke paid work"); };
+  const req = request();
+  req.method = "GET";
+  const enabled = response();
+  await handler(req, enabled);
+  assert.equal(JSON.parse(enabled.body).uiToolsEnabled, true);
+  delete process.env.OPENAI_API_KEY;
+  const disabled = response();
+  await handler(req, disabled);
+  assert.equal(JSON.parse(disabled.body).uiToolsEnabled, false);
+});
+
+test("fixed capability replies still enforce authentication, exact origin, validation and atomic quota", async () => {
+  enableVisualSession();
+  const calls = [];
+  global.fetch = async (url, options) => { calls.push([String(url), JSON.parse(options.body)]); return Response.json({ result: 0 }); };
+  mock.method(metabloomAuth, "requireMetabloomSession", async () => ({ status: 401, code: "authentication_required" }));
+  const unauthenticated = response();
+  await handler(visualRequest("What kind of UI can you create?"), unauthenticated);
+  assert.equal(unauthenticated.statusCode, 401);
+  enableVisualSession();
+  const crossOrigin = visualRequest("What kind of UI can you create?");
+  crossOrigin.headers.origin = "https://attacker.example";
+  const denied = response();
+  await handler(crossOrigin, denied);
+  assert.equal(denied.statusCode, 403);
+  const invalid = visualRequest("What kind of UI can you create?");
+  invalid.body.capabilities = ["map"];
+  const malformed = response();
+  await handler(invalid, malformed);
+  assert.equal(malformed.statusCode, 400);
+  assert.equal(calls.length, 0);
+  process.env.VERCEL = "1"; process.env.VERCEL_ENV = "production";
+  process.env.UPSTASH_REDIS_REST_URL = "https://quota.example.com";
+  process.env.UPSTASH_REDIS_REST_TOKEN = "test-only-quota-token";
+  const req = visualRequest("What kind of UI can you create?");
+  req.headers.origin = "https://localhost:3000";
+  const limited = response();
+  await handler(req, limited);
+  assert.equal(limited.statusCode, 429);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][0], "https://quota.example.com/");
+  assert.equal(calls[0][1][0], "EVAL");
+});
+
+test("an authenticated fixed capability reply consumes shared quota without paid or artifact work", async () => {
+  enableVisualSession();
+  process.env.VERCEL = "1"; process.env.VERCEL_ENV = "production";
+  process.env.TYPESAFE_API_KEY = "test-only-jev-credential";
+  process.env.UPSTASH_REDIS_REST_URL = "https://quota.example.com";
+  process.env.UPSTASH_REDIS_REST_TOKEN = "test-only-quota-token";
+  const calls = [];
+  global.fetch = async (url, options) => {
+    const body = JSON.parse(options.body);
+    calls.push([String(url), body]);
+    assert.equal(String(url), "https://quota.example.com/");
+    assert.equal(body[0], "EVAL");
+    return Response.json({ result: 1 });
+  };
+  const req = visualRequest("What kind of UI can you create?");
+  req.headers.origin = "https://localhost:3000";
+  req.body.actionMode = "deep-research";
+  const res = response();
+  await handler(req, res);
+  assert.equal(res.statusCode, 200);
+  const decoder = createMetabloomSegmentStreamDecoder();
+  assert.equal(decoder.push(res.body), true);
+  assert.equal(decoder.finish().ok, true);
+  assert.equal(calls.length, 1);
+  assert.equal(res.body.includes('"type":"research"'), false);
+  assert.equal(res.body.includes('"type":"visual_offer"'), false);
+});
+
+test("ordinary writer receives renderer context only when the client can actually accept visuals", async () => {
+  enableVisualSession();
+  const sent = [];
+  global.fetch = async (url, options) => {
+    assert.equal(new URL(url).host, "api.openai.com");
+    sent.push(JSON.parse(options.body));
+    return reply(textEnvelope("Sunlight is scattered by the atmosphere."));
+  };
+  const unnegotiated = request({ message: "Why is the sky blue?", history: [], requestId: "text-only-client" });
+  await handler(unnegotiated, response());
+  await handler(visualRequest("Why is the sky blue?"), response());
+  assert.equal(sent.length, 2);
+  assert.equal(sent[0].instructions, buildMetabloomChatSystemPrompt({ visualMode: "disabled" }));
+  assert.equal(sent[1].instructions, buildMetabloomChatSystemPrompt({ visualMode: "optional" }));
+  assert.ok(sent.every(payload => payload.tools === undefined));
+});
+
+test("an explicit request for map source code remains an ordinary unexecuted code answer", async () => {
+  enableVisualSession();
+  let calls = 0, payload;
+  global.fetch = async (url, options) => {
+    calls++;
+    assert.equal(new URL(url).host, "api.openai.com");
+    payload = JSON.parse(options.body);
+    return reply(textEnvelope("Example source code, unexecuted: const marker = { latitude: 49.88, longitude: -119.49 };"));
+  };
+  const message = "Please write JavaScript source code for an interactive map of Kelowna.";
+  const res = response();
+  await handler(visualRequest(message), res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(calls, 1);
+  assert.equal(payload.input.at(-1).content, message);
+  assert.equal(payload.tools, undefined);
+  const decoder = createMetabloomSegmentStreamDecoder();
+  assert.equal(decoder.push(res.body), true);
+  assert.match(decoder.finish().value.segments[0].response, /unexecuted/);
+  assert.equal(res.body.includes('"type":"visual_offer"'), false);
+});
+
+test("explicit deep research can retain its supported visual request without a conflicting tool guard", async () => {
+  local();
+  let calls = 0;
+  global.fetch = async (_url, options) => {
+    calls++;
+    return JSON.parse(options.body).tools ? researchReply() : reply(textEnvelope("The supplied evidence supports the comparison. [1]"));
+  };
+  const req = visualRequest("Research this and create a bar chart of the supplied observations.");
+  req.body.actionMode = "deep-research";
+  const res = response();
+  await handler(req, res);
+  assert.equal(res.statusCode, 200);
+  const decoder = createMetabloomSegmentStreamDecoder();
+  assert.equal(decoder.push(res.body), true);
+  assert.equal(decoder.finish().ok, true);
+  assert.equal(calls, 2);
+  assert.equal(res.body.includes("visual_tool_required"), false);
 });

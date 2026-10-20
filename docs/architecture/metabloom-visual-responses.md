@@ -18,9 +18,11 @@ Configuration:
 | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | Existing shared Redis connection, now also used for short-lived visual handoffs and quotas. |
 | Existing `AUTH_*` configuration | Still required, with environment/origin/session checks unchanged. Preview must use its own valid authentication configuration. |
 
-No environment settings, production deployment, or main-branch changes are implied by this feature commit.
+The server flag and client negotiation determine availability. An environment setting cannot enable a format that has no native renderer.
 
 ## Ownership and request flow
+
+The steps below describe optional visuals after an ordinary answer. Explicit supported requests use the [tool-aware flow](metabloom-tool-aware-ui.md), which also documents capability replies and unsupported requests.
 
 1. The existing input Jev decision acknowledges the request and selects the optional scene.
 2. The original answer and research path runs unchanged. Research citations validate before concise text is released.
@@ -34,7 +36,7 @@ The offer is negotiated with `X-Metabloom-Visuals: 1`, not a new request-body fi
 
 `visual_offer` is permitted between the validated final reaction and `done`. The optional demultiplexer keeps the existing strict text decoder intact. Invalid or duplicate offers are discarded; unknown text records, oversized framing and records after `done` remain errors. A visual offer is dispatched to the UI only after the terminal text record validates.
 
-`MetabloomVisuals` uses the existing `metabloom:user-message` and `__orbMessages` extension points. It never claims the text request or replaces the model adapter. Request ID, original AbortSignal, originating user-message ID, exact completed answer, visible assistant-message ID and a unique Orb surface must agree. Repeated identical prompts do not authorize attachment to another reply. Each turn can start its offered visual once, even if its DOM slot disappears later.
+`MetabloomVisuals` uses the existing `metabloom:user-message` and `__orbMessages` extension points. The optional path leaves the original text request with the model adapter; the explicit tool path claims supported visual requests. Request ID, original AbortSignal, originating user-message ID, exact completed answer, visible assistant-message ID and a unique Orb surface must agree. Repeated identical prompts do not authorize attachment to another reply. Each turn can start its offered visual once, even if its DOM slot disappears later.
 
 The visual slot is a sibling of the text bubble inside the same assistant article. This avoids stacking its backdrop blur inside the text bubble's blur. It does not create another chat surface or WebGL scene.
 
@@ -60,7 +62,7 @@ Real-scene compositing, existing transcript masking, deployed fonts and physical
 - Missing evidence or essential inputs yields an unavailable result instead of invented numerical data.
 - A failed, cancelled or expired visual changes only its own state. Completed text and research remain intact.
 - Starting a new message cancels unfinished visual generation. Ready visuals remain with their original message. Reset, message pruning and unmount clean up requests and portals. Hidden tabs do not deliberately abort visual network requests.
-- Local slider/input changes make no model calls. `Copy scenario` is a trusted host action that lets the user include values in their next message. Direct paid follow-up submission and automatic widget state synchronization are not included in this milestone.
+- Local slider/input changes make no model calls. `Copy scenario` copies values as text. The next ordinary message may include bounded calculator inputs; the server resolves the session-owned specification and recomputes the result before using those inputs as context. Changing an input alone never submits a paid follow-up.
 
 ## Redis handoff, privacy and costs
 
@@ -70,9 +72,9 @@ An offer expires after ten minutes. Keyed identity digests bind it to the verifi
 
 One Lua script verifies owner, expiry and offered status; checks both quotas; increments counters; and replaces the context with a claimed tombstone while retaining the TTL. The claimed context is returned only once. There is no in-memory fallback, client-provided context override, or second model call on a duplicate claim.
 
-Initial limits are 5 visual generations per subject per hour and 50 per deployment scope per 24-hour counter window. One builder request allows at most 6,000 output tokens. Server work has a 30-second deadline; the visual function is configured for 40 seconds and the browser uses a separate 40-second timeout. No repair loop, repeated web research or automatic paid retry is performed.
+Initial limits are 5 visual generations per subject per hour and 50 per deployment scope per 24-hour counter window. One builder request allows at most 6,000 output tokens. Generation has a 75-second application deadline inside a 90-second function limit; the visual browser request allows 85 seconds. The [tool-aware timing table](metabloom-tool-aware-ui.md#time-budgets-and-timeout-recovery) covers the other stages. No repair loop, repeated web research or automatic paid retry is performed.
 
-A failed attempt remains claimed. This milestone does not persist completed specs or recover a lost visual response after refresh. Asking again is a new conversation turn subject to quotas. Cancellation can reduce work but does not establish that already-generated provider tokens were free.
+A failed attempt remains claimed. Completed specifications and terminal tool results are session-owned and retained for up to one hour; this does not automatically remount a lost browser component after refresh. A timed-out generation records a failed result for the tool continuation, and a completed continuation is cached to prevent a duplicate paid explanation. An explicit new request is subject to quotas. Cancellation can reduce work but does not establish that already-generated provider tokens were free.
 
 Logs contain bounded outcome/format/timing/usage metadata, not prompts, answers, evidence, generated specs, session tokens, subject IDs or offer IDs. Auth/store failures fail closed. User-visible errors use fixed safe messages.
 
@@ -97,7 +99,9 @@ See `docs/verification/orb-native-visuals/README.md` for the checks actually run
 
 ## Visual intent harness (October 2026)
 
-The input harness classifies the request as `text_only`, `optional`, or `requested` using bounded deterministic matching. This is not a second model, does not authorize actions and does not replace the post-answer Jev decision. Explicit requests carry a preferred supported renderer. Jev can choose a different supported format, but a low-confidence or `none` response does not silently discard an explicit visual request. Text-only requests disable the visual route.
+The input harness classifies ordinary generation intent as `text_only`, `optional`, or `requested` using bounded deterministic matching. Explicit supported requests carry a preferred renderer and, when a format is named, a required kind. That required kind is enforced by the native tool schema and visual validation. Text-only requests disable the visual route.
+
+The same harness identifies `capabilities`, `unsupported`, `clarification` and `visual_status` requests. These receive host-authored capability or status replies and cannot enter optional visualization. Bounded user history can resolve an explicit contextual request or retain an unsupported request. Assistant history never grants capabilities or proves a render. See the [capability and display contract](metabloom-tool-aware-ui.md#capability-and-display-contract) for the negative constraints and their limits.
 
 The answer model receives presentation awareness and is instructed not to imitate charts with ASCII bars, pseudo-UI or text tables. The original question and completed answer remain the primary builder context. A small structured `dataHints` channel extracts only explicit, comma-separated numeric series supplied in the user message, without another model call. This is intentionally not a general-purpose numerical parser. Unsupported or inconsistent series produce no hints, not invented values.
 

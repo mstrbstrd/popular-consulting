@@ -7,6 +7,27 @@ Explicit supported UI requests use a forced, single `create_visual` function cal
 
 Supported kinds include tables, bar charts, line charts, pie charts, flowcharts and calculators. An explicitly requested kind is also the sole kind in that request's function schema. Pie charts use one unit and 1–12 unique categories with nonnegative finite amounts and a positive total. Their native SVG, keyboard-operable category controls and exact-value table use the host's existing visual design.
 
+## Capability and display contract
+
+`metabloomVisualCapabilities.js` describes the actual formats approved by `METABLOOM_VISUAL_KINDS`. Both capability replies and model instructions use this catalogue. Geographic maps, arbitrary generated applications, unsupported chart types, images, animation exports and downloadable files are not implemented native components. The calculator's **Copy scenario** control copies text; it does not create a downloadable file.
+
+The shared intent classifier receives the current message and bounded conversation history on the client, ordinary API and tool API. Previous user requests can identify a referenced task. Assistant prose cannot establish that a capability exists, that work started, or that a component was generated or mounted. A topic change ends contextual inheritance. Generic confirmations do not automatically regenerate a previously completed component.
+
+| Request | Host behavior |
+| --- | --- |
+| Ask what generated UI can do | Return the implemented catalogue for the negotiated session. |
+| Request an unsupported map, component or export | Return an explicit limitation; do not substitute an unrelated chart or start a provider call. |
+| Confirm a previous unsupported request | Preserve its limitation instead of continuing an earlier imaginary promise. |
+| Report that a component is missing | Acknowledge the missing display without claiming success or silently retrying paid generation. |
+| Explicitly request a supported component | Use the existing tool, validation and mount lifecycle. |
+| Give an ambiguous visual confirmation | Ask one focused question instead of inventing a task. |
+
+Capability, unsupported-action, clarification and display-status replies are produced by the host after authentication, request validation and rate limiting. They do not call OpenAI, Jev or research, and cannot produce optional visual offers. The Jev service independently accepts visual selection only for `optional` and `requested` intents.
+
+The ordinary writer has no execution or mounting receipt for its current turn. Its instructions prohibit claims that a visual is created, loading or displayed, and prohibit invented download controls or attachments. Only the tool continuation receives the owned generation result plus a bounded browser observation. `mounted` means the component mounted in the connected transcript, not proof that it is in the user's current viewport. `unknown` and `failed` must retain their uncertainty or failure wording.
+
+These are explicit application boundaries for recognized intents. The deterministic classifier is a bounded language heuristic, and prompt instructions do not mathematically guarantee every sentence a free-form model can produce. Regression tests cover the reported Kelowna conversation, misleading assistant history, source-code exceptions, topic changes, negotiated availability and the absence of provider work for unsupported requests.
+
 When the user requests a generic ingredient pie chart without quantities, the builder may provide an example with `provenance.type=illustrative` and clearly disclosed assumed amounts. Prompt grounding instructs preservation of supplied scalar quantities. Deterministic equality validation currently applies to the extracted multi-series bar/line data contract; arbitrary free-text quantities are not independently verified.
 
 ## Availability
@@ -54,8 +75,8 @@ Provider logs contain the bounded phase, model, duration, usage counts, safe pro
 ## Verification
 Run:
 ```sh
-node --test scripts/metabloom-visual.test.cjs scripts/metabloom-ui-tools.test.cjs
-CI=true npm test -- --watch=false --runInBand --runTestsByPath src/components/MetabloomVisuals.test.js
+node --test scripts/metabloom-api.test.cjs scripts/jev-reaction.test.cjs scripts/metabloom-visual.test.cjs scripts/metabloom-ui-tools.test.cjs
+CI=true npm test -- --watch=false --runInBand --runTestsByPath src/components/MetabloomVisuals.test.js src/components/MetabloomVisualFollowups.test.js src/components/metabloomVisualIntent.test.js src/components/metabloomVisualCapabilities.test.js src/components/metabloomEmoteLibrary.test.js
 CI=true npm run build
 ```
 

@@ -58,7 +58,9 @@ const isChoiceAnswer = (answer) => answer?.type === "choice" && typeof answer.ch
   && Number.isFinite(answer.probabilities[answer.choice]);
 
 const decideMetabloomChoices = async ({ phase, state, actionMode, visualKinds, visualIntent = "optional", preferredKinds = [], requiredKind = null, signal, timeoutMs = 1000, fetchImpl = globalThis.fetch } = {}) => {
-  const allowedVisuals = phase === "response" && Array.isArray(visualKinds)
+  // Capability/status replies and unsupported requests never create an offer,
+  // even if a caller accidentally includes a visual inventory.
+  const allowedVisuals = phase === "response" && ["optional", "requested"].includes(visualIntent) && Array.isArray(visualKinds)
     ? METABLOOM_VISUAL_KINDS.filter((kind) => visualKinds.includes(kind)) : [];
   const preferred = preferredKinds.filter(kind => allowedVisuals.includes(kind));
   const requested = visualIntent === "requested";
