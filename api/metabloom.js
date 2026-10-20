@@ -337,7 +337,7 @@ const handler = async (request, response) => {
     };
     const finalDecision = canVisualize
       ? await decideMetabloomResponse({ ...finalOptions, visualKinds: METABLOOM_VISUAL_KINDS,
-        visualIntent: visualIntent.mode, preferredKinds: visualIntent.preferredKinds })
+        visualIntent: visualIntent.mode, preferredKinds: visualIntent.preferredKinds, requiredKind: visualIntent.requiredKind })
       : { emote: await decideMetabloomReaction(finalOptions), visualization: "none" };
     await sendStreamEvent({ type: "emote", phase: "response", emote: finalDecision.emote });
     if (visualIntent.mode === "requested" || canVisualize) console.info("metabloom_visual_route", JSON.stringify({
