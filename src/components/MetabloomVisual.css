@@ -126,3 +126,10 @@
   .orb-page .metabloom-visual__line { stroke: Highlight; }
   .orb-page .metabloom-visual__point { fill: Highlight; }
 }
+
+/* Local component typography and provenance must override legacy global footer/label rules. */
+.orb-page .metabloom-visual__provenance { background: transparent; color: var(--aetheris-ink-2); box-shadow: none; }
+.orb-page .metabloom-visual__provenance p { color: var(--aetheris-ink-2); font: 1.15rem/1.5 var(--aetheris-font-sans); margin: 0.4rem 0 0; }
+.orb-page .metabloom-visual__field label { color: var(--aetheris-ink); font: 600 1.3rem/1.4 var(--aetheris-font-sans); }
+.orb-page .metabloom-visual__field label span { color: var(--aetheris-ink-2); font-weight: 400; }
+.orb-page .metabloom-visual__summary { color: var(--aetheris-ink-2); font-size: 1.25rem; }

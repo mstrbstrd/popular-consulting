@@ -84,10 +84,18 @@ class VisualCalculator extends React.Component {
     super(props);
     this.state = { inputs: Object.fromEntries(props.spec.controls.map(control => [control.id, String(control.initial)])), copyStatus: '' };
   }
-  componentDidMount() { this.mounted = true; }
+  componentDidMount() {
+    this.mounted = true;
+    this.publishInputs();
+  }
+  publishInputs = () => {
+    const values = Object.fromEntries(this.props.spec.controls.map(control =>
+      [control.id, this.state.inputs[control.id].trim() ? Number(this.state.inputs[control.id]) : NaN]));
+    if (Object.values(values).every(Number.isFinite)) this.props.onInputsChange?.(values);
+  };
   componentWillUnmount() { this.mounted = false; }
-  reset = () => this.setState({ inputs: Object.fromEntries(this.props.spec.controls.map(control => [control.id, String(control.initial)])), copyStatus: '' });
-  change = (id, value) => this.setState(state => ({ inputs: { ...state.inputs, [id]: value }, copyStatus: '' }));
+  reset = () => this.setState({ inputs: Object.fromEntries(this.props.spec.controls.map(control => [control.id, String(control.initial)])), copyStatus: '' }, this.publishInputs);
+  change = (id, value) => this.setState(state => ({ inputs: { ...state.inputs, [id]: value }, copyStatus: '' }), this.publishInputs);
   copyScenario = async () => {
     const { spec } = this.props;
     const text = `${spec.title}\n${spec.controls.map(control => `${control.label}: ${this.state.inputs[control.id]} ${control.unit}`).join('\n')}\nFormula: ${spec.formulaDescription}\nQuestion: `;
@@ -107,7 +115,7 @@ class VisualCalculator extends React.Component {
         const invalid = !Number.isFinite(value) || value < control.min || value > control.max;
         return <div className="metabloom-visual__field" key={control.id}>
           <label htmlFor={`${id}-${control.id}`}>{control.label} {control.unit && <span>({control.unit})</span>}</label>
-          <div className="metabloom-visual__input-shell"><input id={`${id}-${control.id}`} type="number" inputMode="decimal" min={control.min} max={control.max} step="any"
+          <div className="metabloom-visual__input-shell"><input id={`${id}-${control.id}`} type="number" inputMode="decimal" min={control.min} max={control.max} step={control.step}
             value={this.state.inputs[control.id]} aria-invalid={invalid || undefined} aria-describedby={`${id}-formula`}
             onChange={event => this.change(control.id, event.target.value)} /></div>
           <input type="range" aria-label={`${control.label} slider`} min={control.min} max={control.max} step={control.step}
@@ -127,7 +135,8 @@ export class MetabloomVisualBoundary extends React.Component {
   componentDidCatch() { this.setState({ failed: true }); }
   render() { return this.state.failed ? <div className="metabloom-visual" role="status">This visual could not be displayed. Your answer is unchanged.</div> : this.props.children; }
 }
-export default function MetabloomVisualFrame({ artifact, onStop }) {
+export default function MetabloomVisualFrame({ artifact, onStop, onReady, onInputsChange }) {
+  React.useEffect(() => { if (artifact.status === 'ready') onReady?.(); }, [artifact.status, onReady]);
   const { id, status, spec, sources = [], code } = artifact;
   return <section className="metabloom-visual" data-visual-state={status} data-visual-kind={spec?.kind || artifact.kind} aria-label={spec?.title || 'Visual answer'} aria-busy={status === 'generating'}>
     <header className="metabloom-visual__header"><div><span className="metabloom-visual__eyebrow">{spec?.kind === 'calculator' ? 'Explore the answer' : 'Another way to see it'}</span><h3>{spec?.title || (status === 'cancelled' ? 'Visual stopped' : status === 'failed' ? 'Visual unavailable' : 'Preparing your visual')}</h3></div>
@@ -140,7 +149,7 @@ export default function MetabloomVisualFrame({ artifact, onStop }) {
       {spec.kind === 'table' && <DataTable columns={spec.columns} rows={spec.rows} title={spec.title} />}
       {['bar-chart', 'line-chart'].includes(spec.kind) && <VisualChart spec={spec} id={id} />}
       {spec.kind === 'flowchart' && <VisualFlowchart spec={spec} />}
-      {spec.kind === 'calculator' && <VisualCalculator spec={spec} id={id} />}
+      {spec.kind === 'calculator' && <VisualCalculator spec={spec} id={id} onInputsChange={onInputsChange} />}
       <footer className="metabloom-visual__provenance"><span className="metabloom-visual__badge">{provenanceLabels[spec.provenance.type]}</span><p>{spec.provenance.label}</p>
         {sources.length > 0 && <ul aria-label="Visual sources">{sources.map(source => <li key={source.id}><a href={source.url} target="_blank" rel="noopener noreferrer">{source.title}</a></li>)}</ul>}
       </footer>

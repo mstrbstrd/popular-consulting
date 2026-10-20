@@ -2,7 +2,7 @@ name: Metabloom functional verification
 on:
   pull_request:
   push:
-    branches: [main, feat/orb-visual-responses, feat/orb-visual-harness]
+    branches: [main, feat/orb-visual-responses, feat/orb-visual-harness, feat/orb-tool-aware-runtime]
   workflow_dispatch:
 permissions:
   contents: read
@@ -19,7 +19,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - run: node --test scripts/metabloom-api.test.cjs scripts/metabloom-research.test.cjs scripts/metabloom-stream.test.cjs scripts/jev-reaction.test.cjs scripts/metabloom-visual.test.cjs
+      - run: node --test scripts/metabloom-api.test.cjs scripts/metabloom-research.test.cjs scripts/metabloom-stream.test.cjs scripts/jev-reaction.test.cjs scripts/metabloom-visual.test.cjs scripts/metabloom-ui-tools.test.cjs
       - run: npm ci --no-audit --no-fund
       - run: npm test -- --watch=false --runInBand --runTestsByPath src/components/MetabloomVisuals.test.js
         env:
