@@ -94,3 +94,15 @@ npm run build
 The existing functional workflow is updated to Node 24, includes both new test suites, and runs on the feature branch. Its production-domain checks remain restricted to pushes to main. Provider fixtures do not make paid requests.
 
 See `docs/verification/orb-native-visuals/README.md` for the checks actually run during implementation and outstanding qualification. A commit, passing local fixtures, CI, provider access and a deployed release are distinct states.
+
+## Visual intent harness (October 2026)
+
+The input harness classifies the request as `text_only`, `optional`, or `requested` using bounded deterministic matching. This is not a second model, does not authorize actions and does not replace the post-answer Jev decision. Explicit requests carry a preferred supported renderer. Jev can choose a different supported format, but a low-confidence or `none` response does not silently discard an explicit visual request. Text-only requests disable the visual route.
+
+The answer model receives presentation awareness and is instructed not to imitate charts with ASCII bars, pseudo-UI or text tables. The original question and completed answer remain the primary builder context. A small structured `dataHints` channel extracts only explicit, comma-separated numeric series supplied in the user message, without another model call. This is intentionally not a general-purpose numerical parser. Unsupported or inconsistent series produce no hints, not invented values.
+
+The native chart contract now supports both the legacy one-series `points` representation and a bounded `labels` plus `series` representation with 2-5 series, up to 24 observations each, and 120 total numeric values. The Aetheris renderer provides distinct series colors, legend, accessible values table and mobile layout. The visual builder checks chart observations against authoritative user-provided data hints when present, rejecting mismatches instead of quietly altering figures. Series ordering may change but labels and numeric observations must agree.
+
+Operational logs report only intent, selected kind and lifecycle outcomes, never the user question, chart values or session identity. `METABLOOM_VISUALS_ENABLED=true` is still required on the server. A production Git push does not enable the feature flag. Visuals remain independent of text completion, research citations and the original Orb animations.
+
+The input classifier is intentionally conservative for ordinary prose, but cannot guarantee perfect semantic intent classification. Future iterations should use measured routing errors before adding another model or broadening the parser.
