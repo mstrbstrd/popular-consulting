@@ -155,6 +155,7 @@
   ],
   "functions": {
     "api/metabloom.js": { "maxDuration": 180 },
+    "api/metabloom-visual.js": { "maxDuration": 40 },
     "api/auth/[action].js": { "maxDuration": 30 }
   }
 }

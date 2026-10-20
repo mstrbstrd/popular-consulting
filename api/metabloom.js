@@ -3,7 +3,9 @@ const { once } = require("node:events");
 const metabloomAuth = require("../server/metabloomAuth");
 const { METABLOOM_CHAT_PROTOCOL_VERSION, METABLOOM_EMOTE_IDS, METABLOOM_CHAT_RESPONSE_SCHEMA, buildMetabloomChatSystemPrompt } = require("../src/components/metabloomEmoteLibrary");
 const { METABLOOM_ACTION_MODES } = require("../src/components/metabloomDecisionMapping");
-const { decideMetabloomReaction, decideMetabloomInput } = require("../server/jevReactionService");
+const { decideMetabloomReaction, decideMetabloomInput, decideMetabloomResponse } = require("../server/jevReactionService");
+const { enabled: visualsEnabled, createMetabloomVisualStore } = require("../server/metabloomVisualStore");
+const { METABLOOM_VISUAL_KINDS } = require("../src/components/metabloomVisualProtocol");
 const { streamMetabloomProvider } = require("../server/metabloomProviderStream");
 const { conductMetabloomResearch, validateMetabloomResearchCitations } = require("../server/metabloomResearch");
 const { createMetabloomProviderError, readMetabloomProviderError, providerRequestId } = require("../server/metabloomProviderErrors");
@@ -144,7 +146,10 @@ const handler = async (request, response) => {
   response.setHeader("X-Content-Type-Options", "nosniff");
   response.setHeader("X-Metabloom-Protocol", METABLOOM_CHAT_PROTOCOL_VERSION);
   // No metadata, quota consumption, OpenAI request, or Jev decision without a live session.
-  const denial = await metabloomAuth.requireMetabloomSession(request);
+  let visualIdentity;
+  const denial = await metabloomAuth.requireMetabloomSession(request, {
+    onIdentity: visualsEnabled() ? (identity) => { visualIdentity = identity; } : undefined,
+  });
   if (denial) return sendJson(response, denial.status, { code: denial.code });
   if (response.destroyed || request.aborted) return;
   if (request.method === "GET") return sendJson(response, 200, {
@@ -167,8 +172,10 @@ const handler = async (request, response) => {
   const startedAt = Date.now();
   let deadlineExpired = false;
   const expire = () => { deadlineExpired = true; controller.abort(); };
+  let requestDeadline = startedAt + 25000;
   let timeout = setTimeout(expire, 25000);
   const armDeadline = (deadline) => {
+    requestDeadline = deadline;
     clearTimeout(timeout);
     timeout = setTimeout(expire, Math.max(1, deadline - Date.now()));
   };
@@ -316,12 +323,33 @@ const handler = async (request, response) => {
     // OpenAI has completed successfully. Its 25-second generation deadline must
     // not abort an otherwise good reply during Jev's separately bounded final choice.
     if (!research) clearTimeout(timeout);
-    const finalEmote = await decideMetabloomReaction({
+    const canVisualize = request.headers?.["x-metabloom-visuals"] === "1" && body.requestId && visualIdentity && visualsEnabled() && !useResearchIntro;
+    const assistantResponse = finalReply.segments.map((segment) => segment.response).join("\n\n");
+    const finalOptions = {
       phase: "response",
-      state: { latestUserMessage: body.message, assistantResponse: finalReply.segments.map((segment) => segment.response).join("\n\n") },
+      state: { latestUserMessage: body.message, assistantResponse,
+        ...(canVisualize ? { recentConversation: body.history.slice(-2).map((item) => ({ role: item.role, content: item.content.slice(0, 1600) })),
+          evidence: research?.notes || "", sources: research?.sources || [], availableVisualizations: METABLOOM_VISUAL_KINDS } : {}) },
       signal: controller.signal, timeoutMs: 1200,
-    });
-    await sendStreamEvent({ type: "emote", phase: "response", emote: finalEmote });
+    };
+    const finalDecision = canVisualize
+      ? await decideMetabloomResponse({ ...finalOptions, visualKinds: METABLOOM_VISUAL_KINDS })
+      : { emote: await decideMetabloomReaction(finalOptions), visualization: "none" };
+    await sendStreamEvent({ type: "emote", phase: "response", emote: finalDecision.emote });
+    // Optional metadata has its own failure boundary. It never regenerates text,
+    // runs a visual provider here, or consumes the remaining research deadline.
+    if (canVisualize && METABLOOM_VISUAL_KINDS.includes(finalDecision.visualization)
+      && (research ? requestDeadline - Date.now() > 2500 : Date.now() - startedAt < 20000)) {
+      try {
+        const offer = await createMetabloomVisualStore().offer(visualIdentity, finalDecision.visualization, {
+          message: body.message, answer: assistantResponse, evidence: research?.notes || "", sources: research?.sources || [],
+          recentConversation: body.history.slice(-2).map((item) => ({ role: item.role, content: item.content.slice(0, 1600) })),
+        }, { signal: controller.signal });
+        if (offer) await sendStreamEvent({ type: "visual_offer", offer });
+      } catch {
+        console.info("metabloom_visual_offer", JSON.stringify({ outcome: "unavailable", requestRef }));
+      }
+    }
     response.end(JSON.stringify({ type: "done", version: METABLOOM_CHAT_PROTOCOL_VERSION }) + "\n");
   } catch (error) {
     const disconnected = !deadlineExpired && (response.destroyed || request.aborted || controller.signal.aborted);

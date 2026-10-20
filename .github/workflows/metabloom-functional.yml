@@ -2,7 +2,7 @@ name: Metabloom functional verification
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, feat/orb-visual-responses]
   workflow_dispatch:
 permissions:
   contents: read
@@ -17,15 +17,18 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
-      - run: node --test scripts/metabloom-api.test.cjs scripts/metabloom-research.test.cjs scripts/metabloom-stream.test.cjs scripts/jev-reaction.test.cjs
+      - run: node --test scripts/metabloom-api.test.cjs scripts/metabloom-research.test.cjs scripts/metabloom-stream.test.cjs scripts/jev-reaction.test.cjs scripts/metabloom-visual.test.cjs
       - run: npm ci --no-audit --no-fund
+      - run: npm test -- --watch=false --runInBand --runTestsByPath src/components/MetabloomVisuals.test.js
+        env:
+          CI: true
       - run: npm run build
         env:
           CI: true
       - name: Verify built demos in a real browser
-        run: node --experimental-websocket scripts/verify-metabloom-browser.mjs
+        run: node scripts/verify-metabloom-browser.mjs
       - name: Preserve functional evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -35,7 +38,7 @@ jobs:
           retention-days: 7
       - name: Verify deployed demos on the production domain
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: node --experimental-websocket scripts/verify-metabloom-browser.mjs
+        run: node scripts/verify-metabloom-browser.mjs
         env:
           METABLOOM_VERIFY_ORIGIN: https://popular-consulting.com
       - name: Preserve production evidence

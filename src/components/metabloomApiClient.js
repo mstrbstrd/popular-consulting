@@ -1,6 +1,7 @@
 import { MAX_METABLOOM_RESEARCH_STREAM_BYTES, createMetabloomSegmentStreamDecoder, parseMetabloomChatEnvelope } from "./metabloomEmoteProtocol";
 import { METABLOOM_ACTION_MODES } from "./metabloomDecisionMapping";
 import { METABLOOM_REQUEST_ERROR_MESSAGES, parseMetabloomRequestError, parseMetabloomRequestRef, getMetabloomApiErrorMessage } from "./metabloomRequestErrors";
+import { METABLOOM_VISUAL_OFFER_EVENT, createMetabloomVisualStreamBridge } from "./metabloomVisualApiClient";
 
 export { getMetabloomApiErrorMessage } from "./metabloomRequestErrors";
 
@@ -32,6 +33,7 @@ export const requestMetabloomResponse = async ({
   onResearchProgress,
   onResearchDetails,
   onSources,
+  onVisualOffer,
   optional = false,
   requestId,
   signal,
@@ -57,7 +59,7 @@ export const requestMetabloomResponse = async ({
     const response = await fetchImpl("/api/metabloom", {
       method: "POST",
       credentials: "same-origin",
-      headers: { "Content-Type": "application/json", Accept: "application/x-ndjson" },
+      headers: { "Content-Type": "application/json", Accept: "application/x-ndjson", "X-Metabloom-Visuals": "1" },
       body: JSON.stringify({ actionMode, allowMultiple: allowMultiple === true, streamText: true,
         streamResearchProgress: true, streamResearchDetails: true, history, message, requestId }),
       signal: controller.signal,
@@ -67,7 +69,7 @@ export const requestMetabloomResponse = async ({
     responseRequestRef = parseMetabloomRequestRef(response.headers?.get?.("X-Metabloom-Request-Ref"));
     const isStream = contentType.includes("application/x-ndjson");
     let streamError = null;
-    const decoder = createMetabloomSegmentStreamDecoder({
+    const decoder = createMetabloomVisualStreamBridge(createMetabloomSegmentStreamDecoder({
       allowMultiple,
       allowResearchDetails: true,
       onError: (error) => {
@@ -113,7 +115,7 @@ export const requestMetabloomResponse = async ({
         if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
         onSegment?.(segment, index);
       },
-    });
+    }));
     let text = "";
     let bytes = 0;
     if (response.ok && !isStream && !contentType.includes("application/json")) {
@@ -131,7 +133,7 @@ export const requestMetabloomResponse = async ({
         if (bytes > (response.ok ? (isStream ? MAX_METABLOOM_RESEARCH_STREAM_BYTES : MAX_RESPONSE_BYTES) : 4096)) throw new MetabloomApiError("Response exceeded its size limit.");
         const part = textDecoder.decode(chunk.value, { stream: true });
         if (response.ok && isStream) {
-          if (!decoder.push(part)) throw streamError;
+          if (!decoder.push(part)) throw streamError || new MetabloomApiError("Invalid stream.");
         } else text += part;
       }
       const tail = textDecoder.decode();
@@ -166,6 +168,15 @@ export const requestMetabloomResponse = async ({
     });
     // JSON compatibility responses use the same callback, exactly once per segment.
     if (!isStream) result.value.segments.forEach((segment, index) => onSegment?.(segment, index));
+    // A visual is offered only after the entire text stream has validated. Its
+    // optional listener cannot turn a completed answer into a failed request.
+    if (isStream && decoder.offer && requestId && !signal?.aborted) {
+      const detail = { offer: decoder.offer, requestId, reply: result.value, signal };
+      try {
+        if (onVisualOffer) onVisualOffer(detail);
+        else if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(METABLOOM_VISUAL_OFFER_EVENT, { detail }));
+      } catch { /* Text completion is independent of optional presentation. */ }
+    }
     return result.value;
   } catch (error) {
     if (controller.signal.aborted) throw new MetabloomApiError(getMetabloomApiErrorMessage("cancelled"), {

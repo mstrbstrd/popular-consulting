@@ -10,12 +10,14 @@ import ImmersiveRouteNavigationBridge from "./ImmersiveRouteNavigationBridge";
 import LoadingOverlay from "./LoadingOverlay";
 import NavMenu from "./NavMenu";
 import OrbSection from "./OrbSection";
+import MetabloomVisuals from "./MetabloomVisuals";
 import "./OrbPage.css";
 import "./OrbPageExperience.css";
 import "./OrbPageFinalPolish.css";
 import "./OrbComposerFocus.css";
 import "./OrbMetalbloomFinish.css";
 import "./OrbNovaFinish.css";
+import "./MetabloomVisual.css";
 
 const METADATA_SELECTORS = Object.freeze({
   description: 'meta[name="description"]',
@@ -307,6 +309,7 @@ const OrbPageContent = ({ onReady }) => {
               onConversationStateChange={setConversationStarted}
               onReady={onReady}
             />
+            <MetabloomVisuals />
           </main>
         </div>
 

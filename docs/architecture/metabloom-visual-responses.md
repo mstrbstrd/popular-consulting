@@ -1,0 +1,96 @@
+# Metabloom native visual responses
+
+## Scope and rollout
+
+This is the first, feature-gated native-rendering milestone of the post-answer visual plan. It implements generated table, bar-chart, ordinal line-chart, small process/relationship diagram, and calculator specifications. It does not install CopilotKit, AG-UI, A2UI, Python agents or Websandbox. OpenIntelligentUI informs the architecture, not a wholesale chat replacement.
+
+Arbitrary generated HTML, CSS and JavaScript are not supported. The later sandbox tier, sandbox theme bridge, external libraries, network-connected widgets, 3D, persistence and in-place artifact editing require separate implementation and qualification. There is no configuration switch that enables unimplemented sandbox execution.
+
+Native generation is OFF unless the server has `METABLOOM_VISUALS_ENABLED=true`. Keep it off until preview qualification passes. The existing authenticated/admin audience remains authoritative. No browser preference can enable an unconfigured server.
+
+Configuration:
+
+| Variable | Behavior |
+| --- | --- |
+| `METABLOOM_VISUALS_ENABLED` | Exact `true` enables the native tier for already-authorized sessions. Anything else disables it. |
+| `METABLOOM_VISUAL_MODEL` | Optional builder model; otherwise `METABLOOM_OPENAI_MODEL`, then the existing `gpt-5-mini` fallback. |
+| `OPENAI_API_KEY`, `TYPESAFE_API_KEY`, `JEV_MODEL` | Existing provider configuration, kept server-side. No new provider account is required. |
+| `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | Existing shared Redis connection, now also used for short-lived visual handoffs and quotas. |
+| Existing `AUTH_*` configuration | Still required, with environment/origin/session checks unchanged. Preview must use its own valid authentication configuration. |
+
+No environment settings, production deployment, or main-branch changes are implied by this feature commit.
+
+## Ownership and request flow
+
+1. The existing input Jev decision acknowledges the request and selects the optional scene.
+2. The original answer and research path runs unchanged. Research citations validate before concise text is released.
+3. Once the completed answer validates, the existing final Jev request may include an independent `visualization` question alongside `reaction`.
+4. Jev receives the answer, original question, bounded context and available evidence. Application-approved formats map to native renderers. Unknown, missing, low-confidence or failed choices become `none`, independently of the emotion result. The initial confidence threshold is 0.75 and needs provider-backed evaluation; it is not a factual-confidence guarantee.
+5. A short-lived, session-owned context record may be created. The chat emits its offer and ends normally. Handoff failure cannot turn a valid answer into an error. Slow ordinary turns and near-deadline research skip this optional work.
+6. After the originating assistant message is visibly complete, a separate authenticated `POST /api/metabloom-visual` claims the offer and builds its specification.
+7. The server and browser validate the specification. A host-owned React portal attaches the result to the originating assistant article, independently of text/research state.
+
+The offer is negotiated with `X-Metabloom-Visuals: 1`, not a new request-body field. An older server ignores this header and can still accept a new client. An older client does not send the header and receives the original stream. No existing text envelope fields or protocol versions are reinterpreted.
+
+`visual_offer` is permitted between the validated final reaction and `done`. The optional demultiplexer keeps the existing strict text decoder intact. Invalid or duplicate offers are discarded; unknown text records, oversized framing and records after `done` remain errors. A visual offer is dispatched to the UI only after the terminal text record validates.
+
+`MetabloomVisuals` uses the existing `metabloom:user-message` and `__orbMessages` extension points. It never claims the text request or replaces the model adapter. Request ID, original AbortSignal, originating user-message ID, exact completed answer, visible assistant-message ID and a unique Orb surface must agree. Repeated identical prompts do not authorize attachment to another reply. Each turn can start its offered visual once, even if its DOM slot disappears later.
+
+The visual slot is a sibling of the text bubble inside the same assistant article. This avoids stacking its backdrop blur inside the text bubble's blur. It does not create another chat surface or WebGL scene.
+
+## Aetheris design contract
+
+`src/aetheris-site.css` remains the source of token values. `metabloomVisualDesign.js` declares approved token names and generation instructions, not a second theme. `MetabloomVisual.css` loads after the other Orb presentation layers and scopes every rule to the new feature.
+
+The application owns translucent surfaces, masked spectral edges, specular highlights, typography, radii, control dimensions, focus indicators and motion. The model supplies structure and data only. Native number inputs use a masked host wrapper because native input pseudo-elements cannot be relied upon. Borders, buttons and slider tracks use the existing spectral recipes; quantitative data marks retain consistent, readable semantic colors.
+
+Theme changes use the existing CSS variables and root `data-theme`. They do not regenerate the specification, remount the calculator, reset inputs or make another provider request. No font files or third-party styling libraries are added; components inherit the existing font setup.
+
+Glass remains a background treatment, not reduced opacity on text. Reduced transparency and forced-color modes deliberately substitute accessible surfaces. Backdrop-filter support has a solid-surface fallback. No continuous decorative animation, extra canvas or nested blur per control is introduced.
+
+Real-scene compositing, existing transcript masking, deployed fonts and physical-device behavior still need preview qualification. Isolated component rendering is not proof of the complete Orb experience.
+
+## Data and safety invariants
+
+- Model output never executes as parent-document code. No HTML, CSS, handlers, external imports or arbitrary extra fields are accepted.
+- Specs are limited to 64 KiB. Tables have at most 8 columns and 100 rows, charts 60 observations, diagrams 16 nodes/32 edges, and calculators 6 controls/32 expression tokens.
+- Calculator expressions use bounded reverse-Polish arithmetic, not `eval`, Function, or JavaScript. Blank, non-finite, out-of-range, overflowing and zero-divisor inputs have no valid output.
+- Lines use ordinal observation spacing, explicitly labelled as such. They do not imply scaled elapsed time for irregular timestamps. Exact values remain available as a semantic table.
+- Provenance distinguishes user data, retrieved sources, calculations, illustrations and conceptual explanations. Referenced source IDs must exist in supplied evidence. Structural validation does not establish that an interpretation is factually correct; evidence agreement requires evaluation.
+- Missing evidence or essential inputs yields an unavailable result instead of invented numerical data.
+- A failed, cancelled or expired visual changes only its own state. Completed text and research remain intact.
+- Starting a new message cancels unfinished visual generation. Ready visuals remain with their original message. Reset, message pruning and unmount clean up requests and portals. Hidden tabs do not deliberately abort visual network requests.
+- Local slider/input changes make no model calls. `Copy scenario` is a trusted host action that lets the user include values in their next message. Direct paid follow-up submission and automatic widget state synchronization are not included in this milestone.
+
+## Redis handoff, privacy and costs
+
+The server stores only the context needed to build the visual: question, completed answer, bounded recent conversation and selected evidence. It never stores provider keys or raw session tokens in these records. This is a new transient content-storage use and must be considered in the site's retention/privacy policy before enablement.
+
+An offer expires after ten minutes. Keyed identity digests bind it to the verified session and deployment scope. Quotas use a subject digest so signing in again does not reset them. All claim keys share one Redis hash slot.
+
+One Lua script verifies owner, expiry and offered status; checks both quotas; increments counters; and replaces the context with a claimed tombstone while retaining the TTL. The claimed context is returned only once. There is no in-memory fallback, client-provided context override, or second model call on a duplicate claim.
+
+Initial limits are 5 visual generations per subject per hour and 50 per deployment scope per 24-hour counter window. One builder request allows at most 6,000 output tokens. Server work has a 30-second deadline; the visual function is configured for 40 seconds and the browser uses a separate 40-second timeout. No repair loop, repeated web research or automatic paid retry is performed.
+
+A failed attempt remains claimed. This milestone does not persist completed specs or recover a lost visual response after refresh. Asking again is a new conversation turn subject to quotas. Cancellation can reduce work but does not establish that already-generated provider tokens were free.
+
+Logs contain bounded outcome/format/timing/usage metadata, not prompts, answers, evidence, generated specs, session tokens, subject IDs or offer IDs. Auth/store failures fail closed. User-visible errors use fixed safe messages.
+
+## Verification and delivery
+
+Run the new built-in Node tests:
+
+```sh
+node --test scripts/metabloom-visual.test.cjs
+```
+
+With the repository's installed dependencies and Node 24, run the React integration tests and production build:
+
+```sh
+npm test -- --watch=false --runInBand --runTestsByPath src/components/MetabloomVisuals.test.js
+npm run build
+```
+
+The existing functional workflow is updated to Node 24, includes both new test suites, and runs on the feature branch. Its production-domain checks remain restricted to pushes to main. Provider fixtures do not make paid requests.
+
+See `docs/verification/orb-native-visuals/README.md` for the checks actually run during implementation and outstanding qualification. A commit, passing local fixtures, CI, provider access and a deployed release are distinct states.

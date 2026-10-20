@@ -6,6 +6,8 @@ const {
   resolveMetabloomDecision,
   resolveMetabloomActionDecision,
 } = require("../src/components/metabloomDecisionMapping");
+const { createMetabloomVisualizationQuestion } = require("../src/components/metabloomVisualDesign");
+const { METABLOOM_VISUAL_KINDS } = require("../src/components/metabloomVisualProtocol");
 
 const JEV_ENDPOINT = "https://api.typesafe.ai/v1/systemone";
 const MAX_RESPONSE_BYTES = 16384;
@@ -55,9 +57,13 @@ const isChoiceAnswer = (answer) => answer?.type === "choice" && typeof answer.ch
   && Object.prototype.hasOwnProperty.call(answer.probabilities, answer.choice)
   && Number.isFinite(answer.probabilities[answer.choice]);
 
-const decideMetabloomChoices = async ({ phase, state, actionMode, signal, timeoutMs = 1000, fetchImpl = globalThis.fetch } = {}) => {
+const decideMetabloomChoices = async ({ phase, state, actionMode, visualKinds, signal, timeoutMs = 1000, fetchImpl = globalThis.fetch } = {}) => {
+  const allowedVisuals = phase === "response" && Array.isArray(visualKinds)
+    ? METABLOOM_VISUAL_KINDS.filter((kind) => visualKinds.includes(kind)) : [];
+  let visualization = "none";
+  const withVisual = (value) => allowedVisuals.length ? { ...value, visualization } : value;
   const explicitAction = phase === "input" && METABLOOM_ACTION_IDS.includes(actionMode) ? actionMode : "none";
-  const fallback = () => ({ emote: "neutral", action: signal?.aborted ? "none" : explicitAction });
+  const fallback = () => { visualization = "none"; return withVisual({ emote: "neutral", action: signal?.aborted ? "none" : explicitAction }); };
   if (!Object.prototype.hasOwnProperty.call(QUESTIONS, phase)) return fallback();
   const apiKey = process.env.TYPESAFE_API_KEY?.trim();
   const model = process.env.JEV_MODEL?.trim() || "jev-latest";
@@ -65,6 +71,7 @@ const decideMetabloomChoices = async ({ phase, state, actionMode, signal, timeou
   const classifyAction = phase === "input" && actionMode === "auto";
   const questions = { reaction: QUESTIONS[phase] };
   if (classifyAction) questions.action = METABLOOM_ACTION_QUESTION;
+  if (allowedVisuals.length) questions.visualization = createMetabloomVisualizationQuestion(allowedVisuals);
   const startedAt = Date.now();
   const controller = new AbortController();
   const abort = () => controller.abort();
@@ -84,6 +91,12 @@ const decideMetabloomChoices = async ({ phase, state, actionMode, signal, timeou
     }
     const payload = await readBoundedJson(response);
     if (controller.signal.aborted) return fallback();
+    const visualAnswer = payload?.answers?.visualization;
+    const visualChoices = ["none", ...allowedVisuals];
+    if (allowedVisuals.length && isChoiceAnswer(visualAnswer) && visualChoices.includes(visualAnswer.choice)
+      && Number.isFinite(visualAnswer.confidence) && visualAnswer.confidence >= 0.75 && visualAnswer.confidence <= 1
+      && !Array.isArray(visualAnswer.probabilities) && Object.entries(visualAnswer.probabilities).every(([key, value]) =>
+        visualChoices.includes(key) && Number.isFinite(value) && value >= 0 && value <= 1)) visualization = visualAnswer.choice;
     const answer = payload?.answers?.reaction;
     const actionAnswer = payload?.answers?.action;
     const action = classifyAction && isChoiceAnswer(actionAnswer)
@@ -93,11 +106,11 @@ const decideMetabloomChoices = async ({ phase, state, actionMode, signal, timeou
     // discard an emote, and an invalid emote cannot erase a valid action.
     if (!isChoiceAnswer(answer)) {
       report(phase, "invalid_answer", startedAt);
-      return { emote: "neutral", action };
+      return withVisual({ emote: "neutral", action });
     }
     const emote = resolveMetabloomDecision({ choice: answer.choice, confidence: answer.confidence });
     report(phase, emote === "neutral" ? "neutral" : "selected", startedAt, answer.confidence);
-    return { emote, action };
+    return withVisual({ emote, action });
   } catch {
     if (!signal?.aborted) report(phase, controller.signal.aborted ? "timeout" : "unavailable", startedAt);
     return fallback();
@@ -108,8 +121,12 @@ const decideMetabloomChoices = async ({ phase, state, actionMode, signal, timeou
 };
 
 // Existing reaction callers keep their string result and reaction-only request.
-const decideMetabloomReaction = async (options) => (await decideMetabloomChoices({ ...options, actionMode: undefined })).emote;
+const decideMetabloomReaction = async (options) => (await decideMetabloomChoices({ ...options, actionMode: undefined, visualKinds: undefined })).emote;
 const decideMetabloomInput = ({ actionMode = "auto", ...options } = {}) =>
   decideMetabloomChoices({ ...options, phase: "input", actionMode });
+const decideMetabloomResponse = async (options = {}) => {
+  const result = await decideMetabloomChoices({ ...options, phase: "response", actionMode: undefined });
+  return { emote: result.emote, visualization: result.visualization || "none" };
+};
 
-module.exports = { decideMetabloomReaction, decideMetabloomInput };
+module.exports = { decideMetabloomReaction, decideMetabloomInput, decideMetabloomResponse };
