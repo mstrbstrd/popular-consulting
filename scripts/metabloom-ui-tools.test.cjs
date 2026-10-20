@@ -104,7 +104,7 @@ test('tool handler dispatches one tool and returns an owned offer', async () => 
   const offer = { version: '1', designVersion: 'aetheris-1', id: 'd'.repeat(48), kind: 'calculator', expiresAt: Date.now() + 600000 };
   const handler = createMetabloomToolHandler({ authenticate, rateLimit: async () => true,
     start: async ({ requiredKind }) => { calls++; assert.equal(requiredKind, 'calculator'); return { kind: 'calculator', brief: 'Multiply inputs.', tool: fixtureTool }; },
-    store: { offer: async (_id, kind, context) => { assert.equal(kind, 'calculator'); assert.equal(context.tool.callId, 'call_123'); return offer; } },
+    store: { claimStart: async () => {}, offer: async (_id, kind, context) => { assert.equal(kind, 'calculator'); assert.equal(context.tool.callId, 'call_123'); return offer; } },
     reaction: async () => 'neutral' });
   const res = response();
   await handler(request({ phase: 'start', message: 'Create an interactive calculator.', history: [], requestId: 'r1' }), res);
@@ -129,4 +129,27 @@ test('continuation is claimed once and can be read again without another model c
   }
   assert.equal(claims, 1);
   assert.equal(calls, 1);
+});
+
+test('tool-start request IDs are atomically claimed before any paid work', async () => {
+  const commands = [];
+  const store = createMetabloomVisualStore({ command: async args => {
+    commands.push(args);
+    return commands.length === 1 ? 'OK' : null;
+  } });
+  await store.claimStart(identity, 'mount-123');
+  await assert.rejects(store.claimStart(identity, 'mount-123'), { code: 'visual_claimed' });
+  assert.equal(commands.length, 2);
+  assert.equal(commands[0][0], 'SET');
+  assert.ok(commands[0][1].includes(identity.owner));
+  assert.deepEqual(commands[0].slice(-3), ['EX', '600', 'NX']);
+});
+test('follow-up context validates only bounded numeric input snapshots', () => {
+  const { parseBody } = require('../api/metabloom')._internals;
+  const valid = { message: 'Why is this the total?', artifactContext: { id: 'd'.repeat(48),
+    inputs: { hours: 10, rate: 135 } } };
+  assert.ok(parseBody({ headers: {}, body: valid }));
+  for (const inputs of [{ hours: Infinity }, { hours: '10' }, { __proto__: 1 }, { hours: 1e15 }]) {
+    if (Object.keys(inputs).length) assert.equal(parseBody({ headers: {}, body: { ...valid, artifactContext: { ...valid.artifactContext, inputs } } }), null);
+  }
 });
