@@ -4,6 +4,7 @@ import MetabloomVisuals from './MetabloomVisuals';
 import MetabloomVisualFrame from './MetabloomVisualFrame';
 import { requestMetabloomVisual, METABLOOM_VISUAL_OFFER_EVENT } from './metabloomVisualApiClient';
 import { postMetabloomTool } from './metabloomToolClient';
+import userEvent from '@testing-library/user-event';
 
 jest.mock('./metabloomVisualApiClient', () => ({
   METABLOOM_VISUAL_OFFER_EVENT: 'metabloom:visual-offer', requestMetabloomVisual: jest.fn(),
@@ -12,6 +13,10 @@ jest.mock('./metabloomToolClient', () => ({ postMetabloomTool: jest.fn() }));
 const table = { version: '1', designVersion: 'aetheris-1', kind: 'table', title: 'Options compared', summary: 'Your supplied values.',
   provenance: { type: 'user', label: 'User-provided values.', sourceIds: [] }, columns: ['Option', 'Value'], rows: [['A', '10'], ['B', '20']] };
 const calculator = { version: '1', designVersion: 'aetheris-1', kind: 'calculator', title: 'Share the total', summary: 'Calculate from your inputs.', provenance: table.provenance, controls: [{ id: 'total', label: 'Total', unit: 'CAD', min: 0, max: 1000, step: 1, initial: 120 }, { id: 'people', label: 'People', unit: '', min: 0, max: 20, step: 1, initial: 3 }], formula: ['total', 'people', 'divide'], formulaDescription: 'Total divided by people.', unit: 'CAD per person' };
+const pie = { version: '1', designVersion: 'aetheris-1', kind: 'pie-chart', title: 'Apple-pie ingredients by mass',
+  summary: 'An illustrative recipe example, not exact baking instructions.',
+  provenance: { type: 'illustrative', label: 'Assumed example quantities in grams; actual recipes vary.', sourceIds: [] },
+  unit: 'g', points: [{ label: 'Apples', value: 700 }, { label: 'Flour', value: 200 }, { label: 'Butter', value: 100 }] };
 let messages;
 function Host({ complete = false }) {
   return <div className="orb-page"><article data-message-id="assistant-2" data-stream-status={complete ? 'complete' : 'streaming'}><div className="metabloom-chat__bubble">The original answer.</div></article><MetabloomVisuals /></div>;
@@ -105,6 +110,68 @@ test('multi-series chart renders three labeled paths and accessible exact values
   fireEvent.click(screen.getByText('View exact values'));
   expect(screen.getByRole('table')).toHaveTextContent('33');
   expect(screen.getByRole('table')).toHaveTextContent('Business B');
+});
+
+test('pie chart selection works with the keyboard and preserves exact values and assumptions', () => {
+  const { container } = render(<div className="orb-page"><MetabloomVisualFrame artifact={{ id: 'pie', status: 'ready', spec: pie }} /></div>);
+  expect(screen.getByRole('img', { name: /Apple-pie ingredients by mass/ })).toBeInTheDocument();
+  expect(screen.getByText('Assumed example quantities in grams; actual recipes vary.')).toBeInTheDocument();
+  expect(container.querySelectorAll('.metabloom-visual__pie-slice')).toHaveLength(3);
+  userEvent.tab();
+  expect(screen.getByRole('button', { name: 'Apples 70%' })).toHaveFocus();
+  userEvent.tab();
+  expect(screen.getByRole('button', { name: 'Flour 20%' })).toHaveFocus();
+  act(() => userEvent.keyboard('{Enter}'));
+  expect(screen.getByRole('button', { name: 'Flour 20%' })).toHaveAttribute('aria-pressed', 'true');
+  expect(screen.getByRole('status')).toHaveTextContent('Flour: 200 g (20% of the total).');
+  expect(container.querySelector('.metabloom-visual__pie-slice[data-selected="true"]')).toHaveClass('metabloom-visual__series-2');
+  fireEvent.click(screen.getByText('View exact values'));
+  expect(screen.getByRole('table')).toHaveTextContent('Amount (g)');
+  expect(screen.getByRole('table')).toHaveTextContent('700');
+  expect(requestMetabloomVisual).not.toHaveBeenCalled();
+  expect(postMetabloomTool).not.toHaveBeenCalled();
+});
+
+test.each([1e12, Number.MIN_VALUE])('a pie with one positive part renders a complete circle for %s', value => {
+  const chart = { ...pie, points: [{ label: 'Present', value }, { label: 'Absent', value: 0 }] };
+  const { container } = render(<div className="orb-page"><MetabloomVisualFrame artifact={{ id: 'single', status: 'ready', spec: chart }} /></div>);
+  expect(container.querySelectorAll('circle.metabloom-visual__pie-slice')).toHaveLength(1);
+  expect(container.querySelectorAll('path.metabloom-visual__pie-slice')).toHaveLength(0);
+  expect(screen.getByRole('button', { name: 'Present 100%' })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Absent 0%' }));
+  expect(screen.getByRole('status')).toHaveTextContent('Absent: 0 g (0% of the total).');
+  expect(container.querySelector('svg').innerHTML).not.toMatch(/NaN|Infinity/);
+});
+
+test('tiny positive pie parts never display a misleading zero percent', () => {
+  const chart = { ...pie, points: [{ label: 'Main', value: 1e12 }, { label: 'Trace', value: Number.MIN_VALUE }] };
+  const { container } = render(<div className="orb-page"><MetabloomVisualFrame artifact={{ id: 'tiny', status: 'ready', spec: chart }} /></div>);
+  expect(screen.getByRole('button', { name: 'Trace <0.01%' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Main >99.99%' })).toBeInTheDocument();
+  expect(container.querySelector('svg').innerHTML).not.toMatch(/NaN|Infinity/);
+});
+
+test('an explicit apple-pie request mounts the pie before its closing response', async () => {
+  const message = 'can you create a pie chart the represents the ingredients in an apple pie?';
+  const offer = { version: '1', designVersion: 'aetheris-1', id: 'e'.repeat(48), kind: 'pie-chart', expiresAt: Date.now() + 600000 };
+  postMetabloomTool.mockImplementation(({ phase }) => Promise.resolve(phase === 'start'
+    ? { offer, emote: 'neutral' }
+    : { reply: { version: '2.0.0', segments: [{ response: 'Here is an illustrative apple-pie ingredient chart.' }] }, emote: 'neutral' }));
+  requestMetabloomVisual.mockResolvedValue({ spec: pie, sources: [] });
+  messages = [{ id: 'user-1', role: 'user', content: message }];
+  const respond = jest.fn(() => expect(screen.getByRole('button', { name: 'Apples 70%' })).toBeInTheDocument());
+  render(<div className="orb-page"><article data-message-id="user-1"><div className="metabloom-chat__bubble">{message}</div></article><MetabloomVisuals /></div>);
+  const event = new CustomEvent('metabloom:user-message', { cancelable: true, detail: {
+    requestId: 'pie-mount-1', message, history: [], actionMode: 'auto', signal: new AbortController().signal,
+    claim: jest.fn(), respond, onToolActivity: jest.fn(), onReaction: jest.fn(),
+  } });
+  act(() => window.dispatchEvent(event));
+  expect(event.defaultPrevented).toBe(true);
+  await waitFor(() => expect(respond).toHaveBeenCalledTimes(1));
+  expect(requestMetabloomVisual).toHaveBeenCalledTimes(1);
+  expect(requestMetabloomVisual.mock.calls[0][0].kind).toBe('pie-chart');
+  expect(postMetabloomTool.mock.calls[1][0]).toEqual({ phase: 'continue', id: offer.id, display: 'mounted' });
+  expect(screen.queryByText(/I could not create/)).not.toBeInTheDocument();
 });
 
 test('disabled tool never falls back to the ordinary model or displays HTML source', async () => {

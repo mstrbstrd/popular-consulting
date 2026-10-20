@@ -2,7 +2,7 @@
 
 ## Scope and rollout
 
-This is the first, feature-gated native-rendering milestone of the post-answer visual plan. It implements generated table, bar-chart, ordinal line-chart, small process/relationship diagram, and calculator specifications. It does not install CopilotKit, AG-UI, A2UI, Python agents or Websandbox. OpenIntelligentUI informs the architecture, not a wholesale chat replacement.
+This is the first, feature-gated native-rendering milestone of the post-answer visual plan. It implements generated table, bar-chart, ordinal line-chart, pie-chart, small process/relationship diagram, and calculator specifications. It does not install CopilotKit, AG-UI, A2UI, Python agents or Websandbox. OpenIntelligentUI informs the architecture, not a wholesale chat replacement.
 
 Arbitrary generated HTML, CSS and JavaScript are not supported. The later sandbox tier, sandbox theme bridge, external libraries, network-connected widgets, 3D, persistence and in-place artifact editing require separate implementation and qualification. There is no configuration switch that enables unimplemented sandbox execution.
 

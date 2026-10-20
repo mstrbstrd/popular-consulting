@@ -1,10 +1,16 @@
 // Shared browser/server contract. Model output is data, never parent-document code.
 const METABLOOM_VISUAL_VERSION = '1';
 const METABLOOM_VISUAL_DESIGN_VERSION = 'aetheris-1';
-const METABLOOM_VISUAL_KINDS = Object.freeze(['table', 'bar-chart', 'line-chart', 'flowchart', 'calculator']);
+const METABLOOM_VISUAL_KINDS = Object.freeze(['table', 'bar-chart', 'line-chart', 'pie-chart', 'flowchart', 'calculator']);
 const MAX_METABLOOM_VISUAL_BYTES = 65536;
 const MAX_METABLOOM_VISUAL_CONTEXT_BYTES = 65536;
-const METABLOOM_VISUAL_TIMEOUT_MS = 40000;
+// Server deadlines leave room for bounded persistence before the hosting limit.
+// Browser budgets include authentication, transport and the final explanation.
+const METABLOOM_TOOL_START_TIMEOUT_MS = 50000;
+const METABLOOM_TOOL_CONTINUE_TIMEOUT_MS = 25000;
+const METABLOOM_VISUAL_GENERATION_TIMEOUT_MS = 75000;
+const METABLOOM_VISUAL_TIMEOUT_MS = 85000;
+const METABLOOM_TOOL_TURN_TIMEOUT_MS = 180000;
 const visualObject = value => value && typeof value === 'object' && !Array.isArray(value)
   && [Object.prototype, null].includes(Object.getPrototypeOf(value));
 const visualKeys = (value, keys) => visualObject(value) && Object.keys(value).length === keys.length
@@ -99,6 +105,13 @@ const parseMetabloomVisual = (input, expected = {}) => {
         || value.series.length * value.labels.length > 120) return null;
     } else return null;
     // Labels are ordinal for lines; the UI must not imply irregular intervals are a scaled time axis.
+  } else if (value.kind === 'pie-chart') {
+    // A pie represents nonnegative parts of one whole, never separate series.
+    if (!visualKeys(value, [...common, 'unit', 'points']) || !visualText(value.unit, 60, true)
+      || !visualList(value.points, 1, 12, point => visualKeys(point, ['label', 'value'])
+        && visualText(point.label, 100) && visualNumber(point.value) && point.value >= 0)
+      || new Set(value.points.map(point => point.label.trim().toLowerCase())).size !== value.points.length
+      || !value.points.some(point => point.value > 0)) return null;
   } else if (value.kind === 'flowchart') {
     if (!visualKeys(value, [...common, 'nodes', 'edges'])
       || !visualList(value.nodes, 1, 16, node => visualKeys(node, ['id', 'label']) && validId(node.id) && visualText(node.label, 160))
@@ -126,6 +139,7 @@ const METABLOOM_VISUAL_ERRORS = Object.freeze({
   visual_claimed: 'This visual has already been requested. It will not be generated twice.',
   visual_quota: 'The visual generation limit has been reached. Your answer is unchanged.',
   visual_invalid: 'The generated visual did not pass validation. Your answer is unchanged.',
+  visual_output_limit: 'The model reached its output limit before finishing the visual.',
   visual_timeout: 'The visual took too long to prepare. Your answer is unchanged.',
   visual_cancelled: 'Visual stopped. Your answer is unchanged.',
   visual_disabled: 'Visual generation is not enabled for this session.',
@@ -133,5 +147,7 @@ const METABLOOM_VISUAL_ERRORS = Object.freeze({
 });
 module.exports = { METABLOOM_VISUAL_VERSION, METABLOOM_VISUAL_DESIGN_VERSION, METABLOOM_VISUAL_KINDS,
   MAX_METABLOOM_VISUAL_BYTES, MAX_METABLOOM_VISUAL_CONTEXT_BYTES, METABLOOM_VISUAL_TIMEOUT_MS,
+  METABLOOM_TOOL_START_TIMEOUT_MS, METABLOOM_TOOL_CONTINUE_TIMEOUT_MS,
+  METABLOOM_VISUAL_GENERATION_TIMEOUT_MS, METABLOOM_TOOL_TURN_TIMEOUT_MS,
   METABLOOM_VISUAL_ERRORS, parseMetabloomVisualOffer, parseMetabloomVisual,
   evaluateMetabloomVisualFormula, visualKeys, visualText, byteLength };

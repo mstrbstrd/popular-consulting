@@ -18,6 +18,7 @@ const spec = (kind = 'table') => {
   if (kind === 'table') return { ...common, columns: ['Option', 'Value'], rows: [['A', '10'], ['B', '20']] };
   if (kind === 'calculator') return { ...common, controls: [{ id: 'total', label: 'Total', unit: 'CAD', min: 0, max: 1000, step: 1, initial: 120 }, { id: 'people', label: 'People', unit: '', min: 0, max: 20, step: 1, initial: 3 }], formula: ['total', 'people', 'divide'], formulaDescription: 'Total divided by people.', unit: 'CAD per person' };
   if (kind === 'flowchart') return { ...common, nodes: [{ id: 'a', label: 'Begin' }, { id: 'b', label: 'Finish' }], edges: [{ from: 'a', to: 'b', label: 'Continue' }] };
+  if (kind === 'pie-chart') return { ...common, points: [{ label: 'Apples', value: 700 }, { label: 'Flour', value: 200 }, { label: 'Butter', value: 100 }], unit: 'g' };
   return { ...common, points: [{ label: 'First', value: -10 }, { label: 'Second', value: 20 }], unit: 'units' };
 };
 const record = kind => ({ owner: identity.owner, status: 'offered', offer: { ...offer(), kind: kind || 'table' }, context: { message: 'Compare A and B.', answer: 'A is 10. B is 20.', evidence: '', sources: [], recentConversation: [] } });
@@ -67,6 +68,31 @@ test('references must exist in the supplied evidence set', () => {
   assert.ok(protocol.parseMetabloomVisual(value, { sources: [{ id: 7 }] }));
   assert.equal(protocol.parseMetabloomVisual({ ...value, provenance: { ...value.provenance, sourceIds: [7, 7] } }), null);
   assert.equal(protocol.parseMetabloomVisual({ ...value, provenance: { ...value.provenance, sourceIds: [] } }), null);
+});
+test('pie charts preserve a bounded nonnegative whole, including zero and tiny parts', () => {
+  for (const points of [
+    [{ label: 'Only part', value: 1 }],
+    [{ label: 'Present', value: 1 }, { label: 'Absent', value: 0 }],
+    [{ label: 'Tiny A', value: Number.MIN_VALUE }, { label: 'Tiny B', value: Number.MIN_VALUE }],
+    Array.from({ length: 12 }, (_, index) => ({ label: `Part ${index + 1}`, value: 1e12 })),
+  ]) {
+    const value = { ...spec('pie-chart'), points };
+    assert.deepEqual(protocol.parseMetabloomVisual(value, { kind: 'pie-chart' }), value);
+  }
+});
+test('pie charts reject misleading values, duplicate categories and separate series', () => {
+  const value = spec('pie-chart');
+  for (const points of [[], [{ label: 'Empty', value: 0 }], [{ label: 'Negative', value: -1 }],
+    [{ label: 'Unsafe', value: Infinity }], [{ label: 'Too large', value: 1e13 }],
+    [{ label: 'Apples', value: 1 }, { label: ' apples ', value: 2 }],
+    Array.from({ length: 13 }, (_, index) => ({ label: `Part ${index}`, value: 1 }))]) {
+    assert.equal(protocol.parseMetabloomVisual({ ...value, points }), null);
+  }
+  assert.equal(protocol.parseMetabloomVisual({ ...value, series: [] }), null);
+  assert.equal(protocol.parseMetabloomVisual(value, { kind: 'bar-chart' }), null);
+  const fields = visualSchema('pie-chart').properties.result.anyOf[0].properties;
+  assert.equal(fields.points.maxItems, 12);
+  assert.equal(fields.points.items.properties.value.minimum, 0);
 });
 test('diagram edges cannot reference missing nodes or duplicate IDs', () => {
   const value = spec('flowchart'); value.edges[0].to = 'missing'; assert.equal(protocol.parseMetabloomVisual(value), null);
@@ -320,6 +346,33 @@ test('input intent preserves user series without another model call', () => {
   assert.equal(classifyMetabloomVisualIntent('Build an interactive calculator for these values.').mode, 'requested');
   assert.equal(classifyMetabloomVisualIntent('Make a line chart of the figures.').requiredKind, 'line-chart');
   assert.equal(extractMetabloomVisualData('A: 1, 2. B: 3, 4, 5.'), null);
+});
+test('explicit pie requests preserve the requested format and code-only requests remain text', () => {
+  for (const message of [
+    'can you create a pie chart the represents the ingredients in an apple pie?',
+    'Please draw a pie-chart of these values.',
+    'I would like a pie chart of monthly expenses.',
+  ]) {
+    const intent = classifyMetabloomVisualIntent(message);
+    assert.equal(intent.mode, 'requested');
+    assert.equal(intent.requiredKind, 'pie-chart');
+    assert.deepEqual(intent.preferredKinds, ['pie-chart']);
+  }
+  assert.equal(classifyMetabloomVisualIntent('Create HTML for a pie chart.').mode, 'optional');
+  assert.equal(classifyMetabloomVisualIntent('Text-only: explain a pie chart.').mode, 'text_only');
+});
+test('the pie builder retains explicit illustrative provenance and exact ingredient amounts', async () => {
+  const value = { ...record('pie-chart'), context: { ...record().context,
+    message: 'can you create a pie chart the represents the ingredients in an apple pie?', answer: '', visualIntent: 'requested' } };
+  const chart = { ...spec('pie-chart'), title: 'Example apple-pie ingredients by mass',
+    summary: 'An illustrative recipe example, not quantities supplied by the user.',
+    provenance: { type: 'illustrative', label: 'Assumed example quantities in grams; actual recipes vary.', sourceIds: [] } };
+  const result = await generateMetabloomVisual(value, { fetchImpl: async () => Response.json(providerEnvelope(chart)) });
+  assert.deepEqual(result, chart);
+  assert.equal(result.provenance.type, 'illustrative');
+  await assert.rejects(generateMetabloomVisual(value, {
+    fetchImpl: async () => Response.json(providerEnvelope({ ...chart, kind: 'bar-chart' })),
+  }), { code: 'visual_invalid' });
 });
 const multiChart = () => {
   const { points, ...base } = spec('line-chart');

@@ -70,6 +70,62 @@ function VisualChart({ spec, id }) {
     </details>
   </>;
 }
+function VisualPieChart({ spec, id }) {
+  const [selectedIndex, setSelectedIndex] = React.useState(() => spec.points.findIndex(point => point.value > 0));
+  const total = spec.points.reduce((sum, point) => sum + point.value, 0);
+  const positiveCount = spec.points.filter(point => point.value > 0).length;
+  const selected = spec.points[selectedIndex] || spec.points[0];
+  const percentage = value => {
+    const share = value / total * 100;
+    if (value > 0 && share < 0.01) return '<0.01%';
+    if (positiveCount > 1 && share > 99.99) return '>99.99%';
+    return `${new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(share)}%`;
+  };
+  let angle = -Math.PI / 2;
+  const slices = spec.points.map((point, index) => {
+    const fraction = point.value / total;
+    const start = angle;
+    angle += fraction * Math.PI * 2;
+    if (fraction === 0) return null;
+    const midpoint = (start + angle) / 2;
+    const xy = value => `${110 + Math.cos(value) * 96} ${110 + Math.sin(value) * 96}`;
+    // Two arcs also represent a full circle when all other parts are zero.
+    const path = `M 110 110 L ${xy(start)} A 96 96 0 0 1 ${xy(midpoint)} A 96 96 0 0 1 ${xy(angle)} Z`;
+    const className = `metabloom-visual__pie-slice metabloom-visual__series-${index + 1}`;
+    const props = { className, 'data-selected': index === selectedIndex ? 'true' : 'false' };
+    return positiveCount === 1
+      ? <circle key={index} cx="110" cy="110" r="96" {...props} />
+      : <path key={index} d={path} {...props} />;
+  });
+  return <>
+    <div className="metabloom-visual__pie-layout">
+      <figure className="metabloom-visual__pie-chart">
+        <svg viewBox="0 0 220 220" role="img" aria-labelledby={`${id}-pie-title ${id}-pie-desc`}>
+          <title id={`${id}-pie-title`}>{spec.title}</title>
+          <desc id={`${id}-pie-desc`}>Parts of one total. Choose a category beside the chart to inspect its amount and share. Exact values are available below.</desc>
+          {slices}
+        </svg>
+        <figcaption>Total: <strong>{numberText(total)} {spec.unit}</strong>. Percentages are rounded; zero values have no slice.</figcaption>
+      </figure>
+      <ul className="metabloom-visual__pie-legend" aria-label="Pie chart categories">
+        {spec.points.map((point, index) => <li key={index} className={`metabloom-visual__series-${index + 1}`}>
+          <button type="button" aria-pressed={index === selectedIndex} aria-controls={`${id}-pie-selection`}
+            onClick={() => setSelectedIndex(index)}>
+            <span className="metabloom-visual__series-dot" aria-hidden="true" />
+            <span>{point.label}</span><strong>{percentage(point.value)}</strong>
+          </button>
+        </li>)}
+      </ul>
+    </div>
+    <p id={`${id}-pie-selection`} className="metabloom-visual__pie-selection" role="status" aria-live="polite" aria-atomic="true">
+      <strong>{selected.label}</strong>: {numberText(selected.value)} {spec.unit} ({percentage(selected.value)} of the total).
+    </p>
+    <details className="metabloom-visual__details"><summary>View exact values</summary>
+      <DataTable title={`${spec.title}: exact values`} columns={['Category', spec.unit ? `Amount (${spec.unit})` : 'Amount', 'Share of total']}
+        rows={spec.points.map(point => [point.label, numberText(point.value), percentage(point.value)])} />
+    </details>
+  </>;
+}
 function VisualFlowchart({ spec }) {
   const label = id => spec.nodes.find(node => node.id === id)?.label || '';
   return <div className="metabloom-visual__flow">
@@ -148,6 +204,7 @@ export default function MetabloomVisualFrame({ artifact, onStop, onReady, onInpu
       <p className="metabloom-visual__summary">{spec.summary}</p>
       {spec.kind === 'table' && <DataTable columns={spec.columns} rows={spec.rows} title={spec.title} />}
       {['bar-chart', 'line-chart'].includes(spec.kind) && <VisualChart spec={spec} id={id} />}
+      {spec.kind === 'pie-chart' && <VisualPieChart spec={spec} id={id} />}
       {spec.kind === 'flowchart' && <VisualFlowchart spec={spec} />}
       {spec.kind === 'calculator' && <VisualCalculator spec={spec} id={id} onInputsChange={onInputsChange} />}
       <footer className="metabloom-visual__provenance"><span className="metabloom-visual__badge">{provenanceLabels[spec.provenance.type]}</span><p>{spec.provenance.label}</p>

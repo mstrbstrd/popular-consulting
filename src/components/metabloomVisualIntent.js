@@ -40,11 +40,12 @@ function classifyMetabloomVisualIntent(message) {
   if (/\b(?:calculator|simulation|interactive (?:tool|model|widget|component|ui))\b/i.test(text)) kind = 'calculator';
   else if (/\b(?:diagram|flowchart)\b/i.test(text)) kind = 'flowchart';
   else if (/\btable\b/i.test(text)) kind = 'table';
+  else if (/\bpie(?: |-)?chart\b/i.test(text)) kind = 'pie-chart';
   else if (/\bbar(?: |-)?chart\b/i.test(text)) kind = 'bar-chart';
   else if (/\bline(?: |-)?(?:chart|graph)\b/i.test(text)) kind = 'line-chart';
   else if (/\b(?:monthly|months?|over time|trends?|time series)\b/i.test(text) || (dataHints && dataHints.series.length > 1)) kind = 'line-chart';
   else kind = 'bar-chart';
-  const explicitFormat = /\b(?:line[ -](?:chart|graph)|bar[ -]chart|flowchart|calculator|interactive (?:tool|model|widget|component|ui))\b/i.test(text)
+  const explicitFormat = /\b(?:line[ -](?:chart|graph)|(?:bar|pie)[ -]?chart|flowchart|calculator|interactive (?:tool|model|widget|component|ui))\b/i.test(text)
     || /\b(?:show|create|make|build|give me)\b.{0,40}\btable\b/i.test(text);
   return { mode: 'requested', preferredKinds: [kind], requiredKind: explicitFormat ? kind : null, dataHints };
 }

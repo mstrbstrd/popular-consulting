@@ -5,21 +5,29 @@ const VISUAL_TTL_SECONDS = 600;
 const enabled = () => process.env.METABLOOM_VISUALS_ENABLED === 'true';
 const validIdentity = identity => identity && ['owner', 'subject', 'scope'].every(key => typeof identity[key] === 'string' && /^[a-f0-9]{64}$/.test(identity[key]));
 const visualError = code => Object.assign(new Error(code), { code });
-async function readVisualJson(response, maxBytes = 150000) {
+async function readVisualJson(response, maxBytes = 150000, { signal } = {}) {
   if (!response.ok || !response.body) throw visualError('visual_unavailable');
   const reader = response.body.getReader();
+  const abort = () => { reader.cancel().catch(() => {}); };
+  signal?.addEventListener('abort', abort, { once: true });
   const decoder = new TextDecoder('utf-8', { fatal: true });
   let text = '', bytes = 0;
   try {
     for (;;) {
+      signal?.throwIfAborted();
       const part = await reader.read();
+      signal?.throwIfAborted();
       if (part.done) break;
       bytes += part.value.byteLength;
       if (bytes > maxBytes) throw visualError('visual_invalid');
       text += decoder.decode(part.value, { stream: true });
     }
     return JSON.parse(text + decoder.decode());
-  } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
+  } finally {
+    signal?.removeEventListener('abort', abort);
+    await reader.cancel().catch(() => {});
+    reader.releaseLock();
+  }
 }
 // No in-memory fallback: claims and both quotas must be atomic across instances.
 const CLAIM_SCRIPT = `

@@ -31,6 +31,7 @@ import { createMetabloomReplySession } from "./metabloomReplySession";
 import { createMetabloomResearchDisplayGate } from "./metabloomResearchDisplayGate";
 import { METABLOOM_RESEARCH_TIMEOUT_MS, getMetabloomApiErrorMessage, requestMetabloomResponse } from "./metabloomApiClient";
 import { METABLOOM_REQUEST_ERROR_MESSAGES, parseMetabloomRequestRef } from "./metabloomRequestErrors";
+import { METABLOOM_TOOL_TURN_TIMEOUT_MS } from "./metabloomVisualProtocol";
 import { parseMetabloomResearchSources } from "./metabloomResearchSources";
 import { parseMetabloomResearchReport } from "./metabloomResearchReport";
 import { streamMetabloomDemoResponse } from "./metabloomDemoStream";
@@ -1569,8 +1570,8 @@ const OrbSection = ({
         if (!current() || !['start', 'complete'].includes(phase)) return false;
         setToolPending(phase === 'start');
         window.clearTimeout(previewTimerRef.current);
-        const remaining = Math.max(0, activeRequest.startedAt + 95000 - Date.now());
-        previewTimerRef.current = window.setTimeout(() => failReply(session, { code: 'answer_timeout' }),
+        const remaining = Math.max(0, activeRequest.startedAt + METABLOOM_TOOL_TURN_TIMEOUT_MS - Date.now());
+        previewTimerRef.current = window.setTimeout(() => failReply(session, { code: 'tool_timeout' }),
           phase === 'start' ? remaining : Math.min(RESPONSE_TIMEOUT_MS, remaining));
         return true;
       };

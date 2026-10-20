@@ -5,6 +5,10 @@ This extends the existing native Aetheris visual renderer. It does not execute g
 
 Explicit supported UI requests use a forced, single `create_visual` function call through the configured OpenAI Responses API model. The model supplies only a validated kind and bounded brief. The server owns session identity, source context, tool execution, quota, artifact ownership and continuation. The visual builder uses the existing strict native schema and Aetheris styling.
 
+Supported kinds include tables, bar charts, line charts, pie charts, flowcharts and calculators. An explicitly requested kind is also the sole kind in that request's function schema. Pie charts use one unit and 1–12 unique categories with nonnegative finite amounts and a positive total. Their native SVG, keyboard-operable category controls and exact-value table use the host's existing visual design.
+
+When the user requests a generic ingredient pie chart without quantities, the builder may provide an example with `provenance.type=illustrative` and clearly disclosed assumed amounts. Prompt grounding instructs preservation of supplied scalar quantities. Deterministic equality validation currently applies to the extracted multi-series bar/line data contract; arbitrary free-text quantities are not independently verified.
+
 ## Availability
 The new flow is available only when `METABLOOM_VISUALS_ENABLED=true` and `METABLOOM_UI_TOOLS_ENABLED` is not explicitly `false`. The latter is an independent emergency kill switch. No public client flag grants access. The existing authenticated admin session, same-origin checks, Redis quotas, and paid-provider configuration remain mandatory.
 
@@ -30,6 +34,22 @@ Native calculators publish bounded local input snapshots, not model calls on eve
 - Old clients continue to use the existing chat protocol. The tool flow uses a separate endpoint rather than weakening strict NDJSON framing.
 - The browser's display observation is untrusted and can only affect explanatory wording.
 - All diagnostic logging is outcome-based; prompts, responses, artifact IDs and secrets are not logged.
+
+## Time budgets and timeout recovery
+
+The October 20 production failure occurred at the former 24-second application deadline while the first OpenAI call was still pending. It preceded native generation. The stages now share explicit server/browser budgets:
+
+| Stage | Application deadline | Hosting limit |
+| --- | --- | --- |
+| Tool selection and offer | 50 seconds | 60 seconds |
+| Native specification generation | 75 seconds | 90 seconds |
+| Closing explanation | 25 seconds | 60 seconds |
+
+These are upper limits, not target response times. The visual client permits 85 seconds and the complete tool turn permits 180 seconds. Up to 2.5 seconds is reserved for terminal persistence after an abort. A generation timeout records a failed result so continuation can report it. An explanation timeout saves a display-aware fallback with a fresh bounded signal; duplicate continuations reuse it without another provider call. Jev failures fall back to neutral without discarding otherwise valid work.
+
+The existing configured models remain authoritative. The original GPT-5 family (including mini, nano and dated snapshots) uses minimal effort for the short tool brief and closing sentence, and low effort for native specification generation. Other model names retain their provider defaults. This follows [OpenAI's GPT-5 guidance](https://developers.openai.com/api/docs/guides/latest-model?model=gpt-5); reasoning tokens also count toward output limits, as described in the [reasoning guide](https://developers.openai.com/api/docs/guides/reasoning).
+
+Provider logs contain the bounded phase, model, duration, usage counts, safe provider metadata and request reference. HTTP and incomplete-output failures keep distinct allowlisted codes. Client error messages retain these codes and validated request references, including a platform 504 returned as HTML, without exposing a provider's raw body.
 
 ## Verification
 Run:

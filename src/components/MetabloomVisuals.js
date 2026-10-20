@@ -6,7 +6,16 @@ import { beginMetabloomVisualTurn, acceptMetabloomVisualOffer, findMetabloomVisu
 import { classifyMetabloomVisualIntent } from './metabloomVisualIntent';
 import { postMetabloomTool } from './metabloomToolClient';
 import { METABLOOM_CHAT_PROTOCOL_VERSION } from './metabloomEmoteLibrary';
+import { METABLOOM_TOOL_ERROR_CODES, getMetabloomApiErrorMessage, parseMetabloomRequestRef } from './metabloomRequestErrors';
 const safeReply = response => ({ version: METABLOOM_CHAT_PROTOCOL_VERSION, segments: [{ response }] });
+const toolFailure = error => {
+  const code = METABLOOM_TOOL_ERROR_CODES.includes(error?.code) ? error.code : 'tool_unavailable';
+  const requestRef = parseMetabloomRequestRef(error?.requestRef);
+  const status = Number.isInteger(error?.status) && error.status >= 100 && error.status <= 599 ? error.status : null;
+  return { code, requestRef, status,
+    message: getMetabloomApiErrorMessage(code),
+    diagnostic: `Code: ${code}.${requestRef ? ` Reference: ${requestRef}.` : ''}` };
+};
 
 // Uses Orb's existing request and transcript extension points. The portal is
 // inside the originating message, but owns its state independently of text/research.
@@ -111,14 +120,12 @@ export default class MetabloomVisuals extends React.Component {
       if (!this.mounted || this.turn !== turn || turn.signal.aborted) return;
       // Never silently downgrade a requested interactive component to a
       // text-model response. That path can produce raw HTML/JS in the transcript.
-      const unavailable = error?.code === 'tool_disabled';
+      const failure = toolFailure(error);
       console.info('[Metabloom] Native visual request unavailable', {
-        code: unavailable ? 'tool_disabled' : 'tool_unavailable',
+        code: failure.code, requestRef: failure.requestRef, status: failure.status,
       });
-      detail.respond?.(safeReply(unavailable
-        ? 'Interactive visuals are not enabled for this session. I cannot display a working component until they are enabled.'
-        : 'I could not create the interactive component. Please try again.'));
       detail.onToolActivity?.('complete');
+      detail.respond?.(safeReply(`${failure.message} ${failure.diagnostic}`));
     }
   };
   onOffer = event => {
@@ -235,12 +242,19 @@ export default class MetabloomVisuals extends React.Component {
       detail.onReaction?.({ phase: 'response', emote: result.emote });
       detail.onToolActivity?.('complete');
       detail.respond?.(result.reply);
-    } catch {
-      if (!this.mounted || detail.signal.aborted) return;
+    } catch (error) {
+      if (!this.mounted || record.controller.signal.aborted || detail.signal.aborted) return;
+      const failure = toolFailure(error);
+      console.info('[Metabloom] Native visual explanation unavailable', {
+        code: failure.code, requestRef: failure.requestRef, status: failure.status,
+      });
+      const message = record.status !== 'ready' ? failure.message : display === 'failed'
+        ? 'The visual was generated, but could not be displayed.' : display === 'mounted'
+          ? (failure.code === 'tool_timeout' ? 'The visual is ready, but its explanation timed out.'
+            : 'The visual is ready, but I could not finish its explanation.')
+          : 'The visual was generated, but its display could not be confirmed.';
       detail.onToolActivity?.('complete');
-      detail.respond?.(safeReply(record.status === 'ready'
-        ? 'I generated the visual, but could not complete the accompanying explanation.'
-        : 'I could not create that visual right now.'));
+      detail.respond?.(safeReply(`${message} ${failure.diagnostic}`));
     } finally {
       record.completed = true;
       this.reconcile();

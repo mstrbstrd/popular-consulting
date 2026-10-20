@@ -16,6 +16,7 @@ const descriptions = Object.freeze({
   table: 'Exact-value or qualitative comparison with concise columns and rows supported by the answer.',
   'bar-chart': 'Compare magnitudes from actual numeric values and compatible units available in the answer or supplied evidence.',
   'line-chart': 'Show an ordered series of actual comparable numeric observations. Not an invented forecast.',
+  'pie-chart': 'Show nonnegative parts of one whole in a common unit. Preserve provided quantities; label illustrative example assumptions explicitly.',
   flowchart: 'Clarify a small process, dependency, or decision structure from the completed explanation.',
   calculator: 'User-adjustable calculation with explicit inputs, units, and a known simple formula; no unsupported predictions.',
 });

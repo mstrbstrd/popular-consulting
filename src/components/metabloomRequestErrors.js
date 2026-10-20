@@ -23,6 +23,14 @@ const METABLOOM_REQUEST_ERROR_MESSAGES = Object.freeze({
   invalid_content_type: "The request format was not supported. Reload the page and try again.",
   invalid_request: "The message could not be sent in this format. Please try again.",
   visual_tool_required: "This request needs the interactive visual tool. Reload the page and try again; no code-only substitute was generated.",
+  tool_timeout: "Creating the interactive component took too long. Please try again.",
+  tool_cancelled: "The interactive component request was stopped.",
+  tool_disabled: "Interactive visuals are not enabled for this session.",
+  tool_unavailable: "I could not create the interactive component. Please try again.",
+  tool_invalid: "The component request could not be validated. Please try again.",
+  tool_output_limit: "The model reached its output limit before finishing the component. Please try again.",
+  tool_claimed: "This component request is already being handled. It will not be generated twice.",
+  tool_expired: "This component request has expired. Please ask for it again.",
   rate_limited: "The request limit has been reached. Please wait a moment and try again.",
   upstream_unavailable: "The model service is temporarily unavailable. Please try again.",
   cancelled: "The request was stopped or timed out.",
@@ -35,6 +43,12 @@ const METABLOOM_STREAM_ERROR_CODES = Object.freeze([
   "research_no_sources", "research_invalid_citations", "research_response_too_large",
   "provider_authentication_failed", "model_configuration_error", "provider_rate_limited",
   "provider_unavailable", "answer_timeout", "answer_incomplete", "answer_invalid", "quota_unavailable",
+]);
+const METABLOOM_TOOL_ERROR_CODES = Object.freeze([
+  "tool_timeout", "tool_cancelled", "tool_disabled", "tool_unavailable", "tool_invalid", "tool_output_limit", "tool_claimed", "tool_expired",
+  "authentication_required", "authentication_unavailable", "origin_not_allowed", "rate_limited",
+  "quota_unavailable", "invalid_request", "method_not_allowed", "model_configuration_error",
+  "provider_authentication_failed", "provider_rate_limited", "provider_unavailable", "network_error",
 ]);
 const knownCode = (code) => typeof code === "string"
   && Object.prototype.hasOwnProperty.call(METABLOOM_REQUEST_ERROR_MESSAGES, code);
@@ -57,6 +71,7 @@ const parseMetabloomRequestError = (value) => {
 module.exports = {
   METABLOOM_REQUEST_ERROR_MESSAGES,
   METABLOOM_STREAM_ERROR_CODES,
+  METABLOOM_TOOL_ERROR_CODES,
   parseMetabloomRequestError,
   parseMetabloomRequestRef,
   getMetabloomApiErrorMessage,

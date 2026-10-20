@@ -113,6 +113,13 @@
 .orb-page .metabloom-visual__series-3 { --metabloom-series-color: color-mix(in srgb, goldenrod 85%, var(--aetheris-ink)); }
 .orb-page .metabloom-visual__series-4 { --metabloom-series-color: color-mix(in srgb, slateblue 85%, var(--aetheris-ink)); }
 .orb-page .metabloom-visual__series-5 { --metabloom-series-color: color-mix(in srgb, seagreen 85%, var(--aetheris-ink)); }
+.orb-page .metabloom-visual__series-6 { --metabloom-series-color: color-mix(in srgb, coral 85%, var(--aetheris-ink)); }
+.orb-page .metabloom-visual__series-7 { --metabloom-series-color: color-mix(in srgb, cornflowerblue 85%, var(--aetheris-ink)); }
+.orb-page .metabloom-visual__series-8 { --metabloom-series-color: color-mix(in srgb, sienna 85%, var(--aetheris-ink)); }
+.orb-page .metabloom-visual__series-9 { --metabloom-series-color: color-mix(in srgb, hotpink 85%, var(--aetheris-ink)); }
+.orb-page .metabloom-visual__series-10 { --metabloom-series-color: color-mix(in srgb, darkcyan 85%, var(--aetheris-ink)); }
+.orb-page .metabloom-visual__series-11 { --metabloom-series-color: color-mix(in srgb, olivedrab 85%, var(--aetheris-ink)); }
+.orb-page .metabloom-visual__series-12 { --metabloom-series-color: color-mix(in srgb, lightslategray 85%, var(--aetheris-ink)); }
 .orb-page .metabloom-visual__legend { display: flex; gap: 0.8rem 1.4rem; flex-wrap: wrap; list-style: none; padding: 0; margin: 1.2rem 0; }
 .orb-page .metabloom-visual__legend li { display: flex; align-items: center; gap: 0.6rem; min-width: 0; overflow-wrap: anywhere; }
 .orb-page .metabloom-visual__series-dot { width: 1rem; height: 1rem; flex: 0 0 1rem; border-radius: 50%; background: var(--metabloom-series-color); }
@@ -121,10 +128,24 @@
 .orb-page .metabloom-visual__bars .metabloom-visual__bar { background: var(--metabloom-series-color, var(--aetheris-teal)); }
 .orb-page .metabloom-visual__line { stroke: var(--metabloom-series-color, var(--aetheris-teal)); }
 .orb-page .metabloom-visual__point { fill: var(--metabloom-series-color, var(--aetheris-teal)); }
+.orb-page .metabloom-visual__pie-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.4rem; align-items: center; margin-top: 1.4rem; }
+.orb-page .metabloom-visual__pie-chart { min-width: 0; margin: 0; }
+.orb-page .metabloom-visual__pie-chart svg { display: block; width: 100%; max-width: 30rem; height: auto; margin: 0 auto 1rem; }
+.orb-page .metabloom-visual__pie-slice { fill: var(--metabloom-series-color, var(--aetheris-teal)); stroke: var(--aetheris-panel-raised); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.orb-page .metabloom-visual__pie-slice[data-selected='true'] { stroke: var(--aetheris-ink); stroke-width: 3; paint-order: stroke fill; }
+.orb-page .metabloom-visual__pie-legend { display: grid; gap: 0.6rem; min-width: 0; max-height: 36rem; overflow-y: auto; list-style: none; margin: 0; padding: 0.4rem; }
+.orb-page .metabloom-visual__pie-legend button { display: grid; grid-template-columns: 1rem minmax(0, 1fr) auto; align-items: center; gap: 0.8rem; width: 100%; text-align: left; border-radius: var(--aetheris-radius-lg); }
+.orb-page .metabloom-visual__pie-legend button[aria-pressed='true'] { background: var(--aetheris-glass-panel-raised); border-color: var(--aetheris-ink-2); }
+.orb-page .metabloom-visual__pie-legend strong { font: 1.1rem/1.4 var(--aetheris-font-mono); font-variant-numeric: tabular-nums; }
+.orb-page .metabloom-visual__pie-selection { padding: 1rem; border: 1px solid var(--aetheris-line-strong); border-radius: var(--aetheris-radius-lg); background: var(--aetheris-glass-surface); }
+@media (max-width: 480px) { .orb-page .metabloom-visual__pie-layout { grid-template-columns: minmax(0, 1fr); } }
 @media (forced-colors: active) {
   .orb-page .metabloom-visual__series-dot { background: Highlight; }
   .orb-page .metabloom-visual__line { stroke: Highlight; }
   .orb-page .metabloom-visual__point { fill: Highlight; }
+  .orb-page .metabloom-visual__pie-slice { fill: Canvas; stroke: CanvasText; forced-color-adjust: none; }
+  .orb-page .metabloom-visual__pie-slice[data-selected='true'] { fill: Highlight; stroke: CanvasText; }
+  .orb-page .metabloom-visual__pie-legend button[aria-pressed='true'] { outline: 2px solid Highlight; outline-offset: -3px; }
 }
 
 /* Local component typography and provenance must override legacy global footer/label rules. */

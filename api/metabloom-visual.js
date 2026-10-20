@@ -3,7 +3,7 @@ const auth = require('../server/metabloomAuth');
 const { enabled, createMetabloomVisualStore, visualError } = require('../server/metabloomVisualStore');
 const { generateMetabloomVisual } = require('../server/metabloomVisualGenerator');
 const { METABLOOM_VISUAL_VERSION, METABLOOM_VISUAL_DESIGN_VERSION, MAX_METABLOOM_VISUAL_BYTES,
-  METABLOOM_VISUAL_ERRORS, visualKeys, parseMetabloomVisual } = require('../src/components/metabloomVisualProtocol');
+  METABLOOM_VISUAL_GENERATION_TIMEOUT_MS, METABLOOM_VISUAL_ERRORS, visualKeys, parseMetabloomVisual } = require('../src/components/metabloomVisualProtocol');
 const send = (response, status, value) => {
   if (response.destroyed || response.writableEnded) return;
   response.statusCode = status;
@@ -40,7 +40,7 @@ function createMetabloomVisualHandler({ store = createMetabloomVisualStore(), ge
     if (!process.env.OPENAI_API_KEY) return send(response, 503, { code: 'visual_unavailable', requestRef });
     const controller = new AbortController();
     let deadlineExpired = false;
-    const timeout = setTimeout(() => { deadlineExpired = true; controller.abort(); }, 30000);
+    const timeout = setTimeout(() => { deadlineExpired = true; controller.abort(); }, METABLOOM_VISUAL_GENERATION_TIMEOUT_MS);
     const closed = () => { if (!response.writableEnded) controller.abort(); };
     response.on?.('close', closed);
     const startedAt = Date.now();
@@ -52,7 +52,7 @@ function createMetabloomVisualHandler({ store = createMetabloomVisualStore(), ge
       const record = await store.claim(identity, body.id, { signal: controller.signal });
       claimed = true;
       if (controller.signal.aborted) throw visualError('visual_cancelled');
-      const generated = await generate(record, { signal: controller.signal });
+      const generated = await generate(record, { signal: controller.signal, requestRef });
       const spec = parseMetabloomVisual(generated, { kind: record.offer.kind, sources: record.context.sources || [] });
       if (!spec) throw visualError('visual_invalid');
       if (controller.signal.aborted) throw visualError('visual_cancelled');
@@ -67,11 +67,15 @@ function createMetabloomVisualHandler({ store = createMetabloomVisualStore(), ge
     } catch (error) {
       const code = controller.signal.aborted ? (deadlineExpired ? 'visual_timeout' : 'visual_cancelled')
         : Object.prototype.hasOwnProperty.call(METABLOOM_VISUAL_ERRORS, error?.code) ? error.code : 'visual_unavailable';
-      if (claimed && !persisted && !controller.signal.aborted) {
-        try { await store.complete(identity, body.id, { status: 'failed', code }); } catch { /* Claim remains consumed. */ }
+      if (claimed && !persisted) {
+        // A deadline or disconnect still needs a terminal result for continuation.
+        // Keep the claim consumed and reserve a small, independent cleanup budget.
+        try { await store.complete(identity, body.id, { status: 'failed', code },
+          { signal: AbortSignal.timeout(2500) }); } catch { /* Claim remains consumed if storage is unavailable. */ }
       }
       outcome = code;
-      const status = code === 'visual_expired' ? 410 : code === 'visual_claimed' ? 409 : code === 'visual_quota' ? 429 : 502;
+      const status = code === 'visual_expired' ? 410 : code === 'visual_claimed' ? 409 : code === 'visual_quota' ? 429
+        : code === 'visual_timeout' ? 504 : code === 'visual_cancelled' ? 499 : 502;
       return send(response, status, { code, requestRef });
     } finally {
       clearTimeout(timeout);
