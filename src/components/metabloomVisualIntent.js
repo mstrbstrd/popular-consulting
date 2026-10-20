@@ -1,5 +1,5 @@
 // Bounded, deterministic intent hints. Not a second model or authorization decision.
-const VISUAL_REQUEST = /\b(?:visualiz(?:e|ation)|visualis(?:e|ation)|chart|graph|plot|diagram|flowchart|table|calculator|simulation|interactive (?:tool|model|widget))\b/i;
+const VISUAL_REQUEST = /\b(?:visualiz(?:e|ation)|visualis(?:e|ation)|(?:plot|graph|chart) (?:this|these|it)|(?:show|draw|make|build|create|render|display|generate|produce|give me)\b.{0,80}\b(?:chart|graph|plot|diagram|flowchart|table|calculator|simulation|interactive (?:tool|model|widget))|interactive (?:calculator|simulation|tool|widget))\b/i;
 const TEXT_ONLY = /\b(?:text[ -]only|only text|no (?:visuals?|charts?|graphs?|diagrams?|tables?|calculators?)|without (?:visuals?|charts?|graphs?|diagrams?|tables?|calculators?))\b/i;
 const NUMERIC_SERIES = /\b([a-z][a-z0-9 _-]{0,30}):\s*(-?\d+(?:\.\d+)?(?:\s*,\s*-?\d+(?:\.\d+)?){1,23})(?![\d,])/gi;
 
