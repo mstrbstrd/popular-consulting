@@ -75,6 +75,7 @@ function createMetabloomToolHandler({ store = createMetabloomVisualStore(), auth
         const intent = classifyMetabloomVisualIntent(body.message);
         const requiredKind = intent.requiredKind || intent.preferredKinds?.[0];
         if (intent.mode !== 'requested' || !requiredKind) return send(response, 400, { code: 'tool_not_requested' });
+        await store.claimStart(identity, body.requestId, { signal: controller.signal });
         if (!(await rateLimit(request, controller.signal))) return send(response, 429, { code: 'rate_limited' });
         const [call, emote] = await Promise.all([
           start({ message: body.message, history: body.history, requiredKind, signal: controller.signal }),
