@@ -1,0 +1,38 @@
+name: Orb tool implementation verification
+on:
+  push:
+    branches: [verify/orb-tools-20261020]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  prepare-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Prepare exact baseline and test runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/orb-runtime/repository /tmp/orb-runtime/bin
+          git archive d83ac3e194de9d329469326bc12d0fba9b75b109 | tar -x -C /tmp/orb-runtime/repository
+          cp -a node_modules /tmp/orb-runtime/repository/
+          cp "$(command -v node)" /tmp/orb-runtime/bin/node
+          npm install --prefix /tmp/orb-runtime/browser --no-audit --no-fund playwright@1.56.1
+          PLAYWRIGHT_BROWSERS_PATH=/tmp/orb-runtime/browsers /tmp/orb-runtime/browser/node_modules/.bin/playwright install chromium
+          tar -czf /tmp/orb-runtime.tar.gz -C /tmp/orb-runtime .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: orb-runtime
+          path: /tmp/orb-runtime.tar.gz
+          retention-days: 1
+          compression-level: 0
