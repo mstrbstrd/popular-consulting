@@ -716,6 +716,7 @@ const OrbSection = ({
     replyRef.current = null;
     updateStateSnapshot({ researchProgress: null, researchSummary: null });
     if (mountedRef.current) {
+      setToolPending(false);
       setResearchProgress(null);
       setResearchSummary(null);
     }
