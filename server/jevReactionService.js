@@ -57,12 +57,13 @@ const isChoiceAnswer = (answer) => answer?.type === "choice" && typeof answer.ch
   && Object.prototype.hasOwnProperty.call(answer.probabilities, answer.choice)
   && Number.isFinite(answer.probabilities[answer.choice]);
 
-const decideMetabloomChoices = async ({ phase, state, actionMode, visualKinds, visualIntent = "optional", preferredKinds = [], signal, timeoutMs = 1000, fetchImpl = globalThis.fetch } = {}) => {
+const decideMetabloomChoices = async ({ phase, state, actionMode, visualKinds, visualIntent = "optional", preferredKinds = [], requiredKind = null, signal, timeoutMs = 1000, fetchImpl = globalThis.fetch } = {}) => {
   const allowedVisuals = phase === "response" && Array.isArray(visualKinds)
     ? METABLOOM_VISUAL_KINDS.filter((kind) => visualKinds.includes(kind)) : [];
   const preferred = preferredKinds.filter(kind => allowedVisuals.includes(kind));
   const requested = visualIntent === "requested";
-  let visualization = requested ? (preferred[0] || "none") : "none";
+  const locked = requested && allowedVisuals.includes(requiredKind) ? requiredKind : null;
+  let visualization = locked || (requested ? (preferred[0] || "none") : "none");
   const withVisual = (value) => allowedVisuals.length ? { ...value, visualization } : value;
   const explicitAction = phase === "input" && METABLOOM_ACTION_IDS.includes(actionMode) ? actionMode : "none";
   const fallback = () => { visualization = signal?.aborted ? "none" : requested ? (preferred[0] || "none") : "none";
@@ -96,7 +97,7 @@ const decideMetabloomChoices = async ({ phase, state, actionMode, visualKinds, v
     if (controller.signal.aborted) return fallback();
     const visualAnswer = payload?.answers?.visualization;
     const visualChoices = ["none", ...allowedVisuals];
-    if (allowedVisuals.length && isChoiceAnswer(visualAnswer) && visualChoices.includes(visualAnswer.choice)
+    if (!locked && allowedVisuals.length && isChoiceAnswer(visualAnswer) && visualChoices.includes(visualAnswer.choice)
       && Number.isFinite(visualAnswer.confidence) && visualAnswer.confidence >= (requested ? 0.55 : 0.75)
       && visualAnswer.confidence <= 1 && !Array.isArray(visualAnswer.probabilities)
       && Object.entries(visualAnswer.probabilities).every(([key, value]) =>
