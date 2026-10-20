@@ -485,8 +485,6 @@ const OrbSection = ({
   const [researchSummary, setResearchSummary] = React.useState(null);
   const [readingEarlier, setReadingEarlier] = React.useState(false);
   const [composerFocused, setComposerFocused] = React.useState(false);
-  const [touchComposer, setTouchComposer] = React.useState(() =>
-    Boolean(window.matchMedia?.("(hover: none) and (pointer: coarse)").matches));
   const [activeReaction, setActiveReaction] = React.useState(null);
   const [expressiveness, setExpressiveness] = React.useState(savedConversation?.expressiveness ?? 0.8);
   const expressivenessRef = React.useRef(expressiveness);
@@ -1630,24 +1628,14 @@ const OrbSection = ({
         || event.shiftKey
         || event.nativeEvent?.isComposing
         || event.nativeEvent?.keyCode === 229
-        || (touchComposer && !event.ctrlKey && !event.metaKey)
       ) {
         return;
       }
       event.preventDefault();
       sendMessage(draft);
     },
-    [draft, sendMessage, touchComposer],
+    [draft, sendMessage],
   );
-
-  React.useEffect(() => {
-    const media = window.matchMedia?.("(hover: none) and (pointer: coarse)");
-    if (!media) return undefined;
-    const update = () => setTouchComposer(media.matches);
-    update();
-    media.addEventListener?.("change", update);
-    return () => media.removeEventListener?.("change", update);
-  }, []);
 
   React.useEffect(() => {
     if (isActive) return;
@@ -1695,12 +1683,39 @@ const OrbSection = ({
     if (followLatestRef.current) scrollToLatest();
   }, [messages, pending, visibleResearchPhase, scenePhase, scrollToLatest]);
 
-  React.useLayoutEffect(() => {
+  const resizeComposer = React.useCallback(() => {
     const input = composerRef.current;
-    if (!input) return;
+    // Let native field sizing preserve the caret and scroll position. Older
+    // browsers use the same CSS bounds, without resetting a scrolled draft.
+    if (!input || window.CSS?.supports?.("field-sizing", "content")) return;
+    const scrollTop = input.scrollTop;
     input.style.height = "auto";
-    input.style.height = `${Math.min(116, Math.max(46, input.scrollHeight))}px`;
-  }, [draft]);
+    input.style.height = `${input.scrollHeight}px`;
+    input.scrollTop = scrollTop;
+  }, []);
+
+  React.useLayoutEffect(() => {
+    resizeComposer();
+  }, [draft, resizeComposer]);
+
+  React.useEffect(() => {
+    const input = composerRef.current;
+    if (!input || typeof ResizeObserver === "undefined"
+      || window.CSS?.supports?.("field-sizing", "content")) return undefined;
+    let width = input.clientWidth;
+    let frame = 0;
+    const observer = new ResizeObserver(() => {
+      if (input.clientWidth === width) return;
+      width = input.clientWidth;
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(resizeComposer);
+    });
+    observer.observe(input);
+    return () => {
+      observer.disconnect();
+      window.cancelAnimationFrame(frame);
+    };
+  }, [resizeComposer]);
 
   React.useEffect(() => {
     const area = composerAreaRef.current;
@@ -1732,6 +1747,7 @@ const OrbSection = ({
       page.dataset.compactViewport = String(height < 520);
       page.dataset.keyboardOpen = String(document.activeElement === composerRef.current
         && (window.innerHeight - height > 100 || height < 520));
+      resizeComposer();
       if (followLatestRef.current) scrollToLatest();
     };
     const schedule = () => {
@@ -1756,7 +1772,7 @@ const OrbSection = ({
       delete page.dataset.compactViewport;
       delete page.dataset.keyboardOpen;
     };
-  }, [scrollToLatest]);
+  }, [resizeComposer, scrollToLatest]);
 
   React.useEffect(() => {
     const handleModelResponse = (event) => {
@@ -2177,7 +2193,8 @@ const OrbSection = ({
                 onKeyDown={handleComposerKeyDown}
                 placeholder="Message Metabloom"
                 rows={1}
-                enterKeyHint={touchComposer ? "enter" : "send"}
+                wrap="soft"
+                enterKeyHint="send"
                 maxLength={MAX_USER_MESSAGE_CHARS}
               />
               {pending && draft.trim() && (
@@ -2208,7 +2225,7 @@ const OrbSection = ({
               </button>
             </form>
             <p id="metabloom-composer-help" className="metabloom-chat__composer-help">
-              {conversationStarted ? touchComposer ? "Return for a new line · Tap ↑ to send" : "Enter to send · Shift + Enter for a new line" : "Say what’s on your mind, or try a conversation below."}
+              {conversationStarted ? "Enter to send · Shift + Enter for a new line" : "Say what’s on your mind, or try a conversation below."}
             </p>
           </div>
         </div>

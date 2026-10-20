@@ -105,9 +105,8 @@ describe("Orb production presentation", () => {
     expect(composerRule).toContain(
       "border: 1px solid var(--aetheris-line-strong);",
     );
-    expect(composerRule).toContain(
-      "border-radius: var(--aetheris-radius-pill);",
-    );
+    expect(composerRule).toContain("border-radius: 2.6rem;");
+    expect(composerRule).toContain("overflow: hidden;");
     expect(composerRule).toContain("backdrop-filter: blur(22px)");
     expect(ringRule).toContain("var(--aetheris-spectral-border-soft)");
     expect(ringRule).toContain("opacity: 0.28;");

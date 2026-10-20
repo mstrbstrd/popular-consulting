@@ -305,11 +305,11 @@
 .orb-page .metabloom-chat__composer {
   position: relative;
   width: 100%;
-  overflow: visible;
+  overflow: hidden;
   gap: 0.6rem;
-  padding: 0.45rem 0.45rem 0.45rem 1.55rem;
+  padding: 0.6rem 0.6rem 0.6rem 1.6rem;
   border: 1px solid var(--aetheris-line-strong);
-  border-radius: var(--aetheris-radius-pill);
+  border-radius: 2.6rem;
   background: color-mix(
     in srgb,
     var(--aetheris-glass-panel-raised) 88%,
@@ -375,9 +375,19 @@
 .orb-page .metabloom-chat__composer textarea {
   position: relative;
   z-index: 3;
+  box-sizing: border-box;
   min-height: 4.6rem;
-  max-height: 11.6rem;
+  max-height: clamp(4.6rem, calc(var(--orb-viewport-height, 100dvh) * 0.28), 20rem);
   padding: 1rem 0.4rem 0.72rem 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--aetheris-ink-2) 48%, transparent) transparent;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: normal;
   caret-color: var(--aetheris-teal);
   color: var(--metabloom-chat-ink);
   font-family: var(--aetheris-font-sans);
@@ -587,12 +597,12 @@
 
   .orb-page .metabloom-chat__composer {
     gap: 0.45rem;
-    padding: 0.4rem 0.4rem 0.4rem 1.2rem;
+    padding: 0.6rem 0.6rem 0.6rem 1.2rem;
   }
 
   .orb-page .metabloom-chat__composer textarea {
     min-height: 4.4rem;
-    max-height: 10rem;
+    max-height: clamp(4.4rem, calc(var(--orb-viewport-height, 100dvh) * 0.28), 16rem);
     padding-top: 0.92rem;
     font-size: 1.6rem;
   }
@@ -641,7 +651,7 @@
   }
 
   .orb-page .metabloom-chat__composer {
-    padding-left: 1.1rem;
+    padding-left: 1.2rem;
   }
 
 }

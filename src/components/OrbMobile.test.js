@@ -35,29 +35,26 @@ afterEach(() => {
   window.innerHeight = originalHeight;
 });
 
-test("touch Return allows a new line, while the send button submits the complete draft", () => {
+test("touch Enter sends the complete multiline draft", () => {
   renderChat();
-  expect(input()).toHaveAttribute("enterkeyhint", "enter");
-  fireEvent.change(input(), { target: { value: "Line one" } });
-  expect(fireEvent.keyDown(input(), { key: "Enter" })).toBe(true);
-  expect(window.__orbMessages()).toEqual([]);
+  expect(input()).toHaveAttribute("enterkeyhint", "send");
   fireEvent.change(input(), { target: { value: "Line one\nLine two" } });
-  fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+  expect(fireEvent.keyDown(input(), { key: "Enter" })).toBe(false);
   expect(window.__orbMessages()[0].content).toBe("Line one\nLine two");
-  expect(screen.getByText("Return for a new line · Tap ↑ to send")).toBeInTheDocument();
+  expect(input()).toHaveValue("");
+  expect(screen.getByText("Enter to send · Shift + Enter for a new line")).toBeInTheDocument();
 });
 
-test.each([{ shiftKey: true }, { isComposing: true }, { keyCode: 229 }])("desktop modifier/IME %j never sends an unfinished message", (event) => {
-  media.matches = false;
+test.each([{ shiftKey: true }, { isComposing: true }, { keyCode: 229 }])("modifier/IME %j never sends an unfinished message", (event) => {
   renderChat();
   fireEvent.change(input(), { target: { value: "Still writing" } });
   expect(fireEvent.keyDown(input(), { key: "Enter", ...event })).toBe(true);
   expect(window.__orbMessages()).toEqual([]);
 });
 
-test("desktop Enter still sends and changing input mode updates the keyboard hint", () => {
+test("desktop Enter uses the same send behavior as touch", () => {
+  media.matches = false;
   renderChat();
-  act(() => { media.matches = false; media.dispatchEvent(new Event("change")); });
   expect(input()).toHaveAttribute("enterkeyhint", "send");
   fireEvent.change(input(), { target: { value: "Desktop message" } });
   expect(fireEvent.keyDown(input(), { key: "Enter" })).toBe(false);
