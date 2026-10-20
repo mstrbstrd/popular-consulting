@@ -85,9 +85,19 @@ const parseMetabloomVisual = (input, expected = {}) => {
     if (!visualKeys(value, [...common, 'columns', 'rows']) || !visualList(value.columns, 1, 8, text => visualText(text, 80))
       || !visualList(value.rows, 1, 100, row => visualList(row, value.columns.length, value.columns.length, text => visualText(text, 400, true)))) return null;
   } else if (['bar-chart', 'line-chart'].includes(value.kind)) {
-    if (!visualKeys(value, [...common, 'unit', 'points']) || !visualText(value.unit, 60, true)
-      || !visualList(value.points, value.kind === 'line-chart' ? 2 : 1, 60, point => visualKeys(point, ['label', 'value'])
+    if (!visualText(value.unit, 60, true)) return null;
+    if (visualKeys(value, [...common, 'unit', 'points'])) {
+      if (!visualList(value.points, value.kind === 'line-chart' ? 2 : 1, 60, point => visualKeys(point, ['label', 'value'])
         && visualText(point.label, 100) && visualNumber(point.value))) return null;
+    } else if (visualKeys(value, [...common, 'unit', 'labels', 'series'])) {
+      if (!visualList(value.labels, value.kind === 'line-chart' ? 2 : 1, 24, label => visualText(label, 100))
+        || new Set(value.labels).size !== value.labels.length
+        || !visualList(value.series, 2, 5, series => visualKeys(series, ['id', 'label', 'values'])
+          && validId(series.id) && visualText(series.label, 80)
+          && visualList(series.values, value.labels.length, value.labels.length, visualNumber))
+        || new Set(value.series.map(series => series.id)).size !== value.series.length
+        || value.series.length * value.labels.length > 120) return null;
+    } else return null;
     // Labels are ordinal for lines; the UI must not imply irregular intervals are a scaled time axis.
   } else if (value.kind === 'flowchart') {
     if (!visualKeys(value, [...common, 'nodes', 'edges'])
