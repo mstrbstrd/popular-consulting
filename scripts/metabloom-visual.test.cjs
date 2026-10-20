@@ -318,6 +318,7 @@ test('input intent preserves user series without another model call', () => {
   assert.equal(classifyMetabloomVisualIntent('Explain curiosity.').mode, 'optional');
   assert.equal(classifyMetabloomVisualIntent('Explain the SQL table schema.').mode, 'optional');
   assert.equal(classifyMetabloomVisualIntent('Build an interactive calculator for these values.').mode, 'requested');
+  assert.equal(classifyMetabloomVisualIntent('Make a line chart of the figures.').requiredKind, 'line-chart');
   assert.equal(extractMetabloomVisualData('A: 1, 2. B: 3, 4, 5.'), null);
 });
 const multiChart = () => {
@@ -351,6 +352,9 @@ test('explicit visuals survive low-confidence or none Jev choices, while optiona
     fetchImpl: async () => Response.json({ answers: { reaction: choice('warm'), visualization: choice('none', 0.98) } }) };
   assert.deepEqual(await jev.decideMetabloomResponse(opts), { emote: 'warm', visualization: 'line-chart' });
   assert.deepEqual(await jev.decideMetabloomResponse({ ...opts, visualIntent: 'optional' }), { emote: 'warm', visualization: 'none' });
+  assert.deepEqual(await jev.decideMetabloomResponse({ ...opts, requiredKind: 'line-chart',
+    fetchImpl: async () => Response.json({ answers: { reaction: choice('warm'), visualization: choice('table') } }) }),
+    { emote: 'warm', visualization: 'line-chart' });
   const abort = new AbortController(); abort.abort();
   assert.deepEqual(await jev.decideMetabloomResponse({ ...opts, signal: abort.signal }), { emote: 'neutral', visualization: 'none' });
 });
