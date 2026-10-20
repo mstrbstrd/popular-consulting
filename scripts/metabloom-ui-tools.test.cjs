@@ -32,6 +32,28 @@ function response() {
 }
 const request = body => ({ method: 'POST', headers: { host: 'localhost', origin: 'http://localhost', 'content-type': 'application/json' }, body, aborted: false });
 const authenticate = async (_req, opts) => { opts.onIdentity(identity); return null; };
+test('explicit native UI requests route to tools without converting code-writing tasks', () => {
+  const { classifyMetabloomVisualIntent } = require('../src/components/metabloomVisualIntent');
+  for (const message of [
+    'Create an interactive project-price calculator with Hours and Hourly Rate.',
+    'I want a calculator for project pricing.',
+    'Could you build me an interactive UI for this?',
+    'No charts please. Build a calculator.',
+    'Build a calculator but do not output HTML or code.',
+  ]) {
+    const result = classifyMetabloomVisualIntent(message);
+    assert.equal(result.mode, 'requested', message);
+    assert.equal(result.preferredKinds[0], 'calculator', message);
+  }
+  for (const message of [
+    'Please write HTML code for a calculator.',
+    'Can you give me the JavaScript for a calculator?',
+    'Show me a React component for a calculator.',
+    'What is a calculator?',
+    'I want only text, no visuals.',
+  ]) assert.notEqual(classifyMetabloomVisualIntent(message).mode, 'requested', message);
+});
+
 test('a forced create_visual tool call preserves the original message and limits execution', async () => {
   const seen = [];
   const result = await requestVisualTool({ message: fixtureTool.message, history: [], requiredKind: 'calculator',

@@ -107,6 +107,27 @@ test('multi-series chart renders three labeled paths and accessible exact values
   expect(screen.getByRole('table')).toHaveTextContent('Business B');
 });
 
+test('disabled tool never falls back to the ordinary model or displays HTML source', async () => {
+  postMetabloomTool.mockRejectedValue({ code: 'tool_disabled' });
+  messages = [{ id: 'user-1', role: 'user', content: 'Create an interactive calculator.' }];
+  const respond = jest.fn();
+  render(<div className="orb-page">
+    <article data-message-id="user-1"><div className="metabloom-chat__bubble">Create an interactive calculator.</div></article>
+    <MetabloomVisuals />
+  </div>);
+  const event = new CustomEvent('metabloom:user-message', { cancelable: true, detail: {
+    requestId: 'mount-1', message: 'Create an interactive calculator.', history: [], actionMode: 'auto',
+    signal: new AbortController().signal, claim: jest.fn(), respond, onToolActivity: jest.fn(),
+  } });
+  act(() => window.dispatchEvent(event));
+  expect(event.defaultPrevented).toBe(true);
+  await waitFor(() => expect(respond).toHaveBeenCalledTimes(1));
+  const reply = respond.mock.calls[0][0].segments[0].response;
+  expect(reply).toMatch(/not enabled/);
+  expect(reply).not.toMatch(/<script|<input|<div|function\s*\(/);
+  expect(requestMetabloomVisual).not.toHaveBeenCalled();
+});
+
 test('explicit tool call generates an artifact before the closing response and passes current calculator state', async () => {
   const offer = { version: '1', designVersion: 'aetheris-1', id: 'b'.repeat(48),
     kind: 'calculator', expiresAt: Date.now() + 600000 };

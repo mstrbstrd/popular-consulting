@@ -87,6 +87,22 @@ test("POST validates parsed-object size and exact full origin", async () => {
   assert.equal(handler._internals.requestOriginIsAllowed(insecure), false);
   assert.equal(calls, 0);
 });
+test("tool-capable clients cannot silently replace requested UI with generated HTML text", async () => {
+  local();
+  let calls = 0;
+  global.fetch = async () => { calls++; throw new Error("The text model must not be invoked"); };
+  const req = request({ message: "Create an interactive project-price calculator with editable hours and rate.", history: [] });
+  req.headers["x-metabloom-ui-tools"] = "1";
+  const res = response();
+  await handler(req, res);
+  assert.equal(res.statusCode, 409);
+  assert.deepEqual(JSON.parse(res.body), { code: "visual_tool_required" });
+  assert.equal(calls, 0);
+  const sourceRequest = request({ message: "Please write HTML code for a calculator.", history: [] });
+  sourceRequest.headers["x-metabloom-ui-tools"] = "1";
+  assert.equal(require("../src/components/metabloomVisualIntent").classifyMetabloomVisualIntent(sourceRequest.body.message).mode, "optional");
+});
+
 test("an API key alone does not open a billable serverless endpoint", async () => {
   process.env.OPENAI_API_KEY = "test-only-not-a-credential";
   process.env.VERCEL = "1"; process.env.VERCEL_ENV = "production";

@@ -4,7 +4,6 @@ import MetabloomVisualFrame, { MetabloomVisualBoundary } from './MetabloomVisual
 import { METABLOOM_VISUAL_OFFER_EVENT, requestMetabloomVisual } from './metabloomVisualApiClient';
 import { beginMetabloomVisualTurn, acceptMetabloomVisualOffer, findMetabloomVisualReply } from './metabloomVisualSession';
 import { classifyMetabloomVisualIntent } from './metabloomVisualIntent';
-import { requestMetabloomResponse } from './metabloomApiClient';
 import { postMetabloomTool } from './metabloomToolClient';
 import { METABLOOM_CHAT_PROTOCOL_VERSION } from './metabloomEmoteLibrary';
 const safeReply = response => ({ version: METABLOOM_CHAT_PROTOCOL_VERSION, segments: [{ response }] });
@@ -110,12 +109,15 @@ export default class MetabloomVisuals extends React.Component {
       this.generate(record, offer);
     } catch (error) {
       if (!this.mounted || this.turn !== turn || turn.signal.aborted) return;
-      if (error?.code === 'tool_disabled') {
-        try {
-          const reply = await requestMetabloomResponse({ ...detail, optional: false });
-          if (!turn.signal.aborted) detail.respond?.(reply);
-        } catch { if (!turn.signal.aborted) detail.respond?.(safeReply('I could not prepare that visual right now.')); }
-      } else detail.respond?.(safeReply('I could not prepare that visual right now. Please try again.'));
+      // Never silently downgrade a requested interactive component to a
+      // text-model response. That path can produce raw HTML/JS in the transcript.
+      const unavailable = error?.code === 'tool_disabled';
+      console.info('[Metabloom] Native visual request unavailable', {
+        code: unavailable ? 'tool_disabled' : 'tool_unavailable',
+      });
+      detail.respond?.(safeReply(unavailable
+        ? 'Interactive visuals are not enabled for this session. I cannot display a working component until they are enabled.'
+        : 'I could not create the interactive component. Please try again.'));
       detail.onToolActivity?.('complete');
     }
   };

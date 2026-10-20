@@ -22,6 +22,7 @@ const METABLOOM_REQUEST_ERROR_MESSAGES = Object.freeze({
   method_not_allowed: "This request method is not supported.",
   invalid_content_type: "The request format was not supported. Reload the page and try again.",
   invalid_request: "The message could not be sent in this format. Please try again.",
+  visual_tool_required: "This request needs the interactive visual tool. Reload the page and try again; no code-only substitute was generated.",
   rate_limited: "The request limit has been reached. Please wait a moment and try again.",
   upstream_unavailable: "The model service is temporarily unavailable. Please try again.",
   cancelled: "The request was stopped or timed out.",

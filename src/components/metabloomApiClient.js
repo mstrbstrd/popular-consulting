@@ -60,7 +60,7 @@ export const requestMetabloomResponse = async ({
     const response = await fetchImpl("/api/metabloom", {
       method: "POST",
       credentials: "same-origin",
-      headers: { "Content-Type": "application/json", Accept: "application/x-ndjson", "X-Metabloom-Visuals": "1" },
+      headers: { "Content-Type": "application/json", Accept: "application/x-ndjson", "X-Metabloom-Visuals": "1", "X-Metabloom-Ui-Tools": "1" },
       body: JSON.stringify({ actionMode, allowMultiple: allowMultiple === true, streamText: true,
         streamResearchProgress: true, streamResearchDetails: true, history, message, requestId,
         ...(artifactContext ? { artifactContext } : {}) }),
