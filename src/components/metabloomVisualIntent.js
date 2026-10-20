@@ -38,6 +38,8 @@ function classifyMetabloomVisualIntent(message) {
   else if (/\bline(?: |-)?(?:chart|graph)\b/i.test(text)) kind = 'line-chart';
   else if (/\b(?:monthly|months?|over time|trends?|time series)\b/i.test(text) || (dataHints && dataHints.series.length > 1)) kind = 'line-chart';
   else kind = 'bar-chart';
-  return { mode: 'requested', preferredKinds: [kind], dataHints };
+  const explicitFormat = /\b(?:line[ -](?:chart|graph)|bar[ -]chart|flowchart|calculator)\b/i.test(text)
+    || /\b(?:show|create|make|build|give me)\b.{0,40}\btable\b/i.test(text);
+  return { mode: 'requested', preferredKinds: [kind], requiredKind: explicitFormat ? kind : null, dataHints };
 }
 module.exports = { classifyMetabloomVisualIntent, extractMetabloomVisualData };
