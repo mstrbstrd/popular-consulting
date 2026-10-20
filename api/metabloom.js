@@ -177,6 +177,12 @@ const handler = async (request, response) => {
   const body = parseBody(request);
   if (!body) return sendJson(response, 400, { code: "invalid_request" });
   const visualIntent = classifyMetabloomVisualIntent(body.message);
+  // A tool-capable client must not silently route an explicit native UI request
+  // through the ordinary text writer. Old clients without this capability header
+  // keep their existing protocol.
+  if (request.headers?.["x-metabloom-ui-tools"] === "1" && visualIntent.mode === "requested") {
+    return sendJson(response, 409, { code: "visual_tool_required" });
+  }
   const requestRef = randomBytes(6).toString("hex");
   response.setHeader("X-Metabloom-Request-Ref", requestRef);
   if (!configured(request)) return sendJson(response, 503, { code: "not_configured" });
