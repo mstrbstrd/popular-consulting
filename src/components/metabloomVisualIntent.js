@@ -1,7 +1,7 @@
 // Bounded, deterministic intent hints. Not a second model or authorization decision.
 const VISUAL_REQUEST = /\b(?:visualiz(?:e|ation)|visualis(?:e|ation)|chart|graph|plot|diagram|flowchart|table|calculator|simulation|interactive (?:tool|model|widget))\b/i;
 const TEXT_ONLY = /\b(?:text[ -]only|only text|no (?:visuals?|charts?|graphs?|diagrams?|tables?|calculators?)|without (?:visuals?|charts?|graphs?|diagrams?|tables?|calculators?))\b/i;
-const NUMERIC_SERIES = /\b([a-z][a-z0-9 _-]{0,30}):\s*(-?\d+(?:\.\d+)?(?:\s*,\s*-?\d+(?:\.\d+)?){1,23})(?![\d,.])/gi;
+const NUMERIC_SERIES = /\b([a-z][a-z0-9 _-]{0,30}):\s*(-?\d+(?:\.\d+)?(?:\s*,\s*-?\d+(?:\.\d+)?){1,23})(?![\d,])/gi;
 
 function extractMetabloomVisualData(message) {
   if (typeof message !== 'string' || message.length > 8000) return null;
