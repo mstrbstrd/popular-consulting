@@ -60,7 +60,7 @@ function VisualChart({ spec, id }) {
             </circle>)}
           </g>)}
           {labels.map((label, index) => (index === labels.length - 1 || index % Math.max(1, Math.ceil(labels.length / 6)) === 0)
-            ? <text key={index} x={x(index)} y="197" textAnchor="middle" className="metabloom-visual__axis-label">{label}</text> : null)}
+            ? <text key={index} x={x(index)} y="197" textAnchor="middle" className="metabloom-visual__axis-label">{label.length > 10 ? `${label.slice(0, 9)}…` : label}</text> : null)}
         </svg>
         <figcaption>Equal spacing represents observation order, not elapsed time. Values in {spec.unit || 'the supplied units'}.</figcaption>
       </figure>
