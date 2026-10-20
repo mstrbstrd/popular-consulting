@@ -10,7 +10,11 @@ const visualObject = value => value && typeof value === 'object' && !Array.isArr
 const visualKeys = (value, keys) => visualObject(value) && Object.keys(value).length === keys.length
   && keys.every(key => Object.prototype.hasOwnProperty.call(value, key));
 const visualText = (value, max = 240, empty = false) => typeof value === 'string'
-  && value.length <= max && (empty || Boolean(value.trim())) && !/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(value);
+  && value.length <= max && (empty || Boolean(value.trim()))
+  && Array.from(value).every(char => {
+    const code = char.codePointAt(0);
+    return code !== 127 && (code > 31 || code === 9 || code === 10 || code === 13);
+  });
 const visualNumber = value => typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= 1e12;
 const visualList = (value, min, max, test) => Array.isArray(value) && value.length >= min
   && value.length <= max && value.every(test);
