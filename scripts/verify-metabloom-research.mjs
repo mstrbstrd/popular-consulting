@@ -60,8 +60,10 @@ const researchDocument = () => {
       { type: "web_search_call", status: "completed", action: { type: "search", query: "fictional orchard sensor release", sources: [{ type: "url", url: sourceList[0].url }] } },
       { type: "web_search_call", status: "completed", action: { type: "open_page", url: sourceList[0].url } },
       { type: "web_search_call", status: "completed", action: { type: "search", query: "fictional orchard reference calibration", sources: [{ type: "url", url: sourceList[1].url }] } },
-      ...Array.from({ length: 4 }, (_, index) => ({ type: "web_search_call", status: "completed",
+      ...Array.from({ length: 3 }, (_, index) => ({ type: "web_search_call", status: "completed",
         action: { type: "open_page", url: sourceList[index % sourceList.length].url } })),
+      // A seventh terminal tool record must not discard the completed report.
+      { type: "web_search_call", status: "incomplete", action: { type: "open_page", url: "https://example.com/unavailable" } },
       { type: "message", role: "assistant", status: "completed", content: [{ type: "output_text", text, annotations: [
         { type: "url_citation", title: sourceList[0].title, url: sourceList[0].url, start_index: 0, end_index: boundary },
         { type: "url_citation", title: sourceList[1].title, url: sourceList[1].url, start_index: boundary + 1, end_index: summary.length },

@@ -58,6 +58,12 @@ const largeResearchDocument = () => {
     return annotation;
   });
   value.output[1].content = [{ type: "output_text", text, annotations }];
+  // The provider can finish a cited report after an auxiliary tool attempt ends
+  // incomplete. Keep all report-delivery paths exercising that production shape.
+  value.output.splice(1, 0, ...Array.from({ length: 6 }, (_, index) => ({
+    id: `ws_report_${index}`, type: "web_search_call", status: index === 5 ? "incomplete" : "completed",
+    action: { type: "open_page", url: index === 5 ? "https://example.com/unavailable" : researchSources[0].url },
+  })));
   value.output.unshift({ type: "reasoning", summary: [{ text: "private-reasoning-fixture" }] });
   return value;
 };
@@ -660,6 +666,32 @@ test("unverified research fails without invoking a writer or claiming completion
   }
 });
 
+test("a nonterminal auxiliary research tool cannot expose a report or start a writer", async () => {
+  local();
+  for (const status of ["in_progress", "searching"]) {
+    const value = largeResearchDocument();
+    value.output.find((item) => item.type === "web_search_call" && item.status === "incomplete").status = status;
+    let calls = 0;
+    global.fetch = async (_url, options) => {
+      calls++;
+      const body = JSON.parse(options.body);
+      assert.ok(body.tools, "Unfinished research must not start its writer.");
+      assert.equal(body.max_tool_calls, 6);
+      assert.equal(body.max_output_tokens, 10000);
+      return researchReply(value);
+    };
+    const res = response();
+    await handler(request({ message: "Research this", actionMode: "deep-research", streamText: true, streamResearchDetails: true }), res);
+    const records = res.body.trim().split("\n").map(JSON.parse);
+    assert.equal(calls, 1, "One research request, without a retry or writer request.");
+    assert.equal(records.at(-1).type, "error");
+    assert.equal(records.at(-1).code, "research_incomplete");
+    assert.equal(records.some((record) => record.type.startsWith("research_report")
+      || ["sources", "text_delta", "segment", "text_complete", "done"].includes(record.type)
+      || record.state === "synthesizing" || record.phase === "response"), false);
+  }
+});
+
 test("research writer requires actual source IDs before final text completion", async () => {
   local();
   for (const text of ["An uncited claim.", "A fabricated citation. [99]", "One real and one invented source. [1] [2]"]) {
@@ -767,8 +799,13 @@ test("research HTTP failures expose only a safe code and reference while preserv
   assert.ok(logged.includes("req_fixture_provider"));
 });
 
-test("completed long research and every source reach an opted-in client before its bounded writer", async () => {
+test("completed long research survives an incomplete auxiliary tool and reaches the client before its bounded writer", async () => {
   local();
+  const value = largeResearchDocument();
+  const toolRecords = value.output.filter((item) => item.type === "web_search_call");
+  assert.equal(toolRecords.length, 7);
+  assert.equal(toolRecords.filter((item) => item.status === "completed").length, 6);
+  assert.equal(toolRecords.at(-1).status, "incomplete");
   const calls = [];
   const res = response();
   global.fetch = async (_url, options) => {
@@ -777,7 +814,7 @@ test("completed long research and every source reach an opted-in client before i
     if (body.tools) {
       assert.equal(body.max_tool_calls, 6);
       assert.equal(body.max_output_tokens, 10000);
-      return researchReply(largeResearchDocument());
+      return researchReply(value);
     }
     const alreadySent = res.body.trim().split("\n").map(JSON.parse);
     assert.ok(alreadySent.some((event) => event.type === "research_report_complete"));
@@ -794,7 +831,8 @@ test("completed long research and every source reach an opted-in client before i
   };
   await handler(request({ message: "Research a broad question", actionMode: "deep-research", streamText: true,
     streamResearchDetails: true, streamResearchProgress: true }), res);
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 2, "One research request and one bounded writer request, without retries.");
+  assert.equal(calls.filter((body) => Boolean(body.tools)).length, 1);
   const events = res.body.trim().split("\n").map(JSON.parse);
   const allSources = events.filter((event) => event.type === "research_report_sources").flatMap((event) => event.sources);
   const textParts = events.filter((event) => event.type === "research_report_delta");
@@ -839,15 +877,23 @@ test("cached clients receive a bounded cited answer without new report records",
   }
 });
 
-test("a writer failure leaves the completed research report delivered without a retry", async () => {
+test("a writer failure retains the full report despite an incomplete auxiliary research tool, without retries", async () => {
   local();
-  let calls = 0;
-  global.fetch = async (_url, options) => {
-    calls++;
-    return JSON.parse(options.body).tools ? researchReply(largeResearchDocument())
-      : new Response(JSON.stringify({ error: { message: "Private provider detail" } }), { status: 429, headers: { "content-type": "application/json" } });
-  };
+  const calls = [];
   const res = response();
+  global.fetch = async (_url, options) => {
+    const body = JSON.parse(options.body);
+    calls.push(body);
+    if (body.tools) {
+      assert.equal(body.max_tool_calls, 6);
+      assert.equal(body.max_output_tokens, 10000);
+      return researchReply(largeResearchDocument());
+    }
+    const alreadySent = res.body.trim().split("\n").map(JSON.parse);
+    assert.equal(alreadySent.filter((event) => event.type === "research_report_complete").length, 1);
+    assert.equal(alreadySent.some((event) => ["text_delta", "segment", "text_complete", "done"].includes(event.type)), false);
+    return new Response(JSON.stringify({ error: { message: "Private provider detail" } }), { status: 429, headers: { "content-type": "application/json" } });
+  };
   await handler(request({ message: "Research this", actionMode: "deep-research", streamResearchDetails: true }), res);
   const reports = [];
   const decoder = createMetabloomSegmentStreamDecoder({ allowResearchDetails: true, onResearchDetails: (report) => reports.push(report) });
@@ -856,9 +902,12 @@ test("a writer failure leaves the completed research report delivered without a 
   assert.equal(reports.length, 1);
   assert.equal(reports[0].sources.length, 65);
   assert.match(reports[0].notes, /Finding 65/);
-  assert.equal(calls, 2);
+  assert.equal(calls.length, 2, "One research request and one writer request, without retries.");
+  assert.equal(calls.filter((body) => Boolean(body.tools)).length, 1);
   assert.equal(res.body.includes("Private provider detail"), false);
   assert.equal(res.body.includes('"type":"segment"'), false);
+  assert.equal(res.body.includes('"type":"text_complete"'), false);
+  assert.equal(res.body.includes('"type":"done"'), false);
 });
 
 test("a completed report with no small cited passage can be delivered without a writer call", async () => {
