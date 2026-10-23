@@ -20,10 +20,26 @@ const sourceList = [
   { id: 1, title: "Fictional orchard sensor release notes", url: "https://example.com/orchard-release" },
   { id: 2, title: "Fictional orchard calibration study", url: "https://example.org/orchard-study" },
 ];
-const researchedParagraphs = [
-  "The fictional orchard sensor now measures soil moisture once per minute. The release notes also describe a calibration step before comparing readings from different rows. This fixture demonstrates a claim linked to its supporting document [1].",
-  "The fictional study recommends checking readings against a reference measurement after installation. Together, the two documents support recording both the sensor version and calibration date before interpreting a change in moisture [2].",
+const verificationDate = new Date().toISOString().slice(0, 10);
+const developmentQuotes = [
+  `On ${verificationDate}, the fictional orchard team announced one-minute moisture readings.`,
+  `On ${verificationDate}, the fictional study team published its reference calibration trial results.`,
 ];
+const briefCandidate = () => ({
+  title: "Fictional orchard news", scope: "Orchard technology developments today", limitations: [],
+  items: sourceList.map((source, index) => ({
+    headline: index === 0 ? "Orchard team announces one-minute moisture readings" : "Study team publishes calibration trial results",
+    summary: index === 0 ? "The fictional release introduces one-minute soil moisture readings with an initial calibration step."
+      : "The fictional study describes checking the installed sensor against a reference measurement.",
+    sourceIds: [source.id], background: [{ text: index === 0
+      ? "The release notes describe calibration before comparing readings from different orchard rows."
+      : "The trial uses a reference measurement after installation to check the sensor readings.", sourceIds: [source.id] }],
+    whyItMatters: "Recording the sensor version and calibration date can help the fictional team interpret changes consistently.",
+    uncertainty: ["The supplied documents do not establish the effect in every orchard."],
+    watchNext: ["Watch for the next published evaluation of the trial."], developmentDate: verificationDate, scheduledDate: null,
+    dateEvidence: { sourceId: source.id, quote: developmentQuotes[index] }, evidenceStatus: index === 0 ? "announced" : "reported", dateBasis: "event-body",
+  })), sourceDetails: [],
+});
 const ordinaryAnswer = "Hello to the imaginary orchard team. This ordinary reply uses one writer request and does not start a research pass.";
 const deferred = () => {
   let resolve;
@@ -48,11 +64,13 @@ const makeFixture = (id, kind, question) => {
   return fixture;
 };
 const researchDocument = () => {
-  const summary = "The fictional release notes describe one-minute moisture readings. The fictional study describes reference calibration.";
+  const firstFinding = `${developmentQuotes[0]} The release notes describe calibration before comparing readings from different orchard rows.`;
+  const secondFinding = `${developmentQuotes[1]} The trial checks readings against a reference measurement after installation and records the sensor version and calibration date.`;
+  const summary = `${firstFinding} ${secondFinding}`;
   const text = summary + "\n\n" + Array.from({ length: 180 }, (_, index) =>
     `Fictional research detail ${index + 1}: record the orchard row, sensor version and calibration date together so the imaginary team can compare its observations consistently.`
   ).join("\n\n") + "\n\nEnd of the complete fictional orchard research report.";
-  const boundary = summary.indexOf(" The fictional study");
+  const boundary = firstFinding.length;
   return {
     status: "completed",
     usage: { input_tokens: 450, output_tokens: 7900, output_tokens_details: { reasoning_tokens: 40 } },
@@ -83,6 +101,9 @@ const writerEvents = (paragraphs) => {
     { type: "response.completed", response: { status: "completed", output: [{ type: "message", content: [{ type: "output_text", text }] }] } },
   ].map((event) => `data: ${JSON.stringify(event)}\n\n`).join("");
 };
+const briefResponse = (candidate = briefCandidate()) => new Response(JSON.stringify({ status: "completed", output: [
+  { type: "message", role: "assistant", status: "completed", content: [{ type: "output_text", text: JSON.stringify(candidate) }] },
+] }), { headers: { "content-type": "application/json", "x-request-id": "req_fictional_browser_brief" } });
 
 const envKeys = ["OPENAI_API_KEY", "METABLOOM_OPENAI_MODEL", "METABLOOM_RESEARCH_MODEL", "TYPESAFE_API_KEY", "VERCEL", "VERCEL_ENV", "NODE_ENV", "UPSTASH_REDIS_REST_URL", "UPSTASH_REDIS_REST_TOKEN"];
 const originalEnv = Object.fromEntries(envKeys.map((key) => [key, process.env[key]]));
@@ -107,10 +128,15 @@ globalThis.fetch = async (url, options = {}) => {
   assert.equal(options.headers.Authorization, "Bearer fictional-local-verification-key");
   assert(options.signal instanceof AbortSignal);
   const body = JSON.parse(options.body);
-  const fixture = fixtures.get(body.input?.at(-1)?.content);
+  const lastInput = body.input?.at(-1)?.content;
+  let fixture = fixtures.get(lastInput);
+  if (!fixture) {
+    try { fixture = fixtures.get(JSON.parse(lastInput).request); } catch { /* Exact legacy question matching remains available. */ }
+  }
   assert(fixture, "Provider request must belong to a registered fictional question.");
   const research = Boolean(body.tools);
-  const call = { phase: research ? "research" : "writer", model: body.model, stream: body.stream,
+  const structured = body.text?.format?.name === "metabloom_research_brief";
+  const call = { phase: research ? "research" : structured ? "brief" : "writer", model: body.model, stream: body.stream,
     store: body.store, maxOutputTokens: body.max_output_tokens, maxToolCalls: body.max_tool_calls,
     reasoning: body.reasoning, at: Date.now() };
   fixture.calls.push(call);
@@ -149,19 +175,20 @@ globalThis.fetch = async (url, options = {}) => {
     fixture.researchRequested.resolve();
     return response;
   }
-  assert.equal(body.stream, true);
   assert.equal(body.tools, undefined);
   assert.equal(body.text?.format?.type, "json_schema");
   assert.equal(body.text.format.strict, true);
-  assert.equal(body.text.format.name, "metabloom_chat_response");
+  assert.equal(body.stream, fixture.kind === "ordinary");
+  assert.equal(body.text.format.name, fixture.kind === "ordinary" ? "metabloom_chat_response" : "metabloom_research_brief");
   assert.equal(body.max_output_tokens, fixture.kind === "ordinary" ? 2400 : 6000);
   if (fixture.kind !== "ordinary") {
     assert.equal(fixture.calls.length, 2);
     assert.deepEqual(body.reasoning, { effort: "low" });
-    assert(sourceList.every(({ url: sourceUrl }) => JSON.stringify(body.input).includes(sourceUrl)), "Synthesis must receive provider-attested sources.");
-    const evidence = body.input.find((item) => item.content.startsWith("Research evidence for the following question."));
-    assert(evidence && JSON.parse(evidence.content.slice(evidence.content.indexOf("\n") + 1)).notes.length <= 16000,
-      "The full report must not expand the paid writer context.");
+    const evidence = JSON.parse(body.input.at(-1).content);
+    assert(sourceList.every(({ id }) => evidence.report.sources.some((source) => source.id === id)), "Synthesis must retain canonical source IDs.");
+    assert(evidence.report.notes.length <= 16000, "The full report must not expand the paid writer context.");
+    assert.equal(evidence.temporalContext.timeZone, "UTC");
+    assert.equal(evidence.temporalContext.localDate, verificationDate);
   } else assert.equal(fixture.calls.length, 1);
   if (fixture.kind === "writer-failure") {
     fixture.writerRequested.resolve();
@@ -169,10 +196,18 @@ globalThis.fetch = async (url, options = {}) => {
       status: 429, headers: { "content-type": "application/json", "x-request-id": "fictional-writer-rate-limit" },
     });
   }
+  if (structured) {
+    const response = new Promise((resolve, reject) => {
+      options.signal.addEventListener("abort", () => { fixture.formatterAborted = true; reject(new Error("Fictional formatter cancelled.")); }, { once: true });
+      fixture.releaseWriter = () => resolve(briefResponse());
+    });
+    fixture.writerRequested.resolve();
+    return response;
+  }
   const response = new Response(new ReadableStream({
     start(controller) {
       fixture.releaseWriter = () => {
-        controller.enqueue(new TextEncoder().encode(writerEvents(fixture.kind === "ordinary" ? [ordinaryAnswer] : researchedParagraphs)));
+        controller.enqueue(new TextEncoder().encode(writerEvents([ordinaryAnswer])));
         controller.close();
       };
     },
@@ -214,6 +249,7 @@ server.on("request", async (request, response) => {
       assert(fixture, "Only registered fictional requests may reach the verification handler.");
       fixture.api = { actionMode: request.body.actionMode, allowMultiple: request.body.allowMultiple,
         streamText: request.body.streamText, streamResearchDetails: request.body.streamResearchDetails,
+        streamResearchBrief: request.body.streamResearchBrief, timeZone: request.body.timeZone,
         historyLength: request.body.history.length, at: Date.now() };
       let wire = "";
       const capture = (chunk) => {
@@ -254,9 +290,12 @@ const installObserver = () => {
       statuses: messages.map((message) => message.dataset.streamStatus),
       citations: messages.reduce((sum, message) => sum + message.querySelectorAll(".metabloom-chat__citation").length, 0),
       sourceGroups: messages.reduce((sum, message) => sum + message.querySelectorAll(".metabloom-chat__sources").length, 0),
+      briefs: messages.reduce((sum, message) => sum + message.querySelectorAll(".metabloom-research-brief").length, 0),
+      briefLinks: messages.reduce((sum, message) => sum + message.querySelectorAll(".metabloom-research-brief a").length, 0),
     };
     if (row.chars && row.researchPhase) audit.earlyText = true;
     if (row.sourceGroups && row.statuses.some((status) => status !== "complete")) audit.earlySourceList = true;
+    if ((row.briefs || row.briefLinks) && (row.researchPhase || row.statuses.some((status) => status !== "complete"))) audit.earlyBrief = true;
     const serialized = JSON.stringify(row);
     if (serialized !== audit.last) {
       audit.rows.push({ at: performance.now(), ...row });
@@ -272,7 +311,7 @@ const installObserver = () => {
 const beginAudit = (page) => page.evaluate(() => {
   window.__researchVerification = {
     baseline: [...document.querySelectorAll('article[aria-label="Metabloom message"]')].map((node) => node.dataset.messageId),
-    rows: [], last: "", earlyText: false, earlySourceList: false,
+    rows: [], last: "", earlyText: false, earlySourceList: false, earlyBrief: false,
   };
 });
 const readAudit = (page) => page.evaluate(() => {
@@ -287,14 +326,15 @@ const completedCount = (page, count) => page.waitForFunction((expected) =>
   document.querySelectorAll('article[aria-label="Metabloom message"][data-stream-status="complete"]').length === expected
   && document.querySelector('.metabloom-chat')?.dataset.chatPhase === "ready", count);
 const snapshotFixture = (fixture) => ({ id: fixture.id, api: fixture.api, calls: fixture.calls,
-  status: fixture.status, wire: fixture.wire, researchAborted: fixture.researchAborted });
+  status: fixture.status, wire: fixture.wire, researchAborted: fixture.researchAborted,
+  formatterAborted: fixture.formatterAborted === true });
 
 let browser;
 let page;
 let activePageErrors = [];
 const requestedProfile = process.env.METABLOOM_VERIFY_PROFILE || "all";
 const captureScreenshots = process.env.METABLOOM_VERIFY_SCREENSHOTS === "1";
-assert(["all", "desktop", "mobile"].includes(requestedProfile), "METABLOOM_VERIFY_PROFILE must be all, desktop or mobile.");
+assert(["all", "desktop", "mobile", "narrow-mobile"].includes(requestedProfile), "METABLOOM_VERIFY_PROFILE must be all, desktop, mobile or narrow-mobile.");
 const report = { mode: "built UI and actual API handler with fictional localhost auth and mocked OpenAI only", captureScreenshots, scenarios: [] };
 try {
   await new Promise((resolve, reject) => {
@@ -308,9 +348,13 @@ try {
   for (const profile of [
     { id: "desktop", viewport: { width: 1280, height: 850 }, isMobile: false },
     { id: "mobile", viewport: { width: 375, height: 812 }, isMobile: true },
+    { id: "narrow-mobile", viewport: { width: 320, height: 812 }, isMobile: true },
   ].filter((profile) => requestedProfile === "all" || profile.id === requestedProfile)) {
+    // Viewport runs are independent verification sessions, not one user sending
+    // all fixture turns inside the local per-minute quota window.
+    handler._internals.localBuckets.clear();
     const context = await browser.newContext({ viewport: profile.viewport, isMobile: profile.isMobile,
-      hasTouch: profile.isMobile, deviceScaleFactor: 1, reducedMotion: "reduce" });
+      hasTouch: profile.isMobile, deviceScaleFactor: 1, reducedMotion: "reduce", timezoneId: "UTC" });
     await context.addCookies([{ name: "metabloom-research-fixture", value: "fictional-local-session", url: origin, httpOnly: true, sameSite: "Strict" }]);
     await context.route("**/*", (route) => new URL(route.request().url()).origin === origin ? route.continue() : route.abort());
     await context.addInitScript(installObserver);
@@ -328,7 +372,7 @@ try {
     const toggle = page.getByRole("checkbox", { name: "Deep Research", exact: true });
     const messages = page.locator('article[aria-label="Metabloom message"]');
 
-    const research = makeFixture(`${profile.id}-research`, "research", `Compare the fictional orchard sensor release and calibration study for the ${profile.id} fixture.`);
+    const research = makeFixture(`${profile.id}-research`, "research", `Give me a deep dive into the top 5 fictional orchard news stories today for the ${profile.id} fixture.`);
     await toggle.check();
     await beginAudit(page);
     await send(page, research.question);
@@ -349,32 +393,68 @@ try {
     assert.notEqual(progressStyle.color, progressStyle.background);
     assert(progressStyle.left >= 0 && progressStyle.right <= progressStyle.viewport);
     assert.equal(research.releaseResearch(), true);
-    await waitFor(research.writerRequested.promise, "schema-constrained synthesis request");
-    await page.getByText("Writing an answer from 2 cited sources.", { exact: true }).waitFor({ state: "visible" });
-    assert.equal(await messages.count(), 0, "Synthesis must stay private until verified text returns.");
+    await waitFor(research.writerRequested.promise, "schema-constrained brief request");
+    assert(research.readWire().some((event) => event.type === "research" && event.state === "synthesizing"));
+    assert.equal(await messages.count(), 0, "Synthesis must stay private until the brief validates.");
+    assert.equal(await page.locator(".metabloom-research-brief").count(), 0);
     research.releaseWriter();
     await waitFor(research.finished.promise, "completed research API handler");
     await completedCount(page, 1);
-    assert.equal(await messages.count(), 1, "Multiple research paragraphs must remain one reply bubble.");
-    assert.deepEqual(await messages.first().locator("p[data-segment-index]").allTextContents(), researchedParagraphs);
-    const citations = await messages.first().locator("a.metabloom-chat__citation").evaluateAll((nodes) => nodes.map((node) => ({
+    assert.equal(await messages.count(), 1, "The brief and its introduction must remain one reply bubble.");
+    const intro = research.wire.filter((event) => event.type === "segment").map((event) => event.response);
+    assert(intro.length > 0);
+    assert.deepEqual(await messages.first().locator("p[data-segment-index]").allTextContents(), intro);
+    const brief = messages.first().locator(".metabloom-research-brief");
+    assert.equal(await brief.getAttribute("data-coverage-status"), "partial");
+    assert.equal(await brief.getAttribute("data-research-brief-kind"), "news");
+    assert.equal(await brief.locator("h3").textContent(), "Fictional orchard news");
+    assert.equal(await brief.locator("h4").count(), 2);
+    assert.match(await brief.locator(".metabloom-research-brief__coverage").textContent(), /2 of 5 stories.*Partial coverage/s);
+    const briefOpening = await brief.locator("h3").evaluate((node) => {
+      const heading = node.getBoundingClientRect();
+      const transcript = node.closest(".metabloom-chat__messages").getBoundingClientRect();
+      return { top: heading.top, bottom: heading.bottom, transcriptTop: transcript.top, transcriptBottom: transcript.bottom };
+    });
+    assert(briefOpening.top >= briefOpening.transcriptTop && briefOpening.bottom <= briefOpening.transcriptBottom,
+      "A newly completed brief must open with its header inside the transcript viewport.");
+    if (captureScreenshots) await page.screenshot({ path: `${output}/${profile.id}-brief-opening.png`, timeout: 45000 });
+    const citations = await brief.locator(".metabloom-research-brief__overview a").evaluateAll((nodes) => nodes.map((node) => ({
       text: node.textContent, href: node.href, target: node.target, rel: node.rel, label: node.getAttribute("aria-label"),
     })));
     assert.deepEqual(citations, sourceList.map((source) => ({ text: `[${source.id}]`, href: source.url,
       target: "_blank", rel: "noopener noreferrer", label: `Source ${source.id}: ${source.title}` })));
-    assert.deepEqual(await messages.first().locator(".metabloom-chat__sources li a").allTextContents(), sourceList.map((source) => source.title));
-    assert.deepEqual(await messages.first().locator(".metabloom-chat__sources li a").evaluateAll((nodes) => nodes.map((node) => ({
+    assert.deepEqual(await brief.locator(".metabloom-research-brief__source-list li a").allTextContents(), sourceList.map((source) => source.title));
+    assert.deepEqual(await brief.locator(".metabloom-research-brief__source-list li a").evaluateAll((nodes) => nodes.map((node) => ({
       href: node.href, target: node.target, rel: node.rel,
     }))), sourceList.map((source) => ({ href: source.url, target: "_blank", rel: "noopener noreferrer" })));
     const researchAudit = await readAudit(page);
     assert.equal(researchAudit.earlyText, false, "Research text appeared before the scene returned.");
     assert.equal(researchAudit.earlySourceList, false);
-    assert(researchAudit.rows.some((row) => row.chars > 0 && row.chars < researchedParagraphs.join("").length), "The completed research should reveal a progressive text prefix.");
-    assert.deepEqual(research.calls.map((call) => call.phase), ["research", "writer"]);
+    assert.equal(researchAudit.earlyBrief, false, "Brief content or source links appeared before surfacing and completion.");
+    assert(researchAudit.rows.some((row) => row.chars > 0 && row.chars < intro.join("").length), "The completed research should reveal a progressive introduction.");
+    assert.deepEqual(research.calls.map((call) => call.phase), ["research", "brief"]);
     assert.deepEqual(research.wire.filter((event) => ["research", "sources"].includes(event.type)).map((event) => event.type === "research" ? event.state : event.type), ["searching", "sources", "synthesizing"]);
     assert.equal(research.wire.at(-1)?.type, "done");
     assert.equal(research.api.streamResearchDetails, true);
+    assert.equal(research.api.streamResearchBrief, true);
+    assert.equal(research.api.timeZone, "UTC");
     assert.equal(research.wire.filter((event) => event.type === "research_report_complete").length, 1);
+    assert.equal(research.wire.filter((event) => event.type === "research_brief_complete").length, 1);
+    const firstAnalysis = brief.locator(".metabloom-research-brief__item details").first();
+    const analysisSummary = firstAnalysis.locator(":scope > summary");
+    assert.equal(await firstAnalysis.getAttribute("open"), null);
+    await analysisSummary.focus();
+    await page.keyboard.press("Enter");
+    await firstAnalysis.locator(".metabloom-research-brief__depth").waitFor({ state: "visible" });
+    assert.notEqual(await firstAnalysis.getAttribute("open"), null, "Native summary must open from the keyboard.");
+    await page.keyboard.press("Enter");
+    await firstAnalysis.locator(".metabloom-research-brief__depth").waitFor({ state: "hidden" });
+    const briefGeometry = await brief.evaluate((node) => {
+      const rect = node.getBoundingClientRect();
+      return { left: rect.left, right: rect.right, width: rect.width, scrollWidth: node.scrollWidth, viewport: innerWidth };
+    });
+    assert(briefGeometry.left >= 0 && briefGeometry.right <= briefGeometry.viewport);
+    assert(briefGeometry.scrollWidth <= briefGeometry.width + 1, "Brief cards must not introduce horizontal overflow.");
     const fullResearch = messages.first().locator(".metabloom-chat__full-research");
     assert.equal(await fullResearch.getAttribute("open"), null, "The full report should start collapsed.");
     await fullResearch.locator("summary").click();
@@ -405,13 +485,13 @@ try {
     assert.equal(cancelled.releaseResearch(), false, "Cancelled research must reject a stale provider body.");
     await page.getByRole("button", { name: "Stop response", exact: true }).waitFor({ state: "detached" });
     assert.equal(await messages.count(), 1, "Stopping research must not add a stale assistant bubble.");
-    assert.equal(await page.locator(".metabloom-chat__sources").count(), 1, "Stopping research must not leak another source list.");
+    assert.equal(await page.locator(".metabloom-research-brief").count(), 1, "Stopping research must not leak another brief.");
     assert.deepEqual(cancelled.calls.map((call) => call.phase), ["research"]);
     assert(!cancelled.wire.some((event) => ["sources", "text_delta", "segment", "done"].includes(event.type)));
     const cancelledAudit = await readAudit(page);
-    assert(cancelledAudit.rows.every((row) => row.messageCount === 0 && row.sourceGroups === 0));
+    assert(cancelledAudit.rows.every((row) => row.messageCount === 0 && row.sourceGroups === 0 && row.briefs === 0));
 
-    const background = makeFixture(`${profile.id}-background`, "research", `Research the fictional orchard while this ${profile.id} tab is hidden.`);
+    const background = makeFixture(`${profile.id}-background`, "research", `Give me the top 5 fictional orchard news stories today while this ${profile.id} tab is hidden.`);
     await send(page, background.question);
     await waitFor(background.researchRequested.promise, "research before tab visibility changes");
     await page.evaluate(() => {
@@ -428,8 +508,9 @@ try {
       document.dispatchEvent(new Event("visibilitychange"));
     });
     await completedCount(page, 2);
-    assert.deepEqual(await messages.last().locator("p[data-segment-index]").allTextContents(), researchedParagraphs);
-    assert.equal(await messages.last().locator("a.metabloom-chat__citation").count(), 2);
+    assert.deepEqual(await messages.last().locator("p[data-segment-index]").allTextContents(), intro);
+    assert.equal(await messages.last().locator(".metabloom-research-brief__overview a").count(), 2);
+    assert.equal(await messages.last().locator(".metabloom-research-brief").getAttribute("data-coverage-status"), "partial");
     assert.equal(background.wire.at(-1)?.type, "done");
 
     const invalid = makeFixture(`${profile.id}-invalid`, "invalid", `Return an uncited fictional orchard research brief for ${profile.id}.`);
@@ -460,29 +541,26 @@ try {
     assert.equal(ordinary.api.actionMode, "auto");
     assert.equal(research.api.actionMode, "deep-research");
 
-    const writerFailed = makeFixture(`${profile.id}-writer-failed`, "writer-failure", `Preserve the fictional orchard report when the ${profile.id} short writer fails.`);
+    const writerFailed = makeFixture(`${profile.id}-writer-failed`, "writer-failure", `Preserve the fictional orchard report when the ${profile.id} brief formatter fails.`);
     await toggle.check();
     await send(page, writerFailed.question);
     await waitFor(writerFailed.researchRequested.promise, "research before writer failure");
     assert.equal(writerFailed.releaseResearch(), true);
-    await waitFor(writerFailed.writerRequested.promise, "failing short writer");
-    await waitFor(writerFailed.finished.promise, "writer error after completed report delivery");
-    const writerFailure = writerFailed.wire.at(-1);
-    assert.equal(writerFailure.type, "error");
-    assert.equal(writerFailure.code, "provider_rate_limited");
+    await waitFor(writerFailed.writerRequested.promise, "failing brief formatter");
+    await waitFor(writerFailed.finished.promise, "deterministic fallback after completed report delivery");
+    assert.equal(writerFailed.wire.at(-1).type, "done");
     assert.equal(writerFailed.wire.filter((event) => event.type === "research_report_complete").length, 1);
-    assert(!writerFailed.wire.some((event) => ["text_delta", "segment", "done"].includes(event.type)));
-    await page.getByText(new RegExp(writerFailure.requestRef)).waitFor({ state: "visible" });
-    await page.waitForFunction(() =>
-      document.querySelectorAll('article[aria-label="Metabloom message"]').length === 4
-      && document.querySelector('article[aria-label="Metabloom message"]:last-of-type')?.dataset.streamStatus === "error"
-      && document.querySelector('.metabloom-chat')?.dataset.chatPhase === "ready");
-    assert.equal(await messages.last().locator("p[data-segment-index]").count(), 0, "Writer failure must not manufacture short-answer text.");
+    assert(!writerFailed.wire.some((event) => ["research_brief_complete", "error"].includes(event.type)));
+    await completedCount(page, 4);
+    assert.equal(await messages.last().locator(".metabloom-research-brief").count(), 0);
+    assert.equal(await messages.last().locator("p[data-segment-index]").count(), 1);
+    assert.match(await messages.last().locator("p[data-segment-index]").textContent(), /research|report/i);
+    assert.equal(writerFailed.calls.length, 2, "Formatter failure must not cause a paid retry or legacy writer.");
     const retainedReport = messages.last().locator(".metabloom-chat__full-research");
     await retainedReport.locator("summary").click();
     await retainedReport.locator(".metabloom-chat__research-report-text").waitFor({ state: "visible" });
     assert.equal(await retainedReport.locator(".metabloom-chat__research-report-text").textContent(), displayedReport);
-    assert.deepEqual(writerFailed.calls.map((call) => call.phase), ["research", "writer"]);
+    assert.deepEqual(writerFailed.calls.map((call) => call.phase), ["research", "brief"]);
     await retainedReport.locator(":scope > summary").click();
     const geometry = await page.locator(".metabloom-chat__composer").evaluate((element) => {
       const rect = element.getBoundingClientRect();
@@ -493,12 +571,12 @@ try {
     assert.deepEqual(errors, []);
     assert.deepEqual(serverErrors, []);
     assert.deepEqual(unexpectedProviderRequests, []);
-    report.scenarios.push({ profile, reducedMotion: true, geometry, reportGeometry, displayedReportChars: displayedReport.length,
+    report.scenarios.push({ profile, reducedMotion: true, geometry, briefOpening, briefGeometry, reportGeometry, displayedReportChars: displayedReport.length,
       progressStyle, research: snapshotFixture(research),
       researchAudit, cancelled: snapshotFixture(cancelled), cancelledAudit, background: snapshotFixture(background),
       invalid: snapshotFixture(invalid), ordinary: snapshotFixture(ordinary), writerFailed: snapshotFixture(writerFailed), pageErrors: errors });
     fs.writeFileSync(`${output}/report.json`, JSON.stringify(report, null, 2));
-    console.log(`PASS ${profile.id}: long full report, bounded writer, writer-failure recovery, progress, citations, visibility, cancellation, ordinary recovery`);
+    console.log(`PASS ${profile.id}: dated partial brief, native keyboard disclosure, full report, bounded formatter, format-failure fallback, surfacing, citations, visibility, cancellation, ordinary recovery`);
     await context.close();
     page = null;
   }

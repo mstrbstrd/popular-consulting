@@ -1,6 +1,7 @@
 const { parseMetabloomChatEnvelope } = require("./metabloomEmoteProtocol");
 const { parseMetabloomResearchSources } = require("./metabloomResearchSources");
 const { parseMetabloomResearchReport } = require("./metabloomResearchReport");
+const { parseMetabloomResearchBrief } = require("./metabloomResearchBriefProtocol");
 const {
   METABLOOM_PROTOCOL_VERSION, METABLOOM_CHAT_PROTOCOL_VERSION,
   MAX_METABLOOM_EMOTE_SEGMENTS, MAX_METABLOOM_EMOTE_RESPONSE_CHARS, MAX_METABLOOM_EMOTE_TOTAL_CHARS,
@@ -14,6 +15,7 @@ const createMetabloomReplySession = ({ allowMultiple = false, onUpdate, onEmote 
   let status = "streaming";
   let sources = null;
   let researchDetails = null;
+  let researchBrief = null;
   const snapshot = () => {
     const visible = segments.map((segment) => ({ ...segment }));
     if (partialResponse !== null) visible.push({ response: partialResponse });
@@ -21,7 +23,8 @@ const createMetabloomReplySession = ({ allowMultiple = false, onUpdate, onEmote 
       emote: segments.at(-1)?.emote || "neutral", status,
       ...(sources ? { sources: sources.map((source) => ({ ...source })) } : {}),
       ...(researchDetails ? { researchDetails: { notes: researchDetails.notes,
-        sources: researchDetails.sources.map((source) => ({ ...source })) } } : {}) };
+        sources: researchDetails.sources.map((source) => ({ ...source })) } } : {}),
+      ...(researchBrief ? { researchBrief: parseMetabloomResearchBrief(researchBrief, { sources: researchDetails.sources }) } : {}) };
   };
   const appendText = (delta, index) => {
     if (status !== "streaming") return false;
@@ -71,8 +74,21 @@ const createMetabloomReplySession = ({ allowMultiple = false, onUpdate, onEmote 
       if (sources || segments.length || partialResponse !== null) throw new Error("Unexpected research sources.");
       const parsed = parseMetabloomResearchSources(value);
       if (!parsed) throw new Error("Invalid research sources.");
+      if (researchDetails && parsed.some((source) => {
+        const original = researchDetails.sources[source.id - 1];
+        return !original || original.url !== source.url || original.title !== source.title;
+      })) throw new Error("Research source map changed.");
       // Metadata alone must not create a reply or request the surfacing scene.
       sources = parsed;
+      return true;
+    },
+    attachResearchBrief(value) {
+      if (status !== "streaming") return false;
+      if (!researchDetails || !sources || researchBrief || segments.length || partialResponse !== null) throw new Error("Unexpected research brief.");
+      const parsed = parseMetabloomResearchBrief(value, { sources: researchDetails.sources });
+      if (!parsed) throw new Error("Invalid research brief.");
+      // Validated metadata stays behind the same surfacing gate as the answer.
+      researchBrief = parsed;
       return true;
     },
     append,

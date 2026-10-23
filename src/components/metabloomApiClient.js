@@ -19,6 +19,11 @@ export class MetabloomApiError extends Error {
 export const isMetabloomApiUnavailable = (error) => error instanceof MetabloomApiError
   && (error.code === "not_configured" || error.status === 404);
 
+const clientTimeZone = () => {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"; }
+  catch { return "UTC"; }
+};
+
 export const requestMetabloomResponse = async ({
   actionMode = "auto",
   allowMultiple = false,
@@ -33,11 +38,13 @@ export const requestMetabloomResponse = async ({
   onResearch,
   onResearchProgress,
   onResearchDetails,
+  onResearchBrief,
   onSources,
   onVisualOffer,
   optional = false,
   requestId,
   signal,
+  timeZone = clientTimeZone(),
 } = {}) => {
   if (!METABLOOM_ACTION_MODES.includes(actionMode)) {
     throw new MetabloomApiError("Unknown presentation mode.", { code: "invalid_request" });
@@ -62,7 +69,7 @@ export const requestMetabloomResponse = async ({
       credentials: "same-origin",
       headers: { "Content-Type": "application/json", Accept: "application/x-ndjson", "X-Metabloom-Visuals": "1", "X-Metabloom-Ui-Tools": "1" },
       body: JSON.stringify({ actionMode, allowMultiple: allowMultiple === true, streamText: true,
-        streamResearchProgress: true, streamResearchDetails: true, history, message, requestId,
+        streamResearchProgress: true, streamResearchDetails: true, streamResearchBrief: true, timeZone, history, message, requestId,
         ...(artifactContext ? { artifactContext } : {}) }),
       signal: controller.signal,
     });
@@ -74,6 +81,7 @@ export const requestMetabloomResponse = async ({
     const decoder = createMetabloomVisualStreamBridge(createMetabloomSegmentStreamDecoder({
       allowMultiple,
       allowResearchDetails: true,
+      allowResearchBrief: true,
       onError: (error) => {
         const code = error.code || "invalid_response";
         streamError = new MetabloomApiError(getMetabloomApiErrorMessage(code), {
@@ -100,6 +108,10 @@ export const requestMetabloomResponse = async ({
       onResearchDetails: (report) => {
         if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
         onResearchDetails?.(report);
+      },
+      onResearchBrief: (brief) => {
+        if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
+        onResearchBrief?.(brief);
       },
       onSources: (sources) => {
         if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });

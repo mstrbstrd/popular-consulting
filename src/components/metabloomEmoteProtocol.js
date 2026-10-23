@@ -11,12 +11,14 @@ const { METABLOOM_ACTION_IDS } = require("./metabloomDecisionMapping");
 const { parseMetabloomResearchSources } = require("./metabloomResearchSources");
 const { MAX_METABLOOM_RESEARCH_REPORT_BYTES, MAX_METABLOOM_RESEARCH_REPORT_CHUNK_CHARS,
   getMetabloomUtf8ByteLength, parseMetabloomResearchReport } = require("./metabloomResearchReport");
+const { MAX_METABLOOM_RESEARCH_BRIEF_BYTES, MAX_METABLOOM_RESEARCH_BRIEF_CHUNK_CHARS,
+  parseMetabloomResearchBrief } = require("./metabloomResearchBriefProtocol");
 const { METABLOOM_STREAM_ERROR_CODES, parseMetabloomRequestError, getMetabloomApiErrorMessage } = require("./metabloomRequestErrors");
 
 const MAX_SERIALIZED_CHARS = 24000;
 // Allow bounded NDJSON framing even when all 4,800 text characters arrive singly.
 const MAX_METABLOOM_STREAM_BYTES = 320000;
-const MAX_METABLOOM_RESEARCH_STREAM_BYTES = 2 * MAX_METABLOOM_RESEARCH_REPORT_BYTES;
+const MAX_METABLOOM_RESEARCH_STREAM_BYTES = 2 * (MAX_METABLOOM_RESEARCH_REPORT_BYTES + MAX_METABLOOM_RESEARCH_BRIEF_BYTES);
 const MAX_METABLOOM_RESEARCH_PROGRESS_CHARS = 200;
 const MAX_METABLOOM_RESEARCH_PROGRESS_EVENTS = 24;
 const isPlainObject = (value) => {
@@ -97,6 +99,7 @@ const cloneResearchReport = (report) => report ? { notes: report.notes, sources:
 const createMetabloomSegmentStreamDecoder = ({
   allowMultiple = true,
   allowResearchDetails = false,
+  allowResearchBrief = false,
   maxBufferChars = MAX_SERIALIZED_CHARS,
   onDone,
   onError,
@@ -107,6 +110,7 @@ const createMetabloomSegmentStreamDecoder = ({
   onResearch,
   onResearchProgress,
   onResearchDetails,
+  onResearchBrief,
   onSources,
 } = {}) => {
   const limit = Number.isInteger(maxBufferChars) && maxBufferChars > 0
@@ -132,6 +136,9 @@ const createMetabloomSegmentStreamDecoder = ({
   let researchReportChunks = [];
   let researchReportChars = 0;
   let researchDetails = null;
+  let researchBriefChunks = [];
+  let researchBriefChars = 0;
+  let researchBrief = null;
   let sources = null;
   const segments = [];
   const fail = (message, details = null) => {
@@ -231,6 +238,27 @@ const createMetabloomSegmentStreamDecoder = ({
       onResearchDetails?.(cloneResearchReport(researchDetails));
       return true;
     }
+    if (["research_brief_delta", "research_brief_complete"].includes(event?.type)) {
+      if (allowResearchBrief !== true || allowResearchDetails !== true || version !== METABLOOM_CHAT_PROTOCOL_VERSION
+        || action !== "deep-research" || researchState !== "synthesizing" || !researchDetails || !sources
+        || researchBrief !== null || segments.length || partialResponse !== null || textComplete) {
+        return fail("Invalid or out-of-order research brief.");
+      }
+      if (event.type === "research_brief_delta") {
+        if (!exactKeys(event, ["type", "index", "delta"]) || event.index !== researchBriefChunks.length
+          || typeof event.delta !== "string" || !event.delta.length || event.delta.length > MAX_METABLOOM_RESEARCH_BRIEF_CHUNK_CHARS
+          || researchBriefChars + event.delta.length > MAX_METABLOOM_RESEARCH_BRIEF_BYTES) return fail("Invalid research brief text.");
+        researchBriefChars += event.delta.length;
+        researchBriefChunks.push(event.delta);
+        return true;
+      }
+      if (!exactKeys(event, ["type"]) || !researchBriefChunks.length) return fail("Invalid research brief completion.");
+      researchBrief = parseMetabloomResearchBrief(researchBriefChunks.join(""), { sources: researchDetails.sources });
+      if (!researchBrief) return fail("Invalid research brief.");
+      researchBriefChunks = [];
+      onResearchBrief?.(parseMetabloomResearchBrief(researchBrief, { sources: researchDetails.sources }));
+      return true;
+    }
     if (event?.type === "sources") {
       if (!exactKeys(event, ["type", "sources"]) || version !== METABLOOM_CHAT_PROTOCOL_VERSION
         || action !== "deep-research" || researchState !== "searching" || sources !== null
@@ -240,6 +268,10 @@ const createMetabloomSegmentStreamDecoder = ({
       }
       const parsedSources = parseMetabloomResearchSources(event.sources);
       if (!parsedSources) return fail("Invalid research sources.");
+      if (researchDetails && parsedSources.some((source) => {
+        const original = researchDetails.sources[source.id - 1];
+        return !original || original.url !== source.url || original.title !== source.title;
+      })) return fail("Research source map changed.");
       sources = parsedSources;
       onSources?.(cloneResearchSources(sources));
       return true;
@@ -247,6 +279,7 @@ const createMetabloomSegmentStreamDecoder = ({
     if (event?.type === "text_delta") {
       if (!exactKeys(event, ["type", "index", "delta"]) || version !== METABLOOM_CHAT_PROTOCOL_VERSION
         || textComplete || event.index !== segments.length || typeof event.delta !== "string" || !event.delta.length
+        || (researchBriefChars > 0 && researchBrief === null)
         || (researchState !== null && researchState !== "synthesizing")
         || segments.length >= (allowMultiple ? MAX_METABLOOM_EMOTE_SEGMENTS : 1)) {
         return fail("Invalid or out-of-order text delta.");
@@ -291,6 +324,7 @@ const createMetabloomSegmentStreamDecoder = ({
         return fail("Research stream ended before synthesis.");
       }
       if (researchReportStarted && researchDetails === null) return fail("Research report was not completed.");
+      if (researchBriefChars > 0 && researchBrief === null) return fail("Research brief was not completed.");
       completed = true;
       // Only dispatch the final emote once the terminal record is verified.
       if (version === METABLOOM_CHAT_PROTOCOL_VERSION) onReaction?.({ phase: "response", emote: responseEmote });
@@ -302,6 +336,7 @@ const createMetabloomSegmentStreamDecoder = ({
     const expectedKeys = version === METABLOOM_CHAT_PROTOCOL_VERSION
       ? ["type", "index", "response"] : ["type", "index", "emote", "response"];
     if (!exactKeys(event, expectedKeys) || event.type !== "segment" || event.index !== segments.length
+      || (researchBriefChars > 0 && researchBrief === null)
       || (researchState !== null && researchState !== "synthesizing")
       || (version === METABLOOM_CHAT_PROTOCOL_VERSION && textComplete)) {
       return fail("Invalid or out-of-order stream segment.");
@@ -364,6 +399,7 @@ const createMetabloomSegmentStreamDecoder = ({
         inputEmote, responseEmote, textComplete, action, researchState,
         researchSummary, researchProgressCount,
         researchDetails: cloneResearchReport(researchDetails),
+        researchBrief: researchBrief ? parseMetabloomResearchBrief(researchBrief, { sources: researchDetails.sources }) : null,
         sources: cloneResearchSources(sources) };
     },
   });

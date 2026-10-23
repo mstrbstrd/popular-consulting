@@ -36,6 +36,15 @@ const openResearch = async () => {
   await tick(0);
   return screen.getByRole("group", { name: "Completed research" });
 };
+const expectRetainedReport = (research, report) => {
+  // The full report now renders semantic blocks. Keep its exact source text in
+  // the saved message while checking every displayed paragraph, including the end.
+  const text = research.querySelector(".metabloom-chat__research-report-text");
+  for (const paragraph of report.notes.split(/\n[ \t]*\n/)) expect(text).toHaveTextContent(paragraph.replace(/\s+/g, " ").trim());
+  const saved = window.__orbMessages().find((message) => message.role === "assistant"
+    && message.researchDetails?.notes === report.notes);
+  expect(saved?.researchDetails).toEqual(report);
+};
 let requests;
 let hiddenDescriptor;
 let matchMedia;
@@ -88,7 +97,7 @@ test.each([9, 65])("a completed report above 16000 characters with %s sources is
   expect(screen.getByText("Full research", { selector: "summary" }).parentElement).not.toHaveAttribute("open");
   expect(screen.queryByRole("group", { name: "Completed research" })).not.toBeInTheDocument();
   const research = await openResearch();
-  expect(research.querySelector(".metabloom-chat__research-report-text").textContent).toBe(original.notes);
+  expectRetainedReport(research, original);
   const citation = within(research).getByRole("link", { name: `Source ${sourceCount}: Research source ${sourceCount}` });
   expect(citation).toHaveAttribute("href", original.sources[sourceCount - 1].url);
   expect(citation).toHaveAttribute("target", "_blank");
@@ -138,7 +147,7 @@ test("writer failure preserves a completed report without manufacturing a short 
   expect(window.__orbMessages().find((message) => message.role === "assistant").content).toBe("");
   expect(window.__orbState().pending).toBe(false);
   const research = await openResearch();
-  expect(research.querySelector(".metabloom-chat__research-report-text").textContent).toBe(report.notes);
+  expectRetainedReport(research, report);
   expect(screen.getByRole("alert")).toHaveTextContent("The completed research is retained. Code: answer_invalid. Reference: a1b2c3d4e5f6.");
   expect(errorLog).toHaveBeenCalledWith("[Metabloom] Request failed", { code: "answer_invalid", requestRef: "a1b2c3d4e5f6", status: 200 });
   act(() => {
@@ -176,7 +185,7 @@ test.each(["held", "visible"])("a writer failure keeps the full report while tre
     expect(reply).toHaveTextContent(prefix);
     expect(reply).toHaveTextContent("Short answer incomplete");
   }
-  expect((await openResearch()).querySelector(".metabloom-chat__research-report-text").textContent).toBe(report.notes);
+  expectRetainedReport(await openResearch(), report);
 });
 
 test.each(["stop", "reset", "replacement", "deactivate", "unmount"])("%s rejects stale report callbacks and discards a still-held artifact", async (operation) => {
@@ -215,7 +224,7 @@ test("Stop preserves a completed report that is already safely displayed", async
   fireEvent.click(screen.getByRole("button", { name: "Stop response" }));
   expect(request.signal.aborted).toBe(true);
   expect(screen.getByRole("article", { name: "Metabloom message" })).toHaveTextContent("Research completed. The short answer was stopped.");
-  expect((await openResearch()).querySelector(".metabloom-chat__research-report-text").textContent).toBe(report.notes);
+  expectRetainedReport(await openResearch(), report);
   act(() => expect(request.onResearchDetails(report)).toBe(false));
 });
 
@@ -243,7 +252,7 @@ test.each(["answer", "writer failure"])("a report received while hidden remains 
   });
   await tick(200);
   expect(window.__orbState()).toMatchObject({ pending: false, sceneAction: "none" });
-  expect((await openResearch()).querySelector(".metabloom-chat__research-report-text").textContent).toBe(report.notes);
+  expectRetainedReport(await openResearch(), report);
   if (outcome === "answer") expect(request.signal.aborted).toBe(false);
 });
 
@@ -269,10 +278,30 @@ test("completed research survives conversation restoration and independent messa
   const saved = { messages: [{ id: "assistant-1", role: "assistant", content: answer, status: "complete",
     source: "model", segments: [{ response: answer }], researchDetails: report }] };
   render(<AppNavigationContext.Provider value={{ getToolState: () => saved }}><OrbSection /></AppNavigationContext.Provider>);
-  expect((await openResearch()).querySelector(".metabloom-chat__research-report-text").textContent).toBe(report.notes);
+  expectRetainedReport(await openResearch(), report);
   expect(window.__orbMessages()[0].researchDetails).toEqual(report);
   window.__orbMessages()[0].researchDetails.sources[0].url = "https://changed.example/";
   expect(window.__orbMessages()[0].researchDetails.sources[0].url).toBe(report.sources[0].url);
+});
+
+test("full research displays semantic headings and lists while preserving its exact saved source text", async () => {
+  const report = { ...reportFor(), notes: "# Research findings\n\nThe initial finding is supported [1].\n\n- A first supporting detail [1].\n- A second supporting detail [9].\n\n1. Check the published methods.\n2. Compare the final evidence [9].\n\nThe final qualification remains visible." };
+  const saved = { messages: [{ id: "assistant-1", role: "assistant", content: answer, status: "complete",
+    source: "model", segments: [{ response: answer }], researchDetails: report }] };
+  render(<AppNavigationContext.Provider value={{ getToolState: () => saved }}><OrbSection /></AppNavigationContext.Provider>);
+  const research = await openResearch();
+  expect(within(research).getByRole("heading", { name: "Research findings", level: 4 })).toBeInTheDocument();
+  const lists = within(research).getAllByRole("list");
+  expect(lists.map((list) => list.tagName)).toEqual(["UL", "OL"]);
+  expect(within(lists[0]).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+    "A first supporting detail [1].", "A second supporting detail [9].",
+  ]);
+  expect(within(lists[1]).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+    "Check the published methods.", "Compare the final evidence [9].",
+  ]);
+  expect(research).toHaveTextContent("The final qualification remains visible.");
+  expect(within(research).getAllByRole("link")).toHaveLength(4);
+  expect(window.__orbMessages()[0].researchDetails).toEqual(report);
 });
 
 test.each([

@@ -283,6 +283,19 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+.metabloom-chat__research-report-text p {
+  margin: 0 0 1rem;
+}
+.metabloom-chat__research-report-text h4 {
+  margin: 1.5rem 0 0.65rem;
+  font-size: 1.35rem;
+  line-height: 1.4;
+}
+.metabloom-chat__research-report-text ul,
+.metabloom-chat__research-report-text ol {
+  margin: 0 0 1rem;
+  padding-left: 1.6rem;
+}
 .metabloom-chat__bubble > .metabloom-chat__research-notice {
   margin-top: 0.9rem;
   color: var(--metabloom-chat-muted);

@@ -4,6 +4,7 @@ import {
   MAX_METABLOOM_EMOTE_TOTAL_CHARS,
 } from "./metabloomEmoteLibrary";
 import { MAX_METABLOOM_RESPONSE_CHARS } from "./metabloomResponseContract";
+import { parseMetabloomResearchBrief } from "./metabloomResearchBriefProtocol";
 
 export const RESEARCH_REVEAL_GRAPHEMES_PER_FRAME = 24;
 
@@ -16,7 +17,9 @@ const hasDisplayContent = (snapshot) => textLength(snapshot) > 0 || Boolean(snap
 const cloneSnapshot = (snapshot) => ({ ...snapshot, segments: snapshot.segments.map((segment) => ({ ...segment })),
   ...(snapshot.sources ? { sources: snapshot.sources.map((source) => ({ ...source })) } : {}),
   ...(snapshot.researchDetails ? { researchDetails: { notes: snapshot.researchDetails.notes,
-    sources: snapshot.researchDetails.sources.map((source) => ({ ...source })) } } : {}) });
+    sources: snapshot.researchDetails.sources.map((source) => ({ ...source })) } } : {}),
+  ...(snapshot.researchBrief && snapshot.researchDetails ? { researchBrief: parseMetabloomResearchBrief(snapshot.researchBrief,
+    { sources: snapshot.researchDetails.sources }) } : {}) });
 
 // The reply session remains the authority for parsing and final validation. This
 // view holds one bounded, coalesced target instead of retaining every tiny delta.

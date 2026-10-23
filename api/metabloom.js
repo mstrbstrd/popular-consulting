@@ -10,10 +10,13 @@ const { classifyMetabloomVisualIntent } = require("../src/components/metabloomVi
 const { getMetabloomVisualCapabilityResponse } = require("../src/components/metabloomVisualCapabilities");
 const { streamMetabloomProvider } = require("../server/metabloomProviderStream");
 const { conductMetabloomResearch, validateMetabloomResearchCitations } = require("../server/metabloomResearch");
+const { normalizeMetabloomResearchTimeZone, buildMetabloomResearchTemporalContext,
+  generateMetabloomResearchBrief } = require("../server/metabloomResearchBrief");
 const { createMetabloomProviderError, readMetabloomProviderError, providerRequestId } = require("../server/metabloomProviderErrors");
 const { METABLOOM_STREAM_ERROR_CODES } = require("../src/components/metabloomRequestErrors");
 const { MAX_METABLOOM_RESEARCH_SOURCES } = require("../src/components/metabloomResearchSources");
 const { MAX_METABLOOM_RESEARCH_REPORT_CHUNK_CHARS } = require("../src/components/metabloomResearchReport");
+const { MAX_METABLOOM_RESEARCH_BRIEF_CHUNK_CHARS, MAX_METABLOOM_RESEARCH_BRIEF_SOURCES } = require("../src/components/metabloomResearchBriefProtocol");
 const MAX_BODY_BYTES = 24000;
 const MAX_RESEARCH_WRITER_NOTES_CHARS = 16000;
 const localBuckets = new Map();
@@ -47,12 +50,15 @@ const parseBody = (request) => {
     const text = typeof request.body === "string" ? request.body : JSON.stringify(request.body);
     if (typeof text !== "string" || Buffer.byteLength(text, "utf8") > MAX_BODY_BYTES) return null;
     const value = JSON.parse(text);
-    if (!exactKeys(value, ["message"], ["requestId", "history", "allowMultiple", "streamText", "streamResearchProgress", "streamResearchDetails", "actionMode", "artifactContext"])) return null;
+    if (!exactKeys(value, ["message"], ["requestId", "history", "allowMultiple", "streamText", "streamResearchProgress", "streamResearchDetails", "streamResearchBrief", "timeZone", "actionMode", "artifactContext"])) return null;
     if (typeof value.message !== "string" || !value.message.trim() || value.message.length > 1600) return null;
     if (value.allowMultiple !== undefined && typeof value.allowMultiple !== "boolean") return null;
     if (value.streamText !== undefined && typeof value.streamText !== "boolean") return null;
     if (value.streamResearchProgress !== undefined && typeof value.streamResearchProgress !== "boolean") return null;
     if (value.streamResearchDetails !== undefined && typeof value.streamResearchDetails !== "boolean") return null;
+    if (value.streamResearchBrief !== undefined && typeof value.streamResearchBrief !== "boolean") return null;
+    if (value.streamResearchBrief === true && value.streamResearchDetails !== true) return null;
+    if (value.timeZone !== undefined && !normalizeMetabloomResearchTimeZone(value.timeZone)) return null;
     if (value.actionMode !== undefined && !METABLOOM_ACTION_MODES.includes(value.actionMode)) return null;
     if (value.requestId !== undefined && (typeof value.requestId !== "string" || !/^[a-zA-Z0-9-]{1,160}$/.test(value.requestId))) return null;
     if (value.artifactContext !== undefined) {
@@ -74,7 +80,8 @@ const parseBody = (request) => {
       total += item.content.length;
     }
     if (total > 16000) return null;
-    return { ...value, history, message: value.message.trim(), allowMultiple: value.allowMultiple === true };
+    return { ...value, history, message: value.message.trim(), allowMultiple: value.allowMultiple === true,
+      ...(value.timeZone !== undefined ? { timeZone: normalizeMetabloomResearchTimeZone(value.timeZone) } : {}) };
   } catch { return null; }
 };
 // The full report is delivered independently. The short writer receives whole
@@ -97,6 +104,65 @@ const selectResearchWriterEvidence = (report) => {
     hasCitation ||= citations.length > 0;
   }
   return hasCitation ? { notes: passages.join("\n\n"), sources } : null;
+};
+
+// Allocate bounded context across report sections before taking a second passage
+// from any section. Keep whole passages and original source IDs, including IDs
+// above eight. The complete report is streamed independently of this selection.
+const selectResearchBriefEvidence = (report) => {
+  if (report.notes.length <= MAX_RESEARCH_WRITER_NOTES_CHARS
+    && report.sources.length <= MAX_METABLOOM_RESEARCH_BRIEF_SOURCES) return report;
+  const knownIds = new Set(report.sources.map((source) => source.id));
+  const sections = [];
+  let section = null;
+  report.notes.split(/\n[ \t]*\n/).forEach((text, index) => {
+    if (!text.trim()) return;
+    const heading = /^#{1,6}\s+[^\n]+$/.test(text.trim());
+    const startsSection = heading || /^(?:#{1,6}\s+|\d+[.)]\s+)/.test(text.trim());
+    if (!section || startsSection) { section = { heading: heading ? text : "", passages: [], selected: false }; sections.push(section); }
+    if (heading) return;
+    const ids = [...new Set([...text.matchAll(/\[(\d+)\]/g)].map((match) => Number(match[1])))];
+    if (!ids.length || ids.some((id) => !knownIds.has(id))) return;
+    section.passages.push({ text, index, ids });
+  });
+  // Reports without headings still receive a turn per cited source group.
+  const groups = sections.length > 1 ? sections : [...(sections[0]?.passages || []).reduce((map, passage) => {
+    if (!map.has(passage.ids[0])) map.set(passage.ids[0], { heading: "", passages: [], selected: false });
+    map.get(passage.ids[0]).passages.push(passage);
+    return map;
+  }, new Map()).values()];
+  const selected = [], usedIds = new Set();
+  let length = 0;
+  const rounds = Math.max(0, ...groups.map((group) => group.passages.length));
+  for (let round = 0; round < rounds; round++) {
+    for (const group of groups) {
+      const passage = group.passages[round];
+      if (!passage) continue;
+      const text = !group.selected && group.heading ? `${group.heading}\n\n${passage.text}` : passage.text;
+      const nextLength = length + text.length + (selected.length ? 2 : 0);
+      const newIds = passage.ids.filter((id) => !usedIds.has(id));
+      if (nextLength > MAX_RESEARCH_WRITER_NOTES_CHARS || usedIds.size + newIds.length > MAX_METABLOOM_RESEARCH_BRIEF_SOURCES) continue;
+      selected.push({ text, index: passage.index });
+      passage.ids.forEach((id) => usedIds.add(id));
+      length = nextLength;
+      group.selected = true;
+    }
+  }
+  return selected.length ? { notes: selected.sort((a, b) => a.index - b.index).map((passage) => passage.text).join("\n\n"),
+    sources: report.sources.filter((source) => usedIds.has(source.id)) } : null;
+};
+
+const researchBriefIntroduction = (brief) => {
+  const { returnedCount, requestedCount, status } = brief.coverage;
+  const label = brief.kind === "news" ? "stories" : "findings";
+  if (!returnedCount) return "I could not establish enough evidence to include a finding under the requested requirements. The brief explains the coverage limit, and the full research is available below.";
+  const coverage = requestedCount === null ? `${returnedCount} ${label}` : `${returnedCount} of the ${requestedCount} requested ${label}`;
+  const introduction = status === "complete" ? `The research brief covers ${coverage}.` : `The research brief covers ${coverage}, with limitations shown below.`;
+  // Complete headlines provide bounded follow-up context without copying the
+  // full report into chat history. Every overview remains in the native brief.
+  const headlines = brief.items.map((item) => item.headline).join("; ");
+  return `${introduction}\n\n${headlines}`.length <= 1500
+    ? `${introduction}\n\n${headlines}` : `${introduction} Open each item for its analysis and supporting evidence.`;
 };
 const readBoundedJson = async (response, limit) => {
   let text;
@@ -186,6 +252,7 @@ const handler = async (request, response) => {
   const capabilityResponse = getMetabloomVisualCapabilityResponse(visualIntent, {
     enabled: nativeVisualsAvailable && request.headers?.["x-metabloom-ui-tools"] === "1"
       && process.env.METABLOOM_UI_TOOLS_ENABLED !== 'false',
+    researchBriefEnabled: body.streamResearchBrief === true && providerConfigured,
   });
   // A tool-capable client must not silently route an explicit native UI request
   // through the ordinary text writer. Old clients without this capability header
@@ -268,8 +335,9 @@ const handler = async (request, response) => {
     const presentationAction = body.actionMode === "auto"
       ? (await inputDecisionPromise).action : body.actionMode || "none";
     if (controller.signal.aborted || response.destroyed || request.aborted) throw new Error("Cancelled");
-    let research, researchReport;
+    let research, researchReport, researchBrief, temporalContext;
     let useResearchIntro = false;
+    let useStructuredResearch = false;
     if (presentationAction === "deep-research") {
       // One absolute deadline covers quota, search, synthesis and final reaction.
       // Progress does not reset it. Search also has its own two-minute ceiling.
@@ -277,8 +345,9 @@ const handler = async (request, response) => {
       await initialReactionPromise;
       await sendStreamEvent({ type: "research", state: "searching" });
       stage = "research";
+      temporalContext = buildMetabloomResearchTemporalContext({ message, timeZone: body.timeZone || "UTC", now: startedAt });
       researchReport = await conductMetabloomResearch({
-        message, history: body.history, signal: controller.signal, requestRef,
+        message, history: body.history, signal: controller.signal, requestRef, temporalContext,
         onProgress: body.streamResearchProgress === true
           ? (progress) => sendStreamEvent({ type: "research_progress", ...progress }) : undefined,
       });
@@ -294,18 +363,47 @@ const handler = async (request, response) => {
       }
       research = selectResearchWriterEvidence(researchReport);
       useResearchIntro = research === null;
+      useStructuredResearch = body.streamResearchBrief === true;
       if (!research) research = { notes: "", sources: researchReport.sources.slice(0, MAX_METABLOOM_RESEARCH_SOURCES) };
       await sendStreamEvent({ type: "sources", sources: research.sources });
       await sendStreamEvent({ type: "research", state: "synthesizing" });
       if (body.streamResearchProgress === true) {
-        await sendStreamEvent({ type: "research_progress", summary: useResearchIntro
+        await sendStreamEvent({ type: "research_progress", summary: useStructuredResearch
+          ? "Preparing the research brief and checking its evidence and coverage."
+          : useResearchIntro
           ? "Preparing the completed research report."
           : `Writing an answer from ${research.sources.length} cited ${research.sources.length === 1 ? "source" : "sources"}.` });
       }
       armDeadline(Math.min(startedAt + 175000, Date.now() + 45000));
     }
     let finalReply;
-    if (useResearchIntro) {
+    if (useStructuredResearch) {
+      // This replaces the ordinary research writer. A format/provider failure
+      // preserves the paid report and never starts another writer or search.
+      const evidence = selectResearchBriefEvidence(researchReport);
+      if (evidence) {
+        stage = "research_brief";
+        try {
+          researchBrief = await generateMetabloomResearchBrief({ message, history: body.history, report: evidence,
+            temporalContext, signal: controller.signal, requestRef });
+        } catch (error) {
+          if (controller.signal.aborted || response.destroyed || request.aborted) throw error;
+          console.info(JSON.stringify({ event: "metabloom_research_brief_fallback", requestRef,
+            code: METABLOOM_STREAM_ERROR_CODES.includes(error?.code) ? error.code : "answer_invalid" }));
+        }
+      }
+      if (controller.signal.aborted || response.destroyed || request.aborted) throw new Error("Cancelled");
+      if (researchBrief) {
+        const serialized = JSON.stringify(researchBrief);
+        for (let offset = 0, index = 0; offset < serialized.length; offset += MAX_METABLOOM_RESEARCH_BRIEF_CHUNK_CHARS, index++) {
+          await sendStreamEvent({ type: "research_brief_delta", index, delta: serialized.slice(offset, offset + MAX_METABLOOM_RESEARCH_BRIEF_CHUNK_CHARS) });
+        }
+        await sendStreamEvent({ type: "research_brief_complete" });
+      }
+      finalReply = { version: METABLOOM_CHAT_PROTOCOL_VERSION, segments: [{ response: researchBrief
+        ? researchBriefIntroduction(researchBrief)
+        : "The full research completed, but I could not prepare the structured brief. Open Full research below to read the report and its sources." }] };
+    } else if (useResearchIntro) {
       // A completed report is useful even when no whole cited passage fits the
       // small writer context. Deliver it without another generation request.
       finalReply = { version: METABLOOM_CHAT_PROTOCOL_VERSION, segments: [{ response: body.streamResearchDetails === true
@@ -316,7 +414,8 @@ const handler = async (request, response) => {
       const schema = JSON.parse(JSON.stringify(METABLOOM_CHAT_RESPONSE_SCHEMA));
       schema.properties.segments.maxItems = body.allowMultiple ? 4 : 1;
       const instructions = buildMetabloomChatSystemPrompt({ allowMultiple: body.allowMultiple, presentationAction,
-        researchEnabled: Boolean(research), visualMode: nativeVisualsAvailable ? visualIntent.mode : "disabled" })
+        researchEnabled: Boolean(research), visualMode: nativeVisualsAvailable ? visualIntent.mode : "disabled",
+        researchBriefEnabled: body.streamResearchBrief === true })
         + (researchReport && research !== researchReport
           ? "\n\nThe research evidence is a selection of complete passages from a larger report. Summarize only the supplied findings and do not imply exhaustive coverage."
             + (body.streamResearchDetails === true ? " The full research report is available separately below the short answer." : "")
@@ -374,7 +473,9 @@ const handler = async (request, response) => {
     await initialReactionPromise;
     if (controller.signal.aborted || response.destroyed) return;
     if (research) {
-      validateMetabloomResearchCitations(finalReply, research.sources);
+      // Structured-brief introductions are fixed application text and titles
+      // from the validated brief. Factual summaries carry their own citations.
+      if (!useStructuredResearch) validateMetabloomResearchCitations(finalReply, research.sources);
       for (const [index, segment] of finalReply.segments.entries()) {
         if (body.streamText === true) await sendStreamEvent({ type: "text_delta", index, delta: segment.response });
         await sendStreamEvent({ type: "segment", index, ...segment });
@@ -385,7 +486,7 @@ const handler = async (request, response) => {
     // OpenAI has completed successfully. Its 25-second generation deadline must
     // not abort an otherwise good reply during Jev's separately bounded final choice.
     if (!research) clearTimeout(timeout);
-    const canVisualize = nativeVisualsAvailable && !useResearchIntro
+    const canVisualize = nativeVisualsAvailable && !useResearchIntro && !useStructuredResearch
       && ["optional", "requested"].includes(visualIntent.mode);
     const assistantResponse = finalReply.segments.map((segment) => segment.response).join("\n\n");
     const finalOptions = {
@@ -452,4 +553,5 @@ const handler = async (request, response) => {
   }
 };
 module.exports = handler;
-module.exports._internals = { parseBody, requestOriginIsAllowed, consumeRateLimit, configured, localBuckets };
+module.exports._internals = { parseBody, requestOriginIsAllowed, consumeRateLimit, configured, localBuckets,
+  selectResearchBriefEvidence, researchBriefIntroduction };

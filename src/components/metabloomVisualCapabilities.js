@@ -26,13 +26,14 @@ const unsupported = Object.freeze({
   animation: 'Custom generated animations are not supported by this visual tool. The Orb has its own existing reactions and scenes.',
 });
 
-function getMetabloomVisualCapabilityResponse(intent, { enabled = false } = {}) {
+function getMetabloomVisualCapabilityResponse(intent, { enabled = false, researchBriefEnabled = false } = {}) {
   if (!intent || typeof intent !== 'object' || Array.isArray(intent)) return null;
   switch (intent.mode) {
     case 'capabilities':
-      return enabled === true
+      return (enabled === true
         ? `I can display ${formats}. You can inspect exact chart values, select pie categories, and adjust calculator fields or sliders to update results locally. Maps, dashboards, arbitrary app UIs and file exports are not supported.`
-        : `${unavailable} The implemented formats, when available, are ${formats}.`;
+        : `${unavailable} The implemented formats, when available, are ${formats}.`)
+        + (researchBriefEnabled === true ? ' Deep Research can also return an expandable research brief with cited findings, dates, analysis, uncertainty and coverage limits.' : '');
     case 'unsupported': {
       const explanation = typeof intent.unsupportedKind === 'string' && Object.prototype.hasOwnProperty.call(unsupported, intent.unsupportedKind)
         ? unsupported[intent.unsupportedKind] : 'That visual format is not supported in this interface.';
@@ -49,12 +50,15 @@ function getMetabloomVisualCapabilityResponse(intent, { enabled = false } = {}) 
   }
 }
 
-function buildMetabloomVisualCapabilityPrompt({ visualMode = 'disabled', visualToolResult = false } = {}) {
+function buildMetabloomVisualCapabilityPrompt({ visualMode = 'disabled', visualToolResult = false, researchBriefEnabled = false } = {}) {
   const available = visualMode === 'optional' || visualMode === 'requested';
   return [
     'Authoritative native visual capability inventory. These are the only implemented visual formats and controls:',
     ...Object.entries(METABLOOM_VISUAL_CAPABILITIES).map(([kind, value]) => `${kind}: ${value.description}`),
     'This inventory is a closed list. There are no maps, static or interactive, geocoding, neighborhood layers, satellite views, file exports, attachments, standalone dashboards, arbitrary app UIs, generated images or custom generated animations in this visual tool. Do not offer unimplemented formats or controls. The Orb\'s existing reactions and scenes are separate from generated components.',
+    researchBriefEnabled
+      ? 'Separately, the Deep Research route can return a native expandable research brief with findings, supporting citations, dates, analysis and coverage limitations. This is an implemented reading surface, not an arbitrary UI or a saved file. Describe its availability when relevant, but only a completed research result establishes what was produced. It does not grant browsing tools to an ordinary conversation turn.'
+      : 'No structured research-brief capability is negotiated for this request.',
     available
       ? 'A native visual route is available for this request. For a clear supported task, use sensible defaults and disclose illustrative assumptions. Ask one focused question only when an essential missing input would otherwise make the result invalid or misleading.'
       : visualMode === 'text_only'

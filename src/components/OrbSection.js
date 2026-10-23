@@ -5,6 +5,7 @@ import { METABLOOM_HOOD_SEQUENCE } from "./metabloomUnderHood";
 import MetabloomAvatar from "./MetabloomAvatar";
 import MetabloomReactionPanel from "./MetabloomReactionPanel";
 import MetabloomResearchStatus from "./MetabloomResearchStatus";
+import MetabloomResearchBrief from "./MetabloomResearchBrief";
 import { METABLOOM_SCENE_TRANSITION_SECONDS } from "./metabloomSceneTransition";
 import {
   METABLOOM_ACTIONS,
@@ -34,6 +35,7 @@ import { METABLOOM_REQUEST_ERROR_MESSAGES, parseMetabloomRequestRef } from "./me
 import { METABLOOM_TOOL_TURN_TIMEOUT_MS } from "./metabloomVisualProtocol";
 import { parseMetabloomResearchSources } from "./metabloomResearchSources";
 import { parseMetabloomResearchReport } from "./metabloomResearchReport";
+import { parseMetabloomResearchBrief } from "./metabloomResearchBriefProtocol";
 import { streamMetabloomDemoResponse } from "./metabloomDemoStream";
 import "./OrbSection.css";
 import "./OrbEmoteDemos.css";
@@ -348,9 +350,14 @@ const cloneActionChain = (actionChain = []) =>
     talking,
   }));
 
-const cloneMessage = ({ id, role, content, actionChain = [], source, emote, segments = [], status, sources, researchDetails }) => {
-  const researchSources = parseMetabloomResearchSources(sources);
+const cloneMessage = ({ id, role, content, actionChain = [], source, emote, segments = [], status, sources, researchDetails, researchBrief }) => {
+  let researchSources = parseMetabloomResearchSources(sources);
   const researchReport = role === "assistant" ? parseMetabloomResearchReport(researchDetails) : null;
+  if (researchReport && researchSources?.some((source) => {
+    const original = researchReport.sources[source.id - 1];
+    return !original || original.url !== source.url || original.title !== source.title;
+  })) researchSources = null;
+  const brief = researchReport ? parseMetabloomResearchBrief(researchBrief, { sources: researchReport.sources }) : null;
   return {
     id,
     emote,
@@ -362,8 +369,27 @@ const cloneMessage = ({ id, role, content, actionChain = [], source, emote, segm
     source,
     ...(researchSources ? { sources: researchSources } : {}),
     ...(researchReport ? { researchDetails: researchReport } : {}),
+    ...(brief ? { researchBrief: brief } : {}),
   };
 };
+
+// Render a small, non-executable subset of report formatting. Links still come
+// exclusively from the canonical citation map, never Markdown or model HTML.
+const renderMetabloomResearchBlocks = (report) => report.notes.split(/\n[ \t]*\n/).map((block, index) => {
+  const lines = block.trim().split("\n");
+  const heading = lines[0]?.match(/^#{1,6}\s+(.+)$/);
+  if (heading) return <React.Fragment key={index}>
+    <h4>{renderMetabloomResearchText(heading[1], report.sources)}</h4>
+    {lines.length > 1 && <p>{renderMetabloomResearchText(lines.slice(1).join("\n"), report.sources)}</p>}
+  </React.Fragment>;
+  if (lines.every((line) => /^[-*]\s+/.test(line))) return <ul key={index}>
+    {lines.map((line, lineIndex) => <li key={lineIndex}>{renderMetabloomResearchText(line.replace(/^[-*]\s+/, ""), report.sources)}</li>)}
+  </ul>;
+  if (lines.every((line) => /^\d+[.)]\s+/.test(line))) return <ol key={index}>
+    {lines.map((line, lineIndex) => <li key={lineIndex} value={Number(line.match(/^\d+/)[0])}>{renderMetabloomResearchText(line.replace(/^\d+[.)]\s+/, ""), report.sources)}</li>)}
+  </ol>;
+  return <p key={index}>{renderMetabloomResearchText(block, report.sources)}</p>;
+});
 
 const renderMetabloomResearchText = (text, sources) => {
   if (!sources?.length) return text;
@@ -385,7 +411,7 @@ const MetabloomFullResearch = ({ report }) => {
       <summary>Full research</summary>
       {expanded && (
         <div className="metabloom-chat__research-report" role="group" aria-label="Completed research">
-          <p className="metabloom-chat__research-report-text">{renderMetabloomResearchText(report.notes, report.sources)}</p>
+          <div className="metabloom-chat__research-report-text">{renderMetabloomResearchBlocks(report)}</div>
           <details className="metabloom-chat__sources" onToggle={(event) => setSourcesExpanded(event.currentTarget.open)}>
             <summary>Research sources ({report.sources.length})</summary>
             {sourcesExpanded && (
@@ -470,6 +496,7 @@ const OrbSection = ({
   const composerRef = React.useRef(null);
   const composerAreaRef = React.useRef(null);
   const followLatestRef = React.useRef(true);
+  const surfacedBriefScrollRef = React.useRef(null);
   const reactionPlayerRef = React.useRef(null);
   const thinkingTimerRef = React.useRef(0);
   const activityPreviewTimerRef = React.useRef(0);
@@ -508,7 +535,7 @@ const OrbSection = ({
   const [resetVersion, setResetVersion] = React.useState(0);
   const [sequenceId, setSequenceId] = React.useState(null);
   const [fieldState, setFieldState] = React.useState("forming");
-  const [messages, setMessages] = React.useState(savedConversation?.messages || initialMessages);
+  const [messages, setMessages] = React.useState(() => (savedConversation?.messages || initialMessages).map(cloneMessage));
   const messagesRef = React.useRef(messages);
   const [draft, setDraft] = React.useState(savedConversation?.draft || '');
   const [pending, setPending] = React.useState(false);
@@ -1070,12 +1097,13 @@ const OrbSection = ({
   );
 
   const appendMessage = React.useCallback(
-    (role, content, actionChain = [], source = "interface", emote = null, segments = [], status = "complete", sources = null, researchDetails = null) => {
+    (role, content, actionChain = [], source = "interface", emote = null, segments = [], status = "complete", sources = null, researchDetails = null, researchBrief = null) => {
       const message = {
         id: `${role}-${++messageCounterRef.current}`, role, content, emote,
         actionChain: cloneActionChain(actionChain), source, segments, status,
         ...(sources ? { sources: sources.map((item) => ({ ...item })) } : {}),
         ...(researchDetails ? { researchDetails } : {}),
+        ...(researchBrief ? { researchBrief } : {}),
       };
       publishMessages([...messagesRef.current.slice(-(MAX_CHAT_MESSAGES - 1)), message]);
       return message;
@@ -1145,7 +1173,7 @@ const OrbSection = ({
         completeActivity();
         window.clearTimeout(thinkingTimerRef.current);
         thinkingTimerRef.current = 0;
-        messageId = appendMessage("assistant", snapshot.content, [], replySource, snapshot.emote, snapshot.segments, snapshot.status, snapshot.sources, snapshot.researchDetails).id;
+        messageId = appendMessage("assistant", snapshot.content, [], replySource, snapshot.emote, snapshot.segments, snapshot.status, snapshot.sources, snapshot.researchDetails, snapshot.researchBrief).id;
       } else {
         publishMessages(messagesRef.current.map((message) => message.id === messageId ? { ...message, ...snapshot, source: replySource } : message));
       }
@@ -1180,6 +1208,7 @@ const OrbSection = ({
     };
     const session = Object.freeze({
       attachResearchDetails: validationSession.attachResearchDetails,
+      attachResearchBrief: validationSession.attachResearchBrief,
       attachSources: validationSession.attachSources,
       appendText: (delta, index) => deliver("delta", () => validationSession.appendText(delta, index)),
       append: (segment, index) => deliver("segment", () => validationSession.append(segment, index)),
@@ -1566,6 +1595,14 @@ const OrbSection = ({
         activeRequest.researchDetailsReceived = true;
         return true;
       };
+      const onResearchBrief = (brief) => {
+        if (!current() || activeRequest.action !== "deep-research" || activeRequest.researchState !== "synthesizing"
+          || !activeRequest.researchDetailsReceived || !activeRequest.sourcesReceived || activeRequest.researchBriefReceived
+          || session.snapshot().segments.length) return false;
+        try { if (!session.attachResearchBrief(brief)) return false; } catch { return false; }
+        activeRequest.researchBriefReceived = true;
+        return true;
+      };
       const onToolActivity = (phase) => {
         if (!current() || !['start', 'complete'].includes(phase)) return false;
         setToolPending(phase === 'start');
@@ -1577,7 +1614,7 @@ const OrbSection = ({
       };
       const request = {
         requestId, message, history, artifactContext, allowMultiple, actionMode: activeRequest.actionMode, onToolActivity,
-        signal: controller.signal, onTextDelta, onSegment, onReaction, onAction, onResearch, onResearchProgress, onResearchDetails, onSources,
+        signal: controller.signal, onTextDelta, onSegment, onReaction, onAction, onResearch, onResearchProgress, onResearchDetails, onResearchBrief, onSources,
         onActivity: (event) => current() && reportActivity(requestId, event),
         reactionQuestion: METABLOOM_REACTION_QUESTION,
         resolveDecision: resolveMetabloomDecision,
@@ -1695,8 +1732,32 @@ const OrbSection = ({
   };
 
   React.useLayoutEffect(() => {
+    const transcript = transcriptRef.current;
+    const latestMessage = messages[messages.length - 1];
+    const brief = latestMessage?.researchBrief && latestMessage.status !== "streaming"
+      ? Array.from(transcript?.querySelectorAll(".metabloom-chat__message") || [])
+        .find((message) => message.dataset.messageId === latestMessage.id)
+        ?.querySelector(".metabloom-research-brief")
+      : null;
+    const newlySurfacedBrief = brief && surfacedBriefScrollRef.current !== latestMessage.id;
+    if (newlySurfacedBrief) surfacedBriefScrollRef.current = latestMessage.id;
     // Never move the whole page or pull a reader away from an earlier reply.
-    if (followLatestRef.current) scrollToLatest();
+    if (!followLatestRef.current) return;
+    if (newlySurfacedBrief) {
+      const style = window.getComputedStyle(transcript);
+      const mask = style.getPropertyValue("mask-image") || style.getPropertyValue("-webkit-mask-image");
+      // The transcript's existing fade becomes opaque at 38% of its height.
+      // Open a long brief below that fade, then let the reader control scrolling.
+      const inset = mask && mask !== "none" ? transcript.clientHeight * 0.4
+        : Math.max(16, parseFloat(style.scrollPaddingTop) || 0);
+      transcript.scrollTop = Math.max(0, transcript.scrollTop
+        + brief.getBoundingClientRect().top - transcript.getBoundingClientRect().top - inset);
+      const nearBottom = transcript.scrollHeight - transcript.scrollTop - transcript.clientHeight < 72;
+      followLatestRef.current = nearBottom;
+      setReadingEarlier(!nearBottom);
+      return;
+    }
+    scrollToLatest();
   }, [messages, pending, visibleResearchPhase, scenePhase, scrollToLatest]);
 
   const resizeComposer = React.useCallback(() => {
@@ -2035,6 +2096,7 @@ const OrbSection = ({
               {messages.map((message, messageIndex) => {
                 const sources = message.role === "assistant" ? parseMetabloomResearchSources(message.sources) : null;
                 const researchDetails = message.role === "assistant" ? parseMetabloomResearchReport(message.researchDetails) : null;
+                const researchBrief = researchDetails ? parseMetabloomResearchBrief(message.researchBrief, { sources: researchDetails.sources }) : null;
                 return (
                 <React.Fragment key={message.id}>
                   {statusBeforeReply && messageIndex === messages.length - 1 && researchStatus}
@@ -2067,7 +2129,8 @@ const OrbSection = ({
                           </React.Fragment>
                         ))
                         : message.content ? <p>{renderMetabloomResearchText(message.content, sources)}</p> : null}
-                      {sources && message.status === "complete" && (
+                      {researchBrief && message.status !== "streaming" && <MetabloomResearchBrief brief={researchBrief} sources={researchDetails.sources} />}
+                      {sources && !researchBrief && message.status === "complete" && (
                         <div className="metabloom-chat__sources" role="group" aria-label="Sources for this answer">
                           <span className="metabloom-chat__sources-heading">Sources</span>
                           <ol>

@@ -1,0 +1,220 @@
+import React from 'react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
+import { axe, toHaveNoViolations } from 'jest-axe';
+import MetabloomResearchBrief from './MetabloomResearchBrief';
+
+expect.extend(toHaveNoViolations);
+
+// Fictional evidence exercises presentation without asserting any real news.
+const sources = Array.from({ length: 9 }, (_, index) => ({
+  id: index + 1,
+  title: `Fictional source ${index + 1}`,
+  url: `https://news-${index + 1}.example.test/report`,
+}));
+const fixture = () => {
+  const usedIds = [1, 2, 3, 4, 9];
+  return {
+    version: 'metabloom-research-brief-v1', kind: 'news',
+    title: 'Five fictional developments', scope: 'Fictional regional stories requested for this week.',
+    asOf: '2026-10-24T00:30:00.000Z', timeZone: 'America/Toronto', localDate: '2026-10-23',
+    windowStart: '2026-10-19', windowEnd: '2026-10-23',
+    coverage: { requestedCount: 5, returnedCount: 5, status: 'complete', limitations: [] },
+    items: usedIds.map((sourceId, index) => ({
+      headline: `Fictional development ${index + 1}`,
+      summary: `The complete overview of fictional development ${index + 1} explains the reported event and its immediate consequence.`,
+      sourceIds: [sourceId],
+      background: [{ text: `The documented background for development ${index + 1}.`, sourceIds: [sourceId] }],
+      whyItMatters: `This analysis explains the possible implications of development ${index + 1}.`,
+      uncertainty: [`The longer-term effect of development ${index + 1} is not yet established.`],
+      watchNext: [`Watch for the next public update on development ${index + 1}.`],
+      developmentDate: '2026-10-23', scheduledDate: index === 0 ? '2026-11-02' : null,
+      dateEvidence: { sourceId, quote: `The fictional notice states that development ${index + 1} was announced on October 23, 2026.` },
+      evidenceStatus: index === 0 ? 'announced' : 'reported',
+    })),
+    sourceDetails: usedIds.map((sourceId, index) => ({
+      sourceId, publisher: sourceId === 9 ? '' : `Fictional publisher ${sourceId}`,
+      publishedDate: sourceId === 9 ? null : '2026-10-23',
+      dateEvidence: sourceId === 9 ? '' : 'Published October 23, 2026.',
+      sourceType: ['official', 'reporting', 'syndicated', 'analysis', 'unknown'][index],
+    })),
+  };
+};
+const renderBrief = (brief = fixture(), canonicalSources = sources) => render(
+  <div className="orb-page"><MetabloomResearchBrief brief={brief} sources={canonicalSources} /></div>
+);
+const openSourceEvidence = () => {
+  const summary = screen.getByText('Sources and evidence');
+  fireEvent.click(summary);
+  return within(screen.getByRole('list', { name: 'Sources for this research brief' }));
+};
+
+afterEach(() => document.documentElement.removeAttribute('data-theme'));
+
+test('shows all five complete overviews without expanding details and resolves citations above source eight', () => {
+  const brief = fixture();
+  brief.items[4].summary = `${'The fifth fictional development remains fully readable alongside its immediate context. '.repeat(10)}The final sentence is preserved.`;
+  const { container } = renderBrief(brief);
+  expect(screen.getByRole('region', { name: brief.title })).toHaveAttribute('data-coverage-status', 'complete');
+  expect(screen.getByText('5 of 5 stories')).toBeVisible();
+  expect(screen.getByText('Requested coverage complete')).toBeVisible();
+  const stories = within(screen.getByRole('list', { name: 'Covered stories' }));
+  expect(stories.getAllByRole('article')).toHaveLength(5);
+  brief.items.forEach(item => {
+    expect(screen.getByRole('heading', { name: item.headline, level: 4 })).toBeVisible();
+    expect(screen.getByText(item.summary)).toBeVisible();
+    expect(screen.getByText(item.whyItMatters)).not.toBeVisible();
+  });
+  expect(container.querySelectorAll('details[open]')).toHaveLength(0);
+  const lastOverview = screen.getByText(brief.items[4].summary);
+  const citation = within(lastOverview).getByRole('link', { name: 'Source 9: Fictional source 9' });
+  expect(citation).toHaveAttribute('href', sources[8].url);
+  expect(citation).toHaveAttribute('target', '_blank');
+  expect(citation).toHaveAttribute('rel', 'noopener noreferrer');
+});
+
+test('keeps background citations, labeled analysis, unknowns, next developments, and date excerpts in native disclosures', () => {
+  const brief = fixture();
+  renderBrief(brief);
+  const summary = screen.getAllByText('Analysis and context', { selector: 'summary' })[0];
+  expect(summary.tagName).toBe('SUMMARY');
+  expect(summary.parentElement.tagName).toBe('DETAILS');
+  fireEvent.click(summary);
+  const item = within(screen.getByRole('article', { name: brief.items[0].headline }));
+  expect(item.getByRole('heading', { name: 'Why it matters Analysis' })).toBeVisible();
+  expect(item.getByText(brief.items[0].whyItMatters)).toBeVisible();
+  const claim = item.getByText(brief.items[0].background[0].text);
+  expect(within(claim).getByRole('link', { name: 'Source 1: Fictional source 1' })).toHaveAttribute('href', sources[0].url);
+  expect(item.getByRole('heading', { name: 'What is uncertain' })).toBeVisible();
+  expect(item.getByText(brief.items[0].uncertainty[0])).toBeVisible();
+  expect(item.getByRole('heading', { name: 'Watch next' })).toBeVisible();
+  expect(item.getByText(brief.items[0].watchNext[0])).toBeVisible();
+  expect(item.getByText(brief.items[0].dateEvidence.quote)).toBeVisible();
+  fireEvent.click(summary);
+  expect(item.getByText(brief.items[0].whyItMatters)).not.toBeVisible();
+  expect(item.getByText(brief.items[0].summary)).toBeVisible();
+});
+
+test('displays the supplied timezone and historical covered interval independently of the as-of time', () => {
+  const brief = fixture();
+  brief.scope = 'Fictional developments during the first week of September.';
+  brief.windowStart = '2026-09-01'; brief.windowEnd = '2026-09-07';
+  brief.items.forEach(item => { item.developmentDate = '2026-09-03'; });
+  const { container } = renderBrief(brief);
+  expect(screen.getByText(brief.scope)).toBeVisible();
+  expect(screen.getByText('America/Toronto')).toBeVisible();
+  const asOf = container.querySelector('time[datetime="2026-10-24T00:30:00.000Z"]');
+  expect(asOf).toHaveTextContent('Oct 23, 2026, 20:30');
+  const interval = screen.getByText('Covered interval').parentElement;
+  expect(interval).toHaveTextContent('Sep 1, 2026 to Sep 7, 2026');
+  expect(interval).not.toHaveTextContent('Oct');
+  expect(container.querySelector('time[datetime="2026-09-03"]')).toHaveTextContent('Sep 3, 2026');
+  expect(container.querySelector('time[datetime="2026-11-02"]')).toHaveTextContent('Nov 2, 2026');
+});
+
+test('reports partial and unavailable coverage honestly without inventing missing stories', () => {
+  const brief = fixture();
+  brief.items = brief.items.slice(0, 3);
+  brief.sourceDetails = brief.sourceDetails.slice(0, 3);
+  brief.coverage = { requestedCount: 5, returnedCount: 3, status: 'partial', limitations: ['Only three dated developments were supported by the available evidence.'] };
+  const view = renderBrief(brief);
+  expect(screen.getByText('3 of 5 stories')).toBeVisible();
+  expect(screen.getByText('Partial coverage')).toBeVisible();
+  expect(screen.getByRole('list', { name: 'Coverage limitations' })).toHaveTextContent(brief.coverage.limitations[0]);
+  expect(screen.getAllByRole('article')).toHaveLength(3);
+  expect(screen.queryByText('Fictional development 4')).not.toBeInTheDocument();
+
+  const unavailable = { ...brief, items: [], sourceDetails: [], coverage: {
+    requestedCount: 5, returnedCount: 0, status: 'unavailable', limitations: ['The available sources did not establish developments in the requested interval.'],
+  } };
+  view.rerender(<div className="orb-page"><MetabloomResearchBrief brief={unavailable} sources={sources} /></div>);
+  expect(screen.getByText('0 of 5 stories')).toBeVisible();
+  expect(screen.getByText('Coverage unavailable')).toBeVisible();
+  expect(screen.getByText(unavailable.coverage.limitations[0])).toBeVisible();
+  expect(screen.queryByRole('article')).not.toBeInTheDocument();
+  expect(screen.queryByText('Sources and evidence')).not.toBeInTheDocument();
+});
+
+test('supports general research findings without applying news dates or story labels', () => {
+  const brief = fixture();
+  brief.kind = 'research'; brief.title = 'Five fictional research findings';
+  brief.coverage.requestedCount = null; brief.windowStart = null; brief.windowEnd = null;
+  renderBrief(brief);
+  expect(screen.getByText('Research brief')).toBeVisible();
+  expect(screen.getByText('5 findings')).toBeVisible();
+  expect(screen.getByText('Finding 5')).toBeVisible();
+  expect(screen.getByRole('list', { name: 'Research findings' })).toBeVisible();
+  expect(screen.queryByText('Covered interval')).not.toBeInTheDocument();
+  expect(screen.queryByText(/^Development:/)).not.toBeInTheDocument();
+  expect(screen.queryByText(/^Scheduled:/)).not.toBeInTheDocument();
+  expect(screen.queryByText('Story 1')).not.toBeInTheDocument();
+});
+
+test('source evidence preserves titles, publisher, dates, quoted provenance, and unknown metadata', () => {
+  renderBrief();
+  const evidence = openSourceEvidence();
+  expect(evidence.getAllByRole('listitem')).toHaveLength(5);
+  expect(evidence.getByRole('link', { name: 'Fictional source 1' })).toHaveAttribute('href', sources[0].url);
+  expect(evidence.getByText('Fictional publisher 1')).toHaveTextContent('news-1.example.test');
+  expect(evidence.getByText('Official source')).toBeVisible();
+  expect(evidence.getByText('Syndicated reporting')).toBeVisible();
+  expect(evidence.getAllByText('Published October 23, 2026.')).toHaveLength(4);
+  expect(evidence.getByText('news-9.example.test')).toBeVisible();
+  expect(evidence.getByText('Date not established')).toBeVisible();
+  expect(evidence.getByText('Source type not established')).toBeVisible();
+  expect(evidence.queryByText(/confidence|score/i)).not.toBeInTheDocument();
+});
+
+test('model-provided markup stays literal text and source links use canonical URLs', () => {
+  const brief = fixture();
+  brief.items[0].summary = '<img src=x onerror=alert(1)> is literal quoted text in this fictional overview.';
+  brief.items[0].background[0].text = '<script>alert(1)</script> is literal background text.';
+  const canonicalSources = sources.map(source => ({ ...source }));
+  canonicalSources[0].url = 'HTTPS://NEWS-1.EXAMPLE.TEST:443/report';
+  const { container } = renderBrief(brief, canonicalSources);
+  expect(screen.getByText(brief.items[0].summary)).toBeVisible();
+  expect(container.querySelector('img, script, iframe')).toBeNull();
+  expect(within(screen.getByText(brief.items[0].summary)).getByRole('link', { name: 'Source 1: Fictional source 1' })).toHaveAttribute('href', 'https://news-1.example.test/report');
+});
+
+// Keep unsafe URL fixtures literal to exercise the source trust boundary.
+// eslint-disable-next-line no-script-url
+test.each(['javascript:alert(1)', 'https://name:secret@example.test/report', 'https://example.test\\@attacker.test/report'])('rejects a dangerous source URL: %s', url => {
+  const invalidSources = sources.map(source => ({ ...source }));
+  invalidSources[0].url = url;
+  const { container } = renderBrief(fixture(), invalidSources);
+  expect(container.querySelector('.metabloom-research-brief')).toBeNull();
+  expect(screen.queryByRole('link')).not.toBeInTheDocument();
+});
+
+test.each([
+  ['unknown source ID', brief => { brief.items[0].sourceIds = [99]; }],
+  ['dishonest count', brief => { brief.coverage.returnedCount = 3; }],
+  ['invalid date', brief => { brief.items[0].developmentDate = '2026-02-30'; }],
+  ['unsupported model field', brief => { brief.items[0].confidence = 0.99; }],
+])('renders no brief for invalid presentation data: %s', (_, mutate) => {
+  const brief = fixture(); mutate(brief);
+  const { container } = renderBrief(brief);
+  expect(container.querySelector('.metabloom-research-brief')).toBeNull();
+});
+
+test('native disclosures remain expanded across theme changes without rebuilding the brief', () => {
+  const brief = fixture();
+  const view = renderBrief(brief);
+  const summary = screen.getAllByText('Analysis and context', { selector: 'summary' })[0];
+  expect(summary.tagName).toBe('SUMMARY');
+  expect(summary.parentElement.tagName).toBe('DETAILS');
+  fireEvent.click(summary);
+  expect(summary.parentElement).toHaveAttribute('open');
+  document.documentElement.setAttribute('data-theme', 'dark');
+  view.rerender(<div className="orb-page"><MetabloomResearchBrief brief={brief} sources={sources} /></div>);
+  expect(summary.parentElement).toHaveAttribute('open');
+  expect(screen.getByText(brief.items[0].whyItMatters)).toBeVisible();
+});
+
+test('the brief has accessible headings, links, and disclosures in both collapsed and expanded views', async () => {
+  const { container } = renderBrief();
+  expect(await axe(container)).toHaveNoViolations();
+  screen.getAllByText('Analysis and context', { selector: 'summary' }).forEach(summary => fireEvent.click(summary));
+  openSourceEvidence();
+  expect(await axe(container)).toHaveNoViolations();
+});
