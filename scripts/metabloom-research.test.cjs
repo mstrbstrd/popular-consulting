@@ -125,8 +125,8 @@ test("an incomplete auxiliary search, page or find preserves the completed cited
   }
 });
 
-test("terminal auxiliary records cannot substitute for completed research and valid citations", () => {
-  for (const [alter, expected] of [
+test("auxiliary statuses cannot substitute for completed research and valid citations", () => {
+  const invalidReports = [
     [(value) => { value.output[0].status = "incomplete"; }, { code: "research_no_sources", reason: "search_missing" }],
     [(value) => { value.status = "incomplete"; }, { code: "research_incomplete", reason: "response_not_completed" }],
     [(value) => { value.status = "failed"; }, { code: "research_incomplete", reason: "response_not_completed" }],
@@ -138,19 +138,31 @@ test("terminal auxiliary records cannot substitute for completed research and va
     [(value) => { value.output.at(-1).content[0].annotations = []; }, { code: "research_no_sources", reason: "citations_missing" }],
     [(value) => { value.output.at(-1).content[0].annotations[0].end_index = 1000; }, { code: "research_invalid_citations", reason: "citation_range_invalid" }],
     [(value) => { value.output.at(-1).content[0].annotations[0].url = "javascript:alert(1)"; }, { code: "research_invalid_citations", reason: "source_invalid" }],
-  ]) {
-    const value = document();
-    value.output.splice(1, 0, { type: "web_search_call", status: "incomplete", action: { type: "open_page", url: source.url } });
-    alter(value);
-    assert.throws(() => extractMetabloomResearch(value), expected);
+  ];
+  for (const status of ["incomplete", "in_progress", "searching", "future_status", undefined, null, {}]) {
+    for (const [alter, expected] of invalidReports) {
+      const value = document();
+      value.output.splice(1, 0, { type: "web_search_call", status, action: { type: "open_page", url: source.url } });
+      alter(value);
+      assert.throws(() => extractMetabloomResearch(value), expected);
+    }
   }
 });
 
-test("pending, missing and unknown auxiliary tool statuses remain invalid even beside valid evidence", () => {
+test("a validated final report survives residual auxiliary statuses without treating them as evidence", () => {
   for (const status of ["in_progress", "searching", "queued", "cancelled", "future_status", "", undefined, null, {}]) {
-    const value = document();
-    value.output.splice(1, 0, { type: "web_search_call", status, action: { type: "open_page", url: source.url } });
-    assert.throws(() => extractMetabloomResearch(value), { code: "research_incomplete", reason: "tool_not_completed" });
+    for (const action of [
+      { type: "search", query: "unfinished query", sources: [{ type: "url", url: "https://example.com/unverified" }] },
+      { type: "open_page", url: "https://example.com/unverified" },
+      { type: "find_in_page", url: "https://example.com/unverified", pattern: "unverified detail" },
+    ]) {
+      const value = document();
+      const auxiliary = { type: "web_search_call", action, ...(status === undefined ? {} : { status }) };
+      const original = structuredClone(auxiliary);
+      value.output.splice(1, 0, auxiliary);
+      assert.deepEqual(extractMetabloomResearch(value), { notes: "A verified fact. [1]", sources: [source] });
+      assert.deepEqual(auxiliary, original, "Accepting the report must not relabel residual tool records or manufacture sources");
+    }
   }
 });
 
@@ -186,6 +198,47 @@ test("six completed tools and a seventh incomplete record return paid evidence w
   const serialized = JSON.stringify(logs);
   for (const privateText of ["private-incomplete-query", "private.example", source.url, "A verified fact", "fixture-not-a-real-key"]) {
     assert.equal(serialized.includes(privateText), false);
+  }
+});
+
+test("synthetic seven-record research with five completed searches and a residual pending call preserves the final report", async (t) => {
+  configure();
+  const logs = [];
+  t.mock.method(console, "info", (value) => logs.push(JSON.parse(value)));
+  const value = document();
+  value.usage = { input_tokens: 26438, output_tokens: 5521, output_tokens_details: { reasoning_tokens: 3008 } };
+  // Match the observed counts; the pending status is a synthetic regression case,
+  // not a claim about the unavailable provider payload for this request reference.
+  value.output.splice(1, 0, ...Array.from({ length: 4 }, (_, index) => ({
+    id: `ws_search_${index}`, type: "web_search_call", status: "completed",
+    action: { type: "search", query: "private-completed-query", sources: [{ type: "url", url: source.url }] },
+  })), { id: "ws_open", type: "web_search_call", status: "completed", action: { type: "open_page", url: source.url } },
+  { id: "ws_residual", type: "web_search_call", status: "in_progress",
+    action: { type: "search", query: "private-pending-query", sources: [{ type: "url", url: "https://private.example/unverified" }] } });
+  let calls = 0;
+  global.fetch = async (_url, options) => {
+    calls++;
+    const body = JSON.parse(options.body);
+    assert.equal(body.max_tool_calls, 6);
+    assert.equal(body.max_output_tokens, 10000);
+    return asResponse(value);
+  };
+  assert.deepEqual(await conduct({ requestRef: "feeaa924ec38" }), { notes: "A verified fact. [1]", sources: [source] });
+  assert.equal(calls, 1);
+  assert.equal(logs.length, 1);
+  const [record] = logs;
+  assert.equal(record.outcome, "completed");
+  assert.equal(record.requestRef, "feeaa924ec38");
+  assert.equal(record.providerResponseStatus, "completed");
+  assert.equal(record.toolRecords, 7);
+  assert.equal(record.completedSearches, 5);
+  assert.equal(record.completedMessages, 1);
+  assert.equal(record.pendingToolRecords, 1);
+  assert.equal(record.unknownToolRecords, 0);
+  assert.deepEqual(record.toolStatusCounts, { completed: 6, failed: 0, incomplete: 0, in_progress: 1, searching: 0, unknown: 0 });
+  assert.deepEqual([record.inputTokens, record.outputTokens, record.reasoningTokens], [26438, 5521, 3008]);
+  for (const privateText of ["private-completed-query", "private-pending-query", "private.example", source.url, "A verified fact", "fixture-not-a-real-key"]) {
+    assert.equal(JSON.stringify(logs).includes(privateText), false);
   }
 });
 
@@ -561,22 +614,31 @@ test("usage diagnostics distinguish valid zero values from unavailable or invali
   assert.equal(JSON.stringify(logs).includes("private-usage-text"), false);
 });
 
-test("tool diagnostics count known states and keep unknown status contents out of logs", async (t) => {
+test("tool diagnostics retain residual states without exposing content or overriding report validation", async (t) => {
   configure();
   const logs = [];
   t.mock.method(console, "info", (value) => logs.push(JSON.parse(value)));
   const value = document();
   value.output.splice(1, 0, ...["failed", "incomplete", "in_progress", "searching", "secret-status https://private.example/query", null, {}, "__proto__"]
     .map((status) => ({ type: "web_search_call", status, action: { type: "open_page", url: "https://private.example/source" } })));
-  global.fetch = async () => asResponse(value);
-  await assert.rejects(conduct(), { code: "research_incomplete", reason: "tool_not_completed" });
-  assert.equal(logs.length, 1);
-  assert.equal(logs[0].providerResponseStatus, "completed");
-  assert.equal(logs[0].toolRecords, 9);
-  assert.deepEqual(logs[0].toolStatusCounts, { completed: 1, failed: 1, incomplete: 1, in_progress: 1, searching: 1, unknown: 4 });
-  assert.equal(logs[0].outcome, "failed");
-  assert.equal(logs[0].completedSearches, 1);
-  assert.equal(logs[0].completedMessages, 1);
+  let calls = 0;
+  global.fetch = async () => { calls++; return asResponse(value); };
+  assert.deepEqual(await conduct(), { notes: "A verified fact. [1]", sources: [source] });
+  assert.equal(calls, 1);
+  value.output.at(-1).content[0].annotations = [];
+  await assert.rejects(conduct(), { code: "research_no_sources", reason: "citations_missing" });
+  assert.equal(calls, 2, "Each explicit attempt uses one request; neither recovery nor validation failure may retry");
+  assert.equal(logs.length, 2);
+  assert.deepEqual(logs.map((record) => record.outcome), ["completed", "failed"]);
+  for (const record of logs) {
+    assert.equal(record.providerResponseStatus, "completed");
+    assert.equal(record.toolRecords, 9);
+    assert.deepEqual(record.toolStatusCounts, { completed: 1, failed: 1, incomplete: 1, in_progress: 1, searching: 1, unknown: 4 });
+    assert.equal(record.pendingToolRecords, 2);
+    assert.equal(record.unknownToolRecords, 4);
+    assert.equal(record.completedSearches, 1);
+    assert.equal(record.completedMessages, 1);
+  }
   const serialized = JSON.stringify(logs);
   for (const privateText of ["secret-status", "private.example", "__proto__", source.url, "fixture query"]) {
     assert.equal(serialized.includes(privateText), false);
@@ -591,6 +653,8 @@ test("unavailable response diagnostics stay null and unrecognized response statu
   await assert.rejects(conduct(), { code: "provider_unavailable" });
   assert.equal(logs[0].providerResponseStatus, null);
   assert.equal(logs[0].toolStatusCounts, null);
+  assert.equal(logs[0].pendingToolRecords, null);
+  assert.equal(logs[0].unknownToolRecords, null);
   assert.equal(logs[0].completedSearches, null);
   assert.equal(logs[0].completedMessages, null);
   const value = document();
@@ -637,13 +701,23 @@ test("missing search execution and missing citations produce distinct safe reaso
   await assert.rejects(conduct(), { code: "research_no_sources", reason: "citations_missing" });
 });
 
-test("truncated SSE never promotes tool activity or draft notes to completed evidence", async () => {
+test("truncated SSE never promotes tool records, completed message items or draft notes to a completed response", async () => {
   configure();
-  global.fetch = async () => asEventResponse([
-    { type: "response.web_search_call.completed", item_id: "ws_fixture", output_index: 0 },
-    { type: "response.output_text.delta", item_id: "msg_fixture", output_index: 1, content_index: 0, delta: "A plausible but unverified draft." },
-  ]);
-  await assert.rejects(conduct(), { code: "research_incomplete" });
+  for (const status of ["incomplete", "in_progress", "searching", "unknown", undefined]) {
+    let calls = 0;
+    global.fetch = async () => {
+      calls++;
+      return asEventResponse([
+        { type: "response.output_item.done", output_index: 0, item: document().output[0] },
+        { type: "response.output_item.done", output_index: 1, item: { type: "web_search_call", status,
+          action: { type: "open_page", url: "https://example.com/unfinished" } } },
+        { type: "response.output_text.delta", item_id: "msg_fixture", output_index: 2, content_index: 0, delta: "A plausible but unverified draft." },
+        { type: "response.output_item.done", output_index: 2, item: document().output[1] },
+      ]);
+    };
+    await assert.rejects(conduct(), { code: "research_incomplete", reason: "stream_ended_early" });
+    assert.equal(calls, 1);
+  }
 });
 
 test("provider error and failed terminal SSE events cannot become successful research", async () => {

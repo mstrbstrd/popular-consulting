@@ -71,12 +71,10 @@ const extractMetabloomResearch = (value) => {
   if (!calls.some((item) => item.status === "completed" && item.action?.type === "search")) {
     throw createMetabloomProviderError("research_no_sources", "search_missing");
   }
-  // An auxiliary tool can finish unsuccessfully while the overall response and
-  // cited report complete. Only known terminal tool states may pass this gate;
-  // they cannot substitute for the successful search or report validation.
-  if (calls.some((item) => !["completed", "failed", "incomplete"].includes(item.status))) {
-    throw createMetabloomProviderError("research_incomplete", "tool_not_completed");
-  }
+  // Auxiliary tool statuses do not determine whether the final report is usable.
+  // Only completed searches establish execution; the completed messages and
+  // citations below establish the report. Never promote residual tool metadata
+  // to evidence or discard validated output solely because of that metadata.
   const sources = [], sourceIds = new Map(), notes = [];
   for (const item of value.output) {
     if (item?.type !== "message") continue;
@@ -283,6 +281,8 @@ const conductMetabloomResearch = async ({ message, history = [], signal, onProgr
       providerResponseStatus: safeResponseStatus,
       toolRecords: toolRecords?.length ?? null,
       toolStatusCounts,
+      pendingToolRecords: toolStatusCounts ? toolStatusCounts.in_progress + toolStatusCounts.searching : null,
+      unknownToolRecords: toolStatusCounts?.unknown ?? null,
       completedSearches: toolRecords?.filter((item) => item.status === "completed" && item.action?.type === "search").length ?? null,
       completedMessages: output?.filter((item) => item?.type === "message" && item.status === "completed").length ?? null,
       inputTokens: count(completed?.usage?.input_tokens), outputTokens: count(completed?.usage?.output_tokens),

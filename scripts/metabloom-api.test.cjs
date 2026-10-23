@@ -58,11 +58,12 @@ const largeResearchDocument = () => {
     return annotation;
   });
   value.output[1].content = [{ type: "output_text", text, annotations }];
-  // The provider can finish a cited report after an auxiliary tool attempt ends
-  // incomplete. Keep all report-delivery paths exercising that production shape.
+  // Synthetic pending-status variant of the observed seven-record response:
+  // five completed searches, a completed report, and auxiliary tool metadata.
   value.output.splice(1, 0, ...Array.from({ length: 6 }, (_, index) => ({
-    id: `ws_report_${index}`, type: "web_search_call", status: index === 5 ? "incomplete" : "completed",
-    action: { type: "open_page", url: index === 5 ? "https://example.com/unavailable" : researchSources[0].url },
+    id: `ws_report_${index}`, type: "web_search_call", status: index === 5 ? "in_progress" : "completed",
+    action: index < 4 ? { type: "search", query: `fictional evidence question ${index + 1}` }
+      : { type: "open_page", url: index === 5 ? "https://example.com/unavailable" : researchSources[0].url },
   })));
   value.output.unshift({ type: "reasoning", summary: [{ text: "private-reasoning-fixture" }] });
   return value;
@@ -666,18 +667,63 @@ test("unverified research fails without invoking a writer or claiming completion
   }
 });
 
-test("a nonterminal auxiliary research tool cannot expose a report or start a writer", async () => {
+test("completed cited research survives pending, unknown, missing and incomplete auxiliary tool statuses without retries", async () => {
   local();
-  for (const status of ["in_progress", "searching"]) {
+  for (const status of ["in_progress", "searching", "future_status", undefined, "incomplete"]) {
     const value = largeResearchDocument();
-    value.output.find((item) => item.type === "web_search_call" && item.status === "incomplete").status = status;
+    const auxiliary = value.output.find((item) => item.id === "ws_report_5");
+    if (status === undefined) delete auxiliary.status;
+    else auxiliary.status = status;
+    const calls = [];
+    const res = response();
+    global.fetch = async (_url, options) => {
+      const body = JSON.parse(options.body);
+      calls.push(body);
+      if (body.tools) {
+        assert.equal(body.max_tool_calls, 6);
+        assert.equal(body.max_output_tokens, 10000);
+        return researchReply(value);
+      }
+      const alreadySent = res.body.trim().split("\n").map(JSON.parse);
+      assert.equal(alreadySent.filter((event) => event.type === "research_report_complete").length, 1);
+      assert.equal(alreadySent.some((event) => ["text_delta", "segment", "text_complete", "done"].includes(event.type)), false);
+      return reply(textEnvelope("The completed research supports this answer. [1]"));
+    };
+    await handler(request({ message: "Research this", actionMode: "deep-research", streamText: true, streamResearchDetails: true }), res);
+    const records = res.body.trim().split("\n").map(JSON.parse);
+    assert.equal(calls.length, 2, "One research request and one writer request, without retries.");
+    assert.equal(calls.filter((body) => Boolean(body.tools)).length, 1);
+    assert.equal(records.at(-1).type, "done");
+    assert.equal(records.some((record) => record.type === "error"), false);
+    assert.equal(records.find((record) => record.type === "segment").response, "The completed research supports this answer. [1]");
+    const reports = [];
+    const decoder = createMetabloomSegmentStreamDecoder({ allowResearchDetails: true, onResearchDetails: (report) => reports.push(report) });
+    assert.equal(decoder.push(res.body), true);
+    assert.equal(decoder.finish().ok, true);
+    assert.equal(reports.length, 1);
+    assert.equal(reports[0].sources.length, 65);
+    assert.match(reports[0].notes, /Finding 65:.*\[65\]/);
+    assert.equal(reports[0].sources.some((source) => source.url === auxiliary.action.url), false);
+  }
+});
+
+test("pending auxiliary tools never substitute for completed research, successful searches, completed messages or citations", async () => {
+  local();
+  for (const [alter, code] of [
+    [(value) => { value.status = "incomplete"; }, "research_incomplete"],
+    [(value) => { value.status = "failed"; }, "research_incomplete"],
+    [(value) => { value.output.forEach((item) => { if (item.action?.type === "search") item.status = "in_progress"; }); }, "research_no_sources"],
+    [(value) => { value.output.find((item) => item.type === "message").status = "in_progress"; }, "research_incomplete"],
+    [(value) => { delete value.output.find((item) => item.type === "message").status; }, "research_incomplete"],
+    [(value) => { value.output.find((item) => item.type === "message").content[0].annotations = []; }, "research_no_sources"],
+    [(value) => { value.output.find((item) => item.type === "message").content[0].annotations[0].end_index = -1; }, "research_invalid_citations"],
+  ]) {
+    const value = largeResearchDocument();
+    alter(value);
     let calls = 0;
     global.fetch = async (_url, options) => {
       calls++;
-      const body = JSON.parse(options.body);
-      assert.ok(body.tools, "Unfinished research must not start its writer.");
-      assert.equal(body.max_tool_calls, 6);
-      assert.equal(body.max_output_tokens, 10000);
+      assert.ok(JSON.parse(options.body).tools, "Unvalidated research must not start its writer.");
       return researchReply(value);
     };
     const res = response();
@@ -685,7 +731,7 @@ test("a nonterminal auxiliary research tool cannot expose a report or start a wr
     const records = res.body.trim().split("\n").map(JSON.parse);
     assert.equal(calls, 1, "One research request, without a retry or writer request.");
     assert.equal(records.at(-1).type, "error");
-    assert.equal(records.at(-1).code, "research_incomplete");
+    assert.equal(records.at(-1).code, code);
     assert.equal(records.some((record) => record.type.startsWith("research_report")
       || ["sources", "text_delta", "segment", "text_complete", "done"].includes(record.type)
       || record.state === "synthesizing" || record.phase === "response"), false);
@@ -799,13 +845,14 @@ test("research HTTP failures expose only a safe code and reference while preserv
   assert.ok(logged.includes("req_fixture_provider"));
 });
 
-test("completed long research survives an incomplete auxiliary tool and reaches the client before its bounded writer", async () => {
+test("completed long research survives synthetic pending auxiliary metadata and reaches the client before its bounded writer", async () => {
   local();
   const value = largeResearchDocument();
   const toolRecords = value.output.filter((item) => item.type === "web_search_call");
   assert.equal(toolRecords.length, 7);
   assert.equal(toolRecords.filter((item) => item.status === "completed").length, 6);
-  assert.equal(toolRecords.at(-1).status, "incomplete");
+  assert.equal(toolRecords.filter((item) => item.status === "completed" && item.action.type === "search").length, 5);
+  assert.equal(toolRecords.at(-1).status, "in_progress");
   const calls = [];
   const res = response();
   global.fetch = async (_url, options) => {
@@ -877,7 +924,7 @@ test("cached clients receive a bounded cited answer without new report records",
   }
 });
 
-test("a writer failure retains the full report despite an incomplete auxiliary research tool, without retries", async () => {
+test("a writer failure retains the full report despite pending auxiliary research metadata, without retries", async () => {
   local();
   const calls = [];
   const res = response();
