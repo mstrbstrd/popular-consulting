@@ -36,6 +36,7 @@ import { METABLOOM_TOOL_TURN_TIMEOUT_MS } from "./metabloomVisualProtocol";
 import { parseMetabloomResearchSources } from "./metabloomResearchSources";
 import { parseMetabloomResearchReport } from "./metabloomResearchReport";
 import { parseMetabloomResearchBrief } from "./metabloomResearchBriefProtocol";
+import { renderMetabloomResearchBlocks, renderMetabloomResearchText } from "./metabloomResearchText";
 import { streamMetabloomDemoResponse } from "./metabloomDemoStream";
 import "./OrbSection.css";
 import "./OrbEmoteDemos.css";
@@ -371,35 +372,6 @@ const cloneMessage = ({ id, role, content, actionChain = [], source, emote, segm
     ...(researchReport ? { researchDetails: researchReport } : {}),
     ...(brief ? { researchBrief: brief } : {}),
   };
-};
-
-// Render a small, non-executable subset of report formatting. Links still come
-// exclusively from the canonical citation map, never Markdown or model HTML.
-const renderMetabloomResearchBlocks = (report) => report.notes.split(/\n[ \t]*\n/).map((block, index) => {
-  const lines = block.trim().split("\n");
-  const heading = lines[0]?.match(/^#{1,6}\s+(.+)$/);
-  if (heading) return <React.Fragment key={index}>
-    <h4>{renderMetabloomResearchText(heading[1], report.sources)}</h4>
-    {lines.length > 1 && <p>{renderMetabloomResearchText(lines.slice(1).join("\n"), report.sources)}</p>}
-  </React.Fragment>;
-  if (lines.every((line) => /^[-*]\s+/.test(line))) return <ul key={index}>
-    {lines.map((line, lineIndex) => <li key={lineIndex}>{renderMetabloomResearchText(line.replace(/^[-*]\s+/, ""), report.sources)}</li>)}
-  </ul>;
-  if (lines.every((line) => /^\d+[.)]\s+/.test(line))) return <ol key={index}>
-    {lines.map((line, lineIndex) => <li key={lineIndex} value={Number(line.match(/^\d+/)[0])}>{renderMetabloomResearchText(line.replace(/^\d+[.)]\s+/, ""), report.sources)}</li>)}
-  </ol>;
-  return <p key={index}>{renderMetabloomResearchText(block, report.sources)}</p>;
-});
-
-const renderMetabloomResearchText = (text, sources) => {
-  if (!sources?.length) return text;
-  return text.split(/(\[[1-9]\d*\])/g).map((part, index) => {
-    const source = /^\[[1-9]\d*\]$/.test(part) ? sources[Number(part.slice(1, -1)) - 1] : null;
-    return source ? (
-      <a key={index} className="metabloom-chat__citation" href={source.url} target="_blank" rel="noopener noreferrer"
-        aria-label={`Source ${source.id}: ${source.title}`}>{part}</a>
-    ) : part;
-  });
 };
 
 const MetabloomFullResearch = ({ report }) => {

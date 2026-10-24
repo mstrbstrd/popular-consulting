@@ -155,7 +155,7 @@ const selectResearchBriefEvidence = (report) => {
 const researchBriefIntroduction = (brief) => {
   const { returnedCount, requestedCount, status } = brief.coverage;
   const label = brief.kind === "news" ? "stories" : "findings";
-  if (!returnedCount) return "I could not establish enough evidence to include a finding under the requested requirements. The brief explains the coverage limit, and the full research is available below.";
+  if (!returnedCount) return `The research is complete, but this brief has no qualifying ${label}. The coverage details are below, and the full research remains available.`;
   const coverage = requestedCount === null ? `${returnedCount} ${label}` : `${returnedCount} of the ${requestedCount} requested ${label}`;
   const introduction = status === "complete" ? `The research brief covers ${coverage}.` : `The research brief covers ${coverage}, with limitations shown below.`;
   // Complete headlines provide bounded follow-up context without copying the
@@ -385,6 +385,7 @@ const handler = async (request, response) => {
         stage = "research_brief";
         try {
           researchBrief = await generateMetabloomResearchBrief({ message, history: body.history, report: evidence,
+            evidenceLimited: evidence !== researchReport,
             temporalContext, signal: controller.signal, requestRef });
         } catch (error) {
           if (controller.signal.aborted || response.destroyed || request.aborted) throw error;

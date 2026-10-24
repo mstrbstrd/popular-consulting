@@ -18,6 +18,8 @@ The API's introduction is deterministic application text with bounded complete h
 
 ## Date, evidence, and coverage behavior
 
+The subsequent [evidence handoff regression](metabloom-research-evidence-handoff.md) records the October 23 production-shaped reproduction, formatter excerpt clarification, typographic-date support, honest host-owned titles and limitations, and canonical Markdown display checks. Its verification results supersede this feature's original baseline for those paths.
+
 The host supplies the normalized brief's version, kind, as-of time, timezone, local date, date interval, and coverage result. A formatter cannot redefine those fields. Supported current, relative, and historical request forms are covered by the temporal unit tests. The limits are explicit calendar intervals in the chosen timezone, rather than a claim that every relative phrase means a rolling 24-hour duration.
 
 A dated news item must have an eligible development date and a date-bearing excerpt supported by the cited research passage. A publication date, navigation date, copyright date, wrapper update, or future scheduled milestone does not establish that the underlying development happened in the requested interval. Future scheduled dates are separate from actual development dates. Unsupported or ineligible items are omitted, with coverage limitations reported. Unknown publication dates and publishers remain unknown. The renderer labels excerpts as research excerpts rather than implying independent retrieval of a verbatim original-source quotation.

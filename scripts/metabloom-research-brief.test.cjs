@@ -22,8 +22,8 @@ const item = (id) => ({ headline: `Agency ${id} announces a program`, summary: `
   sourceIds: [id], background: [{ text: "The announcement provides the current evidence for this development.", sourceIds: [id] }],
   whyItMatters: "The program could affect the people it serves; its eventual effects remain uncertain.",
   uncertainty: ["The announcement does not establish eventual outcomes."], watchNext: ["Watch for implementation details."],
-  developmentDate: "2026-10-23", scheduledDate: null, dateEvidence: { sourceId: id, quote: quote(id) },
-  dateBasis: "event-body", evidenceStatus: "announced" });
+  developmentDate: "2026-10-23", scheduledDate: null, dateEvidence: { sourceId: id, reportExcerpt: quote(id) },
+  dateBasis: "research-excerpt", evidenceStatus: "announced" });
 const candidate = () => ({ title: "Selected developments", scope: "Fictional fixture coverage from the supplied research",
   limitations: [], items: [1, 5, 9].map(item), sourceDetails: [] });
 const extract = (value = candidate(), evidence = report(), temporalContext = context()) => extractMetabloomResearchBrief(value, { report: evidence, temporalContext });
@@ -142,7 +142,7 @@ test("supported dated findings retain canonical IDs beyond eight and show honest
   assert.equal(actual.coverage.requestedCount, 5);
   assert.equal(actual.coverage.returnedCount, 3);
   assert.equal(actual.coverage.status, "partial");
-  assert.match(actual.coverage.limitations.join(" "), /3 of the 5/);
+  assert.match(actual.coverage.limitations.join(" "), /3 of 5/);
   assert.deepEqual(actual.sourceDetails.map((entry) => entry.sourceId), [1, 5, 9]);
   assert.ok(actual.sourceDetails.every((entry) => entry.publisher === "" && entry.publishedDate === null));
   assert.deepEqual(evidence, original, "Formatting must preserve the complete source report");
@@ -153,7 +153,7 @@ test("supported dated findings retain canonical IDs beyond eight and show honest
 test("a stale 2008 report cannot occupy a current-news slot but remains eligible for an explicit historical query", () => {
   const value = candidate(), evidence = report();
   value.items[0].developmentDate = "2008-10-23";
-  value.items[0].dateEvidence.quote = quote(1, "2008-10-23");
+  value.items[0].dateEvidence.reportExcerpt = quote(1, "2008-10-23");
   evidence.notes = evidence.notes.replace(quote(1), quote(1, "2008-10-23"));
   const current = extract(value, evidence);
   assert.deepEqual(current.items.map((entry) => entry.sourceIds[0]), [5, 9]);
@@ -169,17 +169,17 @@ test("publication-only and wrapper dates do not establish a current development"
   }
   const value = candidate(), evidence = report();
   const wrapper = "Page updated on 2026-10-23 for an article originally published on 2008-10-23.";
-  value.items[0].dateEvidence.quote = wrapper;
+  value.items[0].dateEvidence.reportExcerpt = wrapper;
   evidence.notes = evidence.notes.replace(quote(1), wrapper);
   assert.deepEqual(extract(value, evidence).items.map((entry) => entry.sourceIds[0]), [5, 9],
-    "An explicit wrapper label is rejected even if a candidate mislabels its basis as event-body");
+    "An explicit wrapper label is rejected even if a candidate declares it as event evidence");
 });
 
 test("date evidence must be an actual report excerpt tied to the same canonical citation", () => {
   for (const alter of [
-    (entry) => { entry.dateEvidence.quote = "On 2026-10-23, a claim absent from the research appeared."; },
-    (entry) => { entry.dateEvidence.quote = quote(5); },
-    (entry) => { entry.dateEvidence.quote = "Agency 1 announced a new public program."; },
+    (entry) => { entry.dateEvidence.reportExcerpt = "On 2026-10-23, a claim absent from the research appeared."; },
+    (entry) => { entry.dateEvidence.reportExcerpt = quote(5); },
+    (entry) => { entry.dateEvidence.reportExcerpt = "Agency 1 announced a new public program."; },
     (entry) => { entry.developmentDate = "2026-10-24"; },
     (entry) => { entry.developmentDate = null; entry.dateEvidence = null; entry.dateBasis = "unknown"; },
   ]) {
@@ -193,7 +193,7 @@ test("date evidence must be an actual report excerpt tied to the same canonical 
 test("the nearest following citation group binds an excerpt even when a paragraph cites multiple sources", () => {
   const value = candidate(), evidence = report();
   evidence.notes = [1, 5, 9].map((id) => `${quote(id)} [${id}]`).join(" ");
-  value.items[0].dateEvidence.quote = quote(5);
+  value.items[0].dateEvidence.reportExcerpt = quote(5);
   assert.deepEqual(extract(value, evidence).items.map((entry) => entry.sourceIds[0]), [5, 9],
     "Source 1 cannot borrow a dated excerpt immediately attributed to Source 5 in the same paragraph");
   const shared = candidate();
@@ -204,6 +204,78 @@ test("the nearest following citation group binds an excerpt even when a paragrap
   const actual = extract(shared, evidence);
   assert.equal(actual.items.length, 1);
   assert.deepEqual(actual.items[0].sourceIds, [1, 5]);
+});
+
+test("a cited research paraphrase is valid date evidence without an original webpage quotation or publication date", () => {
+  const value = candidate(), evidence = report();
+  const actual = extract(value, evidence);
+  assert.equal(actual.items.length, 3);
+  assert.equal(actual.items[0].dateEvidence.quote, quote(1));
+  assert.equal(Object.hasOwn(actual.items[0].dateEvidence, "reportExcerpt"), false, "The public protocol remains unchanged");
+  assert.equal(actual.sourceDetails[0].publishedDate, null);
+  assert.equal(actual.items[0].developmentDate, "2026-10-23");
+  assert.deepEqual(evidence, report());
+  const unknown = candidate();
+  unknown.items[0].developmentDate = null;
+  unknown.items[0].dateEvidence = null;
+  unknown.items[0].dateBasis = "unknown";
+  assert.deepEqual(extract(unknown).items.map((entry) => entry.sourceIds[0]), [5, 9],
+    "A known source ID is not permission to infer a missing event date or invent an excerpt");
+});
+
+test("typographic ISO separators are recognized without changing the report or its copied excerpt", () => {
+  for (const separator of ["\u2010", "\u2011", "\u2012", "\u2013", "\u2212"]) {
+    const value = candidate(), evidence = report();
+    const literal = quote(1).replaceAll("-", separator);
+    evidence.notes = evidence.notes.replace(quote(1), literal);
+    value.items[0].dateEvidence.reportExcerpt = literal;
+    const original = structuredClone(evidence);
+    const actual = extract(value, evidence);
+    assert.equal(actual.items[0].developmentDate, "2026-10-23");
+    assert.equal(actual.items[0].dateEvidence.quote, literal);
+    assert.deepEqual(evidence, original);
+  }
+  const invalid = candidate(), evidence = report();
+  const badDate = "Development dated 2026\u201113\u201123: Agency 1 announced a program.";
+  evidence.notes = evidence.notes.replace(quote(1), badDate);
+  invalid.items[0].dateEvidence.reportExcerpt = badDate;
+  assert.deepEqual(extract(invalid, evidence).items.map((entry) => entry.sourceIds[0]), [5, 9]);
+});
+
+test("Markdown reference decorations can separate canonical citations without becoming source authority", () => {
+  const value = candidate(), evidence = report();
+  value.items = [item(1)];
+  value.items[0].sourceIds = [1, 5];
+  value.items[0].dateEvidence.sourceId = 5;
+  evidence.notes = `${quote(1)} ([Outlet 1](https://example.com/source-1)) [1] ([Outlet 5](https://example.com/source-5)) [5]\n\n${quote(9)} [9]`;
+  const original = structuredClone(evidence);
+  assert.equal(extract(value, evidence).items.length, 1);
+  assert.deepEqual(evidence, original, "Only citation grouping changes; report text is preserved");
+
+  for (const decorated of [
+    `${quote(1)} ([Outlet 5](https://example.com/source-5)) [1]`,
+    `${quote(1)} [5](https://example.com/source-5) [1]`,
+    `${quote(1)} [Outlet](https://example.com/(archive)/[5]) [1]`,
+    `${quote(1)} [Outlet [5]](https://example.com/(archive)) [1]`,
+    `${quote(1)} https://example.com/source/[5] [1]`,
+    `${quote(1)} ([Outlet 1](https://example.com/source-1)) [1] Another claim. ([Outlet 5](https://example.com/source-5)) [5]`,
+  ]) {
+    evidence.notes = `${decorated}\n\n${quote(9)} [9]`;
+    assert.equal(extract(value, evidence).items.length, 0,
+      "A Markdown target, numeric link label, or a citation after another claim cannot establish the requested source association");
+  }
+});
+
+test("malformed private evidence and an unknown date basis fail closed", () => {
+  for (const change of [
+    (entry) => { entry.dateEvidence = { sourceId: 1, quote: quote(1) }; },
+    (entry) => { entry.dateEvidence = { sourceId: 1, reportExcerpt: quote(1), invented: true }; },
+    (entry) => { entry.dateBasis = "event-body"; },
+    (entry) => { entry.dateBasis = "unrecognized"; },
+  ]) {
+    const value = candidate(); change(value.items[0]);
+    assert.throws(() => extract(value), { code: "answer_invalid" });
+  }
 });
 
 test("an announcement today keeps its future scheduled milestone distinct and source-backed", () => {
@@ -228,6 +300,41 @@ test("an entirely unsupported news selection returns an unavailable brief withou
   assert.equal(actual.coverage.status, "unavailable");
   assert.equal(actual.coverage.returnedCount, 0);
   assert.match(actual.coverage.limitations.join(" "), /full research remains available/);
+});
+
+test("zero and partial coverage use host framing and omit protocol chatter while preserving real caveats", () => {
+  const value = candidate();
+  value.title = "Top five news developments today";
+  value.scope = "A briefing summarizing all five major developments today.";
+  value.limitations = [
+    "The supplied report.notes and report.sources contain no verbatim quotations.",
+    "I set developmentDate and dateEvidence null and dateBasis unknown.",
+    "Original publication dates were not supplied for every source.",
+    "Casualty counts may change as reporting develops.",
+  ];
+  let actual = extract(value);
+  assert.equal(actual.title, "Partial news briefing");
+  assert.equal(actual.scope, "Requested news for 2026-10-23 (America/Vancouver).");
+  assert.match(actual.coverage.limitations.join(" "), /3 of 5 requested stories/);
+  assert.match(actual.coverage.limitations.join(" "), /Casualty counts may change/);
+  assert.match(actual.coverage.limitations.join(" "), /Original publication dates/);
+  assert.doesNotMatch(JSON.stringify(actual), /report\.notes|report\.sources|dateBasis|I set|Top five/);
+  for (const entry of value.items) { entry.developmentDate = null; entry.dateEvidence = null; entry.dateBasis = "unknown"; }
+  actual = extract(value);
+  assert.equal(actual.title, "News briefing unavailable");
+  assert.equal(actual.items.length, 0);
+  assert.doesNotMatch(actual.scope, /summarizing all five/);
+});
+
+test("a brief from selected passages does not claim the entire report lacks evidence", () => {
+  const value = candidate();
+  value.items = [];
+  const actual = extractMetabloomResearchBrief(value, { report: report(), temporalContext: context(), evidenceLimited: true });
+  assert.equal(actual.coverage.status, "unavailable");
+  assert.match(actual.coverage.limitations.join(" "), /evidence available to this brief/);
+  assert.match(actual.coverage.limitations.join(" "), /selected passages/);
+  assert.match(actual.coverage.limitations.join(" "), /Additional evidence may appear in Full research/);
+  assert.doesNotMatch(actual.coverage.limitations.join(" "), /completed research did not support/);
 });
 
 test("future requested news cannot be filled with today's events or predicted completed events", () => {
@@ -312,6 +419,11 @@ test("the replacement writer makes exactly one bounded provider request with no 
   assert.equal(Object.hasOwn(calls[0].body, "tools"), false);
   assert.equal(calls[0].body.text.format.strict, true);
   assert.equal(calls[0].body.text.format.name, "metabloom_research_brief");
+  const dateEvidenceSchema = calls[0].body.text.format.schema.properties.items.items.properties.dateEvidence.anyOf[0];
+  assert.deepEqual(dateEvidenceSchema.required, ["sourceId", "reportExcerpt"]);
+  assert.equal(Object.hasOwn(dateEvidenceSchema.properties, "quote"), false);
+  assert.match(calls[0].body.instructions, /faithful cited paraphrase/);
+  assert.match(calls[0].body.instructions, /missing publication date does not invalidate/i);
   assert.match(calls[0].body.input[0].content, /World coverage/);
   const data = JSON.parse(calls[0].body.input.at(-1).content);
   assert.equal(data.temporalContext.localDate, "2026-10-23");
@@ -354,6 +466,27 @@ test("provider failures and successful logs contain diagnostics without notes, s
   assert.equal(success.inputTokens, 123);
   assert.equal(success.returnedItems, 3);
   assert.equal(success.requestRef, "aabbccddeeff");
+  assert.equal(success.omittedMissingDate, 0);
+  assert.equal(success.omittedOutsideWindow, 0);
+});
+
+test("omission telemetry records safe counts and distinguishes stale dates from missing date evidence", async (t) => {
+  const logs = [], value = candidate(), evidence = report();
+  t.mock.method(console, "info", (entry) => logs.push(JSON.parse(entry)));
+  value.items[0].developmentDate = "2026-10-22";
+  value.items[0].dateEvidence.reportExcerpt = quote(1, "2026-10-22");
+  evidence.notes = evidence.notes.replace(quote(1), quote(1, "2026-10-22"));
+  value.items[1].developmentDate = null;
+  value.items[1].dateEvidence = null;
+  value.items[1].dateBasis = "unknown";
+  const actual = await generate({ report: evidence, evidenceLimited: true, fetchImpl: async () => jsonResponse(envelope(value)) });
+  assert.equal(actual.items.length, 1);
+  assert.equal(logs[0].omittedOutsideWindow, 1);
+  assert.equal(logs[0].omittedMissingDate, 1);
+  assert.equal(logs[0].omittedDateEvidence, 0);
+  assert.doesNotMatch(JSON.stringify(logs), /Agency|example\.com|2026-10-22|reportExcerpt/);
+  assert.match(actual.coverage.limitations.join(" "), /1 candidate describes a development outside/);
+  assert.match(actual.coverage.limitations.join(" "), /selected passages/);
 });
 
 test("oversized evidence does not start a paid writer request and oversized provider output is bounded", async (t) => {

@@ -24,7 +24,7 @@ const candidate = () => ({
     whyItMatters: "The trial can affect how the fictional public service is delivered.",
     uncertainty: ["The bulletin does not establish whether the trial will expand."],
     watchNext: ["Watch for the published evaluation."], developmentDate: date, scheduledDate: null,
-    dateEvidence: { sourceId: id, quote: dateQuote(id) }, evidenceStatus: "announced", dateBasis: "event-body",
+    dateEvidence: { sourceId: id, reportExcerpt: dateQuote(id) }, evidenceStatus: "announced", dateBasis: "research-excerpt",
   })),
   sourceDetails: [],
 });

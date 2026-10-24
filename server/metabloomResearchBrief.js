@@ -33,7 +33,10 @@ function normalizeMetabloomResearchTimeZone(value) {
 }
 
 function explicitDates(message) {
-  const dates = [...message.matchAll(/\b\d{4}-\d{2}-\d{2}\b/g)].map((match) => match[0]).filter(dateOnly);
+  // Typography may change a date separator without changing the date. Normalize
+  // only complete date tokens for recognition; never rewrite the source excerpt.
+  const dates = [...message.matchAll(/\b\d{4}[-\u2010-\u2014\u2212\ufe63\uff0d]\d{2}[-\u2010-\u2014\u2212\ufe63\uff0d]\d{2}\b/g)]
+    .map((match) => match[0].replace(/[\u2010-\u2014\u2212\ufe63\uff0d]/g, "-")).filter(dateOnly);
   const named = new RegExp(`\\b(${MONTH_PATTERN})\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?(?:,)?\\s+(\\d{4})\\b`, "gi");
   for (const match of message.matchAll(named)) {
     const date = calendarDate(Number(match[3]), monthNumber(match[1]), Number(match[2]));
@@ -162,8 +165,8 @@ function researchBriefSchema(sources) {
       background: array(object({ text: text(1200), sourceIds }), 5), whyItMatters: text(1800),
       uncertainty: array(text(600), 4), watchNext: array(text(600), 4),
       developmentDate: optionalDateSchema, scheduledDate: optionalDateSchema,
-      dateEvidence: { anyOf: [object({ sourceId, quote: text(600) }), { type: "null" }] },
-      dateBasis: { type: "string", enum: ["event-body", "publication-only", "wrapper", "unknown"] },
+      dateEvidence: { anyOf: [object({ sourceId, reportExcerpt: text(600) }), { type: "null" }] },
+      dateBasis: { type: "string", enum: ["research-excerpt", "publication-only", "wrapper", "unknown"] },
       evidenceStatus: { type: "string", enum: ["announced", "reported", "disputed", "uncertain"] },
     }), MAX_METABLOOM_RESEARCH_BRIEF_ITEMS),
     sourceDetails: array(object({ sourceId, publisher: text(120), publishedDate: optionalDateSchema,
@@ -178,8 +181,10 @@ const briefInstructions = [
   "Use a clear headline, useful summary, substantive background, why the finding matters, uncertainty, and what to watch next. Distinguish evidence from interpretation. Do not pad sections or invent implications, dates, numbers, forecasts or future milestones to fill them. Watch-next entries may be questions to monitor; a scheduled event is not an event that already happened. Prefer a few developed items over a terse list or repeated facts. Keep the entire result comfortably within 6000 output tokens.",
   "For news, select distinct developments by consequence, scale, novelty and strength of evidence within the explicit date window and declared scope. Consider the candidate coverage in the report, merge duplicate coverage of the same event, and attribute disputed or interested-party claims. Several syndicated copies are not independent corroboration. A requested count is a maximum goal, not permission to manufacture an item. Return fewer items when the evidence is insufficient and say why in limitations. Do not call the selection an objective global ranking.",
   "developmentDate is the date of the specific actual development or announcement, not the publication of background reporting and not a future scheduled milestone. Use the source-supported local development date recorded in the research. A today's announcement about a future event may have today's developmentDate, a future scheduledDate, and evidenceStatus=announced. Never phrase the future milestone as already completed. Past reporting with a new navigation, wrapper, copyright, crawl, search-result or page-update date is not today's news.",
-  "For every non-null developmentDate, dateEvidence.quote must copy an exact excerpt from a cited report passage, contain that explicit date (ISO date or unambiguous full English date), and identify the same supporting sourceId in the immediately following citation group. Omit the numeric citation marker from the quote and do not cross a citation to a different source. Do not rewrite or manufacture a quote to make it pass. Use dateBasis=event-body only when that excerpt records the actual development's date; publication-only, wrapper and unknown do not support a current event. If the report lacks date support, use null and unknown so the item can be excluded honestly from a dated news selection.",
-  "sourceDetails describes only sources used by the selected items. publishedDate is an explicitly supported original article/publication date, not a wrapper, crawl, copyright or unrelated update date. Its dateEvidence is an exact excerpt of the cited report paragraph containing that date. Use dateBasis=article-publication only for that support; otherwise publishedDate=null, dateEvidence='', dateBasis=unknown. If the publisher is not identified in the supplied evidence or canonical title, use an empty string. Do not infer publication dates from URLs. Source classification is a description of the cited material, not a certification that it is true.",
+  "For every non-null developmentDate, dateEvidence.reportExcerpt must copy exact prose from report.notes that explicitly supports the actual development date and is followed by the supporting numeric source citation. This is a research-report excerpt, not a quotation you must obtain from the original webpage. A faithful cited paraphrase of a dated development is eligible even when the original article's words are not quoted. For example, the report sentence 'Development dated 2026-10-23: the agency announced a program. [8]' supports developmentDate=2026-10-23, sourceId=8, reportExcerpt='Development dated 2026-10-23: the agency announced a program.', and dateBasis=research-excerpt. Copy the report's actual wording and date typography; return the separate date field in ASCII YYYY-MM-DD. Do not create or infer an event date merely because a source ID exists.",
+  "Omit numeric citation markers and Markdown URL decorations from reportExcerpt, and do not cross a citation to a different source. The excerpt must contain the explicit date, using ISO date notation or an unambiguous full English date. Use dateBasis=research-excerpt for an explicitly dated development in cited report prose; publication-only, wrapper and unknown do not support a current event. Keep unknown when the report itself does not establish a development date. Do not null an otherwise supported event date because an original-webpage quotation or original publication date is unavailable. Do not rewrite a stale development as today's event or treat today's coverage of an older event as a new development without evidence of a distinct update.",
+  "sourceDetails describes only sources used by the selected items. publishedDate is an explicitly supported original article/publication date, not a wrapper, crawl, copyright or unrelated update date. Its dateEvidence copies the supporting excerpt from the cited research report; an attributed paraphrase in the report is sufficient and no original-webpage quotation is required. Use dateBasis=article-publication only for that support; otherwise publishedDate=null, dateEvidence='', dateBasis=unknown. A missing publication date does not invalidate an independently supported development date. If the publisher is not identified in the supplied evidence or canonical title, use an empty string. Do not infer publication dates from URLs. Source classification describes the cited material; it is not a certification that it is true.",
+  "Write reader-facing limitations about actual evidence gaps and domain uncertainty. Do not mention JSON fields, schema names, null values, report.notes, report.sources, dateBasis, developmentDate, the formatter, or internal generation steps. Do not claim to have covered a requested number if fewer eligible items are available.",
 ].join("\n\n");
 
 function validateEvidence(report) {
@@ -198,13 +203,55 @@ function citedParagraphs(report) {
   const passages = [];
   for (const paragraph of report.notes.split(/\n[ \t]*\n/)) {
     const normalized = whitespace(paragraph);
+    // Model-authored URL links are presentation only. Their labels and targets
+    // cannot become citation identities, even if a label looks like [8].
+    const links = [...normalized.matchAll(/\[[^\]\r\n]{1,200}\]\(https?:\/\/[^\s()<>]{1,2048}\)/gi)]
+      .map((match) => ({ start: match.index, end: match.index + match[0].length }));
+    const excludedSpans = [...links];
+    for (const url of normalized.matchAll(/https?:\/\//gi)) {
+      if (!links.some((link) => url.index >= link.start && url.index < link.end)) {
+        const end = normalized.slice(url.index).search(/[\s<>]/);
+        excludedSpans.push({ start: url.index, end: end < 0 ? normalized.length : url.index + end });
+      }
+      // Complex or malformed links are never accepted as reference decoration,
+      // but their nested labels and URL tokens still cannot create citations.
+      if (normalized.slice(url.index - 2, url.index) === "](") {
+        let depth = 1;
+        for (let index = url.index - 3; index >= 0; index--) {
+          if (normalized[index - 1] === "\\") continue;
+          if (normalized[index] === "]") depth++;
+          if (normalized[index] === "[" && --depth === 0) {
+            excludedSpans.push({ start: index, end: url.index });
+            break;
+          }
+        }
+      }
+    }
+    const markers = [...normalized.matchAll(/\[(\d+)\]/g)].filter((match) => normalized[match.index - 1] !== "\\"
+      && !excludedSpans.some((span) => match.index >= span.start && match.index < span.end)
+      && !/^\(https?:\/\//i.test(normalized.slice(match.index + match[0].length)));
+    const referenceDecoration = (start, end) => {
+      let text = normalized.slice(start, end);
+      // Only the interstitial reference decoration is ignored. Claim text and
+      // excerpts retain their original wording and their numeric citation boundary.
+      for (const link of links.filter((link) => link.start >= start && link.end <= end).reverse())
+        text = text.slice(0, link.start - start) + " ".repeat(link.end - link.start) + text.slice(link.end - start);
+      return /^[\s(),.;]*$/.test(text);
+    };
     let start = 0;
     // Each excerpt belongs to the immediately following citation group, never
     // to a different source appearing elsewhere in the same paragraph.
-    for (const match of normalized.matchAll(/\[\d+\](?:\s*\[\d+\])*/g)) {
-      const text = normalized.slice(start, match.index).trim();
-      if (text) passages.push({ text, ids: new Set([...match[0].matchAll(/\[(\d+)\]/g)].map((citation) => Number(citation[1]))) });
-      start = match.index + match[0].length;
+    for (let index = 0; index < markers.length; index++) {
+      const first = markers[index], ids = new Set([Number(first[1])]);
+      let end = first.index + first[0].length;
+      while (index + 1 < markers.length && referenceDecoration(end, markers[index + 1].index)) {
+        const next = markers[++index];
+        ids.add(Number(next[1]));
+        end = next.index + next[0].length;
+      }
+      const text = normalized.slice(start, first.index).trim();
+      if (text) passages.push({ text, ids });
+      start = end;
     }
   }
   return passages;
@@ -218,8 +265,23 @@ function excerptHasDate(quote, date) {
   return dateOnly(date) && explicitDates(quote).includes(date);
 }
 const wrapperDateExcerpt = (quote) => /\b(?:copyright|navigation|wrapper|crawl(?:ed)?|retrieved|last[ -]modified|page[ -](?:updated|modified)|(?:site|page)[ -]date)\b/i.test(quote);
+const implementationChatter = (text) => /\b(?:JSON|schema|formatter|dateBasis|developmentDate|scheduledDate|dateEvidence|sourceDetails|publishedDate|reportExcerpt|sourceIds)\b|\breport\s*\.\s*(?:notes|sources)\b|\bcanonical source\b|\b(?:I|we)\s+set\b.{0,100}\bnull\b|\bverbatim\b.{0,60}\b(?:quote|quotation|excerpt)/i.test(text);
 
-function extractMetabloomResearchBrief(candidate, { report, temporalContext }) {
+function hostBriefFraming(temporalContext, status) {
+  const news = temporalContext.kind === "news";
+  const name = news ? "news briefing" : "research brief";
+  const title = status === "unavailable" ? `${news ? "News briefing" : "Research brief"} unavailable`
+    : status === "partial" ? `Partial ${name}` : news ? "News briefing" : "Research brief";
+  const scope = news && temporalContext.windowStart !== null
+    ? temporalContext.windowStart === temporalContext.windowEnd
+      ? `Requested news for ${temporalContext.windowStart} (${temporalContext.timeZone}).`
+      : `Requested news from ${temporalContext.windowStart} through ${temporalContext.windowEnd} (${temporalContext.timeZone}).`
+    : news ? "News for the requested period; see the coverage notes and Full research for the available evidence."
+      : "Findings from the evidence available for this brief. The full research remains available.";
+  return { title, scope };
+}
+
+function extractMetabloomResearchBrief(candidate, { report, temporalContext, evidenceLimited = false, onDiagnostics }) {
   const knownIds = validateEvidence(report);
   if (!exactKeys(candidate, ["title", "scope", "limitations", "items", "sourceDetails"])
     || !safeText(candidate.title, 160) || !safeText(candidate.scope, 200)
@@ -229,30 +291,44 @@ function extractMetabloomResearchBrief(candidate, { report, temporalContext }) {
     || !Array.isArray(candidate.sourceDetails) || candidate.sourceDetails.length > MAX_METABLOOM_RESEARCH_BRIEF_SOURCES
     || hasUrl([candidate.title, candidate.scope, candidate.limitations])) throw briefError("brief_shape_invalid");
   const paragraphs = citedParagraphs(report), items = [], headlines = new Set(), eventEvidence = new Set();
+  const diagnostics = { omittedMissingDate: 0, omittedDateBasis: 0, omittedDateEvidence: 0,
+    omittedOutsideWindow: 0, omittedFutureDevelopment: 0, omittedScheduledDate: 0, omittedDuplicate: 0 };
   let omitted = 0;
+  const omit = (reason) => { omitted++; diagnostics[reason]++; };
   for (const entry of candidate.items) {
-    if (!entry || !["event-body", "publication-only", "wrapper", "unknown"].includes(entry.dateBasis)) throw briefError("brief_item_invalid");
+    if (!entry || !["research-excerpt", "publication-only", "wrapper", "unknown"].includes(entry.dateBasis)) throw briefError("brief_item_invalid");
     const { dateBasis, ...item } = entry;
+    if (item.dateEvidence !== null) {
+      if (!exactKeys(item.dateEvidence, ["sourceId", "reportExcerpt"])) throw briefError("brief_item_invalid");
+      // The public field remains compatible, but the private synthesis contract
+      // explicitly requests a report excerpt, not an original webpage quotation.
+      item.dateEvidence = { sourceId: item.dateEvidence.sourceId, quote: item.dateEvidence.reportExcerpt };
+    }
     if (hasUrl(item) || !Array.isArray(item.sourceIds) || !item.sourceIds.length
       || item.sourceIds.some((id) => !knownIds.has(id))) throw briefError("brief_item_invalid");
     // These checks establish consistency with the completed report. They cannot
     // independently authenticate a publisher's content or the research model's reading.
-    const dateSupported = dateBasis === "event-body" && item.dateEvidence && item.sourceIds.includes(item.dateEvidence.sourceId)
+    const acceptedBasis = dateBasis === "research-excerpt"
+      && !wrapperDateExcerpt(item.dateEvidence?.quote || "");
+    const dateSupported = acceptedBasis && item.dateEvidence && item.sourceIds.includes(item.dateEvidence.sourceId)
       && citedExcerpt(paragraphs, item.dateEvidence.sourceId, item.dateEvidence.quote)
-      && !wrapperDateExcerpt(item.dateEvidence.quote)
       && excerptHasDate(item.dateEvidence.quote, item.developmentDate);
-    if (item.developmentDate !== null && (!dateSupported || item.developmentDate > temporalContext.localDate)) { omitted++; continue; }
-    if (temporalContext.kind === "news" && (temporalContext.futureWindow
-      || (temporalContext.windowStart !== null && (!dateSupported || item.developmentDate < temporalContext.windowStart
-        || item.developmentDate > temporalContext.windowEnd)))) { omitted++; continue; }
-    if (item.dateEvidence !== null && !citedExcerpt(paragraphs, item.dateEvidence?.sourceId, item.dateEvidence?.quote)) { omitted++; continue; }
+    if (item.developmentDate !== null && !acceptedBasis) { omit("omittedDateBasis"); continue; }
+    if (item.developmentDate !== null && !dateSupported) { omit("omittedDateEvidence"); continue; }
+    if (item.developmentDate !== null && item.developmentDate > temporalContext.localDate) { omit("omittedFutureDevelopment"); continue; }
+    if (temporalContext.kind === "news" && temporalContext.futureWindow) { omit("omittedFutureDevelopment"); continue; }
+    if (temporalContext.kind === "news" && temporalContext.windowStart !== null) {
+      if (item.developmentDate === null) { omit("omittedMissingDate"); continue; }
+      if (item.developmentDate < temporalContext.windowStart || item.developmentDate > temporalContext.windowEnd) { omit("omittedOutsideWindow"); continue; }
+    }
+    if (item.dateEvidence !== null && !citedExcerpt(paragraphs, item.dateEvidence?.sourceId, item.dateEvidence?.quote)) { omit("omittedDateEvidence"); continue; }
     if (item.scheduledDate !== null && (!dateOnly(item.scheduledDate) || !paragraphs.some((passage) => item.sourceIds.some((id) => passage.ids.has(id))
-      && excerptHasDate(passage.text, item.scheduledDate)))) { omitted++; continue; }
+      && excerptHasDate(passage.text, item.scheduledDate)))) { omit("omittedScheduledDate"); continue; }
     const headline = typeof item.headline === "string" ? item.headline.toLocaleLowerCase("en-US").replace(/[^\p{L}\p{N}]+/gu, " ").trim() : "";
-    if (headline && headlines.has(headline)) { omitted++; continue; }
+    if (headline && headlines.has(headline)) { omit("omittedDuplicate"); continue; }
     const eventKey = temporalContext.kind === "news" && dateSupported
       ? `${item.dateEvidence.sourceId}:${item.developmentDate}:${whitespace(item.dateEvidence.quote).toLocaleLowerCase("en-US")}` : null;
-    if (eventKey && eventEvidence.has(eventKey)) { omitted++; continue; }
+    if (eventKey && eventEvidence.has(eventKey)) { omit("omittedDuplicate"); continue; }
     if (headline) headlines.add(headline);
     if (eventKey) eventEvidence.add(eventKey);
     items.push(item);
@@ -282,22 +358,36 @@ function extractMetabloomResearchBrief(candidate, { report, temporalContext }) {
   const sourceDetails = [...usedIds].sort((a, b) => a - b).map((sourceId) => metadata.get(sourceId)
     || { sourceId, publisher: "", publishedDate: null, dateEvidence: "", sourceType: "unknown" });
   const limitations = [];
-  if (!items.length) limitations.push("The completed research did not support a briefing item within the requested evidence and date requirements. The full research remains available.");
+  const news = temporalContext.kind === "news";
+  if (!items.length) limitations.push(news
+    ? "No stories could be included for the requested period with the date evidence available to this brief. The full research remains available."
+    : "No findings could be included with the evidence available to this brief. The full research remains available.");
   else if (temporalContext.requestedCount !== null && items.length < temporalContext.requestedCount)
-    limitations.push(`The supplied research supports ${items.length} of the ${temporalContext.requestedCount} requested items; remaining slots were not filled with unsupported material.`);
-  if (omitted) limitations.push("Some candidates were omitted because their development dates, cited excerpts, or distinctness could not be established from the completed research.");
+    limitations.push(`${items.length} of ${temporalContext.requestedCount} requested ${news ? "stories" : "findings"} met the ${news ? "date and evidence" : "evidence"} requirements. The full research includes additional context and excluded candidates.`);
+  if (evidenceLimited) limitations.push("This brief uses selected passages from the research. Additional evidence may appear in Full research.");
+  if (diagnostics.omittedOutsideWindow) limitations.push(`${diagnostics.omittedOutsideWindow} ${diagnostics.omittedOutsideWindow === 1 ? "candidate describes a development" : "candidates describe developments"} outside the requested date range.`);
+  if (diagnostics.omittedMissingDate || diagnostics.omittedDateEvidence)
+    limitations.push("Some candidates did not include enough cited date evidence to establish when the development happened.");
+  if (diagnostics.omittedDateBasis) limitations.push("Page updates and publication dates alone were not treated as event dates.");
+  if (diagnostics.omittedScheduledDate) limitations.push("Some scheduled dates lacked support in the available research.");
+  if (diagnostics.omittedDuplicate) limitations.push("Repeated coverage of the same dated evidence was counted once.");
   if (temporalContext.futureWindow) limitations.push("The requested period is in the future. Scheduled developments cannot be presented as news that has already happened.");
+  else if (diagnostics.omittedFutureDevelopment) limitations.push("Future developments were not counted as events that have already happened.");
   if (temporalContext.windowUnresolved) limitations.push("The requested time period could not be resolved to a precise date window; it has not been silently treated as today's news.");
   if (temporalContext.countLimited) limitations.push(`You requested ${temporalContext.originalRequestedCount} items; a briefing contains at most 10. The full research may cover more.`);
-  limitations.push(...candidate.limitations);
+  limitations.push(...candidate.limitations.filter((entry) => !implementationChatter(entry)));
   const coverage = { requestedCount: temporalContext.requestedCount, returnedCount: items.length,
     status: !items.length ? "unavailable" : omitted || temporalContext.countLimited || temporalContext.windowUnresolved || (temporalContext.requestedCount !== null && items.length < temporalContext.requestedCount) ? "partial" : "complete",
     limitations: [...new Set(limitations)].slice(0, 8) };
+  const framing = hostBriefFraming(temporalContext, coverage.status);
   const result = parseMetabloomResearchBrief({ version: METABLOOM_RESEARCH_BRIEF_VERSION, kind: temporalContext.kind,
-    title: candidate.title, scope: candidate.scope, asOf: temporalContext.asOf, timeZone: temporalContext.timeZone,
+    title: coverage.status !== "complete" || implementationChatter(candidate.title) ? framing.title : candidate.title,
+    scope: coverage.status !== "complete" || implementationChatter(candidate.scope) ? framing.scope : candidate.scope,
+    asOf: temporalContext.asOf, timeZone: temporalContext.timeZone,
     localDate: temporalContext.localDate, windowStart: temporalContext.windowStart, windowEnd: temporalContext.windowEnd,
     coverage, items, sourceDetails }, { sources: report.sources });
   if (!result) throw briefError("brief_shape_invalid");
+  if (typeof onDiagnostics === "function") onDiagnostics({ ...diagnostics });
   return result;
 }
 
@@ -325,18 +415,18 @@ async function readBriefResponse(response, signal) {
   }
 }
 
-async function generateMetabloomResearchBrief({ message, history = [], report, temporalContext, signal, requestRef, fetchImpl = globalThis.fetch }) {
+async function generateMetabloomResearchBrief({ message, history = [], report, temporalContext, evidenceLimited = false, signal, requestRef, fetchImpl = globalThis.fetch }) {
   validateEvidence(report);
   signal?.throwIfAborted();
   const startedAt = Date.now();
-  let response, envelope, outcome = "failed", failure, result;
+  let response, envelope, outcome = "failed", failure, result, diagnostics = {};
   try {
     response = await fetchImpl("https://api.openai.com/v1/responses", {
       method: "POST", redirect: "error", signal,
       headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({ model: process.env.METABLOOM_OPENAI_MODEL || "gpt-5-mini", store: false, stream: false,
         max_output_tokens: 6000, reasoning: { effort: "low" }, instructions: briefInstructions,
-        input: [...history, { role: "user", content: JSON.stringify({ request: message, temporalContext,
+        input: [...history, { role: "user", content: JSON.stringify({ request: message, temporalContext, evidenceLimited: evidenceLimited === true,
           report: { notes: report.notes, sources: report.sources.map((source) => ({ id: source.id, title: source.title, host: new URL(source.url).hostname })) } }) }],
         text: { format: { type: "json_schema", name: "metabloom_research_brief", strict: true, schema: researchBriefSchema(report.sources) } },
       }),
@@ -350,7 +440,8 @@ async function generateMetabloomResearchBrief({ message, history = [], report, t
       || messages[0].content[0].type !== "output_text" || typeof messages[0].content[0].text !== "string") throw briefError("brief_message_invalid");
     let candidate;
     try { candidate = JSON.parse(messages[0].content[0].text); } catch { throw briefError("brief_json_invalid"); }
-    result = extractMetabloomResearchBrief(candidate, { report, temporalContext });
+    result = extractMetabloomResearchBrief(candidate, { report, temporalContext, evidenceLimited,
+      onDiagnostics: (counts) => { diagnostics = counts; } });
     signal?.throwIfAborted();
     outcome = "completed";
     return result;
@@ -366,7 +457,7 @@ async function generateMetabloomResearchBrief({ message, history = [], report, t
     console.info(JSON.stringify({ event: "metabloom_research_brief", outcome: signal?.aborted ? "cancelled" : outcome,
       ...(/^[a-f0-9]{12}$/.test(requestRef) ? { requestRef } : {}), durationMs: Date.now() - startedAt,
       ...(response && providerRequestId(response) ? { providerRequestId: providerRequestId(response) } : {}),
-      ...(result ? { returnedItems: result.items.length, coverage: result.coverage.status } : {}),
+      ...(result ? { returnedItems: result.items.length, coverage: result.coverage.status, ...diagnostics } : {}),
       ...(BRIEF_ERROR_CODES.has(failure?.code) && typeof failure.reason === "string" && /^[a-z_]{1,80}$/.test(failure.reason)
         ? { code: failure.code, reason: failure.reason } : {}), ...usage }));
   }

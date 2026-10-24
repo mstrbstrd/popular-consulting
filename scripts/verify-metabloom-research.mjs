@@ -11,6 +11,7 @@ const require = createRequire(import.meta.url);
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || "playwright");
 const metabloomAuth = require("../server/metabloomAuth");
 const handler = require("../api/metabloom");
+const productionOutput = require("./fixtures/metabloom-research-output-20261023.cjs");
 const output = path.join(os.tmpdir(), "metabloom-research-browser");
 const buildRoot = path.resolve("build");
 assert(fs.existsSync(path.join(buildRoot, "index.html")), "Run npm run build before this verification script.");
@@ -20,7 +21,8 @@ const sourceList = [
   { id: 1, title: "Fictional orchard sensor release notes", url: "https://example.com/orchard-release" },
   { id: 2, title: "Fictional orchard calibration study", url: "https://example.org/orchard-study" },
 ];
-const verificationDate = new Date().toISOString().slice(0, 10);
+const verificationDate = productionOutput.asOf.slice(0, 10);
+const verificationTimeZone = productionOutput.timeZone;
 const developmentQuotes = [
   `On ${verificationDate}, the fictional orchard team announced one-minute moisture readings.`,
   `On ${verificationDate}, the fictional study team published its reference calibration trial results.`,
@@ -37,7 +39,7 @@ const briefCandidate = () => ({
     whyItMatters: "Recording the sensor version and calibration date can help the fictional team interpret changes consistently.",
     uncertainty: ["The supplied documents do not establish the effect in every orchard."],
     watchNext: ["Watch for the next published evaluation of the trial."], developmentDate: verificationDate, scheduledDate: null,
-    dateEvidence: { sourceId: source.id, quote: developmentQuotes[index] }, evidenceStatus: index === 0 ? "announced" : "reported", dateBasis: "event-body",
+    dateEvidence: { sourceId: source.id, reportExcerpt: developmentQuotes[index] }, evidenceStatus: index === 0 ? "announced" : "reported", dateBasis: "research-excerpt",
   })), sourceDetails: [],
 });
 const ordinaryAnswer = "Hello to the imaginary orchard team. This ordinary reply uses one writer request and does not start a research pass.";
@@ -109,7 +111,11 @@ const envKeys = ["OPENAI_API_KEY", "METABLOOM_OPENAI_MODEL", "METABLOOM_RESEARCH
 const originalEnv = Object.fromEntries(envKeys.map((key) => [key, process.env[key]]));
 const originalFetch = globalThis.fetch;
 const originalAuth = metabloomAuth.requireMetabloomSession;
+const originalDateNow = Date.now;
 const unexpectedProviderRequests = [];
+// Pin the server's calendar context for the pasted-output regression. Browser
+// animation timers remain real; only server-owned timestamps are fixed.
+Date.now = () => Date.parse(productionOutput.asOf);
 process.env.OPENAI_API_KEY = "fictional-local-verification-key";
 process.env.METABLOOM_OPENAI_MODEL = "gpt-5-mini";
 process.env.METABLOOM_RESEARCH_MODEL = "gpt-5-mini";
@@ -133,7 +139,7 @@ globalThis.fetch = async (url, options = {}) => {
   if (!fixture) {
     try { fixture = fixtures.get(JSON.parse(lastInput).request); } catch { /* Exact legacy question matching remains available. */ }
   }
-  assert(fixture, "Provider request must belong to a registered fictional question.");
+  assert(fixture, "Provider request must belong to a registered local fixture.");
   const research = Boolean(body.tools);
   const structured = body.text?.format?.name === "metabloom_research_brief";
   const call = { phase: research ? "research" : structured ? "brief" : "writer", model: body.model, stream: body.stream,
@@ -158,11 +164,12 @@ globalThis.fetch = async (url, options = {}) => {
     const response = new Response(new ReadableStream({
       start(controller) {
         const emit = (event) => controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`));
+        const fixtureDocument = () => fixture.kind === "production" ? productionOutput.researchDocument() : researchDocument();
         fixture.reportSearch = () => emit({ type: "response.output_item.done", output_index: 0,
-          item: researchDocument().output[0] });
+          item: fixtureDocument().output[0] });
         fixture.releaseResearch = () => {
           try {
-            const value = researchDocument();
+            const value = fixtureDocument();
             if (fixture.kind === "invalid") value.output.at(-1).content[0].annotations = [];
             emit({ type: "response.completed", response: value });
             controller.close();
@@ -185,9 +192,11 @@ globalThis.fetch = async (url, options = {}) => {
     assert.equal(fixture.calls.length, 2);
     assert.deepEqual(body.reasoning, { effort: "low" });
     const evidence = JSON.parse(body.input.at(-1).content);
-    assert(sourceList.every(({ id }) => evidence.report.sources.some((source) => source.id === id)), "Synthesis must retain canonical source IDs.");
+    const expectedSources = fixture.kind === "production" ? productionOutput.sources : sourceList;
+    assert(expectedSources.every(({ id }) => evidence.report.sources.some((source) => source.id === id)), "Synthesis must retain canonical source IDs.");
     assert(evidence.report.notes.length <= 16000, "The full report must not expand the paid writer context.");
-    assert.equal(evidence.temporalContext.timeZone, "UTC");
+    if (fixture.kind === "production") assert.equal(evidence.report.notes, productionOutput.report.notes);
+    assert.equal(evidence.temporalContext.timeZone, verificationTimeZone);
     assert.equal(evidence.temporalContext.localDate, verificationDate);
   } else assert.equal(fixture.calls.length, 1);
   if (fixture.kind === "writer-failure") {
@@ -199,7 +208,9 @@ globalThis.fetch = async (url, options = {}) => {
   if (structured) {
     const response = new Promise((resolve, reject) => {
       options.signal.addEventListener("abort", () => { fixture.formatterAborted = true; reject(new Error("Fictional formatter cancelled.")); }, { once: true });
-      fixture.releaseWriter = () => resolve(briefResponse());
+      fixture.releaseWriter = () => resolve(briefResponse(fixture.kind === "production"
+        ? fixture.emptyCoverage ? productionOutput.observedCandidate() : productionOutput.candidate({ unicodeOnly: true })
+        : briefCandidate()));
     });
     fixture.writerRequested.resolve();
     return response;
@@ -219,7 +230,7 @@ globalThis.fetch = async (url, options = {}) => {
 const fictionalCookie = "metabloom-research-fixture=fictional-local-session";
 const server = createBuildServer({ buildRoot, getSession: () => ({ authenticated: true,
   user: { id: "a".repeat(64), role: "admin", name: "Fictional research verifier" },
-  csrfToken: "b".repeat(64), expiresAt: Date.now() + 3600000 }) });
+  csrfToken: "b".repeat(64), expiresAt: originalDateNow() + 3600000 }) });
 let origin;
 metabloomAuth.requireMetabloomSession = async (request) => {
   const local = ["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(request.socket?.remoteAddress);
@@ -246,7 +257,7 @@ server.on("request", async (request, response) => {
       }
       request.body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
       fixture = fixtures.get(request.body.message);
-      assert(fixture, "Only registered fictional requests may reach the verification handler.");
+      assert(fixture, "Only registered local fixture requests may reach the verification handler.");
       fixture.api = { actionMode: request.body.actionMode, allowMultiple: request.body.allowMultiple,
         streamText: request.body.streamText, streamResearchDetails: request.body.streamResearchDetails,
         streamResearchBrief: request.body.streamResearchBrief, timeZone: request.body.timeZone,
@@ -334,8 +345,10 @@ let page;
 let activePageErrors = [];
 const requestedProfile = process.env.METABLOOM_VERIFY_PROFILE || "all";
 const captureScreenshots = process.env.METABLOOM_VERIFY_SCREENSHOTS === "1";
-assert(["all", "desktop", "mobile", "narrow-mobile"].includes(requestedProfile), "METABLOOM_VERIFY_PROFILE must be all, desktop, mobile or narrow-mobile.");
-const report = { mode: "built UI and actual API handler with fictional localhost auth and mocked OpenAI only", captureScreenshots, scenarios: [] };
+assert(["all", "regression", "desktop", "mobile", "narrow-mobile"].includes(requestedProfile),
+  "METABLOOM_VERIFY_PROFILE must be all, regression, desktop, mobile or narrow-mobile.");
+const report = { mode: "built UI and actual API handler with fictional localhost auth and mocked OpenAI only",
+  asOf: productionOutput.asOf, timeZone: verificationTimeZone, captureScreenshots, scenarios: [] };
 try {
   await new Promise((resolve, reject) => {
     server.once("error", reject);
@@ -349,12 +362,13 @@ try {
     { id: "desktop", viewport: { width: 1280, height: 850 }, isMobile: false },
     { id: "mobile", viewport: { width: 375, height: 812 }, isMobile: true },
     { id: "narrow-mobile", viewport: { width: 320, height: 812 }, isMobile: true },
-  ].filter((profile) => requestedProfile === "all" || profile.id === requestedProfile)) {
+  ].filter((profile) => requestedProfile === "all" || profile.id === requestedProfile
+    || (requestedProfile === "regression" && ["desktop", "narrow-mobile"].includes(profile.id)))) {
     // Viewport runs are independent verification sessions, not one user sending
     // all fixture turns inside the local per-minute quota window.
     handler._internals.localBuckets.clear();
     const context = await browser.newContext({ viewport: profile.viewport, isMobile: profile.isMobile,
-      hasTouch: profile.isMobile, deviceScaleFactor: 1, reducedMotion: "reduce", timezoneId: "UTC" });
+      hasTouch: profile.isMobile, deviceScaleFactor: 1, reducedMotion: "reduce", timezoneId: verificationTimeZone });
     await context.addCookies([{ name: "metabloom-research-fixture", value: "fictional-local-session", url: origin, httpOnly: true, sameSite: "Strict" }]);
     await context.route("**/*", (route) => new URL(route.request().url()).origin === origin ? route.continue() : route.abort());
     await context.addInitScript(installObserver);
@@ -407,7 +421,8 @@ try {
     const brief = messages.first().locator(".metabloom-research-brief");
     assert.equal(await brief.getAttribute("data-coverage-status"), "partial");
     assert.equal(await brief.getAttribute("data-research-brief-kind"), "news");
-    assert.equal(await brief.locator("h3").textContent(), "Fictional orchard news");
+    assert((await brief.locator("h3").textContent()).trim().length > 0);
+    assert.doesNotMatch(await brief.locator("h3").textContent(), /top\s*(?:5|five)/i);
     assert.equal(await brief.locator("h4").count(), 2);
     assert.match(await brief.locator(".metabloom-research-brief__coverage").textContent(), /2 of 5 stories.*Partial coverage/s);
     const briefOpening = await brief.locator("h3").evaluate((node) => {
@@ -437,7 +452,7 @@ try {
     assert.equal(research.wire.at(-1)?.type, "done");
     assert.equal(research.api.streamResearchDetails, true);
     assert.equal(research.api.streamResearchBrief, true);
-    assert.equal(research.api.timeZone, "UTC");
+    assert.equal(research.api.timeZone, verificationTimeZone);
     assert.equal(research.wire.filter((event) => event.type === "research_report_complete").length, 1);
     assert.equal(research.wire.filter((event) => event.type === "research_brief_complete").length, 1);
     const firstAnalysis = brief.locator(".metabloom-research-brief__item details").first();
@@ -562,6 +577,72 @@ try {
     assert.equal(await retainedReport.locator(".metabloom-chat__research-report-text").textContent(), displayedReport);
     assert.deepEqual(writerFailed.calls.map((call) => call.phase), ["research", "brief"]);
     await retainedReport.locator(":scope > summary").click();
+
+    // This independent regression session keeps the original pasted question
+    // and exact date/citation typography without consuming the earlier session's
+    // local rate allowance. Every provider response still comes from this file.
+    handler._internals.localBuckets.clear();
+    const productionCases = [];
+    for (const emptyCoverage of [false, true]) {
+      const id = emptyCoverage ? "empty" : "current";
+      const pasted = makeFixture(`${profile.id}-production-${id}`, "production", productionOutput.question);
+      pasted.emptyCoverage = emptyCoverage;
+      await beginAudit(page);
+      await send(page, pasted.question);
+      await waitFor(pasted.researchRequested.promise, "pasted-output research request");
+      assert.equal(pasted.releaseResearch(), true);
+      await waitFor(pasted.writerRequested.promise, "pasted-output formatter request");
+      assert.equal(await messages.count(), emptyCoverage ? 5 : 4);
+      pasted.releaseWriter();
+      await waitFor(pasted.finished.promise, "pasted-output API completion");
+      await completedCount(page, emptyCoverage ? 6 : 5);
+      assert.deepEqual(pasted.calls.map((call) => call.phase), ["research", "brief"]);
+      assert.equal(pasted.api.timeZone, productionOutput.timeZone);
+      const last = messages.last(), productionBrief = last.locator(".metabloom-research-brief");
+      assert.equal(await productionBrief.getAttribute("data-coverage-status"), emptyCoverage ? "unavailable" : "partial");
+      assert.equal(await productionBrief.locator("h4").count(), emptyCoverage ? 0 : 1);
+      assert.match(await productionBrief.locator(".metabloom-research-brief__coverage").textContent(),
+        emptyCoverage ? /0 of 5 stories.*Coverage unavailable/s : /1 of 5 stories.*Partial coverage/s);
+      assert.doesNotMatch(await productionBrief.locator("h3").textContent(), /top\s*(?:5|five)|five news/i);
+      const publicText = await productionBrief.textContent();
+      assert.doesNotMatch(publicText, /report\.notes|report\.sources|developmentDate|dateEvidence|dateBasis|publishedDate|sourceDetails|reportExcerpt/);
+      assert.doesNotMatch(publicText, /summarizing five major developments/);
+      if (!emptyCoverage) {
+        assert.equal(await productionBrief.locator("h4").textContent(), productionOutput.sections[4].headline);
+        assert.deepEqual(await productionBrief.locator(".metabloom-research-brief__overview a").evaluateAll((nodes) => nodes.map((node) => node.href)),
+          productionOutput.sources.slice(7).map((source) => source.url));
+      }
+      const opening = await productionBrief.locator("h3").evaluate((node) => {
+        const rect = node.getBoundingClientRect(), transcript = node.closest(".metabloom-chat__messages").getBoundingClientRect();
+        return { top: rect.top, bottom: rect.bottom, transcriptTop: transcript.top, transcriptBottom: transcript.bottom };
+      });
+      assert(opening.top >= opening.transcriptTop && opening.bottom <= opening.transcriptBottom,
+        "The production-shaped brief must open at its header.");
+      const savedReport = await page.evaluate(() => window.__orbMessages().filter((message) => message.role === "assistant").at(-1).researchDetails);
+      assert.deepEqual(savedReport, productionOutput.report, "Safe display formatting must not mutate the saved research.");
+      const audit = await readAudit(page);
+      assert.equal(audit.earlyBrief, false); assert.equal(audit.earlyText, false); assert.equal(audit.earlySourceList, false);
+      if (captureScreenshots) await page.screenshot({ path: `${output}/${profile.id}-production-${id}.png`, timeout: 45000 });
+      const full = last.locator(".metabloom-chat__full-research");
+      await full.locator(":scope > summary").click();
+      const fullText = full.locator(".metabloom-chat__research-report-text");
+      await fullText.waitFor({ state: "visible" });
+      const displayed = await fullText.textContent();
+      assert.doesNotMatch(displayed, /https?:\/\//, "Known Markdown destinations should be shown through canonical citations.");
+      for (const section of productionOutput.sections) assert(displayed.includes(section.reportExcerpt));
+      assert.equal(await fullText.locator("a.metabloom-chat__citation").count(), 10,
+        "Each existing canonical marker must appear once after its matching Markdown label.");
+      assert.deepEqual(await fullText.locator("a").evaluateAll((nodes) => nodes.map((node) => ({ href: node.href, target: node.target, rel: node.rel }))),
+        [1, 2, 3, 4, 5, 5, 6, 7, 8, 9].map((sourceId) => ({ href: productionOutput.sources[sourceId - 1].url,
+          target: "_blank", rel: "noopener noreferrer" })));
+      await full.locator(":scope > summary").click();
+      const layout = await productionBrief.evaluate((node) => {
+        const rect = node.getBoundingClientRect();
+        return { left: rect.left, right: rect.right, width: rect.width, scrollWidth: node.scrollWidth, viewport: innerWidth };
+      });
+      assert(layout.left >= 0 && layout.right <= layout.viewport && layout.scrollWidth <= layout.width + 1);
+      productionCases.push({ emptyCoverage, opening, layout, audit, fixture: snapshotFixture(pasted) });
+    }
     const geometry = await page.locator(".metabloom-chat__composer").evaluate((element) => {
       const rect = element.getBoundingClientRect();
       return { left: rect.left, right: rect.right, viewport: innerWidth, pageWidth: document.documentElement.scrollWidth };
@@ -574,9 +655,9 @@ try {
     report.scenarios.push({ profile, reducedMotion: true, geometry, briefOpening, briefGeometry, reportGeometry, displayedReportChars: displayedReport.length,
       progressStyle, research: snapshotFixture(research),
       researchAudit, cancelled: snapshotFixture(cancelled), cancelledAudit, background: snapshotFixture(background),
-      invalid: snapshotFixture(invalid), ordinary: snapshotFixture(ordinary), writerFailed: snapshotFixture(writerFailed), pageErrors: errors });
+      invalid: snapshotFixture(invalid), ordinary: snapshotFixture(ordinary), writerFailed: snapshotFixture(writerFailed), productionCases, pageErrors: errors });
     fs.writeFileSync(`${output}/report.json`, JSON.stringify(report, null, 2));
-    console.log(`PASS ${profile.id}: dated partial brief, native keyboard disclosure, full report, bounded formatter, format-failure fallback, surfacing, citations, visibility, cancellation, ordinary recovery`);
+    console.log(`PASS ${profile.id}: production-shaped 1/5 and 0/5, honest coverage, safe Markdown citations, dated partial brief, native keyboard disclosure, full report, bounded formatter, format-failure fallback, surfacing, visibility, cancellation, ordinary recovery`);
     await context.close();
     page = null;
   }
@@ -606,6 +687,7 @@ try {
   server.closeAllConnections();
   await new Promise((resolve) => server.close(resolve));
   globalThis.fetch = originalFetch;
+  Date.now = originalDateNow;
   metabloomAuth.requireMetabloomSession = originalAuth;
   for (const key of envKeys) {
     if (originalEnv[key] === undefined) delete process.env[key]; else process.env[key] = originalEnv[key];
