@@ -16,6 +16,10 @@ jest.mock("../contexts/ThemeContext", () => ({ useThemeMode: () => ({ isDark: fa
 
 const envelope = (...responses) => ({ version: "2.0.0", segments: responses.map((response) => ({ response })) });
 const tick = async (ms) => { await act(async () => { jest.advanceTimersByTime(ms); await Promise.resolve(); }); };
+const setHidden = (hidden) => act(() => {
+  Object.defineProperty(document, "hidden", { configurable: true, value: hidden });
+  document.dispatchEvent(new Event("visibilitychange"));
+});
 const send = (message = "Explore this question in depth") => {
   fireEvent.change(screen.getByRole("textbox"), { target: { value: message } });
   fireEvent.submit(screen.getByRole("form", { name: "Message Metabloom" }));
@@ -323,7 +327,48 @@ test.each([
   expect(replies[0]).toHaveAttribute("data-stream-status", "complete");
 });
 
-test.each(["late action", "completed adapter response"])("returning to a waiting request does not restart a skipped scene from its %s", async (mode) => {
+test.each([
+  ["think", 0],
+  ["entry blend", 700],
+  ["held dive", 2000],
+])("pending research survives repeated tab switches during its %s and surfaces before showing text", async (phase, elapsed) => {
+  render(<OrbSection />);
+  send();
+  await tick(0);
+  const { request, finish } = latest();
+  act(() => request.onAction("deep-research"));
+  await tick(elapsed);
+  setHidden(true);
+  await tick(5000);
+  setHidden(false);
+  expect(request.signal.aborted).toBe(false);
+  expect(state()).toMatchObject({ pending: true, sceneAction: "deep-research", scenePhase: "deep-research-diving", researchPhase: "diving", theme: "tidal-weave" });
+  expect(mockAvatar.activityTheme).toBe("tidal-weave");
+  expect(screen.queryByRole("article", { name: "Metabloom message" })).not.toBeInTheDocument();
+
+  setHidden(true);
+  await tick(500);
+  setHidden(false);
+  await tick(2000);
+  expect(state()).toMatchObject({ pending: true, scenePhase: "deep-research-diving", theme: "tidal-weave" });
+  expect(requests).toHaveLength(1);
+  expect(request.signal.aborted).toBe(false);
+
+  const answer = "The research is now ready to share.";
+  act(() => request.onTextDelta(answer, 0));
+  await act(async () => finish(envelope(answer)));
+  expect(state().scenePhase).toBe("deep-research-surfacing");
+  expect(screen.queryByRole("article", { name: "Metabloom message" })).not.toBeInTheDocument();
+  await tick(1850);
+  expect(screen.queryByRole("article", { name: "Metabloom message" })).not.toBeInTheDocument();
+  await tick(100);
+  expect(state()).toMatchObject({ pending: false, sceneAction: "none", researchDisplayPhase: "complete" });
+  expect(screen.getAllByRole("article", { name: "Metabloom message" })).toHaveLength(1);
+  expect(screen.getByText(answer)).toBeInTheDocument();
+  expect(requests).toHaveLength(1);
+});
+
+test.each(["hidden action", "late action", "completed adapter response"])("a waiting research request retains its scene choice from its %s after returning", async (mode) => {
   render(<OrbSection />);
   fireEvent.click(screen.getByRole("checkbox", { name: "Deep Research" }));
   send();
@@ -332,6 +377,7 @@ test.each(["late action", "completed adapter response"])("returning to a waiting
   act(() => {
     Object.defineProperty(document, "hidden", { configurable: true, value: true });
     document.dispatchEvent(new Event("visibilitychange"));
+    if (mode === "hidden action") expect(request.onAction("deep-research")).toBe(true);
   });
   await tick(1000);
   act(() => {
@@ -340,11 +386,41 @@ test.each(["late action", "completed adapter response"])("returning to a waiting
     if (mode === "late action") expect(request.onAction("deep-research")).toBe(true);
   });
   await act(async () => finish(envelope("The requested answer is ready.")));
-  await tick(4000);
+  expect(state()).toMatchObject({ pending: true, sceneAction: "deep-research" });
+  expect(screen.queryByRole("article", { name: "Metabloom message" })).not.toBeInTheDocument();
+  await tick(400);
+  expect(mockAvatar.activityTheme).toBe("tidal-weave");
+  await tick(3600);
   expect(request.signal.aborted).toBe(false);
   expect(state()).toMatchObject({ pending: false, sceneAction: "none", scenePhase: null });
   expect(screen.getByText("The requested answer is ready.")).toBeInTheDocument();
-  expect(mockAvatarHistory.every(({ theme, hood }) => theme === "metabloom" && hood === null)).toBe(true);
+  expect(mockAvatarHistory.some(({ theme }) => theme === "tidal-weave")).toBe(true);
+  expect(mockAvatarHistory.every(({ hood }) => hood === null)).toBe(true);
+  expect(requests).toHaveLength(1);
+});
+
+test.each([["think", 0], ["entry blend", 400]])("content arriving while hidden during research %s releases the answer without a stuck scene", async (phase, elapsed) => {
+  render(<OrbSection />);
+  send();
+  await tick(0);
+  const { request, finish } = latest();
+  act(() => request.onAction("deep-research"));
+  await tick(elapsed);
+  setHidden(true);
+  const answer = "The answer completed while this tab was hidden.";
+  act(() => request.onTextDelta(answer, 0));
+  await act(async () => finish(envelope(answer)));
+  expect(request.signal.aborted).toBe(false);
+  expect(state().sceneAction).toBe("none");
+  // A suspended tab may receive network data without running animation frames.
+  setHidden(false);
+  await tick(200);
+  expect(state()).toMatchObject({ pending: false, sceneAction: "none", researchDisplayPhase: "complete" });
+  expect(screen.getByText(answer)).toBeInTheDocument();
+  await tick(5000);
+  expect(state()).toMatchObject({ sceneAction: "none", scenePhase: null, theme: "metabloom" });
+  expect(screen.getAllByRole("article", { name: "Metabloom message" })).toHaveLength(1);
+  expect(requests).toHaveLength(1);
 });
 
 test("research final validation still rejects an inconsistent hidden prefix before any text appears", async () => {

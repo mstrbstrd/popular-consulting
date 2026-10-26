@@ -589,7 +589,7 @@ const OrbSection = ({
   }, [updateStateSnapshot]);
 
   const updateRequestScene = React.useCallback((owner, updates) => {
-    if (requestSceneRef.current !== owner || !mountedRef.current || document.hidden) return false;
+    if (requestSceneRef.current !== owner || !mountedRef.current) return false;
     owner.presentation = { ...owner.presentation, ...updates };
     updateStateSnapshot({ sceneAction: owner.presentation.sceneAction, scenePhase: owner.presentation.scenePhase });
     setRequestScene(owner.presentation);
@@ -598,7 +598,7 @@ const OrbSection = ({
 
   const waitForRequestScenePaint = React.useCallback((owner, callback) => {
     if (requestSceneRef.current !== owner) return;
-    if (stateRef.current?.fieldState !== "crossfading") { callback(); return; }
+    if (document.hidden || stateRef.current?.fieldState !== "crossfading") { callback(); return; }
     owner.onFieldSettled = () => {
       if (requestSceneRef.current !== owner) return;
       window.clearTimeout(requestSceneTimerRef.current);
@@ -659,6 +659,19 @@ const OrbSection = ({
   const completeRequestScene = React.useCallback((session) => {
     const owner = requestSceneRef.current;
     if (!owner || owner.session !== session || owner.complete) return false;
+    const finish = () => {
+      if (requestSceneRef.current !== owner) return;
+      if (owner.action === "deep-research") setActivity("idle");
+      cancelRequestScene();
+      const display = replyDisplayRef.current;
+      if (owner.action === "deep-research" && display?.session === session) display.gate.release();
+    };
+    // A result received off-screen must not wait for an entry paint that the
+    // suspended renderer cannot provide. Keep its answer ready for the return.
+    if (document.hidden) {
+      finish();
+      return true;
+    }
     if (owner.action === "deep-research") {
       owner.returnRequested = true;
       // Early content waits for both the think lead and the entry blend. Its
@@ -670,18 +683,11 @@ const OrbSection = ({
     requestSceneTimerRef.current = 0;
     // The hood keeps its existing quick-reply behavior. Research completes its
     // whole entry/return sequence before releasing its queued presentation.
-    if (document.hidden || owner.presentation.scenePhase === "think") {
+    if (owner.presentation.scenePhase === "think") {
       cancelRequestScene();
       return true;
     }
     const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    const finish = () => {
-      if (requestSceneRef.current !== owner) return;
-      if (owner.action === "deep-research") setActivity("idle");
-      cancelRequestScene();
-      const display = replyDisplayRef.current;
-      if (owner.action === "deep-research" && display?.session === session) display.gate.release();
-    };
     if (owner.action === "deep-research") {
       updateRequestScene(owner, { scenePhase: METABLOOM_SCENE_ACTIONS[owner.action].complete, researchPhase: "surfacing" });
       requestSceneTimerRef.current = window.setTimeout(() => {
@@ -798,7 +804,7 @@ const OrbSection = ({
   }, [performAction, updateStateSnapshot]);
 
   const beginRequestScene = React.useCallback((action, session) => {
-    if (document.hidden || !mountedRef.current) return false;
+    if (!mountedRef.current || (document.hidden && action !== "deep-research")) return false;
     cancelRequestScene();
     window.clearTimeout(thinkingTimerRef.current);
     thinkingTimerRef.current = 0;
@@ -1167,7 +1173,7 @@ const OrbSection = ({
         const request = activeRequestRef.current;
         // Custom adapters may return only a completed envelope. An explicit
         // selection still owns its scene and display before that payload appears.
-        if (!gate.enabled && !gate.hasContent && request?.session === session && request.actionMode === "deep-research" && !request.skipScene) {
+        if (!gate.enabled && !gate.hasContent && request?.session === session && request.actionMode === "deep-research") {
           request.actionReceived = true;
           beginRequestScene("deep-research", session);
         }
@@ -1520,6 +1526,7 @@ const OrbSection = ({
           || activeRequest.actionReceived || session.snapshot().segments.length) return false;
         activeRequest.actionReceived = true;
         activeRequest.action = action;
+        if (action === "deep-research") activeRequest.skipScene = false;
         return action === "none" || activeRequest.skipScene || beginRequestScene(action, session);
       };
       const onResearch = (research) => {
@@ -1670,11 +1677,19 @@ const OrbSection = ({
   React.useEffect(() => {
     const handleVisibility = () => {
       if (document.hidden) {
-        // A hidden tab may pause animation frames. Skip its scene without
-        // cancelling the request or discarding the bounded answer buffer.
-        if (activeRequestRef.current) activeRequestRef.current.skipScene = true;
-        cancelRequestScene();
-        replyDisplayRef.current?.gate.release();
+        const request = activeRequestRef.current;
+        const owner = requestSceneRef.current;
+        const display = replyDisplayRef.current;
+        // The renderer pauses off-screen, but an unfinished research request
+        // keeps its scene and held answer. Ready content can skip that return.
+        const keepResearchScene = owner?.action === "deep-research"
+          && owner.session === request?.session && !owner.session.closed
+          && display?.session === owner.session && !display.gate.hasContent;
+        if (request && request.action !== "deep-research") request.skipScene = true;
+        if (!keepResearchScene) {
+          cancelRequestScene();
+          display?.gate.release();
+        }
         cancelUnderHood();
         reactionPlayer.cancel();
         setActiveReaction(null);

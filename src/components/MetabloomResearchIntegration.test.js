@@ -148,9 +148,10 @@ test("observed progress stays with a backgrounded request and clears when its an
     document.dispatchEvent(new Event("visibilitychange"));
   });
   expect(request.signal.aborted).toBe(false);
-  expect(window.__orbState().sceneAction).toBe("none");
-  expect(screen.getByRole("status", { name: "Research progress" })).toHaveTextContent("Researching");
+  expect(window.__orbState()).toMatchObject({ pending: true, sceneAction: "deep-research", scenePhase: "deep-research-diving", researchPhase: "diving", theme: "tidal-weave" });
+  expect(screen.getByRole("status", { name: "Research progress" })).toHaveTextContent("Diving deep...");
   expect(screen.getByRole("status", { name: "Research progress" })).toHaveTextContent(searchSummary);
+  expect(requests).toHaveLength(1);
   act(() => {
     request.onSources(sources);
     request.onResearch({ state: "synthesizing" });
@@ -164,7 +165,9 @@ test("observed progress stays with a backgrounded request and clears when its an
     expect(request.onResearchProgress({ summary: "Cannot change status after the answer starts." })).toBe(false);
   });
   await act(async () => finish(envelope));
-  await tick(200);
+  expect(window.__orbState().scenePhase).toBe("deep-research-surfacing");
+  expect(screen.queryByRole("article", { name: "Metabloom message" })).not.toBeInTheDocument();
+  await tick(2050);
   expect(screen.getByRole("article", { name: "Metabloom message" })).toHaveTextContent(answer);
   expect(screen.queryByRole("status", { name: "Research progress" })).not.toBeInTheDocument();
   expect(window.__orbState()).toMatchObject({ pending: false, researchProgress: null, researchSummary: null });
@@ -305,7 +308,7 @@ test("research metadata and an answer arriving in a hidden tab retain their sour
   expect(window.__orbState()).toMatchObject({ pending: false, sceneAction: "none", researchProgress: null });
 });
 
-test.each(["stop", "reset", "deactivate", "unmount"])("%s still cancels research while its tab is hidden", async (operation) => {
+test.each(["stop", "reset", "replacement", "deactivate", "unmount"])("%s still cancels research while its tab is hidden", async (operation) => {
   const { rerender, unmount } = render(<OrbSection />);
   send();
   await tick(0);
@@ -319,6 +322,7 @@ test.each(["stop", "reset", "deactivate", "unmount"])("%s still cancels research
   expect(request.signal.aborted).toBe(false);
   if (operation === "unmount") unmount();
   else if (operation === "deactivate") rerender(<OrbSection isActive={false} />);
+  else if (operation === "replacement") send("A different ordinary question");
   else act(() => operation === "reset" ? window.__orbReset() : window.__orbStop());
   expect(request.signal.aborted).toBe(true);
   act(() => {
@@ -334,6 +338,10 @@ test.each(["stop", "reset", "deactivate", "unmount"])("%s still cancels research
   await tick(5000);
   expect(screen.queryByRole("article", { name: "Metabloom message" })).not.toBeInTheDocument();
   expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  if (operation !== "unmount") {
+    expect(window.__orbState()).toMatchObject({ sceneAction: "none", scenePhase: null, theme: "metabloom", pending: operation === "replacement" });
+    expect(requests).toHaveLength(operation === "replacement" ? 2 : 1);
+  }
 });
 
 test("the reply watchdog grants confirmed research one absolute deadline", async () => {
