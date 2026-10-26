@@ -2,6 +2,7 @@ import React from 'react';
 import { act, fireEvent, render, screen, waitFor, cleanup } from '@testing-library/react';
 import MetabloomVisuals from './MetabloomVisuals';
 import MetabloomVisualFrame from './MetabloomVisualFrame';
+import OrbSection from './OrbSection';
 import { requestMetabloomVisual, METABLOOM_VISUAL_OFFER_EVENT } from './metabloomVisualApiClient';
 import { postMetabloomTool } from './metabloomToolClient';
 import userEvent from '@testing-library/user-event';
@@ -10,6 +11,8 @@ jest.mock('./metabloomVisualApiClient', () => ({
   METABLOOM_VISUAL_OFFER_EVENT: 'metabloom:visual-offer', requestMetabloomVisual: jest.fn(),
 }));
 jest.mock('./metabloomToolClient', () => ({ postMetabloomTool: jest.fn() }));
+jest.mock('./MetabloomAvatar', () => () => null);
+jest.mock('../contexts/ThemeContext', () => ({ useThemeMode: () => ({ isDark: false }) }));
 const table = { version: '1', designVersion: 'aetheris-1', kind: 'table', title: 'Options compared', summary: 'Your supplied values.',
   provenance: { type: 'user', label: 'User-provided values.', sourceIds: [] }, columns: ['Option', 'Value'], rows: [['A', '10'], ['B', '20']] };
 const calculator = { version: '1', designVersion: 'aetheris-1', kind: 'calculator', title: 'Share the total', summary: 'Calculate from your inputs.', provenance: table.provenance, controls: [{ id: 'total', label: 'Total', unit: 'CAD', min: 0, max: 1000, step: 1, initial: 120 }, { id: 'people', label: 'People', unit: '', min: 0, max: 20, step: 1, initial: 3 }], formula: ['total', 'people', 'divide'], formulaDescription: 'Total divided by people.', unit: 'CAD per person' };
@@ -195,17 +198,18 @@ test('disabled tool never falls back to the ordinary model or displays HTML sour
   expect(requestMetabloomVisual).not.toHaveBeenCalled();
 });
 
-test('explicit tool call generates an artifact before the closing response and passes current calculator state', async () => {
+test('an explicit visual keeps its assistant-side slot, calculator state and focus through the closing response', async () => {
   const offer = { version: '1', designVersion: 'aetheris-1', id: 'b'.repeat(48),
     kind: 'calculator', expiresAt: Date.now() + 600000 };
-  postMetabloomTool.mockImplementation(({ phase }) => Promise.resolve(phase === 'start'
-    ? { offer, emote: 'neutral' }
-    : { reply: { version: '2.0.0', segments: [{ response: 'Your calculator is ready.' }] }, emote: 'neutral' }));
-  requestMetabloomVisual.mockResolvedValue({ spec: calculator, sources: [] });
+  let resolveVisual, resolveContinuation;
+  postMetabloomTool.mockImplementation(({ phase }) => phase === 'start'
+    ? Promise.resolve({ offer, emote: 'neutral' })
+    : new Promise(resolve => { resolveContinuation = resolve; }));
+  requestMetabloomVisual.mockImplementation(() => new Promise(resolve => { resolveVisual = resolve; }));
   messages = [{ id: 'user-1', role: 'user', content: 'Create an interactive calculator.' }];
   const HostTool = ({ complete }) => <div className="orb-page">
-    <article data-message-id="user-1" data-stream-status="complete"><div className="metabloom-chat__bubble">Create an interactive calculator.</div></article>
-    {complete && <article data-message-id="assistant-2" data-stream-status="complete"><div className="metabloom-chat__bubble">Your calculator is ready.</div></article>}
+    <article className="metabloom-chat__message metabloom-chat__message--user" data-message-id="user-1" data-stream-status="complete"><div className="metabloom-chat__bubble">Create an interactive calculator.</div></article>
+    {complete && <article className="metabloom-chat__message metabloom-chat__message--assistant" data-message-id="assistant-2" data-stream-status="complete"><span className="metabloom-chat__speaker">Metabloom</span><div className="metabloom-chat__bubble">Your calculator is ready.</div></article>}
     <MetabloomVisuals />
   </div>;
   const host = render(<HostTool complete={false} />);
@@ -219,15 +223,185 @@ test('explicit tool call generates an artifact before the closing response and p
   } });
   act(() => window.dispatchEvent(event));
   expect(event.defaultPrevented).toBe(true);
+  const stop = await screen.findByRole('button', { name: 'Stop visual' });
+  const slot = stop.closest('.metabloom-visual-slot');
+  const pendingArticle = slot.parentElement;
+  expect(pendingArticle).toHaveClass('metabloom-chat__message--assistant');
+  expect(pendingArticle.previousElementSibling).toHaveAttribute('data-message-id', 'user-1');
+  expect(pendingArticle.querySelector('.metabloom-chat__speaker')).toHaveTextContent('Metabloom');
+  expect(document.querySelector('[data-message-id="user-1"] .metabloom-visual')).toBeNull();
+  await act(async () => resolveVisual({ spec: calculator, sources: [] }));
   await screen.findByRole('heading', { name: 'Share the total' });
+  const frame = document.querySelector('.metabloom-visual');
+  const people = screen.getByLabelText('People');
+  fireEvent.change(people, { target: { value: '4' } });
+  people.focus();
+  expect(people).toHaveFocus();
+  expect(respond).not.toHaveBeenCalled();
+  await act(async () => resolveContinuation({
+    reply: { version: '2.0.0', segments: [{ response: 'Your calculator is ready.' }] }, emote: 'neutral',
+  }));
   await waitFor(() => expect(respond).toHaveBeenCalledTimes(1));
   expect(postMetabloomTool).toHaveBeenCalledTimes(2);
   expect(postMetabloomTool.mock.calls[1][0].display).toBe('mounted');
   host.rerender(<HostTool complete />);
   await waitFor(() => expect(document.querySelector('[data-message-id="assistant-2"] .metabloom-visual')).not.toBeNull());
-  fireEvent.change(screen.getByLabelText('People'), { target: { value: '4' } });
+  expect(document.querySelector('[data-message-id="assistant-2"] .metabloom-visual-slot')).toBe(slot);
+  expect(document.querySelector('.metabloom-visual')).toBe(frame);
+  expect(slot.nextElementSibling).toHaveClass('metabloom-chat__bubble');
+  expect(pendingArticle.isConnected).toBe(false);
+  expect(screen.getByLabelText('People')).toBe(people);
+  expect(people).toHaveValue(4);
+  expect(people).toHaveFocus();
+  expect(screen.getByText('30 CAD per person')).toBeInTheDocument();
+  expect(requestMetabloomVisual).toHaveBeenCalledTimes(1);
   expect(window.__metabloomVisualSnapshot()).toEqual({ id: offer.id, inputs: { total: 120, people: 4 } });
   fireEvent.change(screen.getByLabelText('People'), { target: { value: '' } });
   expect(window.__metabloomVisualSnapshot()).toBeNull();
   controller.abort();
+});
+
+test.each(['pruning', 'unmount'])('a pending assistant visual is removed on %s and ignores a late result', async reason => {
+  const message = 'Create an interactive calculator.';
+  const offer = { version: '1', designVersion: 'aetheris-1', id: 'f'.repeat(48),
+    kind: 'calculator', expiresAt: Date.now() + 600000 };
+  let resolveVisual;
+  postMetabloomTool.mockResolvedValue({ offer, emote: 'neutral' });
+  requestMetabloomVisual.mockImplementation(() => new Promise(resolve => { resolveVisual = resolve; }));
+  messages = [{ id: 'user-1', role: 'user', content: message }];
+  const HostTool = ({ cleared = false }) => <div className="orb-page">
+    {!cleared && <article data-message-id="user-1"><div className="metabloom-chat__bubble">{message}</div></article>}
+    <MetabloomVisuals />
+  </div>;
+  const host = render(<HostTool />);
+  const respond = jest.fn();
+  act(() => window.dispatchEvent(new CustomEvent('metabloom:user-message', { cancelable: true, detail: {
+    requestId: 'pending-1', message, history: [], actionMode: 'auto', signal: new AbortController().signal,
+    claim: jest.fn(), respond, onToolActivity: jest.fn(),
+  } })));
+  const pendingArticle = (await screen.findByRole('button', { name: 'Stop visual' })).closest('article');
+  const signal = requestMetabloomVisual.mock.calls[0][1].signal;
+  if (reason === 'unmount') host.unmount();
+  else { messages = []; host.rerender(<HostTool cleared />); }
+  await waitFor(() => expect(pendingArticle.parentNode).toBeNull());
+  expect(signal.aborted).toBe(true);
+  await act(async () => resolveVisual({ spec: calculator, sources: [] }));
+  expect(screen.queryByRole('heading', { name: 'Share the total' })).not.toBeInTheDocument();
+  expect(document.querySelector('.metabloom-visual-slot')).toBeNull();
+  expect(postMetabloomTool).toHaveBeenCalledTimes(1);
+  expect(respond).not.toHaveBeenCalled();
+});
+
+describe('the explicit visual reading position in the real Orb transcript', () => {
+  let matchMedia;
+  let ordinaryRequests;
+  beforeEach(() => {
+    matchMedia = window.matchMedia;
+    window.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} });
+    ordinaryRequests = [];
+    window.__metabloomRequest = request => new Promise(finish => ordinaryRequests.push({ request, finish }));
+  });
+  afterEach(() => {
+    cleanup();
+    jest.restoreAllMocks();
+    window.matchMedia = matchMedia;
+    window.__metabloomRequest = null;
+  });
+  const send = message => {
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: message } });
+    fireEvent.submit(screen.getByRole('form', { name: 'Message Metabloom' }));
+  };
+  const setup = async ({ visualHeight = 900, visualTop = 2500 } = {}) => {
+    const offer = { version: '1', designVersion: 'aetheris-1', id: '1'.repeat(48),
+      kind: 'calculator', expiresAt: Date.now() + 600000 };
+    let resolveVisual, resolveContinuation;
+    postMetabloomTool.mockImplementation(({ phase }) => phase === 'start'
+      ? Promise.resolve({ offer, emote: 'neutral' })
+      : new Promise(resolve => { resolveContinuation = resolve; }));
+    requestMetabloomVisual.mockImplementation(() => new Promise(resolve => { resolveVisual = resolve; }));
+    render(<div className="orb-page"><OrbSection /><MetabloomVisuals /></div>);
+    const transcript = screen.getByRole('log', { name: 'Conversation' });
+    let scrollHeight = 4000, scrollTop = 0;
+    Object.defineProperties(transcript, {
+      scrollHeight: { configurable: true, get: () => scrollHeight },
+      clientHeight: { configurable: true, value: 600 },
+      scrollTop: { configurable: true, get: () => scrollTop,
+        set: value => { scrollTop = Math.max(0, Math.min(scrollHeight - 600, value)); } },
+    });
+    transcript.style.setProperty('mask-image', 'linear-gradient(transparent, black)');
+    const originalRect = HTMLElement.prototype.getBoundingClientRect;
+    jest.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function getRect() {
+      if (this === transcript) return { top: 100, bottom: 700, left: 0, right: 500, height: 600, width: 500 };
+      if (this.classList.contains('metabloom-visual')) {
+        const top = visualTop - scrollTop;
+        return { top, bottom: top + visualHeight, left: 0, right: 500, height: visualHeight, width: 500 };
+      }
+      return originalRect.call(this);
+    });
+    send('Create an interactive calculator.');
+    await screen.findByRole('button', { name: 'Stop visual' });
+    return {
+      transcript,
+      ready: async () => {
+        await act(async () => resolveVisual({ spec: calculator, sources: [] }));
+        await waitFor(() => expect(postMetabloomTool).toHaveBeenCalledTimes(2));
+        return screen.getByRole('region', { name: calculator.title });
+      },
+      finish: async () => {
+        scrollHeight = 4400;
+        await act(async () => resolveContinuation({ reply: { version: '2.0.0',
+          segments: [{ response: 'Your calculator is ready.' }] }, emote: 'neutral' }));
+        await screen.findByText('Your calculator is ready.');
+      },
+    };
+  };
+
+  test('a long ready visual opens below the fade and keeps its position and focused input through the closing reply', async () => {
+    const { transcript, ready, finish } = await setup();
+    expect(transcript.scrollTop).toBe(3400);
+    const visual = await ready();
+    expect(visual.getBoundingClientRect().top).toBe(184);
+    const readingPosition = transcript.scrollTop;
+    const people = screen.getByLabelText('People');
+    fireEvent.change(people, { target: { value: '4' } });
+    act(() => people.focus());
+    await finish();
+    expect(transcript.scrollTop).toBe(readingPosition);
+    expect(people).toHaveFocus();
+    expect(people).toHaveValue(4);
+    expect(visual.closest('article')).toHaveAttribute('data-message-id', 'assistant-2');
+    expect(requestMetabloomVisual).toHaveBeenCalledTimes(1);
+  });
+
+  test('a ready visual already in view does not jump when the closing reply or viewport updates arrive', async () => {
+    const { transcript, ready, finish } = await setup({ visualHeight: 200, visualTop: 3900 });
+    await ready();
+    expect(transcript.scrollTop).toBe(3400);
+    await finish();
+    expect(transcript.scrollTop).toBe(3400);
+    fireEvent(window, new Event('resize'));
+    await act(async () => new Promise(resolve => window.requestAnimationFrame(resolve)));
+    expect(transcript.scrollTop).toBe(3400);
+  });
+
+  test('manual earlier reading stays put, while a new ordinary turn restores following latest and rejects an old visual notification', async () => {
+    const { transcript, ready, finish } = await setup();
+    transcript.scrollTop = 100;
+    fireEvent.scroll(transcript);
+    const visual = await ready();
+    const slot = visual.closest('.metabloom-visual-slot');
+    expect(transcript.scrollTop).toBe(100);
+    await finish();
+    expect(transcript.scrollTop).toBe(100);
+    send('Thank you, tell me a story.');
+    expect(transcript.scrollTop).toBe(3800);
+    await waitFor(() => expect(ordinaryRequests).toHaveLength(1));
+    act(() => window.dispatchEvent(new CustomEvent('metabloom:visual-ready', {
+      detail: { id: slot.dataset.visualId, userId: slot.dataset.visualUserId },
+    })));
+    expect(transcript.scrollTop).toBe(3800);
+    await act(async () => ordinaryRequests[0].finish({ version: '2.0.0', segments: [{ response: 'A new ordinary answer.' }] }));
+    await screen.findByText('A new ordinary answer.');
+    expect(transcript.scrollTop).toBe(3800);
+  });
 });

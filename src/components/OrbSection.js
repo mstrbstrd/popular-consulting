@@ -59,6 +59,14 @@ const ACTION_FORMS = Object.freeze({
 });
 const MODEL_REQUEST_EVENT = "metabloom:user-message";
 const MODEL_RESPONSE_EVENT = "metabloom:model-response";
+const getTranscriptReadingInset = (transcript) => {
+  const style = window.getComputedStyle(transcript);
+  const mask = style.getPropertyValue("mask-image") || style.getPropertyValue("-webkit-mask-image");
+  // Keep the opening below the transcript's 12% fade and any top controls.
+  return Math.max(16, parseFloat(style.paddingTop) || 0,
+    parseFloat(style.scrollPaddingTop) || 0,
+    mask && mask !== "none" ? transcript.clientHeight * 0.14 : 0);
+};
 const MAX_USER_MESSAGE_CHARS = 1600;
 const MAX_CHAT_MESSAGES = 24;
 const MAX_HISTORY_MESSAGES = 12;
@@ -469,6 +477,7 @@ const OrbSection = ({
   const composerAreaRef = React.useRef(null);
   const followLatestRef = React.useRef(true);
   const surfacedBriefScrollRef = React.useRef(null);
+  const visualScrollAnchorRef = React.useRef(null);
   const reactionPlayerRef = React.useRef(null);
   const thinkingTimerRef = React.useRef(0);
   const activityPreviewTimerRef = React.useRef(0);
@@ -1483,6 +1492,7 @@ const OrbSection = ({
         historyChars += item.content.length;
       }
       followLatestRef.current = true;
+      visualScrollAnchorRef.current = null;
       setReadingEarlier(false);
       appendMessage("user", message);
       const demo = METABLOOM_DEMOS.find((item) => item.prompt === message);
@@ -1703,7 +1713,17 @@ const OrbSection = ({
     onConversationStateChange?.(conversationStarted);
   }, [conversationStarted, onConversationStateChange]);
 
+  const hasVisualScrollAnchor = React.useCallback(() => {
+    const anchor = visualScrollAnchorRef.current;
+    if (!anchor || !transcriptRef.current?.contains(anchor.slot)) return false;
+    const currentMessages = messagesRef.current;
+    const latest = currentMessages[currentMessages.length - 1];
+    return latest?.id === anchor.userId || (latest?.role === "assistant"
+      && currentMessages[currentMessages.length - 2]?.id === anchor.userId);
+  }, []);
+
   const scrollToLatest = React.useCallback(() => {
+    visualScrollAnchorRef.current = null;
     followLatestRef.current = true;
     setReadingEarlier(false);
     const transcript = transcriptRef.current;
@@ -1718,6 +1738,37 @@ const OrbSection = ({
     setReadingEarlier(!nearBottom);
   };
 
+  React.useEffect(() => {
+    const handleVisualReady = (event) => {
+      const transcript = transcriptRef.current;
+      const { id, userId } = event.detail || {};
+      const currentMessages = messagesRef.current;
+      const index = currentMessages.findIndex(message => message.id === userId && message.role === "user");
+      if (!transcript || index < 0 || index < currentMessages.length - 2
+        || (index === currentMessages.length - 2 && currentMessages[index + 1]?.role !== "assistant")) return;
+      const slot = Array.from(transcript.querySelectorAll('.metabloom-visual-slot[data-visual-user-id]'))
+        .find(element => element.dataset.visualId === id && element.dataset.visualUserId === userId);
+      const visual = slot?.querySelector('.metabloom-visual[data-visual-state="ready"]');
+      if (!visual) return;
+      // The finished component owns this turn's reading position. Its closing
+      // sentence and scene cleanup must not pull a calculator out from under you.
+      visualScrollAnchorRef.current = { userId, slot };
+      if (!followLatestRef.current || visual.contains(document.activeElement)) return;
+      const inset = getTranscriptReadingInset(transcript);
+      const bounds = visual.getBoundingClientRect();
+      const viewport = transcript.getBoundingClientRect();
+      if (bounds.height > transcript.clientHeight - inset
+        || bounds.top < viewport.top + inset || bounds.bottom > viewport.bottom) {
+        transcript.scrollTop = Math.max(0, transcript.scrollTop + bounds.top - viewport.top - inset);
+        const nearBottom = transcript.scrollHeight - transcript.scrollTop - transcript.clientHeight < 72;
+        followLatestRef.current = nearBottom;
+        setReadingEarlier(!nearBottom);
+      }
+    };
+    window.addEventListener("metabloom:visual-ready", handleVisualReady);
+    return () => window.removeEventListener("metabloom:visual-ready", handleVisualReady);
+  }, []);
+
   React.useLayoutEffect(() => {
     const transcript = transcriptRef.current;
     const latestMessage = messages[messages.length - 1];
@@ -1731,13 +1782,7 @@ const OrbSection = ({
     // Never move the whole page or pull a reader away from an earlier reply.
     if (!followLatestRef.current) return;
     if (newlySurfacedBrief) {
-      const style = window.getComputedStyle(transcript);
-      const mask = style.getPropertyValue("mask-image") || style.getPropertyValue("-webkit-mask-image");
-      // The transcript's fade becomes opaque at 12% of its height. Leave a
-      // little breathing room below it and keep the brief clear of top controls.
-      const inset = Math.max(16, parseFloat(style.paddingTop) || 0,
-        parseFloat(style.scrollPaddingTop) || 0,
-        mask && mask !== "none" ? transcript.clientHeight * 0.14 : 0);
+      const inset = getTranscriptReadingInset(transcript);
       transcript.scrollTop = Math.max(0, transcript.scrollTop
         + brief.getBoundingClientRect().top - transcript.getBoundingClientRect().top - inset);
       const nearBottom = transcript.scrollHeight - transcript.scrollTop - transcript.clientHeight < 72;
@@ -1745,8 +1790,9 @@ const OrbSection = ({
       setReadingEarlier(!nearBottom);
       return;
     }
+    if (hasVisualScrollAnchor()) return;
     scrollToLatest();
-  }, [messages, pending, visibleResearchPhase, scenePhase, scrollToLatest]);
+  }, [messages, pending, visibleResearchPhase, scenePhase, scrollToLatest, hasVisualScrollAnchor]);
 
   const resizeComposer = React.useCallback(() => {
     const input = composerRef.current;
@@ -1789,13 +1835,13 @@ const OrbSection = ({
       const height = area.getBoundingClientRect().height;
       area.closest(".metabloom-chat")?.style.setProperty("--orb-composer-clearance", `${height + 48}px`);
       area.closest(".metabloom-chat")?.style.setProperty("--orb-composer-height", `${height}px`);
-      if (followLatestRef.current) scrollToLatest();
+      if (followLatestRef.current && !hasVisualScrollAnchor()) scrollToLatest();
     };
     const observer = new ResizeObserver(resize);
     observer.observe(area);
     resize();
     return () => observer.disconnect();
-  }, [scrollToLatest]);
+  }, [scrollToLatest, hasVisualScrollAnchor]);
 
   React.useLayoutEffect(() => {
     const viewport = window.visualViewport;
@@ -1813,7 +1859,7 @@ const OrbSection = ({
       page.dataset.keyboardOpen = String(document.activeElement === composerRef.current
         && (window.innerHeight - height > 100 || height < 520));
       resizeComposer();
-      if (followLatestRef.current) scrollToLatest();
+      if (followLatestRef.current && !hasVisualScrollAnchor()) scrollToLatest();
     };
     const schedule = () => {
       window.cancelAnimationFrame(frame);
@@ -1837,7 +1883,7 @@ const OrbSection = ({
       delete page.dataset.compactViewport;
       delete page.dataset.keyboardOpen;
     };
-  }, [resizeComposer, scrollToLatest]);
+  }, [resizeComposer, scrollToLatest, hasVisualScrollAnchor]);
 
   React.useEffect(() => {
     const handleModelResponse = (event) => {

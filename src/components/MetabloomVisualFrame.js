@@ -192,15 +192,69 @@ export class MetabloomVisualBoundary extends React.Component {
   render() { return this.state.failed ? <div className="metabloom-visual" role="status">This visual could not be displayed. Your answer is unchanged.</div> : this.props.children; }
 }
 export default function MetabloomVisualFrame({ artifact, onStop, onReady, onInputsChange }) {
-  React.useEffect(() => { if (artifact.status === 'ready') onReady?.(); }, [artifact.status, onReady]);
   const { id, status, spec, sources = [], code } = artifact;
-  return <section className="metabloom-visual" data-visual-state={status} data-visual-kind={spec?.kind || artifact.kind} aria-label={spec?.title || 'Visual answer'} aria-busy={status === 'generating'}>
+  const frameRef = React.useRef(null);
+  const pendingHeight = React.useRef(null);
+  const expansion = React.useRef(null);
+  const [revealRevision, setRevealRevision] = React.useState(0);
+  React.useLayoutEffect(() => {
+    const frame = frameRef.current;
+    if (status === 'generating') {
+      const measure = () => { pendingHeight.current = frame.getBoundingClientRect().height; };
+      measure();
+      const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null;
+      observer?.observe(frame);
+      return () => observer?.disconnect();
+    }
+    const from = pendingHeight.current;
+    pendingHeight.current = null;
+    const motion = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+    if (status !== 'ready' || !from || !frame.animate || document.hidden || motion?.matches) return undefined;
+    const to = frame.getBoundingClientRect().height;
+    if (Math.abs(to - from) < 1) return undefined;
+    const style = window.getComputedStyle(frame);
+    const timing = {
+      duration: parseFloat(style.getPropertyValue('--aetheris-motion-medium')) || 240,
+      easing: style.getPropertyValue('--aetheris-ease-standard').trim() || 'ease-out',
+    };
+    // These one-shot animations survive the portal handoff without replaying.
+    // Animate layout without scaling text or transforming the glass layer.
+    const animation = frame.animate([{ height: `${from}px`, overflow: 'clip' }, { height: `${to}px`, overflow: 'clip' }], timing);
+    const reveal = frame.querySelector('.metabloom-visual__content')?.animate([{ opacity: 0 }, { opacity: 1 }], timing);
+    expansion.current = animation;
+    const finishIfStatic = () => {
+      if (document.hidden || motion?.matches) { reveal?.finish(); animation.finish(); }
+    };
+    const releaseListeners = () => {
+      motion?.removeEventListener?.('change', finishIfStatic);
+      document.removeEventListener('visibilitychange', finishIfStatic);
+    };
+    motion?.addEventListener?.('change', finishIfStatic);
+    document.addEventListener('visibilitychange', finishIfStatic);
+    animation.onfinish = () => {
+      releaseListeners();
+      expansion.current = null;
+      setRevealRevision(value => value + 1);
+    };
+    return () => {
+      releaseListeners();
+      animation.onfinish = null;
+      animation.cancel();
+      reveal?.cancel();
+      expansion.current = null;
+    };
+  }, [status]);
+  React.useEffect(() => { if (status === 'ready' && !expansion.current) onReady?.(); }, [status, onReady, revealRevision]);
+  return <section ref={frameRef} className="metabloom-visual" data-visual-state={status} data-visual-kind={spec?.kind || artifact.kind} aria-label={spec?.title || 'Visual answer'} aria-busy={status === 'generating'}>
     <header className="metabloom-visual__header"><div><span className="metabloom-visual__eyebrow">{spec?.kind === 'calculator' ? 'Explore the answer' : 'Another way to see it'}</span><h3>{spec?.title || (status === 'cancelled' ? 'Visual stopped' : status === 'failed' ? 'Visual unavailable' : 'Preparing your visual')}</h3></div>
       {status === 'generating' && <button type="button" onClick={onStop}>Stop visual</button>}
     </header>
-    {status === 'generating' && <p className="metabloom-visual__progress" role="status">Preparing a visual from the completed answer.</p>}
+    {status === 'generating' && <div className="metabloom-visual__loading">
+      <p className="metabloom-visual__progress" role="status">Arranging the details for your visual.</p>
+      <div className="metabloom-visual__skeleton" aria-hidden="true"><span /><span /><span /></div>
+    </div>}
     {['failed', 'cancelled'].includes(status) && <p role="status">{METABLOOM_VISUAL_ERRORS[code] || METABLOOM_VISUAL_ERRORS.visual_unavailable}</p>}
-    {status === 'ready' && spec && <>
+    {status === 'ready' && spec && <div className="metabloom-visual__content">
       <p className="metabloom-visual__summary">{spec.summary}</p>
       {spec.kind === 'table' && <DataTable columns={spec.columns} rows={spec.rows} title={spec.title} />}
       {['bar-chart', 'line-chart'].includes(spec.kind) && <VisualChart spec={spec} id={id} />}
@@ -210,6 +264,6 @@ export default function MetabloomVisualFrame({ artifact, onStop, onReady, onInpu
       <footer className="metabloom-visual__provenance"><span className="metabloom-visual__badge">{provenanceLabels[spec.provenance.type]}</span><p>{spec.provenance.label}</p>
         {sources.length > 0 && <ul aria-label="Visual sources">{sources.map(source => <li key={source.id}><a href={source.url} target="_blank" rel="noopener noreferrer">{source.title}</a></li>)}</ul>}
       </footer>
-    </>}
+    </div>}
   </section>;
 }

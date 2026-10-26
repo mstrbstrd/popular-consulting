@@ -38,7 +38,7 @@ The offer is negotiated with `X-Metabloom-Visuals: 1`, not a new request-body fi
 
 `MetabloomVisuals` uses the existing `metabloom:user-message` and `__orbMessages` extension points. The optional path leaves the original text request with the model adapter; the explicit tool path claims supported visual requests. Request ID, original AbortSignal, originating user-message ID, exact completed answer, visible assistant-message ID and a unique Orb surface must agree. Repeated identical prompts do not authorize attachment to another reply. Each turn can start its offered visual once, even if its DOM slot disappears later.
 
-The visual slot is a sibling of the text bubble inside the same assistant article. This avoids stacking its backdrop blur inside the text bubble's blur. It does not create another chat surface or WebGL scene.
+The visual slot is a sibling of the text bubble inside the same assistant article. Explicit tool requests begin in an assistant-aligned placeholder row after their originating user message. The same slot moves before the completed assistant reply's text bubble, retaining the visual's alignment, calculator state and keyboard focus. Once the ready component settles, the current turn keeps its reading position instead of scrolling to the closing sentence. A long visual opens below the transcript's fade when the reader is already following the latest response; earlier reading and focused controls are respected. Optional post-answer visuals remain below their answer. This avoids stacking backdrop blur inside the text bubble's blur and does not create another chat surface or WebGL scene.
 
 ## Aetheris design contract
 
@@ -48,7 +48,9 @@ The application owns translucent surfaces, masked spectral edges, specular highl
 
 Theme changes use the existing CSS variables and root `data-theme`. They do not regenerate the specification, remount the calculator, reset inputs or make another provider request. No font files or third-party styling libraries are added; components inherit the existing font setup.
 
-Glass remains a background treatment, not reduced opacity on text. Reduced transparency and forced-color modes deliberately substitute accessible surfaces. Backdrop-filter support has a solid-surface fallback. No continuous decorative animation, extra canvas or nested blur per control is introduced.
+Glass remains a background treatment, not reduced opacity on text. Selected pie categories use a stronger spectral edge on the category control and a soft series-colored highlight on the chart, without an ink outline or changes to the slice geometry. Native controls use the shared focus halo; forced-color mode retains explicit system-color focus and selection indicators.
+
+Generation uses a subtle panel-tone skeleton shimmer only while work is pending. The card expands from its measured pending height over the shared 240ms motion interval, alongside a short content-opacity reveal. The mount notification follows that bounded expansion so scroll alignment uses the final geometry. Finished visuals have no looping animation. Reduced motion skips both effects; hiding the tab settles an active expansion immediately. Reduced transparency and forced-color modes deliberately substitute accessible surfaces, and backdrop-filter support has a solid-surface fallback. No extra canvas, transformed glass surface or nested blur per control is introduced.
 
 Real-scene compositing, existing transcript masking, deployed fonts and physical-device behavior still need preview qualification. Isolated component rendering is not proof of the complete Orb experience.
 
