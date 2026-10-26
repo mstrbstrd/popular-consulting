@@ -56,6 +56,30 @@ test('article image failure leaves a stable source card and complete outbound ac
   expect(container.querySelector('.metabloom-source-preview')).toHaveAttribute('data-preview-state', 'unavailable');
 });
 
+test('a compact preview identifies its canonical article and source number before and after image loading', async () => {
+  let finish;
+  const syndicated = { ...source, id: 13, title: 'Wire report: a fictional coastal agency announces a new ferry service' };
+  requestMetabloomSourcePreview.mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+  const view = render(<div className="orb-page"><MetabloomArticlePreview source={syndicated}
+    token={token} publisher="Fictional wire service" compact /></div>);
+  expect(screen.getByText(syndicated.title)).toBeVisible();
+  expect(screen.getByText('Source 13')).toBeVisible();
+  expect(screen.getByText('publisher.example.test')).toBeVisible();
+  const articleLink = screen.getByRole('link', { name: `Open source: ${syndicated.title}` });
+  expect(articleLink).toHaveAttribute('href', syndicated.url);
+  expect(articleLink).toHaveAttribute('title', syndicated.title);
+  await act(async () => finish(media()));
+  const image = screen.getByRole('img', { name: 'The original article’s image.' });
+  fireEvent.load(image);
+  expect(screen.getByText(syndicated.title)).toBeVisible();
+  expect(screen.getByRole('link', { name: `Read article: ${syndicated.title}` })).toBe(articleLink);
+  fireEvent.error(image);
+  expect(screen.getByText(syndicated.title)).toBeVisible();
+  expect(screen.getByText('Source 13')).toBeVisible();
+  expect(articleLink).toHaveAttribute('href', syndicated.url);
+  expect(view.container.querySelector('.metabloom-source-preview__image-area')).toHaveAttribute('hidden');
+});
+
 test.each(['unavailable', 'not an article'])('uses a text-complete card when preview is %s', async mode => {
   if (mode === 'unavailable') requestMetabloomSourcePreview.mockRejectedValue(new Error('Private server detail'));
   else requestMetabloomSourcePreview.mockResolvedValue({ version: '1', isArticle: false, image: null, icon: null });
@@ -133,7 +157,9 @@ test.each(['missing image', 'metadata unavailable', 'not an article'])(
     expect(image).toHaveAttribute('src', metabloomSourceMediaUrl(entries[1].token, 'image'));
     expect(screen.getByRole('link', { name: 'Read article: Cited article 2' })).toHaveAttribute('href', entries[1].source.url);
     expect(screen.getByText('Publisher 2')).toBeInTheDocument();
-    expect(screen.queryByText('Cited article 2')).not.toBeInTheDocument();
+    expect(screen.getByText('Cited article 2')).toBeVisible();
+    expect(screen.getByText('Source 2')).toBeVisible();
+    expect(screen.queryByText('Source 1')).not.toBeInTheDocument();
     expect(requestMetabloomSourcePreview.mock.calls.map(([selected]) => selected)).toEqual(entries.slice(0, 2).map(entry => entry.token));
     view.rerender(<MetabloomArticlePreview candidates={candidates()} compact />);
     expect(requestMetabloomSourcePreview).toHaveBeenCalledTimes(2);

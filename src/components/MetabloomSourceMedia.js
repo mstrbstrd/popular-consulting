@@ -95,12 +95,14 @@ function ArticlePreview({ candidates, compact }) {
     </div>
     <div className="metabloom-source-preview__content">
       <div className="metabloom-source-preview__publisher"><MetabloomPublisherIcon token={token} />
-        <span>{publisher || host}{publisher && <span className="metabloom-source-preview__host">{host}</span>}</span>
+        <span className="metabloom-source-preview__publisher-name">{publisher || host}{publisher && <span className="metabloom-source-preview__host">{host}</span>}</span>
+        {compact && <span className="metabloom-source-preview__reference">Source {source.id}</span>}
       </div>
-      {(!compact || state === 'unavailable') && <p className="metabloom-source-preview__title" title={source.title}>{source.title}</p>}
-      <a className="metabloom-source-preview__action" href={source.url} target="_blank" rel="noopener noreferrer"
+      {!compact && <p className="metabloom-source-preview__title">{source.title}</p>}
+      <a className={`metabloom-source-preview__action${compact ? ' metabloom-source-preview__article-link' : ''}`}
+        href={source.url} target="_blank" rel="noopener noreferrer" title={source.title}
         aria-label={`${action}: ${source.title}`}>
-        {action}
+        {compact ? <span className="metabloom-source-preview__article-title">{source.title}</span> : action}
         <span aria-hidden="true"> ↗</span>
       </a>
     </div>

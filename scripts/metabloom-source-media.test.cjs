@@ -212,6 +212,68 @@ test('structured article media is supported without promoting an organization lo
   assert.deepEqual(unsafe.images, []); assert.deepEqual(unsafe.icons.map(value => value.url), [iconUrl]);
 });
 
+test('article pages never promote declared publisher logos or site icons into story photographs', () => {
+  const logo = 'https://cdn.example.com/station.png';
+  for (const publisher of [
+    { '@type': 'Organization', logo },
+    { '@type': 'NewsMediaOrganization', logo: { '@type': 'ImageObject', url: logo } },
+    { '@type': 'RadioStation', logo: { '@id': '#publisher-logo' } },
+  ]) {
+    const html = Buffer.from(`<head><meta property="og:type" content="article">
+      <meta property="og:image" content="${logo}"><meta name="twitter:image" content="/station-icon.png">
+      <link rel="icon" href="/station-icon.png"><link rel="image_src" href="${logo}#social">
+      <script type="application/ld+json">${JSON.stringify({ '@graph': [
+        publisher,
+        { '@type': 'ImageObject', '@id': '#publisher-logo', contentUrl: logo },
+        { '@type': 'NewsArticle', url: sourceUrl, publisher, image: { url: imageUrl, caption: 'The actual news photograph' } },
+      ] })}</script></head>`);
+    const metadata = extractSourceMediaMetadata(html, sourceUrl);
+    assert.equal(metadata.isArticle, true);
+    assert.deepEqual(metadata.images, [{ url: imageUrl, alt: 'The actual news photograph' }]);
+    assert.deepEqual(metadata.icons.map(value => value.url), ['https://news.example.com/station-icon.png', iconUrl]);
+  }
+});
+
+test('matched article images take priority over social cards and a logo-only article has no photo', () => {
+  const logo = 'https://cdn.example.com/station.png';
+  const html = articleImage => Buffer.from(`<head><meta property="og:type" content="article">
+    <meta property="og:image" content="${logo}"><meta name="twitter:image" content="https://cdn.example.com/social.jpg">
+    <script type="application/ld+json">${JSON.stringify({ '@type': 'NewsArticle', url: sourceUrl,
+      publisher: { '@type': 'Organization', logo }, image: articleImage })}</script></head>`);
+  assert.deepEqual(extractSourceMediaMetadata(html(imageUrl), sourceUrl).images.map(value => value.url), [
+    imageUrl, 'https://cdn.example.com/social.jpg',
+  ]);
+  const onlyLogo = Buffer.from(`<head><meta property="og:type" content="article"><meta property="og:image" content="${logo}">
+    <script type="application/ld+json">${JSON.stringify({ '@type': 'NewsArticle', url: sourceUrl,
+      publisher: { '@type': 'Organization', logo }, image: logo })}</script></head>`);
+  const metadata = extractSourceMediaMetadata(onlyLogo, sourceUrl);
+  assert.equal(metadata.isArticle, true);
+  assert.deepEqual(metadata.images, []);
+});
+
+test('a syndicated article with a station social-share fallback keeps the source but omits its branding photo', () => {
+  // Metadata shape reproduced from the reported WNFL article: an article marker,
+  // fbShare.png beside squareIcon.png, and unbound NewsArticle data with no image.
+  const logo = 'https://media.example.com/uploads/station/2172/fbShare.png?r=97207';
+  const icon = 'https://media.example.com/uploads/station/2172/squareIcon.png?r=97208';
+  const parse = image => extractSourceMediaMetadata(Buffer.from(`<head>
+    <meta property="og:type" content="article"><meta property="og:title" content="A newswire report">
+    <meta property="og:image" content="${image}"><link rel="icon" href="${icon}" sizes="32x32">
+    <link rel="apple-touch-icon" href="${icon}"><script type="application/ld+json">${JSON.stringify({
+      '@type': 'NewsArticle', headline: 'A newswire report', author: { '@type': 'Person', name: 'News agency' },
+    })}</script></head>`), sourceUrl);
+  const metadata = parse(logo);
+  assert.equal(metadata.isArticle, true, 'Syndication does not invalidate the article citation');
+  assert.deepEqual(metadata.images, []);
+  assert.deepEqual(metadata.icons.map(value => value.url), [icon, iconUrl]);
+  assert.deepEqual(parse('https://media.example.com/uploads/station/2172/kyiv-damage.jpg').images,
+    [{ url: 'https://media.example.com/uploads/station/2172/kyiv-damage.jpg', alt: '' }],
+    'A news photo is still eligible from the same host and directory');
+  assert.deepEqual(parse('https://photos.example.com/news/fbShare.png').images,
+    [{ url: 'https://photos.example.com/news/fbShare.png', alt: '' }],
+    'A generic filename alone is not sufficient to classify a photo as site branding');
+});
+
 test('related JSON-LD articles cannot classify this website or promote its social logo', () => {
   const home = 'https://news.example.com/';
   const article = { '@type': 'NewsArticle', url: 'https://news.example.com/unrelated-story', image: 'https://cdn.example.com/unrelated.jpg' };
@@ -367,6 +429,26 @@ test('preview exposes only same-origin capabilities and reuses validated cached 
   assert.equal(calls.length, 3, 'Preview validates resources once and later image loads use the bounded cache');
   await assert.rejects(service.getPreview({ ...identity, owner: 'd'.repeat(64) }, token), { code: 'source_media_invalid' });
   assert.equal(calls.length, 3, 'A different session must not access even a cached preview');
+});
+
+test('preview and direct image requests both omit station branding while retaining its publisher icon', async () => {
+  const logo = 'https://media.example.com/station/2172/fbShare.png?r=11';
+  const icon = 'https://media.example.com/station/2172/squareIcon.png?r=12';
+  const html = Buffer.from(`<head><meta property="og:type" content="article"><meta property="og:image" content="${logo}">
+    <link rel="apple-touch-icon" href="${icon}"></head>`);
+  const network = fixtureNetwork(options => options.hostname === 'news.example.com'
+    ? { body: html, type: 'text/html' } : { body: raster, type: 'image/png' });
+  const codec = makeCodec(), token = await codec.create(identity, sourceUrl);
+  const service = createSourceMediaService({ codec, fetchPublic: network.fetch, now: () => clock });
+  const preview = await service.getPreview(identity, token);
+  assert.equal(preview.isArticle, true);
+  assert.equal(preview.image, null);
+  assert.ok(preview.icon);
+  assert.equal(await service.getImage(identity, token), null);
+  assert.deepEqual((await service.getIcon(identity, token)).body, raster);
+  assert.deepEqual(network.requests.map(value => `${value.hostname}${value.path}`), [
+    'news.example.com/story', 'media.example.com/station/2172/squareIcon.png?r=12',
+  ], 'The generic social image is never fetched, including through the direct image route');
 });
 
 test('missing, blocked and invalid imagery fail independently and never invent an image', async () => {

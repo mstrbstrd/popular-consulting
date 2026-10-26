@@ -32,10 +32,12 @@
 }
 .orb-page .metabloom-source-preview--compact .metabloom-source-preview__image-area { align-self: center; }
 .orb-page .metabloom-source-preview__image-area[hidden] { display: none !important; }
-.orb-page .metabloom-source-preview--compact .metabloom-source-preview__content { justify-content: center; }
+.orb-page .metabloom-source-preview--compact .metabloom-source-preview__content { justify-content: center; gap: 0.3rem; }
 .orb-page .metabloom-source-preview--compact .metabloom-source-preview__publisher { overflow-wrap: anywhere; }
-.orb-page .metabloom-source-preview__publisher { display: flex; align-items: center; gap: 0.6rem; color: var(--aetheris-ink-2); font: 500 max(1.1rem, 12px)/1.4 var(--aetheris-font-mono); }
+.orb-page .metabloom-source-preview__publisher { display: flex; align-items: center; gap: 0.6rem; width: 100%; color: var(--aetheris-ink-2); font: 500 max(1.1rem, 12px)/1.4 var(--aetheris-font-mono); }
 .orb-page .metabloom-source-preview__publisher > span { min-width: 0; }
+.orb-page .metabloom-source-preview__publisher-name { flex: 1; }
+.orb-page .metabloom-source-preview__reference { flex-shrink: 0; color: var(--aetheris-ink-2); font: 400 max(1rem, 11px)/1.4 var(--aetheris-font-mono); white-space: nowrap; }
 .orb-page .metabloom-source-preview__host { display: block; margin-top: 0.2rem; font-size: 1rem; font-weight: 400; overflow-wrap: anywhere; }
 .orb-page .metabloom-research-brief p.metabloom-source-preview__title { margin: 0; color: var(--aetheris-ink); font: 600 max(1.2rem, 13px)/1.5 var(--aetheris-font-sans); }
 .orb-page .metabloom-research-brief a.metabloom-source-preview__action {
@@ -45,27 +47,20 @@
   background: transparent;
 }
 .orb-page .metabloom-source-preview--compact[data-preview-state='unavailable'] { grid-template-columns: minmax(0, 1fr); }
-.orb-page .metabloom-source-preview--compact[data-preview-state='unavailable'] .metabloom-source-preview__content {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 0.3rem 1rem;
+.orb-page .metabloom-research-brief a.metabloom-source-preview__article-link {
+  justify-content: space-between;
+  gap: 0.7rem;
+  width: 100%;
+  margin: 0;
+  padding: 0.3rem 0.2rem;
+  font: 500 max(1.2rem, 13px)/1.5 var(--aetheris-font-sans);
 }
-.orb-page .metabloom-source-preview--compact[data-preview-state='unavailable'] :is(.metabloom-source-preview__publisher, .metabloom-source-preview__title) { grid-column: 1; }
-.orb-page .metabloom-source-preview--compact[data-preview-state='unavailable'] .metabloom-source-preview__title {
+.orb-page .metabloom-source-preview__article-title {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+  min-width: 0;
   overflow: hidden;
-  font-size: max(1.2rem, 12px);
-  font-weight: 500;
-  line-height: 1.5;
-}
-.orb-page .metabloom-source-preview--compact[data-preview-state='unavailable'] .metabloom-source-preview__action {
-  grid-column: 2;
-  grid-row: 1 / 3;
-  align-self: center;
-  margin: 0;
 }
 .orb-page .metabloom-research-brief a.metabloom-source-preview__action:focus-visible {
   outline: 2px solid transparent; outline-offset: 3px; box-shadow: var(--aetheris-focus-halo);
@@ -81,7 +76,10 @@
 @media (max-width: 480px) {
   .orb-page .metabloom-source-preview { grid-template-columns: minmax(0, 1fr); }
   .orb-page .metabloom-source-preview--compact { grid-template-columns: minmax(7.5rem, 30%) minmax(0, 1fr); gap: 0.9rem; }
-  .orb-page .metabloom-source-preview--compact .metabloom-source-preview__host { display: none; }
+  .orb-page .metabloom-source-preview--compact:not([data-preview-state='unavailable']) .metabloom-source-preview__content { display: contents; }
+  .orb-page .metabloom-source-preview--compact:not([data-preview-state='unavailable']) .metabloom-source-preview__publisher { grid-column: 1 / -1; grid-row: 1; }
+  .orb-page .metabloom-source-preview--compact:not([data-preview-state='unavailable']) .metabloom-source-preview__image-area { grid-column: 1; grid-row: 2; }
+  .orb-page .metabloom-source-preview--compact:not([data-preview-state='unavailable']) .metabloom-source-preview__article-link { grid-column: 2; grid-row: 2; align-self: center; }
   .orb-page .metabloom-source-preview__content { gap: 0.7rem; }
 }
 @media (prefers-reduced-transparency: reduce) {

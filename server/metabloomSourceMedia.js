@@ -97,6 +97,7 @@ function extractSourceMediaMetadata(body, sourceUrl) {
   if (!source || !Buffer.isBuffer(body) || body.length > 524288) return null;
   const html = body.toString('utf8'), lower = html.toLowerCase();
   const ogImages = [], twitterImages = [], linkedImages = [], icons = [], articleImages = [];
+  const brandImages = new Set(), brandReferences = new Set(), structuredImages = new Map();
   let cursor = 0, currentImage, twitterAlt = '', pageIsArticle = false, structuredIsArticle = false, count = 0;
   const addUrl = (list, raw, alt = '') => {
     const url = parsePublicMediaUrl(raw, source);
@@ -106,6 +107,21 @@ function extractSourceMediaMetadata(body, sourceUrl) {
   };
   const articleTypes = new Set(['Article', 'NewsArticle', 'BlogPosting', 'Report', 'AnalysisNewsArticle',
     'OpinionNewsArticle', 'ReviewNewsArticle', 'BackgroundNewsArticle', 'ScholarlyArticle']);
+  const assetIdentity = value => {
+    const url = parsePublicMediaUrl(value, source);
+    if (!url) return null;
+    url.hash = '';
+    return url.href;
+  };
+  const rememberLogo = value => {
+    for (const entry of (Array.isArray(value) ? value : [value]).slice(0, 4)) {
+      const raw = typeof entry === 'string' ? entry : entry?.contentUrl || entry?.url;
+      const url = assetIdentity(raw);
+      if (url && brandImages.size < 64) brandImages.add(url);
+      const reference = entry && typeof entry === 'object' && parsePublicMediaUrl(entry['@id'], source);
+      if (reference && brandReferences.size < 32) brandReferences.add(reference.href);
+    }
+  };
   const matchesPage = value => {
     const url = parsePublicMediaUrl(value, source);
     return url && articlePageIdentity(url) === articlePageIdentity(source);
@@ -136,6 +152,12 @@ function extractSourceMediaMetadata(body, sourceUrl) {
       const node = pending.shift();
       if (!node || typeof node !== 'object') continue;
       if (Array.isArray(node)) { pending.push(...node.slice(0, 40)); continue; }
+      rememberLogo(node.logo);
+      for (const publisher of (Array.isArray(node.publisher) ? node.publisher : [node.publisher]).slice(0, 4)) {
+        if (publisher && typeof publisher === 'object') rememberLogo(publisher.logo);
+      }
+      const reference = parsePublicMediaUrl(node['@id'], source);
+      if (reference && structuredImages.size < 160) structuredImages.set(reference.href, node);
       const types = Array.isArray(node['@type']) ? node['@type'] : [node['@type']];
       if (types.some(type => typeof type === 'string' && articleTypes.has(type.replace(/^https?:\/\/schema\.org\//, '')))
         && articleDescribesSource(node)) {
@@ -194,17 +216,40 @@ function extractSourceMediaMetadata(body, sourceUrl) {
     else if (key === 'twitter:image' || key === 'twitter:image:src') addUrl(twitterImages, value);
     else if (key === 'twitter:image:alt') twitterAlt = metadataText(value);
   }
+  for (const reference of brandReferences) {
+    const image = structuredImages.get(reference);
+    if (image) rememberLogo(image);
+  }
+  const assetDirectory = value => {
+    const url = parsePublicMediaUrl(value, source);
+    return url && `${url.origin}${url.pathname.slice(0, url.pathname.lastIndexOf('/') + 1)}`;
+  };
+  const brandDirectories = new Set(icons.map(icon => assetDirectory(icon.url)));
+  const genericShareName = /^(?:fb[-_]?share|(?:default[-_]?)?(?:og|social|share|facebook|twitter)(?:[-_]?(?:image|card|share))?|(?:default|placeholder|fallback)[-_]?(?:image|photo|thumbnail)|(?:site|station|publisher|brand)[-_]?(?:logo|image)|logo)(?:[-_](?:light|dark|\d+))?\.(?:png|jpe?g|webp)$/i;
+  const isBrandShare = value => {
+    const url = parsePublicMediaUrl(value, source);
+    return url && brandDirectories.has(assetDirectory(url.href))
+      && genericShareName.test(url.pathname.slice(url.pathname.lastIndexOf('/') + 1));
+  };
+  addUrl(icons, new URL('/favicon.ico', source).href);
+  for (const icon of icons) brandImages.add(assetIdentity(icon.url));
   const images = [];
+  const addArticleImage = (url, alt) => {
+    if (!brandImages.has(assetIdentity(url)) && !isBrandShare(url)) addUrl(images, url, alt);
+  };
   // A matching JSON-LD Article establishes only that node's own declared
   // imagery. It cannot promote a website's generic social logo to an event
   // photograph, nor can related/unidentified articles supply this page's media.
+  // Prefer that article's imagery over a generic social fallback. Explicit
+  // publisher logos and icons stay branding even on an og:type=article page.
+  // A conventional social-share asset beside a declared site icon is also
+  // branding; do not mistake it for the article's photo because its page is news.
+  for (const value of articleImages) addArticleImage(value.url, value.alt);
   if (pageIsArticle) {
-    for (const value of ogImages.slice(0, 4)) addUrl(images, value.raw, value.alt);
-    for (const value of twitterImages) addUrl(images, value.url, twitterAlt);
+    for (const value of ogImages.slice(0, 4)) addArticleImage(value.raw, value.alt);
+    for (const value of twitterImages) addArticleImage(value.url, twitterAlt);
   }
-  for (const value of articleImages) addUrl(images, value.url, value.alt);
-  if (pageIsArticle) for (const value of linkedImages) addUrl(images, value.url, value.alt);
-  addUrl(icons, new URL('/favicon.ico', source).href);
+  if (pageIsArticle) for (const value of linkedImages) addArticleImage(value.url, value.alt);
   return { images: images.slice(0, 3), icons: icons.slice(0, 3), isArticle: pageIsArticle || structuredIsArticle };
 }
 
