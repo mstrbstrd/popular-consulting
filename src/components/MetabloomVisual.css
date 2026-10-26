@@ -213,9 +213,10 @@
 .orb-page .metabloom-visual__pie-chart svg { display: block; width: 100%; max-width: 30rem; height: auto; margin: 0 auto 1rem; }
 .orb-page .metabloom-visual__pie-slice { stroke: var(--aetheris-panel-raised); stroke-width: 1; vector-effect: non-scaling-stroke; cursor: pointer; touch-action: manipulation; }
 .orb-page .metabloom-visual__pie-slice[data-selected='true'] { filter: drop-shadow(0 0 3px color-mix(in srgb, var(--metabloom-series-color) 20%, transparent)); }
+/* SVG focus follows the slice, including pointer focus and forced-color mode. */
+.orb-page .metabloom-visual .metabloom-visual__pie-slice:focus { outline: none !important; outline-offset: 0 !important; box-shadow: none !important; }
 .orb-page .metabloom-visual .metabloom-visual__pie-slice:focus-visible {
-  box-shadow: none; stroke: var(--aetheris-teal); stroke-width: 2;
-  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--aetheris-teal) 50%, transparent));
+  stroke: var(--metabloom-pie-spectrum); stroke-width: 2; filter: none;
 }
 .orb-page .metabloom-visual__pie-edge { fill: none; stroke-width: 2; stroke-linejoin: round; vector-effect: non-scaling-stroke; pointer-events: none; }
 .orb-page .metabloom-visual__pie-legend { display: grid; gap: 0.8rem; min-width: 0; max-height: 36rem; overflow-y: auto; list-style: none; margin: 0; padding: 0.6rem; }

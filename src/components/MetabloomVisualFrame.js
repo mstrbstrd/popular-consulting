@@ -126,7 +126,8 @@ function VisualPieChart({ spec, id }) {
   return <>
     <div className="metabloom-visual__pie-layout">
       <figure className="metabloom-visual__pie-chart">
-        <svg viewBox="0 0 220 220" role="group" aria-labelledby={`${id}-pie-title`} aria-describedby={`${id}-pie-desc`}>
+        <svg viewBox="0 0 220 220" role="group" aria-labelledby={`${id}-pie-title`} aria-describedby={`${id}-pie-desc`}
+          style={{ '--metabloom-pie-spectrum': `url(#${id}-pie-spectrum)` }}>
           <title id={`${id}-pie-title`}>{spec.title}</title>
           <desc id={`${id}-pie-desc`}>Parts of one total. Select a slice or a category button to inspect its amount and share. With the keyboard, Tab to a slice and press Enter or Space. Exact values are available below.</desc>
           <VisualSeriesGradients id={id} count={spec.points.length} bounds={[14, 14, 206, 206]} />
