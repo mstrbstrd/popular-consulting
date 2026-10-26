@@ -156,7 +156,7 @@ test('failed image delivery advances to a cited alternate while a successful pri
   expect(requestMetabloomSourcePreview).toHaveBeenCalledTimes(2);
 });
 
-test('all unavailable previews stay bounded to three sources and retain the original source link and image area', async () => {
+test('an exhausted compact preview keeps the original article title and link without an empty photo placeholder', async () => {
   const entries = candidates();
   requestMetabloomSourcePreview.mockResolvedValue({ version: '1', isArticle: true, image: null, icon: null });
   const view = render(<MetabloomArticlePreview candidates={entries} compact />);
@@ -165,9 +165,31 @@ test('all unavailable previews stay bounded to three sources and retain the orig
   expect(requestMetabloomSourcePreview.mock.calls.map(([selected]) => selected)).toEqual(entries.slice(0, 3).map(entry => entry.token));
   expect(screen.getByRole('link', { name: 'Read article: Cited article 1' })).toHaveAttribute('href', entries[0].source.url);
   expect(screen.getByText('Publisher 1')).toBeInTheDocument();
+  expect(screen.getByText('Cited article 1')).toBeInTheDocument();
   expect(screen.queryByRole('img')).not.toBeInTheDocument();
   expect(view.container.querySelector('.metabloom-source-preview__image-area')).toBe(reserved);
+  expect(reserved).toHaveAttribute('hidden');
   expect(view.container.querySelector('.metabloom-source-preview')).toHaveAttribute('data-preview-state', 'unavailable');
+});
+
+test('a compact preview only removes its reserved image area after every image delivery fails', async () => {
+  const entries = candidates().slice(0, 2);
+  requestMetabloomSourcePreview.mockImplementation(selected => Promise.resolve(media(selected)));
+  const view = render(<MetabloomArticlePreview candidates={entries} compact />);
+  const reserved = view.container.querySelector('.metabloom-source-preview__image-area');
+  const first = await screen.findByRole('img', { name: 'The original article’s image.' });
+  expect(reserved).not.toHaveAttribute('hidden');
+  fireEvent.error(first);
+  await act(async () => {});
+  const alternate = screen.getByRole('img', { name: 'The original article’s image.' });
+  expect(alternate).toHaveAttribute('src', metabloomSourceMediaUrl(entries[1].token, 'image'));
+  expect(reserved).not.toHaveAttribute('hidden');
+  fireEvent.error(alternate);
+  expect(reserved).toHaveAttribute('hidden');
+  expect(screen.getByText('Cited article 1')).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: 'Read article: Cited article 1' })).toHaveAttribute('href', entries[0].source.url);
+  expect(screen.queryByRole('img')).not.toBeInTheDocument();
+  expect(requestMetabloomSourcePreview).toHaveBeenCalledTimes(2);
 });
 
 test('unmounting during an alternate lookup aborts it and never advances to another source', async () => {

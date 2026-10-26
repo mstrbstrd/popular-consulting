@@ -90,7 +90,7 @@ test("all brief content and source links wait for surfacing and use the full can
   expect(reply).toHaveAttribute("data-stream-status", "complete");
   const region = within(reply).getByRole("region", { name: expected.title });
   expect(region).toHaveAttribute("data-coverage-status", "partial");
-  expect(region).toHaveTextContent("3 of 5 stories");
+  expect(region).toHaveTextContent("3 stories");
   expect(region).toHaveTextContent("Partial coverage");
   expect(within(region).getAllByRole("heading", { level: 4 })).toHaveLength(1);
   expect(within(region).getByRole("combobox", { name: "Choose a story" })).toHaveDisplayValue("Story 1 of 3");
@@ -202,7 +202,7 @@ test("a hidden tab completes the same brief without aborting research or replayi
   });
   await tick(250);
   expect(window.__orbState()).toMatchObject({ pending: false, sceneAction: "none" });
-  expect(screen.getByRole("region", { name: briefFor().title })).toHaveTextContent("3 of 5 stories");
+  expect(screen.getByRole("region", { name: briefFor().title })).toHaveTextContent("3 stories");
   expect(window.__orbMessages().find((message) => message.role === "assistant").researchBrief).toEqual(briefFor());
   expect(requests).toHaveLength(1);
 });

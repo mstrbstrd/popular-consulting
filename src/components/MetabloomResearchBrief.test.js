@@ -113,7 +113,7 @@ test('shows one complete overview at a time and native story selection preserves
   brief.items[4].summary = `${'The fifth fictional development remains fully readable alongside its immediate context. '.repeat(10)}The final sentence is preserved.`;
   const { container } = renderBrief(brief);
   expect(screen.getByRole('region', { name: brief.title })).toHaveAttribute('data-coverage-status', 'complete');
-  expect(screen.getByText('5 of 5 stories')).toBeVisible();
+  expect(screen.getByText('5 stories')).toBeVisible();
   expect(screen.getByText('Complete')).toBeVisible();
   expectPosition('Story 1 of 5');
   expect(screen.getByRole('region', { name: brief.title })).toHaveAttribute('aria-roledescription', 'carousel');
@@ -184,6 +184,7 @@ test('a single story keeps its full overview and a one-option selector without n
   brief.items = brief.items.slice(0, 1); brief.sourceDetails = brief.sourceDetails.slice(0, 1);
   brief.coverage = { requestedCount: 1, returnedCount: 1, status: 'complete', limitations: [] };
   renderBrief(brief);
+  expect(screen.getByText('1 story')).toBeVisible();
   expectPosition('Story 1 of 1');
   expect(screen.getByRole('button', { name: 'Previous story' })).toHaveAttribute('aria-disabled', 'true');
   expect(screen.getByRole('button', { name: 'Next story' })).toHaveAttribute('aria-disabled', 'true');
@@ -233,16 +234,43 @@ test('displays the supplied timezone and historical covered interval independent
   expect(container.querySelector('time[datetime="2026-11-02"]')).toHaveTextContent('Nov 2, 2026');
 });
 
+test('labels the development date visibly and keeps it separate from status and the source publication date', () => {
+  const brief = fixture();
+  brief.items[0].evidenceStatus = 'reported';
+  brief.sourceDetails[0].publishedDate = '2026-10-21';
+  brief.sourceDetails[0].dateEvidence = 'Published October 21, 2026.';
+  renderBrief(brief);
+  const story = within(screen.getByRole('article', { name: brief.items[0].headline }));
+  expect(story.getByText('Reported')).toBeVisible();
+  const developmentLabel = story.getByText('Development ·');
+  expect(developmentLabel).toBeVisible();
+  expect(developmentLabel).not.toHaveClass('metabloom-research-brief__sr-only');
+  expect(developmentLabel.parentElement).toHaveTextContent('Development · Oct 23, 2026');
+  expect(story.queryByText('Oct 21, 2026')).not.toBeInTheDocument();
+  const evidence = openSourceEvidence();
+  const source = evidence.getByRole('link', { name: 'Fictional source 1' }).closest('li');
+  expect(within(source).getByText('Published').parentElement).toHaveTextContent('PublishedOct 21, 2026');
+});
+
 test('reports partial and unavailable coverage honestly without inventing missing stories', () => {
   const brief = fixture();
   brief.items = brief.items.slice(0, 3);
   brief.sourceDetails = brief.sourceDetails.slice(0, 3);
   brief.coverage = { requestedCount: 5, returnedCount: 3, status: 'partial', limitations: ['Only three dated developments were supported by the available evidence.'] };
   const view = renderBrief(brief);
-  expect(screen.getByText('3 of 5 stories')).toBeVisible();
+  expect(screen.getByText('3 stories')).toBeVisible();
+  expectPosition('Story 1 of 3');
+  expect(within(screen.getByRole('combobox', { name: 'Choose a story' })).getAllByRole('option')).toHaveLength(3);
+  expect(screen.getByText('3 stories').closest('header')).not.toHaveTextContent('5');
+  expect(screen.getByRole('group', { name: 'Story navigation' })).not.toHaveTextContent('5');
+  expect(screen.getByText('Briefing target')).not.toBeVisible();
+  expect(screen.getByText('Included')).not.toBeVisible();
   expect(screen.getByText('Partial coverage')).toBeVisible();
   expect(screen.getByText(brief.coverage.limitations[0])).not.toBeVisible();
   fireEvent.click(screen.getByText('Briefing details', { selector: 'summary' }));
+  expect(screen.getByText('Briefing target').parentElement).toHaveTextContent('Briefing target5');
+  expect(screen.getByText('Included').parentElement).toHaveTextContent('Included3');
+  expect(screen.getByText('Briefing target')).toBeVisible();
   expect(screen.getByRole('list', { name: 'Coverage limitations' })).toHaveTextContent(brief.coverage.limitations[0]);
   expect(screen.getAllByRole('article')).toHaveLength(1);
   expect(screen.queryByText('Fictional development 4')).not.toBeInTheDocument();
@@ -290,6 +318,8 @@ test('supports general research findings without applying news dates or story la
   renderBrief(brief);
   expect(screen.getByText('Research brief')).toBeVisible();
   expect(screen.getByText('5 findings')).toBeVisible();
+  expect(screen.queryByText('Briefing target')).not.toBeInTheDocument();
+  expect(screen.queryByText('Included')).not.toBeInTheDocument();
   expectPosition('Finding 1 of 5');
   expect(screen.getByRole('group', { name: 'Finding navigation' })).toBeVisible();
   fireEvent.change(screen.getByRole('combobox', { name: 'Choose a finding' }), { target: { value: '4' } });

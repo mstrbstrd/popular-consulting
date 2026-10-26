@@ -167,6 +167,46 @@ test("supported dated findings retain canonical IDs beyond eight and show honest
   assert.equal(extract(candidate(), evidence, context("Top 3 news today")).coverage.status, "complete");
 });
 
+test("meeting the requested count stays complete after stale, undated or repeated extra candidates are excluded", () => {
+  const ids = [1, 5, 9, 13, 17, 21];
+  for (const reason of ["stale", "undated", "repeated"]) {
+    const evidence = { notes: ids.map(id => `${quote(id)} [${id}]`).join("\n\n"), sources: ids.map(source) };
+    const value = { ...candidate(), items: ids.map(item) };
+    if (reason === "stale") {
+      value.items[5].developmentDate = "2026-10-22";
+      value.items[5].dateEvidence.reportExcerpt = quote(21, "2026-10-22");
+      evidence.notes = evidence.notes.replace(quote(21), quote(21, "2026-10-22"));
+    } else if (reason === "undated") {
+      value.items[5].developmentDate = null;
+      value.items[5].dateEvidence = null;
+      value.items[5].dateBasis = "unknown";
+    } else value.items[5] = structuredClone(value.items[0]);
+    const original = structuredClone(evidence);
+    const actual = extract(value, evidence);
+    assert.equal(actual.coverage.requestedCount, 5, reason);
+    assert.equal(actual.coverage.returnedCount, 5, reason);
+    assert.equal(actual.coverage.status, "complete", reason);
+    assert.equal(actual.title, value.title, reason);
+    assert.deepEqual(actual.items.map(entry => entry.sourceIds[0]), ids.slice(0, 5), reason);
+    assert.ok(actual.coverage.limitations.length > 0, "Exclusion notes remain available even when the count is fulfilled");
+    assert.deepEqual(evidence, original);
+  }
+});
+
+test("coverage remains partial for an unresolved interval or an untargeted selection with excluded candidates", () => {
+  const value = candidate();
+  value.items.push(structuredClone(value.items[0]));
+  assert.equal(extract(value, report(), context("News today")).coverage.status, "partial");
+  const unresolved = extract(value, report(), context("Top 3 news from spring 2025"));
+  assert.equal(unresolved.coverage.returnedCount, 3);
+  assert.equal(unresolved.coverage.status, "partial");
+  assert.match(unresolved.coverage.limitations.join(" "), /time period/);
+  const shortfall = extract(value);
+  assert.equal(shortfall.coverage.returnedCount, 3);
+  assert.equal(shortfall.coverage.status, "partial");
+  assert.match(shortfall.coverage.limitations.join(" "), /3 of 5/);
+});
+
 test("a stale 2008 report cannot occupy a current-news slot but remains eligible for an explicit historical query", () => {
   const value = candidate(), evidence = report();
   value.items[0].developmentDate = "2008-10-23";

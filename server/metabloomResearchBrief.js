@@ -449,8 +449,13 @@ function extractMetabloomResearchBrief(candidate, { report, temporalContext, evi
   if (temporalContext.windowUnresolved) limitations.push("The requested time period could not be resolved to a precise date window; it has not been silently treated as today's news.");
   if (temporalContext.countLimited) limitations.push(`You requested ${temporalContext.originalRequestedCount} items; a briefing contains at most 10. The full research may cover more.`);
   limitations.push(...candidate.limitations.filter((entry) => !implementationChatter(entry)));
+  // Coverage describes the delivered selection. Rejecting extra candidates does
+  // not leave a gap when the requested number of eligible items still survives.
+  // Keep those exclusions in the notes without mislabelling a fulfilled request.
+  const coverageGap = temporalContext.countLimited || temporalContext.windowUnresolved
+    || (temporalContext.requestedCount !== null ? items.length < temporalContext.requestedCount : omitted > 0);
   const coverage = { requestedCount: temporalContext.requestedCount, returnedCount: items.length,
-    status: !items.length ? "unavailable" : omitted || temporalContext.countLimited || temporalContext.windowUnresolved || (temporalContext.requestedCount !== null && items.length < temporalContext.requestedCount) ? "partial" : "complete",
+    status: !items.length ? "unavailable" : coverageGap ? "partial" : "complete",
     limitations: [...new Set(limitations)].slice(0, 8) };
   const framing = hostBriefFraming(temporalContext, coverage.status);
   const result = parseMetabloomResearchBrief({ version: METABLOOM_RESEARCH_BRIEF_VERSION, kind: temporalContext.kind,

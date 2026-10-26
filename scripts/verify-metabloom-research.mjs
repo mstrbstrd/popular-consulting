@@ -440,8 +440,11 @@ try {
     assert.doesNotMatch(await brief.locator("h3").textContent(), /top\s*(?:5|five)/i);
     assert.equal(await brief.locator("h4").count(), 2);
     assert.equal(await brief.locator(".metabloom-research-brief__item:not([hidden]) h4").count(), 1);
-    assert.match(await brief.locator(".metabloom-research-brief__coverage-heading").textContent(), /2 of 5 stories.*Partial coverage/s);
-    assert.equal(await brief.locator(".metabloom-research-brief__briefing-details").getAttribute("open"), null);
+    assert.match(await brief.locator(".metabloom-research-brief__coverage-heading").textContent(), /^2 stories\s*Partial coverage$/);
+    const briefingDetails = brief.locator(".metabloom-research-brief__briefing-details");
+    assert.equal(await briefingDetails.getAttribute("open"), null);
+    assert.equal(await briefingDetails.locator("dt", { hasText: "Briefing target" }).evaluate((node) => node.nextElementSibling.textContent), "5");
+    assert.equal(await briefingDetails.locator("dt", { hasText: "Included" }).evaluate((node) => node.nextElementSibling.textContent), "2");
     const briefOpening = await brief.locator("h3").evaluate((node) => {
       const heading = node.getBoundingClientRect();
       const transcript = node.closest(".metabloom-chat__messages").getBoundingClientRect();
@@ -651,7 +654,7 @@ try {
         assert.equal(await productionBrief.locator("h3, .metabloom-research-brief__coverage-heading").count(), 0,
           "An empty briefing does not lead with a zero-story card.");
       } else {
-        assert.match(await productionBrief.locator(".metabloom-research-brief__coverage-heading").textContent(), /1 of 5 stories.*Partial coverage/s);
+        assert.match(await productionBrief.locator(".metabloom-research-brief__coverage-heading").textContent(), /^1 story\s*Partial coverage$/);
         assert.doesNotMatch(await productionBrief.locator("h3").textContent(), /top\s*(?:5|five)|five news/i);
         assert.equal(await productionBrief.locator(".metabloom-research-brief__item:not([hidden]) h4").count(), 1);
       }

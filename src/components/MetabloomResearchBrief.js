@@ -22,8 +22,12 @@ const asOfTime = (value, timeZone) => new Intl.DateTimeFormat('en', {
   hourCycle: 'h23', timeZone,
 }).format(new Date(value));
 
-function BriefContext({ brief, windowLabel = 'Covered interval' }) {
+function BriefContext({ brief, windowLabel = 'Covered interval', includeCoverage = false }) {
   return <dl className="metabloom-research-brief__context">
+    {includeCoverage && brief.coverage.requestedCount !== null && <>
+      <div><dt>Briefing target</dt><dd>{brief.coverage.requestedCount}</dd></div>
+      <div><dt>Included</dt><dd>{brief.items.length}</dd></div>
+    </>}
     <div><dt>As of</dt><dd><time dateTime={brief.asOf}>{asOfTime(brief.asOf, brief.timeZone)}</time></dd></div>
     <div><dt>Timezone</dt><dd>{brief.timeZone}</dd></div>
     {brief.kind === 'news' && brief.windowStart && brief.windowEnd && <div className="metabloom-research-brief__window">
@@ -60,7 +64,7 @@ function BriefItem({ item, index, active, news, id, sourceMap, mediaMap, details
         {showEvidenceStatus && <span className="metabloom-research-brief__evidence-status"
           data-evidence-status={item.evidenceStatus}>{evidenceLabels[item.evidenceStatus]}</span>}
         {news && <div className="metabloom-research-brief__dates">
-          <span><span className="metabloom-research-brief__sr-only">Development: </span>{item.developmentDate
+          <span><span className="metabloom-research-brief__date-label">Development · </span>{item.developmentDate
             ? <time dateTime={item.developmentDate}>{calendarDate(item.developmentDate)}</time>
             : 'Date not established'}</span>
           {item.scheduledDate && <span>Scheduled: <time dateTime={item.scheduledDate}>{calendarDate(item.scheduledDate)}</time></span>}
@@ -223,9 +227,9 @@ export default function MetabloomResearchBrief({ brief, sources }) {
   </details>;
   const itemNoun = news ? 'stories' : 'findings';
   const singleItemNoun = news ? 'story' : 'finding';
-  const countText = coverage.requestedCount !== null
-    ? `${coverage.returnedCount} of ${coverage.requestedCount} ${coverage.requestedCount === 1 ? singleItemNoun : itemNoun}`
-    : `${coverage.returnedCount} ${coverage.returnedCount === 1 ? singleItemNoun : itemNoun}`;
+  // The visible total and the carousel describe the same available slides.
+  // The requested target belongs with the coverage explanation below.
+  const countText = `${safeBrief.items.length} ${safeBrief.items.length === 1 ? singleItemNoun : itemNoun}`;
   const coverageLabel = coverage.status === 'partial' ? 'Partial coverage' : 'Complete';
   const headerStart = news && safeBrief.windowStart ? safeBrief.windowStart : safeBrief.localDate;
   const headerEnd = news && safeBrief.windowEnd ? safeBrief.windowEnd : headerStart;
@@ -239,14 +243,17 @@ export default function MetabloomResearchBrief({ brief, sources }) {
           {headerStart !== headerEnd && <> – <time dateTime={headerEnd}>{calendarDate(headerEnd)}</time></>}
         </p>
       </div>
-      <p className="metabloom-research-brief__coverage-heading"><strong>{countText}</strong><span>{coverageLabel}</span></p>
+      <p className="metabloom-research-brief__coverage-heading">
+        <strong>{countText}</strong>
+        <span className="metabloom-research-brief__coverage-status">{coverageLabel}</span>
+      </p>
     </header>
     <BriefCarousel brief={safeBrief} id={id} sourceMap={sourceMap} mediaMap={mediaMap} detailsMap={detailsMap} />
     <details className="metabloom-research-brief__details metabloom-research-brief__briefing-details">
       <summary>Briefing details</summary>
       <p className="metabloom-research-brief__full-title">{safeBrief.title}</p>
       <p className="metabloom-research-brief__scope">{safeBrief.scope}</p>
-      <BriefContext brief={safeBrief} />
+      <BriefContext brief={safeBrief} includeCoverage />
       {coverage.limitations.length > 0 && <ul aria-label="Coverage limitations">{coverage.limitations.map((text, index) => <li key={index}>{text}</li>)}</ul>}
     </details>
     <SourceEvidence brief={safeBrief} sourceMap={sourceMap} mediaMap={mediaMap} />

@@ -12,6 +12,8 @@ Clients opt in with `streamResearchMedia: true` on the research request. For an 
 
 The article preview tries the primary source first and can advance to the next available cited source when a preview is unavailable or an image fails to load. It does not search for substitute imagery. The displayed image, article label and outgoing link always refer to the same selected source. No source outside the item's citations can become a fallback.
 
+Compact briefing previews reserve a small thumbnail while those attempts are pending. Once all candidates are exhausted, the empty image area is hidden and the original source becomes a compact publisher, article-title, and link row. A successful image still retains its own source association, and returning to a visited slide reuses its resolved preview state.
+
 Minting performs local cryptography and reads existing server configuration. It makes no metadata request, DNS lookup, image download, or provider call. Publisher requests begin only when the browser requests a source icon or preview, so publisher latency cannot delay the paid research result.
 
 Tokens use AES-256-GCM with a domain-separated key derived from the existing server-only auth Redis secret. The encrypted payload contains the observed HTTPS source URL, issue time, expiry, and token version. The authenticated associated data binds it to both the signed-in session owner and deployment scope. Lifetimes are at most one hour. Tokens fail closed after tampering, expiry, secret rotation, sign-in changes, or scope changes.

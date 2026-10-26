@@ -84,8 +84,11 @@ function ArticlePreview({ candidates, compact }) {
   };
   return <div ref={root} className={`metabloom-source-preview${compact ? ' metabloom-source-preview--compact' : ''}`}
     data-preview-state={state}>
-    <div className="metabloom-source-preview__image-area" aria-busy={state === 'pending' || state === 'loading'}>
-      <div className="metabloom-source-preview__fallback" aria-hidden="true"><SourceMark /><span>Original source</span></div>
+    <div className="metabloom-source-preview__image-area" hidden={compact && state === 'unavailable'}
+      aria-busy={state === 'pending' || state === 'loading'}>
+      <div className="metabloom-source-preview__fallback" aria-hidden="true"><SourceMark />
+        <span>{state === 'pending' || state === 'loading' ? 'Loading preview' : 'Original source'}</span>
+      </div>
       {image && <img className="metabloom-source-preview__image" src={image.src} alt={image.alt}
         width="640" height="360" loading="lazy" decoding="async" referrerPolicy="no-referrer"
         onLoad={() => { if (attempt === latestAttempt.current) setState('ready'); }} onError={imageFailed} />}
@@ -94,7 +97,7 @@ function ArticlePreview({ candidates, compact }) {
       <div className="metabloom-source-preview__publisher"><MetabloomPublisherIcon token={token} />
         <span>{publisher || host}{publisher && <span className="metabloom-source-preview__host">{host}</span>}</span>
       </div>
-      {!compact && <p className="metabloom-source-preview__title">{source.title}</p>}
+      {(!compact || state === 'unavailable') && <p className="metabloom-source-preview__title" title={source.title}>{source.title}</p>}
       <a className="metabloom-source-preview__action" href={source.url} target="_blank" rel="noopener noreferrer"
         aria-label={`${action}: ${source.title}`}>
         {action}
