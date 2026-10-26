@@ -115,11 +115,27 @@ test('multi-series chart renders three labeled paths and accessible exact values
   expect(screen.getByRole('table')).toHaveTextContent('Business B');
 });
 
-test('pie chart selection works with the keyboard and preserves exact values and assumptions', () => {
+test('pie slices and legend buttons share keyboard selection and preserve exact values and assumptions', () => {
   const { container } = render(<div className="orb-page"><MetabloomVisualFrame artifact={{ id: 'pie', status: 'ready', spec: pie }} /></div>);
-  expect(screen.getByRole('img', { name: /Apple-pie ingredients by mass/ })).toBeInTheDocument();
+  expect(screen.getByRole('group', { name: pie.title })).toBeInTheDocument();
   expect(screen.getByText('Assumed example quantities in grams; actual recipes vary.')).toBeInTheDocument();
   expect(container.querySelectorAll('.metabloom-visual__pie-slice')).toHaveLength(3);
+  const flourSlice = screen.getByRole('button', { name: 'Flour slice: 200 g (20% of the total)' });
+  const butterSlice = screen.getByRole('button', { name: 'Butter slice: 100 g (10% of the total)' });
+  userEvent.tab();
+  expect(screen.getByRole('button', { name: 'Apples slice: 700 g (70% of the total)' })).toHaveFocus();
+  userEvent.tab();
+  expect(flourSlice).toHaveFocus();
+  expect(flourSlice).toHaveAttribute('aria-pressed', 'false');
+  act(() => userEvent.keyboard('{Enter}'));
+  expect(flourSlice).toHaveAttribute('aria-pressed', 'true');
+  expect(screen.getByRole('button', { name: 'Flour 20%' })).toHaveAttribute('aria-pressed', 'true');
+  userEvent.tab();
+  expect(butterSlice).toHaveFocus();
+  act(() => userEvent.keyboard(' '));
+  expect(butterSlice).toHaveAttribute('aria-pressed', 'true');
+  expect(flourSlice).toHaveAttribute('aria-pressed', 'false');
+  expect(screen.getByRole('status')).toHaveTextContent('Butter: 100 g (10% of the total).');
   userEvent.tab();
   expect(screen.getByRole('button', { name: 'Apples 70%' })).toHaveFocus();
   userEvent.tab();
@@ -134,9 +150,30 @@ test('pie chart selection works with the keyboard and preserves exact values and
   expect(edge).toBe(selectedSlice.ownerSVGElement.lastElementChild);
   expect(edge).toHaveAttribute('stroke', 'url(#pie-pie-spectrum)');
   expect(edge).toHaveAttribute('aria-hidden', 'true');
+  expect(edge).toHaveAttribute('focusable', 'false');
+  expect(edge).not.toHaveAttribute('tabindex');
+  expect(edge).not.toHaveAttribute('role');
   fireEvent.click(screen.getByText('View exact values'));
   expect(screen.getByRole('table')).toHaveTextContent('Amount (g)');
   expect(screen.getByRole('table')).toHaveTextContent('700');
+  expect(requestMetabloomVisual).not.toHaveBeenCalled();
+  expect(postMetabloomTool).not.toHaveBeenCalled();
+});
+
+test('clicking a pie slice and its category button updates the same highlight and summary', () => {
+  const { container } = render(<div className="orb-page"><MetabloomVisualFrame artifact={{ id: 'pie-click', status: 'ready', spec: pie }} /></div>);
+  const flourSlice = screen.getByRole('button', { name: 'Flour slice: 200 g (20% of the total)' });
+  fireEvent.click(flourSlice);
+  expect(flourSlice).toHaveAttribute('aria-pressed', 'true');
+  expect(screen.getByRole('button', { name: 'Flour 20%' })).toHaveAttribute('aria-pressed', 'true');
+  expect(screen.getByRole('status')).toHaveTextContent('Flour: 200 g (20% of the total).');
+  expect(container.querySelector('.metabloom-visual__pie-edge')).toHaveAttribute('d', flourSlice.getAttribute('d'));
+  fireEvent.click(screen.getByRole('button', { name: 'Butter 10%' }));
+  const butterSlice = screen.getByRole('button', { name: 'Butter slice: 100 g (10% of the total)' });
+  expect(butterSlice).toHaveAttribute('aria-pressed', 'true');
+  expect(flourSlice).toHaveAttribute('aria-pressed', 'false');
+  expect(container.querySelector('.metabloom-visual__pie-edge')).toHaveAttribute('d', butterSlice.getAttribute('d'));
+  expect(screen.getByRole('status')).toHaveTextContent('Butter: 100 g (10% of the total).');
   expect(requestMetabloomVisual).not.toHaveBeenCalled();
   expect(postMetabloomTool).not.toHaveBeenCalled();
 });
@@ -151,6 +188,9 @@ test.each([1e12, Number.MIN_VALUE])('a pie with one positive part renders a comp
   fireEvent.click(screen.getByRole('button', { name: 'Absent 0%' }));
   expect(screen.getByRole('status')).toHaveTextContent('Absent: 0 g (0% of the total).');
   expect(container.querySelector('.metabloom-visual__pie-edge')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: /^Present slice:/ }));
+  expect(screen.getByRole('button', { name: 'Present 100%' })).toHaveAttribute('aria-pressed', 'true');
+  expect(container.querySelector('circle.metabloom-visual__pie-edge')).toHaveAttribute('r', '96');
   expect(container.querySelector('svg').innerHTML).not.toMatch(/NaN|Infinity/);
 });
 

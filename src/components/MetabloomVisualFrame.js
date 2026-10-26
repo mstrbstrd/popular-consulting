@@ -13,11 +13,11 @@ const DataTable = ({ columns, rows, title }) => (
 );
 const VisualSeriesGradients = ({ id, count, bounds }) => (
   <defs>{Array.from({ length: count }, (_, index) => (
-    <linearGradient key={index} id={`${id}-series-${index + 1}`} className={`metabloom-visual__series-${index + 1}`}
+    <linearGradient key={index} id={`${id}-series-${index + 1}`} className={`metabloom-visual__series-gradient metabloom-visual__series-${index + 1}`}
       gradientUnits="userSpaceOnUse" x1={bounds[0]} y1={bounds[1]} x2={bounds[2]} y2={bounds[3]}>
-      <stop offset="0%" stopColor="var(--metabloom-series-start)" />
-      <stop offset="55%" stopColor="var(--metabloom-series-color)" />
-      <stop offset="100%" stopColor="var(--metabloom-series-end)" />
+      <stop offset="0%" stopColor="var(--metabloom-series-paint-start, var(--metabloom-series-start))" />
+      <stop offset="55%" stopColor="var(--metabloom-series-paint-color, var(--metabloom-series-color))" />
+      <stop offset="100%" stopColor="var(--metabloom-series-paint-end, var(--metabloom-series-end))" />
     </linearGradient>
   ))}</defs>
 );
@@ -94,6 +94,7 @@ function VisualPieChart({ spec, id }) {
     return `${new Intl.NumberFormat(undefined, { maximumFractionDigits: 2 }).format(share)}%`;
   };
   let angle = -Math.PI / 2;
+  let selectedShape = null;
   const slices = spec.points.map((point, index) => {
     const fraction = point.value / total;
     const start = angle;
@@ -103,18 +104,31 @@ function VisualPieChart({ spec, id }) {
     const xy = value => `${110 + Math.cos(value) * 96} ${110 + Math.sin(value) * 96}`;
     // Two arcs also represent a full circle when all other parts are zero.
     const path = `M 110 110 L ${xy(start)} A 96 96 0 0 1 ${xy(midpoint)} A 96 96 0 0 1 ${xy(angle)} Z`;
+    const shape = positiveCount === 1
+      ? <circle key={index} cx="110" cy="110" r="96" />
+      : <path key={index} d={path} />;
+    // Keep the decorative perimeter separate from the interactive slice props.
+    if (index === selectedIndex) selectedShape = shape;
     const className = `metabloom-visual__pie-slice metabloom-visual__series-${index + 1}`;
-    const props = { className, fill: `url(#${id}-series-${index + 1})`, 'data-selected': index === selectedIndex ? 'true' : 'false' };
-    return positiveCount === 1
-      ? <circle key={index} cx="110" cy="110" r="96" {...props} />
-      : <path key={index} d={path} {...props} />;
+    return React.cloneElement(shape, {
+      className, fill: `url(#${id}-series-${index + 1})`, 'data-selected': index === selectedIndex ? 'true' : 'false',
+      role: 'button', tabIndex: 0, 'aria-pressed': index === selectedIndex, 'aria-controls': `${id}-pie-selection`,
+      'aria-label': `${point.label} slice: ${numberText(point.value)} ${spec.unit} (${percentage(point.value)} of the total)`,
+      onClick: () => setSelectedIndex(index),
+      onKeyDown: event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          setSelectedIndex(index);
+        }
+      },
+    });
   });
   return <>
     <div className="metabloom-visual__pie-layout">
       <figure className="metabloom-visual__pie-chart">
-        <svg viewBox="0 0 220 220" role="img" aria-labelledby={`${id}-pie-title ${id}-pie-desc`}>
+        <svg viewBox="0 0 220 220" role="group" aria-labelledby={`${id}-pie-title`} aria-describedby={`${id}-pie-desc`}>
           <title id={`${id}-pie-title`}>{spec.title}</title>
-          <desc id={`${id}-pie-desc`}>Parts of one total. Choose a category beside the chart to inspect its amount and share. Exact values are available below.</desc>
+          <desc id={`${id}-pie-desc`}>Parts of one total. Select a slice or a category button to inspect its amount and share. With the keyboard, Tab to a slice and press Enter or Space. Exact values are available below.</desc>
           <VisualSeriesGradients id={id} count={spec.points.length} bounds={[14, 14, 206, 206]} />
           <defs><linearGradient id={`${id}-pie-spectrum`} x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="var(--aetheris-spectral-cyan)" />
@@ -124,8 +138,8 @@ function VisualPieChart({ spec, id }) {
           </linearGradient></defs>
           {slices}
           {/* Paint the selected perimeter last so adjacent slices cannot cover it. */}
-          {slices[selectedIndex] && React.cloneElement(slices[selectedIndex], {
-            className: 'metabloom-visual__pie-edge', fill: 'none', 'data-selected': undefined, 'aria-hidden': true,
+          {selectedShape && React.cloneElement(selectedShape, {
+            className: 'metabloom-visual__pie-edge', fill: 'none', 'aria-hidden': true, focusable: 'false',
             stroke: `url(#${id}-pie-spectrum)`,
           })}
         </svg>

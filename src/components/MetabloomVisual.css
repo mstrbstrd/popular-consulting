@@ -196,12 +196,27 @@
 .orb-page .metabloom-visual__group-label { display: block; margin-bottom: 0.8rem; }
 .orb-page .metabloom-visual__group-bars { display: grid; gap: 0.7rem; }
 .orb-page .metabloom-visual__series-dot,
-.orb-page .metabloom-visual__bars .metabloom-visual__bar { background: linear-gradient(135deg, var(--metabloom-series-start), var(--metabloom-series-color) 55%, var(--metabloom-series-end)); }
+.orb-page .metabloom-visual__bars .metabloom-visual__bar {
+  background: linear-gradient(135deg,
+    var(--metabloom-series-paint-start, var(--metabloom-series-start)),
+    var(--metabloom-series-paint-color, var(--metabloom-series-color)) 55%,
+    var(--metabloom-series-paint-end, var(--metabloom-series-end)));
+}
 .orb-page .metabloom-visual__pie-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.4rem; align-items: center; margin-top: 1.4rem; }
+/* Opaque pastel tints preserve category colors over either theme's background. */
+.orb-page .metabloom-visual__pie-layout :is(.metabloom-visual__series-gradient, .metabloom-visual__series-dot) {
+  --metabloom-series-paint-start: color-mix(in srgb, var(--metabloom-series-start) 40%, white);
+  --metabloom-series-paint-color: color-mix(in srgb, var(--metabloom-series-color) 50%, white);
+  --metabloom-series-paint-end: color-mix(in srgb, var(--metabloom-series-end) 60%, white);
+}
 .orb-page .metabloom-visual__pie-chart { min-width: 0; margin: 0; }
 .orb-page .metabloom-visual__pie-chart svg { display: block; width: 100%; max-width: 30rem; height: auto; margin: 0 auto 1rem; }
-.orb-page .metabloom-visual__pie-slice { stroke: var(--aetheris-panel-raised); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.orb-page .metabloom-visual__pie-slice { stroke: var(--aetheris-panel-raised); stroke-width: 1; vector-effect: non-scaling-stroke; cursor: pointer; touch-action: manipulation; }
 .orb-page .metabloom-visual__pie-slice[data-selected='true'] { filter: drop-shadow(0 0 3px color-mix(in srgb, var(--metabloom-series-color) 20%, transparent)); }
+.orb-page .metabloom-visual .metabloom-visual__pie-slice:focus-visible {
+  box-shadow: none; stroke: var(--aetheris-teal); stroke-width: 2;
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--aetheris-teal) 50%, transparent));
+}
 .orb-page .metabloom-visual__pie-edge { fill: none; stroke-width: 2; stroke-linejoin: round; vector-effect: non-scaling-stroke; pointer-events: none; }
 .orb-page .metabloom-visual__pie-legend { display: grid; gap: 0.8rem; min-width: 0; max-height: 36rem; overflow-y: auto; list-style: none; margin: 0; padding: 0.6rem; }
 .orb-page .metabloom-visual__pie-legend button { display: grid; grid-template-columns: 1.6rem minmax(0, 1fr) auto; align-items: center; gap: 0.8rem; width: 100%; text-align: left; border-radius: var(--aetheris-radius-lg); font: 1.2rem/1.4 var(--aetheris-font-sans); letter-spacing: normal; }
@@ -217,6 +232,7 @@
   .orb-page .metabloom-visual__point { fill: Highlight; }
   .orb-page .metabloom-visual__pie-slice { fill: Canvas; stroke: CanvasText; forced-color-adjust: none; }
   .orb-page .metabloom-visual__pie-slice[data-selected='true'] { fill: Highlight; stroke: CanvasText; filter: none; }
+  .orb-page .metabloom-visual .metabloom-visual__pie-slice:focus-visible { stroke: Highlight; stroke-width: 3; filter: none; }
   .orb-page .metabloom-visual__pie-edge { stroke: CanvasText; forced-color-adjust: none; }
   .orb-page .metabloom-visual__pie-legend button[aria-pressed='true'] { outline: 2px solid Highlight; outline-offset: -3px; }
 }
