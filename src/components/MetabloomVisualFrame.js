@@ -103,7 +103,18 @@ function VisualPieChart({ spec, id }) {
         <svg viewBox="0 0 220 220" role="img" aria-labelledby={`${id}-pie-title ${id}-pie-desc`}>
           <title id={`${id}-pie-title`}>{spec.title}</title>
           <desc id={`${id}-pie-desc`}>Parts of one total. Choose a category beside the chart to inspect its amount and share. Exact values are available below.</desc>
+          <defs><linearGradient id={`${id}-pie-spectrum`} x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="var(--aetheris-spectral-cyan)" />
+            <stop offset="42%" stopColor="var(--aetheris-spectral-magenta)" />
+            <stop offset="72%" stopColor="var(--aetheris-spectral-yellow)" />
+            <stop offset="100%" stopColor="var(--aetheris-spectral-violet)" />
+          </linearGradient></defs>
           {slices}
+          {/* Paint the selected perimeter last so adjacent slices cannot cover it. */}
+          {slices[selectedIndex] && React.cloneElement(slices[selectedIndex], {
+            className: 'metabloom-visual__pie-edge', 'data-selected': undefined, 'aria-hidden': true,
+            stroke: `url(#${id}-pie-spectrum)`,
+          })}
         </svg>
         <figcaption>Total: <strong>{numberText(total)} {spec.unit}</strong>. Percentages are rounded; zero values have no slice.</figcaption>
       </figure>

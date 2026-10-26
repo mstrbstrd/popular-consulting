@@ -9,6 +9,12 @@
 :root {
   color-scheme: light;
 
+  /* Canonical spectral stops for native SVG edges and quantitative data marks. */
+  --aetheris-spectral-cyan: #00eeff;
+  --aetheris-spectral-magenta: #ff00ff;
+  --aetheris-spectral-yellow: #ffee00;
+  --aetheris-spectral-violet: #9d00ff;
+
   --aetheris-spectral: linear-gradient(
     135deg,
     #00eeff 0%,

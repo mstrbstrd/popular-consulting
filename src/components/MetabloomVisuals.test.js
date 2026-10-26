@@ -128,6 +128,12 @@ test('pie chart selection works with the keyboard and preserves exact values and
   expect(screen.getByRole('button', { name: 'Flour 20%' })).toHaveAttribute('aria-pressed', 'true');
   expect(screen.getByRole('status')).toHaveTextContent('Flour: 200 g (20% of the total).');
   expect(container.querySelector('.metabloom-visual__pie-slice[data-selected="true"]')).toHaveClass('metabloom-visual__series-2');
+  const selectedSlice = container.querySelector('.metabloom-visual__pie-slice[data-selected="true"]');
+  const edge = container.querySelector('.metabloom-visual__pie-edge');
+  expect(edge).toHaveAttribute('d', selectedSlice.getAttribute('d'));
+  expect(edge).toBe(selectedSlice.ownerSVGElement.lastElementChild);
+  expect(edge).toHaveAttribute('stroke', 'url(#pie-pie-spectrum)');
+  expect(edge).toHaveAttribute('aria-hidden', 'true');
   fireEvent.click(screen.getByText('View exact values'));
   expect(screen.getByRole('table')).toHaveTextContent('Amount (g)');
   expect(screen.getByRole('table')).toHaveTextContent('700');
@@ -140,9 +146,11 @@ test.each([1e12, Number.MIN_VALUE])('a pie with one positive part renders a comp
   const { container } = render(<div className="orb-page"><MetabloomVisualFrame artifact={{ id: 'single', status: 'ready', spec: chart }} /></div>);
   expect(container.querySelectorAll('circle.metabloom-visual__pie-slice')).toHaveLength(1);
   expect(container.querySelectorAll('path.metabloom-visual__pie-slice')).toHaveLength(0);
+  expect(container.querySelector('circle.metabloom-visual__pie-edge')).toHaveAttribute('r', '96');
   expect(screen.getByRole('button', { name: 'Present 100%' })).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'Absent 0%' }));
   expect(screen.getByRole('status')).toHaveTextContent('Absent: 0 g (0% of the total).');
+  expect(container.querySelector('.metabloom-visual__pie-edge')).toBeNull();
   expect(container.querySelector('svg').innerHTML).not.toMatch(/NaN|Infinity/);
 });
 
@@ -151,6 +159,8 @@ test('tiny positive pie parts never display a misleading zero percent', () => {
   const { container } = render(<div className="orb-page"><MetabloomVisualFrame artifact={{ id: 'tiny', status: 'ready', spec: chart }} /></div>);
   expect(screen.getByRole('button', { name: 'Trace <0.01%' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Main >99.99%' })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Trace <0.01%' }));
+  expect(container.querySelector('.metabloom-visual__pie-edge')).toBeNull();
   expect(container.querySelector('svg').innerHTML).not.toMatch(/NaN|Infinity/);
 });
 

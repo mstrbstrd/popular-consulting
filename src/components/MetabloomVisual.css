@@ -130,32 +130,33 @@
 
 .orb-page .metabloom-visual__axis-label { fill: var(--aetheris-ink-2); font: 10px var(--aetheris-font-mono); }
 
-/* Stable, distinguishable data series; the outer glass/spectral frame stays host-owned. */
-.orb-page .metabloom-visual__series-1 { --metabloom-series-color: var(--aetheris-teal); }
-.orb-page .metabloom-visual__series-2 { --metabloom-series-color: color-mix(in srgb, mediumorchid 85%, var(--aetheris-ink)); }
-.orb-page .metabloom-visual__series-3 { --metabloom-series-color: color-mix(in srgb, goldenrod 85%, var(--aetheris-ink)); }
-.orb-page .metabloom-visual__series-4 { --metabloom-series-color: color-mix(in srgb, slateblue 85%, var(--aetheris-ink)); }
-.orb-page .metabloom-visual__series-5 { --metabloom-series-color: color-mix(in srgb, seagreen 85%, var(--aetheris-ink)); }
-.orb-page .metabloom-visual__series-6 { --metabloom-series-color: color-mix(in srgb, coral 85%, var(--aetheris-ink)); }
-.orb-page .metabloom-visual__series-7 { --metabloom-series-color: color-mix(in srgb, cornflowerblue 85%, var(--aetheris-ink)); }
-.orb-page .metabloom-visual__series-8 { --metabloom-series-color: color-mix(in srgb, sienna 85%, var(--aetheris-ink)); }
-.orb-page .metabloom-visual__series-9 { --metabloom-series-color: color-mix(in srgb, hotpink 85%, var(--aetheris-ink)); }
-.orb-page .metabloom-visual__series-10 { --metabloom-series-color: color-mix(in srgb, darkcyan 85%, var(--aetheris-ink)); }
-.orb-page .metabloom-visual__series-11 { --metabloom-series-color: color-mix(in srgb, olivedrab 85%, var(--aetheris-ink)); }
-.orb-page .metabloom-visual__series-12 { --metabloom-series-color: color-mix(in srgb, lightslategray 85%, var(--aetheris-ink)); }
+/* Use the full spectral palette in both themes; extra series blend its hues, never ink. */
+.orb-page .metabloom-visual__series-1 { --metabloom-series-color: var(--aetheris-spectral-cyan); }
+.orb-page .metabloom-visual__series-2 { --metabloom-series-color: var(--aetheris-spectral-magenta); }
+.orb-page .metabloom-visual__series-3 { --metabloom-series-color: var(--aetheris-spectral-yellow); }
+.orb-page .metabloom-visual__series-4 { --metabloom-series-color: var(--aetheris-spectral-violet); }
+.orb-page .metabloom-visual__series-5 { --metabloom-series-color: color-mix(in srgb, var(--aetheris-spectral-cyan), var(--aetheris-spectral-yellow)); }
+.orb-page .metabloom-visual__series-6 { --metabloom-series-color: color-mix(in srgb, var(--aetheris-spectral-magenta), var(--aetheris-spectral-yellow)); }
+.orb-page .metabloom-visual__series-7 { --metabloom-series-color: color-mix(in srgb, var(--aetheris-spectral-cyan), var(--aetheris-spectral-violet)); }
+.orb-page .metabloom-visual__series-8 { --metabloom-series-color: color-mix(in srgb, var(--aetheris-spectral-yellow) 75%, var(--aetheris-spectral-magenta)); }
+.orb-page .metabloom-visual__series-9 { --metabloom-series-color: color-mix(in srgb, var(--aetheris-spectral-violet) 60%, var(--aetheris-spectral-magenta)); }
+.orb-page .metabloom-visual__series-10 { --metabloom-series-color: color-mix(in srgb, var(--aetheris-spectral-cyan) 75%, var(--aetheris-spectral-violet)); }
+.orb-page .metabloom-visual__series-11 { --metabloom-series-color: color-mix(in srgb, var(--aetheris-spectral-yellow) 75%, var(--aetheris-spectral-cyan)); }
+.orb-page .metabloom-visual__series-12 { --metabloom-series-color: color-mix(in srgb, var(--aetheris-spectral-magenta) 75%, var(--aetheris-spectral-yellow)); }
 .orb-page .metabloom-visual__legend { display: flex; gap: 0.8rem 1.4rem; flex-wrap: wrap; list-style: none; padding: 0; margin: 1.2rem 0; }
 .orb-page .metabloom-visual__legend li { display: flex; align-items: center; gap: 0.6rem; min-width: 0; overflow-wrap: anywhere; }
 .orb-page .metabloom-visual__series-dot { width: 1rem; height: 1rem; flex: 0 0 1rem; border-radius: 50%; background: var(--metabloom-series-color); }
 .orb-page .metabloom-visual__group-label { display: block; margin-bottom: 0.8rem; }
 .orb-page .metabloom-visual__group-bars { display: grid; gap: 0.7rem; }
 .orb-page .metabloom-visual__bars .metabloom-visual__bar { background: var(--metabloom-series-color, var(--aetheris-teal)); }
-.orb-page .metabloom-visual__line { stroke: var(--metabloom-series-color, var(--aetheris-teal)); }
-.orb-page .metabloom-visual__point { fill: var(--metabloom-series-color, var(--aetheris-teal)); }
+.orb-page .metabloom-visual__line { stroke: var(--metabloom-series-color, var(--aetheris-spectral-cyan)); }
+.orb-page .metabloom-visual__point { fill: var(--metabloom-series-color, var(--aetheris-spectral-cyan)); }
 .orb-page .metabloom-visual__pie-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.4rem; align-items: center; margin-top: 1.4rem; }
 .orb-page .metabloom-visual__pie-chart { min-width: 0; margin: 0; }
 .orb-page .metabloom-visual__pie-chart svg { display: block; width: 100%; max-width: 30rem; height: auto; margin: 0 auto 1rem; }
 .orb-page .metabloom-visual__pie-slice { fill: var(--metabloom-series-color, var(--aetheris-teal)); stroke: var(--aetheris-panel-raised); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .orb-page .metabloom-visual__pie-slice[data-selected='true'] { filter: drop-shadow(0 0 3px color-mix(in srgb, var(--metabloom-series-color) 20%, transparent)); }
+.orb-page .metabloom-visual__pie-edge { fill: none; stroke-width: 2; stroke-linejoin: round; vector-effect: non-scaling-stroke; pointer-events: none; }
 .orb-page .metabloom-visual__pie-legend { display: grid; gap: 0.8rem; min-width: 0; max-height: 36rem; overflow-y: auto; list-style: none; margin: 0; padding: 0.6rem; }
 .orb-page .metabloom-visual__pie-legend button { display: grid; grid-template-columns: 1rem minmax(0, 1fr) auto; align-items: center; gap: 0.8rem; width: 100%; text-align: left; border-radius: var(--aetheris-radius-lg); font: 1.2rem/1.4 var(--aetheris-font-sans); letter-spacing: normal; }
 .orb-page .metabloom-visual__pie-legend button[aria-pressed='true'] { background: color-mix(in srgb, var(--aetheris-teal) 6%, var(--aetheris-glass-panel-raised)); }
@@ -169,6 +170,7 @@
   .orb-page .metabloom-visual__point { fill: Highlight; }
   .orb-page .metabloom-visual__pie-slice { fill: Canvas; stroke: CanvasText; forced-color-adjust: none; }
   .orb-page .metabloom-visual__pie-slice[data-selected='true'] { fill: Highlight; stroke: CanvasText; filter: none; }
+  .orb-page .metabloom-visual__pie-edge { stroke: CanvasText; forced-color-adjust: none; }
   .orb-page .metabloom-visual__pie-legend button[aria-pressed='true'] { outline: 2px solid Highlight; outline-offset: -3px; }
 }
 

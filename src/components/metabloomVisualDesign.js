@@ -3,6 +3,7 @@ const { METABLOOM_VISUAL_DESIGN_VERSION, METABLOOM_VISUAL_KINDS } = require('./m
 // not a second palette and not unrestricted access to computed application state.
 const METABLOOM_VISUAL_TOKENS = Object.freeze([
   '--aetheris-spectral', '--aetheris-spectral-h', '--aetheris-spectral-border-soft',
+  '--aetheris-spectral-cyan', '--aetheris-spectral-magenta', '--aetheris-spectral-yellow', '--aetheris-spectral-violet',
   '--aetheris-glass-panel', '--aetheris-glass-panel-raised', '--aetheris-glass-surface',
   '--aetheris-glass-specular', '--aetheris-glass-blur', '--aetheris-shadow',
   '--aetheris-ink', '--aetheris-ink-2', '--aetheris-state-layer', '--aetheris-line', '--aetheris-line-strong',
