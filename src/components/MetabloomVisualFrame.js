@@ -11,6 +11,16 @@ const DataTable = ({ columns, rows, title }) => (
     </table>
   </div>
 );
+const VisualSeriesGradients = ({ id, count, bounds }) => (
+  <defs>{Array.from({ length: count }, (_, index) => (
+    <linearGradient key={index} id={`${id}-series-${index + 1}`} className={`metabloom-visual__series-${index + 1}`}
+      gradientUnits="userSpaceOnUse" x1={bounds[0]} y1={bounds[1]} x2={bounds[2]} y2={bounds[3]}>
+      <stop offset="0%" stopColor="var(--metabloom-series-start)" />
+      <stop offset="55%" stopColor="var(--metabloom-series-color)" />
+      <stop offset="100%" stopColor="var(--metabloom-series-end)" />
+    </linearGradient>
+  ))}</defs>
+);
 function VisualChart({ spec, id }) {
   const multiple = Array.isArray(spec.series);
   const labels = multiple ? spec.labels : spec.points.map(point => point.label);
@@ -49,13 +59,15 @@ function VisualChart({ spec, id }) {
       <figure className="metabloom-visual__line-chart">
         <svg viewBox="0 0 520 212" role="img" aria-labelledby={`${id}-chart-title ${id}-chart-desc`}>
           <title id={`${id}-chart-title`}>{spec.title}</title><desc id={`${id}-chart-desc`}>Ordered observations for {series.map(item => item.label).join(', ')}. Exact values are available in the data table below.</desc>
+          {/* Fixed plot coordinates also paint constant and all-zero series. */}
+          <VisualSeriesGradients id={id} count={series.length} bounds={[80, 28, 488, 28]} />
           {[min, (min + max) / 2, max].map((value, index) => <g key={index}>
             <text x="72" y={y(value) + 4} textAnchor="end" className="metabloom-visual__axis-label">{axisText(value)}</text>
             <line x1="80" x2="488" y1={y(value)} y2={y(value)} className="metabloom-visual__gridline" />
           </g>)}
           {series.map((item, seriesIndex) => <g key={item.id} className={`metabloom-visual__series-${seriesIndex + 1}`}>
-            <path d={item.values.map((value, index) => `${index ? 'L' : 'M'} ${x(index)} ${y(value)}`).join(' ')} className="metabloom-visual__line" />
-            {item.values.map((value, index) => <circle key={index} cx={x(index)} cy={y(value)} r="3" className="metabloom-visual__point">
+            <path d={item.values.map((value, index) => `${index ? 'L' : 'M'} ${x(index)} ${y(value)}`).join(' ')} className="metabloom-visual__line" stroke={`url(#${id}-series-${seriesIndex + 1})`} />
+            {item.values.map((value, index) => <circle key={index} cx={x(index)} cy={y(value)} r="3" className="metabloom-visual__point" fill={`url(#${id}-series-${seriesIndex + 1})`}>
               <title>{item.label}, {labels[index]}: {numberText(value)} {spec.unit}</title>
             </circle>)}
           </g>)}
@@ -92,7 +104,7 @@ function VisualPieChart({ spec, id }) {
     // Two arcs also represent a full circle when all other parts are zero.
     const path = `M 110 110 L ${xy(start)} A 96 96 0 0 1 ${xy(midpoint)} A 96 96 0 0 1 ${xy(angle)} Z`;
     const className = `metabloom-visual__pie-slice metabloom-visual__series-${index + 1}`;
-    const props = { className, 'data-selected': index === selectedIndex ? 'true' : 'false' };
+    const props = { className, fill: `url(#${id}-series-${index + 1})`, 'data-selected': index === selectedIndex ? 'true' : 'false' };
     return positiveCount === 1
       ? <circle key={index} cx="110" cy="110" r="96" {...props} />
       : <path key={index} d={path} {...props} />;
@@ -103,6 +115,7 @@ function VisualPieChart({ spec, id }) {
         <svg viewBox="0 0 220 220" role="img" aria-labelledby={`${id}-pie-title ${id}-pie-desc`}>
           <title id={`${id}-pie-title`}>{spec.title}</title>
           <desc id={`${id}-pie-desc`}>Parts of one total. Choose a category beside the chart to inspect its amount and share. Exact values are available below.</desc>
+          <VisualSeriesGradients id={id} count={spec.points.length} bounds={[14, 14, 206, 206]} />
           <defs><linearGradient id={`${id}-pie-spectrum`} x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="var(--aetheris-spectral-cyan)" />
             <stop offset="42%" stopColor="var(--aetheris-spectral-magenta)" />
@@ -112,7 +125,7 @@ function VisualPieChart({ spec, id }) {
           {slices}
           {/* Paint the selected perimeter last so adjacent slices cannot cover it. */}
           {slices[selectedIndex] && React.cloneElement(slices[selectedIndex], {
-            className: 'metabloom-visual__pie-edge', 'data-selected': undefined, 'aria-hidden': true,
+            className: 'metabloom-visual__pie-edge', fill: 'none', 'data-selected': undefined, 'aria-hidden': true,
             stroke: `url(#${id}-pie-spectrum)`,
           })}
         </svg>

@@ -71,8 +71,7 @@
 .orb-page .metabloom-visual__line-chart { margin: 1.2rem 0; }
 .orb-page .metabloom-visual__line-chart svg { display: block; width: 100%; height: auto; }
 .orb-page .metabloom-visual__gridline { stroke: var(--aetheris-line-strong); stroke-width: 1; }
-.orb-page .metabloom-visual__line { fill: none; stroke: var(--aetheris-teal); stroke-width: 2.5; vector-effect: non-scaling-stroke; }
-.orb-page .metabloom-visual__point { fill: var(--aetheris-teal); }
+.orb-page .metabloom-visual__line { fill: none; stroke-width: 2.5; vector-effect: non-scaling-stroke; }
 .orb-page .metabloom-visual figcaption { font-size: 1.2rem; }
 .orb-page .metabloom-visual__details { margin-top: 1.2rem; }
 .orb-page .metabloom-visual summary { min-height: 4.4rem; padding: 1rem 0; border-radius: var(--aetheris-radius-lg); font: 1.2rem/1.4 var(--aetheris-font-mono); cursor: pointer; }
@@ -130,42 +129,90 @@
 
 .orb-page .metabloom-visual__axis-label { fill: var(--aetheris-ink-2); font: 10px var(--aetheris-font-mono); }
 
-/* Use the full spectral palette in both themes; extra series blend its hues, never ink. */
-.orb-page .metabloom-visual__series-1 { --metabloom-series-color: var(--aetheris-spectral-cyan); }
-.orb-page .metabloom-visual__series-2 { --metabloom-series-color: var(--aetheris-spectral-magenta); }
-.orb-page .metabloom-visual__series-3 { --metabloom-series-color: var(--aetheris-spectral-yellow); }
-.orb-page .metabloom-visual__series-4 { --metabloom-series-color: var(--aetheris-spectral-violet); }
-.orb-page .metabloom-visual__series-5 { --metabloom-series-color: color-mix(in srgb, var(--aetheris-spectral-cyan), var(--aetheris-spectral-yellow)); }
-.orb-page .metabloom-visual__series-6 { --metabloom-series-color: color-mix(in srgb, var(--aetheris-spectral-magenta), var(--aetheris-spectral-yellow)); }
-.orb-page .metabloom-visual__series-7 { --metabloom-series-color: color-mix(in srgb, var(--aetheris-spectral-cyan), var(--aetheris-spectral-violet)); }
-.orb-page .metabloom-visual__series-8 { --metabloom-series-color: color-mix(in srgb, var(--aetheris-spectral-yellow) 75%, var(--aetheris-spectral-magenta)); }
-.orb-page .metabloom-visual__series-9 { --metabloom-series-color: color-mix(in srgb, var(--aetheris-spectral-violet) 60%, var(--aetheris-spectral-magenta)); }
-.orb-page .metabloom-visual__series-10 { --metabloom-series-color: color-mix(in srgb, var(--aetheris-spectral-cyan) 75%, var(--aetheris-spectral-violet)); }
-.orb-page .metabloom-visual__series-11 { --metabloom-series-color: color-mix(in srgb, var(--aetheris-spectral-yellow) 75%, var(--aetheris-spectral-cyan)); }
-.orb-page .metabloom-visual__series-12 { --metabloom-series-color: color-mix(in srgb, var(--aetheris-spectral-magenta) 75%, var(--aetheris-spectral-yellow)); }
+/* Distinct hue families share the same three stops across SVG data and CSS swatches. */
+.orb-page .metabloom-visual__series-1 {
+  --metabloom-series-color: var(--aetheris-spectral-cyan);
+  --metabloom-series-start: color-mix(in srgb, var(--metabloom-series-color) 70%, var(--aetheris-spectral-violet));
+  --metabloom-series-end: color-mix(in srgb, var(--metabloom-series-color) 80%, var(--aetheris-spectral-yellow));
+}
+.orb-page .metabloom-visual__series-2 {
+  --metabloom-series-color: var(--aetheris-spectral-magenta);
+  --metabloom-series-start: color-mix(in srgb, var(--metabloom-series-color) 75%, var(--aetheris-spectral-yellow));
+  --metabloom-series-end: color-mix(in srgb, var(--metabloom-series-color) 75%, var(--aetheris-spectral-violet));
+}
+.orb-page .metabloom-visual__series-3 {
+  --metabloom-series-color: var(--aetheris-spectral-yellow);
+  --metabloom-series-start: color-mix(in srgb, var(--metabloom-series-color) 75%, var(--aetheris-spectral-magenta));
+  --metabloom-series-end: color-mix(in srgb, var(--metabloom-series-color) 90%, var(--aetheris-spectral-cyan));
+}
+.orb-page .metabloom-visual__series-4 {
+  --metabloom-series-color: var(--aetheris-spectral-violet);
+  --metabloom-series-start: color-mix(in srgb, var(--metabloom-series-color) 70%, var(--aetheris-spectral-cyan));
+  --metabloom-series-end: color-mix(in srgb, var(--metabloom-series-color) 75%, var(--aetheris-spectral-magenta));
+}
+.orb-page .metabloom-visual__series-5 {
+  --metabloom-series-color: color-mix(in srgb, var(--aetheris-spectral-cyan), var(--aetheris-spectral-yellow));
+  --metabloom-series-start: color-mix(in srgb, var(--metabloom-series-color) 75%, var(--aetheris-spectral-cyan));
+  --metabloom-series-end: color-mix(in srgb, var(--metabloom-series-color) 80%, var(--aetheris-spectral-yellow));
+}
+.orb-page .metabloom-visual__series-6 {
+  --metabloom-series-color: color-mix(in srgb, var(--aetheris-spectral-magenta), var(--aetheris-spectral-yellow));
+  --metabloom-series-start: color-mix(in srgb, var(--metabloom-series-color) 75%, var(--aetheris-spectral-yellow));
+  --metabloom-series-end: color-mix(in srgb, var(--metabloom-series-color) 80%, var(--aetheris-spectral-magenta));
+}
+.orb-page .metabloom-visual__series-7 {
+  --metabloom-series-color: color-mix(in srgb, var(--aetheris-spectral-cyan), var(--aetheris-spectral-violet));
+  --metabloom-series-start: color-mix(in srgb, var(--metabloom-series-color) 75%, var(--aetheris-spectral-cyan));
+  --metabloom-series-end: color-mix(in srgb, var(--metabloom-series-color) 80%, var(--aetheris-spectral-violet));
+}
+.orb-page .metabloom-visual__series-8 {
+  --metabloom-series-color: color-mix(in srgb, var(--aetheris-spectral-yellow) 75%, var(--aetheris-spectral-magenta));
+  --metabloom-series-start: color-mix(in srgb, var(--metabloom-series-color) 85%, var(--aetheris-spectral-magenta));
+  --metabloom-series-end: color-mix(in srgb, var(--metabloom-series-color) 75%, var(--aetheris-spectral-yellow));
+}
+.orb-page .metabloom-visual__series-9 {
+  --metabloom-series-color: color-mix(in srgb, var(--aetheris-spectral-magenta) 65%, var(--aetheris-spectral-cyan));
+  --metabloom-series-start: color-mix(in srgb, var(--metabloom-series-color) 85%, var(--aetheris-spectral-cyan));
+  --metabloom-series-end: color-mix(in srgb, var(--metabloom-series-color) 85%, var(--aetheris-spectral-magenta));
+}
+.orb-page .metabloom-visual__series-10 {
+  --metabloom-series-color: color-mix(in srgb, var(--aetheris-spectral-cyan) 75%, var(--aetheris-spectral-violet));
+  --metabloom-series-start: color-mix(in srgb, var(--metabloom-series-color) 80%, var(--aetheris-spectral-violet));
+  --metabloom-series-end: color-mix(in srgb, var(--metabloom-series-color) 85%, var(--aetheris-spectral-cyan));
+}
+.orb-page .metabloom-visual__series-11 {
+  --metabloom-series-color: color-mix(in srgb, var(--aetheris-spectral-yellow) 75%, var(--aetheris-spectral-cyan));
+  --metabloom-series-start: color-mix(in srgb, var(--metabloom-series-color) 85%, var(--aetheris-spectral-cyan));
+  --metabloom-series-end: color-mix(in srgb, var(--metabloom-series-color) 80%, var(--aetheris-spectral-yellow));
+}
+.orb-page .metabloom-visual__series-12 {
+  --metabloom-series-color: color-mix(in srgb, var(--aetheris-spectral-magenta) 75%, var(--aetheris-spectral-yellow));
+  --metabloom-series-start: color-mix(in srgb, var(--metabloom-series-color) 85%, var(--aetheris-spectral-yellow));
+  --metabloom-series-end: color-mix(in srgb, var(--metabloom-series-color) 85%, var(--aetheris-spectral-magenta));
+}
 .orb-page .metabloom-visual__legend { display: flex; gap: 0.8rem 1.4rem; flex-wrap: wrap; list-style: none; padding: 0; margin: 1.2rem 0; }
 .orb-page .metabloom-visual__legend li { display: flex; align-items: center; gap: 0.6rem; min-width: 0; overflow-wrap: anywhere; }
-.orb-page .metabloom-visual__series-dot { width: 1rem; height: 1rem; flex: 0 0 1rem; border-radius: 50%; background: var(--metabloom-series-color); }
+.orb-page .metabloom-visual__series-dot { width: 1.6rem; height: 1rem; flex: 0 0 1.6rem; border-radius: var(--aetheris-radius-pill); }
 .orb-page .metabloom-visual__group-label { display: block; margin-bottom: 0.8rem; }
 .orb-page .metabloom-visual__group-bars { display: grid; gap: 0.7rem; }
-.orb-page .metabloom-visual__bars .metabloom-visual__bar { background: var(--metabloom-series-color, var(--aetheris-teal)); }
-.orb-page .metabloom-visual__line { stroke: var(--metabloom-series-color, var(--aetheris-spectral-cyan)); }
-.orb-page .metabloom-visual__point { fill: var(--metabloom-series-color, var(--aetheris-spectral-cyan)); }
+.orb-page .metabloom-visual__series-dot,
+.orb-page .metabloom-visual__bars .metabloom-visual__bar { background: linear-gradient(135deg, var(--metabloom-series-start), var(--metabloom-series-color) 55%, var(--metabloom-series-end)); }
 .orb-page .metabloom-visual__pie-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.4rem; align-items: center; margin-top: 1.4rem; }
 .orb-page .metabloom-visual__pie-chart { min-width: 0; margin: 0; }
 .orb-page .metabloom-visual__pie-chart svg { display: block; width: 100%; max-width: 30rem; height: auto; margin: 0 auto 1rem; }
-.orb-page .metabloom-visual__pie-slice { fill: var(--metabloom-series-color, var(--aetheris-teal)); stroke: var(--aetheris-panel-raised); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.orb-page .metabloom-visual__pie-slice { stroke: var(--aetheris-panel-raised); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .orb-page .metabloom-visual__pie-slice[data-selected='true'] { filter: drop-shadow(0 0 3px color-mix(in srgb, var(--metabloom-series-color) 20%, transparent)); }
 .orb-page .metabloom-visual__pie-edge { fill: none; stroke-width: 2; stroke-linejoin: round; vector-effect: non-scaling-stroke; pointer-events: none; }
 .orb-page .metabloom-visual__pie-legend { display: grid; gap: 0.8rem; min-width: 0; max-height: 36rem; overflow-y: auto; list-style: none; margin: 0; padding: 0.6rem; }
-.orb-page .metabloom-visual__pie-legend button { display: grid; grid-template-columns: 1rem minmax(0, 1fr) auto; align-items: center; gap: 0.8rem; width: 100%; text-align: left; border-radius: var(--aetheris-radius-lg); font: 1.2rem/1.4 var(--aetheris-font-sans); letter-spacing: normal; }
+.orb-page .metabloom-visual__pie-legend button { display: grid; grid-template-columns: 1.6rem minmax(0, 1fr) auto; align-items: center; gap: 0.8rem; width: 100%; text-align: left; border-radius: var(--aetheris-radius-lg); font: 1.2rem/1.4 var(--aetheris-font-sans); letter-spacing: normal; }
 .orb-page .metabloom-visual__pie-legend button[aria-pressed='true'] { background: color-mix(in srgb, var(--aetheris-teal) 6%, var(--aetheris-glass-panel-raised)); }
 .orb-page .metabloom-visual__pie-legend button[aria-pressed='true']::before { padding: 2px; }
 .orb-page .metabloom-visual__pie-legend strong { font: 1.1rem/1.4 var(--aetheris-font-mono); font-variant-numeric: tabular-nums; }
 .orb-page .metabloom-visual__pie-selection { padding: 1rem; border: 1px solid var(--aetheris-line); border-radius: var(--aetheris-radius-lg); background: var(--aetheris-glass-surface); }
 @media (max-width: 480px) { .orb-page .metabloom-visual__pie-layout { grid-template-columns: minmax(0, 1fr); } }
 @media (forced-colors: active) {
-  .orb-page .metabloom-visual__series-dot { background: Highlight; }
+  .orb-page .metabloom-visual__series-dot,
+  .orb-page .metabloom-visual__bars .metabloom-visual__bar { background: Highlight; }
   .orb-page .metabloom-visual__line { stroke: Highlight; }
   .orb-page .metabloom-visual__point { fill: Highlight; }
   .orb-page .metabloom-visual__pie-slice { fill: Canvas; stroke: CanvasText; forced-color-adjust: none; }
