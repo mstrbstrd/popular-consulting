@@ -119,7 +119,10 @@ describe("research report stream framing", () => {
 
   test("accepts contiguous source batches beyond 64 and 2,048-character deltas without dropping any text", () => {
     const value = { notes: "q".repeat(MAX_METABLOOM_RESEARCH_REPORT_CHUNK_CHARS - 1) + "🌍evidence [70]",
-      sources: Array.from({ length: 70 }, (_, index) => ({ ...source, id: index + 1, url: `https://example.org/${index + 1}` })) };
+      // The later concise-answer event refers to source 1. Keep that canonical
+      // record identical while exercising the much larger full-report list.
+      sources: Array.from({ length: 70 }, (_, index) => ({ ...source, id: index + 1,
+        url: index === 0 ? source.url : `https://example.org/${index + 1}` })) };
     const onResearchDetails = jest.fn();
     const decoder = createMetabloomSegmentStreamDecoder({ allowResearchDetails: true, onResearchDetails });
     expect(decoder.push(ready + reportWire(value) + complete)).toBe(true);

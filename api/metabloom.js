@@ -17,7 +17,7 @@ const { createMetabloomProviderError, readMetabloomProviderError, providerReques
 const { METABLOOM_STREAM_ERROR_CODES } = require("../src/components/metabloomRequestErrors");
 const { MAX_METABLOOM_RESEARCH_SOURCES } = require("../src/components/metabloomResearchSources");
 const { MAX_METABLOOM_RESEARCH_REPORT_CHUNK_CHARS } = require("../src/components/metabloomResearchReport");
-const { MAX_METABLOOM_RESEARCH_BRIEF_CHUNK_CHARS, MAX_METABLOOM_RESEARCH_BRIEF_SOURCES,
+const { METABLOOM_RESEARCH_BRIEF_VERSION, MAX_METABLOOM_RESEARCH_BRIEF_CHUNK_CHARS, MAX_METABLOOM_RESEARCH_BRIEF_SOURCES,
   parseMetabloomResearchBrief } = require("../src/components/metabloomResearchBriefProtocol");
 const MAX_BODY_BYTES = 24000;
 const MAX_RESEARCH_WRITER_NOTES_CHARS = 16000;
@@ -155,10 +155,15 @@ const selectResearchBriefEvidence = (report) => {
     sources: report.sources.filter((source) => usedIds.has(source.id)) } : null;
 };
 
-const researchBriefIntroduction = (brief) => {
+const researchBriefIntroduction = (brief, { fallbackReason = null } = {}) => {
   const { returnedCount, requestedCount, status } = brief.coverage;
   const label = brief.kind === "news" ? "stories" : "findings";
-  if (!returnedCount) return `The research is complete, but this brief has no qualifying ${label}. The coverage details are below, and the full research remains available.`;
+  if (!returnedCount) {
+    if (fallbackReason) return "The full research and its sources are shown below. I could not prepare the summary reliably.";
+    return brief.kind === "news"
+      ? "The full research and its sources are shown below. I could not validate a dated briefing for the requested period."
+      : "The full research and its sources are shown below. I could not validate the summary against the available evidence.";
+  }
   const coverage = requestedCount === null ? `${returnedCount} ${label}` : `${returnedCount} of the ${requestedCount} requested ${label}`;
   const introduction = status === "complete" ? `The research brief covers ${coverage}.` : `The research brief covers ${coverage}, with limitations shown below.`;
   // Complete headlines provide bounded follow-up context without copying the
@@ -167,6 +172,19 @@ const researchBriefIntroduction = (brief) => {
   return `${introduction}\n\n${headlines}`.length <= 1500
     ? `${introduction}\n\n${headlines}` : `${introduction} Open each item for its analysis and supporting evidence.`;
 };
+// An explicitly negotiated empty brief signals the report fallback without
+// changing the public protocol or making cached legacy answers expand.
+const researchBriefFallback = (report, temporalContext, reason) => parseMetabloomResearchBrief({
+  version: METABLOOM_RESEARCH_BRIEF_VERSION,
+  kind: temporalContext.kind, title: "Research report", scope: "The completed research is preserved with its original sources.",
+  asOf: temporalContext.asOf, timeZone: temporalContext.timeZone, localDate: temporalContext.localDate,
+  windowStart: temporalContext.windowStart, windowEnd: temporalContext.windowEnd,
+  coverage: { requestedCount: temporalContext.requestedCount, returnedCount: 0, status: "unavailable",
+    limitations: [reason === "evidence_selection"
+      ? "The full report could not be condensed into a reliable summary. Its complete findings and sources are shown below."
+      : "The summary could not be completed. The full research report and its sources are shown below."] },
+  items: [], sourceDetails: [],
+}, { sources: report.sources });
 const readBoundedJson = async (response, limit) => {
   let text;
   if (response.body?.getReader) {
@@ -411,6 +429,7 @@ const handler = async (request, response) => {
       // This replaces the ordinary research writer. A format/provider failure
       // preserves the paid report and never starts another writer or search.
       const evidence = selectResearchBriefEvidence(researchReport);
+      let fallbackReason = null;
       if (evidence) {
         stage = "research_brief";
         try {
@@ -424,6 +443,10 @@ const handler = async (request, response) => {
         }
       }
       if (controller.signal.aborted || response.destroyed || request.aborted) throw new Error("Cancelled");
+      if (!researchBrief) {
+        fallbackReason = evidence ? "formatting" : "evidence_selection";
+        researchBrief = researchBriefFallback(researchReport, temporalContext, fallbackReason);
+      }
       if (researchBrief) {
         if (body.streamResearchMedia === true) {
           researchBrief = await attachResearchMedia(researchBrief, researchReport.sources, visualIdentity);
@@ -435,8 +458,8 @@ const handler = async (request, response) => {
         await sendStreamEvent({ type: "research_brief_complete" });
       }
       finalReply = { version: METABLOOM_CHAT_PROTOCOL_VERSION, segments: [{ response: researchBrief
-        ? researchBriefIntroduction(researchBrief)
-        : "The full research completed, but I could not prepare the structured brief. Open Full research below to read the report and its sources." }] };
+        ? researchBriefIntroduction(researchBrief, { fallbackReason })
+        : "The full research and its sources are shown below. I could not prepare the summary reliably." }] };
     } else if (useResearchIntro) {
       // A completed report is useful even when no whole cited passage fits the
       // small writer context. Deliver it without another generation request.
@@ -588,4 +611,4 @@ const handler = async (request, response) => {
 };
 module.exports = handler;
 module.exports._internals = { parseBody, requestOriginIsAllowed, consumeRateLimit, configured, localBuckets,
-  selectResearchBriefEvidence, researchBriefIntroduction, attachResearchMedia };
+  selectResearchBriefEvidence, researchBriefIntroduction, researchBriefFallback, attachResearchMedia };

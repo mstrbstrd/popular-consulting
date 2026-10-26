@@ -1,7 +1,8 @@
 const { test, afterEach } = require("node:test");
 const assert = require("node:assert/strict");
 const { normalizeMetabloomResearchTimeZone, buildMetabloomResearchTemporalContext,
-  extractMetabloomResearchBrief, generateMetabloomResearchBrief } = require("../server/metabloomResearchBrief");
+  extractMetabloomResearchBrief, generateMetabloomResearchBrief, buildMetabloomResearchDateEvidenceCatalog,
+  MAX_DATE_EVIDENCE_CHOICES, MAX_DATE_EVIDENCE_BYTES } = require("../server/metabloomResearchBrief");
 const { conductMetabloomResearch } = require("../server/metabloomResearch");
 
 const originalFetch = global.fetch;
@@ -26,9 +27,25 @@ const item = (id) => ({ headline: `Agency ${id} announces a program`, summary: `
   dateBasis: "research-excerpt", evidenceStatus: "announced" });
 const candidate = () => ({ title: "Selected developments", scope: "Fictional fixture coverage from the supplied research",
   limitations: [], items: [1, 5, 9].map(item), sourceDetails: [] });
-const extract = (value = candidate(), evidence = report(), temporalContext = context()) => extractMetabloomResearchBrief(value, { report: evidence, temporalContext });
-const envelope = (value = candidate()) => ({ status: "completed", output: [{ type: "message", role: "assistant", status: "completed",
-  content: [{ type: "output_text", text: JSON.stringify(value) }] }] });
+// Historical scenario data retains dates/excerpts for readable expectations.
+// Every execution goes through the current reference-only production contract.
+const referenceCandidate = (value, evidence = report()) => {
+  const catalog = buildMetabloomResearchDateEvidenceCatalog(evidence);
+  return { ...value, items: value.items.map(entry => {
+    const { developmentDate, dateBasis, dateEvidence, ...item } = entry;
+    if (!["research-excerpt", "publication-only", "wrapper", "unknown"].includes(dateBasis)) return entry;
+    if (dateEvidence !== null && (!dateEvidence || Object.keys(dateEvidence).sort().join() !== "reportExcerpt,sourceId"))
+      return { ...item, dateEvidence };
+    if (dateEvidence === null || developmentDate === null || dateBasis !== "research-excerpt") return { ...item, dateEvidence: null };
+    const normalize = text => text.replace(/\s+/g, " ").trim();
+    const choice = catalog.find(row => row.sourceId === dateEvidence.sourceId && row.date === developmentDate
+      && row.excerpt.includes(normalize(dateEvidence.reportExcerpt)));
+    return { ...item, dateEvidence: { evidenceId: choice?.id || "unavailable-fixture-evidence" } };
+  }) };
+};
+const extract = (value = candidate(), evidence = report(), temporalContext = context()) => extractMetabloomResearchBrief(referenceCandidate(value, evidence), { report: evidence, temporalContext });
+const envelope = (value = candidate(), evidence = report()) => ({ status: "completed", output: [{ type: "message", role: "assistant", status: "completed",
+  content: [{ type: "output_text", text: JSON.stringify(referenceCandidate(value, evidence)) }] }] });
 const jsonResponse = (value, options = {}) => new Response(JSON.stringify(value), { ...options,
   headers: { "content-type": "application/json", ...(options.headers || {}) } });
 const generate = (options = {}) => generateMetabloomResearchBrief({ message: "Top 5 news events today", report: report(),
@@ -179,7 +196,6 @@ test("date evidence must be an actual report excerpt tied to the same canonical 
   for (const alter of [
     (entry) => { entry.dateEvidence.reportExcerpt = "On 2026-10-23, a claim absent from the research appeared."; },
     (entry) => { entry.dateEvidence.reportExcerpt = quote(5); },
-    (entry) => { entry.dateEvidence.reportExcerpt = "Agency 1 announced a new public program."; },
     (entry) => { entry.developmentDate = "2026-10-24"; },
     (entry) => { entry.developmentDate = null; entry.dateEvidence = null; entry.dateBasis = "unknown"; },
   ]) {
@@ -221,6 +237,115 @@ test("a cited research paraphrase is valid date evidence without an original web
   unknown.items[0].dateBasis = "unknown";
   assert.deepEqual(extract(unknown).items.map((entry) => entry.sourceIds[0]), [5, 9],
     "A known source ID is not permission to infer a missing event date or invent an excerpt");
+});
+
+test("reference selection preserves five dated stories without asking the formatter to copy punctuation or Markdown", () => {
+  const evidence = { sources: [1, 2, 3, 4, 5].map(source), notes: [1, 2, 3, 4, 5].map(id =>
+    `Date–evidence: **2026-10-23** — Agency ${id} announced a public program with its own implementation schedule. [${id}]`).join("\n\n") };
+  const catalog = buildMetabloomResearchDateEvidenceCatalog(evidence), before = structuredClone(evidence);
+  assert.equal(catalog.length, 5);
+  const value = candidate();
+  value.items = [1, 2, 3, 4, 5].map(id => {
+    const { developmentDate, dateBasis, dateEvidence, ...content } = item(id);
+    return { ...content, dateEvidence: { evidenceId: catalog.find(row => row.sourceId === id).id } };
+  });
+  const result = extractMetabloomResearchBrief(value, { report: evidence, temporalContext: context() });
+  assert.equal(result.coverage.status, "complete");
+  assert.equal(result.items.length, 5);
+  assert.ok(result.items.every(row => row.developmentDate === "2026-10-23" && row.dateEvidence.quote.includes("**2026-10-23** —")));
+  assert.ok(result.sourceDetails.every(row => row.publishedDate === null));
+  assert.deepEqual(evidence, before);
+});
+
+test("null, invented and wrong-source references cannot borrow another dated event", () => {
+  for (const selected of [null, { evidenceId: "invented-evidence" },
+    { evidenceId: buildMetabloomResearchDateEvidenceCatalog(report()).find(row => row.sourceId === 5).id }]) {
+    const value = referenceCandidate(candidate()); value.items[0].dateEvidence = selected;
+    const result = extractMetabloomResearchBrief(value, { report: report(), temporalContext: context() });
+    assert.deepEqual(result.items.map(row => row.sourceIds[0]), [5, 9]);
+  }
+  const value = referenceCandidate(candidate()); value.items.forEach(row => { row.dateEvidence = null; });
+  const general = extractMetabloomResearchBrief(value, { report: report(), temporalContext: context("Explain these programs") });
+  assert.ok(general.items.every(row => row.developmentDate === null && row.dateEvidence === null));
+  assert.equal(general.items.length, 3);
+});
+
+test("the production extractor rejects the retired free-text evidence contract", () => {
+  assert.throws(() => extractMetabloomResearchBrief(candidate(), { report: report(), temporalContext: context() }), { reason: "brief_item_invalid" });
+  for (const dateEvidence of [{ evidenceId: "d_fake", sourceId: 1 }, { sourceId: 1, reportExcerpt: quote(1) },
+    { evidenceId: 1 }, { evidenceId: "d_fake", quote: quote(1) }]) {
+    const value = referenceCandidate(candidate()); value.items[0].dateEvidence = dateEvidence;
+    assert.throws(() => extractMetabloomResearchBrief(value, { report: report(), temporalContext: context() }), { reason: "brief_item_invalid" });
+  }
+});
+
+test("catalog choices stay within canonical citation boundaries and never use dates embedded in links", () => {
+  const evidence = report();
+  evidence.notes = `${quote(1)} [1] ${quote(5, "2026-10-22")} [5]\n\n`
+    + `A source link with an untrusted date [2026-10-23](https://example.com/[9]) is not date evidence. [1]\n\n`
+    + `This uncited sentence dates another event to 2026-10-23.`;
+  const catalog = buildMetabloomResearchDateEvidenceCatalog(evidence);
+  assert.deepEqual(catalog.map(({ sourceId, date }) => ({ sourceId, date })), [
+    { sourceId: 1, date: "2026-10-23" }, { sourceId: 5, date: "2026-10-22" },
+  ]);
+  assert.equal(catalog[0].excerpt, quote(1));
+  assert.equal(catalog[1].excerpt, quote(5, "2026-10-22"));
+});
+
+test("catalog excludes wrapper, publication-only, scheduled-only and ambiguous dates without rewriting them", () => {
+  const evidence = report();
+  evidence.notes = [
+    "Page updated on 2026-10-23 for an older development.",
+    "The original article was published on October 23, 2026.",
+    "Published on 2026-10-23.",
+    "Published: 2026-10-23.",
+    "Publication: 2026-10-23.",
+    "The delegation is scheduled to travel on 2026-10-23.",
+    "The delegation will visit the region on 2026-10-23.",
+    "The 2026-10-22 vote and the 2026-10-23 count were described together without a distinct dated claim.",
+  ].map(text => `${text} [1]`).join("\n\n");
+  assert.deepEqual(buildMetabloomResearchDateEvidenceCatalog(evidence), []);
+  const value = referenceCandidate(candidate(), evidence);
+  const actual = extractMetabloomResearchBrief(value, { report: evidence, temporalContext: context() });
+  assert.equal(actual.items.length, 0);
+  evidence.notes = "On 2026-10-23, the agency published its new research findings. [1]";
+  assert.equal(buildMetabloomResearchDateEvidenceCatalog(evidence).length, 1);
+});
+
+test("long citation passages preserve complete abbreviated named dates and original line evidence", () => {
+  for (const date of ["Oct. 23, 2026", "23 Oct. 2026"]) {
+    const evidence = report();
+    const dated = `Development dated 2026‑10‑23 — the agency described its new findings on ${date}.`;
+    evidence.notes = `A background paragraph ${"describes the earlier program and its context ".repeat(15)}.\n- ${dated} [1]`;
+    const catalog = buildMetabloomResearchDateEvidenceCatalog(evidence);
+    assert.equal(catalog.length, 1);
+    assert.ok(catalog[0].excerpt.includes(dated));
+    assert.ok(catalog[0].excerpt.endsWith("2026."));
+    evidence.notes = evidence.notes.replace("\n", " ");
+    const singleLine = buildMetabloomResearchDateEvidenceCatalog(evidence);
+    assert.equal(singleLine.length, 1);
+    assert.ok(singleLine[0].excerpt.includes(dated));
+    assert.ok(singleLine[0].excerpt.endsWith("2026."));
+  }
+});
+
+test("catalog limits entries and input bytes while keeping stable IDs and a turn for each source", () => {
+  const evidence = { sources: [1, 5, 9].map(source), notes: Array.from({ length: 72 }, (_, index) =>
+    `On 2026-10-23, Agency ${index % 3 === 0 ? 1 : index % 3 === 1 ? 5 : 9} announced program ${index + 1}. [${index % 3 === 0 ? 1 : index % 3 === 1 ? 5 : 9}]`).join("\n\n") };
+  const catalog = buildMetabloomResearchDateEvidenceCatalog(evidence);
+  assert.equal(catalog.length, MAX_DATE_EVIDENCE_CHOICES);
+  assert.ok(Buffer.byteLength(JSON.stringify(catalog), "utf8") <= MAX_DATE_EVIDENCE_BYTES);
+  assert.deepEqual(catalog.slice(0, 3).map(row => row.sourceId), [1, 5, 9]);
+  assert.equal(new Set(catalog.map(row => row.id)).size, catalog.length);
+  const first = catalog[0];
+  evidence.notes = `${quote(9, "2026-10-22")} [9]\n\n${evidence.notes}`;
+  assert.deepEqual(buildMetabloomResearchDateEvidenceCatalog(evidence).find(row => row.id === first.id), first);
+  const large = { sources: [1, 5, 9].map(source), notes: Array.from({ length: 28 }, (_, index) =>
+    `On 2026-10-23, Agency ${index % 3 === 0 ? 1 : index % 3 === 1 ? 5 : 9} announced program ${index + 1} ${"with supporting detail ".repeat(22)}. [${index % 3 === 0 ? 1 : index % 3 === 1 ? 5 : 9}]`).join("\n\n") };
+  assert.ok(large.notes.length <= 16000);
+  const bounded = buildMetabloomResearchDateEvidenceCatalog(large);
+  assert.ok(bounded.length > 0 && bounded.length < 28);
+  assert.ok(Buffer.byteLength(JSON.stringify(bounded), "utf8") <= MAX_DATE_EVIDENCE_BYTES);
 });
 
 test("typographic ISO separators are recognized without changing the report or its copied excerpt", () => {
@@ -329,7 +454,7 @@ test("zero and partial coverage use host framing and omit protocol chatter while
 test("a brief from selected passages does not claim the entire report lacks evidence", () => {
   const value = candidate();
   value.items = [];
-  const actual = extractMetabloomResearchBrief(value, { report: report(), temporalContext: context(), evidenceLimited: true });
+  const actual = extractMetabloomResearchBrief(referenceCandidate(value), { report: report(), temporalContext: context(), evidenceLimited: true });
   assert.equal(actual.coverage.status, "unavailable");
   assert.match(actual.coverage.limitations.join(" "), /evidence available to this brief/);
   assert.match(actual.coverage.limitations.join(" "), /selected passages/);
@@ -420,14 +545,17 @@ test("the replacement writer makes exactly one bounded provider request with no 
   assert.equal(calls[0].body.text.format.strict, true);
   assert.equal(calls[0].body.text.format.name, "metabloom_research_brief");
   const dateEvidenceSchema = calls[0].body.text.format.schema.properties.items.items.properties.dateEvidence.anyOf[0];
-  assert.deepEqual(dateEvidenceSchema.required, ["sourceId", "reportExcerpt"]);
+  assert.deepEqual(dateEvidenceSchema.required, ["evidenceId"]);
   assert.equal(Object.hasOwn(dateEvidenceSchema.properties, "quote"), false);
+  assert.equal(Object.hasOwn(calls[0].body.text.format.schema.properties.items.items.properties, "developmentDate"), false);
+  assert.equal(Object.hasOwn(calls[0].body.text.format.schema.properties.items.items.properties, "dateBasis"), false);
   assert.match(calls[0].body.instructions, /faithful cited paraphrase/);
   assert.match(calls[0].body.instructions, /missing publication date does not invalidate/i);
   assert.match(calls[0].body.input[0].content, /World coverage/);
   const data = JSON.parse(calls[0].body.input.at(-1).content);
   assert.equal(data.temporalContext.localDate, "2026-10-23");
   assert.equal(data.report.notes, report().notes);
+  assert.deepEqual(data.dateEvidenceCatalog, buildMetabloomResearchDateEvidenceCatalog(report()));
   assert.deepEqual(data.report.sources.map((entry) => entry.id), [1, 5, 9]);
   assert.ok(data.report.sources.every((entry) => !Object.hasOwn(entry, "url")));
   assert.equal(actual.coverage.status, "partial");
@@ -468,6 +596,8 @@ test("provider failures and successful logs contain diagnostics without notes, s
   assert.equal(success.requestRef, "aabbccddeeff");
   assert.equal(success.omittedMissingDate, 0);
   assert.equal(success.omittedOutsideWindow, 0);
+  assert.equal(success.candidateCount, 3);
+  assert.equal(success.dateEvidenceChoices, 3);
 });
 
 test("omission telemetry records safe counts and distinguishes stale dates from missing date evidence", async (t) => {
@@ -479,7 +609,7 @@ test("omission telemetry records safe counts and distinguishes stale dates from 
   value.items[1].developmentDate = null;
   value.items[1].dateEvidence = null;
   value.items[1].dateBasis = "unknown";
-  const actual = await generate({ report: evidence, evidenceLimited: true, fetchImpl: async () => jsonResponse(envelope(value)) });
+  const actual = await generate({ report: evidence, evidenceLimited: true, fetchImpl: async () => jsonResponse(envelope(value, evidence)) });
   assert.equal(actual.items.length, 1);
   assert.equal(logs[0].omittedOutsideWindow, 1);
   assert.equal(logs[0].omittedMissingDate, 1);

@@ -17,15 +17,15 @@ const question = "Give me a deep dive into the top 5 fictional public-service ne
 const sourceList = Array.from({ length: 9 }, (_, index) => ({ id: index + 1,
   title: `Fictional agency bulletin ${index + 1}`, url: `https://example.org/bulletin-${index + 1}` }));
 const dateQuote = (id) => `On ${date}, the fictional agency announced public program ${id}.`;
-const candidate = () => ({
+const candidate = (catalog, ids = [1, 5, 9]) => ({
   title: "Fictional public-service news", scope: "Public programs announced today", limitations: [],
-  items: [1, 5, 9].map((id) => ({
+  items: ids.map((id) => ({
     headline: `Fictional public program ${id} announced`, summary: `The agency announced program ${id} with an initial local trial.`,
     sourceIds: [id], background: [{ text: `The published bulletin describes how program ${id} will be evaluated.`, sourceIds: [id] }],
     whyItMatters: "The trial can affect how the fictional public service is delivered.",
     uncertainty: ["The bulletin does not establish whether the trial will expand."],
-    watchNext: ["Watch for the published evaluation."], developmentDate: date, scheduledDate: null,
-    dateEvidence: { sourceId: id, reportExcerpt: dateQuote(id) }, evidenceStatus: "announced", dateBasis: "research-excerpt",
+    watchNext: ["Watch for the published evaluation."], scheduledDate: null,
+    dateEvidence: { evidenceId: catalog.find(entry => entry.sourceId === id && entry.date === date).id }, evidenceStatus: "announced",
   })),
   sourceDetails: [],
 });
@@ -49,7 +49,7 @@ const researchDocument = () => {
 };
 const researchReply = () => new Response(`data: ${JSON.stringify({ type: "response.completed", response: researchDocument() })}\n\n`,
   { headers: { "content-type": "text/event-stream" } });
-const briefReply = (value = candidate()) => new Response(JSON.stringify({ status: "completed", output: [
+const briefReply = (value) => new Response(JSON.stringify({ status: "completed", output: [
   { type: "message", role: "assistant", status: "completed", content: [{ type: "output_text", text: JSON.stringify(value) }] },
 ] }), { headers: { "content-type": "application/json", "x-request-id": "req_fictional_brief" } });
 const legacyReply = () => {
@@ -87,7 +87,8 @@ const decode = (res) => {
   assert.equal(parsed.ok, true, JSON.stringify(parsed));
   return { ...captured, envelope: parsed.value };
 };
-const installProvider = ({ formatter = () => briefReply(), legacy = false, research = researchReply } = {}) => {
+const installProvider = ({ formatter = body => briefReply(candidate(JSON.parse(body.input.at(-1).content).dateEvidenceCatalog)),
+  legacy = false, research = researchReply } = {}) => {
   const calls = [];
   global.fetch = async (url, options) => {
     const body = JSON.parse(options.body);
@@ -172,6 +173,49 @@ test("automatic and explicit research produce the same complete brief independen
   for (const brief of briefs) assert.deepEqual(brief, briefs[0]);
 });
 
+test("five dated stories survive the formatter handoff without copied date text or publication metadata", async () => {
+  const calls = installProvider({ formatter: body => {
+    const input = JSON.parse(body.input.at(-1).content);
+    assert.equal(body.text.format.schema.properties.items.items.properties.developmentDate, undefined);
+    assert.equal(body.text.format.schema.properties.items.items.properties.dateBasis, undefined);
+    assert.match(JSON.stringify(body.text.format.schema.properties.items.items.properties.dateEvidence), /evidenceId/);
+    const value = candidate(input.dateEvidenceCatalog, [1, 2, 3, 4, 5]);
+    assert(value.items.every(item => Object.keys(item.dateEvidence).join() === "evidenceId"));
+    return briefReply(value);
+  } });
+  const res = response();
+  await handler(request(), res);
+  const result = decode(res), brief = result.briefs[0];
+  assert.deepEqual(calls.map(call => call.phase), ["research", "brief"]);
+  assert.equal(brief.coverage.status, "complete");
+  assert.equal(brief.items.length, 5);
+  assert.deepEqual(brief.items.map(item => item.developmentDate), Array(5).fill(date));
+  for (const item of brief.items) {
+    assert(result.reports[0].notes.includes(item.dateEvidence.quote));
+    assert(item.sourceIds.includes(item.dateEvidence.sourceId));
+  }
+  assert(brief.sourceDetails.every(source => source.publishedDate === null));
+  assert.doesNotMatch(JSON.stringify(brief), /evidenceId|dateEvidenceCatalog|dateBasis/);
+  assert.match(result.envelope.segments[0].response, /5 of the 5 requested stories/);
+});
+
+test("unavailable date selection preserves the report and describes the limitation without a no-stories claim", async () => {
+  const calls = installProvider({ formatter: body => {
+    const value = candidate(JSON.parse(body.input.at(-1).content).dateEvidenceCatalog);
+    value.items.forEach(item => { item.dateEvidence = null; });
+    return briefReply(value);
+  } });
+  const res = response(); await handler(request(), res);
+  const result = decode(res);
+  assert.equal(result.briefs[0].coverage.status, "unavailable");
+  assert.equal(result.reports.length, 1);
+  assert.match(result.reports[0].notes, /END OF THE COMPLETE FICTIONAL RESEARCH REPORT/);
+  assert.match(result.envelope.segments[0].response, /full research and its sources are shown below/i);
+  assert.match(result.envelope.segments[0].response, /could not validate a dated briefing/i);
+  assert.doesNotMatch(result.envelope.segments[0].response, /no qualifying|0 of 5|Open Full research/i);
+  assert.deepEqual(calls.map(call => call.phase), ["research", "brief"]);
+});
+
 test("format failure preserves research with a deterministic answer and no repair, retry, or legacy paid writer", async () => {
   for (const formatter of [
     () => briefReply({ privateDiagnostic: "private-malformed-writer-content" }),
@@ -182,14 +226,44 @@ test("format failure preserves research with a deterministic answer and no repai
     await handler(request(), res);
     assert.deepEqual(calls.map((call) => call.phase), ["research", "brief"]);
     const result = decode(res);
-    assert.equal(result.briefs.length, 0); assert.equal(result.reports.length, 1);
+    assert.equal(result.briefs.length, 1); assert.equal(result.reports.length, 1);
+    assert.equal(result.briefs[0].coverage.status, "unavailable");
+    assert.equal(result.briefs[0].coverage.returnedCount, 0);
+    assert.deepEqual(result.briefs[0].items, []);
+    assert.match(result.briefs[0].coverage.limitations[0], /full research report/i);
     assert(result.reports[0].notes.endsWith("END OF THE COMPLETE FICTIONAL RESEARCH REPORT."));
     assert.equal(result.envelope.segments.length, 1);
     assert.match(result.envelope.segments[0].response, /research|report/i);
     assert(!res.body.includes("private-"));
-    assert(!records(res).some((event) => event.type === "research_brief_complete"));
+    assert(records(res).some((event) => event.type === "research_brief_complete"));
     assert.equal(records(res).at(-1).type, "done");
   }
+});
+
+test("a cited passage that exceeds the summary budget opens the full-report fallback without another provider call", async () => {
+  const notes = `${dateQuote(1)} ${"The fictional bulletin records detailed program findings. ".repeat(320)}END OF THE COMPLETE OVERSIZED PASSAGE.`;
+  assert(notes.length > 16000);
+  const research = () => new Response(`data: ${JSON.stringify({ type: "response.completed", response: {
+    status: "completed", output: [
+      { type: "web_search_call", status: "completed", action: { type: "search", query: question } },
+      { type: "message", role: "assistant", status: "completed", content: [{ type: "output_text", text: notes,
+        annotations: [{ type: "url_citation", title: sourceList[0].title, url: sourceList[0].url,
+          start_index: 0, end_index: notes.length }] }] },
+    ],
+  } })}\n\n`, { headers: { "content-type": "text/event-stream" } });
+  const calls = installProvider({ research });
+  const res = response(); await handler(request(), res);
+  const result = decode(res);
+  assert.deepEqual(calls.map(call => call.phase), ["research"]);
+  assert.equal(result.reports.length, 1);
+  assert.equal(result.reports[0].notes, `${notes} [1]`);
+  assert.deepEqual(result.reports[0].sources, [sourceList[0]]);
+  assert.equal(result.briefs.length, 1);
+  assert.equal(result.briefs[0].coverage.status, "unavailable");
+  assert.deepEqual(result.briefs[0].items, []);
+  assert.match(result.briefs[0].coverage.limitations[0], /full report could not be condensed/i);
+  assert.match(result.envelope.segments[0].response, /full research and its sources are shown below/i);
+  assert.equal(records(res).at(-1).type, "done");
 });
 
 test("cached clients retain their writer and only their negotiated event vocabulary", async () => {

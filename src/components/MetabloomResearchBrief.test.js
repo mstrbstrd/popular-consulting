@@ -180,11 +180,36 @@ test('reports partial and unavailable coverage honestly without inventing missin
     requestedCount: 5, returnedCount: 0, status: 'unavailable', limitations: ['The available sources did not establish developments in the requested interval.'],
   } };
   view.rerender(<div className="orb-page"><MetabloomResearchBrief brief={unavailable} sources={sources} /></div>);
-  expect(screen.getByText('0 of 5 stories')).toBeVisible();
-  expect(screen.getByText('Coverage unavailable')).toBeVisible();
+  const notes = screen.getByText('Briefing notes', { selector: 'summary' });
+  expect(notes).toBeVisible();
+  expect(notes.parentElement).not.toHaveAttribute('open');
+  expect(screen.queryByText('0 of 5 stories')).not.toBeInTheDocument();
+  expect(screen.queryByText('Coverage unavailable')).not.toBeInTheDocument();
+  expect(screen.getByText(unavailable.coverage.limitations[0])).not.toBeVisible();
+  fireEvent.click(notes);
   expect(screen.getByText(unavailable.coverage.limitations[0])).toBeVisible();
+  expect(screen.getByText('Requested interval')).toBeVisible();
   expect(screen.queryByRole('article')).not.toBeInTheDocument();
   expect(screen.queryByText('Sources and evidence')).not.toBeInTheDocument();
+});
+
+test('an empty briefing keeps its context and limitations in one accessible, collapsed disclosure', async () => {
+  const brief = fixture();
+  brief.items = []; brief.sourceDetails = [];
+  brief.coverage = { requestedCount: 5, returnedCount: 0, status: 'unavailable', limitations: [
+    'The dates could not be established from the available evidence.',
+    'Original publication dates were not supplied.',
+    'Developments can change as further reporting becomes available.',
+  ] };
+  const { container } = renderBrief(brief);
+  expect(screen.queryByRole('heading', { name: brief.title })).not.toBeInTheDocument();
+  expect(screen.getByText(brief.scope)).not.toBeVisible();
+  for (const limitation of brief.coverage.limitations) expect(screen.getByText(limitation)).not.toBeVisible();
+  expect(await axe(container)).toHaveNoViolations();
+  fireEvent.click(screen.getByText('Briefing notes', { selector: 'summary' }));
+  expect(screen.getByText('America/Toronto')).toBeVisible();
+  for (const limitation of brief.coverage.limitations) expect(screen.getByText(limitation)).toBeVisible();
+  expect(await axe(container)).toHaveNoViolations();
 });
 
 test('supports general research findings without applying news dates or story labels', () => {

@@ -65,11 +65,15 @@ const setupScrollport = () => {
       const top = 2500 - scrollTop;
       return { top, bottom: top + 1800, left: 0, right: 500, height: 1800, width: 500 };
     }
+    if (this.classList.contains("metabloom-chat__full-research")) {
+      const top = 2580 - scrollTop;
+      return { top, bottom: top + 1800, left: 0, right: 500, height: 1800, width: 500 };
+    }
     return originalRect.call(this);
   });
   return transcript;
 };
-const completeResearch = async () => {
+const completeResearch = async (nextBrief = brief) => {
   const { request, finish } = requests[0];
   act(() => {
     request.onAction("deep-research");
@@ -77,7 +81,7 @@ const completeResearch = async () => {
     request.onResearchDetails(report);
     request.onSources(report.sources);
     request.onResearch({ state: "synthesizing" });
-    expect(request.onResearchBrief(brief)).toBe(true);
+    expect(request.onResearchBrief(nextBrief)).toBe(true);
   });
   await act(async () => finish({ version: "2.0.0", segments: [{ response: answer }] }));
   await tick(1000);
@@ -122,4 +126,29 @@ test("a newly completed brief does not move someone reading earlier messages", a
   expect(transcript.scrollTop).toBe(100);
   fireEvent.click(screen.getByRole("button", { name: "Latest message ↓" }));
   expect(transcript.scrollTop).toBe(3400);
+});
+
+test.each([false, true])("an empty brief opens at the report start once while respecting earlier reading: %s", async (readingEarlier) => {
+  render(<OrbSection />);
+  const transcript = setupScrollport();
+  send(); await tick(0);
+  if (readingEarlier) { transcript.scrollTop = 100; fireEvent.scroll(transcript); }
+  const empty = { ...brief, items: [], sourceDetails: [], coverage: {
+    requestedCount: 5, returnedCount: 0, status: 'unavailable', limitations: ['The timing needs verification.'],
+  } };
+  await completeResearch(empty);
+  const summary = screen.getByText('Full research', { selector: 'summary' });
+  const disclosure = summary.parentElement;
+  expect(disclosure).toHaveAttribute('open');
+  if (readingEarlier) expect(transcript.scrollTop).toBe(100);
+  else {
+    expect(disclosure.getBoundingClientRect().top).toBeGreaterThanOrEqual(172);
+    expect(disclosure.getBoundingClientRect().top).toBeLessThan(220);
+  }
+  const openingPosition = transcript.scrollTop;
+  fireEvent.click(summary); fireEvent(disclosure, new Event('toggle')); await tick(0);
+  fireEvent(window, new Event('resize')); await tick(1000);
+  expect(disclosure).not.toHaveAttribute('open');
+  expect(transcript.scrollTop).toBe(openingPosition);
+  expect(requests).toHaveLength(1);
 });

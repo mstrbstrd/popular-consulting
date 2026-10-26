@@ -1,3 +1,4 @@
+const { createHash } = require("node:crypto");
 const { createMetabloomProviderError, readMetabloomProviderError, providerRequestId } = require("./metabloomProviderErrors");
 const { parseMetabloomResearchSources } = require("../src/components/metabloomResearchSources");
 const { METABLOOM_RESEARCH_BRIEF_VERSION, MAX_METABLOOM_RESEARCH_BRIEF_ITEMS,
@@ -5,6 +6,8 @@ const { METABLOOM_RESEARCH_BRIEF_VERSION, MAX_METABLOOM_RESEARCH_BRIEF_ITEMS,
 
 const MAX_BRIEF_NOTES_CHARS = 16000;
 const MAX_BRIEF_RESPONSE_BYTES = 262144;
+const MAX_DATE_EVIDENCE_CHOICES = 64;
+const MAX_DATE_EVIDENCE_BYTES = 16384;
 const BRIEF_ERROR_CODES = new Set(["answer_invalid", "answer_incomplete", "provider_authentication_failed", "model_configuration_error", "provider_rate_limited", "provider_unavailable"]);
 const DAY_MS = 86400000;
 const MONTHS = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
@@ -157,16 +160,17 @@ const object = (properties) => ({ type: "object", additionalProperties: false, r
 const text = (maxLength) => ({ type: "string", maxLength });
 const array = (items, maxItems, minItems = 0) => ({ type: "array", items, maxItems, minItems });
 const optionalDateSchema = { anyOf: [{ type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" }, { type: "null" }] };
-function researchBriefSchema(sources) {
+function researchBriefSchema(sources, dateEvidenceCatalog = []) {
   const sourceId = { type: "integer", enum: sources.map((source) => source.id) };
   const sourceIds = array(sourceId, 8, 1);
   return object({ title: text(160), scope: text(200), limitations: array(text(600), 8),
     items: array(object({ headline: text(200), summary: text(1000), sourceIds,
       background: array(object({ text: text(1200), sourceIds }), 5), whyItMatters: text(1800),
       uncertainty: array(text(600), 4), watchNext: array(text(600), 4),
-      developmentDate: optionalDateSchema, scheduledDate: optionalDateSchema,
-      dateEvidence: { anyOf: [object({ sourceId, reportExcerpt: text(600) }), { type: "null" }] },
-      dateBasis: { type: "string", enum: ["research-excerpt", "publication-only", "wrapper", "unknown"] },
+      scheduledDate: optionalDateSchema,
+      dateEvidence: dateEvidenceCatalog.length
+        ? { anyOf: [object({ evidenceId: { type: "string", enum: dateEvidenceCatalog.map((entry) => entry.id) } }), { type: "null" }] }
+        : { type: "null" },
       evidenceStatus: { type: "string", enum: ["announced", "reported", "disputed", "uncertain"] },
     }), MAX_METABLOOM_RESEARCH_BRIEF_ITEMS),
     sourceDetails: array(object({ sourceId, publisher: text(120), publishedDate: optionalDateSchema,
@@ -180,9 +184,8 @@ const briefInstructions = [
   "Use only facts supported in report.notes and canonical source IDs in report.sources. Do not browse, invent sources, emit URLs or Markdown links, expose private reasoning, or assign confidence scores. Source IDs must stay unchanged. Each summary and each background fact needs its own relevant sourceIds. The title and scope describe the supplied evidence, not a broader claim of exhaustive coverage.",
   "Use a clear headline, useful summary, substantive background, why the finding matters, uncertainty, and what to watch next. Distinguish evidence from interpretation. Do not pad sections or invent implications, dates, numbers, forecasts or future milestones to fill them. Watch-next entries may be questions to monitor; a scheduled event is not an event that already happened. Prefer a few developed items over a terse list or repeated facts. Keep the entire result comfortably within 6000 output tokens.",
   "For news, select distinct developments by consequence, scale, novelty and strength of evidence within the explicit date window and declared scope. Consider the candidate coverage in the report, merge duplicate coverage of the same event, and attribute disputed or interested-party claims. Several syndicated copies are not independent corroboration. A requested count is a maximum goal, not permission to manufacture an item. Return fewer items when the evidence is insufficient and say why in limitations. Do not call the selection an objective global ranking.",
-  "developmentDate is the date of the specific actual development or announcement, not the publication of background reporting and not a future scheduled milestone. Use the source-supported local development date recorded in the research. A today's announcement about a future event may have today's developmentDate, a future scheduledDate, and evidenceStatus=announced. Never phrase the future milestone as already completed. Past reporting with a new navigation, wrapper, copyright, crawl, search-result or page-update date is not today's news.",
-  "For every non-null developmentDate, dateEvidence.reportExcerpt must copy exact prose from report.notes that explicitly supports the actual development date and is followed by the supporting numeric source citation. This is a research-report excerpt, not a quotation you must obtain from the original webpage. A faithful cited paraphrase of a dated development is eligible even when the original article's words are not quoted. For example, the report sentence 'Development dated 2026-10-23: the agency announced a program. [8]' supports developmentDate=2026-10-23, sourceId=8, reportExcerpt='Development dated 2026-10-23: the agency announced a program.', and dateBasis=research-excerpt. Copy the report's actual wording and date typography; return the separate date field in ASCII YYYY-MM-DD. Do not create or infer an event date merely because a source ID exists.",
-  "Omit numeric citation markers and Markdown URL decorations from reportExcerpt, and do not cross a citation to a different source. The excerpt must contain the explicit date, using ISO date notation or an unambiguous full English date. Use dateBasis=research-excerpt for an explicitly dated development in cited report prose; publication-only, wrapper and unknown do not support a current event. Keep unknown when the report itself does not establish a development date. Do not null an otherwise supported event date because an original-webpage quotation or original publication date is unavailable. Do not rewrite a stale development as today's event or treat today's coverage of an older event as a new development without evidence of a distinct update.",
+  "dateEvidence selects a supplied dateEvidenceCatalog entry by evidenceId, or is null. Each entry contains a host-copied excerpt, its explicit date and supporting canonical sourceId. Select only the entry that supports the specific development in this item's headline and summary, and include that sourceId in the item's sourceIds. The host copies the selected date and exact excerpt into the result; do not retype them, create IDs, return developmentDate or dateBasis fields, or select a different claim from the same publisher merely because its date fits. A faithful cited paraphrase is eligible; no original-webpage quotation or original publication date is required. If no supplied entry supports this development, select null. Never infer a date from the requested interval, a source ID or another nearby event.",
+  "The catalog establishes consistency with the supplied research, not independent confirmation of the original source. Compare its excerpt with the whole report before selecting it. The eligible date is when the specific actual development or announcement happened, not when older background was published or discussed, and not a future scheduled milestone. A Monday article about Sunday's result does not make that result a Monday event; a separately supported Monday objection or certification is a different development. A planned trip or a statement that someone is heading to a place is not evidence that the trip was completed. Distinguish a present announcement from its scheduled future event and keep scheduledDate separate. Never rewrite an older result, a plan or ambiguous timing as a completed event today. Navigation, wrapper, copyright, crawl and unrelated page-update dates remain ineligible.",
   "sourceDetails describes only sources used by the selected items. publishedDate is an explicitly supported original article/publication date, not a wrapper, crawl, copyright or unrelated update date. Its dateEvidence copies the supporting excerpt from the cited research report; an attributed paraphrase in the report is sufficient and no original-webpage quotation is required. Use dateBasis=article-publication only for that support; otherwise publishedDate=null, dateEvidence='', dateBasis=unknown. A missing publication date does not invalidate an independently supported development date. If the publisher is not identified in the supplied evidence or canonical title, use an empty string. Do not infer publication dates from URLs. Source classification describes the cited material; it is not a certification that it is true.",
   "Write reader-facing limitations about actual evidence gaps and domain uncertainty. Do not mention JSON fields, schema names, null values, report.notes, report.sources, dateBasis, developmentDate, the formatter, or internal generation steps. Do not claim to have covered a requested number if fewer eligible items are available.",
 ].join("\n\n");
@@ -202,7 +205,7 @@ function validateEvidence(report) {
 function citedParagraphs(report) {
   const passages = [];
   for (const paragraph of report.notes.split(/\n[ \t]*\n/)) {
-    const normalized = whitespace(paragraph);
+    const normalized = paragraph.trim();
     // Model-authored URL links are presentation only. Their labels and targets
     // cannot become citation identities, even if a label looks like [8].
     const links = [...normalized.matchAll(/\[[^\]\r\n]{1,200}\]\(https?:\/\/[^\s()<>]{1,2048}\)/gi)]
@@ -249,8 +252,8 @@ function citedParagraphs(report) {
         ids.add(Number(next[1]));
         end = next.index + next[0].length;
       }
-      const text = normalized.slice(start, first.index).trim();
-      if (text) passages.push({ text, ids });
+      const original = normalized.slice(start, first.index).trim();
+      if (original) passages.push({ text: whitespace(original), original, ids });
       start = end;
     }
   }
@@ -265,6 +268,77 @@ function excerptHasDate(quote, date) {
   return dateOnly(date) && explicitDates(quote).includes(date);
 }
 const wrapperDateExcerpt = (quote) => /\b(?:copyright|navigation|wrapper|crawl(?:ed)?|retrieved|last[ -]modified|page[ -](?:updated|modified)|(?:site|page)[ -]date)\b/i.test(quote);
+const publicationDateExcerpt = (quote) => /\b(?:publication date|originally\s+published|(?:original(?:ly)?[ -])?(?:article|story|report|coverage)[ -](?:was[ -])?(?:published|posted|dated|updated)|(?:article|story)[ -]publication)\b/i.test(quote)
+  || /^(?:[-*]\s+)?(?:published|publication|posted)(?:\s|:)/i.test(quote);
+const scheduledOnlyExcerpt = (quote) => {
+  const scheduled = quote.match(/\b(?:scheduled|planned|expected|due|set)\s+(?:to|for)\b|\bwill\s+(?:travel|visit|take place|happen|occur|begin|open|launch|meet|vote)\b/i);
+  if (!scheduled) return false;
+  const preceding = quote.slice(0, scheduled.index);
+  return !/\b(?:announced|approved|confirmed|issued|signed|published|released)\b/i.test(preceding) || explicitDates(preceding).length !== 1;
+};
+const sentenceSegmenter = new Intl.Segmenter("en", { granularity: "sentence" });
+const completeSentences = (value) => {
+  // Protect date/title abbreviations only during boundary detection. Offsets are
+  // unchanged, and every emitted substring is copied from the original text.
+  return value.split(/(?<=[.!?])\s+(?=[-*]\s+[A-Z])/u).flatMap(unit => {
+    const protectedText = unit.replace(new RegExp(`\\b(?:${MONTH_PATTERN}|Mr|Mrs|Ms|Dr|Prof)\\.(?=\\s+[A-Za-z0-9])`, "gi"), match => `${match.slice(0, -1)}_`)
+      .replace(/\b(?:[A-Za-z]\.){2,}/g, match => match.replaceAll(".", "_"));
+    return [...sentenceSegmenter.segment(protectedText)].map(({ index, segment }) => unit.slice(index, index + segment.length).trim());
+  });
+};
+
+// The formatter selects host-owned evidence, rather than reproducing punctuation,
+// Markdown and source bindings in a second generated quotation. Every choice is
+// a complete cited passage or sentence; a date elsewhere in the report is never
+// attached to an item implicitly. This is report consistency, not web verification.
+function buildMetabloomResearchDateEvidenceCatalog(report) {
+  const knownIds = validateEvidence(report), groups = new Map(), seen = new Set();
+  const stripTrailingLinks = (value) => value.replace(/(?:\s*\(?\[[^\]\r\n]{1,200}\]\(https?:\/\/[^\s()<>]{1,2048}\)\)?[.,;]?)+\s*$/gi, "").trim();
+  const eligible = (excerpt) => {
+    if (!safeText(excerpt, 600) || excerpt.length < 20 || hasUrl(excerpt) || wrapperDateExcerpt(excerpt)
+      || publicationDateExcerpt(excerpt) || scheduledOnlyExcerpt(excerpt)) return null;
+    const dates = explicitDates(excerpt);
+    return dates.length === 1 ? dates[0] : null;
+  };
+  for (const passage of citedParagraphs(report)) {
+    const complete = stripTrailingLinks(passage.text);
+    const fullDate = eligible(complete);
+    const snippets = fullDate ? [{ excerpt: complete, date: fullDate }] : [];
+    if (!fullDate) {
+      for (const originalLine of passage.original.split(/\r?\n/)) {
+        const line = stripTrailingLinks(whitespace(originalLine)), lineDate = eligible(line);
+        if (lineDate) snippets.push({ excerpt: line, date: lineDate });
+        else for (const sentence of completeSentences(line)) {
+          const excerpt = stripTrailingLinks(sentence), date = eligible(excerpt);
+          if (date) snippets.push({ excerpt, date });
+        }
+      }
+    }
+    for (const { excerpt, date } of snippets) {
+      for (const sourceId of passage.ids) {
+        if (!knownIds.has(sourceId)) continue;
+        const id = `d_${createHash("sha256").update(`${sourceId}\n${date}\n${excerpt}`).digest("hex").slice(0, 24)}`;
+        if (seen.has(id)) continue;
+        seen.add(id);
+        if (!groups.has(sourceId)) groups.set(sourceId, []);
+        groups.get(sourceId).push({ id, sourceId, date, excerpt });
+      }
+    }
+  }
+  const choices = [], sourceGroups = [...groups.values()];
+  let bytes = 2;
+  // Take a turn per source before selecting more of the same source's passages.
+  for (let round = 0; round < Math.max(0, ...sourceGroups.map((entries) => entries.length)); round++) {
+    for (const entries of sourceGroups) {
+      const entry = entries[round];
+      if (!entry || choices.length >= MAX_DATE_EVIDENCE_CHOICES) continue;
+      const size = Buffer.byteLength(JSON.stringify(entry), "utf8") + (choices.length ? 1 : 0);
+      if (bytes + size > MAX_DATE_EVIDENCE_BYTES) continue;
+      choices.push(entry); bytes += size;
+    }
+  }
+  return choices;
+}
 const implementationChatter = (text) => /\b(?:JSON|schema|formatter|dateBasis|developmentDate|scheduledDate|dateEvidence|sourceDetails|publishedDate|reportExcerpt|sourceIds)\b|\breport\s*\.\s*(?:notes|sources)\b|\bcanonical source\b|\b(?:I|we)\s+set\b.{0,100}\bnull\b|\bverbatim\b.{0,60}\b(?:quote|quotation|excerpt)/i.test(text);
 
 function hostBriefFraming(temporalContext, status) {
@@ -291,29 +365,28 @@ function extractMetabloomResearchBrief(candidate, { report, temporalContext, evi
     || !Array.isArray(candidate.sourceDetails) || candidate.sourceDetails.length > MAX_METABLOOM_RESEARCH_BRIEF_SOURCES
     || hasUrl([candidate.title, candidate.scope, candidate.limitations])) throw briefError("brief_shape_invalid");
   const paragraphs = citedParagraphs(report), items = [], headlines = new Set(), eventEvidence = new Set();
-  const diagnostics = { omittedMissingDate: 0, omittedDateBasis: 0, omittedDateEvidence: 0,
+  const dateEvidenceCatalog = new Map(buildMetabloomResearchDateEvidenceCatalog(report).map((entry) => [entry.id, entry]));
+  const diagnostics = { candidateCount: candidate.items.length, dateEvidenceChoices: dateEvidenceCatalog.size,
+    omittedMissingDate: 0, omittedDateBasis: 0, omittedDateEvidence: 0,
     omittedOutsideWindow: 0, omittedFutureDevelopment: 0, omittedScheduledDate: 0, omittedDuplicate: 0 };
   let omitted = 0;
   const omit = (reason) => { omitted++; diagnostics[reason]++; };
   for (const entry of candidate.items) {
-    if (!entry || !["research-excerpt", "publication-only", "wrapper", "unknown"].includes(entry.dateBasis)) throw briefError("brief_item_invalid");
-    const { dateBasis, ...item } = entry;
-    if (item.dateEvidence !== null) {
-      if (!exactKeys(item.dateEvidence, ["sourceId", "reportExcerpt"])) throw briefError("brief_item_invalid");
-      // The public field remains compatible, but the private synthesis contract
-      // explicitly requests a report excerpt, not an original webpage quotation.
-      item.dateEvidence = { sourceId: item.dateEvidence.sourceId, quote: item.dateEvidence.reportExcerpt };
-    }
+    if (!exactKeys(entry, ["headline", "summary", "sourceIds", "background", "whyItMatters", "uncertainty",
+      "watchNext", "scheduledDate", "dateEvidence", "evidenceStatus"])) throw briefError("brief_item_invalid");
+    if (entry.dateEvidence !== null && (!exactKeys(entry.dateEvidence, ["evidenceId"])
+      || typeof entry.dateEvidence.evidenceId !== "string")) throw briefError("brief_item_invalid");
+    const selected = entry.dateEvidence && dateEvidenceCatalog.get(entry.dateEvidence.evidenceId);
+    const item = { ...entry, developmentDate: selected?.date || null,
+      dateEvidence: selected ? { sourceId: selected.sourceId, quote: selected.excerpt } : null };
     if (hasUrl(item) || !Array.isArray(item.sourceIds) || !item.sourceIds.length
       || item.sourceIds.some((id) => !knownIds.has(id))) throw briefError("brief_item_invalid");
     // These checks establish consistency with the completed report. They cannot
     // independently authenticate a publisher's content or the research model's reading.
-    const acceptedBasis = dateBasis === "research-excerpt"
-      && !wrapperDateExcerpt(item.dateEvidence?.quote || "");
-    const dateSupported = acceptedBasis && item.dateEvidence && item.sourceIds.includes(item.dateEvidence.sourceId)
+    if (entry.dateEvidence !== null && !selected) { omit("omittedDateEvidence"); continue; }
+    const dateSupported = selected && item.dateEvidence && item.sourceIds.includes(item.dateEvidence.sourceId)
       && citedExcerpt(paragraphs, item.dateEvidence.sourceId, item.dateEvidence.quote)
       && excerptHasDate(item.dateEvidence.quote, item.developmentDate);
-    if (item.developmentDate !== null && !acceptedBasis) { omit("omittedDateBasis"); continue; }
     if (item.developmentDate !== null && !dateSupported) { omit("omittedDateEvidence"); continue; }
     if (item.developmentDate !== null && item.developmentDate > temporalContext.localDate) { omit("omittedFutureDevelopment"); continue; }
     if (temporalContext.kind === "news" && temporalContext.futureWindow) { omit("omittedFutureDevelopment"); continue; }
@@ -417,6 +490,7 @@ async function readBriefResponse(response, signal) {
 
 async function generateMetabloomResearchBrief({ message, history = [], report, temporalContext, evidenceLimited = false, signal, requestRef, fetchImpl = globalThis.fetch }) {
   validateEvidence(report);
+  const dateEvidenceCatalog = buildMetabloomResearchDateEvidenceCatalog(report);
   signal?.throwIfAborted();
   const startedAt = Date.now();
   let response, envelope, outcome = "failed", failure, result, diagnostics = {};
@@ -426,9 +500,9 @@ async function generateMetabloomResearchBrief({ message, history = [], report, t
       headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({ model: process.env.METABLOOM_OPENAI_MODEL || "gpt-5-mini", store: false, stream: false,
         max_output_tokens: 6000, reasoning: { effort: "low" }, instructions: briefInstructions,
-        input: [...history, { role: "user", content: JSON.stringify({ request: message, temporalContext, evidenceLimited: evidenceLimited === true,
+        input: [...history, { role: "user", content: JSON.stringify({ request: message, temporalContext, evidenceLimited: evidenceLimited === true, dateEvidenceCatalog,
           report: { notes: report.notes, sources: report.sources.map((source) => ({ id: source.id, title: source.title, host: new URL(source.url).hostname })) } }) }],
-        text: { format: { type: "json_schema", name: "metabloom_research_brief", strict: true, schema: researchBriefSchema(report.sources) } },
+        text: { format: { type: "json_schema", name: "metabloom_research_brief", strict: true, schema: researchBriefSchema(report.sources, dateEvidenceCatalog) } },
       }),
     });
     if (!response.ok) throw await readMetabloomProviderError(response, signal);
@@ -464,4 +538,5 @@ async function generateMetabloomResearchBrief({ message, history = [], report, t
 }
 
 module.exports = { normalizeMetabloomResearchTimeZone, buildMetabloomResearchTemporalContext, generateMetabloomResearchBrief,
-  extractMetabloomResearchBrief, researchBriefSchema };
+  extractMetabloomResearchBrief, researchBriefSchema, buildMetabloomResearchDateEvidenceCatalog,
+  MAX_DATE_EVIDENCE_CHOICES, MAX_DATE_EVIDENCE_BYTES };

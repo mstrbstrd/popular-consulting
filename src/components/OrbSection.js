@@ -383,12 +383,14 @@ const cloneMessage = ({ id, role, content, actionChain = [], source, emote, segm
   };
 };
 
-const MetabloomFullResearch = ({ report }) => {
-  const [expanded, setExpanded] = React.useState(false);
+const MetabloomFullResearch = ({ report, initiallyExpanded = false }) => {
+  const [expanded, setExpanded] = React.useState(initiallyExpanded);
   const [sourcesExpanded, setSourcesExpanded] = React.useState(false);
   const [visibleSources, setVisibleSources] = React.useState(20);
   return (
-    <details className="metabloom-chat__full-research" onToggle={(event) => setExpanded(event.currentTarget.open)}>
+    <details className="metabloom-chat__full-research" open={expanded}
+      data-research-fallback={initiallyExpanded ? "true" : undefined}
+      onToggle={(event) => setExpanded(event.currentTarget.open)}>
       <summary>Full research</summary>
       {expanded && (
         <div className="metabloom-chat__research-report" role="group" aria-label="Completed research">
@@ -1780,19 +1782,19 @@ const OrbSection = ({
   React.useLayoutEffect(() => {
     const transcript = transcriptRef.current;
     const latestMessage = messages[messages.length - 1];
-    const brief = latestMessage?.researchBrief && latestMessage.status !== "streaming"
+    const terminalMessage = latestMessage && ["complete", "error", "interrupted"].includes(latestMessage.status)
       ? Array.from(transcript?.querySelectorAll(".metabloom-chat__message") || [])
-        .find((message) => message.dataset.messageId === latestMessage.id)
-        ?.querySelector(".metabloom-research-brief")
-      : null;
-    const newlySurfacedBrief = brief && surfacedBriefScrollRef.current !== latestMessage.id;
+        .find((message) => message.dataset.messageId === latestMessage.id) : null;
+    const researchOpening = terminalMessage?.querySelector('.metabloom-chat__full-research[data-research-fallback="true"]')
+      || (latestMessage?.researchBrief ? terminalMessage?.querySelector(".metabloom-research-brief") : null);
+    const newlySurfacedBrief = researchOpening && surfacedBriefScrollRef.current !== latestMessage.id;
     if (newlySurfacedBrief) surfacedBriefScrollRef.current = latestMessage.id;
     // Never move the whole page or pull a reader away from an earlier reply.
     if (!followLatestRef.current) return;
     if (newlySurfacedBrief) {
       const inset = getTranscriptReadingInset(transcript);
       transcript.scrollTop = Math.max(0, transcript.scrollTop
-        + brief.getBoundingClientRect().top - transcript.getBoundingClientRect().top - inset);
+        + researchOpening.getBoundingClientRect().top - transcript.getBoundingClientRect().top - inset);
       const nearBottom = transcript.scrollHeight - transcript.scrollTop - transcript.clientHeight < 72;
       followLatestRef.current = nearBottom;
       setReadingEarlier(!nearBottom);
@@ -2139,6 +2141,8 @@ const OrbSection = ({
                 const sources = message.role === "assistant" ? parseMetabloomResearchSources(message.sources) : null;
                 const researchDetails = message.role === "assistant" ? parseMetabloomResearchReport(message.researchDetails) : null;
                 const researchBrief = researchDetails ? parseMetabloomResearchBrief(message.researchBrief, { sources: researchDetails.sources }) : null;
+                const researchFallback = researchDetails && ["complete", "error", "interrupted"].includes(message.status)
+                  && (researchBrief?.coverage.status === "unavailable" || (!researchBrief && message.status !== "complete"));
                 return (
                 <React.Fragment key={message.id}>
                   {statusBeforeReply && messageIndex === messages.length - 1 && researchStatus}
@@ -2189,7 +2193,8 @@ const OrbSection = ({
                         <>
                           {message.status === "error" && <p className="metabloom-chat__research-notice">Research completed. The short answer could not be prepared.</p>}
                           {message.status === "interrupted" && <p className="metabloom-chat__research-notice">Research completed. The short answer was stopped.</p>}
-                          <MetabloomFullResearch report={researchDetails} />
+                          <MetabloomFullResearch key={researchFallback ? "fallback" : "optional"}
+                            report={researchDetails} initiallyExpanded={Boolean(researchFallback)} />
                         </>
                       )}
                       {message.status === "streaming" && <span className="metabloom-chat__stream-status">Receiving response…</span>}

@@ -30,9 +30,11 @@ const beginWriter = (request, report) => act(() => {
 });
 const openResearch = async () => {
   const summary = screen.getByText("Full research", { selector: "summary" });
-  fireEvent.click(summary);
-  // jsdom schedules native toggle delivery outside Jest's fake timer clock.
-  fireEvent(summary.parentElement, new Event("toggle"));
+  if (!summary.parentElement.open) {
+    fireEvent.click(summary);
+    // jsdom schedules native toggle delivery outside Jest's fake timer clock.
+    fireEvent(summary.parentElement, new Event("toggle"));
+  }
   await tick(0);
   return screen.getByRole("group", { name: "Completed research" });
 };
@@ -146,6 +148,7 @@ test("writer failure preserves a completed report without manufacturing a short 
   expect(reply).toHaveAttribute("data-stream-status", "error");
   expect(window.__orbMessages().find((message) => message.role === "assistant").content).toBe("");
   expect(window.__orbState().pending).toBe(false);
+  expect(screen.getByText("Full research", { selector: "summary" }).parentElement).toHaveAttribute("open");
   const research = await openResearch();
   expectRetainedReport(research, report);
   expect(screen.getByRole("alert")).toHaveTextContent("The completed research is retained. Code: answer_invalid. Reference: a1b2c3d4e5f6.");

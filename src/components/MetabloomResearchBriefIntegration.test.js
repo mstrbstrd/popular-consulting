@@ -129,6 +129,39 @@ test("brief metadata must follow completed evidence and rejected formatting leav
   expect(requests).toHaveLength(1);
 });
 
+test.each(['news', 'research'])("an empty %s brief opens the retained report after surfacing and keeps notes collapsed", async (kind) => {
+  const view = render(<OrbSection />); send(); await tick(0);
+  const { request, finish } = requests[0];
+  const empty = { ...briefFor(), kind, title: 'Brief could not be prepared', items: [], sourceDetails: [],
+    coverage: { requestedCount: 5, returnedCount: 0, status: 'unavailable',
+      limitations: ['The structured summary could not establish the requested coverage.'] } };
+  beginResearch(request); attachBrief(request, empty);
+  expect(screen.queryByText('Full research')).not.toBeInTheDocument();
+  await act(async () => finish({ version: '2.0.0', segments: [{ response: 'The research report is shown below.' }] }));
+  await tick(649);
+  expect(screen.queryByRole('group', { name: 'Completed research' })).not.toBeInTheDocument();
+  await tick(251);
+  const report = screen.getByRole('group', { name: 'Completed research' });
+  for (const paragraph of reportFor().notes.split('\n\n')) expect(report).toHaveTextContent(paragraph);
+  expect(within(report).getByRole('link', { name: 'Source 9: Fictional research source 9' }))
+    .toHaveAttribute('href', 'https://example.org/research-9');
+  const summary = screen.getByText('Full research', { selector: 'summary' });
+  expect(summary.parentElement).toHaveAttribute('open');
+  expect(summary.parentElement).toHaveAttribute('data-research-fallback', 'true');
+  expect(screen.getByText('Briefing notes', { selector: 'summary' }).parentElement).not.toHaveAttribute('open');
+  expect(screen.getByText(empty.coverage.limitations[0])).not.toBeVisible();
+  expect(screen.queryByText(/0 of 5|Coverage unavailable/)).not.toBeInTheDocument();
+  expect(screen.queryByRole('heading', { name: empty.title })).not.toBeInTheDocument();
+  expect(window.__orbMessages().find(message => message.role === 'assistant').researchBrief).toEqual(empty);
+
+  fireEvent.click(summary); fireEvent(summary.parentElement, new Event('toggle')); await tick(0);
+  expect(summary.parentElement).not.toHaveAttribute('open');
+  view.rerender(<OrbSection />); fireEvent(window, new Event('resize')); await tick(1000);
+  expect(summary.parentElement).not.toHaveAttribute('open');
+  expect(screen.queryByRole('group', { name: 'Completed research' })).not.toBeInTheDocument();
+  expect(requests).toHaveLength(1);
+});
+
 test.each(["stop", "reset", "replacement", "deactivate", "unmount"])("%s discards a held brief and rejects stale brief callbacks", async (operation) => {
   const { rerender, unmount } = render(<OrbSection />); send(); await tick(0);
   const { request, finish } = requests[0];

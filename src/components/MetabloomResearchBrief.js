@@ -22,6 +22,18 @@ const asOfTime = (value, timeZone) => new Intl.DateTimeFormat('en', {
   hourCycle: 'h23', timeZone,
 }).format(new Date(value));
 
+function BriefContext({ brief, windowLabel = 'Covered interval' }) {
+  return <dl className="metabloom-research-brief__context">
+    <div><dt>As of</dt><dd><time dateTime={brief.asOf}>{asOfTime(brief.asOf, brief.timeZone)}</time></dd></div>
+    <div><dt>Timezone</dt><dd>{brief.timeZone}</dd></div>
+    {brief.kind === 'news' && brief.windowStart && brief.windowEnd && <div className="metabloom-research-brief__window">
+      <dt>{windowLabel}</dt><dd><time dateTime={brief.windowStart}>{calendarDate(brief.windowStart)}</time>
+        {brief.windowStart !== brief.windowEnd && <> to <time dateTime={brief.windowEnd}>{calendarDate(brief.windowEnd)}</time></>}
+      </dd>
+    </div>}
+  </dl>;
+}
+
 function Citations({ sourceIds, sourceMap }) {
   return <span className="metabloom-research-brief__citations">
     {sourceIds.map(id => {
@@ -143,6 +155,18 @@ export default function MetabloomResearchBrief({ brief, sources }) {
   const detailsMap = new Map(safeBrief.sourceDetails.map(detail => [detail.sourceId, detail]));
   const news = safeBrief.kind === 'news';
   const { coverage } = safeBrief;
+  // The completed report is the reading surface when no structured items
+  // qualify. Keep the explanation available without leading with an empty card.
+  if (coverage.status === 'unavailable') return <details
+    className="metabloom-research-brief metabloom-research-brief--fallback"
+    data-research-brief-kind={safeBrief.kind} data-coverage-status={coverage.status}>
+    <summary>Briefing notes</summary>
+    <div className="metabloom-research-brief__fallback-notes">
+      <p className="metabloom-research-brief__scope">{safeBrief.scope}</p>
+      <BriefContext brief={safeBrief} windowLabel="Requested interval" />
+      <ul aria-label="Coverage limitations">{coverage.limitations.map((text, index) => <li key={index}>{text}</li>)}</ul>
+    </div>
+  </details>;
   const itemNoun = news ? 'stories' : 'findings';
   const singleItemNoun = news ? 'story' : 'finding';
   const countText = coverage.requestedCount !== null
@@ -158,15 +182,7 @@ export default function MetabloomResearchBrief({ brief, sources }) {
       <p className="metabloom-research-brief__eyebrow">{news ? 'News briefing' : 'Research brief'}</p>
       <h3 id={`${id}-title`}>{safeBrief.title}</h3>
       <p className="metabloom-research-brief__scope">{safeBrief.scope}</p>
-      <dl className="metabloom-research-brief__context">
-        <div><dt>As of</dt><dd><time dateTime={safeBrief.asOf}>{asOfTime(safeBrief.asOf, safeBrief.timeZone)}</time></dd></div>
-        <div><dt>Timezone</dt><dd>{safeBrief.timeZone}</dd></div>
-        {news && safeBrief.windowStart && safeBrief.windowEnd && <div className="metabloom-research-brief__window">
-          <dt>Covered interval</dt><dd><time dateTime={safeBrief.windowStart}>{calendarDate(safeBrief.windowStart)}</time>
-            {safeBrief.windowStart !== safeBrief.windowEnd && <> to <time dateTime={safeBrief.windowEnd}>{calendarDate(safeBrief.windowEnd)}</time></>}
-          </dd>
-        </div>}
-      </dl>
+      <BriefContext brief={safeBrief} />
     </header>
     <div className="metabloom-research-brief__coverage">
       <div className="metabloom-research-brief__coverage-heading"><strong>{countText}</strong><span>{coverageLabel}</span></div>

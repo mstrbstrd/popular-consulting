@@ -1,5 +1,23 @@
 # Research evidence handoff regression
 
+## Current contract: October 26 reference selection
+
+A second supplied response contained five explicitly dated research stories but displayed an unavailable zero-of-five briefing. Replaying its date-sentence shape locally established two distinct outcomes: exact original excerpts were accepted, while changing em dashes to ASCII hyphens, copying rendered text without its original Markdown, or including a numeric citation inside the copied excerpt could reject all five. All-null formatter selections could produce the same visible message. The pasted UI alone does not reveal which internal candidate variation occurred; omission counters are needed to distinguish those cases.
+
+The production formatter no longer reproduces date quotations. The host prepares a `dateEvidenceCatalog` of `{ id, sourceId, date, excerpt }` choices from the bounded research evidence and the existing canonical citation map. Choices are limited to 64 entries and 16 KiB of serialized UTF-8 JSON. A choice contains a complete cited passage or sentence of at most 600 characters, one explicit date, and its actual source binding. The catalog preserves original text; it does not assign today's date, reinterpret a source URL as date evidence, cross citation boundaries, or attach a date from another event. It gives sources a turn before taking additional excerpts from the same source.
+
+When a cited passage exceeds the excerpt limit or contains multiple dates, the host considers complete original lines and complete sentences. Named-date abbreviations such as `Oct. 23, 2026` and `23 Oct. 2026` remain intact during boundary detection. Recognized publication-only headers (`Published on`, `Published:`, `Publication:`), wrapper dates and scheduled-only statements are excluded. An actual dated announcement can keep its separate future scheduled milestone. Ambiguous statements remain unselected rather than having a date guessed from context.
+
+The private item contract is now `dateEvidence: { evidenceId }` or `null`. The formatter's schema contains the exact eligible reference IDs and omits `developmentDate` and the old item `dateBasis`. The host resolves the chosen ID to the original date, source and excerpt, checks its membership in the item's sources, and applies the existing calendar-window/future checks. Unknown, wrong-source and null selections do not borrow a nearby date. The retired free-text contract is rejected by the production extractor; historical fixture data is converted to current references in the tests.
+
+The public `metabloom-research-brief-v1` contract is unchanged: clients still receive `developmentDate` and `dateEvidence: { sourceId, quote }`. Optional source publication metadata remains independent. Its absence cannot invalidate an otherwise supported development. This change improves consistency between two model stages; it does not independently authenticate article content or establish that a research model interpreted an article correctly. The instructions explicitly distinguish a Monday update from Sunday's underlying event and a planned trip from a completed trip.
+
+Empty coverage and formatter failures now preserve a useful reading surface: a short host-owned introduction, collapsed **Briefing notes**, and an initially open **Full research** section with a date/coverage caveat after the surfacing gate. No dates, stories or evidence are manufactured to fill a requested count. The same research pass and single replacement formatter remain in use, with no repair call, paid retry, or extra writer. Unnegotiated clients retain their existing stream contract.
+
+The current focused Node suite has 40 passing cases covering reference-only extraction, five-story punctuation/Markdown preservation, absent publication dates, source binding, unknown/null references, retired-contract rejection, original-line and abbreviated-date handling, count/byte limits, stable IDs, wrapper/publication/schedule exclusions, stale/future windows, optional metadata, privacy, and cancellation. Safe formatter logs now include `candidateCount` and `dateEvidenceChoices` beside omission counts; no excerpt, source ID, URL, prompt or generated text is logged.
+
+The sections below retain the October 23 investigation and its historical verification record. Their quotation-copying private contract was superseded by the reference-selection contract above.
+
 ## Production symptom and reproduction
 
 The supplied October 23, 2026 response asked for five news events from that day. It displayed an unavailable brief with zero of five stories, a title claiming five developments, and formatter explanations containing internal field names. The completed research remained available below it.
@@ -34,7 +52,7 @@ A focused public-source check supports the reason to retain the date distinction
 
 ## Changed contract and behavior
 
-The private formatter field is now `dateEvidence.reportExcerpt`, with `dateBasis: "research-excerpt"` for a faithful cited passage from the completed research. The formatter must copy that passage exactly. It need not obtain an original-source direct quotation. After validation, the host maps the excerpt into the unchanged public `dateEvidence.quote` field, which the UI labels as a research excerpt. This preserves client compatibility.
+The October 23 private formatter field was `dateEvidence.reportExcerpt`, with `dateBasis: "research-excerpt"` for a faithful cited passage from the completed research. That version required the formatter to copy the passage exactly without obtaining an original-source direct quotation. After validation, the host mapped the excerpt into the unchanged public `dateEvidence.quote` field. The October 26 reference-selection contract above replaces this fragile copying step while retaining client compatibility.
 
 Typographic ISO date separators are normalized only for date recognition. The retained evidence text is not rewritten. A source still needs a canonical citation bound to the copied passage; URLs printed in the report do not independently create provenance. Earlier developments, publication-only dates, wrapper dates, invented excerpts, mismatched source IDs, and future events remain ineligible for a bounded same-day news selection.
 

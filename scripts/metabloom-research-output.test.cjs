@@ -6,7 +6,7 @@ const auth = require("../server/metabloomAuth");
 const handler = require("../api/metabloom");
 const { extractMetabloomResearch } = require("../server/metabloomResearch");
 const { buildMetabloomResearchTemporalContext, extractMetabloomResearchBrief,
-  generateMetabloomResearchBrief } = require("../server/metabloomResearchBrief");
+  generateMetabloomResearchBrief, buildMetabloomResearchDateEvidenceCatalog } = require("../server/metabloomResearchBrief");
 const { createMetabloomSegmentStreamDecoder } = require("../src/components/metabloomEmoteProtocol");
 
 const originalFetch = global.fetch;
@@ -15,9 +15,20 @@ const envKeys = ["OPENAI_API_KEY", "TYPESAFE_API_KEY", "VERCEL", "VERCEL_ENV", "
   "UPSTASH_REDIS_REST_URL", "UPSTASH_REDIS_REST_TOKEN"];
 const context = () => buildMetabloomResearchTemporalContext({ message: fixture.question,
   timeZone: fixture.timeZone, now: fixture.asOf });
-const extract = (candidate = fixture.candidate(), report = fixture.report) =>
-  extractMetabloomResearchBrief(candidate, { report, temporalContext: context() });
-const internalFieldNames = /report\.notes|report\.sources|developmentDate|dateEvidence|dateBasis|publishedDate|sourceDetails|reportExcerpt/;
+// Historical fixture data describes the original free-text writer response.
+// Exercise the current production contract by selecting the intended host entry.
+const withReferences = (value, catalog) => ({ ...value, items: value.items.map(entry => {
+  const { developmentDate, dateBasis, dateEvidence, ...item } = entry;
+  const selected = dateBasis === "research-excerpt" && dateEvidence && catalog.find(option =>
+    option.sourceId === dateEvidence.sourceId && option.date === developmentDate
+      && option.excerpt.includes(dateEvidence.reportExcerpt));
+  return { ...item, dateEvidence: selected ? { evidenceId: selected.id } : null };
+}) });
+const extract = (candidate = fixture.candidate(), report = fixture.report) => extractMetabloomResearchBrief(
+  withReferences(candidate, buildMetabloomResearchDateEvidenceCatalog(report)), { report, temporalContext: context() });
+const currentEvidence = () => buildMetabloomResearchDateEvidenceCatalog(fixture.report)
+  .find(entry => entry.sourceId === 8 && entry.date === "2026-10-23" && entry.excerpt.includes(fixture.sections[4].reportExcerpt));
+const internalFieldNames = /report\.notes|report\.sources|developmentDate|dateEvidence|dateBasis|publishedDate|sourceDetails|reportExcerpt|evidenceId/;
 const visibleText = (brief) => [brief.title, brief.scope, ...brief.coverage.limitations,
   ...brief.items.flatMap((item) => [item.headline, item.summary, item.whyItMatters,
     ...item.background.map((entry) => entry.text), ...item.uncertainty, ...item.watchNext])].join("\n");
@@ -70,7 +81,7 @@ test("dated report paraphrases produce one current story, exclude four older dev
   assert.equal(brief.items[0].headline, fixture.sections[4].headline);
   assert.deepEqual(brief.items[0].sourceIds, [8, 9]);
   assert.equal(brief.items[0].developmentDate, "2026-10-23");
-  assert.deepEqual(brief.items[0].dateEvidence, { sourceId: 8, quote: fixture.sections[4].reportExcerpt });
+  assert.deepEqual(brief.items[0].dateEvidence, { sourceId: 8, quote: currentEvidence().excerpt });
   assert.deepEqual(brief.sourceDetails.map((entry) => entry.sourceId), [8, 9]);
   assert(brief.sourceDetails.every((entry) => entry.publishedDate === null && entry.dateEvidence === ""));
   assert.equal(brief.asOf, fixture.asOf); assert.equal(brief.timeZone, fixture.timeZone);
@@ -80,7 +91,8 @@ test("dated report paraphrases produce one current story, exclude four older dev
 test("a literal current report excerpt with only the original U+2011 date is accepted without rewriting its evidence", () => {
   const brief = extract(fixture.candidate({ unicodeOnly: true }));
   assertHonestCoverage(brief, 1);
-  assert.equal(brief.items[0].dateEvidence.quote, fixture.unicodeOnlyCurrentExcerpt);
+  assert.equal(brief.items[0].dateEvidence.quote, currentEvidence().excerpt);
+  assert(brief.items[0].dateEvidence.quote.includes(fixture.unicodeOnlyCurrentExcerpt));
   assert(fixture.report.notes.includes(brief.items[0].dateEvidence.quote));
 });
 
@@ -110,7 +122,7 @@ test("date normalization cannot turn stale stories, mismatched sources, or inven
   }
 });
 
-test("the single formatter requests research excerpts explicitly, preserves all evidence, and does not request source quotations", async () => {
+test("the single formatter selects host evidence references, preserves the report, and does not recopy quotations", async () => {
   let calls = 0;
   const brief = await generateMetabloomResearchBrief({ message: fixture.question, report: fixture.report,
     temporalContext: context(), signal: new AbortController().signal,
@@ -120,13 +132,16 @@ test("the single formatter requests research excerpts explicitly, preserves all 
       assert.equal(body.stream, false); assert.equal(body.store, false); assert.equal(body.tools, undefined);
       assert.equal(body.max_output_tokens, 6000);
       const itemSchema = body.text.format.schema.properties.items.items;
-      assert.match(JSON.stringify(itemSchema.properties.dateEvidence), /reportExcerpt/);
-      assert.doesNotMatch(JSON.stringify(itemSchema.properties.dateEvidence), /"quote"/);
+      assert.match(JSON.stringify(itemSchema.properties.dateEvidence), /evidenceId/);
+      assert.doesNotMatch(JSON.stringify(itemSchema.properties.dateEvidence), /reportExcerpt|"quote"/);
+      assert.equal(itemSchema.properties.developmentDate, undefined);
+      assert.equal(itemSchema.properties.dateBasis, undefined);
       assert.match(body.instructions, /paraphras/i);
       const input = JSON.parse(body.input.at(-1).content);
       assert.equal(input.report.notes, fixture.report.notes);
       assert.deepEqual(input.report.sources.map((source) => source.id), fixture.sources.map((source) => source.id));
-      return briefResponse(fixture.candidate({ unicodeOnly: true }));
+      assert.deepEqual(input.dateEvidenceCatalog, buildMetabloomResearchDateEvidenceCatalog(fixture.report));
+      return briefResponse(withReferences(fixture.candidate({ unicodeOnly: true }), input.dateEvidenceCatalog));
     } });
   assert.equal(calls, 1); assertHonestCoverage(brief, 1);
 });
@@ -140,8 +155,9 @@ test("the actual API and client decoder deliver one current story, safe intro, a
     calls.push(body.tools ? "research" : body.text?.format?.name);
     if (body.tools) return researchResponse();
     assert.equal(body.text?.format?.name, "metabloom_research_brief", "No repair call or legacy writer is allowed.");
-    assert.equal(JSON.parse(body.input.at(-1).content).report.notes, fixture.report.notes);
-    return briefResponse(fixture.candidate({ unicodeOnly: true }));
+    const input = JSON.parse(body.input.at(-1).content);
+    assert.equal(input.report.notes, fixture.report.notes);
+    return briefResponse(withReferences(fixture.candidate({ unicodeOnly: true }), input.dateEvidenceCatalog));
   };
   const res = response();
   await handler({ method: "POST", headers: { host: "localhost:3000", origin: "http://localhost:3000", "content-type": "application/json" },
