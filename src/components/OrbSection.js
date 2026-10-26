@@ -1718,10 +1718,11 @@ const OrbSection = ({
     if (newlySurfacedBrief) {
       const style = window.getComputedStyle(transcript);
       const mask = style.getPropertyValue("mask-image") || style.getPropertyValue("-webkit-mask-image");
-      // The transcript's existing fade becomes opaque at 38% of its height.
-      // Open a long brief below that fade, then let the reader control scrolling.
-      const inset = mask && mask !== "none" ? transcript.clientHeight * 0.4
-        : Math.max(16, parseFloat(style.scrollPaddingTop) || 0);
+      // The transcript's fade becomes opaque at 12% of its height. Leave a
+      // little breathing room below it and keep the brief clear of top controls.
+      const inset = Math.max(16, parseFloat(style.paddingTop) || 0,
+        parseFloat(style.scrollPaddingTop) || 0,
+        mask && mask !== "none" ? transcript.clientHeight * 0.14 : 0);
       transcript.scrollTop = Math.max(0, transcript.scrollTop
         + brief.getBoundingClientRect().top - transcript.getBoundingClientRect().top - inset);
       const nearBottom = transcript.scrollHeight - transcript.scrollTop - transcript.clientHeight < 72;

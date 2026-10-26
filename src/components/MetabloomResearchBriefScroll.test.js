@@ -90,8 +90,9 @@ test("a completed long brief opens at its beginning once and ordinary chat can r
   expect(transcript.scrollTop).toBe(3400);
   await completeResearch();
   const region = screen.getByRole("region", { name: brief.title });
-  expect(region.getBoundingClientRect().top).toBeGreaterThanOrEqual(340);
-  expect(region.getBoundingClientRect().top).toBeLessThan(700);
+  // Keep the opening below the top 12% fade and within the top 20% of the log.
+  expect(region.getBoundingClientRect().top).toBeGreaterThanOrEqual(172);
+  expect(region.getBoundingClientRect().top).toBeLessThan(220);
   const openingPosition = transcript.scrollTop;
   fireEvent(window, new Event("resize")); await tick(1000);
   expect(transcript.scrollTop).toBe(openingPosition);

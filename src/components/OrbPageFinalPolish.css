@@ -512,21 +512,22 @@
 /* Fade the conversation into the living scene as earlier bubbles reach the
    top of the *visible scrollport*. Masking the scrollport rather than the
    scrolling message list anchors the gradient to the screen. The Orb, composer,
-   reaction panel, and landing prompts are outside this mask. */
+   reaction panel, and landing prompts are outside this mask. Keep the fade
+   within the top 12% so the rest of the conversation stays fully readable. */
 .orb-page[data-conversation-started="true"] .metabloom-chat__messages {
   -webkit-mask-image: linear-gradient(
     to bottom,
     transparent 0%,
-    rgba(0, 0, 0, 0.26) 10%,
-    rgba(0, 0, 0, 0.76) 25%,
-    #000 38%
+    rgba(0, 0, 0, 0.26) 3%,
+    rgba(0, 0, 0, 0.76) 8%,
+    #000 12%
   );
   mask-image: linear-gradient(
     to bottom,
     transparent 0%,
-    rgba(0, 0, 0, 0.26) 10%,
-    rgba(0, 0, 0, 0.76) 25%,
-    #000 38%
+    rgba(0, 0, 0, 0.26) 3%,
+    rgba(0, 0, 0, 0.76) 8%,
+    #000 12%
   );
 }
 

@@ -171,8 +171,8 @@ describe("Orb final presentation guardrails", () => {
     expect(messagesRule).toContain("-webkit-mask-image: linear-gradient(");
     expect(messagesRule).toContain("mask-image: linear-gradient(");
     expect(messagesRule).toContain("transparent 0%");
-    expect(messagesRule).toContain("rgba(0, 0, 0, 0.76) 25%");
-    expect(messagesRule).toContain("#000 38%");
+    expect(messagesRule).toContain("rgba(0, 0, 0, 0.76) 8%");
+    expect(messagesRule).toContain("#000 12%");
     expect(messagesRule).not.toContain("transform:");
     expect(css).toContain("Masking the scrollport rather than the");
     expect(css).not.toMatch(/\.metabloom-chat__message-list\s*\{[^}]*mask-image:/);
