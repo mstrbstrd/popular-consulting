@@ -1,6 +1,7 @@
 const { createHmac, randomBytes } = require("node:crypto");
 const { once } = require("node:events");
 const metabloomAuth = require("../server/metabloomAuth");
+const sourceMedia = require("../server/metabloomSourceMedia");
 const { METABLOOM_CHAT_PROTOCOL_VERSION, METABLOOM_EMOTE_IDS, METABLOOM_CHAT_RESPONSE_SCHEMA, buildMetabloomChatSystemPrompt } = require("../src/components/metabloomEmoteLibrary");
 const { METABLOOM_ACTION_MODES } = require("../src/components/metabloomDecisionMapping");
 const { decideMetabloomReaction, decideMetabloomInput, decideMetabloomResponse } = require("../server/jevReactionService");
@@ -16,7 +17,8 @@ const { createMetabloomProviderError, readMetabloomProviderError, providerReques
 const { METABLOOM_STREAM_ERROR_CODES } = require("../src/components/metabloomRequestErrors");
 const { MAX_METABLOOM_RESEARCH_SOURCES } = require("../src/components/metabloomResearchSources");
 const { MAX_METABLOOM_RESEARCH_REPORT_CHUNK_CHARS } = require("../src/components/metabloomResearchReport");
-const { MAX_METABLOOM_RESEARCH_BRIEF_CHUNK_CHARS, MAX_METABLOOM_RESEARCH_BRIEF_SOURCES } = require("../src/components/metabloomResearchBriefProtocol");
+const { MAX_METABLOOM_RESEARCH_BRIEF_CHUNK_CHARS, MAX_METABLOOM_RESEARCH_BRIEF_SOURCES,
+  parseMetabloomResearchBrief } = require("../src/components/metabloomResearchBriefProtocol");
 const MAX_BODY_BYTES = 24000;
 const MAX_RESEARCH_WRITER_NOTES_CHARS = 16000;
 const localBuckets = new Map();
@@ -50,13 +52,14 @@ const parseBody = (request) => {
     const text = typeof request.body === "string" ? request.body : JSON.stringify(request.body);
     if (typeof text !== "string" || Buffer.byteLength(text, "utf8") > MAX_BODY_BYTES) return null;
     const value = JSON.parse(text);
-    if (!exactKeys(value, ["message"], ["requestId", "history", "allowMultiple", "streamText", "streamResearchProgress", "streamResearchDetails", "streamResearchBrief", "timeZone", "actionMode", "artifactContext"])) return null;
+    if (!exactKeys(value, ["message"], ["requestId", "history", "allowMultiple", "streamText", "streamResearchProgress", "streamResearchDetails", "streamResearchBrief", "streamResearchMedia", "timeZone", "actionMode", "artifactContext"])) return null;
     if (typeof value.message !== "string" || !value.message.trim() || value.message.length > 1600) return null;
     if (value.allowMultiple !== undefined && typeof value.allowMultiple !== "boolean") return null;
     if (value.streamText !== undefined && typeof value.streamText !== "boolean") return null;
     if (value.streamResearchProgress !== undefined && typeof value.streamResearchProgress !== "boolean") return null;
     if (value.streamResearchDetails !== undefined && typeof value.streamResearchDetails !== "boolean") return null;
     if (value.streamResearchBrief !== undefined && typeof value.streamResearchBrief !== "boolean") return null;
+    if (value.streamResearchMedia !== undefined && typeof value.streamResearchMedia !== "boolean") return null;
     if (value.streamResearchBrief === true && value.streamResearchDetails !== true) return null;
     if (value.timeZone !== undefined && !normalizeMetabloomResearchTimeZone(value.timeZone)) return null;
     if (value.actionMode !== undefined && !METABLOOM_ACTION_MODES.includes(value.actionMode)) return null;
@@ -214,6 +217,23 @@ const sendJson = (response, status, body) => {
   response.setHeader("Content-Type", "application/json; charset=utf-8");
   response.end(JSON.stringify(body));
 };
+// Preview permissions are added by the host after evidence validation. Retrieving
+// publisher metadata happens later, so it cannot delay or discard paid research.
+const attachResearchMedia = async (brief, sources, identity) => {
+  if (brief?.kind !== "news" || !identity) return brief;
+  const sourceMap = new Map(sources.map(source => [source.id, source]));
+  const ids = [...new Set(brief.items.map(item => item.dateEvidence?.sourceId || item.sourceIds[0]))].slice(0, 10);
+  const media = (await Promise.all(ids.map(async sourceId => {
+    try {
+      const source = sourceMap.get(sourceId);
+      const token = source && await sourceMedia.createSourceMediaToken(identity, source.url);
+      return token ? { sourceId, token } : null;
+    } catch { return null; }
+  }))).filter(Boolean);
+  if (!media.length) return brief;
+  return parseMetabloomResearchBrief({ ...brief, media }, { sources }) || brief;
+};
+
 const handler = async (request, response) => {
   response.setHeader("Cache-Control", "private, no-store, no-transform");
   response.setHeader("CDN-Cache-Control", "no-store");
@@ -225,7 +245,7 @@ const handler = async (request, response) => {
   // No metadata, quota consumption, OpenAI request, or Jev decision without a live session.
   let visualIdentity;
   const denial = await metabloomAuth.requireMetabloomSession(request, {
-    onIdentity: visualsEnabled() ? (identity) => { visualIdentity = identity; } : undefined,
+    onIdentity: (identity) => { visualIdentity = identity; },
   });
   if (denial) return sendJson(response, denial.status, { code: denial.code });
   if (response.destroyed || request.aborted) return;
@@ -348,8 +368,18 @@ const handler = async (request, response) => {
       temporalContext = buildMetabloomResearchTemporalContext({ message, timeZone: body.timeZone || "UTC", now: startedAt });
       researchReport = await conductMetabloomResearch({
         message, history: body.history, signal: controller.signal, requestRef, temporalContext,
+        includeSourceUrls: body.streamResearchMedia === true,
         onProgress: body.streamResearchProgress === true
-          ? (progress) => sendStreamEvent({ type: "research_progress", ...progress }) : undefined,
+          ? async ({ summary, sourceUrl }) => {
+            const progress = { type: "research_progress", summary };
+            if (body.streamResearchMedia === true && visualIdentity && sourceUrl) {
+              try {
+                const token = await sourceMedia.createSourceMediaToken(visualIdentity, sourceUrl);
+                if (token) progress.source = { url: sourceUrl, token };
+              } catch { /* An unavailable icon never interrupts research progress. */ }
+            }
+            await sendStreamEvent(progress);
+          } : undefined,
       });
       if (controller.signal.aborted || response.destroyed || request.aborted) throw new Error("Cancelled");
       if (body.streamResearchDetails === true) {
@@ -395,6 +425,9 @@ const handler = async (request, response) => {
       }
       if (controller.signal.aborted || response.destroyed || request.aborted) throw new Error("Cancelled");
       if (researchBrief) {
+        if (body.streamResearchMedia === true) {
+          researchBrief = await attachResearchMedia(researchBrief, researchReport.sources, visualIdentity);
+        }
         const serialized = JSON.stringify(researchBrief);
         for (let offset = 0, index = 0; offset < serialized.length; offset += MAX_METABLOOM_RESEARCH_BRIEF_CHUNK_CHARS, index++) {
           await sendStreamEvent({ type: "research_brief_delta", index, delta: serialized.slice(offset, offset + MAX_METABLOOM_RESEARCH_BRIEF_CHUNK_CHARS) });
@@ -555,4 +588,4 @@ const handler = async (request, response) => {
 };
 module.exports = handler;
 module.exports._internals = { parseBody, requestOriginIsAllowed, consumeRateLimit, configured, localBuckets,
-  selectResearchBriefEvidence, researchBriefIntroduction };
+  selectResearchBriefEvidence, researchBriefIntroduction, attachResearchMedia };

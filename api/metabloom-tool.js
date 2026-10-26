@@ -4,6 +4,7 @@ const { enabled: visualsEnabled, createMetabloomVisualStore } = require('../serv
 const { classifyMetabloomVisualIntent } = require('../src/components/metabloomVisualIntent');
 const { METABLOOM_CHAT_PROTOCOL_VERSION } = require('../src/components/metabloomEmoteLibrary');
 const { METABLOOM_TOOL_START_TIMEOUT_MS, METABLOOM_TOOL_CONTINUE_TIMEOUT_MS } = require('../src/components/metabloomVisualProtocol');
+const { parseMetabloomVisualQuota } = require('../src/components/metabloomVisualQuota');
 const { requestVisualTool, continueVisualTool } = require('../server/metabloomToolFlow');
 const { decideMetabloomReaction } = require('../server/jevReactionService');
 const { consumeRateLimit } = require('./metabloom')._internals;
@@ -85,6 +86,10 @@ function createMetabloomToolHandler({ store = createMetabloomVisualStore(), auth
         const message = intent.resolvedMessage || body.message;
         stage = 'claim';
         await store.claimStart(identity, body.requestId, { signal: controller.signal });
+        // Reject an exhausted visual budget before charging the general request
+        // quota or starting the tool model. Generation rechecks atomically.
+        stage = 'visual_quota';
+        await store.checkQuota(identity, { signal: controller.signal });
         stage = 'rate_limit';
         if (!(await rateLimit(request, controller.signal))) return send(response, 429, { code: 'rate_limited' });
         stage = 'provider';
@@ -139,7 +144,7 @@ function createMetabloomToolHandler({ store = createMetabloomVisualStore(), auth
       return send(response, 200, result);
     } catch (error) {
       const codes = { visual_invalid: 'tool_invalid', visual_output_limit: 'tool_output_limit',
-        visual_claimed: 'tool_claimed', visual_expired: 'tool_expired',
+        visual_claimed: 'tool_claimed', visual_expired: 'tool_expired', visual_quota: 'tool_quota',
         provider_authentication_failed: 'provider_authentication_failed',
         model_configuration_error: 'model_configuration_error', provider_rate_limited: 'provider_rate_limited',
         provider_unavailable: 'provider_unavailable' };
@@ -147,10 +152,12 @@ function createMetabloomToolHandler({ store = createMetabloomVisualStore(), auth
         : Object.prototype.hasOwnProperty.call(codes, error?.code) ? codes[error.code] : 'tool_unavailable';
       const status = code === 'tool_timeout' ? 504 : code === 'tool_cancelled' ? 499
         : code === 'tool_claimed' ? 409 : code === 'tool_expired' ? 410
-          : code === 'provider_rate_limited' ? 429 : 502;
+          : ['provider_rate_limited', 'tool_quota'].includes(code) ? 429 : 502;
+      const quota = code === 'tool_quota' ? parseMetabloomVisualQuota(error?.quota) : null;
+      if (quota) response.setHeader('Retry-After', String(quota.retryAfterSeconds));
       console.info('metabloom_ui_tool', JSON.stringify({ phase: body.phase, stage, outcome: 'failed',
         code, durationMs: Date.now() - startedAt, requestRef }));
-      return send(response, status, { code, requestRef });
+      return send(response, status, { code, requestRef, ...(quota ? { quota } : {}) });
     } finally {
       clearTimeout(timeout);
       response.off?.('close', closed);

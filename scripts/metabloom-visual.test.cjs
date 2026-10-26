@@ -43,9 +43,11 @@ function response() {
 }
 const request = body => ({ method: 'POST', headers: { host: 'localhost', origin: 'http://localhost', 'content-type': 'application/json' }, body, socket: { remoteAddress: '127.0.0.1' }, aborted: false });
 const authenticate = async (_request, options) => { options.onIdentity?.(identity); return null; };
-const envNames = ['METABLOOM_VISUALS_ENABLED', 'OPENAI_API_KEY', 'TYPESAFE_API_KEY', 'VERCEL', 'VERCEL_ENV', 'NODE_ENV'];
+const envNames = ['METABLOOM_VISUALS_ENABLED', 'METABLOOM_VISUAL_SUBJECT_LIMIT_PER_HOUR',
+  'METABLOOM_VISUAL_DEPLOYMENT_LIMIT_PER_DAY', 'OPENAI_API_KEY', 'TYPESAFE_API_KEY', 'VERCEL', 'VERCEL_ENV', 'NODE_ENV'];
 const originalEnv = Object.fromEntries(envNames.map(name => [name, process.env[name]]));
 process.env.METABLOOM_VISUALS_ENABLED = 'true'; process.env.OPENAI_API_KEY = 'fixture-only'; process.env.TYPESAFE_API_KEY = 'fixture-only';
+delete process.env.METABLOOM_VISUAL_SUBJECT_LIMIT_PER_HOUR; delete process.env.METABLOOM_VISUAL_DEPLOYMENT_LIMIT_PER_DAY;
 delete process.env.VERCEL; delete process.env.VERCEL_ENV; process.env.NODE_ENV = 'test';
 test.after(() => { for (const [name, value] of Object.entries(originalEnv)) { if (value === undefined) delete process.env[name]; else process.env[name] = value; } });
 
@@ -125,9 +127,10 @@ test('claims carry session ownership and both quotas in one atomic script', asyn
   assert.equal((await store.claim(identity, value.offer.id)).context.answer, value.context.answer);
   const args = commands[0]; assert.equal(args[0], 'EVAL'); assert.equal(args[2], '3'); assert.equal(args[6], identity.owner);
   assert.ok(args[4].endsWith(identity.subject)); assert.ok(args[5].endsWith(':daily'));
-  assert.match(args[1], /record\.owner~=ARGV\[1\]/); assert.match(args[1], /client>=5 or total>=50/); assert.match(args[1], /KEEPTTL/);
+  assert.match(args[1], /record\.owner~=ARGV\[1\]/); assert.match(args[1], /quotaState\(KEYS\[2\],KEYS\[3\]/); assert.match(args[1], /KEEPTTL/);
+  assert.deepEqual(args.slice(-2), ['30', '200']);
 });
-for (const result of ['expired', 'claimed', 'quota']) test(`claim ${result} cannot return generation context`, async () => {
+for (const result of ['expired', 'claimed']) test(`claim ${result} cannot return generation context`, async () => {
   const store = createMetabloomVisualStore({ command: async () => result });
   await assert.rejects(store.claim(identity, offer().id), { code: `visual_${result}` });
 });

@@ -137,7 +137,7 @@ const METABLOOM_VISUAL_ERRORS = Object.freeze({
   visual_unavailable: 'The visual could not be prepared. Your answer is unchanged.',
   visual_expired: 'This visual offer has expired. Your answer is unchanged.',
   visual_claimed: 'This visual has already been requested. It will not be generated twice.',
-  visual_quota: 'The visual generation limit has been reached. Your answer is unchanged.',
+  visual_quota: 'The visual generation limit has been reached. Please try again later.',
   visual_invalid: 'The generated visual did not pass validation. Your answer is unchanged.',
   visual_output_limit: 'The model reached its output limit before finishing the visual.',
   visual_timeout: 'The visual took too long to prepare. Your answer is unchanged.',

@@ -2,6 +2,7 @@ const { test, beforeEach, afterEach, mock } = require("node:test");
 const assert = require("node:assert/strict");
 const { EventEmitter } = require("node:events");
 const metabloomAuth = require("../server/metabloomAuth");
+const sourceMedia = require("../server/metabloomSourceMedia");
 const handler = require("../api/metabloom");
 const { createMetabloomSegmentStreamDecoder } = require("../src/components/metabloomEmoteProtocol");
 
@@ -86,7 +87,7 @@ const decode = (res) => {
   assert.equal(parsed.ok, true, JSON.stringify(parsed));
   return { ...captured, envelope: parsed.value };
 };
-const installProvider = ({ formatter = () => briefReply(), legacy = false } = {}) => {
+const installProvider = ({ formatter = () => briefReply(), legacy = false, research = researchReply } = {}) => {
   const calls = [];
   global.fetch = async (url, options) => {
     const body = JSON.parse(options.body);
@@ -94,7 +95,7 @@ const installProvider = ({ formatter = () => briefReply(), legacy = false } = {}
     assert.equal(String(url), "https://api.openai.com/v1/responses");
     const phase = body.tools ? "research" : body.text?.format?.name === "metabloom_research_brief" ? "brief" : "legacy";
     calls.push({ phase, body, options });
-    if (phase === "research") return researchReply();
+    if (phase === "research") return research();
     if (legacy) { assert.equal(phase, "legacy"); return legacyReply(); }
     assert.equal(phase, "brief", "Negotiated research must not add a legacy writer or repair pass.");
     return formatter(body, options);
@@ -208,6 +209,7 @@ test("invalid brief capabilities and time zones fail before quota or providers",
   let calls = 0; global.fetch = async () => { calls++; assert.fail("Invalid request reached a provider."); };
   for (const changes of [
     ...[null, 0, 1, "true", {}, []].map((streamResearchBrief) => ({ streamResearchBrief })),
+    ...[null, 0, 1, "true", {}, []].map((streamResearchMedia) => ({ streamResearchMedia })),
     { streamResearchDetails: false },
     ...[null, 1, {}, [], "", "Not/A_Zone", "UTC\n", "x".repeat(101)].map((timeZone) => ({ timeZone })),
   ]) {
@@ -215,6 +217,49 @@ test("invalid brief capabilities and time zones fail before quota or providers",
     assert.equal(res.statusCode, 400); assert.deepEqual(JSON.parse(res.body), { code: "invalid_request" });
   }
   assert.equal(calls, 0); assert.equal(handler._internals.localBuckets.size, 0);
+});
+
+test("negotiated media binds observed progress and news previews to canonical sources without extra provider work", async () => {
+  const identity = { owner: "a".repeat(64), subject: "b".repeat(64), scope: "c".repeat(64) };
+  metabloomAuth.requireMetabloomSession.mock.mockImplementation(async (_req, { onIdentity }) => { onIdentity(identity); return null; });
+  const minted = [];
+  const token = "fixture-media-token-" + "a".repeat(80);
+  const tokenFor = url => `${token}-${sourceList.find(source => source.url === url).id}`;
+  mock.method(sourceMedia, "createSourceMediaToken", async (owner, url) => {
+    assert.equal(owner, identity); minted.push(url); return tokenFor(url);
+  });
+  const calls = installProvider({ research: () => new Response([
+    { type: "response.output_item.added", item: { type: "web_search_call", status: "in_progress",
+      action: { type: "open_page", url: sourceList[0].url } } },
+    { type: "response.completed", response: researchDocument() },
+  ].map(event => `data: ${JSON.stringify(event)}\n\n`).join(""), { headers: { "content-type": "text/event-stream" } }) });
+  const res = response();
+  await handler(request({ streamResearchMedia: true, streamResearchProgress: true }), res);
+  const progress = records(res).find(record => record.type === "research_progress" && record.source);
+  assert.deepEqual(progress.source, { url: sourceList[0].url, token: tokenFor(sourceList[0].url) });
+  const decoded = decode(res);
+  assert.deepEqual(decoded.briefs[0].media, [1, 5, 9].map(sourceId => ({ sourceId, token: tokenFor(sourceList[sourceId - 1].url) })));
+  assert.deepEqual(decoded.reports[0].sources, sourceList);
+  assert.deepEqual(minted, [sourceList[0].url, sourceList[0].url, sourceList[4].url, sourceList[8].url]);
+  assert.deepEqual(calls.map(call => call.phase), ["research", "brief"]);
+  assert.equal(JSON.stringify(calls[1].body).includes(token), false);
+});
+
+test("optional media failures and old clients retain the complete paid brief", async () => {
+  const identity = { owner: "a".repeat(64), subject: "b".repeat(64), scope: "c".repeat(64) };
+  metabloomAuth.requireMetabloomSession.mock.mockImplementation(async (_req, { onIdentity }) => { onIdentity(identity); return null; });
+  let mediaCalls = 0;
+  mock.method(sourceMedia, "createSourceMediaToken", async () => { mediaCalls++; throw new Error("Metadata unavailable"); });
+  for (const streamResearchMedia of [false, true]) {
+    const calls = installProvider();
+    const res = response(); await handler(request({ streamResearchMedia }), res);
+    const decoded = decode(res);
+    assert.equal(decoded.briefs[0].items.length, 3);
+    assert.equal(decoded.briefs[0].media, undefined);
+    assert.match(decoded.reports[0].notes, /END OF THE COMPLETE FICTIONAL RESEARCH REPORT/);
+    assert.deepEqual(calls.map(call => call.phase), ["research", "brief"]);
+    assert.equal(mediaCalls, streamResearchMedia ? 3 : 0);
+  }
 });
 
 test("a negotiated brief cannot bypass session authentication or shared quota", async () => {

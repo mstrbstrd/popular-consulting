@@ -7,13 +7,15 @@ import { classifyMetabloomVisualIntent } from './metabloomVisualIntent';
 import { postMetabloomTool } from './metabloomToolClient';
 import { METABLOOM_CHAT_PROTOCOL_VERSION } from './metabloomEmoteLibrary';
 import { METABLOOM_TOOL_ERROR_CODES, getMetabloomApiErrorMessage, parseMetabloomRequestRef } from './metabloomRequestErrors';
+import { parseMetabloomVisualQuota, formatMetabloomVisualQuotaMessage } from './metabloomVisualQuota';
 const safeReply = response => ({ version: METABLOOM_CHAT_PROTOCOL_VERSION, segments: [{ response }] });
 const toolFailure = error => {
   const code = METABLOOM_TOOL_ERROR_CODES.includes(error?.code) ? error.code : 'tool_unavailable';
   const requestRef = parseMetabloomRequestRef(error?.requestRef);
   const status = Number.isInteger(error?.status) && error.status >= 100 && error.status <= 599 ? error.status : null;
+  const quota = code === 'tool_quota' ? parseMetabloomVisualQuota(error?.quota) : null;
   return { code, requestRef, status,
-    message: getMetabloomApiErrorMessage(code),
+    message: code === 'tool_quota' ? formatMetabloomVisualQuotaMessage(quota) : getMetabloomApiErrorMessage(code),
     diagnostic: `Code: ${code}.${requestRef ? ` Reference: ${requestRef}.` : ''}` };
 };
 
@@ -232,7 +234,20 @@ export default class MetabloomVisuals extends React.Component {
       if (!this.mounted || this.records.get(record.id) !== record || record.status !== 'generating') return;
       record.status = error?.code === 'visual_cancelled' ? 'cancelled' : 'failed';
       record.code = error?.code || 'visual_unavailable';
-      if (record.mode === 'tool' && record.status === 'failed') this.finishTool(record, 'failed');
+      if (record.code === 'visual_quota') {
+        record.quota = parseMetabloomVisualQuota(error?.quota);
+        // A denied claim has no generated result to continue. End this turn
+        // locally, including a quota race after a successful start preflight.
+        if (record.mode === 'tool' && !record.completed && !record.detail.signal.aborted) {
+          record.completed = true;
+          // Nothing was built. Replace the temporary row with one clear reply,
+          // rather than showing a second error card beside the same message.
+          this.removeSlot(record);
+          this.records.delete(record.id);
+          record.detail.onToolActivity?.('complete');
+          record.detail.respond?.(safeReply(formatMetabloomVisualQuotaMessage(record.quota)));
+        }
+      } else if (record.mode === 'tool' && record.status === 'failed') this.finishTool(record, 'failed');
     }
     this.refresh();
   };

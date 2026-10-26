@@ -35,7 +35,7 @@ The new flow is available only when `METABLOOM_VISUALS_ENABLED=true` and `METABL
 
 ## Request sequence
 1. A client identifies an explicit supported visual request using the shared intent contract and claims the existing Orb request event. Ordinary text and research continue through the original adapter.
-2. `POST /api/metabloom-tool` with `phase=start` authenticates, rate-limits, verifies explicit intent, requests exactly one forced `create_visual` call, and stores a short-lived, session-owned handoff. It returns a validated offer and input emote.
+2. `POST /api/metabloom-tool` with `phase=start` authenticates, verifies explicit intent, claims the request ID, checks visual capacity, and rate-limits before requesting exactly one forced `create_visual` call. It stores a short-lived, session-owned handoff and returns a validated offer and input emote. A quota denial returns before either the tool model or Jev is called.
 3. The client reserves an assistant-aligned artifact row immediately after the originating user message and calls the existing `POST /api/metabloom-visual`. The server atomically claims the offer, builds one native specification, and stores the result for one hour. The response contains no executable code.
 4. React mounts the artifact and settles its short expansion transition. The current turn anchors the ready visual's reading position, respecting earlier reading and focused controls. The client reports `mounted`, `failed`, or `unknown`. This is a browser observation, not proof of user interaction or external side effects.
 5. `POST /api/metabloom-tool` with `phase=continue` atomically claims one continuation, replays the original provider function call plus an actual `function_call_output`, and generates a concise answer with tools disabled. Duplicate continuations reuse a completed response or fail closed without another paid request.
@@ -52,9 +52,16 @@ Native calculators publish bounded local input snapshots, not model calls on eve
 - Redis claims are atomic. A claim consumed by an interrupted provider call is not automatically reissued.
 - The initial offer expires in ten minutes. Completed native artifacts remain session-bound in Redis for up to one hour, subject to the site's privacy/retention requirements. The server holds only bounded context; no API keys or session tokens are stored in artifact records.
 - A failed continuation does not discard a successfully generated visual. A failed visual produces a fixed, honest error response.
+- A visual quota denial occurs before a generation claim and has no terminal generation result. The browser completes that request locally without calling `phase=continue`, replacing the temporary artifact row with one clear limit/reset-time reply. Optional visuals keep their existing text answer and display their own quota message. This also handles a quota race after successful preflight. Unfinished, already-claimed and genuinely expired continuation records retain distinct `tool_invalid`, `tool_claimed` and `tool_expired` errors.
 - Old clients continue to use the existing chat protocol. The tool flow uses a separate endpoint rather than weakening strict NDJSON framing.
 - The browser's display observation is untrusted and can only affect explanatory wording.
 - All diagnostic logging is outcome-based; prompts, responses, artifact IDs and secrets are not logged.
+
+## Visual quotas
+
+The defaults are 30 accepted generations per authenticated subject/hour and 200 per deployment scope/24-hour window. The server-only `METABLOOM_VISUAL_SUBJECT_LIMIT_PER_HOUR` and `METABLOOM_VISUAL_DEPLOYMENT_LIMIT_PER_DAY` settings allow bounded positive overrides. All six formats share these counters, as do explicit and optional visuals. No admin bypass or reset is added. See the [quota and metadata contract](metabloom-visual-responses.md#redis-handoff-privacy-and-costs) for exact ranges, TTLs and failure accounting.
+
+Preflight is an early rejection, not a reservation. The generation claim always checks and increments both counters in one Lua script. A denied preflight returns `tool_quota`; a denied generation returns `visual_quota`. Both use HTTP 429 with sanitized quota metadata and `Retry-After`. No paid retry is scheduled automatically. General chat/tool-start limits remain separate; continuation does not consume another visual generation.
 
 ## Time budgets and timeout recovery
 
@@ -75,7 +82,7 @@ Provider logs contain the bounded phase, model, duration, usage counts, safe pro
 ## Verification
 Run:
 ```sh
-node --test scripts/metabloom-api.test.cjs scripts/jev-reaction.test.cjs scripts/metabloom-visual.test.cjs scripts/metabloom-ui-tools.test.cjs
+node --test scripts/metabloom-api.test.cjs scripts/jev-reaction.test.cjs scripts/metabloom-visual.test.cjs scripts/metabloom-ui-tools.test.cjs scripts/metabloom-visual-quota.test.cjs
 CI=true npm test -- --watch=false --runInBand --runTestsByPath src/components/MetabloomVisuals.test.js src/components/MetabloomVisualFollowups.test.js src/components/metabloomVisualIntent.test.js src/components/metabloomVisualCapabilities.test.js src/components/metabloomEmoteLibrary.test.js
 CI=true npm run build
 ```

@@ -1,6 +1,7 @@
 import React from 'react';
 import { parseMetabloomResearchBrief } from './metabloomResearchBriefProtocol';
 import { parseMetabloomResearchSources } from './metabloomResearchSources';
+import { MetabloomArticlePreview, MetabloomPublisherIcon } from './MetabloomSourceMedia';
 import './MetabloomResearchBrief.css';
 
 const evidenceLabels = {
@@ -31,10 +32,13 @@ function Citations({ sourceIds, sourceMap }) {
   </span>;
 }
 
-function BriefItem({ item, index, news, id, sourceMap }) {
+function BriefItem({ item, index, news, id, sourceMap, mediaMap, detailsMap }) {
   const hasDepth = item.background.length > 0 || Boolean(item.whyItMatters)
     || item.uncertainty.length > 0 || item.watchNext.length > 0 || item.dateEvidence;
   const showEvidenceStatus = news || ['disputed', 'uncertain'].includes(item.evidenceStatus);
+  const mediaSourceId = news && ([item.dateEvidence?.sourceId, ...item.sourceIds]
+    .find(sourceId => mediaMap.has(sourceId) && sourceMap.has(sourceId)));
+  const mediaSource = sourceMap.get(mediaSourceId);
   return <li className="metabloom-research-brief__item">
     <article aria-labelledby={`${id}-title`}>
       <div className="metabloom-research-brief__item-kicker">
@@ -49,6 +53,8 @@ function BriefItem({ item, index, news, id, sourceMap }) {
           : 'date not established'}</span>
         {item.scheduledDate && <span>Scheduled: <time dateTime={item.scheduledDate}>{calendarDate(item.scheduledDate)}</time></span>}
       </div>}
+      {mediaSource && <MetabloomArticlePreview source={mediaSource} token={mediaMap.get(mediaSourceId)}
+        publisher={detailsMap.get(mediaSourceId)?.publisher} />}
       <p className="metabloom-research-brief__overview">{item.summary}<Citations sourceIds={item.sourceIds} sourceMap={sourceMap} /></p>
       {hasDepth && <details className="metabloom-research-brief__details">
         <summary>Analysis and context<span className="metabloom-research-brief__sr-only">: {item.headline}</span></summary>
@@ -80,7 +86,7 @@ function BriefItem({ item, index, news, id, sourceMap }) {
   </li>;
 }
 
-function SourceEvidence({ brief, sourceMap }) {
+function SourceEvidence({ brief, sourceMap, mediaMap }) {
   const detailsMap = new Map(brief.sourceDetails.map(detail => [detail.sourceId, detail]));
   const ids = new Set(brief.sourceDetails.map(detail => detail.sourceId));
   brief.items.forEach(item => {
@@ -101,7 +107,7 @@ function SourceEvidence({ brief, sourceMap }) {
             <span className="metabloom-research-brief__source-id" aria-hidden="true">[{source.id}]</span>
             <a href={source.url} target="_blank" rel="noopener noreferrer">{source.title}</a>
           </div>
-          <p className="metabloom-research-brief__source-publisher">{detail?.publisher || host}
+          <p className="metabloom-research-brief__source-publisher"><MetabloomPublisherIcon token={mediaMap.get(source.id)} />{detail?.publisher || host}
             {detail?.publisher && <span className="metabloom-research-brief__source-host">{host}</span>}
           </p>
           <dl className="metabloom-research-brief__source-meta">
@@ -133,6 +139,8 @@ export default function MetabloomResearchBrief({ brief, sources }) {
   if (!safeBrief) return null;
 
   const sourceMap = new Map(safeSources.map(source => [source.id, source]));
+  const mediaMap = new Map((safeBrief.media || []).map(entry => [entry.sourceId, entry.token]));
+  const detailsMap = new Map(safeBrief.sourceDetails.map(detail => [detail.sourceId, detail]));
   const news = safeBrief.kind === 'news';
   const { coverage } = safeBrief;
   const itemNoun = news ? 'stories' : 'findings';
@@ -165,8 +173,9 @@ export default function MetabloomResearchBrief({ brief, sources }) {
       {coverage.limitations.length > 0 && <ul aria-label="Coverage limitations">{coverage.limitations.map((text, index) => <li key={index}>{text}</li>)}</ul>}
     </div>
     {safeBrief.items.length > 0 && <ol className="metabloom-research-brief__items" aria-label={news ? 'Covered stories' : 'Research findings'}>
-      {safeBrief.items.map((item, index) => <BriefItem key={index} item={item} index={index} news={news} id={`${id}-item-${index + 1}`} sourceMap={sourceMap} />)}
+      {safeBrief.items.map((item, index) => <BriefItem key={index} item={item} index={index} news={news} id={`${id}-item-${index + 1}`}
+        sourceMap={sourceMap} mediaMap={mediaMap} detailsMap={detailsMap} />)}
     </ol>}
-    <SourceEvidence brief={safeBrief} sourceMap={sourceMap} />
+    <SourceEvidence brief={safeBrief} sourceMap={sourceMap} mediaMap={mediaMap} />
   </section>;
 }

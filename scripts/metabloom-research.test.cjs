@@ -799,6 +799,29 @@ test("provider progress cannot exceed the reserved application update budget", a
   assert.ok(summaries.length <= 23);
 });
 
+test("negotiated source icons use only observed page actions, never search results or failed checks", async () => {
+  configure();
+  global.fetch = async () => asEventResponse([
+    { type: "response.output_item.done", item: { type: "web_search_call", status: "completed",
+      action: { type: "search", query: "published evidence", sources: [{ type: "url", url: "https://unvisited.example/result" }] } } },
+    { type: "response.output_item.added", item: { type: "web_search_call", status: "in_progress",
+      action: { type: "open_page", url: source.url } } },
+    { type: "response.output_item.done", item: { type: "web_search_call", status: "completed",
+      action: { type: "find_in_page", url: source.url, pattern: "private pattern" } } },
+    { type: "response.output_item.done", item: { type: "web_search_call", status: "failed",
+      action: { type: "open_page", url: "https://failed.example/page" } } },
+    { type: "response.completed", response: document() },
+  ]);
+  const updates = [];
+  await conduct({ includeSourceUrls: true, onProgress: value => updates.push(value) });
+  assert.deepEqual(updates, [
+    { summary: "Searched: published evidence" },
+    { summary: "Reading: example.com", sourceUrl: source.url },
+    { summary: "Checked: example.com", sourceUrl: source.url },
+    { summary: "A source could not be reached." },
+  ]);
+});
+
 test("incomplete tool progress never claims a successful search or page check", async () => {
   configure();
   for (const action of [

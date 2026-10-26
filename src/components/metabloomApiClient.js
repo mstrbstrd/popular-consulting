@@ -69,7 +69,7 @@ export const requestMetabloomResponse = async ({
       credentials: "same-origin",
       headers: { "Content-Type": "application/json", Accept: "application/x-ndjson", "X-Metabloom-Visuals": "1", "X-Metabloom-Ui-Tools": "1" },
       body: JSON.stringify({ actionMode, allowMultiple: allowMultiple === true, streamText: true,
-        streamResearchProgress: true, streamResearchDetails: true, streamResearchBrief: true, timeZone, history, message, requestId,
+        streamResearchProgress: true, streamResearchDetails: true, streamResearchBrief: true, streamResearchMedia: true, timeZone, history, message, requestId,
         ...(artifactContext ? { artifactContext } : {}) }),
       signal: controller.signal,
     });

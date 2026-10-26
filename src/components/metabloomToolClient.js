@@ -2,12 +2,15 @@ const { parseMetabloomVisualOffer } = require('./metabloomVisualProtocol');
 const { parseMetabloomChatEnvelope } = require('./metabloomEmoteProtocol');
 const { resolveMetabloomEmote } = require('./metabloomEmoteLibrary');
 const { METABLOOM_TOOL_ERROR_CODES, getMetabloomApiErrorMessage, parseMetabloomRequestRef } = require('./metabloomRequestErrors');
-const fail = (value, status = 0, requestRef = null) => {
+const { parseMetabloomVisualQuota } = require('./metabloomVisualQuota');
+const fail = (value, status = 0, requestRef = null, quotaValue = null) => {
   const code = METABLOOM_TOOL_ERROR_CODES.includes(value) ? value : 'tool_unavailable';
+  const quota = code === 'tool_quota' ? parseMetabloomVisualQuota(quotaValue) : null;
   return Object.assign(new Error(getMetabloomApiErrorMessage(code)), {
     name: 'MetabloomToolError', code,
     status: Number.isInteger(status) && status >= 100 && status <= 599 ? status : 0,
     requestRef: parseMetabloomRequestRef(requestRef),
+    ...(quota ? { quota } : {}),
   });
 };
 const cancelled = () => new DOMException('The request was stopped.', 'AbortError');
@@ -49,7 +52,7 @@ async function postMetabloomTool(body, { signal, fetchImpl = globalThis.fetch } 
       // Copy only the local error vocabulary and an opaque reference. Provider
       // messages, HTML, stacks and arbitrary payload fields remain private.
       const code = METABLOOM_TOOL_ERROR_CODES.includes(result?.code) ? result.code : fallbackCode;
-      throw fail(code, status, parseMetabloomRequestRef(result?.requestRef) || requestRef);
+      throw fail(code, status, parseMetabloomRequestRef(result?.requestRef) || requestRef, result?.quota);
     }
     if (body.phase === 'start') {
       const offer = parseMetabloomVisualOffer(result?.offer);
@@ -62,7 +65,7 @@ async function postMetabloomTool(body, { signal, fetchImpl = globalThis.fetch } 
     return { reply: parsed.value, emote: result.emote };
   } catch (error) {
     if (signal?.aborted || error?.name === 'AbortError') throw cancelled();
-    if (error?.name === 'MetabloomToolError') throw fail(error.code, status, error.requestRef);
+    if (error?.name === 'MetabloomToolError') throw fail(error.code, status, error.requestRef, error.quota);
     throw fail(fallbackCode, status, requestRef);
   } finally {
     signal?.removeEventListener('abort', abort);

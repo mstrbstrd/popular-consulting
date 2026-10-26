@@ -31,6 +31,7 @@ const METABLOOM_REQUEST_ERROR_MESSAGES = Object.freeze({
   tool_output_limit: "The model reached its output limit before finishing the component. Please try again.",
   tool_claimed: "This component request is already being handled. It will not be generated twice.",
   tool_expired: "This component request has expired. Please ask for it again.",
+  tool_quota: "The visual generation limit has been reached. Please try again later.",
   rate_limited: "The request limit has been reached. Please wait a moment and try again.",
   upstream_unavailable: "The model service is temporarily unavailable. Please try again.",
   cancelled: "The request was stopped or timed out.",
@@ -45,7 +46,7 @@ const METABLOOM_STREAM_ERROR_CODES = Object.freeze([
   "provider_unavailable", "answer_timeout", "answer_incomplete", "answer_invalid", "quota_unavailable",
 ]);
 const METABLOOM_TOOL_ERROR_CODES = Object.freeze([
-  "tool_timeout", "tool_cancelled", "tool_disabled", "tool_unavailable", "tool_invalid", "tool_output_limit", "tool_claimed", "tool_expired",
+  "tool_timeout", "tool_cancelled", "tool_disabled", "tool_unavailable", "tool_invalid", "tool_output_limit", "tool_claimed", "tool_expired", "tool_quota",
   "authentication_required", "authentication_unavailable", "origin_not_allowed", "rate_limited",
   "quota_unavailable", "invalid_request", "method_not_allowed", "model_configuration_error",
   "provider_authentication_failed", "provider_rate_limited", "provider_unavailable", "network_error",

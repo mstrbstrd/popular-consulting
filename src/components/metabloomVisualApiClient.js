@@ -1,8 +1,13 @@
 const { METABLOOM_VISUAL_VERSION, METABLOOM_VISUAL_DESIGN_VERSION, MAX_METABLOOM_VISUAL_BYTES,
   METABLOOM_VISUAL_TIMEOUT_MS, METABLOOM_VISUAL_ERRORS, parseMetabloomVisualOffer, parseMetabloomVisual,
   visualKeys } = require('./metabloomVisualProtocol');
+const { parseMetabloomVisualQuota } = require('./metabloomVisualQuota');
 const METABLOOM_VISUAL_OFFER_EVENT = 'metabloom:visual-offer';
-const visualFailure = code => Object.assign(new Error(METABLOOM_VISUAL_ERRORS[code] || METABLOOM_VISUAL_ERRORS.visual_unavailable), { code });
+const visualFailure = (code, quotaValue) => {
+  const quota = code === 'visual_quota' ? parseMetabloomVisualQuota(quotaValue) : null;
+  return Object.assign(new Error(METABLOOM_VISUAL_ERRORS[code] || METABLOOM_VISUAL_ERRORS.visual_unavailable),
+    { code, ...(quota ? { quota } : {}) });
+};
 // Demultiplex an explicitly negotiated side channel. A rejected visual offer must
 // not poison valid text. All text records still pass the unchanged strict decoder.
 function createMetabloomVisualStreamBridge(decoder) {
@@ -70,7 +75,7 @@ async function requestMetabloomVisual(offer, { signal, fetchImpl = globalThis.fe
       text += decoder.decode(part.value, { stream: true });
     }
     const value = JSON.parse(text + decoder.decode());
-    if (!response.ok) throw visualFailure(Object.prototype.hasOwnProperty.call(METABLOOM_VISUAL_ERRORS, value?.code) ? value.code : 'visual_unavailable');
+    if (!response.ok) throw visualFailure(Object.prototype.hasOwnProperty.call(METABLOOM_VISUAL_ERRORS, value?.code) ? value.code : 'visual_unavailable', value?.quota);
     if (!visualKeys(value, ['id', 'version', 'designVersion', 'spec', 'sources']) || value.id !== offer.id
       || value.version !== METABLOOM_VISUAL_VERSION || value.designVersion !== METABLOOM_VISUAL_DESIGN_VERSION
       || !Array.isArray(value.sources) || value.sources.length > 20) throw visualFailure('visual_invalid');
@@ -86,7 +91,7 @@ async function requestMetabloomVisual(offer, { signal, fetchImpl = globalThis.fe
     return { spec, sources: value.sources };
   } catch (error) {
     if (controller.signal.aborted) throw visualFailure(expired ? 'visual_timeout' : 'visual_cancelled');
-    throw visualFailure(Object.prototype.hasOwnProperty.call(METABLOOM_VISUAL_ERRORS, error?.code) ? error.code : 'visual_unavailable');
+    throw visualFailure(Object.prototype.hasOwnProperty.call(METABLOOM_VISUAL_ERRORS, error?.code) ? error.code : 'visual_unavailable', error?.quota);
   } finally {
     clearTimeout(timeout);
     signal?.removeEventListener('abort', abort);

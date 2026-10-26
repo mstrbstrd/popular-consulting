@@ -4,6 +4,7 @@ const { enabled, createMetabloomVisualStore, visualError } = require('../server/
 const { generateMetabloomVisual } = require('../server/metabloomVisualGenerator');
 const { METABLOOM_VISUAL_VERSION, METABLOOM_VISUAL_DESIGN_VERSION, MAX_METABLOOM_VISUAL_BYTES,
   METABLOOM_VISUAL_GENERATION_TIMEOUT_MS, METABLOOM_VISUAL_ERRORS, visualKeys, parseMetabloomVisual } = require('../src/components/metabloomVisualProtocol');
+const { parseMetabloomVisualQuota } = require('../src/components/metabloomVisualQuota');
 const send = (response, status, value) => {
   if (response.destroyed || response.writableEnded) return;
   response.statusCode = status;
@@ -76,7 +77,9 @@ function createMetabloomVisualHandler({ store = createMetabloomVisualStore(), ge
       outcome = code;
       const status = code === 'visual_expired' ? 410 : code === 'visual_claimed' ? 409 : code === 'visual_quota' ? 429
         : code === 'visual_timeout' ? 504 : code === 'visual_cancelled' ? 499 : 502;
-      return send(response, status, { code, requestRef });
+      const quota = code === 'visual_quota' ? parseMetabloomVisualQuota(error?.quota) : null;
+      if (quota) response.setHeader('Retry-After', String(quota.retryAfterSeconds));
+      return send(response, status, { code, requestRef, ...(quota ? { quota } : {}) });
     } finally {
       clearTimeout(timeout);
       response.off?.('close', closed);

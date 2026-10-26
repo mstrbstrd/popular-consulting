@@ -1,5 +1,6 @@
 import React from 'react';
 import { evaluateMetabloomVisualFormula, METABLOOM_VISUAL_ERRORS } from './metabloomVisualProtocol';
+import { formatMetabloomVisualQuotaMessage } from './metabloomVisualQuota';
 
 const numberText = value => new Intl.NumberFormat(undefined, { maximumSignificantDigits: 21 }).format(value);
 const axisText = value => new Intl.NumberFormat(undefined, { notation: 'compact', maximumSignificantDigits: 3 }).format(value);
@@ -285,14 +286,15 @@ export default function MetabloomVisualFrame({ artifact, onStop, onReady, onInpu
   }, [status]);
   React.useEffect(() => { if (status === 'ready' && !expansion.current) onReady?.(); }, [status, onReady, revealRevision]);
   return <section ref={frameRef} className="metabloom-visual" data-visual-state={status} data-visual-kind={spec?.kind || artifact.kind} aria-label={spec?.title || 'Visual answer'} aria-busy={status === 'generating'}>
-    <header className="metabloom-visual__header"><div><span className="metabloom-visual__eyebrow">{spec?.kind === 'calculator' ? 'Explore the answer' : 'Another way to see it'}</span><h3>{spec?.title || (status === 'cancelled' ? 'Visual stopped' : status === 'failed' ? 'Visual unavailable' : 'Preparing your visual')}</h3></div>
+    <header className="metabloom-visual__header"><div><span className="metabloom-visual__eyebrow">{spec?.kind === 'calculator' ? 'Explore the answer' : 'Another way to see it'}</span><h3>{spec?.title || (status === 'cancelled' ? 'Visual stopped' : code === 'visual_quota' ? 'Visual limit reached' : status === 'failed' ? 'Visual unavailable' : 'Preparing your visual')}</h3></div>
       {status === 'generating' && <button type="button" onClick={onStop}>Stop visual</button>}
     </header>
     {status === 'generating' && <div className="metabloom-visual__loading">
       <p className="metabloom-visual__progress" role="status">Arranging the details for your visual.</p>
       <div className="metabloom-visual__skeleton" aria-hidden="true"><span /><span /><span /></div>
     </div>}
-    {['failed', 'cancelled'].includes(status) && <p role="status">{METABLOOM_VISUAL_ERRORS[code] || METABLOOM_VISUAL_ERRORS.visual_unavailable}</p>}
+    {['failed', 'cancelled'].includes(status) && <p role="status">{code === 'visual_quota'
+      ? formatMetabloomVisualQuotaMessage(artifact.quota) : METABLOOM_VISUAL_ERRORS[code] || METABLOOM_VISUAL_ERRORS.visual_unavailable}</p>}
     {status === 'ready' && spec && <div className="metabloom-visual__content">
       <p className="metabloom-visual__summary">{spec.summary}</p>
       {spec.kind === 'table' && <DataTable columns={spec.columns} rows={spec.rows} title={spec.title} />}

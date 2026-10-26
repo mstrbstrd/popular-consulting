@@ -1,7 +1,11 @@
 import React from 'react';
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { axe, toHaveNoViolations } from 'jest-axe';
 import MetabloomResearchBrief from './MetabloomResearchBrief';
+import { requestMetabloomSourcePreview } from './metabloomSourceMediaClient';
+import { metabloomSourceMediaUrl } from './metabloomSourceMediaProtocol';
+
+jest.mock('./metabloomSourceMediaClient', () => ({ requestMetabloomSourcePreview: jest.fn() }));
 
 expect.extend(toHaveNoViolations);
 
@@ -48,7 +52,56 @@ const openSourceEvidence = () => {
   return within(screen.getByRole('list', { name: 'Sources for this research brief' }));
 };
 
+beforeEach(() => requestMetabloomSourcePreview.mockReset());
 afterEach(() => document.documentElement.removeAttribute('data-theme'));
+
+test('news previews prefer the dated source and retain every original citation and complete overview', async () => {
+  const brief = fixture();
+  brief.items[0].sourceIds = [2, 1];
+  brief.media = [{ sourceId: 1, token: 'signed.first.source' }, { sourceId: 2, token: 'signed.second.source' }];
+  requestMetabloomSourcePreview.mockImplementation(token => Promise.resolve({ version: '1', isArticle: true,
+    image: { src: metabloomSourceMediaUrl(token, 'image'), alt: 'The published article image.' }, icon: null }));
+  const { container } = renderBrief(brief);
+  await act(async () => {});
+  const first = within(screen.getByRole('article', { name: brief.items[0].headline }));
+  expect(first.getByRole('img', { name: 'The published article image.' })).toHaveAttribute('src', metabloomSourceMediaUrl('signed.first.source', 'image'));
+  expect(first.getByRole('link', { name: /Read article: Fictional source 1/ })).toHaveAttribute('href', sources[0].url);
+  expect(first.getByText('Fictional publisher 1')).toBeVisible();
+  const overview = within(first.getByText(brief.items[0].summary));
+  expect(overview.getByRole('link', { name: 'Source 1: Fictional source 1' })).toHaveAttribute('href', sources[0].url);
+  expect(overview.getByRole('link', { name: 'Source 2: Fictional source 2' })).toHaveAttribute('href', sources[1].url);
+  brief.items.forEach(item => expect(screen.getByText(item.summary)).toBeVisible());
+  expect(await axe(container)).toHaveNoViolations();
+});
+
+test('news previews use the first cited source with media when the dated source has none', async () => {
+  const brief = fixture();
+  brief.items[0].sourceIds = [1, 2];
+  brief.media = [{ sourceId: 2, token: 'signed.second.source' }];
+  requestMetabloomSourcePreview.mockResolvedValue({ version: '1', isArticle: false, image: null, icon: null });
+  renderBrief(brief);
+  await act(async () => {});
+  const first = within(screen.getByRole('article', { name: brief.items[0].headline }));
+  expect(first.getByRole('link', { name: /Open source: Fictional source 2/ })).toHaveAttribute('href', sources[1].url);
+  expect(first.getByText('Fictional publisher 2')).toBeVisible();
+  expect(first.queryByRole('img')).not.toBeInTheDocument();
+});
+
+test('unavailable optional media never removes the completed brief, its evidence or outbound source', async () => {
+  const brief = fixture();
+  brief.media = [{ sourceId: 1, token: 'signed.first.source' }];
+  requestMetabloomSourcePreview.mockRejectedValue(new Error('Private transport detail'));
+  renderBrief(brief);
+  await act(async () => {});
+  expect(screen.getByRole('region', { name: brief.title })).toBeVisible();
+  expect(screen.getByText(brief.items[0].summary)).toBeVisible();
+  expect(screen.getByRole('link', { name: /Open source: Fictional source 1/ })).toHaveAttribute('href', sources[0].url);
+  fireEvent.click(screen.getAllByText('Analysis and context', { selector: 'summary' })[0]);
+  expect(screen.getByText(brief.items[0].whyItMatters)).toBeVisible();
+  expect(screen.getByText(brief.items[0].dateEvidence.quote)).toBeVisible();
+  expect(openSourceEvidence().getByRole('link', { name: 'Fictional source 1' })).toHaveAttribute('href', sources[0].url);
+  expect(screen.queryByText(/Private transport detail/)).not.toBeInTheDocument();
+});
 
 test('shows all five complete overviews without expanding details and resolves citations above source eight', () => {
   const brief = fixture();

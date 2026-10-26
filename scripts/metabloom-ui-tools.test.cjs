@@ -138,7 +138,7 @@ test('tool handler dispatches one tool and returns an owned offer', async () => 
   const offer = { version: '1', designVersion: 'aetheris-1', id: 'd'.repeat(48), kind: 'calculator', expiresAt: Date.now() + 600000 };
   const handler = createMetabloomToolHandler({ authenticate, rateLimit: async () => true,
     start: async ({ requiredKind }) => { calls++; assert.equal(requiredKind, 'calculator'); return { kind: 'calculator', brief: 'Multiply inputs.', tool: fixtureTool }; },
-    store: { claimStart: async () => {}, offer: async (_id, kind, context) => { assert.equal(kind, 'calculator'); assert.equal(context.tool.callId, 'call_123'); return offer; } },
+    store: { claimStart: async () => {}, checkQuota: async () => {}, offer: async (_id, kind, context) => { assert.equal(kind, 'calculator'); assert.equal(context.tool.callId, 'call_123'); return offer; } },
     reaction: async () => 'neutral' });
   const res = response();
   await handler(request({ phase: 'start', message: 'Create an interactive calculator.', history: [], requestId: 'r1' }), res);
@@ -217,7 +217,7 @@ test('a tool response after the former 24-second cutoff still produces one owned
   let calls = 0, offers = 0, providerSignal;
   const offer = { version: '1', designVersion: 'aetheris-1', id: 'd'.repeat(48), kind: 'calculator', expiresAt: 601000 };
   const handler = createMetabloomToolHandler({ authenticate, rateLimit: async () => true,
-    store: { claimStart: async () => {}, offer: async () => { offers++; return offer; } },
+    store: { claimStart: async () => {}, checkQuota: async () => {}, offer: async () => { offers++; return offer; } },
     start: ({ signal }) => {
       calls++; providerSignal = signal;
       return new Promise((resolve, reject) => {
@@ -245,7 +245,7 @@ test('an actual start deadline aborts paid work once and returns a specific safe
   t.mock.method(console, 'info', (...entry) => logs.push(entry));
   let calls = 0, offers = 0, providerSignal;
   const handler = createMetabloomToolHandler({ authenticate, rateLimit: async () => true,
-    store: { claimStart: async () => {}, offer: async () => { offers++; } },
+    store: { claimStart: async () => {}, checkQuota: async () => {}, offer: async () => { offers++; } },
     start: ({ signal }) => {
       calls++; providerSignal = signal;
       return new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }));
@@ -275,7 +275,7 @@ test('closing a tool response cancels provider work without retrying or offering
   t.mock.method(console, 'info', () => {});
   let calls = 0, offers = 0, providerSignal;
   const handler = createMetabloomToolHandler({ authenticate, rateLimit: async () => true,
-    store: { claimStart: async () => {}, offer: async () => { offers++; } },
+    store: { claimStart: async () => {}, checkQuota: async () => {}, offer: async () => { offers++; } },
     start: ({ signal }) => {
       calls++; providerSignal = signal;
       return new Promise((_resolve, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }));
@@ -400,7 +400,7 @@ test('input and response reaction failures do not discard a successful tool resu
   const reply = { version: METABLOOM_CHAT_PROTOCOL_VERSION, segments: [{ response: 'Your calculator is ready.' }] };
   let starts = 0, finishes = 0;
   const handler = createMetabloomToolHandler({ authenticate, rateLimit: async () => true,
-    store: { claimStart: async () => {}, offer: async () => offer, getContinuation: async () => null,
+    store: { claimStart: async () => {}, checkQuota: async () => {}, offer: async () => offer, getContinuation: async () => null,
       claimContinuation: async () => ({ offer, tool: fixtureTool, result: ready }), completeContinuation: async () => {} },
     start: async () => { starts++; return { kind: 'calculator', brief: 'Multiply inputs.', tool: fixtureTool }; },
     finish: async () => { finishes++; return reply; },
@@ -542,7 +542,7 @@ test('an explicit render follow-up preserves the original user task and ignores 
   const offer = { version: '1', designVersion: 'aetheris-1', id: 'd'.repeat(48), kind: 'pie-chart', expiresAt: Date.now() + 600000 };
   let calls = 0, offers = 0;
   const handler = createMetabloomToolHandler({ authenticate, rateLimit: async () => true,
-    store: { claimStart: async () => {}, offer: async (owner, kind, context) => {
+    store: { claimStart: async () => {}, checkQuota: async () => {}, offer: async (owner, kind, context) => {
       assert.deepEqual(owner, identity);
       assert.equal(kind, 'pie-chart');
       assert.equal(context.message, message);

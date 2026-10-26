@@ -223,6 +223,7 @@
 .orb-page .metabloom-research-brief p.metabloom-research-brief__source-publisher {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 0.2rem 0.7rem;
   margin-top: 0.5rem;
   color: var(--aetheris-ink-2);

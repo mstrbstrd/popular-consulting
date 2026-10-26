@@ -51,6 +51,44 @@ test('accepts original source IDs above eight and copies every nested field with
   expect(parsed.items[1].sourceIds).toEqual([9]);
 });
 
+test('accepts optional host media without changing canonical source records or legacy brief fields', () => {
+  const value = fixture();
+  value.media = [{ sourceId: 9, token: 'signed.ninth.source' }];
+  const parsed = parseMetabloomResearchBrief(value, { sources });
+  expect(parsed).toEqual(value);
+  value.media[0].token = 'mutated';
+  expect(parsed.media).toEqual([{ sourceId: 9, token: 'signed.ninth.source' }]);
+  expect(sources[8]).toEqual({ id: 9, title: 'Fictional source 9', url: 'https://example.test/story-9' });
+});
+
+test.each([
+  null,
+  { sourceId: 1, token: 'not-an-array' },
+  [{ sourceId: 99, token: 'unrelated.source' }],
+  [{ sourceId: 1, token: 'untrusted/token' }],
+  [{ sourceId: 1, token: 'x'.repeat(4097) }],
+  [{ sourceId: 1, token: 'signed.source', url: 'https://attacker.test/image' }],
+  Array(11).fill({ sourceId: 1, token: 'signed.source' }),
+])('drops invalid optional media while retaining a valid completed brief', media => {
+  expect(parseMetabloomResearchBrief({ ...fixture(), media }, { sources })).toEqual(fixture());
+});
+
+test('media cannot consume the byte budget needed by the completed brief', () => {
+  const canonicalSources = [...sources, { id: 10, title: 'Fictional source 10', url: 'https://example.test/story-10' }];
+  const value = fixture();
+  value.coverage = { requestedCount: 10, returnedCount: 10, status: 'complete', limitations: [] };
+  value.items = canonicalSources.map(source => ({ ...value.items[0], headline: `Fictional development ${source.id}`,
+    sourceIds: [source.id], summary: 's'.repeat(800), whyItMatters: 'w'.repeat(1600),
+    background: Array.from({ length: 5 }, () => ({ text: 'b'.repeat(1000), sourceIds: [source.id] })),
+    uncertainty: Array(4).fill('u'.repeat(100)), watchNext: Array(4).fill('n'.repeat(100)),
+    dateEvidence: { sourceId: source.id, quote: 'Announced on October 23, 2026.' } }));
+  value.sourceDetails = canonicalSources.map(source => ({ ...value.sourceDetails[0], sourceId: source.id }));
+  const base = parseMetabloomResearchBrief(value, { sources: canonicalSources });
+  expect(base).not.toBeNull();
+  value.media = canonicalSources.map(source => ({ sourceId: source.id, token: `${source.id}.` + 'a'.repeat(4090) }));
+  expect(parseMetabloomResearchBrief(value, { sources: canonicalSources })).toEqual(base);
+});
+
 test.each([
   ['unknown source', value => { value.items[0].sourceIds = [10]; }],
   ['duplicate source IDs', value => { value.items[0].sourceIds = [1, 1]; }],

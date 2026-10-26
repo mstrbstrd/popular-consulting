@@ -187,6 +187,37 @@ describe("Metabloom research stream protocol", () => {
     expect(decoder.finish().ok).toBe(false);
   });
 
+  test("source decorations follow their progress update and clear on generic progress and synthesis", () => {
+    const onResearchProgress = jest.fn();
+    const decoder = createMetabloomSegmentStreamDecoder({ onResearchProgress });
+    const iconSource = { url: source.url, token: "fixture-source-token-" + "a".repeat(80) };
+    const reading = record({ type: "research_progress", summary: "Reading: example.com", source: iconSource });
+    expect(decoder.push(selected + searching + reading)).toBe(true);
+    expect(onResearchProgress).toHaveBeenLastCalledWith({ summary: "Reading: example.com", source: iconSource });
+    onResearchProgress.mock.calls[0][0].source.url = "https://changed.example/";
+    expect(decoder.getState().researchSource).toEqual(iconSource);
+    expect(decoder.push(progress("Searching for another source."))).toBe(true);
+    expect(decoder.getState().researchSource).toBeNull();
+    expect(decoder.push(reading + sources() + synthesizing)).toBe(true);
+    expect(decoder.getState().researchSource).toBeNull();
+    expect(decoder.push(completion)).toBe(true);
+    expect(decoder.finish()).toEqual({ ok: true, value: envelope });
+  });
+
+  test("unusable source decorations do not discard valid research progress or the answer", () => {
+    const onResearchProgress = jest.fn();
+    const decoder = createMetabloomSegmentStreamDecoder({ onResearchProgress });
+    expect(decoder.push(selected + searching)).toBe(true);
+    for (const decoration of [null, {}, { url: unsafeScriptUrl, token: "a".repeat(80) },
+      { url: source.url, token: "invalid?url=elsewhere" }, { url: source.url, token: "a".repeat(4097) }]) {
+      expect(decoder.push(record({ type: "research_progress", summary: "Reading published evidence.", source: decoration }))).toBe(true);
+      expect(onResearchProgress).toHaveBeenLastCalledWith({ summary: "Reading published evidence." });
+      expect(decoder.getState().researchSource).toBeNull();
+    }
+    expect(decoder.push(sources() + synthesizing + completion)).toBe(true);
+    expect(decoder.finish()).toEqual({ ok: true, value: envelope });
+  });
+
   test.each([
     ["before any input", "", progress()],
     ["without an action", input, progress()],

@@ -199,6 +199,30 @@ test("adapter progress accepts only bounded plain summaries and limits updates",
   expect(window.__orbState().researchSummary).toBe("Checked source 24.");
 });
 
+test("publisher icons stay with the current research request and clear on synthesis or Stop", async () => {
+  const { container } = render(<OrbSection />);
+  send();
+  await tick(0);
+  const { request } = requests[0];
+  const source = { url: "https://example.org/brief", token: "fixture-source-token-" + "a".repeat(80) };
+  act(() => {
+    request.onAction("deep-research");
+    request.onResearch({ state: "searching" });
+    expect(request.onResearchProgress({ summary: "Reading: example.org", source })).toBe(true);
+  });
+  expect(window.__orbState().researchSource).toEqual(source);
+  expect(container.querySelector('img[src^="/api/metabloom-source-media?"]')).toBeInTheDocument();
+  act(() => {
+    request.onSources(sources);
+    request.onResearch({ state: "synthesizing" });
+  });
+  expect(window.__orbState().researchSource).toBeNull();
+  expect(container.querySelector('img[src^="/api/metabloom-source-media?"]')).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Stop response" }));
+  act(() => expect(request.onResearchProgress({ summary: "Late source", source })).toBe(false));
+  expect(window.__orbState().researchSource).toBeNull();
+});
+
 test("a research failure shows its safe reason and reference without exposing provider diagnostics", async () => {
   const errorLog = jest.spyOn(console, "error").mockImplementation(() => {});
   render(<OrbSection />);

@@ -1,0 +1,63 @@
+/* Publisher media stays a bounded enhancement of the existing reading surface. */
+.orb-page .metabloom-source-icon {
+  position: relative; display: inline-flex; flex: 0 0 2rem; width: 2rem; height: 2rem;
+  align-items: center; justify-content: center; overflow: hidden; border-radius: 0.45rem;
+  color: var(--aetheris-ink-2); background: var(--aetheris-glass-surface);
+}
+.orb-page .metabloom-source-icon > svg { width: 1.6rem; height: 1.6rem; stroke: currentColor; stroke-width: 1.4; }
+.orb-page .metabloom-source-icon > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; opacity: 0; }
+.orb-page .metabloom-source-icon[data-media-state='ready'] > img { opacity: 1; }
+.orb-page .metabloom-source-icon[data-media-state='ready'] > svg { visibility: hidden; }
+.orb-page .metabloom-source-preview {
+  display: grid; grid-template-columns: minmax(0, 38%) minmax(0, 1fr); gap: 1.2rem;
+  min-width: 0; margin-top: 1.2rem; padding: 1rem; border: 1px solid var(--aetheris-line);
+  border-radius: var(--aetheris-radius-lg); background: var(--aetheris-glass-surface);
+}
+.orb-page .metabloom-source-preview__image-area {
+  position: relative; align-self: start; min-width: 0; width: 100%; aspect-ratio: 16 / 9;
+  overflow: hidden; border-radius: var(--aetheris-radius-md); background: var(--aetheris-state-layer);
+}
+.orb-page .metabloom-source-preview__fallback {
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 0.4rem; color: var(--aetheris-ink-2); font: 1rem/1.4 var(--aetheris-font-mono);
+}
+.orb-page .metabloom-source-preview__fallback svg { width: 2.4rem; height: 2.4rem; stroke: currentColor; stroke-width: 1; }
+.orb-page .metabloom-source-preview__image { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; }
+.orb-page .metabloom-source-preview[data-preview-state='ready'] .metabloom-source-preview__image { opacity: 1; }
+.orb-page .metabloom-source-preview[data-preview-state='ready'] .metabloom-source-preview__fallback { visibility: hidden; }
+.orb-page .metabloom-source-preview__content { display: flex; flex-direction: column; align-items: flex-start; gap: 0.6rem; min-width: 0; }
+.orb-page .metabloom-source-preview__publisher { display: flex; align-items: center; gap: 0.6rem; color: var(--aetheris-ink-2); font: 500 1.05rem/1.4 var(--aetheris-font-mono); }
+.orb-page .metabloom-source-preview__publisher > span { min-width: 0; }
+.orb-page .metabloom-source-preview__host { display: block; margin-top: 0.2rem; font-size: 1rem; font-weight: 400; overflow-wrap: anywhere; }
+.orb-page .metabloom-research-brief p.metabloom-source-preview__title { margin: 0; color: var(--aetheris-ink); font: 600 max(1.2rem, 13px)/1.5 var(--aetheris-font-sans); }
+.orb-page .metabloom-research-brief a.metabloom-source-preview__action {
+  display: inline-flex; align-items: center; gap: 0.4rem; min-height: 44px; margin-top: auto;
+  padding: 0.5rem 0.9rem; border: 1px solid transparent; border-radius: var(--aetheris-radius-md);
+  color: var(--aetheris-ink); font: 500 1.05rem/1.4 var(--aetheris-font-mono); text-decoration: none;
+  background: linear-gradient(var(--aetheris-panel-raised), var(--aetheris-panel-raised)) padding-box,
+    var(--aetheris-spectral-border-soft) border-box;
+}
+.orb-page .metabloom-research-brief a.metabloom-source-preview__action:focus-visible {
+  outline: 2px solid transparent; outline-offset: 3px; box-shadow: var(--aetheris-focus-halo);
+  background: linear-gradient(var(--aetheris-panel-raised), var(--aetheris-panel-raised)) padding-box,
+    var(--aetheris-spectral) border-box;
+}
+@media (hover: hover) {
+  .orb-page .metabloom-research-brief a.metabloom-source-preview__action:hover {
+    background: linear-gradient(var(--aetheris-panel-raised), var(--aetheris-panel-raised)) padding-box,
+      var(--aetheris-spectral) border-box;
+  }
+}
+@media (max-width: 480px) {
+  .orb-page .metabloom-source-preview { grid-template-columns: minmax(0, 1fr); }
+  .orb-page .metabloom-source-preview__content { gap: 0.7rem; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .orb-page .metabloom-source-preview, .orb-page .metabloom-source-icon { background: var(--aetheris-panel-raised); }
+}
+@media (forced-colors: active) {
+  .orb-page .metabloom-source-preview, .orb-page .metabloom-source-icon { background: Canvas; color: CanvasText; border-color: CanvasText; }
+  .orb-page .metabloom-source-preview__fallback, .orb-page .metabloom-source-preview__publisher { color: CanvasText; }
+  .orb-page .metabloom-research-brief a.metabloom-source-preview__action { background: Canvas; color: LinkText; border-color: LinkText; }
+  .orb-page .metabloom-research-brief a.metabloom-source-preview__action:focus-visible { background: Canvas; outline-color: Highlight; box-shadow: none; }
+}

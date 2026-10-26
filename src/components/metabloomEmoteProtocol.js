@@ -9,6 +9,7 @@ const {
 } = require("./metabloomEmoteLibrary");
 const { METABLOOM_ACTION_IDS } = require("./metabloomDecisionMapping");
 const { parseMetabloomResearchSources } = require("./metabloomResearchSources");
+const { parseMetabloomProgressSource } = require("./metabloomSourceMediaProtocol");
 const { MAX_METABLOOM_RESEARCH_REPORT_BYTES, MAX_METABLOOM_RESEARCH_REPORT_CHUNK_CHARS,
   getMetabloomUtf8ByteLength, parseMetabloomResearchReport } = require("./metabloomResearchReport");
 const { MAX_METABLOOM_RESEARCH_BRIEF_BYTES, MAX_METABLOOM_RESEARCH_BRIEF_CHUNK_CHARS,
@@ -130,6 +131,7 @@ const createMetabloomSegmentStreamDecoder = ({
   let action = null;
   let researchState = null;
   let researchSummary = null;
+  let researchSource = null;
   let researchProgressCount = 0;
   let researchReportStarted = false;
   let researchReportSources = [];
@@ -184,11 +186,12 @@ const createMetabloomSegmentStreamDecoder = ({
         return fail("Invalid or out-of-order research state.");
       }
       researchState = event.state;
+      researchSource = null;
       onResearch?.({ state: researchState });
       return true;
     }
     if (event?.type === "research_progress") {
-      if (!exactKeys(event, ["type", "summary"]) || version !== METABLOOM_CHAT_PROTOCOL_VERSION
+      if (!(exactKeys(event, ["type", "summary"]) || exactKeys(event, ["type", "summary", "source"])) || version !== METABLOOM_CHAT_PROTOCOL_VERSION
         || action !== "deep-research" || !["searching", "synthesizing"].includes(researchState)
         || segments.length || partialResponse !== null || textComplete
         || typeof event.summary !== "string" || !event.summary.trim()
@@ -199,7 +202,8 @@ const createMetabloomSegmentStreamDecoder = ({
       }
       researchProgressCount += 1;
       researchSummary = event.summary;
-      onResearchProgress?.({ summary: researchSummary });
+      researchSource = parseMetabloomProgressSource(event.source);
+      onResearchProgress?.({ summary: researchSummary, ...(researchSource ? { source: { ...researchSource } } : {}) });
       return true;
     }
     if (["research_report_sources", "research_report_delta", "research_report_complete"].includes(event?.type)) {
@@ -397,7 +401,7 @@ const createMetabloomSegmentStreamDecoder = ({
       return { bufferLength: buffer.length, completed, failed: Boolean(errorMessage),
         nextIndex: segments.length, segments: segments.map(cloneChatSegment), version,
         inputEmote, responseEmote, textComplete, action, researchState,
-        researchSummary, researchProgressCount,
+        researchSummary, researchSource: researchSource ? { ...researchSource } : null, researchProgressCount,
         researchDetails: cloneResearchReport(researchDetails),
         researchBrief: researchBrief ? parseMetabloomResearchBrief(researchBrief, { sources: researchDetails.sources }) : null,
         sources: cloneResearchSources(sources) };

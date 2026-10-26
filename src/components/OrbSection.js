@@ -34,6 +34,7 @@ import { METABLOOM_RESEARCH_TIMEOUT_MS, getMetabloomApiErrorMessage, requestMeta
 import { METABLOOM_REQUEST_ERROR_MESSAGES, parseMetabloomRequestRef } from "./metabloomRequestErrors";
 import { METABLOOM_TOOL_TURN_TIMEOUT_MS } from "./metabloomVisualProtocol";
 import { parseMetabloomResearchSources } from "./metabloomResearchSources";
+import { parseMetabloomProgressSource } from "./metabloomSourceMediaProtocol";
 import { parseMetabloomResearchReport } from "./metabloomResearchReport";
 import { parseMetabloomResearchBrief } from "./metabloomResearchBriefProtocol";
 import { renderMetabloomResearchBlocks, renderMetabloomResearchText } from "./metabloomResearchText";
@@ -492,6 +493,7 @@ const OrbSection = ({
   const [researchPhase, setResearchPhase] = React.useState(null);
   const [researchProgress, setResearchProgress] = React.useState(null);
   const [researchSummary, setResearchSummary] = React.useState(null);
+  const [researchSource, setResearchSource] = React.useState(null);
   const [readingEarlier, setReadingEarlier] = React.useState(false);
   const [composerFocused, setComposerFocused] = React.useState(false);
   const [activeReaction, setActiveReaction] = React.useState(null);
@@ -551,6 +553,7 @@ const OrbSection = ({
     researchPhase,
     researchProgress,
     researchSummary,
+    researchSource,
     sceneAction,
     scenePhase,
     theme: METABLOOM_ACTIVITIES[activityId].theme,
@@ -729,11 +732,12 @@ const OrbSection = ({
     replyDisplayRef.current?.gate.cancel(reason);
     replyDisplayRef.current = null;
     replyRef.current = null;
-    updateStateSnapshot({ researchProgress: null, researchSummary: null });
+    updateStateSnapshot({ researchProgress: null, researchSummary: null, researchSource: null });
     if (mountedRef.current) {
       setToolPending(false);
       setResearchProgress(null);
       setResearchSummary(null);
+      setResearchSource(null);
     }
   }, [cancelRequestScene, setActivity, updateStateSnapshot]);
 
@@ -1103,11 +1107,12 @@ const OrbSection = ({
     activeRequestRef.current = null;
     requestAbortRef.current = null;
     requestTokenRef.current += 1;
-    updateStateSnapshot({ pending: false, researchProgress: null, researchSummary: null });
+    updateStateSnapshot({ pending: false, researchProgress: null, researchSummary: null, researchSource: null });
     setPending(false);
     setToolPending(false);
     setResearchProgress(null);
     setResearchSummary(null);
+    setResearchSource(null);
   }, [updateStateSnapshot]);
 
   const failReply = React.useCallback((session, error) => {
@@ -1550,13 +1555,14 @@ const OrbSection = ({
           previewTimerRef.current = window.setTimeout(() => failReply(session, { code: "research_timeout" }), remaining);
         } else if (research.state !== "synthesizing" || activeRequest.researchState !== "searching" || !activeRequest.sourcesReceived) return false;
         activeRequest.researchState = research.state;
-        updateStateSnapshot({ researchProgress: research.state, researchSummary: null });
+        updateStateSnapshot({ researchProgress: research.state, researchSummary: null, researchSource: null });
         setResearchProgress(research.state);
         setResearchSummary(null);
+        setResearchSource(null);
         return true;
       };
       const onResearchProgress = (progress) => {
-        if (!current() || !isPlainObject(progress) || Object.keys(progress).length !== 1
+        if (!current() || !isPlainObject(progress) || Object.keys(progress).some(key => !["summary", "source"].includes(key))
           || !Object.prototype.hasOwnProperty.call(progress, "summary")
           || activeRequest.action !== "deep-research" || !["searching", "synthesizing"].includes(activeRequest.researchState)
           || session.snapshot().segments.length || typeof progress.summary !== "string" || !progress.summary.trim()
@@ -1564,8 +1570,10 @@ const OrbSection = ({
           || Array.from(progress.summary).some((character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127)
           || (activeRequest.researchProgressCount || 0) >= MAX_METABLOOM_RESEARCH_PROGRESS_EVENTS) return false;
         activeRequest.researchProgressCount = (activeRequest.researchProgressCount || 0) + 1;
-        updateStateSnapshot({ researchSummary: progress.summary });
+        const source = parseMetabloomProgressSource(progress.source);
+        updateStateSnapshot({ researchSummary: progress.summary, researchSource: source });
         setResearchSummary(progress.summary);
+        setResearchSource(source);
         return true;
       };
       const onSources = (sources) => {
@@ -2052,7 +2060,7 @@ const OrbSection = ({
           : activeReaction
             ? resolveMetabloomEmote(activeReaction.emote)?.label
             : composerFocused ? "Listening" : "Here with you";
-  const researchStatus = showResearchStatus ? <MetabloomResearchStatus phase={visibleResearchPhase} preview={visibleActivityPreview} progress={researchProgress} summary={researchSummary} /> : null;
+  const researchStatus = showResearchStatus ? <MetabloomResearchStatus phase={visibleResearchPhase} preview={visibleActivityPreview} progress={researchProgress} summary={researchSummary} source={researchSource} /> : null;
   const statusBeforeReply = visibleResearchPhase === "surfacing" && !visibleActivityPreview && messages[messages.length - 1]?.role === "assistant";
   const showHoodStatus = sceneAction === "under-the-hood";
   return (

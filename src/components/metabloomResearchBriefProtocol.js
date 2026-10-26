@@ -1,5 +1,6 @@
 const { parseMetabloomResearchSources } = require("./metabloomResearchSources");
 const { getMetabloomUtf8ByteLength } = require("./metabloomResearchReport");
+const { parseMetabloomBriefMedia } = require("./metabloomSourceMediaProtocol");
 
 const METABLOOM_RESEARCH_BRIEF_VERSION = "metabloom-research-brief-v1";
 const MAX_METABLOOM_RESEARCH_BRIEF_BYTES = 98304;
@@ -40,8 +41,9 @@ const parseMetabloomResearchBrief = (input, { sources } = {}) => {
     if (value.length > MAX_METABLOOM_RESEARCH_BRIEF_BYTES) return null;
     try { value = JSON.parse(value); } catch { return null; }
   }
+  const hasMedia = value && typeof value === "object" && Object.prototype.hasOwnProperty.call(value, "media");
   if (!exactKeys(value, ["version", "kind", "title", "scope", "asOf", "timeZone", "localDate",
-    "windowStart", "windowEnd", "coverage", "items", "sourceDetails"])
+    "windowStart", "windowEnd", "coverage", "items", "sourceDetails", ...(hasMedia ? ["media"] : [])])
     || value.version !== METABLOOM_RESEARCH_BRIEF_VERSION || !["news", "research"].includes(value.kind)
     || !boundedText(value.title, 160) || !boundedText(value.scope, 200)
     || !boundedText(value.timeZone, 100) || typeof value.asOf !== "string"
@@ -133,7 +135,13 @@ const parseMetabloomResearchBrief = (input, { sources } = {}) => {
     asOf: value.asOf, timeZone: value.timeZone, localDate: value.localDate, windowStart: value.windowStart, windowEnd: value.windowEnd,
     coverage: { requestedCount: coverage.requestedCount, returnedCount: coverage.returnedCount,
       status: coverage.status, limitations: [...coverage.limitations] }, items, sourceDetails };
-  return getMetabloomUtf8ByteLength(JSON.stringify(brief)) <= MAX_METABLOOM_RESEARCH_BRIEF_BYTES ? brief : null;
+  if (getMetabloomUtf8ByteLength(JSON.stringify(brief)) > MAX_METABLOOM_RESEARCH_BRIEF_BYTES) return null;
+  // The host adds signed media references after the model's presentation is
+  // validated. Missing/invalid optional decoration never removes paid research.
+  const media = parseMetabloomBriefMedia(value.media, { sourceIds: new Set(items.flatMap(item => item.sourceIds)) });
+  if (media.length && getMetabloomUtf8ByteLength(JSON.stringify({ ...brief, media })) <= MAX_METABLOOM_RESEARCH_BRIEF_BYTES)
+    brief.media = media;
+  return brief;
 };
 
 module.exports = {

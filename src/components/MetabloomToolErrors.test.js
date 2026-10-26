@@ -1,8 +1,10 @@
 import React from 'react';
 import { act, render, screen, waitFor, cleanup } from '@testing-library/react';
 import MetabloomVisuals from './MetabloomVisuals';
+import MetabloomVisualFrame from './MetabloomVisualFrame';
 import { requestMetabloomVisual } from './metabloomVisualApiClient';
 import { postMetabloomTool } from './metabloomToolClient';
+import { TextEncoder, TextDecoder } from 'util';
 
 jest.mock('./metabloomVisualApiClient', () => ({
   METABLOOM_VISUAL_OFFER_EVENT: 'metabloom:visual-offer', requestMetabloomVisual: jest.fn(),
@@ -83,4 +85,69 @@ test('aborting while the tool request is pending keeps its late failure out of t
   await act(async () => reject({ code: 'tool_timeout', requestRef: '012345abcdef' }));
   expect(respond).not.toHaveBeenCalled();
   expect(requestMetabloomVisual).not.toHaveBeenCalled();
+});
+
+const quota = () => ({ scope: 'subject', resetAt: Date.now() + 600000, retryAfterSeconds: 600,
+  subject: { limit: 30, remaining: 0, resetAt: Date.now() + 600000 },
+  deployment: { limit: 200, remaining: 170, resetAt: Date.now() + 7200000 } });
+function quotaResponse(code, details) {
+  const reader = { read: jest.fn().mockResolvedValueOnce({ done: false,
+    value: new TextEncoder().encode(JSON.stringify({ code, quota: details, requestRef: '012345abcdef' })) })
+    .mockResolvedValue({ done: true }), cancel: jest.fn().mockResolvedValue(), releaseLock: jest.fn() };
+  return { ok: false, status: 429, headers: { get: name => name === 'content-type' ? 'application/json' : null },
+    body: { getReader: () => reader } };
+}
+async function withEncoders(run) {
+  const saved = { TextEncoder: global.TextEncoder, TextDecoder: global.TextDecoder };
+  global.TextEncoder = TextEncoder; global.TextDecoder = TextDecoder;
+  try { await run(); } finally { global.TextEncoder = saved.TextEncoder; global.TextDecoder = saved.TextDecoder; }
+}
+
+test('the actual quota response completes a race-denied turn once without an expired continuation or duplicate card', async () => {
+  await withEncoders(async () => {
+    const details = quota();
+    details.subject.resetAt = details.resetAt;
+    const actualClient = jest.requireActual('./metabloomVisualApiClient');
+    const fetchImpl = jest.fn().mockResolvedValue(quotaResponse('visual_quota', details));
+    requestMetabloomVisual.mockImplementation((value, options) => actualClient.requestMetabloomVisual(value, { ...options, fetchImpl }));
+    postMetabloomTool.mockResolvedValue({ offer, emote: 'neutral' });
+    const { respond, onToolActivity } = start();
+    await waitFor(() => expect(respond).toHaveBeenCalledTimes(1));
+    expect(respond.mock.calls[0][0].segments[0].response).toMatch(/30 visual generations per hour.*Try again after/);
+    expect(respond.mock.calls[0][0].segments[0].response).not.toMatch(/expired|tool_expired|unchanged/);
+    expect(postMetabloomTool).toHaveBeenCalledTimes(1);
+    expect(postMetabloomTool.mock.calls[0][0].phase).toBe('start');
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(onToolActivity).toHaveBeenLastCalledWith('complete');
+    expect(screen.queryByRole('heading', { name: /Visual/ })).not.toBeInTheDocument();
+    expect(screen.getByText(message)).toBeInTheDocument();
+  });
+});
+
+test('a real preflight quota response reports the limit and reset time without trying generation', async () => {
+  await withEncoders(async () => {
+    const details = quota();
+    details.subject.resetAt = details.resetAt;
+    const actualClient = jest.requireActual('./metabloomToolClient');
+    postMetabloomTool.mockImplementation((body, options) => actualClient.postMetabloomTool(body,
+      { ...options, fetchImpl: async () => quotaResponse('tool_quota', details) }));
+    const { respond, onToolActivity } = start();
+    await waitFor(() => expect(respond).toHaveBeenCalledTimes(1));
+    const answer = respond.mock.calls[0][0].segments[0].response;
+    expect(answer).toMatch(/30 visual generations per hour.*Try again after/);
+    expect(answer).toContain('Code: tool_quota. Reference: 012345abcdef.');
+    expect(answer).not.toContain('expired');
+    expect(requestMetabloomVisual).not.toHaveBeenCalled();
+    expect(onToolActivity).toHaveBeenLastCalledWith('complete');
+  });
+});
+
+test('an optional visual quota card preserves the answer and shows a readable reset time', () => {
+  const details = quota();
+  details.subject.resetAt = details.resetAt;
+  render(<div><p>The existing answer.</p><MetabloomVisualFrame artifact={{ id: offer.id,
+    status: 'failed', code: 'visual_quota', quota: details }} /></div>);
+  expect(screen.getByRole('heading', { name: 'Visual limit reached' })).toBeInTheDocument();
+  expect(screen.getByRole('status')).toHaveTextContent(/30 visual generations per hour.*Try again after/);
+  expect(screen.getByText('The existing answer.')).toBeInTheDocument();
 });

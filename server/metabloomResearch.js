@@ -147,7 +147,7 @@ const researchProgressSummary = (event) => {
   return null;
 };
 
-const readResearchResponse = async (response, signal, onProgress) => {
+const readResearchResponse = async (response, signal, onProgress, includeSourceUrls = false) => {
   if (!response.headers.get("content-type")?.includes("text/event-stream") || !response.body?.getReader) {
     await response.body?.cancel?.().catch(() => {});
     throw createMetabloomProviderError("research_incomplete", "invalid_content_type");
@@ -185,7 +185,12 @@ const readResearchResponse = async (response, signal, onProgress) => {
     if (!summary || summary === lastSummary) return;
     lastSummary = summary;
     progressCount++;
-    await onProgress({ summary });
+    const item = event.item;
+    const source = includeSourceUrls && item?.type === "web_search_call"
+      && !["failed", "incomplete"].includes(item.status)
+      && ["open_page", "find_in_page"].includes(item.action?.type)
+      ? parseMetabloomResearchSources([{ id: 1, title: "Research source", url: item.action.url }]) : null;
+    await onProgress({ summary, ...(source ? { sourceUrl: source[0].url } : {}) });
   };
   try {
     while (!completed) {
@@ -220,7 +225,7 @@ const readResearchResponse = async (response, signal, onProgress) => {
   }
 };
 
-const conductMetabloomResearch = async ({ message, history = [], temporalContext, signal, onProgress, requestRef }) => {
+const conductMetabloomResearch = async ({ message, history = [], temporalContext, signal, onProgress, requestRef, includeSourceUrls = false }) => {
   const controller = new AbortController();
   const abort = () => controller.abort();
   if (signal?.aborted) controller.abort();
@@ -246,7 +251,7 @@ const conductMetabloomResearch = async ({ message, history = [], temporalContext
     });
     upstreamRequestId = providerRequestId(response);
     if (!response.ok) throw await readMetabloomProviderError(response, controller.signal);
-    completed = await readResearchResponse(response, controller.signal, onProgress);
+    completed = await readResearchResponse(response, controller.signal, onProgress, includeSourceUrls);
     const research = extractMetabloomResearch(completed);
     if (controller.signal.aborted) throw new Error("Cancelled");
     outcome = "completed";

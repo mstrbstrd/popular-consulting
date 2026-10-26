@@ -76,7 +76,13 @@ An offer expires after ten minutes. Keyed identity digests bind it to the verifi
 
 One Lua script verifies owner, expiry and offered status; checks both quotas; increments counters; and replaces the context with a claimed tombstone while retaining the TTL. The claimed context is returned only once. There is no in-memory fallback, client-provided context override, or second model call on a duplicate claim.
 
-Initial limits are 5 visual generations per subject per hour and 50 per deployment scope per 24-hour counter window. One builder request allows at most 6,000 output tokens. Generation has a 75-second application deadline inside a 90-second function limit; the visual browser request allows 85 seconds. The [tool-aware timing table](metabloom-tool-aware-ui.md#time-budgets-and-timeout-recovery) covers the other stages. No repair loop, repeated web research or automatic paid retry is performed.
+Default limits are **30 visual generations per subject per hour** and **200 per deployment scope per 24-hour counter window**. Configure `METABLOOM_VISUAL_SUBJECT_LIMIT_PER_HOUR` (1-1000) and `METABLOOM_VISUAL_DEPLOYMENT_LIMIT_PER_DAY` (1-10000) with positive integer strings. Unset or empty values use the defaults; malformed, fractional, zero, negative or out-of-range values fail closed. There is no owner/admin exemption, refund, or counter-reset endpoint. Changing a limit retains existing counts and expirations.
+
+Both windows start with the first accepted generation claim, not the calendar hour or midnight. All supported formats and both explicit and optional visuals share the same counters. Quota-denied attempts consume no visual capacity. Failed, invalid, timed-out and stopped builds still count after a successful claim. Signing in again does not reset the subject counter.
+
+Explicit tool starts perform a read-only quota preflight before the general request quota and any paid model work. The builder's atomic claim remains authoritative if concurrent requests race after that check. A `429` quota response includes a bounded `quota` object with `scope` (`subject`, `deployment`, or `both`), `resetAt`, `retryAfterSeconds`, and separate `subject`/`deployment` objects containing `limit`, `remaining` and `resetAt`. Reset timestamps come from Redis TTLs; the `Retry-After` header agrees with the response. When both budgets are exhausted, retry waits for the later reset. The browser validates this metadata and displays the applicable limit and a local retry date/time; malformed metadata falls back to a fixed safe message.
+
+One builder request allows at most 6,000 output tokens. Generation has a 75-second application deadline inside a 90-second function limit; the visual browser request allows 85 seconds. The [tool-aware timing table](metabloom-tool-aware-ui.md#time-budgets-and-timeout-recovery) covers the other stages. No repair loop, repeated web research or automatic paid retry is performed.
 
 A failed attempt remains claimed. Completed specifications and terminal tool results are session-owned and retained for up to one hour; this does not automatically remount a lost browser component after refresh. A timed-out generation records a failed result for the tool continuation, and a completed continuation is cached to prevent a duplicate paid explanation. An explicit new request is subject to quotas. Cancellation can reduce work but does not establish that already-generated provider tokens were free.
 
@@ -87,7 +93,7 @@ Logs contain bounded outcome/format/timing/usage metadata, not prompts, answers,
 Run the new built-in Node tests:
 
 ```sh
-node --test scripts/metabloom-visual.test.cjs
+node --test scripts/metabloom-visual.test.cjs scripts/metabloom-visual-quota.test.cjs
 ```
 
 With the repository's installed dependencies and Node 24, run the React integration tests and production build:
