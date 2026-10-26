@@ -29,14 +29,14 @@ const candidate = (catalog, ids = [1, 5, 9]) => ({
   })),
   sourceDetails: [],
 });
-const researchDocument = () => {
-  const paragraphs = sourceList.map((source) => `${dateQuote(source.id)} The published bulletin describes an initial local trial and its planned evaluation.`);
+const researchDocument = (sources = sourceList) => {
+  const paragraphs = sources.map((source) => `${dateQuote(source.id)} The published bulletin describes an initial local trial and its planned evaluation.`);
   // A retained full report can be larger than the formatter's evidence budget.
   paragraphs.push("Supplementary fictional detail. ".repeat(650).trim());
   paragraphs.push("END OF THE COMPLETE FICTIONAL RESEARCH REPORT.");
   const text = paragraphs.join("\n\n");
   let offset = 0;
-  const annotations = sourceList.map((source, index) => {
+  const annotations = sources.map((source, index) => {
     const entry = { type: "url_citation", title: source.title, url: source.url,
       start_index: offset, end_index: offset + paragraphs[index].length };
     offset += paragraphs[index].length + 2;
@@ -196,7 +196,10 @@ test("five dated stories survive the formatter handoff without copied date text 
   }
   assert(brief.sourceDetails.every(source => source.publishedDate === null));
   assert.doesNotMatch(JSON.stringify(brief), /evidenceId|dateEvidenceCatalog|dateBasis/);
-  assert.match(result.envelope.segments[0].response, /5 of the 5 requested stories/);
+  assert.equal(result.envelope.segments[0].response, "Your news briefing is ready.");
+  assert(result.envelope.segments[0].response.length < 180);
+  for (const item of brief.items) assert(!result.envelope.segments[0].response.includes(item.headline),
+    "The carousel headline must not also become a long paragraph above the brief.");
 });
 
 test("unavailable date selection preserves the report and describes the limitation without a no-stories claim", async () => {
@@ -317,6 +320,41 @@ test("negotiated media binds observed progress and news previews to canonical so
   assert.deepEqual(minted, [sourceList[0].url, sourceList[0].url, sourceList[4].url, sourceList[8].url]);
   assert.deepEqual(calls.map(call => call.phase), ["research", "brief"]);
   assert.equal(JSON.stringify(calls[1].body).includes(token), false);
+});
+
+test("news media gives each story its first source before bounded alternates without another provider request", async () => {
+  const identity = { owner: "a".repeat(64), subject: "b".repeat(64), scope: "c".repeat(64) };
+  metabloomAuth.requireMetabloomSession.mock.mockImplementation(async (_req, { onIdentity }) => { onIdentity(identity); return null; });
+  const sources = Array.from({ length: 15 }, (_, index) => ({ id: index + 1,
+    title: `Fictional agency bulletin ${index + 1}`, url: `https://example.org/bulletin-${index + 1}` }));
+  const minted = [];
+  mock.method(sourceMedia, "createSourceMediaToken", async (owner, url) => {
+    assert.equal(owner, identity); minted.push(url);
+    return `signed.source.${sources.find(source => source.url === url).id}`;
+  });
+  const calls = installProvider({
+    research: () => new Response(`data: ${JSON.stringify({ type: "response.completed", response: researchDocument(sources) })}\n\n`,
+      { headers: { "content-type": "text/event-stream" } }),
+    formatter: body => {
+      const value = candidate(JSON.parse(body.input.at(-1).content).dateEvidenceCatalog, [1, 2, 3, 4, 5]);
+      value.items.forEach((item, index) => { item.sourceIds = [index + 1, index + 6, index + 11]; });
+      return briefReply(value);
+    },
+  });
+  const res = response(); await handler(request({ streamResearchMedia: true }), res);
+  const brief = decode(res).briefs[0];
+  assert.equal(brief.items.length, 5);
+  assert.deepEqual(brief.media.map(entry => entry.sourceId), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+  assert.deepEqual(minted, sources.slice(0, 10).map(source => source.url));
+  assert.deepEqual(calls.map(call => call.phase), ["research", "brief"]);
+
+  minted.length = 0;
+  const oneStory = { ...brief, items: [{ ...brief.items[0], sourceIds: [1, 2, 3, 4] }],
+    sourceDetails: brief.sourceDetails.filter(source => source.sourceId <= 4),
+    coverage: { requestedCount: 1, returnedCount: 1, status: "complete", limitations: [] } };
+  const enriched = await handler._internals.attachResearchMedia(oneStory, sources, identity);
+  assert.deepEqual(enriched.media.map(entry => entry.sourceId), [1, 2, 3]);
+  assert.deepEqual(minted, sources.slice(0, 3).map(source => source.url));
 });
 
 test("optional media failures and old clients retain the complete paid brief", async () => {

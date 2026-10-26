@@ -176,7 +176,8 @@ test("the actual API and client decoder deliver one current story, safe intro, a
   assert.equal(sourceLists[0].length, 8, "The original source cap applies only to the legacy introduction.");
   assert.deepEqual(briefs[0].items[0].sourceIds, [8, 9]);
   const intro = result.value.segments.map((segment) => segment.response).join("\n");
-  assert.match(intro, /1 of the 5 requested stories/); assert.doesNotMatch(intro, internalFieldNames);
+  assert.equal(intro, "Your news briefing is ready."); assert.doesNotMatch(intro, internalFieldNames);
+  assert(!intro.includes(briefs[0].items[0].headline), "The story and its coverage appear in the carousel, without a duplicate headline paragraph.");
   assert.doesNotMatch(intro, /could not establish enough evidence|top five/i);
   const wire = res.body.trim().split("\n").map((line) => JSON.parse(line));
   assert(wire.findIndex((event) => event.type === "research_report_complete")

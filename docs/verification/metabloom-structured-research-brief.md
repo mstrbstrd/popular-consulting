@@ -4,7 +4,7 @@
 
 A successful deep-research pass should produce a useful, navigable briefing without adding another research pass or requiring an arbitrary generated UI. A short chat paragraph is not an adequate presentation for a request such as a deep dive into five news stories. A dated request also needs an explicit interval and an honest indication when the available evidence supports fewer items.
 
-This change adds a native research brief within the existing assistant message. Each item has a headline, overview with source references, expandable analysis and background, uncertainties, and follow-up questions. News briefs display the host-owned as-of time, timezone, covered interval, development dates, and coverage count. Sources and their available metadata are a separate disclosure. The full completed report remains available below the brief.
+This change adds a native research brief within the existing assistant message. The brief presents one story or finding at a time, with previous/next controls and a direct story selector. Each item has a headline, complete overview with source references, expandable analysis and background, uncertainties, and follow-up questions. The compact header shows the date, returned/requested count, and coverage status. Scope, the host-owned as-of time, timezone, covered interval, and limitations remain available in a closed **Briefing details** disclosure. Sources and their available metadata are a separate disclosure. The full completed report remains available below the brief.
 
 ## Request and provider contract
 
@@ -14,7 +14,7 @@ The negotiated path uses the same bounded research pass followed by one structur
 
 The final normalized brief has a 96 KiB UTF-8 limit. It is sent in ordered `research_brief_delta` chunks of at most 2,048 characters followed by `research_brief_complete`, after the full-report completion, legacy source list, and synthesizing state. The client validates the full assembled object against the full report's canonical sources before accepting it. The legacy source list remains bounded at eight; it does not truncate the brief's source references.
 
-The API's introduction is deterministic application text with bounded complete headlines when they fit. Factual overviews and background remain in the brief. Automatic research chosen by Jev and the explicit Deep Research toggle use the same brief content regardless of the paragraph preference. Structured research does not add a separate optional visual-generation pass.
+The API's visible introduction is short deterministic application text announcing that the news briefing or research brief is ready, without repeating the card's count, coverage, or headlines. Partial coverage remains explicit in the card, with limitations in **Briefing details**. For a subsequent request, the client appends the validated brief's numbered headlines to the assistant history entry when that entry remains within its existing 4,806-character bound. This preserves references such as “the third story” in the displayed order without copying the report, summaries, source-media tokens, or complete structured payload into conversation history. Legacy answers that already contain every headline are not duplicated; empty briefs and messages without a brief keep their existing history text. Automatic research chosen by Jev and the explicit Deep Research toggle use the same brief content regardless of the paragraph preference. Structured research does not add a separate optional visual-generation pass.
 
 ## Date, evidence, and coverage behavior
 
@@ -38,9 +38,19 @@ All brief content and links remain behind the existing surfacing gate. The compl
 
 The brief is a native React component with inherited gradient and glass styling. It does not execute model HTML, scripts, or generated URLs. Link targets come from canonical research sources. Its native disclosure controls work with the keyboard. This change does not introduce a persistent cross-conversation artifact library, downloadable document, timeline, map, or dashboard.
 
-## Verification
+## Carousel interaction and media
 
-All provider responses in these checks are fictional local fixtures. No paid provider or live research request is used.
+The carousel keeps its **Previous**, **Story X of N**, and **Next** controls together above the active story. The center control is a native select labelled **Choose a story**, allowing a direct jump to any item. General research uses **Finding X of N** and **Choose a finding**. All three controls have 44-pixel minimum heights, and previous/next have 44-pixel minimum widths. On narrow screens those buttons show arrows with the same accessible names. Keeping every control above the story avoids selecting an item from the bottom and leaving its headline above the reading area. Previous/next remain focusable but expose `aria-disabled` at the bounds; navigation never wraps, moves keyboard focus into the story, or starts an automatic slideshow.
+
+Left/right arrows and Home/End change the active item while a previous/next button is focused. The native select owns its keyboard interaction; the carousel does not intercept any of its keys. Source links, disclosures, and the surrounding chat also retain their ordinary keyboard behavior. A separate screen-reader status announces the active position politely. Inactive slides remain mounted with `hidden` and an enforced `display: none`, so their article content and links are absent from keyboard and accessibility navigation. Returning to a slide preserves its expanded analysis and resolved source preview. Theme, resize, and tab-visibility changes do not reset the selected item.
+
+The active slide has a responsive minimum height, but its overview remains complete and selectable rather than clipped to a fixed line count. The overview precedes the optional image/link preview so the story text is visible earlier on small screens. A short opacity transition has no translation or layout animation and is disabled by reduced motion. Navigation does not call `scrollIntoView` or change the transcript scroll position. The existing one-time arrival anchor and earlier-reading behavior still apply. The card and controls use the shared Aetheris glass, structural spectral borders, light/dark tokens, and reduced-transparency and forced-colors fallbacks.
+
+News items pass up to three distinct cited-source media candidates to the compact preview, preferring the source of the development-date evidence. If that article has no usable image, the preview can try the next candidate. An image and its action always identify the same canonical cited article; the compact view omits the duplicate article-title block. If no candidate works, the original source link remains usable. This optional metadata/image retrieval does not add provider generation or another research pass, and it does not change the completed evidence. Hidden slides retain their preview state. Where `IntersectionObserver` is available, viewport-based loading starts only when a slide becomes visible.
+
+## Original feature verification baseline
+
+The table and build record below describe the original October 23 structured-brief implementation, before the evidence-handoff and carousel refinements. All provider responses in these checks are fictional local fixtures. No paid provider or live research request is used.
 
 | Check | Coverage | Result |
 | --- | --- | --- |

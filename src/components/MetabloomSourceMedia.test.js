@@ -112,3 +112,75 @@ test('publisher icons recover their neutral fallback without retaining a broken 
   view.rerender(<MetabloomPublisherIcon token="second.site.token" />);
   expect(view.container.querySelector('img')).toHaveAttribute('src', metabloomSourceMediaUrl('second.site.token', 'icon'));
 });
+
+const candidates = () => [1, 2, 3, 4].map(id => ({
+  source: { id, title: `Cited article ${id}`, url: `https://publisher${id}.example.test/article?utm_source=openai` },
+  token: `signed.article.${id}`, publisher: `Publisher ${id}`,
+}));
+
+test.each(['missing image', 'metadata unavailable', 'not an article'])(
+  'tries another cited article when the primary has %s and keeps the successful image with its own source link', async reason => {
+    const entries = candidates();
+    requestMetabloomSourcePreview.mockImplementation(selected => {
+      if (selected === entries[0].token) return reason === 'metadata unavailable'
+        ? Promise.reject(new Error('Unavailable publisher'))
+        : Promise.resolve({ version: '1', isArticle: reason !== 'not an article', image: null, icon: null });
+      return Promise.resolve(media(selected));
+    });
+    const view = render(<MetabloomArticlePreview candidates={entries} compact />);
+    const image = await screen.findByRole('img', { name: 'The original article’s image.' });
+    fireEvent.load(image);
+    expect(image).toHaveAttribute('src', metabloomSourceMediaUrl(entries[1].token, 'image'));
+    expect(screen.getByRole('link', { name: 'Read article: Cited article 2' })).toHaveAttribute('href', entries[1].source.url);
+    expect(screen.getByText('Publisher 2')).toBeInTheDocument();
+    expect(screen.queryByText('Cited article 2')).not.toBeInTheDocument();
+    expect(requestMetabloomSourcePreview.mock.calls.map(([selected]) => selected)).toEqual(entries.slice(0, 2).map(entry => entry.token));
+    view.rerender(<MetabloomArticlePreview candidates={candidates()} compact />);
+    expect(requestMetabloomSourcePreview).toHaveBeenCalledTimes(2);
+    expect(view.container.querySelector('.metabloom-source-preview')).toHaveAttribute('data-preview-state', 'ready');
+  },
+);
+
+test('failed image delivery advances to a cited alternate while a successful primary does not load other sources', async () => {
+  const entries = candidates();
+  requestMetabloomSourcePreview.mockImplementation(selected => Promise.resolve(media(selected)));
+  render(<MetabloomArticlePreview candidates={entries} compact />);
+  const first = await screen.findByRole('img', { name: 'The original article’s image.' });
+  expect(requestMetabloomSourcePreview).toHaveBeenCalledTimes(1);
+  fireEvent.error(first);
+  await act(async () => {});
+  const second = screen.getByRole('img', { name: 'The original article’s image.' });
+  expect(second).toHaveAttribute('src', metabloomSourceMediaUrl(entries[1].token, 'image'));
+  fireEvent.load(second);
+  expect(screen.getByRole('link', { name: 'Read article: Cited article 2' })).toHaveAttribute('href', entries[1].source.url);
+  expect(requestMetabloomSourcePreview).toHaveBeenCalledTimes(2);
+});
+
+test('all unavailable previews stay bounded to three sources and retain the original source link and image area', async () => {
+  const entries = candidates();
+  requestMetabloomSourcePreview.mockResolvedValue({ version: '1', isArticle: true, image: null, icon: null });
+  const view = render(<MetabloomArticlePreview candidates={entries} compact />);
+  const reserved = view.container.querySelector('.metabloom-source-preview__image-area');
+  await act(async () => {});
+  expect(requestMetabloomSourcePreview.mock.calls.map(([selected]) => selected)).toEqual(entries.slice(0, 3).map(entry => entry.token));
+  expect(screen.getByRole('link', { name: 'Read article: Cited article 1' })).toHaveAttribute('href', entries[0].source.url);
+  expect(screen.getByText('Publisher 1')).toBeInTheDocument();
+  expect(screen.queryByRole('img')).not.toBeInTheDocument();
+  expect(view.container.querySelector('.metabloom-source-preview__image-area')).toBe(reserved);
+  expect(view.container.querySelector('.metabloom-source-preview')).toHaveAttribute('data-preview-state', 'unavailable');
+});
+
+test('unmounting during an alternate lookup aborts it and never advances to another source', async () => {
+  let finish;
+  requestMetabloomSourcePreview.mockImplementation(selected => selected === 'signed.article.1'
+    ? Promise.resolve({ version: '1', isArticle: true, image: null, icon: null })
+    : new Promise(resolve => { finish = resolve; }));
+  const view = render(<MetabloomArticlePreview candidates={candidates()} />);
+  await act(async () => {});
+  expect(requestMetabloomSourcePreview).toHaveBeenCalledTimes(2);
+  const signal = requestMetabloomSourcePreview.mock.calls[1][1].signal;
+  view.unmount();
+  expect(signal.aborted).toBe(true);
+  await act(async () => finish({ version: '1', isArticle: true, image: null, icon: null }));
+  expect(requestMetabloomSourcePreview).toHaveBeenCalledTimes(2);
+});

@@ -383,6 +383,18 @@ const cloneMessage = ({ id, role, content, actionChain = [], source, emote, segm
   };
 };
 
+const messageHistoryContent = (message) => {
+  const report = message.role === "assistant" ? parseMetabloomResearchReport(message.researchDetails) : null;
+  const brief = report ? parseMetabloomResearchBrief(message.researchBrief, { sources: report.sources }) : null;
+  if (!brief?.items.length || brief.items.every(item => message.content.includes(item.headline))) return message.content;
+  // Preserve the visible story order for follow-ups without repeating every
+  // heading in the transcript or copying the full report into the next request.
+  const label = brief.kind === "news" ? "Stories" : "Findings";
+  const headlines = brief.items.map((item, index) => `${index + 1}. ${item.headline}`).join("\n");
+  const content = `${message.content}\n\n${label} in the research brief:\n${headlines}`;
+  return content.length <= 4806 ? content : message.content;
+};
+
 const MetabloomFullResearch = ({ report, initiallyExpanded = false }) => {
   const [expanded, setExpanded] = React.useState(initiallyExpanded);
   const [sourcesExpanded, setSourcesExpanded] = React.useState(false);
@@ -1494,9 +1506,10 @@ const OrbSection = ({
       const history = [];
       for (const item of [...messagesRef.current].reverse()) {
         if (item.status === "interrupted" || item.status === "error") continue;
-        if (history.length >= MAX_HISTORY_MESSAGES || historyChars + item.content.length > 16000) break;
-        history.unshift({ role: item.role, content: item.content });
-        historyChars += item.content.length;
+        const content = messageHistoryContent(item);
+        if (history.length >= MAX_HISTORY_MESSAGES || historyChars + content.length > 16000) break;
+        history.unshift({ role: item.role, content });
+        historyChars += content.length;
       }
       followLatestRef.current = true;
       visualScrollAnchorRef.current = null;

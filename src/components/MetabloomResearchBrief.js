@@ -44,30 +44,30 @@ function Citations({ sourceIds, sourceMap }) {
   </span>;
 }
 
-function BriefItem({ item, index, news, id, sourceMap, mediaMap, detailsMap }) {
+function BriefItem({ item, index, active, news, id, sourceMap, mediaMap, detailsMap }) {
   const hasDepth = item.background.length > 0 || Boolean(item.whyItMatters)
     || item.uncertainty.length > 0 || item.watchNext.length > 0 || item.dateEvidence;
   const showEvidenceStatus = news || ['disputed', 'uncertain'].includes(item.evidenceStatus);
-  const mediaSourceId = news && ([item.dateEvidence?.sourceId, ...item.sourceIds]
-    .find(sourceId => mediaMap.has(sourceId) && sourceMap.has(sourceId)));
-  const mediaSource = sourceMap.get(mediaSourceId);
-  return <li className="metabloom-research-brief__item">
+  const mediaCandidates = news ? Array.from(new Set([item.dateEvidence?.sourceId, ...item.sourceIds]))
+    .filter(sourceId => mediaMap.has(sourceId) && sourceMap.has(sourceId)).slice(0, 3)
+    .map(sourceId => ({ source: sourceMap.get(sourceId), token: mediaMap.get(sourceId),
+      publisher: detailsMap.get(sourceId)?.publisher })) : [];
+  return <li id={id} className="metabloom-research-brief__item" hidden={!active}
+    data-slide-index={index + 1} aria-roledescription="slide">
     <article aria-labelledby={`${id}-title`}>
+      <h4 id={`${id}-title`}>{item.headline}</h4>
       <div className="metabloom-research-brief__item-kicker">
-        <span className="metabloom-research-brief__item-number">{news ? 'Story' : 'Finding'} {index + 1}</span>
         {showEvidenceStatus && <span className="metabloom-research-brief__evidence-status"
           data-evidence-status={item.evidenceStatus}>{evidenceLabels[item.evidenceStatus]}</span>}
+        {news && <div className="metabloom-research-brief__dates">
+          <span><span className="metabloom-research-brief__sr-only">Development: </span>{item.developmentDate
+            ? <time dateTime={item.developmentDate}>{calendarDate(item.developmentDate)}</time>
+            : 'Date not established'}</span>
+          {item.scheduledDate && <span>Scheduled: <time dateTime={item.scheduledDate}>{calendarDate(item.scheduledDate)}</time></span>}
+        </div>}
       </div>
-      <h4 id={`${id}-title`}>{item.headline}</h4>
-      {news && <div className="metabloom-research-brief__dates">
-        <span>Development: {item.developmentDate
-          ? <time dateTime={item.developmentDate}>{calendarDate(item.developmentDate)}</time>
-          : 'date not established'}</span>
-        {item.scheduledDate && <span>Scheduled: <time dateTime={item.scheduledDate}>{calendarDate(item.scheduledDate)}</time></span>}
-      </div>}
-      {mediaSource && <MetabloomArticlePreview source={mediaSource} token={mediaMap.get(mediaSourceId)}
-        publisher={detailsMap.get(mediaSourceId)?.publisher} />}
       <p className="metabloom-research-brief__overview">{item.summary}<Citations sourceIds={item.sourceIds} sourceMap={sourceMap} /></p>
+      {mediaCandidates.length > 0 && <MetabloomArticlePreview candidates={mediaCandidates} compact />}
       {hasDepth && <details className="metabloom-research-brief__details">
         <summary>Analysis and context<span className="metabloom-research-brief__sr-only">: {item.headline}</span></summary>
         <div className="metabloom-research-brief__depth">
@@ -96,6 +96,60 @@ function BriefItem({ item, index, news, id, sourceMap, mediaMap, detailsMap }) {
       </details>}
     </article>
   </li>;
+}
+
+const NavigationArrow = ({ previous = false }) => <svg viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false">
+  <path d={previous ? 'm10 3-5 5 5 5' : 'm6 3 5 5-5 5'} />
+</svg>;
+
+function BriefCarousel({ brief, id, sourceMap, mediaMap, detailsMap }) {
+  const [selectedIndex, setSelectedIndex] = React.useState(0);
+  const activeIndex = Math.min(selectedIndex, brief.items.length - 1);
+  const news = brief.kind === 'news';
+  const noun = news ? 'story' : 'finding';
+  const label = news ? 'Story' : 'Finding';
+  const changeSlide = index => setSelectedIndex(Math.max(0, Math.min(index, brief.items.length - 1)));
+  const handleNavigationKey = event => {
+    // Native selects own their keyboard interaction, including arrows/Home/End.
+    if (event.target.tagName !== 'BUTTON' || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    const nextIndex = { ArrowLeft: activeIndex - 1, ArrowRight: activeIndex + 1,
+      Home: 0, End: brief.items.length - 1 }[event.key];
+    if (nextIndex === undefined) return;
+    event.preventDefault();
+    event.stopPropagation();
+    changeSlide(nextIndex);
+  };
+
+  return <>
+    <div className="metabloom-research-brief__navigation" role="group" aria-label={`${label} navigation`}
+      onKeyDown={handleNavigationKey}>
+      <button type="button" aria-label={`Previous ${noun}`} aria-controls={`${id}-items`}
+        aria-disabled={activeIndex === 0} onClick={() => changeSlide(activeIndex - 1)}>
+        <NavigationArrow previous /><span>Previous</span>
+      </button>
+      <div className="metabloom-research-brief__selection">
+        <label htmlFor={`${id}-selection`} className="metabloom-research-brief__sr-only">Choose a {noun}</label>
+        <select id={`${id}-selection`} value={activeIndex} aria-controls={`${id}-items`}
+          onChange={event => changeSlide(Number(event.target.value))}>
+          {brief.items.map((item, index) => <option key={item.headline} value={index}>
+            {label} {index + 1} of {brief.items.length}
+          </option>)}
+        </select>
+      </div>
+      <button type="button" aria-label={`Next ${noun}`} aria-controls={`${id}-items`}
+        aria-disabled={activeIndex === brief.items.length - 1} onClick={() => changeSlide(activeIndex + 1)}>
+        <span>Next</span><NavigationArrow />
+      </button>
+    </div>
+    <p className="metabloom-research-brief__sr-only" role="status" aria-live="polite" aria-atomic="true">
+      {label} {activeIndex + 1} of {brief.items.length}
+    </p>
+    <ol id={`${id}-items`} className="metabloom-research-brief__items" aria-label={news ? 'Covered stories' : 'Research findings'}>
+      {brief.items.map((item, index) => <BriefItem key={item.headline} item={item} index={index}
+        active={index === activeIndex} news={news} id={`${id}-item-${index + 1}`}
+        sourceMap={sourceMap} mediaMap={mediaMap} detailsMap={detailsMap} />)}
+    </ol>
+  </>;
 }
 
 function SourceEvidence({ brief, sourceMap, mediaMap }) {
@@ -172,26 +226,29 @@ export default function MetabloomResearchBrief({ brief, sources }) {
   const countText = coverage.requestedCount !== null
     ? `${coverage.returnedCount} of ${coverage.requestedCount} ${coverage.requestedCount === 1 ? singleItemNoun : itemNoun}`
     : `${coverage.returnedCount} ${coverage.returnedCount === 1 ? singleItemNoun : itemNoun}`;
-  const coverageLabel = coverage.status === 'partial' ? 'Partial coverage'
-    : coverage.status === 'unavailable' ? 'Coverage unavailable'
-      : coverage.requestedCount !== null ? 'Requested coverage complete' : 'Brief ready';
+  const coverageLabel = coverage.status === 'partial' ? 'Partial coverage' : 'Complete';
+  const headerStart = news && safeBrief.windowStart ? safeBrief.windowStart : safeBrief.localDate;
+  const headerEnd = news && safeBrief.windowEnd ? safeBrief.windowEnd : headerStart;
 
-  return <section className="metabloom-research-brief" aria-labelledby={`${id}-title`}
+  return <section className="metabloom-research-brief" aria-label={safeBrief.title} aria-roledescription="carousel"
     data-research-brief-kind={safeBrief.kind} data-coverage-status={coverage.status}>
     <header className="metabloom-research-brief__header">
-      <p className="metabloom-research-brief__eyebrow">{news ? 'News briefing' : 'Research brief'}</p>
-      <h3 id={`${id}-title`}>{safeBrief.title}</h3>
+      <div className="metabloom-research-brief__header-line">
+        <h3>{news ? 'News briefing' : 'Research brief'}</h3>
+        <p className="metabloom-research-brief__header-date"><time dateTime={headerStart}>{calendarDate(headerStart)}</time>
+          {headerStart !== headerEnd && <> – <time dateTime={headerEnd}>{calendarDate(headerEnd)}</time></>}
+        </p>
+      </div>
+      <p className="metabloom-research-brief__coverage-heading"><strong>{countText}</strong><span>{coverageLabel}</span></p>
+    </header>
+    <BriefCarousel brief={safeBrief} id={id} sourceMap={sourceMap} mediaMap={mediaMap} detailsMap={detailsMap} />
+    <details className="metabloom-research-brief__details metabloom-research-brief__briefing-details">
+      <summary>Briefing details</summary>
+      <p className="metabloom-research-brief__full-title">{safeBrief.title}</p>
       <p className="metabloom-research-brief__scope">{safeBrief.scope}</p>
       <BriefContext brief={safeBrief} />
-    </header>
-    <div className="metabloom-research-brief__coverage">
-      <div className="metabloom-research-brief__coverage-heading"><strong>{countText}</strong><span>{coverageLabel}</span></div>
       {coverage.limitations.length > 0 && <ul aria-label="Coverage limitations">{coverage.limitations.map((text, index) => <li key={index}>{text}</li>)}</ul>}
-    </div>
-    {safeBrief.items.length > 0 && <ol className="metabloom-research-brief__items" aria-label={news ? 'Covered stories' : 'Research findings'}>
-      {safeBrief.items.map((item, index) => <BriefItem key={index} item={item} index={index} news={news} id={`${id}-item-${index + 1}`}
-        sourceMap={sourceMap} mediaMap={mediaMap} detailsMap={detailsMap} />)}
-    </ol>}
+    </details>
     <SourceEvidence brief={safeBrief} sourceMap={sourceMap} mediaMap={mediaMap} />
   </section>;
 }

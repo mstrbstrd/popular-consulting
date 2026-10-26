@@ -128,6 +128,41 @@ test("a newly completed brief does not move someone reading earlier messages", a
   expect(transcript.scrollTop).toBe(3400);
 });
 
+test.each([false, true])("changing carousel stories preserves the transcript position and control focus: earlier reading %s", async (readingEarlier) => {
+  render(<OrbSection />);
+  const transcript = setupScrollport();
+  send(); await tick(0);
+  if (readingEarlier) { transcript.scrollTop = 100; fireEvent.scroll(transcript); }
+  const carousel = { ...brief,
+    coverage: { ...brief.coverage, requestedCount: 2, returnedCount: 2 },
+    items: [...brief.items, { ...brief.items[0], headline: 'A second fictional service update',
+      summary: 'This second fictional story preserves a longer, independently readable overview. '.repeat(6).trim() }],
+  };
+  await completeResearch(carousel);
+  const openingPosition = transcript.scrollTop;
+  const next = screen.getByRole('button', { name: 'Next story' });
+  next.focus();
+  fireEvent.click(next); await tick(200);
+  const selector = screen.getByRole('combobox', { name: 'Choose a story' });
+  expect(selector).toHaveDisplayValue('Story 2 of 2');
+  expect(screen.getByRole('heading', { level: 4 })).toHaveTextContent(carousel.items[1].headline);
+  expect(next).toHaveFocus();
+  expect(transcript.scrollTop).toBe(openingPosition);
+  fireEvent.keyDown(next, { key: 'ArrowLeft' }); await tick(200);
+  expect(selector).toHaveDisplayValue('Story 1 of 2');
+  expect(next).toHaveFocus();
+  expect(transcript.scrollTop).toBe(openingPosition);
+  fireEvent(window, new Event('resize')); await tick(1000);
+  expect(selector).toHaveDisplayValue('Story 1 of 2');
+  expect(transcript.scrollTop).toBe(openingPosition);
+  selector.focus();
+  fireEvent.change(selector, { target: { value: '1' } }); await tick(200);
+  expect(selector).toHaveDisplayValue('Story 2 of 2');
+  expect(selector).toHaveFocus();
+  expect(transcript.scrollTop).toBe(openingPosition);
+  expect(requests).toHaveLength(1);
+});
+
 test.each([false, true])("an empty brief opens at the report start once while respecting earlier reading: %s", async (readingEarlier) => {
   render(<OrbSection />);
   const transcript = setupScrollport();

@@ -92,7 +92,11 @@ test("all brief content and source links wait for surfacing and use the full can
   expect(region).toHaveAttribute("data-coverage-status", "partial");
   expect(region).toHaveTextContent("3 of 5 stories");
   expect(region).toHaveTextContent("Partial coverage");
-  expect(within(region).getAllByRole("heading", { level: 4 })).toHaveLength(3);
+  expect(within(region).getAllByRole("heading", { level: 4 })).toHaveLength(1);
+  expect(within(region).getByRole("combobox", { name: "Choose a story" })).toHaveDisplayValue("Story 1 of 3");
+  expect(within(region).getByText(expected.coverage.limitations[0])).not.toBeVisible();
+  fireEvent.change(within(region).getByRole("combobox", { name: "Choose a story" }), { target: { value: "2" } });
+  expect(within(region).getByRole("heading", { level: 4 })).toHaveTextContent(expected.items[2].headline);
   const citations = within(region).getAllByRole("link", { name: "Source 9: Fictional research source 9" });
   for (const citation of citations) {
     expect(citation).toHaveAttribute("href", "https://example.org/research-9");
@@ -107,8 +111,13 @@ test("all brief content and source links wait for surfacing and use the full can
   expect(window.__orbMessages().find((message) => message.role === "assistant").researchBrief).toEqual(expected);
   expect(requests).toHaveLength(1);
   send("Tell me more about the trials"); await tick(0);
-  expect(requests[1].request.history.find((message) => message.role === "assistant").content).toBe(answer);
-  expect(JSON.stringify(requests[1].request.history)).not.toContain(expected.items[0].headline);
+  const history = requests[1].request.history.find((message) => message.role === "assistant").content;
+  expect(history.startsWith(answer)).toBe(true);
+  expect(history).toContain("Stories in the research brief:");
+  expected.items.forEach((item, index) => expect(history).toContain(`${index + 1}. ${item.headline}`));
+  expect(history).not.toContain(reportFor().notes);
+  expect(history).not.toContain(expected.items[0].summary);
+  expect(history).not.toContain('"media"');
 });
 
 test("brief metadata must follow completed evidence and rejected formatting leaves the full report available", async () => {

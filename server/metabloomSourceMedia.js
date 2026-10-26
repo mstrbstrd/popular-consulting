@@ -79,6 +79,17 @@ function attributes(tag) {
   return result;
 }
 
+const articleTrackingQueryKeys = new Set(['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'utm_id']);
+function articlePageIdentity(url) {
+  // Research citations commonly carry utm_source=openai while the publisher's
+  // Article node names the same page without campaign tracking. Ignore only
+  // these known keys for comparison; preserve every other raw query component,
+  // its order and duplicates. This never rewrites a fetch or follows a canonical.
+  const query = url.search.slice(1).split('&')
+    .filter(part => !articleTrackingQueryKeys.has(part.split('=', 1)[0])).join('&');
+  return `${url.origin}${url.pathname}${query ? `?${query}` : ''}`;
+}
+
 // This is a bounded metadata reader, not an HTML renderer. It ignores comments,
 // script/style/noscript contents, body markup, base href, and canonical rewrites.
 function extractSourceMediaMetadata(body, sourceUrl) {
@@ -95,10 +106,9 @@ function extractSourceMediaMetadata(body, sourceUrl) {
   };
   const articleTypes = new Set(['Article', 'NewsArticle', 'BlogPosting', 'Report', 'AnalysisNewsArticle',
     'OpinionNewsArticle', 'ReviewNewsArticle', 'BackgroundNewsArticle', 'ScholarlyArticle']);
-  const pageIdentity = url => `${url.origin}${url.pathname}${url.search}`;
   const matchesPage = value => {
     const url = parsePublicMediaUrl(value, source);
-    return url && pageIdentity(url) === pageIdentity(source);
+    return url && articlePageIdentity(url) === articlePageIdentity(source);
   };
   const articleDescribesSource = node => {
     let identified = false;

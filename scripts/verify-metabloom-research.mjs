@@ -11,6 +11,7 @@ const require = createRequire(import.meta.url);
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || "playwright");
 const metabloomAuth = require("../server/metabloomAuth");
 const handler = require("../api/metabloom");
+const { buildMetabloomResearchDateEvidenceCatalog } = require("../server/metabloomResearchBrief");
 const productionOutput = require("./fixtures/metabloom-research-output-20261023.cjs");
 const output = path.join(os.tmpdir(), "metabloom-research-browser");
 const buildRoot = path.resolve("build");
@@ -42,6 +43,16 @@ const briefCandidate = () => ({
     dateEvidence: { sourceId: source.id, reportExcerpt: developmentQuotes[index] }, evidenceStatus: index === 0 ? "announced" : "reported", dateBasis: "research-excerpt",
   })), sourceDetails: [],
 });
+// Retain readable historical fixture dates/quotes, but send only the current
+// private contract. Selection must match the intended source, date and passage;
+// a null or unsupported evidence basis never borrows another catalog entry.
+const withReferences = (value, catalog) => ({ ...value, items: value.items.map(entry => {
+  const { developmentDate, dateBasis, dateEvidence, ...item } = entry;
+  const selected = dateBasis === "research-excerpt" && dateEvidence && catalog.find(option =>
+    option.sourceId === dateEvidence.sourceId && option.date === developmentDate
+      && option.excerpt.includes(dateEvidence.reportExcerpt));
+  return { ...item, dateEvidence: selected ? { evidenceId: selected.id } : null };
+}) });
 const ordinaryAnswer = "Hello to the imaginary orchard team. This ordinary reply uses one writer request and does not start a research pass.";
 const deferred = () => {
   let resolve;
@@ -103,7 +114,7 @@ const writerEvents = (paragraphs) => {
     { type: "response.completed", response: { status: "completed", output: [{ type: "message", content: [{ type: "output_text", text }] }] } },
   ].map((event) => `data: ${JSON.stringify(event)}\n\n`).join("");
 };
-const briefResponse = (candidate = briefCandidate()) => new Response(JSON.stringify({ status: "completed", output: [
+const briefResponse = (candidate) => new Response(JSON.stringify({ status: "completed", output: [
   { type: "message", role: "assistant", status: "completed", content: [{ type: "output_text", text: JSON.stringify(candidate) }] },
 ] }), { headers: { "content-type": "application/json", "x-request-id": "req_fictional_browser_brief" } });
 
@@ -188,16 +199,19 @@ globalThis.fetch = async (url, options = {}) => {
   assert.equal(body.stream, fixture.kind === "ordinary");
   assert.equal(body.text.format.name, fixture.kind === "ordinary" ? "metabloom_chat_response" : "metabloom_research_brief");
   assert.equal(body.max_output_tokens, fixture.kind === "ordinary" ? 2400 : 6000);
+  const evidence = structured ? JSON.parse(body.input.at(-1).content) : null;
   if (fixture.kind !== "ordinary") {
     assert.equal(fixture.calls.length, 2);
     assert.deepEqual(body.reasoning, { effort: "low" });
-    const evidence = JSON.parse(body.input.at(-1).content);
     const expectedSources = fixture.kind === "production" ? productionOutput.sources : sourceList;
     assert(expectedSources.every(({ id }) => evidence.report.sources.some((source) => source.id === id)), "Synthesis must retain canonical source IDs.");
     assert(evidence.report.notes.length <= 16000, "The full report must not expand the paid writer context.");
     if (fixture.kind === "production") assert.equal(evidence.report.notes, productionOutput.report.notes);
     assert.equal(evidence.temporalContext.timeZone, verificationTimeZone);
     assert.equal(evidence.temporalContext.localDate, verificationDate);
+    const canonicalReport = { notes: evidence.report.notes,
+      sources: expectedSources.filter(source => evidence.report.sources.some(entry => entry.id === source.id)) };
+    assert.deepEqual(evidence.dateEvidenceCatalog, buildMetabloomResearchDateEvidenceCatalog(canonicalReport));
   } else assert.equal(fixture.calls.length, 1);
   if (fixture.kind === "writer-failure") {
     fixture.writerRequested.resolve();
@@ -208,9 +222,9 @@ globalThis.fetch = async (url, options = {}) => {
   if (structured) {
     const response = new Promise((resolve, reject) => {
       options.signal.addEventListener("abort", () => { fixture.formatterAborted = true; reject(new Error("Fictional formatter cancelled.")); }, { once: true });
-      fixture.releaseWriter = () => resolve(briefResponse(fixture.kind === "production"
+      fixture.releaseWriter = () => resolve(briefResponse(withReferences(fixture.kind === "production"
         ? fixture.emptyCoverage ? productionOutput.observedCandidate() : productionOutput.candidate({ unicodeOnly: true })
-        : briefCandidate()));
+        : briefCandidate(), evidence.dateEvidenceCatalog)));
     });
     fixture.writerRequested.resolve();
     return response;
@@ -400,7 +414,8 @@ try {
     // Verify the new detail's contrast surface and bounds without forcing a GPU
     // readback while Tidal Weave is continuously rendering in software Chromium.
     const progressStyle = await page.getByText("Searched: fictional orchard sensor release", { exact: true }).evaluate((node) => {
-      const style = getComputedStyle(node), rect = node.getBoundingClientRect();
+      const surface = node.closest(".metabloom-research-status__detail");
+      const style = getComputedStyle(surface), rect = surface.getBoundingClientRect();
       return { color: style.color, background: style.backgroundColor, left: rect.left, right: rect.right, viewport: innerWidth };
     });
     assert(!["transparent", "rgba(0, 0, 0, 0)"].includes(progressStyle.background));
@@ -424,7 +439,9 @@ try {
     assert((await brief.locator("h3").textContent()).trim().length > 0);
     assert.doesNotMatch(await brief.locator("h3").textContent(), /top\s*(?:5|five)/i);
     assert.equal(await brief.locator("h4").count(), 2);
-    assert.match(await brief.locator(".metabloom-research-brief__coverage").textContent(), /2 of 5 stories.*Partial coverage/s);
+    assert.equal(await brief.locator(".metabloom-research-brief__item:not([hidden]) h4").count(), 1);
+    assert.match(await brief.locator(".metabloom-research-brief__coverage-heading").textContent(), /2 of 5 stories.*Partial coverage/s);
+    assert.equal(await brief.locator(".metabloom-research-brief__briefing-details").getAttribute("open"), null);
     const briefOpening = await brief.locator("h3").evaluate((node) => {
       const heading = node.getBoundingClientRect();
       const transcript = node.closest(".metabloom-chat__messages").getBoundingClientRect();
@@ -455,6 +472,18 @@ try {
     assert.equal(research.api.timeZone, verificationTimeZone);
     assert.equal(research.wire.filter((event) => event.type === "research_report_complete").length, 1);
     assert.equal(research.wire.filter((event) => event.type === "research_brief_complete").length, 1);
+    const storySelector = brief.getByRole("combobox", { name: "Choose a story", exact: true });
+    assert.equal(await storySelector.isVisible(), true);
+    await brief.getByRole("button", { name: "Next story", exact: true }).click();
+    assert.equal(await brief.locator(".metabloom-research-brief__item:not([hidden]) h4").textContent(), briefCandidate().items[1].headline);
+    assert.equal(await storySelector.inputValue(), "1");
+    assert.equal((await storySelector.locator("option:checked").textContent()).trim(), "Story 2 of 2");
+    await brief.getByRole("button", { name: "Previous story", exact: true }).click();
+    assert.equal(await brief.locator(".metabloom-research-brief__item:not([hidden]) h4").textContent(), briefCandidate().items[0].headline);
+    assert.equal(await storySelector.inputValue(), "0");
+    await storySelector.selectOption("1");
+    assert.equal(await brief.locator(".metabloom-research-brief__item:not([hidden]) h4").textContent(), briefCandidate().items[1].headline);
+    await storySelector.selectOption("0");
     const firstAnalysis = brief.locator(".metabloom-research-brief__item details").first();
     const analysisSummary = firstAnalysis.locator(":scope > summary");
     assert.equal(await firstAnalysis.getAttribute("open"), null);
@@ -558,6 +587,7 @@ try {
 
     const writerFailed = makeFixture(`${profile.id}-writer-failed`, "writer-failure", `Preserve the fictional orchard report when the ${profile.id} brief formatter fails.`);
     await toggle.check();
+    await beginAudit(page);
     await send(page, writerFailed.question);
     await waitFor(writerFailed.researchRequested.promise, "research before writer failure");
     assert.equal(writerFailed.releaseResearch(), true);
@@ -565,16 +595,30 @@ try {
     await waitFor(writerFailed.finished.promise, "deterministic fallback after completed report delivery");
     assert.equal(writerFailed.wire.at(-1).type, "done");
     assert.equal(writerFailed.wire.filter((event) => event.type === "research_report_complete").length, 1);
-    assert(!writerFailed.wire.some((event) => ["research_brief_complete", "error"].includes(event.type)));
+    assert.equal(writerFailed.wire.filter((event) => event.type === "research_brief_complete").length, 1);
+    assert(!writerFailed.wire.some((event) => event.type === "error"));
+    const failedBrief = JSON.parse(writerFailed.wire.filter(event => event.type === "research_brief_delta")
+      .map(event => event.delta).join(""));
+    assert.deepEqual(failedBrief.items, []);
+    assert.equal(failedBrief.coverage.status, "unavailable");
     await completedCount(page, 4);
-    assert.equal(await messages.last().locator(".metabloom-research-brief").count(), 0);
+    const failedNotes = messages.last().locator(".metabloom-research-brief--fallback");
+    assert.equal(await failedNotes.count(), 1);
+    assert.equal(await failedNotes.getAttribute("open"), null, "Formatter-failure notes start collapsed.");
+    assert.equal(await failedNotes.locator(":scope > summary").textContent(), "Briefing notes");
+    assert.equal(await failedNotes.locator("h3, .metabloom-research-brief__coverage-heading").count(), 0);
     assert.equal(await messages.last().locator("p[data-segment-index]").count(), 1);
     assert.match(await messages.last().locator("p[data-segment-index]").textContent(), /research|report/i);
     assert.equal(writerFailed.calls.length, 2, "Formatter failure must not cause a paid retry or legacy writer.");
     const retainedReport = messages.last().locator(".metabloom-chat__full-research");
-    await retainedReport.locator("summary").click();
+    assert.equal(await retainedReport.getAttribute("data-research-fallback"), "true");
+    assert.notEqual(await retainedReport.getAttribute("open"), null, "The retained report opens after the surfacing gate.");
     await retainedReport.locator(".metabloom-chat__research-report-text").waitFor({ state: "visible" });
     assert.equal(await retainedReport.locator(".metabloom-chat__research-report-text").textContent(), displayedReport);
+    const writerFailedAudit = await readAudit(page);
+    assert.equal(writerFailedAudit.earlyBrief, false);
+    assert.equal(writerFailedAudit.earlyText, false);
+    assert.equal(writerFailedAudit.earlySourceList, false);
     assert.deepEqual(writerFailed.calls.map((call) => call.phase), ["research", "brief"]);
     await retainedReport.locator(":scope > summary").click();
 
@@ -601,30 +645,52 @@ try {
       const last = messages.last(), productionBrief = last.locator(".metabloom-research-brief");
       assert.equal(await productionBrief.getAttribute("data-coverage-status"), emptyCoverage ? "unavailable" : "partial");
       assert.equal(await productionBrief.locator("h4").count(), emptyCoverage ? 0 : 1);
-      assert.match(await productionBrief.locator(".metabloom-research-brief__coverage").textContent(),
-        emptyCoverage ? /0 of 5 stories.*Coverage unavailable/s : /1 of 5 stories.*Partial coverage/s);
-      assert.doesNotMatch(await productionBrief.locator("h3").textContent(), /top\s*(?:5|five)|five news/i);
+      if (emptyCoverage) {
+        assert.equal(await productionBrief.getAttribute("open"), null, "Empty-coverage notes start collapsed.");
+        assert.equal(await productionBrief.locator(":scope > summary").textContent(), "Briefing notes");
+        assert.equal(await productionBrief.locator("h3, .metabloom-research-brief__coverage-heading").count(), 0,
+          "An empty briefing does not lead with a zero-story card.");
+      } else {
+        assert.match(await productionBrief.locator(".metabloom-research-brief__coverage-heading").textContent(), /1 of 5 stories.*Partial coverage/s);
+        assert.doesNotMatch(await productionBrief.locator("h3").textContent(), /top\s*(?:5|five)|five news/i);
+        assert.equal(await productionBrief.locator(".metabloom-research-brief__item:not([hidden]) h4").count(), 1);
+      }
       const publicText = await productionBrief.textContent();
-      assert.doesNotMatch(publicText, /report\.notes|report\.sources|developmentDate|dateEvidence|dateBasis|publishedDate|sourceDetails|reportExcerpt/);
+      assert.doesNotMatch(publicText, /report\.notes|report\.sources|developmentDate|dateEvidence|dateBasis|publishedDate|sourceDetails|reportExcerpt|evidenceId/);
       assert.doesNotMatch(publicText, /summarizing five major developments/);
       if (!emptyCoverage) {
         assert.equal(await productionBrief.locator("h4").textContent(), productionOutput.sections[4].headline);
         assert.deepEqual(await productionBrief.locator(".metabloom-research-brief__overview a").evaluateAll((nodes) => nodes.map((node) => node.href)),
           productionOutput.sources.slice(7).map((source) => source.url));
       }
-      const opening = await productionBrief.locator("h3").evaluate((node) => {
+      const openingTarget = emptyCoverage ? last.locator(".metabloom-chat__full-research > summary") : productionBrief.locator("h3");
+      const opening = await openingTarget.evaluate((node) => {
         const rect = node.getBoundingClientRect(), transcript = node.closest(".metabloom-chat__messages").getBoundingClientRect();
         return { top: rect.top, bottom: rect.bottom, transcriptTop: transcript.top, transcriptBottom: transcript.bottom };
       });
       assert(opening.top >= opening.transcriptTop && opening.bottom <= opening.transcriptBottom,
-        "The production-shaped brief must open at its header.");
+        "The brief or retained report must open at its reading header.");
       const savedReport = await page.evaluate(() => window.__orbMessages().filter((message) => message.role === "assistant").at(-1).researchDetails);
       assert.deepEqual(savedReport, productionOutput.report, "Safe display formatting must not mutate the saved research.");
+      const savedBrief = await page.evaluate(() => window.__orbMessages().filter((message) => message.role === "assistant").at(-1).researchBrief);
+      assert.equal(savedBrief.items.length, emptyCoverage ? 0 : 1);
+      if (!emptyCoverage) {
+        assert.equal(savedBrief.items[0].developmentDate, verificationDate);
+        assert.equal(savedBrief.items[0].dateEvidence.sourceId, 8);
+        assert(savedBrief.items[0].dateEvidence.quote.includes(productionOutput.unicodeOnlyCurrentExcerpt));
+        assert(savedReport.notes.includes(savedBrief.items[0].dateEvidence.quote));
+      }
       const audit = await readAudit(page);
       assert.equal(audit.earlyBrief, false); assert.equal(audit.earlyText, false); assert.equal(audit.earlySourceList, false);
       if (captureScreenshots) await page.screenshot({ path: `${output}/${profile.id}-production-${id}.png`, timeout: 45000 });
       const full = last.locator(".metabloom-chat__full-research");
-      await full.locator(":scope > summary").click();
+      if (emptyCoverage) {
+        assert.notEqual(await full.getAttribute("open"), null, "An empty briefing opens the completed report automatically.");
+        assert.equal(await full.getAttribute("data-research-fallback"), "true");
+      } else {
+        assert.equal(await full.getAttribute("open"), null);
+        await full.locator(":scope > summary").click();
+      }
       const fullText = full.locator(".metabloom-chat__research-report-text");
       await fullText.waitFor({ state: "visible" });
       const displayed = await fullText.textContent();
@@ -655,9 +721,9 @@ try {
     report.scenarios.push({ profile, reducedMotion: true, geometry, briefOpening, briefGeometry, reportGeometry, displayedReportChars: displayedReport.length,
       progressStyle, research: snapshotFixture(research),
       researchAudit, cancelled: snapshotFixture(cancelled), cancelledAudit, background: snapshotFixture(background),
-      invalid: snapshotFixture(invalid), ordinary: snapshotFixture(ordinary), writerFailed: snapshotFixture(writerFailed), productionCases, pageErrors: errors });
+      invalid: snapshotFixture(invalid), ordinary: snapshotFixture(ordinary), writerFailed: snapshotFixture(writerFailed), writerFailedAudit, productionCases, pageErrors: errors });
     fs.writeFileSync(`${output}/report.json`, JSON.stringify(report, null, 2));
-    console.log(`PASS ${profile.id}: production-shaped 1/5 and 0/5, honest coverage, safe Markdown citations, dated partial brief, native keyboard disclosure, full report, bounded formatter, format-failure fallback, surfacing, visibility, cancellation, ordinary recovery`);
+    console.log(`PASS ${profile.id}: evidence-reference fixtures, one visible carousel story, next/previous, dated partial coverage, empty and formatter-failure report fallback, safe Markdown citations, native keyboard disclosure, bounded formatter, surfacing, visibility, cancellation, ordinary recovery`);
     await context.close();
     page = null;
   }

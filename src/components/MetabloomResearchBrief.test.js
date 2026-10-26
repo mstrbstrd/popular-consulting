@@ -46,6 +46,10 @@ const fixture = () => {
 const renderBrief = (brief = fixture(), canonicalSources = sources) => render(
   <div className="orb-page"><MetabloomResearchBrief brief={brief} sources={canonicalSources} /></div>
 );
+const expectPosition = text => {
+  expect(screen.getByRole('combobox', { name: /Choose a (story|finding)/ })).toHaveDisplayValue(text);
+  expect(screen.getByRole('status')).toHaveTextContent(text);
+};
 const openSourceEvidence = () => {
   const summary = screen.getByText('Sources and evidence');
   fireEvent.click(summary);
@@ -70,7 +74,8 @@ test('news previews prefer the dated source and retain every original citation a
   const overview = within(first.getByText(brief.items[0].summary));
   expect(overview.getByRole('link', { name: 'Source 1: Fictional source 1' })).toHaveAttribute('href', sources[0].url);
   expect(overview.getByRole('link', { name: 'Source 2: Fictional source 2' })).toHaveAttribute('href', sources[1].url);
-  brief.items.forEach(item => expect(screen.getByText(item.summary)).toBeVisible());
+  expect(screen.getByText(brief.items[0].summary)).toBeVisible();
+  brief.items.slice(1).forEach(item => expect(screen.getByText(item.summary)).not.toBeVisible());
   expect(await axe(container)).toHaveNoViolations();
 });
 
@@ -103,16 +108,24 @@ test('unavailable optional media never removes the completed brief, its evidence
   expect(screen.queryByText(/Private transport detail/)).not.toBeInTheDocument();
 });
 
-test('shows all five complete overviews without expanding details and resolves citations above source eight', () => {
+test('shows one complete overview at a time and native story selection preserves citations above source eight', () => {
   const brief = fixture();
   brief.items[4].summary = `${'The fifth fictional development remains fully readable alongside its immediate context. '.repeat(10)}The final sentence is preserved.`;
   const { container } = renderBrief(brief);
   expect(screen.getByRole('region', { name: brief.title })).toHaveAttribute('data-coverage-status', 'complete');
   expect(screen.getByText('5 of 5 stories')).toBeVisible();
-  expect(screen.getByText('Requested coverage complete')).toBeVisible();
+  expect(screen.getByText('Complete')).toBeVisible();
+  expectPosition('Story 1 of 5');
+  expect(screen.getByRole('region', { name: brief.title })).toHaveAttribute('aria-roledescription', 'carousel');
   const stories = within(screen.getByRole('list', { name: 'Covered stories' }));
-  expect(stories.getAllByRole('article')).toHaveLength(5);
-  brief.items.forEach(item => {
+  expect(stories.getAllByRole('article')).toHaveLength(1);
+  expect(container.querySelectorAll('.metabloom-research-brief__item[hidden]')).toHaveLength(4);
+  brief.items.forEach((item, index) => {
+    const selector = screen.getByRole('combobox', { name: 'Choose a story' });
+    fireEvent.change(selector, { target: { value: String(index) } });
+    expect(selector).toHaveValue(String(index));
+    expectPosition(`Story ${index + 1} of 5`);
+    expect(stories.getAllByRole('article')).toHaveLength(1);
     expect(screen.getByRole('heading', { name: item.headline, level: 4 })).toBeVisible();
     expect(screen.getByText(item.summary)).toBeVisible();
     expect(screen.getByText(item.whyItMatters)).not.toBeVisible();
@@ -123,6 +136,59 @@ test('shows all five complete overviews without expanding details and resolves c
   expect(citation).toHaveAttribute('href', sources[8].url);
   expect(citation).toHaveAttribute('target', '_blank');
   expect(citation).toHaveAttribute('rel', 'noopener noreferrer');
+});
+
+test('previous, next and keyboard controls stay bounded without moving focus or intercepting story keys', () => {
+  const brief = fixture();
+  renderBrief(brief);
+  const previous = screen.getByRole('button', { name: 'Previous story' });
+  const next = screen.getByRole('button', { name: 'Next story' });
+  expect(previous).toHaveAttribute('aria-disabled', 'true');
+  fireEvent.click(previous);
+  expectPosition('Story 1 of 5');
+  next.focus();
+  fireEvent.click(next);
+  expectPosition('Story 2 of 5');
+  expect(next).toHaveFocus();
+  fireEvent.keyDown(next, { key: 'ArrowRight' });
+  expectPosition('Story 3 of 5');
+  fireEvent.keyDown(next, { key: 'End' });
+  expectPosition('Story 5 of 5');
+  expect(next).toHaveAttribute('aria-disabled', 'true');
+  fireEvent.click(next);
+  fireEvent.keyDown(next, { key: 'ArrowRight' });
+  expectPosition('Story 5 of 5');
+  expect(next).toHaveFocus();
+  fireEvent.keyDown(next, { key: 'ArrowLeft' });
+  expectPosition('Story 4 of 5');
+  fireEvent.keyDown(next, { key: 'Home' });
+  fireEvent.keyDown(previous, { key: 'ArrowLeft' });
+  expectPosition('Story 1 of 5');
+  fireEvent.keyDown(next, { key: 'ArrowRight', altKey: true });
+  fireEvent.keyDown(within(screen.getByText(brief.items[0].summary)).getByRole('link', { name: 'Source 1: Fictional source 1' }), { key: 'ArrowRight' });
+  expectPosition('Story 1 of 5');
+  const selector = screen.getByRole('combobox', { name: 'Choose a story' });
+  selector.focus();
+  for (const key of ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End']) {
+    const keyEvent = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+    fireEvent(selector, keyEvent);
+    expect(keyEvent.defaultPrevented).toBe(false);
+  }
+  fireEvent.change(selector, { target: { value: '4' } });
+  expect(selector).toHaveFocus();
+  expectPosition('Story 5 of 5');
+});
+
+test('a single story keeps its full overview and a one-option selector without navigation wrap', () => {
+  const brief = fixture();
+  brief.items = brief.items.slice(0, 1); brief.sourceDetails = brief.sourceDetails.slice(0, 1);
+  brief.coverage = { requestedCount: 1, returnedCount: 1, status: 'complete', limitations: [] };
+  renderBrief(brief);
+  expectPosition('Story 1 of 1');
+  expect(screen.getByRole('button', { name: 'Previous story' })).toHaveAttribute('aria-disabled', 'true');
+  expect(screen.getByRole('button', { name: 'Next story' })).toHaveAttribute('aria-disabled', 'true');
+  expect(within(screen.getByRole('combobox', { name: 'Choose a story' })).getAllByRole('option')).toHaveLength(1);
+  expect(screen.getByText(brief.items[0].summary)).toBeVisible();
 });
 
 test('keeps background citations, labeled analysis, unknowns, next developments, and date excerpts in native disclosures', () => {
@@ -153,6 +219,9 @@ test('displays the supplied timezone and historical covered interval independent
   brief.windowStart = '2026-09-01'; brief.windowEnd = '2026-09-07';
   brief.items.forEach(item => { item.developmentDate = '2026-09-03'; });
   const { container } = renderBrief(brief);
+  expect(screen.getByText(brief.scope)).not.toBeVisible();
+  expect(screen.getByText('America/Toronto')).not.toBeVisible();
+  fireEvent.click(screen.getByText('Briefing details', { selector: 'summary' }));
   expect(screen.getByText(brief.scope)).toBeVisible();
   expect(screen.getByText('America/Toronto')).toBeVisible();
   const asOf = container.querySelector('time[datetime="2026-10-24T00:30:00.000Z"]');
@@ -172,8 +241,10 @@ test('reports partial and unavailable coverage honestly without inventing missin
   const view = renderBrief(brief);
   expect(screen.getByText('3 of 5 stories')).toBeVisible();
   expect(screen.getByText('Partial coverage')).toBeVisible();
+  expect(screen.getByText(brief.coverage.limitations[0])).not.toBeVisible();
+  fireEvent.click(screen.getByText('Briefing details', { selector: 'summary' }));
   expect(screen.getByRole('list', { name: 'Coverage limitations' })).toHaveTextContent(brief.coverage.limitations[0]);
-  expect(screen.getAllByRole('article')).toHaveLength(3);
+  expect(screen.getAllByRole('article')).toHaveLength(1);
   expect(screen.queryByText('Fictional development 4')).not.toBeInTheDocument();
 
   const unavailable = { ...brief, items: [], sourceDetails: [], coverage: {
@@ -219,7 +290,10 @@ test('supports general research findings without applying news dates or story la
   renderBrief(brief);
   expect(screen.getByText('Research brief')).toBeVisible();
   expect(screen.getByText('5 findings')).toBeVisible();
-  expect(screen.getByText('Finding 5')).toBeVisible();
+  expectPosition('Finding 1 of 5');
+  expect(screen.getByRole('group', { name: 'Finding navigation' })).toBeVisible();
+  fireEvent.change(screen.getByRole('combobox', { name: 'Choose a finding' }), { target: { value: '4' } });
+  expectPosition('Finding 5 of 5');
   expect(screen.getByRole('list', { name: 'Research findings' })).toBeVisible();
   expect(screen.queryByText('Covered interval')).not.toBeInTheDocument();
   expect(screen.queryByText(/^Development:/)).not.toBeInTheDocument();
@@ -275,7 +349,7 @@ test.each([
   expect(container.querySelector('.metabloom-research-brief')).toBeNull();
 });
 
-test('native disclosures remain expanded across theme changes without rebuilding the brief', () => {
+test('slides retain their disclosures and selection across navigation, theme, visibility and resize changes', () => {
   const brief = fixture();
   const view = renderBrief(brief);
   const summary = screen.getAllByText('Analysis and context', { selector: 'summary' })[0];
@@ -283,8 +357,18 @@ test('native disclosures remain expanded across theme changes without rebuilding
   expect(summary.parentElement.tagName).toBe('DETAILS');
   fireEvent.click(summary);
   expect(summary.parentElement).toHaveAttribute('open');
+  const firstArticle = screen.getByRole('article', { name: brief.items[0].headline });
+  fireEvent.click(screen.getByRole('button', { name: 'Next story' }));
+  expect(firstArticle).not.toBeVisible();
+  expect(screen.queryByRole('article', { name: brief.items[0].headline })).not.toBeInTheDocument();
+  expectPosition('Story 2 of 5');
   document.documentElement.setAttribute('data-theme', 'dark');
   view.rerender(<div className="orb-page"><MetabloomResearchBrief brief={brief} sources={sources} /></div>);
+  fireEvent(window, new Event('resize'));
+  fireEvent(document, new Event('visibilitychange'));
+  expectPosition('Story 2 of 5');
+  fireEvent.click(screen.getByRole('button', { name: 'Previous story' }));
+  expect(screen.getByRole('article', { name: brief.items[0].headline })).toBe(firstArticle);
   expect(summary.parentElement).toHaveAttribute('open');
   expect(screen.getByText(brief.items[0].whyItMatters)).toBeVisible();
 });

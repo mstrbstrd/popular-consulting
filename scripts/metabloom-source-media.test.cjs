@@ -141,6 +141,7 @@ test('DNS answers are all public and the actual TLS lookup is pinned', async () 
   assert.deepEqual(await new Promise(resolve => options.lookup('news.example.com', { all: true }, (error, addresses) => resolve(addresses))), [{ address: '93.184.216.34', family: 4 }]);
   assert.equal(network.resolutions.length, 1, 'The connection must not perform a second DNS resolution');
   assert.deepEqual(Object.keys(options.headers).sort(), ['Accept', 'Accept-Encoding', 'User-Agent']);
+  assert.equal(options.headers['Accept-Encoding'], 'identity');
   for (const addresses of [[{ address: '127.0.0.1', family: 4 }], [{ address: '93.184.216.34', family: 4 }, { address: '10.0.0.1', family: 4 }], [{ address: '::ffff:8.8.8.8', family: 6 }]]) {
     const blocked = fixtureNetwork(undefined, { addresses });
     await assert.rejects(blocked.fetch(sourceUrl), { code: 'source_media_target' });
@@ -172,6 +173,7 @@ test('network reader bounds bytes and rejects compressed, wrong-type and oversiz
   assert.ok((await head.fetch(sourceUrl)).body.length < MAX_HTML_BYTES);
   const giantHead = fixtureNetwork(() => ({ body: Buffer.alloc(MAX_HTML_BYTES * 2, 32) }));
   assert.equal((await giantHead.fetch(sourceUrl)).body.length, MAX_HTML_BYTES);
+  await assert.rejects(fixtureNetwork(() => ({ body: previewHtml(), headers: { 'content-encoding': 'gzip' } })).fetch(sourceUrl));
   for (const fixture of [{ body: raster, type: 'text/html' }, { body: raster, type: 'image/svg+xml' },
     { body: raster, type: 'image/png', headers: { 'content-encoding': 'gzip' } },
     { body: raster, type: 'image/png', headers: { 'content-length': String(MAX_IMAGE_BYTES + 1) } },
@@ -234,6 +236,78 @@ test('JSON-LD article identities must match the fetched page and contribute only
     { url: sourceUrl, mainEntityOfPage: { name: 'Unidentified webpage' } }]) {
     const result = parse(fields); assert.equal(result.isArticle, false); assert.deepEqual(result.images, []);
   }
+});
+
+test('citation campaign tracking does not hide the same identified article or promote its website logo', () => {
+  const canonical = `${sourceUrl}?edition=ca&tag=world&tag=politics`;
+  const html = Buffer.from(`<head><meta property="og:type" content="website"><meta property="og:image" content="/brand.png">
+    <script type="application/ld+json">${JSON.stringify({ '@type': 'NewsArticle', url: canonical,
+      '@id': `${canonical}#article`, mainEntityOfPage: { '@id': canonical },
+      image: { url: imageUrl, caption: 'This article photo' } })}</script></head>`);
+  for (const key of ['utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'utm_id']) {
+    const fetched = `${sourceUrl}?${key}=openai&edition=ca&tag=world&${key}=secondary&tag=politics`;
+    const metadata = extractSourceMediaMetadata(html, fetched);
+    assert.equal(metadata.isArticle, true, key);
+    assert.deepEqual(metadata.images, [{ url: imageUrl, alt: 'This article photo' }]);
+  }
+  const source = `${sourceUrl}?utm_source=openai`;
+  const reciprocal = Buffer.from(`<head><script type="application/ld+json">${JSON.stringify({
+    '@type': 'NewsArticle', url: `${sourceUrl}?utm_source=newsletter&utm_medium=email`,
+    mainEntityOfPage: sourceUrl, image: imageUrl,
+  })}</script></head>`);
+  assert.deepEqual(extractSourceMediaMetadata(reciprocal, source).images, [{ url: imageUrl, alt: '' }]);
+});
+
+test('tracking comparison keeps meaningful queries, foreign pages and conflicting article identities ineligible', () => {
+  const fetched = `${sourceUrl}?edition=ca&tag=world&tag=politics&utm_source=openai`;
+  const canonical = `${sourceUrl}?edition=ca&tag=world&tag=politics`;
+  const parse = (fields, page = fetched) => extractSourceMediaMetadata(Buffer.from(`<head>
+    <link rel="canonical" href="https://foreign.example.com/article"><meta property="og:type" content="website">
+    <script type="application/ld+json">${JSON.stringify({ '@type': 'NewsArticle', ...fields, image: imageUrl })}</script></head>`), page);
+  for (const fields of [
+    { url: sourceUrl },
+    { url: `${sourceUrl}?edition=us&tag=world&tag=politics` },
+    { url: `${sourceUrl}?edition=ca&tag=politics&tag=world` },
+    { url: `${sourceUrl}?edition=ca&tag=world` },
+    { url: `${canonical}&ref=other` },
+    { url: `${canonical}&utm_story=other` },
+    { url: `${canonical}&utm_source_extra=other` },
+    { url: 'https://foreign.example.com/article?utm_source=openai' },
+    { url: `https://news.example.com/other?edition=ca&tag=world&tag=politics&utm_source=openai` },
+    { url: canonical, '@id': 'https://news.example.com/other?utm_source=openai#article' },
+    { url: canonical, mainEntityOfPage: `${sourceUrl}?edition=us&tag=world&tag=politics&utm_source=openai` },
+    { url: canonical, mainEntityOfPage: { '@id': canonical, url: 'https://foreign.example.com/article' } },
+  ]) {
+    const metadata = parse(fields);
+    assert.equal(metadata.isArticle, false); assert.deepEqual(metadata.images, []);
+  }
+  assert.equal(parse({ url: `${sourceUrl}?q=one%20two` }, `${sourceUrl}?q=one+two&utm_source=openai`).isArticle, false,
+    'Removing campaign keys must not rewrite or decode the other query components');
+});
+
+test('preview matches tracked metadata only against the actual page after validated redirects', async () => {
+  const original = 'https://news.example.com/old-story?utm_source=openai';
+  const canonical = `${sourceUrl}?edition=ca`, finalUrl = `${canonical}&utm_source=openai`;
+  const html = Buffer.from(`<head><script type="application/ld+json">${JSON.stringify({ '@type': 'NewsArticle',
+    url: canonical, '@id': `${canonical}#article`, image: imageUrl })}</script></head>`);
+  const network = fixtureNetwork(options => {
+    if (options.hostname === 'cdn.example.com') return { body: raster, type: 'image/png' };
+    if (options.path === '/favicon.ico') return { body: favicon, type: 'image/x-icon' };
+    if (options.path === '/old-story?utm_source=openai') return { status: 302, headers: { location: finalUrl } };
+    assert.equal(options.path, '/story?edition=ca&utm_source=openai');
+    return { body: html, type: 'text/html' };
+  });
+  const codec = makeCodec(), token = await codec.create(identity, original);
+  const service = createSourceMediaService({ codec, fetchPublic: network.fetch, now: () => clock });
+  const preview = await service.getPreview(identity, token);
+  assert.equal(preview.isArticle, true); assert.ok(preview.image); assert.ok(preview.icon);
+  assert.equal((await codec.verify(identity, token)).url, original, 'The capability retains the observed citation URL');
+  assert.deepEqual(network.requests.slice(0, 2).map(request => request.path), [
+    '/old-story?utm_source=openai', '/story?edition=ca&utm_source=openai',
+  ], 'Tracking normalization is never applied to outbound requests');
+  assert.equal(network.requests.length, 4);
+  assert.equal(extractSourceMediaMetadata(html, original).isArticle, false,
+    'The redirected article cannot be attached to the old path without the validated redirect');
 });
 
 test('serves only bounded raster/ICO data with matching MIME, magic, structure and dimensions', () => {

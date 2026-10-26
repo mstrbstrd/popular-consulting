@@ -17,6 +17,7 @@ const { createMetabloomProviderError, readMetabloomProviderError, providerReques
 const { METABLOOM_STREAM_ERROR_CODES } = require("../src/components/metabloomRequestErrors");
 const { MAX_METABLOOM_RESEARCH_SOURCES } = require("../src/components/metabloomResearchSources");
 const { MAX_METABLOOM_RESEARCH_REPORT_CHUNK_CHARS } = require("../src/components/metabloomResearchReport");
+const { MAX_METABLOOM_SOURCE_MEDIA_ENTRIES } = require("../src/components/metabloomSourceMediaProtocol");
 const { METABLOOM_RESEARCH_BRIEF_VERSION, MAX_METABLOOM_RESEARCH_BRIEF_CHUNK_CHARS, MAX_METABLOOM_RESEARCH_BRIEF_SOURCES,
   parseMetabloomResearchBrief } = require("../src/components/metabloomResearchBriefProtocol");
 const MAX_BODY_BYTES = 24000;
@@ -156,21 +157,16 @@ const selectResearchBriefEvidence = (report) => {
 };
 
 const researchBriefIntroduction = (brief, { fallbackReason = null } = {}) => {
-  const { returnedCount, requestedCount, status } = brief.coverage;
-  const label = brief.kind === "news" ? "stories" : "findings";
+  const { returnedCount } = brief.coverage;
   if (!returnedCount) {
     if (fallbackReason) return "The full research and its sources are shown below. I could not prepare the summary reliably.";
     return brief.kind === "news"
       ? "The full research and its sources are shown below. I could not validate a dated briefing for the requested period."
       : "The full research and its sources are shown below. I could not validate the summary against the available evidence.";
   }
-  const coverage = requestedCount === null ? `${returnedCount} ${label}` : `${returnedCount} of the ${requestedCount} requested ${label}`;
-  const introduction = status === "complete" ? `The research brief covers ${coverage}.` : `The research brief covers ${coverage}, with limitations shown below.`;
-  // Complete headlines provide bounded follow-up context without copying the
-  // full report into chat history. Every overview remains in the native brief.
-  const headlines = brief.items.map((item) => item.headline).join("; ");
-  return `${introduction}\n\n${headlines}`.length <= 1500
-    ? `${introduction}\n\n${headlines}` : `${introduction} Open each item for its analysis and supporting evidence.`;
+  // The carousel presents coverage and every headline. The client retains those headings in
+  // bounded conversation history without repeating them above the reading card.
+  return brief.kind === "news" ? "Your news briefing is ready." : "Your research brief is ready.";
 };
 // An explicitly negotiated empty brief signals the report fallback without
 // changing the public protocol or making cached legacy answers expand.
@@ -240,7 +236,17 @@ const sendJson = (response, status, body) => {
 const attachResearchMedia = async (brief, sources, identity) => {
   if (brief?.kind !== "news" || !identity) return brief;
   const sourceMap = new Map(sources.map(source => [source.id, source]));
-  const ids = [...new Set(brief.items.map(item => item.dateEvidence?.sourceId || item.sourceIds[0]))].slice(0, 10);
+  const candidates = brief.items.map(item => [...new Set([item.dateEvidence?.sourceId, ...item.sourceIds])]
+    .filter(sourceId => item.sourceIds.includes(sourceId) && sourceMap.has(sourceId)).slice(0, 3));
+  const ids = [];
+  // Give each story its preferred source before spending the existing media
+  // budget on alternatives. The browser tries only sources cited by that story.
+  for (let round = 0; round < 3; round++) {
+    for (const sourcesForItem of candidates) {
+      const sourceId = sourcesForItem[round];
+      if (sourceId && !ids.includes(sourceId) && ids.length < MAX_METABLOOM_SOURCE_MEDIA_ENTRIES) ids.push(sourceId);
+    }
+  }
   const media = (await Promise.all(ids.map(async sourceId => {
     try {
       const source = sourceMap.get(sourceId);
