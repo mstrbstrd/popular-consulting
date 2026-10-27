@@ -1,6 +1,7 @@
 import React from 'react';
 import { evaluateMetabloomVisualFormula, METABLOOM_VISUAL_ERRORS } from './metabloomVisualProtocol';
 import { formatMetabloomVisualQuotaMessage } from './metabloomVisualQuota';
+import { layoutFlowchart, describeFlowStep, truncateFlowEdgeLabel, FLOW_METRICS } from './metabloomFlowLayout';
 
 const numberText = value => new Intl.NumberFormat(undefined, { maximumSignificantDigits: 21 }).format(value);
 const axisText = value => new Intl.NumberFormat(undefined, { notation: 'compact', maximumSignificantDigits: 3 }).format(value);
@@ -12,6 +13,70 @@ const DataTable = ({ columns, rows, title }) => (
     </table>
   </div>
 );
+// Plain figures only: a column sorts numerically when every filled cell is a number,
+// optionally with a currency sign, thousands separators or a percent sign.
+const cellNumber = text => {
+  const compact = text.trim().replace(/[\s,$€£¥]/g, '').replace('−', '-');
+  return /^[-+]?(?:\d+\.?\d*|\.\d+)%?$/.test(compact) ? parseFloat(compact) : null;
+};
+const TABLE_FILTER_MIN_ROWS = 8;
+const sortTableRows = (rows, column, direction) => {
+  if (column === null) return rows;
+  const filled = rows.filter(row => row.cells[column].trim());
+  const numeric = filled.length > 0 && filled.every(row => cellNumber(row.cells[column]) !== null);
+  const sign = direction === 'asc' ? 1 : -1;
+  const compare = (a, b) => numeric
+    ? cellNumber(a.cells[column]) - cellNumber(b.cells[column])
+    : a.cells[column].localeCompare(b.cells[column], undefined, { numeric: true, sensitivity: 'base' });
+  // Blank cells always sort last; ties keep the original order so the sort is stable.
+  return [...rows].sort((a, b) => {
+    const blankA = !a.cells[column].trim(), blankB = !b.cells[column].trim();
+    if (blankA || blankB) return blankA === blankB ? a.position - b.position : blankA ? 1 : -1;
+    return sign * compare(a, b) || a.position - b.position;
+  });
+};
+function VisualTable({ spec, id }) {
+  const [sort, setSort] = React.useState({ column: null, direction: 'asc' });
+  const [filter, setFilter] = React.useState('');
+  const filterable = spec.rows.length >= TABLE_FILTER_MIN_ROWS;
+  const query = filterable ? filter.trim().toLowerCase() : '';
+  const rows = React.useMemo(() => {
+    const indexed = spec.rows.map((cells, position) => ({ cells, position }));
+    const visible = query ? indexed.filter(row => row.cells.some(cell => cell.toLowerCase().includes(query))) : indexed;
+    return sortTableRows(visible, sort.column, sort.direction);
+  }, [spec.rows, query, sort]);
+  // none -> ascending -> descending -> original order.
+  const toggleSort = column => setSort(current => current.column !== column ? { column, direction: 'asc' }
+    : current.direction === 'asc' ? { column, direction: 'desc' } : { column: null, direction: 'asc' });
+  const sortable = spec.rows.length > 1;
+  return <>
+    {filterable && <div className="metabloom-visual__table-tools">
+      <label htmlFor={`${id}-table-filter`}>Filter rows</label>
+      <div className="metabloom-visual__input-shell">
+        <input id={`${id}-table-filter`} type="search" value={filter} maxLength={80} autoComplete="off"
+          placeholder="Type to filter" aria-controls={`${id}-table-body`} onChange={event => setFilter(event.target.value)} />
+      </div>
+    </div>}
+    <div className="metabloom-visual__table-scroll" tabIndex={0} role="region" aria-label={`${spec.title} data`}>
+      <table><caption>{spec.title}</caption>
+        <thead><tr>{spec.columns.map((column, index) => {
+          const active = sort.column === index;
+          return <th key={index} scope="col" aria-sort={sortable ? (active ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none') : undefined}>
+            {sortable ? <button type="button" className="metabloom-visual__sort" onClick={() => toggleSort(index)}>
+              <span>{column}</span><span className="metabloom-visual__sort-mark" aria-hidden="true">{active ? (sort.direction === 'asc' ? '↑' : '↓') : '↕'}</span>
+            </button> : column}
+          </th>;
+        })}</tr></thead>
+        <tbody id={`${id}-table-body`}>{rows.length
+          ? rows.map(row => <tr key={row.position}>{row.cells.map((cell, i) => <td key={i}>{cell}</td>)}</tr>)
+          : <tr><td colSpan={spec.columns.length}>No rows match this filter.</td></tr>}</tbody>
+      </table>
+    </div>
+    {(filterable || sort.column !== null) && <p className="metabloom-visual__table-status" role="status" aria-live="polite" aria-atomic="true">
+      Showing {rows.length} of {spec.rows.length} rows{sort.column !== null ? `, sorted by ${spec.columns[sort.column]} (${sort.direction === 'asc' ? 'ascending' : 'descending'})` : ''}.
+    </p>}
+  </>;
+}
 const VisualSeriesGradients = ({ id, count, bounds }) => (
   <defs>{Array.from({ length: count }, (_, index) => (
     <linearGradient key={index} id={`${id}-series-${index + 1}`} className={`metabloom-visual__series-gradient metabloom-visual__series-${index + 1}`}
@@ -22,6 +87,20 @@ const VisualSeriesGradients = ({ id, count, bounds }) => (
     </linearGradient>
   ))}</defs>
 );
+// Round axis bounds to 1/2/5 steps so gridlines land on readable values. The domain
+// always includes zero, matching the bar chart baseline.
+const niceScale = (low, high, target = 4) => {
+  const top = high === low ? low + 1 : high;
+  const raw = (top - low) / target;
+  const magnitude = 10 ** Math.floor(Math.log10(raw));
+  const residual = raw / magnitude;
+  const step = (residual <= 1 ? 1 : residual <= 2 ? 2 : residual <= 5 ? 5 : 10) * magnitude;
+  const ticks = [];
+  for (let value = Math.floor(low / step + 1e-9) * step, count = 0; value <= Math.ceil(top / step - 1e-9) * step + step / 2 && count < 12; value += step, count += 1) {
+    ticks.push(Number(value.toPrecision(12)));
+  }
+  return { min: ticks[0], max: ticks[ticks.length - 1], ticks };
+};
 function VisualChart({ spec, id }) {
   const multiple = Array.isArray(spec.series);
   const labels = multiple ? spec.labels : spec.points.map(point => point.label);
@@ -30,9 +109,29 @@ function VisualChart({ spec, id }) {
   const min = Math.min(0, ...values), max = Math.max(0, ...values);
   const span = max - min || 1;
   const zero = (0 - min) / span * 100;
-  const y = value => 172 - (value - min) / span * 144;
+  const scale = React.useMemo(() => niceScale(min, max), [min, max]);
+  const y = value => 172 - (value - scale.min) / (scale.max - scale.min) * 144;
   const x = index => 80 + index / Math.max(1, labels.length - 1) * 408;
   const dataRows = labels.map((label, index) => [label, ...series.map(item => numberText(item.values[index]))]);
+  // Inspection state belongs to line charts only; bars already label every value.
+  const [active, setActive] = React.useState(null);
+  const lastIndex = labels.length - 1;
+  const indexAt = event => {
+    const box = event.currentTarget.getBoundingClientRect();
+    if (!box.width) return null;
+    const position = (event.clientX - box.left) / box.width * 520;
+    return Math.min(lastIndex, Math.max(0, Math.round((position - 80) / 408 * Math.max(1, lastIndex))));
+  };
+  const inspect = event => { const index = indexAt(event); if (index !== null) setActive(index); };
+  const onChartKeyDown = event => {
+    const moves = { ArrowRight: () => (active === null ? 0 : Math.min(lastIndex, active + 1)),
+      ArrowLeft: () => (active === null ? lastIndex : Math.max(0, active - 1)), Home: () => 0, End: () => lastIndex };
+    if (moves[event.key]) { event.preventDefault(); setActive(moves[event.key]()); }
+    else if (event.key === 'Escape' && active !== null) { event.preventDefault(); setActive(null); }
+  };
+  const readout = active === null
+    ? 'Hover, tap or focus the chart, then use the arrow keys to read individual observations.'
+    : `${labels[active]}: ${series.map(item => `${item.label} ${numberText(item.values[active])}`).join(', ')}${spec.unit ? ` ${spec.unit}` : ''}.`;
   return <>
     {multiple && <ul className="metabloom-visual__legend" aria-label="Chart series">
       {series.map((item, index) => <li key={item.id} className={`metabloom-visual__series-${index + 1}`}>
@@ -58,11 +157,13 @@ function VisualChart({ spec, id }) {
       </ol>
     ) : (
       <figure className="metabloom-visual__line-chart">
-        <svg viewBox="0 0 520 212" role="img" aria-labelledby={`${id}-chart-title ${id}-chart-desc`}>
-          <title id={`${id}-chart-title`}>{spec.title}</title><desc id={`${id}-chart-desc`}>Ordered observations for {series.map(item => item.label).join(', ')}. Exact values are available in the data table below.</desc>
+        <svg viewBox="0 0 520 212" role="group" aria-roledescription="line chart" tabIndex={0} className="metabloom-visual__line-svg"
+          aria-labelledby={`${id}-chart-title`} aria-describedby={`${id}-chart-desc ${id}-chart-readout`}
+          onPointerMove={event => { if (event.pointerType === 'mouse') inspect(event); }} onClick={inspect} onKeyDown={onChartKeyDown}>
+          <title id={`${id}-chart-title`}>{spec.title}</title><desc id={`${id}-chart-desc`}>Ordered observations for {series.map(item => item.label).join(', ')}. Use the left and right arrow keys to move between observations. Exact values are available in the data table below.</desc>
           {/* Fixed plot coordinates also paint constant and all-zero series. */}
           <VisualSeriesGradients id={id} count={series.length} bounds={[80, 28, 488, 28]} />
-          {[min, (min + max) / 2, max].map((value, index) => <g key={index}>
+          {scale.ticks.map((value, index) => <g key={index}>
             <text x="72" y={y(value) + 4} textAnchor="end" className="metabloom-visual__axis-label">{axisText(value)}</text>
             <line x1="80" x2="488" y1={y(value)} y2={y(value)} className="metabloom-visual__gridline" />
           </g>)}
@@ -72,10 +173,16 @@ function VisualChart({ spec, id }) {
               <title>{item.label}, {labels[index]}: {numberText(value)} {spec.unit}</title>
             </circle>)}
           </g>)}
+          {active !== null && <g className="metabloom-visual__crosshair" aria-hidden="true">
+            <line x1={x(active)} x2={x(active)} y1="28" y2="172" />
+            {series.map((item, seriesIndex) => <circle key={item.id} cx={x(active)} cy={y(item.values[active])} r="5.5"
+              className={`metabloom-visual__series-${seriesIndex + 1}`} fill={`url(#${id}-series-${seriesIndex + 1})`} />)}
+          </g>}
           {labels.map((label, index) => (index === labels.length - 1 || index % Math.max(1, Math.ceil(labels.length / 6)) === 0)
             ? <text key={index} x={x(index)} y="197" textAnchor="middle" className="metabloom-visual__axis-label">{label.length > 10 ? `${label.slice(0, 9)}…` : label}</text> : null)}
         </svg>
         <figcaption>Equal spacing represents observation order, not elapsed time. Values in {spec.unit || 'the supplied units'}.</figcaption>
+        <p id={`${id}-chart-readout`} className="metabloom-visual__chart-readout" role="status" aria-live="polite" aria-atomic="true">{readout}</p>
       </figure>
     )}
     <details className="metabloom-visual__details"><summary>View exact values</summary>
@@ -166,13 +273,100 @@ function VisualPieChart({ spec, id }) {
     </details>
   </>;
 }
-function VisualFlowchart({ spec }) {
+function VisualFlowList({ spec }) {
   const label = id => spec.nodes.find(node => node.id === id)?.label || '';
   return <div className="metabloom-visual__flow">
     <ol className="metabloom-visual__nodes">{spec.nodes.map((node, index) => <li key={node.id}><span className="metabloom-visual__node-number">{index + 1}</span><span>{node.label}</span></li>)}</ol>
     {spec.edges.length > 0 && <div className="metabloom-visual__connections"><h4>Connections</h4>
       <ul>{spec.edges.map((edge, index) => <li key={index}><span>{label(edge.from)}</span><span aria-hidden="true"> → </span><span className="metabloom-visual__sr-only"> leads to </span><span>{label(edge.to)}</span>{edge.label && <small>{edge.label}</small>}</li>)}</ul>
     </div>}
+  </div>;
+}
+const joinSteps = steps => steps.map(step => (step.via ? `${step.label} (${step.via})` : step.label)).join('; ');
+const flowSummary = (spec, node) => {
+  const { from, to, loops } = describeFlowStep(spec.nodes, spec.edges, node.id);
+  const parts = [`Step ${node.index + 1}: ${node.label}.`];
+  parts.push(from.length ? `Comes from ${joinSteps(from)}.` : 'This is an entry point.');
+  parts.push(to.length ? `Leads to ${joinSteps(to)}.` : 'This is an end point.');
+  if (loops.length) parts.push('It can repeat itself.');
+  return parts.join(' ');
+};
+function VisualFlowchart({ spec, id }) {
+  const [selectedId, setSelectedId] = React.useState(null);
+  // A layout failure must never hide the answer: fall back to the plain step list.
+  const layout = React.useMemo(() => { try { return layoutFlowchart(spec.nodes, spec.edges); } catch { return null; } }, [spec.nodes, spec.edges]);
+  if (!layout) return <VisualFlowList spec={spec} />;
+  const related = new Set(), activeEdges = new Set();
+  if (selectedId) {
+    related.add(selectedId);
+    spec.edges.forEach((edge, index) => {
+      if (edge.from === selectedId || edge.to === selectedId) { related.add(edge.from); related.add(edge.to); activeEdges.add(index); }
+    });
+  }
+  const selected = layout.nodes.find(node => node.id === selectedId);
+  const toggle = node => setSelectedId(current => (current === node.id ? null : node.id));
+  const naturalWidth = Math.round(layout.width);
+  const arrow = `${id}-flow-arrow`, arrowActive = `${id}-flow-arrow-active`, spectrum = `${id}-flow-spectrum`;
+  return <div className="metabloom-visual__flow-diagram">
+    <div className="metabloom-visual__flow-scroll">
+      <svg viewBox={`0 0 ${layout.width} ${layout.height}`} role="group" aria-labelledby={`${id}-flow-title`} aria-describedby={`${id}-flow-desc`}
+        className="metabloom-visual__flow-svg" data-has-selection={selectedId ? 'true' : 'false'}
+        style={{ width: '100%', minWidth: `min(100%, ${Math.min(naturalWidth, 460)}px)`, maxWidth: `${naturalWidth}px`, '--metabloom-flow-spectrum': `url(#${spectrum})` }}>
+        <title id={`${id}-flow-title`}>{spec.title}</title>
+        <desc id={`${id}-flow-desc`}>A flowchart with {layout.nodes.length} {layout.nodes.length === 1 ? 'step' : 'steps'} and {spec.edges.length} {spec.edges.length === 1 ? 'connection' : 'connections'}. Select a step to trace where it comes from and where it leads. The full list of steps and connections is available below.</desc>
+        <defs>
+          <linearGradient id={spectrum} gradientUnits="userSpaceOnUse" x1="0" y1="0" x2={layout.width} y2={layout.height}>
+            <stop offset="0%" stopColor="var(--aetheris-spectral-cyan)" />
+            <stop offset="42%" stopColor="var(--aetheris-spectral-magenta)" />
+            <stop offset="72%" stopColor="var(--aetheris-spectral-yellow)" />
+            <stop offset="100%" stopColor="var(--aetheris-spectral-violet)" />
+          </linearGradient>
+          {[[arrow, 'metabloom-visual__flow-arrow'], [arrowActive, 'metabloom-visual__flow-arrow metabloom-visual__flow-arrow--active']].map(([markerId, className]) => (
+            <marker key={markerId} id={markerId} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" markerUnits="userSpaceOnUse" orient="auto">
+              <path d="M 0 0 L 10 5 L 0 10 z" className={className} />
+            </marker>
+          ))}
+        </defs>
+        <g className="metabloom-visual__flow-edges">
+          {layout.edges.map(edge => {
+            const active = activeEdges.has(edge.index);
+            const dim = selectedId && !active;
+            const text = truncateFlowEdgeLabel(edge.label);
+            return <g key={edge.index} className="metabloom-visual__flow-edge" data-back={edge.back ? 'true' : undefined} data-active={active ? 'true' : undefined} data-dim={dim ? 'true' : undefined}>
+              <path d={edge.d} fill="none" markerEnd={`url(#${active ? arrowActive : arrow})`} />
+              {text && <text x={edge.labelPoint.x} y={edge.labelPoint.y} textAnchor={edge.labelPoint.anchor} className="metabloom-visual__flow-edge-label">
+                {text}{text !== edge.label.trim() && <title>{edge.label}</title>}
+              </text>}
+            </g>;
+          })}
+        </g>
+        <g className="metabloom-visual__flow-nodes">
+          {layout.nodes.map(node => {
+            const isSelected = node.id === selectedId;
+            const dim = selectedId && !related.has(node.id);
+            return <g key={node.id} role="button" tabIndex={0} aria-pressed={isSelected} aria-label={flowSummary(spec, node)}
+              className="metabloom-visual__flow-node" data-selected={isSelected ? 'true' : 'false'} data-dim={dim ? 'true' : undefined}
+              onClick={() => toggle(node)}
+              onKeyDown={event => {
+                if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggle(node); }
+                else if (event.key === 'Escape' && selectedId) { event.preventDefault(); setSelectedId(null); }
+              }}>
+              <rect x={node.x} y={node.y} width={node.w} height={node.h} rx="14" />
+              <circle cx={node.x + 21} cy={node.y + node.h / 2} r="10" className="metabloom-visual__flow-badge" />
+              <text x={node.x + 21} y={node.y + node.h / 2 + 4} textAnchor="middle" className="metabloom-visual__flow-number">{node.index + 1}</text>
+              <text className="metabloom-visual__flow-label">
+                {node.lines.map((line, i) => <tspan key={i} x={node.x + FLOW_METRICS.textX} y={node.y + FLOW_METRICS.padY + FLOW_METRICS.lineHeight * (i + 0.78)}>{line}</tspan>)}
+                {node.lines.join(' ') !== node.label.trim().replace(/\s+/g, ' ') && <title>{node.label}</title>}
+              </text>
+            </g>;
+          })}
+        </g>
+      </svg>
+    </div>
+    <p className="metabloom-visual__flow-status" role="status" aria-live="polite" aria-atomic="true">
+      {selected ? flowSummary(spec, selected) : 'Select a step to trace where it comes from and where it leads.'}
+    </p>
+    <details className="metabloom-visual__details"><summary>View steps and connections</summary><VisualFlowList spec={spec} /></details>
   </div>;
 }
 class VisualCalculator extends React.Component {
@@ -297,10 +491,10 @@ export default function MetabloomVisualFrame({ artifact, onStop, onReady, onInpu
       ? formatMetabloomVisualQuotaMessage(artifact.quota) : METABLOOM_VISUAL_ERRORS[code] || METABLOOM_VISUAL_ERRORS.visual_unavailable}</p>}
     {status === 'ready' && spec && <div className="metabloom-visual__content">
       <p className="metabloom-visual__summary">{spec.summary}</p>
-      {spec.kind === 'table' && <DataTable columns={spec.columns} rows={spec.rows} title={spec.title} />}
+      {spec.kind === 'table' && <VisualTable spec={spec} id={id} />}
       {['bar-chart', 'line-chart'].includes(spec.kind) && <VisualChart spec={spec} id={id} />}
       {spec.kind === 'pie-chart' && <VisualPieChart spec={spec} id={id} />}
-      {spec.kind === 'flowchart' && <VisualFlowchart spec={spec} />}
+      {spec.kind === 'flowchart' && <VisualFlowchart spec={spec} id={id} />}
       {spec.kind === 'calculator' && <VisualCalculator spec={spec} id={id} onInputsChange={onInputsChange} />}
       <footer className="metabloom-visual__provenance"><span className="metabloom-visual__badge">{provenanceLabels[spec.provenance.type]}</span><p>{spec.provenance.label}</p>
         {sources.length > 0 && <ul aria-label="Visual sources">{sources.map(source => <li key={source.id}><a href={source.url} target="_blank" rel="noopener noreferrer">{source.title}</a></li>)}</ul>}

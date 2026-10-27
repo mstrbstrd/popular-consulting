@@ -244,3 +244,75 @@
 .orb-page .metabloom-visual__field label { color: var(--aetheris-ink); font: 600 1.3rem/1.4 var(--aetheris-font-sans); }
 .orb-page .metabloom-visual__field label span { color: var(--aetheris-ink-2); font-weight: 400; }
 .orb-page .metabloom-visual .metabloom-visual__summary { color: var(--aetheris-ink-2); font-size: 1.25rem; }
+
+/* Sortable, filterable tables. */
+.orb-page .metabloom-visual__table-tools { display: grid; gap: 0.6rem; max-width: 32rem; margin: 1.4rem 0 1rem; }
+.orb-page .metabloom-visual__table-tools label { color: var(--aetheris-ink); font: 600 1.3rem/1.4 var(--aetheris-font-sans); }
+.orb-page .metabloom-visual input[type='search'] { appearance: none; -webkit-appearance: none; width: 100%; min-width: 0; min-height: 4.4rem; padding: 0.8rem 1rem; border-radius: var(--aetheris-radius-lg); border: 1px solid transparent; background: var(--aetheris-glass-panel-raised); color: var(--aetheris-ink); font: 1.6rem/1.4 var(--aetheris-font-sans); }
+.orb-page .metabloom-visual th .metabloom-visual__sort {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.8rem; width: 100%;
+  min-height: 4.4rem; padding: 0.4rem 0.2rem; border-radius: var(--aetheris-radius-lg);
+  background: transparent; font: inherit; letter-spacing: inherit; text-align: left;
+}
+.orb-page .metabloom-visual th .metabloom-visual__sort::before { display: none; }
+.orb-page .metabloom-visual th .metabloom-visual__sort:not(:focus-visible) { box-shadow: none; }
+@media (hover: hover) {
+  .orb-page .metabloom-visual th .metabloom-visual__sort:hover:not(:disabled) { background: var(--aetheris-state-layer); }
+}
+.orb-page .metabloom-visual__sort-mark { color: var(--aetheris-ink-2); font-family: var(--aetheris-font-mono); }
+.orb-page .metabloom-visual th[aria-sort='ascending'] .metabloom-visual__sort-mark,
+.orb-page .metabloom-visual th[aria-sort='descending'] .metabloom-visual__sort-mark { color: var(--aetheris-ink); }
+.orb-page .metabloom-visual .metabloom-visual__table-status { margin: 0.8rem 0 0; color: var(--aetheris-ink-2); font: 1.2rem/1.5 var(--aetheris-font-sans); }
+
+/* Line-chart inspection. */
+.orb-page .metabloom-visual__line-svg { cursor: crosshair; touch-action: pan-y; border-radius: var(--aetheris-radius-lg); }
+.orb-page .metabloom-visual .metabloom-visual__line-svg:focus { outline: none !important; }
+.orb-page .metabloom-visual__crosshair line { stroke: var(--aetheris-ink-2); stroke-width: 1; stroke-dasharray: 3 3; vector-effect: non-scaling-stroke; pointer-events: none; }
+.orb-page .metabloom-visual__crosshair circle { stroke: var(--aetheris-panel-raised); stroke-width: 2; pointer-events: none; }
+
+/* Selection readouts share the pie summary's recipe. */
+.orb-page .metabloom-visual .metabloom-visual__chart-readout,
+.orb-page .metabloom-visual .metabloom-visual__flow-status { margin: 1rem 0 0; padding: 1rem; border: 1px solid var(--aetheris-line); border-radius: var(--aetheris-radius-lg); background: var(--aetheris-glass-surface); font: 1.25rem/1.55 var(--aetheris-font-sans); }
+
+/* Flowchart diagram. */
+.orb-page .metabloom-visual__flow-diagram { margin: 1.2rem 0; }
+.orb-page .metabloom-visual__flow-scroll { overflow-x: auto; scrollbar-width: thin; padding-bottom: 0.4rem; }
+.orb-page .metabloom-visual__flow-svg { display: block; height: auto; margin: 0 auto; }
+.orb-page .metabloom-visual__flow-node { cursor: pointer; touch-action: manipulation; transition: opacity var(--aetheris-motion-medium) var(--aetheris-ease-standard); }
+.orb-page .metabloom-visual .metabloom-visual__flow-node:focus { outline: none !important; outline-offset: 0 !important; box-shadow: none !important; }
+.orb-page .metabloom-visual__flow-node rect { fill: var(--aetheris-panel-raised); stroke: var(--aetheris-line-strong); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.orb-page .metabloom-visual__flow-node[data-selected='true'] rect { stroke: var(--metabloom-flow-spectrum); stroke-width: 2; }
+.orb-page .metabloom-visual .metabloom-visual__flow-node:focus-visible rect { stroke: var(--metabloom-flow-spectrum); stroke-width: 3; }
+.orb-page .metabloom-visual__flow-badge { fill: var(--aetheris-glass-surface); stroke: var(--aetheris-line-strong); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.orb-page .metabloom-visual__flow-number { fill: var(--aetheris-ink-2); font: 11px var(--aetheris-font-mono); pointer-events: none; }
+.orb-page .metabloom-visual__flow-label { fill: var(--aetheris-ink); font: 500 13px var(--aetheris-font-sans); pointer-events: none; }
+.orb-page .metabloom-visual__flow-edge { transition: opacity var(--aetheris-motion-medium) var(--aetheris-ease-standard); }
+.orb-page .metabloom-visual__flow-edge path { stroke: var(--aetheris-ink-2); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.orb-page .metabloom-visual__flow-edge[data-back='true'] path { stroke-dasharray: 6 4; }
+.orb-page .metabloom-visual__flow-edge[data-active='true'] path { stroke: var(--metabloom-flow-spectrum); stroke-width: 2.25; }
+.orb-page .metabloom-visual__flow-edge-label { fill: var(--aetheris-ink-2); font: 11px var(--aetheris-font-mono); paint-order: stroke; stroke: var(--aetheris-panel-raised); stroke-width: 4px; stroke-linejoin: round; pointer-events: none; }
+.orb-page .metabloom-visual__flow-edge[data-active='true'] .metabloom-visual__flow-edge-label { fill: var(--aetheris-ink); }
+.orb-page .metabloom-visual__flow-arrow { fill: var(--aetheris-ink-2); }
+.orb-page .metabloom-visual__flow-arrow--active { fill: var(--aetheris-ink); }
+.orb-page .metabloom-visual__flow-node[data-dim='true'], .orb-page .metabloom-visual__flow-edge[data-dim='true'] { opacity: 0.3; }
+@media (max-width: 480px) { .orb-page .metabloom-visual__table-tools { max-width: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .orb-page .metabloom-visual__flow-node, .orb-page .metabloom-visual__flow-edge { transition: none; }
+}
+@media (forced-colors: active) {
+  .orb-page .metabloom-visual input[type='search'] { background: Canvas; color: CanvasText; border: 1px solid CanvasText; }
+  .orb-page .metabloom-visual__flow-node rect { fill: Canvas; stroke: CanvasText; forced-color-adjust: none; }
+  .orb-page .metabloom-visual__flow-node[data-selected='true'] rect,
+  .orb-page .metabloom-visual .metabloom-visual__flow-node:focus-visible rect { stroke: Highlight; stroke-width: 3; }
+  .orb-page .metabloom-visual__flow-badge { fill: Canvas; stroke: CanvasText; forced-color-adjust: none; }
+  .orb-page .metabloom-visual__flow-label, .orb-page .metabloom-visual__flow-number { fill: CanvasText; forced-color-adjust: none; }
+  .orb-page .metabloom-visual__flow-edge-label { fill: CanvasText; stroke: Canvas; forced-color-adjust: none; }
+  .orb-page .metabloom-visual__flow-edge path { stroke: CanvasText; forced-color-adjust: none; }
+  .orb-page .metabloom-visual__flow-edge[data-active='true'] path { stroke: Highlight; }
+  .orb-page .metabloom-visual__flow-arrow { fill: CanvasText; forced-color-adjust: none; }
+  .orb-page .metabloom-visual__flow-arrow--active { fill: Highlight; }
+  .orb-page .metabloom-visual__flow-node[data-dim='true'], .orb-page .metabloom-visual__flow-edge[data-dim='true'] { opacity: 0.5; }
+  .orb-page .metabloom-visual__crosshair line { stroke: CanvasText; forced-color-adjust: none; }
+  .orb-page .metabloom-visual__crosshair circle { fill: Highlight; stroke: Canvas; forced-color-adjust: none; }
+  .orb-page .metabloom-visual .metabloom-visual__line-svg:focus-visible { outline: 2px solid Highlight !important; outline-offset: 3px; }
+}

@@ -3,11 +3,11 @@ const { METABLOOM_VISUAL_KINDS } = require('./metabloomVisualProtocol');
 // The protocol approves kinds. This catalogue describes only those renderers;
 // it never grants a new capability because a model or conversation names one.
 const descriptions = {
-  table: { label: 'tables', description: 'Readable rows and columns with scrolling. No sorting, filtering or file export controls.' },
+  table: { label: 'tables', description: 'Readable rows and columns with scrolling, sortable columns and a row filter for larger tables. No file export controls.' },
   'bar-chart': { label: 'bar charts', description: 'Single or grouped numeric bars with an exact-value table.' },
-  'line-chart': { label: 'line charts', description: 'Single or multiple series of ordered observations with an exact-value table. Observation spacing does not imply elapsed time.' },
+  'line-chart': { label: 'line charts', description: 'Single or multiple series of ordered observations with pointer and arrow-key inspection of each observation and an exact-value table. Observation spacing does not imply elapsed time.' },
   'pie-chart': { label: 'pie charts', description: 'Nonnegative parts of one total with selectable categories, percentages and an exact-value table.' },
-  flowchart: { label: 'small flowcharts', description: 'Numbered process nodes and a connection list. No draggable nodes or editable diagram canvas.' },
+  flowchart: { label: 'small flowcharts', description: 'A laid-out process diagram with numbered steps, labelled connections and step selection that traces where each step comes from and leads. No draggable nodes or editable diagram canvas.' },
   calculator: { label: 'calculators', description: 'Editable numeric fields and sliders, local calculation, reset and a copy-scenario control. No external actions or file export.' },
 };
 const METABLOOM_VISUAL_CAPABILITIES = Object.freeze(Object.fromEntries(METABLOOM_VISUAL_KINDS
@@ -31,7 +31,7 @@ function getMetabloomVisualCapabilityResponse(intent, { enabled = false, researc
   switch (intent.mode) {
     case 'capabilities':
       return (enabled === true
-        ? `I can display ${formats}. You can inspect exact chart values, select pie categories, and adjust calculator fields or sliders to update results locally. Maps, dashboards, arbitrary app UIs and file exports are not supported.`
+        ? `I can display ${formats}. You can inspect exact chart values, select pie categories, step through line chart observations, trace flowchart steps, sort and filter tables, and adjust calculator fields or sliders to update results locally. Maps, dashboards, arbitrary app UIs and file exports are not supported.`
         : `${unavailable} The implemented formats, when available, are ${formats}.`)
         + (researchBriefEnabled === true ? ' Deep Research can also return an expandable research brief with cited findings, dates, analysis, uncertainty and coverage limits.' : '');
     case 'unsupported': {

@@ -120,3 +120,14 @@ The native chart contract now supports both the legacy one-series `points` repre
 Operational logs report only intent, selected kind and lifecycle outcomes, never the user question, chart values or session identity. `METABLOOM_VISUALS_ENABLED=true` is still required on the server. A production Git push does not enable the feature flag. Visuals remain independent of text completion, research citations and the original Orb animations.
 
 The input classifier is intentionally conservative for ordinary prose, but cannot guarantee perfect semantic intent classification. Future iterations should use measured routing errors before adding another model or broadening the parser.
+
+## Renderer interactions (October 2026)
+
+These refine the existing native renderers. They add no new format, schema field, model call, library or WebGL context, and they run entirely in the browser on already-validated specifications.
+
+- **Flowchart.** `metabloomFlowLayout.js` lays the validated nodes and edges out as a layered diagram: loop-back edges are detected and drawn dashed into their earlier step, edges that skip a layer travel in their own lane instead of crossing a step, self-loops sit beside their step, and edge labels are placed along their own curve where they clear other labels, steps and the canvas. The layout is a pure, deterministic function bounded by the 16-node/32-edge limits. Steps are keyboard-operable buttons: selecting one dims everything else and announces where it comes from and leads. The original numbered list and connection list remain in a "View steps and connections" disclosure, and are rendered directly if layout ever throws. Long step and edge labels are shortened in the diagram only; the complete text stays in the tooltip, the selection summary and the list.
+- **Table.** Columns sort ascending, descending, then back to the original order (stable, natural-order text, numeric when every filled cell is a plain figure, blanks last). Tables of eight or more rows add a case-insensitive row filter. State is local; it is not stored and makes no model call.
+- **Line chart.** The axis uses round 1/2/5 bounds that always include zero. Hover (mouse only), click/tap, and the arrow, Home, End and Escape keys inspect individual observations with a crosshair and a live-region readout. Bar charts are unchanged.
+
+The builder prompt now asks for flowcharts in reading order with short labels and labelled decision branches, and for table numbers as plain values with units in the heading. `metabloomVisualCapabilities.js` describes these controls, so capability replies stay accurate. Layout geometry is covered by `metabloomFlowLayout.test.js` and rendering/interaction by `MetabloomVisualInteractions.test.js`. As with the rest of this milestone, real-scene compositing and physical-device behavior still need preview qualification.
+
