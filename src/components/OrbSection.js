@@ -30,7 +30,7 @@ import { METABLOOM_ACTIVITIES, METABLOOM_ACTIONS as METABLOOM_SCENE_ACTIONS, MET
 import { createMetabloomReactionPlayer } from "./metabloomReactionPlayer";
 import { createMetabloomReplySession } from "./metabloomReplySession";
 import { createMetabloomResearchDisplayGate } from "./metabloomResearchDisplayGate";
-import { METABLOOM_RESEARCH_TIMEOUT_MS, getMetabloomApiErrorMessage, requestMetabloomResponse } from "./metabloomApiClient";
+import { METABLOOM_RESEARCH_TIMEOUT_MS, METABLOOM_RESEARCH_REUSE_TIMEOUT_MS, getMetabloomApiErrorMessage, requestMetabloomResponse } from "./metabloomApiClient";
 import { METABLOOM_REQUEST_ERROR_MESSAGES, parseMetabloomRequestRef } from "./metabloomRequestErrors";
 import { METABLOOM_TOOL_TURN_TIMEOUT_MS } from "./metabloomVisualProtocol";
 import { METABLOOM_TRANSCRIPT_READY_EVENT, METABLOOM_RESET_EVENT } from "./metabloomVisualSession";
@@ -38,7 +38,9 @@ import { METABLOOM_ARTIFACT_REFERENCE_EVENT, parseMetabloomArtifactAttachment } 
 import { parseMetabloomResearchSources } from "./metabloomResearchSources";
 import { parseMetabloomProgressSource } from "./metabloomSourceMediaProtocol";
 import { parseMetabloomResearchReport } from "./metabloomResearchReport";
-import { parseMetabloomResearchBrief } from "./metabloomResearchBriefProtocol";
+import { parseMetabloomClientResearchBrief as parseMetabloomResearchBrief } from "./metabloomResearchBriefProtocol";
+import { parseMetabloomResearchReferenceMetadata, parseMetabloomResearchAttachment,
+  parseMetabloomResearchAnswerSources, isMetabloomFreshResearchRequest } from "./metabloomResearchReference";
 import { renderMetabloomResearchBlocks, renderMetabloomResearchText } from "./metabloomResearchText";
 import { streamMetabloomDemoResponse } from "./metabloomDemoStream";
 import "./OrbSection.css";
@@ -362,14 +364,12 @@ const cloneActionChain = (actionChain = []) =>
     talking,
   }));
 
-const cloneMessage = ({ id, role, content, actionChain = [], source, emote, segments = [], status, sources, researchDetails, researchBrief }) => {
-  let researchSources = parseMetabloomResearchSources(sources);
+const cloneMessage = ({ id, role, content, actionChain = [], source, emote, segments = [], status, sources, researchDetails, researchBrief, researchReference, researchReused }) => {
   const researchReport = role === "assistant" ? parseMetabloomResearchReport(researchDetails) : null;
-  if (researchReport && researchSources?.some((source) => {
-    const original = researchReport.sources[source.id - 1];
-    return !original || original.url !== source.url || original.title !== source.title;
-  })) researchSources = null;
+  const researchSources = researchReport ? parseMetabloomResearchAnswerSources(sources, { report: researchReport })
+    : parseMetabloomResearchSources(sources);
   const brief = researchReport ? parseMetabloomResearchBrief(researchBrief, { sources: researchReport.sources }) : null;
+  const reference = researchReport ? parseMetabloomResearchReferenceMetadata(researchReference) : null;
   return {
     id,
     emote,
@@ -382,8 +382,24 @@ const cloneMessage = ({ id, role, content, actionChain = [], source, emote, segm
     ...(researchSources ? { sources: researchSources } : {}),
     ...(researchReport ? { researchDetails: researchReport } : {}),
     ...(brief ? { researchBrief: brief } : {}),
+    ...(reference ? { researchReference: reference, ...(researchReused === true ? { researchReused: true } : {}) } : {}),
   };
 };
+
+const researchTime = value => new Intl.DateTimeFormat('en', {
+  year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+  hourCycle: 'h23', timeZone: 'UTC',
+}).format(new Date(value));
+const researchDate = value => new Intl.DateTimeFormat('en', {
+  year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC',
+}).format(new Date(`${value}T00:00:00Z`));
+
+const ResearchReferenceDates = ({ reference, expired }) => <>
+  <span>Research date <time dateTime={reference.localDate}>{researchDate(reference.localDate)}</time> · {reference.timeZone}</span>
+  <span>As of <time dateTime={reference.asOf}>{researchTime(reference.asOf)}</time> UTC</span>
+  <span>{expired ? 'Reuse expired' : 'Reuse expires'} <time dateTime={reference.expiresAt}>
+    {researchTime(reference.expiresAt)}</time> UTC · available for one hour</span>
+</>;
 
 const messageHistoryContent = (message) => {
   const report = message.role === "assistant" ? parseMetabloomResearchReport(message.researchDetails) : null;
@@ -538,20 +554,79 @@ const OrbSection = ({
   const messagesRef = React.useRef(messages);
   const [draft, setDraft] = React.useState(savedConversation?.draft || '');
   const [artifactAttachment, setArtifactAttachment] = React.useState(() =>
-    parseMetabloomArtifactAttachment(savedConversation?.artifactAttachment));
+    parseMetabloomResearchAttachment(savedConversation?.researchAttachment) ? null
+      : parseMetabloomArtifactAttachment(savedConversation?.artifactAttachment));
   const artifactAttachmentRef = React.useRef(artifactAttachment);
+  const [researchAttachment, setResearchAttachment] = React.useState(() =>
+    parseMetabloomResearchAttachment(savedConversation?.researchAttachment));
+  const researchAttachmentRef = React.useRef(researchAttachment);
+  const [researchReferenceNow, setResearchReferenceNow] = React.useState(Date.now);
+  const [unavailableResearchIds, setUnavailableResearchIds] = React.useState(() =>
+    Array.isArray(savedConversation?.unavailableResearchIds) ? savedConversation.unavailableResearchIds
+      .filter(value => typeof value === 'string' && /^[a-f0-9]{48}$/.test(value)).slice(-MAX_CHAT_MESSAGES) : []);
+  const unavailableResearchIdsRef = React.useRef(unavailableResearchIds);
   const [pending, setPending] = React.useState(false);
   const [toolPending, setToolPending] = React.useState(false);
   const [errorMessage, setErrorMessage] = React.useState(savedConversation?.interrupted ? 'The response was interrupted when you changed tools. Any visible reply is incomplete. Send another message to continue.' : '');
   const [responseSource, setResponseSource] = React.useState(savedConversation?.responseSource || 'interface');
   const retainedConversation = React.useRef(null);
-  retainedConversation.current = { draft, artifactAttachment, expressiveness, pending, responseSource, paused, allowEmoteChanges, deepResearch };
+  retainedConversation.current = { draft, artifactAttachment, researchAttachment, unavailableResearchIds, expressiveness, pending, responseSource, paused, allowEmoteChanges, deepResearch };
   const updateArtifactAttachment = React.useCallback(value => {
     const next = parseMetabloomArtifactAttachment(value);
     artifactAttachmentRef.current = next;
     if (retainedConversation.current) retainedConversation.current.artifactAttachment = next;
     setArtifactAttachment(next);
+    if (next) {
+      researchAttachmentRef.current = null;
+      if (retainedConversation.current) retainedConversation.current.researchAttachment = null;
+      setResearchAttachment(null);
+    }
   }, []);
+  const updateResearchAttachment = React.useCallback(value => {
+    const next = parseMetabloomResearchAttachment(value);
+    researchAttachmentRef.current = next;
+    if (retainedConversation.current) retainedConversation.current.researchAttachment = next;
+    setResearchAttachment(next);
+    if (next) {
+      artifactAttachmentRef.current = null;
+      if (retainedConversation.current) retainedConversation.current.artifactAttachment = null;
+      setArtifactAttachment(null);
+    }
+  }, []);
+  const markResearchUnavailable = React.useCallback(id => {
+    const next = [...new Set([...unavailableResearchIdsRef.current, id])].slice(-MAX_CHAT_MESSAGES);
+    unavailableResearchIdsRef.current = next;
+    if (retainedConversation.current) retainedConversation.current.unavailableResearchIds = next;
+    setUnavailableResearchIds(next);
+  }, []);
+  React.useEffect(() => {
+    const expirations = messages.map(message => parseMetabloomResearchReferenceMetadata(message.researchReference)?.expiresAt);
+    expirations.push(researchAttachment?.expiresAt);
+    const dates = expirations.filter(Boolean).map(Date.parse);
+    if (!dates.length) return undefined;
+    let timer;
+    const refresh = () => {
+      const now = Date.now();
+      setResearchReferenceNow(now);
+      const future = dates.filter(value => value > now);
+      if (future.length) timer = window.setTimeout(refresh, Math.min(2147483647, Math.min(...future) - now + 1));
+    };
+    refresh();
+    return () => window.clearTimeout(timer);
+  }, [messages, researchAttachment]);
+  const stageResearchReference = React.useCallback((metadata, selector = { type: 'report' }, label = metadata?.title) => {
+    const safe = parseMetabloomResearchReferenceMetadata(metadata);
+    if (!isActive || !safe || Date.parse(safe.expiresAt) <= Date.now()
+      || unavailableResearchIdsRef.current.includes(safe.researchId)) return false;
+    const next = parseMetabloomResearchAttachment({ reference: { researchId: safe.researchId, selector },
+      label: label?.length > 180 ? `${label.slice(0, 179)}…` : label,
+      asOf: safe.asOf, timeZone: safe.timeZone, localDate: safe.localDate, expiresAt: safe.expiresAt });
+    if (!next) return false;
+    updateResearchAttachment(next);
+    setErrorMessage('');
+    composerRef.current?.focus({ preventScroll: true });
+    return true;
+  }, [isActive, updateResearchAttachment]);
   React.useEffect(() => {
     const stageReference = event => {
       const root = sectionRef.current?.closest('.orb-page');
@@ -940,6 +1015,7 @@ const OrbSection = ({
   const reset = React.useCallback(() => {
     cancelResponse();
     updateArtifactAttachment(null);
+    updateResearchAttachment(null);
     window.dispatchEvent(new CustomEvent(METABLOOM_RESET_EVENT, { detail: sectionRef.current }));
     setEmoteId("neutral");
     clearSequence();
@@ -975,7 +1051,7 @@ const OrbSection = ({
     setErrorMessage("");
     setResetVersion((value) => value + 1);
     setPulseVersion(nextPulseVersion);
-  }, [cancelResponse, clearSequence, updateArtifactAttachment, updateStateSnapshot]);
+  }, [cancelResponse, clearSequence, updateArtifactAttachment, updateResearchAttachment, updateStateSnapshot]);
 
   const playSequence = React.useCallback(
     (steps, nextSequenceId = "custom") => {
@@ -1173,7 +1249,20 @@ const OrbSection = ({
     const hasVisibleReply = messagesRef.current.some((message) => message.role === "assistant" && message.status === "streaming");
     // Never expose an adapter/provider message or request content in diagnostics.
     console.error("[Metabloom] Request failed", { code, requestRef, status });
-    if (session.snapshot().researchDetails) {
+    const failedRequest = activeRequestRef.current;
+    const failedSnapshot = session.snapshot();
+    const restoreResearchReference = code === 'research_reference_unavailable'
+      || (['network_error', 'not_configured'].includes(code) && !failedSnapshot.researchDetails && !failedSnapshot.segments.length);
+    if (restoreResearchReference && failedRequest?.submittedResearch) {
+      if (code === 'research_reference_unavailable' && status === 410) markResearchUnavailable(failedRequest.submittedResearch.reference.researchId);
+      // A failed locator stays explicit and recoverable. Never replace a newer
+      // selection or draft that the user staged while this request was pending.
+      if (!researchAttachmentRef.current && !artifactAttachmentRef.current) {
+        updateResearchAttachment(failedRequest.submittedResearch);
+        setDraft(current => current || failedRequest.submittedMessage);
+      }
+    }
+    if (failedSnapshot.researchDetails) {
       // A completed research pass remains useful even if its short writer fails.
       // Close the request while its existing scene safely returns this report.
       requestAbortRef.current?.abort();
@@ -1199,7 +1288,7 @@ const OrbSection = ({
     setResponseSource("error");
     setErrorMessage(`${getMetabloomApiErrorMessage(code)}${hasVisibleReply ? " Any visible reply is incomplete." : ""} Code: ${code}.${requestRef ? ` Reference: ${requestRef}.` : ""}`);
     return false;
-  }, [cancelResponse, finishReplyPresentation, updateStateSnapshot]);
+  }, [cancelResponse, finishReplyPresentation, markResearchUnavailable, updateResearchAttachment, updateStateSnapshot]);
 
   const beginReply = React.useCallback((source, allowMultiple = false) => {
     cancelResponse();
@@ -1256,6 +1345,8 @@ const OrbSection = ({
     const session = Object.freeze({
       attachResearchDetails: validationSession.attachResearchDetails,
       attachResearchBrief: validationSession.attachResearchBrief,
+      attachResearchReference: validationSession.attachResearchReference,
+      markResearchReused: validationSession.markResearchReused,
       attachSources: validationSession.attachSources,
       appendText: (delta, index) => deliver("delta", () => validationSession.appendText(delta, index)),
       append: (segment, index) => deliver("segment", () => validationSession.append(segment, index)),
@@ -1556,11 +1647,26 @@ const OrbSection = ({
         setErrorMessage("Your message is longer than this interface allows.");
         return false;
       }
+      const selectedResearch = parseMetabloomResearchAttachment(researchAttachmentRef.current);
+      if (selectedResearch && unavailableResearchIdsRef.current.includes(selectedResearch.reference.researchId)) {
+        setErrorMessage('This research is no longer available for reuse. Remove it or choose Search again before sending.');
+        return false;
+      }
+      if (selectedResearch && Date.parse(selectedResearch.expiresAt) <= Date.now()) {
+        setErrorMessage('This research reference has expired. Remove it or choose Search again before sending.');
+        setResearchReferenceNow(Date.now());
+        return false;
+      }
+      const researchContext = selectedResearch?.reference;
+      const freshResearch = Boolean(researchContext && isMetabloomFreshResearchRequest(message));
+      const requestedActionMode = researchContext ? (freshResearch ? 'deep-research' : 'none')
+        : deepResearch ? 'deep-research' : 'auto';
       cancelResponse();
       const artifactContext = parseMetabloomArtifactAttachment(artifactAttachmentRef.current)?.reference;
       // A reference belongs to this one submitted message. No hidden calculator
       // fallback may attach context after the user removes it.
       updateArtifactAttachment(null);
+      updateResearchAttachment(null);
       // A multi-segment reply remains one history entry. Exclude incomplete replies
       // and bound the history by characters as well as message count.
       let historyChars = 0;
@@ -1576,14 +1682,15 @@ const OrbSection = ({
       visualScrollAnchorRef.current = null;
       setReadingEarlier(false);
       appendMessage("user", message);
-      const demo = artifactContext ? null : METABLOOM_DEMOS.find((item) => item.prompt === message);
-      const allowMultiple = deepResearch || (demo ? demo.segments.length > 1 : allowEmoteChanges);
+      const demo = artifactContext || researchContext ? null : METABLOOM_DEMOS.find((item) => item.prompt === message);
+      const allowMultiple = requestedActionMode === 'deep-research' || (demo ? demo.segments.length > 1 : allowEmoteChanges);
       const source = demo ? "preview" : "model";
       const session = beginReply(source, allowMultiple);
       const requestToken = ++requestTokenRef.current;
       const requestId = `${mountIdRef.current}-${requestToken}`;
       const activeRequest = { claimed: false, requestId, requestToken, allowMultiple,
-        actionMode: deepResearch ? "deep-research" : "auto", skipScene: document.hidden, session, startedAt: Date.now() };
+        actionMode: requestedActionMode, skipScene: document.hidden, session, startedAt: Date.now(),
+        ...(selectedResearch ? { submittedResearch: selectedResearch, submittedMessage: message } : {}) };
       activeRequestRef.current = activeRequest;
       const controller = new AbortController();
       requestAbortRef.current = controller;
@@ -1623,7 +1730,24 @@ const OrbSection = ({
       const onResearch = (research) => {
         if (!current() || !isPlainObject(research) || Object.keys(research).length !== 1
           || !Object.prototype.hasOwnProperty.call(research, "state")
-          || activeRequest.action !== "deep-research" || session.snapshot().segments.length) return false;
+          || session.snapshot().segments.length) return false;
+        if (research.state === 'reusing') {
+          if (activeRequest.action !== 'none' || activeRequest.researchState || !researchContext || freshResearch) return false;
+          try { if (!session.markResearchReused()) return false; } catch { return false; }
+          activeRequest.researchState = 'reusing';
+          activeRequest.researchReused = true;
+          window.clearTimeout(previewTimerRef.current);
+          const remaining = Math.max(0, activeRequest.startedAt + METABLOOM_RESEARCH_REUSE_TIMEOUT_MS - Date.now());
+          previewTimerRef.current = window.setTimeout(() => failReply(session, { code: 'answer_timeout' }), remaining);
+          return true;
+        }
+        if (activeRequest.researchReused) {
+          if (activeRequest.action !== 'none' || research.state !== 'synthesizing'
+            || activeRequest.researchState !== 'reusing' || !activeRequest.sourcesReceived) return false;
+          activeRequest.researchState = 'synthesizing';
+          return true;
+        }
+        if (activeRequest.action !== 'deep-research') return false;
         if (research.state === "searching" && !activeRequest.researchState) {
           // Confirmed research gets one absolute budget. Progress cannot renew it.
           window.clearTimeout(previewTimerRef.current);
@@ -1653,14 +1777,16 @@ const OrbSection = ({
         return true;
       };
       const onSources = (sources) => {
-        if (!current() || activeRequest.researchState !== "searching" || activeRequest.sourcesReceived
+        if (!current() || !['searching', 'reusing'].includes(activeRequest.researchState) || activeRequest.sourcesReceived
           || session.snapshot().segments.length) return false;
         if (!session.attachSources(sources)) return false;
         activeRequest.sourcesReceived = true;
         return true;
       };
       const onResearchDetails = (details) => {
-        if (!current() || activeRequest.action !== "deep-research" || activeRequest.researchState !== "searching"
+        const acceptsResearch = (activeRequest.action === 'deep-research' && activeRequest.researchState === 'searching')
+          || (activeRequest.action === 'none' && activeRequest.researchState === 'reusing');
+        if (!current() || !acceptsResearch
           || activeRequest.researchDetailsReceived || activeRequest.sourcesReceived || session.snapshot().segments.length) return false;
         try {
           if (!session.attachResearchDetails(details)) return false;
@@ -1669,12 +1795,19 @@ const OrbSection = ({
         return true;
       };
       const onResearchBrief = (brief) => {
-        if (!current() || activeRequest.action !== "deep-research" || activeRequest.researchState !== "synthesizing"
+        const acceptsBrief = (activeRequest.action === 'deep-research' && activeRequest.researchState === 'synthesizing')
+          || (activeRequest.action === 'none' && activeRequest.researchReused && activeRequest.researchState === 'synthesizing');
+        if (!current() || !acceptsBrief
           || !activeRequest.researchDetailsReceived || !activeRequest.sourcesReceived || activeRequest.researchBriefReceived
           || session.snapshot().segments.length) return false;
         try { if (!session.attachResearchBrief(brief)) return false; } catch { return false; }
         activeRequest.researchBriefReceived = true;
         return true;
+      };
+      const onResearchReference = (metadata) => {
+        if (!current() || !['searching', 'synthesizing', 'reusing'].includes(activeRequest.researchState)
+          || session.snapshot().segments.length) return false;
+        try { return session.attachResearchReference(metadata); } catch { return false; }
       };
       const onToolActivity = (phase) => {
         if (!current() || !['start', 'complete'].includes(phase)) return false;
@@ -1686,8 +1819,8 @@ const OrbSection = ({
         return true;
       };
       const request = {
-        requestId, message, history, ...(artifactContext ? { artifactContext } : {}), allowMultiple, actionMode: activeRequest.actionMode, onToolActivity,
-        signal: controller.signal, onTextDelta, onSegment, onReaction, onAction, onResearch, onResearchProgress, onResearchDetails, onResearchBrief, onSources,
+        requestId, message, history, ...(artifactContext ? { artifactContext } : {}), ...(researchContext ? { researchContext } : {}), allowMultiple, actionMode: activeRequest.actionMode, onToolActivity,
+        signal: controller.signal, onTextDelta, onSegment, onReaction, onAction, onResearch, onResearchProgress, onResearchDetails, onResearchBrief, onResearchReference, onSources,
         onActivity: (event) => current() && reportActivity(requestId, event),
         reactionQuestion: METABLOOM_REACTION_QUESTION,
         resolveDecision: resolveMetabloomDecision,
@@ -1721,7 +1854,8 @@ const OrbSection = ({
       if (!current() || activeRequest.claimed) return true;
       const externalAdapter = window.__metabloomRequest;
       if (typeof externalAdapter !== "function" && typeof globalThis.fetch !== "function") {
-        runDemo();
+        if (researchContext) failReply(session, { code: 'network_error' });
+        else runDemo();
         return true;
       }
       Promise.resolve().then(() => {
@@ -1730,13 +1864,17 @@ const OrbSection = ({
           : requestMetabloomResponse({ ...request, optional: true });
       }).then((payload) => {
         if (!current()) return;
-        if (!payload && !session.snapshot().segments.length) { runDemo(); return; }
+        if (!payload && !session.snapshot().segments.length) {
+          if (researchContext) failReply(session, { code: 'not_configured' });
+          else runDemo();
+          return;
+        }
         if (parseMetabloomChatEnvelope(payload, { allowMultiple }).ok) finishReply(session, payload);
         else receiveModelResponse(payload, { requestId, source: "model" });
       }).catch((error) => { if (current()) failReply(session, error); });
       return true;
     },
-    [allowEmoteChanges, appendMessage, beginReply, beginRequestScene, cancelResponse, deepResearch, failReply, finishReply, isActive, publishMessages, reactionPlayer, receiveModelResponse, reportActivity, updateArtifactAttachment, updateStateSnapshot],
+    [allowEmoteChanges, appendMessage, beginReply, beginRequestScene, cancelResponse, deepResearch, failReply, finishReply, isActive, publishMessages, reactionPlayer, receiveModelResponse, reportActivity, updateArtifactAttachment, updateResearchAttachment, updateStateSnapshot],
   );
 
   const handleSubmit = React.useCallback(
@@ -2216,9 +2354,13 @@ const OrbSection = ({
           >
             <div className="metabloom-chat__message-list">
               {messages.map((message, messageIndex) => {
-                const sources = message.role === "assistant" ? parseMetabloomResearchSources(message.sources) : null;
                 const researchDetails = message.role === "assistant" ? parseMetabloomResearchReport(message.researchDetails) : null;
+                const sources = researchDetails ? parseMetabloomResearchAnswerSources(message.sources, { report: researchDetails })
+                  : message.role === 'assistant' ? parseMetabloomResearchSources(message.sources) : null;
                 const researchBrief = researchDetails ? parseMetabloomResearchBrief(message.researchBrief, { sources: researchDetails.sources }) : null;
+                const researchReference = researchDetails ? parseMetabloomResearchReferenceMetadata(message.researchReference) : null;
+                const referenceExpired = researchReference && Date.parse(researchReference.expiresAt) <= researchReferenceNow;
+                const referenceUnavailable = researchReference && unavailableResearchIds.includes(researchReference.researchId);
                 const researchFallback = researchDetails && ["complete", "error", "interrupted"].includes(message.status)
                   && (researchBrief?.coverage.status === "unavailable" || (!researchBrief && message.status !== "complete"));
                 return (
@@ -2249,17 +2391,22 @@ const OrbSection = ({
                             >
                               <span aria-hidden="true">↻</span> {resolveMetabloomEmote(segment.emote)?.label}
                             </button>}
-                            <p data-segment-index={index} data-reaction-active={activeReaction?.messageId === message.id && activeReaction?.index === index ? "true" : "false"}>{renderMetabloomResearchText(segment.response, sources)}</p>
+                            <p data-segment-index={index} data-reaction-active={activeReaction?.messageId === message.id && activeReaction?.index === index ? "true" : "false"}>{renderMetabloomResearchText(segment.response, sources, { report: researchDetails })}</p>
                           </React.Fragment>
                         ))
-                        : message.content ? <p>{renderMetabloomResearchText(message.content, sources)}</p> : null}
-                      {researchBrief && message.status !== "streaming" && <MetabloomResearchBrief brief={researchBrief} sources={researchDetails.sources} />}
+                        : message.content ? <p>{renderMetabloomResearchText(message.content, sources, { report: researchDetails })}</p> : null}
+                      {researchBrief && message.status !== "streaming" && <MetabloomResearchBrief brief={researchBrief} sources={researchDetails.sources}
+                        reuseDisabled={!isActive || referenceExpired || referenceUnavailable}
+                        onUseBrief={researchReference?.briefId ? () => stageResearchReference(researchReference,
+                          { type: 'brief', briefId: researchReference.briefId }, researchBrief.title) : undefined}
+                        onUseFinding={researchReference?.briefId ? (index, item) => stageResearchReference(researchReference,
+                          { type: 'finding', briefId: researchReference.briefId, index }, item.headline) : undefined} />}
                       {sources && !researchBrief && message.status === "complete" && (
                         <div className="metabloom-chat__sources" role="group" aria-label="Sources for this answer">
                           <span className="metabloom-chat__sources-heading">Sources</span>
                           <ol>
                             {sources.map((source) => (
-                              <li key={source.id}>
+                              <li key={source.id} value={source.id}>
                                 <a href={source.url} target="_blank" rel="noopener noreferrer">{source.title}</a>
                                 <span className="metabloom-chat__source-domain">{new URL(source.url).hostname}</span>
                               </li>
@@ -2271,6 +2418,18 @@ const OrbSection = ({
                         <>
                           {message.status === "error" && <p className="metabloom-chat__research-notice">Research completed. The short answer could not be prepared.</p>}
                           {message.status === "interrupted" && <p className="metabloom-chat__research-notice">Research completed. The short answer was stopped.</p>}
+                          {researchReference && message.status !== 'streaming' && <div className="metabloom-chat__research-reuse"
+                            data-research-reused={message.researchReused === true ? 'true' : 'false'}
+                            role="group" aria-label="Research reuse">
+                            <div className="metabloom-chat__research-reference-copy">
+                              <strong>{message.researchReused === true ? 'Reused sources' : 'Saved research'}</strong>
+                              <span>{researchReference.title}</span>
+                              <ResearchReferenceDates reference={researchReference} expired={referenceExpired} />
+                              {referenceUnavailable && <span>Reuse is no longer available. The report remains readable.</span>}
+                            </div>
+                            <button type="button" disabled={!isActive || referenceExpired || referenceUnavailable}
+                              onClick={() => stageResearchReference(researchReference)}>Use this research</button>
+                          </div>}
                           <MetabloomFullResearch key={researchFallback ? "fallback" : "optional"}
                             report={researchDetails} initiallyExpanded={Boolean(researchFallback)} />
                         </>
@@ -2385,6 +2544,32 @@ const OrbSection = ({
                 }}>×</button>
               </div>
             )}
+            {researchAttachment && (
+              <div className="metabloom-chat__reference metabloom-chat__reference--research"
+                data-research-reference={researchAttachment.reference.researchId}
+                role="group" aria-label="Selected research reference">
+                <span id="metabloom-selected-research" className="metabloom-chat__reference-copy" role="status">
+                  <span>{unavailableResearchIds.includes(researchAttachment.reference.researchId) ? 'Research reference unavailable'
+                    : Date.parse(researchAttachment.expiresAt) <= researchReferenceNow ? 'Research reference expired'
+                    : isMetabloomFreshResearchRequest(draft) ? 'Search for updates' : 'Use saved research'}</span>
+                  <strong>{researchAttachment.label}</strong>
+                  <ResearchReferenceDates reference={researchAttachment}
+                    expired={Date.parse(researchAttachment.expiresAt) <= researchReferenceNow} />
+                </span>
+                <button type="button" className="metabloom-chat__research-search-again" onClick={() => {
+                  updateResearchAttachment(null);
+                  setDeepResearch(true);
+                  if (retainedConversation.current) retainedConversation.current.deepResearch = true;
+                  setErrorMessage('');
+                  composerRef.current?.focus({ preventScroll: true });
+                }}>Search again</button>
+                <button type="button" aria-label="Remove research reference" onClick={() => {
+                  updateResearchAttachment(null);
+                  setErrorMessage('');
+                  composerRef.current?.focus({ preventScroll: true });
+                }}>×</button>
+              </div>
+            )}
             <form
               className="metabloom-chat__composer"
               data-has-stop={pending && draft.trim() ? "true" : "false"}
@@ -2402,7 +2587,8 @@ const OrbSection = ({
                 id="metabloom-message"
                 onFocus={attendToComposer}
                 onBlur={() => setComposerFocused(false)}
-                aria-describedby={artifactAttachment ? "metabloom-composer-help metabloom-selected-reference" : "metabloom-composer-help"}
+                aria-describedby={researchAttachment ? "metabloom-composer-help metabloom-selected-research"
+                  : artifactAttachment ? "metabloom-composer-help metabloom-selected-reference" : "metabloom-composer-help"}
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
                 onKeyDown={handleComposerKeyDown}

@@ -2,11 +2,13 @@ import { MAX_METABLOOM_RESEARCH_STREAM_BYTES, createMetabloomSegmentStreamDecode
 import { METABLOOM_ACTION_MODES } from "./metabloomDecisionMapping";
 import { METABLOOM_REQUEST_ERROR_MESSAGES, parseMetabloomRequestError, parseMetabloomRequestRef, getMetabloomApiErrorMessage } from "./metabloomRequestErrors";
 import { METABLOOM_VISUAL_OFFER_EVENT, createMetabloomVisualStreamBridge } from "./metabloomVisualApiClient";
+import { parseMetabloomResearchContext, isMetabloomFreshResearchRequest } from "./metabloomResearchReference";
 
 export { getMetabloomApiErrorMessage } from "./metabloomRequestErrors";
 
 const MAX_RESPONSE_BYTES = 96000;
 export const METABLOOM_RESEARCH_TIMEOUT_MS = 210000;
+export const METABLOOM_RESEARCH_REUSE_TIMEOUT_MS = 90000;
 export class MetabloomApiError extends Error {
   constructor(message, { code = "request_failed", status = 0, requestRef = null } = {}) {
     super(message);
@@ -30,6 +32,7 @@ export const requestMetabloomResponse = async ({
   fetchImpl = globalThis.fetch,
   history = [],
   artifactContext,
+  researchContext,
   message,
   onSegment,
   onTextDelta,
@@ -39,6 +42,7 @@ export const requestMetabloomResponse = async ({
   onResearchProgress,
   onResearchDetails,
   onResearchBrief,
+  onResearchReference,
   onSources,
   onVisualOffer,
   optional = false,
@@ -49,8 +53,13 @@ export const requestMetabloomResponse = async ({
   if (!METABLOOM_ACTION_MODES.includes(actionMode)) {
     throw new MetabloomApiError("Unknown presentation mode.", { code: "invalid_request" });
   }
+  if (researchContext !== undefined) {
+    researchContext = parseMetabloomResearchContext(researchContext);
+    if (!researchContext || artifactContext) throw new MetabloomApiError(getMetabloomApiErrorMessage("research_reference_invalid"), { code: "research_reference_invalid" });
+    actionMode = isMetabloomFreshResearchRequest(message) ? "deep-research" : "none";
+  }
   if (typeof fetchImpl !== "function") {
-    if (optional) return null;
+    if (optional && !researchContext) return null;
     throw new MetabloomApiError("Fetch is unavailable.");
   }
   const controller = new AbortController();
@@ -69,8 +78,8 @@ export const requestMetabloomResponse = async ({
       credentials: "same-origin",
       headers: { "Content-Type": "application/json", Accept: "application/x-ndjson", "X-Metabloom-Visuals": "1", "X-Metabloom-Ui-Tools": "1" },
       body: JSON.stringify({ actionMode, allowMultiple: allowMultiple === true, streamText: true,
-        streamResearchProgress: true, streamResearchDetails: true, streamResearchBrief: true, streamResearchMedia: true, timeZone, history, message, requestId,
-        ...(artifactContext ? { artifactContext } : {}) }),
+        streamResearchProgress: true, streamResearchDetails: true, streamResearchBrief: true, streamResearchMedia: true, streamResearchReuse: true, timeZone, history, message, requestId,
+        ...(artifactContext ? { artifactContext } : {}), ...(researchContext ? { researchContext } : {}) }),
       signal: controller.signal,
     });
     const contentType = response.headers?.get?.("content-type") || "";
@@ -82,6 +91,7 @@ export const requestMetabloomResponse = async ({
       allowMultiple,
       allowResearchDetails: true,
       allowResearchBrief: true,
+      allowResearchReuse: true,
       onError: (error) => {
         const code = error.code || "invalid_response";
         streamError = new MetabloomApiError(getMetabloomApiErrorMessage(code), {
@@ -98,6 +108,10 @@ export const requestMetabloomResponse = async ({
           researchStarted = true;
           clearTimeout(timeout);
           timeout = setTimeout(abort, Math.max(0, startedAt + METABLOOM_RESEARCH_TIMEOUT_MS - Date.now()));
+        } else if (research.state === "reusing" && !researchStarted) {
+          researchStarted = true;
+          clearTimeout(timeout);
+          timeout = setTimeout(abort, Math.max(0, startedAt + METABLOOM_RESEARCH_REUSE_TIMEOUT_MS - Date.now()));
         }
         onResearch?.(research);
       },
@@ -112,6 +126,10 @@ export const requestMetabloomResponse = async ({
       onResearchBrief: (brief) => {
         if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
         onResearchBrief?.(brief);
+      },
+      onResearchReference: (metadata) => {
+        if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
+        onResearchReference?.(metadata);
       },
       onSources: (sources) => {
         if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
@@ -173,7 +191,7 @@ export const requestMetabloomResponse = async ({
       const error = new MetabloomApiError(getMetabloomApiErrorMessage(code), {
         code, status: responseStatus, requestRef: details?.requestRef || responseRequestRef,
       });
-      if (optional && isMetabloomApiUnavailable(error)) return null;
+      if (optional && !researchContext && isMetabloomApiUnavailable(error)) return null;
       throw error;
     }
     const result = isStream ? decoder.finish() : parseMetabloomChatEnvelope(text, { allowMultiple });

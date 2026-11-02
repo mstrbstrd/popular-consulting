@@ -19,7 +19,7 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); delete window.__orbMessages; });
 
-function start(message, history = [], artifactContext) {
+function start(message, history = [], artifactContext, researchContext) {
   const controller = new AbortController();
   const ref = React.createRef();
   window.__orbMessages = () => [{ id: 'user-1', role: 'user', content: message }];
@@ -30,6 +30,7 @@ function start(message, history = [], artifactContext) {
   const event = new CustomEvent('metabloom:user-message', { cancelable: true, detail: {
     requestId: 'followup-1', message, history, actionMode: 'auto', signal: controller.signal,
     ...(artifactContext ? { artifactContext } : {}),
+    ...(researchContext ? { researchContext } : {}),
     claim: jest.fn(), respond: jest.fn(), onToolActivity: jest.fn(),
   } });
   act(() => window.dispatchEvent(event));
@@ -79,6 +80,21 @@ test('explicit conversion forwards the exact selected reference to the tool star
   expect(postMetabloomTool).toHaveBeenCalledWith({ phase: 'start', message, history: [], requestId: 'followup-1', artifactContext },
     { signal: controller.signal });
   expect(requestMetabloomVisual).not.toHaveBeenCalled();
+});
+
+test('an explicit research conversion carries only the owned research locator to the tool', () => {
+  const researchContext = { researchId: 'c'.repeat(48), selector: { type: 'finding', briefId: 'd'.repeat(32), index: 1 } };
+  const message = 'Create a table from this finding.';
+  const { controller, event } = start(message, [], undefined, researchContext);
+  expect(event.defaultPrevented).toBe(true);
+  expect(postMetabloomTool).toHaveBeenCalledWith({ phase: 'start', message, history: [], requestId: 'followup-1', researchContext }, { signal: controller.signal });
+});
+
+test('a deliberate fresh research request stays on the research endpoint even if it also requests a chart', () => {
+  const researchContext = { researchId: 'c'.repeat(48), selector: { type: 'report' } };
+  const { event } = start('Update this research and create a bar chart.', [], undefined, researchContext);
+  expect(event.defaultPrevented).toBe(false);
+  expect(postMetabloomTool).not.toHaveBeenCalled();
 });
 
 test('only a ready element connected to the active Orb root produces mounted evidence', () => {

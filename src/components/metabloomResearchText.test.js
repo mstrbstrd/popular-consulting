@@ -71,6 +71,27 @@ test("invalid source metadata cannot authorize a Markdown or numeric link", () =
   expect(screen.queryByRole("link")).not.toBeInTheDocument();
 });
 
+test('sparse reused citations preserve original source IDs only when the complete report confirms them', () => {
+  const report = { notes: 'The recorded evidence [9].', sources };
+  render(<div role="article">{renderMetabloomResearchText('Read [the saved source](https://example.org/research-9) [9].',
+    [sources[8]], { report })}</div>);
+  expect(screen.getByRole('article')).toHaveTextContent('Read the saved source [9].');
+  expect(screen.getByRole('link', { name: 'Source 9: Fictional source 9' })).toHaveAttribute('href', sources[8].url);
+});
+
+test.each(['missing report', 'changed URL', 'changed title', 'duplicate source'])('%s cannot authorize sparse reused citations', mode => {
+  const report = { notes: 'The recorded evidence [9].', sources };
+  const selection = [{ ...sources[8] }];
+  if (mode === 'changed URL') selection[0].url = 'https://example.org/altered-evidence';
+  if (mode === 'changed title') selection[0].title = 'An invented title';
+  if (mode === 'duplicate source') selection.push({ ...sources[8] });
+  const input = 'The saved evidence [9].';
+  render(<div role="article">{renderMetabloomResearchText(input, selection,
+    mode === 'missing report' ? {} : { report })}</div>);
+  expect(screen.getByRole('article').textContent).toBe(input);
+  expect(screen.queryByRole('link')).not.toBeInTheDocument();
+});
+
 test("full report formatting keeps complete prose, original numbering, and the exact stored notes", () => {
   const report = { sources, notes: "# Findings\n\nOpening evidence from [the agency](https://example.org/research-1) [1].\n\n- First qualification.\n- Second qualification [9].\n\n5. Read [the study](https://example.org/research-9).\n6. Check the final detail.\n\nThe final sentence remains visible." };
   const original = JSON.parse(JSON.stringify(report));
