@@ -544,8 +544,13 @@ const OrbSection = ({
   const saveToolState = navigation?.saveToolState;
   React.useEffect(() => () => {
     const snapshot = retainedConversation.current;
-    saveToolState?.('orb', { ...snapshot, interrupted: snapshot.pending, counter: messageCounterRef.current,
-      messages: messagesRef.current.map(message => message.status === 'streaming' ? { ...message, status: 'interrupted' } : message) });
+    const display = replyDisplayRef.current;
+    // This cleanup runs before reply teardown. Save validated work directly,
+    // even when its presentation has not created or finished the visible row.
+    const retainedMessages = display?.retainedMessages();
+    saveToolState?.('orb', { ...snapshot, interrupted: stateRef.current?.pending === true && !display?.session.closed,
+      counter: messageCounterRef.current, messages: retainedMessages
+        || messagesRef.current.map(message => message.status === 'streaming' ? { ...message, status: 'interrupted' } : message) });
   }, [saveToolState]);
   const activeAction =
     resolveMetabloomAction(actionId) || getDefaultMetabloomAction();
@@ -730,20 +735,24 @@ const OrbSection = ({
   }, [cancelRequestScene, setActivity, updateRequestScene, waitForRequestScenePaint]);
 
   const cancelResponse = React.useCallback((reason = "interrupted") => {
+    const retainedMessages = replyDisplayRef.current?.retainedMessages(reason);
     cancelRequestScene();
     setActivity("idle");
     window.clearTimeout(thinkingTimerRef.current);
     thinkingTimerRef.current = 0;
     reactionPlayerRef.current?.cancel();
     if (mountedRef.current) setActiveReaction(null);
-    requestAbortRef.current?.abort();
-    requestAbortRef.current = null;
     requestTokenRef.current += 1;
     activeRequestRef.current = null;
+    requestAbortRef.current?.abort();
+    requestAbortRef.current = null;
     window.clearTimeout(previewTimerRef.current);
     previewTimerRef.current = 0;
     replyRef.current?.interrupt(reason);
     replyDisplayRef.current?.gate.cancel(reason);
+    // Presentation cancellation can publish an interrupted prefix. Restore the
+    // canonical result afterwards without replaying its scene or reactions.
+    if (retainedMessages) publishMessages(retainedMessages);
     replyDisplayRef.current = null;
     replyRef.current = null;
     updateStateSnapshot({ researchProgress: null, researchSummary: null, researchSource: null });
@@ -753,7 +762,7 @@ const OrbSection = ({
       setResearchSummary(null);
       setResearchSource(null);
     }
-  }, [cancelRequestScene, setActivity, updateStateSnapshot]);
+  }, [cancelRequestScene, publishMessages, setActivity, updateStateSnapshot]);
 
   const cancelSequenceTimer = React.useCallback(() => {
     sequenceTokenRef.current += 1;
@@ -1169,26 +1178,31 @@ const OrbSection = ({
   const beginReply = React.useCallback((source, allowMultiple = false) => {
     cancelResponse();
     clearSequence();
-    let messageId = null;
+    const messageId = `assistant-${++messageCounterRef.current}`;
     let gate;
     let deliveryKind = null;
-    const publishSnapshot = (snapshot) => {
-      if (!mountedRef.current) return;
+    const messagesWithSnapshot = (snapshot) => {
       const replySource = replyRef.current === session ? stateRef.current.responseSource : source;
-      if (!messageId) {
+      const existing = messagesRef.current.find((message) => message.id === messageId);
+      const message = { id: messageId, role: "assistant", actionChain: [], ...existing, ...snapshot, source: replySource };
+      return existing ? messagesRef.current.map((item) => item.id === messageId ? message : item)
+        : [...messagesRef.current.slice(-(MAX_CHAT_MESSAGES - 1)), message];
+    };
+    const publishSnapshot = (snapshot) => {
+      if (!mountedRef.current || replyRef.current !== session) return;
+      if (!messagesRef.current.some((message) => message.id === messageId)) {
         completeActivity();
         window.clearTimeout(thinkingTimerRef.current);
         thinkingTimerRef.current = 0;
-        messageId = appendMessage("assistant", snapshot.content, [], replySource, snapshot.emote, snapshot.segments, snapshot.status, snapshot.sources, snapshot.researchDetails, snapshot.researchBrief).id;
-      } else {
-        publishMessages(messagesRef.current.map((message) => message.id === messageId ? { ...message, ...snapshot, source: replySource } : message));
       }
+      publishMessages(messagesWithSnapshot(snapshot));
     };
     const validationSession = createMetabloomReplySession({
       allowMultiple,
       onEmote: (emote) => {
         const index = session.snapshot().segments.length - 1;
         gate.deferReaction(`segment-${index}`, () => {
+          if (!mountedRef.current || replyRef.current !== session) return;
           completeActivity();
           window.clearTimeout(thinkingTimerRef.current);
           thinkingTimerRef.current = 0;
@@ -1197,7 +1211,8 @@ const OrbSection = ({
         });
       },
       onUpdate: (snapshot) => {
-        if (!mountedRef.current) return;
+        if (!mountedRef.current || replyRef.current !== session) return;
+        if (snapshot.status === "complete") display.completedSnapshot = snapshot;
         const request = activeRequestRef.current;
         // Custom adapters may return only a completed envelope. An explicit
         // selection still owns its scene and display before that payload appears.
@@ -1228,7 +1243,21 @@ const OrbSection = ({
       onUpdate: publishSnapshot,
       onFirstContent: () => completeRequestScene(session),
     });
-    replyDisplayRef.current = { session, gate };
+    const display = {
+      session, gate, completedSnapshot: null,
+      retainedMessages(reason = "interrupted") {
+        if (display.completedSnapshot) return messagesWithSnapshot(display.completedSnapshot);
+        const snapshot = session.snapshot();
+        const visible = messagesRef.current.find((message) => message.id === messageId);
+        if (!visible && !snapshot.researchDetails) return null;
+        // Reports are validated separately from their writer. Retain them, but
+        // expose only text that was already visible if the answer never finished.
+        return messagesWithSnapshot({ ...snapshot, segments: visible?.segments || [],
+          content: visible?.content || "", emote: visible?.emote || "neutral",
+          status: snapshot.status === "error" || reason === "error" ? "error" : "interrupted" });
+      },
+    };
+    replyDisplayRef.current = display;
     replyRef.current = session;
     updateStateSnapshot({ pending: true, responseSource: source });
     setPending(true);
@@ -1242,7 +1271,7 @@ const OrbSection = ({
     }, 650);
     previewTimerRef.current = window.setTimeout(() => failReply(session, { code: "answer_timeout" }), RESPONSE_TIMEOUT_MS);
     return session;
-  }, [appendMessage, beginRequestScene, cancelResponse, clearSequence, completeActivity, completeRequestScene, failReply, performAction, reactionPlayer, publishMessages, updateStateSnapshot]);
+  }, [beginRequestScene, cancelResponse, clearSequence, completeActivity, completeRequestScene, failReply, performAction, reactionPlayer, publishMessages, updateStateSnapshot]);
 
   const finishReply = React.useCallback((session, payload) => {
     if (replyRef.current !== session || session.closed) return false;
@@ -1340,10 +1369,14 @@ const OrbSection = ({
       session.interrupt();
       updateStateSnapshot({ responseSource: source });
       setResponseSource(source);
-      display.gate.update({
+      // Legacy envelopes have their own validator and bypass session.finish().
+      // Retain the validated result through the same presentation-independent path.
+      display.completedSnapshot = {
+        ...session.snapshot(),
         content: legacy.value.response, segments: [{ response: legacy.value.response }],
         actionChain: legacy.value.actionChain, emote: "neutral", status: "complete",
-      }, { legacy: true });
+      };
+      display.gate.update(display.completedSnapshot, { legacy: true });
       display.gate.deferReaction("legacy-actions", () => playSequence(legacy.value.actionChain, "legacy-model-response"));
       window.clearTimeout(previewTimerRef.current);
       previewTimerRef.current = 0;

@@ -132,8 +132,12 @@ when the first response content arrives and withholds visible text until the
 return finishes. It then reveals buffered text progressively and continues the
 same streamed reply. Under the Hood holds its reveal during the text and closes
 on successful terminal completion. No additional action event or Jev call is
-needed. Cancellation and failure discard unpublished text, retire the scene, and
-preserve only an already-visible incomplete prefix. The action
+needed. Cancellation retires the scene and queued reactions. A validated complete
+answer is retained in full under its original message ID, independently of its
+reveal progress. Unfinished or failed answers retain only an already-visible
+incomplete prefix; their hidden text is discarded. Independently validated
+research reports, sources, and briefs survive even if the short answer never
+finishes. The action
 catalog and the confirmed external-worker contract are documented in
 [decision and activity mappings](metabloom-decisions.md).
 
@@ -147,8 +151,12 @@ reaction immediately, then dispatches the final reaction **only after verifying
 the terminal `done` event**. The research display gate additionally holds that
 final reaction until the queued answer has been shown. This prevents interrupted streams from expressing a
 premature conclusion. The user sees one growing chat bubble. Partial text remains
-provisional until the response completes. An error or cancellation preserves the
-visible prefix with an incomplete status and excludes it from history. The old per-paragraph
+provisional until the response completes. An error or cancellation before valid
+completion preserves the visible prefix with an incomplete status and excludes
+it from history. Cancelling presentation after valid completion preserves the
+full answer with complete status and includes it in follow-up history. SPA
+navigation saves the same validated content in the bounded tab-only snapshot,
+without restarting requests or replaying reactions on return. The old per-paragraph
 reactions are not selected by the chat model anymore.
 
 Jev receives a constrained `type: "choice"` question with the same 14 primitive

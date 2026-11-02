@@ -140,15 +140,28 @@ not assert successful research or provider completion. Under the Hood retains
 its separate behavior: text appears during the held reveal, and successful
 terminal completion starts closing it. Ordinary conversation remains immediate.
 
-Scene timers and buffered presentation belong to one request. Stop, error,
-timeout, replacement, reset, deactivation, and unmount discard unpublished text and retain
-only an already-visible incomplete prefix. A hidden page skips the current scene
-and releases its display gate without aborting the request. Received evidence and
-the answer remain attached to the same session; the skipped scene cannot restart
-when the tab returns. Navigation away, unmount and explicit Stop still cancel work. Reduced
-motion presents the selected scene directly and retains a brief static surfacing
-cue before revealing text. Timed menu previews and external worker activities
-remain independent. Provider deadlines and semantic response limits still apply.
+Scene timers and buffered presentation belong to one request. A validated
+completed answer belongs to the conversation independently of those timers.
+Stop, replacement, reset, deactivation, and unmount retain its full content under
+the same message ID, even before the first visible text or during progressive
+reveal. They cancel the remaining scene and reactions. Completed answers remain
+eligible for follow-up history. Reset continues to preserve the conversation.
+
+For an unfinished or failed answer, cancellation and timeout discard hidden text
+and retain only an already-visible incomplete prefix. An independently validated
+research report, sources, and brief remain attached to that reply even when its
+short answer is empty, interrupted, or failed. SPA navigation saves this retained
+content in the existing bounded, tab-only conversation snapshot. It does not
+restart the request or replay the scene when the user returns.
+
+A hidden page skips the current scene and releases its display gate without
+aborting the request. Received evidence and the answer remain attached to the
+same session; the skipped scene cannot restart when the tab returns. Navigation
+away, unmount and explicit Stop still abort unfinished work and reject late
+callbacks. Reduced motion presents the selected scene directly and retains a
+brief static surfacing cue before revealing text. Timed menu previews and
+external worker activities remain independent. Provider deadlines and semantic
+response limits still apply.
 
 ## Response model's scene awareness
 
