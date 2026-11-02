@@ -93,6 +93,22 @@ contain no credentials or database identifiers.
 | Production build | Passed, including route generation and private invoice isolation |
 | Built native UI browser suite | All 11 cases passed; zero fixture or browser errors |
 | Desktop CSS and phone reduced-motion navigation | Both profiles passed; one document load and retained drafts |
+| Authentication browser UI | 8 viewport/theme cases, all 152 existing checks passed |
+
+Two existing browser fixtures needed maintenance when the PR ran their CI gates.
+The Orb screenshot fixture previously served HTML from `/api/auth/session`, so
+the real client correctly displayed its authentication guard. It now uses the
+existing local server with a fictional authenticated session and explicitly
+checks the authenticated wrapper before its unchanged renderer assertions. All
+three capture cases passed locally using a temporary Chromium launcher; the
+checked-in Windows/Edge launcher and CI platform assertions remain unchanged.
+
+The sign-out fixture previously clicked after a presence-only wait, while
+`pageshow` session revalidation could briefly remove the form. Its two logout
+actions now wait for an idle, visible, non-inert route and check/click in one page
+task. The wait remains bounded, and a successful click is never submitted again.
+All 19 checks in each of the eight cases remain intact. Neither fix changes
+application authentication or production behavior.
 
 The permanent Redis suite runs offer → claim → complete → selected-context read
 → continuation → completed read, then verifies actual expiry. It checks exact
