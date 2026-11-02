@@ -255,8 +255,8 @@ test("a fast completed research response still enters, surfaces, and reveals mul
   expect(state()).toMatchObject({ pending: false, emote: "resolute", researchDisplayPhase: "complete" });
 });
 
-test.each(["stop", "reset", "message", "deactivate", "unmount"])("%s cancels a validated but still-revealing research reply", async (operation) => {
-  const { rerender, unmount } = render(<OrbSection />);
+test.each(["stop", "reset", "message", "deactivate"])("%s retains a validated answer while cancelling its remaining reveal", async (operation) => {
+  const { rerender } = render(<OrbSection />);
   send();
   await tick(0);
   const previous = latest();
@@ -271,23 +271,27 @@ test.each(["stop", "reset", "message", "deactivate", "unmount"])("%s cancels a v
   expect(visible.content.length).toBeGreaterThan(0);
   expect(visible.content.length).toBeLessThan(answer.length);
   expect(state().pending).toBe(true);
-  if (operation === "unmount") unmount();
-  else if (operation === "deactivate") rerender(<OrbSection isActive={false} />);
+  if (operation === "deactivate") rerender(<OrbSection isActive={false} />);
   else if (operation === "message") send("A fresh request");
   else act(() => operation === "reset" ? window.__orbReset() : window.__orbStop());
   expect(previous.request.signal.aborted).toBe(true);
+  expect(window.__orbMessages().find((message) => message.id === visible.id)).toMatchObject({ content: answer, status: "complete" });
   act(() => {
     previous.request.onTextDelta("This late text must be ignored", 0);
     previous.request.onReaction({ phase: "response", emote: "resolute" });
     expect(previous.request.onAction("deep-research")).toBe(false);
   });
   await tick(2000);
-  if (operation === "unmount") expect(jest.getTimerCount()).toBe(0);
-  else {
-    const interrupted = window.__orbMessages().find((message) => message.id === visible.id);
-    expect(interrupted).toMatchObject({ content: visible.content, status: "interrupted" });
-    expect(state().emote).not.toBe("resolute");
-    expect(state().sceneAction).toBe("none");
+  const retained = window.__orbMessages().filter((message) => message.role === "assistant");
+  expect(retained).toHaveLength(1);
+  expect(retained[0]).toMatchObject({ id: visible.id, content: answer, status: "complete" });
+  const bubble = screen.getByRole("article", { name: "Metabloom message" });
+  expect(bubble.querySelector("p").textContent).toBe(answer);
+  expect(bubble).toHaveAttribute("data-stream-status", "complete");
+  expect(state()).toMatchObject({ pending: operation === "message", sceneAction: "none" });
+  expect(state().emote).not.toBe("resolute");
+  if (operation === "message") {
+    expect(latest().request.history.filter((message) => message.role === "assistant")).toEqual([{ role: "assistant", content: answer }]);
   }
 });
 
@@ -461,6 +465,73 @@ test.each(["complete envelope", "legacy action response"])("an explicit research
   expect(bubble.querySelector("p").textContent).toBe(answer);
   expect(bubble).toHaveAttribute("data-stream-status", "complete");
   expect(state().pending).toBe(false);
+});
+
+test.each(["complete envelope", "legacy action response"])("Stop retains an adapter's %s before its first visible text without replaying its reaction", async (format) => {
+  render(<OrbSection />);
+  fireEvent.click(screen.getByRole("checkbox", { name: "Deep Research" }));
+  send();
+  await tick(0);
+  const { request, finish } = latest();
+  const answer = "This completed answer is available even before its presentation starts. ".repeat(20).trim();
+  const legacy = format === "legacy action response";
+  const payload = legacy
+    ? { response: answer, actionChain: [{ action: "curious", duration: 400, intensity: 0.3 }] }
+    : envelope(answer);
+  if (!legacy) act(() => {
+    request.onAction("deep-research");
+    request.onReaction({ phase: "response", emote: "resolute" });
+  });
+  await act(async () => finish(payload));
+  expect(screen.queryByRole("article", { name: "Metabloom message" })).not.toBeInTheDocument();
+  expect(state().pending).toBe(true);
+
+  fireEvent.click(screen.getByRole("button", { name: "Stop response" }));
+  const bubble = screen.getByRole("article", { name: "Metabloom message" });
+  expect(bubble.querySelector("p").textContent).toBe(answer);
+  expect(bubble).toHaveAttribute("data-stream-status", "complete");
+  expect(request.signal.aborted).toBe(true);
+  expect(state()).toMatchObject({ pending: false, sceneAction: "none" });
+  await tick(5000);
+  expect(screen.getAllByRole("article", { name: "Metabloom message" })).toHaveLength(1);
+  expect(window.__orbMessages().find((message) => message.role === "assistant")).toMatchObject({ content: answer, status: "complete" });
+  expect(state().emote).not.toBe(legacy ? "curious" : "resolute");
+  expect(requests).toHaveLength(1);
+});
+
+test("Stop immediately followed by navigation saves a completed answer without an interruption warning", async () => {
+  const savedByTool = new Map();
+  const navigation = {
+    getToolState: (tool) => savedByTool.get(tool),
+    saveToolState: (tool, snapshot) => savedByTool.set(tool, snapshot),
+  };
+  const { unmount } = render(<AppNavigationContext.Provider value={navigation}><OrbSection /></AppNavigationContext.Provider>);
+  send();
+  await tick(0);
+  const { request, finish } = latest();
+  const answer = "This completed answer remains complete when Stop and navigation happen together.";
+  act(() => request.onAction("deep-research"));
+  await act(async () => finish(envelope(answer)));
+  expect(state().pending).toBe(true);
+  expect(screen.queryByRole("article", { name: "Metabloom message" })).not.toBeInTheDocument();
+  act(() => {
+    window.__orbStop();
+    unmount();
+  });
+
+  const saved = savedByTool.get("orb");
+  expect(saved.interrupted).toBe(false);
+  expect(saved.messages.filter((message) => message.role === "assistant")).toEqual([
+    expect.objectContaining({ content: answer, status: "complete" }),
+  ]);
+  expect(request.signal.aborted).toBe(true);
+  expect(jest.getTimerCount()).toBe(0);
+  render(<AppNavigationContext.Provider value={navigation}><OrbSection /></AppNavigationContext.Provider>);
+  expect(screen.getByRole("article", { name: "Metabloom message" })).toHaveTextContent(answer);
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  await tick(5000);
+  expect(state()).toMatchObject({ pending: false, sceneAction: "none" });
+  expect(requests).toHaveLength(1);
 });
 
 test("a provider completion near its deadline is allowed to finish its bounded display queue", async () => {

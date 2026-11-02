@@ -191,26 +191,177 @@ test.each(["held", "visible"])("a writer failure keeps the full report while tre
   expectRetainedReport(await openResearch(), report);
 });
 
-test.each(["stop", "reset", "replacement", "deactivate", "unmount"])("%s rejects stale report callbacks and discards a still-held artifact", async (operation) => {
-  const { rerender, unmount } = render(<OrbSection />);
+test.each(["stop", "reset", "replacement", "deactivate"])("%s retains a completed report before the writer starts and rejects stale callbacks", async (operation) => {
+  const { rerender } = render(<OrbSection />);
   send();
   await tick(0);
   const { request, finish } = requests[0];
   const report = reportFor();
   beginResearch(request, report);
-  if (operation === "unmount") unmount();
-  else if (operation === "deactivate") rerender(<OrbSection isActive={false} />);
+  expect(screen.queryByRole("article", { name: "Metabloom message" })).not.toBeInTheDocument();
+  if (operation === "deactivate") rerender(<OrbSection isActive={false} />);
   else if (operation === "replacement") send("A different research request");
   else act(() => operation === "reset" ? window.__orbReset() : window.__orbStop());
   expect(request.signal.aborted).toBe(true);
+  const reply = screen.getByRole("article", { name: "Metabloom message" });
+  expect(reply).toHaveAttribute("data-stream-status", "interrupted");
+  expect(reply).toHaveTextContent("Research completed. The short answer was stopped.");
+  expect(reply).not.toHaveTextContent(/Response incomplete|Short answer incomplete/);
+  expect(window.__orbMessages().find((message) => message.role === "assistant").content).toBe("");
   act(() => {
     expect(request.onResearchDetails(report)).toBe(false);
     request.onTextDelta("A stale answer", 0);
   });
   await act(async () => finish(envelope));
   await tick(1000);
-  expect(screen.queryByText("Full research")).not.toBeInTheDocument();
+  expectRetainedReport(await openResearch(), report);
+  expect(screen.getAllByRole("article", { name: "Metabloom message" })).toHaveLength(1);
+  expect(window.__orbMessages().find((message) => message.role === "assistant")).toMatchObject({ content: "", status: "interrupted" });
+  expect(requests).toHaveLength(operation === "replacement" ? 2 : 1);
+});
+
+test.each(["complete answer", "unfinished writer", "failed writer"])("navigation retains completed research with a %s before the first visible text", async (outcome) => {
+  jest.spyOn(console, "error").mockImplementation(() => {});
+  const savedByTool = new Map();
+  const navigation = {
+    getToolState: (tool) => savedByTool.get(tool),
+    saveToolState: (tool, snapshot) => savedByTool.set(tool, snapshot),
+  };
+  const { unmount } = render(<AppNavigationContext.Provider value={navigation}><OrbSection /></AppNavigationContext.Provider>);
+  send();
+  await tick(0);
+  const { request, finish, reject } = requests[0];
+  const report = reportFor();
+  beginResearch(request, report);
+  if (outcome === "complete answer") {
+    beginWriter(request, report);
+    await act(async () => finish(envelope));
+  } else if (outcome === "failed writer") {
+    await act(async () => reject(Object.assign(new Error("Private writer diagnostic"), { code: "answer_invalid" })));
+    expect(window.__orbState().researchPhase).toBe("surfacing");
+  }
   expect(screen.queryByRole("article", { name: "Metabloom message" })).not.toBeInTheDocument();
+  unmount();
+  expect(request.signal.aborted).toBe(true);
+
+  const expectedStatus = outcome === "complete answer" ? "complete" : outcome === "failed writer" ? "error" : "interrupted";
+  const expectedContent = outcome === "complete answer" ? answer : "";
+  const saved = savedByTool.get("orb");
+  const savedReplies = saved.messages.filter((message) => message.role === "assistant");
+  expect(savedReplies).toHaveLength(1);
+  expect(savedReplies[0]).toMatchObject({ content: expectedContent, status: expectedStatus, researchDetails: report });
+  if (outcome === "complete answer") expect(saved.interrupted).toBe(false);
+  act(() => {
+    expect(request.onResearchDetails(report)).toBe(false);
+    request.onTextDelta("Late text cannot change the saved research.", 0);
+  });
+  await act(async () => finish(envelope));
+  expect(jest.getTimerCount()).toBe(0);
+
+  render(<AppNavigationContext.Provider value={navigation}><OrbSection /></AppNavigationContext.Provider>);
+  const reply = screen.getByRole("article", { name: "Metabloom message" });
+  expect(reply).toHaveAttribute("data-stream-status", expectedStatus);
+  if (outcome === "complete answer") {
+    expect(reply).toHaveTextContent(answer);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  } else {
+    expect(reply).toHaveTextContent(outcome === "failed writer"
+      ? "Research completed. The short answer could not be prepared."
+      : "Research completed. The short answer was stopped.");
+  }
+  expectRetainedReport(await openResearch(), report);
+  await tick(5000);
+  expect(window.__orbMessages().filter((message) => message.role === "assistant")).toEqual([expect.objectContaining({
+    id: savedReplies[0].id, content: expectedContent, status: expectedStatus, researchDetails: report,
+  })]);
+  expect(window.__orbState()).toMatchObject({ pending: false, sceneAction: "none" });
+  expect(requests).toHaveLength(1);
+  if (outcome === "complete answer") {
+    send("Continue from the retained answer");
+    await tick(0);
+    expect(requests[1].request.history.filter((message) => message.role === "assistant")).toEqual([{ role: "assistant", content: answer }]);
+    const messages = window.__orbMessages();
+    expect(new Set(messages.map((message) => message.id)).size).toBe(messages.length);
+  }
+});
+
+test("a legacy completed answer keeps its report, sources, and brief through Stop and navigation", async () => {
+  const savedByTool = new Map();
+  const navigation = {
+    getToolState: (tool) => savedByTool.get(tool),
+    saveToolState: (tool, snapshot) => savedByTool.set(tool, snapshot),
+  };
+  const { unmount } = render(<AppNavigationContext.Provider value={navigation}><OrbSection /></AppNavigationContext.Provider>);
+  send();
+  await tick(0);
+  const { request, finish } = requests[0];
+  const report = reportFor();
+  const brief = {
+    version: "metabloom-research-brief-v1", kind: "research", title: "Retained evidence brief",
+    scope: "Published research findings", asOf: "2026-10-23T15:00:00.000Z", timeZone: "UTC",
+    localDate: "2026-10-23", windowStart: null, windowEnd: null,
+    coverage: { requestedCount: 1, returnedCount: 1, status: "complete", limitations: [] },
+    items: [{ headline: "A retained research finding", summary: "The completed report supports this finding.",
+      sourceIds: [9], background: [], whyItMatters: "The finding provides context for the research question.",
+      uncertainty: [], watchNext: [], developmentDate: null, scheduledDate: null,
+      dateEvidence: null, evidenceStatus: "reported" }],
+    sourceDetails: [{ sourceId: 9, publisher: "Research publisher", publishedDate: null, dateEvidence: "", sourceType: "analysis" }],
+  };
+  beginResearch(request, report);
+  beginWriter(request, report);
+  act(() => expect(request.onResearchBrief(brief)).toBe(true));
+  await act(async () => finish({ response: answer, actionChain: [{ action: "curious", duration: 400, intensity: 0.3 }] }));
+  expect(screen.queryByRole("article", { name: "Metabloom message" })).not.toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("button", { name: "Stop response" }));
+  const expectedReply = { content: answer, status: "complete", researchDetails: report,
+    sources: [report.sources[0]], researchBrief: brief };
+  const retainedReply = window.__orbMessages().find((message) => message.role === "assistant");
+  expect(retainedReply).toMatchObject(expectedReply);
+  expect(screen.getByRole("region", { name: brief.title })).toHaveTextContent(brief.items[0].headline);
+  unmount();
+  expect(savedByTool.get("orb").messages.find((message) => message.id === retainedReply.id)).toMatchObject(expectedReply);
+
+  render(<AppNavigationContext.Provider value={navigation}><OrbSection /></AppNavigationContext.Provider>);
+  const reply = screen.getByRole("article", { name: "Metabloom message" });
+  expect(reply).toHaveTextContent(answer);
+  expect(reply).toHaveAttribute("data-stream-status", "complete");
+  const briefRegion = within(reply).getByRole("region", { name: brief.title });
+  expect(briefRegion).toHaveTextContent(brief.items[0].headline);
+  expect(within(briefRegion).getByRole("link", { name: "Source 9: Research source 9" })).toHaveAttribute("href", report.sources[8].url);
+  expectRetainedReport(await openResearch(), report);
+  expect(window.__orbMessages().filter((message) => message.role === "assistant")).toEqual([
+    expect.objectContaining({ ...expectedReply, id: retainedReply.id }),
+  ]);
+  await tick(5000);
+  expect(window.__orbState()).toMatchObject({ pending: false, sceneAction: "none" });
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  expect(requests).toHaveLength(1);
+});
+
+test("an inconsistent final answer cannot replace a completed report or expose its hidden writer text", async () => {
+  jest.spyOn(console, "error").mockImplementation(() => {});
+  render(<OrbSection />);
+  send();
+  await tick(0);
+  const { request, finish } = requests[0];
+  const report = reportFor();
+  beginResearch(request, report);
+  beginWriter(request, report);
+  const prefix = "A hidden answer prefix that has not passed final validation.";
+  act(() => request.onTextDelta(prefix, 0));
+  await act(async () => finish(envelope));
+  await tick(750);
+
+  const reply = screen.getByRole("article", { name: "Metabloom message" });
+  expect(reply).toHaveAttribute("data-stream-status", "error");
+  expect(reply).toHaveTextContent("Research completed. The short answer could not be prepared.");
+  expect(reply).not.toHaveTextContent(prefix);
+  expect(reply).not.toHaveTextContent(answer);
+  expect(window.__orbMessages().find((message) => message.role === "assistant").content).toBe("");
+  expectRetainedReport(await openResearch(), report);
+  expect(request.signal.aborted).toBe(true);
+  expect(requests).toHaveLength(1);
 });
 
 test("Stop preserves a completed report that is already safely displayed", async () => {

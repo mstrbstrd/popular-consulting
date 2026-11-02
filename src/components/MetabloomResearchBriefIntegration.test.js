@@ -171,19 +171,52 @@ test.each(['news', 'research'])("an empty %s brief opens the retained report aft
   expect(requests).toHaveLength(1);
 });
 
-test.each(["stop", "reset", "replacement", "deactivate", "unmount"])("%s discards a held brief and rejects stale brief callbacks", async (operation) => {
-  const { rerender, unmount } = render(<OrbSection />); send(); await tick(0);
+test.each(["stop", "reset", "replacement", "deactivate", "unmount"])("%s retains a completed brief and report while rejecting stale writer callbacks", async (operation) => {
+  const savedByTool = new Map();
+  const navigation = {
+    getToolState: (tool) => savedByTool.get(tool),
+    saveToolState: (tool, snapshot) => savedByTool.set(tool, snapshot),
+  };
+  const { rerender, unmount } = render(<AppNavigationContext.Provider value={navigation}><OrbSection /></AppNavigationContext.Provider>);
+  send(); await tick(0);
   const { request, finish } = requests[0];
-  beginResearch(request); attachBrief(request);
+  const report = reportFor(), brief = briefFor();
+  beginResearch(request, report); attachBrief(request, brief);
+  expect(screen.queryByRole("article", { name: "Metabloom message" })).not.toBeInTheDocument();
   if (operation === "unmount") unmount();
-  else if (operation === "deactivate") rerender(<OrbSection isActive={false} />);
+  else if (operation === "deactivate") rerender(<AppNavigationContext.Provider value={navigation}><OrbSection isActive={false} /></AppNavigationContext.Provider>);
   else if (operation === "replacement") send("A new research request");
   else act(() => operation === "reset" ? window.__orbReset() : window.__orbStop());
   expect(request.signal.aborted).toBe(true);
-  act(() => expect(request.onResearchBrief(briefFor())).toBe(false));
+  const retainedMessages = operation === "unmount" ? savedByTool.get("orb").messages : window.__orbMessages();
+  const retainedReplies = retainedMessages.filter((message) => message.role === "assistant");
+  const expectedReply = { content: "", status: "interrupted", researchDetails: report, researchBrief: brief };
+  expect(retainedReplies).toHaveLength(1);
+  expect(retainedReplies[0]).toMatchObject(expectedReply);
+  act(() => {
+    expect(request.onResearchBrief(brief)).toBe(false);
+    expect(request.onResearchDetails(report)).toBe(false);
+    request.onTextDelta("A stale writer must not replace the retained research.", 0);
+  });
   await act(async () => finish(envelope)); await tick(1000);
-  expect(screen.queryByRole("region", { name: briefFor().title })).not.toBeInTheDocument();
-  expect(screen.queryByRole("article", { name: "Metabloom message" })).not.toBeInTheDocument();
+  if (operation === "unmount") render(<AppNavigationContext.Provider value={navigation}><OrbSection /></AppNavigationContext.Provider>);
+  const reply = screen.getByRole("article", { name: "Metabloom message" });
+  expect(reply).toHaveAttribute("data-stream-status", "interrupted");
+  expect(reply).toHaveTextContent("Research completed. The short answer was stopped.");
+  expect(reply).not.toHaveTextContent(answer);
+  expect(within(reply).getByRole("region", { name: brief.title })).toHaveTextContent("3 stories");
+  expect(window.__orbMessages().filter((message) => message.role === "assistant")).toEqual([
+    expect.objectContaining({ ...expectedReply, id: retainedReplies[0].id }),
+  ]);
+  if (operation !== "replacement") {
+    if (operation === "deactivate") rerender(<AppNavigationContext.Provider value={navigation}><OrbSection /></AppNavigationContext.Provider>);
+    send("A follow-up after retaining the research");
+    await tick(0);
+  }
+  expect(requests).toHaveLength(2);
+  expect(requests[1].request.history.some((message) => message.role === "assistant")).toBe(false);
+  expect(JSON.stringify(requests[1].request.history)).not.toContain(report.notes);
+  expect(JSON.stringify(requests[1].request.history)).not.toContain(brief.items[0].summary);
 });
 
 test("a hidden tab completes the same brief without aborting research or replaying the scene", async () => {
