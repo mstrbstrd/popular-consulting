@@ -162,10 +162,16 @@ function markdownResearchTables(evidence) {
 // These are deliberately exact supported conversions. A model may compose the
 // heading, but may not invent a numerical dataset from prose or user additions.
 function buildMetabloomResearchConversion(context, kind) {
-  const tables = markdownResearchTables(context.evidence);
+  const selection = context.selection?.type;
+  if (!['report', 'brief', 'finding'].includes(selection)) return null;
+  const items = selection === 'finding' ? (context.finding ? [context.finding] : [])
+    : selection === 'brief' ? context.brief?.items : null;
+  // Shared source IDs establish provenance, not the identity of a selected
+  // finding. Only report selections may convert a table from report passages.
+  if (selection !== 'report' && (kind !== 'table' || !items?.length)) return null;
+  const tables = selection === 'report' ? markdownResearchTables(context.evidence) : [];
   if (kind === 'table') {
     if (tables.length === 1) return { projection: { kind, columns: tables[0].columns, rows: tables[0].rows }, sourceIds: tables[0].sourceIds };
-    const items = context.finding ? [context.finding] : context.brief?.items;
     const rows = [];
     if (items?.length) {
       for (const item of items) {

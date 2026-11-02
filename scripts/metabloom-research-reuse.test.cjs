@@ -127,6 +127,48 @@ test('qualitative finding tables preserve source IDs and factual text; numeric p
   }
 });
 
+async function sharedSourceTableSelection(type) {
+  const fixture = memoryStore(), original = report();
+  original.notes += '\n\n| Department | Budget (CAD) |\n| --- | --- |\n| Operations | 700 |\n| Logistics | 900 |\n[10]';
+  const metadata = await fixture.store.saveReport(identity, { message, report: original, temporalContext: temporalContext() });
+  const saved = await fixture.store.saveBrief(identity, metadata.researchId, brief());
+  const selector = { type, briefId: saved.briefId, ...(type === 'finding' ? { index: 1 } : {}) };
+  const context = await resolve(fixture, { researchId: metadata.researchId, selector });
+  return { fixture, metadata, original, context };
+}
+
+for (const selectionType of ['finding', 'brief']) {
+  test(`an explicit ${selectionType} table cannot be replaced by an unrelated report table sharing its source`, async () => {
+    const { original, context } = await sharedSourceTableSelection(selectionType);
+    assert(context.evidence.notes.includes('| Operations | 700 |'), 'The reproduction must retain the unrelated shared-source table');
+    const visual = buildMetabloomResearchVisualContext(context, 'table');
+    const items = selectionType === 'finding' ? [brief().items[1]] : brief().items;
+    assert.deepEqual(visual.researchContext.projection, { kind: 'table',
+      columns: ['Finding', 'Summary', 'Development date', 'Sources'],
+      rows: items.map(item => [item.headline, item.summary, 'Not established', item.sourceIds.map(id => `[${id}]`).join(' ')]) });
+    assert.deepEqual(visual.sources.map(source => source.id), selectionType === 'finding' ? [10] : [9, 10]);
+    assert.deepEqual(visual.researchContext.selection, context.selection);
+    assert.deepEqual(visual.researchContext.coverage, brief().coverage);
+    assert.deepEqual(context.report, original, 'Selection must not alter the separately retained complete report');
+  });
+
+  test(`an explicit ${selectionType} cannot borrow a report chart dataset merely because its source is shared`, async () => {
+    const { fixture, metadata, context } = await sharedSourceTableSelection(selectionType);
+    const fullReport = await resolve(fixture, { researchId: metadata.researchId, selector: { type: 'report' } });
+    const reportTable = buildMetabloomResearchVisualContext(fullReport, 'table');
+    assert.deepEqual(reportTable.researchContext.projection, { kind: 'table', columns: ['Department', 'Budget (CAD)'],
+      rows: [['Operations', '700'], ['Logistics', '900']] });
+    assert.deepEqual(reportTable.sources.map(source => source.id), [10]);
+    for (const kind of ['bar-chart', 'line-chart', 'pie-chart']) {
+      const approved = buildMetabloomResearchVisualContext(fullReport, kind);
+      assert.deepEqual(approved.researchContext.projection.points, [{ label: 'Operations', value: 700 }, { label: 'Logistics', value: 900 }]);
+      assert.deepEqual(approved.sources.map(source => source.id), [10]);
+      assert.throws(() => buildMetabloomResearchVisualContext(context, kind),
+        { code: 'research_conversion_unavailable', status: 422 });
+    }
+  });
+}
+
 test('cited numeric Markdown tables permit exact chart conversions and reject altered numbers, labels or units', async () => {
   const fixture = memoryStore(), original = report();
   original.notes = '| Program | Budget (CAD) |\n| --- | --- |\n| Alpha | 12.75 |\n| Beta | 20.5 |\n[9]';
