@@ -165,4 +165,4 @@ module.exports = { METABLOOM_VISUAL_VERSION, METABLOOM_VISUAL_DESIGN_VERSION, ME
   METABLOOM_TOOL_START_TIMEOUT_MS, METABLOOM_TOOL_CONTINUE_TIMEOUT_MS,
   METABLOOM_VISUAL_GENERATION_TIMEOUT_MS, METABLOOM_TOOL_TURN_TIMEOUT_MS,
   METABLOOM_VISUAL_ERRORS, parseMetabloomVisualOffer, parseMetabloomVisualSources, parseMetabloomVisual,
-  evaluateMetabloomVisualFormula, visualKeys, visualText, byteLength };
+  evaluateMetabloomVisualFormula, visualObject, visualNumber, visualKeys, visualText, byteLength };

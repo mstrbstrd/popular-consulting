@@ -19,7 +19,7 @@ beforeEach(() => {
 });
 afterEach(() => { cleanup(); delete window.__orbMessages; });
 
-function start(message, history = []) {
+function start(message, history = [], artifactContext) {
   const controller = new AbortController();
   const ref = React.createRef();
   window.__orbMessages = () => [{ id: 'user-1', role: 'user', content: message }];
@@ -29,6 +29,7 @@ function start(message, history = []) {
   </div>);
   const event = new CustomEvent('metabloom:user-message', { cancelable: true, detail: {
     requestId: 'followup-1', message, history, actionMode: 'auto', signal: controller.signal,
+    ...(artifactContext ? { artifactContext } : {}),
     claim: jest.fn(), respond: jest.fn(), onToolActivity: jest.fn(),
   } });
   act(() => window.dispatchEvent(event));
@@ -67,6 +68,17 @@ test('a new user topic prevents an old supported component from being repeated',
   const { event } = start('Render that pie chart again.', [...chartHistory, { role: 'user', content: 'Now tell me about travel.' }]);
   expect(event.defaultPrevented).toBe(false);
   expect(postMetabloomTool).not.toHaveBeenCalled();
+});
+
+test('explicit conversion forwards the exact selected reference to the tool start', () => {
+  const artifactContext = { id: 'a'.repeat(48), version: 'b'.repeat(32), selector: { type: 'table-row', index: 2 } };
+  const message = 'Create a bar chart from this row.';
+  const { controller, event } = start(message, [], artifactContext);
+  expect(event.defaultPrevented).toBe(true);
+  expect(postMetabloomTool).toHaveBeenCalledTimes(1);
+  expect(postMetabloomTool).toHaveBeenCalledWith({ phase: 'start', message, history: [], requestId: 'followup-1', artifactContext },
+    { signal: controller.signal });
+  expect(requestMetabloomVisual).not.toHaveBeenCalled();
 });
 
 test('only a ready element connected to the active Orb root produces mounted evidence', () => {

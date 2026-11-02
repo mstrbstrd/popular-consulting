@@ -34,6 +34,7 @@ import { METABLOOM_RESEARCH_TIMEOUT_MS, getMetabloomApiErrorMessage, requestMeta
 import { METABLOOM_REQUEST_ERROR_MESSAGES, parseMetabloomRequestRef } from "./metabloomRequestErrors";
 import { METABLOOM_TOOL_TURN_TIMEOUT_MS } from "./metabloomVisualProtocol";
 import { METABLOOM_TRANSCRIPT_READY_EVENT, METABLOOM_RESET_EVENT } from "./metabloomVisualSession";
+import { METABLOOM_ARTIFACT_REFERENCE_EVENT, parseMetabloomArtifactAttachment } from "./metabloomArtifactReference";
 import { parseMetabloomResearchSources } from "./metabloomResearchSources";
 import { parseMetabloomProgressSource } from "./metabloomSourceMediaProtocol";
 import { parseMetabloomResearchReport } from "./metabloomResearchReport";
@@ -536,12 +537,34 @@ const OrbSection = ({
   const [messages, setMessages] = React.useState(() => (savedConversation?.messages || initialMessages).map(cloneMessage));
   const messagesRef = React.useRef(messages);
   const [draft, setDraft] = React.useState(savedConversation?.draft || '');
+  const [artifactAttachment, setArtifactAttachment] = React.useState(() =>
+    parseMetabloomArtifactAttachment(savedConversation?.artifactAttachment));
+  const artifactAttachmentRef = React.useRef(artifactAttachment);
   const [pending, setPending] = React.useState(false);
   const [toolPending, setToolPending] = React.useState(false);
   const [errorMessage, setErrorMessage] = React.useState(savedConversation?.interrupted ? 'The response was interrupted when you changed tools. Any visible reply is incomplete. Send another message to continue.' : '');
   const [responseSource, setResponseSource] = React.useState(savedConversation?.responseSource || 'interface');
   const retainedConversation = React.useRef(null);
-  retainedConversation.current = { draft, expressiveness, pending, responseSource, paused, allowEmoteChanges, deepResearch };
+  retainedConversation.current = { draft, artifactAttachment, expressiveness, pending, responseSource, paused, allowEmoteChanges, deepResearch };
+  const updateArtifactAttachment = React.useCallback(value => {
+    const next = parseMetabloomArtifactAttachment(value);
+    artifactAttachmentRef.current = next;
+    if (retainedConversation.current) retainedConversation.current.artifactAttachment = next;
+    setArtifactAttachment(next);
+  }, []);
+  React.useEffect(() => {
+    const stageReference = event => {
+      const root = sectionRef.current?.closest('.orb-page');
+      if (!isActive || !root || event.detail?.root !== root) return;
+      const next = parseMetabloomArtifactAttachment({ reference: event.detail.reference, label: event.detail.label });
+      if (!next) return;
+      updateArtifactAttachment(next);
+      setErrorMessage('');
+      composerRef.current?.focus({ preventScroll: true });
+    };
+    window.addEventListener(METABLOOM_ARTIFACT_REFERENCE_EVENT, stageReference);
+    return () => window.removeEventListener(METABLOOM_ARTIFACT_REFERENCE_EVENT, stageReference);
+  }, [isActive, updateArtifactAttachment]);
   const saveToolState = navigation?.saveToolState;
   React.useEffect(() => () => {
     const snapshot = retainedConversation.current;
@@ -916,6 +939,7 @@ const OrbSection = ({
 
   const reset = React.useCallback(() => {
     cancelResponse();
+    updateArtifactAttachment(null);
     window.dispatchEvent(new CustomEvent(METABLOOM_RESET_EVENT, { detail: sectionRef.current }));
     setEmoteId("neutral");
     clearSequence();
@@ -951,7 +975,7 @@ const OrbSection = ({
     setErrorMessage("");
     setResetVersion((value) => value + 1);
     setPulseVersion(nextPulseVersion);
-  }, [cancelResponse, clearSequence, updateStateSnapshot]);
+  }, [cancelResponse, clearSequence, updateArtifactAttachment, updateStateSnapshot]);
 
   const playSequence = React.useCallback(
     (steps, nextSequenceId = "custom") => {
@@ -1533,8 +1557,10 @@ const OrbSection = ({
         return false;
       }
       cancelResponse();
-      let artifactContext;
-      try { artifactContext = window.__metabloomVisualSnapshot?.(); } catch { /* Optional context only. */ }
+      const artifactContext = parseMetabloomArtifactAttachment(artifactAttachmentRef.current)?.reference;
+      // A reference belongs to this one submitted message. No hidden calculator
+      // fallback may attach context after the user removes it.
+      updateArtifactAttachment(null);
       // A multi-segment reply remains one history entry. Exclude incomplete replies
       // and bound the history by characters as well as message count.
       let historyChars = 0;
@@ -1550,7 +1576,7 @@ const OrbSection = ({
       visualScrollAnchorRef.current = null;
       setReadingEarlier(false);
       appendMessage("user", message);
-      const demo = METABLOOM_DEMOS.find((item) => item.prompt === message);
+      const demo = artifactContext ? null : METABLOOM_DEMOS.find((item) => item.prompt === message);
       const allowMultiple = deepResearch || (demo ? demo.segments.length > 1 : allowEmoteChanges);
       const source = demo ? "preview" : "model";
       const session = beginReply(source, allowMultiple);
@@ -1660,7 +1686,7 @@ const OrbSection = ({
         return true;
       };
       const request = {
-        requestId, message, history, artifactContext, allowMultiple, actionMode: activeRequest.actionMode, onToolActivity,
+        requestId, message, history, ...(artifactContext ? { artifactContext } : {}), allowMultiple, actionMode: activeRequest.actionMode, onToolActivity,
         signal: controller.signal, onTextDelta, onSegment, onReaction, onAction, onResearch, onResearchProgress, onResearchDetails, onResearchBrief, onSources,
         onActivity: (event) => current() && reportActivity(requestId, event),
         reactionQuestion: METABLOOM_REACTION_QUESTION,
@@ -1710,7 +1736,7 @@ const OrbSection = ({
       }).catch((error) => { if (current()) failReply(session, error); });
       return true;
     },
-    [allowEmoteChanges, appendMessage, beginReply, beginRequestScene, cancelResponse, deepResearch, failReply, finishReply, isActive, publishMessages, reactionPlayer, receiveModelResponse, reportActivity, updateStateSnapshot],
+    [allowEmoteChanges, appendMessage, beginReply, beginRequestScene, cancelResponse, deepResearch, failReply, finishReply, isActive, publishMessages, reactionPlayer, receiveModelResponse, reportActivity, updateArtifactAttachment, updateStateSnapshot],
   );
 
   const handleSubmit = React.useCallback(
@@ -2348,6 +2374,17 @@ const OrbSection = ({
                 {errorMessage}
               </p>
             )}
+            {artifactAttachment && (
+              <div className="metabloom-chat__reference" data-artifact-reference={artifactAttachment.reference.id}
+                role="group" aria-label="Selected visual reference">
+                <span id="metabloom-selected-reference" className="metabloom-chat__reference-copy" role="status"><span>Asking about</span>
+                  <strong>{artifactAttachment.label}</strong></span>
+                <button type="button" aria-label="Remove visual reference" onClick={() => {
+                  updateArtifactAttachment(null);
+                  composerRef.current?.focus({ preventScroll: true });
+                }}>×</button>
+              </div>
+            )}
             <form
               className="metabloom-chat__composer"
               data-has-stop={pending && draft.trim() ? "true" : "false"}
@@ -2365,7 +2402,7 @@ const OrbSection = ({
                 id="metabloom-message"
                 onFocus={attendToComposer}
                 onBlur={() => setComposerFocused(false)}
-                aria-describedby="metabloom-composer-help"
+                aria-describedby={artifactAttachment ? "metabloom-composer-help metabloom-selected-reference" : "metabloom-composer-help"}
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
                 onKeyDown={handleComposerKeyDown}

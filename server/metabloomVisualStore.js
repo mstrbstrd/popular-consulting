@@ -1,9 +1,15 @@
 const { randomBytes } = require('node:crypto');
 const { METABLOOM_VISUAL_VERSION, METABLOOM_VISUAL_DESIGN_VERSION, METABLOOM_VISUAL_KINDS,
-  MAX_METABLOOM_VISUAL_CONTEXT_BYTES, parseMetabloomVisualOffer } = require('../src/components/metabloomVisualProtocol');
+  MAX_METABLOOM_VISUAL_CONTEXT_BYTES, parseMetabloomVisualOffer, parseMetabloomVisualSources,
+  parseMetabloomVisual } = require('../src/components/metabloomVisualProtocol');
+const { isMetabloomArtifactVersion } = require('../src/components/metabloomArtifactReference');
 const { METABLOOM_VISUAL_QUOTA, parseMetabloomVisualQuota } = require('../src/components/metabloomVisualQuota');
 const { redisErrorDetails, visualStoreError } = require('./metabloomVisualStoreDiagnostics');
 const VISUAL_TTL_SECONDS = 600;
+// Opaque result/tool JSON can escape twice inside the Redis REST envelope.
+// These ceilings cover the existing 64 KiB result and 24 KiB tool bounds.
+const MAX_STORED_RECORD_BYTES = 200000;
+const MAX_REDIS_RESPONSE_BYTES = 450000;
 const enabled = () => process.env.METABLOOM_VISUALS_ENABLED === 'true';
 const validIdentity = identity => identity && ['owner', 'subject', 'scope'].every(key => typeof identity[key] === 'string' && /^[a-f0-9]{64}$/.test(identity[key]));
 const visualError = (code, details = {}) => Object.assign(new Error(code), { code }, details);
@@ -88,7 +94,7 @@ local record=cjson.decode(raw)
 if record.owner~=ARGV[1] then return 'expired' end
 if record.status~='claimed' then return 'claimed' end
 record.status=ARGV[2]
-record.result=cjson.decode(ARGV[3])
+record.result=ARGV[3]
 redis.call('SET',KEYS[1],cjson.encode(record),'EX',3600)
 return 'OK'`;
 const CONTINUE_SCRIPT = `
@@ -165,7 +171,7 @@ async function visualCommand(args, { signal, fetchImpl = globalThis.fetch } = {}
   let result;
   try {
     // Error bodies are also bounded and decoded, solely to select fixed categories.
-    result = await readVisualJson({ ok: true, body: response.body }, response.ok ? 150000 : 4096,
+    result = await readVisualJson({ ok: true, body: response.body }, response.ok ? MAX_REDIS_RESPONSE_BYTES : 4096,
       { signal: commandSignal });
   } catch (error) {
     if (commandSignal.aborted) throw interruption();
@@ -179,6 +185,16 @@ async function visualCommand(args, { signal, fetchImpl = globalThis.fetch } = {}
   return result.result;
 }
 function createMetabloomVisualStore({ command = visualCommand, now = Date.now } = {}) {
+  // Lua cjson loses empty arrays and rounds JSON numbers. Opaque fields keep
+  // canonical JavaScript JSON intact across lifecycle changes. Older records
+  // containing objects remain readable without fabricating missing metadata.
+  const decodeRecord = raw => {
+    const record = JSON.parse(raw);
+    if (typeof record?.result === 'string') record.result = JSON.parse(record.result);
+    if (typeof record?.tool === 'string') record.tool = JSON.parse(record.tool);
+    if (typeof record?.context?.tool === 'string') record.context.tool = JSON.parse(record.context.tool);
+    return record;
+  };
   const prefix = identity => {
     if (!validIdentity(identity)) throw visualError('visual_authentication');
     return `metabloom:{visual-${identity.scope}}:`;
@@ -189,9 +205,9 @@ function createMetabloomVisualStore({ command = visualCommand, now = Date.now } 
   };
   const readRecord = async (identity, id, options = {}) => {
     const raw = await command(['GET', recordKey(identity, id)], options);
-    if (typeof raw !== 'string' || Buffer.byteLength(raw, 'utf8') > 90000) return null;
+    if (typeof raw !== 'string' || Buffer.byteLength(raw, 'utf8') > MAX_STORED_RECORD_BYTES) return null;
     let record;
-    try { record = JSON.parse(raw); } catch { return null; }
+    try { record = decodeRecord(raw); } catch { return null; }
     return record?.owner === identity.owner && parseMetabloomVisualOffer(record.offer) ? record : null;
   };
   return Object.freeze({
@@ -222,9 +238,9 @@ function createMetabloomVisualStore({ command = visualCommand, now = Date.now } 
     async claimContinuation(identity, id, options = {}) {
       const raw = await command(['EVAL', CONTINUE_SCRIPT, '1', recordKey(identity, id), identity.owner], options);
       if (['expired', 'invalid', 'claimed'].includes(raw)) throw visualError(`visual_${raw}`);
-      if (typeof raw !== 'string' || Buffer.byteLength(raw, 'utf8') > 90000) throw visualError('visual_invalid');
+      if (typeof raw !== 'string' || Buffer.byteLength(raw, 'utf8') > MAX_STORED_RECORD_BYTES) throw visualError('visual_invalid');
       let record;
-      try { record = JSON.parse(raw); } catch { throw visualError('visual_invalid'); }
+      try { record = decodeRecord(raw); } catch { throw visualError('visual_invalid'); }
       if (record.owner !== identity.owner || !record.tool || !record.result
         || !['ready', 'failed'].includes(record.status)) throw visualError('visual_invalid');
       return record;
@@ -240,6 +256,16 @@ function createMetabloomVisualStore({ command = visualCommand, now = Date.now } 
       return record && ['ready', 'continuing', 'complete'].includes(record.status)
         && record.result?.status === 'ready' ? record.result.spec : null;
     },
+    async getArtifactRecord(identity, id, options = {}) {
+      const record = await readRecord(identity, id, options);
+      if (!record || record.offer.id !== id || !['ready', 'continuing', 'complete'].includes(record.status)
+        || record.result?.status !== 'ready' || !isMetabloomArtifactVersion(record.result.artifactVersion)) return null;
+      // A completed result has its own Redis expiry. The old offer deadline only
+      // limits generation; using it here would expire valid completed artifacts.
+      const sources = parseMetabloomVisualSources(record.result.sources);
+      const spec = sources && parseMetabloomVisual(record.result.spec, { kind: record.offer.kind, sources });
+      return spec ? { spec, sources, artifactVersion: record.result.artifactVersion } : null;
+    },
     async getContinuation(identity, id, options = {}) {
       const record = await readRecord(identity, id, options);
       return record?.status === 'complete' && record.reply ? record.reply : null;
@@ -249,7 +275,8 @@ function createMetabloomVisualStore({ command = visualCommand, now = Date.now } 
       const key = prefix(identity);
       const offer = { version: METABLOOM_VISUAL_VERSION, designVersion: METABLOOM_VISUAL_DESIGN_VERSION,
         id: randomBytes(24).toString('hex'), kind, expiresAt: now() + VISUAL_TTL_SECONDS * 1000 };
-      const raw = JSON.stringify({ owner: identity.owner, status: 'offered', offer, context });
+      const storedContext = context?.tool ? { ...context, tool: JSON.stringify(context.tool) } : context;
+      const raw = JSON.stringify({ owner: identity.owner, status: 'offered', offer, context: storedContext });
       if (Buffer.byteLength(raw, 'utf8') > MAX_METABLOOM_VISUAL_CONTEXT_BYTES) return null;
       const result = await command(['SET', `${key}offer:${offer.id}`, raw, 'EX', String(VISUAL_TTL_SECONDS), 'NX'], options);
       if (result !== 'OK') throw visualError('visual_unavailable');
@@ -269,7 +296,8 @@ function createMetabloomVisualStore({ command = visualCommand, now = Date.now } 
       }
       if (typeof raw !== 'string') throw visualStoreError('quota_result_invalid');
       if (Buffer.byteLength(raw, 'utf8') > MAX_METABLOOM_VISUAL_CONTEXT_BYTES) throw visualError('visual_unavailable');
-      const record = JSON.parse(raw);
+      let record;
+      try { record = decodeRecord(raw); } catch { throw visualError('visual_invalid'); }
       if (record?.code === 'visual_quota') throw visualStoreError('quota_result_invalid');
       if (record.owner !== identity.owner || record.status !== 'offered' || !parseMetabloomVisualOffer(record.offer)
         || record.offer.id !== id || record.offer.expiresAt <= now() || !record.context) throw visualError('visual_expired');

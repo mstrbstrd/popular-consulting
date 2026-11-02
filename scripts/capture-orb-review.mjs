@@ -1,9 +1,9 @@
 import fs from "fs";
-import http from "http";
 import os from "os";
 import path from "path";
 import { execFile } from "child_process";
 import { promisify } from "util";
+import { createBuildServer } from "./auth-invoice-test-server.mjs";
 
 const execFileAsync = promisify(execFile);
 const repositoryRoot = process.cwd();
@@ -35,19 +35,6 @@ const captureCases = Object.freeze([
   Object.freeze({ id: "orb-desktop", width: 1440, height: 900 }),
 ]);
 
-const contentTypes = Object.freeze({
-  ".css": "text/css; charset=utf-8",
-  ".html": "text/html; charset=utf-8",
-  ".ico": "image/x-icon",
-  ".jpeg": "image/jpeg",
-  ".jpg": "image/jpeg",
-  ".js": "text/javascript; charset=utf-8",
-  ".json": "application/json",
-  ".png": "image/png",
-  ".svg": "image/svg+xml",
-  ".webp": "image/webp",
-});
-
 const findEdge = () => {
   const candidates = [
     path.join(
@@ -76,37 +63,6 @@ const findEdge = () => {
   return candidates.find(
     (candidate) => candidate && fs.existsSync(candidate),
   );
-};
-
-const safeFilePath = (pathname) => {
-  let decoded;
-  try {
-    decoded = decodeURIComponent(pathname);
-  } catch (_) {
-    return null;
-  }
-
-  const relative = decoded.replace(/^\/+/, "");
-  const candidate = path.resolve(buildRoot, relative);
-  const relativeToBuild = path.relative(buildRoot, candidate);
-  if (
-    relativeToBuild.startsWith("..") ||
-    path.isAbsolute(relativeToBuild)
-  ) {
-    return null;
-  }
-
-  return candidate;
-};
-
-const routeHtmlPath = (pathname) => {
-  const normalized = pathname.replace(/^\/+|\/+$/g, "");
-  if (!normalized) return path.join(buildRoot, "index.html");
-
-  const generated = path.join(buildRoot, normalized, "index.html");
-  return fs.existsSync(generated)
-    ? generated
-    : path.join(buildRoot, "index.html");
 };
 
 const buildCaptureUrl = (origin, captureCase) => {
@@ -158,6 +114,7 @@ const readPngDimensions = (filePath) => {
 
 const assertOrbInterface = (captureCase, documentHtml, report) => {
   const requiredContracts = [
+    ['class="auth-protected-content"', "fictionally authenticated Orb wrapper"],
     ['data-avatar-material="creatoros-metabloom"', "faceless Metabloom avatar"],
     ['data-renderer-id="dither-canvas-field"', "CreatorOS Metabloom field"],
     ['data-avatar-faceless="true"', "faceless avatar invariant"],
@@ -244,38 +201,9 @@ const assertOrbInterface = (captureCase, documentHtml, report) => {
   }
 };
 
-const server = http.createServer((request, response) => {
-  const requestUrl = new URL(
-    request.url || "/",
-    "http://127.0.0.1",
-  );
-  const directPath = safeFilePath(requestUrl.pathname);
-  let filePath = directPath;
-
-  if (
-    !filePath ||
-    !fs.existsSync(filePath) ||
-    fs.statSync(filePath).isDirectory()
-  ) {
-    filePath = routeHtmlPath(requestUrl.pathname);
-  }
-
-  try {
-    const body = fs.readFileSync(filePath);
-    response.writeHead(200, {
-      "Cache-Control": "no-store",
-      "Content-Type":
-        contentTypes[path.extname(filePath).toLowerCase()] ||
-        "application/octet-stream",
-    });
-    response.end(body);
-  } catch (error) {
-    response.writeHead(500, {
-      "Content-Type": "text/plain; charset=utf-8",
-    });
-    response.end(`Build server failure: ${error.message}`);
-  }
-});
+// Local visual fixture only: the shared helper supplies a fictional admin
+// session. The real client auth guard consumes that response before mount.
+const server = createBuildServer({ buildRoot });
 
 if (process.platform !== "win32") {
   throw new Error("capture-orb-review.mjs must run on Windows.");

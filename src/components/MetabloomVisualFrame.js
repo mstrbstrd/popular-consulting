@@ -2,6 +2,7 @@ import React from 'react';
 import { evaluateMetabloomVisualFormula, METABLOOM_VISUAL_ERRORS } from './metabloomVisualProtocol';
 import { formatMetabloomVisualQuotaMessage } from './metabloomVisualQuota';
 import { layoutFlowchart, describeFlowStep, truncateFlowEdgeLabel, FLOW_METRICS } from './metabloomFlowLayout';
+import { isMetabloomArtifactVersion } from './metabloomArtifactReference';
 
 const numberText = value => new Intl.NumberFormat(undefined, { maximumSignificantDigits: 21 }).format(value);
 const axisText = value => new Intl.NumberFormat(undefined, { notation: 'compact', maximumSignificantDigits: 3 }).format(value);
@@ -41,6 +42,10 @@ const DataTable = ({ columns, rows, title }) => (
     </table>
   </div>
 );
+const AskAboutAction = ({ onAskAbout, selection, disabled = false, label = 'Ask about this' }) => onAskAbout ? (
+  <div className="metabloom-visual__actions"><button type="button" disabled={disabled} aria-label={label}
+    onClick={() => onAskAbout(selection)}>Ask about this</button></div>
+) : null;
 // Plain figures only: a column sorts numerically when every filled cell is a number,
 // optionally with a currency sign, thousands separators or a percent sign.
 const cellNumber = text => {
@@ -63,7 +68,7 @@ const sortTableRows = (rows, column, direction) => {
     return sign * compare(a, b) || a.position - b.position;
   });
 };
-function VisualTable({ spec, id, viewState, onViewStateChange }) {
+function VisualTable({ spec, id, viewState, onViewStateChange, onAskAbout }) {
   const [{ sort, filter }, updateViewState] = useVisualViewState(() => ({
     sort: viewState?.sort ? { ...viewState.sort } : { column: null, direction: 'asc' },
     filter: viewState?.filter || '',
@@ -98,10 +103,14 @@ function VisualTable({ spec, id, viewState, onViewStateChange }) {
               <span>{column}</span><span className="metabloom-visual__sort-mark" aria-hidden="true">{active ? (sort.direction === 'asc' ? '↑' : '↓') : '↕'}</span>
             </button> : column}
           </th>;
-        })}</tr></thead>
+        })}{onAskAbout && <th scope="col" className="metabloom-visual__row-action">Ask about a row</th>}</tr></thead>
         <tbody id={`${id}-table-body`}>{rows.length
-          ? rows.map(row => <tr key={row.position}>{row.cells.map((cell, i) => <td key={i}>{cell}</td>)}</tr>)
-          : <tr><td colSpan={spec.columns.length}>No rows match this filter.</td></tr>}</tbody>
+          ? rows.map(row => <tr key={row.position}>{row.cells.map((cell, i) => <td key={i}>{cell}</td>)}
+            {onAskAbout && <td className="metabloom-visual__row-action"><button type="button"
+              aria-label={`Ask about this row ${row.position + 1} in ${spec.title}`}
+              onClick={() => onAskAbout({ selector: { type: 'table-row', index: row.position } })}>Ask about this</button></td>}
+          </tr>)
+          : <tr><td colSpan={spec.columns.length + (onAskAbout ? 1 : 0)}>No rows match this filter.</td></tr>}</tbody>
       </table>
     </div>
     {(filterable || sort.column !== null) && <p className="metabloom-visual__table-status" role="status" aria-live="polite" aria-atomic="true">
@@ -133,7 +142,7 @@ const niceScale = (low, high, target = 4) => {
   }
   return { min: ticks[0], max: ticks[ticks.length - 1], ticks };
 };
-function VisualChart({ spec, id, viewState, onViewStateChange }) {
+function VisualChart({ spec, id, viewState, onViewStateChange, onAskAbout }) {
   const multiple = Array.isArray(spec.series);
   const labels = multiple ? spec.labels : spec.points.map(point => point.label);
   const series = multiple ? spec.series : [{ id: 'single', label: spec.title, values: spec.points.map(point => point.value) }];
@@ -225,6 +234,9 @@ function VisualChart({ spec, id, viewState, onViewStateChange }) {
         </svg>
         <figcaption>Equal spacing represents observation order, not elapsed time. Values in {spec.unit || 'the supplied units'}.</figcaption>
         <p id={`${id}-chart-readout`} className="metabloom-visual__chart-readout" role="status" aria-live="polite" aria-atomic="true">{readout}</p>
+        <AskAboutAction onAskAbout={onAskAbout} disabled={active === null}
+          selection={{ selector: { type: 'observation', index: active } }}
+          label={active === null ? 'Ask about this observation' : `Ask about this observation: ${labels[active]}`} />
       </figure>
     )}
     <VisualDetails state={state} updateState={updateViewState} summary="View exact values">
@@ -232,7 +244,7 @@ function VisualChart({ spec, id, viewState, onViewStateChange }) {
     </VisualDetails>
   </>;
 }
-function VisualPieChart({ spec, id, viewState, onViewStateChange }) {
+function VisualPieChart({ spec, id, viewState, onViewStateChange, onAskAbout }) {
   const [state, updateViewState] = useVisualViewState(() => ({
     selectedIndex: viewState?.selectedIndex ?? spec.points.findIndex(point => point.value > 0),
     detailsOpen: viewState?.detailsOpen === true,
@@ -314,16 +326,23 @@ function VisualPieChart({ spec, id, viewState, onViewStateChange }) {
     <p id={`${id}-pie-selection`} className="metabloom-visual__pie-selection" role="status" aria-live="polite" aria-atomic="true">
       <strong>{selected.label}</strong>: {numberText(selected.value)} {spec.unit} ({percentage(selected.value)} of the total).
     </p>
+    <AskAboutAction onAskAbout={onAskAbout} selection={{ selector: { type: 'pie-category', index: selectedIndex } }}
+      label={`Ask about this category: ${selected.label}`} />
     <VisualDetails state={state} updateState={updateViewState} summary="View exact values">
       <DataTable title={`${spec.title}: exact values`} columns={['Category', spec.unit ? `Amount (${spec.unit})` : 'Amount', 'Share of total']}
         rows={spec.points.map(point => [point.label, numberText(point.value), percentage(point.value)])} />
     </VisualDetails>
   </>;
 }
-function VisualFlowList({ spec }) {
+function VisualFlowList({ spec, onAskAbout }) {
   const label = id => spec.nodes.find(node => node.id === id)?.label || '';
   return <div className="metabloom-visual__flow">
-    <ol className="metabloom-visual__nodes">{spec.nodes.map((node, index) => <li key={node.id}><span className="metabloom-visual__node-number">{index + 1}</span><span>{node.label}</span></li>)}</ol>
+    <ol className="metabloom-visual__nodes">{spec.nodes.map((node, index) => <li key={node.id}>
+      <span className="metabloom-visual__node-number">{index + 1}</span><div>{node.label}
+        <AskAboutAction onAskAbout={onAskAbout} selection={{ selector: { type: 'flow-node', id: node.id } }}
+          label={`Ask about this step: ${node.label}`} />
+      </div>
+    </li>)}</ol>
     {spec.edges.length > 0 && <div className="metabloom-visual__connections"><h4>Connections</h4>
       <ul>{spec.edges.map((edge, index) => <li key={index}><span>{label(edge.from)}</span><span aria-hidden="true"> → </span><span className="metabloom-visual__sr-only"> leads to </span><span>{label(edge.to)}</span>{edge.label && <small>{edge.label}</small>}</li>)}</ul>
     </div>}
@@ -338,7 +357,7 @@ const flowSummary = (spec, node) => {
   if (loops.length) parts.push('It can repeat itself.');
   return parts.join(' ');
 };
-function VisualFlowchart({ spec, id, viewState, onViewStateChange }) {
+function VisualFlowchart({ spec, id, viewState, onViewStateChange, onAskAbout }) {
   const [state, updateViewState] = useVisualViewState(() => ({
     selectedId: viewState?.selectedId ?? null,
     detailsOpen: viewState?.detailsOpen === true,
@@ -346,7 +365,7 @@ function VisualFlowchart({ spec, id, viewState, onViewStateChange }) {
   const { selectedId } = state;
   // A layout failure must never hide the answer: fall back to the plain step list.
   const layout = React.useMemo(() => { try { return layoutFlowchart(spec.nodes, spec.edges); } catch { return null; } }, [spec.nodes, spec.edges]);
-  if (!layout) return <VisualFlowList spec={spec} />;
+  if (!layout) return <VisualFlowList spec={spec} onAskAbout={onAskAbout} />;
   const related = new Set(), activeEdges = new Set();
   if (selectedId) {
     related.add(selectedId);
@@ -422,6 +441,9 @@ function VisualFlowchart({ spec, id, viewState, onViewStateChange }) {
     <p className="metabloom-visual__flow-status" role="status" aria-live="polite" aria-atomic="true">
       {selected ? flowSummary(spec, selected) : 'Select a step to trace where it comes from and where it leads.'}
     </p>
+    <AskAboutAction onAskAbout={onAskAbout} disabled={!selected}
+      selection={{ selector: { type: 'flow-node', id: selectedId } }}
+      label={selected ? `Ask about this step: ${selected.label}` : 'Ask about this step'} />
     <VisualDetails state={state} updateState={updateViewState} summary="View steps and connections"><VisualFlowList spec={spec} /></VisualDetails>
   </div>;
 }
@@ -462,6 +484,8 @@ class VisualCalculator extends React.Component {
     const { spec, id } = this.props;
     const values = Object.fromEntries(spec.controls.map(control => [control.id, this.state.inputs[control.id].trim() ? Number(this.state.inputs[control.id]) : NaN]));
     const result = evaluateMetabloomVisualFormula(spec.formula, spec.controls, values);
+    const validInputs = spec.controls.every(control => Number.isFinite(values[control.id])
+      && values[control.id] >= control.min && values[control.id] <= control.max);
     return <div className="metabloom-visual__calculator">
       <div className="metabloom-visual__fields">{spec.controls.map(control => {
         const value = values[control.id];
@@ -478,7 +502,10 @@ class VisualCalculator extends React.Component {
       })}</div>
       <p id={`${id}-formula`} className="metabloom-visual__formula">{spec.formulaDescription}</p>
       <div className="metabloom-visual__result"><span>Calculated result</span><output aria-live="polite" aria-atomic="true">{result === null ? 'Enter valid inputs to calculate.' : `${numberText(result)} ${spec.unit}`}</output></div>
-      <div className="metabloom-visual__actions"><button type="button" onClick={this.reset}>Reset values</button><button type="button" disabled={result === null} onClick={this.copyScenario}>Copy scenario</button></div>
+      <div className="metabloom-visual__actions"><button type="button" onClick={this.reset}>Reset values</button><button type="button" disabled={result === null} onClick={this.copyScenario}>Copy scenario</button>
+        {this.props.onAskAbout && <button type="button" disabled={result === null || !validInputs} aria-label="Ask about this scenario"
+          onClick={() => this.props.onAskAbout({ selector: { type: 'calculator' }, inputs: { ...values } })}>Ask about this</button>}
+      </div>
       {this.state.copyStatus && <p role="status">{this.state.copyStatus}</p>}
     </div>;
   }
@@ -488,8 +515,9 @@ export class MetabloomVisualBoundary extends React.Component {
   componentDidCatch() { this.setState({ failed: true }); }
   render() { return this.state.failed ? <div className="metabloom-visual" role="status">This visual could not be displayed. Your answer is unchanged.</div> : this.props.children; }
 }
-export default function MetabloomVisualFrame({ artifact, onStop, onReady, onInputsChange, onViewStateChange }) {
+export default function MetabloomVisualFrame({ artifact, onStop, onReady, onInputsChange, onViewStateChange, onAskAbout }) {
   const { id, status, spec, sources = [], code } = artifact;
+  const askAbout = isMetabloomArtifactVersion(artifact.artifactVersion) && typeof onAskAbout === 'function' ? onAskAbout : undefined;
   const frameRef = React.useRef(null);
   const pendingHeight = React.useRef(null);
   const expansion = React.useRef(null);
@@ -554,11 +582,11 @@ export default function MetabloomVisualFrame({ artifact, onStop, onReady, onInpu
       ? formatMetabloomVisualQuotaMessage(artifact.quota) : METABLOOM_VISUAL_ERRORS[code] || METABLOOM_VISUAL_ERRORS.visual_unavailable}</p>}
     {status === 'ready' && spec && <div className="metabloom-visual__content">
       <p className="metabloom-visual__summary">{spec.summary}</p>
-      {spec.kind === 'table' && <VisualTable spec={spec} id={id} viewState={artifact.viewState} onViewStateChange={onViewStateChange} />}
-      {['bar-chart', 'line-chart'].includes(spec.kind) && <VisualChart spec={spec} id={id} viewState={artifact.viewState} onViewStateChange={onViewStateChange} />}
-      {spec.kind === 'pie-chart' && <VisualPieChart spec={spec} id={id} viewState={artifact.viewState} onViewStateChange={onViewStateChange} />}
-      {spec.kind === 'flowchart' && <VisualFlowchart spec={spec} id={id} viewState={artifact.viewState} onViewStateChange={onViewStateChange} />}
-      {spec.kind === 'calculator' && <VisualCalculator spec={spec} id={id} viewState={artifact.viewState} onInputsChange={onInputsChange} onViewStateChange={onViewStateChange} />}
+      {spec.kind === 'table' && <VisualTable spec={spec} id={id} viewState={artifact.viewState} onViewStateChange={onViewStateChange} onAskAbout={askAbout} />}
+      {['bar-chart', 'line-chart'].includes(spec.kind) && <VisualChart spec={spec} id={id} viewState={artifact.viewState} onViewStateChange={onViewStateChange} onAskAbout={askAbout} />}
+      {spec.kind === 'pie-chart' && <VisualPieChart spec={spec} id={id} viewState={artifact.viewState} onViewStateChange={onViewStateChange} onAskAbout={askAbout} />}
+      {spec.kind === 'flowchart' && <VisualFlowchart spec={spec} id={id} viewState={artifact.viewState} onViewStateChange={onViewStateChange} onAskAbout={askAbout} />}
+      {spec.kind === 'calculator' && <VisualCalculator spec={spec} id={id} viewState={artifact.viewState} onInputsChange={onInputsChange} onViewStateChange={onViewStateChange} onAskAbout={askAbout} />}
       <footer className="metabloom-visual__provenance"><span className="metabloom-visual__badge">{provenanceLabels[spec.provenance.type]}</span><p>{spec.provenance.label}</p>
         {sources.length > 0 && <ul aria-label="Visual sources">{sources.map(source => <li key={source.id}><a href={source.url} target="_blank" rel="noopener noreferrer">{source.title}</a></li>)}</ul>}
       </footer>

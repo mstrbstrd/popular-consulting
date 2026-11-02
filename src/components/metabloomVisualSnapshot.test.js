@@ -34,6 +34,22 @@ const owners = records => Array.from(new Map(records.flatMap(item => [item.userI
 const empty = () => ({ version: 1, records: [], lastInteractedId: null });
 const stored = (index = 1, overrides = {}) => ({ ...record(index), viewState: { sort: { column: null, direction: 'asc' }, filter: '' }, ...overrides });
 
+test('an immutable artifact revision survives navigation while legacy visuals remain readable', () => {
+  const versioned = record(1, { artifactVersion: 'a'.repeat(32) }), legacy = record(2);
+  const snapshot = createMetabloomVisualSnapshot([versioned, legacy], owners([versioned, legacy]));
+  expect(snapshot.records[0].artifactVersion).toBe(versioned.artifactVersion);
+  expect(snapshot.records[1]).not.toHaveProperty('artifactVersion');
+  const restored = parseMetabloomVisualSnapshot(snapshot, owners([versioned, legacy]));
+  expect(restored.records).toEqual(snapshot.records);
+  expect(restored.records).toHaveLength(2);
+});
+
+test.each(['1', 'x'.repeat(32), null, 1])('malformed saved revision metadata cannot become an attachable reference', artifactVersion => {
+  const bad = stored(1, { artifactVersion }), good = stored(2);
+  const restored = parseMetabloomVisualSnapshot({ version: 1, records: [bad, good], lastInteractedId: null }, owners([bad, good]));
+  expect(restored.records).toEqual([good]);
+});
+
 test('projects and clones validated data without serializing live request or DOM objects', () => {
   const source = { id: 9, title: 'Published example', url: 'https://example.org/evidence' };
   const live = record(1, { spec: { ...copy(table), provenance: { type: 'sources', label: 'Published example.', sourceIds: [9] } },

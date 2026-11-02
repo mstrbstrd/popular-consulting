@@ -4,6 +4,7 @@ const net = require('node:net');
 const { randomBytes } = require('node:crypto');
 const { createMetabloomVisualStore, CHECK_QUOTA_SCRIPT, CLAIM_SCRIPT } = require('../server/metabloomVisualStore');
 const { parseMetabloomVisualQuota } = require('../src/components/metabloomVisualQuota');
+const { resolveMetabloomArtifactReference } = require('../server/metabloomArtifactContext');
 
 // This suite requires a disposable Redis 7 fixture supplied by its caller. It
 // never reads a Redis URL/token, chooses an external host, or flushes a database.
@@ -205,7 +206,9 @@ test('real Redis visual quota integration', { timeout: 45000 }, async t => {
       assert.ok(ttl > windows[scope] - 30000 && ttl <= windows[scope], `${scope} starts its configured window`);
     }
     assert.equal(await f.command(['PEXPIRETIME', f.offerKey(first)]), firstDeadline);
-    assert.deepEqual(JSON.parse(await f.command(['GET', f.offerKey(first)])),
+    const tombstone = JSON.parse(await f.command(['GET', f.offerKey(first)]));
+    assert.equal(typeof tombstone.tool, 'string', 'Lua carries tool data as opaque JSON');
+    assert.deepEqual({ ...tombstone, tool: JSON.parse(tombstone.tool) },
       { owner: f.identity.owner, status: 'claimed', offer: first, tool: context.tool });
     await f.command(['PEXPIRE', keys.subject, '65000']);
     await f.command(['PEXPIRE', keys.deployment, '125000']);
@@ -325,5 +328,66 @@ test('real Redis visual quota integration', { timeout: 45000 }, async t => {
     }
     await rejected(f.store.claim(f.identity, offer.id), 'visual_expired');
     assert.equal(await f.command(['EXISTS', keys.subject, keys.deployment]), 0);
+  });
+
+  await t.test('completed artifacts preserve exact data, empty lists and revisions through every Lua lifecycle transition', async t => {
+    const f = fixture(t, port), exact = 0.12345678901234566;
+    const spec = { version: '1', designVersion: 'aetheris-1', kind: 'calculator', title: 'Fictional decimal scenario',
+      summary: 'A synthetic value used only for serialization verification.',
+      provenance: { type: 'user', label: 'Fictional inputs', sourceIds: [] },
+      controls: [{ id: 'amount', label: 'Amount', unit: 'CAD', min: 0, max: 2, step: 0.01, initial: exact }],
+      formula: ['amount'], formulaDescription: 'Return the selected amount.', unit: 'CAD' };
+    const tool = { message: 'Fictional decimal calculator', history: [], output: [],
+      artifactContext: { title: 'Earlier synthetic data', sources: [],
+        provenance: { type: 'user', label: 'Fictional inputs', sourceIds: [] },
+        data: { value: exact } } };
+    const sourceContext = { sources: [], answer: 'Fictional response', tool };
+    const offer = await f.store.offer(f.identity, 'calculator', sourceContext), key = f.offerKey(offer);
+    const claimed = await f.store.claim(f.identity, offer.id);
+    assert.deepEqual(claimed.context, sourceContext, 'The builder receives the original offered context');
+    const result = { status: 'ready', spec, sources: [], artifactVersion: hex(16) };
+    await f.store.complete(f.identity, offer.id, result);
+    const saved = JSON.parse(await f.command(['GET', key]));
+    assert.equal(typeof saved.result, 'string', 'Lua never decodes result data');
+    assert.equal(typeof saved.tool, 'string', 'Lua never decodes replay context');
+    assert.deepEqual(JSON.parse(saved.result), result);
+    assert.deepEqual(JSON.parse(saved.tool), tool);
+    const expected = { spec, sources: [], artifactVersion: result.artifactVersion };
+    const reference = { id: offer.id, version: result.artifactVersion, selector: { type: 'calculator' }, inputs: { amount: exact } };
+    const read = () => f.store.getArtifactRecord(f.identity, offer.id);
+    const resolved = await resolveMetabloomArtifactReference({ store: f.store, identity: f.identity, reference });
+    assert.equal(resolved.data.calculatedResult, exact);
+    assert.deepEqual(resolved.sources, []);
+    assert.deepEqual(resolved.provenance.sourceIds, []);
+    assert.deepEqual(await read(), expected);
+    assert.deepEqual(await f.store.getArtifact(f.identity, offer.id), spec, 'Legacy readers still receive a specification');
+    const deadline = await f.command(['PEXPIRETIME', key]);
+    const completedTtl = await f.command(['PTTL', key]);
+    assert.ok(completedTtl > 3570000 && completedTtl <= 3600000, 'Completion establishes its one-hour lifetime');
+    const before = await f.snapshot([key]);
+    await rejected(f.store.complete(f.identity, offer.id, { ...result, artifactVersion: hex(16) }), 'visual_unavailable');
+    assert.deepEqual(await f.snapshot([key]), before, 'Duplicate completion cannot replace content or extend lifetime');
+    assert.equal(await f.store.getArtifactRecord({ ...f.identity, owner: hex(32) }, offer.id), null);
+    // The initial offer deadline governs generation, not a completed result.
+    f.checkedAt = offer.expiresAt + 1;
+    assert.deepEqual(await read(), expected);
+    const continuation = await f.store.claimContinuation(f.identity, offer.id);
+    assert.deepEqual(continuation.result, result);
+    assert.deepEqual(continuation.tool, tool);
+    assert.deepEqual(await read(), expected, 'Data is available during continuation');
+    assert.equal(await f.command(['PEXPIRETIME', key]), deadline);
+    const reply = { version: '1', segments: [{ response: 'The fictional scenario is ready.' }] };
+    await f.store.completeContinuation(f.identity, offer.id, reply);
+    assert.deepEqual(await read(), expected, 'Data remains unchanged after continuation');
+    assert.deepEqual(await f.store.getContinuation(f.identity, offer.id), reply);
+    assert.equal(await f.command(['PEXPIRETIME', key]), deadline, 'Continuation preserves the result deadline');
+    await f.command(['PEXPIRE', key, '1']);
+    const expiryDeadline = Date.now() + 2000;
+    while (await f.command(['EXISTS', key])) {
+      assert.ok(Date.now() < expiryDeadline, 'The completed fixture must actually expire');
+      await new Promise(resolve => setTimeout(resolve, 10));
+    }
+    assert.equal(await read(), null, 'The Redis result expiry remains authoritative');
+    await rejected(resolveMetabloomArtifactReference({ store: f.store, identity: f.identity, reference }), 'artifact_unavailable');
   });
 });

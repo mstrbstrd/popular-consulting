@@ -21,7 +21,33 @@ const spec = {
   ],
   formula: ['hours', 'rate', 'multiply'], formulaDescription: 'Hours multiplied by hourly rate.', unit: 'CAD',
 };
+const tableSpec = {
+  version: '1', designVersion: 'aetheris-1', kind: 'table', title: 'Project Estimates',
+  summary: 'Compare the supplied estimates by project.',
+  provenance: { type: 'user', label: 'Your supplied project estimates.', sourceIds: [] },
+  columns: ['Project', 'Price CAD'],
+  rows: [['Alpha', '900'], ['Bravo', '120'], ['Charlie', '650'], ['Delta', '310'],
+    ['Echo', '780'], ['Foxtrot', '420'], ['Golf', '250'], ['Hotel', '540']],
+};
 const fixture = { mode: 'success', calls: [], records: new Map(), errors: [], held: [], aborted: 0, authSessionCalls: 0 };
+const referencedFixture = reference => {
+  const record = fixture.records.get(reference?.id);
+  assert(record?.generated, 'Follow-up must reference an existing generated fixture');
+  assert.equal(reference.version, record.artifactVersion, 'Reference must retain its immutable artifact version');
+  if (record.spec.kind === 'calculator') {
+    assert.deepEqual(reference.selector, { type: 'calculator' });
+    assert.deepEqual(Object.keys(reference.inputs).sort(), ['hours', 'rate']);
+    assert.equal(typeof reference.inputs.hours, 'number');
+    assert.equal(typeof reference.inputs.rate, 'number');
+  } else {
+    assert.equal(record.spec.kind, 'table');
+    assert.equal(reference.selector.type, 'table-row');
+    assert(Number.isSafeInteger(reference.selector.index) && reference.selector.index >= 0
+      && reference.selector.index < record.spec.rows.length, 'Reference keeps the original table row index');
+    assert.equal(Object.prototype.hasOwnProperty.call(reference, 'inputs'), false);
+  }
+  return record;
+};
 let counter = 0;
 const server = createBuildServer({ buildRoot: path.resolve('build') });
 const serveStatic = server.listeners('request')[0];
@@ -45,9 +71,14 @@ server.on('request', async (req, res) => {
       if (fixture.mode === 'disabled') return send(res, 503, { code: 'tool_disabled' });
       assert.equal(typeof body.message, 'string');
       assert.equal(typeof body.requestId, 'string');
-      const offer = { version: '1', designVersion: 'aetheris-1', kind: 'calculator',
+      const selected = body.artifactContext ? referencedFixture(body.artifactContext) : null;
+      const generatedSpec = selected?.spec.kind === 'table'
+        ? { ...tableSpec, title: 'Selected Project Estimate', rows: [selected.spec.rows[body.artifactContext.selector.index]] }
+        : /\btable\b/i.test(body.message) ? tableSpec : spec;
+      const offer = { version: '1', designVersion: 'aetheris-1', kind: generatedSpec.kind,
         id: (++counter).toString(16).padStart(48, '0'), expiresAt: Date.now() + 600000 };
-      fixture.records.set(offer.id, { offer, mode: fixture.mode, generated: false, continued: false });
+      fixture.records.set(offer.id, { offer, spec: generatedSpec, artifactVersion: offer.id.slice(-32),
+        mode: fixture.mode, generated: false, continued: false });
       return send(res, 200, { offer, emote: 'curious' });
     }
     if (pathname === '/api/metabloom-visual') {
@@ -55,17 +86,20 @@ server.on('request', async (req, res) => {
       assert(record, 'Visual generation must reference an offered artifact');
       assert.equal(record.generated, false, 'The browser must not dispatch generation twice');
       assert.equal(body.version, '1');
+      assert.equal(body.includeReference, true, 'The current client negotiates immutable reference metadata');
+      const payload = { id: record.offer.id, version: '1', designVersion: 'aetheris-1',
+        spec: record.spec, sources: [], artifactVersion: record.artifactVersion };
       if (record.mode === 'generation-failed') {
         record.generated = true;
         return send(res, 502, { code: 'visual_unavailable' });
       }
       if (record.mode === 'hold') {
-        fixture.held.push(() => send(res, 200, { id: record.offer.id, version: '1', designVersion: 'aetheris-1', spec, sources: [] }));
+        fixture.held.push(() => send(res, 200, payload));
         res.on('close', () => { fixture.aborted++; });
         return;
       }
       record.generated = true;
-      return send(res, 200, { id: body.id, version: '1', designVersion: 'aetheris-1', spec, sources: [] });
+      return send(res, 200, payload);
     }
     if (pathname === '/api/metabloom-tool' && body.phase === 'continue') {
       const record = fixture.records.get(body.id);
@@ -75,15 +109,18 @@ server.on('request', async (req, res) => {
       if (record.mode === 'continuation-failed') return send(res, 502, { code: 'tool_unavailable' });
       assert.equal(body.display, record.mode === 'generation-failed' ? 'failed' : 'mounted');
       return send(res, 200, { reply: reply(record.mode === 'generation-failed'
-        ? 'I could not create that visual right now.' : 'Your calculator is ready. Adjust either control to explore the price.'), emote: 'warm' });
+        ? 'I could not create that visual right now.' : record.spec.kind === 'table'
+          ? 'Your table is ready. Inspect the supplied project estimates.'
+          : 'Your calculator is ready. Adjust either control to explore the price.'), emote: 'warm' });
     }
     if (pathname === '/api/metabloom') {
       if (!body.artifactContext) return send(res, 200, reply('This is an ordinary text reply.'));
-      const { id, inputs } = body.artifactContext;
-      assert(fixture.records.get(id)?.generated, 'Follow-up must reference an existing artifact');
-      assert.deepEqual(Object.keys(inputs).sort(), ['hours', 'rate']);
-      assert.equal(typeof inputs.hours, 'number');
-      assert.equal(typeof inputs.rate, 'number');
+      const record = referencedFixture(body.artifactContext);
+      if (record.spec.kind === 'table') {
+        const row = record.spec.rows[body.artifactContext.selector.index];
+        return send(res, 200, reply(`The selected project is ${row[0]}, with a supplied estimate of ${row[1]} CAD.`));
+      }
+      const { inputs } = body.artifactContext;
       return send(res, 200, reply(`The current values are ${inputs.hours} hours at ${inputs.rate} CAD per hour, giving ${inputs.hours * inputs.rate} CAD.`));
     }
     throw new Error(`Unexpected browser API route: ${pathname}`);
@@ -153,6 +190,11 @@ try {
     await setInput('#metabloom-message', message, true);
     await evaluate("document.querySelector('.metabloom-chat__composer').requestSubmit()");
   };
+  const askAbout = async selector => {
+    await until(`document.querySelector(${JSON.stringify(selector)}) && !document.querySelector(${JSON.stringify(selector)}).disabled`);
+    await evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
+    await until("document.querySelector('[data-artifact-reference]')");
+  };
   const load = async (name, width, theme, mode = 'success', height = 844) => {
     fixture.mode = mode; fixture.calls.length = 0; fixture.authSessionCalls = 0;
     await call('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: width < 500 });
@@ -186,10 +228,15 @@ try {
     await evaluate("document.querySelector('button[aria-label=\"Toggle dark mode\"]').click()");
     assert.equal(await evaluate(value), '1350', 'Theme changes must preserve calculator state');
     await evaluate("document.querySelector('button[aria-label=\"Toggle dark mode\"]').click()");
+    await askAbout('.metabloom-visual button[aria-label="Ask about this scenario"]');
+    assert.equal(fixture.calls.length, 3, 'Attaching a scenario must not call a model');
     await submit('Why is the current total 1350 CAD?');
     await until("!window.__orbState().pending && window.__orbMessages().at(-1).content.includes('1350 CAD')");
     const followup = fixture.calls.find(item => item.path === '/api/metabloom');
     assert.deepEqual(followup.body.artifactContext.inputs, { hours: 10, rate: 135 });
+    assert.deepEqual(followup.body.artifactContext.selector, { type: 'calculator' });
+    assert.equal(await evaluate("document.querySelector('[data-artifact-reference]') === null"), true,
+      'Sending consumes the explicitly attached reference');
     assert.equal(await evaluate("window.__testedArtifact === document.querySelector('.metabloom-visual')"), true);
     await evaluate("Array.from(document.querySelectorAll('.metabloom-visual button')).find(button => button.textContent === 'Reset values').click()");
     await until(`${value} === '650'`);
@@ -217,6 +264,7 @@ try {
       const card = slot.querySelector('.metabloom-visual');
       return { id: slot.dataset.visualId, messageId: slot.closest('article')?.dataset.messageId,
         status: card?.dataset.visualState, kind: card?.dataset.visualKind,
+        referenceAvailable: !!card.querySelector('button[aria-label="Ask about this scenario"]'),
         inputs: Array.from(card.querySelectorAll('input[type=number]'), input => input.value),
         result: card.querySelector('output')?.textContent.replace(/[^0-9]/g, '') };
     })`);
@@ -257,8 +305,12 @@ try {
     await setInput(`${olderSelector} .metabloom-visual input[type=number]`, 17);
     await setInput(`${olderSelector} .metabloom-visual__field:nth-child(2) input[type=number]`, 85);
     await until(`document.querySelector(${JSON.stringify(`${olderSelector} output`)})?.textContent.replace(/[^0-9]/g, '') === '1445'`);
-    const selected = { id: olderId, inputs: { hours: 17, rate: 85 } };
-    assert.deepEqual(await evaluate('window.__metabloomVisualSnapshot()'), selected);
+    const selectedInputs = { id: olderId, inputs: { hours: 17, rate: 85 } };
+    assert.deepEqual(await evaluate('window.__metabloomVisualSnapshot()'), selectedInputs);
+    const selected = { id: olderId, version: fixture.records.get(olderId).artifactVersion,
+      selector: { type: 'calculator' }, inputs: { hours: 17, rate: 85 } };
+    await askAbout(`${olderSelector} button[aria-label="Ask about this scenario"]`);
+    const attachmentLabel = await evaluate("document.querySelector('[data-artifact-reference]').textContent");
     const savedVisuals = await readVisuals();
     const beforeNavigation = requestCounts();
     assert.deepEqual(beforeNavigation, { start: 2, generation: 2, continuation: 2, ordinary: 0, total: 6 });
@@ -273,11 +325,15 @@ try {
     await until("document.querySelectorAll('.metabloom-visual[data-visual-state=\"ready\"]').length === 2 && !window.__orbState().pending");
     assert.equal(await evaluate('window.__roundtripVisualNodes.every(node => !node.isConnected)'), true, 'Restored visuals must use the newly mounted Orb surface');
     assert.deepEqual(await readVisuals(), savedVisuals, 'Navigation must preserve visual IDs, assistant ownership, inputs and results');
-    assert.deepEqual(await evaluate('window.__metabloomVisualSnapshot()'), selected, 'Navigation must preserve the selected older calculator');
+    assert.deepEqual(await evaluate('window.__metabloomVisualSnapshot()'), selectedInputs, 'Navigation must preserve the selected older calculator');
+    await until("document.querySelector('[data-artifact-reference]')");
+    assert.equal(await evaluate("document.querySelector('[data-artifact-reference]').getAttribute('data-artifact-reference')"), olderId);
+    assert.equal(await evaluate("document.querySelector('[data-artifact-reference]').textContent"), attachmentLabel,
+      'Navigation must retain the explicit draft reference');
     const afterNavigation = requestCounts();
     assert.deepEqual(afterNavigation, beforeNavigation, 'Restoration must not repeat start, generation, continuation or text requests');
-    // This exercises the existing ordinary follow-up context, not a new tool
-    // reference protocol or a request to regenerate the restored artifact.
+    // The saved composer reference uses the older artifact's immutable version;
+    // reconstruction must not silently select the newest restored calculator.
     await submit('Why is the current total 1445 CAD?');
     await until("!window.__orbState().pending && window.__orbMessages().at(-1).content.includes('1445 CAD')");
     const followup = fixture.calls.find(item => item.path === '/api/metabloom');
@@ -291,8 +347,107 @@ try {
     await screenshot('spa-visual-roundtrip');
     results.push({ case: 'spa-visual-roundtrip', sameDocument: true, artifactsRestored: 2,
       assistantOwnershipRestored: true, inputsRestored: true, selectedArtifactRestored: true,
+      explicitReferenceRestored: true,
       beforeNavigation, afterNavigation, followupContextRestored: true,
       authSessionCalls: fixture.authSessionCalls });
+  }
+  {
+    await load('calculator-reference-capture', 390, 'light');
+    await submit(request);
+    await until("document.querySelector('.metabloom-visual[data-visual-state=\"ready\"]') && !window.__orbState().pending");
+    const id = await evaluate("document.querySelector('.metabloom-visual-slot').dataset.visualId");
+    const reference = { id, version: fixture.records.get(id).artifactVersion,
+      selector: { type: 'calculator' }, inputs: { hours: 12, rate: 65 } };
+    await setInput('.metabloom-visual input[type=number]', 12);
+    await until(`${value} === '780'`);
+    const draft = 'Explain the attached scenario.';
+    await setInput('#metabloom-message', draft, true);
+    await askAbout('.metabloom-visual button[aria-label="Ask about this scenario"]');
+    assert.equal(await evaluate("document.querySelector('#metabloom-message').value"), draft,
+      'Attaching a visual must preserve the existing message draft');
+    await setInput('.metabloom-visual input[type=number]', 20);
+    await until(`${value} === '1300'`);
+    assert.equal(fixture.calls.length, 3, 'Selecting, attaching and later edits must make zero model requests');
+    await evaluate("document.querySelector('.metabloom-chat__composer').requestSubmit()");
+    await until("!window.__orbState().pending && window.__orbMessages().at(-1).content.includes('780 CAD')");
+    const explained = fixture.calls.find(item => item.path === '/api/metabloom');
+    assert.deepEqual(explained.body.artifactContext, reference,
+      'The request must use values captured by Ask, not subsequent calculator edits');
+    assert.equal(await evaluate(value), '1300', 'Explaining a captured scenario must leave current local controls intact');
+    assert.equal(await evaluate("document.querySelector('[data-artifact-reference]') === null"), true);
+
+    await askAbout('.metabloom-visual button[aria-label="Ask about this scenario"]');
+    await setInput('.metabloom-visual__field:nth-child(2) input[type=number]', 100);
+    await until(`${value} === '2000'`);
+    await screenshot('calculator-reference-capture');
+    await evaluate("document.querySelector('button[aria-label=\"Remove visual reference\"]').focus()");
+    assert.equal(await evaluate("document.activeElement?.getAttribute('aria-label')"), 'Remove visual reference');
+    // Chromium needs the carriage return to dispatch Enter's native keypress
+    // and button activation, in addition to keydown and keyup.
+    await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13,
+      text: '\r', unmodifiedText: '\r' });
+    await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+    await until("document.querySelector('[data-artifact-reference]') === null");
+    assert.equal(await evaluate("document.activeElement === document.querySelector('#metabloom-message')"), true,
+      'Removing a reference by keyboard must return focus to the message composer');
+    assert.equal(fixture.calls.length, 4, 'Restaging and clearing must remain local');
+    await submit('Continue with ordinary conversation.');
+    await until("!window.__orbState().pending && window.__orbMessages().at(-1).content === 'This is an ordinary text reply.'");
+    const cleared = fixture.calls.filter(item => item.path === '/api/metabloom').at(-1);
+    assert.equal(Object.prototype.hasOwnProperty.call(cleared.body, 'artifactContext'), false,
+      'Clearing must omit the reference and never restore a hidden calculator fallback');
+    results.push({ case: 'calculator-reference-capture', frozenInputs: true, draftPreserved: true,
+      selectionRequests: 0, oneShotReference: true, keyboardRemoveFocus: true, clearedContextOmitted: true });
+  }
+  {
+    await load('table-reference-conversion', 1440, 'light');
+    await submit('Create an interactive table of project estimates: Alpha 900 CAD, Bravo 120 CAD, Charlie 650 CAD, Delta 310 CAD, Echo 780 CAD, Foxtrot 420 CAD, Golf 250 CAD, Hotel 540 CAD.');
+    await until("document.querySelector('.metabloom-visual[data-visual-kind=\"table\"][data-visual-state=\"ready\"]') && !window.__orbState().pending");
+    const id = await evaluate("document.querySelector('.metabloom-visual-slot').dataset.visualId");
+    const source = `.metabloom-visual-slot[data-visual-id="${id}"]`;
+    const rowAction = `${source} button[aria-label="Ask about this row 3 in Project Estimates"]`;
+    const sort = `${source} thead th:nth-child(2) button`;
+    const filter = `${source} input[type=search]`;
+    const selected = { id, version: fixture.records.get(id).artifactVersion,
+      selector: { type: 'table-row', index: 2 } };
+    await evaluate(`document.querySelector(${JSON.stringify(sort)}).click()`);
+    await until(`document.querySelector(${JSON.stringify(`${source} tbody tr td`)})?.textContent === 'Bravo'`);
+    await askAbout(rowAction);
+    assert.match(await evaluate("document.querySelector('[data-artifact-reference]').textContent"), /Row 3: Charlie/);
+    await evaluate(`document.querySelector(${JSON.stringify(sort)}).click()`);
+    await until(`document.querySelector(${JSON.stringify(`${source} tbody tr td`)})?.textContent === 'Alpha'`);
+    await setInput(filter, 'Bravo');
+    await until(`document.querySelectorAll(${JSON.stringify(`${source} tbody tr`)}).length === 1
+      && document.querySelector(${JSON.stringify(`${source} tbody tr td`)})?.textContent === 'Bravo'`);
+    assert.equal(fixture.calls.length, 3, 'Sorting, filtering and attaching a row must not call a model');
+    await submit('Explain the selected estimate.');
+    await until("!window.__orbState().pending && window.__orbMessages().at(-1).content.includes('Charlie')");
+    const explanation = fixture.calls.find(item => item.path === '/api/metabloom');
+    assert.deepEqual(explanation.body.artifactContext, selected,
+      'Later sorting and filtering cannot retarget the original selected row');
+    assert.equal(await evaluate("document.querySelector('[data-artifact-reference]') === null"), true);
+
+    await setInput(filter, 'Charlie');
+    await until(`document.querySelectorAll(${JSON.stringify(`${source} tbody tr`)}).length === 1
+      && document.querySelector(${JSON.stringify(`${source} tbody tr td`)})?.textContent === 'Charlie'`);
+    await askAbout(rowAction);
+    assert.equal(fixture.calls.length, 4, 'Attaching the source again must remain local');
+    await submit('Create a table from the selected row.');
+    await until("document.querySelectorAll('.metabloom-visual[data-visual-kind=\"table\"][data-visual-state=\"ready\"]').length === 2 && !window.__orbState().pending");
+    const conversion = fixture.calls.filter(item => item.path === '/api/metabloom-tool' && item.phase === 'start').at(-1);
+    assert.deepEqual(conversion.body.artifactContext, explanation.body.artifactContext,
+      'Ordinary explanation and explicit conversion must use the same selected data reference');
+    const converted = await evaluate(`(() => {
+      const cards = document.querySelectorAll('.metabloom-visual[data-visual-kind="table"]');
+      return Array.from(cards[cards.length - 1].querySelectorAll('tbody tr'), row =>
+        Array.from(row.querySelectorAll('td')).slice(0, 2).map(cell => cell.textContent));
+    })()`);
+    assert.deepEqual(converted, [['Charlie', '650']]);
+    assert.equal(fixture.calls.length, 7, 'Conversion consumes one start, generation and continuation');
+    await evaluate("Array.from(document.querySelectorAll('.metabloom-visual')).at(-1).scrollIntoView({ block: 'center' })");
+    await screenshot('table-reference-conversion');
+    results.push({ case: 'table-reference-conversion', originalRowIndex: 2,
+      sortedAndFilteredIdentity: true, selectionRequests: 0, explanationConversionReferenceEqual: true });
   }
   for (const mode of ['disabled', 'generation-failed', 'continuation-failed']) {
     await load(mode, 390, 'light', mode);

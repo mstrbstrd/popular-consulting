@@ -6,6 +6,9 @@ const { METABLOOM_CHAT_PROTOCOL_VERSION, METABLOOM_EMOTE_IDS, METABLOOM_CHAT_RES
 const { METABLOOM_ACTION_MODES } = require("../src/components/metabloomDecisionMapping");
 const { decideMetabloomReaction, decideMetabloomInput, decideMetabloomResponse } = require("../server/jevReactionService");
 const { enabled: visualsEnabled, createMetabloomVisualStore } = require("../server/metabloomVisualStore");
+const { parseMetabloomArtifactReference } = require("../src/components/metabloomArtifactReference");
+const { resolveMetabloomArtifactReference, artifactContextMessage,
+  ARTIFACT_CONTEXT_INSTRUCTIONS } = require("../server/metabloomArtifactContext");
 const { METABLOOM_VISUAL_KINDS, evaluateMetabloomVisualFormula } = require("../src/components/metabloomVisualProtocol");
 const { classifyMetabloomVisualIntent } = require("../src/components/metabloomVisualIntent");
 const { getMetabloomVisualCapabilityResponse } = require("../src/components/metabloomVisualCapabilities");
@@ -67,7 +70,9 @@ const parseBody = (request) => {
     if (value.requestId !== undefined && (typeof value.requestId !== "string" || !/^[a-zA-Z0-9-]{1,160}$/.test(value.requestId))) return null;
     if (value.artifactContext !== undefined) {
       const artifact = value.artifactContext;
-      if (!exactKeys(artifact, ["id", "inputs"]) || typeof artifact.id !== "string"
+      const reference = parseMetabloomArtifactReference(artifact);
+      if (reference) value.artifactContext = reference;
+      else if (!exactKeys(artifact, ["id", "inputs"]) || typeof artifact.id !== "string"
         || !/^[a-f0-9]{48}$/.test(artifact.id) || !artifact.inputs || typeof artifact.inputs !== "object"
         || Array.isArray(artifact.inputs) || Object.keys(artifact.inputs).length > 6
         || Object.keys(artifact.inputs).some(key => !/^[a-z][a-z0-9_]{0,23}$/.test(key)
@@ -330,6 +335,16 @@ const handler = async (request, response) => {
   let upstreamRequestId;
   let initialReactionPromise = Promise.resolve();
   try {
+    // Explicit references must resolve before any paid work. The legacy
+    // calculator snapshot remains optional for already-cached clients below.
+    let selectedArtifact = null;
+    if (body.artifactContext?.version) {
+      stage = "artifact_reference";
+      selectedArtifact = await resolveMetabloomArtifactReference({ store: createMetabloomVisualStore(),
+        identity: visualIdentity, reference: body.artifactContext, signal: controller.signal });
+    }
+    const contextHistory = selectedArtifact ? [...body.history, artifactContextMessage(selectedArtifact)] : body.history;
+    stage = "quota";
     if (!(await consumeRateLimit(request, controller.signal))) {
       response.setHeader("Retry-After", "60");
       return sendJson(response, 429, { code: "rate_limited" });
@@ -391,7 +406,7 @@ const handler = async (request, response) => {
       stage = "research";
       temporalContext = buildMetabloomResearchTemporalContext({ message, timeZone: body.timeZone || "UTC", now: startedAt });
       researchReport = await conductMetabloomResearch({
-        message, history: body.history, signal: controller.signal, requestRef, temporalContext,
+        message, history: contextHistory, signal: controller.signal, requestRef, temporalContext,
         includeSourceUrls: body.streamResearchMedia === true,
         onProgress: body.streamResearchProgress === true
           ? async ({ summary, sourceUrl }) => {
@@ -439,7 +454,7 @@ const handler = async (request, response) => {
       if (evidence) {
         stage = "research_brief";
         try {
-          researchBrief = await generateMetabloomResearchBrief({ message, history: body.history, report: evidence,
+          researchBrief = await generateMetabloomResearchBrief({ message, history: contextHistory, report: evidence,
             evidenceLimited: evidence !== researchReport,
             temporalContext, signal: controller.signal, requestRef });
         } catch (error) {
@@ -482,9 +497,10 @@ const handler = async (request, response) => {
         + (researchReport && research !== researchReport
           ? "\n\nThe research evidence is a selection of complete passages from a larger report. Summarize only the supplied findings and do not imply exhaustive coverage."
             + (body.streamResearchDetails === true ? " The full research report is available separately below the short answer." : "")
-          : "");
-      const input = [...body.history];
-      if (body.artifactContext && visualIdentity) {
+          : "")
+        + (selectedArtifact ? `\n\n${ARTIFACT_CONTEXT_INSTRUCTIONS} Attribute reused artifact data using its stored provenance and source titles; its original component retains its source links. Artifact source IDs belong only to that component, never to the current answer's [n] citation namespace. If a new research pass is supplied, only that research's sources may provide [n] citations.` : "");
+      const input = [...contextHistory];
+      if (body.artifactContext && !selectedArtifact && visualIdentity) {
         try {
           const spec = await createMetabloomVisualStore().getArtifact(visualIdentity, body.artifactContext.id, { signal: controller.signal });
           if (spec?.kind === 'calculator' && spec.controls.length === Object.keys(body.artifactContext.inputs).length
@@ -549,7 +565,7 @@ const handler = async (request, response) => {
     // OpenAI has completed successfully. Its 25-second generation deadline must
     // not abort an otherwise good reply during Jev's separately bounded final choice.
     if (!research) clearTimeout(timeout);
-    const canVisualize = nativeVisualsAvailable && !useResearchIntro && !useStructuredResearch
+    const canVisualize = nativeVisualsAvailable && !selectedArtifact && !useResearchIntro && !useStructuredResearch
       && ["optional", "requested"].includes(visualIntent.mode);
     const assistantResponse = finalReply.segments.map((segment) => segment.response).join("\n\n");
     const finalOptions = {
@@ -609,7 +625,9 @@ const handler = async (request, response) => {
     // Once bytes have been sent, never append a JSON error to a successful
     // envelope or claim completion. Preserve the visible prefix as incomplete.
     if (streaming) return response.end(JSON.stringify({ type: "error", code: failure.code, requestRef }) + "\n");
-    return sendJson(response, deadlineExpired ? 504 : 502, { code: failure.code, requestRef });
+    return sendJson(response, deadlineExpired ? 504
+      : ['artifact_invalid', 'artifact_unavailable'].includes(failure.code) ? failure.status || 410 : 502,
+    { code: failure.code, requestRef });
   } finally {
     clearTimeout(timeout);
     response.off?.("close", onClose);

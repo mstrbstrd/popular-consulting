@@ -36,7 +36,8 @@ function createMetabloomVisualHandler({ store = createMetabloomVisualStore(), ge
       const raw = typeof request.body === 'string' ? request.body : JSON.stringify(request.body);
       if (typeof raw !== 'string' || Buffer.byteLength(raw, 'utf8') > 1024) throw new Error();
       body = JSON.parse(raw);
-      if (!visualKeys(body, ['id', 'version', 'designVersion']) || typeof body.id !== 'string' || !/^[a-f0-9]{48}$/.test(body.id)
+      const bodyKeys = body?.includeReference === true ? ['id', 'version', 'designVersion', 'includeReference'] : ['id', 'version', 'designVersion'];
+      if (!visualKeys(body, bodyKeys) || typeof body.id !== 'string' || !/^[a-f0-9]{48}$/.test(body.id)
         || body.version !== METABLOOM_VISUAL_VERSION || body.designVersion !== METABLOOM_VISUAL_DESIGN_VERSION) throw new Error();
     } catch { return send(response, 400, { code: 'visual_invalid', requestRef }); }
     if (!process.env.OPENAI_API_KEY) return send(response, 503, { code: 'visual_unavailable', requestRef });
@@ -60,10 +61,13 @@ function createMetabloomVisualHandler({ store = createMetabloomVisualStore(), ge
       if (!spec) throw visualError('visual_invalid');
       if (controller.signal.aborted) throw visualError('visual_cancelled');
       const sources = (record.context.sources || []).filter(source => spec.provenance.sourceIds.includes(source.id));
+      // One immutable revision belongs to this completed generation. The store
+      // accepts completion only once; continuation preserves this result.
+      const artifactVersion = randomBytes(16).toString('hex');
       const payload = { version: METABLOOM_VISUAL_VERSION, designVersion: METABLOOM_VISUAL_DESIGN_VERSION,
-        id: body.id, spec, sources };
+        id: body.id, spec, sources, ...(body.includeReference ? { artifactVersion } : {}) };
       if (Buffer.byteLength(JSON.stringify(payload), 'utf8') > MAX_METABLOOM_VISUAL_BYTES) throw visualError('visual_invalid');
-      await store.complete(identity, body.id, { status: 'ready', spec, sources }, { signal: controller.signal });
+      await store.complete(identity, body.id, { status: 'ready', spec, sources, artifactVersion }, { signal: controller.signal });
       persisted = true;
       outcome = 'complete';
       return send(response, 200, payload);

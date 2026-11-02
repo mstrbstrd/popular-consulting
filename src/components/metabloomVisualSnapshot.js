@@ -1,5 +1,6 @@
 const { METABLOOM_VISUAL_VERSION, METABLOOM_VISUAL_DESIGN_VERSION, parseMetabloomVisualOffer,
   parseMetabloomVisual, parseMetabloomVisualSources, visualKeys, visualText, byteLength } = require('./metabloomVisualProtocol');
+const { isMetabloomArtifactVersion } = require('./metabloomArtifactReference');
 
 const MAX_METABLOOM_VISUAL_SNAPSHOT_RECORDS = 12;
 const MAX_METABLOOM_VISUAL_SNAPSHOT_BYTES = 262144;
@@ -38,7 +39,10 @@ const parseViewState = (value, spec) => {
   return visualKeys(value, ['detailsOpen']) ? { ...value } : null;
 };
 const parseRecord = (value, messages) => {
-  if (!visualKeys(value, ['id', 'kind', 'mode', 'userId', 'replyId', 'expiresAt', 'status', 'spec', 'sources', 'viewState'])
+  const keys = ['id', 'kind', 'mode', 'userId', 'replyId', 'expiresAt', 'status', 'spec', 'sources', 'viewState'];
+  const hasVersion = Object.prototype.hasOwnProperty.call(value || {}, 'artifactVersion');
+  if (!visualKeys(value, hasVersion ? [...keys, 'artifactVersion'] : keys)
+    || (hasVersion && (!isMetabloomArtifactVersion(value.artifactVersion) || value.status !== 'ready'))
     || !parseMetabloomVisualOffer({ version: METABLOOM_VISUAL_VERSION, designVersion: METABLOOM_VISUAL_DESIGN_VERSION,
       id: value.id, kind: value.kind, expiresAt: value.expiresAt })
     || !['tool', 'optional'].includes(value.mode) || !['ready', 'cancelled'].includes(value.status)
@@ -101,7 +105,8 @@ function createMetabloomVisualSnapshot(records, messages, lastInteractedId = nul
       userId: record.userId || null, replyId: record.replyId || null, expiresAt: record.expiresAt,
       status: ready ? 'ready' : 'cancelled', spec: ready ? record.spec : null,
       sources: ready ? record.sources || [] : [],
-      viewState: ready ? viewState : null }, messages);
+      viewState: ready ? viewState : null,
+      ...(ready && isMetabloomArtifactVersion(record.artifactVersion) ? { artifactVersion: record.artifactVersion } : {}) }, messages);
     if (!candidate) continue;
     const next = { ...snapshot, records: [candidate, ...snapshot.records], lastInteractedId };
     if (byteLength(JSON.stringify(next)) > MAX_METABLOOM_VISUAL_SNAPSHOT_BYTES) continue;

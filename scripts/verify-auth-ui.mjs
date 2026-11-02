@@ -50,6 +50,24 @@ try {
       if (result.exceptionDetails) throw new Error(JSON.stringify(result.exceptionDetails)); return result.result.value;
     };
     const wait = expression => evaluate(`new Promise((resolve,reject)=>{let n=0;const t=setInterval(()=>{if(${expression}){clearInterval(t);resolve(true)}else if(++n>200){clearInterval(t);reject(new Error('UI wait timed out'))}},50)})`);
+    // The logout form can appear before pageshow revalidates the session and
+    // briefly removes it. Wait for the interactive route, then check and click
+    // in one page task so a separate protocol call cannot target a stale form.
+    const clickWhenReady = selector => wait(`(() => {
+      const outlet = document.querySelector('.app-outlet');
+      const element = document.querySelector(${JSON.stringify(selector)});
+      if (document.readyState !== 'complete' || outlet?.dataset.phase !== 'idle'
+        || outlet.hasAttribute('inert') || !element || !outlet.contains(element)
+        || element.closest('[inert]') || element.matches(':disabled') || !element.getClientRects().length) return false;
+      const rect = element.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return false;
+      for (let node = element; node; node = node.parentElement) {
+        const style = getComputedStyle(node);
+        if (style.display === 'none' || style.visibility === 'hidden' || style.visibility === 'collapse' || Number(style.opacity) === 0) return false;
+      }
+      element.click();
+      return true;
+    })()`).catch(error => { throw new Error(`Ready control ${selector}: ${error.message}`); });
     const capture = async label => { const { data } = await call('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false }); fs.writeFileSync(path.join(output, `${width}-${theme}-${label}.png`), Buffer.from(data, 'base64')); };
     // A descendant can report display:block while an ancestor hides the whole PDF.
     // Check actual geometry and the complete ancestor chain, not just its own style.
@@ -116,10 +134,8 @@ try {
       await evaluate('[...document.querySelectorAll("button")].find(el=>el.textContent.trim()==="Save draft").click()');
       await evaluate('new Promise(resolve=>setTimeout(resolve,150))');
       await call('Page.navigate', { url: `${origin}/logout?graphics=css` });
-      await wait('document.querySelector(".auth-checkbox input") && document.querySelector(".auth-primary") && !document.querySelector(".auth-primary").disabled');
-      await evaluate('document.querySelector(".auth-checkbox input").click()');
-      await wait('document.querySelector(".auth-primary") && !document.querySelector(".auth-primary").disabled');
-      await evaluate('document.querySelector(".auth-primary").click()');
+      await clickWhenReady('.auth-checkbox input');
+      await clickWhenReady('.auth-primary');
       await wait('document.querySelector(".auth-notice")?.textContent.includes("Signed out")');
       check(await evaluate('localStorage.getItem("popcon-invoice-draft-v1") === null'), 'Explicit draft deletion failed');
       check(!session.authenticated, 'Sign out not reflected by fixture');
