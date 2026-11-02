@@ -26,6 +26,7 @@ jobs:
           scripts/metabloom-research-output.test.cjs scripts/metabloom-stream.test.cjs
           scripts/jev-reaction.test.cjs scripts/metabloom-visual.test.cjs scripts/metabloom-ui-tools.test.cjs
           scripts/metabloom-source-media.test.cjs scripts/metabloom-visual-quota.test.cjs
+          scripts/metabloom-visual-store-diagnostics.test.cjs
       - run: npm ci --no-audit --no-fund
       - run: npm test -- --watch=false --runInBand --runTestsByPath src/components/MetabloomVisuals.test.js
         env:

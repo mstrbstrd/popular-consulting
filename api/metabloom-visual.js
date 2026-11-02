@@ -1,6 +1,7 @@
 const { randomBytes } = require('node:crypto');
 const auth = require('../server/metabloomAuth');
 const { enabled, createMetabloomVisualStore, visualError } = require('../server/metabloomVisualStore');
+const { visualStoreDiagnostics } = require('../server/metabloomVisualStoreDiagnostics');
 const { generateMetabloomVisual } = require('../server/metabloomVisualGenerator');
 const { METABLOOM_VISUAL_VERSION, METABLOOM_VISUAL_DESIGN_VERSION, MAX_METABLOOM_VISUAL_BYTES,
   METABLOOM_VISUAL_GENERATION_TIMEOUT_MS, METABLOOM_VISUAL_ERRORS, visualKeys, parseMetabloomVisual } = require('../src/components/metabloomVisualProtocol');
@@ -46,6 +47,7 @@ function createMetabloomVisualHandler({ store = createMetabloomVisualStore(), ge
     response.on?.('close', closed);
     const startedAt = Date.now();
     let outcome = 'failed';
+    let storeDiagnostics = {};
     let claimed = false;
     let persisted = false;
     try {
@@ -66,6 +68,7 @@ function createMetabloomVisualHandler({ store = createMetabloomVisualStore(), ge
       outcome = 'complete';
       return send(response, 200, payload);
     } catch (error) {
+      storeDiagnostics = visualStoreDiagnostics(error);
       const code = controller.signal.aborted ? (deadlineExpired ? 'visual_timeout' : 'visual_cancelled')
         : Object.prototype.hasOwnProperty.call(METABLOOM_VISUAL_ERRORS, error?.code) ? error.code : 'visual_unavailable';
       if (claimed && !persisted) {
@@ -84,7 +87,8 @@ function createMetabloomVisualHandler({ store = createMetabloomVisualStore(), ge
       clearTimeout(timeout);
       response.off?.('close', closed);
       controller.abort();
-      console.info('metabloom_visual', JSON.stringify({ outcome, durationMs: Date.now() - startedAt, requestRef }));
+      console.info('metabloom_visual', JSON.stringify({ outcome, durationMs: Date.now() - startedAt, requestRef,
+        ...storeDiagnostics }));
     }
   };
 }

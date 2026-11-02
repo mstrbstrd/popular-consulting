@@ -7,6 +7,7 @@ import { findBrowser } from "./dark-evidence-browser.mjs";
 import { createBuildServer } from "./auth-invoice-test-server.mjs";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const SCREENSHOT_TIMEOUT_MS = 45000;
 const remote = process.env.METABLOOM_VERIFY_ORIGIN;
 if (remote && remote !== "https://popular-consulting.com") throw new Error("Unexpected production verification origin");
 // Only the loopback build server supplies a fictional session. Production checks
@@ -63,9 +64,9 @@ try {
     pending.delete(data.id); clearTimeout(item.timer);
     if (data.error) item.reject(new Error(data.error.message)); else item.resolve(data.result);
   });
-  const call = (method, params = {}) => new Promise((resolve, reject) => {
+  const call = (method, params = {}, timeoutMs = 20000) => new Promise((resolve, reject) => {
     const id = ++sequence;
-    const timer = setTimeout(() => { pending.delete(id); reject(new Error(`Browser command timed out: ${method}`)); }, 20000);
+    const timer = setTimeout(() => { pending.delete(id); reject(new Error(`Browser command timed out after ${timeoutMs}ms: ${method}`)); }, timeoutMs);
     pending.set(id, { resolve, reject, timer });
     socket.send(JSON.stringify({ id, method, params }));
   });
@@ -84,8 +85,37 @@ try {
     throw new Error(`Browser assertion timed out: ${expression}; route state: ${JSON.stringify(state)}`);
   };
   screenshot = async (name) => {
-    const image = await call("Page.captureScreenshot", { format: "png" });
-    fs.writeFileSync(path.join(output, `${name}.png`), Buffer.from(image.data, "base64"));
+    try {
+      const state = await evaluate(`(() => {
+        const short = value => typeof value === 'string' ? value.slice(0, 80) : null;
+        const graphics = window.__graphicsReport?.();
+        const field = document.querySelector('.creatoros-field-shell');
+        const canvas = field?.querySelector('canvas');
+        return {
+          viewport: { width: innerWidth, height: innerHeight, scale: devicePixelRatio },
+          theme: short(document.documentElement.dataset.theme),
+          visibility: document.visibilityState,
+          graphics: {
+            mode: short(graphics?.policy?.mode), source: short(graphics?.policy?.source),
+            webglAllowed: graphics?.shouldAttemptWebGL === true,
+            failure: short(graphics?.failure?.reason),
+          },
+          field: field ? {
+            ready: field.dataset.fieldReady === 'true', fallback: field.classList.contains('is-fallback'),
+            profile: short(field.dataset.runtimeProfile),
+            width: canvas?.width ?? null, height: canvas?.height ?? null,
+          } : null,
+        };
+      })()`);
+      // Persist before capture: a stalled compositor must not erase its setup evidence.
+      fs.writeFileSync(path.join(output, `${name}-capture.json`), JSON.stringify({
+        name, timeoutMs: SCREENSHOT_TIMEOUT_MS, requestedAt: new Date().toISOString(), state,
+      }, null, 2));
+      const image = await call("Page.captureScreenshot", { format: "png" }, SCREENSHOT_TIMEOUT_MS);
+      fs.writeFileSync(path.join(output, `${name}.png`), Buffer.from(image.data, "base64"));
+    } catch (error) {
+      throw Object.assign(new Error(`Screenshot ${name} failed: ${error.message}`, { cause: error }), { captureName: name });
+    }
   };
   await call("Page.enable");
   await call("Page.addScriptToEvaluateOnNewDocument", { source: `
@@ -140,6 +170,7 @@ try {
       await evaluate(`document.querySelector('button[aria-label="Toggle dark mode"]').click()`);
     }
     await until(`document.documentElement.dataset.theme === ${JSON.stringify(expectedTheme)}`);
+    await until("document.querySelector('.creatoros-field-shell[data-field-ready=\"true\"]')");
     await screenshot(`${config.id}-landing`);
     const geometry = await evaluate(`(() => { const r = document.querySelector('.metabloom-chat__composer').getBoundingClientRect(); return {left:r.left,right:r.right,width:innerWidth}; })()`);
     assert.ok(geometry.left >= -1 && geometry.right <= geometry.width + 1, "Composer overflow");
@@ -196,8 +227,9 @@ try {
   fs.writeFileSync(path.join(output, "result.json"), JSON.stringify({ origin, mode, success: true, results }, null, 2));
   console.log(JSON.stringify({ origin, mode, success: true, results }));
 } catch (error) {
-  if (screenshot) { try { await screenshot("failure"); } catch { /* Browser may already be closed. */ } }
-  fs.writeFileSync(path.join(output, "result.json"), JSON.stringify({ origin, mode, success: false, error: error.message, results }, null, 2));
+  if (screenshot && !error.captureName) { try { await screenshot("failure"); } catch { /* Browser may already be closed. */ } }
+  fs.writeFileSync(path.join(output, "result.json"), JSON.stringify({ origin, mode, success: false,
+    error: error.message, ...(error.captureName ? { captureName: error.captureName } : {}), results }, null, 2));
   throw error;
 } finally {
   socket?.close();

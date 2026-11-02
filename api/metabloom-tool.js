@@ -1,6 +1,7 @@
 const { randomBytes } = require('node:crypto');
 const auth = require('../server/metabloomAuth');
 const { enabled: visualsEnabled, createMetabloomVisualStore } = require('../server/metabloomVisualStore');
+const { visualStoreDiagnostics } = require('../server/metabloomVisualStoreDiagnostics');
 const { classifyMetabloomVisualIntent } = require('../src/components/metabloomVisualIntent');
 const { METABLOOM_CHAT_PROTOCOL_VERSION } = require('../src/components/metabloomEmoteLibrary');
 const { METABLOOM_TOOL_START_TIMEOUT_MS, METABLOOM_TOOL_CONTINUE_TIMEOUT_MS } = require('../src/components/metabloomVisualProtocol');
@@ -156,7 +157,7 @@ function createMetabloomToolHandler({ store = createMetabloomVisualStore(), auth
       const quota = code === 'tool_quota' ? parseMetabloomVisualQuota(error?.quota) : null;
       if (quota) response.setHeader('Retry-After', String(quota.retryAfterSeconds));
       console.info('metabloom_ui_tool', JSON.stringify({ phase: body.phase, stage, outcome: 'failed',
-        code, durationMs: Date.now() - startedAt, requestRef }));
+        code, durationMs: Date.now() - startedAt, requestRef, ...visualStoreDiagnostics(error) }));
       return send(response, status, { code, requestRef, ...(quota ? { quota } : {}) });
     } finally {
       clearTimeout(timeout);
