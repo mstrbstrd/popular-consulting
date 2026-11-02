@@ -45,32 +45,26 @@ async function readVisualJson(response, maxBytes = 150000, { signal } = {}) {
 }
 // No in-memory fallback: claims and both quotas must be atomic across instances.
 const QUOTA_HELPERS = `
-local function budget(key,limit,window,now)
+local function budget(key,limit,window)
   local raw=redis.call('GET',key)
   local count=0
+  if raw and raw~='0' and not string.match(raw,'^[1-9][0-9]*$') then return nil end
   if raw then count=tonumber(raw) end
   if not count or count<0 or count>9007199254740991 or count~=math.floor(count) then return nil end
   local ttl=raw and redis.call('PTTL',key) or window*1000
-  if ttl<0 or ttl>window*1000 then return nil end
-  return {limit=limit,remaining=math.max(0,limit-count),resetAt=now+math.max(1,ttl)}
+  if type(ttl)~='number' or ttl<0 or ttl>window*1000 or ttl~=math.floor(ttl) then return nil end
+  return {limit=limit,remaining=math.max(0,limit-count),resetDelayMs=math.max(1,ttl)}
 end
-local function quotaState(subjectKey,deploymentKey,now,subjectLimit,deploymentLimit)
-  local subject=budget(subjectKey,subjectLimit,3600,now)
-  local deployment=budget(deploymentKey,deploymentLimit,86400,now)
+local function quotaState(subjectKey,deploymentKey,subjectLimit,deploymentLimit)
+  local subject=budget(subjectKey,subjectLimit,3600)
+  local deployment=budget(deploymentKey,deploymentLimit,86400)
   if not subject or not deployment then return nil end
-  local scope=cjson.null
-  local resetAt=cjson.null
-  if subject.remaining==0 and deployment.remaining==0 then
-    scope='both'; resetAt=math.max(subject.resetAt,deployment.resetAt)
-  elseif subject.remaining==0 then scope='subject'; resetAt=subject.resetAt
-  elseif deployment.remaining==0 then scope='deployment'; resetAt=deployment.resetAt end
-  local retry=scope==cjson.null and 0 or math.max(1,math.ceil((resetAt-now)/1000))
-  return {scope=scope,resetAt=resetAt,retryAfterSeconds=retry,subject=subject,deployment=deployment}
+  return {1,subject.limit,subject.remaining,subject.resetDelayMs,deployment.limit,deployment.remaining,deployment.resetDelayMs}
 end`;
 const CHECK_QUOTA_SCRIPT = `${QUOTA_HELPERS}
-local quota=quotaState(KEYS[1],KEYS[2],tonumber(ARGV[1]),tonumber(ARGV[2]),tonumber(ARGV[3]))
+local quota=quotaState(KEYS[1],KEYS[2],tonumber(ARGV[1]),tonumber(ARGV[2]))
 if not quota then return 'quota_unavailable' end
-return cjson.encode(quota)`;
+return quota`;
 const CLAIM_SCRIPT = `${QUOTA_HELPERS}
 local raw=redis.call('GET',KEYS[1])
 if not raw then return 'expired' end
@@ -78,9 +72,9 @@ local record=cjson.decode(raw)
 if record.owner~=ARGV[1] then return 'expired' end
 if record.offer.expiresAt<=tonumber(ARGV[2]) then return 'expired' end
 if record.status~='offered' then return 'claimed' end
-local quota=quotaState(KEYS[2],KEYS[3],tonumber(ARGV[2]),tonumber(ARGV[3]),tonumber(ARGV[4]))
+local quota=quotaState(KEYS[2],KEYS[3],tonumber(ARGV[3]),tonumber(ARGV[4]))
 if not quota then return 'quota_unavailable' end
-if quota.scope~=cjson.null then return cjson.encode({code='visual_quota',quota=quota}) end
+if quota[3]==0 or quota[6]==0 then return quota end
 if redis.call('INCR',KEYS[2])==1 then redis.call('EXPIRE',KEYS[2],3600) end
 if redis.call('INCR',KEYS[3])==1 then redis.call('EXPIRE',KEYS[3],86400) end
 local tombstone=cjson.encode({owner=record.owner,status='claimed',offer=record.offer,tool=record.context.tool})
@@ -118,6 +112,36 @@ record.status='complete'
 record.reply=cjson.decode(ARGV[2])
 redis.call('SET',KEYS[1],cjson.encode(record),'KEEPTTL')
 return 'OK'`;
+
+function readVisualQuotaReply(raw, { checkedAt, limits, allowAvailable = false }) {
+  // Version 1 is a fixed RESP integer array. Keep nullable fields and epoch
+  // arithmetic in JavaScript rather than depending on Lua CJSON serialization.
+  if (!Array.isArray(raw) || raw.length !== 7 || raw[0] !== 1 || Object.keys(raw).length !== 7)
+    throw visualStoreError('quota_result_invalid');
+  for (const value of raw) {
+    if (typeof value !== 'number') throw visualStoreError('quota_result_invalid');
+    if (!Number.isSafeInteger(value)) throw visualStoreError('quota_schema_invalid');
+  }
+  const [, subjectLimit, subjectRemaining, subjectResetDelayMs,
+    deploymentLimit, deploymentRemaining, deploymentResetDelayMs] = raw;
+  if (subjectLimit !== limits.subject || deploymentLimit !== limits.deployment
+    || subjectRemaining < 0 || subjectRemaining > subjectLimit
+    || deploymentRemaining < 0 || deploymentRemaining > deploymentLimit
+    || subjectResetDelayMs < 1 || subjectResetDelayMs > METABLOOM_VISUAL_QUOTA.subject.windowSeconds * 1000
+    || deploymentResetDelayMs < 1 || deploymentResetDelayMs > METABLOOM_VISUAL_QUOTA.deployment.windowSeconds * 1000)
+    throw visualStoreError('quota_schema_invalid');
+  const subject = { limit: subjectLimit, remaining: subjectRemaining, resetAt: checkedAt + subjectResetDelayMs };
+  const deployment = { limit: deploymentLimit, remaining: deploymentRemaining, resetAt: checkedAt + deploymentResetDelayMs };
+  const scope = subjectRemaining === 0 ? (deploymentRemaining === 0 ? 'both' : 'subject')
+    : deploymentRemaining === 0 ? 'deployment' : null;
+  const resetAt = scope === 'both' ? Math.max(subject.resetAt, deployment.resetAt)
+    : scope === 'subject' ? subject.resetAt : scope === 'deployment' ? deployment.resetAt : null;
+  const retryAfterSeconds = scope ? Math.max(1, Math.ceil((resetAt - checkedAt) / 1000)) : 0;
+  const quota = parseMetabloomVisualQuota({ scope, resetAt, retryAfterSeconds, subject, deployment },
+    { now: checkedAt, allowAvailable });
+  if (!quota) throw visualStoreError('quota_schema_invalid');
+  return quota;
+}
 
 async function visualCommand(args, { signal, fetchImpl = globalThis.fetch } = {}) {
   let url;
@@ -175,13 +199,9 @@ function createMetabloomVisualStore({ command = visualCommand, now = Date.now } 
       if (!enabled()) throw visualError('visual_disabled');
       const key = prefix(identity), limits = readVisualQuotaLimits(), checkedAt = now();
       const raw = await command(['EVAL', CHECK_QUOTA_SCRIPT, '2', `${key}subject:${identity.subject}`,
-        `${key}daily`, String(checkedAt), String(limits.subject), String(limits.deployment)], options);
+        `${key}daily`, String(limits.subject), String(limits.deployment)], options);
       if (raw === 'quota_unavailable') throw visualStoreError('quota_state_invalid');
-      if (typeof raw !== 'string' || Buffer.byteLength(raw, 'utf8') > 2000) throw visualStoreError('quota_result_invalid');
-      let value;
-      try { value = JSON.parse(raw); } catch { throw visualStoreError('quota_json_invalid'); }
-      const quota = parseMetabloomVisualQuota(value, { now: checkedAt, allowAvailable: true });
-      if (!quota) throw visualStoreError('quota_schema_invalid');
+      const quota = readVisualQuotaReply(raw, { checkedAt, limits, allowAvailable: true });
       if (quota.scope) throw visualError('visual_quota', { quota });
       return quota;
     },
@@ -243,13 +263,14 @@ function createMetabloomVisualStore({ command = visualCommand, now = Date.now } 
         `${key}daily`, identity.owner, String(checkedAt), String(limits.subject), String(limits.deployment)], options);
       if (['expired', 'claimed'].includes(raw)) throw visualError(`visual_${raw}`);
       if (raw === 'quota_unavailable') throw visualStoreError('quota_state_invalid');
-      if (typeof raw !== 'string' || Buffer.byteLength(raw, 'utf8') > MAX_METABLOOM_VISUAL_CONTEXT_BYTES) throw visualError('visual_unavailable');
-      const record = JSON.parse(raw);
-      if (record?.code === 'visual_quota') {
-        const quota = parseMetabloomVisualQuota(record.quota, { now: checkedAt });
-        if (!quota) throw visualStoreError('quota_schema_invalid');
+      if (Array.isArray(raw)) {
+        const quota = readVisualQuotaReply(raw, { checkedAt, limits });
         throw visualError('visual_quota', { quota });
       }
+      if (typeof raw !== 'string') throw visualStoreError('quota_result_invalid');
+      if (Buffer.byteLength(raw, 'utf8') > MAX_METABLOOM_VISUAL_CONTEXT_BYTES) throw visualError('visual_unavailable');
+      const record = JSON.parse(raw);
+      if (record?.code === 'visual_quota') throw visualStoreError('quota_result_invalid');
       if (record.owner !== identity.owner || record.status !== 'offered' || !parseMetabloomVisualOffer(record.offer)
         || record.offer.id !== id || record.offer.expiresAt <= now() || !record.context) throw visualError('visual_expired');
       return record;

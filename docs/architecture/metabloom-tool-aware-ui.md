@@ -63,6 +63,21 @@ The defaults are 30 accepted generations per authenticated subject/hour and 200 
 
 Preflight is an early rejection, not a reservation. The generation claim always checks and increments both counters in one Lua script. A denied preflight returns `tool_quota`; a denied generation returns `visual_quota`. Both use HTTP 429 with sanitized quota metadata and `Retry-After`. No paid retry is scheduled automatically. General chat/tool-start limits remain separate; continuation does not consume another visual generation.
 
+### Redis quota reply
+
+The preflight script and an exhausted generation claim return one native Redis integer array:
+
+```text
+[1, subjectLimit, subjectRemaining, subjectResetDelayMs,
+    deploymentLimit, deploymentRemaining, deploymentResetDelayMs]
+```
+
+The first integer is the wire version. Each delay is a positive millisecond count bounded by its quota window. The server checks the exact length/version, safe integer values, configured limits, remaining counts, and delay ranges before constructing the public quota metadata. It derives `scope`, explicit `null` values for available capacity, absolute reset times, and `Retry-After` in JavaScript, then applies the unchanged public quota validator. An available array cannot authorize a generation claim; successful claims still return the validated stored offer record.
+
+This avoids CJSON encoding of quota objects and absolute timestamps in Lua. [Upstash documents native array results for EVAL](https://upstash.com/docs/redis/commands/scripting/eval). The inline script and its decoder ship together; the array is a command response, not a persisted format, so existing offer records, counters, and expiries need no migration. Lua validates both counters and their TTLs before incrementing either counter. Existing count text must be the canonical nonnegative integer representation written by Redis `INCR`; malformed counters fail closed before any write.
+
+On November 2, 2026, the former script reproduced the production `quota_schema_invalid` failure on a disposable Upstash fixture with empty fictional counters: its CJSON response omitted the null-valued outer `scope` and `resetAt` fields. Stock Redis 7 preserved those fields, so stock Redis alone did not reproduce the hosted failure. The integer-array response passed seven compatibility checks through Upstash's actual REST interface, including available capacity, all exhausted scopes, denied and accepted claims, duplicates, and invalid counter rejection. The public parser still rejects the captured incomplete JSON shape; a regression test verifies that the new response constructs both required null fields.
+
 ### Investigating quota failures
 
 Find the `metabloom_ui_tool` server log using the request reference displayed in the error. A failure at `stage: "visual_quota"` happens after the request claim and before the general request quota or either model call. `tool_unavailable` alone does not mean the visual allowance is exhausted: a valid exhausted allowance returns `tool_quota` and HTTP 429.
@@ -76,7 +91,10 @@ Store failures append fixed diagnostic categories to that same log. The visual g
 | `redis_http_error`, `redis_command_error` | Redis rejected the HTTP request or returned a command error. `storeStatus` contains the HTTP status when available. |
 | `redis_response_invalid`, `redis_response_too_large`, `redis_envelope_invalid` | The Redis response could not be decoded within its bounds or lacked the expected result envelope. |
 | `quota_state_invalid` | The quota script rejected a stored counter or its expiry. |
-| `quota_result_invalid`, `quota_json_invalid`, `quota_schema_invalid` | The quota result had an invalid type/size, invalid JSON, or metadata that failed the quota contract. |
+| `quota_result_invalid` | The quota reply had an invalid array shape, version, or element type. |
+| `quota_schema_invalid` | The quota reply contained an unsafe integer, a limit/count/expiry outside its allowed range, or metadata that failed the public quota contract. |
+
+Older deployments may record `quota_json_invalid` for the former CJSON string response.
 
 Redis command errors may also include an allowlisted `redisCode` such as `NOPERM` or `WRONGTYPE`, and `redisDetail` may distinguish script compilation, script execution, or an unknown command. The diagnostic reader examines at most 4 KiB of an HTTP error body under the same command deadline. It never logs the raw body, message, URL, key, counter value, credential, prompt, or user identity. Unknown error text yields no extra category. Investigate the recorded category before changing limits or stored counters; the existing checks continue to fail closed.
 
@@ -104,4 +122,10 @@ CI=true npm test -- --watch=false --runInBand --runTestsByPath src/components/Me
 CI=true npm run build
 ```
 
-The Metabloom functional workflow includes these tests. Real-provider and physical-mobile qualification remain separate from fixture-based checks.
+The Metabloom functional workflow also runs the actual Lua scripts against a Redis 7 service in an independent Ubuntu job. This covers available and exhausted quotas, unchanged expiry deadlines, duplicate and concurrent claims, shared deployment limits across subjects, malformed counter state, and ownership/expiry checks. To run this suite locally against an isolated Redis 7 fixture bound to `127.0.0.1`:
+
+```sh
+METABLOOM_QUOTA_TEST_REDIS_PORT=6379 node --test scripts/metabloom-visual-quota-redis.test.cjs
+```
+
+The port is required; the suite never falls back to configured application Redis credentials. It uses unique fictional keys and cleans up only those keys. Real-provider and physical-mobile qualification remain separate from fixture-based checks.

@@ -23,6 +23,8 @@ const quota = (scope = 'subject', now = Date.now()) => ({
   subject: { limit: 30, remaining: ['subject', 'both'].includes(scope) ? 0 : 24, resetAt: now + 600000 },
   deployment: { limit: 200, remaining: ['deployment', 'both'].includes(scope) ? 0 : 194, resetAt: now + 7200000 },
 });
+const quotaReply = (scope = 'subject') => [1, 30, ['subject', 'both'].includes(scope) ? 0 : 24,
+  600000, 200, ['deployment', 'both'].includes(scope) ? 0 : 194, 7200000];
 const offer = () => ({ version: '1', designVersion: 'aetheris-1', id: 'd'.repeat(48), kind: 'table', expiresAt: Date.now() + 600000 });
 const request = body => ({ method: 'POST', headers: { 'content-type': 'application/json' }, body, aborted: false });
 function response() {
@@ -48,24 +50,36 @@ test('visual allowances are practical defaults with bounded positive environment
 });
 
 test('preflight reads the same subject and scope keys without consuming or resetting a quota', async () => {
-  const commands = [], state = quota(null), now = Date.now();
+  const commands = [], now = Date.now(), state = quota(null, now);
   const store = createMetabloomVisualStore({ now: () => now,
-    command: async args => { commands.push(args); return JSON.stringify(state); } });
+    command: async args => { commands.push(args); return quotaReply(null); } });
   assert.deepEqual(await store.checkQuota(identity), state);
   const args = commands[0];
   assert.equal(args[1], CHECK_QUOTA_SCRIPT);
   assert.equal(args[2], '2');
   assert.ok(args[3].endsWith(`subject:${identity.subject}`));
   assert.ok(args[4].endsWith(':daily'));
-  assert.deepEqual(args.slice(-2), ['30', '200']);
+  assert.deepEqual(args.slice(5), ['30', '200']);
   assert.match(args[1], /redis.call\('PTTL',key\)/);
   assert.doesNotMatch(args[1], /redis.call\('(?:INCR|SET|EXPIRE|DEL)'/);
 });
 
+test('available capacity retains explicit null fields missing from the observed Upstash CJSON reply', async () => {
+  const now = 1793650813999;
+  // Captured with fictional empty counters on a disposable Upstash fixture.
+  // Its old CJSON response omitted both null-valued outer fields.
+  const legacy = { deployment: { limit: 200, remaining: 200, resetAt: now + 86400000 },
+    retryAfterSeconds: 0, subject: { limit: 30, remaining: 30, resetAt: now + 3600000 } };
+  assert.equal(parseMetabloomVisualQuota(legacy, { now, allowAvailable: true }), null);
+  const store = createMetabloomVisualStore({ now: () => now,
+    command: async () => [1, 30, 30, 3600000, 200, 200, 86400000] });
+  assert.deepEqual(await store.checkQuota(identity), { ...legacy, scope: null, resetAt: null });
+});
+
 test('the atomic claim checks current counters before incrementing or consuming the offer', async () => {
-  const commands = [], state = quota('both');
-  const store = createMetabloomVisualStore({ command: async args => {
-    commands.push(args); return JSON.stringify({ code: 'visual_quota', quota: state });
+  const commands = [], now = Date.now(), state = quota('both', now);
+  const store = createMetabloomVisualStore({ now: () => now, command: async args => {
+    commands.push(args); return quotaReply('both');
   } });
   await assert.rejects(store.claim(identity, offer().id), error => error.code === 'visual_quota'
     && JSON.stringify(error.quota) === JSON.stringify(state));
@@ -74,7 +88,8 @@ test('the atomic claim checks current counters before incrementing or consuming 
   assert.equal(args[1], CLAIM_SCRIPT);
   assert.equal(args[2], '3');
   assert.deepEqual(args.slice(-2), ['30', '200']);
-  assert.ok(args[1].indexOf("code='visual_quota'") < args[1].indexOf("redis.call('INCR'"));
+  const denial = args[1].indexOf('if quota[3]==0 or quota[6]==0 then return quota end');
+  assert.ok(denial >= 0 && denial < args[1].indexOf("redis.call('INCR'"));
   assert.ok(args[1].indexOf("record.status~='offered'") < args[1].indexOf('local quota=quotaState'));
   assert.match(args[1], /EXPIRE',KEYS\[2\],3600/);
   assert.match(args[1], /EXPIRE',KEYS\[3\],86400/);
@@ -82,11 +97,11 @@ test('the atomic claim checks current counters before incrementing or consuming 
 
 for (const scope of ['subject', 'deployment', 'both']) test(`preflight returns actionable ${scope} quota metadata and starts no paid work`, async t => {
   t.mock.method(console, 'info', () => {});
-  const state = quota(scope), commands = [];
-  const store = createMetabloomVisualStore({ command: async args => {
+  const now = Date.now(), state = quota(scope, now), commands = [];
+  const store = createMetabloomVisualStore({ now: () => now, command: async args => {
     commands.push(args);
     if (args[0] === 'SET') return 'OK';
-    assert.equal(args[1], CHECK_QUOTA_SCRIPT); return JSON.stringify(state);
+    assert.equal(args[1], CHECK_QUOTA_SCRIPT); return quotaReply(scope);
   } });
   const unexpected = async () => assert.fail('Quota preflight must precede general quota and provider work');
   const handler = createMetabloomToolHandler({ authenticate, store, start: unexpected, rateLimit: unexpected, reaction: unexpected });
@@ -106,12 +121,12 @@ for (const scope of ['subject', 'deployment', 'both']) test(`preflight returns a
 
 test('a quota race after preflight returns a quota failure with no generation or terminal-result write', async t => {
   t.mock.method(console, 'info', () => {});
-  const available = quota(null), denied = quota(), commands = [];
-  const store = createMetabloomVisualStore({ command: async args => {
+  const now = Date.now(), denied = quota('subject', now), commands = [];
+  const store = createMetabloomVisualStore({ now: () => now, command: async args => {
     commands.push(args);
-    if (args[1] === CHECK_QUOTA_SCRIPT) return JSON.stringify(available);
+    if (args[1] === CHECK_QUOTA_SCRIPT) return quotaReply(null);
     assert.equal(args[1], CLAIM_SCRIPT);
-    return JSON.stringify({ code: 'visual_quota', quota: denied });
+    return quotaReply('subject');
   } });
   await store.checkQuota(identity);
   const handler = createMetabloomVisualHandler({ authenticate, store,
@@ -154,6 +169,64 @@ test('invalid quota store state fails closed before consuming capacity', async (
   for (const raw of ['quota_unavailable', '{}', JSON.stringify({ ...quota(), resetAt: 1 }), 'x'.repeat(2001)]) {
     const store = createMetabloomVisualStore({ command: async () => raw });
     await assert.rejects(store.checkQuota(identity), { code: 'visual_unavailable' });
+  }
+});
+
+test('quota replies require the exact versioned integer array in both store paths', async () => {
+  const available = quotaReply(null);
+  const malformed = [null, {}, 1, [], available.slice(0, 6), [...available, 0],
+    [2, ...available.slice(1)], Object.assign([...available], { private: 'untrusted' })];
+  for (let index = 1; index < 7; index++) {
+    for (const value of [null, String(available[index]), true, {}, []]) {
+      const raw = [...available]; raw[index] = value; malformed.push(raw);
+    }
+  }
+  for (const raw of malformed) for (const method of ['checkQuota', 'claim']) {
+    let calls = 0;
+    const store = createMetabloomVisualStore({ command: async () => { calls++; return raw; } });
+    await assert.rejects(method === 'claim' ? store.claim(identity, offer().id) : store.checkQuota(identity),
+      { code: 'visual_unavailable', storeFailure: 'quota_result_invalid' });
+    assert.equal(calls, 1, 'Malformed replies must not trigger writes or retries');
+  }
+});
+
+test('quota replies reject numeric corruption, mismatched limits, and invalid expiry delays', async () => {
+  const malformed = [];
+  for (let index = 1; index < 7; index++) for (const value of [NaN, Infinity, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
+    const raw = quotaReply(); raw[index] = value; malformed.push(raw);
+  }
+  for (const [index, values] of [[1, [0, 29, 31]], [2, [-1, 31]], [3, [0, -1, 3600001]],
+    [4, [0, 199, 201]], [5, [-1, 201]], [6, [0, -1, 86400001]]]) {
+    for (const value of values) { const raw = quotaReply(); raw[index] = value; malformed.push(raw); }
+  }
+  for (const raw of malformed) for (const method of ['checkQuota', 'claim']) {
+    const store = createMetabloomVisualStore({ command: async () => raw });
+    await assert.rejects(method === 'claim' ? store.claim(identity, offer().id) : store.checkQuota(identity),
+      { code: 'visual_unavailable', storeFailure: 'quota_schema_invalid' });
+  }
+});
+
+test('only exhausted quota arrays may reject a claim; available arrays never grant a generation', async () => {
+  const now = Date.now();
+  const store = createMetabloomVisualStore({ now: () => now, command: async () => quotaReply(null) });
+  assert.deepEqual(await store.checkQuota(identity), quota(null, now));
+  await assert.rejects(store.claim(identity, offer().id),
+    { code: 'visual_unavailable', storeFailure: 'quota_schema_invalid' });
+});
+
+test('integer expiry delays preserve a one-second retry and full-window boundaries', async () => {
+  const now = Date.now();
+  for (const [subjectDelay, deploymentDelay, retry] of [[1, 1, 1], [3600000, 86400000, 86400]]) {
+    const store = createMetabloomVisualStore({ now: () => now,
+      command: async () => [1, 30, 0, subjectDelay, 200, 0, deploymentDelay] });
+    await assert.rejects(store.checkQuota(identity), error => {
+      assert.equal(error.code, 'visual_quota');
+      assert.equal(error.quota.scope, 'both');
+      assert.equal(error.quota.subject.resetAt, now + subjectDelay);
+      assert.equal(error.quota.deployment.resetAt, now + deploymentDelay);
+      assert.equal(error.quota.retryAfterSeconds, retry);
+      return true;
+    });
   }
 });
 
