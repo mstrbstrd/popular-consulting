@@ -46,6 +46,7 @@ const quota = (scope = null, now = Date.now()) => ({
   subject: { limit: 30, remaining: scope ? 0 : 24, resetAt: now + 600000 },
   deployment: { limit: 200, remaining: 194, resetAt: now + 7200000 },
 });
+const quotaReply = (scope = null) => [1, 30, scope ? 0 : 24, 600000, 200, 194, 7200000];
 function captureLogs(t) {
   const logs = [];
   for (const level of ['info', 'warn', 'error']) t.mock.method(console, level, (...args) => logs.push({ level, args }));
@@ -177,10 +178,11 @@ for (const [name, makeResponse, storeFailure] of [
   ['malformed Redis JSON', () => new Response(`{${privateText}`, { status: 200 }), 'redis_response_invalid'],
   ['missing Redis result envelope', () => Response.json({ message: privateText }), 'redis_envelope_invalid'],
   ['invalid quota counter state', () => Response.json({ result: 'quota_unavailable' }), 'quota_state_invalid'],
-  ['non-string quota result', () => Response.json({ result: { private: privateText } }), 'quota_result_invalid'],
+  ['non-array quota result', () => Response.json({ result: { private: privateText } }), 'quota_result_invalid'],
   ['oversized quota result', () => Response.json({ result: 'x'.repeat(2001) }), 'quota_result_invalid'],
-  ['invalid quota JSON', () => Response.json({ result: `{${privateText}` }), 'quota_json_invalid'],
-  ['invalid quota schema', () => Response.json({ result: JSON.stringify({ ...quota(), private: privateText }) }), 'quota_schema_invalid'],
+  ['legacy quota JSON string', () => Response.json({ result: JSON.stringify({ ...quota(), private: privateText }) }), 'quota_result_invalid'],
+  ['invalid quota schema', () => Response.json({ result: [1, 30, 31, 600000, 200, 194, 7200000] }), 'quota_schema_invalid'],
+  ['poisoned quota array', () => Response.json({ result: [1, 30, privateText, 600000, 200, 194, 7200000] }), 'quota_result_invalid'],
 ]) test(`${name} fails closed before rate limiting or provider work`, async t => {
   await toolFailure(t, makeResponse, { storeFailure });
 });
@@ -269,7 +271,7 @@ test('an available quota still offers a tool once without adding diagnostic fiel
   t.mock.method(globalThis, 'fetch', async (url, options) => {
     assert.equal(String(url), REDIS_URL);
     const args = JSON.parse(options.body); commands.push(args);
-    return Response.json({ result: args[0] === 'EVAL' ? JSON.stringify(quota()) : 'OK' });
+    return Response.json({ result: args[0] === 'EVAL' ? quotaReply() : 'OK' });
   });
   const start = t.mock.fn(async () => ({ kind: 'table', brief: 'Create the supplied table.',
     tool: { callId: 'fixture-call', output: [], history: [], message: prompt } }));
@@ -292,15 +294,16 @@ test('an available quota still offers a tool once without adding diagnostic fiel
 });
 
 test('an exhausted quota remains an actionable 429 without store failure diagnostics or provider work', async t => {
-  const logs = captureLogs(t), commands = [], state = quota('subject');
+  const logs = captureLogs(t), commands = [], now = Date.now(), state = quota('subject', now);
   t.mock.method(globalThis, 'fetch', async (url, options) => {
     assert.equal(String(url), REDIS_URL);
     const args = JSON.parse(options.body); commands.push(args);
-    return Response.json({ result: args[0] === 'SET' ? 'OK' : JSON.stringify(state) });
+    return Response.json({ result: args[0] === 'SET' ? 'OK' : quotaReply('subject') });
   });
   const start = t.mock.fn(async () => {}), rateLimit = t.mock.fn(async () => true), reaction = t.mock.fn(async () => 'neutral');
   const res = response();
-  await createMetabloomToolHandler({ authenticate, start, rateLimit, reaction })(request(startBody), res);
+  const store = createMetabloomVisualStore({ now: () => now });
+  await createMetabloomToolHandler({ authenticate, start, rateLimit, reaction, store })(request(startBody), res);
   assert.equal(res.statusCode, 429); assert.equal(res.headers['retry-after'], '600');
   const body = JSON.parse(res.body);
   assert.deepEqual(Object.keys(body).sort(), ['code', 'quota', 'requestRef']);
@@ -316,7 +319,7 @@ for (const [name, makeResponse, diagnostic] of [
   ['Redis HTTP failure', () => Response.json({ error: `NOPERM ${privateText}` }, { status: 403 }),
     { storeFailure: 'redis_http_error', storeStatus: 403, redisCode: 'NOPERM' }],
   ['invalid counter state', () => Response.json({ result: 'quota_unavailable' }), { storeFailure: 'quota_state_invalid' }],
-  ['invalid quota schema', () => Response.json({ result: JSON.stringify({ code: 'visual_quota', quota: { private: privateText } }) }),
+  ['invalid quota schema', () => Response.json({ result: [1, 30, -1, 600000, 200, 194, 7200000] }),
     { storeFailure: 'quota_schema_invalid' }],
 ]) test(`the visual endpoint keeps ${name} diagnostics server-side and starts no generation`, async t => {
   const logs = captureLogs(t), commands = [], generate = t.mock.fn(async () => {});

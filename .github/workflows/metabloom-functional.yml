@@ -10,6 +10,28 @@ concurrency:
   group: metabloom-functional-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  redis-quota-integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Verify atomic visual quotas against real Redis
+        run: node --test scripts/metabloom-visual-quota-redis.test.cjs
+        env:
+          METABLOOM_QUOTA_TEST_REDIS_PORT: 6379
   emote-contract-and-browser:
     runs-on: windows-latest
     timeout-minutes: 20
