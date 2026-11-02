@@ -1,0 +1,44 @@
+{
+  "fixture": "disposable unclaimed Upstash database",
+  "data": "fictional only",
+  "cases": [
+    {
+      "name": "actual REST transport preflight",
+      "pass": true
+    },
+    {
+      "name": "exact data and empty arrays survive generation completion",
+      "pass": true
+    },
+    {
+      "name": "owned version resolution, recomputation and foreign/stale rejection",
+      "pass": true
+    },
+    {
+      "name": "duplicate completion cannot replace content or extend lifetime",
+      "pass": true
+    },
+    {
+      "name": "completed result remains available after original offer deadline",
+      "pass": true
+    },
+    {
+      "name": "continuation preserves exact result, replay context and existing lifetime",
+      "expiryDriftMs": 21,
+      "pass": true
+    },
+    {
+      "name": "expired Redis result is unavailable",
+      "pass": true
+    }
+  ],
+  "baseline": {
+    "emptySourcesPreserved": true,
+    "emptyProvenanceIdsPreserved": true,
+    "exactNumberPreserved": true,
+    "storedNumber": 0.12345678901234566
+  },
+  "pass": true,
+  "fixtureKeysRemoved": true,
+  "checkedAt": "2026-11-02"
+}

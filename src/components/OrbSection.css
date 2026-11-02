@@ -384,6 +384,50 @@
   pointer-events: auto;
 }
 
+.metabloom-chat__reference {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-width: 0;
+  padding: 0.65rem 0.65rem 0.65rem 1.2rem;
+  border: 1px solid var(--metabloom-chat-line);
+  border-radius: 1.2rem;
+  color: var(--metabloom-chat-ink);
+  background: var(--orb-control-surface, var(--metabloom-chat-control));
+  font: 1.2rem/1.4 var(--aetheris-font-sans, sans-serif);
+}
+
+.metabloom-chat__reference-copy {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 0.2rem;
+  overflow-wrap: anywhere;
+}
+
+.metabloom-chat__reference-copy > span { font-size: 1rem; }
+.metabloom-chat__reference-copy > strong { font-weight: 500; }
+
+.metabloom-chat__reference > button {
+  flex: 0 0 4.4rem;
+  width: 4.4rem;
+  min-width: 4.4rem;
+  min-height: 4.4rem;
+  padding: 0;
+  border: 1px solid var(--metabloom-chat-line);
+  border-radius: 0.8rem;
+  color: inherit;
+  background: transparent;
+  font: 2rem/1 var(--aetheris-font-sans, sans-serif);
+  cursor: pointer;
+}
+
+.metabloom-chat__reference > button:hover { background: var(--metabloom-chat-control); }
+.metabloom-chat__reference > button:focus-visible {
+  outline: 2px solid var(--aetheris-focus-line, #6344f5);
+  outline-offset: 3px;
+}
+
 .metabloom-chat__research-toggle {
   display: inline-flex;
   align-items: center;

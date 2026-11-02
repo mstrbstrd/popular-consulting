@@ -185,6 +185,32 @@ test('duplicate generation reaches the provider at most once', async () => {
   await Promise.all([handler(request(value), a), handler(request(value), b)]);
   assert.equal(calls, 1); assert.deepEqual([a.statusCode, b.statusCode].sort(), [200, 409]);
 });
+test('artifact revisions are persisted once and returned only to clients that negotiate them', async () => {
+  for (const includeReference of [false, true]) {
+    const writes = [];
+    const handler = createMetabloomVisualHandler({ authenticate,
+      store: { claim: async () => record(), complete: async (_identity, _id, result) => writes.push(result) },
+      generate: async () => spec() });
+    const value = { id: offer().id, version: '1', designVersion: 'aetheris-1',
+      ...(includeReference ? { includeReference: true } : {}) };
+    const res = response(); await handler(request(value), res);
+    assert.equal(res.statusCode, 200); assert.equal(writes.length, 1);
+    assert.match(writes[0].artifactVersion, /^[a-f0-9]{32}$/);
+    assert.deepEqual(writes[0].spec, spec());
+    const payload = JSON.parse(res.body);
+    if (includeReference) assert.equal(payload.artifactVersion, writes[0].artifactVersion);
+    else assert.deepEqual(Object.keys(payload).sort(), ['designVersion', 'id', 'sources', 'spec', 'version']);
+  }
+});
+test('artifact revision negotiation rejects false or untyped flags before claiming an offer', async () => {
+  const handler = createMetabloomVisualHandler({ authenticate,
+    store: { claim: async () => assert.fail('Invalid negotiation cannot claim an offer') } });
+  for (const includeReference of [false, 'true', 1, null, {}]) {
+    const res = response();
+    await handler(request({ id: offer().id, version: '1', designVersion: 'aetheris-1', includeReference }), res);
+    assert.equal(res.statusCode, 400);
+  }
+});
 test('failed visuals return safe codes and do not retry or expose provider content', async () => {
   let calls = 0; const handler = createMetabloomVisualHandler({ authenticate, store: { claim: async () => record(), complete: async () => {} }, generate: async () => { calls++; throw new Error('secret upstream content'); } });
   const res = response(); await handler(request({ id: offer().id, version: '1', designVersion: 'aetheris-1' }), res);
@@ -252,7 +278,19 @@ test('unknown text records, oversized lines and records after done still fail', 
 });
 test('client validates the independent response and never sends answer context from the browser', async () => {
   let sent; const value = offer(); const result = await requestMetabloomVisual(value, { fetchImpl: async (_url, options) => { sent = options; return Response.json({ id: value.id, version: '1', designVersion: 'aetheris-1', spec: spec(), sources: [] }); } });
-  assert.deepEqual(result.spec, spec()); assert.deepEqual(Object.keys(JSON.parse(sent.body)).sort(), ['designVersion', 'id', 'version']); assert.equal(sent.credentials, 'same-origin'); assert.equal(sent.redirect, 'error');
+  assert.deepEqual(result.spec, spec()); assert.deepEqual(Object.keys(JSON.parse(sent.body)).sort(), ['designVersion', 'id', 'includeReference', 'version']);
+  assert.equal(JSON.parse(sent.body).includeReference, true); assert.equal(result.artifactVersion, undefined);
+  assert.equal(sent.credentials, 'same-origin'); assert.equal(sent.redirect, 'error');
+});
+test('client retains a negotiated artifact revision and rejects malformed revision metadata', async () => {
+  const value = offer(), artifactVersion = 'f'.repeat(32);
+  const payload = { id: value.id, version: '1', designVersion: 'aetheris-1', spec: spec(), sources: [], artifactVersion };
+  const result = await requestMetabloomVisual(value, { fetchImpl: async () => Response.json(payload) });
+  assert.equal(result.artifactVersion, artifactVersion);
+  for (const invalid of ['1', 'g'.repeat(32), null, 1, 'f'.repeat(33)]) {
+    await assert.rejects(requestMetabloomVisual(value, { fetchImpl: async () => Response.json({ ...payload, artifactVersion: invalid }) }),
+      { code: 'visual_invalid' });
+  }
 });
 test('client rejects cross-artifact payloads and unsafe source URLs', async () => {
   for (const change of [{ id: 'a'.repeat(48) }, { sources: [{ id: 1, title: 'Bad', url: 'javascript:alert(1)' }] }]) {

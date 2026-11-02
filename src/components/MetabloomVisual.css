@@ -263,6 +263,8 @@
 .orb-page .metabloom-visual th[aria-sort='ascending'] .metabloom-visual__sort-mark,
 .orb-page .metabloom-visual th[aria-sort='descending'] .metabloom-visual__sort-mark { color: var(--aetheris-ink); }
 .orb-page .metabloom-visual .metabloom-visual__table-status { margin: 0.8rem 0 0; color: var(--aetheris-ink-2); font: 1.2rem/1.5 var(--aetheris-font-sans); }
+.orb-page .metabloom-visual :is(th, td).metabloom-visual__row-action { width: 13rem; min-width: 11rem; vertical-align: middle; }
+.orb-page .metabloom-visual__row-action button { width: 100%; }
 
 /* Line-chart inspection. */
 .orb-page .metabloom-visual__line-svg { cursor: crosshair; touch-action: pan-y; border-radius: var(--aetheris-radius-lg); }

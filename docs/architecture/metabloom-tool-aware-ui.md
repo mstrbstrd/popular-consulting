@@ -28,7 +28,7 @@ The ordinary writer has no execution or mounting receipt for its current turn. I
 
 These are explicit application boundaries for recognized intents. The deterministic classifier is a bounded language heuristic, and prompt instructions do not mathematically guarantee every sentence a free-form model can produce. Regression tests cover the reported Kelowna conversation, misleading assistant history, source-code exceptions, topic changes, negotiated availability and the absence of provider work for unsupported requests.
 
-When the user requests a generic ingredient pie chart without quantities, the builder may provide an example with `provenance.type=illustrative` and clearly disclosed assumed amounts. Prompt grounding instructs preservation of supplied scalar quantities. Deterministic equality validation currently applies to the extracted multi-series bar/line data contract; arbitrary free-text quantities are not independently verified.
+When the user requests a generic ingredient pie chart without quantities, the builder may provide an example with `provenance.type=illustrative` and clearly disclosed assumed amounts. Prompt grounding instructs preservation of supplied scalar quantities. For new visuals without a selected attachment, deterministic equality validation applies to the extracted multi-series bar/line data contract; arbitrary free-text quantities are not independently verified. Attached-data conversions additionally enforce every field of the host's canonical target projection before inheriting provenance.
 
 ## Availability
 The new flow is available only when `METABLOOM_VISUALS_ENABLED=true` and `METABLOOM_UI_TOOLS_ENABLED` is not explicitly `false`. The latter is an independent emergency kill switch. No public client flag grants access. The existing authenticated admin session, same-origin checks, Redis quotas, and paid-provider configuration remain mandatory.
@@ -42,15 +42,35 @@ The new flow is available only when `METABLOOM_VISUALS_ENABLED=true` and `METABL
 6. The existing Orb reply handler validates the completed answer and plays Jev's final reaction. The same artifact slot moves before the assistant article's text bubble and its temporary row is removed. Alignment, calculator inputs and focused controls are preserved without remounting; the closing explanation arrives below the visual.
 
 ## Artifact-aware follow-ups
-Native calculators publish bounded local input snapshots, not model calls on every change. The next ordinary chat request may include `artifactContext: {id,inputs}`. The server authenticates, loads the session-owned stored specification, validates the exact input set, and recomputes the result with the existing safe reverse-Polish evaluator. Browser-supplied totals and formulas are never trusted. Missing/expired/invalid context is ignored, so normal chat remains available.
+
+**Ask about this** attaches one selected part of a native visual to the Orb composer. The attachment is visible, removable, and consumed when its message is submitted. It preserves an existing draft and survives ordinary SPA navigation in the account-owned, tab-only Orb snapshot. Reset and account changes clear the owning draft. Removing a reference returns focus to the composer and sends the next message without artifact context.
+
+| Visual | Referenced data |
+| --- | --- |
+| Table | One row at its original stored index; sorting and filtering cannot change its identity. |
+| Line chart | One observation with its label, unit, and every named series value. |
+| Pie chart | One category, its amount, the whole's total, and its calculated share. |
+| Flowchart | One stable node ID, its label, and adjacent labelled connections. |
+| Calculator | A copy of all valid inputs at the moment Ask is clicked, plus a server-recomputed result. |
+
+Inspection, sorting, filtering, editing controls, attaching, and removing a reference remain local actions. Sending starts the request. Later calculator edits cannot alter an already attached scenario.
+
+The browser sends `artifactContext: {id,version,selector,inputs?}` to either `/api/metabloom` or the start phase of `/api/metabloom-tool`. This is a bounded locator, not client-supplied rows, totals, formulas, or sources. `version` is an immutable server-issued content revision, separate from the visual schema version. Both endpoints authenticate and resolve the same session-owned stored record before paid work. They verify its revision, schema, source catalog, selector range, and exact calculator control set; every calculator input must be finite and within its stored limits. The safe reverse-Polish evaluator recomputes the result.
+
+Missing, foreign, stale, or expired explicit references return `artifact_unavailable`; an incompatible selector or invalid scenario returns `artifact_invalid`. Malformed request shapes fail request validation. Explicit context is never silently dropped. Ordinary explanations suppress optional post-answer visual offers; an explicit conversion uses the existing tool path. Original source IDs remain in the selected artifact's namespace. The ordinary writer is instructed to attribute reused data by stored provenance and source titles. The host keeps original source links on the visual and does not merge their IDs into the current answer's numbered research catalog.
+
+Every new successful generation stores an `artifactVersion`. The generation API returns that field only when the client requests `includeReference: true`, preserving the exact response shape accepted by older clients. Restored legacy visuals remain readable and interactive but cannot offer a versioned Ask action. The ordinary API retains compatibility with old `{id,inputs}` calculator requests; only that legacy optional path retains its historical ignore-on-missing behavior. New composer submissions never use the implicit latest-calculator fallback.
+
+See [artifact follow-up verification](../verification/metabloom-artifact-followups.md) for the conversion contract and checks.
 
 ## Safety and failure rules
-- The native schema prohibits generated code, CSS, HTML, arbitrary URLs, and unsupported fields.
-- Only complete, validated provider function calls can trigger the builder.
+- The native schema has no executable HTML, JavaScript or CSS fields, arbitrary URL controls, or unsupported fields. Labels and cells render as text; source links use the validated catalog.
+- For explicit UI requests, only complete, validated provider function calls can trigger the builder.
 - The model cannot choose a format contradicting an explicit supported user request.
 - Tool generation and continuation are each single-attempt and separately bounded; no automatic paid retries or repair loops.
 - Redis claims are atomic. A claim consumed by an interrupted provider call is not automatically reissued.
 - The initial offer expires in ten minutes. Completed native artifacts remain session-bound in Redis for up to one hour, subject to the site's privacy/retention requirements. The server holds only bounded context; no API keys or session tokens are stored in artifact records.
+- Offers store tool replay context, and completion stores result data, as opaque JSON fields in Redis. Lua changes lifecycle fields without decoding those payloads, preserving exact numbers and empty arrays. JavaScript readers accept both the new opaque format and older object records. Completion remains write-once; continuation preserves the result's expiry. The original offer deadline does not expire an already completed result.
 - A failed continuation does not discard a successfully generated visual. A failed visual produces a fixed, honest error response.
 - A visual quota denial occurs before a generation claim and has no terminal generation result. The browser completes that request locally without calling `phase=continue`, replacing the temporary artifact row with one clear limit/reset-time reply. Optional visuals keep their existing text answer and display their own quota message. This also handles a quota race after successful preflight. Unfinished, already-claimed and genuinely expired continuation records retain distinct `tool_invalid`, `tool_claimed` and `tool_expired` errors.
 - Old clients continue to use the existing chat protocol. The tool flow uses a separate endpoint rather than weakening strict NDJSON framing.
@@ -117,12 +137,12 @@ Provider logs contain the bounded phase, model, duration, usage counts, safe pro
 ## Verification
 Run:
 ```sh
-node --test scripts/metabloom-api.test.cjs scripts/jev-reaction.test.cjs scripts/metabloom-visual.test.cjs scripts/metabloom-ui-tools.test.cjs scripts/metabloom-visual-quota.test.cjs scripts/metabloom-visual-store-diagnostics.test.cjs
-CI=true npm test -- --watch=false --runInBand --runTestsByPath src/components/MetabloomVisuals.test.js src/components/MetabloomVisualFollowups.test.js src/components/metabloomVisualIntent.test.js src/components/metabloomVisualCapabilities.test.js src/components/metabloomEmoteLibrary.test.js
+node --test scripts/metabloom-api.test.cjs scripts/jev-reaction.test.cjs scripts/metabloom-visual.test.cjs scripts/metabloom-ui-tools.test.cjs scripts/metabloom-visual-quota.test.cjs scripts/metabloom-visual-store-diagnostics.test.cjs scripts/metabloom-artifact-reference.test.cjs
+CI=true npm test -- --watch=false --runInBand --runTestsByPath src/components/MetabloomVisuals.test.js src/components/MetabloomVisualFollowups.test.js src/components/MetabloomArtifactSelection.test.js src/components/MetabloomArtifactComposer.test.js src/components/metabloomVisualSnapshot.test.js src/components/metabloomVisualIntent.test.js src/components/metabloomVisualCapabilities.test.js src/components/metabloomEmoteLibrary.test.js
 CI=true npm run build
 ```
 
-The Metabloom functional workflow also runs the actual Lua scripts against a Redis 7 service in an independent Ubuntu job. This covers available and exhausted quotas, unchanged expiry deadlines, duplicate and concurrent claims, shared deployment limits across subjects, malformed counter state, and ownership/expiry checks. To run this suite locally against an isolated Redis 7 fixture bound to `127.0.0.1`:
+The Metabloom functional workflow also runs the actual Lua scripts against a Redis 7 service in an independent Ubuntu job. This covers available and exhausted quotas, unchanged expiry deadlines, duplicate and concurrent claims, shared deployment limits across subjects, malformed counter state, ownership/expiry checks, and the full completed-artifact lifecycle with exact decimals, empty arrays, and immutable revisions. To run this suite locally against an isolated Redis 7 fixture bound to `127.0.0.1`:
 
 ```sh
 METABLOOM_QUOTA_TEST_REDIS_PORT=6379 node --test scripts/metabloom-visual-quota-redis.test.cjs

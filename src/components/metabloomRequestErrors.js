@@ -22,6 +22,9 @@ const METABLOOM_REQUEST_ERROR_MESSAGES = Object.freeze({
   method_not_allowed: "This request method is not supported.",
   invalid_content_type: "The request format was not supported. Reload the page and try again.",
   invalid_request: "The message could not be sent in this format. Please try again.",
+  artifact_unavailable: "The selected component is no longer available for this request. Remove the reference or select a new component.",
+  artifact_invalid: "The selected component or values could not be verified. Remove the reference or select the component again.",
+  artifact_conversion_unavailable: "This selection cannot be converted into that format. Try a table.",
   visual_tool_required: "This request needs the interactive visual tool. Reload the page and try again; no code-only substitute was generated.",
   tool_timeout: "Creating the interactive component took too long. Please try again.",
   tool_cancelled: "The interactive component request was stopped.",
@@ -44,12 +47,14 @@ const METABLOOM_STREAM_ERROR_CODES = Object.freeze([
   "research_no_sources", "research_invalid_citations", "research_response_too_large",
   "provider_authentication_failed", "model_configuration_error", "provider_rate_limited",
   "provider_unavailable", "answer_timeout", "answer_incomplete", "answer_invalid", "quota_unavailable",
+  "artifact_unavailable", "artifact_invalid",
 ]);
 const METABLOOM_TOOL_ERROR_CODES = Object.freeze([
   "tool_timeout", "tool_cancelled", "tool_disabled", "tool_unavailable", "tool_invalid", "tool_output_limit", "tool_claimed", "tool_expired", "tool_quota",
   "authentication_required", "authentication_unavailable", "origin_not_allowed", "rate_limited",
   "quota_unavailable", "invalid_request", "method_not_allowed", "model_configuration_error",
   "provider_authentication_failed", "provider_rate_limited", "provider_unavailable", "network_error",
+  "artifact_unavailable", "artifact_invalid", "artifact_conversion_unavailable",
 ]);
 const knownCode = (code) => typeof code === "string"
   && Object.prototype.hasOwnProperty.call(METABLOOM_REQUEST_ERROR_MESSAGES, code);

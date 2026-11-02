@@ -167,7 +167,7 @@ test('oversized HTTP error bodies stop at the bound and keep the public unavaila
 });
 
 test('oversized successful Redis replies retain the existing invalid public code', async t => {
-  const tracked = trackedBody(new Uint8Array(150001).fill(120));
+  const tracked = trackedBody(new Uint8Array(450001).fill(120));
   await toolFailure(t, () => ({ ok: true, status: 200, body: tracked.body }), {
     storeFailure: 'redis_response_too_large',
   }, { publicCode: 'tool_invalid' });

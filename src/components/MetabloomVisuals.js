@@ -10,6 +10,9 @@ import { postMetabloomTool } from './metabloomToolClient';
 import { METABLOOM_CHAT_PROTOCOL_VERSION } from './metabloomEmoteLibrary';
 import { METABLOOM_TOOL_ERROR_CODES, getMetabloomApiErrorMessage, parseMetabloomRequestRef } from './metabloomRequestErrors';
 import { parseMetabloomVisualQuota, formatMetabloomVisualQuotaMessage } from './metabloomVisualQuota';
+import { evaluateMetabloomVisualFormula } from './metabloomVisualProtocol';
+import { METABLOOM_ARTIFACT_REFERENCE_EVENT, MAX_METABLOOM_ARTIFACT_REFERENCE_LABEL,
+  isMetabloomArtifactVersion, parseMetabloomArtifactReference } from './metabloomArtifactReference';
 const safeReply = response => ({ version: METABLOOM_CHAT_PROTOCOL_VERSION, segments: [{ response }] });
 const toolFailure = error => {
   const code = METABLOOM_TOOL_ERROR_CODES.includes(error?.code) ? error.code : 'tool_unavailable';
@@ -168,6 +171,48 @@ export default class MetabloomVisuals extends React.Component {
       && inputs[control.id] >= control.min && inputs[control.id] <= control.max)
       ? { id: record.id, inputs: { ...inputs } } : null;
   };
+  askAbout = (record, selection) => {
+    if (!this.mounted || !this.ownsSurface() || this.records.get(record.id) !== record
+      || record.status !== 'ready' || !isMetabloomArtifactVersion(record.artifactVersion)
+      || !record.slot?.isConnected || !this.root.contains(record.slot)) return false;
+    const reference = parseMetabloomArtifactReference({ id: record.id, version: record.artifactVersion,
+      selector: selection?.selector,
+      ...(selection && Object.prototype.hasOwnProperty.call(selection, 'inputs') ? { inputs: selection.inputs } : {}),
+    });
+    if (!reference) return false;
+    const { spec } = record, { selector } = reference;
+    let detail;
+    if (selector.type === 'table-row') {
+      if (spec.kind !== 'table' || !spec.rows[selector.index]) return false;
+      const text = spec.rows[selector.index].find(cell => cell.trim());
+      detail = `Row ${selector.index + 1}${text ? `: ${text}` : ''}`;
+    } else if (selector.type === 'observation') {
+      if (spec.kind !== 'line-chart') return false;
+      detail = spec.labels?.[selector.index] ?? spec.points?.[selector.index]?.label;
+      if (detail === undefined) return false;
+    } else if (selector.type === 'pie-category') {
+      if (spec.kind !== 'pie-chart' || !spec.points[selector.index]) return false;
+      detail = spec.points[selector.index].label;
+    } else if (selector.type === 'flow-node') {
+      if (spec.kind !== 'flowchart') return false;
+      detail = spec.nodes.find(node => node.id === selector.id)?.label;
+      if (detail === undefined) return false;
+    } else if (selector.type === 'calculator') {
+      if (spec.kind !== 'calculator' || Object.keys(reference.inputs).length !== spec.controls.length
+        || !spec.controls.every(control => Object.prototype.hasOwnProperty.call(reference.inputs, control.id)
+          && Number.isFinite(reference.inputs[control.id]) && reference.inputs[control.id] >= control.min
+          && reference.inputs[control.id] <= control.max)
+        || evaluateMetabloomVisualFormula(spec.formula, spec.controls, reference.inputs) === null) return false;
+      detail = 'Scenario';
+    } else return false;
+    const text = `${spec.title} · ${detail}`.replace(/\s+/g, ' ').trim();
+    const label = text.length <= MAX_METABLOOM_ARTIFACT_REFERENCE_LABEL ? text
+      : `${text.slice(0, MAX_METABLOOM_ARTIFACT_REFERENCE_LABEL - 1).replace(/[\uD800-\uDBFF]$/, '')}…`;
+    window.dispatchEvent(new CustomEvent(METABLOOM_ARTIFACT_REFERENCE_EVENT, {
+      detail: { reference, label, root: this.root },
+    }));
+    return true;
+  };
   onUserMessage = event => {
     for (const record of this.records.values()) {
       if (record.status === 'generating') this.stop(record);
@@ -196,7 +241,9 @@ export default class MetabloomVisuals extends React.Component {
   startTool = async (turn, detail) => {
     try {
       const { offer, emote } = await postMetabloomTool({ phase: 'start',
-        message: detail.message, history: detail.history, requestId: detail.requestId }, { signal: detail.signal });
+        message: detail.message, history: detail.history, requestId: detail.requestId,
+        ...(detail.artifactContext ? { artifactContext: detail.artifactContext } : {}),
+      }, { signal: detail.signal });
       if (!this.mounted || this.turn !== turn || turn.signal.aborted) return;
       detail.onReaction?.({ phase: 'input', emote });
       turn.offer = offer;
@@ -395,7 +442,8 @@ export default class MetabloomVisuals extends React.Component {
       {Array.from(this.records.values(), record => createPortal(
         <MetabloomVisualBoundary><MetabloomVisualFrame artifact={record} onStop={() => this.stop(record)}
           onReady={() => this.ready(record)} onInputsChange={values => this.inputsChanged(record, values)}
-          onViewStateChange={viewState => this.viewStateChanged(record, viewState)} /></MetabloomVisualBoundary>, record.slot, record.id,
+          onViewStateChange={viewState => this.viewStateChanged(record, viewState)}
+          onAskAbout={selection => this.askAbout(record, selection)} /></MetabloomVisualBoundary>, record.slot, record.id,
       ))}
     </>;
   }
