@@ -2,6 +2,7 @@ const { randomBytes } = require('node:crypto');
 const { METABLOOM_VISUAL_VERSION, METABLOOM_VISUAL_DESIGN_VERSION, METABLOOM_VISUAL_KINDS,
   MAX_METABLOOM_VISUAL_CONTEXT_BYTES, parseMetabloomVisualOffer } = require('../src/components/metabloomVisualProtocol');
 const { METABLOOM_VISUAL_QUOTA, parseMetabloomVisualQuota } = require('../src/components/metabloomVisualQuota');
+const { redisErrorDetails, visualStoreError } = require('./metabloomVisualStoreDiagnostics');
 const VISUAL_TTL_SECONDS = 600;
 const enabled = () => process.env.METABLOOM_VISUALS_ENABLED === 'true';
 const validIdentity = identity => identity && ['owner', 'subject', 'scope'].every(key => typeof identity[key] === 'string' && /^[a-f0-9]{64}$/.test(identity[key]));
@@ -12,7 +13,7 @@ function readVisualQuotaLimits(env = process.env) {
     const bounds = METABLOOM_VISUAL_QUOTA[scope];
     if (value === undefined || value === '') return bounds.defaultLimit;
     if (typeof value !== 'string' || !/^[1-9]\d*$/.test(value)
-      || !Number.isSafeInteger(Number(value)) || Number(value) > bounds.maxLimit) throw visualError('visual_unavailable');
+      || !Number.isSafeInteger(Number(value)) || Number(value) > bounds.maxLimit) throw visualStoreError('quota_limit_invalid');
     return Number(value);
   };
   return { subject: read('METABLOOM_VISUAL_SUBJECT_LIMIT_PER_HOUR', 'subject'),
@@ -119,16 +120,38 @@ redis.call('SET',KEYS[1],cjson.encode(record),'KEEPTTL')
 return 'OK'`;
 
 async function visualCommand(args, { signal, fetchImpl = globalThis.fetch } = {}) {
-  const url = new URL(process.env.UPSTASH_REDIS_REST_URL);
+  let url;
+  try { url = new URL(process.env.UPSTASH_REDIS_REST_URL); }
+  catch { throw visualStoreError('redis_configuration_invalid'); }
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash || !token) throw visualError('visual_unavailable');
-  const response = await fetchImpl(url, {
-    method: 'POST', redirect: 'error', cache: 'no-store',
-    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(2000)]) : AbortSignal.timeout(2000),
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(args),
-  });
-  const result = await readVisualJson(response);
-  if (!result || result.error || !Object.prototype.hasOwnProperty.call(result, 'result')) throw visualError('visual_unavailable');
+  if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash || !token)
+    throw visualStoreError('redis_configuration_invalid');
+  const commandSignal = signal ? AbortSignal.any([signal, AbortSignal.timeout(2000)]) : AbortSignal.timeout(2000);
+  const interruption = () => visualStoreError(signal?.aborted ? 'redis_cancelled' : 'redis_timeout');
+  let response;
+  try {
+    commandSignal.throwIfAborted();
+    response = await fetchImpl(url, {
+      method: 'POST', redirect: 'error', cache: 'no-store', signal: commandSignal,
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(args),
+    });
+  } catch {
+    throw commandSignal.aborted ? interruption() : visualStoreError('redis_transport_failed');
+  }
+  let result;
+  try {
+    // Error bodies are also bounded and decoded, solely to select fixed categories.
+    result = await readVisualJson({ ok: true, body: response.body }, response.ok ? 150000 : 4096,
+      { signal: commandSignal });
+  } catch (error) {
+    if (commandSignal.aborted) throw interruption();
+    if (!response.ok) throw visualStoreError('redis_http_error', { storeStatus: response.status });
+    throw visualStoreError(error?.code === 'visual_invalid' ? 'redis_response_too_large' : 'redis_response_invalid',
+      {}, error?.code === 'visual_invalid' ? 'visual_invalid' : 'visual_unavailable');
+  }
+  if (!response.ok || result?.error) throw visualStoreError(response.ok ? 'redis_command_error' : 'redis_http_error',
+    { storeStatus: response.status, ...redisErrorDetails(result?.error) });
+  if (!result || !Object.prototype.hasOwnProperty.call(result, 'result')) throw visualStoreError('redis_envelope_invalid');
   return result.result;
 }
 function createMetabloomVisualStore({ command = visualCommand, now = Date.now } = {}) {
@@ -153,11 +176,12 @@ function createMetabloomVisualStore({ command = visualCommand, now = Date.now } 
       const key = prefix(identity), limits = readVisualQuotaLimits(), checkedAt = now();
       const raw = await command(['EVAL', CHECK_QUOTA_SCRIPT, '2', `${key}subject:${identity.subject}`,
         `${key}daily`, String(checkedAt), String(limits.subject), String(limits.deployment)], options);
-      if (typeof raw !== 'string' || Buffer.byteLength(raw, 'utf8') > 2000) throw visualError('visual_unavailable');
+      if (raw === 'quota_unavailable') throw visualStoreError('quota_state_invalid');
+      if (typeof raw !== 'string' || Buffer.byteLength(raw, 'utf8') > 2000) throw visualStoreError('quota_result_invalid');
       let value;
-      try { value = JSON.parse(raw); } catch { throw visualError('visual_unavailable'); }
+      try { value = JSON.parse(raw); } catch { throw visualStoreError('quota_json_invalid'); }
       const quota = parseMetabloomVisualQuota(value, { now: checkedAt, allowAvailable: true });
-      if (!quota) throw visualError('visual_unavailable');
+      if (!quota) throw visualStoreError('quota_schema_invalid');
       if (quota.scope) throw visualError('visual_quota', { quota });
       return quota;
     },
@@ -218,12 +242,12 @@ function createMetabloomVisualStore({ command = visualCommand, now = Date.now } 
       const raw = await command(['EVAL', CLAIM_SCRIPT, '3', `${key}offer:${id}`, `${key}subject:${identity.subject}`,
         `${key}daily`, identity.owner, String(checkedAt), String(limits.subject), String(limits.deployment)], options);
       if (['expired', 'claimed'].includes(raw)) throw visualError(`visual_${raw}`);
-      if (raw === 'quota_unavailable') throw visualError('visual_unavailable');
+      if (raw === 'quota_unavailable') throw visualStoreError('quota_state_invalid');
       if (typeof raw !== 'string' || Buffer.byteLength(raw, 'utf8') > MAX_METABLOOM_VISUAL_CONTEXT_BYTES) throw visualError('visual_unavailable');
       const record = JSON.parse(raw);
       if (record?.code === 'visual_quota') {
         const quota = parseMetabloomVisualQuota(record.quota, { now: checkedAt });
-        if (!quota) throw visualError('visual_unavailable');
+        if (!quota) throw visualStoreError('quota_schema_invalid');
         throw visualError('visual_quota', { quota });
       }
       if (record.owner !== identity.owner || record.status !== 'offered' || !parseMetabloomVisualOffer(record.offer)

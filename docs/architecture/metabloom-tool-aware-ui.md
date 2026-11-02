@@ -63,6 +63,23 @@ The defaults are 30 accepted generations per authenticated subject/hour and 200 
 
 Preflight is an early rejection, not a reservation. The generation claim always checks and increments both counters in one Lua script. A denied preflight returns `tool_quota`; a denied generation returns `visual_quota`. Both use HTTP 429 with sanitized quota metadata and `Retry-After`. No paid retry is scheduled automatically. General chat/tool-start limits remain separate; continuation does not consume another visual generation.
 
+### Investigating quota failures
+
+Find the `metabloom_ui_tool` server log using the request reference displayed in the error. A failure at `stage: "visual_quota"` happens after the request claim and before the general request quota or either model call. `tool_unavailable` alone does not mean the visual allowance is exhausted: a valid exhausted allowance returns `tool_quota` and HTTP 429.
+
+Store failures append fixed diagnostic categories to that same log. The visual generation endpoint includes them in its existing `metabloom_visual` log as well. The response sent to the browser keeps its existing code and request reference.
+
+| `storeFailure` | Meaning |
+| --- | --- |
+| `redis_configuration_invalid`, `quota_limit_invalid` | The connection configuration or a quota limit is invalid. |
+| `redis_transport_failed`, `redis_timeout`, `redis_cancelled` | The Redis request failed to connect, exceeded its two-second command budget, or was cancelled. |
+| `redis_http_error`, `redis_command_error` | Redis rejected the HTTP request or returned a command error. `storeStatus` contains the HTTP status when available. |
+| `redis_response_invalid`, `redis_response_too_large`, `redis_envelope_invalid` | The Redis response could not be decoded within its bounds or lacked the expected result envelope. |
+| `quota_state_invalid` | The quota script rejected a stored counter or its expiry. |
+| `quota_result_invalid`, `quota_json_invalid`, `quota_schema_invalid` | The quota result had an invalid type/size, invalid JSON, or metadata that failed the quota contract. |
+
+Redis command errors may also include an allowlisted `redisCode` such as `NOPERM` or `WRONGTYPE`, and `redisDetail` may distinguish script compilation, script execution, or an unknown command. The diagnostic reader examines at most 4 KiB of an HTTP error body under the same command deadline. It never logs the raw body, message, URL, key, counter value, credential, prompt, or user identity. Unknown error text yields no extra category. Investigate the recorded category before changing limits or stored counters; the existing checks continue to fail closed.
+
 ## Time budgets and timeout recovery
 
 The October 20 production failure occurred at the former 24-second application deadline while the first OpenAI call was still pending. It preceded native generation. The stages now share explicit server/browser budgets:
@@ -82,7 +99,7 @@ Provider logs contain the bounded phase, model, duration, usage counts, safe pro
 ## Verification
 Run:
 ```sh
-node --test scripts/metabloom-api.test.cjs scripts/jev-reaction.test.cjs scripts/metabloom-visual.test.cjs scripts/metabloom-ui-tools.test.cjs scripts/metabloom-visual-quota.test.cjs
+node --test scripts/metabloom-api.test.cjs scripts/jev-reaction.test.cjs scripts/metabloom-visual.test.cjs scripts/metabloom-ui-tools.test.cjs scripts/metabloom-visual-quota.test.cjs scripts/metabloom-visual-store-diagnostics.test.cjs
 CI=true npm test -- --watch=false --runInBand --runTestsByPath src/components/MetabloomVisuals.test.js src/components/MetabloomVisualFollowups.test.js src/components/metabloomVisualIntent.test.js src/components/metabloomVisualCapabilities.test.js src/components/metabloomEmoteLibrary.test.js
 CI=true npm run build
 ```
