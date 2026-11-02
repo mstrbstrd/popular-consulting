@@ -10,6 +10,7 @@ const mockSceneLifecycle = [];
 let mockRestoreEnabled = false;
 let mockDelayReady = false;
 let mockRouteReady;
+let mockNavigation;
 const mockRestoreScroll = jest.fn();
 jest.mock('../contexts/AuthContext', () => ({ useAuth: () => mockAuth }));
 jest.mock('./ImmersiveBackground', () => function MockScene({ pathname, transitionPhase }) {
@@ -24,6 +25,7 @@ jest.mock('../SiteRouter', () => ({ __esModule: true, preloadSiteRoute: async ()
   const { useThemeMode: useTheme } = require('../contexts/ThemeContext');
   const { useAppNavigation: useNavigation } = require('../contexts/AppNavigationContext');
   const navigation = useNavigation();
+  mockNavigation = navigation;
   const [draft, setDraft] = ReactModule.useState(() => navigation.getToolState('mockDraft') || '');
   const retained = ReactModule.useRef(draft); retained.current = draft;
   ReactModule.useEffect(() => () => navigation.saveToolState('mockDraft', retained.current), [navigation.saveToolState]);
@@ -50,6 +52,7 @@ beforeEach(() => {
   jest.useFakeTimers(); mockLifecycle.length = 0; mockSceneLifecycle.length = 0;
   mockRestoreEnabled = false; mockRestoreScroll.mockClear();
   mockDelayReady = false; mockRouteReady = undefined;
+  mockNavigation = undefined;
   mockAuth = { status: 'authenticated', user: { id: 'a'.repeat(64) }, logoutRevision: 0 };
   window.history.replaceState({}, '', '/home'); localStorage.clear();
   window.scrollTo = jest.fn();
@@ -113,15 +116,27 @@ test('keeps browser commands and native same-page hash links intact', () => {
   advance(1000); expect(mockLifecycle).toEqual(['mount:/home']);
 });
 
-test('retains tool state across screens and clears it after explicit logout', () => {
+test.each(['explicit logout', 'account switch'])('retains tool state across screens and rejects stale saves after %s', change => {
   const { rerender } = render(<ApplicationShell />); advance(360);
+  const visualSnapshot = { version: 1, records: [{ id: 'a'.repeat(48), title: 'Account-owned result' }], lastInteractedId: null };
+  act(() => mockNavigation.saveToolState('orbVisuals', visualSnapshot));
   fireEvent.change(screen.getByLabelText('Draft'), { target: { value: 'Unfinished thought' } });
   fireEvent.click(screen.getByText('Orb')); complete();
   expect(screen.getByLabelText('Draft')).toHaveValue('Unfinished thought');
-  mockAuth = { status: 'anonymous', user: null, logoutRevision: 1 };
+  expect(mockNavigation.getToolState('orbVisuals')).toBe(visualSnapshot);
+  const saveFromPreviousAccount = mockNavigation.saveToolState;
+  mockAuth = change === 'explicit logout'
+    ? { status: 'anonymous', user: null, logoutRevision: 1 }
+    : { status: 'authenticated', user: { id: 'b'.repeat(64) }, logoutRevision: 0 };
   rerender(<ApplicationShell />);
+  expect(mockNavigation.getToolState('orbVisuals')).toBeUndefined();
+  act(() => {
+    saveFromPreviousAccount('orbVisuals', visualSnapshot);
+    saveFromPreviousAccount('mockDraft', 'A late cleanup from the previous account');
+  });
   fireEvent.click(screen.getByText('Home')); complete();
   expect(screen.getByLabelText('Draft')).toHaveValue('');
+  expect(mockNavigation.getToolState('orbVisuals')).toBeUndefined();
 });
 
 

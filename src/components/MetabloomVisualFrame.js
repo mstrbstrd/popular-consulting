@@ -6,6 +6,34 @@ import { layoutFlowchart, describeFlowStep, truncateFlowEdgeLabel, FLOW_METRICS 
 const numberText = value => new Intl.NumberFormat(undefined, { maximumSignificantDigits: 21 }).format(value);
 const axisText = value => new Intl.NumberFormat(undefined, { notation: 'compact', maximumSignificantDigits: 3 }).format(value);
 const provenanceLabels = { user: 'Your inputs', sources: 'Source-backed', calculated: 'Calculated', illustrative: 'Illustrative', conceptual: 'Conceptual' };
+// Record edits before scheduling a render so navigation in the same turn keeps
+// the latest interaction. Restored values are validated by the snapshot boundary.
+const useVisualViewState = (initialState, onChange) => {
+  const [state, setState] = React.useState(initialState);
+  const current = React.useRef(state);
+  const update = patch => {
+    const previous = current.current;
+    const next = typeof patch === 'function' ? patch(previous) : { ...previous, ...patch };
+    if (Object.keys(next).length === Object.keys(previous).length
+      && Object.keys(next).every(key => next[key] === previous[key])) return;
+    current.current = next;
+    onChange?.(next);
+    setState(next);
+  };
+  return [state, update];
+};
+const VisualDetails = ({ state, updateState, summary, children }) => (
+  <details className="metabloom-visual__details" open={state.detailsOpen}
+    onToggle={event => updateState({ detailsOpen: event.currentTarget.open })}>
+    <summary onClick={event => {
+      // Native toggle events are deferred. Capture the user's choice now, while
+      // keeping the disclosure's native keyboard activation and semantics.
+      event.preventDefault();
+      updateState(current => ({ ...current, detailsOpen: !current.detailsOpen }));
+    }}>{summary}</summary>
+    {children}
+  </details>
+);
 const DataTable = ({ columns, rows, title }) => (
   <div className="metabloom-visual__table-scroll" tabIndex={0} role="region" aria-label={`${title} data`}>
     <table><caption>{title}</caption><thead><tr>{columns.map((column, index) => <th key={index} scope="col">{column}</th>)}</tr></thead>
@@ -35,9 +63,11 @@ const sortTableRows = (rows, column, direction) => {
     return sign * compare(a, b) || a.position - b.position;
   });
 };
-function VisualTable({ spec, id }) {
-  const [sort, setSort] = React.useState({ column: null, direction: 'asc' });
-  const [filter, setFilter] = React.useState('');
+function VisualTable({ spec, id, viewState, onViewStateChange }) {
+  const [{ sort, filter }, updateViewState] = useVisualViewState(() => ({
+    sort: viewState?.sort ? { ...viewState.sort } : { column: null, direction: 'asc' },
+    filter: viewState?.filter || '',
+  }), onViewStateChange);
   const filterable = spec.rows.length >= TABLE_FILTER_MIN_ROWS;
   const query = filterable ? filter.trim().toLowerCase() : '';
   const rows = React.useMemo(() => {
@@ -46,15 +76,17 @@ function VisualTable({ spec, id }) {
     return sortTableRows(visible, sort.column, sort.direction);
   }, [spec.rows, query, sort]);
   // none -> ascending -> descending -> original order.
-  const toggleSort = column => setSort(current => current.column !== column ? { column, direction: 'asc' }
-    : current.direction === 'asc' ? { column, direction: 'desc' } : { column: null, direction: 'asc' });
+  const toggleSort = column => updateViewState(current => ({ ...current,
+    sort: current.sort.column !== column ? { column, direction: 'asc' }
+      : current.sort.direction === 'asc' ? { column, direction: 'desc' } : { column: null, direction: 'asc' },
+  }));
   const sortable = spec.rows.length > 1;
   return <>
     {filterable && <div className="metabloom-visual__table-tools">
       <label htmlFor={`${id}-table-filter`}>Filter rows</label>
       <div className="metabloom-visual__input-shell">
         <input id={`${id}-table-filter`} type="search" value={filter} maxLength={80} autoComplete="off"
-          placeholder="Type to filter" aria-controls={`${id}-table-body`} onChange={event => setFilter(event.target.value)} />
+          placeholder="Type to filter" aria-controls={`${id}-table-body`} onChange={event => updateViewState({ filter: event.target.value })} />
       </div>
     </div>}
     <div className="metabloom-visual__table-scroll" tabIndex={0} role="region" aria-label={`${spec.title} data`}>
@@ -101,7 +133,7 @@ const niceScale = (low, high, target = 4) => {
   }
   return { min: ticks[0], max: ticks[ticks.length - 1], ticks };
 };
-function VisualChart({ spec, id }) {
+function VisualChart({ spec, id, viewState, onViewStateChange }) {
   const multiple = Array.isArray(spec.series);
   const labels = multiple ? spec.labels : spec.points.map(point => point.label);
   const series = multiple ? spec.series : [{ id: 'single', label: spec.title, values: spec.points.map(point => point.value) }];
@@ -114,7 +146,14 @@ function VisualChart({ spec, id }) {
   const x = index => 80 + index / Math.max(1, labels.length - 1) * 408;
   const dataRows = labels.map((label, index) => [label, ...series.map(item => numberText(item.values[index]))]);
   // Inspection state belongs to line charts only; bars already label every value.
-  const [active, setActive] = React.useState(null);
+  const [state, updateViewState] = useVisualViewState(() => ({
+    ...(spec.kind === 'line-chart' ? { active: viewState?.active ?? null } : {}),
+    detailsOpen: viewState?.detailsOpen === true,
+  }), onViewStateChange);
+  const active = spec.kind === 'line-chart' ? state.active : null;
+  const setActive = value => updateViewState(current => ({ ...current,
+    active: typeof value === 'function' ? value(current.active) : value,
+  }));
   const lastIndex = labels.length - 1;
   const indexAt = event => {
     const box = event.currentTarget.getBoundingClientRect();
@@ -124,10 +163,13 @@ function VisualChart({ spec, id }) {
   };
   const inspect = event => { const index = indexAt(event); if (index !== null) setActive(index); };
   const onChartKeyDown = event => {
-    const moves = { ArrowRight: () => (active === null ? 0 : Math.min(lastIndex, active + 1)),
-      ArrowLeft: () => (active === null ? lastIndex : Math.max(0, active - 1)), Home: () => 0, End: () => lastIndex };
-    if (moves[event.key]) { event.preventDefault(); setActive(moves[event.key]()); }
-    else if (event.key === 'Escape' && active !== null) { event.preventDefault(); setActive(null); }
+    const moves = { ArrowRight: current => (current === null ? 0 : Math.min(lastIndex, current + 1)),
+      ArrowLeft: current => (current === null ? lastIndex : Math.max(0, current - 1)), Home: () => 0, End: () => lastIndex };
+    if (moves[event.key]) { event.preventDefault(); setActive(moves[event.key]); }
+    else if (event.key === 'Escape') setActive(current => {
+      if (current !== null) event.preventDefault();
+      return null;
+    });
   };
   const readout = active === null
     ? 'Hover, tap or focus the chart, then use the arrow keys to read individual observations.'
@@ -185,13 +227,18 @@ function VisualChart({ spec, id }) {
         <p id={`${id}-chart-readout`} className="metabloom-visual__chart-readout" role="status" aria-live="polite" aria-atomic="true">{readout}</p>
       </figure>
     )}
-    <details className="metabloom-visual__details"><summary>View exact values</summary>
+    <VisualDetails state={state} updateState={updateViewState} summary="View exact values">
       <DataTable title={`${spec.title}: exact values`} columns={['Observation', ...series.map(item => item.label)]} rows={dataRows} />
-    </details>
+    </VisualDetails>
   </>;
 }
-function VisualPieChart({ spec, id }) {
-  const [selectedIndex, setSelectedIndex] = React.useState(() => spec.points.findIndex(point => point.value > 0));
+function VisualPieChart({ spec, id, viewState, onViewStateChange }) {
+  const [state, updateViewState] = useVisualViewState(() => ({
+    selectedIndex: viewState?.selectedIndex ?? spec.points.findIndex(point => point.value > 0),
+    detailsOpen: viewState?.detailsOpen === true,
+  }), onViewStateChange);
+  const { selectedIndex } = state;
+  const setSelectedIndex = index => updateViewState({ selectedIndex: index });
   const total = spec.points.reduce((sum, point) => sum + point.value, 0);
   const positiveCount = spec.points.filter(point => point.value > 0).length;
   const selected = spec.points[selectedIndex] || spec.points[0];
@@ -267,10 +314,10 @@ function VisualPieChart({ spec, id }) {
     <p id={`${id}-pie-selection`} className="metabloom-visual__pie-selection" role="status" aria-live="polite" aria-atomic="true">
       <strong>{selected.label}</strong>: {numberText(selected.value)} {spec.unit} ({percentage(selected.value)} of the total).
     </p>
-    <details className="metabloom-visual__details"><summary>View exact values</summary>
+    <VisualDetails state={state} updateState={updateViewState} summary="View exact values">
       <DataTable title={`${spec.title}: exact values`} columns={['Category', spec.unit ? `Amount (${spec.unit})` : 'Amount', 'Share of total']}
         rows={spec.points.map(point => [point.label, numberText(point.value), percentage(point.value)])} />
-    </details>
+    </VisualDetails>
   </>;
 }
 function VisualFlowList({ spec }) {
@@ -291,8 +338,12 @@ const flowSummary = (spec, node) => {
   if (loops.length) parts.push('It can repeat itself.');
   return parts.join(' ');
 };
-function VisualFlowchart({ spec, id }) {
-  const [selectedId, setSelectedId] = React.useState(null);
+function VisualFlowchart({ spec, id, viewState, onViewStateChange }) {
+  const [state, updateViewState] = useVisualViewState(() => ({
+    selectedId: viewState?.selectedId ?? null,
+    detailsOpen: viewState?.detailsOpen === true,
+  }), onViewStateChange);
+  const { selectedId } = state;
   // A layout failure must never hide the answer: fall back to the plain step list.
   const layout = React.useMemo(() => { try { return layoutFlowchart(spec.nodes, spec.edges); } catch { return null; } }, [spec.nodes, spec.edges]);
   if (!layout) return <VisualFlowList spec={spec} />;
@@ -304,7 +355,9 @@ function VisualFlowchart({ spec, id }) {
     });
   }
   const selected = layout.nodes.find(node => node.id === selectedId);
-  const toggle = node => setSelectedId(current => (current === node.id ? null : node.id));
+  const toggle = node => updateViewState(current => ({ ...current,
+    selectedId: current.selectedId === node.id ? null : node.id,
+  }));
   const naturalWidth = Math.round(layout.width);
   const arrow = `${id}-flow-arrow`, arrowActive = `${id}-flow-arrow-active`, spectrum = `${id}-flow-spectrum`;
   return <div className="metabloom-visual__flow-diagram">
@@ -349,7 +402,10 @@ function VisualFlowchart({ spec, id }) {
               onClick={() => toggle(node)}
               onKeyDown={event => {
                 if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggle(node); }
-                else if (event.key === 'Escape' && selectedId) { event.preventDefault(); setSelectedId(null); }
+                else if (event.key === 'Escape') updateViewState(current => {
+                  if (current.selectedId) event.preventDefault();
+                  return { ...current, selectedId: null };
+                });
               }}>
               <rect x={node.x} y={node.y} width={node.w} height={node.h} rx="14" />
               <circle cx={node.x + 21} cy={node.y + node.h / 2} r="10" className="metabloom-visual__flow-badge" />
@@ -366,13 +422,15 @@ function VisualFlowchart({ spec, id }) {
     <p className="metabloom-visual__flow-status" role="status" aria-live="polite" aria-atomic="true">
       {selected ? flowSummary(spec, selected) : 'Select a step to trace where it comes from and where it leads.'}
     </p>
-    <details className="metabloom-visual__details"><summary>View steps and connections</summary><VisualFlowList spec={spec} /></details>
+    <VisualDetails state={state} updateState={updateViewState} summary="View steps and connections"><VisualFlowList spec={spec} /></VisualDetails>
   </div>;
 }
 class VisualCalculator extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { inputs: Object.fromEntries(props.spec.controls.map(control => [control.id, String(control.initial)])), copyStatus: '' };
+    this.inputDrafts = props.viewState?.inputs ? { ...props.viewState.inputs }
+      : Object.fromEntries(props.spec.controls.map(control => [control.id, String(control.initial)]));
+    this.state = { inputs: this.inputDrafts, copyStatus: '' };
   }
   componentDidMount() {
     this.mounted = true;
@@ -384,8 +442,13 @@ class VisualCalculator extends React.Component {
     this.props.onInputsChange?.(values);
   };
   componentWillUnmount() { this.mounted = false; }
-  reset = () => this.setState({ inputs: Object.fromEntries(this.props.spec.controls.map(control => [control.id, String(control.initial)])), copyStatus: '' }, this.publishInputs);
-  change = (id, value) => this.setState(state => ({ inputs: { ...state.inputs, [id]: value }, copyStatus: '' }), this.publishInputs);
+  updateInputs = inputs => {
+    this.inputDrafts = inputs;
+    this.props.onViewStateChange?.({ inputs: { ...inputs } });
+    this.setState({ inputs, copyStatus: '' }, this.publishInputs);
+  };
+  reset = () => this.updateInputs(Object.fromEntries(this.props.spec.controls.map(control => [control.id, String(control.initial)])));
+  change = (id, value) => this.updateInputs({ ...this.inputDrafts, [id]: value });
   copyScenario = async () => {
     const { spec } = this.props;
     const text = `${spec.title}\n${spec.controls.map(control => `${control.label}: ${this.state.inputs[control.id]} ${control.unit}`).join('\n')}\nFormula: ${spec.formulaDescription}\nQuestion: `;
@@ -425,7 +488,7 @@ export class MetabloomVisualBoundary extends React.Component {
   componentDidCatch() { this.setState({ failed: true }); }
   render() { return this.state.failed ? <div className="metabloom-visual" role="status">This visual could not be displayed. Your answer is unchanged.</div> : this.props.children; }
 }
-export default function MetabloomVisualFrame({ artifact, onStop, onReady, onInputsChange }) {
+export default function MetabloomVisualFrame({ artifact, onStop, onReady, onInputsChange, onViewStateChange }) {
   const { id, status, spec, sources = [], code } = artifact;
   const frameRef = React.useRef(null);
   const pendingHeight = React.useRef(null);
@@ -491,11 +554,11 @@ export default function MetabloomVisualFrame({ artifact, onStop, onReady, onInpu
       ? formatMetabloomVisualQuotaMessage(artifact.quota) : METABLOOM_VISUAL_ERRORS[code] || METABLOOM_VISUAL_ERRORS.visual_unavailable}</p>}
     {status === 'ready' && spec && <div className="metabloom-visual__content">
       <p className="metabloom-visual__summary">{spec.summary}</p>
-      {spec.kind === 'table' && <VisualTable spec={spec} id={id} />}
-      {['bar-chart', 'line-chart'].includes(spec.kind) && <VisualChart spec={spec} id={id} />}
-      {spec.kind === 'pie-chart' && <VisualPieChart spec={spec} id={id} />}
-      {spec.kind === 'flowchart' && <VisualFlowchart spec={spec} id={id} />}
-      {spec.kind === 'calculator' && <VisualCalculator spec={spec} id={id} onInputsChange={onInputsChange} />}
+      {spec.kind === 'table' && <VisualTable spec={spec} id={id} viewState={artifact.viewState} onViewStateChange={onViewStateChange} />}
+      {['bar-chart', 'line-chart'].includes(spec.kind) && <VisualChart spec={spec} id={id} viewState={artifact.viewState} onViewStateChange={onViewStateChange} />}
+      {spec.kind === 'pie-chart' && <VisualPieChart spec={spec} id={id} viewState={artifact.viewState} onViewStateChange={onViewStateChange} />}
+      {spec.kind === 'flowchart' && <VisualFlowchart spec={spec} id={id} viewState={artifact.viewState} onViewStateChange={onViewStateChange} />}
+      {spec.kind === 'calculator' && <VisualCalculator spec={spec} id={id} viewState={artifact.viewState} onInputsChange={onInputsChange} onViewStateChange={onViewStateChange} />}
       <footer className="metabloom-visual__provenance"><span className="metabloom-visual__badge">{provenanceLabels[spec.provenance.type]}</span><p>{spec.provenance.label}</p>
         {sources.length > 0 && <ul aria-label="Visual sources">{sources.map(source => <li key={source.id}><a href={source.url} target="_blank" rel="noopener noreferrer">{source.title}</a></li>)}</ul>}
       </footer>

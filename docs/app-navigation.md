@@ -50,7 +50,7 @@ Normal tool links retain the initial graphics selection.
 | Screen | State held while switching tools |
 | --- | --- |
 | Home | The opening is completed once per authenticated application session. |
-| Orb | Transcript, unfinished message, expression intensity, palette, pause/paragraph settings and message IDs. A response interrupted by leaving is labelled incomplete. |
+| Orb | Transcript, unfinished message, expression intensity, palette, pause/paragraph settings, message IDs, and validated native visuals with their local controls. Completed answers remain complete; unfinished answers and visual generation return as interrupted or stopped. |
 | Dither Canvas | Selected study and pause setting. Simulation textures are released. |
 | Popcan | Committed canvas and name, including marks awaiting the debounced device save. Live drawing engines are released. |
 | Business / engineering | Last section. Explicit section deep links take precedence. |

@@ -2,7 +2,9 @@ import React from 'react';
 import { createPortal } from 'react-dom';
 import MetabloomVisualFrame, { MetabloomVisualBoundary } from './MetabloomVisualFrame';
 import { METABLOOM_VISUAL_OFFER_EVENT, requestMetabloomVisual } from './metabloomVisualApiClient';
-import { beginMetabloomVisualTurn, acceptMetabloomVisualOffer, findMetabloomVisualReply } from './metabloomVisualSession';
+import { METABLOOM_TRANSCRIPT_READY_EVENT, METABLOOM_RESET_EVENT,
+  beginMetabloomVisualTurn, acceptMetabloomVisualOffer, findMetabloomVisualReply } from './metabloomVisualSession';
+import { createMetabloomVisualSnapshot, parseMetabloomVisualSnapshot } from './metabloomVisualSnapshot';
 import { classifyMetabloomVisualIntent } from './metabloomVisualIntent';
 import { postMetabloomTool } from './metabloomToolClient';
 import { METABLOOM_CHAT_PROTOCOL_VERSION } from './metabloomEmoteLibrary';
@@ -22,6 +24,13 @@ const toolFailure = error => {
 // Uses Orb's existing request and transcript extension points. The portal is
 // inside an assistant row, but owns its state independently of text/research.
 export default class MetabloomVisuals extends React.Component {
+  constructor(props) {
+    super(props);
+    // Keep this mount's cache revision. A later account's callback must never
+    // receive an old component's cleanup snapshot.
+    this.saveToolState = props.navigation?.saveToolState;
+    this.pendingSnapshot = props.navigation?.getToolState('orbVisuals');
+  }
   state = { revision: 0 };
   records = new Map();
   turn = null;
@@ -33,14 +42,27 @@ export default class MetabloomVisuals extends React.Component {
     if (!this.root) return;
     window.addEventListener('metabloom:user-message', this.onUserMessage);
     window.addEventListener(METABLOOM_VISUAL_OFFER_EVENT, this.onOffer);
+    window.addEventListener(METABLOOM_TRANSCRIPT_READY_EVENT, this.restore);
+    window.addEventListener(METABLOOM_RESET_EVENT, this.reset);
     this.observer = new MutationObserver(this.reconcile);
     this.observer.observe(this.root, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-stream-status'] });
     window.__metabloomVisualSnapshot = this.snapshot;
+    this.restore();
   }
   componentWillUnmount() {
+    if (this.saveToolState) {
+      const snapshot = createMetabloomVisualSnapshot(
+        Array.from(this.records.values()), this.messages(), this.lastInteractedId || null,
+      );
+      this.saveToolState('orbVisuals', snapshot);
+      // React's development remount reuses this instance after cleanup.
+      this.pendingSnapshot = snapshot;
+    }
     this.mounted = false;
     window.removeEventListener('metabloom:user-message', this.onUserMessage);
     window.removeEventListener(METABLOOM_VISUAL_OFFER_EVENT, this.onOffer);
+    window.removeEventListener(METABLOOM_TRANSCRIPT_READY_EVENT, this.restore);
+    window.removeEventListener(METABLOOM_RESET_EVENT, this.reset);
     this.observer?.disconnect();
     if (window.__metabloomVisualSnapshot === this.snapshot) delete window.__metabloomVisualSnapshot;
     this.releaseTurn();
@@ -53,8 +75,77 @@ export default class MetabloomVisuals extends React.Component {
     if (record.article?.dataset.visualAnswer === record.id) delete record.article.dataset.visualAnswer;
   };
   messages = () => {
-    try { return typeof window.__orbMessages === 'function' ? window.__orbMessages() : []; }
-    catch { return []; }
+    try {
+      if (typeof window.__orbMessages === 'function') this.lastMessages = window.__orbMessages();
+      return this.lastMessages || [];
+    } catch { return this.lastMessages || []; }
+  };
+  restore = event => {
+    if (!this.mounted || !this.ownsSurface() || this.pendingSnapshot === undefined
+      || (event && (!(event.detail instanceof Element) || !this.root.contains(event.detail)))
+      || !this.root.querySelector('[data-orb-transcript-ready="true"]')) return;
+    const messages = this.messages();
+    const snapshot = parseMetabloomVisualSnapshot(this.pendingSnapshot, messages);
+    this.pendingSnapshot = undefined;
+    this.lastInteractedId = snapshot.lastInteractedId;
+    for (const saved of snapshot.records) {
+      let replyId = saved.replyId;
+      if (!replyId && saved.mode === 'tool') {
+        const index = messages.findIndex(message => message.id === saved.userId);
+        const reply = messages[index + 1];
+        if (index >= 0 && reply?.role === 'assistant' && reply.status === 'complete') replyId = reply.id;
+      }
+      let article = replyId && this.root.querySelector(`[data-message-id="${replyId}"][data-stream-status="complete"]`);
+      let pendingArticle = null;
+      if (!article && saved.mode === 'tool' && !saved.replyId) {
+        const userArticle = this.root.querySelector(`[data-message-id="${saved.userId}"]`);
+        if (!userArticle) continue;
+        article = this.createPendingArticle(userArticle);
+        pendingArticle = article;
+        replyId = null;
+      }
+      if (!article || article.dataset.visualAnswer) continue;
+      const slot = this.createSlot(saved.id, saved.userId);
+      if (saved.mode === 'tool') article.insertBefore(slot, article.querySelector('.metabloom-chat__bubble'));
+      else article.appendChild(slot);
+      article.dataset.visualAnswer = saved.id;
+      this.records.set(saved.id, { ...saved, replyId, article, pendingArticle, slot,
+        controller: new AbortController(), restored: true,
+        code: saved.status === 'cancelled' ? 'visual_cancelled' : undefined });
+    }
+    this.refresh();
+  };
+  createPendingArticle = userArticle => {
+    const article = document.createElement('article');
+    article.className = 'metabloom-chat__message metabloom-chat__message--assistant';
+    article.setAttribute('aria-label', 'Metabloom message');
+    const speaker = document.createElement('span');
+    speaker.className = 'metabloom-chat__speaker';
+    speaker.textContent = 'Metabloom';
+    article.appendChild(speaker);
+    userArticle.after(article);
+    return article;
+  };
+  createSlot = (id, userId) => {
+    const slot = document.createElement('div');
+    slot.className = 'metabloom-visual-slot';
+    slot.dataset.visualId = id;
+    if (userId) slot.dataset.visualUserId = userId;
+    return slot;
+  };
+  reset = event => {
+    if (!this.mounted || !this.ownsSurface() || !(event?.detail instanceof Element) || !this.root.contains(event.detail)) return;
+    this.releaseTurn();
+    this.pendingSnapshot = undefined;
+    this.lastInteractedId = null;
+    for (const record of this.records.values()) {
+      record.controller.abort();
+      window.clearTimeout(record.renderTimeout);
+      this.removeSlot(record);
+    }
+    this.records.clear();
+    this.saveToolState?.('orbVisuals', null);
+    this.refresh();
   };
   refresh = () => { if (this.mounted) this.setState(state => ({ revision: state.revision + 1 })); };
   releaseTurn = () => {
@@ -67,9 +158,14 @@ export default class MetabloomVisuals extends React.Component {
     const record = this.records.get(this.lastInteractedId)
       || Array.from(this.records.values()).reverse().find(item => item.status === 'ready' && item.spec?.kind === 'calculator');
     if (!record || record.status !== 'ready' || record.spec?.kind !== 'calculator') return null;
-    const inputs = record.inputs === undefined
-      ? Object.fromEntries(record.spec.controls.map(control => [control.id, control.initial])) : record.inputs;
-    return record.spec.controls.every(control => Number.isFinite(inputs[control.id]))
+    const inputs = record.viewState?.inputs
+      ? Object.fromEntries(record.spec.controls.map(control => {
+        const value = record.viewState.inputs[control.id];
+        return [control.id, value.trim() ? Number(value) : NaN];
+      })) : record.inputs === undefined
+        ? Object.fromEntries(record.spec.controls.map(control => [control.id, control.initial])) : record.inputs;
+    return record.spec.controls.every(control => Number.isFinite(inputs[control.id])
+      && inputs[control.id] >= control.min && inputs[control.id] <= control.max)
       ? { id: record.id, inputs: { ...inputs } } : null;
   };
   onUserMessage = event => {
@@ -109,21 +205,12 @@ export default class MetabloomVisuals extends React.Component {
       if (!userArticle) throw new Error('Missing originating message');
       // Start on the assistant side and reserve the final visual-before-text
       // order. The user's right-aligned bubble must never host a visual.
-      const article = document.createElement('article');
-      article.className = 'metabloom-chat__message metabloom-chat__message--assistant';
-      article.setAttribute('aria-label', 'Metabloom message');
-      const speaker = document.createElement('span');
-      speaker.className = 'metabloom-chat__speaker';
-      speaker.textContent = 'Metabloom';
-      article.appendChild(speaker);
-      const slot = document.createElement('div');
-      slot.className = 'metabloom-visual-slot';
-      slot.dataset.visualId = offer.id;
-      slot.dataset.visualUserId = turn.userId;
+      const article = this.createPendingArticle(userArticle);
+      const slot = this.createSlot(offer.id, turn.userId);
       article.appendChild(slot);
       article.dataset.visualAnswer = offer.id;
-      userArticle.after(article);
       const record = { id: offer.id, kind: offer.kind, userId: turn.userId, replyId: null,
+        expiresAt: offer.expiresAt,
         mode: 'tool', detail, article, pendingArticle: article, slot, controller: new AbortController(), status: 'generating',
         continuing: false, completed: false };
       this.records.set(offer.id, record);
@@ -170,7 +257,7 @@ export default class MetabloomVisuals extends React.Component {
     const messages = this.messages();
     let changed = false;
     for (const [id, record] of this.records) {
-      const owner = record.mode === 'tool' ? record.userId : record.replyId;
+      const owner = record.replyId || record.userId;
       if (!record.slot.isConnected || !messages.some(message => message.id === owner)) {
         record.controller.abort();
         window.clearTimeout(record.renderTimeout);
@@ -208,14 +295,12 @@ export default class MetabloomVisuals extends React.Component {
       if (article?.querySelector('.metabloom-chat__bubble')) {
         const offer = this.turn.offer;
         this.turn.started = true;
-        const slot = document.createElement('div');
-        slot.className = 'metabloom-visual-slot';
-        slot.dataset.visualId = offer.id;
+        const slot = this.createSlot(offer.id);
         // A sibling of the text bubble avoids nested backdrop blurs while
         // remaining part of this exact assistant message.
         article.appendChild(slot);
         article.dataset.visualAnswer = offer.id;
-        const record = { id: offer.id, kind: offer.kind, replyId: reply.id, slot, article,
+        const record = { id: offer.id, kind: offer.kind, replyId: reply.id, slot, article, expiresAt: offer.expiresAt,
           controller: new AbortController(), status: 'generating', mode: 'optional' };
         this.records.set(offer.id, record);
         changed = true;
@@ -229,6 +314,7 @@ export default class MetabloomVisuals extends React.Component {
       const result = await requestMetabloomVisual(offer, { signal: record.controller.signal });
       if (!this.mounted || this.records.get(record.id) !== record || record.controller.signal.aborted) return;
       Object.assign(record, result, { status: 'ready' });
+      if (record.spec.kind === 'calculator') this.lastInteractedId = record.id;
       if (record.mode === 'tool') record.renderTimeout = window.setTimeout(() => this.finishTool(record, 'unknown'), 1500);
     } catch (error) {
       if (!this.mounted || this.records.get(record.id) !== record || record.status !== 'generating') return;
@@ -252,7 +338,8 @@ export default class MetabloomVisuals extends React.Component {
     this.refresh();
   };
   ready = record => {
-    if (record.mode !== 'tool' || record.status !== 'ready' || record.continuing) return;
+    if (!this.mounted || this.records.get(record.id) !== record || record.restored
+      || record.mode !== 'tool' || record.status !== 'ready' || record.continuing) return;
     const mounted = Boolean(record.slot.isConnected && this.root?.contains(record.slot)
       && record.slot.querySelector('.metabloom-visual[data-visual-state="ready"]'));
     if (mounted && !record.readyNotified) {
@@ -264,12 +351,16 @@ export default class MetabloomVisuals extends React.Component {
     this.finishTool(record, mounted ? 'mounted' : 'unknown');
   };
   inputsChanged = (record, values) => {
-    if (record.status !== 'ready' || record.spec?.kind !== 'calculator') return;
+    if (!this.mounted || this.records.get(record.id) !== record || record.status !== 'ready' || record.spec?.kind !== 'calculator') return;
     record.inputs = { ...values };
-    this.lastInteractedId = record.id;
+  };
+  viewStateChanged = (record, viewState) => {
+    if (!this.mounted || this.records.get(record.id) !== record || record.status !== 'ready') return;
+    record.viewState = viewState;
+    if (record.spec.kind === 'calculator') this.lastInteractedId = record.id;
   };
   finishTool = async (record, display) => {
-    if (!this.mounted || record.mode !== 'tool' || record.continuing || record.completed || record.controller.signal.aborted) return;
+    if (!this.mounted || record.restored || record.mode !== 'tool' || record.continuing || record.completed || record.controller.signal.aborted) return;
     record.continuing = true;
     window.clearTimeout(record.renderTimeout);
     const detail = record.detail;
@@ -303,7 +394,8 @@ export default class MetabloomVisuals extends React.Component {
       <span ref={this.captureAnchor} hidden aria-hidden="true" />
       {Array.from(this.records.values(), record => createPortal(
         <MetabloomVisualBoundary><MetabloomVisualFrame artifact={record} onStop={() => this.stop(record)}
-          onReady={() => this.ready(record)} onInputsChange={values => this.inputsChanged(record, values)} /></MetabloomVisualBoundary>, record.slot, record.id,
+          onReady={() => this.ready(record)} onInputsChange={values => this.inputsChanged(record, values)}
+          onViewStateChange={viewState => this.viewStateChanged(record, viewState)} /></MetabloomVisualBoundary>, record.slot, record.id,
       ))}
     </>;
   }

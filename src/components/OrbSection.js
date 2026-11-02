@@ -33,6 +33,7 @@ import { createMetabloomResearchDisplayGate } from "./metabloomResearchDisplayGa
 import { METABLOOM_RESEARCH_TIMEOUT_MS, getMetabloomApiErrorMessage, requestMetabloomResponse } from "./metabloomApiClient";
 import { METABLOOM_REQUEST_ERROR_MESSAGES, parseMetabloomRequestRef } from "./metabloomRequestErrors";
 import { METABLOOM_TOOL_TURN_TIMEOUT_MS } from "./metabloomVisualProtocol";
+import { METABLOOM_TRANSCRIPT_READY_EVENT, METABLOOM_RESET_EVENT } from "./metabloomVisualSession";
 import { parseMetabloomResearchSources } from "./metabloomResearchSources";
 import { parseMetabloomProgressSource } from "./metabloomSourceMediaProtocol";
 import { parseMetabloomResearchReport } from "./metabloomResearchReport";
@@ -915,6 +916,7 @@ const OrbSection = ({
 
   const reset = React.useCallback(() => {
     cancelResponse();
+    window.dispatchEvent(new CustomEvent(METABLOOM_RESET_EVENT, { detail: sectionRef.current }));
     setEmoteId("neutral");
     clearSequence();
     requestTokenRef.current += 1;
@@ -2026,8 +2028,12 @@ const OrbSection = ({
     window.__orbRespond = receiveModelResponse;
     window.__orbResponseSchema = responseSchema;
     window.__orbMessages = getMessages;
+    const transcript = sectionRef.current;
+    transcript?.setAttribute('data-orb-transcript-ready', 'true');
+    window.dispatchEvent(new CustomEvent(METABLOOM_TRANSCRIPT_READY_EVENT, { detail: transcript }));
 
     return () => {
+      transcript?.removeAttribute('data-orb-transcript-ready');
       mountedRef.current = false;
       cancelResponse();
       clearOwnedGlobal("__metabloomProtocol", emoteProtocol);

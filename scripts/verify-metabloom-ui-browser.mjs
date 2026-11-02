@@ -21,7 +21,7 @@ const spec = {
   ],
   formula: ['hours', 'rate', 'multiply'], formulaDescription: 'Hours multiplied by hourly rate.', unit: 'CAD',
 };
-const fixture = { mode: 'success', calls: [], records: new Map(), errors: [], held: [], aborted: 0 };
+const fixture = { mode: 'success', calls: [], records: new Map(), errors: [], held: [], aborted: 0, authSessionCalls: 0 };
 let counter = 0;
 const server = createBuildServer({ buildRoot: path.resolve('build') });
 const serveStatic = server.listeners('request')[0];
@@ -33,6 +33,7 @@ const send = (res, status, body) => {
 };
 server.on('request', async (req, res) => {
   const pathname = new URL(req.url, 'http://127.0.0.1').pathname;
+  if (pathname === '/api/auth/session') fixture.authSessionCalls++;
   if (!pathname.startsWith('/api/metabloom')) return serveStatic(req, res);
   try {
     assert.equal(req.method, 'POST');
@@ -153,7 +154,7 @@ try {
     await evaluate("document.querySelector('.metabloom-chat__composer').requestSubmit()");
   };
   const load = async (name, width, theme, mode = 'success', height = 844) => {
-    fixture.mode = mode; fixture.calls.length = 0;
+    fixture.mode = mode; fixture.calls.length = 0; fixture.authSessionCalls = 0;
     await call('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: width < 500 });
     await call('Page.navigate', { url: `${origin}/orb?graphics=css&test-case=${name}` });
     await until(`location.search.includes(${JSON.stringify(`test-case=${name}`)}) && typeof window.__orbMessages === 'function' && document.querySelector('#metabloom-message')`);
@@ -203,6 +204,96 @@ try {
     assert.equal(fixture.calls.filter(item => item.phase === 'continue').length, 1);
     results.push({ case: config.id, arithmetic: true, themeState: true, followup: true, reset: true, style });
   }
+  {
+    await load('spa-visual-roundtrip', 1440, 'light');
+    const requestCounts = () => ({
+      start: fixture.calls.filter(item => item.path === '/api/metabloom-tool' && item.phase === 'start').length,
+      generation: fixture.calls.filter(item => item.path === '/api/metabloom-visual').length,
+      continuation: fixture.calls.filter(item => item.path === '/api/metabloom-tool' && item.phase === 'continue').length,
+      ordinary: fixture.calls.filter(item => item.path === '/api/metabloom').length,
+      total: fixture.calls.length,
+    });
+    const readVisuals = () => evaluate(`Array.from(document.querySelectorAll('.metabloom-visual-slot'), slot => {
+      const card = slot.querySelector('.metabloom-visual');
+      return { id: slot.dataset.visualId, messageId: slot.closest('article')?.dataset.messageId,
+        status: card?.dataset.visualState, kind: card?.dataset.visualKind,
+        inputs: Array.from(card.querySelectorAll('input[type=number]'), input => input.value),
+        result: card.querySelector('output')?.textContent.replace(/[^0-9]/g, '') };
+    })`);
+    const actionable = selector => `(() => {
+      const element = document.querySelector(${JSON.stringify(selector)});
+      const rect = element?.getBoundingClientRect();
+      const home = document.querySelector('.home-page');
+      return element?.isConnected && !element.closest('[inert]') && rect.width > 0 && rect.height > 0
+        && getComputedStyle(element).visibility === 'visible'
+        && (!home || home.dataset.entry === 'open');
+    })()`;
+    const navigate = async pathname => {
+      await until("document.querySelector('.app-route-curtain')?.dataset.phase === 'idle'");
+      const opener = '.workspace-menu > summary';
+      // Home's entry reveal can outlast the route curtain. Programmatic clicks
+      // need the same actionability checks as a real user before opening its menu.
+      await until(actionable(opener));
+      await evaluate(`document.querySelector(${JSON.stringify(opener)}).click()`);
+      await until("document.querySelector('.workspace-menu[open] nav[aria-label=\"Experiences\"]')");
+      const selector = `.workspace-menu[open] nav[aria-label="Experiences"] a[href="${pathname}"]`;
+      await until(actionable(selector));
+      await evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
+      await until(`location.pathname === ${JSON.stringify(pathname)} && document.querySelector('.app-route-curtain')?.dataset.phase === 'idle'`);
+    };
+    for (let count = 1; count <= 2; count++) {
+      await submit(request);
+      await until(`document.querySelectorAll('.metabloom-visual[data-visual-state="ready"]').length === ${count}
+        && !window.__orbState().pending
+        && Array.from(document.querySelectorAll('.metabloom-visual')).every(card => card.closest('article')?.dataset.messageId?.startsWith('assistant-'))`);
+    }
+    const initialVisuals = await readVisuals();
+    assert.equal(new Set(initialVisuals.map(visual => visual.id)).size, 2, 'Each calculator must have its own artifact ID');
+    assert.equal(new Set(initialVisuals.map(visual => visual.messageId)).size, 2, 'Each calculator must belong to its own assistant message');
+    const olderId = initialVisuals[0].id;
+    const olderSelector = `.metabloom-visual-slot[data-visual-id="${olderId}"]`;
+    // Select the older artifact after the newer one exists, so a latest-artifact
+    // fallback cannot hide lost selection during restoration.
+    await setInput(`${olderSelector} .metabloom-visual input[type=number]`, 17);
+    await setInput(`${olderSelector} .metabloom-visual__field:nth-child(2) input[type=number]`, 85);
+    await until(`document.querySelector(${JSON.stringify(`${olderSelector} output`)})?.textContent.replace(/[^0-9]/g, '') === '1445'`);
+    const selected = { id: olderId, inputs: { hours: 17, rate: 85 } };
+    assert.deepEqual(await evaluate('window.__metabloomVisualSnapshot()'), selected);
+    const savedVisuals = await readVisuals();
+    const beforeNavigation = requestCounts();
+    assert.deepEqual(beforeNavigation, { start: 2, generation: 2, continuation: 2, ordinary: 0, total: 6 });
+    const documentId = await evaluate('window.__visualRoundtripDocument = Math.random().toString(36)');
+    await evaluate("void (window.__roundtripVisualNodes = Array.from(document.querySelectorAll('.metabloom-visual')))");
+    await navigate('/home');
+    assert.equal(await evaluate('window.__visualRoundtripDocument'), documentId, 'Leaving Orb must not replace the document');
+    assert.equal(await evaluate("document.querySelector('.orb-page') === null && window.__roundtripVisualNodes.every(node => !node.isConnected)"), true, 'Leaving Orb must unmount its visual nodes');
+    assert.deepEqual(requestCounts(), beforeNavigation, 'Leaving Orb must not repeat native UI requests');
+    await navigate('/orb');
+    assert.equal(await evaluate('window.__visualRoundtripDocument'), documentId, 'Returning to Orb must not replace the document');
+    await until("document.querySelectorAll('.metabloom-visual[data-visual-state=\"ready\"]').length === 2 && !window.__orbState().pending");
+    assert.equal(await evaluate('window.__roundtripVisualNodes.every(node => !node.isConnected)'), true, 'Restored visuals must use the newly mounted Orb surface');
+    assert.deepEqual(await readVisuals(), savedVisuals, 'Navigation must preserve visual IDs, assistant ownership, inputs and results');
+    assert.deepEqual(await evaluate('window.__metabloomVisualSnapshot()'), selected, 'Navigation must preserve the selected older calculator');
+    const afterNavigation = requestCounts();
+    assert.deepEqual(afterNavigation, beforeNavigation, 'Restoration must not repeat start, generation, continuation or text requests');
+    // This exercises the existing ordinary follow-up context, not a new tool
+    // reference protocol or a request to regenerate the restored artifact.
+    await submit('Why is the current total 1445 CAD?');
+    await until("!window.__orbState().pending && window.__orbMessages().at(-1).content.includes('1445 CAD')");
+    const followup = fixture.calls.find(item => item.path === '/api/metabloom');
+    assert.deepEqual(followup.body.artifactContext, selected, 'The ordinary follow-up must use the restored selection and inputs');
+    assert.deepEqual(requestCounts(), { ...beforeNavigation, ordinary: 1, total: 7 });
+    assert.deepEqual(await readVisuals(), savedVisuals, 'An ordinary follow-up must preserve both restored visuals');
+    await evaluate(`new Promise(resolve => {
+      document.querySelector(${JSON.stringify(olderSelector)}).scrollIntoView({ block: 'center', behavior: 'instant' });
+      requestAnimationFrame(() => requestAnimationFrame(resolve));
+    })`);
+    await screenshot('spa-visual-roundtrip');
+    results.push({ case: 'spa-visual-roundtrip', sameDocument: true, artifactsRestored: 2,
+      assistantOwnershipRestored: true, inputsRestored: true, selectedArtifactRestored: true,
+      beforeNavigation, afterNavigation, followupContextRestored: true,
+      authSessionCalls: fixture.authSessionCalls });
+  }
   for (const mode of ['disabled', 'generation-failed', 'continuation-failed']) {
     await load(mode, 390, 'light', mode);
     await submit(request);
@@ -217,8 +308,9 @@ try {
       assert.equal(await evaluate("document.querySelector('.metabloom-visual').dataset.visualState"), 'failed');
       assert.match(message, /could not create/i);
     } else {
+      assert.equal(await evaluate("document.querySelector('.metabloom-visual').dataset.visualState"), 'ready');
       assert.equal(await evaluate(value), '650', 'Continuation failure must preserve the working calculator');
-      assert.match(message, /could not complete/i);
+      assert.match(message, /could not finish its explanation/i);
     }
     await screenshot(mode);
     results.push({ case: mode, isolatedFailure: true, textFallback: false });
@@ -240,8 +332,35 @@ try {
   fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ success: true, mode: 'built-app-http-fixtures', results }, null, 2));
   console.log(JSON.stringify({ success: true, results }));
 } catch (error) {
+  let browserState;
+  if (evaluate) {
+    try {
+      browserState = await evaluate(`(() => {
+        const messagesAvailable = typeof window.__orbMessages === 'function';
+        const messages = messagesAvailable ? window.__orbMessages() : [];
+        const snapshotAvailable = typeof window.__metabloomVisualSnapshot === 'function';
+        return { location: location.href, route: document.querySelector('.app-outlet')?.dataset.route,
+          routePhase: document.querySelector('.app-route-curtain')?.dataset.phase,
+          documentId: window.__visualRoundtripDocument, orbMounted: !!document.querySelector('.orb-page'),
+          messagesAvailable, messageCount: messages.length,
+          messages: messages.map(({ id, role, status }) => ({ id, role, status })),
+          snapshotAvailable, snapshot: snapshotAvailable ? window.__metabloomVisualSnapshot() : null,
+          pending: typeof window.__orbState === 'function' ? window.__orbState().pending : null,
+          visuals: Array.from(document.querySelectorAll('.metabloom-visual-slot'), slot => ({
+            id: slot.dataset.visualId, messageId: slot.closest('article')?.dataset.messageId,
+            status: slot.querySelector('.metabloom-visual')?.dataset.visualState })) };
+      })()`);
+    } catch (diagnosticError) { browserState = { error: diagnosticError.message }; }
+  }
+  const diagnostics = { browserState, authSessionCalls: fixture.authSessionCalls,
+    paidEndpointCounts: fixture.calls.reduce((counts, item) => {
+      const key = item.path + (item.phase ? `:${item.phase}` : '');
+      counts[key] = (counts[key] || 0) + 1;
+      return counts;
+    }, {}) };
+  console.log(JSON.stringify({ diagnostics }));
   if (screenshot) { try { await screenshot('failure'); } catch { /* Browser may have closed. */ } }
-  fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ success: false, error: error.message, fixtureErrors: fixture.errors, pageErrors, results }, null, 2));
+  fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ success: false, error: error.message, diagnostics, fixtureErrors: fixture.errors, pageErrors, results }, null, 2));
   throw error;
 } finally {
   socket?.close();
