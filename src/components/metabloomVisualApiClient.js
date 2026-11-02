@@ -1,5 +1,5 @@
 const { METABLOOM_VISUAL_VERSION, METABLOOM_VISUAL_DESIGN_VERSION, MAX_METABLOOM_VISUAL_BYTES,
-  METABLOOM_VISUAL_TIMEOUT_MS, METABLOOM_VISUAL_ERRORS, parseMetabloomVisualOffer, parseMetabloomVisual,
+  METABLOOM_VISUAL_TIMEOUT_MS, METABLOOM_VISUAL_ERRORS, parseMetabloomVisualOffer, parseMetabloomVisualSources, parseMetabloomVisual,
   visualKeys } = require('./metabloomVisualProtocol');
 const { parseMetabloomVisualQuota } = require('./metabloomVisualQuota');
 const METABLOOM_VISUAL_OFFER_EVENT = 'metabloom:visual-offer';
@@ -77,18 +77,12 @@ async function requestMetabloomVisual(offer, { signal, fetchImpl = globalThis.fe
     const value = JSON.parse(text + decoder.decode());
     if (!response.ok) throw visualFailure(Object.prototype.hasOwnProperty.call(METABLOOM_VISUAL_ERRORS, value?.code) ? value.code : 'visual_unavailable', value?.quota);
     if (!visualKeys(value, ['id', 'version', 'designVersion', 'spec', 'sources']) || value.id !== offer.id
-      || value.version !== METABLOOM_VISUAL_VERSION || value.designVersion !== METABLOOM_VISUAL_DESIGN_VERSION
-      || !Array.isArray(value.sources) || value.sources.length > 20) throw visualFailure('visual_invalid');
-    for (const source of value.sources) {
-      if (!visualKeys(source, ['id', 'title', 'url']) || !Number.isSafeInteger(source.id) || source.id < 1
-        || typeof source.title !== 'string' || source.title.length > 300 || typeof source.url !== 'string' || source.url.length > 2048) throw visualFailure('visual_invalid');
-      const url = new URL(source.url);
-      if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password) throw visualFailure('visual_invalid');
-    }
-    if (new Set(value.sources.map(source => source.id)).size !== value.sources.length) throw visualFailure('visual_invalid');
-    const spec = parseMetabloomVisual(value.spec, { kind: offer.kind, sources: value.sources });
+      || value.version !== METABLOOM_VISUAL_VERSION || value.designVersion !== METABLOOM_VISUAL_DESIGN_VERSION) throw visualFailure('visual_invalid');
+    const sources = parseMetabloomVisualSources(value.sources);
+    if (!sources) throw visualFailure('visual_invalid');
+    const spec = parseMetabloomVisual(value.spec, { kind: offer.kind, sources });
     if (!spec) throw visualFailure('visual_invalid');
-    return { spec, sources: value.sources };
+    return { spec, sources };
   } catch (error) {
     if (controller.signal.aborted) throw visualFailure(expired ? 'visual_timeout' : 'visual_cancelled');
     throw visualFailure(Object.prototype.hasOwnProperty.call(METABLOOM_VISUAL_ERRORS, error?.code) ? error.code : 'visual_unavailable', error?.quota);

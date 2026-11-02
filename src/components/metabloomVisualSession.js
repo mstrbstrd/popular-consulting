@@ -1,4 +1,6 @@
 const { parseMetabloomVisualOffer, visualText } = require('./metabloomVisualProtocol');
+const METABLOOM_TRANSCRIPT_READY_EVENT = 'metabloom:transcript-ready';
+const METABLOOM_RESET_EVENT = 'metabloom:reset';
 // A mount-scoped request, original signal, originating user message and exact
 // validated answer must all agree. Never attach an artifact to "the latest" reply.
 function beginMetabloomVisualTurn(detail, messages) {
@@ -30,4 +32,5 @@ function findMetabloomVisualReply(turn, messages) {
   return reply?.role === 'assistant' && /^assistant-\d+$/.test(reply.id)
     && reply.status === 'complete' && reply.content === turn.answer ? reply : null;
 }
-module.exports = { beginMetabloomVisualTurn, acceptMetabloomVisualOffer, findMetabloomVisualReply };
+module.exports = { METABLOOM_TRANSCRIPT_READY_EVENT, METABLOOM_RESET_EVENT,
+  beginMetabloomVisualTurn, acceptMetabloomVisualOffer, findMetabloomVisualReply };

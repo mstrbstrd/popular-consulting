@@ -32,6 +32,21 @@ const parseMetabloomVisualOffer = value => visualKeys(value, ['version', 'design
   && typeof value.id === 'string' && /^[a-f0-9]{48}$/.test(value.id)
   && METABLOOM_VISUAL_KINDS.includes(value.kind) && Number.isSafeInteger(value.expiresAt) && value.expiresAt > 0
   ? { ...value } : null;
+const parseMetabloomVisualSources = value => {
+  if (!Array.isArray(value) || value.length > 20) return null;
+  const sources = [];
+  for (const source of value) {
+    if (!visualKeys(source, ['id', 'title', 'url']) || !Number.isSafeInteger(source.id) || source.id < 1
+      || typeof source.title !== 'string' || source.title.length > 300
+      || typeof source.url !== 'string' || source.url.length > 2048) return null;
+    try {
+      const url = new URL(source.url);
+      if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password) return null;
+    } catch { return null; }
+    sources.push({ id: source.id, title: source.title, url: source.url });
+  }
+  return new Set(sources.map(source => source.id)).size === sources.length ? sources : null;
+};
 const parseProvenance = value => visualKeys(value, ['type', 'label', 'sourceIds'])
   && ['user', 'sources', 'calculated', 'illustrative', 'conceptual'].includes(value.type)
   && visualText(value.label, 400) && sourceIds(value.sourceIds)
@@ -149,5 +164,5 @@ module.exports = { METABLOOM_VISUAL_VERSION, METABLOOM_VISUAL_DESIGN_VERSION, ME
   MAX_METABLOOM_VISUAL_BYTES, MAX_METABLOOM_VISUAL_CONTEXT_BYTES, METABLOOM_VISUAL_TIMEOUT_MS,
   METABLOOM_TOOL_START_TIMEOUT_MS, METABLOOM_TOOL_CONTINUE_TIMEOUT_MS,
   METABLOOM_VISUAL_GENERATION_TIMEOUT_MS, METABLOOM_TOOL_TURN_TIMEOUT_MS,
-  METABLOOM_VISUAL_ERRORS, parseMetabloomVisualOffer, parseMetabloomVisual,
+  METABLOOM_VISUAL_ERRORS, parseMetabloomVisualOffer, parseMetabloomVisualSources, parseMetabloomVisual,
   evaluateMetabloomVisualFormula, visualKeys, visualText, byteLength };

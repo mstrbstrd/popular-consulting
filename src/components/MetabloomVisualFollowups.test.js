@@ -75,7 +75,11 @@ test('only a ready element connected to the active Orb root produces mounted evi
   ref.current.finishTool = finish;
   const slot = document.createElement('div');
   slot.innerHTML = '<section class="metabloom-visual" data-visual-state="ready"></section>';
-  const record = { mode: 'tool', status: 'ready', continuing: false, slot };
+  const record = { id: 'f'.repeat(48), mode: 'tool', status: 'ready', continuing: false,
+    slot, controller: new AbortController() };
+  ref.current.ready(record);
+  expect(finish).not.toHaveBeenCalled();
+  ref.current.records.set(record.id, record);
   ref.current.ready(record);
   expect(finish).toHaveBeenLastCalledWith(record, 'unknown');
   document.body.appendChild(slot);
@@ -87,4 +91,5 @@ test('only a ready element connected to the active Orb root produces mounted evi
   slot.remove();
   ref.current.ready(record);
   expect(finish).toHaveBeenLastCalledWith(record, 'unknown');
+  ref.current.records.delete(record.id);
 });

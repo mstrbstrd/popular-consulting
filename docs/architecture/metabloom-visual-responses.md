@@ -65,8 +65,42 @@ Real-scene compositing, existing transcript masking, deployed fonts and physical
 - Provenance distinguishes user data, retrieved sources, calculations, illustrations and conceptual explanations. Referenced source IDs must exist in supplied evidence. Structural validation does not establish that an interpretation is factually correct; evidence agreement requires evaluation.
 - Missing evidence or essential inputs yields an unavailable result instead of invented numerical data.
 - A failed, cancelled or expired visual changes only its own state. Completed text and research remain intact.
-- Starting a new message cancels unfinished visual generation. Ready visuals remain with their original message. Reset, message pruning and unmount clean up requests and portals. Hidden tabs do not deliberately abort visual network requests.
+- Starting a new message cancels unfinished visual generation. Ready visuals remain with their original message. Reset, message pruning and unmount clean up requests and portals; app navigation retains validated visual data separately. Hidden tabs do not deliberately abort visual network requests.
 - Local slider/input changes make no model calls. `Copy scenario` copies values as text. The next ordinary message may include bounded calculator inputs; the server resolves the session-owned specification and recomputes the result before using those inputs as context. Changing an input alone never submits a paid follow-up.
+
+## App navigation retention
+
+`MetabloomVisuals` saves a versioned `orbVisuals` snapshot through the existing
+account-scoped application navigation cache. It keeps at most 12 records and
+256 KiB of UTF-8 data, retaining the newest valid entries within both limits.
+Each record contains its original artifact and message IDs, presentation mode,
+and original offer expiry. Ready records also contain the validated spec and
+sources, and bounded local view state. Stopped cards retain no spec, sources,
+or interaction state.
+Controllers, callbacks, DOM nodes, timers, and pending requests are not saved.
+
+Returning to Orb waits for its current transcript to register, then reconstructs
+the same native components. Optional visuals return after their exact completed
+answer; explicit visuals return before their closing answer. A ready visual
+whose explanation never completed returns in its own assistant-side row after
+the original user message. Restoration does not regenerate the visual, resume
+its explanation, emit a new ready event, replay its expansion, or take focus.
+Unfinished generation returns as a stopped card. Late results from the previous
+mount cannot replace restored records.
+
+Calculator drafts, table sort/filter state, chart inspection and selected slices,
+flowchart selection, and data/steps disclosure state survive navigation. Invalid
+calculator drafts remain invalid rather than reverting to valid defaults.
+Restoring controls does not change the selected calculator; a new generated
+calculator or a user edit does. `Reset values` uses the original generated
+defaults. Orb Reset clears live and saved visuals while preserving the transcript.
+
+Restoration revalidates every spec, source URL, view state, and message association.
+Pruned owners and invalid records are dropped. A retained assistant can keep its
+visual when its older user message has been pruned. Logout and account changes
+invalidate the cache, including late cleanup writes. These snapshots exist only
+in the current tab. Local readability neither refreshes the original offer nor
+extends the server-owned follow-up record's expiry or authorization.
 
 ## Redis handoff, privacy and costs
 

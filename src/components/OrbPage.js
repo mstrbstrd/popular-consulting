@@ -309,7 +309,7 @@ const OrbPageContent = ({ onReady }) => {
               onConversationStateChange={setConversationStarted}
               onReady={onReady}
             />
-            <MetabloomVisuals />
+            <MetabloomVisuals navigation={navigation} />
           </main>
         </div>
 
