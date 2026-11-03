@@ -18,3 +18,16 @@ The workspace supplies one component heading. The frame's Details disclosure hol
 - Changing presentation must preserve the existing renderer, unfinished form drafts, table sort/filter, and chart selection.
 
 Automated coverage lives in `MetabloomArtifactSelection.test.js`, `MetabloomArtifactComposer.test.js`, `MetabloomComponentWorkspace.test.js`, and `MetabloomVisualFrame.test.js`. Server reference validation is covered by `scripts/metabloom-artifact-reference.test.cjs`.
+
+## Components in this conversation
+
+When more than one completed component belongs to the retained conversation,
+the workspace title becomes a native component picker. Numbered titles and
+component kinds distinguish duplicate names. Switching preserves each original
+renderer, its draft/selection, and its workspace scroll position. It preserves
+the compact or expanded presentation and never replaces an attached reference.
+
+The picker starts no API request and includes no failed, generating, detached,
+or pruned item. It is a conversation index, not durable saved storage. Closing
+the workspace returns to the original message, whose Show component button can
+reopen it. Reset and account cleanup remove the index with its owned records.

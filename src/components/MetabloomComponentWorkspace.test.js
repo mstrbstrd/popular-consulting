@@ -345,6 +345,54 @@ test('switching the visible component preserves table sorting and filtering with
   expect(requestMetabloomVisual).not.toHaveBeenCalled();
 });
 
+test('the conversation picker preserves component identity, focus, scrolling, and the separately captured reference', async () => {
+  const records = [record(1), record(2, table, { sort: { column: null, direction: 'asc' }, filter: '' })];
+  workspace(initialState(records, id(1))).mount();
+  const calculatorFrame = await screen.findByRole('region', { name: calculator.title });
+  const tableFrame = screen.getByRole('region', { name: table.title });
+  fireEvent.click(within(calculatorFrame).getByRole('button', { name: 'Ask about this scenario' }));
+  const attachment = screen.getByRole('group', { name: 'Selected visual reference' });
+  const picker = screen.getByRole('combobox', { name: 'Components in this conversation' });
+  const body = document.querySelector('.metabloom-component-workspace__body');
+  fireEvent.click(screen.getByRole('button', { name: 'Open' }));
+  body.scrollTop = 75;
+  act(() => picker.focus());
+  fireEvent.change(picker, { target: { value: id(2) } });
+  expect(picker).toHaveFocus();
+  expect(activeWorkspace()).toContainElement(tableFrame);
+  expect(document.querySelector('.orb-page')).toHaveAttribute('data-component-view', 'expanded');
+  fireEvent.change(within(tableFrame).getByRole('searchbox'), { target: { value: 'Project 1' } });
+  fireEvent.click(within(tableFrame).getByRole('button', { name: /Hours/ }));
+  body.scrollTop = 110;
+  fireEvent.change(picker, { target: { value: id(1) } });
+  expect(body.scrollTop).toBe(75);
+  expect(activeWorkspace()).toContainElement(calculatorFrame);
+  fireEvent.change(picker, { target: { value: id(2) } });
+  expect(body.scrollTop).toBe(110);
+  expect(within(tableFrame).getByRole('searchbox')).toHaveValue('Project 1');
+  expect(within(tableFrame).getByRole('columnheader', { name: /Hours/ })).toHaveAttribute('aria-sort', 'ascending');
+  expect(attachment).toHaveTextContent('Hours: 17 · Hourly rate: 85 CAD · Result: 1,445 CAD');
+  expect(document.querySelectorAll('.metabloom-visual')).toHaveLength(2);
+  expect(requests).toHaveLength(0);
+  expect(requestMetabloomVisual).not.toHaveBeenCalled();
+});
+
+test('picker labels distinguish duplicate titles and remove records pruned from the conversation', async () => {
+  const records = [record(1), record(2)];
+  const state = workspace(initialState(records, id(1))), visualRef = React.createRef();
+  render(<Harness navigation={state.navigation} visualRef={visualRef} />);
+  const picker = await screen.findByRole('combobox', { name: 'Components in this conversation' });
+  expect(within(picker).getByRole('option', { name: '1. Project price · Calculator' })).toHaveValue(id(1));
+  expect(within(picker).getByRole('option', { name: '2. Project price · Calculator' })).toHaveValue(id(2));
+  const previous = window.__orbMessages;
+  window.__orbMessages = () => previous().filter(message => !['user-3', 'assistant-4'].includes(message.id));
+  act(() => visualRef.current.reconcile());
+  expect(screen.queryByRole('combobox', { name: 'Components in this conversation' })).not.toBeInTheDocument();
+  expect(document.querySelectorAll('.metabloom-visual')).toHaveLength(1);
+  window.__orbMessages = previous;
+  expect(requests).toHaveLength(0);
+});
+
 test('chart selection and expanded details survive workspace moves', async () => {
   const item = record(1, line, { active: 1, detailsOpen: true });
   workspace(initialState([item], item.id)).mount();

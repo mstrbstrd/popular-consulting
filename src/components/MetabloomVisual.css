@@ -21,6 +21,16 @@
 }
 .orb-page .metabloom-component-workspace__summary,
 .orb-page .metabloom-component-workspace__toolbar > [data-workspace-toggle] { display: none; }
+.orb-page .metabloom-component-workspace__picker { display: block; min-width: 0; margin: 0; }
+.orb-page .metabloom-component-workspace__picker select {
+  display: block; box-sizing: border-box; width: 100%; min-width: 0; min-height: 44px;
+  padding: 6px 4px; border: 0; border-radius: var(--aetheris-radius-sm);
+  background: var(--aetheris-panel); color: var(--aetheris-ink);
+  font: 600 1.3rem/1.4 var(--aetheris-font-sans); text-overflow: ellipsis; cursor: pointer;
+}
+.orb-page .metabloom-component-workspace__picker select:focus-visible {
+  outline: 2px solid var(--aetheris-focus-line); outline-offset: -2px;
+}
 .orb-page .metabloom-component-workspace__toolbar > button,
 .orb-page .metabloom-visual-launcher > button {
   min-height: 4.4rem; border: 1px solid var(--aetheris-line); border-radius: var(--aetheris-radius-lg);

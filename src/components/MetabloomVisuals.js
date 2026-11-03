@@ -16,6 +16,8 @@ import { METABLOOM_ARTIFACT_REFERENCE_EVENT, METABLOOM_ARTIFACT_UPDATE_EVENT,
 import { describeMetabloomVisualSelection, currentMetabloomVisualSelection, summarizeMetabloomVisual } from './metabloomVisualSelection';
 import { isMetabloomFreshResearchRequest } from './metabloomResearchReference';
 const safeReply = response => ({ version: METABLOOM_CHAT_PROTOCOL_VERSION, segments: [{ response }] });
+const visualKindLabels = { calculator: 'Calculator', table: 'Table', 'line-chart': 'Line chart',
+  'bar-chart': 'Bar chart', 'pie-chart': 'Pie chart', flowchart: 'Flowchart' };
 const toolFailure = error => {
   const code = METABLOOM_TOOL_ERROR_CODES.includes(error?.code) ? error.code : 'tool_unavailable';
   const requestRef = parseMetabloomRequestRef(error?.requestRef);
@@ -159,6 +161,13 @@ export default class MetabloomVisuals extends React.Component {
     const host = this.root?.querySelector('.metabloom-chat__workspace');
     return this.ownsSurface() && host?.isConnected ? host : null;
   };
+  availableComponents = () => {
+    if (!this.ownsSurface()) return [];
+    const owners = new Set(this.messages().map(message => message.id));
+    return Array.from(this.records.values()).filter(record => record.status === 'ready' && record.spec
+      && owners.has(record.replyId || record.userId) && record.slot?.isConnected
+      && record.article?.isConnected && this.root.contains(record.slot));
+  };
   ensureLauncher = record => {
     if (record.status !== 'ready' || record.launcher || !this.workspaceHost()) return;
     record.launcher = document.createElement('div');
@@ -236,6 +245,7 @@ export default class MetabloomVisuals extends React.Component {
       return true;
     }
     const previous = this.records.get(this.activeVisualId);
+    if (previous && this.workspaceBody) previous.workspaceScrollTop = this.workspaceBody.scrollTop;
     this.activeVisualId = null;
     if (previous) this.placeAtOrigin(previous);
     this.ensureLauncher(record);
@@ -246,10 +256,13 @@ export default class MetabloomVisuals extends React.Component {
       this.workspaceBody.className = 'metabloom-component-workspace__body';
       this.workspaceBody.tabIndex = -1;
     }
-    host.append(this.workspaceToolbar, this.workspaceBody);
+    // Re-appending a focused toolbar can blur its native select. Only attach
+    // these persistent containers when returning from a closed workspace.
+    if (this.workspaceToolbar.parentNode !== host) host.appendChild(this.workspaceToolbar);
+    if (this.workspaceBody.parentNode !== host) host.appendChild(this.workspaceBody);
     const focused = record.slot.contains(document.activeElement) ? document.activeElement : null;
     this.workspaceBody.appendChild(record.slot);
-    this.workspaceBody.scrollTop = 0;
+    this.workspaceBody.scrollTop = record.workspaceScrollTop || 0;
     this.activeVisualId = record.id;
     this.root.dataset.activeComponent = 'true';
     this.publishWorkspaceView(this.workspaceView);
@@ -260,6 +273,7 @@ export default class MetabloomVisuals extends React.Component {
   };
   returnComponent = () => {
     const record = this.records.get(this.activeVisualId);
+    if (record && this.workspaceBody) record.workspaceScrollTop = this.workspaceBody.scrollTop;
     this.workspaceSelectionRevision += 1;
     this.activeVisualId = null;
     if (record) this.placeAtOrigin(record);
@@ -571,11 +585,20 @@ export default class MetabloomVisuals extends React.Component {
   };
   render() {
     const active = this.records.get(this.activeVisualId);
+    const components = this.availableComponents();
     return <>
       <span ref={this.captureAnchor} hidden aria-hidden="true" />
       {active && this.workspaceToolbar && createPortal(<>
         <div className="metabloom-component-workspace__identity">
-          <h3 title={active.spec.title}>{active.spec.title}</h3>
+          <h3 title={active.spec.title} className={components.length > 1 ? 'metabloom-visual__sr-only' : undefined}>{active.spec.title}</h3>
+          {components.length > 1 && <label className="metabloom-component-workspace__picker">
+            <span className="metabloom-visual__sr-only">Components in this conversation</span>
+            <select value={active.id} onChange={event => this.activateComponent(this.records.get(event.target.value), { explicit: true })}>
+              {components.map((record, index) => <option key={record.id} value={record.id}>
+                {index + 1}. {record.spec.title} · {visualKindLabels[record.spec.kind]}
+              </option>)}
+            </select>
+          </label>}
           <p className="metabloom-component-workspace__summary">{summarizeMetabloomVisual(active)}</p>
         </div>
         <button type="button" data-workspace-toggle aria-expanded={this.workspaceView === 'expanded'}
