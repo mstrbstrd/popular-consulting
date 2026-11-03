@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { EventEmitter } = require('node:events');
 const { randomBytes, randomUUID, createHash } = require('node:crypto');
 const { execFile } = require('node:child_process');
 const { promisify } = require('node:util');
@@ -41,6 +42,24 @@ const hash = value => createHash('sha256').update(value).digest('hex');
 const identity = () => ({ accountKey: randomBytes(32).toString('hex') });
 let runtimePromise, runtime;
 
+function fixturePool(Pool, options) {
+  const pool = new Pool(options);
+  const clientEnds = new Set();
+  pool.on('connect', client => {
+    const ended = new Promise(resolve => client.once('end', () => {
+      clientEnds.delete(ended);
+      resolve();
+    }));
+    clientEnds.add(ended);
+  });
+  return { pool, async close() {
+    // pg-pool removes idle clients from its count before their sockets end.
+    // A database must outlive those sockets, including ones already closing.
+    await pool.end();
+    await Promise.all(clientEnds);
+  } };
+}
+
 function pgToolEnv(target, database) {
   // Do not pass inherited PGHOST, PGSERVICE, PGOPTIONS, credentials or arbitrary
   // application secrets into native backup tools. The test target is complete.
@@ -61,8 +80,8 @@ async function getRuntime() {
     const poolOptions = { ...target, max: 8, connectionTimeoutMillis: 5000,
       statement_timeout: 10000, lock_timeout: 5000, idle_in_transaction_session_timeout: 15000,
       application_name: 'metabloom-disposable-integration' };
-    const admin = new Pool(poolOptions);
-    runtime = { target, Pool, poolOptions, admin, pgDump, pgRestore };
+    const { pool: admin, close: closeAdmin } = fixturePool(Pool, poolOptions);
+    runtime = { target, Pool, poolOptions, admin, closeAdmin, pgDump, pgRestore };
     const version = await admin.query('SHOW server_version_num');
     assert.ok(Number(version.rows[0].server_version_num) >= 160000
       && Number(version.rows[0].server_version_num) < 170000, 'This gate verifies a real PostgreSQL 16 server');
@@ -70,18 +89,18 @@ async function getRuntime() {
   })();
   return runtimePromise;
 }
-test.after(async () => { if (runtime) await runtime.admin.end(); });
+test.after(async () => { if (runtime) await runtime.closeAdmin(); });
 
 async function database(t, { migrate = true, config = {} } = {}) {
   const rt = await getRuntime();
   const name = `orb_saved_work_test_${randomBytes(10).toString('hex')}`;
   assert.match(name, /^orb_saved_work_test_[a-f0-9]{20}$/);
   await rt.admin.query(`CREATE DATABASE "${name}" TEMPLATE template0`);
-  const pool = new rt.Pool({ ...rt.poolOptions, database: name });
+  const { pool, close } = fixturePool(rt.Pool, { ...rt.poolOptions, database: name });
   const additionalPools = [];
   t.after(async () => {
-    try { await Promise.all([pool.end(), ...additionalPools.map(value => value.end())]); }
-    finally { await rt.admin.query(`DROP DATABASE IF EXISTS "${name}" WITH (FORCE)`); }
+    await Promise.all([close(), ...additionalPools.map(value => value.close())]);
+    await rt.admin.query(`DROP DATABASE IF EXISTS "${name}"`);
   });
   const settings = { ...scope, ...config };
   const migration = migrate ? await migrateMetabloomSavedWork({ pool, config: settings }) : null;
@@ -90,9 +109,9 @@ async function database(t, { migrate = true, config = {} } = {}) {
   return { ...rt, name, pool, config: settings, store, migration,
     storeWith: overrides => createMetabloomSavedWorkStore({ pool, config: { ...settings, ...overrides } }),
     reconnect: () => {
-      const next = new rt.Pool({ ...rt.poolOptions, database: name });
+      const next = fixturePool(rt.Pool, { ...rt.poolOptions, database: name });
       additionalPools.push(next);
-      return createMetabloomSavedWorkStore({ pool: next, config: settings });
+      return createMetabloomSavedWorkStore({ pool: next.pool, config: settings });
     } };
 }
 async function snapshot(pool) {
@@ -133,6 +152,73 @@ function researchContent({ full = false, notesLength = 200 } = {}) {
 }
 const request = (content = visualContent(), title = 'Fictional saved work') => ({ requestId: randomUUID(), title, content });
 const rejectsCode = (promise, code, status) => assert.rejects(promise, { code, ...(status ? { status } : {}) });
+
+// Exercise the installed pg.Pool without a database. Closing each controlled
+// client is explicit, so the teardown regression does not depend on timing.
+class ControlledClient extends EventEmitter {
+  constructor() { super(); this._queryable = true; this.endCallback = null; this.finished = false; }
+  connect(callback) { callback(null); }
+  end(callback) { assert.equal(this.endCallback, null); this.endCallback = callback; }
+  finishEnd() {
+    assert.equal(typeof this.endCallback, 'function');
+    assert.equal(this.finished, false);
+    this.finished = true;
+    this.emit('end');
+    this.endCallback();
+  }
+}
+const controlledPool = () => fixturePool(require('pg').Pool,
+  { Client: ControlledClient, max: 3, idleTimeoutMillis: 0 });
+const nextTurn = () => new Promise(resolve => setImmediate(resolve));
+
+test('fixture pool teardown waits for every idle client after pool.end resolves', async () => {
+  const f = controlledPool();
+  const clients = await Promise.all(Array.from({ length: 3 }, () => f.pool.connect()));
+  for (const client of clients) client.release();
+  let closed = false;
+  const closing = f.close().then(() => { closed = true; });
+  assert.equal(f.pool.ended, true, 'pg.Pool has already resolved its own end callback');
+  assert.equal(f.pool.totalCount, 0, 'Removal from the pool does not prove the sockets have ended');
+  try {
+    await nextTurn();
+    assert.equal(closed, false);
+    clients[0].finishEnd();
+    await nextTurn();
+    assert.equal(closed, false);
+    clients[1].finishEnd();
+    await nextTurn();
+    assert.equal(closed, false);
+  } finally {
+    for (const client of clients) if (!client.finished) client.finishEnd();
+    await closing;
+  }
+  assert.equal(closed, true);
+});
+
+test('fixture pool teardown waits for a checked-out client to be released and ended', async () => {
+  const f = controlledPool(), client = await f.pool.connect();
+  let closed = false;
+  const closing = f.close().then(() => { closed = true; });
+  try {
+    await nextTurn();
+    assert.equal(closed, false);
+    assert.equal(client.endCallback, null, 'The fixture cannot end a connection still in use');
+    client.release();
+    await nextTurn();
+    assert.equal(closed, false);
+  } finally {
+    if (client.endCallback === null) client.release();
+    client.finishEnd();
+    await closing;
+  }
+  assert.equal(closed, true);
+});
+
+test('fixture pool teardown closes an empty pool without waiting for client events', async () => {
+  const f = controlledPool();
+  await f.close();
+  assert.equal(f.pool.ended, true);
+});
 
 test('disposable target guard refuses remote hosts, connection overrides and implicit databases before connecting', () => {
   const allowed = { METABLOOM_SAVED_WORK_TEST_ALLOW_DISPOSABLE: '1',

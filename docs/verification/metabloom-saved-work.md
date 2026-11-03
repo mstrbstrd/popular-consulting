@@ -18,7 +18,7 @@ migration, resource provisioning, provider request or environment update.
 
 | Check | Result |
 | --- | --- |
-| Full application Jest suite | 213 suites / 2,098 tests passed |
+| Initial implementation: full application Jest suite | 213 suites / 2,098 tests passed |
 | Authentication suite, including stable account identity | 106 passed |
 | Existing API/research/visual/provider contracts | 403 passed |
 | New saved-content validation | 41 passed |
@@ -26,7 +26,7 @@ migration, resource provisioning, provider request or environment update.
 | New store/migration transaction contracts | 16 passed |
 | Source and new server-boundary lint | Passed |
 | Production build | Passed, including route HTML and private invoice isolation |
-| New integration harness target guard | Passed without a database connection |
+| Integration harness target guard and pool teardown regressions | 4 passed without a database connection |
 | Workflow parsing, syntax and whitespace checks | Passed |
 
 The 69 new foundation tests run with `npm run test:saved-work`. Account identity
@@ -75,8 +75,9 @@ The TAP pipeline explicitly uses Bash with pipefail, so a failing test cannot be
 hidden by a successful evidence upload. Only TAP output is uploaded, never a
 database dump.
 
-The integration suite has 16 cases: one offline target guard and 15 cases that
-require an actual PostgreSQL 16 server. It verifies:
+The integration suite has 19 cases: an offline target guard, three offline pool
+teardown regressions and 15 cases that require an actual PostgreSQL 16 server.
+It verifies:
 
 1. Migration application/reapplication, rollback, checksum drift and missing-marker rejection.
 2. Stable account/default-workspace creation and ownership across read/list/mutation paths.
@@ -93,6 +94,35 @@ The harness accepts only explicit opt-in, literal loopback hosts and the dedicat
 `orb_saved_work_test_admin` fixture database. It creates randomly named test
 databases, removes only its fixtures and rejects URL connection overrides.
 
+## First native CI run and teardown correction
+
+[The first PostgreSQL CI run](https://github.com/mstrbstrd/popular-consulting/actions/runs/41587084175/job/125755002660)
+passed 15 of its original 16 cases, including native backup/restore, quota races,
+ownership, migrations and restricted runtime privileges. The duplicate-create
+and competing-revision case failed during cleanup with an uncaught
+`terminating connection due to administrator command` error.
+
+The pinned driver's `pool.end()` can resolve after removing idle clients from
+its pool bookkeeping but before their sockets finish closing. The fixture then
+issued `DROP DATABASE ... WITH (FORCE)`, which could terminate a still-closing
+connection. This was a test teardown race.
+
+Fixture cleanup now tracks each connected client's actual `end` event and waits
+for those events after `pool.end()`, including for reconnect and administrator
+pools. It then uses ordinary `DROP DATABASE`, so leaked connections remain a
+test failure. No error is suppressed and no delay or retry masks the race.
+
+Three deterministic offline regressions use the installed `pg.Pool` with a
+controlled client to cover idle, checked-out and empty pools. The idle-client
+case reproduces the failure with the old pool-only shutdown and passes with
+the corrected cleanup. Application code, database schema and concurrency
+assertions are unchanged. The corrected native suite still needs a green CI run.
+
+The correction's full Jest rerun completed with 211 of 213 suites and 2,096 of
+2,098 tests passing. Two unchanged UI tests failed: the HomePage recovery class
+assertion and a five-second calculator-restoration timeout. An isolated rerun of
+both files passed all 34 tests with unchanged assertions and timeouts.
+
 ## Unrun checks and activation boundaries
 
 The native integration suite was **not run locally**. Official PostgreSQL 16.15
@@ -100,9 +130,10 @@ server/client binaries were available, but `initdb` refuses root. This execution
 environment maps only UID/GID 0 and denies a supported nonroot namespace setup.
 No root-check or sandbox restriction was bypassed.
 
-Remote CI and deployment are not awaited as part of this handoff. The PostgreSQL
-workflow must pass before merging this foundation. Its result is not implied by
-the local PGlite checks or the existing green application tests.
+CI and deployment results for the teardown correction are not awaited as part
+of this handoff. The PostgreSQL workflow must pass before merging this
+foundation. The first run's 15 successful cases and the local checks do not
+establish that the corrected native suite is green.
 
 No hosted PostgreSQL resource, deployed database connection, provider backup
 policy or live saved-work user flow has been verified. Provisioning, restricted
