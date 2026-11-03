@@ -9,6 +9,7 @@ jest.mock("./metabloomApiClient", () => ({ requestMetabloomResponse: () => new P
 const originalViewport = window.visualViewport;
 const originalMedia = window.matchMedia;
 const originalHeight = window.innerHeight;
+const originalResizeObserver = window.ResizeObserver;
 let viewport;
 let media;
 const renderChat = () => render(<div className="orb-page"><OrbSection isActive /></div>);
@@ -33,6 +34,7 @@ afterEach(() => {
   window.visualViewport = originalViewport;
   window.matchMedia = originalMedia;
   window.innerHeight = originalHeight;
+  window.ResizeObserver = originalResizeObserver;
 });
 
 test("touch Enter sends the complete multiline draft", () => {
@@ -109,4 +111,44 @@ test("short windows still adapt when visualViewport is unavailable", () => {
   fireEvent.resize(window);
   flushViewport();
   expect(container.firstChild).toHaveAttribute("data-compact-viewport", "false");
+});
+
+test("component layout changes follow the latest reply without moving a reader in earlier messages", () => {
+  const observers = [];
+  window.ResizeObserver = class {
+    constructor(callback) {
+      this.callback = callback;
+      this.targets = new Set();
+      this.disconnect = jest.fn(() => this.targets.clear());
+      observers.push(this);
+    }
+    observe(target) { this.targets.add(target); }
+  };
+  const { unmount } = renderChat();
+  const transcript = screen.getByRole("log", { name: "Conversation" });
+  const workspace = screen.getByRole("region", { name: "Current component" });
+  expect(workspace.parentElement).toBe(transcript.parentElement);
+  expect(transcript).not.toContainElement(workspace);
+  let scrollHeight = 600;
+  Object.defineProperties(transcript, {
+    scrollHeight: { configurable: true, get: () => scrollHeight },
+    clientHeight: { configurable: true, value: 200 },
+  });
+  fireEvent.change(input(), { target: { value: "Explain this component" } });
+  fireEvent.keyDown(input(), { key: "Enter" });
+  const resizeTranscript = () => act(() => {
+    observers.filter(observer => observer.targets.has(transcript)).forEach(observer => observer.callback());
+  });
+  transcript.scrollTop = 60;
+  fireEvent.scroll(transcript);
+  resizeTranscript();
+  expect(transcript.scrollTop).toBe(60);
+  expect(screen.getByRole("button", { name: "Latest message" })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Latest message" }));
+  scrollHeight = 900;
+  resizeTranscript();
+  expect(transcript.scrollTop).toBe(900);
+  expect(screen.queryByRole("button", { name: "Latest message" })).not.toBeInTheDocument();
+  unmount();
+  observers.forEach(observer => expect(observer.disconnect).toHaveBeenCalled());
 });

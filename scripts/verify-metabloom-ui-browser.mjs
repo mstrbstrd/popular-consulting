@@ -10,6 +10,24 @@ import { findBrowser } from './dark-evidence-browser.mjs';
 
 const output = path.resolve('metabloom-ui-functional');
 fs.mkdirSync(output, { recursive: true });
+// A pinned frame moves outside the transcript. Its immutable launcher remains
+// in the exact original assistant article; current DOM order is not ownership.
+const visualOwner = `slot => {
+  if (!slot) return null;
+  const id = slot.dataset.visualId;
+  const launchers = Array.from(document.querySelectorAll('.metabloom-visual-launcher'))
+    .filter(node => node.dataset.visualId === id);
+  if (launchers.length !== 1) return null;
+  const article = launchers[0].closest('article');
+  const owners = Array.from(document.querySelectorAll('article[data-visual-answer]'))
+    .filter(node => node.dataset.visualAnswer === id);
+  if (!article || owners.length !== 1 || owners[0] !== article) return null;
+  const messages = window.__orbMessages();
+  const index = messages.findIndex(message => message.id === article.dataset.messageId);
+  if (index < 0 || messages[index].role !== 'assistant' || messages[index].status !== 'complete') return null;
+  if (slot.dataset.visualUserId && messages[index - 1]?.id !== slot.dataset.visualUserId) return null;
+  return article;
+}`;
 const reply = text => ({ version: '2.0.0', segments: [{ response: text }] });
 const spec = {
   version: '1', designVersion: 'aetheris-1', kind: 'calculator', title: 'Project Price',
@@ -218,7 +236,8 @@ try {
     assert.equal(await evaluate(value), '650');
     assert.equal(await evaluate("document.querySelectorAll('.metabloom-visual input[type=number]').length"), 2);
     await evaluate("void (window.__testedArtifact = document.querySelector('.metabloom-visual'))");
-    assert.equal(await evaluate("window.__testedArtifact.closest('article').dataset.messageId.startsWith('assistant-')"), true);
+    assert.equal(await evaluate(`!!(${visualOwner})(window.__testedArtifact.closest('.metabloom-visual-slot'))`), true,
+      'The live frame must retain its exact original assistant-message owner');
     await setInput('.metabloom-visual input[type=number]', 12);
     await until(`${value} === '780'`);
     await setInput('.metabloom-visual input[type=number]', 10);
@@ -262,12 +281,13 @@ try {
     });
     const readVisuals = () => evaluate(`Array.from(document.querySelectorAll('.metabloom-visual-slot'), slot => {
       const card = slot.querySelector('.metabloom-visual');
-      return { id: slot.dataset.visualId, messageId: slot.closest('article')?.dataset.messageId,
+      return { id: slot.dataset.visualId, messageId: (${visualOwner})(slot)?.dataset.messageId,
         status: card?.dataset.visualState, kind: card?.dataset.visualKind,
         referenceAvailable: !!card.querySelector('button[aria-label="Ask about this scenario"]'),
         inputs: Array.from(card.querySelectorAll('input[type=number]'), input => input.value),
         result: card.querySelector('output')?.textContent.replace(/[^0-9]/g, '') };
-    })`);
+    }).sort((left, right) => window.__orbMessages().findIndex(message => message.id === left.messageId)
+      - window.__orbMessages().findIndex(message => message.id === right.messageId))`);
     const actionable = selector => `(() => {
       const element = document.querySelector(${JSON.stringify(selector)});
       const rect = element?.getBoundingClientRect();
@@ -293,7 +313,7 @@ try {
       await submit(request);
       await until(`document.querySelectorAll('.metabloom-visual[data-visual-state="ready"]').length === ${count}
         && !window.__orbState().pending
-        && Array.from(document.querySelectorAll('.metabloom-visual')).every(card => card.closest('article')?.dataset.messageId?.startsWith('assistant-'))`);
+        && Array.from(document.querySelectorAll('.metabloom-visual')).every(card => (${visualOwner})(card.closest('.metabloom-visual-slot')))`);
     }
     const initialVisuals = await readVisuals();
     assert.equal(new Set(initialVisuals.map(visual => visual.id)).size, 2, 'Each calculator must have its own artifact ID');
@@ -437,14 +457,18 @@ try {
     const conversion = fixture.calls.filter(item => item.path === '/api/metabloom-tool' && item.phase === 'start').at(-1);
     assert.deepEqual(conversion.body.artifactContext, explanation.body.artifactContext,
       'Ordinary explanation and explicit conversion must use the same selected data reference');
+    const convertedId = fixture.calls.filter(item => item.path === '/api/metabloom-visual').at(-1).body.id;
+    assert.notEqual(convertedId, id, 'Conversion must create a distinct owned artifact');
+    const convertedSelector = `.metabloom-visual-slot[data-visual-id="${convertedId}"] .metabloom-visual`;
+    await until(`!!(${visualOwner})(document.querySelector(${JSON.stringify(convertedSelector)})?.closest('.metabloom-visual-slot'))`);
     const converted = await evaluate(`(() => {
-      const cards = document.querySelectorAll('.metabloom-visual[data-visual-kind="table"]');
-      return Array.from(cards[cards.length - 1].querySelectorAll('tbody tr'), row =>
+      const card = document.querySelector(${JSON.stringify(convertedSelector)});
+      return Array.from(card.querySelectorAll('tbody tr'), row =>
         Array.from(row.querySelectorAll('td')).slice(0, 2).map(cell => cell.textContent));
     })()`);
     assert.deepEqual(converted, [['Charlie', '650']]);
     assert.equal(fixture.calls.length, 7, 'Conversion consumes one start, generation and continuation');
-    await evaluate("Array.from(document.querySelectorAll('.metabloom-visual')).at(-1).scrollIntoView({ block: 'center' })");
+    await evaluate(`document.querySelector(${JSON.stringify(convertedSelector)}).scrollIntoView({ block: 'center' })`);
     await screenshot('table-reference-conversion');
     results.push({ case: 'table-reference-conversion', originalRowIndex: 2,
       sortedAndFilteredIdentity: true, selectionRequests: 0, explanationConversionReferenceEqual: true });
@@ -502,7 +526,7 @@ try {
           snapshotAvailable, snapshot: snapshotAvailable ? window.__metabloomVisualSnapshot() : null,
           pending: typeof window.__orbState === 'function' ? window.__orbState().pending : null,
           visuals: Array.from(document.querySelectorAll('.metabloom-visual-slot'), slot => ({
-            id: slot.dataset.visualId, messageId: slot.closest('article')?.dataset.messageId,
+            id: slot.dataset.visualId, messageId: (${visualOwner})(slot)?.dataset.messageId,
             status: slot.querySelector('.metabloom-visual')?.dataset.visualState })) };
       })()`);
     } catch (diagnosticError) { browserState = { error: diagnosticError.message }; }

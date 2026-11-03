@@ -340,9 +340,9 @@ describe("conversation presence and reading control", () => {
     fireEvent.scroll(transcript);
     act(() => stream.push(line(second, 1)));
     expect(transcript.scrollTop).toBe(100);
-    fireEvent.click(screen.getByRole("button", { name: "Latest message ↓" }));
+    fireEvent.click(screen.getByRole("button", { name: "Latest message" }));
     expect(transcript.scrollTop).toBe(1200);
-    expect(screen.queryByRole("button", { name: "Latest message ↓" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Latest message" })).not.toBeInTheDocument();
   });
 
   test("Stop stays available while drafting and preserves the unsent text", async () => {

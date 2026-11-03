@@ -406,32 +406,36 @@ describe('the explicit visual reading position in the real Orb transcript', () =
     };
   };
 
-  test('a long ready visual opens below the fade and keeps its position and focused input through the closing reply', async () => {
+  test('a long ready visual opens outside the transcript fade and keeps its focused input through the closing reply', async () => {
     const { transcript, ready, finish } = await setup();
     expect(transcript.scrollTop).toBe(3400);
     const visual = await ready();
-    expect(visual.getBoundingClientRect().top).toBe(184);
-    const readingPosition = transcript.scrollTop;
+    const workspace = screen.getByRole('region', { name: 'Current component' });
+    expect(workspace).toContainElement(visual);
+    expect(transcript).not.toContainElement(visual);
     const people = screen.getByLabelText('People');
     fireEvent.change(people, { target: { value: '4' } });
     act(() => people.focus());
     await finish();
-    expect(transcript.scrollTop).toBe(readingPosition);
+    expect(transcript.scrollTop).toBe(3800);
+    expect(workspace).toContainElement(visual);
     expect(people).toHaveFocus();
     expect(people).toHaveValue(4);
-    expect(visual.closest('article')).toHaveAttribute('data-message-id', 'assistant-2');
+    expect(screen.getByRole('button', { name: `Show component: ${calculator.title}` }).closest('article'))
+      .toHaveAttribute('data-message-id', 'assistant-2');
     expect(requestMetabloomVisual).toHaveBeenCalledTimes(1);
   });
 
-  test('a ready visual already in view does not jump when the closing reply or viewport updates arrive', async () => {
+  test('the ready workspace remains independent while the transcript follows closing reply and viewport updates', async () => {
     const { transcript, ready, finish } = await setup({ visualHeight: 200, visualTop: 3900 });
-    await ready();
+    const visual = await ready();
     expect(transcript.scrollTop).toBe(3400);
     await finish();
-    expect(transcript.scrollTop).toBe(3400);
+    expect(transcript.scrollTop).toBe(3800);
+    expect(screen.getByRole('region', { name: 'Current component' })).toContainElement(visual);
     fireEvent(window, new Event('resize'));
     await act(async () => new Promise(resolve => window.requestAnimationFrame(resolve)));
-    expect(transcript.scrollTop).toBe(3400);
+    expect(transcript.scrollTop).toBe(3800);
   });
 
   test('manual earlier reading stays put, while a new ordinary turn restores following latest and rejects an old visual notification', async () => {

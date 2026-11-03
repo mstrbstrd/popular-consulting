@@ -105,7 +105,7 @@ const MetabloomReactionPanel = ({ onReact, disabled = false, intensity: controll
         <button ref={toggleRef} type="button" aria-expanded={open} aria-controls="metabloom-reaction-panel" onClick={() => setOpen(!open)}>
           Reactions <span aria-hidden="true">{open ? "−" : "+"}</span>
         </button>
-        <button type="button" disabled={disabled} onClick={() => play(selected)} aria-label={`Replay ${action.label.toLowerCase()} reaction`}>
+        <button type="button" className="metabloom-reactions__replay-shortcut" disabled={disabled} onClick={() => play(selected)} aria-label={`Replay ${action.label.toLowerCase()} reaction`}>
           Replay
         </button>
       </div>
@@ -130,6 +130,10 @@ const MetabloomReactionPanel = ({ onReact, disabled = false, intensity: controll
             </button>
           </div>
           <div className="metabloom-reactions__content">
+            <button type="button" className="metabloom-reactions__replay-selected" disabled={disabled}
+              onClick={() => play(selected)} aria-label="Replay selected reaction">
+              Replay {action.label.toLowerCase()}
+            </button>
             <div className="metabloom-reactions__grid" role="group" aria-label="Preview a reaction">
               {METABLOOM_ACTIONS.map((reaction) => (
                 <button key={reaction.id} type="button" disabled={disabled} onClick={() => play(reaction.id)} title={reaction.intent} aria-label={`Preview ${reaction.label.toLowerCase()} reaction`} aria-pressed={selected === reaction.id} data-selected={selected === reaction.id ? "true" : "false"}>

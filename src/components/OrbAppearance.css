@@ -1,0 +1,223 @@
+.orb-page {
+  --orb-header-clearance: max(96px, calc(env(safe-area-inset-top) + 84px));
+}
+
+.orb-page .orb-appearance { display: flex; min-width: 0; }
+.orb-page .orb-appearance__trigger,
+.orb-page .orb-appearance__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  margin: 0;
+  padding: 8px 12px;
+  gap: 7px;
+  border: 1px solid var(--aetheris-line);
+  border-radius: var(--aetheris-radius-pill);
+  background: var(--aetheris-glass-panel);
+  color: var(--aetheris-ink);
+  font: 600 12px/1.2 var(--aetheris-font-sans);
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transform: none;
+}
+.orb-page .orb-appearance__trigger:hover,
+.orb-page .orb-appearance__trigger[aria-expanded="true"],
+.orb-page .orb-appearance__close:hover { background: var(--aetheris-state-layer); }
+.orb-page .orb-appearance__trigger:focus-visible,
+.orb-page .orb-appearance__close:focus-visible {
+  outline: 2px solid var(--aetheris-focus-line);
+  outline-offset: 3px;
+  box-shadow: var(--aetheris-focus-halo);
+}
+.orb-page .orb-appearance__trigger svg,
+.orb-page .orb-appearance__close svg { display: block; flex-shrink: 0; }
+
+.orb-page .orb-appearance__dialog {
+  position: fixed;
+  inset: auto;
+  display: flex;
+  flex-direction: column;
+  width: min(400px, calc(100vw - 24px));
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid transparent;
+  border-radius: var(--aetheris-radius-glass);
+  background: var(--aetheris-glass-panel-raised);
+  color: var(--aetheris-ink);
+  box-shadow: var(--aetheris-glass-specular), var(--aetheris-shadow);
+  backdrop-filter: var(--aetheris-glass-blur);
+  -webkit-backdrop-filter: var(--aetheris-glass-blur);
+  transform: none;
+}
+.orb-page .orb-appearance__dialog::backdrop { background: rgba(8, 8, 9, 0.2); }
+.orb-page .orb-appearance__dialog::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--aetheris-spectral-border-soft);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+}
+.orb-page .orb-appearance__heading {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px 8px 18px;
+  border-bottom: 1px solid var(--aetheris-line);
+}
+.orb-page .orb-appearance__heading h2 {
+  margin: 0;
+  color: var(--aetheris-ink);
+  font: 650 16px/1.3 var(--aetheris-font-sans);
+  letter-spacing: -0.02em;
+}
+.orb-page .orb-appearance__close {
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+}
+.orb-page .orb-appearance__content {
+  display: grid;
+  min-height: 0;
+  gap: 16px;
+  padding: 16px 18px 18px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+/* These controls keep their authored finish/swatch styles. Their old floating
+   positions and route-chrome visibility rules cannot affect a top-layer panel. */
+.orb-page .orb-appearance__dialog[open] .orb-page__finish-selector {
+  position: static;
+  inset: auto;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: 100%;
+  min-height: 0;
+  max-width: none;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  transform: none;
+  transition: none;
+  visibility: visible;
+  pointer-events: auto;
+}
+.orb-page .orb-appearance__dialog[open] .orb-page__finish-selector::before { display: none; }
+.orb-page .orb-appearance__dialog[open] .orb-page__finish-label {
+  position: static;
+  grid-column: 1 / -1;
+  width: auto;
+  height: auto;
+  margin: 0;
+  padding: 0 0 2px;
+  overflow: visible;
+  clip: auto;
+  font-size: 10px;
+  line-height: 1.4;
+}
+.orb-page .orb-appearance__dialog[open] .orb-page__finish-option {
+  justify-content: flex-start;
+  min-height: 44px;
+  padding: 8px 10px;
+  gap: 8px;
+  font-size: 13px;
+  letter-spacing: normal;
+}
+.orb-page .orb-appearance__dialog[open] .orb-page__finish-swatch {
+  width: 10px;
+  height: 10px;
+  flex-basis: 10px;
+}
+.orb-page .orb-appearance__dialog[open] .orb-page__background-toggle {
+  position: static;
+  inset: auto;
+  justify-content: flex-start;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  font-size: 13px;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+@media (max-width: 1100px) {
+  .orb-page .nav-brand-name { display: none; }
+}
+@media (max-width: 768px) {
+  .orb-page { --orb-header-clearance: max(76px, calc(env(safe-area-inset-top) + 64px)); }
+  .orb-page .nav-header {
+    padding: max(8px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) 8px max(12px, env(safe-area-inset-left));
+  }
+  .orb-page .nav-pill {
+    width: 100%;
+    min-width: 0;
+    min-height: 52px;
+    gap: 8px;
+    padding: 3px;
+  }
+  .orb-page .nav-brand {
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    margin: 0;
+    padding: 0;
+    gap: 0;
+  }
+  .orb-page .nav-context-actions { margin-left: auto; }
+  .orb-page .nav-burger {
+    width: auto;
+    min-width: 44px;
+    height: 44px;
+    margin-left: 0;
+    padding: 0 8px;
+    gap: 6px;
+  }
+  .orb-page .nav-burger--open { margin-left: auto; }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .orb-page .orb-appearance__dialog {
+    background: var(--aetheris-panel);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+@media (forced-colors: active) {
+  .orb-page .orb-appearance__dialog,
+  .orb-page .orb-appearance__trigger,
+  .orb-page .orb-appearance__close {
+    border: 1px solid CanvasText;
+    color: CanvasText;
+    background: Canvas;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .orb-page .orb-appearance__dialog::before { display: none; }
+  .orb-page .orb-appearance__trigger:focus-visible,
+  .orb-page .orb-appearance__close:focus-visible { outline-color: Highlight; }
+}

@@ -2061,6 +2061,10 @@ const OrbSection = ({
     };
     const observer = new ResizeObserver(resize);
     observer.observe(area);
+    // Opening or returning a component changes the transcript's available
+    // space without changing the composer. Keep following the latest reply
+    // only if the reader was already doing so.
+    if (transcriptRef.current) observer.observe(transcriptRef.current);
     resize();
     return () => observer.disconnect();
   }, [scrollToLatest, hasVisualScrollAnchor]);
@@ -2342,6 +2346,8 @@ const OrbSection = ({
             <span>{statusText}</span>
           </div>
 
+          <div className="metabloom-chat__workspace" role="region" aria-label="Current component" />
+
           <div
             ref={transcriptRef}
             onScroll={handleTranscriptScroll}
@@ -2486,90 +2492,94 @@ const OrbSection = ({
           </div>
 
           <div className="metabloom-chat__composer-area" ref={composerAreaRef}>
-            {!conversationStarted && researchStatus && <div className="metabloom-chat__research-preview">{researchStatus}</div>}
-            <div className="metabloom-chat__conversation-tools">
-              <MetabloomReactionPanel
-                onReact={previewReaction}
-                disabled={pending || !isActive}
-                intensity={expressiveness}
-                onIntensityChange={setExpressiveness}
-              >
-                {({ close }) => (
-                  <>
-                    <label className="metabloom-chat__stream-option">
-                      <input type="checkbox" checked={allowEmoteChanges} onChange={(event) => setAllowEmoteChanges(event.target.checked)} />
-                      Allow separate response paragraphs
-                    </label>
-                    <div className="metabloom-reactions__recipes" role="group" aria-label="Authored reaction chains">
-                      <strong>Reaction chains</strong>
-                      {METABLOOM_REACTION_RECIPES.map((recipe) => (
-                        <button key={recipe.id} type="button" disabled={pending || !isActive} onClick={() => { if (toolReact({ emote: recipe.id })) close(); }} title={recipe.description}>{recipe.label}</button>
-                      ))}
-                    </div>
-                    <div className="metabloom-reactions__recipes" role="group" aria-label="Scene previews">
-                      <strong>Scene previews</strong>
-                      <button type="button" disabled={pending || !isActive} onClick={() => { previewResearchScene(); close(); }}>Preview research scene</button>
-                      <button type="button" disabled={pending || !isActive} title="Part Metabloom to reveal the Forward Pass neural-network visualization" onClick={() => { previewUnderHood(); close(); }}>Preview under the hood</button>
-                    </div>
-                    <details className="metabloom-chat__demos">
-                      <summary>Try a conversation demo</summary>
-                      <div>
-                        {SUGGESTED_PROMPTS.map((prompt) => (
-                          <button key={prompt} type="button" disabled={pending || !isActive} onClick={() => sendMessage(prompt)}>{prompt}</button>
+            <div className="metabloom-chat__composer-options">
+              {!conversationStarted && researchStatus && <div className="metabloom-chat__research-preview">{researchStatus}</div>}
+              <div className="metabloom-chat__conversation-tools">
+                <MetabloomReactionPanel
+                  onReact={previewReaction}
+                  disabled={pending || !isActive}
+                  intensity={expressiveness}
+                  onIntensityChange={setExpressiveness}
+                >
+                  {({ close }) => (
+                    <>
+                      <label className="metabloom-chat__stream-option">
+                        <input type="checkbox" checked={allowEmoteChanges} onChange={(event) => setAllowEmoteChanges(event.target.checked)} />
+                        Allow separate response paragraphs
+                      </label>
+                      <div className="metabloom-reactions__recipes" role="group" aria-label="Authored reaction chains">
+                        <strong>Reaction chains</strong>
+                        {METABLOOM_REACTION_RECIPES.map((recipe) => (
+                          <button key={recipe.id} type="button" disabled={pending || !isActive} onClick={() => { if (toolReact({ emote: recipe.id })) close(); }} title={recipe.description}>{recipe.label}</button>
                         ))}
                       </div>
-                    </details>
-                  </>
-                )}
-              </MetabloomReactionPanel>
-              <label className="metabloom-chat__research-toggle" data-enabled={deepResearch ? "true" : "false"} data-disabled={pending || !isActive ? "true" : "false"}>
-                <input type="checkbox" checked={deepResearch} disabled={pending || !isActive} onChange={(event) => setDeepResearch(event.target.checked)} />
-                <span>Deep Research</span>
-              </label>
-              {readingEarlier && <button type="button" className="metabloom-chat__latest" onClick={scrollToLatest}>Latest message ↓</button>}
+                      <div className="metabloom-reactions__recipes" role="group" aria-label="Scene previews">
+                        <strong>Scene previews</strong>
+                        <button type="button" disabled={pending || !isActive} onClick={() => { previewResearchScene(); close(); }}>Preview research scene</button>
+                        <button type="button" disabled={pending || !isActive} title="Part Metabloom to reveal the Forward Pass neural-network visualization" onClick={() => { previewUnderHood(); close(); }}>Preview under the hood</button>
+                      </div>
+                      <details className="metabloom-chat__demos">
+                        <summary>Try a conversation demo</summary>
+                        <div>
+                          {SUGGESTED_PROMPTS.map((prompt) => (
+                            <button key={prompt} type="button" disabled={pending || !isActive} onClick={() => sendMessage(prompt)}>{prompt}</button>
+                          ))}
+                        </div>
+                      </details>
+                    </>
+                  )}
+                </MetabloomReactionPanel>
+                <label className="metabloom-chat__research-toggle" data-enabled={deepResearch ? "true" : "false"} data-disabled={pending || !isActive ? "true" : "false"}>
+                  <input type="checkbox" checked={deepResearch} disabled={pending || !isActive} onChange={(event) => setDeepResearch(event.target.checked)} />
+                  <span>Deep Research</span>
+                </label>
+                {readingEarlier && <button type="button" className="metabloom-chat__latest" aria-label="Latest message" onClick={scrollToLatest}>
+                  <span className="metabloom-chat__latest-label">Latest message</span><span aria-hidden="true">↓</span>
+                </button>}
+              </div>
+              {errorMessage && (
+                <p className="metabloom-chat__error" role="alert">
+                  {errorMessage}
+                </p>
+              )}
+              {artifactAttachment && (
+                <div className="metabloom-chat__reference" data-artifact-reference={artifactAttachment.reference.id}
+                  role="group" aria-label="Selected visual reference">
+                  <span id="metabloom-selected-reference" className="metabloom-chat__reference-copy" role="status"><span>Asking about</span>
+                    <strong>{artifactAttachment.label}</strong></span>
+                  <button type="button" aria-label="Remove visual reference" onClick={() => {
+                    updateArtifactAttachment(null);
+                    composerRef.current?.focus({ preventScroll: true });
+                  }}>×</button>
+                </div>
+              )}
+              {researchAttachment && (
+                <div className="metabloom-chat__reference metabloom-chat__reference--research"
+                  data-research-reference={researchAttachment.reference.researchId}
+                  role="group" aria-label="Selected research reference">
+                  <span id="metabloom-selected-research" className="metabloom-chat__reference-copy" role="status">
+                    <span>{unavailableResearchIds.includes(researchAttachment.reference.researchId) ? 'Research reference unavailable'
+                      : Date.parse(researchAttachment.expiresAt) <= researchReferenceNow ? 'Research reference expired'
+                      : isMetabloomFreshResearchRequest(draft) ? 'Search for updates' : 'Use saved research'}</span>
+                    <strong>{researchAttachment.label}</strong>
+                    <ResearchReferenceDates reference={researchAttachment}
+                      expired={Date.parse(researchAttachment.expiresAt) <= researchReferenceNow} />
+                  </span>
+                  <button type="button" className="metabloom-chat__research-search-again" onClick={() => {
+                    updateResearchAttachment(null);
+                    setDeepResearch(true);
+                    if (retainedConversation.current) retainedConversation.current.deepResearch = true;
+                    setErrorMessage('');
+                    composerRef.current?.focus({ preventScroll: true });
+                  }}>Search again</button>
+                  <button type="button" aria-label="Remove research reference" onClick={() => {
+                    updateResearchAttachment(null);
+                    setErrorMessage('');
+                    composerRef.current?.focus({ preventScroll: true });
+                  }}>×</button>
+                </div>
+              )}
             </div>
-            {errorMessage && (
-              <p className="metabloom-chat__error" role="alert">
-                {errorMessage}
-              </p>
-            )}
-            {artifactAttachment && (
-              <div className="metabloom-chat__reference" data-artifact-reference={artifactAttachment.reference.id}
-                role="group" aria-label="Selected visual reference">
-                <span id="metabloom-selected-reference" className="metabloom-chat__reference-copy" role="status"><span>Asking about</span>
-                  <strong>{artifactAttachment.label}</strong></span>
-                <button type="button" aria-label="Remove visual reference" onClick={() => {
-                  updateArtifactAttachment(null);
-                  composerRef.current?.focus({ preventScroll: true });
-                }}>×</button>
-              </div>
-            )}
-            {researchAttachment && (
-              <div className="metabloom-chat__reference metabloom-chat__reference--research"
-                data-research-reference={researchAttachment.reference.researchId}
-                role="group" aria-label="Selected research reference">
-                <span id="metabloom-selected-research" className="metabloom-chat__reference-copy" role="status">
-                  <span>{unavailableResearchIds.includes(researchAttachment.reference.researchId) ? 'Research reference unavailable'
-                    : Date.parse(researchAttachment.expiresAt) <= researchReferenceNow ? 'Research reference expired'
-                    : isMetabloomFreshResearchRequest(draft) ? 'Search for updates' : 'Use saved research'}</span>
-                  <strong>{researchAttachment.label}</strong>
-                  <ResearchReferenceDates reference={researchAttachment}
-                    expired={Date.parse(researchAttachment.expiresAt) <= researchReferenceNow} />
-                </span>
-                <button type="button" className="metabloom-chat__research-search-again" onClick={() => {
-                  updateResearchAttachment(null);
-                  setDeepResearch(true);
-                  if (retainedConversation.current) retainedConversation.current.deepResearch = true;
-                  setErrorMessage('');
-                  composerRef.current?.focus({ preventScroll: true });
-                }}>Search again</button>
-                <button type="button" aria-label="Remove research reference" onClick={() => {
-                  updateResearchAttachment(null);
-                  setErrorMessage('');
-                  composerRef.current?.focus({ preventScroll: true });
-                }}>×</button>
-              </div>
-            )}
             <form
               className="metabloom-chat__composer"
               data-has-stop={pending && draft.trim() ? "true" : "false"}

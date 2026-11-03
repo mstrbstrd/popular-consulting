@@ -23,7 +23,7 @@ jest.mock("../contexts/ThemeContext", () => {
 
 jest.mock("./NavMenu", () => {
   const ReactModule = require("react");
-  return ({ audience }) =>
+  return ({ audience, contextActions }) =>
     ReactModule.createElement(
       "header",
       { className: "nav-header nav-in", "data-audience": audience },
@@ -31,6 +31,7 @@ jest.mock("./NavMenu", () => {
         "nav",
         { className: "nav-pill", "aria-label": "Primary navigation" },
         "Popular Consulting",
+        contextActions,
       ),
     );
 });
@@ -159,6 +160,8 @@ describe("OrbPage", () => {
       screen.getByRole("link", { name: "Skip to Metabloom" }),
     ).toHaveAttribute("href", "#main-content");
 
+    expect(screen.queryByRole("group", { name: "Metabloom material finish" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Appearance", exact: true }));
     const finishGroup = screen.getByRole("group", {
       name: "Metabloom material finish",
     });
@@ -182,6 +185,7 @@ describe("OrbPage", () => {
     const { container } = render(<OrbPage />);
     await screen.findByTestId("orb-experience");
 
+    fireEvent.click(screen.getByRole("button", { name: "Appearance", exact: true }));
     const finishGroup = screen.getByRole("group", {
       name: "Metabloom material finish",
     });
@@ -216,6 +220,7 @@ describe("OrbPage", () => {
       );
     };
     const { container } = render(<WithPreference />);
+    fireEvent.click(screen.getByRole("button", { name: "Appearance", exact: true }));
     const toggle = screen.getByRole("button", { name: "Animated background" });
     const orb = await screen.findByTestId("orb-experience");
     expect(container.querySelector(".orb-page")).toHaveAttribute("data-background-enabled", "true");

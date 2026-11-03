@@ -27,7 +27,25 @@ test("preview controls cannot interrupt an active reply", () => {
   fireEvent.click(screen.getByRole("button", { name: /Reactions/ }));
   fireEvent.click(screen.getByRole("button", { name: "Preview surprised reaction" }));
   fireEvent.click(screen.getByRole("button", { name: "Replay curious reaction" }));
+  fireEvent.click(screen.getByRole("button", { name: "Replay selected reaction" }));
   expect(onReact).not.toHaveBeenCalled();
+});
+
+test("the selected reaction can be replayed from inside the studio when its mobile shortcut is hidden", () => {
+  const onReact = jest.fn(() => true);
+  render(<MetabloomReactionPanel onReact={onReact} />);
+  const trigger = screen.getByRole("button", { name: /Reactions/ });
+  fireEvent.click(trigger);
+  fireEvent.click(screen.getByRole("button", { name: "Preview surprised reaction" }));
+  const chosen = onReact.mock.calls[0][0];
+  fireEvent.click(trigger);
+  const replay = screen.getByRole("button", { name: "Replay selected reaction" });
+  expect(replay.closest('dialog')).toHaveAttribute('open');
+  fireEvent.click(replay);
+  expect(onReact).toHaveBeenLastCalledWith(chosen);
+  expect(onReact).toHaveBeenCalledTimes(2);
+  expect(trigger).toHaveFocus();
+  expect(screen.queryByRole("dialog", { name: "Reaction studio" })).not.toBeInTheDocument();
 });
 
 const rect = (left, top, width, height) => ({ left, top, right: left + width, bottom: top + height, width, height });

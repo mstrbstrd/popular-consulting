@@ -69,10 +69,13 @@ const parseRecord = (value, messages) => {
 };
 function parseMetabloomVisualSnapshot(value, messages) {
   const snapshot = emptySnapshot();
-  if (!visualKeys(value, ['version', 'records', 'lastInteractedId']) || value.version !== 1
+  const hasActive = Object.prototype.hasOwnProperty.call(value || {}, 'activeVisualId');
+  if (!visualKeys(value, hasActive ? ['version', 'records', 'lastInteractedId', 'activeVisualId']
+    : ['version', 'records', 'lastInteractedId']) || value.version !== 1
     || !Array.isArray(value.records) || value.records.length > MAX_METABLOOM_VISUAL_SNAPSHOT_RECORDS
     || !Array.isArray(messages) || (value.lastInteractedId !== null
-      && (typeof value.lastInteractedId !== 'string' || !/^[a-f0-9]{48}$/.test(value.lastInteractedId)))) return snapshot;
+      && (typeof value.lastInteractedId !== 'string' || !/^[a-f0-9]{48}$/.test(value.lastInteractedId)))
+    || (hasActive && (typeof value.activeVisualId !== 'string' || !/^[a-f0-9]{48}$/.test(value.activeVisualId)))) return snapshot;
   try { if (byteLength(JSON.stringify(value)) > MAX_METABLOOM_VISUAL_SNAPSHOT_BYTES) return snapshot; }
   catch { return snapshot; }
   const ids = new Set();
@@ -85,9 +88,12 @@ function parseMetabloomVisualSnapshot(value, messages) {
   if (snapshot.records.some(record => record.id === value.lastInteractedId && record.status === 'ready' && record.kind === 'calculator')) {
     snapshot.lastInteractedId = value.lastInteractedId;
   }
+  if (snapshot.records.some(record => record.id === value.activeVisualId && record.status === 'ready')) {
+    snapshot.activeVisualId = value.activeVisualId;
+  }
   return snapshot;
 }
-function createMetabloomVisualSnapshot(records, messages, lastInteractedId = null) {
+function createMetabloomVisualSnapshot(records, messages, lastInteractedId = null, activeVisualId = null) {
   const snapshot = emptySnapshot();
   if (!Array.isArray(records) || !Array.isArray(messages)) return snapshot;
   const ids = new Set();
@@ -108,7 +114,8 @@ function createMetabloomVisualSnapshot(records, messages, lastInteractedId = nul
       viewState: ready ? viewState : null,
       ...(ready && isMetabloomArtifactVersion(record.artifactVersion) ? { artifactVersion: record.artifactVersion } : {}) }, messages);
     if (!candidate) continue;
-    const next = { ...snapshot, records: [candidate, ...snapshot.records], lastInteractedId };
+    const next = { ...snapshot, records: [candidate, ...snapshot.records], lastInteractedId,
+      ...(typeof activeVisualId === 'string' && /^[a-f0-9]{48}$/.test(activeVisualId) ? { activeVisualId } : {}) };
     if (byteLength(JSON.stringify(next)) > MAX_METABLOOM_VISUAL_SNAPSHOT_BYTES) continue;
     ids.add(candidate.id);
     snapshot.records.unshift(candidate);
@@ -116,6 +123,9 @@ function createMetabloomVisualSnapshot(records, messages, lastInteractedId = nul
   }
   if (snapshot.records.some(record => record.id === lastInteractedId && record.status === 'ready' && record.kind === 'calculator')) {
     snapshot.lastInteractedId = lastInteractedId;
+  }
+  if (snapshot.records.some(record => record.id === activeVisualId && record.status === 'ready')) {
+    snapshot.activeVisualId = activeVisualId;
   }
   return snapshot;
 }

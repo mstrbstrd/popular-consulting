@@ -22,7 +22,7 @@ async function inspectForeground(page, label, mobile) {
   const bounds = await page.evaluate(() => {
     const rect = selector => document.querySelector(selector)?.getBoundingClientRect().toJSON();
     return {
-      viewport: { width: innerWidth, height: innerHeight },
+      viewport: { width: window.innerWidth, height: window.innerHeight },
       root: rect('#root'), outlet: rect('.app-outlet'), page: rect('.orb-page'),
       main: rect('.orb-page__content'), chat: rect('.metabloom-chat'),
       avatar: rect('.metabloom-avatar'),
@@ -112,11 +112,17 @@ try {
         if (!profile.includes('css')) await page.waitForSelector('html[data-live-background-renderer]', { state: 'attached' });
         await inspectForeground(page, `${label}-background-on`, mobile);
         await page.evaluate(() => { window.__foregroundTestAvatar = document.querySelector('.metabloom-avatar'); });
-        const toggle = page.getByRole('button', { name: 'Animated background', exact: true });
-        await press(toggle);
+        const toggleBackground = async () => {
+          await press(page.getByRole('button', { name: 'Appearance', exact: true }));
+          const appearance = page.getByRole('dialog', { name: 'Appearance', exact: true });
+          await press(appearance.getByRole('button', { name: 'Animated background', exact: true }));
+          await press(appearance.getByRole('button', { name: 'Close appearance', exact: true }));
+          await appearance.waitFor({ state: 'detached' });
+        };
+        await toggleBackground();
         await page.waitForSelector('.orb-page[data-background-enabled="false"]');
         await inspectForeground(page, `${label}-background-off`, mobile);
-        await press(toggle);
+        await toggleBackground();
         await page.waitForSelector('.orb-page[data-background-enabled="true"]');
         assert.equal(await page.evaluate(() => document.querySelector('.metabloom-avatar') === window.__foregroundTestAvatar), true, 'Background toggle replaced the avatar');
         await press(page.getByRole('button', { name: 'Reactions', exact: false }).first());

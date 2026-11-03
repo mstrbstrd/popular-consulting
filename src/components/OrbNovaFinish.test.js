@@ -13,7 +13,7 @@ jest.mock("../contexts/ThemeContext", () => {
   return { ThemeProvider: ({ children }) => ReactModule.createElement(ReactModule.Fragment, null, children) };
 });
 jest.mock("../contexts/AppNavigationContext", () => ({ useAppNavigation: jest.fn(() => null) }));
-jest.mock("./NavMenu", () => () => null);
+jest.mock("./NavMenu", () => ({ contextActions }) => contextActions || null);
 jest.mock("./ImmersiveRouteNavigationBridge", () => () => null);
 jest.mock("./LoadingOverlay", () => () => null);
 jest.mock("./OrbSection", () => {
@@ -49,6 +49,8 @@ describe("Nova Orb finish", () => {
   test("keeps Nova reversible among four finishes without remounting or clearing the conversation", () => {
     const { container } = render(<OrbPage />);
     const experience = screen.getByTestId("nova-orb-experience");
+    fireEvent.click(screen.getByRole("button", { name: "Begin conversation" }));
+    fireEvent.click(screen.getByRole("button", { name: "Appearance", exact: true }));
     const group = screen.getByRole("group", { name: "Metabloom material finish" });
     const nova = within(group).getByRole("button", { name: "Use Nova fire for Metabloom" });
     expect(METABLOOM_PALETTES.NOVA).toBe("nova");
@@ -56,7 +58,6 @@ describe("Nova Orb finish", () => {
     expect(experience).toHaveAttribute("data-palette", "spectral");
     expect(nova).toHaveAttribute("aria-pressed", "false");
 
-    fireEvent.click(screen.getByRole("button", { name: "Begin conversation" }));
     fireEvent.click(nova);
     expect(nova).toHaveAttribute("aria-pressed", "true");
     expect(experience).toHaveAttribute("data-palette", "nova");
@@ -86,6 +87,7 @@ describe("Nova Orb finish", () => {
       saveToolState,
     });
     const { unmount } = render(<OrbPage />);
+    fireEvent.click(screen.getByRole("button", { name: "Appearance", exact: true }));
     expect(screen.getByRole("button", { name: "Use Nova fire for Metabloom" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByTestId("nova-orb-experience")).toHaveAttribute("data-palette", "nova");
     unmount();

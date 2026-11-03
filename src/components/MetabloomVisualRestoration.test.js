@@ -63,6 +63,7 @@ const send = message => {
   fireEvent.change(screen.getByRole('textbox'), { target: { value: message } });
   fireEvent.submit(screen.getByRole('form', { name: 'Message Metabloom' }));
 };
+const originLauncher = title => screen.getByRole('button', { name: `Show component: ${title}` }).parentElement;
 let ordinaryRequests;
 let matchMedia;
 let hiddenDescriptor;
@@ -100,7 +101,7 @@ async function buildCalculator(spec = calculator, id = 'b'.repeat(48), { pending
   await waitFor(() => expect(postMetabloomTool.mock.calls.some(([body]) => body.phase === 'continue' && body.id === id)).toBe(true));
   if (!pendingExplanation) {
     await screen.findByText(closing);
-    await waitFor(() => expect(region.closest('article')).toHaveAttribute('data-message-id'));
+    await waitFor(() => expect(originLauncher(spec.title).closest('article')).toHaveAttribute('data-message-id'));
   }
   const continuation = postMetabloomTool.mock.calls.find(([body]) => body.phase === 'continue' && body.id === id);
   return { offer, region, closing, finishExplanation, continuationSignal: continuation[1].signal };
@@ -119,7 +120,7 @@ test('restores an optional completed table beside its exact answer with its sour
   })));
   await act(async () => finish(reply));
   const region = await screen.findByRole('region', { name: table.title });
-  const replyId = region.closest('article').dataset.messageId;
+  const replyId = originLauncher(table.title).closest('article').dataset.messageId;
   fireEvent.change(within(region).getByRole('searchbox', { name: 'Filter rows' }), { target: { value: 'Alpha' } });
   fireEvent.click(within(region).getByRole('button', { name: /Hours/ }));
   fireEvent.click(within(region).getByRole('button', { name: /Hours/ }));
@@ -130,8 +131,9 @@ test('restores an optional completed table beside its exact answer with its sour
   state.mount();
 
   const restored = await screen.findByRole('region', { name: table.title });
-  expect(restored.closest('article')).toHaveAttribute('data-message-id', replyId);
-  expect(restored.closest('.metabloom-visual-slot').previousElementSibling).toHaveClass('metabloom-chat__bubble');
+  expect(originLauncher(table.title).closest('article')).toHaveAttribute('data-message-id', replyId);
+  expect(originLauncher(table.title).previousElementSibling).toHaveClass('metabloom-chat__bubble');
+  expect(screen.getByRole('region', { name: 'Current component' })).toContainElement(restored);
   expect(within(restored).getByRole('searchbox', { name: 'Filter rows' })).toHaveValue('Alpha');
   expect(within(restored).getByRole('columnheader', { name: /Hours/ })).toHaveAttribute('aria-sort', 'descending');
   const rows = within(within(restored).getByRole('table')).getAllByRole('row').slice(1);
@@ -154,6 +156,7 @@ test('restores two calculator values and keeps the older calculator selected wit
   const second = await buildCalculator(secondSpec, 'c'.repeat(48));
   fireEvent.change(within(second.region).getByLabelText('People'), { target: { value: '4' } });
   fireEvent.change(within(first.region).getByLabelText('People'), { target: { value: '6' } });
+  fireEvent.click(screen.getByRole('button', { name: `Show component: ${firstSpec.title}` }));
   expect(window.__metabloomVisualSnapshot()).toEqual({ id: first.offer.id, inputs: { total: 120, people: 6 } });
   view.unmount();
   readyListener.mockClear();
@@ -165,7 +168,8 @@ test('restores two calculator values and keeps the older calculator selected wit
   expect(within(restoredSecond).getByLabelText('People')).toHaveValue(4);
   expect(within(restoredFirst).getByText('20 CAD per person')).toBeInTheDocument();
   expect(within(restoredSecond).getByText('30 CAD per person')).toBeInTheDocument();
-  expect(restoredFirst.closest('.metabloom-visual-slot').nextElementSibling).toHaveClass('metabloom-chat__bubble');
+  expect(originLauncher(firstSpec.title).nextElementSibling).toHaveClass('metabloom-chat__bubble');
+  expect(screen.getByRole('region', { name: 'Current component' })).toContainElement(restoredFirst);
   expect(window.__metabloomVisualSnapshot()).toEqual({ id: first.offer.id, inputs: { total: 120, people: 6 } });
   expect(requestMetabloomVisual).toHaveBeenCalledTimes(2);
   expect(postMetabloomTool).toHaveBeenCalledTimes(4);
@@ -229,7 +233,8 @@ test('retains a ready visual when navigation interrupts its closing explanation 
   readyListener.mockClear();
   state.mount();
   const restored = await screen.findByRole('region', { name: calculator.title });
-  expect(restored.closest('article').previousElementSibling).toHaveAttribute('data-message-id', 'user-1');
+  expect(originLauncher(calculator.title).closest('article').previousElementSibling).toHaveAttribute('data-message-id', 'user-1');
+  expect(screen.getByRole('region', { name: 'Current component' })).toContainElement(restored);
   expect(window.__orbMessages().filter(message => message.role === 'assistant')).toEqual([]);
   await act(async () => result.finishExplanation({ reply: envelope('A late explanation must not enter the restored conversation.'), emote: 'resolute' }));
   expect(screen.queryByText('A late explanation must not enter the restored conversation.')).not.toBeInTheDocument();

@@ -46,3 +46,4 @@ yarn-error.log*
 # Authentication browser verification (fictional local data)
 /auth-ui-evidence/
 /metabloom-research-reuse/
+/metabloom-mobile-workspace/
