@@ -402,6 +402,42 @@ test('real PostgreSQL separates immutable content revisions from metadata versio
   assert.equal((await f.store.get(owner, { artifactId: first.artifactId })).version, 3);
 });
 
+test('real PostgreSQL history and HTTP restore/Undo append immutable owned revisions', async t => {
+  const { createMetabloomSavedWorkHandler } = require('../api/metabloom-saved-work');
+  const fixture = require('./fixtures/metabloom-saved-work-api.cjs');
+  const db = await database(t), who = identity();
+  const first = await db.store.create(who, { requestId: randomUUID(), title: 'History fixture', content: visualContent(12) });
+  await db.store.appendRevision(who, { artifactId: first.artifactId, expectedVersion: 1, content: visualContent(17) });
+  await db.store.rename(who, { artifactId: first.artifactId, expectedVersion: 2, title: 'Renamed history' });
+  await db.store.appendRevision(who, { artifactId: first.artifactId, expectedVersion: 3, content: visualContent(20) });
+  const head = await db.store.history(who, { artifactId: first.artifactId, limit: 2 });
+  assert.equal(head.artifact.version, 4); assert.equal(head.artifact.headRevision, 3);
+  assert.deepEqual(head.items.map(item => item.revision), [3, 2]); assert.equal(head.nextBeforeRevision, 2);
+  const tail = await db.store.history(who, { artifactId: first.artifactId, limit: 2, beforeRevision: 2 });
+  assert.deepEqual(tail.items.map(item => item.revision), [1]); assert.equal(tail.nextBeforeRevision, null);
+  assert.deepEqual((await db.store.history(who, { artifactId: first.artifactId, beforeRevision: 1 })).items, []);
+  await assert.rejects(db.store.history(identity(), { artifactId: first.artifactId }), { code: 'saved_work_not_found' });
+  const handler = createMetabloomSavedWorkHandler({ getStore: () => db.store, authenticate: fixture.authenticate(who) });
+  const restore = async (input, status = 200) => {
+    const res = fixture.response(); await handler(fixture.request({ action: 'restore', ...input }), res);
+    assert.equal(res.statusCode, status, res.body); return JSON.parse(res.body);
+  };
+  const input = { artifactId: first.artifactId, expectedVersion: 4, revision: 1 };
+  const restored = await restore(input);
+  assert.equal(restored.artifact.headRevision, 4); assert.equal(restored.artifact.version, 5);
+  assert.deepEqual(restored.undo, { artifactId: first.artifactId, revision: 3, expectedVersion: 5 });
+  assert.deepEqual((await db.store.get(who, { artifactId: first.artifactId })).content, visualContent(12));
+  const undone = await restore(restored.undo);
+  assert.equal(undone.artifact.headRevision, 5); assert.equal(undone.artifact.version, 6);
+  assert.deepEqual((await db.store.get(who, { artifactId: first.artifactId })).content, visualContent(20));
+  for (const [revision, hours] of [[1, 12], [2, 17], [3, 20], [4, 12], [5, 20]])
+    assert.deepEqual((await db.store.get(who, { artifactId: first.artifactId, revision })).content, visualContent(hours));
+  await restore(input, 409);
+  await restore({ artifactId: first.artifactId, expectedVersion: 6, revision: 5 }, 400);
+  await restore({ artifactId: first.artifactId, expectedVersion: 6, revision: 99 }, 404);
+  assert.equal((await db.store.history(who, { artifactId: first.artifactId })).items.length, 5);
+});
+
 test('real PostgreSQL constraints reject cross-owner foreign keys and direct immutable row changes', async t => {
   const f = await database(t), owner = identity(), foreign = identity();
   const original = await f.store.create(owner, request());
@@ -592,6 +628,7 @@ test('real PostgreSQL runtime grants support the store while denying migration a
     assert.equal((await limited.list(owner)).items.length, 1);
     await limited.appendRevision(owner, { artifactId: first.artifactId, expectedVersion: 1, content: visualContent(31) });
     await limited.rename(owner, { artifactId: first.artifactId, expectedVersion: 2, title: 'Runtime-role fixture' });
+    assert.deepEqual((await limited.history(owner, { artifactId: first.artifactId })).items.map(item => item.revision), [2, 1]);
     for (const sql of ['UPDATE metabloom_saved_work.environment SET namespace = namespace',
       'DELETE FROM metabloom_saved_work.accounts', 'DELETE FROM metabloom_saved_work.revisions',
       'DELETE FROM metabloom_saved_work.evidence', 'TRUNCATE metabloom_saved_work.artifacts CASCADE',

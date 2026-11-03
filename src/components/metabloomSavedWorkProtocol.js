@@ -57,12 +57,22 @@ function parseMetabloomSavedWorkRequest(value) {
     if (action === 'list') valid = keys(value, ['action'], ['limit', 'after'])
       && (!has(value, 'limit') || (Number.isSafeInteger(value.limit) && value.limit >= 1 && value.limit <= 50))
       && (!has(value, 'after') || cursor(value.after));
-    if (action === 'open') valid = keys(value, ['action', 'artifactId']) && uuid(value.artifactId);
+    if (action === 'open') valid = keys(value, ['action', 'artifactId'], ['revision']) && uuid(value.artifactId)
+      && (!has(value, 'revision') || version(value.revision));
+    if (action === 'history') valid = keys(value, ['action', 'artifactId'], ['limit', 'beforeRevision'])
+      && uuid(value.artifactId)
+      && (!has(value, 'limit') || (Number.isSafeInteger(value.limit) && value.limit >= 1 && value.limit <= 50))
+      && (!has(value, 'beforeRevision') || version(value.beforeRevision));
+    if (action === 'restore') valid = keys(value, ['action', 'artifactId', 'expectedVersion', 'revision'])
+      && uuid(value.artifactId) && version(value.expectedVersion) && version(value.revision);
     if (action === 'rename' || action === 'delete') valid = keys(value,
       action === 'rename' ? ['action', 'artifactId', 'expectedVersion', 'title'] : ['action', 'artifactId', 'expectedVersion'])
       && uuid(value.artifactId) && version(value.expectedVersion) && (action !== 'rename' || title(value.title));
-    if (action === 'save' && keys(value, ['action', 'requestId', 'title', 'source'], ['scenario'])
-      && uuid(value.requestId) && title(value.title)) {
+    const create = action === 'save' && keys(value, ['action', 'requestId', 'title', 'source'], ['scenario'])
+      && uuid(value.requestId) && title(value.title);
+    const revise = action === 'revise' && keys(value, ['action', 'artifactId', 'expectedVersion', 'source'], ['scenario'])
+      && uuid(value.artifactId) && version(value.expectedVersion);
+    if (create || revise) {
       const source = value.source;
       if (keys(source, ['kind', 'id', 'artifactVersion']) && source.kind === 'visual')
         valid = sourceId(source.id) && isMetabloomArtifactVersion(source.artifactVersion);
@@ -109,16 +119,41 @@ function parseMetabloomSavedWorkResponse(request, value) {
       if (items.some(item => !item) || new Set(items.map(item => item.artifactId)).size !== items.length) return null;
       return { items, nextCursor: value.nextCursor };
     }
+    if (request.action === 'history') {
+      if (!keys(value, ['artifact', 'items', 'nextBeforeRevision'])) return null;
+      const artifact = parseMetabloomSavedWorkMetadata(value.artifact);
+      if (!artifact || artifact.artifactId !== request.artifactId || artifact.revision !== artifact.headRevision
+        || !Array.isArray(value.items) || value.items.length > (request.limit || 20)) return null;
+      let previous = request.beforeRevision || MAX_VERSION + 1;
+      for (const item of value.items) {
+        if (!keys(item, ['revision', 'createdAt']) || !version(item.revision)
+          || item.revision > artifact.headRevision || item.revision >= previous || !instant(item.createdAt)) return null;
+        previous = item.revision;
+      }
+      if (value.nextBeforeRevision !== null && (value.items.length !== (request.limit || 20)
+        || value.nextBeforeRevision !== value.items[value.items.length - 1]?.revision)) return null;
+      return { artifact, items: value.items.map(item => ({ ...item })), nextBeforeRevision: value.nextBeforeRevision };
+    }
     if (request.action === 'delete') return keys(value, ['artifactId', 'version', 'deleted'])
       && value.artifactId === request.artifactId && value.version === request.expectedVersion && value.deleted === true
       ? { ...value } : null;
-    if (!keys(value, request.action === 'open' ? ['artifact', 'content', 'reference'] : ['artifact'])) return null;
+    const revisionChange = ['revise', 'restore'].includes(request.action);
+    if (!keys(value, request.action === 'open' ? ['artifact', 'content', 'reference']
+      : revisionChange ? ['artifact', 'undo'] : ['artifact'])) return null;
     const artifact = parseMetabloomSavedWorkMetadata(value.artifact);
     if (!artifact || (request.artifactId && artifact.artifactId !== request.artifactId)) return null;
-    if (request.action === 'save' && artifact.kind !== request.source.kind) return null;
+    if (['save', 'revise'].includes(request.action) && artifact.kind !== request.source.kind) return null;
     if (request.action === 'rename' && (artifact.version !== request.expectedVersion + 1
       || artifact.title !== request.title.trim())) return null;
+    if (revisionChange) {
+      if (artifact.version !== request.expectedVersion + 1 || artifact.revision !== artifact.headRevision
+        || artifact.headRevision <= 1 || !keys(value.undo, ['artifactId', 'revision', 'expectedVersion'])
+        || value.undo.artifactId !== artifact.artifactId || value.undo.revision !== artifact.headRevision - 1
+        || value.undo.expectedVersion !== artifact.version) return null;
+      return { artifact, undo: { ...value.undo } };
+    }
     if (request.action !== 'open') return { artifact };
+    if (artifact.revision !== (request.revision || artifact.headRevision)) return null;
     const content = parseMetabloomSavedContent(value.content), reference = value.reference;
     if (!content || content.kind !== artifact.kind) return null;
     if (content.kind === 'visual') {

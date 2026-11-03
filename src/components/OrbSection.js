@@ -702,20 +702,66 @@ const OrbSection = ({
       && unavailableResearchIdsRef.current.includes(context.source.source.researchId)) {
       context.source = { title: context.source.title, hint: 'This report remains readable. Its temporary reference is unavailable for saving.' };
     }
-    const session = { controller: workspace, revision: workspace.workspaceSelectionRevision, ...context };
+    const session = { controller: workspace, revision: workspace.workspaceSelectionRevision, ...context,
+      saveContext: { controller: workspace, messageId: context?.messageId } };
     savedWorkRef.current = session;
     setSavedWork(session);
   }, [isActive, workspace]);
-  const acceptSavedWork = React.useCallback(artifact => {
+  const acceptSavedWork = React.useCallback((artifact, capturedContext) => {
+    const session = savedWorkRef.current;
+    const origin = capturedContext || session?.saveContext;
+    const safe = parseMetabloomSavedWorkMetadata(artifact);
+    if (!safe || !session || !origin?.messageId || origin.controller !== session.controller
+      || !mountedRef.current || workspaceRef.current !== session.controller
+      || !session.controller.mounted || !session.controller.ownsSurface()) return;
+    if (!messagesRef.current.some(message => message.id === origin.messageId && message.role === 'assistant')) return;
+    publishMessages(messagesRef.current.map(message => message.id === origin.messageId ? { ...message, savedArtifact: safe } : message));
+    if (session.messageId === origin.messageId) {
+      const next = { ...session, artifact: safe };
+      savedWorkRef.current = next;
+      setSavedWork(next);
+    }
+    session.controller.refresh();
+  }, [publishMessages]);
+  const updateSavedAssociation = React.useCallback(artifact => {
     const session = savedWorkRef.current;
     const safe = parseMetabloomSavedWorkMetadata(artifact);
-    if (!safe || !session?.messageId || !mountedRef.current || workspaceRef.current !== session.controller
+    if (!safe || !session || !mountedRef.current || workspaceRef.current !== session.controller
       || !session.controller.mounted || !session.controller.ownsSurface()) return;
-    if (!messagesRef.current.some(message => message.id === session.messageId && message.role === 'assistant')) return;
-    publishMessages(messagesRef.current.map(message => message.id === session.messageId ? { ...message, savedArtifact: safe } : message));
-    const next = { ...session, artifact: safe };
-    savedWorkRef.current = next;
-    setSavedWork(next);
+    const update = previous => previous?.artifactId === safe.artifactId && previous.kind === safe.kind
+      && previous.version <= safe.version && previous.revision <= safe.headRevision
+      ? { ...safe, revision: previous.revision } : previous;
+    // A confirmed head change updates concurrency metadata. It cannot replace
+    // the content/revision of a live renderer before a separate Open succeeds.
+    publishMessages(messagesRef.current.map(message => message.savedArtifact
+      ? { ...message, savedArtifact: update(message.savedArtifact) } : message));
+    const association = update(session.artifact);
+    if (association !== session.artifact) {
+      const next = { ...session, artifact: association,
+        source: session.source ? { ...session.source, title: safe.title } : session.source };
+      savedWorkRef.current = next;
+      setSavedWork(next);
+    }
+    session.controller.refresh();
+  }, [publishMessages]);
+  const detachSavedAssociation = React.useCallback(artifactId => {
+    const session = savedWorkRef.current;
+    if (!session || !mountedRef.current || workspaceRef.current !== session.controller
+      || !session.controller.mounted || !session.controller.ownsSurface()) return;
+    publishMessages(messagesRef.current.map(message => {
+      if (message.savedArtifact?.artifactId !== artifactId) return message;
+      const next = { ...message };
+      delete next.savedArtifact;
+      return next;
+    }));
+    if (session.artifact?.artifactId === artifactId) {
+      const context = session.controller.captureSavedWorkContext();
+      const next = { ...session, artifact: null,
+        source: context?.messageId === session.messageId ? context.source : session.source };
+      savedWorkRef.current = next;
+      setSavedWork(next);
+    }
+    session.controller.refresh();
   }, [publishMessages]);
   const openSavedResult = React.useCallback(result => {
     const session = savedWorkRef.current;
@@ -726,7 +772,7 @@ const OrbSection = ({
     const prepared = prepareMetabloomSavedOpen(result);
     if (!prepared) return false;
     const message = cloneMessage({ id: `assistant-${++messageCounterRef.current}`, role: 'assistant', status: 'complete',
-      content: `Opened saved work: ${prepared.artifact.title}.`, source: 'saved-work',
+      content: `Opened saved work: ${prepared.artifact.title} (revision ${prepared.artifact.revision}).`, source: 'saved-work',
       savedArtifact: prepared.artifact, ...(prepared.researchMessage || {}) });
     // The saved response is already validated. Commit its owned origin before
     // moving the existing renderer/reading surface into the workspace.
@@ -741,7 +787,8 @@ const OrbSection = ({
     // older message or unmount its live component before we can roll back.
     publishMessages(messagesRef.current.slice(-MAX_CHAT_MESSAGES));
     const context = controller.captureSavedWorkContext();
-    const next = { controller, revision: controller.workspaceSelectionRevision, focusWorkspaceOnClose: true, ...context };
+    const next = { controller, revision: controller.workspaceSelectionRevision, focusWorkspaceOnClose: true, ...context,
+      saveContext: { controller, messageId: context?.messageId } };
     savedWorkRef.current = next;
     setSavedWork(next);
     return true;
@@ -2709,7 +2756,9 @@ const OrbSection = ({
       </div>
 
       {savedWork && sectionRef.current?.closest('.orb-page') && createPortal(<MetabloomSavedWorkPanel
-        source={savedWork.source} onSaved={acceptSavedWork} onOpen={openSavedResult} onClose={closeSavedWork} />,
+        source={savedWork.source} saveContext={savedWork.saveContext} activeArtifact={savedWork.artifact} onSaved={acceptSavedWork}
+        onRevisionSaved={updateSavedAssociation} onRenamed={updateSavedAssociation} onDeleted={detachSavedAssociation}
+        onOpen={openSavedResult} onClose={closeSavedWork} />,
       sectionRef.current.closest('.orb-page'))}
     </section>
   );

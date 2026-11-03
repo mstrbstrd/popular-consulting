@@ -1,4 +1,5 @@
 const { randomBytes } = require('node:crypto');
+const { isDeepStrictEqual } = require('node:util');
 const auth = require('../server/metabloomAuth');
 const { getMetabloomSavedWorkDatabase } = require('../server/metabloomSavedWorkDatabase');
 const { createMetabloomSavedWorkStore } = require('../server/metabloomSavedWorkStore');
@@ -25,6 +26,11 @@ const metadata = value => {
   return result;
 };
 const defaultStore = () => createMetabloomSavedWorkStore(getMetabloomSavedWorkDatabase());
+const revisionReceipt = value => {
+  const artifact = metadata(value);
+  return { artifact, undo: { artifactId: artifact.artifactId,
+    revision: artifact.headRevision - 1, expectedVersion: artifact.version } };
+};
 const sanitizedError = error => {
   if (error?.code === 'saved_work_source_expired') return { code: error.code, status: 410 };
   if (isSavedWorkError(error) && !['saved_work_environment_mismatch', 'saved_work_migration_mismatch'].includes(error.code))
@@ -89,19 +95,41 @@ function createMetabloomSavedWorkHandler({ getStore = defaultStore, visualStore 
           ...(body.limit !== undefined ? { limit: body.limit } : {}),
           ...(body.after !== undefined ? { after: body.after } : {}) }, options);
         result = { items: page.items.map(metadata), nextCursor: page.nextCursor };
-      } else if (body.action === 'save') {
+      } else if (body.action === 'history') {
+        const history = await store.history(accountIdentity, { artifactId: body.artifactId,
+          ...(body.limit !== undefined ? { limit: body.limit } : {}),
+          ...(body.beforeRevision !== undefined ? { beforeRevision: body.beforeRevision } : {}) }, options);
+        result = { artifact: metadata(history.artifact), items: history.items, nextBeforeRevision: history.nextBeforeRevision };
+      } else if (body.action === 'save' || body.action === 'revise') {
         const content = await resolveMetabloomSavedWorkSource({ source: body.source, scenario: body.scenario,
           identity, visualStore, researchStore, signal: controller.signal });
-        const created = await store.create(accountIdentity,
-          { requestId: body.requestId, title: body.title, content }, options);
+        if (body.action === 'revise') {
+          const head = await store.get(accountIdentity, { artifactId: body.artifactId }, options);
+          if (head.version !== body.expectedVersion) throw savedWorkError('saved_work_conflict');
+          if (isDeepStrictEqual(head.content, content)) throw savedWorkError('saved_work_invalid');
+        }
+        const changed = body.action === 'save'
+          ? await store.create(accountIdentity, { requestId: body.requestId, title: body.title, content }, options)
+          : await store.appendRevision(accountIdentity, { artifactId: body.artifactId,
+            expectedVersion: body.expectedVersion, content }, options);
         // A committed write still receives its receipt if abort happens just
         // after commit. The store controls commit/rollback and idempotency.
-        result = { artifact: metadata(created) };
+        result = body.action === 'save' ? { artifact: metadata(changed) } : revisionReceipt(changed);
       } else if (body.action === 'open') {
-        const saved = await store.get(accountIdentity, { artifactId: body.artifactId }, options);
+        const saved = await store.get(accountIdentity, { artifactId: body.artifactId,
+          ...(body.revision !== undefined ? { revision: body.revision } : {}) }, options);
         const reference = await restoreMetabloomSavedWorkReference({ content: saved.content, identity,
           visualStore, researchStore, signal: controller.signal });
         result = { artifact: metadata(saved), content: saved.content, reference };
+      } else if (body.action === 'restore') {
+        const selected = await store.get(accountIdentity, { artifactId: body.artifactId, revision: body.revision }, options);
+        if (selected.version !== body.expectedVersion) throw savedWorkError('saved_work_conflict');
+        if (selected.revision === selected.headRevision) throw savedWorkError('saved_work_invalid');
+        const head = await store.get(accountIdentity, { artifactId: body.artifactId }, options);
+        if (head.version !== body.expectedVersion) throw savedWorkError('saved_work_conflict');
+        if (isDeepStrictEqual(head.content, selected.content)) throw savedWorkError('saved_work_invalid');
+        result = revisionReceipt(await store.appendRevision(accountIdentity, { artifactId: body.artifactId,
+          expectedVersion: body.expectedVersion, content: selected.content }, options));
       } else if (body.action === 'rename') {
         result = { artifact: metadata(await store.rename(accountIdentity, { artifactId: body.artifactId,
           expectedVersion: body.expectedVersion, title: body.title }, options)) };

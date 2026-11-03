@@ -35,7 +35,7 @@ const metadata = (content, title = 'Saved fixture') => ({ artifactId: randomUUID
 // Adapter fixture only. Atomicity, constraints, idempotency and SQL ownership are
 // independently verified by the native PostgreSQL suite.
 function durableFixture() {
-  const values = new Map(), calls = [];
+  const values = new Map(), revisions = new Map(), calls = [];
   const owned = (account, artifactId) => {
     const value = values.get(artifactId);
     if (!value || value.accountKey !== account.accountKey) throw savedWorkError('saved_work_not_found');
@@ -46,11 +46,15 @@ function durableFixture() {
       calls.push(['create', structuredClone(account), structuredClone(input), options.signal]);
       const value = { ...metadata(input.content, input.title.trim()), content: structuredClone(input.content) };
       values.set(value.artifactId, { ...value, accountKey: account.accountKey });
+      revisions.set(value.artifactId, [{ revision: 1, createdAt: value.createdAt, content: structuredClone(value.content) }]);
       return value;
     },
     async get(account, input, options) {
       calls.push(['get', structuredClone(account), structuredClone(input), options.signal]);
-      return structuredClone(owned(account, input.artifactId));
+      const value = owned(account, input.artifactId);
+      const selected = revisions.get(value.artifactId).find(item => item.revision === (input.revision || value.headRevision));
+      if (!selected) throw savedWorkError('saved_work_not_found');
+      return structuredClone({ ...value, revision: selected.revision, content: selected.content });
     },
     async list(account, input, options) {
       calls.push(['list', structuredClone(account), structuredClone(input), options.signal]);
@@ -64,15 +68,36 @@ function durableFixture() {
       value.title = input.title.trim(); value.version++;
       return structuredClone(value);
     },
+    async appendRevision(account, input, options) {
+      calls.push(['appendRevision', structuredClone(account), structuredClone(input), options.signal]);
+      const value = owned(account, input.artifactId);
+      if (value.version !== input.expectedVersion) throw savedWorkError('saved_work_conflict');
+      if (value.kind !== input.content.kind) throw savedWorkError('saved_work_invalid');
+      value.version++; value.headRevision++; value.revision = value.headRevision;
+      value.content = structuredClone(input.content);
+      revisions.get(value.artifactId).push({ revision: value.headRevision, createdAt: value.updatedAt,
+        content: structuredClone(input.content) });
+      return structuredClone(value);
+    },
+    async history(account, input, options) {
+      calls.push(['history', structuredClone(account), structuredClone(input), options.signal]);
+      const value = owned(account, input.artifactId), limit = input.limit || 20;
+      const rows = revisions.get(value.artifactId).filter(item => !input.beforeRevision
+        || item.revision < input.beforeRevision).slice().reverse();
+      const items = rows.slice(0, limit).map(item => ({ revision: item.revision, createdAt: item.createdAt }));
+      return { artifact: structuredClone(value), items,
+        nextBeforeRevision: rows.length > limit ? items[items.length - 1].revision : null };
+    },
     async delete(account, input, options) {
       calls.push(['delete', structuredClone(account), structuredClone(input), options.signal]);
       const value = owned(account, input.artifactId);
       if (value.version !== input.expectedVersion) throw savedWorkError('saved_work_conflict');
       values.delete(value.artifactId);
+      revisions.delete(value.artifactId);
       return { artifactId: value.artifactId, version: value.version, deleted: true };
     },
   };
-  return { store, values, calls };
+  return { store, values, revisions, calls };
 }
 
 module.exports = { accountIdentity, identity, visualContent, response, request, authenticate,

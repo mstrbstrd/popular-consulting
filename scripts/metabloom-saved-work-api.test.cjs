@@ -101,7 +101,7 @@ test('request schema rejects ownership, raw content, foreign actions, unbounded 
     { ...save, scenario: { inputs: { hours: '17', rate: 85 } } },
     { ...save, scenario: { inputs: { hours: Infinity, rate: 85 } } },
     { ...save, requestId: 'not-uuid' }, { ...save, title: 'x'.repeat(161) },
-    { action: 'open', artifactId: randomUUID(), revision: 2 },
+    { action: 'open', artifactId: randomUUID(), revision: 0 },
     { action: 'open', artifactId: randomUUID(), workspaceId: randomUUID() },
     { action: 'delete', artifactId: randomUUID(), expectedVersion: 0 },
     { action: 'list', limit: 51 }, { action: 'list', after: 'x'.repeat(181) },

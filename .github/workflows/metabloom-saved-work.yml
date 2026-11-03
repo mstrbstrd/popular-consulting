@@ -41,6 +41,7 @@ jobs:
           scripts/metabloom-saved-content.test.cjs scripts/metabloom-saved-work-database.test.cjs
           scripts/metabloom-saved-work-store.test.cjs scripts/metabloom-saved-work-api.test.cjs
           scripts/metabloom-saved-work-client.test.cjs
+          scripts/metabloom-saved-work-revisions.test.cjs
       - name: Install matching PostgreSQL backup and restore clients
         run: |
           sudo apt-get update

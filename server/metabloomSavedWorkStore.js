@@ -355,6 +355,40 @@ function createMetabloomSavedWorkStore({ pool, config } = {}) {
       }, options);
     },
 
+    async history(identity, input, options) {
+      const key = accountKey(identity);
+      if (!keys(input, ['artifactId'], ['limit', 'beforeRevision']) || !uuid(input.artifactId)
+        || (Object.hasOwn(input, 'beforeRevision') && !version(input.beforeRevision))) invalid();
+      const { artifactId, beforeRevision } = input;
+      const limit = Object.hasOwn(input, 'limit') ? boundedLimit(input.limit, 50) : 20;
+      return transaction(async query => {
+        const owned = await owner(query, key);
+        if (!owned) throw savedWorkError('saved_work_not_found');
+        // One statement sees the head and history page in the same snapshot,
+        // including an empty page. A concurrent append cannot split those views.
+        const result = await query(`SELECT a.*, r.revision AS history_revision,
+          r.created_at AS revision_created_at FROM metabloom_saved_work.artifacts a
+          LEFT JOIN metabloom_saved_work.revisions r ON r.artifact_id = a.id
+            AND r.account_id = a.account_id AND r.workspace_id = a.workspace_id
+            AND ($4::integer IS NULL OR r.revision < $4)
+          WHERE a.id = $1 AND a.account_id = $2 AND a.workspace_id = $3
+          ORDER BY r.revision DESC LIMIT $5`,
+        [artifactId, owned.accountId, owned.workspaceId, beforeRevision ?? null, limit + 1]);
+        if (!result.rows.length) throw savedWorkError('saved_work_not_found');
+        const selected = metadata(result.rows[0]);
+        const rows = result.rows.filter(row => row.history_revision !== null);
+        let previous = beforeRevision || MAX_VERSION + 1;
+        const items = rows.slice(0, limit).map(row => {
+          if (!version(row.history_revision) || row.history_revision > selected.headRevision
+            || row.history_revision >= previous) throw savedWorkError('saved_work_corrupt');
+          previous = row.history_revision;
+          return { revision: row.history_revision, createdAt: isoTime(row.revision_created_at) };
+        });
+        return { artifact: selected, items,
+          nextBeforeRevision: rows.length > limit ? items[items.length - 1].revision : null };
+      }, options);
+    },
+
     async appendRevision(identity, input, options) {
       const key = accountKey(identity);
       const { artifactId, expectedVersion } = mutation(input, ['content']);

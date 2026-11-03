@@ -848,3 +848,179 @@ test('unavailable durable storage never creates a local success or changes the c
   expect(within(activeWorkspace()).getByRole('region', { name: calculator.title })).toBe(frame);
   expect(within(frame).getByText('1,445 CAD')).toBeInTheDocument();
 });
+
+const associatedState = (artifact = savedArtifact()) => {
+  const state = initialState([record(1)], id(1));
+  state.orb.messages[1].savedArtifact = artifact;
+  return state;
+};
+const revisionOpen = (artifact, hours, handle = 'f') => {
+  const result = savedVisual(artifact);
+  result.content.scenario.inputs.hours = hours;
+  result.reference.offer.id = handle.repeat(48);
+  result.reference.artifactVersion = handle.repeat(32);
+  return result;
+};
+
+test('Save changes and Undo append confirmed revisions while keeping the separately selected message context frozen', async () => {
+  const original = savedArtifact(), changed = savedArtifact({ version: 2, revision: 2, headRevision: 2 });
+  const undone = savedArtifact({ version: 3, revision: 3, headRevision: 3 });
+  requestMetabloomSavedWork.mockResolvedValueOnce({ items: [original], nextCursor: null })
+    .mockResolvedValueOnce({ artifact: changed, undo: { artifactId: original.artifactId, revision: 1, expectedVersion: 2 } })
+    .mockResolvedValueOnce(revisionOpen(changed, 20))
+    .mockResolvedValueOnce({ artifact: undone, undo: { artifactId: original.artifactId, revision: 2, expectedVersion: 3 } })
+    .mockResolvedValueOnce(revisionOpen(undone, 17, 'e'));
+  workspace(associatedState()).mount();
+  const originalFrame = await screen.findByRole('region', { name: calculator.title });
+  fireEvent.click(within(originalFrame).getByRole('button', { name: 'Ask about this scenario' }));
+  fireEvent.change(within(originalFrame).getByRole('spinbutton', { name: 'Hours' }), { target: { value: '20' } });
+  fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Keep my question about the earlier 17 hours' } });
+  await openSavedPanel();
+  fireEvent.click(screen.getByRole('button', { name: 'Save changes', exact: true }));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Continue editing' })).toBeEnabled());
+  expect(screen.getByRole('region', { name: 'Confirmed revision' })).toHaveTextContent('Changes saved as revision 2. This revision is now open.');
+  expect(requestMetabloomSavedWork.mock.calls[1][0]).toEqual({ action: 'revise', artifactId: original.artifactId, expectedVersion: 1,
+    source: { kind: 'visual', id: id(1), artifactVersion: version(1) }, scenario: { inputs: { hours: 20, rate: 85 } } });
+  expect(within(activeWorkspace()).getByRole('spinbutton', { name: 'Hours' })).toHaveValue(20);
+  expect(window.__orbMessages().find(message => message.id === 'assistant-2').savedArtifact).toMatchObject({ version: 2, revision: 1, headRevision: 2 });
+  expect(window.__orbMessages().at(-1).savedArtifact).toEqual(changed);
+  expect(screen.getByRole('group', { name: 'Selected visual reference' })).toHaveTextContent('Hours: 17 · Hourly rate: 85 CAD · Result: 1,445 CAD');
+  fireEvent.click(screen.getByRole('button', { name: 'Undo last saved change' }));
+  await waitFor(() => expect(screen.getByRole('region', { name: 'Confirmed revision' })).toHaveTextContent('Undo saved as revision 3. This revision is now open.'));
+  expect(requestMetabloomSavedWork.mock.calls[3][0]).toEqual({ action: 'restore', artifactId: original.artifactId, revision: 1, expectedVersion: 2 });
+  expect(within(activeWorkspace()).getByRole('spinbutton', { name: 'Hours' })).toHaveValue(17);
+  expect(window.__orbMessages().at(-1).savedArtifact).toEqual(undone);
+  expect(screen.getByRole('textbox')).toHaveValue('Keep my question about the earlier 17 hours');
+  fireEvent.click(screen.getByRole('button', { name: 'Continue editing' }));
+  await waitFor(() => expect(document.querySelector('.metabloom-component-workspace__body')).toHaveFocus());
+  expect(postMetabloomTool).not.toHaveBeenCalled();
+  expect(requestMetabloomVisual).not.toHaveBeenCalled();
+});
+
+test('a confirmed revision with failed Open preserves the visible work and retries only hydration', async () => {
+  const changed = savedArtifact({ version: 2, revision: 2, headRevision: 2 });
+  requestMetabloomSavedWork.mockResolvedValueOnce({ items: [savedArtifact()], nextCursor: null })
+    .mockResolvedValueOnce({ artifact: changed, undo: { artifactId: changed.artifactId, revision: 1, expectedVersion: 2 } })
+    .mockRejectedValueOnce(Object.assign(new Error('Reference hydration failed'), { code: 'saved_work_unavailable' }))
+    .mockResolvedValueOnce(revisionOpen(changed, 20));
+  workspace(associatedState()).mount();
+  const frame = await screen.findByRole('region', { name: calculator.title });
+  fireEvent.change(within(frame).getByRole('spinbutton', { name: 'Hours' }), { target: { value: '20' } });
+  await openSavedPanel();
+  fireEvent.click(screen.getByRole('button', { name: 'Save changes', exact: true }));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Retry open' })).toBeEnabled());
+  expect(screen.getByRole('alert')).toHaveTextContent('Revision 2 is saved, but it could not be opened.');
+  expect(within(activeWorkspace()).getByRole('region', { name: calculator.title })).toBe(frame);
+  expect(window.__orbMessages()[1].savedArtifact).toMatchObject({ version: 2, revision: 1, headRevision: 2 });
+  expect(screen.getByRole('button', { name: 'Save changes', exact: true })).toBeDisabled();
+  expect(screen.getByRole('button', { name: 'Undo last saved change' })).toBeEnabled();
+  fireEvent.click(screen.getByRole('button', { name: 'Retry open' }));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Continue editing' })).toBeEnabled());
+  expect(requestMetabloomSavedWork.mock.calls.map(([request]) => request.action)).toEqual(['list', 'revise', 'open', 'open']);
+  expect(requestMetabloomSavedWork.mock.calls[3][0]).toEqual({ action: 'open', artifactId: changed.artifactId, revision: 2 });
+  expect(window.__orbMessages().at(-1).savedArtifact).toEqual(changed);
+  expect(within(activeWorkspace()).getByRole('spinbutton', { name: 'Hours' })).toHaveValue(20);
+});
+
+test('History opens an exact earlier revision without changing the saved head and labels the older working copy', async () => {
+  const head = savedArtifact({ version: 4, revision: 3, headRevision: 3 });
+  const historical = { ...head, revision: 1 };
+  requestMetabloomSavedWork.mockResolvedValueOnce({ items: [head], nextCursor: null })
+    .mockResolvedValueOnce({ artifact: head, items: [3, 2, 1].map(revision => ({ revision, createdAt: head.createdAt })), nextBeforeRevision: null })
+    .mockResolvedValueOnce(revisionOpen(historical, 17));
+  workspace(associatedState(head)).mount();
+  await openSavedPanel();
+  fireEvent.click(screen.getByRole('button', { name: 'History of Project price' }));
+  const history = await screen.findByRole('region', { name: 'History of Project price' });
+  fireEvent.click(within(history).getByRole('button', { name: 'Open revision 1 of Project price' }));
+  await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Saved work' })).not.toBeInTheDocument());
+  const frame = await within(activeWorkspace()).findByRole('region', { name: calculator.title });
+  expect(within(frame).getByRole('spinbutton', { name: 'Hours' })).toHaveValue(17);
+  expect(within(activeWorkspace()).getByText('Working from revision 1 · Latest 3')).toBeVisible();
+  expect(window.__orbMessages().at(-1).savedArtifact).toEqual(historical);
+  expect(requestMetabloomSavedWork.mock.calls.map(([request]) => request.action)).toEqual(['list', 'history', 'open']);
+  expect(requestMetabloomSavedWork.mock.calls[2][0]).toEqual({ action: 'open', artifactId: head.artifactId, revision: 1 });
+});
+
+test('confirmed Rename updates association metadata and Delete detaches it while retaining the live component', async () => {
+  const renamed = savedArtifact({ title: 'Client estimate', version: 2 });
+  requestMetabloomSavedWork.mockResolvedValueOnce({ items: [savedArtifact()], nextCursor: null })
+    .mockResolvedValueOnce({ artifact: renamed })
+    .mockResolvedValueOnce({ artifactId: renamed.artifactId, version: 2, deleted: true });
+  workspace(associatedState()).mount();
+  const frame = await screen.findByRole('region', { name: calculator.title });
+  await openSavedPanel();
+  fireEvent.click(screen.getByRole('button', { name: 'Rename Project price' }));
+  fireEvent.change(screen.getByRole('textbox', { name: 'New name' }), { target: { value: renamed.title } });
+  fireEvent.submit(screen.getByRole('form', { name: 'Rename Project price' }));
+  await screen.findByRole('button', { name: 'Rename Client estimate' });
+  expect(window.__orbMessages()[1].savedArtifact).toEqual(renamed);
+  expect(within(activeWorkspace()).getByRole('heading', { name: 'Client estimate' })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Delete Client estimate' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Delete saved copy' }));
+  await waitFor(() => expect(window.__orbMessages()[1]).not.toHaveProperty('savedArtifact'));
+  expect(requestMetabloomSavedWork.mock.calls[2][0]).toEqual({ action: 'delete', artifactId: renamed.artifactId, expectedVersion: 2 });
+  expect(screen.queryByRole('button', { name: 'Save changes', exact: true })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Close saved work' }));
+  expect(within(activeWorkspace()).getByRole('region', { name: calculator.title })).toBe(frame);
+  expect(within(frame).getByRole('spinbutton', { name: 'Hours' })).toHaveValue(17);
+  expect(within(activeWorkspace()).getByRole('heading', { name: 'Project price' })).toBeInTheDocument();
+});
+
+test('restoring another saved item cannot relabel or replace active work when its subsequent Open fails', async () => {
+  const other = savedArtifact({ artifactId: '00000000-0000-4000-8000-000000000002', title: 'Another estimate', version: 3, revision: 3, headRevision: 3 });
+  const restored = { ...other, version: 4, revision: 4, headRevision: 4 };
+  requestMetabloomSavedWork.mockResolvedValueOnce({ items: [savedArtifact(), other], nextCursor: null })
+    .mockResolvedValueOnce({ artifact: other, items: [{ revision: 1, createdAt: other.createdAt }], nextBeforeRevision: null })
+    .mockResolvedValueOnce({ artifact: restored, undo: { artifactId: other.artifactId, revision: 3, expectedVersion: 4 } })
+    .mockRejectedValueOnce(new Error('No fresh reference available'));
+  workspace(associatedState()).mount();
+  const frame = await screen.findByRole('region', { name: calculator.title });
+  await openSavedPanel();
+  fireEvent.click(screen.getByRole('button', { name: 'History of Another estimate' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Restore revision 1 of Another estimate' }));
+  expect(screen.getByRole('button', { name: 'Cancel restore' })).toHaveFocus();
+  fireEvent.click(screen.getByRole('button', { name: 'Restore as current' }));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Retry open' })).toBeEnabled());
+  expect(window.__orbMessages()[1].savedArtifact).toEqual(savedArtifact());
+  expect(within(activeWorkspace()).getByRole('region', { name: calculator.title })).toBe(frame);
+  expect(screen.getByRole('region', { name: 'Confirmed revision' })).toHaveTextContent('Another estimate');
+  expect(requestMetabloomSavedWork.mock.calls[2][0]).toEqual({ action: 'restore', artifactId: other.artifactId, revision: 1, expectedVersion: 3 });
+});
+
+test('retrying a captured Save after restoring different work associates only the original message', async () => {
+  const other = savedArtifact({ artifactId: '00000000-0000-4000-8000-000000000002', title: 'Another estimate', version: 3, revision: 3, headRevision: 3 });
+  const restored = { ...other, version: 4, revision: 4, headRevision: 4 };
+  const savedCopy = savedArtifact({ artifactId: '00000000-0000-4000-8000-000000000003' });
+  requestMetabloomSavedWork.mockResolvedValueOnce({ items: [savedArtifact(), other], nextCursor: null })
+    .mockRejectedValueOnce(Object.assign(new Error('Unconfirmed save'), { code: 'saved_work_timeout' }))
+    .mockResolvedValueOnce({ artifact: other, items: [{ revision: 1, createdAt: other.createdAt }], nextBeforeRevision: null })
+    .mockResolvedValueOnce({ artifact: restored, undo: { artifactId: other.artifactId, revision: 3, expectedVersion: 4 } })
+    .mockResolvedValueOnce(revisionOpen(restored, 9))
+    .mockResolvedValueOnce({ artifact: savedCopy })
+    .mockRejectedValueOnce(Object.assign(new Error('No content change'), { code: 'saved_work_invalid' }));
+  workspace(associatedState()).mount();
+  await openSavedPanel();
+  fireEvent.click(screen.getByRole('button', { name: 'Save as new', exact: true }));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'History of Another estimate' })).toBeEnabled());
+  const captured = requestMetabloomSavedWork.mock.calls[1][0];
+  fireEvent.click(screen.getByRole('button', { name: 'History of Another estimate' }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Restore revision 1 of Another estimate' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Restore as current' }));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Continue editing' })).toBeEnabled());
+  const current = screen.getByRole('region', { name: 'Current work' });
+  expect(current).toHaveTextContent('Another estimate');
+  expect(within(current).getByRole('button', { name: 'Save as new', exact: true })).toBeDisabled();
+  expect(within(activeWorkspace()).getByRole('spinbutton', { name: 'Hours' })).toHaveValue(9);
+  fireEvent.click(screen.getByRole('button', { name: 'Retry captured save: Project price', exact: true }));
+  await waitFor(() => expect(window.__orbMessages().find(message => message.id === 'assistant-2').savedArtifact).toEqual(savedCopy));
+  expect(requestMetabloomSavedWork.mock.calls[5][0]).toEqual(captured);
+  expect(window.__orbMessages().at(-1).savedArtifact).toEqual(restored);
+  expect(within(activeWorkspace()).getByRole('heading', { name: 'Another estimate' })).toBeInTheDocument();
+  expect(within(activeWorkspace()).getByRole('spinbutton', { name: 'Hours' })).toHaveValue(9);
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Save changes', exact: true })).toBeEnabled());
+  fireEvent.click(screen.getByRole('button', { name: 'Save changes', exact: true }));
+  await waitFor(() => expect(requestMetabloomSavedWork).toHaveBeenCalledTimes(7));
+  expect(requestMetabloomSavedWork.mock.calls[6][0]).toMatchObject({ action: 'revise', artifactId: other.artifactId,
+    expectedVersion: 4, source: { id: 'f'.repeat(48) }, scenario: { inputs: { hours: 9, rate: 85 } } });
+});

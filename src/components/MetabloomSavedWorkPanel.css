@@ -28,10 +28,11 @@
 .orb-page .metabloom-saved-work[open] { display: flex; flex-direction: column; }
 .metabloom-saved-work::backdrop { background: rgba(10, 10, 16, 0.5); }
 .orb-page .metabloom-saved-work *, .orb-page .metabloom-saved-work *::before, .orb-page .metabloom-saved-work *::after { box-sizing: border-box; }
-.orb-page .metabloom-saved-work :where(h2, h3, h4, p) { margin: 0; color: inherit; font: inherit; letter-spacing: normal; }
+.orb-page .metabloom-saved-work :where(h2, h3, h4, h5, p) { margin: 0; color: inherit; font: inherit; letter-spacing: normal; }
 .orb-page .metabloom-saved-work h2 { font-size: 18px; font-weight: 650; }
 .orb-page .metabloom-saved-work h3 { font-size: 14px; font-weight: 600; }
 .orb-page .metabloom-saved-work h4 { font-size: 16px; font-weight: 600; }
+.orb-page .metabloom-saved-work h5 { font-size: 14px; font-weight: 600; }
 
 .orb-page .metabloom-saved-work__header {
   display: flex;
@@ -64,7 +65,7 @@
 }
 .orb-page .metabloom-saved-work button:disabled { opacity: 0.55; cursor: default; }
 .orb-page .metabloom-saved-work__header > button { flex: 0 0 44px; width: 44px; padding: 0; border-color: transparent; background: transparent; font-size: 24px; }
-.orb-page .metabloom-saved-work :is(button, input):focus-visible { outline: 2px solid var(--aetheris-focus-line); outline-offset: 2px; box-shadow: var(--aetheris-focus-halo); }
+.orb-page .metabloom-saved-work :is(button, input, [tabindex]):focus-visible { outline: 2px solid var(--aetheris-focus-line); outline-offset: 2px; box-shadow: var(--aetheris-focus-halo); }
 
 .orb-page .metabloom-saved-work__feedback { flex: 0 0 auto; padding: 10px 16px; border-bottom: 1px solid var(--aetheris-line); }
 .orb-page .metabloom-saved-work__feedback > p + p { margin-top: 6px; }
@@ -72,7 +73,7 @@
 .orb-page .metabloom-saved-work__current { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--aetheris-line); }
 .orb-page .metabloom-saved-work__current > div { flex: 1 1 180px; min-width: 0; }
 .orb-page .metabloom-saved-work__current > div > p { margin-top: 4px; }
-.orb-page .metabloom-saved-work__current > button { flex: 0 0 auto; }
+.orb-page .metabloom-saved-work__current > .metabloom-saved-work__actions { flex: 0 1 auto; margin-top: 0; }
 .orb-page .metabloom-saved-work__hint { width: 100%; color: var(--aetheris-ink-2); font-size: 12px; }
 .orb-page .metabloom-saved-work__list-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; margin-bottom: 8px; }
 .orb-page .metabloom-saved-work__list-heading > h3 { min-width: 0; }
@@ -87,6 +88,13 @@
 .orb-page .metabloom-saved-work input { width: 100%; min-width: 0; min-height: 44px; padding: 8px 10px; border: 1px solid var(--aetheris-line-strong); border-radius: var(--aetheris-radius-lg); color: var(--aetheris-ink); background: var(--aetheris-panel); font: 16px/1.4 var(--aetheris-font-sans); }
 .orb-page .metabloom-saved-work__confirmation { margin-top: 12px; }
 .orb-page .metabloom-saved-work__more { margin-top: 12px; }
+.orb-page .metabloom-saved-work__receipt { margin-bottom: 16px; padding: 12px; border: 1px solid var(--aetheris-line-strong); border-radius: var(--aetheris-radius-lg); background: var(--aetheris-panel); }
+.orb-page .metabloom-saved-work__receipt > p { margin-top: 6px; }
+.orb-page .metabloom-saved-work__history { margin-top: 14px; padding: 12px; border: 1px solid var(--aetheris-line); border-radius: var(--aetheris-radius-lg); background: var(--aetheris-panel); }
+.orb-page .metabloom-saved-work__history ol { margin: 8px 0; padding: 0; list-style: none; }
+.orb-page .metabloom-saved-work__history li { padding: 12px 0; border-top: 1px solid var(--aetheris-line); }
+.orb-page .metabloom-saved-work__history li > div:first-child { display: grid; gap: 3px; min-width: 0; }
+.orb-page .metabloom-saved-work__history time { color: var(--aetheris-ink-2); font-size: 12px; }
 
 @media (hover: hover) {
   .orb-page .metabloom-saved-work button:hover:not(:disabled) { background: color-mix(in srgb, var(--aetheris-panel) 92%, var(--aetheris-ink)); }
@@ -99,5 +107,5 @@
 @media (forced-colors: active) {
   .orb-page .metabloom-saved-work, .orb-page .metabloom-saved-work :is(button, input) { background: Canvas; color: CanvasText; border-color: CanvasText; box-shadow: none; }
   .orb-page .metabloom-saved-work button:disabled { color: GrayText; opacity: 1; }
-  .orb-page .metabloom-saved-work :is(button, input):focus-visible { outline-color: Highlight; box-shadow: none; }
+  .orb-page .metabloom-saved-work :is(button, input, [tabindex]):focus-visible { outline-color: Highlight; box-shadow: none; }
 }

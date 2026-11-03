@@ -2,7 +2,8 @@
 
 PR05 adds the ownership, content, PostgreSQL storage and migration foundation.
 The Step 5 adapter adds authenticated Save/Open/Rename/Delete and a bounded
-browser client. Revision/history controls remain a separate follow-up.
+browser client. Step 6 adds history, exact revision selection, source-backed
+updates, and restore/Undo through new immutable revisions.
 
 Ordinary chat, login, build and deployment create no durable account or database.
 The existing Redis stores retain their session, quota and temporary-reference
@@ -100,6 +101,7 @@ the versioned content and requires an exact canonical round trip.
 | `create` | `{requestId, title, content}` | Saved metadata and content |
 | `get` | `{artifactId, revision?}` | Selected revision and content |
 | `list` | `{limit?, after?}` | Bounded metadata page and next cursor |
+| `history` | `{artifactId, limit?, beforeRevision?}` | Current metadata, revision page and next cursor |
 | `appendRevision` | `{artifactId, expectedVersion, content}` | New immutable revision and metadata |
 | `rename` | `{artifactId, expectedVersion, title}` | Updated metadata |
 | `delete` | `{artifactId, expectedVersion}` | Confirmed deletion receipt |
@@ -107,7 +109,10 @@ the versioned content and requires an exact canonical round trip.
 All methods accept optional `{signal}` after their input. Artifact `version`
 increments for rename or content changes; `revision` increments only for content
 changes. Opening an earlier revision also returns the current `headRevision`.
-Restore can later append a new revision rather than overwrite history.
+Restore and Undo append new revisions without overwriting history. The HTTP
+adapter rejects current-head restores and unchanged content, and binds Undo
+receipts to the version returned by the preceding mutation. History metadata
+and its bounded revision page are read in one SQL statement.
 
 Mutation transactions lock the workspace, enforce limits and compare versions.
 Create retries with the same UUID request ID and identical canonical input return

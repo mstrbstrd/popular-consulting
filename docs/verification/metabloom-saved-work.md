@@ -224,3 +224,67 @@ connected team. The project still needs its PostgreSQL connection and explicit
 migration before saved storage can activate. There is no localStorage success
 fallback. Browser geometry and native focus trapping have not been revalidated
 in this environment because the Playwright browser runtime is unavailable.
+
+## Step 6 revisions and restore
+
+The next isolated change adds bounded History, exact-revision Open,
+source-backed Revise, Restore and version-bound Undo receipts. It adds no SQL
+migration and uses the existing immutable revisions and optimistic concurrency
+checks. History reads its metadata and page in a single SQL snapshot.
+
+All 112 saved-work tests pass, including sixteen revision/API/client cases and
+three additional history store contracts. The full Jest rerun passes all 215
+suites and 2,130 tests. Saved-work lint and whitespace checks pass.
+
+Cases cover read-only historical preview, source-backed edits, exact-content
+no-op rejection, restore/Undo as new revisions, foreign and absent revisions,
+concurrent changes, rename invalidating Undo, loss of a committed response,
+deletion between read and append, quota failure, immutable earlier content,
+historical research dates, and strict receipt/pagination validation.
+
+A further native PostgreSQL case verifies History pagination and HTTP
+restore/Undo against persisted revisions. The native suite now has 21 cases,
+including seventeen that require PostgreSQL 16. The two new Step 5/6 native
+cases remain unrun locally for the runtime limitation recorded above. CI runs
+them through the existing gate. No hosted activation or deployment is claimed.
+
+## Integrated history and workspace behavior
+
+History is an explicit action for each saved item. Opening a historical revision
+keeps the durable head unchanged and labels the older working revision in the
+workspace. Save changes uses the active association's last confirmed version and
+captured current source/scenario. Save as new remains a separate action.
+
+Restore asks for inline confirmation and appends the selected content as a new
+revision. Undo uses the server receipt's exact previous revision and expected
+version. A later change, including a rename, invalidates that receipt. The UI
+never substitutes a newer version token to make a stale Undo succeed.
+
+A confirmed mutation and the subsequent Open are separate outcomes. The panel
+records the saved revision before requesting fresh session references. If Open
+fails, it keeps the receipt and eligible Undo, reports the saved revision clearly,
+and retries only Open. It does not claim the live renderer has switched until
+owned placement succeeds. Uncertain mutation results require explicit refresh
+instead of an automatic repeat write.
+
+The conversation stores the selected revision independently from the latest
+confirmed head/version. Rename updates matching metadata; Delete detaches matching
+associations while leaving temporary live work usable. Actions on another saved
+item cannot relabel the current component. Successful Open focuses the work after
+the modal releases background inertness; cancel and Escape return to More.
+
+An uncertain Save as new retains both its frozen server request and its original
+workspace/message context. The panel labels that retry separately from Current
+work. Restoring or opening another item cannot redirect the old save receipt to
+the newly visible component, and a later explicit Save captures a fresh context
+and request ID. The opaque workspace context never leaves the client.
+
+The integrated workspace tests exercise changed calculator inputs, Save changes,
+freshly opened heads, Undo, frozen composer attachments, failed hydration with
+exact Open-only retry, older-revision preview, rename/delete associations, and a
+failed Open after restoring another item. A captured-save regression also checks
+that restoring a different item before retry cannot change either item's identity.
+The panel's 25 focused cases cover History pagination, source capture, conflicts,
+lost responses, context switches and modal lifecycle.
+The separate server contract suite passes 112 tests. This does not substitute for
+the native PostgreSQL gate or hosted activation documented above.

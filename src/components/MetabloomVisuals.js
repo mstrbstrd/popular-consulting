@@ -182,8 +182,9 @@ export default class MetabloomVisuals extends React.Component {
     const host = this.root?.querySelector('.metabloom-chat__workspace');
     return this.ownsSurface() && host?.isConnected ? host : null;
   };
-  visualTitle = record => parseMetabloomSavedWorkMetadata(this.messages()
-    .find(message => message.id === record.replyId)?.savedArtifact)?.title || record.spec.title;
+  savedArtifactFor = record => parseMetabloomSavedWorkMetadata(this.messages()
+    .find(message => message.id === (record.replyId || record.messageId))?.savedArtifact);
+  visualTitle = record => this.savedArtifactFor(record)?.title || record.spec.title;
   captureSavedWorkContext = () => {
     if (!this.mounted || !this.workspaceHost()) return null;
     const messages = this.messages();
@@ -770,6 +771,7 @@ export default class MetabloomVisuals extends React.Component {
     const visual = this.records.get(this.activeVisualId);
     const research = this.researchRecords.get(this.activeResearchId);
     const active = visual || research;
+    const savedArtifact = active && this.savedArtifactFor(active);
     const title = visual ? this.visualTitle(visual) : research?.title;
     const activeKey = visual?.id || (research && `research:${research.messageId}`);
     const messageOrder = new Map(this.messages().map((message, index) => [message.id, index]));
@@ -793,6 +795,8 @@ export default class MetabloomVisuals extends React.Component {
               </option>)}
             </select>
           </label>}
+          {savedArtifact && savedArtifact.revision < savedArtifact.headRevision &&
+            <p className="metabloom-component-workspace__revision">Working from revision {savedArtifact.revision} · Latest {savedArtifact.headRevision}</p>}
           <p className="metabloom-component-workspace__summary">{visual ? summarizeMetabloomVisual(visual) : research.summary}</p>
         </div>
         <button type="button" data-workspace-toggle aria-expanded={this.workspaceView === 'expanded'}

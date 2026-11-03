@@ -24,9 +24,12 @@ inside this endpoint.
 | {action: "status"} | {available: true}, or {available: false, code: "saved_work_unavailable"} |
 | {action: "list", limit?, after?} | {items: [artifact], nextCursor} |
 | {action: "save", requestId, title, source, scenario?} | {artifact} |
-| {action: "open", artifactId} | {artifact, content, reference} |
+| {action: "open", artifactId, revision?} | {artifact, content, reference} |
 | {action: "rename", artifactId, expectedVersion, title} | {artifact} |
 | {action: "delete", artifactId, expectedVersion} | {artifactId, version, deleted: true} |
+| {action: "history", artifactId, limit?, beforeRevision?} | {artifact, items: [{revision, createdAt}], nextBeforeRevision} |
+| {action: "revise", artifactId, expectedVersion, source, scenario?} | {artifact, undo} |
+| {action: "restore", artifactId, expectedVersion, revision} | {artifact, undo} |
 
 Artifact and request IDs are UUIDs. Generate one request ID per explicit Save and
 retain it while resolving an uncertain response. Titles are nonempty, trimmed
@@ -158,6 +161,62 @@ Show a saved receipt only after Save succeeds. Preserve drafts and the active
 component on failure. Recheck after a deliberate retry or new authenticated
 session. Abort requests and discard late responses on logout/account change.
 A response for an earlier selection must not replace a newer active component.
+
+## Step 6 history, revisions and Undo
+
+History defaults to 20 entries and allows at most 50. Its items contain only
+revision numbers and creation dates, newest first. The artifact metadata and page
+come from one SQL snapshot. A non-null nextBeforeRevision is passed as
+beforeRevision to the next request. A missing or foreign artifact returns 404.
+History remains listable even when a particular stored content format cannot be
+opened.
+
+Open may specify an exact revision. It returns that selected revision, the
+current headRevision and current metadata version. Previewing history is
+read-only. The returned content and fresh follow-up references belong to the
+selected revision, so chat cannot accidentally use a different revision.
+
+Revise uses the same source and optional calculator scenario as Save. The source
+still resolves from authenticated server records. The saved item's title stays
+unchanged, and its kind must match. The expectedVersion guards concurrent edits.
+No browser-provided content or evidence is accepted.
+
+Restore selects an earlier revision of the same owned artifact and appends its
+content as a new head. Earlier revisions remain immutable. Restoration preserves
+the current title and original research dates. Restoring the current head or
+content identical to the current head returns saved_work_invalid (400) without
+consuming a revision. Revise also rejects unchanged content.
+
+A successful Revise or Restore returns:
+
+~~~js
+{
+  artifact,
+  undo: {
+    artifactId: artifact.artifactId,
+    revision: previousHeadRevision,
+    expectedVersion: artifact.version
+  }
+}
+~~~
+
+Undo calls Restore with those three receipt fields. It appends another revision
+containing the preceding head. A later edit or rename changes the metadata
+version and invalidates the receipt, producing a 409 conflict instead of
+overwriting newer work. There is no Delete Undo or automatic history pruning.
+All retained history counts against the existing account byte limit.
+
+After a confirmed revision mutation, Open the returned head to display it with
+fresh references. If that separate Open fails, keep the confirmed mutation
+receipt and allow reopening; do not report the mutation as failed or repeat it.
+A lost mutation response is reconciled through History/Open. Retrying the same
+expectedVersion conflicts after a successful commit and cannot append twice.
+
+Local calculator edits remain unsaved draft state until an explicit Save or
+Revise. Local control Undo is a separate UI operation and does not write a
+database revision on every input change.
+
+## Error responses
 
 | HTTP status | Public code |
 | --- | --- |

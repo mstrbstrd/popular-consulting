@@ -69,6 +69,9 @@ test('malformed identities, content, mutation versions and pagination reject bef
     () => store.delete(identity, { artifactId, expectedVersion: 1, accountId }),
     () => store.list(identity, { limit: 51 }),
     () => store.list(identity, { after: Buffer.from('{"artifactId":"forged"}').toString('base64url') }),
+    () => store.history(identity, { artifactId, beforeRevision: 0 }),
+    () => store.history(identity, { artifactId, limit: 51 }),
+    () => store.history(identity, { artifactId, accountId }),
   ];
   for (const attempt of attempts) await assert.rejects(attempt, { code: 'saved_work_invalid' });
   assert.equal(fake.connections, 0);
@@ -107,6 +110,7 @@ test('every operation verifies the database environment before any owner lookup 
   const operations = [
     store => store.ensureAccount(identity), store => store.create(identity, createInput()),
     store => store.get(identity, { artifactId }), store => store.list(identity),
+    store => store.history(identity, { artifactId }),
     store => store.appendRevision(identity, { artifactId, expectedVersion: 1, content }),
     store => store.rename(identity, { artifactId, expectedVersion: 1, title: 'Rename' }),
     store => store.delete(identity, { artifactId, expectedVersion: 1 }),
@@ -210,6 +214,60 @@ test('a stored revision validates independent payload and evidence checksums and
     await assert.rejects(createMetabloomSavedWorkStore({ pool: fake.pool, config }).get(identity, { artifactId }),
       { code: 'saved_work_corrupt' });
     assert.deepEqual(fake.releases, [false]);
+  }
+});
+
+test('history reads the owned head and a bounded descending page in one SQL snapshot', async () => {
+  const fixtureRows = [3, 2, 1].map(revision => ({ ...row(), version: 4, current_revision: 3,
+    history_revision: revision, revision_created_at: new Date('2026-11-03T12:00:00.000Z') }));
+  const fake = poolFor(sql => {
+    if (sql.includes('FROM metabloom_saved_work.accounts a')) return { rows: [{ account_id: accountId, workspace_id: workspaceId }] };
+    if (sql.includes('AS history_revision')) return { rows: fixtureRows };
+    return undefined;
+  });
+  const store = createMetabloomSavedWorkStore({ pool: fake.pool, config });
+  const page = await store.history(identity, { artifactId, limit: 2 });
+  assert.equal(page.artifact.version, 4); assert.equal(page.artifact.headRevision, 3);
+  assert.deepEqual(page.items, [3, 2].map(revision => ({ revision, createdAt: '2026-11-03T12:00:00.000Z' })));
+  assert.equal(page.nextBeforeRevision, 2);
+  const queries = fake.calls.filter(call => call.sql.includes('AS history_revision'));
+  assert.equal(queries.length, 1);
+  assert.deepEqual(queries[0].values, [artifactId, accountId, workspaceId, null, 3]);
+  assert.match(queries[0].sql, /r\.account_id = a\.account_id AND r\.workspace_id = a\.workspace_id/);
+  assert.match(queries[0].sql, /a\.account_id = \$2 AND a\.workspace_id = \$3/);
+});
+
+test('an empty historical page retains owned metadata while absent owners or artifacts return not found', async () => {
+  const empty = poolFor(sql => {
+    if (sql.includes('FROM metabloom_saved_work.accounts a')) return { rows: [{ account_id: accountId, workspace_id: workspaceId }] };
+    if (sql.includes('AS history_revision')) return { rows: [{ ...row(), history_revision: null, revision_created_at: null }] };
+    return undefined;
+  });
+  const page = await createMetabloomSavedWorkStore({ pool: empty.pool, config })
+    .history(identity, { artifactId, beforeRevision: 1 });
+  assert.deepEqual(page.items, []); assert.equal(page.nextBeforeRevision, null);
+  assert.equal(page.artifact.artifactId, artifactId);
+  for (const foundOwner of [false, true]) {
+    const fake = poolFor(sql => sql.includes('FROM metabloom_saved_work.accounts a')
+      ? { rows: foundOwner ? [{ account_id: accountId, workspace_id: workspaceId }] : [] } : undefined);
+    await assert.rejects(createMetabloomSavedWorkStore({ pool: fake.pool, config })
+      .history(identity, { artifactId }), { code: 'saved_work_not_found' });
+  }
+});
+
+test('history rejects corrupt revisions, dates and order without exposing partial metadata', async () => {
+  const historyRow = revision => ({ ...row(), version: 3, current_revision: 3,
+    history_revision: revision, revision_created_at: '2026-11-03T12:00:00.000Z' });
+  for (const rows of [[historyRow(4)], [historyRow(0)], [historyRow(2), historyRow(3)],
+    [{ ...historyRow(1), revision_created_at: 'not-a-date' }]]) {
+    const fake = poolFor(sql => {
+      if (sql.includes('FROM metabloom_saved_work.accounts a')) return { rows: [{ account_id: accountId, workspace_id: workspaceId }] };
+      if (sql.includes('AS history_revision')) return { rows };
+      return undefined;
+    });
+    await assert.rejects(createMetabloomSavedWorkStore({ pool: fake.pool, config })
+      .history(identity, { artifactId }), { code: 'saved_work_corrupt' });
+    assert.equal(fake.calls.at(-1).sql, 'ROLLBACK');
   }
 });
 
