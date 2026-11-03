@@ -270,3 +270,11 @@ test('opening research leaves the staged calculator alone; using a finding alone
     window.removeEventListener(METABLOOM_WORKSPACE_VIEW_REQUEST, onViewRequest);
   }
 });
+
+test('a completed workspace report without a structured brief opens directly to its full content', () => {
+  const controller = controllerFor();
+  render(<SurfaceHarness controller={controller} props={{ ...base, brief: null }} />);
+  openResearch(metadata.title);
+  expect(screen.getByText('Full research', { selector: 'summary' }).parentElement).toHaveAttribute('open');
+  expect(screen.getByRole('group', { name: 'Completed research' })).toHaveTextContent('The second finding remains qualified');
+});

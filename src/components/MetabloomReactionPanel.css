@@ -245,3 +245,12 @@
   .orb-page .metabloom-reactions button::before { display: none; }
   .orb-page .metabloom-reactions button[data-selected="true"] { border-color: Highlight; outline: 1px solid Highlight; }
 }
+
+.metabloom-reactions__workspace-tools { display: grid; margin-bottom: 1rem; }
+.metabloom-reactions__disclosure { min-width: 0; }
+.metabloom-reactions__disclosure > summary {
+  box-sizing: border-box; min-height: 44px; padding: 1rem 0;
+  color: inherit; font: 600 1.3rem/1.5 var(--aetheris-font-sans, sans-serif); cursor: pointer;
+}
+.metabloom-reactions__disclosure > summary:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.metabloom-reactions__disclosure[open] > summary { margin-bottom: 1rem; }

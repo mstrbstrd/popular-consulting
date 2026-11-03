@@ -204,11 +204,13 @@ try {
       assert.equal(await page.getByRole('button', { name: 'Open navigation menu', exact: true }).evaluate(button => document.activeElement === button), true, 'Closing navigation did not restore focus');
     }
     await go('Orb', '/orb');
-    await press(page.getByRole('button', { name: 'Reactions', exact: false }).first());
+    await press(page.getByRole('button', { name: 'More', exact: true }).first());
+    await press(page.getByText('Reactions and previews', { exact: true }));
     await press(page.getByRole('button', { name: 'Preview research scene', exact: true }));
     await page.waitForSelector('.metabloom-chat[data-research-phase="diving"]');
     await go('Home', '/home'); await go('Orb', '/orb');
-    await press(page.getByRole('button', { name: 'Reactions', exact: false }).first());
+    await press(page.getByRole('button', { name: 'More', exact: true }).first());
+    await press(page.getByText('Reactions and previews', { exact: true }));
     await press(page.getByRole('button', { name: 'Preview under the hood', exact: true }));
     await waitForCheck(page, () => document.querySelector('.metabloom-chat__presence')?.textContent.includes('seam') || document.querySelector('[data-under-hood]'));
     await go('Home', '/home'); await go('Orb', '/orb');

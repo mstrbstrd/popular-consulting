@@ -158,6 +158,7 @@
     "api/metabloom-visual.js": { "maxDuration": 90 },
     "api/metabloom-tool.js": { "maxDuration": 60 },
     "api/metabloom-source-media.js": { "maxDuration": 30 },
+    "api/metabloom-saved-work.js": { "maxDuration": 30 },
     "api/auth/[action].js": { "maxDuration": 30 }
   }
 }

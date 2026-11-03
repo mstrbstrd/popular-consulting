@@ -8,6 +8,7 @@
     "@mui/material": "^5.15.3",
     "@vercel/functions": "3.9.8",
     "openid-client": "6.8.8",
+    "pg": "8.23.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-scripts": "5.0.1",
@@ -28,7 +29,11 @@
     "visual:dark-evidence:smoke": "npm run build && node scripts/capture-visual-dark-evidence.mjs --smoke --allow-software --skip-gpu-gate --skip-visual-gate --viewport=480x300",
     "visual:dark-evidence:physical": "node scripts/run-physical-dark-qualification.mjs",
     "visual:dark-evidence:physical:verify": "node scripts/verify-physical-dark-qualification.mjs",
-    "test:auth": "node --test server/auth-tests/*.test.mjs"
+    "test:auth": "node --test server/auth-tests/*.test.mjs",
+    "lint:saved-work": "eslint --env node --max-warnings 0 server/metabloomAccountIdentity.js server/metabloomAuth.js server/metabloomSavedContent.js server/metabloomSavedWorkDatabase.js server/metabloomSavedWorkMigrations.js server/metabloomSavedWorkStore.js scripts/metabloom-saved-content.test.cjs scripts/metabloom-saved-work-database.test.cjs scripts/metabloom-saved-work-store.test.cjs scripts/metabloom-saved-work-postgres.test.cjs scripts/migrate-metabloom-saved-work.cjs server/auth-tests/metabloom-account-identity.test.mjs api/metabloom-saved-work.js server/metabloomSavedWorkReferences.js server/metabloomVisualStore.js src/components/metabloomSavedContent.js src/components/metabloomSavedWorkProtocol.js src/components/metabloomSavedWorkApiClient.js scripts/metabloom-saved-work-api.test.cjs scripts/metabloom-saved-work-client.test.cjs scripts/fixtures/metabloom-saved-work-api.cjs",
+    "test:saved-work": "node --test scripts/metabloom-saved-content.test.cjs scripts/metabloom-saved-work-database.test.cjs scripts/metabloom-saved-work-store.test.cjs scripts/metabloom-saved-work-api.test.cjs scripts/metabloom-saved-work-client.test.cjs",
+    "test:saved-work:postgres": "node --test scripts/metabloom-saved-work-postgres.test.cjs",
+    "saved-work:migrate": "node scripts/migrate-metabloom-saved-work.cjs"
   },
   "eslintConfig": {
     "extends": [

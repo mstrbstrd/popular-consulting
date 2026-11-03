@@ -266,6 +266,25 @@ function createMetabloomVisualStore({ command = visualCommand, now = Date.now } 
       const spec = sources && parseMetabloomVisual(record.result.spec, { kind: record.offer.kind, sources });
       return spec ? { spec, sources, artifactVersion: record.result.artifactVersion } : null;
     },
+    async restoreArtifact(identity, content, options = {}) {
+      // Called only with an account-owned durable revision. Restoring creates
+      // a fresh immutable session reference without an offer claim, generation,
+      // continuation tool, or paid-work quota. Never expose this as raw ingestion.
+      const sources = parseMetabloomVisualSources(content?.sources);
+      const spec = sources && parseMetabloomVisual(content?.spec, { sources });
+      if (!spec) throw visualError('visual_invalid');
+      const offer = { version: METABLOOM_VISUAL_VERSION, designVersion: METABLOOM_VISUAL_DESIGN_VERSION,
+        id: randomBytes(24).toString('hex'), kind: spec.kind, expiresAt: now() + 3600000 };
+      if (!parseMetabloomVisualOffer(offer)) throw visualError('visual_unavailable');
+      const artifactVersion = randomBytes(16).toString('hex');
+      const raw = JSON.stringify({ owner: identity?.owner, status: 'ready', offer,
+        result: JSON.stringify({ status: 'ready', spec, sources, artifactVersion }) });
+      if (Buffer.byteLength(raw, 'utf8') > MAX_STORED_RECORD_BYTES) throw visualError('visual_invalid');
+      options.signal?.throwIfAborted();
+      const result = await command(['SET', recordKey(identity, offer.id), raw, 'EX', '3600', 'NX'], options);
+      if (result !== 'OK') throw visualError('visual_unavailable');
+      return { offer, artifactVersion };
+    },
     async getContinuation(identity, id, options = {}) {
       const record = await readRecord(identity, id, options);
       return record?.status === 'complete' && record.reply ? record.reply : null;

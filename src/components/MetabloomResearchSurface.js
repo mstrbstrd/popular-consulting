@@ -60,7 +60,7 @@ const MetabloomFullResearch = ({ report, initiallyExpanded = false }) => {
 
 export default function MetabloomResearchSurface({ messageId, report, brief, reference,
   referenceExpired = false, referenceUnavailable = false, isActive = true,
-  status, reused = false, onUseReference }) {
+  status, reused = false, onUseReference, savedTitle }) {
   const workspace = React.useContext(MetabloomWorkspaceContext);
   const originRef = React.useRef(null);
   const registrationRef = React.useRef(null);
@@ -72,7 +72,7 @@ export default function MetabloomResearchSurface({ messageId, report, brief, ref
   });
   const terminal = ['complete', 'error', 'interrupted'].includes(status);
   const source = parseMetabloomResearchReferenceMetadata(reference) || undefined;
-  const title = brief?.title || source?.title || 'Research report';
+  const title = savedTitle || brief?.title || source?.title || 'Research report';
   const count = brief?.items.length;
   const summary = [
     brief ? `${count} ${brief.kind === 'news' ? (count === 1 ? 'story' : 'stories') : (count === 1 ? 'finding' : 'findings')}` : null,
@@ -119,7 +119,8 @@ export default function MetabloomResearchSurface({ messageId, report, brief, ref
     if (registration?.controller === workspace) workspace.activateResearchSurface(registration.descriptor,
       { explicit: true, focus: true, view: 'expanded' });
   };
-  const fallback = terminal && (brief?.coverage.status === 'unavailable' || (!brief && status !== 'complete'));
+  const workspaceReport = workspace && registeredController === workspace && !brief;
+  const fallback = terminal && (brief?.coverage.status === 'unavailable' || (!brief && status !== 'complete') || workspaceReport);
   const reuseDisabled = !isActive || referenceExpired || referenceUnavailable;
 
   return <>

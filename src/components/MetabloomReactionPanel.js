@@ -2,7 +2,7 @@ import React from "react";
 import { METABLOOM_ACTIONS, resolveMetabloomAction } from "./metabloomActions";
 import "./MetabloomReactionPanel.css";
 
-const MetabloomReactionPanel = ({ onReact, disabled = false, intensity: controlledIntensity, onIntensityChange, children }) => {
+const MetabloomReactionPanel = ({ onReact, disabled = false, intensity: controlledIntensity, onIntensityChange, children, tools }) => {
   const [open, setOpen] = React.useState(false);
   const [selected, setSelected] = React.useState("curious");
   const [localIntensity, setLocalIntensity] = React.useState(0.8);
@@ -98,19 +98,20 @@ const MetabloomReactionPanel = ({ onReact, disabled = false, intensity: controll
       close();
     }
   };
+  const ReactionGroup = tools ? 'details' : 'div';
 
   return (
     <div className="metabloom-reactions" ref={panelRef} data-reaction-set="2">
       <div className="metabloom-reactions__toolbar">
         <button ref={toggleRef} type="button" aria-expanded={open} aria-controls="metabloom-reaction-panel" onClick={() => setOpen(!open)}>
-          Reactions <span aria-hidden="true">{open ? "−" : "+"}</span>
+          {tools ? 'More' : 'Reactions'} <span aria-hidden="true">{open ? "−" : "+"}</span>
         </button>
         <button type="button" className="metabloom-reactions__replay-shortcut" disabled={disabled} onClick={() => play(selected)} aria-label={`Replay ${action.label.toLowerCase()} reaction`}>
           Replay
         </button>
       </div>
       {open && (
-        <dialog ref={popoverRef} id="metabloom-reaction-panel" className="metabloom-reactions__panel" aria-label="Reaction studio" onClose={close} onCancel={(event) => {
+        <dialog ref={popoverRef} id="metabloom-reaction-panel" className="metabloom-reactions__panel" aria-label={tools ? 'More options' : 'Reaction studio'} onClose={close} onCancel={(event) => {
           event.preventDefault();
           close();
         }} onClick={(event) => {
@@ -122,14 +123,17 @@ const MetabloomReactionPanel = ({ onReact, disabled = false, intensity: controll
             || event.clientY < bounds.top || event.clientY > bounds.bottom) close();
         }}>
           <div className="metabloom-reactions__heading">
-            <div><strong>Reactions</strong><p>A little body language for the conversation.</p></div>
-            <button type="button" onClick={close} aria-label="Close reactions">
+            <div><strong>{tools ? 'More' : 'Reactions'}</strong><p>{tools ? 'Workspace and conversation controls.' : 'A little body language for the conversation.'}</p></div>
+            <button type="button" onClick={close} aria-label={tools ? 'Close more options' : 'Close reactions'}>
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false">
                 <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
               </svg>
             </button>
           </div>
           <div className="metabloom-reactions__content">
+            {tools && <div className="metabloom-reactions__workspace-tools">{tools({ close })}</div>}
+            <ReactionGroup className="metabloom-reactions__disclosure">
+              {tools && <summary>Reactions and previews</summary>}
             <button type="button" className="metabloom-reactions__replay-selected" disabled={disabled}
               onClick={() => play(selected)} aria-label="Replay selected reaction">
               Replay {action.label.toLowerCase()}
@@ -148,6 +152,7 @@ const MetabloomReactionPanel = ({ onReact, disabled = false, intensity: controll
             <p className="metabloom-reactions__hint">Applies to previews and conversation reactions.</p>
             {typeof children === "function" ? children({ close }) : children}
             <p className="metabloom-reactions__score"><strong>{action.label}</strong><span>{action.beats.join(" · ")}</span></p>
+            </ReactionGroup>
             {disabled && <p className="metabloom-reactions__waiting">Available when the current reply finishes.</p>}
           </div>
         </dialog>

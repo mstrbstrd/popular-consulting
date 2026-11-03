@@ -1,4 +1,5 @@
 import React from "react";
+import { createPortal, flushSync } from 'react-dom';
 import { useThemeMode } from "../contexts/ThemeContext";
 import { useAppNavigation } from '../contexts/AppNavigationContext';
 import { METABLOOM_HOOD_SEQUENCE } from "./metabloomUnderHood";
@@ -6,6 +7,10 @@ import MetabloomAvatar from "./MetabloomAvatar";
 import MetabloomReactionPanel from "./MetabloomReactionPanel";
 import MetabloomResearchStatus from "./MetabloomResearchStatus";
 import MetabloomResearchSurface, { ResearchReferenceDates } from './MetabloomResearchSurface';
+import MetabloomWorkspaceContext from './MetabloomWorkspaceContext';
+import MetabloomSavedWorkPanel from './MetabloomSavedWorkPanel';
+import { prepareMetabloomSavedOpen } from './metabloomSavedWorkspace';
+import { parseMetabloomSavedWorkMetadata } from './metabloomSavedWorkProtocol';
 import { METABLOOM_SCENE_TRANSITION_SECONDS } from "./metabloomSceneTransition";
 import {
   METABLOOM_ACTIONS,
@@ -363,12 +368,13 @@ const cloneActionChain = (actionChain = []) =>
     talking,
   }));
 
-const cloneMessage = ({ id, role, content, actionChain = [], source, emote, segments = [], status, sources, researchDetails, researchBrief, researchReference, researchReused }) => {
+const cloneMessage = ({ id, role, content, actionChain = [], source, emote, segments = [], status, sources, researchDetails, researchBrief, researchReference, researchReused, savedArtifact }) => {
   const researchReport = role === "assistant" ? parseMetabloomResearchReport(researchDetails) : null;
   const researchSources = researchReport ? parseMetabloomResearchAnswerSources(sources, { report: researchReport })
     : parseMetabloomResearchSources(sources);
   const brief = researchReport ? parseMetabloomResearchBrief(researchBrief, { sources: researchReport.sources }) : null;
   const reference = researchReport ? parseMetabloomResearchReferenceMetadata(researchReference) : null;
+  const artifact = role === 'assistant' ? parseMetabloomSavedWorkMetadata(savedArtifact) : null;
   return {
     id,
     emote,
@@ -378,6 +384,7 @@ const cloneMessage = ({ id, role, content, actionChain = [], source, emote, segm
     content,
     actionChain: cloneActionChain(actionChain),
     source,
+    ...(artifact ? { savedArtifact: artifact } : {}),
     ...(researchSources ? { sources: researchSources } : {}),
     ...(researchReport ? { researchDetails: researchReport } : {}),
     ...(brief ? { researchBrief: brief } : {}),
@@ -433,6 +440,12 @@ const OrbSection = ({
 }) => {
   const { isDark } = useThemeMode();
   const navigation = useAppNavigation();
+  const workspace = React.useContext(MetabloomWorkspaceContext);
+  const workspaceRef = React.useRef(workspace);
+  workspaceRef.current = workspace;
+  const savedWorkRef = React.useRef(null);
+  const savedWorkFocusFrame = React.useRef(0);
+  const [savedWork, setSavedWork] = React.useState(null);
   const [savedConversation] = React.useState(() => navigation?.getToolState('orb'));
   const initialMessages = React.useMemo(
     () => INITIAL_MESSAGES.map((message) => ({ ...message, actionChain: [] })),
@@ -667,6 +680,75 @@ const OrbSection = ({
     updateStateSnapshot({ conversationStarted: nextMessages.length > 0, messageCount: nextMessages.length });
     if (mountedRef.current) setMessages(nextMessages);
   }, [updateStateSnapshot]);
+
+  const closeSavedWork = React.useCallback(() => {
+    const session = savedWorkRef.current;
+    savedWorkRef.current = null;
+    setSavedWork(null);
+    window.cancelAnimationFrame(savedWorkFocusFrame.current);
+    if (session?.focusWorkspaceOnClose) savedWorkFocusFrame.current = window.requestAnimationFrame(() => {
+      // The native modal must release background inertness and restore its
+      // opener before successful Open hands focus to the newly visible work.
+      const controller = session.controller;
+      if (mountedRef.current && controller.mounted && controller.ownsSurface()
+        && controller.workspaceSelectionRevision === session.revision) controller.workspaceBody?.focus({ preventScroll: true });
+    });
+  }, []);
+  React.useEffect(() => () => window.cancelAnimationFrame(savedWorkFocusFrame.current), []);
+  const openSavedWork = React.useCallback(() => {
+    if (!isActive || stateRef.current?.pending || !workspace?.mounted || !workspace.ownsSurface()) return;
+    const context = workspace.captureSavedWorkContext();
+    if (context?.source?.source?.kind === 'research'
+      && unavailableResearchIdsRef.current.includes(context.source.source.researchId)) {
+      context.source = { title: context.source.title, hint: 'This report remains readable. Its temporary reference is unavailable for saving.' };
+    }
+    const session = { controller: workspace, revision: workspace.workspaceSelectionRevision, ...context };
+    savedWorkRef.current = session;
+    setSavedWork(session);
+  }, [isActive, workspace]);
+  const acceptSavedWork = React.useCallback(artifact => {
+    const session = savedWorkRef.current;
+    const safe = parseMetabloomSavedWorkMetadata(artifact);
+    if (!safe || !session?.messageId || !mountedRef.current || workspaceRef.current !== session.controller
+      || !session.controller.mounted || !session.controller.ownsSurface()) return;
+    if (!messagesRef.current.some(message => message.id === session.messageId && message.role === 'assistant')) return;
+    publishMessages(messagesRef.current.map(message => message.id === session.messageId ? { ...message, savedArtifact: safe } : message));
+    const next = { ...session, artifact: safe };
+    savedWorkRef.current = next;
+    setSavedWork(next);
+  }, [publishMessages]);
+  const openSavedResult = React.useCallback(result => {
+    const session = savedWorkRef.current;
+    const controller = session?.controller;
+    if (!isActive || !mountedRef.current || stateRef.current?.pending || !controller?.mounted
+      || workspaceRef.current !== controller || !controller.workspaceHost()
+      || controller.workspaceSelectionRevision !== session.revision) return false;
+    const prepared = prepareMetabloomSavedOpen(result);
+    if (!prepared) return false;
+    const message = cloneMessage({ id: `assistant-${++messageCounterRef.current}`, role: 'assistant', status: 'complete',
+      content: `Opened saved work: ${prepared.artifact.title}.`, source: 'saved-work',
+      savedArtifact: prepared.artifact, ...(prepared.researchMessage || {}) });
+    // The saved response is already validated. Commit its owned origin before
+    // moving the existing renderer/reading surface into the workspace.
+    flushSync(() => publishMessages([...messagesRef.current, message]));
+    const accepted = prepared.visualRecord ? controller.importSavedVisual(prepared.visualRecord, message.id)
+      : controller.activateResearchSurface(controller.researchRecords.get(message.id), { explicit: true, view: 'expanded' });
+    if (!accepted) {
+      publishMessages(messagesRef.current.filter(item => item.id !== message.id));
+      return false;
+    }
+    // Prune only after successful placement, so a failed Open cannot discard an
+    // older message or unmount its live component before we can roll back.
+    publishMessages(messagesRef.current.slice(-MAX_CHAT_MESSAGES));
+    const context = controller.captureSavedWorkContext();
+    const next = { controller, revision: controller.workspaceSelectionRevision, focusWorkspaceOnClose: true, ...context };
+    savedWorkRef.current = next;
+    setSavedWork(next);
+    return true;
+  }, [isActive, publishMessages]);
+  React.useEffect(() => {
+    if (!isActive || (savedWorkRef.current && savedWorkRef.current.controller !== workspace)) closeSavedWork();
+  }, [closeSavedWork, isActive, workspace]);
 
   const cancelRequestScene = React.useCallback(() => {
     window.clearTimeout(requestSceneTimerRef.current);
@@ -972,6 +1054,7 @@ const OrbSection = ({
 
   const reset = React.useCallback(() => {
     cancelResponse();
+    closeSavedWork();
     updateArtifactAttachment(null);
     updateResearchAttachment(null);
     window.dispatchEvent(new CustomEvent(METABLOOM_RESET_EVENT, { detail: sectionRef.current }));
@@ -1009,7 +1092,7 @@ const OrbSection = ({
     setErrorMessage("");
     setResetVersion((value) => value + 1);
     setPulseVersion(nextPulseVersion);
-  }, [cancelResponse, clearSequence, updateArtifactAttachment, updateResearchAttachment, updateStateSnapshot]);
+  }, [cancelResponse, clearSequence, closeSavedWork, updateArtifactAttachment, updateResearchAttachment, updateStateSnapshot]);
 
   const playSequence = React.useCallback(
     (steps, nextSequenceId = "custom") => {
@@ -2423,6 +2506,7 @@ const OrbSection = ({
                           {message.status === "error" && <p className="metabloom-chat__research-notice">Research completed. The short answer could not be prepared.</p>}
                           {message.status === "interrupted" && <p className="metabloom-chat__research-notice">Research completed. The short answer was stopped.</p>}
                           <MetabloomResearchSurface messageId={message.id} report={researchDetails} brief={researchBrief}
+                            savedTitle={message.savedArtifact?.title}
                             reference={researchReference} referenceExpired={referenceExpired} referenceUnavailable={referenceUnavailable}
                             isActive={isActive} status={message.status} reused={message.researchReused === true}
                             onUseReference={useResearchReference} />
@@ -2470,6 +2554,8 @@ const OrbSection = ({
                   disabled={pending || !isActive}
                   intensity={expressiveness}
                   onIntensityChange={setExpressiveness}
+                  tools={workspace ? ({ close }) => <button type="button" disabled={pending || !isActive}
+                    onClick={() => { close(); openSavedWork(); }}>Saved work</button> : undefined}
                 >
                   {({ close }) => (
                     <>
@@ -2622,6 +2708,9 @@ const OrbSection = ({
         </div>
       </div>
 
+      {savedWork && sectionRef.current?.closest('.orb-page') && createPortal(<MetabloomSavedWorkPanel
+        source={savedWork.source} onSaved={acceptSavedWork} onOpen={openSavedResult} onClose={closeSavedWork} />,
+      sectionRef.current.closest('.orb-page'))}
     </section>
   );
 };

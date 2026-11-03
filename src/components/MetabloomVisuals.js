@@ -15,6 +15,8 @@ import { METABLOOM_ARTIFACT_REFERENCE_EVENT, METABLOOM_ARTIFACT_UPDATE_EVENT,
   isMetabloomArtifactVersion, parseMetabloomArtifactReference } from './metabloomArtifactReference';
 import { describeMetabloomVisualSelection, currentMetabloomVisualSelection, summarizeMetabloomVisual } from './metabloomVisualSelection';
 import { isMetabloomFreshResearchRequest, parseMetabloomResearchReference } from './metabloomResearchReference';
+import { getMetabloomVisualSaveSource } from './metabloomSavedWorkspace';
+import { parseMetabloomSavedWorkMetadata } from './metabloomSavedWorkProtocol';
 const safeReply = response => ({ version: METABLOOM_CHAT_PROTOCOL_VERSION, segments: [{ response }] });
 const visualKindLabels = { calculator: 'Calculator', table: 'Table', 'line-chart': 'Line chart',
   'bar-chart': 'Bar chart', 'pie-chart': 'Pie chart', flowchart: 'Flowchart' };
@@ -179,6 +181,49 @@ export default class MetabloomVisuals extends React.Component {
   workspaceHost = () => {
     const host = this.root?.querySelector('.metabloom-chat__workspace');
     return this.ownsSurface() && host?.isConnected ? host : null;
+  };
+  visualTitle = record => parseMetabloomSavedWorkMetadata(this.messages()
+    .find(message => message.id === record.replyId)?.savedArtifact)?.title || record.spec.title;
+  captureSavedWorkContext = () => {
+    if (!this.mounted || !this.workspaceHost()) return null;
+    const messages = this.messages();
+    const visual = this.records.get(this.activeVisualId);
+    const research = this.researchRecords.get(this.activeResearchId);
+    const messageId = visual?.replyId || research?.messageId;
+    const owner = messages.find(message => message.id === messageId && message.role === 'assistant');
+    if (!owner) return null;
+    const artifact = parseMetabloomSavedWorkMetadata(owner.savedArtifact);
+    if (visual && this.availableComponents().includes(visual)) {
+      const source = getMetabloomVisualSaveSource(visual);
+      return { messageId, artifact, source: source ? { ...source, title: artifact?.title || source.title } : { title: this.visualTitle(visual),
+        hint: 'Complete the component inputs before saving this work.' } };
+    }
+    if (research && this.researchOriginIsOwned(research)) {
+      const metadata = research.source;
+      const reusable = metadata && Date.parse(metadata.expiresAt) > Date.now();
+      return { messageId, artifact, source: { title: research.title,
+        ...(reusable ? { source: { kind: 'research', researchId: metadata.researchId,
+          ...(metadata.briefId ? { briefId: metadata.briefId } : {}) } }
+          : { hint: 'This report remains readable. Its temporary reference is unavailable for saving.' }) } };
+    }
+    return null;
+  };
+  importSavedVisual = (template, replyId) => {
+    if (!this.mounted || !this.workspaceHost() || this.records.has(template?.id)) return false;
+    const messages = this.messages();
+    const snapshot = createMetabloomVisualSnapshot([{ ...template, replyId }], messages);
+    const saved = snapshot.records[0];
+    if (!saved || saved.status !== 'ready' || saved.mode !== 'optional' || !saved.artifactVersion) return false;
+    const article = this.root.querySelector(`[data-message-id="${replyId}"][data-stream-status="complete"]`);
+    if (!article || article.dataset.visualAnswer) return false;
+    const slot = this.createSlot(saved.id);
+    article.appendChild(slot);
+    article.dataset.visualAnswer = saved.id;
+    const record = { ...saved, article, slot, controller: new AbortController(), restored: true };
+    this.records.set(record.id, record);
+    if (record.kind === 'calculator') this.lastInteractedId = record.id;
+    this.ensureLauncher(record);
+    return this.activateComponent(record, { explicit: true, view: 'expanded' });
   };
   researchOriginIsOwned = record => {
     const article = record?.origin?.closest('[data-message-id]');
@@ -725,11 +770,11 @@ export default class MetabloomVisuals extends React.Component {
     const visual = this.records.get(this.activeVisualId);
     const research = this.researchRecords.get(this.activeResearchId);
     const active = visual || research;
-    const title = visual?.spec.title || research?.title;
+    const title = visual ? this.visualTitle(visual) : research?.title;
     const activeKey = visual?.id || (research && `research:${research.messageId}`);
     const messageOrder = new Map(this.messages().map((message, index) => [message.id, index]));
     const components = [
-      ...this.availableComponents().map(record => ({ key: record.id, title: record.spec.title,
+      ...this.availableComponents().map(record => ({ key: record.id, title: this.visualTitle(record),
         kind: visualKindLabels[record.spec.kind], order: messageOrder.get(record.replyId || record.userId) ?? Infinity })),
       ...Array.from(this.researchRecords.values()).filter(this.researchOriginIsOwned)
         .map(record => ({ key: `research:${record.messageId}`, title: record.title, kind: 'Research',
@@ -762,10 +807,10 @@ export default class MetabloomVisuals extends React.Component {
           onReady={() => this.ready(record)} onInputsChange={values => this.inputsChanged(record, values)}
           onViewStateChange={viewState => this.viewStateChanged(record, viewState)}
           onAskAbout={selection => this.askAbout(record, selection)} /></MetabloomVisualBoundary>, record.slot, record.id)}
-        {record.launcher && createPortal(<button type="button" aria-label={`Show component: ${record.spec.title}`}
+        {record.launcher && createPortal(<button type="button" aria-label={`Show component: ${this.visualTitle(record)}`}
           aria-pressed={this.activeVisualId === record.id}
           onClick={() => this.activateComponent(record, { explicit: true, focus: true, view: 'expanded' })}>
-          <span>Show component</span><strong>{record.spec.title}</strong>
+          <span>Show component</span><strong>{this.visualTitle(record)}</strong>
         </button>, record.launcher, `${record.id}-launcher`)}
       </React.Fragment>)}
     </>;

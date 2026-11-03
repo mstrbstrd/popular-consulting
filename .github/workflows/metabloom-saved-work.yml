@@ -1,0 +1,63 @@
+name: Metabloom saved work PostgreSQL
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: metabloom-saved-work-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  postgres-integration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: orb_fixture
+          POSTGRES_PASSWORD: fictional_disposable_database_only
+          POSTGRES_DB: orb_saved_work_test_admin
+        ports:
+          - 5432
+        options: >-
+          --health-cmd "pg_isready -U orb_fixture -d orb_saved_work_test_admin"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run lint:saved-work
+      - name: Verify account identity, content, database configuration and store contracts
+        run: >-
+          node --test server/auth-tests/metabloom-account-identity.test.mjs
+          scripts/metabloom-saved-content.test.cjs scripts/metabloom-saved-work-database.test.cjs
+          scripts/metabloom-saved-work-store.test.cjs scripts/metabloom-saved-work-api.test.cjs
+          scripts/metabloom-saved-work-client.test.cjs
+      - name: Install matching PostgreSQL backup and restore clients
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends --yes postgresql-client-16
+          /usr/lib/postgresql/16/bin/pg_dump --version
+          /usr/lib/postgresql/16/bin/pg_restore --version
+      - name: Verify durable ownership, revision races, rollback, quotas, deletion and backup restoration
+        shell: bash
+        run: node --test --test-reporter=tap scripts/metabloom-saved-work-postgres.test.cjs | tee metabloom-saved-work-postgres.tap
+        env:
+          METABLOOM_SAVED_WORK_TEST_ALLOW_DISPOSABLE: '1'
+          METABLOOM_SAVED_WORK_TEST_DATABASE_URL: postgresql://orb_fixture:fictional_disposable_database_only@127.0.0.1:${{ job.services.postgres.ports[5432] }}/orb_saved_work_test_admin
+          METABLOOM_SAVED_WORK_TEST_PG_BIN_DIR: /usr/lib/postgresql/16/bin
+      - name: Preserve integration results without database archives
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: metabloom-saved-work-postgres-${{ github.sha }}
+          path: metabloom-saved-work-postgres.tap
+          retention-days: 7
