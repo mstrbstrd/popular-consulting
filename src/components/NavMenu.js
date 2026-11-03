@@ -10,7 +10,7 @@ import { getImmersiveRouteDestination } from "./ImmersiveRouteNavigationBridge";
 import { clickedAppDestination } from '../utils/appRoutes';
 
 // Standalone pages use real route links, not homepage-only section-dot clicks.
-const NavMenu = ({ audience = SITE_AUDIENCES.BUSINESS, standalone = false, initialSection = 0 }) => {
+const NavMenu = ({ audience = SITE_AUDIENCES.BUSINESS, standalone = false, initialSection = 0, contextActions }) => {
   const { isDark, toggleTheme } = useThemeMode();
   const { status } = useAuth();
   const appNavigation = useAppNavigation();
@@ -183,6 +183,10 @@ const NavMenu = ({ audience = SITE_AUDIENCES.BUSINESS, standalone = false, initi
             </>
           )}
 
+          {contextActions && (!isMobile || !isMobileMenuOpen) && (
+            <div className="nav-context-actions">{contextActions}</div>
+          )}
+
           <button
             className="nav-theme-toggle"
             onClick={() => {
@@ -332,6 +336,13 @@ const NavMenu = ({ audience = SITE_AUDIENCES.BUSINESS, standalone = false, initi
             0 4px 24px rgba(0, 0, 0, 0.10),
             0 1px 4px rgba(0, 0, 0, 0.06),
             inset 0 1px 0 rgba(255, 255, 255, 0.30);
+        }
+
+        .nav-context-actions {
+          display: flex;
+          align-items: center;
+          flex-shrink: 0;
+          margin-left: 0.6rem;
         }
 
         .nav-brand {

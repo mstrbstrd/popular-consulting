@@ -101,7 +101,7 @@ test("a completed long brief opens at its beginning once and ordinary chat can r
   fireEvent(window, new Event("resize")); await tick(1000);
   expect(transcript.scrollTop).toBe(openingPosition);
 
-  fireEvent.click(screen.getByRole("button", { name: "Latest message ↓" }));
+  fireEvent.click(screen.getByRole("button", { name: "Latest message" }));
   expect(transcript.scrollTop).toBe(3400);
   fireEvent(window, new Event("resize")); await tick(1000);
   expect(transcript.scrollTop).toBe(3400);
@@ -124,7 +124,7 @@ test("a newly completed brief does not move someone reading earlier messages", a
   expect(transcript.scrollTop).toBe(100);
   fireEvent(window, new Event("resize")); await tick(1000);
   expect(transcript.scrollTop).toBe(100);
-  fireEvent.click(screen.getByRole("button", { name: "Latest message ↓" }));
+  fireEvent.click(screen.getByRole("button", { name: "Latest message" }));
   expect(transcript.scrollTop).toBe(3400);
 });
 

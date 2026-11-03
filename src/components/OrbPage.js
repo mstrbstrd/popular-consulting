@@ -9,6 +9,7 @@ import routeMetadata from "../content/routeMetadata.json";
 import ImmersiveRouteNavigationBridge from "./ImmersiveRouteNavigationBridge";
 import LoadingOverlay from "./LoadingOverlay";
 import NavMenu from "./NavMenu";
+import OrbAppearance from "./OrbAppearance";
 import OrbSection from "./OrbSection";
 import MetabloomVisuals from "./MetabloomVisuals";
 import "./OrbPage.css";
@@ -18,6 +19,7 @@ import "./OrbComposerFocus.css";
 import "./OrbMetalbloomFinish.css";
 import "./OrbNovaFinish.css";
 import "./MetabloomVisual.css";
+import "./OrbWorkspaceLayout.css";
 
 const METADATA_SELECTORS = Object.freeze({
   description: 'meta[name="description"]',
@@ -197,106 +199,115 @@ const OrbPageContent = ({ onReady }) => {
 
         <div className="orb-page__foreground" style={pageHideStyle}>
           <ImmersiveRouteNavigationBridge />
-          <NavMenu audience={SITE_AUDIENCES.BUSINESS} />
-
-          <button
-            type="button"
-            className="orb-page__background-toggle"
-            aria-label="Animated background"
-            aria-pressed={backgroundEnabled}
-            onClick={() => navigation?.setOrbBackgroundEnabled?.(!backgroundEnabled)}
-          >
-            <span className="orb-page__background-indicator" aria-hidden="true" />
-            <span>Background {backgroundEnabled ? "On" : "Off"}</span>
-          </button>
-
-          <div
-            className="orb-page__finish-selector"
-            role="group"
-            aria-label="Metabloom material finish"
-          >
-            <span className="orb-page__finish-label">Finish</span>
-            <button
-              type="button"
-              className={`orb-page__finish-option${
-                metabloomPalette === METABLOOM_PALETTES.SPECTRAL
-                  ? " is-active"
-                  : ""
-              }`}
-              data-palette="spectral"
-              aria-pressed={
-                metabloomPalette === METABLOOM_PALETTES.SPECTRAL
-              }
-              aria-label="Use spectral fluid for Metabloom"
-              onClick={() =>
-                setMetabloomPalette(METABLOOM_PALETTES.SPECTRAL)
-              }
-            >
-              <span
-                className="orb-page__finish-swatch"
-                aria-hidden="true"
-              />
-              <span>Spectral</span>
-            </button>
-            <button
-              type="button"
-              className={`orb-page__finish-option${
-                metabloomPalette === METABLOOM_PALETTES.METALBLOOM
-                  ? " is-active"
-                  : ""
-              }`}
-              data-palette="metalbloom"
-              aria-pressed={
-                metabloomPalette === METABLOOM_PALETTES.METALBLOOM
-              }
-              aria-label="Use liquid metal for Metabloom"
-              onClick={() =>
-                setMetabloomPalette(METABLOOM_PALETTES.METALBLOOM)
-              }
-            >
-              <span
-                className="orb-page__finish-swatch"
-                aria-hidden="true"
-              />
-              <span>Metalbloom</span>
-            </button>
-            <button
-              type="button"
-              className={`orb-page__finish-option${
-                metabloomPalette === METABLOOM_PALETTES.NOVA
-                  ? " is-active"
-                  : ""
-              }`}
-              data-palette="nova"
-              aria-pressed={metabloomPalette === METABLOOM_PALETTES.NOVA}
-              aria-label="Use Nova fire for Metabloom"
-              onClick={() => setMetabloomPalette(METABLOOM_PALETTES.NOVA)}
-            >
-              <span
-                className="orb-page__finish-swatch"
-                aria-hidden="true"
-              />
-              <span>Nova</span>
-            </button>
-            <button
-              type="button"
-              className={`orb-page__finish-option${
-                metabloomPalette === METABLOOM_PALETTES.METALNOVA
-                  ? " is-active"
-                  : ""
-              }`}
-              data-palette="metalnova"
-              aria-pressed={metabloomPalette === METABLOOM_PALETTES.METALNOVA}
-              aria-label="Use MetalNova liquid-metal fire for Metabloom"
-              onClick={() => setMetabloomPalette(METABLOOM_PALETTES.METALNOVA)}
-            >
-              <span
-                className="orb-page__finish-swatch"
-                aria-hidden="true"
-              />
-              <span>MetalNova</span>
-            </button>
-          </div>
+          <NavMenu audience={SITE_AUDIENCES.BUSINESS} contextActions={
+            <OrbAppearance>{({ close }) => <>
+              <div
+                className="orb-page__finish-selector"
+                role="group"
+                aria-label="Metabloom material finish"
+              >
+                <span className="orb-page__finish-label">Finish</span>
+                <button
+                  type="button"
+                  className={`orb-page__finish-option${
+                    metabloomPalette === METABLOOM_PALETTES.SPECTRAL
+                      ? " is-active"
+                      : ""
+                  }`}
+                  data-palette="spectral"
+                  aria-pressed={
+                    metabloomPalette === METABLOOM_PALETTES.SPECTRAL
+                  }
+                  aria-label="Use spectral fluid for Metabloom"
+                  onClick={() => {
+                    setMetabloomPalette(METABLOOM_PALETTES.SPECTRAL);
+                    close();
+                  }}
+                >
+                  <span
+                    className="orb-page__finish-swatch"
+                    aria-hidden="true"
+                  />
+                  <span>Spectral</span>
+                </button>
+                <button
+                  type="button"
+                  className={`orb-page__finish-option${
+                    metabloomPalette === METABLOOM_PALETTES.METALBLOOM
+                      ? " is-active"
+                      : ""
+                  }`}
+                  data-palette="metalbloom"
+                  aria-pressed={
+                    metabloomPalette === METABLOOM_PALETTES.METALBLOOM
+                  }
+                  aria-label="Use liquid metal for Metabloom"
+                  onClick={() => {
+                    setMetabloomPalette(METABLOOM_PALETTES.METALBLOOM);
+                    close();
+                  }}
+                >
+                  <span
+                    className="orb-page__finish-swatch"
+                    aria-hidden="true"
+                  />
+                  <span>Metalbloom</span>
+                </button>
+                <button
+                  type="button"
+                  className={`orb-page__finish-option${
+                    metabloomPalette === METABLOOM_PALETTES.NOVA
+                      ? " is-active"
+                      : ""
+                  }`}
+                  data-palette="nova"
+                  aria-pressed={metabloomPalette === METABLOOM_PALETTES.NOVA}
+                  aria-label="Use Nova fire for Metabloom"
+                  onClick={() => {
+                    setMetabloomPalette(METABLOOM_PALETTES.NOVA);
+                    close();
+                  }}
+                >
+                  <span
+                    className="orb-page__finish-swatch"
+                    aria-hidden="true"
+                  />
+                  <span>Nova</span>
+                </button>
+                <button
+                  type="button"
+                  className={`orb-page__finish-option${
+                    metabloomPalette === METABLOOM_PALETTES.METALNOVA
+                      ? " is-active"
+                      : ""
+                  }`}
+                  data-palette="metalnova"
+                  aria-pressed={metabloomPalette === METABLOOM_PALETTES.METALNOVA}
+                  aria-label="Use MetalNova liquid-metal fire for Metabloom"
+                  onClick={() => {
+                    setMetabloomPalette(METABLOOM_PALETTES.METALNOVA);
+                    close();
+                  }}
+                >
+                  <span
+                    className="orb-page__finish-swatch"
+                    aria-hidden="true"
+                  />
+                  <span>MetalNova</span>
+                </button>
+              </div>
+              <button
+                type="button"
+                className="orb-page__background-toggle"
+                aria-label="Animated background"
+                aria-pressed={backgroundEnabled}
+                onClick={() => navigation?.setOrbBackgroundEnabled?.(!backgroundEnabled)}
+              >
+                <span className="orb-page__background-indicator" aria-hidden="true" />
+                <span>Background {backgroundEnabled ? "On" : "Off"}</span>
+              </button>
+            </>}</OrbAppearance>
+          } />
 
           <main
             id="main-content"

@@ -122,7 +122,6 @@ const assertOrbInterface = (captureCase, documentHtml, report) => {
     ['data-metabloom-avatar="true"', "avatar shader uniforms"],
     ['data-response-contract="emote+response"', "model response contract"],
     ['data-emote-protocol="1.0.0"', "semantic protocol version"],
-    ['data-demo-count="4"', "four local emote demos"],
     ['data-conversation-started="false"', "landing conversation state"],
     ['class="metabloom-chat__field"', "full-screen field layer"],
     ['class="metabloom-chat__interface"', "chat overlay layer"],
@@ -137,6 +136,11 @@ const assertOrbInterface = (captureCase, documentHtml, report) => {
       throw new Error(`${captureCase.id}: the ${label} did not mount.`);
     }
   });
+
+  if (documentHtml.includes('aria-label="Suggested messages"')
+    || documentHtml.includes('<summary>Try a conversation demo</summary>')) {
+    throw new Error(`${captureCase.id}: response demo buttons must not occupy the chat interface.`);
+  }
 
   if (report?.status && report.status !== "ready") {
     throw new Error(

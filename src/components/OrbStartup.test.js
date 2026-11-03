@@ -4,7 +4,7 @@ import SiteRouter from '../SiteRouter';
 import { AuthContext } from '../contexts/AuthContext';
 
 let mockReady;
-jest.mock('./NavMenu', () => () => null);
+jest.mock('./NavMenu', () => ({ contextActions }) => contextActions || null);
 jest.mock('./BlackHoleBackground', () => () => null);
 jest.mock('./CreatorOSFieldCanvas', () => function MockField({ onReady }) {
   mockReady = onReady;
@@ -22,6 +22,7 @@ test('authenticated Orb reveals its interface before its renderer is ready', asy
   expect(typeof mockReady).toBe('function');
   act(() => mockReady());
   expect(onReady).toHaveBeenCalledTimes(2);
+  fireEvent.click(screen.getByRole('button', { name: 'Appearance', exact: true }));
   fireEvent.click(screen.getByRole('button', { name: 'Use Nova fire for Metabloom' }));
   expect(screen.getByTestId('startup-field')).toBe(field);
   expect(onReady).toHaveBeenCalledTimes(2);

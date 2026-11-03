@@ -143,6 +143,7 @@
   scroll-padding-block: 1.4rem;
 }
 .metabloom-reactions__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.6rem; }
+.orb-page .metabloom-reactions__replay-selected { width: 100%; margin-bottom: 12px; text-align: left; }
 .orb-page .metabloom-reactions__grid button { padding: 0.6rem 0.2rem; font-size: 1.3rem; }
 .metabloom-reactions__intensity { display: grid; gap: 0.6rem; margin-top: 1.6rem; }
 .metabloom-reactions__intensity > span { display: flex; justify-content: space-between; gap: 1rem; }
@@ -213,6 +214,10 @@
 }
 .metabloom-reactions__recipes strong { grid-column: 1 / -1; margin-bottom: 0.4rem; font-weight: 600; }
 .orb-page .metabloom-reactions__recipes button { padding-inline: 0.8rem; }
+@media (max-width: 768px) {
+  .orb-page .metabloom-reactions__toolbar .metabloom-reactions__replay-shortcut { display: none; }
+}
+
 @media (max-width: 360px) {
   .metabloom-reactions__heading { padding-inline: 1.2rem; }
   .metabloom-reactions__content { padding-inline: 1.2rem; }

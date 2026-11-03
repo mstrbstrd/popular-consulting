@@ -197,3 +197,44 @@ test('retains an expired completed artifact locally without extending its origin
   expect(snapshot.records[0].expiresAt).toBe(1);
   expect(parseMetabloomVisualSnapshot(snapshot, owners([item])).records[0]).toEqual(item);
 });
+
+test('retains an owned active workspace independently of the last calculator interaction', () => {
+  const records = [record(1, { kind: 'calculator', spec: calculator }), record(2)];
+  const snapshot = createMetabloomVisualSnapshot(records, owners(records), records[0].id, records[1].id);
+  expect(snapshot.lastInteractedId).toBe(records[0].id);
+  expect(snapshot.activeVisualId).toBe(records[1].id);
+  const restored = parseMetabloomVisualSnapshot(snapshot, owners(records));
+  expect(restored.activeVisualId).toBe(records[1].id);
+  expect(restored.records[0].viewState.inputs).toEqual({ total: '120', people: '3' });
+  expect(parseMetabloomVisualSnapshot(snapshot, owners([records[0]]))).not.toHaveProperty('activeVisualId');
+});
+
+test('legacy and explicitly closed workspaces keep the original snapshot shape', () => {
+  const item = record();
+  const legacy = createMetabloomVisualSnapshot([item], owners([item]));
+  const closed = createMetabloomVisualSnapshot([item], owners([item]), null, null);
+  expect(closed).toEqual(legacy);
+  expect(Object.keys(closed).sort()).toEqual(['lastInteractedId', 'records', 'version']);
+  expect(parseMetabloomVisualSnapshot(closed, owners([item]))).toEqual(closed);
+});
+
+test('an unknown, cancelled or evicted record cannot reopen the workspace', () => {
+  const item = stored(), cancelled = stored(2, { status: 'cancelled', spec: null, sources: [], viewState: null });
+  for (const activeVisualId of [cancelled.id, 'f'.repeat(48)]) {
+    const snapshot = { version: 1, records: [item, cancelled], lastInteractedId: null, activeVisualId };
+    const restored = parseMetabloomVisualSnapshot(snapshot, owners([item, cancelled]));
+    expect(restored.records).toHaveLength(2);
+    expect(restored).not.toHaveProperty('activeVisualId');
+  }
+  const records = Array.from({ length: MAX_METABLOOM_VISUAL_SNAPSHOT_RECORDS + 1 }, (_, index) => stored(index + 1));
+  const retained = createMetabloomVisualSnapshot(records, owners(records), null, records[0].id);
+  expect(retained.records).toHaveLength(MAX_METABLOOM_VISUAL_SNAPSHOT_RECORDS);
+  expect(retained).not.toHaveProperty('activeVisualId');
+  expect(new TextEncoder().encode(JSON.stringify(retained)).length).toBeLessThanOrEqual(MAX_METABLOOM_VISUAL_SNAPSHOT_BYTES);
+});
+
+test.each([null, 1, 'wrong-id', 'a'.repeat(49)])('malformed active workspace identifier %j fails closed', activeVisualId => {
+  const item = stored();
+  expect(parseMetabloomVisualSnapshot({ version: 1, records: [item], lastInteractedId: null, activeVisualId }, owners([item])))
+    .toEqual(empty());
+});
