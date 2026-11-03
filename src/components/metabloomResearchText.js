@@ -1,5 +1,6 @@
 import React from "react";
 import { parseMetabloomResearchSources, MAX_METABLOOM_RESEARCH_SOURCE_URL_CHARS } from "./metabloomResearchSources";
+import { parseMetabloomResearchAnswerSources } from "./metabloomResearchReference";
 
 const escapedAt = (text, index) => {
   let slashes = 0;
@@ -22,9 +23,9 @@ const linkEnd = (text, start) => {
   return null;
 };
 
-export const renderMetabloomResearchText = (text, sources) => {
+export const renderMetabloomResearchText = (text, sources, { report } = {}) => {
   if (typeof text !== "string") return null;
-  const canonical = Array.isArray(sources) && sources.length
+  const canonical = report ? parseMetabloomResearchAnswerSources(sources, { report }) : Array.isArray(sources) && sources.length
     ? parseMetabloomResearchSources(sources, { maxSources: sources.length }) : null;
   if (!canonical) return text;
   const byId = new Map(canonical.map((source) => [source.id, source]));

@@ -1,5 +1,6 @@
 const { parseMetabloomResearchSources } = require("./metabloomResearchSources");
 const { getMetabloomUtf8ByteLength } = require("./metabloomResearchReport");
+const { isMetabloomServerResearchDate } = require("./metabloomResearchReference");
 const { parseMetabloomBriefMedia } = require("./metabloomSourceMediaProtocol");
 
 const METABLOOM_RESEARCH_BRIEF_VERSION = "metabloom-research-brief-v1";
@@ -35,7 +36,7 @@ const textList = (value, count, limit) => Array.isArray(value) && value.length <
 // It does not turn model assertions into independently verified reporting.
 // No URL, executable markup, confidence score, or additional model action is
 // accepted here. Partial coverage is data, never an invented completion.
-const parseMetabloomResearchBrief = (input, { sources } = {}) => {
+const parseMetabloomResearchBrief = (input, { sources, serverTemporalContext = false } = {}) => {
   let value = input;
   if (typeof value === "string") {
     if (value.length > MAX_METABLOOM_RESEARCH_BRIEF_BYTES) return null;
@@ -52,7 +53,9 @@ const parseMetabloomResearchBrief = (input, { sources } = {}) => {
     || !dateOnly(value.localDate) || !optionalDate(value.windowStart) || !optionalDate(value.windowEnd)
     || (value.windowStart === null) !== (value.windowEnd === null)
     || (value.windowStart !== null && (value.windowStart > value.windowEnd || value.windowEnd > value.localDate))) return null;
-  try {
+  if (serverTemporalContext === true) {
+    if (!isMetabloomServerResearchDate(value)) return null;
+  } else try {
     const parts = new Intl.DateTimeFormat("en-US", { timeZone: value.timeZone,
       year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date(value.asOf));
     const part = (name) => parts.find((entry) => entry.type === name)?.value;
@@ -144,6 +147,11 @@ const parseMetabloomResearchBrief = (input, { sources } = {}) => {
   return brief;
 };
 
+// Browser consumers preserve the server-owned acquisition date even when their
+// timezone rules differ. Model/server ingestion keeps the strict default above.
+const parseMetabloomClientResearchBrief = (input, { sources } = {}) =>
+  parseMetabloomResearchBrief(input, { sources, serverTemporalContext: true });
+
 module.exports = {
   METABLOOM_RESEARCH_BRIEF_VERSION,
   MAX_METABLOOM_RESEARCH_BRIEF_BYTES,
@@ -151,4 +159,5 @@ module.exports = {
   MAX_METABLOOM_RESEARCH_BRIEF_ITEMS,
   MAX_METABLOOM_RESEARCH_BRIEF_SOURCES,
   parseMetabloomResearchBrief,
+  parseMetabloomClientResearchBrief,
 };

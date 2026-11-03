@@ -28,8 +28,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: Verify atomic visual quotas and artifact retention against real Redis
-        run: node --test scripts/metabloom-visual-quota-redis.test.cjs
+      - name: Verify visual quotas, artifacts, and research retention against real Redis
+        run: node --test scripts/metabloom-visual-quota-redis.test.cjs scripts/metabloom-research-store-redis.test.cjs
         env:
           METABLOOM_QUOTA_TEST_REDIS_PORT: 6379
   emote-contract-and-browser:
@@ -49,6 +49,7 @@ jobs:
           scripts/jev-reaction.test.cjs scripts/metabloom-visual.test.cjs scripts/metabloom-ui-tools.test.cjs
           scripts/metabloom-source-media.test.cjs scripts/metabloom-visual-quota.test.cjs
           scripts/metabloom-visual-store-diagnostics.test.cjs scripts/metabloom-artifact-reference.test.cjs
+          scripts/metabloom-research-reuse.test.cjs scripts/metabloom-research-reuse-api.test.cjs
       - run: npm ci --no-audit --no-fund
       - run: npm test -- --watch=false --runInBand --runTestsByPath src/components/MetabloomVisuals.test.js
         env:
@@ -67,6 +68,11 @@ jobs:
       - name: Verify native UI interactions with local HTTP fixtures
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: node scripts/verify-metabloom-ui-browser.mjs
+      - name: Verify research reuse through the built Orb and local API
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          npm install --no-save --package-lock=false --ignore-scripts --no-audit --no-fund playwright@1.51.1
+          node scripts/verify-metabloom-research-reuse.mjs
       - name: Preserve functional evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -75,6 +81,7 @@ jobs:
           path: |
             metabloom-functional/*
             metabloom-ui-functional/*
+            metabloom-research-reuse/*
           retention-days: 7
       - name: Verify production denies anonymous Orb and paid API access
         if: ${{ !cancelled() && steps.build.outcome == 'success' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/test/orb-auth-browser-verification') }}

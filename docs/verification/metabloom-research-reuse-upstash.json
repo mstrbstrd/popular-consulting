@@ -1,0 +1,28 @@
+{
+  "fixture": "disposable unclaimed Upstash database",
+  "data": "fictional only",
+  "cases": [
+    {
+      "name": "actual bounded REST transport round-trips a 1MiB report and canonical sources",
+      "pass": true
+    },
+    {
+      "name": "NX and repeated reads preserve content and original expiry",
+      "pass": true
+    },
+    {
+      "name": "separate immutable brief preserves original dates, coverage, and absolute expiry",
+      "pass": true
+    },
+    {
+      "name": "foreign session cannot resolve retained evidence",
+      "pass": true
+    },
+    {
+      "name": "expiry fails closed and orphan brief cannot resurrect original report",
+      "pass": true
+    }
+  ],
+  "pass": true,
+  "fixtureKeysRemoved": true
+}

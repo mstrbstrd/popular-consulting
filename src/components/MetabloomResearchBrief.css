@@ -115,6 +115,22 @@
 .orb-page .metabloom-research-brief__briefing-details { border-top: 1px solid var(--aetheris-line); }
 .orb-page .metabloom-research-brief__briefing-details > ul { margin-top: 1rem; }
 .orb-page .metabloom-research-brief p.metabloom-research-brief__full-title { font-weight: 600; }
+.orb-page .metabloom-research-brief__reuse {
+  display: inline-flex;
+  align-items: center;
+  min-height: 4.4rem;
+  max-width: 100%;
+  margin-top: 1rem;
+  padding: 0.6rem 1rem;
+  border: 1px solid var(--aetheris-line);
+  border-radius: 0.7rem;
+  color: var(--aetheris-ink);
+  background: transparent;
+  font: 500 max(1.2rem, 12px)/1.5 var(--aetheris-font-sans);
+  cursor: pointer;
+}
+.orb-page .metabloom-research-brief__reuse:disabled { opacity: 0.55; cursor: default; }
+.orb-page .metabloom-research-brief__reuse:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
 
 .orb-page .metabloom-research-brief--fallback {
   padding: 0.25rem 1.3rem;

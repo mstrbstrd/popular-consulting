@@ -1,4 +1,4 @@
-const { parseMetabloomResearchBrief, MAX_METABLOOM_RESEARCH_BRIEF_BYTES,
+const { parseMetabloomResearchBrief, parseMetabloomClientResearchBrief, MAX_METABLOOM_RESEARCH_BRIEF_BYTES,
   MAX_METABLOOM_RESEARCH_BRIEF_CHUNK_CHARS } = require('./metabloomResearchBriefProtocol');
 const { createMetabloomSegmentStreamDecoder } = require('./metabloomEmoteProtocol');
 const { createMetabloomReplySession } = require('./metabloomReplySession');
@@ -39,6 +39,29 @@ const afterBrief = () => [
   { type: 'emote', phase: 'response', emote: 'neutral' }, { type: 'done', version: '2.0.0' },
 ];
 const wire = records => records.map(record => `${JSON.stringify(record)}\n`).join('');
+
+test('older browser timezone rules preserve server dates while server ingestion stays strict', () => {
+  const value = { ...fixture(), kind: 'research', asOf: '2026-11-03T07:50:00.000Z',
+    localDate: '2026-11-03', windowStart: null, windowEnd: null };
+  const original = Intl.DateTimeFormat;
+  const olderTimeZones = jest.spyOn(Intl, 'DateTimeFormat').mockImplementation((locale, options) =>
+    new original(locale, { ...options, timeZone: options?.timeZone === 'America/Vancouver' ? 'Etc/GMT+8' : options?.timeZone }));
+  try {
+    expect(parseMetabloomResearchBrief(value, { sources })).toBeNull();
+    expect(parseMetabloomClientResearchBrief(value, { sources })).toEqual(value);
+    expect(parseMetabloomClientResearchBrief({ ...value, localDate: '2026-11-05' }, { sources })).toBeNull();
+    expect(parseMetabloomClientResearchBrief({ ...value, localDate: '2026-02-30' }, { sources })).toBeNull();
+    const decoder = createMetabloomSegmentStreamDecoder({ allowResearchDetails: true, allowResearchBrief: true });
+    expect(decoder.push(wire([...beforeBrief(), ...briefRecords(value), ...afterBrief()]))).toBe(true);
+    expect(decoder.finish().ok).toBe(true);
+    expect(decoder.getState().researchBrief.localDate).toBe('2026-11-03');
+    const session = createMetabloomReplySession({ onUpdate: jest.fn() });
+    session.attachResearchDetails(report);
+    session.attachSources(sources.slice(0, 8));
+    session.attachResearchBrief(value);
+    expect(session.snapshot().researchBrief).toEqual(value);
+  } finally { olderTimeZones.mockRestore(); }
+});
 
 test('accepts original source IDs above eight and copies every nested field without renumbering', () => {
   const value = fixture();

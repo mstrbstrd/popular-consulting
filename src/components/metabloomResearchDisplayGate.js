@@ -4,7 +4,7 @@ import {
   MAX_METABLOOM_EMOTE_TOTAL_CHARS,
 } from "./metabloomEmoteLibrary";
 import { MAX_METABLOOM_RESPONSE_CHARS } from "./metabloomResponseContract";
-import { parseMetabloomResearchBrief } from "./metabloomResearchBriefProtocol";
+import { parseMetabloomClientResearchBrief as parseMetabloomResearchBrief } from "./metabloomResearchBriefProtocol";
 
 export const RESEARCH_REVEAL_GRAPHEMES_PER_FRAME = 24;
 

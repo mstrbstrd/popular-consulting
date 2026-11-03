@@ -7,6 +7,9 @@ const METABLOOM_REQUEST_ERROR_MESSAGES = Object.freeze({
   research_no_sources: "The research did not return usable sources. Try a more specific question.",
   research_invalid_citations: "The research returned citations that could not be verified. Please try again.",
   research_response_too_large: "The provider response exceeded the app’s data safety limit.",
+  research_reference_invalid: "This research reference could not be verified. Remove it or select the research again.",
+  research_reference_unavailable: "This research is no longer available for reuse. The original report remains in this conversation. Choose Search again to run fresh research.",
+  research_conversion_unavailable: "This research cannot be converted into that format from its stored data. Try a summary or select a finding.",
   provider_authentication_failed: "The model service could not authenticate. Its connection needs to be checked.",
   model_configuration_error: "The selected model or research tool is unavailable with the current configuration.",
   provider_rate_limited: "The model service is busy or has reached a usage limit. Please try again later.",
@@ -47,14 +50,14 @@ const METABLOOM_STREAM_ERROR_CODES = Object.freeze([
   "research_no_sources", "research_invalid_citations", "research_response_too_large",
   "provider_authentication_failed", "model_configuration_error", "provider_rate_limited",
   "provider_unavailable", "answer_timeout", "answer_incomplete", "answer_invalid", "quota_unavailable",
-  "artifact_unavailable", "artifact_invalid",
+  "artifact_unavailable", "artifact_invalid", "research_reference_invalid", "research_reference_unavailable",
 ]);
 const METABLOOM_TOOL_ERROR_CODES = Object.freeze([
   "tool_timeout", "tool_cancelled", "tool_disabled", "tool_unavailable", "tool_invalid", "tool_output_limit", "tool_claimed", "tool_expired", "tool_quota",
   "authentication_required", "authentication_unavailable", "origin_not_allowed", "rate_limited",
   "quota_unavailable", "invalid_request", "method_not_allowed", "model_configuration_error",
   "provider_authentication_failed", "provider_rate_limited", "provider_unavailable", "network_error",
-  "artifact_unavailable", "artifact_invalid", "artifact_conversion_unavailable",
+  "artifact_unavailable", "artifact_invalid", "artifact_conversion_unavailable", "research_reference_invalid", "research_reference_unavailable", "research_conversion_unavailable",
 ]);
 const knownCode = (code) => typeof code === "string"
   && Object.prototype.hasOwnProperty.call(METABLOOM_REQUEST_ERROR_MESSAGES, code);

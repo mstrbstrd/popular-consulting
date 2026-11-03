@@ -1,7 +1,8 @@
 const { parseMetabloomChatEnvelope } = require("./metabloomEmoteProtocol");
 const { parseMetabloomResearchSources } = require("./metabloomResearchSources");
 const { parseMetabloomResearchReport } = require("./metabloomResearchReport");
-const { parseMetabloomResearchBrief } = require("./metabloomResearchBriefProtocol");
+const { parseMetabloomClientResearchBrief: parseMetabloomResearchBrief } = require("./metabloomResearchBriefProtocol");
+const { parseMetabloomResearchReferenceMetadata, parseMetabloomResearchAnswerSources } = require("./metabloomResearchReference");
 const {
   METABLOOM_PROTOCOL_VERSION, METABLOOM_CHAT_PROTOCOL_VERSION,
   MAX_METABLOOM_EMOTE_SEGMENTS, MAX_METABLOOM_EMOTE_RESPONSE_CHARS, MAX_METABLOOM_EMOTE_TOTAL_CHARS,
@@ -16,6 +17,8 @@ const createMetabloomReplySession = ({ allowMultiple = false, onUpdate, onEmote 
   let sources = null;
   let researchDetails = null;
   let researchBrief = null;
+  let researchReference = null;
+  let researchReused = false;
   const snapshot = () => {
     const visible = segments.map((segment) => ({ ...segment }));
     if (partialResponse !== null) visible.push({ response: partialResponse });
@@ -24,7 +27,9 @@ const createMetabloomReplySession = ({ allowMultiple = false, onUpdate, onEmote 
       ...(sources ? { sources: sources.map((source) => ({ ...source })) } : {}),
       ...(researchDetails ? { researchDetails: { notes: researchDetails.notes,
         sources: researchDetails.sources.map((source) => ({ ...source })) } } : {}),
-      ...(researchBrief ? { researchBrief: parseMetabloomResearchBrief(researchBrief, { sources: researchDetails.sources }) } : {}) };
+      ...(researchBrief ? { researchBrief: parseMetabloomResearchBrief(researchBrief, { sources: researchDetails.sources }) } : {}),
+      ...(researchReference ? { researchReference: { ...researchReference } } : {}),
+      ...(researchReused ? { researchReused: true } : {}) };
   };
   const appendText = (delta, index) => {
     if (status !== "streaming") return false;
@@ -59,6 +64,24 @@ const createMetabloomReplySession = ({ allowMultiple = false, onUpdate, onEmote 
     return true;
   };
   return Object.freeze({
+    markResearchReused() {
+      if (status !== "streaming") return false;
+      if (researchReused || researchReference || researchDetails || sources || segments.length || partialResponse !== null)
+        throw new Error("Unexpected research reuse.");
+      researchReused = true;
+      return true;
+    },
+    attachResearchReference(value) {
+      if (status !== "streaming") return false;
+      const parsed = parseMetabloomResearchReferenceMetadata(value);
+      if (!parsed || (!researchDetails && !researchReused) || segments.length || partialResponse !== null)
+        throw new Error("Unexpected research reference.");
+      if (researchReference && (researchReference.briefId || !parsed.briefId || !researchBrief
+        || Object.keys(researchReference).some(key => researchReference[key] !== parsed[key])))
+        throw new Error("Research reference changed.");
+      researchReference = parsed;
+      return true;
+    },
     attachResearchDetails(value) {
       if (status !== "streaming") return false;
       if (researchDetails || sources || segments.length || partialResponse !== null) throw new Error("Unexpected research details.");
@@ -72,7 +95,7 @@ const createMetabloomReplySession = ({ allowMultiple = false, onUpdate, onEmote 
     attachSources(value) {
       if (status !== "streaming") return false;
       if (sources || segments.length || partialResponse !== null) throw new Error("Unexpected research sources.");
-      const parsed = parseMetabloomResearchSources(value);
+      const parsed = researchReused ? parseMetabloomResearchAnswerSources(value, { report: researchDetails }) : parseMetabloomResearchSources(value);
       if (!parsed) throw new Error("Invalid research sources.");
       if (researchDetails && parsed.some((source) => {
         const original = researchDetails.sources[source.id - 1];

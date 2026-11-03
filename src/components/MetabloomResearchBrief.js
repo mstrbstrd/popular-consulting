@@ -1,5 +1,5 @@
 import React from 'react';
-import { parseMetabloomResearchBrief } from './metabloomResearchBriefProtocol';
+import { parseMetabloomClientResearchBrief as parseMetabloomResearchBrief } from './metabloomResearchBriefProtocol';
 import { parseMetabloomResearchSources } from './metabloomResearchSources';
 import { MetabloomArticlePreview, MetabloomPublisherIcon } from './MetabloomSourceMedia';
 import './MetabloomResearchBrief.css';
@@ -17,9 +17,9 @@ const calendarDate = value => new Intl.DateTimeFormat('en', {
   year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC',
 }).format(new Date(`${value}T00:00:00Z`));
 
-const asOfTime = (value, timeZone) => new Intl.DateTimeFormat('en', {
+const asOfTime = value => new Intl.DateTimeFormat('en', {
   year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
-  hourCycle: 'h23', timeZone,
+  hourCycle: 'h23', timeZone: 'UTC',
 }).format(new Date(value));
 
 function BriefContext({ brief, windowLabel = 'Covered interval', includeCoverage = false }) {
@@ -28,7 +28,7 @@ function BriefContext({ brief, windowLabel = 'Covered interval', includeCoverage
       <div><dt>Briefing target</dt><dd>{brief.coverage.requestedCount}</dd></div>
       <div><dt>Included</dt><dd>{brief.items.length}</dd></div>
     </>}
-    <div><dt>As of</dt><dd><time dateTime={brief.asOf}>{asOfTime(brief.asOf, brief.timeZone)}</time></dd></div>
+    <div><dt>As of</dt><dd><time dateTime={brief.asOf}>{asOfTime(brief.asOf)}</time> UTC</dd></div>
     <div><dt>Timezone</dt><dd>{brief.timeZone}</dd></div>
     {brief.kind === 'news' && brief.windowStart && brief.windowEnd && <div className="metabloom-research-brief__window">
       <dt>{windowLabel}</dt><dd><time dateTime={brief.windowStart}>{calendarDate(brief.windowStart)}</time>
@@ -48,7 +48,7 @@ function Citations({ sourceIds, sourceMap }) {
   </span>;
 }
 
-function BriefItem({ item, index, active, news, id, sourceMap, mediaMap, detailsMap }) {
+function BriefItem({ item, index, active, news, id, sourceMap, mediaMap, detailsMap, onUseFinding, reuseDisabled }) {
   const hasDepth = item.background.length > 0 || Boolean(item.whyItMatters)
     || item.uncertainty.length > 0 || item.watchNext.length > 0 || item.dateEvidence;
   const showEvidenceStatus = news || ['disputed', 'uncertain'].includes(item.evidenceStatus);
@@ -71,6 +71,8 @@ function BriefItem({ item, index, active, news, id, sourceMap, mediaMap, details
         </div>}
       </div>
       <p className="metabloom-research-brief__overview">{item.summary}<Citations sourceIds={item.sourceIds} sourceMap={sourceMap} /></p>
+      {onUseFinding && <button type="button" className="metabloom-research-brief__reuse"
+        disabled={reuseDisabled} onClick={() => onUseFinding(index, item)}>Use this finding</button>}
       {mediaCandidates.length > 0 && <MetabloomArticlePreview candidates={mediaCandidates} compact />}
       {hasDepth && <details className="metabloom-research-brief__details">
         <summary>Analysis and context<span className="metabloom-research-brief__sr-only">: {item.headline}</span></summary>
@@ -106,7 +108,7 @@ const NavigationArrow = ({ previous = false }) => <svg viewBox="0 0 16 16" fill=
   <path d={previous ? 'm10 3-5 5 5 5' : 'm6 3 5 5-5 5'} />
 </svg>;
 
-function BriefCarousel({ brief, id, sourceMap, mediaMap, detailsMap }) {
+function BriefCarousel({ brief, id, sourceMap, mediaMap, detailsMap, onUseFinding, reuseDisabled }) {
   const [selectedIndex, setSelectedIndex] = React.useState(0);
   const activeIndex = Math.min(selectedIndex, brief.items.length - 1);
   const news = brief.kind === 'news';
@@ -151,7 +153,8 @@ function BriefCarousel({ brief, id, sourceMap, mediaMap, detailsMap }) {
     <ol id={`${id}-items`} className="metabloom-research-brief__items" aria-label={news ? 'Covered stories' : 'Research findings'}>
       {brief.items.map((item, index) => <BriefItem key={item.headline} item={item} index={index}
         active={index === activeIndex} news={news} id={`${id}-item-${index + 1}`}
-        sourceMap={sourceMap} mediaMap={mediaMap} detailsMap={detailsMap} />)}
+        sourceMap={sourceMap} mediaMap={mediaMap} detailsMap={detailsMap}
+        onUseFinding={onUseFinding} reuseDisabled={reuseDisabled} />)}
     </ol>
   </>;
 }
@@ -196,7 +199,7 @@ function SourceEvidence({ brief, sourceMap, mediaMap }) {
   </details>;
 }
 
-export default function MetabloomResearchBrief({ brief, sources }) {
+export default function MetabloomResearchBrief({ brief, sources, onUseBrief, onUseFinding, reuseDisabled = false }) {
   const id = React.useId();
   let safeBrief;
   let safeSources;
@@ -247,8 +250,11 @@ export default function MetabloomResearchBrief({ brief, sources }) {
         <strong>{countText}</strong>
         <span className="metabloom-research-brief__coverage-status">{coverageLabel}</span>
       </p>
+      {onUseBrief && <button type="button" className="metabloom-research-brief__reuse"
+        disabled={reuseDisabled} onClick={onUseBrief}>Use this brief</button>}
     </header>
-    <BriefCarousel brief={safeBrief} id={id} sourceMap={sourceMap} mediaMap={mediaMap} detailsMap={detailsMap} />
+    <BriefCarousel brief={safeBrief} id={id} sourceMap={sourceMap} mediaMap={mediaMap} detailsMap={detailsMap}
+      onUseFinding={onUseFinding} reuseDisabled={reuseDisabled} />
     <details className="metabloom-research-brief__details metabloom-research-brief__briefing-details">
       <summary>Briefing details</summary>
       <p className="metabloom-research-brief__full-title">{safeBrief.title}</p>

@@ -13,6 +13,7 @@ import { parseMetabloomVisualQuota, formatMetabloomVisualQuotaMessage } from './
 import { evaluateMetabloomVisualFormula } from './metabloomVisualProtocol';
 import { METABLOOM_ARTIFACT_REFERENCE_EVENT, MAX_METABLOOM_ARTIFACT_REFERENCE_LABEL,
   isMetabloomArtifactVersion, parseMetabloomArtifactReference } from './metabloomArtifactReference';
+import { isMetabloomFreshResearchRequest } from './metabloomResearchReference';
 const safeReply = response => ({ version: METABLOOM_CHAT_PROTOCOL_VERSION, segments: [{ response }] });
 const toolFailure = error => {
   const code = METABLOOM_TOOL_ERROR_CODES.includes(error?.code) ? error.code : 'tool_unavailable';
@@ -231,7 +232,8 @@ export default class MetabloomVisuals extends React.Component {
     turn.signal.addEventListener('abort', this.onTurnAbort, { once: true });
     const intent = classifyMetabloomVisualIntent(event.detail.message, event.detail.history);
     if (intent.mode === 'requested' && intent.preferredKinds?.length
-      && event.detail.actionMode !== 'deep-research' && !event.defaultPrevented) {
+      && event.detail.actionMode !== 'deep-research'
+      && !(event.detail.researchContext && isMetabloomFreshResearchRequest(event.detail.message)) && !event.defaultPrevented) {
       event.preventDefault();
       event.detail.claim?.();
       event.detail.onToolActivity?.('start');
@@ -243,6 +245,7 @@ export default class MetabloomVisuals extends React.Component {
       const { offer, emote } = await postMetabloomTool({ phase: 'start',
         message: detail.message, history: detail.history, requestId: detail.requestId,
         ...(detail.artifactContext ? { artifactContext: detail.artifactContext } : {}),
+        ...(detail.researchContext ? { researchContext: detail.researchContext } : {}),
       }, { signal: detail.signal });
       if (!this.mounted || this.turn !== turn || turn.signal.aborted) return;
       detail.onReaction?.({ phase: 'input', emote });

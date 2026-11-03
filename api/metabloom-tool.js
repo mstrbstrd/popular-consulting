@@ -5,11 +5,16 @@ const { visualStoreDiagnostics } = require('../server/metabloomVisualStoreDiagno
 const { parseMetabloomArtifactReference } = require('../src/components/metabloomArtifactReference');
 const { resolveMetabloomArtifactReference, artifactNumericHints,
   buildMetabloomArtifactConversion } = require('../server/metabloomArtifactContext');
+const { parseMetabloomResearchContext, isMetabloomFreshResearchRequest } = require('../src/components/metabloomResearchReference');
+const { createMetabloomResearchStore, researchReferenceError } = require('../server/metabloomResearchStore');
+const { resolveMetabloomResearchContext, buildMetabloomResearchVisualContext } = require('../server/metabloomResearchContext');
 const { classifyMetabloomVisualIntent } = require('../src/components/metabloomVisualIntent');
 const { METABLOOM_CHAT_PROTOCOL_VERSION } = require('../src/components/metabloomEmoteLibrary');
-const { METABLOOM_TOOL_START_TIMEOUT_MS, METABLOOM_TOOL_CONTINUE_TIMEOUT_MS } = require('../src/components/metabloomVisualProtocol');
+const { METABLOOM_TOOL_START_TIMEOUT_MS, METABLOOM_TOOL_CONTINUE_TIMEOUT_MS,
+  MAX_METABLOOM_VISUAL_CONTEXT_BYTES, METABLOOM_VISUAL_VERSION, METABLOOM_VISUAL_DESIGN_VERSION } = require('../src/components/metabloomVisualProtocol');
 const { parseMetabloomVisualQuota } = require('../src/components/metabloomVisualQuota');
-const { requestVisualTool, continueVisualTool } = require('../server/metabloomToolFlow');
+const { requestVisualTool, continueVisualTool, prepareMetabloomResearchToolReplay,
+  MAX_RESEARCH_TOOL_STORED_BYTES } = require('../server/metabloomToolFlow');
 const { decideMetabloomReaction } = require('../server/jevReactionService');
 const { consumeRateLimit } = require('./metabloom')._internals;
 
@@ -31,7 +36,7 @@ const send = (response, status, value) => {
   response.setHeader('Content-Type', 'application/json; charset=utf-8');
   response.end(JSON.stringify(value));
 };
-function createMetabloomToolHandler({ store = createMetabloomVisualStore(), authenticate = auth.requireMetabloomSession,
+function createMetabloomToolHandler({ store = createMetabloomVisualStore(), researchStore = createMetabloomResearchStore(), authenticate = auth.requireMetabloomSession,
   start = requestVisualTool, finish = continueVisualTool, rateLimit = consumeRateLimit, reaction = decideMetabloomReaction } = {}) {
   return async function handler(request, response) {
     for (const [key, value] of Object.entries({ 'Cache-Control': 'private, no-store, no-transform',
@@ -52,9 +57,9 @@ function createMetabloomToolHandler({ store = createMetabloomVisualStore(), auth
       const raw = typeof request.body === 'string' ? request.body : JSON.stringify(request.body);
       if (typeof raw !== 'string' || Buffer.byteLength(raw, 'utf8') > 24000) throw new Error();
       body = JSON.parse(raw);
-      if (!keys(body, ['phase'], ['message', 'history', 'requestId', 'id', 'display', 'artifactContext'])) throw new Error();
+      if (!keys(body, ['phase'], ['message', 'history', 'requestId', 'id', 'display', 'artifactContext', 'researchContext'])) throw new Error();
       if (body.phase === 'start') {
-        if (!keys(body, ['phase', 'message', 'history', 'requestId'], ['artifactContext']) || typeof body.message !== 'string'
+        if (!keys(body, ['phase', 'message', 'history', 'requestId'], ['artifactContext', 'researchContext']) || typeof body.message !== 'string'
           || !body.message.trim() || body.message.length > 1600 || !Array.isArray(body.history)
           || body.history.length > 12 || typeof body.requestId !== 'string'
           || !/^[a-zA-Z0-9-]{1,160}$/.test(body.requestId)) throw new Error();
@@ -70,6 +75,11 @@ function createMetabloomToolHandler({ store = createMetabloomVisualStore(), auth
           const reference = parseMetabloomArtifactReference(body.artifactContext);
           if (!reference) throw new Error();
           body.artifactContext = reference;
+        }
+        if (body.researchContext !== undefined) {
+          const reference = parseMetabloomResearchContext(body.researchContext);
+          if (!reference || body.artifactContext !== undefined) throw new Error();
+          body.researchContext = reference;
         }
       } else if (body.phase === 'continue') {
         if (!keys(body, ['phase', 'id', 'display']) || typeof body.id !== 'string'
@@ -101,6 +111,25 @@ function createMetabloomToolHandler({ store = createMetabloomVisualStore(), auth
           if (!buildMetabloomArtifactConversion(artifactContext, requiredKind))
             throw Object.assign(new Error('artifact_conversion_unavailable'), { code: 'artifact_conversion_unavailable', status: 422 });
         }
+        let retainedResearch = null;
+        if (body.researchContext) {
+          stage = 'research_reference';
+          const context = await resolveMetabloomResearchContext({ store: researchStore, identity,
+            reference: body.researchContext, message: body.message, signal: controller.signal });
+          // Fresh searches belong to the chat research endpoint. This route may
+          // never silently turn a deliberate refresh into an old-data visual.
+          if (isMetabloomFreshResearchRequest(body.message)) throw researchReferenceError('research_reference_invalid', 400);
+          retainedResearch = buildMetabloomResearchVisualContext(context, requiredKind);
+          prepareMetabloomResearchToolReplay({ message, history: body.history, researchContext: retainedResearch.researchContext });
+          // Reserve the full accepted escaped replay and worst-case brief before
+          // any claim or paid call. The original projection occurs only once.
+          const boundedOffer = { owner: identity.owner, status: 'offered', offer: { version: METABLOOM_VISUAL_VERSION,
+            designVersion: METABLOOM_VISUAL_DESIGN_VERSION, id: 'f'.repeat(48), kind: requiredKind, expiresAt: Number.MAX_SAFE_INTEGER },
+          context: { message, answer: '', toolBrief: '\ud800'.repeat(1200), sources: retainedResearch.sources,
+            researchContext: retainedResearch.researchContext, recentConversation: [], tool: '', visualIntent: 'requested', dataHints: null } };
+          if (Buffer.byteLength(JSON.stringify(boundedOffer), 'utf8') + MAX_RESEARCH_TOOL_STORED_BYTES - 2 > MAX_METABLOOM_VISUAL_CONTEXT_BYTES)
+            throw researchReferenceError('research_conversion_unavailable', 422);
+        }
         stage = 'claim';
         await store.claimStart(identity, body.requestId, { signal: controller.signal });
         // Reject an exhausted visual budget before charging the general request
@@ -112,17 +141,19 @@ function createMetabloomToolHandler({ store = createMetabloomVisualStore(), auth
         stage = 'provider';
         const [call, emote] = await Promise.all([
           start({ message, history: body.history, requiredKind,
-            ...(artifactContext ? { artifactContext } : {}), signal: controller.signal, requestRef }),
+            ...(artifactContext ? { artifactContext } : {}),
+            ...(retainedResearch ? { researchContext: retainedResearch.researchContext } : {}), signal: controller.signal, requestRef }),
           Promise.resolve().then(() => reaction({ phase: 'input', state: { latestUserMessage: message },
             signal: controller.signal, timeoutMs: 950 })).catch(() => 'neutral'),
         ]);
         if (controller.signal.aborted) throw new Error('cancelled');
         stage = 'offer';
         const offer = await store.offer(identity, call.kind, {
-          message, answer: '', toolBrief: call.brief, sources: artifactContext?.sources || [],
+          message, answer: '', toolBrief: call.brief, sources: retainedResearch?.sources || artifactContext?.sources || [],
           ...(artifactContext ? { artifactContext } : {}),
-          recentConversation: body.history.slice(-2), tool: call.tool, visualIntent: 'requested',
-          dataHints: artifactContext ? artifactNumericHints(artifactContext) : intent.dataHints,
+          ...(retainedResearch ? { researchContext: retainedResearch.researchContext } : {}),
+          recentConversation: retainedResearch ? [] : body.history.slice(-2), tool: call.tool, visualIntent: 'requested',
+          dataHints: retainedResearch ? null : artifactContext ? artifactNumericHints(artifactContext) : intent.dataHints,
         }, { signal: controller.signal });
         if (!offer) throw new Error('unavailable');
         console.info('metabloom_ui_tool', JSON.stringify({ phase: 'start', outcome: 'offered', kind: call.kind, durationMs: Date.now() - startedAt, requestRef }));
@@ -167,11 +198,14 @@ function createMetabloomToolHandler({ store = createMetabloomVisualStore(), auth
         provider_authentication_failed: 'provider_authentication_failed',
         model_configuration_error: 'model_configuration_error', provider_rate_limited: 'provider_rate_limited',
         provider_unavailable: 'provider_unavailable', artifact_invalid: 'artifact_invalid',
-        artifact_unavailable: 'artifact_unavailable', artifact_conversion_unavailable: 'artifact_conversion_unavailable' };
+        artifact_unavailable: 'artifact_unavailable', artifact_conversion_unavailable: 'artifact_conversion_unavailable',
+        research_reference_invalid: 'research_reference_invalid', research_reference_unavailable: 'research_reference_unavailable',
+        research_conversion_unavailable: 'research_conversion_unavailable' };
       const code = controller.signal.aborted ? (deadlineExpired ? 'tool_timeout' : 'tool_cancelled')
         : Object.prototype.hasOwnProperty.call(codes, error?.code) ? codes[error.code] : 'tool_unavailable';
       const status = code === 'tool_timeout' ? 504 : code === 'tool_cancelled' ? 499
-        : ['artifact_invalid', 'artifact_unavailable', 'artifact_conversion_unavailable'].includes(code) ? error.status || 410
+        : ['artifact_invalid', 'artifact_unavailable', 'artifact_conversion_unavailable', 'research_reference_invalid',
+          'research_reference_unavailable', 'research_conversion_unavailable'].includes(code) ? error.status || 410
         : code === 'tool_claimed' ? 409 : code === 'tool_expired' ? 410
           : ['provider_rate_limited', 'tool_quota'].includes(code) ? 429 : 502;
       const quota = code === 'tool_quota' ? parseMetabloomVisualQuota(error?.quota) : null;

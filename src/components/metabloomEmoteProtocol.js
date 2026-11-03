@@ -9,11 +9,13 @@ const {
 } = require("./metabloomEmoteLibrary");
 const { METABLOOM_ACTION_IDS } = require("./metabloomDecisionMapping");
 const { parseMetabloomResearchSources } = require("./metabloomResearchSources");
+const { parseMetabloomResearchReferenceMetadata, parseMetabloomResearchAnswerSources,
+  MAX_METABLOOM_REUSED_RESEARCH_SOURCES } = require("./metabloomResearchReference");
 const { parseMetabloomProgressSource } = require("./metabloomSourceMediaProtocol");
 const { MAX_METABLOOM_RESEARCH_REPORT_BYTES, MAX_METABLOOM_RESEARCH_REPORT_CHUNK_CHARS,
   getMetabloomUtf8ByteLength, parseMetabloomResearchReport } = require("./metabloomResearchReport");
 const { MAX_METABLOOM_RESEARCH_BRIEF_BYTES, MAX_METABLOOM_RESEARCH_BRIEF_CHUNK_CHARS,
-  parseMetabloomResearchBrief } = require("./metabloomResearchBriefProtocol");
+  parseMetabloomClientResearchBrief: parseMetabloomResearchBrief } = require("./metabloomResearchBriefProtocol");
 const { METABLOOM_STREAM_ERROR_CODES, parseMetabloomRequestError, getMetabloomApiErrorMessage } = require("./metabloomRequestErrors");
 
 const MAX_SERIALIZED_CHARS = 24000;
@@ -101,6 +103,7 @@ const createMetabloomSegmentStreamDecoder = ({
   allowMultiple = true,
   allowResearchDetails = false,
   allowResearchBrief = false,
+  allowResearchReuse = false,
   maxBufferChars = MAX_SERIALIZED_CHARS,
   onDone,
   onError,
@@ -112,6 +115,7 @@ const createMetabloomSegmentStreamDecoder = ({
   onResearchProgress,
   onResearchDetails,
   onResearchBrief,
+  onResearchReference,
   onSources,
 } = {}) => {
   const limit = Number.isInteger(maxBufferChars) && maxBufferChars > 0
@@ -141,6 +145,8 @@ const createMetabloomSegmentStreamDecoder = ({
   let researchBriefChunks = [];
   let researchBriefChars = 0;
   let researchBrief = null;
+  let researchReference = null;
+  let researchReused = false;
   let sources = null;
   const segments = [];
   const fail = (message, details = null) => {
@@ -180,9 +186,10 @@ const createMetabloomSegmentStreamDecoder = ({
     }
     if (event?.type === "research") {
       if (!exactKeys(event, ["type", "state"]) || version !== METABLOOM_CHAT_PROTOCOL_VERSION
-        || action !== "deep-research" || segments.length || partialResponse !== null || textComplete
-        || !((event.state === "searching" && researchState === null && sources === null)
-          || (event.state === "synthesizing" && researchState === "searching" && sources !== null))) {
+        || !(action === "deep-research" || (researchReused && action === "none"))
+        || segments.length || partialResponse !== null || textComplete
+        || !((event.state === "searching" && !researchReused && researchState === null && sources === null)
+          || (event.state === "synthesizing" && ["searching", "reusing"].includes(researchState) && sources !== null))) {
         return fail("Invalid or out-of-order research state.");
       }
       researchState = event.state;
@@ -190,9 +197,38 @@ const createMetabloomSegmentStreamDecoder = ({
       onResearch?.({ state: researchState });
       return true;
     }
+    if (event?.type === "research_reuse") {
+      const metadata = parseMetabloomResearchReferenceMetadata(event.research);
+      if (allowResearchReuse !== true || allowResearchDetails !== true || !exactKeys(event, ["type", "research"])
+        || version !== METABLOOM_CHAT_PROTOCOL_VERSION || action !== "none" || researchState !== null
+        || researchReference || researchReused || sources || segments.length || partialResponse !== null || textComplete || !metadata)
+        return fail("Invalid or out-of-order research reuse.");
+      researchReused = true;
+      researchState = "reusing";
+      researchReference = metadata;
+      onResearch?.({ state: "reusing" });
+      onResearchReference?.({ ...researchReference });
+      return true;
+    }
+    if (event?.type === "research_reference") {
+      const metadata = parseMetabloomResearchReferenceMetadata(event.research);
+      if (allowResearchReuse !== true || allowResearchDetails !== true || !exactKeys(event, ["type", "research"])
+        || version !== METABLOOM_CHAT_PROTOCOL_VERSION || action !== "deep-research" || researchReused
+        || !researchDetails || !metadata || segments.length || partialResponse !== null || textComplete)
+        return fail("Invalid or out-of-order research reference.");
+      if (researchReference) {
+        if (!researchBrief || researchState !== "synthesizing" || researchReference.briefId || !metadata.briefId
+          || Object.keys(researchReference).some(key => researchReference[key] !== metadata[key]))
+          return fail("Research reference changed.");
+      } else if (researchState !== "searching" || sources || metadata.briefId) return fail("Invalid research reference.");
+      researchReference = metadata;
+      onResearchReference?.({ ...researchReference });
+      return true;
+    }
     if (event?.type === "research_progress") {
       if (!(exactKeys(event, ["type", "summary"]) || exactKeys(event, ["type", "summary", "source"])) || version !== METABLOOM_CHAT_PROTOCOL_VERSION
-        || action !== "deep-research" || !["searching", "synthesizing"].includes(researchState)
+        || !(action === "deep-research" || (researchReused && action === "none"))
+        || !["searching", "reusing", "synthesizing"].includes(researchState)
         || segments.length || partialResponse !== null || textComplete
         || typeof event.summary !== "string" || !event.summary.trim()
         || event.summary.length > MAX_METABLOOM_RESEARCH_PROGRESS_CHARS || event.summary !== event.summary.trim()
@@ -208,7 +244,8 @@ const createMetabloomSegmentStreamDecoder = ({
     }
     if (["research_report_sources", "research_report_delta", "research_report_complete"].includes(event?.type)) {
       if (allowResearchDetails !== true || version !== METABLOOM_CHAT_PROTOCOL_VERSION
-        || action !== "deep-research" || researchState !== "searching" || sources !== null
+        || !(action === "deep-research" || (researchReused && action === "none"))
+        || !["searching", "reusing"].includes(researchState) || sources !== null
         || researchDetails !== null || segments.length || partialResponse !== null || textComplete) {
         return fail("Invalid or out-of-order research report.");
       }
@@ -244,7 +281,8 @@ const createMetabloomSegmentStreamDecoder = ({
     }
     if (["research_brief_delta", "research_brief_complete"].includes(event?.type)) {
       if (allowResearchBrief !== true || allowResearchDetails !== true || version !== METABLOOM_CHAT_PROTOCOL_VERSION
-        || action !== "deep-research" || researchState !== "synthesizing" || !researchDetails || !sources
+        || !(action === "deep-research" || (researchReused && action === "none"))
+        || researchState !== "synthesizing" || !researchDetails || !sources
         || researchBrief !== null || segments.length || partialResponse !== null || textComplete) {
         return fail("Invalid or out-of-order research brief.");
       }
@@ -264,13 +302,21 @@ const createMetabloomSegmentStreamDecoder = ({
       return true;
     }
     if (event?.type === "sources") {
-      if (!exactKeys(event, ["type", "sources"]) || version !== METABLOOM_CHAT_PROTOCOL_VERSION
-        || action !== "deep-research" || researchState !== "searching" || sources !== null
+      if (!(researchReused ? exactKeys(event, ["type", "sourceIds"]) : exactKeys(event, ["type", "sources"]))
+        || version !== METABLOOM_CHAT_PROTOCOL_VERSION
+        || !(action === "deep-research" || (researchReused && action === "none"))
+        || !["searching", "reusing"].includes(researchState) || sources !== null
         || (researchReportStarted && researchDetails === null)
         || segments.length || partialResponse !== null || textComplete) {
         return fail("Invalid or out-of-order research sources.");
       }
-      const parsedSources = parseMetabloomResearchSources(event.sources);
+      let parsedSources;
+      if (researchReused) {
+        if (!researchDetails || !Array.isArray(event.sourceIds) || !event.sourceIds.length
+          || event.sourceIds.length > MAX_METABLOOM_REUSED_RESEARCH_SOURCES
+          || event.sourceIds.some(id => !Number.isSafeInteger(id) || id < 1)) return fail("Invalid research sources.");
+        parsedSources = parseMetabloomResearchAnswerSources(event.sourceIds.map(id => researchDetails.sources[id - 1]), { report: researchDetails });
+      } else parsedSources = parseMetabloomResearchSources(event.sources);
       if (!parsedSources) return fail("Invalid research sources.");
       if (researchDetails && parsedSources.some((source) => {
         const original = researchDetails.sources[source.id - 1];
@@ -404,6 +450,7 @@ const createMetabloomSegmentStreamDecoder = ({
         researchSummary, researchSource: researchSource ? { ...researchSource } : null, researchProgressCount,
         researchDetails: cloneResearchReport(researchDetails),
         researchBrief: researchBrief ? parseMetabloomResearchBrief(researchBrief, { sources: researchDetails.sources }) : null,
+        researchReference: researchReference ? { ...researchReference } : null, researchReused,
         sources: cloneResearchSources(sources) };
     },
   });

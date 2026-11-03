@@ -226,7 +226,8 @@ test('displays the supplied timezone and historical covered interval independent
   expect(screen.getByText(brief.scope)).toBeVisible();
   expect(screen.getByText('America/Toronto')).toBeVisible();
   const asOf = container.querySelector('time[datetime="2026-10-24T00:30:00.000Z"]');
-  expect(asOf).toHaveTextContent('Oct 23, 2026, 20:30');
+  expect(asOf).toHaveTextContent('Oct 24, 2026, 00:30');
+  expect(asOf.parentElement).toHaveTextContent('Oct 24, 2026, 00:30 UTC');
   const interval = screen.getByText('Covered interval').parentElement;
   expect(interval).toHaveTextContent('Sep 1, 2026 to Sep 7, 2026');
   expect(interval).not.toHaveTextContent('Oct');
