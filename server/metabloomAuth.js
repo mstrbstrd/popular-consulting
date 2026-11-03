@@ -1,6 +1,6 @@
 // This check runs inside the paid API handler, independently of page middleware.
 // A browser flag, bearer token, localhost, or missing session store cannot grant access.
-async function requireMetabloomSession(request, { onIdentity } = {}) {
+async function requireMetabloomSession(request, { onIdentity, onAccountIdentity } = {}) {
   try {
     const { readAuthConfig, createAuthStore, readAdminSession, sameOriginPost } = await import('./auth-session.mjs');
     const config = readAuthConfig();
@@ -25,6 +25,12 @@ async function requireMetabloomSession(request, { onIdentity } = {}) {
       // Only keyed digests leave this helper, never session tokens or subject IDs.
       onIdentity(Object.freeze({ scope, subject: hash(`${scope}\n${session.subject}`),
         owner: hash(`${scope}\n${session.subject}\n${session.token}`) }));
+    }
+    if (session && typeof onAccountIdentity === 'function') {
+      const { createMetabloomAccountIdentity } = require('./metabloomAccountIdentity');
+      // Server-only opt-in: existing replies, streams and temporary ownership
+      // keep their contracts. A browser-provided identifier grants no authority.
+      onAccountIdentity(createMetabloomAccountIdentity({ issuer: config.issuer, subject: session.subject }));
     }
     return session ? null : { status: 401, code: 'authentication_required' };
   } catch {
