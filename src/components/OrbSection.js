@@ -33,7 +33,8 @@ import { createMetabloomResearchDisplayGate } from "./metabloomResearchDisplayGa
 import { METABLOOM_RESEARCH_TIMEOUT_MS, METABLOOM_RESEARCH_REUSE_TIMEOUT_MS, getMetabloomApiErrorMessage, requestMetabloomResponse } from "./metabloomApiClient";
 import { METABLOOM_REQUEST_ERROR_MESSAGES, parseMetabloomRequestRef } from "./metabloomRequestErrors";
 import { METABLOOM_TOOL_TURN_TIMEOUT_MS } from "./metabloomVisualProtocol";
-import { METABLOOM_TRANSCRIPT_READY_EVENT, METABLOOM_RESET_EVENT } from "./metabloomVisualSession";
+import { METABLOOM_TRANSCRIPT_READY_EVENT, METABLOOM_RESET_EVENT,
+  METABLOOM_WORKSPACE_VIEW_EVENT, METABLOOM_WORKSPACE_VIEW_REQUEST } from "./metabloomVisualSession";
 import { METABLOOM_ARTIFACT_REFERENCE_EVENT, METABLOOM_ARTIFACT_UPDATE_EVENT, parseMetabloomArtifactAttachment } from "./metabloomArtifactReference";
 import { parseMetabloomResearchSources } from "./metabloomResearchSources";
 import { parseMetabloomProgressSource } from "./metabloomSourceMediaProtocol";
@@ -524,6 +525,9 @@ const OrbSection = ({
   const [researchProgress, setResearchProgress] = React.useState(null);
   const [researchSummary, setResearchSummary] = React.useState(null);
   const [researchSource, setResearchSource] = React.useState(null);
+  const workspaceReadingRef = React.useRef(null);
+  const visibleTranscriptReadingRef = React.useRef({ scrollTop: 0, following: true });
+  const [workspaceExpanded, setWorkspaceExpanded] = React.useState(false);
   const [readingEarlier, setReadingEarlier] = React.useState(false);
   const [composerFocused, setComposerFocused] = React.useState(false);
   const [activeReaction, setActiveReaction] = React.useState(null);
@@ -1943,21 +1947,67 @@ const OrbSection = ({
       && currentMessages[currentMessages.length - 2]?.id === anchor.userId);
   }, []);
 
+  const transcriptIsHidden = React.useCallback(() => sectionRef.current?.closest('.orb-page')?.dataset.componentView === 'expanded'
+    && window.matchMedia?.('(max-width: 900px)').matches, []);
+
   const scrollToLatest = React.useCallback(() => {
+    if (transcriptIsHidden()) return;
     visualScrollAnchorRef.current = null;
     followLatestRef.current = true;
     setReadingEarlier(false);
     const transcript = transcriptRef.current;
     if (transcript) transcript.scrollTop = transcript.scrollHeight;
-  }, []);
+    visibleTranscriptReadingRef.current = { scrollTop: transcript?.scrollTop || 0, following: true };
+  }, [transcriptIsHidden]);
 
   const handleTranscriptScroll = () => {
+    if (transcriptIsHidden()) return;
     const transcript = transcriptRef.current;
     if (!transcript) return;
     const nearBottom = transcript.scrollHeight - transcript.scrollTop - transcript.clientHeight < 72;
     followLatestRef.current = nearBottom;
+    visibleTranscriptReadingRef.current = { scrollTop: transcript.scrollTop, following: nearBottom };
     setReadingEarlier(!nearBottom);
   };
+
+  React.useEffect(() => {
+    let frame = 0;
+    const handleView = event => {
+      const root = sectionRef.current?.closest('.orb-page');
+      if (!root || event.detail?.root !== root) return;
+      setWorkspaceExpanded(event.detail.view === 'expanded');
+      window.cancelAnimationFrame(frame);
+      if (event.detail.restoreReading === false) workspaceReadingRef.current = null;
+      const transcript = transcriptRef.current;
+      if (event.detail.view === 'expanded' && window.matchMedia?.('(max-width: 900px)').matches) {
+        if (!workspaceReadingRef.current) workspaceReadingRef.current = transcriptIsHidden() ? visibleTranscriptReadingRef.current : {
+          scrollTop: transcript?.scrollTop || 0, following: followLatestRef.current,
+        };
+        return;
+      }
+      const saved = workspaceReadingRef.current;
+      if (!saved) return;
+      window.cancelAnimationFrame(frame);
+      const restore = () => {
+        if (workspaceReadingRef.current !== saved || transcriptIsHidden()) return;
+        workspaceReadingRef.current = null;
+        if (saved.following) scrollToLatest();
+        else if (transcript?.isConnected) {
+          transcript.scrollTop = saved.scrollTop;
+          followLatestRef.current = false;
+          visibleTranscriptReadingRef.current = saved;
+          setReadingEarlier(true);
+        }
+      };
+      // Desktop breakpoint CSS is already applied. Restore immediately so a
+      // new visible scroll cannot be overwritten by a pending mobile frame.
+      if (!window.matchMedia?.('(max-width: 900px)').matches) restore();
+      else frame = window.requestAnimationFrame(restore);
+    };
+    window.addEventListener(METABLOOM_WORKSPACE_VIEW_EVENT, handleView);
+    setWorkspaceExpanded(sectionRef.current?.closest('.orb-page')?.dataset.componentView === 'expanded');
+    return () => { window.removeEventListener(METABLOOM_WORKSPACE_VIEW_EVENT, handleView); window.cancelAnimationFrame(frame); };
+  }, [scrollToLatest, transcriptIsHidden]);
 
   React.useEffect(() => {
     const handleVisualReady = (event) => {
@@ -1991,6 +2041,7 @@ const OrbSection = ({
   }, []);
 
   React.useLayoutEffect(() => {
+    if (transcriptIsHidden()) return;
     const transcript = transcriptRef.current;
     const latestMessage = messages[messages.length - 1];
     const terminalMessage = latestMessage && ["complete", "error", "interrupted"].includes(latestMessage.status)
@@ -2013,7 +2064,7 @@ const OrbSection = ({
     }
     if (hasVisualScrollAnchor()) return;
     scrollToLatest();
-  }, [messages, pending, visibleResearchPhase, scenePhase, scrollToLatest, hasVisualScrollAnchor]);
+  }, [messages, pending, visibleResearchPhase, scenePhase, scrollToLatest, hasVisualScrollAnchor, transcriptIsHidden]);
 
   const resizeComposer = React.useCallback(() => {
     const input = composerRef.current;
@@ -2510,6 +2561,16 @@ const OrbSection = ({
                   <span className="metabloom-chat__latest-label">Latest message</span><span aria-hidden="true">↓</span>
                 </button>}
               </div>
+              {workspaceExpanded && <button type="button" className="metabloom-chat__component-reply" aria-label="Read latest reply in chat" onClick={() => {
+                workspaceReadingRef.current = null;
+                window.dispatchEvent(new CustomEvent(METABLOOM_WORKSPACE_VIEW_REQUEST,
+                  { detail: { root: sectionRef.current?.closest('.orb-page'), view: 'compact' } }));
+                scrollToLatest();
+                composerRef.current?.focus({ preventScroll: true });
+              }}>
+                <strong>{pending ? 'Responding' : 'Latest reply'}</strong>
+                <span>Metabloom: {[...messages].reverse().find(message => message.role === 'assistant')?.content.slice(0, 180) || 'Return to the conversation.'}</span>
+              </button>}
               {errorMessage && (
                 <p className="metabloom-chat__error" role="alert">
                   {errorMessage}

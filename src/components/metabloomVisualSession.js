@@ -1,6 +1,8 @@
 const { parseMetabloomVisualOffer, visualText } = require('./metabloomVisualProtocol');
 const METABLOOM_TRANSCRIPT_READY_EVENT = 'metabloom:transcript-ready';
 const METABLOOM_RESET_EVENT = 'metabloom:reset';
+const METABLOOM_WORKSPACE_VIEW_EVENT = 'metabloom:workspace-view';
+const METABLOOM_WORKSPACE_VIEW_REQUEST = 'metabloom:workspace-view-request';
 // A mount-scoped request, original signal, originating user message and exact
 // validated answer must all agree. Never attach an artifact to "the latest" reply.
 function beginMetabloomVisualTurn(detail, messages) {
@@ -33,4 +35,5 @@ function findMetabloomVisualReply(turn, messages) {
     && reply.status === 'complete' && reply.content === turn.answer ? reply : null;
 }
 module.exports = { METABLOOM_TRANSCRIPT_READY_EVENT, METABLOOM_RESET_EVENT,
+  METABLOOM_WORKSPACE_VIEW_EVENT, METABLOOM_WORKSPACE_VIEW_REQUEST,
   beginMetabloomVisualTurn, acceptMetabloomVisualOffer, findMetabloomVisualReply };

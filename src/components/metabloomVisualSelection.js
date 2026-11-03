@@ -64,3 +64,23 @@ export function currentMetabloomVisualSelection(record, fallback) {
   if (spec.kind === 'flowchart') return { selector: { type: 'flow-node', id: viewState?.selectedId ?? null } };
   return fallback ? { selector: { ...fallback.selector } } : null;
 }
+
+export function summarizeMetabloomVisual(record) {
+  const { spec, viewState } = record;
+  if (spec.kind === 'table') {
+    const query = spec.rows.length >= 8 ? (viewState?.filter || '').trim().toLowerCase() : '';
+    const count = query ? spec.rows.filter(row => row.some(cell => cell.toLowerCase().includes(query))).length : spec.rows.length;
+    return `${count} of ${spec.rows.length} rows${query ? ` · Filter: ${viewState.filter}` : ''}`;
+  }
+  const selection = currentMetabloomVisualSelection(record);
+  const description = selection && describeMetabloomVisualSelection(spec, selection);
+  if (description && spec.kind === 'calculator') {
+    const result = evaluateMetabloomVisualFormula(spec.formula, spec.controls, selection.inputs);
+    return [amount(result, spec.unit), ...spec.controls.map(control =>
+      amount(selection.inputs[control.id], control.unit || control.label))].join(' · ');
+  }
+  if (description) return `${description.label.slice(description.label.indexOf(' · ') + 3)} · ${description.summary}`;
+  if (spec.kind === 'calculator') return 'Inputs need attention';
+  if (spec.kind === 'flowchart') return `${spec.nodes.length} steps · Select a step to inspect`;
+  return `${spec.labels?.length || spec.points.length} observations${spec.unit ? ` · ${spec.unit}` : ''}`;
+}

@@ -218,6 +218,18 @@ test('legacy and explicitly closed workspaces keep the original snapshot shape',
   expect(parseMetabloomVisualSnapshot(closed, owners([item]))).toEqual(closed);
 });
 
+test('workspace presentation is bounded and never outlives an owned active record', () => {
+  const item = record();
+  for (const workspaceView of ['compact', 'expanded']) {
+    const snapshot = createMetabloomVisualSnapshot([item], owners([item]), null, item.id, workspaceView);
+    expect(parseMetabloomVisualSnapshot(snapshot, owners([item])).workspaceView).toBe(workspaceView);
+    expect(parseMetabloomVisualSnapshot(snapshot, [])).not.toHaveProperty('workspaceView');
+  }
+  const snapshot = createMetabloomVisualSnapshot([item], owners([item]), null, item.id, 'expanded');
+  expect(parseMetabloomVisualSnapshot({ ...snapshot, workspaceView: 'unknown' }, owners([item]))).toEqual(empty());
+  expect(createMetabloomVisualSnapshot([item], owners([item]), null, null, 'expanded')).not.toHaveProperty('workspaceView');
+});
+
 test('an unknown, cancelled or evicted record cannot reopen the workspace', () => {
   const item = stored(), cancelled = stored(2, { status: 'cancelled', spec: null, sources: [], viewState: null });
   for (const activeVisualId of [cancelled.id, 'f'.repeat(48)]) {

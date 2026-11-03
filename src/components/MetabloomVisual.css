@@ -7,17 +7,20 @@
 .orb-page[data-active-component='true'] .metabloom-chat__workspace {
   display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden;
   border: 1px solid var(--aetheris-line-strong); border-radius: var(--aetheris-radius-lg);
-  color: var(--aetheris-ink); background: var(--aetheris-glass-panel-raised);
+  color: var(--aetheris-ink); background: var(--aetheris-panel-raised);
   box-shadow: var(--aetheris-glass-specular), var(--aetheris-shadow); pointer-events: auto;
 }
 .orb-page .metabloom-component-workspace__toolbar {
   display: flex; flex: 0 0 auto; align-items: center; gap: 0.8rem; min-width: 0;
   padding: 0.2rem 0.8rem; border-bottom: 1px solid var(--aetheris-line);
 }
-.orb-page .metabloom-component-workspace__toolbar > h3 {
-  flex: 1; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+.orb-page .metabloom-component-workspace__identity { flex: 1; min-width: 0; }
+.orb-page .metabloom-component-workspace__identity > h3 {
+  min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   font: 600 1.3rem/1.4 var(--aetheris-font-sans);
 }
+.orb-page .metabloom-component-workspace__summary,
+.orb-page .metabloom-component-workspace__toolbar > [data-workspace-toggle] { display: none; }
 .orb-page .metabloom-component-workspace__toolbar > button,
 .orb-page .metabloom-visual-launcher > button {
   min-height: 4.4rem; border: 1px solid var(--aetheris-line); border-radius: var(--aetheris-radius-lg);
@@ -25,6 +28,10 @@
   padding: 0.7rem 1rem; font: 1.1rem/1.4 var(--aetheris-font-mono); cursor: pointer;
 }
 .orb-page .metabloom-component-workspace__toolbar > button { flex: 0 0 auto; border-color: transparent; background: transparent; }
+.orb-page .metabloom-component-workspace__toolbar > button:not([data-workspace-toggle]) {
+  flex-basis: 4.4rem; width: 4.4rem; min-width: 4.4rem; padding: 0;
+  font: 2rem/1 var(--aetheris-font-sans);
+}
 .orb-page .metabloom-component-workspace__body { flex: 1; min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; }
 .orb-page .metabloom-component-workspace__body:focus-visible,
 .orb-page .metabloom-component-workspace__toolbar > button:focus-visible,

@@ -70,8 +70,9 @@ const parseRecord = (value, messages) => {
 function parseMetabloomVisualSnapshot(value, messages) {
   const snapshot = emptySnapshot();
   const hasActive = Object.prototype.hasOwnProperty.call(value || {}, 'activeVisualId');
-  if (!visualKeys(value, hasActive ? ['version', 'records', 'lastInteractedId', 'activeVisualId']
-    : ['version', 'records', 'lastInteractedId']) || value.version !== 1
+  const hasView = Object.prototype.hasOwnProperty.call(value || {}, 'workspaceView');
+  if (!visualKeys(value, ['version', 'records', 'lastInteractedId', ...(hasActive ? ['activeVisualId'] : []), ...(hasView ? ['workspaceView'] : [])])
+    || (hasView && (!hasActive || !['compact', 'expanded'].includes(value.workspaceView))) || value.version !== 1
     || !Array.isArray(value.records) || value.records.length > MAX_METABLOOM_VISUAL_SNAPSHOT_RECORDS
     || !Array.isArray(messages) || (value.lastInteractedId !== null
       && (typeof value.lastInteractedId !== 'string' || !/^[a-f0-9]{48}$/.test(value.lastInteractedId)))
@@ -90,10 +91,11 @@ function parseMetabloomVisualSnapshot(value, messages) {
   }
   if (snapshot.records.some(record => record.id === value.activeVisualId && record.status === 'ready')) {
     snapshot.activeVisualId = value.activeVisualId;
+    if (hasView) snapshot.workspaceView = value.workspaceView;
   }
   return snapshot;
 }
-function createMetabloomVisualSnapshot(records, messages, lastInteractedId = null, activeVisualId = null) {
+function createMetabloomVisualSnapshot(records, messages, lastInteractedId = null, activeVisualId = null, workspaceView) {
   const snapshot = emptySnapshot();
   if (!Array.isArray(records) || !Array.isArray(messages)) return snapshot;
   const ids = new Set();
@@ -115,7 +117,7 @@ function createMetabloomVisualSnapshot(records, messages, lastInteractedId = nul
       ...(ready && isMetabloomArtifactVersion(record.artifactVersion) ? { artifactVersion: record.artifactVersion } : {}) }, messages);
     if (!candidate) continue;
     const next = { ...snapshot, records: [candidate, ...snapshot.records], lastInteractedId,
-      ...(typeof activeVisualId === 'string' && /^[a-f0-9]{48}$/.test(activeVisualId) ? { activeVisualId } : {}) };
+      ...(typeof activeVisualId === 'string' && /^[a-f0-9]{48}$/.test(activeVisualId) ? { activeVisualId, ...(['compact', 'expanded'].includes(workspaceView) ? { workspaceView } : {}) } : {}) };
     if (byteLength(JSON.stringify(next)) > MAX_METABLOOM_VISUAL_SNAPSHOT_BYTES) continue;
     ids.add(candidate.id);
     snapshot.records.unshift(candidate);
@@ -126,6 +128,7 @@ function createMetabloomVisualSnapshot(records, messages, lastInteractedId = nul
   }
   if (snapshot.records.some(record => record.id === activeVisualId && record.status === 'ready')) {
     snapshot.activeVisualId = activeVisualId;
+    if (['compact', 'expanded'].includes(workspaceView)) snapshot.workspaceView = workspaceView;
   }
   return snapshot;
 }

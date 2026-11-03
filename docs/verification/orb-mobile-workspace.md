@@ -1,7 +1,7 @@
 # Orb mobile layout and current component
 
-Audit date: 2026-11-03. Based on main commit
-`63cccfa20bcf228f873fa6273667614b74300365`.
+Audit date: 2026-11-03. The compact and expanded workspace refinement builds
+on main commit `ed1589c`, which simplifies component chrome and selected context.
 
 ## Report and causes
 
@@ -32,8 +32,9 @@ accessible names.
 
 The layout reserves a 44-pixel Theme control plus 8 pixels of clearance below
 the navigation so it cannot cover the component or conversation. On mobile,
-keyboard-open or compact viewports below 520 pixels hide this secondary row and
-give its space back to the content. Header clearance itself remains 76 CSS pixels
+expanded component view, keyboard-open viewports, and short viewports below
+520 pixels hide this secondary row and give its space back to the content.
+Header clearance itself remains 76 CSS pixels
 without a larger safe-area inset. The external
 Replay shortcut moves into the Reactions panel on mobile, and the desktop send
 hint is visually hidden. The four response demo buttons below the composer and
@@ -46,21 +47,32 @@ the visual viewport position, including browser chrome and keyboard changes.
 The transcript no longer has a fade mask. Assistant bubbles use a more opaque
 surface over the optional animated background.
 
-At widths up to 900 CSS pixels, the current component sits above the transcript
-in a panel capped at 260 pixels and 34% of the visual viewport height. Short or
-keyboard-reduced viewports use a smaller panel capped at 140 pixels and 24% of
-the available height, with the title/actions beside its body. The component
-body scrolls within its bounds; the answer
-and composer occupy their own rows. Wider layouts place the component beside
-the conversation.
+At widths up to 900 CSS pixels, the workspace has two presentations:
+
+- **Compact:** the component title and live selected values stay above the
+  transcript. For the project-price calculator this includes the hours, hourly
+  rate, and calculated total. The full form stays mounted but hidden, so the
+  conversation receives more of the available height. **Open** reveals it.
+- **Expanded:** the component fills the area above the same composer. The
+  transcript and Theme control are hidden. **Back to chat** restores the compact
+  summary and conversation. A reply shortcut in the composer also returns to
+  the latest reply without discarding the component.
+
+A newly generated component starts compact on mobile, keeping the conversation
+and composer available. Open and Show component explicitly expand it. Ask about
+this and sending a message return to compact view. These actions preserve the
+same calculator, fields, composer, and attachment. Wider layouts continue to
+show the full component beside the conversation; the mobile presentation does
+not create another renderer when the viewport changes.
 
 When the keyboard leaves a short viewport, composer accessories such as selected
 references or error messages scroll separately from the message form. This
 keeps Send and Stop reachable even with a multiline draft or a research reference.
 
-The calculator shows its result first and keeps its editable inputs side by
-side. Additional controls, explanations, and provenance remain reachable in
-the panel. Touch controls retain at least 44-pixel targets and editable fields
+The calculator shows its result first in expanded view and keeps its editable
+inputs side by side. Additional explanations and provenance are under Details.
+The workspace provides the component title once, without another title inside
+the frame. Touch controls retain at least 44-pixel targets and editable fields
 retain 16-pixel text on phones.
 
 ## Component and reference invariants
@@ -68,16 +80,21 @@ retain 16-pixel text on phones.
 - Each artifact has one live frame and one stable portal container. Moving it
   preserves unfinished calculator inputs, table sorting/filtering, chart
   selection, expanded details, and focus.
-- A completed component opens for its current generation turn. A newer explicit
-  selection or close takes precedence over an older unfinished request.
-- Ask about this and a submitted valid reference show the exact owned component.
+- A completed component becomes the current item for its generation turn and
+  starts compact on mobile. A newer explicit selection or close takes precedence
+  over an older unfinished request.
+- Ask about this and a submitted valid reference identify the exact owned component.
   The original message keeps a Show component control with the same artifact ID.
-- The panel remains visible after the one-shot reference is consumed. Visibility
+- Its compact summary remains visible after the one-shot reference is consumed. Visibility
   alone does not attach data to another message or start a provider request.
 - Calculator inputs in an attachment remain the values captured when Ask was
   clicked. Further live edits do not rewrite that captured scenario.
-- Return to chat moves the same frame to its original message. Show component
-  moves it back into the panel.
+- Back to chat only changes the mobile presentation. The separate close control,
+  labelled Return component to conversation, moves the same frame to its original
+  message. Show component moves it back into the workspace and expands it.
+- Compact and expanded views retain the same form nodes, so unfinished inputs
+  and the current draft survive a view change. Opening the component does not
+  replace a captured reference with the values currently on screen.
 - Navigation restores the active component through the existing bounded,
   account-owned tab cache. Reset, removed message ownership, account changes,
   and stale callbacks cannot retain or reopen an orphaned component.
@@ -116,14 +133,29 @@ Checks completed for the Theme placement follow-up:
 - The three changed browser scripts passed syntax and targeted lint checks.
 - `git diff --check` passed. Browser execution remains unverified as detailed below.
 
+Verification for the compact and expanded refinement:
+
+- The updated browser harness is checked for JavaScript syntax and lint.
+- Browser execution and screenshots are not claimed by those static checks.
+  The local Playwright Chromium executable is missing, and its attempted
+  download did not succeed. A complete run still requires an installed browser.
+
 The permanent browser regression is
 `scripts/verify-metabloom-mobile-workspace.mjs`. It uses the built application
 and fictional local HTTP responses, with no real account, provider, or paid
-model. It checks component/transcript/composer/header separation, visible
-calculator values during a follow-up, preserved DOM identity, and unchanged
-request counts across mobile sizes and theme changes. It verifies Theme is
-outside navigation, its separate row does not overlap the component, and the
-row disappears in the short keyboard case. The MetalNova control harness also
+model. Its six viewport/theme cases cover 390 by 844, 390 by 600, and 320 by 568
+CSS pixels in light and dark mode, with an additional 420-pixel-height keyboard
+case for each. It checks the default compact summary, explicit expanded editing,
+Back to chat/Open round trips, Ask and submit, the reply shortcut, close/reopen,
+and compact/expanded geometry with a multiline draft and attached scenario.
+It checks that the compact summary includes 17 hours, a rate of 85, and the
+1,445 total; that the full component and transcript occupy their intended view;
+and that the original component, input fields, and composer nodes survive.
+The request fixture verifies the exact captured calculator reference and rejects
+extra generation or continuation calls. View changes, Theme, resizing, and
+scrolling must leave request counts unchanged. It verifies Theme remains
+outside navigation and is hidden in expanded and short keyboard views.
+The MetalNova control harness also
 checks desktop hover opening, pointer travel into the panel, focus preservation,
 and mobile tap opening with the actual OrbPage controls and styles. The functional
 workflow runs it and retains its evidence alongside the existing UI checks.
@@ -156,20 +188,29 @@ records the completed local checks; CI and device verification remain separate.
 1. Open `/orb` at a phone width with the background enabled.
 2. Create the project-price calculator with hours 1 to 80, initially 10, and
    hourly rate 10 to 200 CAD, initially 65.
-3. Set hours to 17 and rate to 85. Confirm the visible total is 1,445 CAD.
+3. Confirm the new compact summary shows 650 CAD, then tap Open. Set hours to 17
+   and rate to 85. Confirm the visible total is 1,445 CAD. Use Back to chat and
+   confirm the compact summary includes both inputs and the new total. Reopen it.
 4. Use Ask about this, then ask: “Explain the selected scenario, state both
    inputs and the calculated total, then tell me what three additional hours
    would cost at the same rate.”
-5. Confirm the same calculator stays visible while the answer arrives and the
+5. Confirm Ask returns to the conversation with the same calculator summarized
+   above it. The summary stays visible while the answer arrives and the
    transcript scrolls independently. The selected scenario is 1,445 CAD; three
    extra hours cost 255 CAD, giving an extended estimate of 1,700 CAD.
+   Open the calculator again and use the reply shortcut to return to the answer.
 6. Confirm Theme appears below the navigation, then tap it to open the compact
    panel. Choose a finish and confirm the panel collapses. Reopen it to toggle
    the background. Confirm the inputs and answer remain intact. On desktop,
    hover Theme and move into the panel without losing it or moving focus.
-7. Return the component to chat, then reopen it. Check keyboard opening,
-   dismissal, rotation, and navigation away from and back to Orb.
+7. Use the separate close control to return the component to its source message,
+   then use Show component to reopen it. Check keyboard opening, dismissal,
+   rotation, and navigation away from and back to Orb. Confirm a view change
+   preserves a multiline draft and the selected scenario.
 
-For a short phone viewport, scroll inside the component to reach its secondary
-actions. Confirm both that panel and the conversation remain independently
-usable, with the composer above the keyboard.
+For a short phone viewport, confirm compact view keeps the current total and a
+readable conversation above the composer. Open the component and scroll its body
+to reach secondary actions. Back to chat must remain available, and neither view
+may move Send below the keyboard. Check this on a physical phone as well as in
+the browser harness: emulating viewport height is not a native software-keyboard
+or iOS Safari test.

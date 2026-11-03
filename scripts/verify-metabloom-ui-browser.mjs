@@ -200,7 +200,16 @@ try {
     const image = await call('Page.captureScreenshot', { format: 'png' });
     fs.writeFileSync(path.join(output, `${name}.png`), Buffer.from(image.data, 'base64'));
   };
+  const revealComponent = async selector => {
+    await evaluate(`(() => {
+      const control = document.querySelector(${JSON.stringify(selector)});
+      const root = control?.closest('.orb-page');
+      if (control?.closest('.metabloom-component-workspace__body') && matchMedia('(max-width: 900px)').matches
+        && root?.dataset.componentView === 'compact') root.querySelector('[data-workspace-toggle]').click();
+    })()`);
+  };
   const setInput = async (selector, value, textarea = false) => {
+    await revealComponent(selector);
     await evaluate(`(() => { const input = document.querySelector(${JSON.stringify(selector)}); if (!input) throw new Error('Missing input'); Object.getOwnPropertyDescriptor(${textarea ? 'HTMLTextAreaElement' : 'HTMLInputElement'}.prototype, 'value').set.call(input, ${JSON.stringify(String(value))}); input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
     await sleep(50);
   };
@@ -209,6 +218,7 @@ try {
     await evaluate("document.querySelector('.metabloom-chat__composer').requestSubmit()");
   };
   const askAbout = async selector => {
+    await revealComponent(selector);
     await until(`document.querySelector(${JSON.stringify(selector)}) && !document.querySelector(${JSON.stringify(selector)}).disabled`);
     await evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
     await until("document.querySelector('[data-artifact-reference]')");
@@ -257,6 +267,7 @@ try {
     assert.equal(await evaluate("document.querySelector('[data-artifact-reference]') === null"), true,
       'Sending consumes the explicitly attached reference');
     assert.equal(await evaluate("window.__testedArtifact === document.querySelector('.metabloom-visual')"), true);
+    await revealComponent('.metabloom-visual__context > summary');
     await evaluate("document.querySelector('.metabloom-visual__context > summary').click()");
     await evaluate("Array.from(document.querySelectorAll('.metabloom-visual button')).find(button => button.textContent === 'Reset values').click()");
     await until(`${value} === '650'`);

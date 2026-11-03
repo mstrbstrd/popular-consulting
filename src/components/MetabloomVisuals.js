@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom';
 import MetabloomVisualFrame, { MetabloomVisualBoundary } from './MetabloomVisualFrame';
 import { METABLOOM_VISUAL_OFFER_EVENT, requestMetabloomVisual } from './metabloomVisualApiClient';
 import { METABLOOM_TRANSCRIPT_READY_EVENT, METABLOOM_RESET_EVENT,
-  beginMetabloomVisualTurn, acceptMetabloomVisualOffer, findMetabloomVisualReply } from './metabloomVisualSession';
+  beginMetabloomVisualTurn, acceptMetabloomVisualOffer, findMetabloomVisualReply,
+  METABLOOM_WORKSPACE_VIEW_EVENT, METABLOOM_WORKSPACE_VIEW_REQUEST } from './metabloomVisualSession';
 import { createMetabloomVisualSnapshot, parseMetabloomVisualSnapshot } from './metabloomVisualSnapshot';
 import { classifyMetabloomVisualIntent } from './metabloomVisualIntent';
 import { postMetabloomTool } from './metabloomToolClient';
@@ -12,7 +13,7 @@ import { METABLOOM_TOOL_ERROR_CODES, getMetabloomApiErrorMessage, parseMetabloom
 import { parseMetabloomVisualQuota, formatMetabloomVisualQuotaMessage } from './metabloomVisualQuota';
 import { METABLOOM_ARTIFACT_REFERENCE_EVENT, METABLOOM_ARTIFACT_UPDATE_EVENT,
   isMetabloomArtifactVersion, parseMetabloomArtifactReference } from './metabloomArtifactReference';
-import { describeMetabloomVisualSelection, currentMetabloomVisualSelection } from './metabloomVisualSelection';
+import { describeMetabloomVisualSelection, currentMetabloomVisualSelection, summarizeMetabloomVisual } from './metabloomVisualSelection';
 import { isMetabloomFreshResearchRequest } from './metabloomResearchReference';
 const safeReply = response => ({ version: METABLOOM_CHAT_PROTOCOL_VERSION, segments: [{ response }] });
 const toolFailure = error => {
@@ -39,6 +40,7 @@ export default class MetabloomVisuals extends React.Component {
   records = new Map();
   turn = null;
   activeVisualId = null;
+  workspaceView = 'compact';
   workspaceSelectionRevision = 0;
   anchor = null;
   captureAnchor = node => { this.anchor = node; };
@@ -51,6 +53,10 @@ export default class MetabloomVisuals extends React.Component {
     window.addEventListener(METABLOOM_TRANSCRIPT_READY_EVENT, this.restore);
     window.addEventListener(METABLOOM_RESET_EVENT, this.reset);
     window.addEventListener(METABLOOM_ARTIFACT_UPDATE_EVENT, this.updateReference);
+    window.addEventListener(METABLOOM_WORKSPACE_VIEW_REQUEST, this.requestWorkspaceView);
+    this.root.addEventListener('focusin', this.onWorkspaceFocus);
+    this.mobileQuery = window.matchMedia?.('(max-width: 900px)');
+    this.mobileQuery?.addEventListener?.('change', this.onWorkspaceBreakpoint);
     this.observer = new MutationObserver(this.reconcile);
     this.observer.observe(this.root, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-stream-status'] });
     window.__metabloomVisualSnapshot = this.snapshot;
@@ -59,7 +65,7 @@ export default class MetabloomVisuals extends React.Component {
   componentWillUnmount() {
     if (this.saveToolState) {
       const snapshot = createMetabloomVisualSnapshot(
-        Array.from(this.records.values()), this.messages(), this.lastInteractedId || null, this.activeVisualId,
+        Array.from(this.records.values()), this.messages(), this.lastInteractedId || null, this.activeVisualId, this.workspaceView,
       );
       this.saveToolState('orbVisuals', snapshot);
       // React's development remount reuses this instance after cleanup.
@@ -71,6 +77,9 @@ export default class MetabloomVisuals extends React.Component {
     window.removeEventListener(METABLOOM_TRANSCRIPT_READY_EVENT, this.restore);
     window.removeEventListener(METABLOOM_RESET_EVENT, this.reset);
     window.removeEventListener(METABLOOM_ARTIFACT_UPDATE_EVENT, this.updateReference);
+    window.removeEventListener(METABLOOM_WORKSPACE_VIEW_REQUEST, this.requestWorkspaceView);
+    this.root?.removeEventListener('focusin', this.onWorkspaceFocus);
+    this.mobileQuery?.removeEventListener?.('change', this.onWorkspaceBreakpoint);
     this.observer?.disconnect();
     if (window.__metabloomVisualSnapshot === this.snapshot) delete window.__metabloomVisualSnapshot;
     this.releaseTurn();
@@ -125,7 +134,7 @@ export default class MetabloomVisuals extends React.Component {
         code: saved.status === 'cancelled' ? 'visual_cancelled' : undefined });
       this.ensureLauncher(this.records.get(saved.id));
     }
-    if (snapshot.activeVisualId) this.activateComponent(this.records.get(snapshot.activeVisualId));
+    if (snapshot.activeVisualId) this.activateComponent(this.records.get(snapshot.activeVisualId), { view: snapshot.workspaceView || 'compact' });
     this.refresh();
   };
   createPendingArticle = userArticle => {
@@ -165,20 +174,61 @@ export default class MetabloomVisuals extends React.Component {
     else article.appendChild(anchor);
     if (record.launcher && this.activeVisualId !== record.id) record.launcher.after(record.slot);
   };
+  publishWorkspaceView = (view, { restoreReading = true } = {}) => {
+    if (!this.root) return;
+    // Notify before hiding the transcript so its reading position can be saved.
+    if (this.mounted) window.dispatchEvent(new CustomEvent(METABLOOM_WORKSPACE_VIEW_EVENT,
+      { detail: { root: this.root, view, restoreReading } }));
+    this.root.dataset.componentView = view;
+  };
+  setWorkspaceView = (view, { explicit = true, focus = false } = {}) => {
+    if (!this.mounted || !this.ownsSurface() || !this.activeVisualId || !['compact', 'expanded'].includes(view)) return false;
+    if (explicit) this.workspaceSelectionRevision += 1;
+    this.workspaceView = view;
+    this.publishWorkspaceView(view);
+    this.refresh();
+    if (focus) {
+      const target = view === 'expanded' ? this.workspaceBody : this.workspaceToolbar?.querySelector('[data-workspace-toggle]');
+      target?.focus({ preventScroll: true });
+    }
+    return true;
+  };
+  requestWorkspaceView = event => {
+    if (event.detail?.root === this.root) this.setWorkspaceView(event.detail.view, { explicit: true });
+  };
+  onWorkspaceFocus = event => {
+    if (this.mobileQuery?.matches && this.workspaceView === 'expanded'
+      && event.target.matches?.('.metabloom-chat__composer textarea')) this.setWorkspaceView('compact', { explicit: false });
+  };
+  onWorkspaceBreakpoint = event => {
+    if (!this.activeVisualId) return;
+    const focused = document.activeElement;
+    if (event.matches) this.setWorkspaceView(this.workspaceBody?.contains(focused) ? 'expanded' : 'compact', { explicit: false });
+    else {
+      this.publishWorkspaceView(this.workspaceView);
+      if (focused?.matches?.('[data-workspace-toggle]')) this.workspaceBody?.focus({ preventScroll: true });
+      else if (focused?.closest?.('.metabloom-chat__component-reply')) this.root.querySelector('.metabloom-chat__composer textarea')?.focus({ preventScroll: true });
+    }
+  };
   clearWorkspace = () => {
     this.activeVisualId = null;
+    this.workspaceView = 'compact';
+    this.publishWorkspaceView('compact', { restoreReading: false });
     this.workspaceToolbar?.remove();
     this.workspaceBody?.remove();
-    if (this.root) delete this.root.dataset.activeComponent;
+    if (this.root) { delete this.root.dataset.activeComponent; delete this.root.dataset.componentView; }
   };
-  activateComponent = (record, { explicit = false, focus = false } = {}) => {
+  activateComponent = (record, { explicit = false, focus = false, view } = {}) => {
     const host = this.workspaceHost();
     const owner = record?.replyId || record?.userId;
     if (!this.mounted || !host || !record || this.records.get(record.id) !== record
       || record.status !== 'ready' || !record.slot?.isConnected || !this.root.contains(record.slot)
       || !this.messages().some(message => message.id === owner)) return false;
     if (explicit) this.workspaceSelectionRevision += 1;
+    if (view) this.workspaceView = view;
     if (this.activeVisualId === record.id) {
+      this.publishWorkspaceView(this.workspaceView);
+      this.refresh();
       // Ask lives below the fields in short workspaces. A deliberate selection
       // brings the result back into view; streamed replies never reset this scroll.
       if (explicit && this.workspaceBody) this.workspaceBody.scrollTop = 0;
@@ -202,6 +252,7 @@ export default class MetabloomVisuals extends React.Component {
     this.workspaceBody.scrollTop = 0;
     this.activeVisualId = record.id;
     this.root.dataset.activeComponent = 'true';
+    this.publishWorkspaceView(this.workspaceView);
     if (focus) this.workspaceBody.focus({ preventScroll: true });
     else if (focused?.isConnected) focused.focus({ preventScroll: true });
     this.refresh();
@@ -219,12 +270,12 @@ export default class MetabloomVisuals extends React.Component {
   activateSubmittedReference = reference => {
     const parsed = parseMetabloomArtifactReference(reference);
     const record = parsed && this.records.get(parsed.id);
-    if (record?.artifactVersion === parsed?.version) this.activateComponent(record, { explicit: true });
+    if (record?.artifactVersion === parsed?.version) this.activateComponent(record, { explicit: true, view: 'compact' });
   };
   activateGeneratedComponent = record => {
     const turn = record.generationTurn;
     if (turn && this.turn === turn && !turn.signal.aborted
-      && turn.workspaceSelectionRevision === this.workspaceSelectionRevision) this.activateComponent(record);
+      && turn.workspaceSelectionRevision === this.workspaceSelectionRevision) this.activateComponent(record, { view: 'compact' });
   };
   reset = event => {
     if (!this.mounted || !this.ownsSurface() || !(event?.detail instanceof Element) || !this.root.contains(event.detail)) return;
@@ -274,7 +325,7 @@ export default class MetabloomVisuals extends React.Component {
     if (!reference) return false;
     const presentation = describeMetabloomVisualSelection(record.spec, reference);
     if (!presentation) return false;
-    this.activateComponent(record, { explicit: true });
+    this.activateComponent(record, { explicit: true, view: 'compact' });
     window.dispatchEvent(new CustomEvent(METABLOOM_ARTIFACT_REFERENCE_EVENT, {
       detail: { reference, ...presentation, root: this.root },
     }));
@@ -486,6 +537,7 @@ export default class MetabloomVisuals extends React.Component {
     if (!this.mounted || this.records.get(record.id) !== record || record.status !== 'ready') return;
     record.viewState = viewState;
     if (record.spec.kind === 'calculator') this.lastInteractedId = record.id;
+    if (record.id === this.activeVisualId) this.refresh();
   };
   finishTool = async (record, display) => {
     if (!this.mounted || record.restored || record.mode !== 'tool' || record.continuing || record.completed || record.controller.signal.aborted) return;
@@ -522,8 +574,15 @@ export default class MetabloomVisuals extends React.Component {
     return <>
       <span ref={this.captureAnchor} hidden aria-hidden="true" />
       {active && this.workspaceToolbar && createPortal(<>
-        <h3 title={active.spec.title}>{active.spec.title}</h3>
-        <button type="button" aria-label="Return component to conversation" onClick={this.returnComponent}>Return to chat</button>
+        <div className="metabloom-component-workspace__identity">
+          <h3 title={active.spec.title}>{active.spec.title}</h3>
+          <p className="metabloom-component-workspace__summary">{summarizeMetabloomVisual(active)}</p>
+        </div>
+        <button type="button" data-workspace-toggle aria-expanded={this.workspaceView === 'expanded'}
+          onClick={() => this.setWorkspaceView(this.workspaceView === 'expanded' ? 'compact' : 'expanded', { focus: true })}>
+          {this.workspaceView === 'expanded' ? 'Back to chat' : 'Open'}
+        </button>
+        <button type="button" aria-label="Return component to conversation" title="Return component to conversation" onClick={this.returnComponent}>×</button>
       </>, this.workspaceToolbar, 'workspace-toolbar')}
       {Array.from(this.records.values(), record => <React.Fragment key={record.id}>
         {createPortal(<MetabloomVisualBoundary><MetabloomVisualFrame artifact={record} workspace={this.activeVisualId === record.id} onStop={() => this.stop(record)}
@@ -532,7 +591,7 @@ export default class MetabloomVisuals extends React.Component {
           onAskAbout={selection => this.askAbout(record, selection)} /></MetabloomVisualBoundary>, record.slot, record.id)}
         {record.launcher && createPortal(<button type="button" aria-label={`Show component: ${record.spec.title}`}
           aria-pressed={this.activeVisualId === record.id}
-          onClick={() => this.activateComponent(record, { explicit: true, focus: true })}>
+          onClick={() => this.activateComponent(record, { explicit: true, focus: true, view: 'expanded' })}>
           <span>Show component</span><strong>{record.spec.title}</strong>
         </button>, record.launcher, `${record.id}-launcher`)}
       </React.Fragment>)}

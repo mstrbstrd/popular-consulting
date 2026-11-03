@@ -214,6 +214,117 @@ test('returning and reopening a calculator moves its existing form and preserves
   expect(requestMetabloomVisual).not.toHaveBeenCalled();
 });
 
+test('compact and expanded views keep the same form, composer, live summary, and unfinished values', async () => {
+  const state = workspace(initialState([record(1)], id(1))), view = state.mount();
+  const frame = await screen.findByRole('region', { name: calculator.title });
+  const hours = within(frame).getByRole('spinbutton', { name: 'Hours' });
+  const composer = screen.getByRole('textbox');
+  const root = view.container.querySelector('.orb-page');
+  const summary = root.querySelector('.metabloom-component-workspace__summary');
+  expect(root).toHaveAttribute('data-component-view', 'compact');
+  expect(summary).toHaveTextContent('1,445 CAD · 17 Hours · 85 CAD');
+  fireEvent.change(composer, { target: { value: 'My unfinished question' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Open' }));
+  expect(root).toHaveAttribute('data-component-view', 'expanded');
+  expect(root.querySelector('.metabloom-component-workspace__body')).toHaveFocus();
+  fireEvent.change(hours, { target: { value: '20' } });
+  expect(summary).toHaveTextContent('1,700 CAD · 20 Hours · 85 CAD');
+  fireEvent.change(hours, { target: { value: '' } });
+  expect(summary).toHaveTextContent('Inputs need attention');
+  fireEvent.click(screen.getByRole('button', { name: 'Back to chat' }));
+  expect(root).toHaveAttribute('data-component-view', 'compact');
+  expect(screen.getByRole('button', { name: 'Open' })).toHaveFocus();
+  fireEvent.click(screen.getByRole('button', { name: 'Open' }));
+  expect(within(frame).getByRole('spinbutton', { name: 'Hours' })).toBe(hours);
+  expect(hours).toHaveValue(null);
+  expect(screen.getByRole('textbox')).toBe(composer);
+  expect(composer).toHaveValue('My unfinished question');
+  expect(document.querySelectorAll('.metabloom-visual')).toHaveLength(1);
+  expect(requests).toHaveLength(0);
+  expect(postMetabloomTool).not.toHaveBeenCalled();
+  expect(requestMetabloomVisual).not.toHaveBeenCalled();
+  view.unmount();
+  expect(state.cache.get('orbVisuals').workspaceView).toBe('expanded');
+  state.mount();
+  await screen.findByRole('region', { name: calculator.title });
+  expect(document.querySelector('.orb-page')).toHaveAttribute('data-component-view', 'expanded');
+});
+
+test('expanded editing preserves earlier transcript position through a reply and Back to chat', async () => {
+  const view = workspace(initialState([record(1)], id(1))).mount();
+  await screen.findByRole('region', { name: calculator.title });
+  const transcript = view.container.querySelector('.metabloom-chat__messages');
+  Object.defineProperties(transcript, { scrollHeight: { configurable: true, value: 1200 },
+    clientHeight: { configurable: true, value: 300 } });
+  transcript.scrollTop = 250;
+  fireEvent.scroll(transcript);
+  fireEvent.click(screen.getByRole('button', { name: 'Open' }));
+  transcript.scrollTop = 0; // A hidden browser scroll container has no layout box.
+  send('A separate question while I inspect the component.');
+  await waitFor(() => expect(requests).toHaveLength(1));
+  await act(async () => requests[0].finish(envelope('A new reply is ready.')));
+  await screen.findByText('A new reply is ready.');
+  expect(document.querySelector('.orb-page')).toHaveAttribute('data-component-view', 'expanded');
+  expect(transcript.scrollTop).toBe(0);
+  fireEvent.click(screen.getByRole('button', { name: 'Back to chat' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Open' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Back to chat' }));
+  await waitFor(() => expect(transcript.scrollTop).toBe(250));
+  fireEvent.click(screen.getByRole('button', { name: 'Open' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Read latest reply in chat' }));
+  expect(document.querySelector('.orb-page')).toHaveAttribute('data-component-view', 'compact');
+  expect(screen.getByRole('textbox')).toHaveFocus();
+  expect(transcript.scrollTop).toBe(1200);
+});
+
+test('focusing the composer returns mobile work to compact without changing its input draft', async () => {
+  workspace(initialState([record(1)], id(1))).mount();
+  const frame = await screen.findByRole('region', { name: calculator.title });
+  fireEvent.click(screen.getByRole('button', { name: 'Open' }));
+  act(() => screen.getByRole('textbox').focus());
+  expect(document.querySelector('.orb-page')).toHaveAttribute('data-component-view', 'compact');
+  expect(within(frame).getByRole('spinbutton', { name: 'Hours' })).toHaveValue(17);
+  expect(requests).toHaveLength(0);
+});
+
+test('leaving mobile restores reading state and focus before hidden mobile controls disappear', async () => {
+  let mobile = true;
+  window.matchMedia = query => ({ get matches() { return query === '(max-width: 900px)' ? mobile : true; },
+    addEventListener() {}, removeEventListener() {} });
+  const state = workspace(initialState([record(1)], id(1))), visualRef = React.createRef();
+  const view = render(<Harness navigation={state.navigation} visualRef={visualRef} />);
+  await screen.findByRole('region', { name: calculator.title });
+  const transcript = view.container.querySelector('.metabloom-chat__messages');
+  Object.defineProperties(transcript, { scrollHeight: { configurable: true, value: 1200 },
+    clientHeight: { configurable: true, value: 300 } });
+  transcript.scrollTop = 250; fireEvent.scroll(transcript);
+  fireEvent.click(screen.getByRole('button', { name: 'Open' }));
+  act(() => screen.getByRole('button', { name: 'Back to chat' }).focus());
+  mobile = false;
+  act(() => visualRef.current.onWorkspaceBreakpoint({ matches: false }));
+  expect(view.container.querySelector('.metabloom-component-workspace__body')).toHaveFocus();
+  await waitFor(() => expect(transcript.scrollTop).toBe(250));
+  transcript.scrollTop = 500; fireEvent.scroll(transcript);
+  fireEvent.click(screen.getByRole('button', { name: 'Ask about this scenario' }));
+  await act(async () => new Promise(resolve => window.requestAnimationFrame(resolve)));
+  expect(transcript.scrollTop).toBe(500);
+});
+
+test('returning a component to its message lets the launcher reading position win', async () => {
+  const view = workspace(initialState([record(1)], id(1))).mount();
+  await screen.findByRole('region', { name: calculator.title });
+  const transcript = view.container.querySelector('.metabloom-chat__messages');
+  Object.defineProperties(transcript, { scrollHeight: { configurable: true, value: 1200 },
+    clientHeight: { configurable: true, value: 300 } });
+  transcript.scrollTop = 250; fireEvent.scroll(transcript);
+  fireEvent.click(screen.getByRole('button', { name: 'Open' }));
+  const launcher = screen.getByRole('button', { name: `Show component: ${calculator.title}` });
+  jest.spyOn(launcher, 'focus').mockImplementation(() => { transcript.scrollTop = 800; });
+  fireEvent.click(screen.getByRole('button', { name: 'Return component to conversation' }));
+  await act(async () => new Promise(resolve => window.requestAnimationFrame(resolve)));
+  expect(transcript.scrollTop).toBe(800);
+});
+
 test('switching the visible component preserves table sorting and filtering without remounting either card', async () => {
   const records = [record(1), record(2, table, { sort: { column: null, direction: 'asc' }, filter: '' })];
   workspace(initialState(records, id(1))).mount();
@@ -248,7 +359,7 @@ test('chart selection and expanded details survive workspace moves', async () =>
   expect(detail).toHaveAttribute('open');
 });
 
-test.each(['select', 'close'])('a newer explicit %s prevents an in-flight result from replacing the workspace', async action => {
+test.each(['select', 'close', 'view'])('a newer explicit %s prevents an in-flight result from replacing the workspace', async action => {
   workspace(initialState([record(1)], id(1))).mount();
   const first = await screen.findByRole('region', { name: calculator.title });
   const secondSpec = { ...calculator, title: 'Second project price' };
@@ -260,13 +371,16 @@ test.each(['select', 'close'])('a newer explicit %s prevents an in-flight result
   send('Create a second interactive calculator.');
   await screen.findByRole('button', { name: 'Stop visual' });
   fireEvent.click(action === 'select' ? within(first).getByRole('button', { name: 'Ask about this scenario' })
-    : screen.getByRole('button', { name: 'Return component to conversation' }));
+    : screen.getByRole('button', { name: action === 'view' ? 'Open' : 'Return component to conversation' }));
   await act(async () => finishGeneration({ spec: secondSpec, sources: [], artifactVersion: version(2) }));
   const second = await screen.findByRole('region', { name: secondSpec.title });
   await screen.findByText('The second calculator is ready.');
   if (action === 'select') {
     expect(activeWorkspace()).toContainElement(first);
     expect(screen.getByRole('group', { name: 'Selected visual reference' })).toHaveTextContent('Project price · Scenario');
+  } else if (action === 'view') {
+    expect(activeWorkspace()).toContainElement(first);
+    expect(document.querySelector('.orb-page')).toHaveAttribute('data-component-view', 'expanded');
   } else {
     expect(activeWorkspace()).toBeEmptyDOMElement();
     expect(document.querySelector('.orb-page')).not.toHaveAttribute('data-active-component');
