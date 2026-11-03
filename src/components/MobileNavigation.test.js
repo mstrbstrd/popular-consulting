@@ -10,9 +10,9 @@ jest.mock('../contexts/ThemeContext', () => ({
 }));
 
 const navigation = { pathname: '/home', navigate: jest.fn() };
-const menuWithSession = (status, contextActions) => <AuthContext.Provider value={{ status }}>
+const menuWithSession = (status, settings) => <AuthContext.Provider value={{ status }}>
   <AppNavigationContext.Provider value={navigation}>
-    <NavMenu standalone contextActions={contextActions} /><main>Page content</main>
+    <div className="orb-page"><NavMenu standalone />{settings}<main>Page content</main></div>
   </AppNavigationContext.Provider>
 </AuthContext.Provider>;
 
@@ -80,21 +80,20 @@ describe('one mobile navigation menu', () => {
     expect(screen.getByRole('button', { name: 'Open navigation menu' })).toHaveAttribute('aria-expanded', 'false');
   });
 
-  test('contextual settings yield to the mobile navigation focus boundary', () => {
+  test('the independent Theme picker closes before mobile navigation takes focus', () => {
     const { container } = render(menuWithSession('authenticated', <OrbAppearance><button>Fixture finish</button></OrbAppearance>));
-    const appearance = screen.getByRole('button', { name: 'Appearance', exact: true });
-    expect(appearance.closest('.nav-pill')).not.toBeNull();
-    fireEvent.click(appearance);
-    expect(screen.getByRole('dialog', { name: 'Appearance' })).toHaveAttribute('open');
-    fireEvent.click(screen.getByRole('button', { name: 'Close appearance' }));
+    const theme = screen.getByRole('button', { name: 'Theme', exact: true });
+    expect(theme.closest('.nav-header')).toBeNull();
+    fireEvent.click(theme);
+    expect(screen.getByRole('dialog', { name: 'Theme' })).toHaveAttribute('open');
     const menu = screen.getByRole('button', { name: 'Open navigation menu' });
     fireEvent.click(menu);
-    expect(screen.queryByRole('button', { name: 'Appearance', exact: true })).not.toBeInTheDocument();
-    expect(screen.queryByRole('dialog', { name: 'Appearance' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Theme' })).not.toBeInTheDocument();
+    expect(theme).toHaveAttribute('aria-expanded', 'false');
     expect(container.querySelector('main')).toHaveAttribute('inert');
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(menu).toHaveFocus();
-    expect(screen.getByRole('button', { name: 'Appearance', exact: true })).toHaveAttribute('aria-expanded', 'false');
+    expect(theme).toHaveAttribute('aria-expanded', 'false');
     expect(container.querySelector('main')).not.toHaveAttribute('inert');
   });
 });

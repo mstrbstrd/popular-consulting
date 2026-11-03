@@ -109,6 +109,9 @@ const readLayout = page => page.evaluate(() => {
     return !!b && element.contains(document.elementFromPoint((b.left + b.right) / 2, (b.top + b.bottom) / 2));
   };
   const actions = ['.orb-appearance__trigger', '.nav-burger'].map(selector => box(get(selector)));
+  const themeTrigger = get('.orb-appearance__trigger'), themeStyle = getComputedStyle(themeTrigger);
+  const themeVisible = themeStyle.display !== 'none' && themeStyle.visibility !== 'hidden'
+    && actions[0]?.width > 0 && actions[0]?.height > 0;
   return {
     viewport: { width: window.innerWidth, height: window.innerHeight,
       visualHeight: window.visualViewport?.height, scrollY: window.scrollY },
@@ -120,7 +123,9 @@ const readLayout = page => page.evaluate(() => {
     transcriptScrollTop: transcript.scrollTop, bodyScrollTop: body?.scrollTop,
     horizontalOverflow: document.documentElement.scrollWidth - window.innerWidth,
     workspaceOverflow: body ? body.scrollWidth - body.clientWidth : null,
-    actions, returnActionReceivesPointer: hit(get('.metabloom-component-workspace__toolbar button')),
+    actions, themeControl: { visible: themeVisible, outsideNavigation: !themeTrigger.closest('.nav-header, .nav-pill'),
+      receivesPointer: themeVisible && hit(themeTrigger) },
+    returnActionReceivesPointer: hit(get('.metabloom-component-workspace__toolbar button')),
     sendActionReceivesPointer: hit(get('.metabloom-chat__composer button')),
     componentCount: document.querySelectorAll('.metabloom-visual').length,
     cardInWorkspace: workspace?.contains(card), cardOutsideLog: !transcript.contains(card),
@@ -152,8 +157,16 @@ function assertLayout(layout, { short = false, resultVisible = true } = {}) {
   assert(layout.horizontalOverflow <= 1 && layout.workspaceOverflow <= 1, 'No horizontal viewport overflow');
   assert.equal(layout.viewport.scrollY, 0, 'Component and transcript scrolling must not move the document');
   assert(layout.returnActionReceivesPointer && layout.sendActionReceivesPointer, 'Visible controls must receive pointer events');
-  assert(layout.actions.every(action => action && action.height >= 43.9), 'Header controls retain touch targets');
-  assert(Math.abs(layout.actions[0].top - layout.actions[1].top) <= 4, 'Appearance and Menu occupy one header row');
+  assert(layout.actions[1]?.height >= 43.9, 'Menu retains its touch target');
+  assert(layout.themeControl.outsideNavigation, 'Theme belongs to the Orb content controls, outside navigation');
+  assert.equal(layout.themeControl.visible, !short, 'A short keyboard viewport gives the Theme row back to the content');
+  if (layout.themeControl.visible) {
+    const theme = layout.actions[0];
+    assert(theme.height >= 43.9 && theme.width >= 43.9, 'Theme retains its touch target');
+    assert(theme.top >= header.bottom - 1, 'Theme stays below the navigation in the original finish-control area');
+    assert(theme.bottom <= workspace.top + 1, 'The collapsed Theme row must not cover the component');
+    assert(layout.themeControl.receivesPointer, 'The collapsed Theme control receives pointer events');
+  }
   if (resultVisible) assert(layout.outputVisibleHeight >= Math.min(20, layout.output.height), 'The current result remains visible when the follow-up arrives');
 }
 async function capture(page, name, options) {
@@ -217,21 +230,22 @@ try {
       assert.equal(earlier.workspace.top, initial.workspace.top);
       assert.equal(earlier.workspace.height, initial.workspace.height);
 
-      await page.getByRole('button', { name: 'Appearance', exact: true }).click();
-      const appearance = page.getByRole('dialog', { name: 'Appearance', exact: true });
+      await page.getByRole('button', { name: 'Theme', exact: true }).tap();
+      const appearance = page.getByRole('dialog', { name: 'Theme', exact: true });
       await appearance.waitFor({ state: 'visible' });
+      assert.equal(await appearance.getAttribute('aria-modal'), 'false', 'Theme must not make the page inert');
       const dialogBounds = await appearance.boundingBox();
       assert(dialogBounds.x >= 0 && dialogBounds.x + dialogBounds.width <= viewport.width + 1);
       assert(dialogBounds.y >= 0 && dialogBounds.y + dialogBounds.height <= viewport.height + 1);
-      await appearance.getByRole('button', { name: 'Use Nova fire for Metabloom', exact: true }).click();
+      await appearance.getByRole('button', { name: 'Use Nova fire for Metabloom', exact: true }).tap();
       await appearance.waitFor({ state: 'detached' });
-      assert.equal(await page.getByRole('button', { name: 'Appearance', exact: true }).evaluate(button => button === document.activeElement), true);
-      await page.getByRole('button', { name: 'Appearance', exact: true }).click();
+      assert.equal(await page.getByRole('button', { name: 'Theme', exact: true }).evaluate(button => button === document.activeElement), true);
+      await page.getByRole('button', { name: 'Theme', exact: true }).tap();
       await appearance.getByRole('button', { name: 'Animated background', exact: true }).click();
       await appearance.getByRole('button', { name: 'Animated background', exact: true }).click();
       await page.keyboard.press('Escape');
       await appearance.waitFor({ state: 'detached' });
-      assert.equal(await page.getByRole('button', { name: 'Appearance', exact: true }).evaluate(button => button === document.activeElement), true);
+      assert.equal(await page.getByRole('button', { name: 'Theme', exact: true }).evaluate(button => button === document.activeElement), true);
       await capture(page, `${activeCase}-appearance-preserved`);
 
       await page.getByRole('button', { name: 'Return component to conversation', exact: true }).click();
@@ -263,7 +277,7 @@ try {
       await input.blur();
       await page.waitForSelector('.orb-page[data-keyboard-open=false][data-compact-viewport=false]');
       await capture(page, `${activeCase}-viewport-restored`);
-      assert.equal(calls.length, 4, 'Appearance, selection, scrolling and resizing never regenerate or repeat a reply');
+      assert.equal(calls.length, 4, 'Theme, selection, scrolling and resizing never regenerate or repeat a reply');
       results.push({ case: activeCase, fictionalHttpRequests: calls.length, blockedExternalRequests: blocked });
       await context.close();
       activePage = null;

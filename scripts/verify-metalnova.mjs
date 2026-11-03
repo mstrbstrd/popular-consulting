@@ -20,31 +20,50 @@ try {
     plugins:[{name:'local-orb-neighbours',setup(b){
       b.onResolve({filter:/^\.\/(NavMenu|OrbSection|ImmersiveRouteNavigationBridge|LoadingOverlay)$/},a=>a.importer.endsWith('/OrbPage.js')?{path:a.path,namespace:'orb-neighbour'}:undefined);
       b.onResolve({filter:/AppNavigationContext$/},()=>({path:'navigation',namespace:'orb-neighbour'}));
-      b.onLoad({filter:/.*/,namespace:'orb-neighbour'},a=>({resolveDir:process.cwd(),loader:'jsx',contents:a.path==='navigation'?`export const useAppNavigation=()=>window.appearanceNavigation;`:a.path==='./NavMenu'?`import React from 'react';export default function Nav({contextActions}){return <nav className="nav-pill">{contextActions}</nav>;}`:a.path==='./OrbSection'?`import React from 'react';import {useMetabloomPalette} from './src/contexts/MetabloomPaletteContext';export default function Section({onConversationStateChange}){const p=useMetabloomPalette();return <div id="experience" data-palette={p}><button onClick={()=>onConversationStateChange(true)}>Begin conversation</button></div>;}`:`export default function Stub(){return null;}`}));
+      b.onLoad({filter:/.*/,namespace:'orb-neighbour'},a=>({resolveDir:process.cwd(),loader:'jsx',contents:a.path==='navigation'?`export const useAppNavigation=()=>window.appearanceNavigation;`:a.path==='./NavMenu'?`import React from 'react';export default function Nav(){return <nav className="nav-pill"/>;}`:a.path==='./OrbSection'?`import React from 'react';import {useMetabloomPalette} from './src/contexts/MetabloomPaletteContext';export default function Section({onConversationStateChange}){const p=useMetabloomPalette();return <div id="experience" data-palette={p}><button onClick={()=>onConversationStateChange(true)}>Begin conversation</button></div>;}`:`export default function Stub(){return null;}`}));
     }}],
   });
   const css=harness.outputFiles.filter(f=>f.path.endsWith('.css')).map(f=>f.text).join('\n');
   const js=harness.outputFiles.find(f=>f.path.endsWith('.js')).text;
   const layouts=[];
   for(const width of [320,390,768,1440]) for(const theme of ['light','dark']) {
-    const control=await browser.newPage({viewport:{width,height:844}});
+    const mobile=width<=768;
+    const control=await browser.newPage({viewport:{width,height:844},isMobile:mobile,hasTouch:mobile});
+    const press=locator=>mobile?locator.tap():locator.click();
     const errors=[];control.on('pageerror',e=>errors.push(String(e)));
-    await control.setContent('<!doctype html><html><head><style>:root{--aetheris-font-mono:monospace;--aetheris-radius-pill:999px;--aetheris-glass-panel:#eee;--aetheris-ink-2:#222;--orb-finish-gutter:20px;}body{margin:0}</style></head><body><div id="root"></div></body></html>');
+    await control.setContent('<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><style>:root{--aetheris-font-mono:monospace;--aetheris-radius-pill:999px;--aetheris-glass-panel:#eee;--aetheris-ink-2:#222;--orb-finish-gutter:20px;}body{margin:0}</style></head><body><div id="root"></div></body></html>');
     await control.addStyleTag({content:css});await control.addScriptTag({content:js});
     await control.waitForSelector('#experience');
     await control.evaluate(t=>document.documentElement.dataset.theme=t,theme);
     await control.evaluate(()=>window.originalExperience=document.getElementById('experience'));
     await control.getByRole('button',{name:'Begin conversation'}).click();
-    await control.getByRole('button',{name:'Appearance',exact:true}).click();
+    const themeControl=control.getByRole('button',{name:'Theme',exact:true});
+    const appearance=control.getByRole('dialog',{name:'Theme',exact:true});
+    assert.equal(await themeControl.evaluate(button=>Boolean(button.closest('.nav-header, .nav-pill'))),false,'Theme must stay outside navigation');
+    if(!mobile) {
+      const existingFocus=control.getByRole('button',{name:'Begin conversation'});
+      await existingFocus.focus();
+      await themeControl.hover();
+      await appearance.waitFor({state:'visible'});
+      assert.equal(await appearance.getAttribute('aria-modal'),'false','Hover settings cannot make the page inert');
+      assert.equal(await existingFocus.evaluate(button=>button===document.activeElement),true,'Hover must not steal focus');
+      await appearance.getByRole('button',{name:'Use Nova fire for Metabloom',exact:true}).hover();
+      assert.equal(await appearance.isVisible(),true,'Moving from the trigger into the panel must keep it open');
+      await control.mouse.move(2,800);
+      await appearance.waitFor({state:'detached'});
+      await themeControl.hover();
+    }
+    await press(themeControl);
+    await appearance.waitFor({state:'visible'});
     await control.waitForSelector('.orb-page__finish-option[data-palette="metalnova"][aria-pressed="true"]');
     const group=control.getByRole('group',{name:'Metabloom material finish'});
     assert.equal(await group.getByRole('button').count(),4);
     for(const [name,palette] of [['Use Nova fire for Metabloom','nova'],['Use liquid metal for Metabloom','metalbloom'],['Use spectral fluid for Metabloom','spectral'],['Use MetalNova liquid-metal fire for Metabloom','metalnova']]) {
-      const option=group.getByRole('button',{name,exact:true});await option.click();
-      await control.getByRole('dialog',{name:'Appearance',exact:true}).waitFor({state:'detached'});
-      assert.equal(await control.getByRole('button',{name:'Appearance',exact:true}).evaluate(button=>button===document.activeElement),true);
+      const option=group.getByRole('button',{name,exact:true});await press(option);
+      await appearance.waitFor({state:'detached'});
+      assert.equal(await themeControl.evaluate(button=>button===document.activeElement),true);
       assert.equal(await control.locator('#experience').getAttribute('data-palette'),palette);
-      await control.getByRole('button',{name:'Appearance',exact:true}).click();
+      await press(themeControl);
       assert.equal(await option.getAttribute('aria-pressed'),'true');
       assert.equal(await group.getByRole('button',{pressed:true}).count(),1);
     }

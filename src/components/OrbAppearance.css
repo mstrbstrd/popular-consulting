@@ -1,8 +1,19 @@
 .orb-page {
   --orb-header-clearance: max(96px, calc(env(safe-area-inset-top) + 84px));
+  --orb-theme-clearance: 52px;
 }
 
-.orb-page .orb-appearance { display: flex; min-width: 0; }
+/* Keep the compact picker in the original finish-control area, outside nav.
+   The padding bridges the pointer path from the trigger into its popover. */
+.orb-page .orb-appearance {
+  position: absolute;
+  top: var(--orb-header-clearance);
+  right: var(--orb-finish-gutter);
+  z-index: 30;
+  display: flex;
+  min-width: 0;
+  padding-bottom: 8px;
+}
 .orb-page .orb-appearance__trigger,
 .orb-page .orb-appearance__close {
   display: inline-flex;
@@ -37,11 +48,12 @@
 .orb-page .orb-appearance__close svg { display: block; flex-shrink: 0; }
 
 .orb-page .orb-appearance__dialog {
-  position: fixed;
-  inset: auto;
+  position: absolute;
+  inset: 100% 0 auto auto;
   display: flex;
   flex-direction: column;
-  width: min(400px, calc(100vw - 24px));
+  width: min(296px, calc(100vw - 24px));
+  max-height: calc(var(--orb-viewport-height, 100dvh) - var(--orb-header-clearance) - 64px);
   min-width: 0;
   margin: 0;
   padding: 0;
@@ -55,7 +67,6 @@
   -webkit-backdrop-filter: var(--aetheris-glass-blur);
   transform: none;
 }
-.orb-page .orb-appearance__dialog::backdrop { background: rgba(8, 8, 9, 0.2); }
 .orb-page .orb-appearance__dialog::before {
   content: "";
   position: absolute;
@@ -76,13 +87,13 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 8px 12px 8px 18px;
+  padding: 4px 8px 4px 12px;
   border-bottom: 1px solid var(--aetheris-line);
 }
 .orb-page .orb-appearance__heading h2 {
   margin: 0;
   color: var(--aetheris-ink);
-  font: 650 16px/1.3 var(--aetheris-font-sans);
+  font: 650 14px/1.3 var(--aetheris-font-sans);
   letter-spacing: -0.02em;
 }
 .orb-page .orb-appearance__close {
@@ -96,15 +107,15 @@
 .orb-page .orb-appearance__content {
   display: grid;
   min-height: 0;
-  gap: 16px;
-  padding: 16px 18px 18px;
+  gap: 12px;
+  padding: 12px;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
 }
 
-/* These controls keep their authored finish/swatch styles. Their old floating
-   positions and route-chrome visibility rules cannot affect a top-layer panel. */
+/* Keep the authored finishes inside the anchored panel; their old floating
+   positions must not affect the compact two-column layout. */
 .orb-page .orb-appearance__dialog[open] .orb-page__finish-selector {
   position: static;
   inset: auto;
@@ -164,9 +175,6 @@
   pointer-events: auto;
 }
 
-@media (max-width: 1100px) {
-  .orb-page .nav-brand-name { display: none; }
-}
 @media (max-width: 768px) {
   .orb-page { --orb-header-clearance: max(76px, calc(env(safe-area-inset-top) + 64px)); }
   .orb-page .nav-header {
@@ -180,23 +188,46 @@
     padding: 3px;
   }
   .orb-page .nav-brand {
-    justify-content: center;
-    width: 44px;
+    justify-content: flex-start;
+    min-width: 44px;
     height: 44px;
     margin: 0;
-    padding: 0;
-    gap: 0;
+    padding: 0 8px;
+    gap: 8px;
   }
-  .orb-page .nav-context-actions { margin-left: auto; }
+  .orb-page .nav-brand-name { font-size: 12px; }
   .orb-page .nav-burger {
     width: auto;
     min-width: 44px;
     height: 44px;
-    margin-left: 0;
+    margin-left: auto;
     padding: 0 8px;
     gap: 6px;
   }
-  .orb-page .nav-burger--open { margin-left: auto; }
+}
+
+@media (max-width: 720px) {
+  .orb-page .orb-appearance {
+    right: auto;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+  .orb-page .orb-appearance__dialog {
+    right: auto;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+}
+
+/* Match the existing finish controls' keyboard behavior. Typing and short
+   viewports give this row back to the component and conversation. */
+@media (max-width: 900px) {
+  .orb-page:is([data-keyboard-open="true"], [data-compact-viewport="true"]) {
+    --orb-theme-clearance: 0px;
+  }
+  .orb-page:is([data-keyboard-open="true"], [data-compact-viewport="true"]) .orb-appearance {
+    display: none;
+  }
 }
 
 @media (prefers-reduced-transparency: reduce) {

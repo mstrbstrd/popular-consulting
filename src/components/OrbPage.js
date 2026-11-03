@@ -199,8 +199,8 @@ const OrbPageContent = ({ onReady }) => {
 
         <div className="orb-page__foreground" style={pageHideStyle}>
           <ImmersiveRouteNavigationBridge />
-          <NavMenu audience={SITE_AUDIENCES.BUSINESS} contextActions={
-            <OrbAppearance>{({ close }) => <>
+          <NavMenu audience={SITE_AUDIENCES.BUSINESS} />
+          <OrbAppearance>{({ close }) => <>
               <div
                 className="orb-page__finish-selector"
                 role="group"
@@ -306,8 +306,7 @@ const OrbPageContent = ({ onReady }) => {
                 <span className="orb-page__background-indicator" aria-hidden="true" />
                 <span>Background {backgroundEnabled ? "On" : "Off"}</span>
               </button>
-            </>}</OrbAppearance>
-          } />
+          </>}</OrbAppearance>
 
           <main
             id="main-content"

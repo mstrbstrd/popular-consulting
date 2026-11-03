@@ -23,7 +23,7 @@ jest.mock("../contexts/ThemeContext", () => {
 
 jest.mock("./NavMenu", () => {
   const ReactModule = require("react");
-  return ({ audience, contextActions }) =>
+  return ({ audience }) =>
     ReactModule.createElement(
       "header",
       { className: "nav-header nav-in", "data-audience": audience },
@@ -31,7 +31,6 @@ jest.mock("./NavMenu", () => {
         "nav",
         { className: "nav-pill", "aria-label": "Primary navigation" },
         "Popular Consulting",
-        contextActions,
       ),
     );
 });
@@ -161,7 +160,10 @@ describe("OrbPage", () => {
     ).toHaveAttribute("href", "#main-content");
 
     expect(screen.queryByRole("group", { name: "Metabloom material finish" })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Appearance", exact: true }));
+    const theme = screen.getByRole("button", { name: "Theme", exact: true });
+    expect(theme.closest(".nav-header")).toBeNull();
+    expect(theme.closest(".orb-page__foreground")).not.toBeNull();
+    fireEvent.click(theme);
     const finishGroup = screen.getByRole("group", {
       name: "Metabloom material finish",
     });
@@ -185,7 +187,7 @@ describe("OrbPage", () => {
     const { container } = render(<OrbPage />);
     const experience = await screen.findByTestId("orb-experience");
 
-    const appearance = screen.getByRole("button", { name: "Appearance", exact: true });
+    const appearance = screen.getByRole("button", { name: "Theme", exact: true });
     fireEvent.click(appearance);
     const finishGroup = screen.getByRole("group", {
       name: "Metabloom material finish",
@@ -205,7 +207,7 @@ describe("OrbPage", () => {
       "metalbloom",
     );
     expect(screen.getByTestId("orb-experience")).toBe(experience);
-    expect(screen.queryByRole("dialog", { name: "Appearance" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Theme" })).not.toBeInTheDocument();
     expect(appearance).toHaveAttribute("aria-expanded", "false");
     expect(appearance).toHaveFocus();
     fireEvent.click(appearance);
@@ -213,7 +215,7 @@ describe("OrbPage", () => {
     const selected = screen.getByRole("button", { name: "Use liquid metal for Metabloom" });
     expect(selected).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(selected);
-    expect(screen.queryByRole("dialog", { name: "Appearance" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Theme" })).not.toBeInTheDocument();
     expect(appearance).toHaveFocus();
   });
 
@@ -227,7 +229,7 @@ describe("OrbPage", () => {
       );
     };
     const { container } = render(<WithPreference />);
-    fireEvent.click(screen.getByRole("button", { name: "Appearance", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Theme", exact: true }));
     const toggle = screen.getByRole("button", { name: "Animated background" });
     const orb = await screen.findByTestId("orb-experience");
     expect(container.querySelector(".orb-page")).toHaveAttribute("data-background-enabled", "true");
