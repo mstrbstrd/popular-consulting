@@ -20,10 +20,14 @@ stacking order could not keep an offscreen component visible.
 
 The mobile header contains the home/logo control, Appearance, and Menu. The
 existing four finishes and background switch live in a native modal Appearance
-panel. Its controls keep their existing state owners and accessible names.
+panel. It starts collapsed and closes after any finish selection, returning
+focus to Appearance, including when the current finish is selected again. Its
+controls keep their existing state owners and accessible names.
 Header clearance is 76 CSS pixels without a larger safe-area inset. The external
 Replay shortcut moves into the Reactions panel on mobile, and the desktop send
-hint is visually hidden. Deep Research remains an explicit control.
+hint is visually hidden. The four response demo buttons below the composer and
+their duplicate entry inside Reactions are removed. Deep Research remains an
+explicit control.
 
 Once a conversation starts, a bounded grid allocates separate areas to the
 current component, transcript, and composer. The page remains the sole owner of
@@ -131,8 +135,8 @@ records the completed local checks; CI and device verification remain separate.
 5. Confirm the same calculator stays visible while the answer arrives and the
    transcript scrolls independently. The selected scenario is 1,445 CAD; three
    extra hours cost 255 CAD, giving an extended estimate of 1,700 CAD.
-6. Open and close Appearance, change a finish, and toggle the background.
-   Confirm the inputs and answer remain intact.
+6. Choose a finish in Appearance and confirm the panel collapses. Reopen it to
+   toggle the background. Confirm the inputs and answer remain intact.
 7. Return the component to chat, then reopen it. Check keyboard opening,
    dismissal, rotation, and navigation away from and back to Orb.
 

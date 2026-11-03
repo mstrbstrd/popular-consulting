@@ -181,16 +181,14 @@ describe("OrbPage", () => {
     expect(gradient?.querySelectorAll("stop")).toHaveLength(4);
   });
 
-  test("switches the existing Orb renderer to Metalbloom material", async () => {
+  test("switches the existing Orb renderer and collapses the finish picker", async () => {
     const { container } = render(<OrbPage />);
-    await screen.findByTestId("orb-experience");
+    const experience = await screen.findByTestId("orb-experience");
 
-    fireEvent.click(screen.getByRole("button", { name: "Appearance", exact: true }));
+    const appearance = screen.getByRole("button", { name: "Appearance", exact: true });
+    fireEvent.click(appearance);
     const finishGroup = screen.getByRole("group", {
       name: "Metabloom material finish",
-    });
-    const spectralOption = within(finishGroup).getByRole("button", {
-      name: "Use spectral fluid for Metabloom",
     });
     const metalbloomOption = within(finishGroup).getByRole("button", {
       name: "Use liquid metal for Metabloom",
@@ -206,8 +204,17 @@ describe("OrbPage", () => {
       "data-palette",
       "metalbloom",
     );
-    expect(spectralOption).toHaveAttribute("aria-pressed", "false");
-    expect(metalbloomOption).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("orb-experience")).toBe(experience);
+    expect(screen.queryByRole("dialog", { name: "Appearance" })).not.toBeInTheDocument();
+    expect(appearance).toHaveAttribute("aria-expanded", "false");
+    expect(appearance).toHaveFocus();
+    fireEvent.click(appearance);
+    expect(screen.getByRole("button", { name: "Use spectral fluid for Metabloom" })).toHaveAttribute("aria-pressed", "false");
+    const selected = screen.getByRole("button", { name: "Use liquid metal for Metabloom" });
+    expect(selected).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(selected);
+    expect(screen.queryByRole("dialog", { name: "Appearance" })).not.toBeInTheDocument();
+    expect(appearance).toHaveFocus();
   });
 
   test("toggles the shell-owned animated background without remounting the orb", async () => {

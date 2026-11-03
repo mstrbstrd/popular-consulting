@@ -41,8 +41,11 @@ try {
     assert.equal(await group.getByRole('button').count(),4);
     for(const [name,palette] of [['Use Nova fire for Metabloom','nova'],['Use liquid metal for Metabloom','metalbloom'],['Use spectral fluid for Metabloom','spectral'],['Use MetalNova liquid-metal fire for Metabloom','metalnova']]) {
       const option=group.getByRole('button',{name,exact:true});await option.click();
-      assert.equal(await option.getAttribute('aria-pressed'),'true');
+      await control.getByRole('dialog',{name:'Appearance',exact:true}).waitFor({state:'detached'});
+      assert.equal(await control.getByRole('button',{name:'Appearance',exact:true}).evaluate(button=>button===document.activeElement),true);
       assert.equal(await control.locator('#experience').getAttribute('data-palette'),palette);
+      await control.getByRole('button',{name:'Appearance',exact:true}).click();
+      assert.equal(await option.getAttribute('aria-pressed'),'true');
       assert.equal(await group.getByRole('button',{pressed:true}).count(),1);
     }
     const layout=await control.evaluate(()=>{

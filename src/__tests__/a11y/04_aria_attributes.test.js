@@ -205,9 +205,12 @@ describe('OrbSection chat controls', () => {
     expect(screen.getByRole('button', { name: 'Send message' })).toBeInTheDocument();
   });
 
-  test('suggested messages are conventional named buttons', () => {
-    expect(screen.getByRole('button', { name: 'Show me a whimsical response' })).toHaveAttribute('type', 'button');
-    expect(screen.getByRole('button', { name: 'Give me a reflective response' })).toHaveAttribute('type', 'button');
-    expect(screen.getByRole('button', { name: 'Offer a reassuring response' })).toHaveAttribute('type', 'button');
+  test('response demos stay out of the composer and reaction controls', () => {
+    expect(screen.queryByLabelText('Suggested messages')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /whimsical response|reflective response|reassuring response|two-part emotional stream/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Reactions', exact: true }));
+    expect(screen.getByRole('dialog', { name: 'Reaction studio' })).toBeInTheDocument();
+    expect(screen.queryByText('Try a conversation demo')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /whimsical response|reflective response|reassuring response|two-part emotional stream/ })).not.toBeInTheDocument();
   });
 });

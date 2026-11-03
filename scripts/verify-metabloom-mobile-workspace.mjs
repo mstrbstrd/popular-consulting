@@ -224,6 +224,9 @@ try {
       assert(dialogBounds.x >= 0 && dialogBounds.x + dialogBounds.width <= viewport.width + 1);
       assert(dialogBounds.y >= 0 && dialogBounds.y + dialogBounds.height <= viewport.height + 1);
       await appearance.getByRole('button', { name: 'Use Nova fire for Metabloom', exact: true }).click();
+      await appearance.waitFor({ state: 'detached' });
+      assert.equal(await page.getByRole('button', { name: 'Appearance', exact: true }).evaluate(button => button === document.activeElement), true);
+      await page.getByRole('button', { name: 'Appearance', exact: true }).click();
       await appearance.getByRole('button', { name: 'Animated background', exact: true }).click();
       await appearance.getByRole('button', { name: 'Animated background', exact: true }).click();
       await page.keyboard.press('Escape');

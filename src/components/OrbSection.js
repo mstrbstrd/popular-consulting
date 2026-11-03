@@ -23,7 +23,7 @@ import {
   METABLOOM_MODEL_RESPONSE_SCHEMA,
   parseMetabloomModelResponse,
 } from "./metabloomResponseContract";
-import { METABLOOM_DEMO_PROMPTS, METABLOOM_DEMOS } from "./metabloomDemoResponses";
+import { METABLOOM_DEMOS } from "./metabloomDemoResponses";
 import { parseMetabloomChatEnvelope, createMetabloomSegmentStreamDecoder, MAX_METABLOOM_RESEARCH_PROGRESS_CHARS, MAX_METABLOOM_RESEARCH_PROGRESS_EVENTS } from "./metabloomEmoteProtocol";
 import { resolveMetabloomEmote, METABLOOM_PROTOCOL_VERSION, METABLOOM_EMOTE_IDS, METABLOOM_EMOTE_RESPONSE_SCHEMA } from "./metabloomEmoteLibrary";
 import { METABLOOM_ACTIVITIES, METABLOOM_ACTIONS as METABLOOM_SCENE_ACTIONS, METABLOOM_REACTION_RECIPES, METABLOOM_DECISION_SCHEMA, METABLOOM_REACTION_QUESTION, resolveMetabloomDecision, parseMetabloomActivity } from "./metabloomDecisionMapping";
@@ -204,8 +204,6 @@ const createMetabloomMountId = () => {
 };
 
 const INITIAL_MESSAGES = Object.freeze([]);
-
-const SUGGESTED_PROMPTS = METABLOOM_DEMO_PROMPTS;
 
 const isPlainObject = (value) => {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
@@ -2453,24 +2451,6 @@ const OrbSection = ({
                 );
               })}
 
-              {!conversationStarted && (
-                <div
-                  className="metabloom-chat__suggestions"
-                  data-demo-count="4"
-                  aria-label="Suggested messages"
-                >
-                  {SUGGESTED_PROMPTS.map((prompt) => (
-                    <button
-                      key={prompt}
-                      type="button"
-                      onClick={() => sendMessage(prompt)}
-                    >
-                      {prompt}
-                    </button>
-                  ))}
-                </div>
-              )}
-
               {conversationStarted && !statusBeforeReply && researchStatus}
               {showHoodStatus && <div className="metabloom-chat__scene-status" role="status" aria-label="Scene progress" aria-live="polite" aria-atomic="true">{statusText}</div>}
               {pending && !hasStreamingReply && !showResearchStatus && !showHoodStatus && (
@@ -2518,14 +2498,6 @@ const OrbSection = ({
                         <button type="button" disabled={pending || !isActive} onClick={() => { previewResearchScene(); close(); }}>Preview research scene</button>
                         <button type="button" disabled={pending || !isActive} title="Part Metabloom to reveal the Forward Pass neural-network visualization" onClick={() => { previewUnderHood(); close(); }}>Preview under the hood</button>
                       </div>
-                      <details className="metabloom-chat__demos">
-                        <summary>Try a conversation demo</summary>
-                        <div>
-                          {SUGGESTED_PROMPTS.map((prompt) => (
-                            <button key={prompt} type="button" disabled={pending || !isActive} onClick={() => sendMessage(prompt)}>{prompt}</button>
-                          ))}
-                        </div>
-                      </details>
                     </>
                   )}
                 </MetabloomReactionPanel>
@@ -2636,7 +2608,7 @@ const OrbSection = ({
               </button>
             </form>
             <p id="metabloom-composer-help" className="metabloom-chat__composer-help">
-              {conversationStarted ? "Enter to send · Shift + Enter for a new line" : "Say what’s on your mind, or try a conversation below."}
+              {conversationStarted ? "Enter to send · Shift + Enter for a new line" : "Say what’s on your mind."}
             </p>
           </div>
         </div>

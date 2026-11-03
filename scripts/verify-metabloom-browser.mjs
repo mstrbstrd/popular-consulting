@@ -84,6 +84,15 @@ try {
     const state = await evaluate("({path:location.pathname,title:document.title,gate:!!document.querySelector('.app-route-error'),login:!!document.querySelector('.auth-page'),orb:!!document.querySelector('.orb-page')})");
     throw new Error(`Browser assertion timed out: ${expression}; route state: ${JSON.stringify(state)}`);
   };
+  const submit = async (message) => {
+    await evaluate(`(() => {
+      const input = document.querySelector('#metabloom-message');
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(input, ${JSON.stringify(message)});
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    })()`);
+    await until("document.querySelector('.metabloom-chat__composer button[aria-label=\"Send message\"]')?.disabled === false");
+    await evaluate("document.querySelector('.metabloom-chat__composer button[aria-label=\"Send message\"]').click()");
+  };
   screenshot = async (name) => {
     try {
       const state = await evaluate(`(() => {
@@ -163,7 +172,9 @@ try {
       { name: "prefers-color-scheme", value: config.dark ? "dark" : "light" },
     ] });
     await call("Page.navigate", { url: `${origin}/orb?graphics=webgl` });
-    await until(`typeof window.__metabloomProtocol?.createStream === 'function' && document.querySelector('[data-response-presentation="single-message-stream"]') && document.querySelectorAll('[data-demo-count="4"] button').length === 4`);
+    await until(`typeof window.__metabloomProtocol?.createStream === 'function' && document.querySelector('[data-response-presentation="single-message-stream"]') && document.querySelector('#metabloom-message')`);
+    assert.equal(await evaluate("document.querySelectorAll('.metabloom-chat__suggestions, .metabloom-chat__demos').length"), 0,
+      "Response demo buttons must not occupy the chat interface");
     const expectedTheme = config.dark ? "dark" : "light";
     await until(`document.querySelector('button[aria-label="Toggle dark mode"]') !== null`);
     if (await evaluate("document.documentElement.dataset.theme") !== expectedTheme) {
@@ -177,11 +188,7 @@ try {
     for (const [label, emote] of [["Show me a whimsical response", "whimsy"], ["Give me a reflective response", "reflective"], ["Offer a reassuring response", "reassuring"]]) {
       await evaluate("window.__verificationActions = []");
       const before = await evaluate("window.__orbState().actionVersion");
-      if (await evaluate("!document.querySelector('[data-demo-count]') && !document.querySelector('.metabloom-chat__demos')")) {
-        await evaluate("document.querySelector('[aria-controls=metabloom-reaction-panel]').click()");
-        await until("document.querySelector('.metabloom-chat__demos') !== null");
-      }
-      await evaluate(`(() => { const d = document.querySelector('.metabloom-chat__demos'); if(d) d.open = true; Array.from(document.querySelectorAll('button')).find(b => b.textContent.trim() === ${JSON.stringify(label)}).click(); if(d) d.open = false; })()`);
+      await submit(label);
       await until(`window.__orbState().emote === ${JSON.stringify(emote)} && !window.__orbState().pending`);
       const actions = await evaluate("window.__verificationActions");
       const thinking = actions.filter(action => action.loadingThinking);
@@ -198,12 +205,7 @@ try {
     }
     await evaluate("window.__verificationActions = []");
     const before = await evaluate("({count:window.__orbMessages().length, version:window.__orbState().actionVersion})");
-    // Do not blindly toggle a panel that may already be open from the preceding demo.
-    if (await evaluate("!document.querySelector('.metabloom-chat__demos')")) {
-      await evaluate("document.querySelector('[aria-controls=metabloom-reaction-panel]').click()");
-    }
-    await until("document.querySelector('.metabloom-chat__demos') !== null");
-    await evaluate(`(() => { const d = document.querySelector('.metabloom-chat__demos'); d.open=true; Array.from(d.querySelectorAll('button')).find(b => b.textContent.includes('two-part')).click(); d.open=false; })()`);
+    await submit("Demo a two-part emotional stream");
     await until(`window.__orbMessages().length === ${before.count + 2} && window.__orbMessages().at(-1).segments.length === 1 && window.__orbState().pending`);
     const intermediate = await evaluate(`(() => { const m=window.__orbMessages().at(-1); window.__streamArticle=document.querySelector('[data-message-id="'+m.id+'"]'); return {id:m.id,count:window.__orbMessages().length,emote:m.emote,status:m.status,version:window.__orbState().actionVersion}; })()`);
     assert.equal(intermediate.emote, "whimsy");

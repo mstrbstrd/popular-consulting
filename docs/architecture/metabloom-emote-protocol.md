@@ -211,7 +211,7 @@ its pending buffer stay bounded at 24,000 characters; semantic limits remain
 
 ## Local demonstration and integration
 
-The four demo controls require no key. The two-part demo sends fragmented NDJSON through the same decoder and reply session, with simulated transport delays. The first paragraph appears with Whimsy while the stream is open. The second paragraph extends the same bubble with Reflective. Completion changes only the reply status.
+The four local demo prompts require no key and can be submitted through the composer. Dedicated demo buttons are omitted from the chat interface. The two-part demo sends fragmented NDJSON through the same decoder and reply session, with simulated transport delays. The first paragraph appears with Whimsy while the stream is open. The second paragraph extends the same bubble with Reflective. Completion changes only the reply status.
 
 For an external integration:
 

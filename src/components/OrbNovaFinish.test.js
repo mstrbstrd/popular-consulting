@@ -51,31 +51,28 @@ describe("Nova Orb finish", () => {
     const experience = screen.getByTestId("nova-orb-experience");
     fireEvent.click(screen.getByRole("button", { name: "Begin conversation" }));
     fireEvent.click(screen.getByRole("button", { name: "Appearance", exact: true }));
-    const group = screen.getByRole("group", { name: "Metabloom material finish" });
-    const nova = within(group).getByRole("button", { name: "Use Nova fire for Metabloom" });
+    let group = screen.getByRole("group", { name: "Metabloom material finish" });
     expect(METABLOOM_PALETTES.NOVA).toBe("nova");
+    expect(METABLOOM_PALETTES.METALNOVA).toBe("metalnova");
     expect(within(group).getAllByRole("button")).toHaveLength(4);
     expect(experience).toHaveAttribute("data-palette", "spectral");
-    expect(nova).toHaveAttribute("aria-pressed", "false");
-
-    fireEvent.click(nova);
-    expect(nova).toHaveAttribute("aria-pressed", "true");
-    expect(experience).toHaveAttribute("data-palette", "nova");
-    expect(container.querySelector(".orb-page")).toHaveAttribute("data-metabloom-palette", "nova");
-    expect(within(group).getAllByRole("button", { pressed: true })).toHaveLength(1);
-
-    const metalNova = within(group).getByRole("button", { name: "Use MetalNova liquid-metal fire for Metabloom" });
-    fireEvent.click(metalNova);
-    expect(METABLOOM_PALETTES.METALNOVA).toBe("metalnova");
-    expect(experience).toHaveAttribute("data-palette", "metalnova");
-    expect(metalNova).toHaveAttribute("aria-pressed", "true");
-    expect(within(group).getAllByRole("button", { pressed: true })).toHaveLength(1);
-
-    fireEvent.click(within(group).getByRole("button", { name: "Use liquid metal for Metabloom" }));
-    expect(experience).toHaveAttribute("data-palette", "metalbloom");
-    expect(nova).toHaveAttribute("aria-pressed", "false");
-    fireEvent.click(within(group).getByRole("button", { name: "Use spectral fluid for Metabloom" }));
-    expect(experience).toHaveAttribute("data-palette", "spectral");
+    for (const [name, palette] of [
+      ["Use Nova fire for Metabloom", "nova"],
+      ["Use MetalNova liquid-metal fire for Metabloom", "metalnova"],
+      ["Use liquid metal for Metabloom", "metalbloom"],
+      ["Use spectral fluid for Metabloom", "spectral"],
+    ]) {
+      fireEvent.click(within(group).getByRole("button", { name }));
+      expect(screen.queryByRole("dialog", { name: "Appearance" })).not.toBeInTheDocument();
+      const appearance = screen.getByRole("button", { name: "Appearance", exact: true });
+      expect(appearance).toHaveFocus();
+      expect(experience).toHaveAttribute("data-palette", palette);
+      expect(container.querySelector(".orb-page")).toHaveAttribute("data-metabloom-palette", palette);
+      fireEvent.click(appearance);
+      group = screen.getByRole("group", { name: "Metabloom material finish" });
+      expect(within(group).getByRole("button", { name })).toHaveAttribute("aria-pressed", "true");
+      expect(within(group).getAllByRole("button", { pressed: true })).toHaveLength(1);
+    }
     expect(screen.getByTestId("nova-orb-experience")).toBe(experience);
     expect(container.querySelector(".orb-page")).toHaveAttribute("data-conversation-started", "true");
   });

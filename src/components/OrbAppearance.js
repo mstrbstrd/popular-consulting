@@ -101,7 +101,7 @@ const OrbAppearance = ({ children }) => {
               </svg>
             </button>
           </div>
-          <div className="orb-appearance__content">{children}</div>
+          <div className="orb-appearance__content">{typeof children === 'function' ? children({ close }) : children}</div>
         </dialog>
       )}
     </div>

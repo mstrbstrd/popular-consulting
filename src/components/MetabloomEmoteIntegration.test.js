@@ -81,7 +81,7 @@ describe("streamed segments belong to one assistant reply", () => {
   test("the real demo appends paragraphs to the same DOM node before completion", async () => {
     const provider = jest.fn(); window.__metabloomRequest = provider;
     render(<OrbSection />);
-    fireEvent.click(screen.getByRole("button", { name: "Demo a two-part emotional stream" }));
+    send("Demo a two-part emotional stream");
     expect(mockProps.actionVersion).toBe(0);
     await tick(520);
     const article = screen.getByRole("article", { name: "Metabloom message" });
@@ -114,7 +114,7 @@ describe("streamed segments belong to one assistant reply", () => {
 
   test("the single-emote demo uses the same streaming path without an extra pulse", async () => {
     render(<OrbSection />);
-    fireEvent.click(screen.getByRole("button", { name: "Show me a whimsical response" }));
+    send("Show me a whimsical response");
     await tick(520);
     expect(replies()).toHaveLength(1);
     expect(mockProps).toMatchObject({ action: "surprised", intensity: 0.35, talking: false, actionVersion: 1, pulseVersion: 0 });
@@ -125,7 +125,7 @@ describe("streamed segments belong to one assistant reply", () => {
 
   test.each(["reset", "stop", "message", "deactivate", "unmount"])("%s cancels undelivered stream data", async (operation) => {
     const { unmount, rerender } = render(<OrbSection />);
-    fireEvent.click(screen.getByRole("button", { name: "Demo a two-part emotional stream" }));
+    send("Demo a two-part emotional stream");
     await tick(520);
     const version = mockProps.actionVersion;
     if (operation === "unmount") unmount();

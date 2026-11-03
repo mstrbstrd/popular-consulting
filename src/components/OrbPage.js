@@ -200,7 +200,7 @@ const OrbPageContent = ({ onReady }) => {
         <div className="orb-page__foreground" style={pageHideStyle}>
           <ImmersiveRouteNavigationBridge />
           <NavMenu audience={SITE_AUDIENCES.BUSINESS} contextActions={
-            <OrbAppearance>
+            <OrbAppearance>{({ close }) => <>
               <div
                 className="orb-page__finish-selector"
                 role="group"
@@ -219,9 +219,10 @@ const OrbPageContent = ({ onReady }) => {
                     metabloomPalette === METABLOOM_PALETTES.SPECTRAL
                   }
                   aria-label="Use spectral fluid for Metabloom"
-                  onClick={() =>
-                    setMetabloomPalette(METABLOOM_PALETTES.SPECTRAL)
-                  }
+                  onClick={() => {
+                    setMetabloomPalette(METABLOOM_PALETTES.SPECTRAL);
+                    close();
+                  }}
                 >
                   <span
                     className="orb-page__finish-swatch"
@@ -241,9 +242,10 @@ const OrbPageContent = ({ onReady }) => {
                     metabloomPalette === METABLOOM_PALETTES.METALBLOOM
                   }
                   aria-label="Use liquid metal for Metabloom"
-                  onClick={() =>
-                    setMetabloomPalette(METABLOOM_PALETTES.METALBLOOM)
-                  }
+                  onClick={() => {
+                    setMetabloomPalette(METABLOOM_PALETTES.METALBLOOM);
+                    close();
+                  }}
                 >
                   <span
                     className="orb-page__finish-swatch"
@@ -261,7 +263,10 @@ const OrbPageContent = ({ onReady }) => {
                   data-palette="nova"
                   aria-pressed={metabloomPalette === METABLOOM_PALETTES.NOVA}
                   aria-label="Use Nova fire for Metabloom"
-                  onClick={() => setMetabloomPalette(METABLOOM_PALETTES.NOVA)}
+                  onClick={() => {
+                    setMetabloomPalette(METABLOOM_PALETTES.NOVA);
+                    close();
+                  }}
                 >
                   <span
                     className="orb-page__finish-swatch"
@@ -279,7 +284,10 @@ const OrbPageContent = ({ onReady }) => {
                   data-palette="metalnova"
                   aria-pressed={metabloomPalette === METABLOOM_PALETTES.METALNOVA}
                   aria-label="Use MetalNova liquid-metal fire for Metabloom"
-                  onClick={() => setMetabloomPalette(METABLOOM_PALETTES.METALNOVA)}
+                  onClick={() => {
+                    setMetabloomPalette(METABLOOM_PALETTES.METALNOVA);
+                    close();
+                  }}
                 >
                   <span
                     className="orb-page__finish-swatch"
@@ -298,7 +306,7 @@ const OrbPageContent = ({ onReady }) => {
                 <span className="orb-page__background-indicator" aria-hidden="true" />
                 <span>Background {backgroundEnabled ? "On" : "Off"}</span>
               </button>
-            </OrbAppearance>
+            </>}</OrbAppearance>
           } />
 
           <main
