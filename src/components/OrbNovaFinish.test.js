@@ -13,7 +13,7 @@ jest.mock("../contexts/ThemeContext", () => {
   return { ThemeProvider: ({ children }) => ReactModule.createElement(ReactModule.Fragment, null, children) };
 });
 jest.mock("../contexts/AppNavigationContext", () => ({ useAppNavigation: jest.fn(() => null) }));
-jest.mock("./NavMenu", () => ({ contextActions }) => contextActions || null);
+jest.mock("./NavMenu", () => () => null);
 jest.mock("./ImmersiveRouteNavigationBridge", () => () => null);
 jest.mock("./LoadingOverlay", () => () => null);
 jest.mock("./OrbSection", () => {
@@ -50,7 +50,7 @@ describe("Nova Orb finish", () => {
     const { container } = render(<OrbPage />);
     const experience = screen.getByTestId("nova-orb-experience");
     fireEvent.click(screen.getByRole("button", { name: "Begin conversation" }));
-    fireEvent.click(screen.getByRole("button", { name: "Appearance", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Theme", exact: true }));
     let group = screen.getByRole("group", { name: "Metabloom material finish" });
     expect(METABLOOM_PALETTES.NOVA).toBe("nova");
     expect(METABLOOM_PALETTES.METALNOVA).toBe("metalnova");
@@ -63,8 +63,8 @@ describe("Nova Orb finish", () => {
       ["Use spectral fluid for Metabloom", "spectral"],
     ]) {
       fireEvent.click(within(group).getByRole("button", { name }));
-      expect(screen.queryByRole("dialog", { name: "Appearance" })).not.toBeInTheDocument();
-      const appearance = screen.getByRole("button", { name: "Appearance", exact: true });
+      expect(screen.queryByRole("dialog", { name: "Theme" })).not.toBeInTheDocument();
+      const appearance = screen.getByRole("button", { name: "Theme", exact: true });
       expect(appearance).toHaveFocus();
       expect(experience).toHaveAttribute("data-palette", palette);
       expect(container.querySelector(".orb-page")).toHaveAttribute("data-metabloom-palette", palette);
@@ -84,7 +84,7 @@ describe("Nova Orb finish", () => {
       saveToolState,
     });
     const { unmount } = render(<OrbPage />);
-    fireEvent.click(screen.getByRole("button", { name: "Appearance", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Theme", exact: true }));
     expect(screen.getByRole("button", { name: "Use Nova fire for Metabloom" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByTestId("nova-orb-experience")).toHaveAttribute("data-palette", "nova");
     unmount();

@@ -1,103 +1,153 @@
 import React from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import OrbAppearance from './OrbAppearance';
 
-const rect = (left, top, width, height) => ({ left, top, right: left + width, bottom: top + height, width, height });
-const settings = () => <div className="orb-page"><nav className="nav-pill"><OrbAppearance>
+const settings = () => <div className="orb-page"><nav>Navigation</nav><OrbAppearance>
   <button type="button">Fixture finish</button>
-</OrbAppearance></nav><main><button>Conversation control</button></main></div>;
+</OrbAppearance><main><button>Conversation control</button></main></div>;
+const pointer = (element, type, pointerType = 'mouse', relatedTarget = null) => {
+  const event = new Event(type, { bubbles: true });
+  Object.defineProperties(event, { pointerType: { value: pointerType }, relatedTarget: { value: relatedTarget } });
+  fireEvent(element, event);
+};
+const originalMatchMedia = window.matchMedia;
+beforeEach(() => {
+  window.matchMedia = jest.fn(query => ({ matches: query === '(hover: hover) and (pointer: fine)' }));
+});
+afterEach(() => { window.matchMedia = originalMatchMedia; });
 
-test('one disclosure opens native modal settings and restores its trigger on close and Escape', () => {
+test('Theme opens an independent nonmodal picker and keyboard dismissal returns focus', () => {
   const showModal = jest.spyOn(HTMLDialogElement.prototype, 'showModal');
   const { container } = render(settings());
-  const trigger = screen.getByRole('button', { name: 'Appearance', exact: true });
+  const trigger = screen.getByRole('button', { name: 'Theme', exact: true });
   expect(trigger).toHaveAttribute('aria-haspopup', 'dialog');
   expect(trigger).toHaveAttribute('aria-expanded', 'false');
+  expect(trigger.closest('nav')).toBeNull();
   expect(screen.queryByRole('button', { name: 'Fixture finish' })).not.toBeInTheDocument();
-  fireEvent.click(trigger);
-  expect(showModal).toHaveBeenCalledTimes(1);
-  expect(screen.getByRole('dialog', { name: 'Appearance' })).toHaveAttribute('open');
-  expect(screen.getByRole('button', { name: 'Close appearance' })).toHaveFocus();
-  expect(container.firstChild).toHaveAttribute('data-appearance-open', 'true');
-  fireEvent.click(screen.getByRole('button', { name: 'Close appearance' }));
-  expect(screen.queryByRole('dialog', { name: 'Appearance' })).not.toBeInTheDocument();
+  act(() => { userEvent.click(trigger); });
+  const panel = screen.getByRole('dialog', { name: 'Theme' });
+  expect(panel).toHaveAttribute('open');
+  expect(panel).toHaveAttribute('aria-modal', 'false');
+  expect(trigger).toHaveAttribute('aria-controls', panel.id);
+  expect(screen.getByRole('button', { name: 'Close theme' })).toHaveFocus();
+  expect(showModal).not.toHaveBeenCalled();
+  expect(container.querySelector('main')).not.toHaveAttribute('inert');
+  act(() => { userEvent.keyboard('{Escape}'); });
+  expect(screen.queryByRole('dialog', { name: 'Theme' })).not.toBeInTheDocument();
   expect(trigger).toHaveFocus();
   expect(trigger).toHaveAttribute('aria-expanded', 'false');
-  expect(container.firstChild).not.toHaveAttribute('data-appearance-open');
-  fireEvent.click(trigger);
-  fireEvent(screen.getByRole('dialog', { name: 'Appearance' }), new Event('cancel', { cancelable: true }));
+  act(() => { userEvent.keyboard('{Enter}'); });
+  expect(screen.getByRole('dialog', { name: 'Theme' })).toBeInTheDocument();
+  act(() => { userEvent.click(screen.getByRole('button', { name: 'Close theme' })); });
   expect(trigger).toHaveFocus();
-  expect(screen.queryByRole('dialog', { name: 'Appearance' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('dialog', { name: 'Theme' })).not.toBeInTheDocument();
   showModal.mockRestore();
 });
 
-test('only a completed backdrop click dismisses settings, without activating the conversation', () => {
-  const covered = jest.fn();
-  render(<div className="orb-page"><OrbAppearance><button>Fixture finish</button></OrbAppearance>
-    <button onClick={covered}>Covered control</button></div>);
-  const trigger = screen.getByRole('button', { name: 'Appearance', exact: true });
+test('desktop hover opens without stealing focus and stays open while crossing to the panel', () => {
+  render(settings());
+  const trigger = screen.getByRole('button', { name: 'Theme', exact: true });
+  const conversation = screen.getByRole('button', { name: 'Conversation control' });
+  act(() => conversation.focus());
+  pointer(trigger, 'pointerover');
+  expect(screen.getByRole('dialog', { name: 'Theme' })).toBeInTheDocument();
+  expect(conversation).toHaveFocus();
+  const finish = screen.getByRole('button', { name: 'Fixture finish' });
+  pointer(trigger, 'pointerout', 'mouse', finish);
+  pointer(finish, 'pointerover', 'mouse', trigger);
+  expect(screen.getByRole('dialog', { name: 'Theme' })).toBeInTheDocument();
+  pointer(finish, 'pointerout', 'mouse', conversation);
+  expect(screen.queryByRole('dialog', { name: 'Theme' })).not.toBeInTheDocument();
+  expect(conversation).toHaveFocus();
+});
+
+test('touch and coarse pointers do not hover open, while tap still opens the picker', () => {
+  render(settings());
+  const trigger = screen.getByRole('button', { name: 'Theme', exact: true });
+  pointer(trigger, 'pointerover', 'touch');
+  expect(screen.queryByRole('dialog', { name: 'Theme' })).not.toBeInTheDocument();
+  window.matchMedia.mockReturnValue({ matches: false });
+  pointer(trigger, 'pointerover');
+  expect(screen.queryByRole('dialog', { name: 'Theme' })).not.toBeInTheDocument();
   fireEvent.click(trigger);
-  const panel = screen.getByRole('dialog', { name: 'Appearance' });
-  const bounds = jest.spyOn(panel, 'getBoundingClientRect').mockReturnValue(rect(12, 72, 366, 250));
-  fireEvent.pointerDown(panel, { clientX: 8, clientY: 120 });
-  expect(panel).toHaveAttribute('open');
-  fireEvent.click(panel, { clientX: 24, clientY: 120 });
-  expect(panel).toHaveAttribute('open');
-  fireEvent.click(panel, { clientX: 8, clientY: 120 });
-  expect(screen.queryByRole('dialog', { name: 'Appearance' })).not.toBeInTheDocument();
-  expect(covered).not.toHaveBeenCalled();
-  expect(trigger).toHaveFocus();
-  bounds.mockRestore();
+  expect(screen.getByRole('dialog', { name: 'Theme' })).toBeInTheDocument();
+  pointer(trigger, 'pointerout', 'touch', document.body);
+  expect(screen.getByRole('dialog', { name: 'Theme' })).toBeInTheDocument();
 });
 
-test('settings follow keyboard and viewport changes below navigation without transforming the page', () => {
-  const originalViewport = window.visualViewport;
-  const viewport = new EventTarget();
-  Object.assign(viewport, { width: 390, height: 844, offsetTop: 0, offsetLeft: 0 });
-  window.visualViewport = viewport;
-  const removed = jest.spyOn(viewport, 'removeEventListener');
-  let scheduled;
-  const raf = jest.spyOn(window, 'requestAnimationFrame').mockImplementation(callback => { scheduled = callback; return 42; });
-  const cancel = jest.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {});
-  const bounds = jest.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function () {
-    if (this.classList.contains('nav-pill')) return rect(12, viewport.offsetTop + 8, 366, 52);
-    if (this.classList.contains('orb-appearance__trigger')) return rect(180, viewport.offsetTop + 12, 112, 44);
-    return rect(0, 0, 366, 300);
-  });
-  try {
-    const { container, unmount } = render(settings());
-    const page = container.firstChild;
-    fireEvent.click(screen.getByRole('button', { name: 'Appearance', exact: true }));
-    const panel = screen.getByRole('dialog', { name: 'Appearance' });
-    expect(panel).toHaveStyle({ left: '12px', top: '68px', maxWidth: '366px', maxHeight: '764px' });
-    viewport.height = 300; viewport.offsetTop = 40;
-    fireEvent(viewport, new Event('resize')); scheduled();
-    expect(panel).toHaveStyle({ left: '12px', top: '108px', maxHeight: '220px' });
-    expect(page.style.transform).toBe('');
-    fireEvent(viewport, new Event('scroll'));
-    unmount();
-    expect(cancel).toHaveBeenCalledWith(42);
-    expect(removed).toHaveBeenCalledWith('resize', expect.any(Function));
-    expect(removed).toHaveBeenCalledWith('scroll', expect.any(Function));
-    expect(page).not.toHaveAttribute('data-appearance-open');
-  } finally {
-    bounds.mockRestore(); raf.mockRestore(); cancel.mockRestore(); removed.mockRestore();
-    window.visualViewport = originalViewport;
-  }
+test('clicking a hovered trigger keeps the picker open for deliberate interaction', () => {
+  render(settings());
+  const trigger = screen.getByRole('button', { name: 'Theme', exact: true });
+  pointer(trigger, 'pointerover');
+  act(() => { userEvent.click(trigger); });
+  expect(screen.getByRole('dialog', { name: 'Theme' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Close theme' })).toHaveFocus();
+  pointer(trigger, 'pointerout', 'mouse', document.body);
+  expect(screen.getByRole('dialog', { name: 'Theme' })).toBeInTheDocument();
 });
 
-test('changing settings does not close the disclosure or replace unrelated page content', () => {
+test('hover dismissal never removes a keyboard-focused control and Tab can leave the picker', () => {
+  render(settings());
+  const trigger = screen.getByRole('button', { name: 'Theme', exact: true });
+  pointer(trigger, 'pointerover');
+  const finish = screen.getByRole('button', { name: 'Fixture finish' });
+  act(() => finish.focus());
+  pointer(finish, 'pointerout', 'mouse', document.body);
+  expect(screen.getByRole('dialog', { name: 'Theme' })).toBeInTheDocument();
+  act(() => { userEvent.tab(); });
+  expect(screen.getByRole('button', { name: 'Conversation control' })).toHaveFocus();
+  expect(screen.queryByRole('dialog', { name: 'Theme' })).not.toBeInTheDocument();
+});
+
+test('a completed outside click closes the picker and preserves the outside action and focus', () => {
+  const outsideAction = jest.fn();
+  render(<div className="orb-page"><OrbAppearance><button>Fixture finish</button></OrbAppearance>
+    <button onClick={outsideAction}>Conversation control</button></div>);
+  const trigger = screen.getByRole('button', { name: 'Theme', exact: true });
+  act(() => { userEvent.click(trigger); });
+  const outside = screen.getByRole('button', { name: 'Conversation control' });
+  fireEvent.pointerDown(outside);
+  expect(screen.getByRole('dialog', { name: 'Theme' })).toBeInTheDocument();
+  act(() => { userEvent.click(outside); });
+  expect(screen.queryByRole('dialog', { name: 'Theme' })).not.toBeInTheDocument();
+  expect(outsideAction).toHaveBeenCalledTimes(1);
+  expect(outside).toHaveFocus();
+});
+
+test('Escape during a hover preview does not steal focus from the conversation', () => {
+  render(settings());
+  const outside = screen.getByRole('button', { name: 'Conversation control' });
+  act(() => outside.focus());
+  pointer(screen.getByRole('button', { name: 'Theme', exact: true }), 'pointerover');
+  act(() => { userEvent.keyboard('{Escape}'); });
+  expect(screen.queryByRole('dialog', { name: 'Theme' })).not.toBeInTheDocument();
+  expect(outside).toHaveFocus();
+});
+
+test('settings preserve the existing renderer and finish selection collapses the picker', () => {
   const Stateful = () => {
     const [pressed, setPressed] = React.useState(false);
-    return <div className="orb-page"><OrbAppearance>
+    return <div className="orb-page"><OrbAppearance>{({ close }) => <>
       <button aria-pressed={pressed} onClick={() => setPressed(!pressed)}>Fixture setting</button>
-    </OrbAppearance><canvas data-testid="existing-orb" /></div>;
+      <button onClick={close}>Select finish</button>
+    </>}</OrbAppearance><canvas data-testid="existing-orb" /></div>;
   };
   render(<Stateful />);
   const canvas = screen.getByTestId('existing-orb');
-  fireEvent.click(screen.getByRole('button', { name: 'Appearance', exact: true }));
-  fireEvent.click(screen.getByRole('button', { name: 'Fixture setting' }));
+  const trigger = screen.getByRole('button', { name: 'Theme', exact: true });
+  act(() => { userEvent.click(trigger); });
+  act(() => { userEvent.click(screen.getByRole('button', { name: 'Fixture setting' })); });
   expect(screen.getByRole('button', { name: 'Fixture setting' })).toHaveAttribute('aria-pressed', 'true');
-  expect(screen.getByRole('dialog', { name: 'Appearance' })).toHaveAttribute('open');
+  expect(screen.getByRole('dialog', { name: 'Theme' })).toHaveAttribute('open');
   expect(screen.getByTestId('existing-orb')).toBe(canvas);
+  act(() => { userEvent.click(screen.getByRole('button', { name: 'Select finish' })); });
+  expect(screen.queryByRole('dialog', { name: 'Theme' })).not.toBeInTheDocument();
+  expect(trigger).toHaveFocus();
+  expect(screen.getByTestId('existing-orb')).toBe(canvas);
+  pointer(trigger, 'pointerover');
+  expect(screen.getByRole('dialog', { name: 'Theme' })).toBeInTheDocument();
+  pointer(trigger, 'pointerout', 'mouse', document.body);
+  expect(screen.queryByRole('dialog', { name: 'Theme' })).not.toBeInTheDocument();
+  expect(trigger).toHaveFocus();
 });

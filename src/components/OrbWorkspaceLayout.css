@@ -24,7 +24,7 @@
   width: min(1200px, 100%);
   height: 100%;
   margin-inline: auto;
-  padding: var(--orb-header-clearance, 96px)
+  padding: calc(var(--orb-header-clearance, 96px) + var(--orb-theme-clearance, 52px))
     max(20px, env(safe-area-inset-right))
     max(12px, env(safe-area-inset-bottom))
     max(20px, env(safe-area-inset-left));
@@ -194,7 +194,7 @@
 
 @media (max-width: 900px) {
   .orb-page[data-conversation-started="true"] .metabloom-chat__shell {
-    padding-top: var(--orb-header-clearance, 76px);
+    padding-top: calc(var(--orb-header-clearance, 76px) + var(--orb-theme-clearance, 52px));
   }
 
   .orb-page .metabloom-chat__composer-help {

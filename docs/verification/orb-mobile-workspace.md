@@ -18,12 +18,23 @@ stacking order could not keep an offscreen component visible.
 
 ## Updated layout
 
-The mobile header contains the home/logo control, Appearance, and Menu. The
-existing four finishes and background switch live in a native modal Appearance
-panel. It starts collapsed and closes after any finish selection, returning
-focus to Appearance, including when the current finish is selected again. Its
-controls keep their existing state owners and accessible names.
-Header clearance is 76 CSS pixels without a larger safe-area inset. The external
+The mobile header contains the home/logo control and Menu. A separate compact
+**Theme** control stays in the original finish-control area below navigation,
+centered on mobile and at the upper right on desktop. It starts collapsed and
+opens on tap on touch devices or mouse hover on a desktop with a fine pointer.
+Click and keyboard activation also work. Its nonmodal panel does not make the
+page inert or take focus when opened by hover. Moving into the panel keeps it
+open; Escape, an outside interaction, or a finish selection closes it. Selecting
+the current finish again also closes it. Explicit actions return focus to the
+trigger when appropriate without stealing focus from another page control.
+The existing four finishes and background switch keep their state owners and
+accessible names.
+
+The layout reserves a 44-pixel Theme control plus 8 pixels of clearance below
+the navigation so it cannot cover the component or conversation. On mobile,
+keyboard-open or compact viewports below 520 pixels hide this secondary row and
+give its space back to the content. Header clearance itself remains 76 CSS pixels
+without a larger safe-area inset. The external
 Replay shortcut moves into the Reactions panel on mobile, and the desktop send
 hint is visually hidden. The four response demo buttons below the composer and
 their duplicate entry inside Reactions are removed. Deep Research remains an
@@ -75,12 +86,12 @@ retain 16-pixel text on phones.
 
 ## Verification
 
-Focused checks cover the modal settings lifecycle, mobile navigation,
+Focused checks cover the Theme disclosure lifecycle, mobile navigation,
 keyboard/visual viewport cleanup, unchanged finish/background state ownership,
 reaction replay, exact captured references, single-frame preservation,
 selection races, tab navigation, reset, and account cleanup.
 
-Completed local checks:
+Checks completed for PR #199 before the Theme placement follow-up:
 
 - Full Jest suite: 215 suites, 2,126 tests passed.
 - Authentication suite: 95 tests passed.
@@ -95,12 +106,26 @@ arrow. One unchanged long-research test also reached its five-second timeout in
 that run. It passed in the focused rerun and the final full run without changing
 its timeout or implementation.
 
+Checks completed for the Theme placement follow-up:
+
+- Full Jest suite: 215 suites, 2,130 tests passed, including nonmodal hover,
+  touch, keyboard, focus restoration, repeat hover, and navigation dismissal.
+- Authentication suite: 95 tests passed.
+- Source lint and production build passed, including route HTML generation and
+  the isolated private-invoice bundle checks.
+- The three changed browser scripts passed syntax and targeted lint checks.
+- `git diff --check` passed. Browser execution remains unverified as detailed below.
+
 The permanent browser regression is
 `scripts/verify-metabloom-mobile-workspace.mjs`. It uses the built application
 and fictional local HTTP responses, with no real account, provider, or paid
 model. It checks component/transcript/composer/header separation, visible
 calculator values during a follow-up, preserved DOM identity, and unchanged
-request counts across mobile sizes and appearance changes. The functional
+request counts across mobile sizes and theme changes. It verifies Theme is
+outside navigation, its separate row does not overlap the component, and the
+row disappears in the short keyboard case. The MetalNova control harness also
+checks desktop hover opening, pointer travel into the panel, focus preservation,
+and mobile tap opening with the actual OrbPage controls and styles. The functional
 workflow runs it and retains its evidence alongside the existing UI checks.
 
 Commands:
@@ -116,11 +141,14 @@ node scripts/verify-app-navigation.mjs
 git diff --check
 ```
 
-The editing environment could not launch Chromium: its process singleton socket
+The PR #199 editing environment could not launch Chromium: its process singleton socket
 failed with `Operation not permitted`. The connected browser extension also
-reported that the originating browser context was unavailable. Browser geometry,
+reported that the originating browser context was unavailable. For the Theme
+placement follow-up, the MetalNova harness was attempted again but stopped before
+its control checks because the installed Playwright Chromium executable was
+missing. The existing browser locator found no installed alternative. Browser geometry,
 screenshots, and physical iOS Safari behavior are therefore unverified locally.
-JSDOM checks do not establish visual fit or native top-layer hit testing. The PR
+JSDOM checks do not establish visual fit or real pointer hit testing. The PR
 records the completed local checks; CI and device verification remain separate.
 
 ## Phone review scenario
@@ -135,8 +163,10 @@ records the completed local checks; CI and device verification remain separate.
 5. Confirm the same calculator stays visible while the answer arrives and the
    transcript scrolls independently. The selected scenario is 1,445 CAD; three
    extra hours cost 255 CAD, giving an extended estimate of 1,700 CAD.
-6. Choose a finish in Appearance and confirm the panel collapses. Reopen it to
-   toggle the background. Confirm the inputs and answer remain intact.
+6. Confirm Theme appears below the navigation, then tap it to open the compact
+   panel. Choose a finish and confirm the panel collapses. Reopen it to toggle
+   the background. Confirm the inputs and answer remain intact. On desktop,
+   hover Theme and move into the panel without losing it or moving focus.
 7. Return the component to chat, then reopen it. Check keyboard opening,
    dismissal, rotation, and navigation away from and back to Orb.
 

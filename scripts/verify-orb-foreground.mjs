@@ -113,10 +113,10 @@ try {
         await inspectForeground(page, `${label}-background-on`, mobile);
         await page.evaluate(() => { window.__foregroundTestAvatar = document.querySelector('.metabloom-avatar'); });
         const toggleBackground = async () => {
-          await press(page.getByRole('button', { name: 'Appearance', exact: true }));
-          const appearance = page.getByRole('dialog', { name: 'Appearance', exact: true });
+          await press(page.getByRole('button', { name: 'Theme', exact: true }));
+          const appearance = page.getByRole('dialog', { name: 'Theme', exact: true });
           await press(appearance.getByRole('button', { name: 'Animated background', exact: true }));
-          await press(appearance.getByRole('button', { name: 'Close appearance', exact: true }));
+          await press(appearance.getByRole('button', { name: 'Close theme', exact: true }));
           await appearance.waitFor({ state: 'detached' });
         };
         await toggleBackground();
