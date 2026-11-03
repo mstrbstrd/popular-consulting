@@ -1,8 +1,10 @@
 const { visualKeys, visualObject, visualNumber, visualText, byteLength } = require('./metabloomVisualProtocol');
 
 const METABLOOM_ARTIFACT_REFERENCE_EVENT = 'metabloom:artifact-reference';
+const METABLOOM_ARTIFACT_UPDATE_EVENT = 'metabloom:artifact-update';
 const MAX_METABLOOM_ARTIFACT_REFERENCE_BYTES = 2048;
 const MAX_METABLOOM_ARTIFACT_REFERENCE_LABEL = 180;
+const MAX_METABLOOM_ARTIFACT_SUMMARY = 4096;
 const isMetabloomArtifactVersion = value => typeof value === 'string' && /^[a-f0-9]{32}$/.test(value);
 const controlId = value => typeof value === 'string' && /^[a-z][a-z0-9_]{0,23}$/.test(value);
 
@@ -36,11 +38,15 @@ function parseMetabloomArtifactReference(value) {
 }
 
 function parseMetabloomArtifactAttachment(value) {
-  if (!visualKeys(value, ['reference', 'label']) || !visualText(value.label, MAX_METABLOOM_ARTIFACT_REFERENCE_LABEL)) return null;
+  const hasSummary = Object.prototype.hasOwnProperty.call(value || {}, 'summary');
+  if (!visualKeys(value, hasSummary ? ['reference', 'label', 'summary'] : ['reference', 'label'])
+    || !visualText(value.label, MAX_METABLOOM_ARTIFACT_REFERENCE_LABEL)
+    || (hasSummary && !visualText(value.summary, MAX_METABLOOM_ARTIFACT_SUMMARY))) return null;
   const reference = parseMetabloomArtifactReference(value.reference);
-  return reference ? { reference, label: value.label } : null;
+  return reference ? { reference, label: value.label, ...(hasSummary ? { summary: value.summary } : {}) } : null;
 }
 
-module.exports = { METABLOOM_ARTIFACT_REFERENCE_EVENT, MAX_METABLOOM_ARTIFACT_REFERENCE_BYTES,
+module.exports = { METABLOOM_ARTIFACT_REFERENCE_EVENT, METABLOOM_ARTIFACT_UPDATE_EVENT, MAX_METABLOOM_ARTIFACT_REFERENCE_BYTES,
+  MAX_METABLOOM_ARTIFACT_SUMMARY,
   MAX_METABLOOM_ARTIFACT_REFERENCE_LABEL, isMetabloomArtifactVersion,
   parseMetabloomArtifactReference, parseMetabloomArtifactAttachment };

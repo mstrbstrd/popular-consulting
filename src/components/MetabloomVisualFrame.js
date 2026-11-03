@@ -35,6 +35,17 @@ const VisualDetails = ({ state, updateState, summary, children }) => (
     {children}
   </details>
 );
+const VisualContextDetails = ({ spec, sources, children }) => (
+  <details className="metabloom-visual__details metabloom-visual__context">
+    <summary>Details <span className="metabloom-visual__badge">{provenanceLabels[spec.provenance.type]}</span></summary>
+    <p className="metabloom-visual__summary">{spec.summary}</p>
+    {children}
+    <footer className="metabloom-visual__provenance">
+      <p>{spec.provenance.label}</p>
+      {sources.length > 0 && <ul aria-label="Visual sources">{sources.map(source => <li key={source.id}><a href={source.url} target="_blank" rel="noopener noreferrer">{source.title}</a></li>)}</ul>}
+    </footer>
+  </details>
+);
 const DataTable = ({ columns, rows, title }) => (
   <div className="metabloom-visual__table-scroll" tabIndex={0} role="region" aria-label={`${title} data`}>
     <table><caption>{title}</caption><thead><tr>{columns.map((column, index) => <th key={index} scope="col">{column}</th>)}</tr></thead>
@@ -95,7 +106,7 @@ function VisualTable({ spec, id, viewState, onViewStateChange, onAskAbout }) {
       </div>
     </div>}
     <div className="metabloom-visual__table-scroll" tabIndex={0} role="region" aria-label={`${spec.title} data`}>
-      <table><caption>{spec.title}</caption>
+      <table><caption className="metabloom-visual__sr-only">{spec.title}</caption>
         <thead><tr>{spec.columns.map((column, index) => {
           const active = sort.column === index;
           return <th key={index} scope="col" aria-sort={sortable ? (active ? (sort.direction === 'asc' ? 'ascending' : 'descending') : 'none') : undefined}>
@@ -481,7 +492,7 @@ class VisualCalculator extends React.Component {
     } catch { if (this.mounted) this.setState({ copyStatus: 'Copy is unavailable. You can include the values in your next message.' }); }
   };
   render() {
-    const { spec, id } = this.props;
+    const { spec, id, sources } = this.props;
     const values = Object.fromEntries(spec.controls.map(control => [control.id, this.state.inputs[control.id].trim() ? Number(this.state.inputs[control.id]) : NaN]));
     const result = evaluateMetabloomVisualFormula(spec.formula, spec.controls, values);
     const validInputs = spec.controls.every(control => Number.isFinite(values[control.id])
@@ -500,13 +511,14 @@ class VisualCalculator extends React.Component {
             onChange={event => this.change(control.id, event.target.value)} />
         </div>;
       })}</div>
-      <p id={`${id}-formula`} className="metabloom-visual__formula">{spec.formulaDescription}</p>
       <div className="metabloom-visual__result"><span>Calculated result</span><output aria-live="polite" aria-atomic="true">{result === null ? 'Enter valid inputs to calculate.' : `${numberText(result)} ${spec.unit}`}</output></div>
-      <div className="metabloom-visual__actions"><button type="button" onClick={this.reset}>Reset values</button><button type="button" disabled={result === null} onClick={this.copyScenario}>Copy scenario</button>
-        {this.props.onAskAbout && <button type="button" disabled={result === null || !validInputs} aria-label="Ask about this scenario"
-          onClick={() => this.props.onAskAbout({ selector: { type: 'calculator' }, inputs: { ...values } })}>Ask about this</button>}
-      </div>
-      {this.state.copyStatus && <p role="status">{this.state.copyStatus}</p>}
+      <AskAboutAction onAskAbout={this.props.onAskAbout} disabled={result === null || !validInputs}
+        label="Ask about this scenario" selection={{ selector: { type: 'calculator' }, inputs: { ...values } }} />
+      <VisualContextDetails spec={spec} sources={sources}>
+        <p id={`${id}-formula`} className="metabloom-visual__formula">{spec.formulaDescription}</p>
+        <div className="metabloom-visual__actions"><button type="button" onClick={this.reset}>Reset values</button><button type="button" disabled={result === null} onClick={this.copyScenario}>Copy scenario</button></div>
+        {this.state.copyStatus && <p role="status">{this.state.copyStatus}</p>}
+      </VisualContextDetails>
     </div>;
   }
 }
@@ -515,7 +527,7 @@ export class MetabloomVisualBoundary extends React.Component {
   componentDidCatch() { this.setState({ failed: true }); }
   render() { return this.state.failed ? <div className="metabloom-visual" role="status">This visual could not be displayed. Your answer is unchanged.</div> : this.props.children; }
 }
-export default function MetabloomVisualFrame({ artifact, onStop, onReady, onInputsChange, onViewStateChange, onAskAbout }) {
+export default function MetabloomVisualFrame({ artifact, workspace = false, onStop, onReady, onInputsChange, onViewStateChange, onAskAbout }) {
   const { id, status, spec, sources = [], code } = artifact;
   const askAbout = isMetabloomArtifactVersion(artifact.artifactVersion) && typeof onAskAbout === 'function' ? onAskAbout : undefined;
   const frameRef = React.useRef(null);
@@ -571,9 +583,9 @@ export default function MetabloomVisualFrame({ artifact, onStop, onReady, onInpu
   }, [status]);
   React.useEffect(() => { if (status === 'ready' && !expansion.current) onReady?.(); }, [status, onReady, revealRevision]);
   return <section ref={frameRef} className="metabloom-visual" data-visual-state={status} data-visual-kind={spec?.kind || artifact.kind} aria-label={spec?.title || 'Visual answer'} aria-busy={status === 'generating'}>
-    <header className="metabloom-visual__header"><div><span className="metabloom-visual__eyebrow">{spec?.kind === 'calculator' ? 'Explore the answer' : 'Another way to see it'}</span><h3>{spec?.title || (status === 'cancelled' ? 'Visual stopped' : code === 'visual_quota' ? 'Visual limit reached' : status === 'failed' ? 'Visual unavailable' : 'Preparing your visual')}</h3></div>
+    {(!workspace || status !== 'ready') && <header className="metabloom-visual__header"><div><h3>{spec?.title || (status === 'cancelled' ? 'Visual stopped' : code === 'visual_quota' ? 'Visual limit reached' : status === 'failed' ? 'Visual unavailable' : 'Preparing your visual')}</h3></div>
       {status === 'generating' && <button type="button" onClick={onStop}>Stop visual</button>}
-    </header>
+    </header>}
     {status === 'generating' && <div className="metabloom-visual__loading">
       <p className="metabloom-visual__progress" role="status">Arranging the details for your visual.</p>
       <div className="metabloom-visual__skeleton" aria-hidden="true"><span /><span /><span /></div>
@@ -581,15 +593,12 @@ export default function MetabloomVisualFrame({ artifact, onStop, onReady, onInpu
     {['failed', 'cancelled'].includes(status) && <p role="status">{code === 'visual_quota'
       ? formatMetabloomVisualQuotaMessage(artifact.quota) : METABLOOM_VISUAL_ERRORS[code] || METABLOOM_VISUAL_ERRORS.visual_unavailable}</p>}
     {status === 'ready' && spec && <div className="metabloom-visual__content">
-      <p className="metabloom-visual__summary">{spec.summary}</p>
       {spec.kind === 'table' && <VisualTable spec={spec} id={id} viewState={artifact.viewState} onViewStateChange={onViewStateChange} onAskAbout={askAbout} />}
       {['bar-chart', 'line-chart'].includes(spec.kind) && <VisualChart spec={spec} id={id} viewState={artifact.viewState} onViewStateChange={onViewStateChange} onAskAbout={askAbout} />}
       {spec.kind === 'pie-chart' && <VisualPieChart spec={spec} id={id} viewState={artifact.viewState} onViewStateChange={onViewStateChange} onAskAbout={askAbout} />}
       {spec.kind === 'flowchart' && <VisualFlowchart spec={spec} id={id} viewState={artifact.viewState} onViewStateChange={onViewStateChange} onAskAbout={askAbout} />}
-      {spec.kind === 'calculator' && <VisualCalculator spec={spec} id={id} viewState={artifact.viewState} onInputsChange={onInputsChange} onViewStateChange={onViewStateChange} onAskAbout={askAbout} />}
-      <footer className="metabloom-visual__provenance"><span className="metabloom-visual__badge">{provenanceLabels[spec.provenance.type]}</span><p>{spec.provenance.label}</p>
-        {sources.length > 0 && <ul aria-label="Visual sources">{sources.map(source => <li key={source.id}><a href={source.url} target="_blank" rel="noopener noreferrer">{source.title}</a></li>)}</ul>}
-      </footer>
+      {spec.kind === 'calculator' && <VisualCalculator spec={spec} id={id} sources={sources} viewState={artifact.viewState} onInputsChange={onInputsChange} onViewStateChange={onViewStateChange} onAskAbout={askAbout} />}
+      {spec.kind !== 'calculator' && <VisualContextDetails spec={spec} sources={sources} />}
     </div>}
   </section>;
 }

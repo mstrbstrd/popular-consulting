@@ -88,6 +88,7 @@ test('calculator inputs recompute locally, reject zero division and survive a th
   act(() => document.documentElement.setAttribute('data-theme', 'dark'));
   expect(screen.getByText('30 CAD per person')).toBeInTheDocument();
   expect(screen.getByLabelText('People')).toHaveValue(4); expect(requestMetabloomVisual).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByText(/^Details/, { selector: 'summary' }));
   fireEvent.click(screen.getByRole('button', { name: 'Reset values' })); expect(screen.getByText('40 CAD per person')).toBeInTheDocument();
 });
 

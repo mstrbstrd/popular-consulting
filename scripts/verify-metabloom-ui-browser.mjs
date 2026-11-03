@@ -257,6 +257,7 @@ try {
     assert.equal(await evaluate("document.querySelector('[data-artifact-reference]') === null"), true,
       'Sending consumes the explicitly attached reference');
     assert.equal(await evaluate("window.__testedArtifact === document.querySelector('.metabloom-visual')"), true);
+    await evaluate("document.querySelector('.metabloom-visual__context > summary').click()");
     await evaluate("Array.from(document.querySelectorAll('.metabloom-visual button')).find(button => button.textContent === 'Reset values').click()");
     await until(`${value} === '650'`);
     const style = await evaluate(`(() => { const card = document.querySelector('.metabloom-visual'); const box = card.getBoundingClientRect(); return { left: box.left, right: box.right, viewport: innerWidth, footer: getComputedStyle(card.querySelector('footer')).backgroundColor, label: parseFloat(getComputedStyle(card.querySelector('label')).fontSize), edge: getComputedStyle(card, '::before').backgroundImage }; })()`);

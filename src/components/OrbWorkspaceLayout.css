@@ -183,7 +183,7 @@
     border-right: 1px solid var(--aetheris-line);
   }
 
-  .orb-page:is([data-compact-viewport="true"], [data-keyboard-open="true"]) .metabloom-component-workspace__toolbar > strong {
+  .orb-page:is([data-compact-viewport="true"], [data-keyboard-open="true"]) .metabloom-component-workspace__toolbar > h3 {
     flex: 0 0 auto;
   }
 
@@ -274,7 +274,7 @@
 
   .orb-page .metabloom-chat__reference-copy {
     gap: 0;
-    max-height: 56px;
+    max-height: 96px;
     overflow-y: auto;
   }
 

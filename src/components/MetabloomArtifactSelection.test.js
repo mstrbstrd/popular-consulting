@@ -89,7 +89,7 @@ test('a sorted row asks about its original position, and a later sort cannot ret
   expect(staged).toHaveLength(0);
   fireEvent.click(within(rows[0]).getByRole('button', { name: 'Ask about this row 2 in Project estimates' }));
   expect(staged).toEqual([{ reference: { id, version, selector: { type: 'table-row', index: 1 } },
-    label: 'Project estimates · Row 2: Alpha', root }]);
+    label: 'Project estimates · Row 2: Alpha', summary: 'Project: Alpha · Hours: 2', root }]);
   fireEvent.click(screen.getByRole('button', { name: /Hours/ }));
   expect(within(screen.getByRole('table')).getAllByRole('row')[1]).toHaveTextContent('Gamma');
   expect(staged[0].reference.selector.index).toBe(1);
@@ -175,9 +175,11 @@ test('calculator Ask captures numeric input values once and later edits do not c
   expect(staged).toHaveLength(0);
   fireEvent.click(screen.getByRole('button', { name: 'Ask about this scenario' }));
   expect(staged[0].reference).toEqual({ id, version, selector: { type: 'calculator' }, inputs: { hours: 17, rate: 85 } });
+  expect(staged[0].summary).toBe('Hours: 17 · Hourly rate: 85 CAD · Result: 1,445 CAD');
   fireEvent.change(screen.getByRole('spinbutton', { name: 'Hours' }), { target: { value: '20' } });
   expect(staged).toHaveLength(1);
   expect(staged[0].reference.inputs).toEqual({ hours: 17, rate: 85 });
+  expect(staged[0].summary).toBe('Hours: 17 · Hourly rate: 85 CAD · Result: 1,445 CAD');
 });
 
 test.each(['', '1000'])('invalid calculator input %j disables Ask without creating a reference', value => {

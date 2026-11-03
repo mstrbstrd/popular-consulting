@@ -10,9 +10,9 @@ import { postMetabloomTool } from './metabloomToolClient';
 import { METABLOOM_CHAT_PROTOCOL_VERSION } from './metabloomEmoteLibrary';
 import { METABLOOM_TOOL_ERROR_CODES, getMetabloomApiErrorMessage, parseMetabloomRequestRef } from './metabloomRequestErrors';
 import { parseMetabloomVisualQuota, formatMetabloomVisualQuotaMessage } from './metabloomVisualQuota';
-import { evaluateMetabloomVisualFormula } from './metabloomVisualProtocol';
-import { METABLOOM_ARTIFACT_REFERENCE_EVENT, MAX_METABLOOM_ARTIFACT_REFERENCE_LABEL,
+import { METABLOOM_ARTIFACT_REFERENCE_EVENT, METABLOOM_ARTIFACT_UPDATE_EVENT,
   isMetabloomArtifactVersion, parseMetabloomArtifactReference } from './metabloomArtifactReference';
+import { describeMetabloomVisualSelection, currentMetabloomVisualSelection } from './metabloomVisualSelection';
 import { isMetabloomFreshResearchRequest } from './metabloomResearchReference';
 const safeReply = response => ({ version: METABLOOM_CHAT_PROTOCOL_VERSION, segments: [{ response }] });
 const toolFailure = error => {
@@ -50,6 +50,7 @@ export default class MetabloomVisuals extends React.Component {
     window.addEventListener(METABLOOM_VISUAL_OFFER_EVENT, this.onOffer);
     window.addEventListener(METABLOOM_TRANSCRIPT_READY_EVENT, this.restore);
     window.addEventListener(METABLOOM_RESET_EVENT, this.reset);
+    window.addEventListener(METABLOOM_ARTIFACT_UPDATE_EVENT, this.updateReference);
     this.observer = new MutationObserver(this.reconcile);
     this.observer.observe(this.root, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-stream-status'] });
     window.__metabloomVisualSnapshot = this.snapshot;
@@ -69,6 +70,7 @@ export default class MetabloomVisuals extends React.Component {
     window.removeEventListener(METABLOOM_VISUAL_OFFER_EVENT, this.onOffer);
     window.removeEventListener(METABLOOM_TRANSCRIPT_READY_EVENT, this.restore);
     window.removeEventListener(METABLOOM_RESET_EVENT, this.reset);
+    window.removeEventListener(METABLOOM_ARTIFACT_UPDATE_EVENT, this.updateReference);
     this.observer?.disconnect();
     if (window.__metabloomVisualSnapshot === this.snapshot) delete window.__metabloomVisualSnapshot;
     this.releaseTurn();
@@ -270,39 +272,21 @@ export default class MetabloomVisuals extends React.Component {
       ...(selection && Object.prototype.hasOwnProperty.call(selection, 'inputs') ? { inputs: selection.inputs } : {}),
     });
     if (!reference) return false;
-    const { spec } = record, { selector } = reference;
-    let detail;
-    if (selector.type === 'table-row') {
-      if (spec.kind !== 'table' || !spec.rows[selector.index]) return false;
-      const text = spec.rows[selector.index].find(cell => cell.trim());
-      detail = `Row ${selector.index + 1}${text ? `: ${text}` : ''}`;
-    } else if (selector.type === 'observation') {
-      if (spec.kind !== 'line-chart') return false;
-      detail = spec.labels?.[selector.index] ?? spec.points?.[selector.index]?.label;
-      if (detail === undefined) return false;
-    } else if (selector.type === 'pie-category') {
-      if (spec.kind !== 'pie-chart' || !spec.points[selector.index]) return false;
-      detail = spec.points[selector.index].label;
-    } else if (selector.type === 'flow-node') {
-      if (spec.kind !== 'flowchart') return false;
-      detail = spec.nodes.find(node => node.id === selector.id)?.label;
-      if (detail === undefined) return false;
-    } else if (selector.type === 'calculator') {
-      if (spec.kind !== 'calculator' || Object.keys(reference.inputs).length !== spec.controls.length
-        || !spec.controls.every(control => Object.prototype.hasOwnProperty.call(reference.inputs, control.id)
-          && Number.isFinite(reference.inputs[control.id]) && reference.inputs[control.id] >= control.min
-          && reference.inputs[control.id] <= control.max)
-        || evaluateMetabloomVisualFormula(spec.formula, spec.controls, reference.inputs) === null) return false;
-      detail = 'Scenario';
-    } else return false;
-    const text = `${spec.title} · ${detail}`.replace(/\s+/g, ' ').trim();
-    const label = text.length <= MAX_METABLOOM_ARTIFACT_REFERENCE_LABEL ? text
-      : `${text.slice(0, MAX_METABLOOM_ARTIFACT_REFERENCE_LABEL - 1).replace(/[\uD800-\uDBFF]$/, '')}…`;
+    const presentation = describeMetabloomVisualSelection(record.spec, reference);
+    if (!presentation) return false;
     this.activateComponent(record, { explicit: true });
     window.dispatchEvent(new CustomEvent(METABLOOM_ARTIFACT_REFERENCE_EVENT, {
-      detail: { reference, label, root: this.root },
+      detail: { reference, ...presentation, root: this.root },
     }));
     return true;
+  };
+  updateReference = event => {
+    if (!this.mounted || !this.ownsSurface() || event.detail?.root !== this.root) return;
+    const reference = parseMetabloomArtifactReference(event.detail.reference);
+    const record = reference && this.records.get(reference.id);
+    if (!record || record.artifactVersion !== reference.version) return;
+    const selection = currentMetabloomVisualSelection(record, reference);
+    if (selection && this.askAbout(record, selection)) event.preventDefault();
   };
   onUserMessage = event => {
     for (const record of this.records.values()) {
@@ -538,11 +522,11 @@ export default class MetabloomVisuals extends React.Component {
     return <>
       <span ref={this.captureAnchor} hidden aria-hidden="true" />
       {active && this.workspaceToolbar && createPortal(<>
-        <strong title={active.spec.title}>{active.spec.title}</strong>
+        <h3 title={active.spec.title}>{active.spec.title}</h3>
         <button type="button" aria-label="Return component to conversation" onClick={this.returnComponent}>Return to chat</button>
       </>, this.workspaceToolbar, 'workspace-toolbar')}
       {Array.from(this.records.values(), record => <React.Fragment key={record.id}>
-        {createPortal(<MetabloomVisualBoundary><MetabloomVisualFrame artifact={record} onStop={() => this.stop(record)}
+        {createPortal(<MetabloomVisualBoundary><MetabloomVisualFrame artifact={record} workspace={this.activeVisualId === record.id} onStop={() => this.stop(record)}
           onReady={() => this.ready(record)} onInputsChange={values => this.inputsChanged(record, values)}
           onViewStateChange={viewState => this.viewStateChanged(record, viewState)}
           onAskAbout={selection => this.askAbout(record, selection)} /></MetabloomVisualBoundary>, record.slot, record.id)}

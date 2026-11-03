@@ -1,5 +1,5 @@
 import React from 'react';
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import MetabloomVisualFrame from './MetabloomVisualFrame';
 
 const spec = {
@@ -9,6 +9,18 @@ const spec = {
 };
 const pending = { id: 'visual-transition', kind: 'table', status: 'generating' };
 const ready = { ...pending, status: 'ready', spec };
+const calculator = {
+  id: 'visual-calculator', status: 'ready', artifactVersion: 'a'.repeat(32),
+  spec: {
+    kind: 'calculator', title: 'Project price', summary: 'Estimate the project from your hours and rate.',
+    controls: [
+      { id: 'hours', label: 'Hours', unit: 'h', min: 1, max: 80, step: 1, initial: 17 },
+      { id: 'rate', label: 'Hourly rate', unit: 'CAD/h', min: 10, max: 200, step: 1, initial: 85 },
+    ],
+    formula: ['hours', 'rate', 'multiply'], formulaDescription: 'Hours multiplied by hourly rate.', unit: 'CAD',
+    provenance: { type: 'user', label: 'Calculated from your supplied inputs.' },
+  },
+};
 const originalAnimate = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'animate');
 const originalResizeObserver = Object.getOwnPropertyDescriptor(window, 'ResizeObserver');
 const originalMatchMedia = Object.getOwnPropertyDescriptor(window, 'matchMedia');
@@ -63,6 +75,90 @@ afterEach(() => {
   restoreProperty(HTMLElement.prototype, 'animate', originalAnimate);
   restoreProperty(window, 'ResizeObserver', originalResizeObserver);
   restoreProperty(window, 'matchMedia', originalMatchMedia);
+});
+
+test('keeps the inline title and table name without a repeated workspace heading or eyebrow', () => {
+  const view = render(<MetabloomVisualFrame artifact={ready} />);
+  expect(screen.getByRole('heading', { name: spec.title })).toBeVisible();
+  expect(screen.getByRole('table', { name: spec.title })).toBeInTheDocument();
+  expect(screen.queryByText('Another way to see it')).not.toBeInTheDocument();
+  expect(screen.getByRole('table').querySelector('caption')).toHaveClass('metabloom-visual__sr-only');
+
+  view.rerender(<MetabloomVisualFrame artifact={ready} workspace />);
+  expect(screen.queryByRole('heading', { name: spec.title })).not.toBeInTheDocument();
+  expect(screen.getByRole('region', { name: spec.title })).toBeInTheDocument();
+  expect(screen.getByRole('table', { name: spec.title })).toBeInTheDocument();
+});
+
+test('shows provenance type while collapsing the summary and source explanation behind Details', () => {
+  const sourced = { ...ready, spec: { ...spec, provenance: { type: 'sources', label: 'Based on the linked project brief.' } },
+    sources: [{ id: 'brief', title: 'Project brief', url: 'https://example.com/project' }] };
+  render(<MetabloomVisualFrame artifact={sourced} workspace />);
+  const summary = screen.getByText('Details', { selector: 'summary' });
+  expect(screen.getByText('Source-backed')).toBeVisible();
+  expect(screen.getByText(spec.summary)).not.toBeVisible();
+  expect(screen.getByText(sourced.spec.provenance.label)).not.toBeVisible();
+  expect(screen.getByText('Project brief')).not.toBeVisible();
+  fireEvent.click(summary);
+  expect(screen.getByText(spec.summary)).toBeVisible();
+  expect(screen.getByText(sourced.spec.provenance.label)).toBeVisible();
+  const source = screen.getByRole('link', { name: 'Project brief' });
+  expect(source).toBeVisible();
+  expect(source).toHaveAttribute('href', 'https://example.com/project');
+  expect(source).toHaveAttribute('rel', 'noopener noreferrer');
+});
+
+test('keeps the calculator result and exact selection available while hiding secondary controls', () => {
+  const onAskAbout = jest.fn();
+  render(<MetabloomVisualFrame artifact={calculator} workspace onAskAbout={onAskAbout} />);
+  expect(screen.getByText('1,445 CAD')).toBeVisible();
+  expect(screen.getByText('Your inputs')).toBeVisible();
+  expect(screen.getByText('Reset values')).not.toBeVisible();
+  expect(screen.getByText('Copy scenario')).not.toBeVisible();
+  expect(screen.getByText(calculator.spec.formulaDescription)).not.toBeVisible();
+  expect(screen.getByRole('spinbutton', { name: 'Hours (h)' })).toHaveAccessibleDescription(calculator.spec.formulaDescription);
+  const ask = screen.getByRole('button', { name: 'Ask about this scenario' });
+  expect(ask).toBeVisible();
+  fireEvent.click(ask);
+  expect(onAskAbout).toHaveBeenLastCalledWith({ selector: { type: 'calculator' }, inputs: { hours: 17, rate: 85 } });
+
+  fireEvent.change(screen.getByRole('spinbutton', { name: 'Hours (h)' }), { target: { value: '' } });
+  expect(ask).toBeDisabled();
+  expect(screen.getByText('Enter valid inputs to calculate.')).toBeVisible();
+  fireEvent.click(screen.getByText('Details', { selector: 'summary' }));
+  expect(screen.getByText(calculator.spec.formulaDescription)).toBeVisible();
+  expect(screen.getByRole('button', { name: 'Copy scenario' })).toBeDisabled();
+  fireEvent.click(screen.getByRole('button', { name: 'Reset values' }));
+  expect(screen.getByText('1,445 CAD')).toBeVisible();
+  expect(ask).toBeEnabled();
+});
+
+test('preserves the same calculator, focused input and open Details when entering or leaving the workspace', () => {
+  const onViewStateChange = jest.fn();
+  const onInputsChange = jest.fn();
+  const frame = workspace => <MetabloomVisualFrame artifact={calculator} workspace={workspace}
+    onViewStateChange={onViewStateChange} onInputsChange={onInputsChange} />;
+  const view = render(frame(false));
+  const hours = screen.getByRole('spinbutton', { name: 'Hours (h)' });
+  const summary = screen.getByText('Details', { selector: 'summary' });
+  const details = summary.closest('details');
+  fireEvent.click(summary);
+  fireEvent.change(hours, { target: { value: '20' } });
+  hours.focus();
+  expect(onViewStateChange).toHaveBeenLastCalledWith({ inputs: { hours: '20', rate: '85' } });
+  expect(onInputsChange).toHaveBeenLastCalledWith({ hours: 20, rate: 85 });
+  const publishedCount = onInputsChange.mock.calls.length;
+
+  for (const workspace of [true, false]) {
+    view.rerender(frame(workspace));
+    expect(screen.getByRole('spinbutton', { name: 'Hours (h)' })).toBe(hours);
+    expect(hours).toHaveFocus();
+    expect(hours).toHaveValue(20);
+    expect(screen.getByText('1,700 CAD')).toBeVisible();
+    expect(screen.getByText('Details', { selector: 'summary' }).closest('details')).toBe(details);
+    expect(details).toHaveAttribute('open');
+    expect(onInputsChange).toHaveBeenCalledTimes(publishedCount);
+  }
 });
 
 test('waits for the measured expansion to settle before announcing ready', () => {

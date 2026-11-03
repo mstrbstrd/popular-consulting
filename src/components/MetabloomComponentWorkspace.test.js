@@ -134,6 +134,44 @@ test('removing an attachment keeps the live component open but never reattaches 
   expect(requests[0].request).not.toHaveProperty('artifactContext');
 });
 
+test('the composer displays a frozen scenario and recaptures live values only on Update selection', async () => {
+  workspace(initialState([record(1)], id(1))).mount();
+  const frame = await screen.findByRole('region', { name: calculator.title });
+  const hours = within(frame).getByRole('spinbutton', { name: 'Hours' });
+  const composer = screen.getByRole('textbox');
+  fireEvent.change(composer, { target: { value: 'What would three more hours cost?' } });
+  fireEvent.click(within(frame).getByRole('button', { name: 'Ask about this scenario' }));
+  const attachment = screen.getByRole('group', { name: 'Selected visual reference' });
+  expect(attachment).toHaveTextContent('Hours: 17 · Hourly rate: 85 CAD · Result: 1,445 CAD');
+  fireEvent.change(hours, { target: { value: '20' } });
+  expect(attachment).toHaveTextContent('Hours: 17 · Hourly rate: 85 CAD · Result: 1,445 CAD');
+  expect(within(frame).getByText('1,700 CAD')).toBeInTheDocument();
+  expect(requests).toHaveLength(0);
+  fireEvent.click(within(attachment).getByRole('button', { name: 'Update selection' }));
+  expect(attachment).toHaveTextContent('Hours: 20 · Hourly rate: 85 CAD · Result: 1,700 CAD');
+  expect(composer).toHaveValue('What would three more hours cost?');
+  expect(composer).toHaveFocus();
+  fireEvent.submit(screen.getByRole('form', { name: 'Message Metabloom' }));
+  await waitFor(() => expect(requests).toHaveLength(1));
+  expect(requests[0].request.artifactContext.inputs).toEqual({ hours: 20, rate: 85 });
+  expect(requests[0].request.artifactContext).not.toHaveProperty('summary');
+  expect(screen.queryByRole('group', { name: 'Selected visual reference' })).not.toBeInTheDocument();
+  expect(requestMetabloomVisual).not.toHaveBeenCalled();
+});
+
+test('an invalid live draft cannot replace the valid captured scenario', async () => {
+  workspace(initialState([record(1)], id(1))).mount();
+  const frame = await screen.findByRole('region', { name: calculator.title });
+  fireEvent.click(within(frame).getByRole('button', { name: 'Ask about this scenario' }));
+  fireEvent.change(within(frame).getByRole('spinbutton', { name: 'Hours' }), { target: { value: '' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Update selection' }));
+  expect(screen.getByRole('alert')).toHaveTextContent('Your attached selection is unchanged.');
+  expect(screen.getByRole('group', { name: 'Selected visual reference' })).toHaveTextContent('Result: 1,445 CAD');
+  send('Explain the captured values.');
+  await waitFor(() => expect(requests).toHaveLength(1));
+  expect(requests[0].request.artifactContext.inputs).toEqual({ hours: 17, rate: 85 });
+});
+
 test('explicit selection reveals the current result again while streamed updates preserve workspace scrolling', async () => {
   workspace(initialState([record(1)], id(1))).mount();
   const frame = await within(activeWorkspace()).findByRole('region', { name: calculator.title });

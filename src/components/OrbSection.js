@@ -34,7 +34,7 @@ import { METABLOOM_RESEARCH_TIMEOUT_MS, METABLOOM_RESEARCH_REUSE_TIMEOUT_MS, get
 import { METABLOOM_REQUEST_ERROR_MESSAGES, parseMetabloomRequestRef } from "./metabloomRequestErrors";
 import { METABLOOM_TOOL_TURN_TIMEOUT_MS } from "./metabloomVisualProtocol";
 import { METABLOOM_TRANSCRIPT_READY_EVENT, METABLOOM_RESET_EVENT } from "./metabloomVisualSession";
-import { METABLOOM_ARTIFACT_REFERENCE_EVENT, parseMetabloomArtifactAttachment } from "./metabloomArtifactReference";
+import { METABLOOM_ARTIFACT_REFERENCE_EVENT, METABLOOM_ARTIFACT_UPDATE_EVENT, parseMetabloomArtifactAttachment } from "./metabloomArtifactReference";
 import { parseMetabloomResearchSources } from "./metabloomResearchSources";
 import { parseMetabloomProgressSource } from "./metabloomSourceMediaProtocol";
 import { parseMetabloomResearchReport } from "./metabloomResearchReport";
@@ -629,7 +629,8 @@ const OrbSection = ({
     const stageReference = event => {
       const root = sectionRef.current?.closest('.orb-page');
       if (!isActive || !root || event.detail?.root !== root) return;
-      const next = parseMetabloomArtifactAttachment({ reference: event.detail.reference, label: event.detail.label });
+      const next = parseMetabloomArtifactAttachment({ reference: event.detail.reference, label: event.detail.label,
+        ...(event.detail.summary !== undefined ? { summary: event.detail.summary } : {}) });
       if (!next) return;
       updateArtifactAttachment(next);
       setErrorMessage('');
@@ -2518,7 +2519,15 @@ const OrbSection = ({
                 <div className="metabloom-chat__reference" data-artifact-reference={artifactAttachment.reference.id}
                   role="group" aria-label="Selected visual reference">
                   <span id="metabloom-selected-reference" className="metabloom-chat__reference-copy" role="status"><span>Asking about</span>
-                    <strong>{artifactAttachment.label}</strong></span>
+                    <strong>{artifactAttachment.label}</strong>
+                    {artifactAttachment.summary && <span className="metabloom-chat__reference-values">{artifactAttachment.summary}</span>}
+                  </span>
+                  <button type="button" className="metabloom-chat__reference-update" onClick={() => {
+                    const update = new CustomEvent(METABLOOM_ARTIFACT_UPDATE_EVENT, { cancelable: true,
+                      detail: { reference: artifactAttachment.reference, root: sectionRef.current?.closest('.orb-page') } });
+                    window.dispatchEvent(update);
+                    if (!update.defaultPrevented) setErrorMessage('Select a valid value in the original component, then choose Ask about this. Your attached selection is unchanged.');
+                  }}>Update selection</button>
                   <button type="button" aria-label="Remove visual reference" onClick={() => {
                     updateArtifactAttachment(null);
                     composerRef.current?.focus({ preventScroll: true });

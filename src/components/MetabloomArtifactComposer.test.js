@@ -70,6 +70,28 @@ test('Send captures a cloned reference once and removes it from the draft', asyn
   expect(requests[1]).not.toHaveProperty('artifactContext');
 });
 
+test('captured values survive navigation as display metadata without entering the request', async () => {
+  const state = workspace(), view = state.mount();
+  const summary = 'Hours: 10 · Hourly rate: 65 CAD · Result: 650 CAD';
+  stage(view, { ...attachment(), summary });
+  view.unmount();
+  state.mount();
+  expect(screen.getByRole('group', { name: 'Selected visual reference' })).toHaveTextContent(summary);
+  send();
+  await waitFor(() => expect(requests).toHaveLength(1));
+  expect(requests[0].artifactContext).toEqual(reference());
+  expect(requests[0]).not.toHaveProperty('summary');
+});
+
+test('an unavailable original component leaves the selected snapshot intact on Update', () => {
+  const view = workspace().mount();
+  stage(view);
+  fireEvent.click(screen.getByRole('button', { name: 'Update selection' }));
+  expect(screen.getByRole('alert')).toHaveTextContent('Your attached selection is unchanged.');
+  expect(screen.getByRole('group', { name: 'Selected visual reference' })).toHaveTextContent(attachment().label);
+  expect(requests).toHaveLength(0);
+});
+
 test('removing a reference omits context even when the legacy calculator snapshot is available', async () => {
   const view = workspace().mount();
   const legacy = jest.fn(() => ({ id: 'c'.repeat(48), inputs: { hours: 80, rate: 200 } }));

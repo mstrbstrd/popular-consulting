@@ -441,6 +441,7 @@
 
 .metabloom-chat__reference-copy > span { font-size: 1rem; }
 .metabloom-chat__reference-copy > strong { font-weight: 500; }
+.metabloom-chat__reference-copy > .metabloom-chat__reference-values { font-size: 1.2rem; }
 
 .metabloom-chat__reference > button {
   flex: 0 0 4.4rem;
@@ -460,6 +461,13 @@
 .metabloom-chat__reference > button:focus-visible {
   outline: 2px solid var(--aetheris-focus-line, #6344f5);
   outline-offset: 3px;
+}
+.metabloom-chat__reference > .metabloom-chat__reference-update {
+  flex: 0 0 auto;
+  width: auto;
+  max-width: 8rem;
+  padding: 0.6rem 0.8rem;
+  font: 500 1.1rem/1.3 var(--aetheris-font-sans, sans-serif);
 }
 .metabloom-chat__reference--research {
   display: grid;
