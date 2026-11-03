@@ -212,7 +212,8 @@ try {
     await press(page.getByRole('button', { name: 'Preview under the hood', exact: true }));
     await waitForCheck(page, () => document.querySelector('.metabloom-chat__presence')?.textContent.includes('seam') || document.querySelector('[data-under-hood]'));
     await go('Home', '/home'); await go('Orb', '/orb');
-    await page.locator('.metabloom-chat__suggestions button').first().click();
+    await page.getByPlaceholder('Message Metabloom').fill('Show me a whimsical response');
+    await press(page.getByRole('button', { name: 'Send message', exact: true }));
     await page.waitForSelector('.metabloom-chat[data-chat-phase="ready"]', { timeout: 20000 });
     const transcript = await page.locator('.metabloom-chat__message').allTextContents();
     assert(transcript.length >= 2, 'Conversation demo did not complete');
