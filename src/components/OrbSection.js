@@ -5,7 +5,7 @@ import { METABLOOM_HOOD_SEQUENCE } from "./metabloomUnderHood";
 import MetabloomAvatar from "./MetabloomAvatar";
 import MetabloomReactionPanel from "./MetabloomReactionPanel";
 import MetabloomResearchStatus from "./MetabloomResearchStatus";
-import MetabloomResearchBrief from "./MetabloomResearchBrief";
+import MetabloomResearchSurface, { ResearchReferenceDates } from './MetabloomResearchSurface';
 import { METABLOOM_SCENE_TRANSITION_SECONDS } from "./metabloomSceneTransition";
 import {
   METABLOOM_ACTIONS,
@@ -42,7 +42,7 @@ import { parseMetabloomResearchReport } from "./metabloomResearchReport";
 import { parseMetabloomClientResearchBrief as parseMetabloomResearchBrief } from "./metabloomResearchBriefProtocol";
 import { parseMetabloomResearchReferenceMetadata, parseMetabloomResearchAttachment,
   parseMetabloomResearchAnswerSources, isMetabloomFreshResearchRequest } from "./metabloomResearchReference";
-import { renderMetabloomResearchBlocks, renderMetabloomResearchText } from "./metabloomResearchText";
+import { renderMetabloomResearchText } from "./metabloomResearchText";
 import { streamMetabloomDemoResponse } from "./metabloomDemoStream";
 import "./OrbSection.css";
 import "./OrbEmoteDemos.css";
@@ -385,21 +385,6 @@ const cloneMessage = ({ id, role, content, actionChain = [], source, emote, segm
   };
 };
 
-const researchTime = value => new Intl.DateTimeFormat('en', {
-  year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
-  hourCycle: 'h23', timeZone: 'UTC',
-}).format(new Date(value));
-const researchDate = value => new Intl.DateTimeFormat('en', {
-  year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC',
-}).format(new Date(`${value}T00:00:00Z`));
-
-const ResearchReferenceDates = ({ reference, expired }) => <>
-  <span>Research date <time dateTime={reference.localDate}>{researchDate(reference.localDate)}</time> · {reference.timeZone}</span>
-  <span>As of <time dateTime={reference.asOf}>{researchTime(reference.asOf)}</time> UTC</span>
-  <span>{expired ? 'Reuse expired' : 'Reuse expires'} <time dateTime={reference.expiresAt}>
-    {researchTime(reference.expiresAt)}</time> UTC · available for one hour</span>
-</>;
-
 const messageHistoryContent = (message) => {
   const report = message.role === "assistant" ? parseMetabloomResearchReport(message.researchDetails) : null;
   const brief = report ? parseMetabloomResearchBrief(message.researchBrief, { sources: report.sources }) : null;
@@ -410,44 +395,6 @@ const messageHistoryContent = (message) => {
   const headlines = brief.items.map((item, index) => `${index + 1}. ${item.headline}`).join("\n");
   const content = `${message.content}\n\n${label} in the research brief:\n${headlines}`;
   return content.length <= 4806 ? content : message.content;
-};
-
-const MetabloomFullResearch = ({ report, initiallyExpanded = false }) => {
-  const [expanded, setExpanded] = React.useState(initiallyExpanded);
-  const [sourcesExpanded, setSourcesExpanded] = React.useState(false);
-  const [visibleSources, setVisibleSources] = React.useState(20);
-  return (
-    <details className="metabloom-chat__full-research" open={expanded}
-      data-research-fallback={initiallyExpanded ? "true" : undefined}
-      onToggle={(event) => setExpanded(event.currentTarget.open)}>
-      <summary>Full research</summary>
-      {expanded && (
-        <div className="metabloom-chat__research-report" role="group" aria-label="Completed research">
-          <div className="metabloom-chat__research-report-text">{renderMetabloomResearchBlocks(report)}</div>
-          <details className="metabloom-chat__sources" onToggle={(event) => setSourcesExpanded(event.currentTarget.open)}>
-            <summary>Research sources ({report.sources.length})</summary>
-            {sourcesExpanded && (
-              <>
-                <ol>
-                  {report.sources.slice(0, visibleSources).map((source) => (
-                    <li key={source.id}>
-                      <a href={source.url} target="_blank" rel="noopener noreferrer">{source.title}</a>
-                      <span className="metabloom-chat__source-domain">{new URL(source.url).hostname}</span>
-                    </li>
-                  ))}
-                </ol>
-                {visibleSources < report.sources.length && (
-                  <button type="button" className="metabloom-chat__more-sources" onClick={() => setVisibleSources((count) => count + 20)}>
-                    Show {Math.min(20, report.sources.length - visibleSources)} more sources
-                  </button>
-                )}
-              </>
-            )}
-          </details>
-        </div>
-      )}
-    </details>
-  );
 };
 
 const extractCorrelatedResponse = (detail) => {
@@ -629,6 +576,14 @@ const OrbSection = ({
     composerRef.current?.focus({ preventScroll: true });
     return true;
   }, [isActive, updateResearchAttachment]);
+  const useResearchReference = React.useCallback((metadata, selector, label) => {
+    if (!stageResearchReference(metadata, selector, label)) return false;
+    const root = sectionRef.current?.closest('.orb-page');
+    if (root) window.dispatchEvent(new CustomEvent(METABLOOM_WORKSPACE_VIEW_REQUEST,
+      { detail: { root, view: 'compact' } }));
+    composerRef.current?.focus({ preventScroll: true });
+    return true;
+  }, [stageResearchReference]);
   React.useEffect(() => {
     const stageReference = event => {
       const root = sectionRef.current?.closest('.orb-page');
@@ -2049,7 +2004,8 @@ const OrbSection = ({
         .find((message) => message.dataset.messageId === latestMessage.id) : null;
     const researchOpening = terminalMessage?.querySelector('.metabloom-chat__full-research[data-research-fallback="true"]')
       || (latestMessage?.researchBrief ? terminalMessage?.querySelector(".metabloom-research-brief") : null);
-    const newlySurfacedBrief = researchOpening && surfacedBriefScrollRef.current !== latestMessage.id;
+    const newlySurfacedBrief = researchOpening && !researchOpening.closest('.metabloom-research-slot')?.hidden
+      && surfacedBriefScrollRef.current !== latestMessage.id;
     if (newlySurfacedBrief) surfacedBriefScrollRef.current = latestMessage.id;
     // Never move the whole page or pull a reader away from an earlier reply.
     if (!followLatestRef.current) return;
@@ -2417,8 +2373,6 @@ const OrbSection = ({
                 const researchReference = researchDetails ? parseMetabloomResearchReferenceMetadata(message.researchReference) : null;
                 const referenceExpired = researchReference && Date.parse(researchReference.expiresAt) <= researchReferenceNow;
                 const referenceUnavailable = researchReference && unavailableResearchIds.includes(researchReference.researchId);
-                const researchFallback = researchDetails && ["complete", "error", "interrupted"].includes(message.status)
-                  && (researchBrief?.coverage.status === "unavailable" || (!researchBrief && message.status !== "complete"));
                 return (
                 <React.Fragment key={message.id}>
                   {statusBeforeReply && messageIndex === messages.length - 1 && researchStatus}
@@ -2451,12 +2405,6 @@ const OrbSection = ({
                           </React.Fragment>
                         ))
                         : message.content ? <p>{renderMetabloomResearchText(message.content, sources, { report: researchDetails })}</p> : null}
-                      {researchBrief && message.status !== "streaming" && <MetabloomResearchBrief brief={researchBrief} sources={researchDetails.sources}
-                        reuseDisabled={!isActive || referenceExpired || referenceUnavailable}
-                        onUseBrief={researchReference?.briefId ? () => stageResearchReference(researchReference,
-                          { type: 'brief', briefId: researchReference.briefId }, researchBrief.title) : undefined}
-                        onUseFinding={researchReference?.briefId ? (index, item) => stageResearchReference(researchReference,
-                          { type: 'finding', briefId: researchReference.briefId, index }, item.headline) : undefined} />}
                       {sources && !researchBrief && message.status === "complete" && (
                         <div className="metabloom-chat__sources" role="group" aria-label="Sources for this answer">
                           <span className="metabloom-chat__sources-heading">Sources</span>
@@ -2474,20 +2422,10 @@ const OrbSection = ({
                         <>
                           {message.status === "error" && <p className="metabloom-chat__research-notice">Research completed. The short answer could not be prepared.</p>}
                           {message.status === "interrupted" && <p className="metabloom-chat__research-notice">Research completed. The short answer was stopped.</p>}
-                          {researchReference && message.status !== 'streaming' && <div className="metabloom-chat__research-reuse"
-                            data-research-reused={message.researchReused === true ? 'true' : 'false'}
-                            role="group" aria-label="Research reuse">
-                            <div className="metabloom-chat__research-reference-copy">
-                              <strong>{message.researchReused === true ? 'Reused sources' : 'Saved research'}</strong>
-                              <span>{researchReference.title}</span>
-                              <ResearchReferenceDates reference={researchReference} expired={referenceExpired} />
-                              {referenceUnavailable && <span>Reuse is no longer available. The report remains readable.</span>}
-                            </div>
-                            <button type="button" disabled={!isActive || referenceExpired || referenceUnavailable}
-                              onClick={() => stageResearchReference(researchReference)}>Use this research</button>
-                          </div>}
-                          <MetabloomFullResearch key={researchFallback ? "fallback" : "optional"}
-                            report={researchDetails} initiallyExpanded={Boolean(researchFallback)} />
+                          <MetabloomResearchSurface messageId={message.id} report={researchDetails} brief={researchBrief}
+                            reference={researchReference} referenceExpired={referenceExpired} referenceUnavailable={referenceUnavailable}
+                            isActive={isActive} status={message.status} reused={message.researchReused === true}
+                            onUseReference={useResearchReference} />
                         </>
                       )}
                       {message.status === "streaming" && <span className="metabloom-chat__stream-status">Receiving response…</span>}

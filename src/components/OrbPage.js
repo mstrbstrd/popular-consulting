@@ -12,6 +12,7 @@ import NavMenu from "./NavMenu";
 import OrbAppearance from "./OrbAppearance";
 import OrbSection from "./OrbSection";
 import MetabloomVisuals from "./MetabloomVisuals";
+import MetabloomWorkspaceContext from './MetabloomWorkspaceContext';
 import "./OrbPage.css";
 import "./OrbPageExperience.css";
 import "./OrbPageFinalPolish.css";
@@ -40,6 +41,11 @@ const OrbPageContent = ({ onReady }) => {
   React.useEffect(() => { onReady?.(); }, [onReady]);
   const backgroundEnabled = navigation?.orbBackgroundEnabled !== false;
   const [conversationStarted, setConversationStarted] = React.useState(false);
+  const [workspaceController, setWorkspaceController] = React.useState(null);
+  const handleWorkspaceReady = React.useCallback(controller => {
+    setWorkspaceController(controller);
+    return () => setWorkspaceController(current => current === controller ? null : current);
+  }, []);
   const [metabloomPalette, setMetabloomPalette] = React.useState(
     () => navigation?.getToolState('orbAppearance')?.palette || METABLOOM_PALETTES.SPECTRAL,
   );
@@ -314,12 +320,14 @@ const OrbPageContent = ({ onReady }) => {
             aria-label="Metabloom"
             tabIndex={-1}
           >
-            <OrbSection
-              isActive
-              onConversationStateChange={setConversationStarted}
-              onReady={onReady}
-            />
-            <MetabloomVisuals navigation={navigation} />
+            <MetabloomWorkspaceContext.Provider value={workspaceController}>
+              <OrbSection
+                isActive
+                onConversationStateChange={setConversationStarted}
+                onReady={onReady}
+              />
+              <MetabloomVisuals navigation={navigation} onWorkspaceReady={handleWorkspaceReady} />
+            </MetabloomWorkspaceContext.Provider>
           </main>
         </div>
 

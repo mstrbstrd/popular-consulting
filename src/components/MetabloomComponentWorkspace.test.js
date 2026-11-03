@@ -4,6 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { AppNavigationContext } from '../contexts/AppNavigationContext';
 import OrbSection from './OrbSection';
 import MetabloomVisuals from './MetabloomVisuals';
+import MetabloomWorkspaceContext from './MetabloomWorkspaceContext';
 import { requestMetabloomVisual } from './metabloomVisualApiClient';
 import { postMetabloomTool } from './metabloomToolClient';
 
@@ -43,9 +44,36 @@ const initialState = (records, activeVisualId) => ({
   orbVisuals: { version: 1, records, lastInteractedId: records.find(item => item.kind === 'calculator')?.id || null,
     ...(activeVisualId ? { activeVisualId } : {}) },
 });
+const researchState = ({ expired = false, reference = true } = {}) => {
+  const state = initialState([record(1)], id(1));
+  const asOf = new Date(Date.now() - 120000).toISOString();
+  const metadata = { researchId: 'a'.repeat(48), briefId: 'b'.repeat(32), title: 'Coastal evidence',
+    asOf, timeZone: 'UTC', localDate: asOf.slice(0, 10), expiresAt: new Date(Date.now() + (expired ? -1000 : 600000)).toISOString() };
+  const report = { notes: 'Original evidence for the two findings [1] [2].', sources: [1, 2].map(index => ({
+    id: index, title: `Fictional source ${index}`, url: `https://example.org/source-${index}` })) };
+  const brief = { version: 'metabloom-research-brief-v1', kind: 'research', title: 'Coastal evidence',
+    scope: 'Compare the recorded findings.', asOf, timeZone: 'UTC', localDate: metadata.localDate,
+    windowStart: null, windowEnd: null, coverage: { requestedCount: 2, returnedCount: 2, status: 'complete', limitations: [] },
+    items: [1, 2].map(index => ({ headline: `Finding ${index}`, summary: `Recorded evidence ${index}.`, sourceIds: [index],
+      background: [], whyItMatters: 'This supports comparison.', uncertainty: [], watchNext: [], developmentDate: null,
+      scheduledDate: null, dateEvidence: null, evidenceStatus: 'reported' })),
+    sourceDetails: [1, 2].map(sourceId => ({ sourceId, publisher: '', publishedDate: null, dateEvidence: '', sourceType: 'unknown' })) };
+  state.orb.counter = 4;
+  state.orb.messages.push({ id: 'user-3', role: 'user', content: 'Research the coastal evidence.', status: 'complete' },
+    { id: 'assistant-4', role: 'assistant', content: 'The evidence is ready.', status: 'complete',
+      researchDetails: report, researchBrief: brief, ...(reference ? { researchReference: metadata } : {}) });
+  return state;
+};
 function Harness({ navigation, visualRef }) {
+  const [controller, setController] = React.useState(null);
+  const ready = React.useCallback(value => {
+    setController(value);
+    return () => setController(current => current === value ? null : current);
+  }, []);
   return <AppNavigationContext.Provider value={navigation}>
-    <div className="orb-page"><OrbSection /><MetabloomVisuals navigation={navigation} ref={visualRef} /></div>
+    <MetabloomWorkspaceContext.Provider value={controller}>
+      <div className="orb-page"><OrbSection /><MetabloomVisuals navigation={navigation} ref={visualRef} onWorkspaceReady={ready} /></div>
+    </MetabloomWorkspaceContext.Provider>
   </AppNavigationContext.Provider>;
 }
 function workspace(initial = {}) {
@@ -516,4 +544,137 @@ test('invalidated account cleanup and stale callbacks cannot reopen a component 
   expect(activeWorkspace()).toBeEmptyDOMElement();
   expect(document.querySelector('.orb-page')).not.toHaveAttribute('data-active-component');
   expect(screen.queryByRole('region', { name: calculator.title })).not.toBeInTheDocument();
+});
+
+test('research shares the workspace while each live renderer, reading position, and captured selection stays intact', async () => {
+  workspace(researchState()).mount();
+  const calculatorFrame = await screen.findByRole('region', { name: calculator.title });
+  const hours = within(calculatorFrame).getByRole('spinbutton', { name: 'Hours' });
+  fireEvent.click(within(calculatorFrame).getByRole('button', { name: 'Ask about this scenario' }));
+  const attachment = screen.getByRole('group', { name: 'Selected visual reference' });
+  fireEvent.change(hours, { target: { value: '' } });
+  const body = document.querySelector('.metabloom-component-workspace__body');
+  body.scrollTop = 80;
+  fireEvent.click(await screen.findByRole('button', { name: 'Open research: Coastal evidence' }));
+  const carousel = within(activeWorkspace()).getByRole('region', { name: 'Coastal evidence' });
+  const choice = within(carousel).getByRole('combobox', { name: 'Choose a finding' });
+  fireEvent.change(choice, { target: { value: '1' } });
+  const finding = within(carousel).getByRole('article', { name: 'Finding 2' });
+  const analysis = within(finding).getByText('Analysis and context', { selector: 'summary' });
+  fireEvent.click(analysis);
+  body.scrollTop = 160;
+  expect(attachment).toHaveTextContent('Hours: 17 · Hourly rate: 85 CAD · Result: 1,445 CAD');
+  expect(screen.queryByRole('group', { name: 'Selected research reference' })).not.toBeInTheDocument();
+  const picker = screen.getByRole('combobox', { name: 'Components in this conversation' });
+  fireEvent.change(picker, { target: { value: id(1) } });
+  expect(body.scrollTop).toBe(80);
+  expect(within(activeWorkspace()).getByRole('spinbutton', { name: 'Hours' })).toBe(hours);
+  expect(hours).toHaveValue(null);
+  fireEvent.change(picker, { target: { value: 'research:assistant-4' } });
+  expect(body.scrollTop).toBe(160);
+  expect(within(activeWorkspace()).getByRole('region', { name: 'Coastal evidence' })).toBe(carousel);
+  expect(choice).toHaveDisplayValue('Finding 2 of 2');
+  expect(analysis.parentElement).toHaveAttribute('open');
+  expect(within(carousel).getByRole('link', { name: 'Source 2: Fictional source 2' })).toHaveAttribute('href', 'https://example.org/source-2');
+  expect(requests).toHaveLength(0);
+  fireEvent.click(within(carousel).getByRole('button', { name: 'Use this finding' }));
+  expect(document.querySelector('.orb-page')).toHaveAttribute('data-component-view', 'compact');
+  expect(screen.getByRole('textbox')).toHaveFocus();
+  expect(screen.getByRole('group', { name: 'Selected research reference' })).toHaveTextContent('Finding 2');
+  fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Explain the selected finding.' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Open' }));
+  expect(document.querySelector('.orb-page')).toHaveAttribute('data-component-view', 'expanded');
+  fireEvent.submit(screen.getByRole('form', { name: 'Message Metabloom' }));
+  await waitFor(() => expect(requests).toHaveLength(1));
+  expect(document.querySelector('.orb-page')).toHaveAttribute('data-component-view', 'compact');
+  expect(requests[0].request.researchContext).toEqual({ researchId: 'a'.repeat(48),
+    selector: { type: 'finding', briefId: 'b'.repeat(32), index: 1 } });
+  expect(requestMetabloomVisual).not.toHaveBeenCalled();
+  expect(postMetabloomTool).not.toHaveBeenCalled();
+});
+
+test.each([{ expired: true }, { reference: false }])('research remains readable without live reuse: %j', async options => {
+  workspace(researchState(options)).mount();
+  fireEvent.click(await screen.findByRole('button', { name: 'Open research: Coastal evidence' }));
+  expect(within(activeWorkspace()).getByRole('region', { name: 'Coastal evidence' })).toBeVisible();
+  if (options.expired) expect(screen.getByRole('button', { name: 'Use this research' })).toBeDisabled();
+  else expect(screen.queryByRole('button', { name: 'Use this research' })).not.toBeInTheDocument();
+  expect(requests).toHaveLength(0);
+});
+
+test('research selection survives navigation and StrictMode, while reset closes it and retains readable reports', async () => {
+  const state = workspace(researchState());
+  const view = render(<React.StrictMode><Harness navigation={state.navigation} /></React.StrictMode>);
+  fireEvent.click(await screen.findByRole('button', { name: 'Open research: Coastal evidence' }));
+  expect(within(activeWorkspace()).getByRole('region', { name: 'Coastal evidence' })).toBeVisible();
+  view.unmount();
+  expect(state.cache.get('orbWorkspace')).toEqual({ messageId: 'assistant-4', view: 'expanded' });
+  const next = render(<React.StrictMode><Harness navigation={state.navigation} /></React.StrictMode>);
+  await within(activeWorkspace()).findByRole('region', { name: 'Coastal evidence' });
+  expect(document.querySelector('.orb-page')).toHaveAttribute('data-component-view', 'expanded');
+  expect(document.querySelectorAll('.metabloom-research-slot')).toHaveLength(1);
+  act(() => window.__orbReset());
+  expect(activeWorkspace()).toBeEmptyDOMElement();
+  fireEvent.click(screen.getByRole('button', { name: 'Open research: Coastal evidence' }));
+  expect(within(activeWorkspace()).getByRole('region', { name: 'Coastal evidence' })).toBeVisible();
+  fireEvent.click(screen.getByRole('button', { name: 'Return research to conversation' }));
+  next.unmount();
+  expect(state.cache.get('orbWorkspace')).toBeNull();
+  expect(requests).toHaveLength(0);
+});
+
+test('pruning the active research removes its portal and the conversation picker', async () => {
+  const state = workspace(researchState()), visualRef = React.createRef();
+  render(<Harness navigation={state.navigation} visualRef={visualRef} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'Open research: Coastal evidence' }));
+  const slot = document.querySelector('.metabloom-research-slot');
+  const previous = window.__orbMessages;
+  window.__orbMessages = () => previous().filter(message => message.id !== 'assistant-4');
+  act(() => visualRef.current.reconcile());
+  expect(activeWorkspace()).toBeEmptyDOMElement();
+  expect(slot.isConnected).toBe(false);
+  expect(visualRef.current.researchRecords.size).toBe(0);
+  expect(screen.queryByRole('combobox', { name: 'Components in this conversation' })).not.toBeInTheDocument();
+  window.__orbMessages = previous;
+});
+
+test('a detached research portal cannot be selected or reclaimed by an old registry', async () => {
+  const state = workspace(researchState()), visualRef = React.createRef();
+  render(<Harness navigation={state.navigation} visualRef={visualRef} />);
+  const launcher = await screen.findByRole('button', { name: 'Open research: Coastal evidence' });
+  const descriptor = visualRef.current.researchRecords.get('assistant-4');
+  descriptor.slot.remove();
+  fireEvent.click(launcher);
+  expect(visualRef.current.activeResearchId).toBeNull();
+  act(() => visualRef.current.reconcile());
+  expect(visualRef.current.researchRecords.size).toBe(0);
+  expect(descriptor.slot.isConnected).toBe(false);
+});
+
+test('submitted research cannot select a message pruned before the observer reconciles', async () => {
+  const state = workspace(researchState()), visualRef = React.createRef();
+  render(<Harness navigation={state.navigation} visualRef={visualRef} />);
+  await screen.findByRole('button', { name: 'Open research: Coastal evidence' });
+  const previous = window.__orbMessages;
+  window.__orbMessages = () => previous().filter(message => message.id !== 'assistant-4');
+  act(() => visualRef.current.activateSubmittedResearch({ researchId: 'a'.repeat(48), selector: { type: 'report' } }));
+  expect(visualRef.current.activeVisualId).toBe(id(1));
+  expect(visualRef.current.activeResearchId).toBeNull();
+  window.__orbMessages = previous;
+});
+
+test('opening research prevents an older in-flight native result from taking over the workspace', async () => {
+  workspace(researchState()).mount();
+  await screen.findByRole('button', { name: 'Open research: Coastal evidence' });
+  const offer = { version: '1', designVersion: 'aetheris-1', id: id(2), kind: 'calculator', expiresAt: Date.now() + 600000 };
+  let finish;
+  postMetabloomTool.mockResolvedValueOnce({ offer, emote: 'neutral' }).mockResolvedValueOnce({ reply: envelope('A new estimate is ready.'), emote: 'neutral' });
+  requestMetabloomVisual.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  send('Create a second interactive calculator.');
+  await screen.findByRole('button', { name: 'Stop visual' });
+  fireEvent.click(screen.getByRole('button', { name: 'Open research: Coastal evidence' }));
+  await act(async () => finish({ spec: { ...calculator, title: 'New estimate' }, sources: [], artifactVersion: version(2) }));
+  await screen.findByText('A new estimate is ready.');
+  expect(within(activeWorkspace()).getByRole('region', { name: 'Coastal evidence' })).toBeVisible();
+  expect(within(activeWorkspace()).queryByRole('region', { name: 'New estimate' })).not.toBeInTheDocument();
 });

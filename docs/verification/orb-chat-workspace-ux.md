@@ -31,3 +31,34 @@ The picker starts no API request and includes no failed, generating, detached,
 or pruned item. It is a conversation index, not durable saved storage. Closing
 the workspace returns to the original message, whose Show component button can
 reopen it. Reset and account cleanup remove the index with its owned records.
+
+## Research in the workspace
+
+Completed research has an Open research card in its original reply. The brief,
+full report, original evidence links, source pagination, and reuse controls share
+one portal container in the same workspace as native components. The conversation
+picker orders both kinds by their original message. Opening or switching reports
+starts no search and does not change the composer's captured context.
+
+Use this research, Use this brief, and Use this finding retain the existing exact
+server-owned reference protocol. On mobile, a successful selection returns the
+workspace to its compact view and focuses the existing composer. Expired or
+unavailable reuse handles disable reuse while the report remains readable.
+
+Switching preserves the same carousel instance, selected finding, open details,
+and independent workspace scroll position. Navigating away stores only the active
+owned message ID and compact/expanded mode; the conversation owns the bounded
+report data. A new account cannot receive an old mount's cleanup snapshot. Late
+native generation cannot replace an explicitly opened report.
+
+Orb Reset retains conversation messages. It closes the active research workspace
+and clears its cached selection, while retained reports remain reopenable. Message
+pruning and account/route cleanup release their portal registrations. An embedded
+OrbSection without the workspace controller continues to render reports inline.
+
+The real-controller tests in `MetabloomComponentWorkspace.test.js` cover native and
+research switching, frozen attachments, exact finding reuse, expired handles,
+StrictMode navigation, reset, pruning, and delayed generation. The surface tests
+also cover sparse original source IDs, disclosure/source pagination continuity,
+metadata changes, and interrupted report fallback. Browser layout checks remain
+pending where a Playwright browser executable is unavailable.

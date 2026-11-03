@@ -14,7 +14,7 @@ import { parseMetabloomVisualQuota, formatMetabloomVisualQuotaMessage } from './
 import { METABLOOM_ARTIFACT_REFERENCE_EVENT, METABLOOM_ARTIFACT_UPDATE_EVENT,
   isMetabloomArtifactVersion, parseMetabloomArtifactReference } from './metabloomArtifactReference';
 import { describeMetabloomVisualSelection, currentMetabloomVisualSelection, summarizeMetabloomVisual } from './metabloomVisualSelection';
-import { isMetabloomFreshResearchRequest } from './metabloomResearchReference';
+import { isMetabloomFreshResearchRequest, parseMetabloomResearchReference } from './metabloomResearchReference';
 const safeReply = response => ({ version: METABLOOM_CHAT_PROTOCOL_VERSION, segments: [{ response }] });
 const visualKindLabels = { calculator: 'Calculator', table: 'Table', 'line-chart': 'Line chart',
   'bar-chart': 'Bar chart', 'pie-chart': 'Pie chart', flowchart: 'Flowchart' };
@@ -37,11 +37,18 @@ export default class MetabloomVisuals extends React.Component {
     // receive an old component's cleanup snapshot.
     this.saveToolState = props.navigation?.saveToolState;
     this.pendingSnapshot = props.navigation?.getToolState('orbVisuals');
+    const research = props.navigation?.getToolState('orbWorkspace');
+    this.pendingResearchWorkspace = research && Object.keys(research).length === 2
+      && /^assistant-\d{1,16}$/.test(research.messageId) && ['compact', 'expanded'].includes(research.view)
+      ? { messageId: research.messageId, view: research.view } : null;
+    this.researchWorkspaceSnapshot = this.pendingResearchWorkspace;
   }
   state = { revision: 0 };
   records = new Map();
+  researchRecords = new Map();
   turn = null;
   activeVisualId = null;
+  activeResearchId = null;
   workspaceView = 'compact';
   workspaceSelectionRevision = 0;
   anchor = null;
@@ -63,6 +70,7 @@ export default class MetabloomVisuals extends React.Component {
     this.observer.observe(this.root, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-stream-status'] });
     window.__metabloomVisualSnapshot = this.snapshot;
     this.restore();
+    this.releaseWorkspace = this.props.onWorkspaceReady?.(this);
   }
   componentWillUnmount() {
     if (this.saveToolState) {
@@ -72,8 +80,14 @@ export default class MetabloomVisuals extends React.Component {
       this.saveToolState('orbVisuals', snapshot);
       // React's development remount reuses this instance after cleanup.
       this.pendingSnapshot = snapshot;
+      const research = this.researchWorkspaceSnapshot;
+      const retained = research && this.messages().some(message => message.id === research.messageId && message.role === 'assistant')
+        ? research : null;
+      this.saveToolState('orbWorkspace', retained);
+      this.pendingResearchWorkspace = retained;
     }
     this.mounted = false;
+    this.releaseWorkspace?.();
     window.removeEventListener('metabloom:user-message', this.onUserMessage);
     window.removeEventListener(METABLOOM_VISUAL_OFFER_EVENT, this.onOffer);
     window.removeEventListener(METABLOOM_TRANSCRIPT_READY_EVENT, this.restore);
@@ -87,7 +101,12 @@ export default class MetabloomVisuals extends React.Component {
     this.releaseTurn();
     for (const record of this.records.values()) { record.controller.abort(); window.clearTimeout(record.renderTimeout); this.removeSlot(record); }
     this.records.clear();
-    this.clearWorkspace();
+    for (const research of this.researchRecords.values()) {
+      if (research.origin.isConnected) research.origin.appendChild(research.slot);
+      research.slot.hidden = false;
+    }
+    this.researchRecords.clear();
+    this.clearWorkspace({ preserveResearch: true });
   }
   removeSlot = record => {
     if (this.activeVisualId === record.id) this.clearWorkspace();
@@ -161,6 +180,92 @@ export default class MetabloomVisuals extends React.Component {
     const host = this.root?.querySelector('.metabloom-chat__workspace');
     return this.ownsSurface() && host?.isConnected ? host : null;
   };
+  researchOriginIsOwned = record => {
+    const article = record?.origin?.closest('[data-message-id]');
+    return this.mounted && this.ownsSurface() && /^assistant-\d{1,16}$/.test(record?.messageId)
+      && record.slot instanceof Element && record.origin instanceof Element
+      && record.slot.isConnected && this.root.contains(record.slot)
+      && this.root.contains(record.origin) && article?.dataset.messageId === record.messageId
+      && ['complete', 'error', 'interrupted'].includes(article.dataset.streamStatus);
+  };
+  registerResearchSurface = record => {
+    if (!this.researchOriginIsOwned(record) || !record.origin.contains(record.slot)
+      || !this.workspaceHost() || this.researchRecords.has(record.messageId)) return undefined;
+    this.researchRecords.set(record.messageId, record);
+    record.slot.hidden = true;
+    const pending = this.pendingResearchWorkspace;
+    if (pending?.messageId === record.messageId) {
+      this.pendingResearchWorkspace = null;
+      if (!this.activeVisualId && this.workspaceSelectionRevision === 0) this.activateResearchSurface(record, { view: pending.view });
+    }
+    this.refresh();
+    return () => {
+      if (this.researchRecords.get(record.messageId) !== record) return;
+      if (this.activeResearchId === record.messageId) {
+        const retained = this.messages().some(message => message.id === record.messageId);
+        this.clearWorkspace({ preserveResearch: retained });
+      }
+      this.researchRecords.delete(record.messageId);
+      if (record.origin.isConnected) record.origin.appendChild(record.slot);
+      record.slot.hidden = false;
+      this.refresh();
+    };
+  };
+  updateResearchSurface = (record, presentation) => {
+    if (this.researchRecords.get(record.messageId) !== record || !this.researchOriginIsOwned(record)) return;
+    if (record.title === presentation.title && record.summary === presentation.summary
+      && JSON.stringify(record.source) === JSON.stringify(presentation.source)) return;
+    Object.assign(record, presentation);
+    this.refresh();
+  };
+  parkResearch = () => {
+    const record = this.researchRecords.get(this.activeResearchId);
+    if (record) {
+      record.workspaceScrollTop = this.workspaceBody?.scrollTop || 0;
+      if (record.origin.isConnected) record.origin.appendChild(record.slot);
+      record.slot.hidden = true;
+    }
+    this.activeResearchId = null;
+  };
+  ensureWorkspaceContainers = host => {
+    if (!this.workspaceToolbar) {
+      this.workspaceToolbar = document.createElement('div');
+      this.workspaceToolbar.className = 'metabloom-component-workspace__toolbar';
+      this.workspaceBody = document.createElement('div');
+      this.workspaceBody.className = 'metabloom-component-workspace__body';
+      this.workspaceBody.tabIndex = -1;
+    }
+    if (this.workspaceToolbar.parentNode !== host) host.appendChild(this.workspaceToolbar);
+    if (this.workspaceBody.parentNode !== host) host.appendChild(this.workspaceBody);
+  };
+  activateResearchSurface = (record, { explicit = false, focus = false, view = this.workspaceView } = {}) => {
+    if (this.researchRecords.get(record?.messageId) !== record || !this.researchOriginIsOwned(record)) return false;
+    const host = this.workspaceHost();
+    if (!host) return false;
+    if (explicit) this.workspaceSelectionRevision += 1;
+    if (this.activeResearchId !== record.messageId) {
+      const previous = this.records.get(this.activeVisualId);
+      if (previous) previous.workspaceScrollTop = this.workspaceBody?.scrollTop || 0;
+      this.activeVisualId = null;
+      if (previous) this.placeAtOrigin(previous);
+      this.parkResearch();
+      this.ensureWorkspaceContainers(host);
+      record.slot.hidden = false;
+      this.workspaceBody.appendChild(record.slot);
+      this.workspaceBody.scrollTop = record.workspaceScrollTop || 0;
+      this.activeResearchId = record.messageId;
+    }
+    this.workspaceView = view;
+    this.researchWorkspaceSnapshot = { messageId: record.messageId, view };
+    this.root.dataset.activeComponent = 'true';
+    this.publishWorkspaceView(view);
+    if (focus) this.workspaceBody.focus({ preventScroll: true });
+    this.refresh();
+    return true;
+  };
+  selectWorkspaceItem = key => key.startsWith('research:')
+    ? this.activateResearchSurface(this.researchRecords.get(key.slice(9)), { explicit: true })
+    : this.activateComponent(this.records.get(key), { explicit: true });
   availableComponents = () => {
     if (!this.ownsSurface()) return [];
     const owners = new Set(this.messages().map(message => message.id));
@@ -191,9 +296,10 @@ export default class MetabloomVisuals extends React.Component {
     this.root.dataset.componentView = view;
   };
   setWorkspaceView = (view, { explicit = true, focus = false } = {}) => {
-    if (!this.mounted || !this.ownsSurface() || !this.activeVisualId || !['compact', 'expanded'].includes(view)) return false;
+    if (!this.mounted || !this.ownsSurface() || (!this.activeVisualId && !this.activeResearchId) || !['compact', 'expanded'].includes(view)) return false;
     if (explicit) this.workspaceSelectionRevision += 1;
     this.workspaceView = view;
+    if (this.activeResearchId) this.researchWorkspaceSnapshot = { messageId: this.activeResearchId, view };
     this.publishWorkspaceView(view);
     this.refresh();
     if (focus) {
@@ -210,7 +316,7 @@ export default class MetabloomVisuals extends React.Component {
       && event.target.matches?.('.metabloom-chat__composer textarea')) this.setWorkspaceView('compact', { explicit: false });
   };
   onWorkspaceBreakpoint = event => {
-    if (!this.activeVisualId) return;
+    if (!this.activeVisualId && !this.activeResearchId) return;
     const focused = document.activeElement;
     if (event.matches) this.setWorkspaceView(this.workspaceBody?.contains(focused) ? 'expanded' : 'compact', { explicit: false });
     else {
@@ -219,8 +325,10 @@ export default class MetabloomVisuals extends React.Component {
       else if (focused?.closest?.('.metabloom-chat__component-reply')) this.root.querySelector('.metabloom-chat__composer textarea')?.focus({ preventScroll: true });
     }
   };
-  clearWorkspace = () => {
+  clearWorkspace = ({ preserveResearch = false } = {}) => {
     this.activeVisualId = null;
+    this.activeResearchId = null;
+    if (!preserveResearch) this.researchWorkspaceSnapshot = null;
     this.workspaceView = 'compact';
     this.publishWorkspaceView('compact', { restoreReading: false });
     this.workspaceToolbar?.remove();
@@ -234,6 +342,8 @@ export default class MetabloomVisuals extends React.Component {
       || record.status !== 'ready' || !record.slot?.isConnected || !this.root.contains(record.slot)
       || !this.messages().some(message => message.id === owner)) return false;
     if (explicit) this.workspaceSelectionRevision += 1;
+    this.parkResearch();
+    this.researchWorkspaceSnapshot = null;
     if (view) this.workspaceView = view;
     if (this.activeVisualId === record.id) {
       this.publishWorkspaceView(this.workspaceView);
@@ -249,17 +359,9 @@ export default class MetabloomVisuals extends React.Component {
     this.activeVisualId = null;
     if (previous) this.placeAtOrigin(previous);
     this.ensureLauncher(record);
-    if (!this.workspaceToolbar) {
-      this.workspaceToolbar = document.createElement('div');
-      this.workspaceToolbar.className = 'metabloom-component-workspace__toolbar';
-      this.workspaceBody = document.createElement('div');
-      this.workspaceBody.className = 'metabloom-component-workspace__body';
-      this.workspaceBody.tabIndex = -1;
-    }
     // Re-appending a focused toolbar can blur its native select. Only attach
     // these persistent containers when returning from a closed workspace.
-    if (this.workspaceToolbar.parentNode !== host) host.appendChild(this.workspaceToolbar);
-    if (this.workspaceBody.parentNode !== host) host.appendChild(this.workspaceBody);
+    this.ensureWorkspaceContainers(host);
     const focused = record.slot.contains(document.activeElement) ? document.activeElement : null;
     this.workspaceBody.appendChild(record.slot);
     this.workspaceBody.scrollTop = record.workspaceScrollTop || 0;
@@ -272,6 +374,15 @@ export default class MetabloomVisuals extends React.Component {
     return true;
   };
   returnComponent = () => {
+    if (this.activeResearchId) {
+      const research = this.researchRecords.get(this.activeResearchId);
+      this.workspaceSelectionRevision += 1;
+      this.parkResearch();
+      this.clearWorkspace();
+      this.refresh();
+      research?.origin.querySelector('button')?.focus();
+      return;
+    }
     const record = this.records.get(this.activeVisualId);
     if (record && this.workspaceBody) record.workspaceScrollTop = this.workspaceBody.scrollTop;
     this.workspaceSelectionRevision += 1;
@@ -286,6 +397,17 @@ export default class MetabloomVisuals extends React.Component {
     const record = parsed && this.records.get(parsed.id);
     if (record?.artifactVersion === parsed?.version) this.activateComponent(record, { explicit: true, view: 'compact' });
   };
+  activateSubmittedResearch = reference => {
+    const parsed = parseMetabloomResearchReference(reference);
+    if (!parsed) return;
+    const retained = new Set(this.messages().map(message => message.id));
+    const matches = record => this.researchOriginIsOwned(record) && retained.has(record.messageId)
+      && record.source?.researchId === parsed.researchId
+      && (parsed.selector.type === 'report' || record.source.briefId === parsed.selector.briefId);
+    const active = this.researchRecords.get(this.activeResearchId);
+    const record = matches(active) ? active : Array.from(this.researchRecords.values()).reverse().find(matches);
+    if (record) this.activateResearchSurface(record, { explicit: true, view: 'compact' });
+  };
   activateGeneratedComponent = record => {
     const turn = record.generationTurn;
     if (turn && this.turn === turn && !turn.signal.aborted
@@ -295,6 +417,7 @@ export default class MetabloomVisuals extends React.Component {
     if (!this.mounted || !this.ownsSurface() || !(event?.detail instanceof Element) || !this.root.contains(event.detail)) return;
     this.releaseTurn();
     this.pendingSnapshot = undefined;
+    this.pendingResearchWorkspace = null;
     this.lastInteractedId = null;
     this.workspaceSelectionRevision += 1;
     for (const record of this.records.values()) {
@@ -303,8 +426,12 @@ export default class MetabloomVisuals extends React.Component {
       this.removeSlot(record);
     }
     this.records.clear();
+    // Reset retains the conversation and its completed reports. Close the
+    // workspace without leaving their existing Open research controls inert.
+    this.parkResearch();
     this.clearWorkspace();
     this.saveToolState?.('orbVisuals', null);
+    this.saveToolState?.('orbWorkspace', null);
     this.refresh();
   };
   refresh = () => { if (this.mounted) this.setState(state => ({ revision: state.revision + 1 })); };
@@ -364,6 +491,7 @@ export default class MetabloomVisuals extends React.Component {
     if (!turn) return;
     this.turn = turn;
     if (event.detail.artifactContext) this.activateSubmittedReference(event.detail.artifactContext);
+    else if (event.detail.researchContext) this.activateSubmittedResearch(event.detail.researchContext);
     turn.workspaceSelectionRevision = this.workspaceSelectionRevision;
     this.onTurnAbort = () => {
       if (this.turn !== turn) return;
@@ -439,7 +567,8 @@ export default class MetabloomVisuals extends React.Component {
     this.refresh();
   };
   reconcile = () => {
-    if (!this.mounted || !this.root || (!this.turn?.accepted && !this.turn?.started && this.records.size === 0)) return;
+    if (!this.mounted || !this.root || (!this.turn?.accepted && !this.turn?.started
+      && this.records.size === 0 && this.researchRecords.size === 0)) return;
     if (!this.ownsSurface()) {
       for (const record of this.records.values()) this.stop(record);
       this.releaseTurn();
@@ -447,6 +576,15 @@ export default class MetabloomVisuals extends React.Component {
     }
     const messages = this.messages();
     let changed = false;
+    for (const [id, record] of this.researchRecords) {
+      if (!this.researchOriginIsOwned(record)
+        || (typeof window.__orbMessages === 'function' && !messages.some(message => message.id === id))) {
+        if (this.activeResearchId === id) this.clearWorkspace();
+        this.researchRecords.delete(id);
+        record.slot.remove();
+        changed = true;
+      }
+    }
     for (const [id, record] of this.records) {
       const owner = record.replyId || record.userId;
       if (!record.slot.isConnected || !messages.some(message => message.id === owner)) {
@@ -584,28 +722,40 @@ export default class MetabloomVisuals extends React.Component {
     }
   };
   render() {
-    const active = this.records.get(this.activeVisualId);
-    const components = this.availableComponents();
+    const visual = this.records.get(this.activeVisualId);
+    const research = this.researchRecords.get(this.activeResearchId);
+    const active = visual || research;
+    const title = visual?.spec.title || research?.title;
+    const activeKey = visual?.id || (research && `research:${research.messageId}`);
+    const messageOrder = new Map(this.messages().map((message, index) => [message.id, index]));
+    const components = [
+      ...this.availableComponents().map(record => ({ key: record.id, title: record.spec.title,
+        kind: visualKindLabels[record.spec.kind], order: messageOrder.get(record.replyId || record.userId) ?? Infinity })),
+      ...Array.from(this.researchRecords.values()).filter(this.researchOriginIsOwned)
+        .map(record => ({ key: `research:${record.messageId}`, title: record.title, kind: 'Research',
+          order: messageOrder.get(record.messageId) ?? Infinity })),
+    ].sort((first, second) => first.order - second.order);
     return <>
       <span ref={this.captureAnchor} hidden aria-hidden="true" />
       {active && this.workspaceToolbar && createPortal(<>
         <div className="metabloom-component-workspace__identity">
-          <h3 title={active.spec.title} className={components.length > 1 ? 'metabloom-visual__sr-only' : undefined}>{active.spec.title}</h3>
+          <h3 title={title} className={components.length > 1 ? 'metabloom-visual__sr-only' : undefined}>{title}</h3>
           {components.length > 1 && <label className="metabloom-component-workspace__picker">
             <span className="metabloom-visual__sr-only">Components in this conversation</span>
-            <select value={active.id} onChange={event => this.activateComponent(this.records.get(event.target.value), { explicit: true })}>
-              {components.map((record, index) => <option key={record.id} value={record.id}>
-                {index + 1}. {record.spec.title} · {visualKindLabels[record.spec.kind]}
+            <select value={activeKey} onChange={event => this.selectWorkspaceItem(event.target.value)}>
+              {components.map((record, index) => <option key={record.key} value={record.key}>
+                {index + 1}. {record.title} · {record.kind}
               </option>)}
             </select>
           </label>}
-          <p className="metabloom-component-workspace__summary">{summarizeMetabloomVisual(active)}</p>
+          <p className="metabloom-component-workspace__summary">{visual ? summarizeMetabloomVisual(visual) : research.summary}</p>
         </div>
         <button type="button" data-workspace-toggle aria-expanded={this.workspaceView === 'expanded'}
           onClick={() => this.setWorkspaceView(this.workspaceView === 'expanded' ? 'compact' : 'expanded', { focus: true })}>
           {this.workspaceView === 'expanded' ? 'Back to chat' : 'Open'}
         </button>
-        <button type="button" aria-label="Return component to conversation" title="Return component to conversation" onClick={this.returnComponent}>×</button>
+        <button type="button" aria-label={research ? 'Return research to conversation' : 'Return component to conversation'}
+          title={research ? 'Return research to conversation' : 'Return component to conversation'} onClick={this.returnComponent}>×</button>
       </>, this.workspaceToolbar, 'workspace-toolbar')}
       {Array.from(this.records.values(), record => <React.Fragment key={record.id}>
         {createPortal(<MetabloomVisualBoundary><MetabloomVisualFrame artifact={record} workspace={this.activeVisualId === record.id} onStop={() => this.stop(record)}
