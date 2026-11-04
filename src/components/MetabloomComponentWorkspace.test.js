@@ -67,7 +67,7 @@ const researchState = ({ expired = false, reference = true } = {}) => {
       researchDetails: report, researchBrief: brief, ...(reference ? { researchReference: metadata } : {}) });
   return state;
 };
-function Harness({ navigation, visualRef }) {
+function Harness({ navigation, visualRef, isActive = true }) {
   const [controller, setController] = React.useState(null);
   const ready = React.useCallback(value => {
     setController(value);
@@ -75,7 +75,7 @@ function Harness({ navigation, visualRef }) {
   }, []);
   return <AppNavigationContext.Provider value={navigation}>
     <MetabloomWorkspaceContext.Provider value={controller}>
-      <div className="orb-page"><OrbSection /><MetabloomVisuals navigation={navigation} ref={visualRef} onWorkspaceReady={ready} /></div>
+      <div className="orb-page"><OrbSection isActive={isActive} /><MetabloomVisuals navigation={navigation} ref={visualRef} onWorkspaceReady={ready} /></div>
     </MetabloomWorkspaceContext.Provider>
   </AppNavigationContext.Provider>;
 }
@@ -498,17 +498,27 @@ test('a submitted exact reference opens its owned record, while another version 
 });
 
 test('navigation and StrictMode restore the active older component once without generation', async () => {
+  requestMetabloomSavedWork.mockResolvedValue({ items: [], nextCursor: null });
   const records = [record(1), record(2, { ...calculator, title: 'Newer estimate' })];
   const state = workspace(initialState(records, id(1)));
   const view = render(<React.StrictMode><Harness navigation={state.navigation} /></React.StrictMode>);
   const frame = await within(activeWorkspace()).findByRole('region', { name: calculator.title });
   fireEvent.change(within(frame).getByRole('spinbutton', { name: 'Hours' }), { target: { value: '23' } });
+  const launcher = within(activeWorkspace()).getByRole('button', { name: 'Saved work', exact: true });
+  expect(launcher).toBeEnabled();
+  await openWorkspaceSavedPanel();
+  fireEvent.click(screen.getByRole('button', { name: 'Close saved work' }));
+  expect(launcher).toHaveFocus();
   view.unmount();
   expect(state.cache.get('orbVisuals').activeVisualId).toBe(id(1));
   expect(state.cache.get('orbVisuals').records[0].viewState.inputs.hours).toBe('23');
   state.mount();
   const restored = await within(activeWorkspace()).findByRole('region', { name: calculator.title });
   expect(within(restored).getByRole('spinbutton', { name: 'Hours' })).toHaveValue(23);
+  expect(within(activeWorkspace()).getByRole('button', { name: 'Saved work', exact: true })).toBeEnabled();
+  await openWorkspaceSavedPanel();
+  expect(within(screen.getByRole('region', { name: 'Current work' })).getByText(calculator.title)).toBeVisible();
+  fireEvent.click(screen.getByRole('button', { name: 'Close saved work' }));
   expect(document.querySelectorAll('.metabloom-visual')).toHaveLength(2);
   expect(postMetabloomTool).not.toHaveBeenCalled();
   expect(requestMetabloomVisual).not.toHaveBeenCalled();
@@ -684,9 +694,16 @@ test('opening research prevents an older in-flight native result from taking ove
   requestMetabloomVisual.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
   send('Create a second interactive calculator.');
   await screen.findByRole('button', { name: 'Stop visual' });
+  expect(within(activeWorkspace()).getByRole('button', { name: 'Saved work', exact: true })).toBeDisabled();
   fireEvent.click(screen.getByRole('button', { name: 'Open research: Coastal evidence' }));
+  const savedLauncher = within(activeWorkspace()).getByRole('button', { name: 'Saved work', exact: true });
+  expect(savedLauncher).toBeDisabled();
+  fireEvent.click(savedLauncher);
+  expect(screen.queryByRole('dialog', { name: 'Saved work' })).not.toBeInTheDocument();
+  expect(requestMetabloomSavedWork).not.toHaveBeenCalled();
   await act(async () => finish({ spec: { ...calculator, title: 'New estimate' }, sources: [], artifactVersion: version(2) }));
   await screen.findByText('A new estimate is ready.');
+  expect(within(activeWorkspace()).getByRole('button', { name: 'Saved work', exact: true })).toBeEnabled();
   expect(within(activeWorkspace()).getByRole('region', { name: 'Coastal evidence' })).toBeVisible();
   expect(within(activeWorkspace()).queryByRole('region', { name: 'New estimate' })).not.toBeInTheDocument();
 });
@@ -701,20 +718,44 @@ const savedVisual = (artifact = savedArtifact()) => ({ artifact,
 const openSavedPanel = async () => {
   fireEvent.click(await screen.findByRole('button', { name: 'More', exact: true }));
   expect(screen.getByText('Reactions and previews', { selector: 'summary' }).parentElement).not.toHaveAttribute('open');
-  fireEvent.click(screen.getByRole('button', { name: 'Saved work', exact: true }));
+  fireEvent.click(within(screen.getByRole('dialog', { name: 'More options' })).getByRole('button', { name: 'Saved work', exact: true }));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Refresh list' })).toBeEnabled());
+  return screen.getByRole('dialog', { name: 'Saved work' });
+};
+const openWorkspaceSavedPanel = async () => {
+  fireEvent.click(await within(activeWorkspace()).findByRole('button', { name: 'Saved work', exact: true }));
   await waitFor(() => expect(screen.getByRole('button', { name: 'Refresh list' })).toBeEnabled());
   return screen.getByRole('dialog', { name: 'Saved work' });
 };
 
-test('Save captures the live scenario and associates the confirmed copy with its retained message', async () => {
+test('the workspace Saved launcher captures live inputs without changing the frozen attachment, form, or reading position', async () => {
   let confirm;
   requestMetabloomSavedWork.mockResolvedValueOnce({ items: [], nextCursor: null })
     .mockImplementationOnce(() => new Promise(resolve => { confirm = resolve; }));
   const state = workspace(initialState([record(1)], id(1))), view = state.mount();
   const frame = await screen.findByRole('region', { name: calculator.title });
-  fireEvent.change(within(frame).getByRole('spinbutton', { name: 'Hours' }), { target: { value: '20' } });
-  fireEvent.change(screen.getByRole('textbox'), { target: { value: 'My unfinished question' } });
-  await openSavedPanel();
+  const hours = within(frame).getByRole('spinbutton', { name: 'Hours' });
+  const composer = screen.getByRole('textbox');
+  fireEvent.click(within(frame).getByRole('button', { name: 'Ask about this scenario' }));
+  const attachment = screen.getByRole('group', { name: 'Selected visual reference' });
+  fireEvent.change(hours, { target: { value: '20' } });
+  fireEvent.change(composer, { target: { value: 'My unfinished question' } });
+  const body = frame.closest('.metabloom-component-workspace__body');
+  body.scrollTop = 90;
+  const launcher = within(activeWorkspace()).getByRole('button', { name: 'Saved work', exact: true });
+  expect(launcher).toHaveTextContent('Saved');
+  expect(launcher).toHaveAttribute('aria-haspopup', 'dialog');
+  await openWorkspaceSavedPanel();
+  expect(requestMetabloomSavedWork.mock.calls.map(([request]) => request)).toEqual([{ action: 'list', limit: 20 }]);
+  expect(document.querySelectorAll('.metabloom-visual')).toHaveLength(1);
+  expect(screen.getAllByRole('form', { name: 'Message Metabloom' })).toHaveLength(1);
+  expect(screen.getByRole('textbox')).toBe(composer);
+  expect(within(activeWorkspace()).getByRole('region', { name: calculator.title })).toBe(frame);
+  expect(body.scrollTop).toBe(90);
+  expect(attachment).toHaveTextContent('Hours: 17 · Hourly rate: 85 CAD · Result: 1,445 CAD');
+  expect(requests).toHaveLength(0);
+  expect(requestMetabloomVisual).not.toHaveBeenCalled();
+  expect(postMetabloomTool).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button', { name: 'Save current work' }));
   expect(requestMetabloomSavedWork.mock.calls[1][0]).toEqual({ action: 'save', requestId: expect.any(String), title: 'Project price',
     source: { kind: 'visual', id: id(1), artifactVersion: version(1) }, scenario: { inputs: { hours: 20, rate: 85 } } });
@@ -723,13 +764,111 @@ test('Save captures the live scenario and associates the confirmed copy with its
   expect(window.__orbMessages().find(message => message.id === 'assistant-2').savedArtifact).toEqual(savedArtifact());
   expect(screen.getByRole('button', { name: 'Saved', exact: true })).toBeDisabled();
   fireEvent.click(screen.getByRole('button', { name: 'Close saved work' }));
-  expect(screen.getByRole('button', { name: 'More', exact: true })).toHaveFocus();
-  expect(screen.getByRole('textbox')).toHaveValue('My unfinished question');
-  expect(within(frame).getByRole('spinbutton', { name: 'Hours' })).toHaveValue(20);
+  expect(launcher).toHaveFocus();
+  expect(composer).toHaveValue('My unfinished question');
+  expect(within(frame).getByRole('spinbutton', { name: 'Hours' })).toBe(hours);
+  expect(hours).toHaveValue(20);
+  expect(body.scrollTop).toBe(90);
+  expect(screen.getByRole('group', { name: 'Selected visual reference' })).toBe(attachment);
+  expect(attachment).toHaveTextContent('Hours: 17 · Hourly rate: 85 CAD · Result: 1,445 CAD');
   view.unmount();
   expect(state.cache.get('orb').messages.find(message => message.id === 'assistant-2').savedArtifact).toEqual(savedArtifact());
   expect(requests).toHaveLength(0);
   expect(requestMetabloomVisual).not.toHaveBeenCalled();
+});
+
+test('the workspace Saved launcher follows selected research and Escape restores its reading state and opener', async () => {
+  const artifact = savedArtifact({ kind: 'research', title: 'Coastal evidence' });
+  requestMetabloomSavedWork.mockResolvedValueOnce({ items: [], nextCursor: null }).mockResolvedValueOnce({ artifact });
+  workspace(researchState()).mount();
+  const calculatorFrame = await screen.findByRole('region', { name: calculator.title });
+  const hours = within(calculatorFrame).getByRole('spinbutton', { name: 'Hours' });
+  fireEvent.change(hours, { target: { value: '20' } });
+  fireEvent.click(await screen.findByRole('button', { name: 'Open research: Coastal evidence' }));
+  const brief = within(activeWorkspace()).getByRole('region', { name: 'Coastal evidence' });
+  fireEvent.click(within(brief).getByRole('button', { name: 'Use this finding' }));
+  const attachment = screen.getByRole('group', { name: 'Selected research reference' });
+  const composer = screen.getByRole('textbox');
+  fireEvent.change(composer, { target: { value: 'Keep my question about finding one' } });
+  const choice = within(brief).getByRole('combobox', { name: 'Choose a finding' });
+  fireEvent.change(choice, { target: { value: '1' } });
+  const finding = within(brief).getByRole('article', { name: 'Finding 2' });
+  const analysis = within(finding).getByText('Analysis and context', { selector: 'summary' });
+  fireEvent.click(analysis);
+  const body = brief.closest('.metabloom-component-workspace__body');
+  body.scrollTop = 160;
+  const launcher = within(activeWorkspace()).getByRole('button', { name: 'Saved work', exact: true });
+  const dialog = await openWorkspaceSavedPanel();
+  expect(screen.queryByRole('dialog', { name: 'More options' })).not.toBeInTheDocument();
+  expect(within(dialog).getByRole('region', { name: 'Current work' })).toHaveTextContent('Coastal evidence');
+  expect(requestMetabloomSavedWork.mock.calls.map(([request]) => request)).toEqual([{ action: 'list', limit: 20 }]);
+  expect(attachment).toHaveTextContent('Finding 1');
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Save current work' }));
+  await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Saved', exact: true })).toBeDisabled());
+  expect(requestMetabloomSavedWork.mock.calls[1][0]).toEqual({ action: 'save', requestId: expect.any(String), title: 'Coastal evidence',
+    source: { kind: 'research', researchId: 'a'.repeat(48), briefId: 'b'.repeat(32) } });
+  expect(window.__orbMessages().find(message => message.id === 'assistant-4').savedArtifact).toEqual(artifact);
+  expect(window.__orbMessages().find(message => message.id === 'assistant-2')).not.toHaveProperty('savedArtifact');
+  fireEvent(dialog, new Event('cancel', { cancelable: true }));
+  expect(screen.queryByRole('dialog', { name: 'Saved work' })).not.toBeInTheDocument();
+  expect(launcher).toHaveFocus();
+  expect(within(activeWorkspace()).getByRole('region', { name: 'Coastal evidence' })).toBe(brief);
+  expect(choice).toHaveDisplayValue('Finding 2 of 2');
+  expect(analysis.parentElement).toHaveAttribute('open');
+  expect(body.scrollTop).toBe(160);
+  expect(screen.getByRole('group', { name: 'Selected research reference' })).toBe(attachment);
+  expect(attachment).toHaveTextContent('Finding 1');
+  expect(screen.getByRole('textbox')).toBe(composer);
+  expect(composer).toHaveValue('Keep my question about finding one');
+  fireEvent.change(screen.getByRole('combobox', { name: 'Components in this conversation' }), { target: { value: id(1) } });
+  expect(within(activeWorkspace()).getByRole('spinbutton', { name: 'Hours' })).toBe(hours);
+  expect(hours).toHaveValue(20);
+  expect(screen.getAllByRole('form', { name: 'Message Metabloom' })).toHaveLength(1);
+  expect(requests).toHaveLength(0);
+  expect(requestMetabloomVisual).not.toHaveBeenCalled();
+  expect(postMetabloomTool).not.toHaveBeenCalled();
+});
+
+test('the workspace Saved launcher cannot open during a reply or while the conversation is inactive', async () => {
+  requestMetabloomSavedWork.mockResolvedValue({ items: [], nextCursor: null });
+  const state = workspace(initialState([record(1)], id(1)));
+  const view = render(<Harness navigation={state.navigation} />);
+  const launcher = await within(activeWorkspace()).findByRole('button', { name: 'Saved work', exact: true });
+  send('Explain the estimate.');
+  await waitFor(() => expect(requests).toHaveLength(1));
+  expect(launcher).toBeDisabled();
+  fireEvent.click(launcher);
+  expect(screen.queryByRole('dialog', { name: 'Saved work' })).not.toBeInTheDocument();
+  expect(requestMetabloomSavedWork).not.toHaveBeenCalled();
+  await act(async () => requests[0].finish(envelope('The estimate is ready to review.')));
+  await screen.findByText('The estimate is ready to review.');
+  expect(launcher).toBeEnabled();
+  view.rerender(<Harness navigation={state.navigation} isActive={false} />);
+  expect(launcher).toBeDisabled();
+  fireEvent.click(launcher);
+  expect(screen.queryByRole('dialog', { name: 'Saved work' })).not.toBeInTheDocument();
+  expect(requestMetabloomSavedWork).not.toHaveBeenCalled();
+  view.rerender(<Harness navigation={state.navigation} />);
+  expect(launcher).toBeEnabled();
+  await openWorkspaceSavedPanel();
+  expect(requestMetabloomSavedWork).toHaveBeenCalledTimes(1);
+  view.rerender(<Harness navigation={state.navigation} isActive={false} />);
+  expect(screen.queryByRole('dialog', { name: 'Saved work' })).not.toBeInTheDocument();
+  expect(launcher).toBeDisabled();
+});
+
+test('More keeps Saved work available without adding a launcher to an empty workspace', async () => {
+  requestMetabloomSavedWork.mockResolvedValue({ items: [], nextCursor: null });
+  workspace().mount();
+  expect(within(activeWorkspace()).queryByRole('button', { name: 'Saved work', exact: true })).not.toBeInTheDocument();
+  const dialog = await openSavedPanel();
+  expect(within(dialog).queryByRole('button', { name: 'Save current work' })).not.toBeInTheDocument();
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Close saved work' }));
+  expect(screen.getByRole('button', { name: 'More', exact: true })).toHaveFocus();
+  expect(requestMetabloomSavedWork.mock.calls.map(([request]) => request)).toEqual([{ action: 'list', limit: 20 }]);
+  expect(requests).toHaveLength(0);
+  expect(requestMetabloomVisual).not.toHaveBeenCalled();
+  expect(postMetabloomTool).not.toHaveBeenCalled();
 });
 
 test('an unfinished calculator cannot silently save its initial values instead', async () => {

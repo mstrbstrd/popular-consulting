@@ -42,10 +42,15 @@
   padding: 0.7rem 1rem; font: 1.1rem/1.4 var(--aetheris-font-mono); cursor: pointer;
 }
 .orb-page .metabloom-component-workspace__toolbar > button { flex: 0 0 auto; border-color: transparent; background: transparent; }
-.orb-page .metabloom-component-workspace__toolbar > button:not([data-workspace-toggle]) {
+.orb-page .metabloom-component-workspace__toolbar > [data-workspace-return] {
   flex-basis: 4.4rem; width: 4.4rem; min-width: 4.4rem; padding: 0;
   font: 2rem/1 var(--aetheris-font-sans);
 }
+.orb-page .metabloom-component-workspace__toolbar > [data-workspace-saved] {
+  min-width: 44px; min-height: 44px; padding: 6px 8px;
+  font: 600 12px/1.3 var(--aetheris-font-sans); white-space: nowrap;
+}
+.orb-page .metabloom-component-workspace__toolbar > [data-workspace-saved]:disabled { cursor: default; opacity: 0.55; }
 .orb-page .metabloom-component-workspace__body { flex: 1; min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; }
 .orb-page .metabloom-component-workspace__body:focus-visible,
 .orb-page .metabloom-component-workspace__toolbar > button:focus-visible,

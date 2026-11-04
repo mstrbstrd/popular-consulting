@@ -1,5 +1,20 @@
 # Orb chat and component workspace
 
+## Saved work access
+
+The active component or research workspace has a compact **Saved** control in
+its existing toolbar. Its accessible name is **Saved work**, and it opens the
+existing panel with the current owned work captured at the time of the click.
+The More menu remains available for opening the library without an active item.
+Opening the panel lists saved work but does not save or regenerate content.
+
+The launcher respects pending, inactive and generation states. Closing or
+cancelling the panel returns focus to the launcher while preserving the workspace
+view, renderer, input drafts, reading position and frozen composer attachment.
+The same row contains the control on mobile, with a minimum 44px touch target.
+Integrated controller tests cover native and research sources, component
+switching, focus return, StrictMode cleanup and the More-menu fallback.
+
 ## Exact selected context
 
 The composer shows the values captured by **Ask about this**, including calculator inputs and the calculated result. This is a frozen selection. Changing the live component never silently changes the next message's attached context.

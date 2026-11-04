@@ -53,6 +53,7 @@ export default class MetabloomVisuals extends React.Component {
   activeResearchId = null;
   workspaceView = 'compact';
   workspaceSelectionRevision = 0;
+  savedWorkAction = null;
   anchor = null;
   captureAnchor = node => { this.anchor = node; };
   componentDidMount() {
@@ -89,6 +90,7 @@ export default class MetabloomVisuals extends React.Component {
       this.pendingResearchWorkspace = retained;
     }
     this.mounted = false;
+    this.savedWorkAction = null;
     this.releaseWorkspace?.();
     window.removeEventListener('metabloom:user-message', this.onUserMessage);
     window.removeEventListener(METABLOOM_VISUAL_OFFER_EVENT, this.onOffer);
@@ -185,6 +187,25 @@ export default class MetabloomVisuals extends React.Component {
   savedArtifactFor = record => parseMetabloomSavedWorkMetadata(this.messages()
     .find(message => message.id === (record.replyId || record.messageId))?.savedArtifact);
   visualTitle = record => this.savedArtifactFor(record)?.title || record.spec.title;
+  registerSavedWorkAction = action => {
+    if (typeof action?.open !== 'function') return undefined;
+    this.savedWorkAction = action;
+    this.refresh();
+    return () => {
+      if (this.savedWorkAction !== action) return;
+      this.savedWorkAction = null;
+      this.refresh();
+    };
+  };
+  savedWorkDisabled = () => !this.savedWorkAction || this.savedWorkAction.disabled || !this.captureSavedWorkContext()
+    || Array.from(this.records.values()).some(record => record.status === 'generating' && !record.controller.signal.aborted);
+  openSavedWork = event => {
+    if (this.savedWorkDisabled()) return;
+    // Safari does not always focus clicked buttons. Give the existing modal a
+    // stable opener so closing it cannot focus the composer and collapse work.
+    event.currentTarget.focus({ preventScroll: true });
+    this.savedWorkAction.open();
+  };
   captureSavedWorkContext = () => {
     if (!this.mounted || !this.workspaceHost()) return null;
     const messages = this.messages();
@@ -799,11 +820,13 @@ export default class MetabloomVisuals extends React.Component {
             <p className="metabloom-component-workspace__revision">Working from revision {savedArtifact.revision} · Latest {savedArtifact.headRevision}</p>}
           <p className="metabloom-component-workspace__summary">{visual ? summarizeMetabloomVisual(visual) : research.summary}</p>
         </div>
+        {this.savedWorkAction && <button type="button" data-workspace-saved aria-label="Saved work" aria-haspopup="dialog"
+          disabled={this.savedWorkDisabled()} onClick={this.openSavedWork}>Saved</button>}
         <button type="button" data-workspace-toggle aria-expanded={this.workspaceView === 'expanded'}
           onClick={() => this.setWorkspaceView(this.workspaceView === 'expanded' ? 'compact' : 'expanded', { focus: true })}>
           {this.workspaceView === 'expanded' ? 'Back to chat' : 'Open'}
         </button>
-        <button type="button" aria-label={research ? 'Return research to conversation' : 'Return component to conversation'}
+        <button type="button" data-workspace-return aria-label={research ? 'Return research to conversation' : 'Return component to conversation'}
           title={research ? 'Return research to conversation' : 'Return component to conversation'} onClick={this.returnComponent}>×</button>
       </>, this.workspaceToolbar, 'workspace-toolbar')}
       {Array.from(this.records.values(), record => <React.Fragment key={record.id}>

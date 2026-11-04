@@ -707,6 +707,9 @@ const OrbSection = ({
     savedWorkRef.current = session;
     setSavedWork(session);
   }, [isActive, workspace]);
+  React.useLayoutEffect(() => workspace?.registerSavedWorkAction?.({
+    open: openSavedWork, disabled: pending || !isActive,
+  }), [isActive, openSavedWork, pending, workspace]);
   const acceptSavedWork = React.useCallback((artifact, capturedContext) => {
     const session = savedWorkRef.current;
     const origin = capturedContext || session?.saveContext;
