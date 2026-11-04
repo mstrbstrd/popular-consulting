@@ -218,8 +218,8 @@
   .orb-page .metabloom-visual__header { flex-wrap: wrap; }
   .orb-page .metabloom-visual__bar-label { flex-wrap: wrap; gap: 0.2rem; }
 }
-/* Keep the current result and editable values at the start of a short mobile
-   workspace. All explanations, sliders, sources and actions remain reachable. */
+/* Keep workspace controls compact while preserving the in-chat order:
+   editable values, calculated result, then supporting actions and details. */
 .orb-page .metabloom-chat__workspace .metabloom-visual {
   margin: 0; padding: 1rem; border: 0; border-radius: 0; background: transparent;
   backdrop-filter: none; -webkit-backdrop-filter: none; box-shadow: none;
@@ -228,8 +228,8 @@
 .orb-page .metabloom-chat__workspace .metabloom-visual__content { display: flex; flex-direction: column; }
 .orb-page .metabloom-chat__workspace .metabloom-visual__calculator { display: flex; flex-direction: column; }
 .orb-page .metabloom-chat__workspace .metabloom-visual__result {
-  order: -1; display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between;
-  gap: 0.3rem 0.8rem; margin: 0 0 0.8rem; padding: 0.6rem 0.8rem;
+  display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between;
+  gap: 0.3rem 0.8rem; margin: 0.8rem 0; padding: 0.6rem 0.8rem;
 }
 .orb-page .metabloom-chat__workspace .metabloom-visual output { font-size: 1.8rem; }
 .orb-page .metabloom-chat__workspace .metabloom-visual__fields { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.8rem; margin-top: 0; }

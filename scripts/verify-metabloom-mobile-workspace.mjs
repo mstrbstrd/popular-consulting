@@ -380,6 +380,8 @@ try {
       assert.equal(await reference.getAttribute('data-artifact-reference'), referenceId);
       assert.equal(await reference.textContent(), referenceLabel);
       await changeView(page, 'expanded');
+      // Keep inputs before the result, as in chat; a short workspace can scroll to it.
+      await page.locator('.metabloom-chat__workspace output').scrollIntoViewIfNeeded();
       await capture(page, `${activeCase}-short-keyboard-expanded`, { short: true, view: 'expanded' });
       assert.equal(await input.inputValue(), draft, 'Opening a component preserves the current draft');
       assert.equal(await reference.getAttribute('data-artifact-reference'), referenceId);

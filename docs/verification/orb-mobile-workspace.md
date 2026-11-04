@@ -69,8 +69,9 @@ When the keyboard leaves a short viewport, composer accessories such as selected
 references or error messages scroll separately from the message form. This
 keeps Send and Stop reachable even with a multiline draft or a research reference.
 
-The calculator shows its result first in expanded view and keeps its editable
-inputs side by side. Additional explanations and provenance are under Details.
+The calculator keeps its editable inputs side by side, followed by the calculated
+result, matching the in-chat order. In short keyboard viewports, the workspace
+scrolls to keep the result reachable. Additional explanations and provenance are under Details.
 The workspace provides the component title once, without another title inside
 the frame. Touch controls retain at least 44-pixel targets and editable fields
 retain 16-pixel text on phones.
