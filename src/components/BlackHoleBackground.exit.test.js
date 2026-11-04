@@ -58,3 +58,25 @@ test('a delayed first GPU sample already includes elapsed camera travel', () => 
   expect(mockReadFrame(2000, false).zoom).toBe(last);
   expect(BlackHolePipeline).toHaveBeenCalledTimes(1);
 });
+
+test.each(['/orb', '/orb/', '/orb/index.html'])(
+  'the persistent dark background clears pointer state on %s and resumes it on Home', pathname => {
+    const routeScene = route => <><div className="fixed-background" />
+      <BlackHoleBackground isDark activeSection={1} pathname={route} /></>;
+    const move = (x, y) => window.dispatchEvent(new MouseEvent('pointermove', {
+      clientX: window.innerWidth * x, clientY: window.innerHeight * y,
+    }));
+    const { rerender } = render(routeScene('/home'));
+    move(0.9, 0.1);
+    expect(mockReadFrame(100, false).mouseX).toBeGreaterThan(0.5);
+    rerender(routeScene(pathname));
+    expect(mockReadFrame(200, false)).toMatchObject({ mouseX: 0.5, mouseY: 0.35, time: 0.2 });
+    move(0.1, 0.9);
+    expect(mockReadFrame(300, false)).toMatchObject({ mouseX: 0.5, mouseY: 0.35, time: 0.3 });
+    rerender(routeScene('/home'));
+    expect(mockReadFrame(400, false)).toMatchObject({ mouseX: 0.5, mouseY: 0.35 });
+    move(0.2, 0.3);
+    expect(mockReadFrame(500, false).mouseX).toBeLessThan(0.5);
+    expect(BlackHolePipeline).toHaveBeenCalledTimes(1);
+  },
+);

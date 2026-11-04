@@ -438,6 +438,7 @@ const extractCorrelatedResponse = (detail) => {
 
 const OrbSection = ({
   isActive = true,
+  pointerReactive = true,
   onConversationStateChange,
   onReady,
   threadSession = null,
@@ -2520,6 +2521,7 @@ const OrbSection = ({
           onReady={onReady}
           onPulse={pulse}
           paused={paused}
+          pointerReactive={pointerReactive}
           pulseVersion={pulseVersion}
           resetVersion={resetVersion}
           talking={talking}

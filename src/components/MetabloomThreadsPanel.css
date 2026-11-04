@@ -7,6 +7,8 @@
   pointer-events: auto;
 }
 .orb-page .metabloom-threads {
+  /* Glass affects the surface, never the opacity of its text. */
+  --aetheris-ink-2: color-mix(in srgb, var(--aetheris-ink) 90%, var(--aetheris-muted));
   position: relative;
   isolation: isolate;
   display: flex;
@@ -18,20 +20,24 @@
   overflow: hidden;
   border: 1px solid var(--aetheris-line-strong);
   border-radius: var(--aetheris-radius-glass);
-  background: var(--aetheris-card-panel-raised);
+  background: var(--aetheris-glass-surface);
   box-shadow: var(--aetheris-glass-specular), var(--aetheris-shadow);
-  backdrop-filter: var(--aetheris-glass-blur);
-  -webkit-backdrop-filter: var(--aetheris-glass-blur);
+  backdrop-filter: var(--aetheris-glass-blur-chrome);
+  -webkit-backdrop-filter: var(--aetheris-glass-blur-chrome);
+}
+:where([data-theme='dark']) .orb-page .metabloom-threads {
+  background: var(--aetheris-glass-panel-raised);
 }
 .orb-page .metabloom-threads::before,
-.orb-page .metabloom-threads__trigger::before {
+.orb-page .metabloom-threads__trigger::before,
+.orb-page .metabloom-threads button.metabloom-threads__new::before {
   content: '';
   position: absolute;
   inset: 0;
   z-index: 2;
   padding: 1px;
   border-radius: inherit;
-  background: var(--aetheris-spectral-border-soft);
+  background: var(--aetheris-glass-ring-veil), var(--aetheris-spectral-border-soft);
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
@@ -52,7 +58,7 @@
   border: 1px solid var(--aetheris-line-strong);
   border-radius: var(--aetheris-radius-md);
   color: var(--aetheris-ink);
-  background: var(--aetheris-glass-surface);
+  background: color-mix(in srgb, var(--aetheris-glass-surface) 45%, transparent);
   font: 500 11px/1.4 var(--aetheris-font-mono);
   letter-spacing: 0.02em;
   text-align: center;
@@ -87,8 +93,7 @@
 .orb-page .metabloom-threads button.metabloom-threads__new {
   width: 100%;
   border-color: transparent;
-  background: linear-gradient(var(--aetheris-panel), var(--aetheris-panel)) padding-box,
-    var(--aetheris-spectral-border-soft) border-box;
+  background: color-mix(in srgb, var(--aetheris-glass-surface) 45%, transparent);
   box-shadow: var(--aetheris-glass-specular);
 }
 .orb-page .metabloom-threads__new > span { font: 400 20px/1 var(--aetheris-font-sans); }
@@ -115,7 +120,7 @@
 .orb-page .metabloom-threads__open > span { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; max-height: 2.9em; overflow: hidden; overflow-wrap: anywhere; }
 .orb-page .metabloom-threads__date { color: var(--aetheris-ink-2); font: 400 10px/1.5 var(--aetheris-font-mono); overflow-wrap: anywhere; }
 .orb-page .metabloom-threads__table td.metabloom-threads__editing-cell { padding: 8px 0; }
-.orb-page .metabloom-threads__editing { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--aetheris-line-strong); border-radius: var(--aetheris-radius-md); background: var(--aetheris-panel); }
+.orb-page .metabloom-threads__editing { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--aetheris-line-strong); border-radius: var(--aetheris-radius-md); background: var(--aetheris-glass-panel); }
 .orb-page .metabloom-threads__actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .orb-page .metabloom-threads__actions > button { flex: 1 1 80px; }
 .orb-page .metabloom-threads__editing form { display: grid; gap: 8px; }
@@ -190,13 +195,18 @@
 @media (prefers-reduced-motion: reduce) {
   .orb-page .metabloom-threads :where(button, input), .orb-page .metabloom-threads__trigger { transition: none; }
 }
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .orb-page .metabloom-threads, .orb-page .metabloom-threads__trigger { background: var(--aetheris-panel); }
+}
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
   .orb-page .metabloom-threads, .orb-page .metabloom-threads__trigger { background: var(--aetheris-panel); backdrop-filter: none; -webkit-backdrop-filter: none; }
 }
 @media (forced-colors: active) {
   .orb-page .metabloom-threads { border-color: CanvasText; background: Canvas; color: CanvasText; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
-  .orb-page .metabloom-threads::before, .orb-page .metabloom-threads__trigger::before { display: none; }
-  .orb-page .metabloom-threads :where(button, input), .orb-page .metabloom-threads__trigger { border: 1px solid ButtonText; background: ButtonFace; color: ButtonText; box-shadow: none; }
+  .orb-page .metabloom-threads::before, .orb-page .metabloom-threads__trigger::before,
+  .orb-page .metabloom-threads button.metabloom-threads__new::before { display: none; }
+  .orb-page .metabloom-threads :where(button, input), .orb-page .metabloom-threads__trigger,
+  .orb-page .metabloom-threads button.metabloom-threads__new { border: 1px solid ButtonText; background: ButtonFace; color: ButtonText; box-shadow: none; }
   .orb-page .metabloom-threads__table tr[data-current='true'] { outline: 1px solid Highlight; }
   .orb-page .metabloom-threads :where(button, input):focus-visible, .orb-page .metabloom-threads__trigger:focus-visible { outline: 2px solid Highlight; box-shadow: none; }
 }

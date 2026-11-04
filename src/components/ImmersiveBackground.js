@@ -38,10 +38,11 @@ const fallbackOrbs = [
 // Authentication controls the foreground, never the public decorative field.
 export default function ImmersiveBackground({ activeSection = 0, pathname = window.location.pathname, transitionPhase = 'idle' }) {
   const { isDark } = useThemeMode();
-  // Popcan is an editor, not an interactive hero. Keep both shared light
-  // renderers autonomous even when the index scene survives navigation.
-  const isPopcan = routeMetadataFor(pathname)?.path === '/popcan';
-  const pointerReactive = !isPopcan;
+  // Tool backgrounds stay autonomous even when the live index scene survives
+  // navigation. Cursor movement and gestures belong to their foreground UI.
+  const route = routeMetadataFor(pathname)?.path;
+  const isPopcan = route === '/popcan';
+  const pointerReactive = !isPopcan && route !== '/orb';
   const popcanNightLattice = isDark && isPopcan;
   const previousPhase = React.useRef(transitionPhase);
   useEffect(() => {

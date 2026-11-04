@@ -211,9 +211,10 @@ describe("MetabloomAvatar", () => {
     expect(screen.getByTestId("metabloom-avatar")).toHaveAttribute("data-avatar-theme", "metabloom");
   });
 
-  test("keeps keyboard and pointer pulse activation on the live field", () => {
+  test.each([true, false])("keeps deliberate pulse activation when pointer reactivity is %s", (pointerReactive) => {
     const onPulse = jest.fn();
-    render(<MetabloomAvatar onPulse={onPulse} />);
+    render(<MetabloomAvatar onPulse={onPulse} pointerReactive={pointerReactive} />);
+    expect(mockFieldProps.pointerReactive).toBe(pointerReactive);
 
     const avatar = screen.getByRole("button", {
       name: /activate to send a pulse through it/i,

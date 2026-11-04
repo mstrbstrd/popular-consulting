@@ -56,6 +56,8 @@
 }
 
 .orb-page .metabloom-reactions__panel {
+  /* Keep small labels legible where the scene shows through the glass. */
+  --aetheris-ink-2: color-mix(in srgb, var(--aetheris-ink) 90%, var(--aetheris-muted));
   position: fixed;
   inset: auto;
   left: 0;
@@ -70,11 +72,14 @@
   isolation: isolate;
   border: 1px solid transparent;
   border-radius: var(--aetheris-radius-glass);
-  background: var(--aetheris-glass-panel);
+  background: var(--aetheris-glass-surface);
   color: inherit;
   box-shadow: var(--aetheris-glass-specular), var(--aetheris-shadow);
-  backdrop-filter: var(--aetheris-glass-blur);
-  -webkit-backdrop-filter: var(--aetheris-glass-blur);
+  backdrop-filter: var(--aetheris-glass-blur-chrome);
+  -webkit-backdrop-filter: var(--aetheris-glass-blur-chrome);
+}
+:where([data-theme="dark"]) .orb-page .metabloom-reactions__panel {
+  background: var(--aetheris-glass-panel-raised);
 }
 .orb-page .metabloom-reactions__panel::backdrop {
   background: rgba(8, 8, 9, 0.12);
@@ -235,7 +240,7 @@
 }
 .orb-page .metabloom-reactions__recipes button { padding-inline: 8px; }
 
-.metabloom-reactions__workspace-tools { display: grid; margin-bottom: 16px; }
+.metabloom-reactions__workspace-tools { display: grid; gap: 8px; margin-bottom: 16px; }
 .orb-page .metabloom-reactions .metabloom-reactions__saved-tool {
   display: grid;
   grid-template-columns: 24px minmax(0, 1fr) 16px;
@@ -244,13 +249,13 @@
   width: 100%;
   padding: 16px 12px;
   border-color: transparent;
-  background: var(--aetheris-glass-panel-raised);
+  background: color-mix(in srgb, var(--aetheris-glass-surface) 45%, transparent);
   box-shadow: var(--aetheris-glass-specular);
   text-align: left;
   letter-spacing: normal;
 }
 .orb-page .metabloom-reactions .metabloom-reactions__saved-tool:hover:not(:disabled) {
-  background: var(--aetheris-panel-raised);
+  background: color-mix(in srgb, var(--aetheris-glass-surface) 70%, transparent);
   border-color: transparent;
 }
 .metabloom-reactions__saved-tool > svg { display: block; color: var(--aetheris-ink-2); }
@@ -298,7 +303,10 @@
 @media (prefers-reduced-motion: reduce) {
   .orb-page .metabloom-reactions button { transition: none; }
 }
-@media (prefers-reduced-transparency: reduce), (prefers-reduced-motion: reduce) {
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .orb-page .metabloom-reactions__panel { background: var(--aetheris-panel); }
+}
+@media (prefers-reduced-transparency: reduce), (prefers-reduced-motion: reduce), (prefers-contrast: more) {
   .orb-page .metabloom-reactions__panel,
   .orb-page .metabloom-reactions__toolbar button {
     backdrop-filter: none;

@@ -3,9 +3,11 @@ import { cleanup, render } from '@testing-library/react';
 import ImmersiveBackground from './ImmersiveBackground';
 import { ThemeCtx } from '../contexts/ThemeContext';
 
-jest.mock('../utils/deviceTier', () => ({ hasHardwareWebGL: true, isMobileTier: false }));
+let mockMobile = false;
+jest.mock('../utils/deviceTier', () => ({ hasHardwareWebGL: true, get isMobileTier() { return mockMobile; } }));
 jest.mock('../utils/graphicsPolicy', () => ({ shouldAttemptWebGL: true }));
-jest.mock('./ManagedDitherBackground', () => () => <canvas />);
+jest.mock('./ManagedDitherBackground', () => ({ pointerReactive }) =>
+  <canvas data-testid="legacy-field" data-pointer-reactive={String(pointerReactive)} />);
 jest.mock('./ProductionThemeCanvas', () => ({ theme, latticeAppearance, pointerReactive, runtimeScope }) => (
   <canvas data-testid="lattice-field" data-theme-pipeline={theme}
     data-lattice-appearance={latticeAppearance || "day"}
@@ -16,6 +18,7 @@ jest.mock('./BlackHoleBackground', () => ({ exiting }) => <canvas data-testid="d
 const originalMatchMedia = window.matchMedia;
 let reduced;
 beforeEach(() => {
+  mockMobile = false;
   reduced = false;
   window.__ditherRevealIn = jest.fn();
   window.__ditherRevealOut = jest.fn();
@@ -104,4 +107,18 @@ test('never shrinks the black-hole canvas or fallback during route exits', () =>
   expect(css).not.toMatch(/transform:\s*scale\(/);
   expect(css).toContain('transition: opacity 650ms ease;');
   expect(css).toContain('[data-transition-phase="covered"]');
+});
+
+test.each([false, true])('light backgrounds keep a live passive field on Orb (mobile: %s)', mobile => {
+  mockMobile = mobile;
+  const { rerender, getByTestId } = render(<ImmersiveBackground pathname="/home" />);
+  const field = getByTestId(mobile ? 'lattice-field' : 'legacy-field');
+  expect(field).toHaveAttribute('data-pointer-reactive', 'true');
+  for (const pathname of ['/orb', '/orb/', '/orb/index.html', '/popcan']) {
+    rerender(<ImmersiveBackground pathname={pathname} />);
+    expect(field).toHaveAttribute('data-pointer-reactive', 'false');
+    expect(getByTestId(mobile ? 'lattice-field' : 'legacy-field')).toBe(field);
+  }
+  rerender(<ImmersiveBackground pathname="/home" />);
+  expect(field).toHaveAttribute('data-pointer-reactive', 'true');
 });

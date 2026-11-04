@@ -46,7 +46,7 @@ const OrbConversationSurface = ({ navigation, threadSession, threadPanel, thread
   }, []);
   return <AppNavigationContext.Provider value={navigation}>
     <MetabloomWorkspaceContext.Provider value={workspaceController}>
-      <OrbSection isActive onConversationStateChange={onConversationStateChange} onReady={onReady}
+      <OrbSection isActive pointerReactive={false} onConversationStateChange={onConversationStateChange} onReady={onReady}
         threadSession={threadSession} threadPanel={threadPanel} threadBusy={threadBusy} onShowThreads={onShowThreads} />
       <MetabloomVisuals navigation={navigation} onWorkspaceReady={handleWorkspaceReady} threadSession={threadSession} />
     </MetabloomWorkspaceContext.Provider>

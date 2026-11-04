@@ -214,3 +214,58 @@ test("reduced motion shows a static network and clears it without scheduling ani
   expect(uniform("uniform2f", "u_underHood")).toEqual([0, 0]);
   expect(mockCadence.schedule).not.toHaveBeenCalled();
 });
+
+test.each(["spectral", "metalbloom", "nova", "metalnova"])(
+  "passive %s Orb scenes ignore pointer gestures while animation and commanded pulses continue", (palette) => {
+    const passiveField = (mode, externalPulseVersion = 0) => <CreatorOSFieldCanvas
+      mode={mode} metabloomPalette={palette} metabloomAvatarEnabled metabloomSceneTransitions
+      pointerReactive={false} externalPulseVersion={externalPulseVersion} />;
+    const { container, rerender } = render(passiveField(0));
+    const shell = container.querySelector(".creatoros-field-shell");
+    for (const mode of [0, 1, 3]) {
+      rerender(passiveField(mode));
+      frame(12);
+      const time = uniform("uniform1f", "u_time")[0];
+      mockCadence.schedule.mockClear();
+      act(() => {
+        shell.dispatchEvent(new MouseEvent("pointermove", { bubbles: true, clientX: 80, clientY: 20 }));
+        shell.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, clientX: 80, clientY: 20 }));
+      });
+      expect(mockCadence.schedule).not.toHaveBeenCalled();
+      frame();
+      expect(uniform("uniform2f", "u_pointer")).toEqual([0.52, 0.52]);
+      expect(uniform("uniform1f", "u_energy")).toEqual([0]);
+      expect(uniform("uniform1f", "u_time")[0]).toBeGreaterThan(time);
+    }
+    rerender(passiveField(3, 1));
+    frame();
+    expect(uniform("uniform1f", "u_energy")[0]).toBeGreaterThan(0);
+    expect(uniform("uniform2f", "u_pulseOrigin")).toEqual([0.52, 0.52]);
+    expect(createDitherCanvasContext).toHaveBeenCalledTimes(1);
+  },
+);
+
+test("disabling pointer response clears previous hover state without replacing the live field", () => {
+  jest.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({ left: 0, top: 0, width: 100, height: 100 });
+  const { container, rerender } = render(<CreatorOSFieldCanvas />);
+  const canvas = container.querySelector("canvas"), shell = container.querySelector(".creatoros-field-shell");
+  const move = (x, y) => act(() => shell.dispatchEvent(new MouseEvent("pointermove", { bubbles: true, clientX: x, clientY: y })));
+  move(80, 20);
+  frame();
+  expect(uniform("uniform2f", "u_pointer")).toEqual([0.8, 0.8]);
+  expect(uniform("uniform1f", "u_energy")[0]).toBeGreaterThan(0);
+  const time = uniform("uniform1f", "u_time")[0];
+  rerender(<CreatorOSFieldCanvas pointerReactive={false} />);
+  move(10, 90);
+  frame();
+  expect(uniform("uniform2f", "u_pointer")).toEqual([0.52, 0.52]);
+  expect(uniform("uniform1f", "u_energy")).toEqual([0]);
+  expect(uniform("uniform1f", "u_time")[0]).toBeGreaterThan(time);
+  rerender(<CreatorOSFieldCanvas pointerReactive />);
+  move(30, 60);
+  frame();
+  expect(uniform("uniform2f", "u_pointer")).toEqual([0.3, 0.4]);
+  expect(uniform("uniform1f", "u_energy")[0]).toBeGreaterThan(0);
+  expect(container.querySelector("canvas")).toBe(canvas);
+  expect(createDitherCanvasContext).toHaveBeenCalledTimes(1);
+});

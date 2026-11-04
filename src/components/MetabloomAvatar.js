@@ -46,6 +46,7 @@ const MetabloomAvatar = ({
   onReady,
   onPulse,
   paused = false,
+  pointerReactive = true,
   pulseVersion = 0,
   resetVersion = 0,
   talking = false,
@@ -136,6 +137,7 @@ const MetabloomAvatar = ({
         onFieldStateChange={onFieldStateChange}
         onReady={onReady}
         paused={!active}
+        pointerReactive={pointerReactive}
         resetVersion={resetVersion}
       />
     </div>

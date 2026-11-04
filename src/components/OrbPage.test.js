@@ -48,12 +48,13 @@ jest.mock("./OrbSection", () => {
     "../contexts/MetabloomPaletteContext"
   );
 
-  const MockOrbSection = ({ isActive, onConversationStateChange }) => {
+  const MockOrbSection = ({ isActive, pointerReactive, onConversationStateChange }) => {
     const palette = useMetabloomPalette();
     return (
       <section
         data-testid="orb-experience"
         data-active={String(isActive)}
+        data-pointer-reactive={String(pointerReactive)}
         data-palette={palette}
       >
         <button
@@ -137,6 +138,7 @@ describe("OrbPage", () => {
       "data-palette",
       "spectral",
     );
+    expect(screen.getByTestId("orb-experience")).toHaveAttribute("data-pointer-reactive", "false");
     expect(
       screen.getByRole("navigation", { name: "Primary navigation" }),
     ).toHaveTextContent("Popular Consulting");

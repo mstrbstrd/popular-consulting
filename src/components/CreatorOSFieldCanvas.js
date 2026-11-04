@@ -475,6 +475,7 @@ const CreatorOSFieldCanvas = ({
   onFieldStateChange,
   onReady,
   paused = false,
+  pointerReactive = true,
   resetVersion = 0,
   tidalPalette = "water",
 }) => {
@@ -483,6 +484,9 @@ const CreatorOSFieldCanvas = ({
   const rootRef = useRef(null);
   const canvasRef = useRef(null);
   const pausedRef = useRef(paused);
+  const pointerReactiveRef = useRef(pointerReactive);
+  pointerReactiveRef.current = pointerReactive;
+  const resetPointerInputRef = useRef(() => {});
   const lightRef = useRef(isDark ? 0 : 1);
   const modeRef = useRef(clampMode(mode));
   const underHoodPhaseRef = useRef(metabloomUnderHoodPhase);
@@ -581,6 +585,13 @@ const CreatorOSFieldCanvas = ({
     pausedRef.current = paused;
     redrawRef.current();
   }, [paused]);
+
+  useEffect(() => {
+    if (!pointerReactive) {
+      resetPointerInputRef.current();
+      redrawRef.current();
+    }
+  }, [pointerReactive]);
 
   useEffect(() => {
     lightRef.current = isDark ? 0 : 1;
@@ -1159,6 +1170,7 @@ const CreatorOSFieldCanvas = ({
     const navierPoint = (x, y) => [clamp(x), clamp(y)];
 
     const handlePointerMove = (event) => {
+      if (!pointerReactiveRef.current) return;
       const next = readPointer(event);
       if (navierFluid && !pausedRef.current && !reducedMotion && !isInteractiveTarget(event.target)) {
         const from = navierPoint(pointer.sampleX, pointer.sampleY);
@@ -1190,7 +1202,7 @@ const CreatorOSFieldCanvas = ({
     };
 
     const handlePointerDown = (event) => {
-      if (isMorphogenPaintActive()) return;
+      if (!pointerReactiveRef.current || isMorphogenPaintActive()) return;
 
       const next = readPointer(event);
       pointer.x = next.x;
@@ -1210,7 +1222,8 @@ const CreatorOSFieldCanvas = ({
 
     const handlePaintPointerDown = (event) => {
       if (
-        !isMorphogenPaintActive()
+        !pointerReactiveRef.current
+        || !isMorphogenPaintActive()
         || isInteractiveTarget(event.target)
         || event.button > 0
       ) {
@@ -1239,7 +1252,7 @@ const CreatorOSFieldCanvas = ({
     };
 
     const finishPaintStroke = (event) => {
-      if (!brush.down || event.pointerId !== brush.pointerId) return;
+      if (!pointerReactiveRef.current || !brush.down || event.pointerId !== brush.pointerId) return;
 
       if (Number.isFinite(event.clientX) && Number.isFinite(event.clientY)) {
         const next = readPointer(event);
@@ -1260,6 +1273,7 @@ const CreatorOSFieldCanvas = ({
     };
 
     const handlePointerLeave = () => {
+      if (!pointerReactiveRef.current) return;
       pointer.sampleX = pointer.x;
       pointer.sampleY = pointer.y;
     };
@@ -1280,6 +1294,24 @@ const CreatorOSFieldCanvas = ({
     pointerSurface.addEventListener("pointerleave", handlePointerLeave, {
       passive: true,
     });
+
+    // A chat field can become passive without replacing its simulation. Clear
+    // inherited hover energy while keeping explicit pulse commands available.
+    resetPointerInputRef.current = () => {
+      if (brush.pointerId !== null && pointerSurface.hasPointerCapture?.(brush.pointerId)) {
+        pointerSurface.releasePointerCapture(brush.pointerId);
+      }
+      brush.down = false;
+      brush.pending = false;
+      brush.pointerId = null;
+      pointer.x = pointer.sampleX = pulseOrigin.x = 0.52;
+      pointer.y = pointer.sampleY = pulseOrigin.y = 0.52;
+      pointer.lastActivityAt = performance.now();
+      navierImpulse = [0, 0];
+      energy = 0;
+      pulseAge = PULSE_LIFETIME_SECONDS + 1;
+      forceRender = true;
+    };
 
     const resetSimulation = () => {
       restartRef.current = false;
@@ -2061,6 +2093,7 @@ const CreatorOSFieldCanvas = ({
       frameCadence.dispose();
       navierFluid?.dispose();
       triggerExternalPulseRef.current = () => {};
+      resetPointerInputRef.current = () => {};
       redrawRef.current = () => {};
       ["metabloom", "tidal", "contour"].forEach((scene) => root.style.removeProperty(`--field-${scene}-weight`));
       pointerSurface.removeEventListener("pointermove", handlePointerMove);
@@ -2120,6 +2153,7 @@ const CreatorOSFieldCanvas = ({
       data-runtime-profile={ditherCanvasRuntimeProfile.id}
       data-field-specialization={FIELD_SCENE_FUNCTIONS[clampMode(mode)]}
       data-activity-scenes={activityScenes ? "true" : "false"}
+      data-pointer-reactive={pointerReactive ? "true" : "false"}
       data-metabloom-avatar={metabloomAvatarEnabled ? "true" : "false"}
       data-metabloom-avatar-action={normalizeMetabloomAvatarAction(
         metabloomAvatarAction,

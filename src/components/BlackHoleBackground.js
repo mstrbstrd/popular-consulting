@@ -19,8 +19,8 @@ export const BLACK_HOLE_SECTION_ZOOMS = Object.freeze([14, 28, 44, 62, LOGIN_BLA
 export const BLACK_HOLE_INITIAL_ZOOM = 80;
 export const BLACK_HOLE_ZOOM_LERP_RATE = 0.025;
 export const BLACK_HOLE_POINTER_LERP_RATE = 0.035;
-export const resolveBlackHolePointerInput = ({ popcan = false, x = 0.5, y = 0.35 } = {}) =>
-  popcan ? { x: 0.5, y: 0.35 } : { x, y };
+export const resolveBlackHolePointerInput = ({ popcan = false, pointerReactive = true, x = 0.5, y = 0.35 } = {}) =>
+  popcan || !pointerReactive ? { x: 0.5, y: 0.35 } : { x, y };
 
 const NON_IMMERSIVE_PATHS = new Set([
   "/work",
@@ -135,8 +135,10 @@ const useFixedBackgroundTarget = (enabled) => {
 const BlackHoleBackgroundCanvas = ({ mobile = false, activeSection, exiting = false, pathname = "/" }) => {
   const canvasRef = React.useRef(null);
   const popcanRouteRef = React.useRef(normalizePathname(pathname) === "/popcan");
+  const pointerReactiveRef = React.useRef(normalizePathname(pathname) !== "/orb");
   const drawingPointersRef = React.useRef(new Set());
   popcanRouteRef.current = normalizePathname(pathname) === "/popcan";
+  pointerReactiveRef.current = normalizePathname(pathname) !== "/orb";
   const sectionRef = React.useRef(readInitialSection());
   const currentZoomRef = React.useRef(BLACK_HOLE_INITIAL_ZOOM);
   const exitRef = React.useRef(null);
@@ -149,6 +151,11 @@ const BlackHoleBackgroundCanvas = ({ mobile = false, activeSection, exiting = fa
 
   React.useEffect(() => {
     if (!popcanRouteRef.current) drawingPointersRef.current.clear();
+    if (popcanRouteRef.current || !pointerReactiveRef.current) {
+      pointerRef.current[0] = smoothPointerRef.current[0] = 0.5;
+      pointerRef.current[1] = smoothPointerRef.current[1] = 0.35;
+      ensureAnimatingRef.current?.();
+    }
   }, [pathname]);
 
   React.useEffect(() => {
@@ -263,9 +270,8 @@ const BlackHoleBackgroundCanvas = ({ mobile = false, activeSection, exiting = fa
 
       const pointer = pointerRef.current;
       const smoothPointer = smoothPointerRef.current;
-      if (popcanRouteRef.current) {
-        // The Popcan scene runs autonomously: the mouse uniform cannot follow
-        // drawing, panning, hover or stylus input, even during a route handoff.
+      if (popcanRouteRef.current || !pointerReactiveRef.current) {
+        // Tool scenes run autonomously, including the frame of a route handoff.
         pointer[0] = smoothPointer[0] = 0.5;
         pointer[1] = smoothPointer[1] = 0.35;
       } else if (calibration || reduced) {
@@ -280,6 +286,7 @@ const BlackHoleBackgroundCanvas = ({ mobile = false, activeSection, exiting = fa
 
       const inputPointer = resolveBlackHolePointerInput({
         popcan: popcanRouteRef.current,
+        pointerReactive: pointerReactiveRef.current,
         x: calibration ? 0.5 : smoothPointer[0],
         y: calibration ? 0.35 : smoothPointer[1],
       });
@@ -353,6 +360,7 @@ const BlackHoleBackgroundCanvas = ({ mobile = false, activeSection, exiting = fa
 
     const handlePointerMove = (event) => {
       if (popcanRouteRef.current) return;
+      if (!pointerReactiveRef.current) return;
       pointerRef.current[0] = event.clientX / Math.max(window.innerWidth, 1);
       pointerRef.current[1] =
         1 - event.clientY / Math.max(window.innerHeight, 1);

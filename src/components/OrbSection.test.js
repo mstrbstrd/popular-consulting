@@ -89,7 +89,7 @@ describe("OrbSection", () => {
   });
 
   test("renders one full-page Metabloom field beneath a minimalist chat interface", () => {
-    const { container } = render(<OrbSection isActive />);
+    const { container, rerender } = render(<OrbSection isActive />);
 
     expect(
       screen.getByRole("heading", {
@@ -113,6 +113,9 @@ describe("OrbSection", () => {
       "data-response-contract",
       "emote+response",
     );
+    expect(mockAvatarProps.pointerReactive).toBe(true);
+    rerender(<OrbSection isActive pointerReactive={false} />);
+    expect(mockAvatarProps.pointerReactive).toBe(false);
   });
 
   test("submits a message and demonstrates the same contract with a local preview", async () => {
