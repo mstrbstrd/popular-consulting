@@ -131,6 +131,11 @@ const readLayout = page => page.evaluate(() => {
     return false;
   };
   const actions = ['.orb-appearance__trigger', '.nav-burger'].map(selector => box(get(selector)));
+  const workspaceActions = ['[data-workspace-saved]', '[data-workspace-toggle]'].map(selector => {
+    const button = workspace?.querySelector(selector);
+    return { label: button?.getAttribute('aria-label') || button?.textContent.trim(), bounds: box(button),
+      visible: visible(button), enabled: !!button && !button.disabled, receivesPointer: hit(button) };
+  });
   const themeTrigger = get('.orb-appearance__trigger'), themeVisible = visible(themeTrigger);
   const inputs = [...(card?.querySelectorAll('input[type=number]') || [])];
   return {
@@ -141,7 +146,7 @@ const readLayout = page => page.evaluate(() => {
     view: get('.orb-page')?.dataset.componentView,
     header: box(get('.nav-pill')), workspace: box(workspace), body: bb, transcript: box(transcript), composer: box(composer),
     bodyVisible: visible(body), transcriptVisible: visible(transcript), summaryVisible: visible(summary),
-    summary: summary?.textContent,
+    summary: summary?.textContent, summaryBounds: box(summary),
     summaryValuesVisible: ['1,445', '17', '85'].every(value => visibleText(summary, value)),
     bodyHasFocus: body?.contains(document.activeElement),
     output: ob, outputVisibleHeight: ob && bb ? Math.max(0, Math.min(ob.bottom, bb.bottom) - Math.max(ob.top, bb.top)) : 0,
@@ -150,7 +155,7 @@ const readLayout = page => page.evaluate(() => {
     horizontalOverflow: document.documentElement.scrollWidth - window.innerWidth,
     workspaceOverflow: workspace ? workspace.scrollWidth - workspace.clientWidth : null,
     bodyOverflow: visible(body) ? body.scrollWidth - body.clientWidth : 0,
-    actions, themeControl: { visible: themeVisible, outsideNavigation: !themeTrigger.closest('.nav-header, .nav-pill'),
+    actions, workspaceActions, themeControl: { visible: themeVisible, outsideNavigation: !themeTrigger.closest('.nav-header, .nav-pill'),
       receivesPointer: themeVisible && hit(themeTrigger) },
     returnActionReceivesPointer: hit(get('.metabloom-component-workspace__toolbar button[aria-label="Return component to conversation"]')),
     toggleLabel: toggle?.textContent.trim(), toggleReceivesPointer: hit(toggle),
@@ -191,11 +196,14 @@ function assertLayout(layout, { short = false, view = 'compact', resultVisible =
     assert.match(layout.summary, /\b17\b/, 'The compact summary includes the current hours');
     assert.match(layout.summary, /\b85\b/, 'The compact summary includes the current rate');
     assert(layout.summaryValuesVisible, 'The current total, hours, and rate are not clipped out of the compact summary');
+    const summary = layout.summaryBounds;
+    assert(summary.left >= Math.max(0, workspace.left) - 1 && summary.right <= Math.min(viewport.width, workspace.right) + 1
+      && summary.top >= Math.max(0, workspace.top) - 1 && summary.bottom <= Math.min(viewport.height, workspace.bottom) + 1,
+    'The compact summary stays fully inside the visible workspace');
     assert(!layout.bodyHasFocus, 'Hidden component fields must not retain keyboard focus');
     assert.equal(layout.toggleLabel, 'Open');
     assert(workspace.bottom <= transcript.top + 1, 'The summary and conversation must not overlap');
     assert(transcript.bottom <= composer.top + 1, 'The conversation must not extend under the composer');
-    assert(workspace.height >= 60, 'The selected component remains reachable in compact view');
     assert(transcript.height >= (short ? 48 : 80), 'Compact view retains a readable conversation viewport');
     assert(!layout.latestReplyVisible, 'The extra reply shortcut is only needed in expanded view');
   } else {
@@ -210,6 +218,18 @@ function assertLayout(layout, { short = false, view = 'compact', resultVisible =
   assert.equal(layout.viewport.scrollY, 0, 'Component and transcript scrolling must not move the document');
   assert(layout.returnActionReceivesPointer && layout.toggleReceivesPointer && layout.sendActionReceivesPointer,
     'Visible workspace and composer controls must receive pointer events');
+  assert.deepEqual(layout.workspaceActions.map(action => action.label), ['Saved work', layout.toggleLabel]);
+  for (const action of layout.workspaceActions) {
+    const target = action.bounds;
+    assert(action.visible && action.enabled && action.receivesPointer, `${action.label} remains actionable in both workspace views`);
+    assert(target.width >= 43.9 && target.height >= 43.9, `${action.label} retains its 44px touch target`);
+    assert(target.left >= workspace.left - 1 && target.right <= workspace.right + 1
+      && target.top >= workspace.top - 1 && target.bottom <= workspace.bottom + 1,
+    `${action.label} stays fully inside the workspace`);
+    assert(target.left >= -1 && target.right <= viewport.width + 1
+      && target.top >= -1 && target.bottom <= viewport.height + 1,
+    `${action.label} stays fully inside the visible viewport`);
+  }
   assert(layout.actions[1]?.height >= 43.9, 'Menu retains its touch target');
   assert(layout.themeControl.outsideNavigation, 'Theme belongs to the Orb content controls, outside navigation');
   assert.equal(layout.themeControl.visible, !short && view === 'compact', 'Expanded and short keyboard views give the Theme row back to the content');

@@ -271,6 +271,21 @@ const complete = (page, count) => page.waitForFunction(expected =>
   && document.querySelector('.metabloom-chat')?.dataset.chatPhase === 'ready', count);
 const savedMessages = page => page.evaluate(() => window.__orbMessages().filter(message => message.role === 'assistant'));
 const referenceChip = page => page.getByRole('group', { name: 'Selected research reference', exact: true });
+const openResearch = async (page, message) => {
+  const messageId = await message.getAttribute('data-message-id');
+  assert.match(messageId, /^assistant-\d{1,16}$/);
+  // Mobile hides the transcript while a report is expanded. Reopen the exact
+  // message through its launcher so every check uses its currently owned slot.
+  const backToChat = page.getByRole('button', { name: 'Back to chat', exact: true });
+  if (await backToChat.isVisible()) await backToChat.click();
+  await message.getByRole('button', { name: /^Open research:/ }).click();
+  const workspace = page.locator('.metabloom-chat__workspace');
+  const research = workspace.locator(`.metabloom-research-slot[data-research-message-id="${messageId}"]`);
+  await research.waitFor({ state: 'visible' });
+  assert.equal(await workspace.locator('.metabloom-research-slot').count(), 1,
+    'Only the selected message owns the active research workspace.');
+  return research;
+};
 const beginAudit = page => page.evaluate(() => { window.__researchReuseAudit = []; });
 const readAudit = page => page.evaluate(() => window.__researchReuseAudit);
 const installObserver = ({ clock }) => {
@@ -401,14 +416,16 @@ try {
     // The follow-up happens after local midnight but before the original TTL.
     serverNow += 20 * 60000;
     assert.equal(localDate(serverNow), '2026-11-03');
-    await messages.first().getByRole('button', { name: 'Use this research', exact: true }).click();
+    const initialResearch = await openResearch(page, messages.first());
+    await initialResearch.getByRole('button', { name: 'Use this research', exact: true }).click();
     await referenceChip(page).waitFor({ state: 'visible' });
     const draft = 'Keep this fictional draft while detaching the report.';
     await page.getByPlaceholder('Message Metabloom', { exact: true }).fill(draft);
     await page.getByRole('button', { name: 'Remove research reference', exact: true }).click();
     assert.equal(await referenceChip(page).count(), 0);
     assert.equal(await page.getByPlaceholder('Message Metabloom', { exact: true }).inputValue(), draft);
-    await messages.first().getByRole('button', { name: 'Use this research', exact: true }).click();
+    await openResearch(page, messages.first());
+    await initialResearch.getByRole('button', { name: 'Use this research', exact: true }).click();
     const reused = fixtureFor(profile.id + '-report-reuse', 'reuse',
       'Explain how the saved calibration evidence informs our fictional ' + profile.id + ' orchard pilot.');
     await beginAudit(page);
@@ -420,7 +437,8 @@ try {
     await complete(page, 2);
     assertReuse(reused, reference, 'report');
     assert.equal(await toggle.isChecked(), true);
-    assert.equal(await messages.last().locator('.metabloom-chat__research-reuse').getAttribute('data-research-reused'), 'true');
+    const reusedResearch = await openResearch(page, messages.last());
+    assert.equal(await reusedResearch.locator('.metabloom-chat__research-reuse').getAttribute('data-research-reused'), 'true');
     await assertCanonicalLinks(messages.last());
     const reportAudit = await readAudit(page);
     assert(!reportAudit.includes('searching'));
@@ -432,8 +450,9 @@ try {
       'Reuse does not extend TTL or create another stored report.');
 
     // Select the second visible finding whose canonical sources are nine/ten.
-    await messages.first().getByRole('combobox', { name: 'Choose a story', exact: true }).selectOption('1');
-    await messages.first().getByRole('button', { name: 'Use this finding', exact: true }).click();
+    await openResearch(page, messages.first());
+    await initialResearch.getByRole('combobox', { name: 'Choose a story', exact: true }).selectOption('1');
+    await initialResearch.getByRole('button', { name: 'Use this finding', exact: true }).click();
     const finding = fixtureFor(profile.id + '-finding-reuse', 'reuse',
       'Explain the uncertainty in this selected fictional ' + profile.id + ' calibration finding.');
     await beginAudit(page);
@@ -454,7 +473,8 @@ try {
     const findingAudit = await readAudit(page);
     assert(!findingAudit.includes('searching'));
 
-    await messages.first().getByRole('button', { name: 'Use this brief', exact: true }).click();
+    await openResearch(page, messages.first());
+    await initialResearch.getByRole('button', { name: 'Use this brief', exact: true }).click();
     const brief = fixtureFor(profile.id + '-brief-reuse', 'reuse',
       'Compare the two saved fictional ' + profile.id + ' calibration findings and their limitations.');
     await send(page, brief.question);
@@ -481,8 +501,9 @@ try {
     const fallbackMessage = (await savedMessages(page))[4];
     assert(fallbackMessage.researchReference, 'The report reference survives formatter failure.');
     assert.equal(fallbackMessage.researchBrief.coverage.status, 'unavailable');
-    assert.equal(await messages.last().locator('.metabloom-chat__full-research').getAttribute('data-research-fallback'), 'true');
-    await messages.last().getByRole('button', { name: 'Use this research', exact: true }).click();
+    const fallbackResearch = await openResearch(page, messages.last());
+    assert.equal(await fallbackResearch.locator('.metabloom-chat__full-research').getAttribute('data-research-fallback'), 'true');
+    await fallbackResearch.getByRole('button', { name: 'Use this research', exact: true }).click();
     const fallback = fixtureFor(profile.id + '-fallback-reuse', 'reuse',
       'Summarize the saved fictional ' + profile.id + ' report despite the missing briefing.');
     await send(page, fallback.question);
@@ -496,7 +517,8 @@ try {
 
     // The server's record expires between selection and Send. The browser still
     // has the earlier clock, exercising actual server resolution and UI recovery.
-    await messages.first().getByRole('button', { name: 'Use this research', exact: true }).click();
+    await openResearch(page, messages.first());
+    await initialResearch.getByRole('button', { name: 'Use this research', exact: true }).click();
     serverNow = Date.parse(reference.expiresAt) + 1;
     const expired = fixtureFor(profile.id + '-expired', 'expired',
       'Explain the now unavailable saved fictional ' + profile.id + ' report.');
@@ -527,12 +549,13 @@ try {
     assert.notEqual(refreshed.researchReference.researchId, reference.researchId);
     assert.equal(refreshed.researchReference.asOf, new Date(serverNow).toISOString());
     assert.equal(refreshed.researchReference.localDate, '2026-11-03');
-    const refreshedDates = messages.last().getByRole('group', { name: 'Research reuse', exact: true });
+    const refreshedResearch = await openResearch(page, messages.last());
+    const refreshedDates = refreshedResearch.getByRole('group', { name: 'Research reuse', exact: true });
     assert.equal(await refreshedDates.locator('time[datetime="2026-11-03"]').count(), 1,
       'The saved calendar date is preserved even when browser timezone rules differ.');
     assert.equal(await refreshedDates.locator('time[datetime="' + refreshed.researchReference.asOf + '"]').count(), 1);
 
-    await messages.last().getByRole('button', { name: 'Use this research', exact: true }).click();
+    await refreshedResearch.getByRole('button', { name: 'Use this research', exact: true }).click();
     assert.equal(await referenceChip(page).locator('time[datetime="2026-11-03"]').count(), 1);
     const freshCommand = fixtureFor(profile.id + '-fresh-command', 'research',
       'Search again for the top 5 fictional orchard news stories today for the explicit ' + profile.id + ' command.');
@@ -543,17 +566,18 @@ try {
     assert(!freshCommand.wire.some(event => event.type === 'research_reuse'));
     assert.deepEqual(countsSince(start), { search: 4, brief: 4, writer: 4 });
 
-    await messages.last().getByRole('button', { name: 'Use this research', exact: true }).click();
+    const latestResearch = await openResearch(page, messages.last());
+    await latestResearch.getByRole('button', { name: 'Use this research', exact: true }).click();
     await referenceChip(page).waitFor({ state: 'visible' });
     const chipGeometry = await referenceChip(page).evaluate(element => {
       const rect = element.getBoundingClientRect();
-      return { left: rect.left, right: rect.right, width: rect.width, scrollWidth: element.scrollWidth, viewport: innerWidth };
+      return { left: rect.left, right: rect.right, width: rect.width, scrollWidth: element.scrollWidth, viewport: window.innerWidth };
     });
     assert(chipGeometry.left >= -1 && chipGeometry.right <= chipGeometry.viewport + 1);
     assert(chipGeometry.scrollWidth <= chipGeometry.width + 1, 'The selected reference must fit at narrow mobile widths.');
     const geometry = await page.locator('.metabloom-chat__composer').evaluate(element => {
       const rect = element.getBoundingClientRect();
-      return { left: rect.left, right: rect.right, viewport: innerWidth, pageWidth: document.documentElement.scrollWidth };
+      return { left: rect.left, right: rect.right, viewport: window.innerWidth, pageWidth: document.documentElement.scrollWidth };
     });
     assert(geometry.left >= -1 && geometry.right <= geometry.viewport + 1);
     assert(geometry.pageWidth <= geometry.viewport + 1, 'The composer must not cause horizontal overflow.');
