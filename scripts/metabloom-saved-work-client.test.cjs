@@ -55,18 +55,18 @@ test('availability stays explicit and malformed success responses never become s
   const expected = { available: false, code: 'saved_work_unavailable' };
   assert.deepEqual(await requestMetabloomSavedWork({ action: 'status' },
     { fetchImpl: async () => Response.json(expected) }), expected);
-  for (const value of [{ available: 'true' }, { available: false }, { available: true, url: 'postgres://private' }])
+  for (const value of [{ available: 'true' }, { available: false }, { available: true, url: 'https://private.redis.example' }])
     await assert.rejects(requestMetabloomSavedWork({ action: 'status' },
       { fetchImpl: async () => Response.json(value) }), { code: 'saved_work_invalid' });
 });
 
 test('unknown error text, HTML login pages and connection failures stay sanitized', async () => {
   for (const fetchImpl of [
-    async () => Response.json({ code: 'database_private_detail', message: 'private SQL credentials' }, { status: 503 }),
+    async () => Response.json({ code: 'database_private_detail', message: 'private Redis credentials' }, { status: 503 }),
     async () => new Response('<html>Private login HTML</html>', { status: 200, headers: { 'content-type': 'text/html' } }),
     async () => { throw new Error('private network details'); },
   ]) await assert.rejects(requestMetabloomSavedWork({ action: 'list' }, { fetchImpl }),
-    error => error.code === 'saved_work_unavailable' && !/private|SQL|credentials|HTML/.test(error.message));
+    error => error.code === 'saved_work_unavailable' && !/private|Redis|credentials|HTML/.test(error.message));
   await assert.rejects(requestMetabloomSavedWork({ action: 'list' }, { fetchImpl: async () =>
     Response.json({ code: 'saved_work_authentication', requestRef: 'abcdef123456' }, { status: 401 }) }),
   { code: 'saved_work_authentication', status: 401, requestRef: 'abcdef123456' });

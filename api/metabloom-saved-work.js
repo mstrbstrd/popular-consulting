@@ -5,7 +5,7 @@ const { getMetabloomSavedWorkDatabase } = require('../server/metabloomSavedWorkD
 const { createMetabloomSavedWorkStore } = require('../server/metabloomSavedWorkStore');
 const { createMetabloomVisualStore } = require('../server/metabloomVisualStore');
 const { createMetabloomResearchStore } = require('../server/metabloomResearchStore');
-const { savedWorkError, isSavedWorkError } = require('../server/metabloomSavedWorkMigrations');
+const { savedWorkError, isSavedWorkError } = require('../server/metabloomSavedWorkErrors');
 const { resolveMetabloomSavedWorkSource, restoreMetabloomSavedWorkReference } = require('../server/metabloomSavedWorkReferences');
 const { parseMetabloomSavedWorkRequest, parseMetabloomSavedWorkMetadata,
   parseMetabloomSavedWorkResponse, MAX_METABLOOM_SAVED_WORK_REQUEST_BYTES,
@@ -33,7 +33,7 @@ const revisionReceipt = value => {
 };
 const sanitizedError = error => {
   if (error?.code === 'saved_work_source_expired') return { code: error.code, status: 410 };
-  if (isSavedWorkError(error) && !['saved_work_environment_mismatch', 'saved_work_migration_mismatch'].includes(error.code))
+  if (isSavedWorkError(error) && error.code !== 'saved_work_environment_mismatch')
     return { code: error.code, status: savedWorkError(error.code).status };
   return { code: 'saved_work_unavailable', status: 503 };
 };

@@ -97,8 +97,8 @@ dates, sources, provenance, owner IDs and arbitrary metadata are rejected. Both
 handles must resolve within the current authenticated session. Missing, foreign,
 stale or expired temporary references return saved_work_source_expired.
 
-The source is resolved before the PostgreSQL create transaction. The transaction
-is idempotent for the same request ID and identical canonical title/content.
+The source is resolved before the guarded Redis commit. Creation is idempotent
+for the same request ID and identical canonical title/content.
 Reusing the ID with changed content conflicts. Replaying a deleted create is
 rejected. If the source expires after an uncertain save response, refresh the
 saved list to reconcile before offering a new Save. An expired browser snapshot
@@ -151,9 +151,9 @@ copies follow their separate one-hour retention.
 
 Status returns available: true only after a bounded account-scoped database read
 succeeds, including environment/schema validation. It creates no account.
-Missing configuration, migration or connection, and wrong environment bindings
-return available: false. This does not replace operator verification of write
-grants, backup policy or recovery.
+Missing authentication Redis configuration or connection, and wrong environment
+bindings return available: false. No SQL migration is needed. This does not
+replace operator verification of capacity, eviction policy, backups or recovery.
 
 Disable Save and Saved work when status is unavailable and explain that durable
 saving is not available yet. Ordinary generated components remain usable.
@@ -166,7 +166,7 @@ A response for an earlier selection must not replace a newer active component.
 
 History defaults to 20 entries and allows at most 50. Its items contain only
 revision numbers and creation dates, newest first. The artifact metadata and page
-come from one SQL snapshot. A non-null nextBeforeRevision is passed as
+come from one bounded Redis snapshot. A non-null nextBeforeRevision is passed as
 beforeRevision to the next request. A missing or foreign artifact returns 404.
 History remains listable even when a particular stored content format cannot be
 opened.
@@ -231,18 +231,22 @@ database revision on every input change.
 | 503 | saved_work_unavailable |
 | 504 | saved_work_timeout |
 
-Errors may carry an opaque requestRef, never SQL, connection strings or saved
+Errors may carry an opaque requestRef, never Redis details, connection strings or saved
 content. Status intentionally represents storage failure with HTTP 200 and
 available: false; authentication failures retain their HTTP status.
 
-## Activation gate
+## Existing Redis configuration
 
-This implementation provisions no PostgreSQL resource and modifies no Vercel
-configuration. Production and preview need isolated databases, restricted
-runtime credentials, an explicit migration and verified backup/recovery policy.
-See [storage configuration](metabloom-saved-work.md#configuration-and-migration).
+Saved work uses the existing authentication Redis connection through
+`AUTH_REDIS_REST_URL` and `AUTH_REDIS_REST_TOKEN`. Scope comes from
+`AUTH_APP_ORIGIN`, `AUTH_ENVIRONMENT`, and the verified stable account identity.
+No additional database, SQL migration, saved-work connection secret or new
+provider is required. Authentication session expiry and credential rotation do
+not change durable keys.
 
-Read-only Vercel metadata inspection on 2026-11-03 found none of the saved-work
-configuration keys on popular-consulting. No credential value was decrypted.
-Until activation requirements are satisfied, the endpoint correctly reports
-unavailable. Shipping this code does not activate durable saving.
+Production configuration is already present on popular-consulting. Deployment
+of this implementation enables the endpoint to use it; this is separate from
+claiming that a live Save/Open flow has been observed. Preview deployments must
+continue to use their own explicit authentication environment configuration.
+See [storage configuration](metabloom-saved-work.md#configuration-and-recovery)
+for capacity, eviction and recovery requirements.

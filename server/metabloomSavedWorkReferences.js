@@ -1,6 +1,6 @@
 const { parseMetabloomSavedContent } = require('./metabloomSavedContent');
 const { buildMetabloomResearchTemporalContext } = require('./metabloomResearchBrief');
-const { savedWorkError } = require('./metabloomSavedWorkMigrations');
+const { savedWorkError } = require('./metabloomSavedWorkErrors');
 
 const sourceExpired = () => Object.assign(new Error('saved_work_source_expired'),
   { code: 'saved_work_source_expired', status: 410 });

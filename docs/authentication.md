@@ -46,7 +46,7 @@ place. This trusts Auth0's authenticated signal; it does not perform a second We
 challenge in React or infer biometrics/device hardware from an ID-token string.
 
 Sessions remain random 256-bit opaque `__Host-popcon-session` cookies with Secure,
-HttpOnly, SameSite=Lax, Path=/ and no Domain. Redis stores hashed identifiers and
+HttpOnly, SameSite=Lax, Path=/ and no Domain. Authentication keys store hashed identifiers and
 minimal identity, authentication method/time, CSRF and expiry fields, not provider
 tokens or passwords. Absolute expiry is eight hours; sessions never silently renew.
 Session schema 2 explicitly records `authenticationMethod: passkey`. Schema 1/MFA
@@ -54,6 +54,13 @@ sessions cannot be upgraded or reused as passkey sessions. Invoice draft schema 
 unchanged. Logout still revokes the server record through a same-origin CSRF-checked
 POST before reporting success. It ends this application session, not all Auth0
 sessions. Every new application login still requests fresh authentication.
+
+Orb Saved work reuses this Redis connection with separate permanent keys. Its
+stable account scope excludes session cookies, credential values,
+`AUTH_SESSION_EPOCH` and `AUTH_SESSION_NAMESPACE`. Session expiry and logout do
+not delete saved artifacts. See [saved-work storage](architecture/metabloom-saved-work.md)
+for limits and recovery. When restoring the shared database from backup, rotate
+`AUTH_SESSION_EPOCH` to invalidate any session records recovered with it.
 
 Middleware protects `/home` and invoice HTML, direct/nested/encoded URL variants
 and `/_private/**` assets before delivery. Configuration/store errors deny access.

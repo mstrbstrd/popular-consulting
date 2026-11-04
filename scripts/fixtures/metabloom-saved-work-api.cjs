@@ -2,7 +2,7 @@ const { EventEmitter } = require('node:events');
 const { randomUUID } = require('node:crypto');
 const { createMetabloomVisualStore } = require('../../server/metabloomVisualStore');
 const researchFixture = require('./metabloom-research-reuse.cjs');
-const { savedWorkError } = require('../../server/metabloomSavedWorkMigrations');
+const { savedWorkError } = require('../../server/metabloomSavedWorkErrors');
 
 const accountIdentity = { accountKey: 'e'.repeat(64) };
 const identity = researchFixture.identity;
@@ -32,8 +32,8 @@ const metadata = (content, title = 'Saved fixture') => ({ artifactId: randomUUID
   title, kind: content.kind, version: 1, revision: 1, headRevision: 1,
   createdAt: '2026-11-03T13:00:00.000Z', updatedAt: '2026-11-03T13:00:00.000Z' });
 
-// Adapter fixture only. Atomicity, constraints, idempotency and SQL ownership are
-// independently verified by the native PostgreSQL suite.
+// Adapter fixture only. Atomicity, constraints, idempotency and ownership are
+// independently verified by the native Redis suite.
 function durableFixture() {
   const values = new Map(), revisions = new Map(), calls = [];
   const owned = (account, artifactId) => {

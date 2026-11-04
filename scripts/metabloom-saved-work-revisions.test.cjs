@@ -2,7 +2,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { randomUUID } = require('node:crypto');
 const { createMetabloomSavedWorkHandler } = require('../api/metabloom-saved-work');
-const { savedWorkError } = require('../server/metabloomSavedWorkMigrations');
+const { savedWorkError } = require('../server/metabloomSavedWorkErrors');
 const { requestMetabloomSavedWork } = require('../src/components/metabloomSavedWorkApiClient');
 const { parseMetabloomSavedWorkRequest, parseMetabloomSavedWorkResponse } = require('../src/components/metabloomSavedWorkProtocol');
 const { accountIdentity, identity, visualContent, response, request, authenticate,

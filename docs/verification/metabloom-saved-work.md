@@ -1,290 +1,127 @@
-# PR05 saved-work verification
+# Saved-work verification
 
-Base: merged PR #197, commit `63cccfa20bcf228f873fa6273667614b74300365`.
 Implementation contract: [durable Orb saved work](../architecture/metabloom-saved-work.md).
+HTTP contract: [saved-work API](../architecture/metabloom-saved-work-api.md).
 
-## Story and scope
+## Current change
 
-The verified foundation is: a valid authenticated session provides a stable
-server-only account identity; an explicit store operation validates its content;
-a transaction retains private immutable content and evidence; later owned reads
-return the same content without generation. PR06 will expose this through
-Save/Open and the existing renderer.
+The current backend replaces the unconfigured PostgreSQL foundation with the
+existing authentication Upstash connection. The browser protocol, ownership
+source, content validator, fresh-reference restoration, workspace interactions,
+History, Restore and Undo remain the same.
 
-PR05 adds no browser controls or public save endpoint. It performs no production
-migration, resource provisioning, provider request or environment update.
+The previous implementation and its historical PostgreSQL verification record
+remain available at [the preceding main commit](https://github.com/mstrbstrd/popular-consulting/blob/17b769a98358244252d6b170b381b854279e4da6/docs/verification/metabloom-saved-work.md).
+Those SQL results are not evidence for the replacement Redis backend.
 
 ## Completed local checks
 
-| Check | Result |
-| --- | --- |
-| Initial implementation: full application Jest suite | 213 suites / 2,098 tests passed |
-| Authentication suite, including stable account identity | 106 passed |
-| Existing API/research/visual/provider contracts | 403 passed |
-| New saved-content validation | 41 passed |
-| New database configuration, TLS and migration CLI contracts | 12 passed |
-| New store/migration transaction contracts | 16 passed |
-| Source and new server-boundary lint | Passed |
-| Production build | Passed, including route HTML and private invoice isolation |
-| Integration harness target guard and pool teardown regressions | 4 passed without a database connection |
-| Workflow parsing, syntax and whitespace checks | Passed |
-
-The 69 new foundation tests run with `npm run test:saved-work`. Account identity
-tests are part of `npm run test:auth`. They verify that rejected/expired/foreign
-sessions cannot produce account authority and that login/epoch/namespace/origin/
-Redis-key changes do not alter the durable key for the same issuer and subject.
-
-Content cases exercise every native visual kind, valid/invalid calculator
-scenarios, sparse citations, report-only saves, full 1 MiB ASCII/Unicode report
-boundaries, maximum-size briefs, coverage and historical dates. Media tokens and
-unsafe/non-JSON structures cannot enter durable content.
-
-Store contract tests verify validation before connection acquisition, captured
-immutable arguments, transaction rollback, connection release/destruction,
-cancellation boundaries, database marker validation and migration checksums.
-Configuration tests reject environment mismatches, URL overrides, weakened TLS,
-mutable TLS options and target-swapping getters. Driver errors are sanitized.
-
-## Limited local SQL evidence
-
-Fourteen SQL/store checks passed against **PostgreSQL 18.6 / PGlite 0.5.14**, a
-temporary local WebAssembly runtime with one connection. No PGlite dependency is
-added to the application or repository lockfile.
-
-The checks covered:
-
-- Migration/reapplication, immutable marker/ledger, namespace mismatch and checksum drift.
-- Exact full 1 MiB research, all 12 fixture source links, dates and coverage.
-- Private ownership, revision history, stale version rejection and unchanged earlier content.
-- Immutable rows, unrelated nested-trigger rejection and artifact deletion cascades.
-- Create-request tombstones and account-parent deletion cascades.
-- Failure after evidence insertion, with complete create/append rollback.
-- The restricted runtime role, including successful create/read/append/rename/delete.
-- Rejection of marker changes, direct account/child deletion, truncation and schema DDL under that role.
-
-These checks establish useful SQL semantics but **do not establish success of
-the native PostgreSQL 16 wire driver, concurrent transactions, migration CLI or
-native backup/restore**. Those require the separate real-server gate below.
-
-## Real PostgreSQL CI gate
-
-`.github/workflows/metabloom-saved-work.yml` adds a disposable `postgres:16`
-service with Node 24 and matching PostgreSQL 16 backup tools. It runs the account
-and foundation contracts before `scripts/metabloom-saved-work-postgres.test.cjs`.
-The TAP pipeline explicitly uses Bash with pipefail, so a failing test cannot be
-hidden by a successful evidence upload. Only TAP output is uploaded, never a
-database dump.
-
-The integration suite has 19 cases: an offline target guard, three offline pool
-teardown regressions and 15 cases that require an actual PostgreSQL 16 server.
-It verifies:
-
-1. Migration application/reapplication, rollback, checksum drift and missing-marker rejection.
-2. Stable account/default-workspace creation and ownership across read/list/mutation paths.
-3. Exact large research, canonical sources, original dates, coverage and calculator inputs.
-4. Immutable revisions, composite ownership constraints and nested-trigger defenses.
-5. Atomic rollback after evidence insertion in create and revision operations.
-6. Concurrent idempotent creates, competing expected-version updates and quota races.
-7. Physical deletion, retired create requests and bounded request retention.
-8. Pagination, explicit unsupported versions and corrupt-content rejection.
-9. The real migration command and a restricted runtime role.
-10. Native `pg_dump`/`pg_restore` into another empty disposable database, followed by ownership, history, checksum, tombstone and deletion checks.
-
-The harness accepts only explicit opt-in, literal loopback hosts and the dedicated
-`orb_saved_work_test_admin` fixture database. It creates randomly named test
-databases, removes only its fixtures and rejects URL connection overrides.
-
-## First native CI run and teardown correction
-
-[The first PostgreSQL CI run](https://github.com/mstrbstrd/popular-consulting/actions/runs/41587084175/job/125755002660)
-passed 15 of its original 16 cases, including native backup/restore, quota races,
-ownership, migrations and restricted runtime privileges. The duplicate-create
-and competing-revision case failed during cleanup with an uncaught
-`terminating connection due to administrator command` error.
-
-The pinned driver's `pool.end()` can resolve after removing idle clients from
-its pool bookkeeping but before their sockets finish closing. The fixture then
-issued `DROP DATABASE ... WITH (FORCE)`, which could terminate a still-closing
-connection. This was a test teardown race.
-
-Fixture cleanup now tracks each connected client's actual `end` event and waits
-for those events after `pool.end()`, including for reconnect and administrator
-pools. It then uses ordinary `DROP DATABASE`, so leaked connections remain a
-test failure. No error is suppressed and no delay or retry masks the race.
-
-Three deterministic offline regressions use the installed `pg.Pool` with a
-controlled client to cover idle, checked-out and empty pools. The idle-client
-case reproduces the failure with the old pool-only shutdown and passes with
-the corrected cleanup. Application code, database schema and concurrency
-assertions are unchanged.
-
-[The corrected PostgreSQL CI run](https://github.com/mstrbstrd/popular-consulting/actions/runs/41588343816/job/125758972701)
-completed successfully for foundation head
-5f86551d975ab43521d53ebfbb4ea56280d0c934. Its 19 cases include the 15 native
-PostgreSQL checks. This resolves the foundation's original merge gate.
-
-The correction's full Jest rerun completed with 211 of 213 suites and 2,096 of
-2,098 tests passing. Two unchanged UI tests failed: the HomePage recovery class
-assertion and a five-second calculator-restoration timeout. An isolated rerun of
-both files passed all 34 tests with unchanged assertions and timeouts.
-
-## Unrun checks and activation boundaries
-
-The native integration suite was **not run locally**. Official PostgreSQL 16.15
-server/client binaries were available, but `initdb` refuses root. This execution
-environment maps only UID/GID 0 and denies a supported nonroot namespace setup.
-No root-check or sandbox restriction was bypassed.
-
-The corrected foundation CI result above was read from the completed check.
-It does not establish the status of later endpoint changes or hosted activation.
-
-No hosted PostgreSQL resource, deployed database connection, provider backup
-policy or live saved-work user flow has been verified. Provisioning, restricted
-credentials, isolated preview/production databases and provider recovery checks
-precede PR06 activation. The PR06 browser acceptance flow remains explicit Save,
-new login or reload, then identical Open with zero model calls.
-
-## Step 5 HTTP adapter and client
-
-The follow-up adds the authenticated endpoint, server-owned source resolution,
-fresh session-reference restoration and a bounded browser client. It shares
-the durable-content validator between server and client through the existing
-server import alias. The HTTP contract is documented in
-[saved-work API](../architecture/metabloom-saved-work-api.md).
-
-Local verification on the supplied e33756e main base plus PR198:
+The Redis replacement passed the following checks before publication:
 
 | Check | Result |
 | --- | --- |
-| Saved content, database, store, API and client contracts | 93 passed |
-| Authentication suite | 106 passed |
-| Existing API, research, visual and provider contracts | 403 passed |
-| Complete application Jest suite | 215 suites / 2,130 tests passed |
-| Source and saved-work server/client lint | Passed |
-| Offline PostgreSQL harness guard and teardown cases | 4 passed |
+| Complete application Jest run | 218 suites, 2,240 tests passed |
+| Saved-work content, transport, store, API and client contracts | 101 tests passed |
+| Authentication regression suite | 106 tests passed |
+| Native Redis integration | 20 tests passed, including 19 subcases; zero skips |
+| Application and saved-work ESLint | Passed with zero lint warnings |
+| Production build | Passed, including route metadata and private-content checks |
+| Workflow configuration and dependency lock consistency | Passed |
 
-The new API/client cases exercise exact owned source ingestion, validated numeric
-calculator inputs, complete 1 MiB research, original source/date preservation,
-missing configuration, new login and expired-source reopening, usable fresh
-follow-up references, cross-account rejection, mutation conflicts, private
-metadata, bounded/cancelled transport and sanitized failures. Open makes no
-model calls and claims no generation quota.
+The native run used Redis 7.2.17 and the real Lua scripts. It exercised the
+default API factory using the existing authentication configuration through a
+local REST adapter, including Save, Open, Save changes, History, Restore, Undo
+and fresh component references. It also checked a report near its content-size
+limit, concurrent mutations, uncertain receipts, maximum-history deletion,
+corrupt records, captured request arguments, and persistence after an owned
+Redis restart. It did not connect to the production database.
 
-A new native PostgreSQL case covers the HTTP save/retry path, a separate
-connection and new login, exact reopen and selected follow-up resolution,
-ownership and conflicting rename/delete operations. The suite now contains
-20 cases: four offline and sixteen requiring PostgreSQL 16. The new native
-endpoint case was not executed locally: this runtime has no PostgreSQL client,
-server, Docker or Podman available on PATH. The existing CI gate runs it.
+## Boundaries under verification
 
-No production migration, credential update or managed-service provisioning was
-performed. A read-only Vercel metadata check found no saved-work environment
-configuration, so the deployed feature remains unavailable until its activation
-requirements are satisfied. The UI and deployed browser acceptance flow are
-separate integration work.
+| Failure or transition | Required outcome |
+| --- | --- |
+| Missing or mismatched auth environment | No network request to a fallback database; explicit unavailable result |
+| Anonymous, expired or foreign session | No durable storage authority |
+| Empty list/status | No account or saved item created |
+| Credential or auth epoch rotation | Same durable account scope |
+| Different stable owner, application origin or environment | Separate saved-work scope |
+| Same create UUID and canonical content | One item, including after a lost response |
+| Same create UUID with different content | Conflict |
+| Retried deleted create | Tombstone error, no resurrection |
+| Competing expected-version updates | One successful change, one conflict |
+| Commit rejection | Metadata, content, version and request ledger all remain unchanged |
+| Expiring, wrong-type or malformed saved-work key | Explicit failure; no silent recreation or expiry repair |
+| Earlier revision Open | Exact earlier content, unchanged durable head |
+| Restore or Undo | Append a new revision; stale versions cannot overwrite newer work |
+| Corrupted or unsupported content | Explicit error; no regenerated replacement |
+| Explicit Delete | Current item disappears, payloads are blanked, create tombstone remains |
+| Storage, revision or lifetime field cap | Explicit limit failure without silent history pruning |
+| Restart of disposable Redis | Same content, metadata, history and tombstones |
+| Save or Open | No model, research or generation-quota call |
 
-## Orb workspace integration
+## Native Redis gate
 
-Saved work is available from **More → Saved work**. More reuses the existing
-compact controls entry; reaction previews remain in its collapsed disclosure.
-The library mounts on demand, makes one initial list request, and exposes explicit
-Save, Open, Rename and Delete actions. No background polling or automatic mutation
-retry runs. Its native modal retains keyboard focus, supports Escape, and follows
-the mobile visual viewport and safe areas.
+`scripts/metabloom-saved-work-redis.test.cjs` exercises the actual Lua scripts
+against a disposable native Redis process. It uses fictional content, an owned
+temporary directory, append-only persistence and an owned loopback listener. Its
+small RESP fixture has no production credentials or new application dependency.
+Readiness verifies the responding server's process ID before exposing it to
+tests. Cleanup stops only its own server and removes its temporary directory.
 
-Save captures the current owned component/reference and valid numeric calculator
-inputs. An unfinished draft disables Save with a visible explanation. A confirmed
-save associates only its originating retained message with the saved item. The
-panel keeps one captured request ID and source across an uncertain save retry.
-The temporary visual offer deadline is not used as the completed artifact's
-retention deadline; expiry is resolved by the server.
+For an explicitly supplied external test server, the harness requires
+`METABLOOM_SAVED_WORK_TEST_ALLOW_DISPOSABLE=1`, accepts only literal loopback
+endpoints and removes only its registered test keys. It never issues `FLUSHALL`
+or `FLUSHDB`. Restart persistence requires the harness-owned process.
 
-Open creates an explicit local conversation entry and registers validated saved
-content directly in the workspace. It does not call a generator or research
-provider. Reopened components receive fresh session-owned reference handles;
-research keeps original reports, source IDs, dates and briefs. Neither Open nor
-Save changes the existing composer draft or silently stages a message attachment.
-Stored names label the workspace without modifying the original spec or evidence.
+The CI workflow installs Redis and sets
+`METABLOOM_SAVED_WORK_TEST_REQUIRE_REDIS=1`. Missing native Redis therefore fails
+the gate rather than producing an apparent pass with all native cases skipped.
+`METABLOOM_SAVED_WORK_TEST_REDIS_SERVER` can point to a locally built binary.
 
-A newer workspace selection, a pending chat request, a closed panel, an account
-change or route unmount rejects a late Open. At conversation capacity, older
-messages are pruned only after successful local placement. Failed placement keeps
-the prior message set and live renderer/report state intact.
+```sh
+npm run test:saved-work
+METABLOOM_SAVED_WORK_TEST_REQUIRE_REDIS=1 npm run test:saved-work:redis
+npm run test:auth
+npm run lint:saved-work
+npm run lint
+CI=true npm test -- --watchAll=false --runInBand
+GENERATE_SOURCEMAP=false npm run build
+```
 
-UI coverage is in `MetabloomSavedWorkPanel.test.js` and
-`MetabloomComponentWorkspace.test.js`. It exercises confirmed/uncertain saves,
-new-conversation Open with exact values and fresh follow-up references, unchanged
-drafts, real research carousel state, full-capacity rollback, delayed response
-ownership, unavailable storage, rename/delete confirmation and modal cleanup.
-The pure workspace adapter validates saved Open envelopes and refuses to replace
-invalid live calculator drafts with initial values.
+The workflow uploads TAP results only, not Redis persistence files or saved
+content. Native Redis tests establish command/atomicity/persistence behavior;
+they do not establish the hosted provider's actual plan, eviction setting,
+backup schedule, or failover behavior.
 
-A read-only check also found no installed Vercel Marketplace integrations for the
-connected team. The project still needs its PostgreSQL connection and explicit
-migration before saved storage can activate. There is no localStorage success
-fallback. Browser geometry and native focus trapping have not been revalidated
-in this environment because the Playwright browser runtime is unavailable.
+## Preserved workspace checks
 
-## Step 6 revisions and restore
+Existing integrated tests cover exact calculator scenarios, Save/Open into a
+new conversation with fresh references, failed-placement rollback, stale
+selection, unavailable storage, draft preservation, historical previews,
+Save changes, Restore, Undo, rename/delete metadata, and source-bound retries.
 
-The next isolated change adds bounded History, exact-revision Open,
-source-backed Revise, Restore and version-bound Undo receipts. It adds no SQL
-migration and uses the existing immutable revisions and optimistic concurrency
-checks. History reads its metadata and page in a single SQL snapshot.
+A save request captures its UUID, source, input scenario and original workspace
+message together. Opening another item while resolving an uncertain save cannot
+attach the old receipt to the newly visible component. A failed Open after a
+confirmed revision retains that receipt and retries only Open.
 
-All 112 saved-work tests pass, including sixteen revision/API/client cases and
-three additional history store contracts. The full Jest rerun passes all 215
-suites and 2,130 tests. Saved-work lint and whitespace checks pass.
+The mobile workspace retains one renderer and composer. Ordinary view changes
+preserve inputs and reading position. The storage change does not alter Theme,
+conversation layout or component navigation.
 
-Cases cover read-only historical preview, source-backed edits, exact-content
-no-op rejection, restore/Undo as new revisions, foreign and absent revisions,
-concurrent changes, rename invalidating Undo, loss of a committed response,
-deletion between read and append, quota failure, immutable earlier content,
-historical research dates, and strict receipt/pagination validation.
+## Hosted configuration and verification limits
 
-A further native PostgreSQL case verifies History pagination and HTTP
-restore/Undo against persisted revisions. The native suite now has 21 cases,
-including seventeen that require PostgreSQL 16. The two new Step 5/6 native
-cases remain unrun locally for the runtime limitation recorded above. CI runs
-them through the existing gate. No hosted activation or deployment is claimed.
+Read-only Vercel metadata confirms the existing production authentication Redis
+configuration, application origin and environment are present. No new resource,
+new secret, SQL migration or production data operation is required by this
+implementation. Saved-work keys are separate from authentication session keys.
 
-## Integrated history and workspace behavior
+The Vercel connection does not expose the existing Upstash management settings.
+Eviction and backup policy remain unverified here. Eviction must be disabled for
+permanent data, and shared database capacity must leave room for authentication.
+See the architecture document for recovery, including rotating
+`AUTH_SESSION_EPOCH` after restoring shared authentication data.
 
-History is an explicit action for each saved item. Opening a historical revision
-keeps the durable head unchanged and labels the older working revision in the
-workspace. Save changes uses the active association's last confirmed version and
-captured current source/scenario. Save as new remains a separate action.
-
-Restore asks for inline confirmation and appends the selected content as a new
-revision. Undo uses the server receipt's exact previous revision and expected
-version. A later change, including a rename, invalidates that receipt. The UI
-never substitutes a newer version token to make a stale Undo succeed.
-
-A confirmed mutation and the subsequent Open are separate outcomes. The panel
-records the saved revision before requesting fresh session references. If Open
-fails, it keeps the receipt and eligible Undo, reports the saved revision clearly,
-and retries only Open. It does not claim the live renderer has switched until
-owned placement succeeds. Uncertain mutation results require explicit refresh
-instead of an automatic repeat write.
-
-The conversation stores the selected revision independently from the latest
-confirmed head/version. Rename updates matching metadata; Delete detaches matching
-associations while leaving temporary live work usable. Actions on another saved
-item cannot relabel the current component. Successful Open focuses the work after
-the modal releases background inertness; cancel and Escape return to More.
-
-An uncertain Save as new retains both its frozen server request and its original
-workspace/message context. The panel labels that retry separately from Current
-work. Restoring or opening another item cannot redirect the old save receipt to
-the newly visible component, and a later explicit Save captures a fresh context
-and request ID. The opaque workspace context never leaves the client.
-
-The integrated workspace tests exercise changed calculator inputs, Save changes,
-freshly opened heads, Undo, frozen composer attachments, failed hydration with
-exact Open-only retry, older-revision preview, rename/delete associations, and a
-failed Open after restoring another item. A captured-save regression also checks
-that restoring a different item before retry cannot change either item's identity.
-The panel's 25 focused cases cover History pagination, source capture, conflicts,
-lost responses, context switches and modal lifecycle.
-The separate server contract suite passes 112 tests. This does not substitute for
-the native PostgreSQL gate or hosted activation documented above.
+A production user-flow claim requires an observed authenticated Save, new login
+or reload, exact Open, changed inputs, History, Restore and Undo. Local tests and
+a verified Git push do not imply that deployment or this hosted flow has passed.

@@ -1,155 +1,207 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { EventEmitter } = require('node:events');
-const { spawnSync } = require('node:child_process');
-const { join } = require('node:path');
-const { readMetabloomSavedWorkConfig, createMetabloomSavedWorkPool } = require('../server/metabloomSavedWorkDatabase');
+const { readMetabloomSavedWorkConfig, createMetabloomSavedWorkTransport,
+  MAX_SAVED_WORK_REDIS_REQUEST_BYTES, MAX_SAVED_WORK_REDIS_RESPONSE_BYTES } = require('../server/metabloomSavedWorkDatabase');
 
-const base = { METABLOOM_SAVED_WORK_ENVIRONMENT: 'production', METABLOOM_SAVED_WORK_NAMESPACE: 'popular-consulting',
-  METABLOOM_SAVED_WORK_DATABASE_URL: 'postgresql://fixture:fictional-password@db.example.test/orb?sslmode=require',
-  VERCEL_ENV: 'production', AUTH_ENVIRONMENT: 'production', VERCEL: '1' };
+const base = { AUTH_ENVIRONMENT: 'production', AUTH_APP_ORIGIN: 'https://popular-consulting.example',
+  AUTH_REDIS_REST_URL: 'https://redis-fixture.example', AUTH_REDIS_REST_TOKEN: 'fictional-fixture-token',
+  VERCEL_ENV: 'production', VERCEL: '1' };
 const unavailable = { code: 'saved_work_unavailable', status: 503 };
+const evaluate = ['EVAL', 'return {false,false}', '1', 'fictional-saved-key'];
+const response = (result, options) => new Response(JSON.stringify({ result }), options);
 
-test('dedicated explicit configuration is required without generic database or Redis fallback', () => {
-  assert.throws(() => readMetabloomSavedWorkConfig({ DATABASE_URL: base.METABLOOM_SAVED_WORK_DATABASE_URL,
-    UPSTASH_REDIS_REST_URL: 'https://fixture.example.test' }), unavailable);
-  for (const key of ['METABLOOM_SAVED_WORK_DATABASE_URL', 'METABLOOM_SAVED_WORK_ENVIRONMENT', 'METABLOOM_SAVED_WORK_NAMESPACE']) {
+test('saved work reuses the complete authentication Redis configuration without new database secrets', () => {
+  const config = readMetabloomSavedWorkConfig(base);
+  assert.equal(config.redisUrl, base.AUTH_REDIS_REST_URL);
+  assert.equal(config.redisToken, base.AUTH_REDIS_REST_TOKEN);
+  assert.equal(config.origin, base.AUTH_APP_ORIGIN);
+  assert.equal(config.environment, 'production');
+  assert.match(config.scope, /^[a-f0-9]{64}$/);
+  assert.equal(Object.isFrozen(config), true);
+  for (const key of ['AUTH_REDIS_REST_URL', 'AUTH_REDIS_REST_TOKEN', 'AUTH_APP_ORIGIN']) {
     const missing = { ...base }; delete missing[key];
     assert.throws(() => readMetabloomSavedWorkConfig(missing), unavailable);
   }
+  assert.throws(() => readMetabloomSavedWorkConfig({ ...base, AUTH_REDIS_REST_TOKEN: '',
+    UPSTASH_REDIS_REST_TOKEN: 'unrelated-provider-token' }), unavailable);
+});
+
+test('durable scope survives auth epoch, namespace, client and Redis credential rotation', () => {
+  const before = readMetabloomSavedWorkConfig({ ...base, AUTH_SESSION_EPOCH: 'old-epoch',
+    AUTH_SESSION_NAMESPACE: 'old-login-namespace', AUTH0_CLIENT_ID: 'old-client' });
+  const after = readMetabloomSavedWorkConfig({ ...base, AUTH_SESSION_EPOCH: 'new-epoch',
+    AUTH_SESSION_NAMESPACE: 'new-login-namespace', AUTH0_CLIENT_ID: 'new-client',
+    AUTH_REDIS_REST_TOKEN: 'rotated-fictional-token' });
+  assert.equal(before.scope, after.scope);
+  assert.notEqual(before.redisToken, after.redisToken);
+  assert.notEqual(before.scope, readMetabloomSavedWorkConfig({ ...base, AUTH_APP_ORIGIN: 'https://other-app.example' }).scope);
+  assert.notEqual(before.scope, readMetabloomSavedWorkConfig({ ...base, AUTH_ENVIRONMENT: 'preview', VERCEL_ENV: 'preview' }).scope);
+});
+
+test('deployment environment disagreement fails before transport creation', () => {
+  for (const change of [{ VERCEL_ENV: 'preview' }, { VERCEL_ENV: '' }, { AUTH_ENVIRONMENT: 'staging' },
+    { AUTH_ENVIRONMENT: undefined }]) {
+    assert.throws(() => readMetabloomSavedWorkConfig({ ...base, ...change }), { code: 'saved_work_environment_mismatch' });
+  }
   const config = readMetabloomSavedWorkConfig(base);
-  assert.equal(config.environment, 'production');
-  assert.equal(config.namespace, 'popular-consulting');
-  assert.equal(Object.isFrozen(config), true);
+  assert.throws(() => createMetabloomSavedWorkTransport({ ...config, scope: '0'.repeat(64) }),
+    { code: 'saved_work_environment_mismatch' });
 });
 
-test('preview, auth and deployment environment mismatches fail before a connection exists', () => {
-  for (const change of [{ VERCEL_ENV: 'preview' }, { AUTH_ENVIRONMENT: 'preview' }, { VERCEL_ENV: '' },
-    { METABLOOM_SAVED_WORK_ENVIRONMENT: 'staging' }, { METABLOOM_SAVED_WORK_NAMESPACE: 'public.other' },
-    { METABLOOM_SAVED_WORK_NAMESPACE: 'x'.repeat(61) }])
-    assert.throws(() => readMetabloomSavedWorkConfig({ ...base, ...change }), unavailable);
-});
-
-test('remote connections verify TLS certificates and remove URL SSL overrides', () => {
-  for (const mode of ['', '?sslmode=require', '?sslmode=verify-full']) {
-    const config = readMetabloomSavedWorkConfig({ ...base,
-      METABLOOM_SAVED_WORK_DATABASE_URL: `postgresql://fixture:fictional-password@db.example.test/orb${mode}` });
-    assert.deepEqual(config.ssl, { rejectUnauthorized: true });
-    assert.equal(new URL(config.connectionString).search, '');
-  }
-  for (const query of ['sslmode=disable', 'sslmode=no-verify', 'sslmode=prefer', 'sslmode=verify-ca',
-    'sslmode=require&sslmode=disable', 'ssl=false', 'sslrootcert=/tmp/file', 'sslcert=/tmp/file',
-    'sslkey=/tmp/file', 'options=-c%20search_path%3Dpublic', 'host=attacker.example.test'])
-    assert.throws(() => readMetabloomSavedWorkConfig({ ...base,
-      METABLOOM_SAVED_WORK_DATABASE_URL: `postgresql://fixture:fictional-password@db.example.test/orb?${query}` }), unavailable);
-});
-
-test('unencrypted transport is restricted to explicit local development outside Vercel', () => {
-  for (const host of ['127.0.0.1', 'localhost', '[::1]']) {
-    const local = { METABLOOM_SAVED_WORK_ENVIRONMENT: 'development', METABLOOM_SAVED_WORK_NAMESPACE: 'local-fixture',
-      METABLOOM_SAVED_WORK_DATABASE_URL: `postgresql://fixture:fictional-password@${host}:5432/orb?sslmode=disable` };
-    assert.equal(readMetabloomSavedWorkConfig(local).ssl, false);
-    assert.throws(() => readMetabloomSavedWorkConfig({ ...local, VERCEL: '1', VERCEL_ENV: 'development' }), unavailable);
-    assert.throws(() => readMetabloomSavedWorkConfig({ ...local, METABLOOM_SAVED_WORK_ENVIRONMENT: 'production' }), unavailable);
-  }
-  assert.throws(() => readMetabloomSavedWorkConfig({ METABLOOM_SAVED_WORK_ENVIRONMENT: 'development',
-    METABLOOM_SAVED_WORK_NAMESPACE: 'local-fixture', METABLOOM_SAVED_WORK_DATABASE_URL:
-      'postgresql://fixture:fictional-password@not-local.example.test/orb?sslmode=disable' }), unavailable);
-});
-
-test('connection parsing rejects ambiguous values without exposing the supplied credential', () => {
-  for (const value of ['https://fixture:secret@db.example.test/orb', 'postgresql://db.example.test/orb',
-    'postgresql://fixture:secret@db.example.test/', 'postgresql://fixture:secret@db.example.test/a/b',
-    'postgresql://fixture:secret@db.example.test/orb#fragment', 'postgresql://fixture:%XX@db.example.test/orb',
-    'postgresql://fixture:secret%00@db.example.test/orb', ' postgresql://fixture:secret@db.example.test/orb']) {
-    assert.throws(() => readMetabloomSavedWorkConfig({ ...base, METABLOOM_SAVED_WORK_DATABASE_URL: value }), error => {
+test('application and Redis origins require unambiguous HTTPS roots', () => {
+  const invalid = ['http://redis-fixture.example', 'https://user:secret@redis-fixture.example',
+    'https://redis-fixture.example:8443', 'https://redis-fixture.example/path',
+    'https://redis-fixture.example?token=secret', 'https://redis-fixture.example#secret',
+    ' https://redis-fixture.example', 'https://redis-fixture.example\n', 'https://redis-fixture.example/%00'];
+  for (const key of ['AUTH_REDIS_REST_URL', 'AUTH_APP_ORIGIN']) for (const value of invalid) {
+    assert.throws(() => readMetabloomSavedWorkConfig({ ...base, [key]: value }), error => {
       assert.equal(error.code, unavailable.code);
-      assert.equal(error.message.includes('secret'), false);
-      assert.equal(error.message.includes('db.example.test'), false);
+      assert.doesNotMatch(error.message, /secret|redis-fixture/);
       return true;
     });
   }
+  assert.equal(readMetabloomSavedWorkConfig({ ...base, AUTH_REDIS_REST_URL: `${base.AUTH_REDIS_REST_URL}/` }).redisUrl,
+    base.AUTH_REDIS_REST_URL);
 });
 
-test('migration credentials are separate and never fall back to application credentials', () => {
-  assert.throws(() => readMetabloomSavedWorkConfig(base, { migration: true }), unavailable);
-  const env = { ...base, METABLOOM_SAVED_WORK_MIGRATION_DATABASE_URL:
-    'postgresql://migration:fictional-migration-password@db.example.test/orb?sslmode=verify-full' };
-  assert.equal(new URL(readMetabloomSavedWorkConfig(env).connectionString).username, 'fixture');
-  assert.equal(new URL(readMetabloomSavedWorkConfig(env, { migration: true }).connectionString).username, 'migration');
+test('empty, ambiguous, oversized or multiline credentials never reach HTTP headers', () => {
+  for (const token of ['', ' leading', 'trailing ', 'middle space', 'line\nbreak', 'bad\u0000token', 'x'.repeat(4097)])
+    assert.throws(() => readMetabloomSavedWorkConfig({ ...base, AUTH_REDIS_REST_TOKEN: token }), unavailable);
 });
 
-test('pool construction is bounded, attaches to Vercel lifecycle, and makes no eager connection', async () => {
-  let attached, options, connections = 0;
-  class Pool extends EventEmitter {
-    constructor(value) { super(); options = value; }
-    connect() { connections++; throw new Error('No eager connection permitted'); }
-  }
-  const config = readMetabloomSavedWorkConfig(base);
-  const pool = createMetabloomSavedWorkPool(config, { Pool, attachPool: value => { attached = value; } });
-  assert.equal(attached, pool);
-  assert.equal(connections, 0);
-  assert.equal(options.max, 4);
-  assert(options.connectionTimeoutMillis > 0 && options.connectionTimeoutMillis <= 3000);
-  assert(options.statement_timeout > 0 && options.statement_timeout < options.query_timeout);
-  assert(options.lock_timeout > 0 && options.idle_in_transaction_session_timeout > options.statement_timeout);
-  assert.deepEqual(options.ssl, { rejectUnauthorized: true });
-  const originalWarn = console.warn, warnings = [];
-  console.warn = value => warnings.push(value);
-  try { pool.emit('error', new Error('password=fictional-secret')); } finally { console.warn = originalWarn; }
-  assert.deepEqual(warnings, ['[metabloom-saved-work] database_connection_unavailable']);
-});
-
-test('pool callers cannot weaken TLS or reintroduce connection-string overrides', () => {
-  const config = readMetabloomSavedWorkConfig(base);
-  const Pool = class { constructor() { assert.fail('Invalid configuration reached the driver'); } };
-  for (const change of [{ ssl: false }, { ssl: { rejectUnauthorized: false } },
-    { ssl: { rejectUnauthorized: true, checkServerIdentity: () => undefined } },
-    { connectionString: `${config.connectionString}?sslmode=require` }, { environment: 'untrusted' }])
-    assert.throws(() => createMetabloomSavedWorkPool({ ...config, ...change }, { Pool }), unavailable);
-});
-
-test('a caller cannot mutate the validated TLS options after pool creation', () => {
-  let options;
-  class Pool extends EventEmitter { constructor(value) { super(); options = value; } }
-  const config = { ...readMetabloomSavedWorkConfig(base), ssl: { rejectUnauthorized: true } };
-  createMetabloomSavedWorkPool(config, { Pool, attachPool: () => {} });
-  config.ssl.rejectUnauthorized = false;
-  assert.deepEqual(options.ssl, { rejectUnauthorized: true });
-  assert.notEqual(options.ssl, config.ssl);
-  assert.equal(Object.isFrozen(options.ssl), true);
-});
-
-test('connection configuration getters cannot swap the target after validation', () => {
-  let reads = 0;
+test('transport is lazy, snapshots credentials and sends one private bounded POST with redirects disabled', async () => {
+  const calls = [];
   const config = { ...readMetabloomSavedWorkConfig(base) };
-  Object.defineProperty(config, 'connectionString', { enumerable: true, get() { reads++; return 'untrusted'; } });
-  const Pool = class { constructor() { assert.fail('Accessor configuration reached the driver'); } };
-  assert.throws(() => createMetabloomSavedWorkPool(config, { Pool }), unavailable);
-  assert.equal(reads, 0);
+  const command = createMetabloomSavedWorkTransport(config, { fetchImpl: async (url, options) => {
+    calls.push({ url, options }); return response([null, null]);
+  } });
+  assert.equal(calls.length, 0);
+  config.redisToken = 'changed-after-construction';
+  config.redisUrl = 'https://different.example';
+  assert.deepEqual(await command(evaluate), [null, null]);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, base.AUTH_REDIS_REST_URL);
+  assert.equal(calls[0].options.headers.Authorization, `Bearer ${base.AUTH_REDIS_REST_TOKEN}`);
+  assert.equal(calls[0].options.method, 'POST');
+  assert.equal(calls[0].options.redirect, 'error');
+  assert.equal(calls[0].options.cache, 'no-store');
+  assert.deepEqual(JSON.parse(calls[0].options.body), evaluate);
+  assert.ok(calls[0].options.signal instanceof AbortSignal);
 });
 
-test('a lifecycle attachment failure closes the unused pool and returns a generic error', () => {
-  let ended = 0;
-  class Pool extends EventEmitter { end() { ended++; return Promise.resolve(); } }
-  assert.throws(() => createMetabloomSavedWorkPool(readMetabloomSavedWorkConfig(base), { Pool,
-    attachPool: () => { throw new Error('fictional credential detail'); } }), unavailable);
-  assert.equal(ended, 1);
+test('only bounded script commands are accepted and actual serialized request bytes are enforced', async () => {
+  let calls = 0;
+  const command = createMetabloomSavedWorkTransport(readMetabloomSavedWorkConfig(base), {
+    fetchImpl: async () => { calls++; return response('OK'); },
+  });
+  for (const args of [['FLUSHALL'], ['GET', 'other-key'], ['EVAL', 'return 1', 1, 'key'],
+    ['EVAL', 'return 1', '1'], Array(141).fill('EVAL')])
+    await assert.rejects(command(args), { code: 'saved_work_invalid' });
+  await assert.rejects(command([...evaluate, 'x'.repeat(MAX_SAVED_WORK_REDIS_REQUEST_BYTES)]), { code: 'saved_work_limit' });
+  const escaped = '\u0001'.repeat(Math.ceil(MAX_SAVED_WORK_REDIS_REQUEST_BYTES / 6));
+  assert(escaped.length < MAX_SAVED_WORK_REDIS_REQUEST_BYTES);
+  await assert.rejects(command([...evaluate, escaped]), { code: 'saved_work_limit' });
+  assert.equal(calls, 0);
 });
 
-test('the operator command requires explicit apply and a matching environment without leaking credentials', () => {
-  const env = { ...process.env, ...base, METABLOOM_SAVED_WORK_MIGRATION_DATABASE_URL:
-    'postgresql://migration:fictional-secret@never-contact.example.test/orb?sslmode=require' };
-  for (const [args, expected] of [
-    [[], 'migration_arguments_required'],
-    [['--environment=production'], 'migration_arguments_required'],
-    [['--apply', '--environment=production', '--force'], 'migration_arguments_required'],
-    [['--apply', '--environment=preview'], 'migration_environment_mismatch'],
-  ]) {
-    const result = spawnSync(process.execPath, [join(__dirname, 'migrate-metabloom-saved-work.cjs'), ...args],
-      { env, encoding: 'utf8', timeout: 3000 });
-    assert.equal(result.status, 1, result.stderr);
-    assert.equal(result.stdout, '');
-    assert.equal(result.stderr.trim(), expected);
+test('provider error, invalid JSON and unexpected envelopes return sanitized errors with no retries', async () => {
+  const providers = [
+    () => { throw new Error('Bearer fictional-secret https://redis-fixture.example'); },
+    () => new Response(JSON.stringify({ error: 'fictional-private-diagnostic' })),
+    () => response('fictional-private-result', { status: 503 }),
+    () => new Response('{'),
+    () => new Response('[]'),
+    () => new Response('{}'),
+  ];
+  for (const provider of providers) {
+    let calls = 0;
+    const command = createMetabloomSavedWorkTransport(readMetabloomSavedWorkConfig(base), {
+      fetchImpl: async () => { calls++; return provider(); },
+    });
+    await assert.rejects(command(evaluate), error => {
+      assert.equal(error.code, unavailable.code);
+      assert.doesNotMatch(error.message, /fictional|redis-fixture|Bearer/);
+      assert.equal(error.cause, undefined);
+      return true;
+    });
+    assert.equal(calls, 1);
   }
+});
+
+test('oversize declarations and streamed bodies are bounded and cancelled', async () => {
+  for (const declared of [String(MAX_SAVED_WORK_REDIS_RESPONSE_BYTES + 1), 'not-a-number']) {
+    let cancelled = false;
+    const body = new ReadableStream({ cancel() { cancelled = true; } });
+    const command = createMetabloomSavedWorkTransport(readMetabloomSavedWorkConfig(base), {
+      fetchImpl: async () => new Response(body, { headers: { 'content-length': declared } }),
+    });
+    await assert.rejects(command(evaluate), unavailable);
+    assert.equal(cancelled, true);
+  }
+  let cancelled = false;
+  const body = new ReadableStream({
+    start(controller) { controller.enqueue(new Uint8Array(MAX_SAVED_WORK_REDIS_RESPONSE_BYTES + 1)); },
+    cancel() { cancelled = true; },
+  });
+  const command = createMetabloomSavedWorkTransport(readMetabloomSavedWorkConfig(base), {
+    fetchImpl: async () => new Response(body),
+  });
+  await assert.rejects(command(evaluate), unavailable);
+  assert.equal(cancelled, true);
+});
+
+test('invalid UTF-8 is rejected while a multibyte character split across chunks round-trips', async () => {
+  const encoded = Buffer.from(JSON.stringify({ result: 'Fictional café 🍁' }));
+  for (const valid of [true, false]) {
+    const bytes = valid ? encoded : Buffer.from([0xff, 0xfe]);
+    const command = createMetabloomSavedWorkTransport(readMetabloomSavedWorkConfig(base), { fetchImpl: async () => {
+      const body = new ReadableStream({ start(controller) {
+        for (const byte of bytes) controller.enqueue(Uint8Array.of(byte));
+        controller.close();
+      } });
+      return new Response(body);
+    } });
+    if (valid) assert.equal(await command(evaluate), 'Fictional café 🍁');
+    else await assert.rejects(command(evaluate), unavailable);
+  }
+});
+
+test('pre-aborted requests stay local and in-flight aborts do not trigger a retry', async () => {
+  const controller = new AbortController(); controller.abort();
+  let calls = 0;
+  const command = createMetabloomSavedWorkTransport(readMetabloomSavedWorkConfig(base), {
+    fetchImpl: async () => { calls++; return response('OK'); },
+  });
+  await assert.rejects(command(evaluate, { signal: controller.signal }), { name: 'AbortError' });
+  assert.equal(calls, 0);
+  const during = new AbortController();
+  const pending = createMetabloomSavedWorkTransport(readMetabloomSavedWorkConfig(base), { fetchImpl: async (_url, options) => {
+    calls++;
+    during.abort();
+    options.signal.throwIfAborted();
+  } });
+  await assert.rejects(pending(evaluate, { signal: during.signal }), { name: 'AbortError' });
+  assert.equal(calls, 1);
+});
+
+test('a confirmed response remains successful if cancellation arrives immediately after it', async () => {
+  const controller = new AbortController();
+  const command = createMetabloomSavedWorkTransport(readMetabloomSavedWorkConfig(base), { fetchImpl: async () => {
+    const result = response('confirmed');
+    controller.abort();
+    return result;
+  } });
+  assert.equal(await command(evaluate, { signal: controller.signal }), 'confirmed');
+});
+
+test('bounded Upstash sync tokens are propagated privately between calls', async () => {
+  const calls = [];
+  const command = createMetabloomSavedWorkTransport(readMetabloomSavedWorkConfig(base), { fetchImpl: async (_url, options) => {
+    calls.push(options);
+    return response('OK', { headers: { 'upstash-sync-token': calls.length === 1 ? 'fixture-sync-1' : 'bad token with spaces' } });
+  } });
+  await command(evaluate); await command(evaluate); await command(evaluate);
+  assert.equal(calls[0].headers['upstash-sync-token'], undefined);
+  assert.equal(calls[1].headers['upstash-sync-token'], 'fixture-sync-1');
+  assert.equal(calls[2].headers['upstash-sync-token'], 'fixture-sync-1');
 });

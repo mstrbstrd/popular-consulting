@@ -4,7 +4,7 @@ const { randomUUID } = require('node:crypto');
 const { createMetabloomSavedWorkHandler } = require('../api/metabloom-saved-work');
 const { resolveMetabloomArtifactReference } = require('../server/metabloomArtifactContext');
 const { resolveMetabloomResearchContext } = require('../server/metabloomResearchContext');
-const { savedWorkError } = require('../server/metabloomSavedWorkMigrations');
+const { savedWorkError } = require('../server/metabloomSavedWorkErrors');
 const { MAX_METABLOOM_RESEARCH_REPORT_BYTES } = require('../src/components/metabloomResearchReport');
 const { parseMetabloomSavedWorkRequest } = require('../src/components/metabloomSavedWorkProtocol');
 const { accountIdentity, identity, visualContent, response, request, authenticate, temporaryStores,
@@ -45,8 +45,8 @@ test('authentication and same-origin denials run before any store access', async
 });
 
 test('the unconfigured deployed factory stays lazy and reports unavailable without network or fallback', async () => {
-  const names = ['METABLOOM_SAVED_WORK_DATABASE_URL', 'METABLOOM_SAVED_WORK_ENVIRONMENT',
-    'METABLOOM_SAVED_WORK_NAMESPACE'];
+  const names = ['AUTH_REDIS_REST_URL', 'AUTH_REDIS_REST_TOKEN', 'AUTH_ENVIRONMENT',
+    'AUTH_APP_ORIGIN'];
   const original = names.map(name => process.env[name]);
   names.forEach(name => { delete process.env[name]; });
   mock.method(globalThis, 'fetch', async () => assert.fail('Unconfigured storage cannot call another service'));
@@ -62,17 +62,17 @@ test('the unconfigured deployed factory stays lazy and reports unavailable witho
   }
 });
 
-test('status requires a successful account-scoped read and hides schema, SQL and connection details', async () => {
+test('status requires a successful account-scoped read and hides schema, Redis and connection details', async () => {
   const { handler, durable } = setup();
   assert.deepEqual(json(await invoke(handler, { action: 'status' })), { available: true });
   assert.deepEqual(durable.calls[0].slice(0, 3), ['list', accountIdentity, { limit: 1 }]);
-  for (const error of [new Error('postgres://private:password@database/internal SQL'),
-    savedWorkError('saved_work_environment_mismatch'), savedWorkError('saved_work_migration_mismatch')]) {
+  for (const error of [new Error('https://private:password@database/internal Redis'),
+    savedWorkError('saved_work_environment_mismatch'), new Error('private storage schema details')]) {
     const unavailable = setup({ getStore: () => ({ list: async () => { throw error; } }) }).handler;
     assert.deepEqual(json(await invoke(unavailable, { action: 'status' })), { available: false, code: 'saved_work_unavailable' });
     const res = await invoke(unavailable, { action: 'list' });
     assert.equal(res.statusCode, 503); assert.equal(json(res).code, 'saved_work_unavailable');
-    assert.doesNotMatch(res.body, /password|database\/|mismatch|SQL/);
+    assert.doesNotMatch(res.body, /password|database\/|mismatch|Redis|schema/);
   }
 });
 
