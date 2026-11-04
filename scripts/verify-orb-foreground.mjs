@@ -97,7 +97,10 @@ try {
       const errors = [];
       let modelRequests = 0;
       page.on('pageerror', error => errors.push(error.message));
-      page.on('request', request => { if (new URL(request.url()).pathname.startsWith('/api/metabloom')) modelRequests += 1; });
+      page.on('request', request => {
+        const pathname = new URL(request.url()).pathname;
+        if (pathname.startsWith('/api/metabloom') && pathname !== '/api/metabloom-threads') modelRequests += 1;
+      });
       const press = locator => mobile ? locator.tap() : locator.click();
       const label = `${profile}-${theme}`;
       try {

@@ -43,7 +43,7 @@ const send = (res, status, body) => {
 };
 server.on('request', async (req, res) => {
   const pathname = new URL(req.url, 'http://127.0.0.1').pathname;
-  if (!pathname.startsWith('/api/metabloom')) return serve(req, res);
+  if (pathname === '/api/metabloom-threads' || !pathname.startsWith('/api/metabloom')) return serve(req, res);
   try {
     assert.equal(req.method, 'POST');
     let raw = '';

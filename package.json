@@ -29,9 +29,9 @@
     "visual:dark-evidence:physical": "node scripts/run-physical-dark-qualification.mjs",
     "visual:dark-evidence:physical:verify": "node scripts/verify-physical-dark-qualification.mjs",
     "test:auth": "node --test server/auth-tests/*.test.mjs",
-    "lint:saved-work": "eslint --env node --max-warnings 0 server/metabloomAccountIdentity.js server/metabloomAuth.js server/metabloomSavedContent.js server/metabloomSavedWork*.js scripts/metabloom-saved-content.test.cjs scripts/metabloom-saved-work-*.cjs scripts/fixtures/metabloom-saved-work-*.cjs server/auth-tests/metabloom-account-identity.test.mjs api/metabloom-saved-work.js server/metabloomVisualStore.js src/components/metabloomSavedContent.js src/components/metabloomSavedWorkProtocol.js src/components/metabloomSavedWorkApiClient.js",
-    "test:saved-work": "node --test scripts/metabloom-saved-content.test.cjs scripts/metabloom-saved-work-database.test.cjs scripts/metabloom-saved-work-store.test.cjs scripts/metabloom-saved-work-api.test.cjs scripts/metabloom-saved-work-client.test.cjs scripts/metabloom-saved-work-revisions.test.cjs",
-    "test:saved-work:redis": "node --test scripts/metabloom-saved-work-redis.test.cjs"
+    "lint:saved-work": "eslint --env node --max-warnings 0 server/metabloomAccountIdentity.js server/metabloomAuth.js server/metabloomSavedContent.js server/metabloomSavedWork*.js server/metabloomThreads*.js scripts/metabloom-saved-content.test.cjs scripts/metabloom-saved-work-*.cjs scripts/metabloom-threads-*.cjs scripts/metabloom-thread-client.test.cjs scripts/fixtures/metabloom-saved-work-*.cjs server/auth-tests/metabloom-account-identity.test.mjs api/metabloom-saved-work.js api/metabloom-threads.js server/metabloomVisualStore.js src/components/metabloomSavedContent.js src/components/metabloomSavedWorkProtocol.js src/components/metabloomSavedWorkApiClient.js src/components/metabloomThreadProtocol.js src/components/metabloomThreadApiClient.js",
+    "test:saved-work": "node --test scripts/metabloom-saved-content.test.cjs scripts/metabloom-saved-work-database.test.cjs scripts/metabloom-saved-work-store.test.cjs scripts/metabloom-saved-work-api.test.cjs scripts/metabloom-saved-work-client.test.cjs scripts/metabloom-saved-work-revisions.test.cjs scripts/metabloom-threads-api.test.cjs scripts/metabloom-thread-client.test.cjs",
+    "test:saved-work:redis": "node --test scripts/metabloom-saved-work-redis.test.cjs scripts/metabloom-threads-redis.test.cjs"
   },
   "eslintConfig": {
     "extends": [

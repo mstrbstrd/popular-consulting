@@ -34,6 +34,7 @@ import { resolveMetabloomEmote, METABLOOM_PROTOCOL_VERSION, METABLOOM_EMOTE_IDS,
 import { METABLOOM_ACTIVITIES, METABLOOM_ACTIONS as METABLOOM_SCENE_ACTIONS, METABLOOM_REACTION_RECIPES, METABLOOM_DECISION_SCHEMA, METABLOOM_REACTION_QUESTION, resolveMetabloomDecision, parseMetabloomActivity } from "./metabloomDecisionMapping";
 import { createMetabloomReactionPlayer } from "./metabloomReactionPlayer";
 import { createMetabloomReplySession } from "./metabloomReplySession";
+import { MAX_METABLOOM_THREAD_MESSAGES } from './metabloomThreadProtocol';
 import { createMetabloomResearchDisplayGate } from "./metabloomResearchDisplayGate";
 import { METABLOOM_RESEARCH_TIMEOUT_MS, METABLOOM_RESEARCH_REUSE_TIMEOUT_MS, getMetabloomApiErrorMessage, requestMetabloomResponse } from "./metabloomApiClient";
 import { METABLOOM_REQUEST_ERROR_MESSAGES, parseMetabloomRequestRef } from "./metabloomRequestErrors";
@@ -439,6 +440,10 @@ const OrbSection = ({
   isActive = true,
   onConversationStateChange,
   onReady,
+  threadSession = null,
+  threadPanel = null,
+  threadBusy = false,
+  onShowThreads,
 }) => {
   const { isDark } = useThemeMode();
   const navigation = useAppNavigation();
@@ -449,6 +454,7 @@ const OrbSection = ({
   const savedWorkFocusFrame = React.useRef(0);
   const [savedWork, setSavedWork] = React.useState(null);
   const [savedConversation] = React.useState(() => navigation?.getToolState('orb'));
+  const messageLimit = threadSession ? MAX_METABLOOM_THREAD_MESSAGES : MAX_CHAT_MESSAGES;
   const initialMessages = React.useMemo(
     () => INITIAL_MESSAGES.map((message) => ({ ...message, actionChain: [] })),
     [],
@@ -527,7 +533,7 @@ const OrbSection = ({
   const [researchReferenceNow, setResearchReferenceNow] = React.useState(Date.now);
   const [unavailableResearchIds, setUnavailableResearchIds] = React.useState(() =>
     Array.isArray(savedConversation?.unavailableResearchIds) ? savedConversation.unavailableResearchIds
-      .filter(value => typeof value === 'string' && /^[a-f0-9]{48}$/.test(value)).slice(-MAX_CHAT_MESSAGES) : []);
+      .filter(value => typeof value === 'string' && /^[a-f0-9]{48}$/.test(value)).slice(-messageLimit) : []);
   const unavailableResearchIdsRef = React.useRef(unavailableResearchIds);
   const [pending, setPending] = React.useState(false);
   const [toolPending, setToolPending] = React.useState(false);
@@ -558,11 +564,11 @@ const OrbSection = ({
     }
   }, []);
   const markResearchUnavailable = React.useCallback(id => {
-    const next = [...new Set([...unavailableResearchIdsRef.current, id])].slice(-MAX_CHAT_MESSAGES);
+    const next = [...new Set([...unavailableResearchIdsRef.current, id])].slice(-messageLimit);
     unavailableResearchIdsRef.current = next;
     if (retainedConversation.current) retainedConversation.current.unavailableResearchIds = next;
     setUnavailableResearchIds(next);
-  }, []);
+  }, [messageLimit]);
   React.useEffect(() => {
     const expirations = messages.map(message => parseMetabloomResearchReferenceMetadata(message.researchReference)?.expiresAt);
     expirations.push(researchAttachment?.expiresAt);
@@ -614,16 +620,29 @@ const OrbSection = ({
     return () => window.removeEventListener(METABLOOM_ARTIFACT_REFERENCE_EVENT, stageReference);
   }, [isActive, updateArtifactAttachment]);
   const saveToolState = navigation?.saveToolState;
-  React.useEffect(() => () => {
+  const captureConversation = React.useCallback(() => {
     const snapshot = retainedConversation.current;
     const display = replyDisplayRef.current;
     // This cleanup runs before reply teardown. Save validated work directly,
     // even when its presentation has not created or finished the visible row.
     const retainedMessages = display?.retainedMessages();
-    saveToolState?.('orb', { ...snapshot, interrupted: stateRef.current?.pending === true && !display?.session.closed,
+    return { ...snapshot, interrupted: stateRef.current?.pending === true && !display?.session.closed,
       counter: messageCounterRef.current, messages: retainedMessages
-        || messagesRef.current.map(message => message.status === 'streaming' ? { ...message, status: 'interrupted' } : message) });
-  }, [saveToolState]);
+        || messagesRef.current.map(message => message.status === 'streaming' ? { ...message, status: 'interrupted' } : message) };
+  }, []);
+  React.useEffect(() => () => { saveToolState?.('orb', captureConversation()); }, [captureConversation, saveToolState]);
+  React.useLayoutEffect(() => threadSession?.registerConversation(captureConversation), [captureConversation, threadSession]);
+  React.useEffect(() => {
+    if (!threadSession?.focusComposer) return undefined;
+    const frame = window.requestAnimationFrame(() => {
+      if (!mountedRef.current) return;
+      composerRef.current?.focus({ preventScroll: true });
+      threadSession.focusComposer = false;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [threadSession]);
+  React.useEffect(() => { threadSession?.changed(); }, [threadSession, messages, draft, artifactAttachment,
+    researchAttachment, unavailableResearchIds, expressiveness, pending, responseSource, paused, allowEmoteChanges, deepResearch]);
   const activeAction =
     resolveMetabloomAction(actionId) || getDefaultMetabloomAction();
   const legacyForm = ACTION_FORMS[activeAction.id] || "companion";
@@ -698,7 +717,7 @@ const OrbSection = ({
   }, []);
   React.useEffect(() => () => window.cancelAnimationFrame(savedWorkFocusFrame.current), []);
   const openSavedWork = React.useCallback(() => {
-    if (!isActive || stateRef.current?.pending || !workspace?.mounted || !workspace.ownsSurface()) return;
+    if (!isActive || stateRef.current?.pending || threadSession?.locked || !workspace?.mounted || !workspace.ownsSurface()) return;
     const context = workspace.captureSavedWorkContext();
     if (context?.source?.source?.kind === 'research'
       && unavailableResearchIdsRef.current.includes(context.source.source.researchId)) {
@@ -708,7 +727,7 @@ const OrbSection = ({
       saveContext: { controller: workspace, messageId: context?.messageId } };
     savedWorkRef.current = session;
     setSavedWork(session);
-  }, [isActive, workspace]);
+  }, [isActive, threadSession, workspace]);
   React.useLayoutEffect(() => workspace?.registerSavedWorkAction?.({
     open: openSavedWork, disabled: pending || !isActive,
   }), [isActive, openSavedWork, pending, workspace]);
@@ -795,9 +814,13 @@ const OrbSection = ({
   const openSavedResult = React.useCallback(result => {
     const session = savedWorkRef.current;
     const controller = session?.controller;
-    if (!isActive || !mountedRef.current || stateRef.current?.pending || !controller?.mounted
+    if (!isActive || !mountedRef.current || stateRef.current?.pending || threadSession?.locked || !controller?.mounted
       || workspaceRef.current !== controller || !controller.workspaceHost()
       || controller.workspaceSelectionRevision !== session.revision) return false;
+    if (threadSession && messagesRef.current.length >= messageLimit) {
+      setErrorMessage('This chat has reached its message limit. Start a new chat to keep the full history.');
+      return false;
+    }
     const prepared = prepareMetabloomSavedOpen(result);
     if (!prepared) return false;
     const message = cloneMessage({ id: `assistant-${++messageCounterRef.current}`, role: 'assistant', status: 'complete',
@@ -814,7 +837,7 @@ const OrbSection = ({
     }
     // Prune only after successful placement, so a failed Open cannot discard an
     // older message or unmount its live component before we can roll back.
-    publishMessages(messagesRef.current.slice(-MAX_CHAT_MESSAGES).map(item => item.id === message.id && prepared.savedWorkBaseline
+    publishMessages(messagesRef.current.slice(-messageLimit).map(item => item.id === message.id && prepared.savedWorkBaseline
       ? { ...item, savedWorkBaseline: prepared.savedWorkBaseline } : item));
     const context = controller.captureSavedWorkContext();
     const next = { controller, revision: controller.workspaceSelectionRevision, focusWorkspaceOnClose: true, ...context,
@@ -823,7 +846,7 @@ const OrbSection = ({
     setSavedWork(next);
     controller.refresh();
     return true;
-  }, [isActive, publishMessages]);
+  }, [isActive, messageLimit, publishMessages, threadSession]);
   React.useEffect(() => {
     if (!isActive || (savedWorkRef.current && savedWorkRef.current.controller !== workspace)) closeSavedWork();
   }, [closeSavedWork, isActive, workspace]);
@@ -1340,10 +1363,10 @@ const OrbSection = ({
         ...(researchDetails ? { researchDetails } : {}),
         ...(researchBrief ? { researchBrief } : {}),
       };
-      publishMessages([...messagesRef.current.slice(-(MAX_CHAT_MESSAGES - 1)), message]);
+      publishMessages([...(threadSession ? messagesRef.current : messagesRef.current.slice(-(MAX_CHAT_MESSAGES - 1))), message]);
       return message;
     },
-    [publishMessages],
+    [publishMessages, threadSession],
   );
 
   const finishReplyPresentation = React.useCallback((session) => {
@@ -1420,7 +1443,7 @@ const OrbSection = ({
       const existing = messagesRef.current.find((message) => message.id === messageId);
       const message = { id: messageId, role: "assistant", actionChain: [], ...existing, ...snapshot, source: replySource };
       return existing ? messagesRef.current.map((item) => item.id === messageId ? message : item)
-        : [...messagesRef.current.slice(-(MAX_CHAT_MESSAGES - 1)), message];
+        : [...(threadSession ? messagesRef.current : messagesRef.current.slice(-(MAX_CHAT_MESSAGES - 1))), message];
     };
     const publishSnapshot = (snapshot) => {
       if (!mountedRef.current || replyRef.current !== session) return;
@@ -1507,7 +1530,7 @@ const OrbSection = ({
     }, 650);
     previewTimerRef.current = window.setTimeout(() => failReply(session, { code: "answer_timeout" }), RESPONSE_TIMEOUT_MS);
     return session;
-  }, [beginRequestScene, cancelResponse, clearSequence, completeActivity, completeRequestScene, failReply, performAction, reactionPlayer, publishMessages, updateStateSnapshot]);
+  }, [beginRequestScene, cancelResponse, clearSequence, completeActivity, completeRequestScene, failReply, performAction, reactionPlayer, publishMessages, threadSession, updateStateSnapshot]);
 
   const finishReply = React.useCallback((session, payload) => {
     if (replyRef.current !== session || session.closed) return false;
@@ -1760,6 +1783,11 @@ const OrbSection = ({
   const sendMessage = React.useCallback(
     (value) => {
       if (!isActive) return false;
+      if (threadSession?.locked) return false;
+      if (threadSession && captureConversation().messages.length > messageLimit - 2) {
+        setErrorMessage('This chat has reached its message limit. Start a new chat to keep the full history.');
+        return false;
+      }
       const message = typeof value === "string" ? value.trim() : "";
       if (!message) return false;
       if (message.length > MAX_USER_MESSAGE_CHARS) {
@@ -1993,7 +2021,7 @@ const OrbSection = ({
       }).catch((error) => { if (current()) failReply(session, error); });
       return true;
     },
-    [allowEmoteChanges, appendMessage, beginReply, beginRequestScene, cancelResponse, deepResearch, failReply, finishReply, isActive, publishMessages, reactionPlayer, receiveModelResponse, reportActivity, updateArtifactAttachment, updateResearchAttachment, updateStateSnapshot],
+    [allowEmoteChanges, appendMessage, beginReply, beginRequestScene, cancelResponse, captureConversation, deepResearch, failReply, finishReply, isActive, messageLimit, publishMessages, reactionPlayer, receiveModelResponse, reportActivity, threadSession, updateArtifactAttachment, updateResearchAttachment, updateStateSnapshot],
   );
 
   const handleSubmit = React.useCallback(
@@ -2502,6 +2530,7 @@ const OrbSection = ({
 
       <div className="metabloom-chat__interface">
         <div className="metabloom-chat__shell">
+          {threadPanel}
           <div
             className="metabloom-chat__presence"
             role="status"
@@ -2513,13 +2542,14 @@ const OrbSection = ({
             <span>{statusText}</span>
           </div>
 
-          <div className="metabloom-chat__workspace" role="region" aria-label="Current component" />
+          <div className="metabloom-chat__workspace" role="region" aria-label="Current component" inert={threadBusy ? '' : undefined} />
 
           <div
             ref={transcriptRef}
             onScroll={handleTranscriptScroll}
             tabIndex={0}
             className="metabloom-chat__messages"
+            inert={threadBusy ? '' : undefined}
             role="log"
             aria-live="polite"
             aria-label="Conversation"
@@ -2623,7 +2653,7 @@ const OrbSection = ({
             </div>
           </div>
 
-          <div className="metabloom-chat__composer-area" ref={composerAreaRef}>
+          <div className="metabloom-chat__composer-area" ref={composerAreaRef} inert={threadBusy ? '' : undefined}>
             <div className="metabloom-chat__composer-options">
               {!conversationStarted && researchStatus && <div className="metabloom-chat__research-preview">{researchStatus}</div>}
               <div className="metabloom-chat__conversation-tools">
@@ -2632,7 +2662,16 @@ const OrbSection = ({
                   disabled={pending || !isActive}
                   intensity={expressiveness}
                   onIntensityChange={setExpressiveness}
-                  tools={workspace ? ({ close }) => <button type="button" className="metabloom-reactions__saved-tool"
+                  tools={workspace ? ({ close }) => <>
+                    {onShowThreads && <button type="button" className="metabloom-reactions__saved-tool"
+                      aria-label="Saved chats" onClick={() => { close(); onShowThreads(); }}>
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+                        <path d="M4 4.5h16v12H9l-5 4v-16Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+                        <path d="M8 9h8M8 12h5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                      </svg>
+                      <span><strong>Chats</strong><span>Open a saved conversation</span></span>
+                    </button>}
+                    <button type="button" className="metabloom-reactions__saved-tool"
                     aria-label="Saved work" disabled={pending || !isActive} onClick={() => { close(); openSavedWork(); }}>
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
                       <path d="M4 6.5h6l2 2h8v11H4Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
@@ -2642,7 +2681,7 @@ const OrbSection = ({
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false">
                       <path d="m6 4 4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
-                  </button> : undefined}
+                  </button></> : undefined}
                 >
                   {({ close }) => (
                     <>
@@ -2760,6 +2799,7 @@ const OrbSection = ({
                 wrap="soft"
                 enterKeyHint="send"
                 maxLength={MAX_USER_MESSAGE_CHARS}
+                disabled={threadBusy}
               />
               {pending && draft.trim() && (
                 <button type="button" onClick={stop} aria-label="Stop response">
@@ -2768,7 +2808,7 @@ const OrbSection = ({
               )}
               <button
                 type={pending && !draft.trim() ? "button" : "submit"}
-                disabled={!pending && !draft.trim()}
+                disabled={threadBusy || (!pending && !draft.trim())}
                 onClick={pending && !draft.trim() ? stop : undefined}
                 aria-label={pending && !draft.trim() ? "Stop response" : "Send message"}
               >

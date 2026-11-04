@@ -147,7 +147,8 @@ try {
     window.__demoNetworkCalls = 0;
     const originalFetch = window.fetch.bind(window);
     window.fetch = (...args) => {
-      if (String(args[0]).includes('/api/metabloom')) {
+      const pathname = new URL(args[0]?.url || args[0], location.href).pathname;
+      if (pathname.startsWith('/api/metabloom') && pathname !== '/api/metabloom-threads') {
         window.__demoNetworkCalls++;
         return Promise.reject(new Error('A hardwired demo attempted a model request'));
       }

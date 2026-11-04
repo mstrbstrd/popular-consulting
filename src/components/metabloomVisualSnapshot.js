@@ -67,46 +67,72 @@ const parseRecord = (value, messages) => {
   const viewState = spec && parseViewState(value.viewState, spec);
   return viewState ? { ...value, spec, sources, viewState } : null;
 };
-function parseMetabloomVisualSnapshot(value, messages) {
+function parseMetabloomVisualSnapshot(value, messages, options = {}) {
+  const { strict = false, maxRecords = MAX_METABLOOM_VISUAL_SNAPSHOT_RECORDS,
+    maxBytes = MAX_METABLOOM_VISUAL_SNAPSHOT_BYTES } = options;
   const snapshot = emptySnapshot();
+  const invalid = () => strict ? null : emptySnapshot();
   const hasActive = Object.prototype.hasOwnProperty.call(value || {}, 'activeVisualId');
   const hasView = Object.prototype.hasOwnProperty.call(value || {}, 'workspaceView');
   if (!visualKeys(value, ['version', 'records', 'lastInteractedId', ...(hasActive ? ['activeVisualId'] : []), ...(hasView ? ['workspaceView'] : [])])
     || (hasView && (!hasActive || !['compact', 'expanded'].includes(value.workspaceView))) || value.version !== 1
-    || !Array.isArray(value.records) || value.records.length > MAX_METABLOOM_VISUAL_SNAPSHOT_RECORDS
+    || !Number.isSafeInteger(maxRecords) || maxRecords < 1 || !Number.isSafeInteger(maxBytes) || maxBytes < 1
+    || !Array.isArray(value.records) || value.records.length > maxRecords
     || !Array.isArray(messages) || (value.lastInteractedId !== null
       && (typeof value.lastInteractedId !== 'string' || !/^[a-f0-9]{48}$/.test(value.lastInteractedId)))
-    || (hasActive && (typeof value.activeVisualId !== 'string' || !/^[a-f0-9]{48}$/.test(value.activeVisualId)))) return snapshot;
-  try { if (byteLength(JSON.stringify(value)) > MAX_METABLOOM_VISUAL_SNAPSHOT_BYTES) return snapshot; }
-  catch { return snapshot; }
-  const ids = new Set();
+    || (hasActive && (typeof value.activeVisualId !== 'string' || !/^[a-f0-9]{48}$/.test(value.activeVisualId)))) return invalid();
+  try { if (byteLength(JSON.stringify(value)) > maxBytes) return invalid(); }
+  catch { return invalid(); }
+  const ids = new Set(), owners = new Set();
   for (const candidate of value.records) {
     const record = parseRecord(candidate, messages);
-    if (!record || ids.has(record.id)) continue;
+    let owner = record && (record.replyId || record.userId);
+    if (strict && record?.mode === 'tool' && !record.replyId) {
+      const index = messages.findIndex(message => message.id === record.userId);
+      const reply = messages[index + 1];
+      // Restore binds an unfinished tool to its exact following completed reply.
+      // Another record cannot claim that same eventual portal origin.
+      if (index >= 0 && reply?.role === 'assistant' && reply.status === 'complete') owner = reply.id;
+    }
+    if (!record || ids.has(record.id) || (strict && owners.has(owner))) {
+      if (strict) return null;
+      continue;
+    }
     ids.add(record.id);
+    owners.add(owner);
     snapshot.records.push(record);
   }
   if (snapshot.records.some(record => record.id === value.lastInteractedId && record.status === 'ready' && record.kind === 'calculator')) {
     snapshot.lastInteractedId = value.lastInteractedId;
-  }
+  } else if (strict && value.lastInteractedId !== null) return null;
   if (snapshot.records.some(record => record.id === value.activeVisualId && record.status === 'ready')) {
     snapshot.activeVisualId = value.activeVisualId;
     if (hasView) snapshot.workspaceView = value.workspaceView;
-  }
+  } else if (strict && hasActive) return null;
   return snapshot;
 }
-function createMetabloomVisualSnapshot(records, messages, lastInteractedId = null, activeVisualId = null, workspaceView) {
+function createMetabloomVisualSnapshot(records, messages, lastInteractedId = null, activeVisualId = null, workspaceView, options = {}) {
+  const { strict = false, maxRecords = MAX_METABLOOM_VISUAL_SNAPSHOT_RECORDS,
+    maxBytes = MAX_METABLOOM_VISUAL_SNAPSHOT_BYTES } = options;
   const snapshot = emptySnapshot();
-  if (!Array.isArray(records) || !Array.isArray(messages)) return snapshot;
+  if (!Array.isArray(records) || !Array.isArray(messages) || !Number.isSafeInteger(maxRecords) || maxRecords < 1
+    || !Number.isSafeInteger(maxBytes) || maxBytes < 1) return strict ? null : snapshot;
   const ids = new Set();
   for (const record of [...records].reverse()) {
-    if (!record || !['ready', 'generating', 'cancelled'].includes(record.status) || ids.has(record.id)) continue;
+    // Failed generation placeholders contain no work to retain. A strict
+    // durable capture must not silently discard any other record or overflow.
+    if (record?.status === 'failed' && !record.spec) continue;
+    if (!record || !['ready', 'generating', 'cancelled'].includes(record.status) || ids.has(record.id)) {
+      if (strict) return null;
+      continue;
+    }
     const ready = record.status === 'ready';
+    if (strict && ready && record.artifactVersion !== undefined && !isMetabloomArtifactVersion(record.artifactVersion)) return null;
     let viewState = record.viewState;
     if (ready && viewState === undefined) {
       const sources = parseMetabloomVisualSources(record.sources || []);
       const spec = sources && parseMetabloomVisual(record.spec, { kind: record.kind, sources });
-      if (!spec) continue;
+      if (!spec) { if (strict) return null; continue; }
       viewState = defaultViewState(spec);
     }
     const candidate = parseRecord({ id: record.id, kind: record.kind, mode: record.mode,
@@ -115,13 +141,14 @@ function createMetabloomVisualSnapshot(records, messages, lastInteractedId = nul
       sources: ready ? record.sources || [] : [],
       viewState: ready ? viewState : null,
       ...(ready && isMetabloomArtifactVersion(record.artifactVersion) ? { artifactVersion: record.artifactVersion } : {}) }, messages);
-    if (!candidate) continue;
+    if (!candidate) { if (strict) return null; continue; }
     const next = { ...snapshot, records: [candidate, ...snapshot.records], lastInteractedId,
       ...(typeof activeVisualId === 'string' && /^[a-f0-9]{48}$/.test(activeVisualId) ? { activeVisualId, ...(['compact', 'expanded'].includes(workspaceView) ? { workspaceView } : {}) } : {}) };
-    if (byteLength(JSON.stringify(next)) > MAX_METABLOOM_VISUAL_SNAPSHOT_BYTES) continue;
+    if (byteLength(JSON.stringify(next)) > maxBytes) { if (strict) return null; continue; }
     ids.add(candidate.id);
     snapshot.records.unshift(candidate);
-    if (snapshot.records.length === MAX_METABLOOM_VISUAL_SNAPSHOT_RECORDS) break;
+    if (snapshot.records.length > maxRecords) return strict ? null : snapshot;
+    if (!strict && snapshot.records.length === maxRecords) break;
   }
   if (snapshot.records.some(record => record.id === lastInteractedId && record.status === 'ready' && record.kind === 'calculator')) {
     snapshot.lastInteractedId = lastInteractedId;
@@ -130,7 +157,7 @@ function createMetabloomVisualSnapshot(records, messages, lastInteractedId = nul
     snapshot.activeVisualId = activeVisualId;
     if (['compact', 'expanded'].includes(workspaceView)) snapshot.workspaceView = workspaceView;
   }
-  return snapshot;
+  return strict ? parseMetabloomVisualSnapshot(snapshot, messages, options) : snapshot;
 }
 module.exports = { MAX_METABLOOM_VISUAL_SNAPSHOT_RECORDS, MAX_METABLOOM_VISUAL_SNAPSHOT_BYTES,
   createMetabloomVisualSnapshot, parseMetabloomVisualSnapshot };

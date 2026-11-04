@@ -1,0 +1,202 @@
+/* Loaded after OrbWorkspaceLayout.css. History reserves its own column only
+   where the conversation and current work still have comfortable reading widths. */
+.orb-page .metabloom-threads,
+.orb-page .metabloom-threads__floating {
+  color: var(--aetheris-ink);
+  font: 14px/1.5 var(--aetheris-font-sans);
+  pointer-events: auto;
+}
+.orb-page .metabloom-threads {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--aetheris-line-strong);
+  border-radius: var(--aetheris-radius-glass);
+  background: var(--aetheris-card-panel-raised);
+  box-shadow: var(--aetheris-glass-specular), var(--aetheris-shadow);
+  backdrop-filter: var(--aetheris-glass-blur);
+  -webkit-backdrop-filter: var(--aetheris-glass-blur);
+}
+.orb-page .metabloom-threads::before,
+.orb-page .metabloom-threads__trigger::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  padding: 1px;
+  border-radius: inherit;
+  background: var(--aetheris-spectral-border-soft);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+}
+.orb-page .metabloom-threads :where(h2, p) { margin: 0; color: inherit; font: inherit; letter-spacing: normal; }
+.orb-page .metabloom-threads :where(button, input),
+.orb-page .metabloom-threads__trigger {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  min-width: 44px;
+  min-height: 44px;
+  max-width: 100%;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--aetheris-line-strong);
+  border-radius: var(--aetheris-radius-md);
+  color: var(--aetheris-ink);
+  background: var(--aetheris-glass-surface);
+  font: 500 11px/1.4 var(--aetheris-font-mono);
+  letter-spacing: 0.02em;
+  text-align: center;
+  text-transform: none;
+  white-space: normal;
+  cursor: pointer;
+  transform: none;
+  transition: background var(--aetheris-motion-fast) var(--aetheris-ease-standard),
+    border-color var(--aetheris-motion-fast) var(--aetheris-ease-standard);
+}
+.orb-page .metabloom-threads button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.orb-page .metabloom-threads button:disabled { opacity: 0.5; cursor: not-allowed; }
+.orb-page .metabloom-threads :where(button, input):focus-visible,
+.orb-page .metabloom-threads__trigger:focus-visible {
+  outline: 2px solid var(--aetheris-focus-line);
+  outline-offset: -3px;
+  box-shadow: var(--aetheris-focus-halo);
+}
+.orb-page .metabloom-threads button svg,
+.orb-page .metabloom-threads__trigger svg { display: block; flex-shrink: 0; }
+.orb-page .metabloom-threads__heading {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px 6px 16px;
+  border-bottom: 1px solid var(--aetheris-line);
+}
+.orb-page .metabloom-threads__heading h2 { flex: 1; min-width: 0; font: 650 18px/1.3 var(--aetheris-font-sans); letter-spacing: -0.02em; }
+.orb-page .metabloom-threads button.metabloom-threads__icon { flex: 0 0 44px; width: 44px; height: 44px; padding: 0; border-color: transparent; background: transparent; }
+.orb-page .metabloom-threads__controls { flex: 0 1 auto; display: grid; min-height: 0; max-height: 50%; gap: 8px; padding: 12px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; border-bottom: 1px solid var(--aetheris-line); }
+.orb-page .metabloom-threads button.metabloom-threads__new {
+  width: 100%;
+  border-color: transparent;
+  background: linear-gradient(var(--aetheris-panel), var(--aetheris-panel)) padding-box,
+    var(--aetheris-spectral-border-soft) border-box;
+  box-shadow: var(--aetheris-glass-specular);
+}
+.orb-page .metabloom-threads__new > span { font: 400 20px/1 var(--aetheris-font-sans); }
+.orb-page .metabloom-threads .metabloom-threads__status,
+.orb-page .metabloom-threads .metabloom-threads__hint { color: var(--aetheris-ink-2); font: 400 11px/1.55 var(--aetheris-font-mono); overflow-wrap: anywhere; }
+.orb-page .metabloom-threads__error { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--aetheris-danger-line); border-radius: var(--aetheris-radius-md); background: var(--aetheris-red-soft); }
+.orb-page .metabloom-threads__error > p { font-size: 13px; overflow-wrap: anywhere; }
+.orb-page .metabloom-threads__error > button { justify-self: start; }
+.orb-page .metabloom-threads__body { flex: 1; min-width: 0; min-height: 0; padding: 0 8px 8px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.orb-page .metabloom-threads .metabloom-threads__empty { padding: 20px 8px; color: var(--aetheris-ink-2); font-size: 13px; }
+.orb-page .metabloom-threads__table { width: 100%; table-layout: fixed; border-collapse: collapse; font: 14px/1.45 var(--aetheris-font-sans); }
+.orb-page .metabloom-threads__date-column { width: 64px; }
+.orb-page .metabloom-threads__actions-column { width: 44px; }
+.orb-page .metabloom-threads__table th { padding: 9px 0; color: var(--aetheris-ink-2); font: 400 10px/1.4 var(--aetheris-font-mono); letter-spacing: 0.03em; text-align: left; }
+.orb-page .metabloom-threads__table th:first-child { padding-left: 8px; }
+.orb-page .metabloom-threads__table td { padding: 0; border-bottom: 1px solid var(--aetheris-line); vertical-align: middle; }
+.orb-page .metabloom-threads__table tr[data-current='true'] { background: var(--aetheris-teal-soft); }
+.orb-page .metabloom-threads__table tr[data-current='true'] > td:first-child { box-shadow: inset 3px 0 var(--aetheris-teal); }
+.orb-page .metabloom-threads button.metabloom-threads__open {
+  display: block; width: 100%; min-width: 0; min-height: 56px; padding: 8px;
+  border: 0; border-radius: var(--aetheris-radius-sm); background: transparent;
+  font: 550 14px/1.45 var(--aetheris-font-sans); letter-spacing: normal; text-align: left;
+}
+.orb-page .metabloom-threads__open > span { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; max-height: 2.9em; overflow: hidden; overflow-wrap: anywhere; }
+.orb-page .metabloom-threads__date { color: var(--aetheris-ink-2); font: 400 10px/1.5 var(--aetheris-font-mono); overflow-wrap: anywhere; }
+.orb-page .metabloom-threads__table td.metabloom-threads__editing-cell { padding: 8px 0; }
+.orb-page .metabloom-threads__editing { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--aetheris-line-strong); border-radius: var(--aetheris-radius-md); background: var(--aetheris-panel); }
+.orb-page .metabloom-threads__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.orb-page .metabloom-threads__actions > button { flex: 1 1 80px; }
+.orb-page .metabloom-threads__editing form { display: grid; gap: 8px; }
+.orb-page .metabloom-threads__editing label { color: var(--aetheris-ink-2); font: 500 11px/1.5 var(--aetheris-font-mono); letter-spacing: 0.02em; }
+.orb-page .metabloom-threads__editing input { width: 100%; min-width: 0; font: 16px/1.4 var(--aetheris-font-sans); text-align: left; cursor: text; }
+.orb-page .metabloom-threads__confirmation { display: grid; gap: 8px; font-size: 13px; overflow-wrap: anywhere; }
+.orb-page .metabloom-threads button.metabloom-threads__danger { border-color: var(--aetheris-danger-line); background: var(--aetheris-red-soft); color: var(--aetheris-red); }
+.orb-page .metabloom-threads__sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.orb-page .metabloom-threads__trigger { display: inline-flex; align-items: center; justify-content: center; gap: 7px; border-color: transparent; border-radius: var(--aetheris-radius-pill); background: var(--aetheris-glass-panel); box-shadow: var(--aetheris-glass-specular); }
+.orb-page .metabloom-threads__trigger[data-error='true']::after { content: ''; width: 6px; height: 6px; position: absolute; top: 7px; right: 7px; border-radius: 50%; background: var(--aetheris-red); }
+.orb-page .metabloom-threads__floating { position: absolute; top: var(--orb-header-clearance, 96px); left: max(20px, env(safe-area-inset-left)); z-index: 30; }
+.orb-page .metabloom-threads__drawer {
+  --threads-inset-top: max(12px, env(safe-area-inset-top));
+  --threads-inset-bottom: max(12px, env(safe-area-inset-bottom));
+  --threads-inset-left: max(12px, env(safe-area-inset-left));
+  --threads-inset-right: max(12px, env(safe-area-inset-right));
+  position: fixed;
+  inset: auto;
+  top: calc(var(--threads-viewport-top, 0px) + var(--threads-inset-top));
+  left: calc(var(--threads-viewport-left, 0px) + var(--threads-inset-left));
+  width: min(320px, calc(var(--threads-viewport-width, 100vw) - var(--threads-inset-left) - var(--threads-inset-right)));
+  max-width: calc(var(--threads-viewport-width, 100vw) - var(--threads-inset-left) - var(--threads-inset-right));
+  height: calc(var(--threads-viewport-height, 100dvh) - var(--threads-inset-top) - var(--threads-inset-bottom));
+  max-height: calc(var(--threads-viewport-height, 100dvh) - var(--threads-inset-top) - var(--threads-inset-bottom));
+  transform: none;
+}
+.metabloom-threads__drawer::backdrop { background: rgba(8, 8, 9, 0.5); }
+.orb-page .metabloom-threads__drawer:not([open]) { display: none; }
+@media (min-width: 1280px) {
+  .orb-page[data-thread-history-enabled='true'] { --orb-thread-history-width: 52px; }
+  .orb-page[data-thread-history-enabled='true'][data-thread-history='open'] { --orb-thread-history-width: 260px; }
+  .orb-page[data-thread-history-enabled='true'] .metabloom-chat__shell { width: min(1480px, 100%); margin-inline: auto; }
+  .orb-page[data-thread-history-enabled='true'][data-conversation-started='true'] .metabloom-chat__shell {
+    grid-template-columns: var(--orb-thread-history-width) minmax(0, 1fr);
+    column-gap: 16px;
+  }
+  .orb-page[data-thread-history-enabled='true'][data-active-component='true'][data-conversation-started='true'] .metabloom-chat__shell {
+    grid-template-columns: var(--orb-thread-history-width) minmax(0, 1.1fr) minmax(0, 0.9fr);
+  }
+  .orb-page[data-thread-history-enabled='true'][data-conversation-started='true'] .metabloom-chat[data-conversation-started='true'] .metabloom-chat__messages,
+  .orb-page[data-thread-history-enabled='true'][data-conversation-started='true'] .metabloom-chat .metabloom-chat__composer-area { grid-column: 2; }
+  .orb-page[data-thread-history-enabled='true'][data-active-component='true'] .metabloom-chat__workspace { grid-column: 3; }
+  .orb-page .metabloom-threads__dock { grid-column: 1; grid-row: 1 / -1; align-self: stretch; width: var(--orb-thread-history-width); }
+  .orb-page .metabloom-threads__dock[data-expanded='false'] { align-self: start; gap: 4px; padding: 3px; border-radius: var(--aetheris-radius-xl); }
+  .orb-page .metabloom-threads__dock[data-expanded='false'] > button { flex: 0 0 44px; width: 44px; height: 44px; padding: 0; }
+  .orb-page .metabloom-threads__dock .metabloom-threads__trigger { border-radius: var(--aetheris-radius-md); }
+  .orb-page .metabloom-threads button.metabloom-threads__rail-new { border-color: transparent; background: transparent; font: 400 24px/1 var(--aetheris-font-sans); }
+  .orb-page[data-thread-history-enabled='true'][data-conversation-started='false'] .metabloom-threads__dock {
+    position: absolute; top: calc(var(--orb-header-clearance, 96px) + var(--orb-theme-clearance, 52px));
+    bottom: max(12px, env(safe-area-inset-bottom)); left: max(20px, env(safe-area-inset-left));
+  }
+  .orb-page[data-thread-history-enabled='true'][data-conversation-started='false'] .metabloom-threads__dock[data-expanded='false'] { bottom: auto; }
+  .orb-page[data-thread-history-enabled='true'][data-conversation-started='false'] .metabloom-chat .metabloom-chat__composer-area,
+  .orb-page[data-thread-history-enabled='true'][data-conversation-started='false'] .metabloom-chat__suggestions {
+    position: absolute;
+    left: calc((100% + var(--orb-thread-history-width) + 16px) / 2);
+    width: min(760px, calc(100% - var(--orb-thread-history-width) - 76px));
+    max-width: calc(100% - var(--orb-thread-history-width) - 76px);
+  }
+}
+@media (max-width: 1279px) {
+  .orb-page:is([data-compact-viewport='true'], [data-keyboard-open='true']) .metabloom-threads__floating { display: none; }
+}
+@media (max-width: 900px) {
+  .orb-page .metabloom-threads__floating { left: max(12px, env(safe-area-inset-left)); }
+  .orb-page[data-active-component='true'][data-component-view='expanded'] .metabloom-threads__floating { display: none; }
+}
+@media (hover: hover) {
+  .orb-page .metabloom-threads button:hover:not(:disabled),
+  .orb-page .metabloom-threads__trigger:hover { background-color: var(--aetheris-state-layer); border-color: var(--aetheris-focus-line); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .orb-page .metabloom-threads :where(button, input), .orb-page .metabloom-threads__trigger { transition: none; }
+}
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .orb-page .metabloom-threads, .orb-page .metabloom-threads__trigger { background: var(--aetheris-panel); backdrop-filter: none; -webkit-backdrop-filter: none; }
+}
+@media (forced-colors: active) {
+  .orb-page .metabloom-threads { border-color: CanvasText; background: Canvas; color: CanvasText; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .orb-page .metabloom-threads::before, .orb-page .metabloom-threads__trigger::before { display: none; }
+  .orb-page .metabloom-threads :where(button, input), .orb-page .metabloom-threads__trigger { border: 1px solid ButtonText; background: ButtonFace; color: ButtonText; box-shadow: none; }
+  .orb-page .metabloom-threads__table tr[data-current='true'] { outline: 1px solid Highlight; }
+  .orb-page .metabloom-threads :where(button, input):focus-visible, .orb-page .metabloom-threads__trigger:focus-visible { outline: 2px solid Highlight; box-shadow: none; }
+}

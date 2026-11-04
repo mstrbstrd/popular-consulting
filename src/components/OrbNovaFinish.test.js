@@ -12,7 +12,10 @@ jest.mock("../contexts/ThemeContext", () => {
   const ReactModule = require("react");
   return { ThemeProvider: ({ children }) => ReactModule.createElement(ReactModule.Fragment, null, children) };
 });
-jest.mock("../contexts/AppNavigationContext", () => ({ useAppNavigation: jest.fn(() => null) }));
+jest.mock("../contexts/AppNavigationContext", () => ({
+  ...jest.requireActual("../contexts/AppNavigationContext"),
+  useAppNavigation: jest.fn(() => null),
+}));
 jest.mock("./NavMenu", () => () => null);
 jest.mock("./ImmersiveRouteNavigationBridge", () => () => null);
 jest.mock("./LoadingOverlay", () => () => null);

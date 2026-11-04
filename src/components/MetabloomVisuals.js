@@ -6,6 +6,7 @@ import { METABLOOM_TRANSCRIPT_READY_EVENT, METABLOOM_RESET_EVENT,
   beginMetabloomVisualTurn, acceptMetabloomVisualOffer, findMetabloomVisualReply,
   METABLOOM_WORKSPACE_VIEW_EVENT, METABLOOM_WORKSPACE_VIEW_REQUEST } from './metabloomVisualSession';
 import { createMetabloomVisualSnapshot, parseMetabloomVisualSnapshot } from './metabloomVisualSnapshot';
+import { METABLOOM_THREAD_SNAPSHOT_OPTIONS } from './metabloomThreadProtocol';
 import { classifyMetabloomVisualIntent } from './metabloomVisualIntent';
 import { postMetabloomTool } from './metabloomToolClient';
 import { METABLOOM_CHAT_PROTOCOL_VERSION } from './metabloomEmoteLibrary';
@@ -73,12 +74,15 @@ export default class MetabloomVisuals extends React.Component {
     this.observer.observe(this.root, { childList: true, subtree: true, attributes: true, attributeFilter: ['data-stream-status'] });
     window.__metabloomVisualSnapshot = this.snapshot;
     this.restore();
+    this.releaseThread = this.props.threadSession?.registerVisuals(this.captureThreadState, this.hasPendingThreadWork);
     this.releaseWorkspace = this.props.onWorkspaceReady?.(this);
   }
   componentWillUnmount() {
+    this.releaseThread?.();
     if (this.saveToolState) {
       const snapshot = createMetabloomVisualSnapshot(
         Array.from(this.records.values()), this.messages(), this.lastInteractedId || null, this.activeVisualId, this.workspaceView,
+        this.props.threadSession ? METABLOOM_THREAD_SNAPSHOT_OPTIONS : undefined,
       );
       this.saveToolState('orbVisuals', snapshot);
       // React's development remount reuses this instance after cleanup.
@@ -125,12 +129,26 @@ export default class MetabloomVisuals extends React.Component {
       return this.lastMessages || [];
     } catch { return this.lastMessages || []; }
   };
+  captureThreadState = messages => {
+    const visuals = this.pendingSnapshot !== undefined
+      ? parseMetabloomVisualSnapshot(this.pendingSnapshot, messages, METABLOOM_THREAD_SNAPSHOT_OPTIONS)
+      : createMetabloomVisualSnapshot(Array.from(this.records.values()), messages,
+        this.lastInteractedId || null, this.activeVisualId, this.workspaceView, METABLOOM_THREAD_SNAPSHOT_OPTIONS);
+    const research = this.researchWorkspaceSnapshot;
+    const workspace = research && messages.some(message => message.id === research.messageId && message.role === 'assistant')
+      ? { ...research } : null;
+    return { visuals, workspace };
+  };
+  hasPendingThreadWork = () => Array.from(this.records.values()).some(record => !record.controller.signal.aborted
+    && (record.status === 'generating' || (record.continuing && !record.completed)));
   restore = event => {
     if (!this.mounted || !this.ownsSurface() || this.pendingSnapshot === undefined
       || (event && (!(event.detail instanceof Element) || !this.root.contains(event.detail)))
       || !this.root.querySelector('[data-orb-transcript-ready="true"]')) return;
     const messages = this.messages();
-    const snapshot = parseMetabloomVisualSnapshot(this.pendingSnapshot, messages);
+    const snapshot = parseMetabloomVisualSnapshot(this.pendingSnapshot, messages,
+      this.props.threadSession ? METABLOOM_THREAD_SNAPSHOT_OPTIONS : undefined);
+    if (!snapshot) return;
     this.pendingSnapshot = undefined;
     this.lastInteractedId = snapshot.lastInteractedId;
     for (const saved of snapshot.records) {
@@ -501,7 +519,11 @@ export default class MetabloomVisuals extends React.Component {
     this.saveToolState?.('orbWorkspace', null);
     this.refresh();
   };
-  refresh = () => { if (this.mounted) this.setState(state => ({ revision: state.revision + 1 })); };
+  refresh = () => {
+    if (!this.mounted) return;
+    this.setState(state => ({ revision: state.revision + 1 }));
+    this.props.threadSession?.changed();
+  };
   releaseTurn = () => {
     if (this.turn && this.onTurnAbort) this.turn.signal.removeEventListener('abort', this.onTurnAbort);
     this.turn = null;
@@ -757,6 +779,7 @@ export default class MetabloomVisuals extends React.Component {
     record.viewState = viewState;
     if (record.spec.kind === 'calculator') this.lastInteractedId = record.id;
     if (record.id === this.activeVisualId) this.refresh();
+    else this.props.threadSession?.changed();
   };
   finishTool = async (record, display) => {
     if (!this.mounted || record.restored || record.mode !== 'tool' || record.continuing || record.completed || record.controller.signal.aborted) return;

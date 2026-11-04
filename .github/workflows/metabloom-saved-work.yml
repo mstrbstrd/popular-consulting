@@ -1,4 +1,4 @@
-name: Metabloom saved work Redis
+name: Metabloom saved work and threads Redis
 on:
   pull_request:
   push:
@@ -21,7 +21,7 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: npm run lint:saved-work
-      - name: Verify account identity, content, transport and API contracts
+      - name: Verify account identity, saved work and chat thread API contracts
         run: |
           node --test server/auth-tests/metabloom-account-identity.test.mjs
           npm run test:saved-work
@@ -30,9 +30,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install --no-install-recommends --yes redis-server
           redis-server --version
-      - name: Verify durable ownership, revision races, atomic commits, deletion and restart persistence
+      - name: Verify durable ownership, thread and revision races, deletion and restart persistence
         shell: bash
-        run: node --test --test-reporter=tap scripts/metabloom-saved-work-redis.test.cjs | tee metabloom-saved-work-redis.tap
+        run: node --test --test-reporter=tap scripts/metabloom-saved-work-redis.test.cjs scripts/metabloom-threads-redis.test.cjs | tee metabloom-saved-work-redis.tap
         env:
           METABLOOM_SAVED_WORK_TEST_ALLOW_DISPOSABLE: '1'
           METABLOOM_SAVED_WORK_TEST_REQUIRE_REDIS: '1'

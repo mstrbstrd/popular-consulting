@@ -3,7 +3,8 @@ import MetabloomPaletteContext, {
   METABLOOM_PALETTES,
 } from "../contexts/MetabloomPaletteContext";
 import { ThemeProvider } from "../contexts/ThemeContext";
-import { useAppNavigation } from '../contexts/AppNavigationContext';
+import { AppNavigationContext, useAppNavigation } from '../contexts/AppNavigationContext';
+import { useAuth } from '../contexts/AuthContext';
 import { SITE_AUDIENCES } from "../content/siteCopy";
 import routeMetadata from "../content/routeMetadata.json";
 import ImmersiveRouteNavigationBridge from "./ImmersiveRouteNavigationBridge";
@@ -13,6 +14,8 @@ import OrbAppearance from "./OrbAppearance";
 import OrbSection from "./OrbSection";
 import MetabloomVisuals from "./MetabloomVisuals";
 import MetabloomWorkspaceContext from './MetabloomWorkspaceContext';
+import MetabloomThreadsPanel from './MetabloomThreadsPanel';
+import useMetabloomThreads from './useMetabloomThreads';
 import "./OrbPage.css";
 import "./OrbPageExperience.css";
 import "./OrbPageFinalPolish.css";
@@ -21,6 +24,7 @@ import "./OrbMetalbloomFinish.css";
 import "./OrbNovaFinish.css";
 import "./MetabloomVisual.css";
 import "./OrbWorkspaceLayout.css";
+import './MetabloomThreadsPanel.css';
 
 const METADATA_SELECTORS = Object.freeze({
   description: 'meta[name="description"]',
@@ -33,19 +37,34 @@ const METADATA_SELECTORS = Object.freeze({
   twitterDescription: 'meta[name="twitter:description"]',
 });
 
+const OrbConversationSurface = ({ navigation, threadSession, threadPanel, threadBusy,
+  onShowThreads, onConversationStateChange, onReady }) => {
+  const [workspaceController, setWorkspaceController] = React.useState(null);
+  const handleWorkspaceReady = React.useCallback(controller => {
+    setWorkspaceController(controller);
+    return () => setWorkspaceController(current => current === controller ? null : current);
+  }, []);
+  return <AppNavigationContext.Provider value={navigation}>
+    <MetabloomWorkspaceContext.Provider value={workspaceController}>
+      <OrbSection isActive onConversationStateChange={onConversationStateChange} onReady={onReady}
+        threadSession={threadSession} threadPanel={threadPanel} threadBusy={threadBusy} onShowThreads={onShowThreads} />
+      <MetabloomVisuals navigation={navigation} onWorkspaceReady={handleWorkspaceReady} threadSession={threadSession} />
+    </MetabloomWorkspaceContext.Provider>
+  </AppNavigationContext.Provider>;
+};
+
 const OrbPageContent = ({ onReady }) => {
   const navigation = useAppNavigation();
+  const auth = useAuth();
+  const threads = useMetabloomThreads({ navigation, enabled: auth.status === 'authenticated' });
+  const setThreadsExpanded = threads.setExpanded;
+  const showThreads = React.useCallback(() => setThreadsExpanded(true), [setThreadsExpanded]);
   // The route's foreground is interactive as soon as React mounts. Do not
   // block its reveal on WebGL's first frame: on mobile Safari a busy/failed
   // GPU can otherwise leave the entire chat hidden behind the background.
   React.useEffect(() => { onReady?.(); }, [onReady]);
   const backgroundEnabled = navigation?.orbBackgroundEnabled !== false;
   const [conversationStarted, setConversationStarted] = React.useState(false);
-  const [workspaceController, setWorkspaceController] = React.useState(null);
-  const handleWorkspaceReady = React.useCallback(controller => {
-    setWorkspaceController(controller);
-    return () => setWorkspaceController(current => current === controller ? null : current);
-  }, []);
   const [metabloomPalette, setMetabloomPalette] = React.useState(
     () => navigation?.getToolState('orbAppearance')?.palette || METABLOOM_PALETTES.SPECTRAL,
   );
@@ -155,6 +174,8 @@ const OrbPageContent = ({ onReady }) => {
         data-background-enabled={backgroundEnabled ? "true" : "false"}
         data-metabloom-palette={metabloomPalette}
         data-site-audience={SITE_AUDIENCES.BUSINESS}
+        data-thread-history-enabled={threads.enabled ? 'true' : undefined}
+        data-thread-history={threads.expanded ? 'open' : 'closed'}
       >
         <a className="skip-to-content orb-page__skip" href="#main-content">
           Skip to Metabloom
@@ -320,14 +341,12 @@ const OrbPageContent = ({ onReady }) => {
             aria-label="Metabloom"
             tabIndex={-1}
           >
-            <MetabloomWorkspaceContext.Provider value={workspaceController}>
-              <OrbSection
-                isActive
-                onConversationStateChange={setConversationStarted}
-                onReady={onReady}
-              />
-              <MetabloomVisuals navigation={navigation} onWorkspaceReady={handleWorkspaceReady} />
-            </MetabloomWorkspaceContext.Provider>
+            <OrbConversationSurface key={threads.enabled ? threads.session.key : 'conversation'}
+              navigation={threads.enabled ? threads.navigation : navigation}
+              threadSession={threads.enabled ? threads.session : null}
+              threadPanel={threads.enabled ? <MetabloomThreadsPanel {...threads.panelProps} /> : null}
+              threadBusy={threads.enabled && threads.busy} onShowThreads={threads.enabled ? showThreads : undefined}
+              onConversationStateChange={setConversationStarted} onReady={onReady} />
           </main>
         </div>
 

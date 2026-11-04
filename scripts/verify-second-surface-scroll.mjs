@@ -104,7 +104,8 @@ try {
         isMobile: !webkit, hasTouch: true, deviceScaleFactor: 1 });
       await context.route('**/*', route => {
         const url = new URL(route.request().url());
-        if (url.origin !== origin || url.pathname.startsWith('/api/metabloom')) return route.abort();
+        if (url.origin !== origin || (url.pathname.startsWith('/api/metabloom')
+          && url.pathname !== '/api/metabloom-threads')) return route.abort();
         return route.continue();
       });
       await context.addInitScript(themeName => {
@@ -162,7 +163,10 @@ try {
       const errors = [];
       let modelRequests = 0;
       page.on('pageerror', error => errors.push(error.message));
-      page.on('request', request => { if (new URL(request.url()).pathname.startsWith('/api/metabloom')) modelRequests += 1; });
+      page.on('request', request => {
+        const pathname = new URL(request.url()).pathname;
+        if (pathname.startsWith('/api/metabloom') && pathname !== '/api/metabloom-threads') modelRequests += 1;
+      });
       const cdp = touch ? await context.newCDPSession(page) : null;
       const scroll = async distance => {
         // Input is delivered by the browser. No scrollTo or synthetic DOM

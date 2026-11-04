@@ -76,6 +76,9 @@ jobs:
       - name: Verify research reuse through the built Orb and local API
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: node scripts/verify-metabloom-research-reuse.mjs
+      - name: Verify saved chat threads and responsive history through the built Orb
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: node scripts/verify-metabloom-threads.mjs
       - name: Preserve functional evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -86,6 +89,7 @@ jobs:
             metabloom-ui-functional/*
             metabloom-mobile-workspace/*
             metabloom-research-reuse/*
+            metabloom-threads/*
           retention-days: 7
       - name: Verify production denies anonymous Orb and paid API access
         if: ${{ !cancelled() && steps.build.outcome == 'success' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/test/orb-auth-browser-verification') }}
