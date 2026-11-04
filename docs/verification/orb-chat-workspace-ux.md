@@ -1,5 +1,32 @@
 # Orb chat and component workspace
 
+## Workspace placement and menu finish
+
+Above 900px, the conversation and composer occupy the left column and the
+current component or research report opens on the right. The columns retain
+their existing width shares, and resizing keeps the same live renderer.
+The built UI harness checks actual geometry at 901, 1024 and 1440px, including
+viewport bounds, separation from the header, and composer alignment.
+
+Mobile retains the compact summary and expanded reading view. The visible
+return control says **Chat**, with the accessible name **Back to chat**, leaving
+more room for the title and saved revision. In an expanded short or keyboard
+viewport, **Latest reply** is the first 44px row in the scrollable composer
+options so it stays reachable above a multiline draft. Tools and attached
+context remain available by scrolling that same area.
+
+Saved work, revision history, More, Theme, the current-work toolbar and reference
+controls follow the shared Aetheris conventions: Hanken reading titles,
+JetBrains operational text, 26px floating shells, 14px sections, 10px controls,
+thin spectral edges and shared focus treatment. Primary actions, secondary
+actions and destructive confirmations have distinct presentation. Native
+selects, disclosures, modal focus and all persistence handlers remain intact.
+Reduced motion, reduced transparency and forced colors retain usable controls.
+
+The authenticated browser harness also waits for a new, idle document between
+viewport profiles. A previous document's ready controls cannot satisfy the next
+profile's navigation check.
+
 ## Saved work access
 
 The active component or research workspace has a compact **Saved** control in

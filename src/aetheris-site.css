@@ -63,6 +63,9 @@
   --aetheris-state-layer: rgba(32, 26, 27, 0.05);
   --aetheris-teal: #007e8c;
   --aetheris-teal-soft: rgba(0, 126, 140, 0.1);
+  --aetheris-red: #b3261e;
+  --aetheris-red-soft: rgba(179, 38, 30, 0.08);
+  --aetheris-danger-line: rgba(179, 38, 30, 0.25);
   --aetheris-focus-line: rgba(0, 126, 140, 0.55);
   --aetheris-focus-ring: rgba(0, 126, 140, 0.12);
   --aetheris-spectral-glow: rgba(0, 126, 140, 0.12);
@@ -147,6 +150,9 @@
   --aetheris-state-layer: rgba(255, 255, 255, 0.04);
   --aetheris-teal: #00eeff;
   --aetheris-teal-soft: rgba(0, 238, 255, 0.1);
+  --aetheris-red: #ff5077;
+  --aetheris-red-soft: rgba(255, 80, 119, 0.1);
+  --aetheris-danger-line: rgba(255, 80, 119, 0.3);
   --aetheris-focus-line: rgba(0, 238, 255, 0.5);
   --aetheris-focus-ring: rgba(0, 238, 255, 0.08);
   --aetheris-spectral-glow: rgba(0, 238, 255, 0.18);

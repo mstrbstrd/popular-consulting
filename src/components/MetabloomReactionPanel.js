@@ -103,7 +103,7 @@ const MetabloomReactionPanel = ({ onReact, disabled = false, intensity: controll
   return (
     <div className="metabloom-reactions" ref={panelRef} data-reaction-set="2">
       <div className="metabloom-reactions__toolbar">
-        <button ref={toggleRef} type="button" aria-expanded={open} aria-controls="metabloom-reaction-panel" onClick={() => setOpen(!open)}>
+        <button ref={toggleRef} type="button" aria-haspopup="dialog" aria-expanded={open} aria-controls="metabloom-reaction-panel" onClick={() => setOpen(!open)}>
           {tools ? 'More' : 'Reactions'} <span aria-hidden="true">{open ? "−" : "+"}</span>
         </button>
         <button type="button" className="metabloom-reactions__replay-shortcut" disabled={disabled} onClick={() => play(selected)} aria-label={`Replay ${action.label.toLowerCase()} reaction`}>

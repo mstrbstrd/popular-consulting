@@ -364,12 +364,12 @@ export default function MetabloomSavedWorkPanel({ source, saveContext, activeArt
       </div>}
       <div className="metabloom-saved-work__body">
         {source?.title && <section className="metabloom-saved-work__current" aria-labelledby={`${id}-current`}>
-          <div><h3 id={`${id}-current`}>Current work</h3><p>{source.title}</p></div>
+          <div className="metabloom-saved-work__current-copy"><h3 id={`${id}-current`}>Current work</h3><p>{source.title}</p></div>
           <div className="metabloom-saved-work__actions">
-            {associated && <button type="button" disabled={!loaded || Boolean(busy) || unavailable || needsRefresh || hydrationPending || associationStale} onClick={() => {
+            {associated && <button type="button" className="metabloom-saved-work__primary" disabled={!loaded || Boolean(busy) || unavailable || needsRefresh || hydrationPending || associationStale} onClick={() => {
               reviseOrRestore({ action: 'revise', artifactId: associated.artifactId, expectedVersion: associated.version, ...copySource(source) }, 'revise');
             }}>{busy?.action === 'revise' ? 'Saving changes…' : 'Save changes'}</button>}
-            <button type="button" disabled={!canSave || !loaded || Boolean(busy) || unavailable || pendingSave || currentWorkSaved} onClick={save}>
+            <button type="button" className={associated ? undefined : 'metabloom-saved-work__primary'} disabled={!canSave || !loaded || Boolean(busy) || unavailable || pendingSave || currentWorkSaved} onClick={save}>
               {busy?.action === 'save' && sameSaveContext ? 'Saving…' : currentWorkSaved ? 'Saved' : associated ? 'Save as new' : 'Save current work'}
             </button>
           </div>
@@ -378,61 +378,63 @@ export default function MetabloomSavedWorkPanel({ source, saveContext, activeArt
           {associationStale && <p className="metabloom-saved-work__hint">A newer saved version is available. Open it or save this work as new.</p>}
           {pendingSave && !sameSaveContext && <p className="metabloom-saved-work__hint">Complete the captured save before saving a new copy of this work.</p>}
         </section>}
-        {pendingSave && <section className="metabloom-saved-work__current" aria-labelledby={`${id}-captured-save`}>
-          <div><h3 id={`${id}-captured-save`}>Captured save</h3><p>{saveAttempt.request.title}</p></div>
-          <button type="button" disabled={!loaded || Boolean(busy) || unavailable} onClick={retrySave}>Retry captured save: {saveAttempt.request.title}</button>
+        {pendingSave && <section className="metabloom-saved-work__current metabloom-saved-work__current--captured" aria-labelledby={`${id}-captured-save`}>
+          <div className="metabloom-saved-work__current-copy"><h3 id={`${id}-captured-save`}>Captured save</h3><p>{saveAttempt.request.title}</p></div>
+          <button type="button" className="metabloom-saved-work__primary" disabled={!loaded || Boolean(busy) || unavailable} onClick={retrySave}>Retry captured save: {saveAttempt.request.title}</button>
           {!busy && <p className="metabloom-saved-work__hint">Retry keeps the same captured work and inputs.</p>}
         </section>}
         {receipt && <section ref={receiptRef} tabIndex={-1} className="metabloom-saved-work__receipt" aria-label="Confirmed revision">
           <h3>{items.find(item => item.artifactId === receipt.artifact.artifactId)?.title || receipt.artifact.title}</h3>
-          <p role="status">{receipt.operation === 'undo' ? 'Undo saved' : receipt.operation === 'restore' ? `Restored revision ${receipt.restoredRevision}` : 'Changes saved'} as revision {receipt.artifact.headRevision}.
+          <p className="metabloom-saved-work__receipt-status" role="status">{receipt.operation === 'undo' ? 'Undo saved' : receipt.operation === 'restore' ? `Restored revision ${receipt.restoredRevision}` : 'Changes saved'} as revision {receipt.artifact.headRevision}.
             {receipt.hydration === 'opening' ? ' Opening this revision…' : receipt.hydration === 'ready' ? ' This revision is now open.' : ' You can retry opening this revision.'}</p>
           <div className="metabloom-saved-work__actions">
             {receipt.operation !== 'undo' && <button type="button" disabled={Boolean(busy) || needsRefresh || undoStale} onClick={() => {
               reviseOrRestore({ action: 'restore', ...receipt.undo }, 'undo');
             }}>Undo last saved change</button>}
-            {receipt.hydration !== 'ready' && <button type="button" disabled={Boolean(busy)} onClick={retryRevisionOpen}>Retry open</button>}
-            {receipt.hydration === 'ready' && <button type="button" disabled={Boolean(busy)} onClick={close}>Continue editing</button>}
+            {receipt.hydration !== 'ready' && <button type="button" className="metabloom-saved-work__primary" disabled={Boolean(busy)} onClick={retryRevisionOpen}>Retry open</button>}
+            {receipt.hydration === 'ready' && <button type="button" className="metabloom-saved-work__primary" disabled={Boolean(busy)} onClick={close}>Continue editing</button>}
           </div>
           {undoStale && receipt.operation !== 'undo' && <p className="metabloom-saved-work__hint">A newer change prevents Undo. You can choose an earlier revision in History.</p>}
         </section>}
-        <section aria-labelledby={`${id}-items`} aria-busy={busy?.action === 'list'}>
+        <section className="metabloom-saved-work__library" aria-labelledby={`${id}-items`} aria-busy={busy?.action === 'list'}>
           <div className="metabloom-saved-work__list-heading">
             <h3 id={`${id}-items`}>Your saved items</h3>
-            <button ref={refreshButtonRef} type="button" disabled={Boolean(busy)} onClick={() => loadList()}>Refresh list</button>
+            <button ref={refreshButtonRef} type="button" className="metabloom-saved-work__quiet" disabled={Boolean(busy)} onClick={() => loadList()}>Refresh list</button>
           </div>
           {needsRefresh && <p className="metabloom-saved-work__hint">Refresh the list or this item's History before making more saved changes.</p>}
           {busy?.action === 'list' && <p role="status">{loaded ? 'Loading saved work…' : 'Loading your saved work…'}</p>}
           {loaded && !items.length && !error && <p className="metabloom-saved-work__empty">No saved work yet.</p>}
           {items.length > 0 && <ul className="metabloom-saved-work__items">
-            {items.map(item => <li key={item.artifactId} data-saved-item={item.artifactId}>
-              <h4>{item.title}</h4>
-              <p className="metabloom-saved-work__metadata">{item.kind === 'research' ? 'Research' : 'Component'} · Updated <time dateTime={item.updatedAt}>{updatedDate(item.updatedAt)}</time></p>
+            {items.map(item => <li key={item.artifactId} className="metabloom-saved-work__item" data-saved-item={item.artifactId}>
+              <div className="metabloom-saved-work__item-heading">
+                <h4>{item.title}</h4>
+                <p className="metabloom-saved-work__metadata">{item.kind === 'research' ? 'Research' : 'Component'} · Updated <time dateTime={item.updatedAt}>{updatedDate(item.updatedAt)}</time></p>
+              </div>
               {editingId === item.artifactId ? <form onSubmit={rename} aria-label={`Rename ${item.title}`}>
                 <label htmlFor={`${id}-rename`}>New name</label>
                 <input ref={renameInputRef} id={`${id}-rename`} type="text" value={editing.title} maxLength={TITLE_LIMIT}
                   disabled={Boolean(busy)} onChange={event => setEditing(current => ({ ...current, title: event.target.value }))} />
                 <div className="metabloom-saved-work__actions">
-                  <button type="submit" disabled={Boolean(busy) || needsRefresh || !editing.title.trim() || editing.title.trim() === item.title}>{busy?.action === 'rename' ? 'Renaming…' : 'Save name'}</button>
-                  <button type="button" disabled={Boolean(busy)} onClick={() => setEditing(null)}>Cancel rename</button>
+                  <button type="submit" className="metabloom-saved-work__primary" disabled={Boolean(busy) || needsRefresh || !editing.title.trim() || editing.title.trim() === item.title}>{busy?.action === 'rename' ? 'Renaming…' : 'Save name'}</button>
+                  <button type="button" className="metabloom-saved-work__quiet" disabled={Boolean(busy)} onClick={() => setEditing(null)}>Cancel rename</button>
                 </div>
-              </form> : deletingId === item.artifactId ? <div className="metabloom-saved-work__confirmation" role="group" aria-label={`Confirm deletion of ${item.title}`}>
+              </form> : deletingId === item.artifactId ? <div className="metabloom-saved-work__confirmation metabloom-saved-work__confirmation--danger" role="group" aria-label={`Confirm deletion of ${item.title}`}>
                 <p>Delete this saved copy? It will be removed from Saved work.</p>
                 <div className="metabloom-saved-work__actions">
-                  <button type="button" disabled={Boolean(busy) || needsRefresh} onClick={remove}>{busy?.action === 'delete' ? 'Deleting…' : 'Delete saved copy'}</button>
+                  <button type="button" className="metabloom-saved-work__danger" disabled={Boolean(busy) || needsRefresh} onClick={remove}>{busy?.action === 'delete' ? 'Deleting…' : 'Delete saved copy'}</button>
                   <button ref={deleteCancelRef} type="button" disabled={Boolean(busy)} onClick={() => setDeleting(null)}>Keep saved copy</button>
                 </div>
-              </div> : <div className="metabloom-saved-work__actions">
-                <button type="button" disabled={Boolean(busy)} onClick={() => open(item)} aria-label={`Open ${item.title}`}>{busy?.action === 'open' && busy.artifactId === item.artifactId ? 'Opening…' : 'Open'}</button>
-                <button type="button" data-saved-action="history" disabled={Boolean(busy) || Boolean(editing || deleting || restoreTarget)} aria-expanded={history?.artifact.artifactId === item.artifactId} onClick={() => {
+              </div> : <div className="metabloom-saved-work__actions metabloom-saved-work__item-actions">
+                <button type="button" className="metabloom-saved-work__primary" disabled={Boolean(busy)} onClick={() => open(item)} aria-label={`Open ${item.title}`}>{busy?.action === 'open' && busy.artifactId === item.artifactId ? 'Opening…' : 'Open'}</button>
+                <button type="button" className="metabloom-saved-work__quiet" data-saved-action="history" disabled={Boolean(busy) || Boolean(editing || deleting || restoreTarget)} aria-expanded={history?.artifact.artifactId === item.artifactId} onClick={() => {
                   if (history?.artifact.artifactId === item.artifactId) setHistory(null);
                   else loadHistory(item.artifactId);
                 }} aria-label={`${history?.artifact.artifactId === item.artifactId ? 'Hide history of' : 'History of'} ${item.title}`}>History</button>
-                <button type="button" data-saved-action="rename" disabled={Boolean(busy) || needsRefresh || Boolean(editing || deleting || restoreTarget)} onClick={() => {
+                <button type="button" className="metabloom-saved-work__quiet" data-saved-action="rename" disabled={Boolean(busy) || needsRefresh || Boolean(editing || deleting || restoreTarget)} onClick={() => {
                   restoreActionRef.current = { artifactId: item.artifactId, action: 'rename' };
                   setEditing({ artifactId: item.artifactId, version: item.version, title: item.title });
                 }} aria-label={`Rename ${item.title}`}>Rename</button>
-                <button type="button" data-saved-action="delete" disabled={Boolean(busy) || needsRefresh || Boolean(editing || deleting || restoreTarget)} onClick={() => {
+                <button type="button" className="metabloom-saved-work__danger" data-saved-action="delete" disabled={Boolean(busy) || needsRefresh || Boolean(editing || deleting || restoreTarget)} onClick={() => {
                   restoreActionRef.current = { artifactId: item.artifactId, action: 'delete' };
                   setDeleting(item);
                 }} aria-label={`Delete ${item.title}`}>Delete</button>
@@ -440,16 +442,16 @@ export default function MetabloomSavedWorkPanel({ source, saveContext, activeArt
               {busy?.action === 'history' && busy.artifactId === item.artifactId && <p role="status">Loading revision history…</p>}
               {history?.artifact.artifactId === item.artifactId && <section className="metabloom-saved-work__history" aria-label={`History of ${item.title}`}>
                 <div className="metabloom-saved-work__list-heading"><h5>Revision history</h5>
-                  <button type="button" disabled={Boolean(busy)} onClick={() => loadHistory(item.artifactId)}>Refresh history</button>
+                  <button type="button" className="metabloom-saved-work__quiet" disabled={Boolean(busy)} onClick={() => loadHistory(item.artifactId)}>Refresh history</button>
                 </div>
                 <p className="metabloom-saved-work__hint">Current revision: {history.artifact.headRevision}. Opening history does not replace it.</p>
                 <ol>
-                  {history.items.map(entry => <li key={entry.revision}>
+                  {history.items.map(entry => <li key={entry.revision} data-current={entry.revision === history.artifact.headRevision ? 'true' : undefined}>
                     <div><strong>Revision {entry.revision}{entry.revision === history.artifact.headRevision ? ' · Current' : ''}</strong>
                       <time dateTime={entry.createdAt}>{revisionDate(entry.createdAt)}</time></div>
                     <div className="metabloom-saved-work__actions">
-                      <button type="button" disabled={Boolean(busy)} onClick={() => open(item, entry.revision)} aria-label={`Open revision ${entry.revision} of ${item.title}`}>Open revision</button>
-                      {entry.revision !== history.artifact.headRevision && <button type="button" data-saved-action={`restore-${entry.revision}`} disabled={Boolean(busy) || needsRefresh || Boolean(editing || deleting || restoreTarget)} onClick={() => {
+                      <button type="button" className="metabloom-saved-work__primary" disabled={Boolean(busy)} onClick={() => open(item, entry.revision)} aria-label={`Open revision ${entry.revision} of ${item.title}`}>Open revision</button>
+                      {entry.revision !== history.artifact.headRevision && <button type="button" className="metabloom-saved-work__quiet" data-saved-action={`restore-${entry.revision}`} disabled={Boolean(busy) || needsRefresh || Boolean(editing || deleting || restoreTarget)} onClick={() => {
                         restoreActionRef.current = { artifactId: item.artifactId, action: `restore-${entry.revision}` };
                         setRestoreTarget({ artifactId: item.artifactId, revision: entry.revision, expectedVersion: history.artifact.version });
                       }} aria-label={`Restore revision ${entry.revision} of ${item.title}`}>Restore</button>}
@@ -457,8 +459,8 @@ export default function MetabloomSavedWorkPanel({ source, saveContext, activeArt
                     {restoreTarget?.artifactId === item.artifactId && restoreTarget.revision === entry.revision && <div className="metabloom-saved-work__confirmation" role="group" aria-label={`Confirm restore of revision ${entry.revision}`}>
                       <p>Make revision {entry.revision} current? This creates a new revision and keeps the existing history.</p>
                       <div className="metabloom-saved-work__actions">
-                        <button type="button" disabled={Boolean(busy) || needsRefresh} onClick={() => reviseOrRestore({ action: 'restore', ...restoreTarget }, 'restore')}>Restore as current</button>
-                        <button ref={restoreCancelRef} type="button" disabled={Boolean(busy)} onClick={() => setRestoreTarget(null)}>Cancel restore</button>
+                        <button type="button" className="metabloom-saved-work__primary" disabled={Boolean(busy) || needsRefresh} onClick={() => reviseOrRestore({ action: 'restore', ...restoreTarget }, 'restore')}>Restore as current</button>
+                        <button ref={restoreCancelRef} type="button" className="metabloom-saved-work__quiet" disabled={Boolean(busy)} onClick={() => setRestoreTarget(null)}>Cancel restore</button>
                       </div>
                     </div>}
                   </li>)}

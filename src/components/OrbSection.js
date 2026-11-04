@@ -2632,8 +2632,17 @@ const OrbSection = ({
                   disabled={pending || !isActive}
                   intensity={expressiveness}
                   onIntensityChange={setExpressiveness}
-                  tools={workspace ? ({ close }) => <button type="button" disabled={pending || !isActive}
-                    onClick={() => { close(); openSavedWork(); }}>Saved work</button> : undefined}
+                  tools={workspace ? ({ close }) => <button type="button" className="metabloom-reactions__saved-tool"
+                    aria-label="Saved work" disabled={pending || !isActive} onClick={() => { close(); openSavedWork(); }}>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+                      <path d="M4 6.5h6l2 2h8v11H4Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
+                      <path d="M7 4h11v4.5M8 13h8M8 16h5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+                    </svg>
+                    <span><strong>Saved work</strong><span>Open components and research</span></span>
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false">
+                      <path d="m6 4 4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </button> : undefined}
                 >
                   {({ close }) => (
                     <>

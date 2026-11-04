@@ -158,7 +158,7 @@ const readLayout = page => page.evaluate(() => {
     actions, workspaceActions, themeControl: { visible: themeVisible, outsideNavigation: !themeTrigger.closest('.nav-header, .nav-pill'),
       receivesPointer: themeVisible && hit(themeTrigger) },
     returnActionReceivesPointer: hit(get('.metabloom-component-workspace__toolbar button[aria-label="Return component to conversation"]')),
-    toggleLabel: toggle?.textContent.trim(), toggleReceivesPointer: hit(toggle),
+    toggleLabel: toggle?.getAttribute('aria-label') || toggle?.textContent.trim(), toggleReceivesPointer: hit(toggle),
     latestReplyVisible: visible(latestReply), latestReplyReceivesPointer: hit(latestReply),
     sendActionReceivesPointer: hit(get('.metabloom-chat__composer button')),
     componentCount: document.querySelectorAll('.metabloom-visual').length,

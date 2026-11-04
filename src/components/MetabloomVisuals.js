@@ -832,8 +832,9 @@ export default class MetabloomVisuals extends React.Component {
         {this.savedWorkAction && <button type="button" data-workspace-saved aria-label="Saved work" aria-haspopup="dialog"
           disabled={this.savedWorkDisabled()} onClick={this.openSavedWork}>Saved</button>}
         <button type="button" data-workspace-toggle aria-expanded={this.workspaceView === 'expanded'}
+          aria-label={this.workspaceView === 'expanded' ? 'Back to chat' : 'Open'}
           onClick={() => this.setWorkspaceView(this.workspaceView === 'expanded' ? 'compact' : 'expanded', { focus: true })}>
-          {this.workspaceView === 'expanded' ? 'Back to chat' : 'Open'}
+          {this.workspaceView === 'expanded' ? 'Chat' : 'Open'}
         </button>
         <button type="button" data-workspace-return aria-label={research ? 'Return research to conversation' : 'Return component to conversation'}
           title={research ? 'Return research to conversation' : 'Return component to conversation'} onClick={this.returnComponent}>×</button>

@@ -171,8 +171,13 @@ try {
       { name: "prefers-reduced-motion", value: config.reduced ? "reduce" : "no-preference" },
       { name: "prefers-color-scheme", value: config.dark ? "dark" : "light" },
     ] });
+    // CDP can return before navigation replaces the previous profile's ready
+    // document. Its controls must never satisfy the next profile's readiness.
+    await evaluate("window.__verificationLeavingDocument = true");
     await call("Page.navigate", { url: `${origin}/orb?graphics=webgl` });
-    await until(`typeof window.__metabloomProtocol?.createStream === 'function' && document.querySelector('[data-response-presentation="single-message-stream"]') && document.querySelector('#metabloom-message')`);
+    await until(`window.__verificationLeavingDocument !== true && document.querySelector('.app-outlet')?.dataset.phase === 'idle'
+      && typeof window.__metabloomProtocol?.createStream === 'function'
+      && document.querySelector('[data-response-presentation="single-message-stream"]') && document.querySelector('#metabloom-message')`);
     assert.equal(await evaluate("document.querySelectorAll('.metabloom-chat__suggestions, .metabloom-chat__demos').length"), 0,
       "Response demo buttons must not occupy the chat interface");
     const expectedTheme = config.dark ? "dark" : "light";

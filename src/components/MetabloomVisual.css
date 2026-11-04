@@ -5,25 +5,32 @@
    Its body scrolls; the same visual portal moves here from its original reply. */
 .orb-page .metabloom-chat__workspace:empty { display: none; }
 .orb-page[data-active-component='true'] .metabloom-chat__workspace {
-  display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden;
-  border: 1px solid var(--aetheris-line-strong); border-radius: var(--aetheris-radius-lg);
-  color: var(--aetheris-ink); background: var(--aetheris-panel-raised);
+  position: relative; isolation: isolate; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden;
+  border: 1px solid transparent; border-radius: var(--aetheris-radius-glass);
+  color: var(--aetheris-ink); background: var(--aetheris-card-panel);
   box-shadow: var(--aetheris-glass-specular), var(--aetheris-shadow); pointer-events: auto;
+}
+.orb-page[data-active-component='true'] .metabloom-chat__workspace::before {
+  content: ''; position: absolute; inset: 0; z-index: 2; padding: 1px; border-radius: inherit; pointer-events: none;
+  background: var(--aetheris-spectral-border-soft);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); mask-composite: exclude;
 }
 .orb-page .metabloom-component-workspace__toolbar {
   display: flex; flex: 0 0 auto; align-items: center; gap: 0.8rem; min-width: 0;
-  padding: 0.2rem 0.8rem; border-bottom: 1px solid var(--aetheris-line);
+  padding: 0.8rem 1.2rem; border-bottom: 1px solid var(--aetheris-line);
+  background: var(--aetheris-glass-panel-raised);
 }
 .orb-page .metabloom-component-workspace__identity { flex: 1; min-width: 0; }
 .orb-page .metabloom-component-workspace__identity > h3 {
   min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  font: 600 1.3rem/1.4 var(--aetheris-font-sans);
+  font: 650 max(1.4rem, 14px)/1.4 var(--aetheris-font-sans); letter-spacing: -0.02em;
 }
 .orb-page .metabloom-component-workspace__summary,
 .orb-page .metabloom-component-workspace__toolbar > [data-workspace-toggle] { display: none; }
 .orb-page .metabloom-component-workspace__save-status {
   display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  color: var(--aetheris-ink-2); font: 400 max(1.1rem, 11px)/1.4 var(--aetheris-font-sans);
+  margin-top: 2px; color: var(--aetheris-ink-2); font: 400 max(1.1rem, 11px)/1.5 var(--aetheris-font-mono);
 }
 .orb-page .metabloom-component-workspace__revision {
   margin: 0.3rem 0; color: var(--aetheris-ink-2); font: 400 max(1.1rem, 11px)/1.45 var(--aetheris-font-mono);
@@ -31,39 +38,55 @@
 .orb-page .metabloom-component-workspace__picker { display: block; min-width: 0; margin: 0; }
 .orb-page .metabloom-component-workspace__picker select {
   display: block; box-sizing: border-box; width: 100%; min-width: 0; min-height: 44px;
-  padding: 6px 4px; border: 0; border-radius: var(--aetheris-radius-sm);
-  background: var(--aetheris-panel); color: var(--aetheris-ink);
-  font: 600 1.3rem/1.4 var(--aetheris-font-sans); text-overflow: ellipsis; cursor: pointer;
+  padding: 8px; border: 1px solid var(--aetheris-line-strong); border-radius: var(--aetheris-radius-md);
+  background: var(--aetheris-glass-surface); color: var(--aetheris-ink);
+  font: 600 max(1.3rem, 13px)/1.4 var(--aetheris-font-sans); text-overflow: ellipsis; cursor: pointer;
 }
+.orb-page .metabloom-component-workspace__picker option { color: var(--aetheris-ink); background: var(--aetheris-panel); }
 .orb-page .metabloom-component-workspace__picker select:focus-visible {
-  outline: 2px solid var(--aetheris-focus-line); outline-offset: -2px;
+  outline: 2px solid var(--aetheris-focus-line); outline-offset: -2px; box-shadow: var(--aetheris-focus-halo);
 }
 .orb-page .metabloom-component-workspace__toolbar > button,
 .orb-page .metabloom-visual-launcher > button,
 .orb-page .metabloom-research-launcher > button {
-  min-height: 4.4rem; border: 1px solid var(--aetheris-line); border-radius: var(--aetheris-radius-lg);
+  min-width: 44px; min-height: 44px; border: 1px solid var(--aetheris-line-strong); border-radius: var(--aetheris-radius-md);
   color: var(--aetheris-ink); background: var(--aetheris-glass-surface);
-  padding: 0.7rem 1rem; font: 1.1rem/1.4 var(--aetheris-font-mono); cursor: pointer;
+  padding: 8px 10px; font: 500 max(1.1rem, 11px)/1.4 var(--aetheris-font-mono); letter-spacing: 0.02em; cursor: pointer;
+  transition: background var(--aetheris-motion-medium) var(--aetheris-ease-standard), border-color var(--aetheris-motion-medium) var(--aetheris-ease-standard);
 }
-.orb-page .metabloom-component-workspace__toolbar > button { flex: 0 0 auto; border-color: transparent; background: transparent; }
+.orb-page .metabloom-component-workspace__toolbar > button { flex: 0 0 auto; }
 .orb-page .metabloom-component-workspace__toolbar > [data-workspace-return] {
-  flex-basis: 4.4rem; width: 4.4rem; min-width: 4.4rem; padding: 0;
-  font: 2rem/1 var(--aetheris-font-sans);
+  flex-basis: 44px; width: 44px; min-width: 44px; padding: 0; border-color: transparent; background: transparent;
+  font: 24px/1 var(--aetheris-font-sans);
 }
 .orb-page .metabloom-component-workspace__toolbar > [data-workspace-saved] {
-  min-width: 44px; min-height: 44px; padding: 6px 8px;
-  font: 600 12px/1.3 var(--aetheris-font-sans); white-space: nowrap;
+  min-width: 44px; min-height: 44px; padding: 6px 8px; border-color: transparent;
+  background: linear-gradient(var(--aetheris-panel), var(--aetheris-panel)) padding-box, var(--aetheris-spectral-border-soft) border-box;
+  box-shadow: var(--aetheris-glass-specular); white-space: nowrap;
 }
 .orb-page .metabloom-component-workspace__toolbar > [data-workspace-saved]:disabled { cursor: default; opacity: 0.55; }
 .orb-page .metabloom-component-workspace__body { flex: 1; min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; }
 .orb-page .metabloom-component-workspace__body:focus-visible,
 .orb-page .metabloom-component-workspace__toolbar > button:focus-visible,
 .orb-page .metabloom-visual-launcher > button:focus-visible,
-.orb-page .metabloom-research-launcher > button:focus-visible { outline: 2px solid var(--aetheris-ink); outline-offset: -3px; }
+.orb-page .metabloom-research-launcher > button:focus-visible { outline: 2px solid var(--aetheris-focus-line); outline-offset: -3px; box-shadow: var(--aetheris-focus-halo); }
 .orb-page .metabloom-visual-launcher { width: 100%; min-width: 0; margin: 0.8rem 0; }
 .orb-page .metabloom-visual-launcher > button { display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem 0.8rem; max-width: 100%; text-align: left; }
 .orb-page .metabloom-visual-launcher strong { overflow-wrap: anywhere; font: 600 1.25rem/1.4 var(--aetheris-font-sans); }
-.orb-page .metabloom-visual-launcher > button[aria-pressed='true'] { border-color: var(--aetheris-ink-2); }
+.orb-page .metabloom-visual-launcher > button[aria-pressed='true'],
+.orb-page .metabloom-research-launcher > button[aria-pressed='true'] {
+  border-color: transparent; background: linear-gradient(var(--aetheris-panel), var(--aetheris-panel)) padding-box, var(--aetheris-spectral-border-soft) border-box;
+  box-shadow: var(--aetheris-glass-specular);
+}
+@media (hover: hover) {
+  .orb-page .metabloom-component-workspace__toolbar > button:hover:not(:disabled),
+  .orb-page .metabloom-component-workspace__picker select:hover,
+  .orb-page .metabloom-visual-launcher > button:hover,
+  .orb-page .metabloom-research-launcher > button:hover { background-color: var(--aetheris-state-layer); border-color: var(--aetheris-focus-line); }
+  .orb-page .metabloom-component-workspace__toolbar > [data-workspace-saved]:hover:not(:disabled) {
+    border-color: transparent; background: linear-gradient(var(--aetheris-panel-raised), var(--aetheris-panel-raised)) padding-box, var(--aetheris-spectral-border-soft) border-box;
+  }
+}
 .orb-page .metabloom-research-slot[hidden] { display: none; }
 .orb-page .metabloom-research-launcher { min-width: 0; margin-top: 1rem; }
 .orb-page .metabloom-research-launcher:empty { display: none; }
@@ -214,17 +237,25 @@
 .orb-page .metabloom-chat__workspace .metabloom-visual__field label { font-size: 1.2rem; line-height: 1.35; }
 .orb-page .metabloom-chat__workspace .metabloom-visual__formula { margin: 0.5rem 0 0.8rem; font-size: 1.2rem; }
 @media (prefers-reduced-motion: reduce) {
-  .orb-page .metabloom-visual button { transition: none; }
+  .orb-page .metabloom-visual button,
+  .orb-page .metabloom-component-workspace__toolbar > button,
+  .orb-page .metabloom-visual-launcher > button,
+  .orb-page .metabloom-research-launcher > button { transition: none; }
   .orb-page .metabloom-visual__skeleton span { animation: none; }
 }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { .orb-page .metabloom-visual { background: var(--aetheris-panel-raised); } }
 @media (prefers-reduced-transparency: reduce) {
+  .orb-page[data-active-component='true'] .metabloom-chat__workspace { background: var(--aetheris-panel-raised); }
   .orb-page .metabloom-visual { backdrop-filter: none; -webkit-backdrop-filter: none; background: var(--aetheris-panel-raised); }
 }
 @media (forced-colors: active) {
   .orb-page[data-active-component='true'] .metabloom-chat__workspace,
   .orb-page .metabloom-component-workspace__toolbar > button,
-  .orb-page .metabloom-visual-launcher > button { background: Canvas; color: CanvasText; border-color: CanvasText; box-shadow: none; }
+  .orb-page .metabloom-component-workspace__toolbar > [data-workspace-saved],
+  .orb-page .metabloom-component-workspace__picker select,
+  .orb-page .metabloom-visual-launcher > button,
+  .orb-page .metabloom-research-launcher > button { background: Canvas; color: CanvasText; border-color: CanvasText; box-shadow: none; }
+  .orb-page[data-active-component='true'] .metabloom-chat__workspace::before { display: none; }
   .orb-page .metabloom-visual, .orb-page .metabloom-visual button, .orb-page .metabloom-visual input[type='number'] { background: Canvas; color: CanvasText; border: 1px solid CanvasText; box-shadow: none; backdrop-filter: none; }
   .orb-page .metabloom-visual::before, .orb-page .metabloom-visual button::before, .orb-page .metabloom-visual__input-shell::before { display: none; }
   .orb-page .metabloom-visual__bar, .orb-page .metabloom-visual__point { background: Highlight; fill: Highlight; forced-color-adjust: none; }

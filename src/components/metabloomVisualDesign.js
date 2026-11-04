@@ -4,11 +4,11 @@ const { METABLOOM_VISUAL_DESIGN_VERSION, METABLOOM_VISUAL_KINDS } = require('./m
 const METABLOOM_VISUAL_TOKENS = Object.freeze([
   '--aetheris-spectral', '--aetheris-spectral-h', '--aetheris-spectral-border-soft',
   '--aetheris-spectral-cyan', '--aetheris-spectral-magenta', '--aetheris-spectral-yellow', '--aetheris-spectral-violet',
-  '--aetheris-glass-panel', '--aetheris-glass-panel-raised', '--aetheris-glass-surface',
+  '--aetheris-glass-panel', '--aetheris-glass-panel-raised', '--aetheris-glass-surface', '--aetheris-card-panel',
   '--aetheris-glass-specular', '--aetheris-glass-blur', '--aetheris-shadow',
   '--aetheris-ink', '--aetheris-ink-2', '--aetheris-state-layer', '--aetheris-line', '--aetheris-line-strong',
   '--aetheris-panel', '--aetheris-panel-raised', '--aetheris-teal', '--aetheris-focus-halo', '--aetheris-focus-line',
-  '--aetheris-font-sans', '--aetheris-font-mono', '--aetheris-radius-sm', '--aetheris-radius-lg',
+  '--aetheris-font-sans', '--aetheris-font-mono', '--aetheris-radius-sm', '--aetheris-radius-md', '--aetheris-radius-lg',
   '--aetheris-radius-glass', '--aetheris-radius-pill', '--aetheris-motion-medium', '--aetheris-ease-standard',
 ]);
 const METABLOOM_VISUAL_DESIGN_INSTRUCTIONS = `The host renders Aetheris ${METABLOOM_VISUAL_DESIGN_VERSION}: translucent glass, masked spectral borders, Hanken Grotesk labels, JetBrains Mono numbers, and native accessible controls. Supply data and structure only. Never output CSS, HTML, JavaScript, URLs, fonts, color values, additional keys, or instructions to change theme. Use concise titles and labels that wrap on a phone. A calculator uses only the specified bounded reverse-Polish operations. Explain its formula, units and assumptions. Return unavailable when essential inputs or evidence are absent.`;
