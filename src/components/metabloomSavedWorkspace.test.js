@@ -1,5 +1,6 @@
 import { TextEncoder } from 'util';
-import { getMetabloomVisualSaveSource, prepareMetabloomSavedOpen } from './metabloomSavedWorkspace';
+import { createMetabloomSavedWorkBaseline, getMetabloomSavedWorkStatus, getMetabloomVisualSaveSource,
+  parseMetabloomSavedWorkBaseline, prepareMetabloomSavedOpen } from './metabloomSavedWorkspace';
 import { METABLOOM_VISUAL_KINDS } from './metabloomVisualProtocol';
 
 const originalTextEncoder = global.TextEncoder;
@@ -194,4 +195,92 @@ test('Open rejects extra ownership, mismatched references and unsupported conten
   const research = researchOpen();
   research.reference.research.localDate = '2026-11-03';
   expect(prepareMetabloomSavedOpen(research)).toBeNull();
+});
+
+test('a confirmed baseline owns a copy of its exact source and numeric scenario across metadata-only changes', () => {
+  const metadata = artifact('visual');
+  const selection = getMetabloomVisualSaveSource({ ...recordFor(), viewState: { inputs: { hours: '17', rate: '85' } } });
+  const baseline = createMetabloomSavedWorkBaseline(metadata, selection);
+  expect(baseline).toMatchObject({ version: 1, artifactId: metadata.artifactId, revision: 1,
+    source: { kind: 'visual', id: 'd'.repeat(48), artifactVersion: 'e'.repeat(32) }, scenario: { inputs: { hours: 17, rate: 85 } } });
+  selection.source.artifactVersion = 'f'.repeat(32);
+  selection.scenario.inputs.hours = 20;
+  expect(baseline.source.artifactVersion).toBe('e'.repeat(32));
+  expect(baseline.scenario.inputs.hours).toBe(17);
+  expect(baseline).not.toHaveProperty('title');
+  expect(baseline).not.toHaveProperty('expiresAt');
+  const retained = parseMetabloomSavedWorkBaseline(baseline, { ...metadata, title: 'Renamed project', version: 4, headRevision: 3 });
+  expect(retained).toEqual(baseline);
+  retained.scenario.inputs.hours = 30;
+  expect(baseline.scenario.inputs.hours).toBe(17);
+});
+
+test('retained baselines reject mismatched artifact ownership, kind, revision, malformed fields and oversized state', () => {
+  const metadata = artifact('visual');
+  const baseline = createMetabloomSavedWorkBaseline(metadata, getMetabloomVisualSaveSource(recordFor()));
+  for (const changed of [
+    { ...metadata, artifactId: '22222222-2222-4222-8222-222222222222' },
+    { ...metadata, kind: 'research' }, { ...metadata, revision: 2, headRevision: 2 },
+  ]) expect(parseMetabloomSavedWorkBaseline(baseline, changed)).toBeNull();
+  for (const malformed of [null, {}, { ...baseline, version: 2 }, { ...baseline, revision: 0 },
+    { ...baseline, accountId: 'invented-owner' }, { ...baseline, source: { ...baseline.source, accountId: 'invented-owner' } },
+    { ...baseline, source: { ...baseline.source, id: 'invalid' } },
+    { ...baseline, source: { ...baseline.source, artifactVersion: 'invalid' } },
+    { ...baseline, scenario: { inputs: { hours: NaN, rate: 85 } } },
+    { ...baseline, scenario: { inputs: { hours: '17', rate: 85 } } },
+    { ...baseline, scenario: { inputs: Object.fromEntries(Array.from({ length: 256 }, (_, index) => [`input${index}`, index])) } },
+  ]) expect(parseMetabloomSavedWorkBaseline(malformed, metadata)).toBeNull();
+  const getter = jest.fn(() => { throw new Error('Do not evaluate retained accessors'); });
+  const accessor = { ...baseline };
+  Object.defineProperty(accessor, 'source', { enumerable: true, get: getter });
+  expect(parseMetabloomSavedWorkBaseline(accessor, metadata)).toBeNull();
+  expect(getter).not.toHaveBeenCalled();
+  expect(parseMetabloomSavedWorkBaseline(Object.assign(Object.create({ owner: 'other' }), baseline), metadata)).toBeNull();
+});
+
+test('a saved association cannot establish a content match without its own exact source baseline', () => {
+  const metadata = artifact('visual');
+  const selection = getMetabloomVisualSaveSource(recordFor());
+  const baseline = createMetabloomSavedWorkBaseline(metadata, selection);
+  expect(getMetabloomSavedWorkStatus({ artifact: null, selection })).toBe('Not saved');
+  expect(getMetabloomSavedWorkStatus({ artifact: metadata, selection })).toBe('Save status unknown');
+  expect(getMetabloomSavedWorkStatus({ artifact: metadata, baseline, selection })).toBe('Saved · Revision 1');
+  for (const source of [{ ...selection.source, id: 'f'.repeat(48) }, { ...selection.source, artifactVersion: 'f'.repeat(32) }])
+    expect(getMetabloomSavedWorkStatus({ artifact: metadata, baseline, selection: { ...selection, source } })).toBe('Save status unknown');
+  expect(getMetabloomSavedWorkStatus({ artifact: metadata, baseline, selection: null })).toBe('Save status unknown');
+  expect(getMetabloomSavedWorkStatus({ artifact: metadata, baseline, selection: null, invalidInputs: true })).toBe('Check inputs');
+});
+
+test('zero is a confirmed numeric baseline and cannot collapse into an empty draft or an initial value', () => {
+  const metadata = artifact('visual'), record = recordFor();
+  record.spec.controls[0].min = 0;
+  record.viewState = { inputs: { hours: '0', rate: '85' } };
+  const baseline = createMetabloomSavedWorkBaseline(metadata, getMetabloomVisualSaveSource(record));
+  record.viewState.inputs.hours = '0.0';
+  expect(getMetabloomSavedWorkStatus({ artifact: metadata, baseline, selection: getMetabloomVisualSaveSource(record) })).toBe('Saved · Revision 1');
+  record.viewState.inputs.hours = '1';
+  expect(getMetabloomSavedWorkStatus({ artifact: metadata, baseline, selection: getMetabloomVisualSaveSource(record) })).toBe('Unsaved changes');
+  record.viewState.inputs.hours = '';
+  expect(getMetabloomVisualSaveSource(record)).toBeNull();
+  expect(getMetabloomSavedWorkStatus({ artifact: metadata, baseline, selection: null, invalidInputs: true })).toBe('Check inputs');
+});
+
+test.each(['table', 'line-chart'])('%s reading controls do not change the confirmed saved content', kind => {
+  const metadata = artifact('visual'), record = recordFor(kind);
+  const baseline = createMetabloomSavedWorkBaseline(metadata, getMetabloomVisualSaveSource(record));
+  record.viewState = kind === 'table' ? { filter: 'Two', sort: { column: 1, direction: 'desc' } }
+    : { selectedIndex: 1, detailsOpen: true };
+  expect(getMetabloomSavedWorkStatus({ artifact: metadata, baseline, selection: getMetabloomVisualSaveSource(record) })).toBe('Saved · Revision 1');
+});
+
+test('research baseline identity includes its brief and never adopts a calculator scenario', () => {
+  const metadata = artifact('research');
+  const selection = { source: { kind: 'research', researchId: 'f'.repeat(48), briefId: 'c'.repeat(32) } };
+  const baseline = createMetabloomSavedWorkBaseline(metadata, selection);
+  expect(getMetabloomSavedWorkStatus({ artifact: metadata, baseline, selection })).toBe('Saved · Revision 1');
+  expect(getMetabloomSavedWorkStatus({ artifact: metadata, baseline,
+    selection: { source: { ...selection.source, briefId: 'd'.repeat(32) } } })).toBe('Save status unknown');
+  expect(getMetabloomSavedWorkStatus({ artifact: metadata, baseline,
+    selection: { source: { kind: 'research', researchId: selection.source.researchId } } })).toBe('Save status unknown');
+  expect(parseMetabloomSavedWorkBaseline({ ...baseline, scenario: { inputs: { hours: 17 } } }, metadata)).toBeNull();
 });

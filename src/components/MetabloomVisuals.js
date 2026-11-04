@@ -15,7 +15,7 @@ import { METABLOOM_ARTIFACT_REFERENCE_EVENT, METABLOOM_ARTIFACT_UPDATE_EVENT,
   isMetabloomArtifactVersion, parseMetabloomArtifactReference } from './metabloomArtifactReference';
 import { describeMetabloomVisualSelection, currentMetabloomVisualSelection, summarizeMetabloomVisual } from './metabloomVisualSelection';
 import { isMetabloomFreshResearchRequest, parseMetabloomResearchReference } from './metabloomResearchReference';
-import { getMetabloomVisualSaveSource } from './metabloomSavedWorkspace';
+import { getMetabloomSavedWorkStatus, getMetabloomVisualSaveSource } from './metabloomSavedWorkspace';
 import { parseMetabloomSavedWorkMetadata } from './metabloomSavedWorkProtocol';
 const safeReply = response => ({ version: METABLOOM_CHAT_PROTOCOL_VERSION, segments: [{ response }] });
 const visualKindLabels = { calculator: 'Calculator', table: 'Table', 'line-chart': 'Line chart',
@@ -793,6 +793,14 @@ export default class MetabloomVisuals extends React.Component {
     const research = this.researchRecords.get(this.activeResearchId);
     const active = visual || research;
     const savedArtifact = active && this.savedArtifactFor(active);
+    const savedMessage = active && this.messages().find(message => message.id === (active.replyId || active.messageId));
+    // Research expiry limits reuse, not a previously confirmed durable save.
+    const selection = visual ? getMetabloomVisualSaveSource(visual) : research?.source ? { source: {
+      kind: 'research', researchId: research.source.researchId,
+      ...(research.source.briefId ? { briefId: research.source.briefId } : {}),
+    } } : null;
+    const saveStatus = active && getMetabloomSavedWorkStatus({ artifact: savedArtifact, baseline: savedMessage?.savedWorkBaseline,
+      selection, invalidInputs: visual?.spec?.kind === 'calculator' && !selection });
     const title = visual ? this.visualTitle(visual) : research?.title;
     const activeKey = visual?.id || (research && `research:${research.messageId}`);
     const messageOrder = new Map(this.messages().map((message, index) => [message.id, index]));
@@ -816,6 +824,7 @@ export default class MetabloomVisuals extends React.Component {
               </option>)}
             </select>
           </label>}
+          <span className="metabloom-component-workspace__save-status" role="status" aria-label="Save status" title={saveStatus}>{saveStatus}</span>
           {savedArtifact && savedArtifact.revision < savedArtifact.headRevision &&
             <p className="metabloom-component-workspace__revision">Working from revision {savedArtifact.revision} · Latest {savedArtifact.headRevision}</p>}
           <p className="metabloom-component-workspace__summary">{visual ? summarizeMetabloomVisual(visual) : research.summary}</p>

@@ -31,7 +31,7 @@ const copySource = source => ({ source: { ...source.source }, ...(source.scenari
 
 // The parent mounts this panel only while open. Saved content stays server-owned;
 // the panel sends only a source locator and an optional captured input scenario.
-export default function MetabloomSavedWorkPanel({ source, saveContext, activeArtifact, onOpen, onSaved, onRevisionSaved, onRenamed, onDeleted, onClose }) {
+export default function MetabloomSavedWorkPanel({ source, saveContext, activeArtifact, onOpen, onSaved, onRevisionSaved, onRenamed, onDeleted, onInvalidated, onClose }) {
   const id = React.useId();
   const dialogRef = React.useRef(null);
   const closeButtonRef = React.useRef(null);
@@ -47,7 +47,7 @@ export default function MetabloomSavedWorkPanel({ source, saveContext, activeArt
   const saveAttemptRef = React.useRef(null);
   const refreshRequiredRef = React.useRef(null);
   const callbacksRef = React.useRef(null);
-  callbacksRef.current = { onOpen, onSaved, onRevisionSaved, onRenamed, onDeleted, onClose };
+  callbacksRef.current = { onOpen, onSaved, onRevisionSaved, onRenamed, onDeleted, onInvalidated, onClose };
   const [items, setItems] = React.useState([]);
   const [nextCursor, setNextCursor] = React.useState(null);
   const [loaded, setLoaded] = React.useState(false);
@@ -115,6 +115,14 @@ export default function MetabloomSavedWorkPanel({ source, saveContext, activeArt
     setError('');
     setNotice('');
     try {
+      if (input.action === 'delete') {
+        // Closing or leaving the route can lose the deletion receipt after a
+        // commit. Neutralize confirmation before dispatch, retaining the copy's
+        // association until deletion is confirmed. Cancel before dispatch is inert.
+        try { await callbacksRef.current.onInvalidated?.(input.artifactId, { missing: false }); }
+        catch { /* The deletion outcome still requires a confirmed receipt. */ }
+        if (!current()) return false;
+      }
       const result = await requestMetabloomSavedWork(input, { signal: controller.signal });
       if (!current()) return false;
       setUnavailable(false);
@@ -124,10 +132,19 @@ export default function MetabloomSavedWorkPanel({ source, saveContext, activeArt
       if (!current()) return false;
       setError(errorText(failure, input.action));
       if (failure?.code === 'saved_work_unavailable') setUnavailable(true);
-      if (['saved_work_conflict', 'saved_work_not_found'].includes(failure?.code)
-        || (['revise', 'restore'].includes(input.action) && ['saved_work_timeout', 'saved_work_unavailable'].includes(failure?.code))) {
+      const missing = ['saved_work_not_found', 'saved_work_deleted'].includes(failure?.code);
+      const uncertain = ['revise', 'restore', 'rename', 'delete'].includes(input.action)
+        && (['saved_work_timeout', 'saved_work_unavailable'].includes(failure?.code)
+          || (failure?.code === 'saved_work_invalid' && !Number.isInteger(failure.status)));
+      if (missing || failure?.code === 'saved_work_conflict' || uncertain) {
         refreshRequiredRef.current = input.artifactId || null;
         setNeedsRefresh(true);
+        // Only this item's explicit failure can invalidate its confirmation.
+        // A list failure or an unrelated read timeout keeps known saved work.
+        if (input.artifactId) {
+          try { await callbacksRef.current.onInvalidated?.(input.artifactId, { missing }); }
+          catch { /* The visible failure still requires an explicit refresh. */ }
+        }
       }
       return false;
     } finally {
@@ -205,7 +222,7 @@ export default function MetabloomSavedWorkPanel({ source, saveContext, activeArt
       setNotice(`Saved “${result.artifact.title}”.`);
       try {
         if (captured.context === undefined) await callbacksRef.current.onSaved?.(result.artifact);
-        else await callbacksRef.current.onSaved?.(result.artifact, captured.context);
+        else await callbacksRef.current.onSaved?.(result.artifact, captured.context, captured.request);
       }
       catch { if (current()) setError('Your work was saved, but this view could not update. Refresh the list to see it.'); }
     });
@@ -268,10 +285,14 @@ export default function MetabloomSavedWorkPanel({ source, saveContext, activeArt
       const reopened = await requestMetabloomSavedWork({ action: 'open', artifactId: result.artifact.artifactId,
         revision: result.artifact.headRevision }, { signal });
       if (current()) await acceptRevisionOpen(reopened, current, confirmed);
-    } catch {
+    } catch (failure) {
       if (!current()) return;
       setReceipt(value => value === confirmed ? { ...value, hydration: 'failed' } : value);
       setError(`Revision ${result.artifact.headRevision} is saved, but it could not be opened. Retry open to continue.`);
+      if (['saved_work_not_found', 'saved_work_deleted'].includes(failure?.code)) {
+        try { await callbacksRef.current.onInvalidated?.(result.artifact.artifactId, { missing: true }); }
+        catch { /* A failed Open cannot establish a new live confirmation. */ }
+      }
     }
   });
 

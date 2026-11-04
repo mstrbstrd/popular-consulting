@@ -135,6 +135,7 @@ test('an in-flight Save reports its captured context to the latest callback with
   const view = mount({ source: sourceA, saveContext: contextA, onSaved: initialOnSaved });
   await loaded();
   fireEvent.click(screen.getByRole('button', { name: 'Save current work' }));
+  const captured = requestMetabloomSavedWork.mock.calls[1][0];
   view.rerender(<Host source={sourceB} saveContext={contextB} onSaved={currentOnSaved} />);
   const current = screen.getByRole('region', { name: 'Current work' });
   expect(within(current).getByText('Estimate B')).toBeVisible();
@@ -143,7 +144,8 @@ test('an in-flight Save reports its captured context to the latest callback with
   expect(screen.getByRole('button', { name: 'Retry captured save: Estimate A' })).toBeDisabled();
   await act(async () => pending.resolve({ artifact: savedA }));
   expect(initialOnSaved).not.toHaveBeenCalled();
-  expect(currentOnSaved).toHaveBeenCalledWith(savedA, contextA);
+  expect(currentOnSaved).toHaveBeenCalledWith(savedA, contextA, captured);
+  expect(captured).toEqual({ action: 'save', requestId: expect.any(String), ...sourceA });
   expect(currentOnSaved.mock.calls[0][1]).toBe(contextA);
   expect(screen.queryByRole('button', { name: 'Saved', exact: true })).not.toBeInTheDocument();
   expect(within(current).getByRole('button', { name: 'Save current work' })).toBeEnabled();
@@ -185,7 +187,7 @@ test('retrying captured A after Restore opens B preserves its origin and permits
   fireEvent.click(screen.getByRole('button', { name: 'Retry captured save: Estimate A' }));
   await loaded();
   expect(requestMetabloomSavedWork.mock.calls[5][0]).toEqual(capturedA);
-  expect(onSaved).toHaveBeenNthCalledWith(1, savedA, contextA);
+  expect(onSaved).toHaveBeenNthCalledWith(1, savedA, contextA, capturedA);
   expect(onSaved.mock.calls[0][1]).toBe(contextA);
   expect(screen.queryByRole('button', { name: 'Saved', exact: true })).not.toBeInTheDocument();
   expect(screen.queryByRole('region', { name: 'Captured save' })).not.toBeInTheDocument();
@@ -197,7 +199,7 @@ test('retrying captured A after Restore opens B preserves its origin and permits
   expect(capturedB).toEqual({ action: 'save', requestId: expect.any(String), ...sourceB });
   expect(capturedB.requestId).not.toBe(capturedA.requestId);
   expect(globalThis.crypto.randomUUID).toHaveBeenCalledTimes(2);
-  expect(onSaved).toHaveBeenNthCalledWith(2, savedB, contextB);
+  expect(onSaved).toHaveBeenNthCalledWith(2, savedB, contextB, capturedB);
   expect(onSaved.mock.calls[1][1]).toBe(contextB);
   expect(within(current).getByRole('button', { name: 'Saved', exact: true })).toBeDisabled();
   expect(receipt).toHaveTextContent('Restored revision 1 as revision 4. This revision is now open.');
@@ -298,6 +300,7 @@ test('delete requires inline confirmation and keeps the row until the server con
   expect(screen.getByRole('button', { name: 'Delete Project 1' })).toHaveFocus();
   fireEvent.click(screen.getByRole('button', { name: 'Delete Project 1' }));
   fireEvent.click(screen.getByRole('button', { name: 'Delete saved copy' }));
+  await waitFor(() => expect(requestMetabloomSavedWork).toHaveBeenCalledTimes(2));
   expect(requestMetabloomSavedWork.mock.calls[1][0]).toEqual({ action: 'delete', artifactId: item(1).artifactId, expectedVersion: 6 });
   expect(screen.getByRole('heading', { name: 'Project 1' })).toBeInTheDocument();
   await act(async () => deletion.resolve({ artifactId: item(1).artifactId, version: 6, deleted: true }));

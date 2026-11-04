@@ -15,6 +15,46 @@ The same row contains the control on mobile, with a minimum 44px touch target.
 Integrated controller tests cover native and research sources, component
 switching, focus return, StrictMode cleanup and the More-menu fallback.
 
+## Saved status
+
+The workspace shows **Not saved**, **Saved · Revision N**, **Unsaved changes**,
+**Check inputs**, or **Save status unknown** beside the current work. Confirmation
+requires the same owned source and normalized valid calculator inputs as an
+acknowledged save or successfully opened revision. A later edit cannot inherit
+the confirmation of values captured before the request completed.
+
+Each retained message holds a validated confirmation baseline of at most 2,048
+UTF-8 bytes. It contains the artifact ID, content revision, source locator and
+optional numeric scenario, not report text, credentials or a second copy of the
+content. The existing account-cleared navigation snapshot retains this baseline.
+Titles, sorting, selection and research reuse expiry do not change saved content.
+Historical work retains its separate working-revision/latest-revision notice.
+
+A create retry that returns a later saved head does not prove the displayed
+content matches that head. Likewise, acknowledging Restore or Undo cannot mark
+the previous renderer as the newly opened revision. Those states require an
+explicit successful Open before gaining new confirmation. Missing/deleted items
+lose their association; conflicts and uncertain mutations clear only the
+affected confirmation. Delete dispatch also clears confirmation before sending,
+so closing the panel cannot leave a contradicted Saved label. Cancelling its
+confirmation before dispatch makes no change. Unrelated read failures preserve
+other confirmed work.
+
+## Authenticated production verification
+
+On November 4, 2026, a fictional **Saved work verification** calculator completed
+Save, page reload, Open, Save changes, History, Restore and Undo through the live
+authenticated site and configured Redis backend. Revision 1 held 17 hours at
+85 CAD, totaling 1,445 CAD. Revision 2 held 20 hours at 85 CAD, totaling 1,700 CAD.
+Restoring revision 1 created revision 3 with the original values; Undo created
+revision 4 with the 1,700 CAD scenario. The saved fixture remains available for
+review.
+
+The compact launcher was exercised on the deployed page at a 390 × 844 browser
+viewport. The workspace and modal fit without horizontal page overflow, and
+closing the modal returned focus to Saved. This is browser viewport verification,
+not a claim that a physical iPhone keyboard or provider backup policy was tested.
+
 ## Exact selected context
 
 The composer shows the values captured by **Ask about this**, including calculator inputs and the calculated result. This is a frozen selection. Changing the live component never silently changes the next message's attached context.

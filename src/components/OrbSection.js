@@ -9,7 +9,7 @@ import MetabloomResearchStatus from "./MetabloomResearchStatus";
 import MetabloomResearchSurface, { ResearchReferenceDates } from './MetabloomResearchSurface';
 import MetabloomWorkspaceContext from './MetabloomWorkspaceContext';
 import MetabloomSavedWorkPanel from './MetabloomSavedWorkPanel';
-import { prepareMetabloomSavedOpen } from './metabloomSavedWorkspace';
+import { createMetabloomSavedWorkBaseline, parseMetabloomSavedWorkBaseline, prepareMetabloomSavedOpen } from './metabloomSavedWorkspace';
 import { parseMetabloomSavedWorkMetadata } from './metabloomSavedWorkProtocol';
 import { METABLOOM_SCENE_TRANSITION_SECONDS } from "./metabloomSceneTransition";
 import {
@@ -368,13 +368,14 @@ const cloneActionChain = (actionChain = []) =>
     talking,
   }));
 
-const cloneMessage = ({ id, role, content, actionChain = [], source, emote, segments = [], status, sources, researchDetails, researchBrief, researchReference, researchReused, savedArtifact }) => {
+const cloneMessage = ({ id, role, content, actionChain = [], source, emote, segments = [], status, sources, researchDetails, researchBrief, researchReference, researchReused, savedArtifact, savedWorkBaseline }) => {
   const researchReport = role === "assistant" ? parseMetabloomResearchReport(researchDetails) : null;
   const researchSources = researchReport ? parseMetabloomResearchAnswerSources(sources, { report: researchReport })
     : parseMetabloomResearchSources(sources);
   const brief = researchReport ? parseMetabloomResearchBrief(researchBrief, { sources: researchReport.sources }) : null;
   const reference = researchReport ? parseMetabloomResearchReferenceMetadata(researchReference) : null;
   const artifact = role === 'assistant' ? parseMetabloomSavedWorkMetadata(savedArtifact) : null;
+  const baseline = artifact ? parseMetabloomSavedWorkBaseline(savedWorkBaseline, artifact) : null;
   return {
     id,
     emote,
@@ -385,6 +386,7 @@ const cloneMessage = ({ id, role, content, actionChain = [], source, emote, segm
     actionChain: cloneActionChain(actionChain),
     source,
     ...(artifact ? { savedArtifact: artifact } : {}),
+    ...(baseline ? { savedWorkBaseline: baseline } : {}),
     ...(researchSources ? { sources: researchSources } : {}),
     ...(researchReport ? { researchDetails: researchReport } : {}),
     ...(brief ? { researchBrief: brief } : {}),
@@ -710,7 +712,7 @@ const OrbSection = ({
   React.useLayoutEffect(() => workspace?.registerSavedWorkAction?.({
     open: openSavedWork, disabled: pending || !isActive,
   }), [isActive, openSavedWork, pending, workspace]);
-  const acceptSavedWork = React.useCallback((artifact, capturedContext) => {
+  const acceptSavedWork = React.useCallback((artifact, capturedContext, capturedRequest) => {
     const session = savedWorkRef.current;
     const origin = capturedContext || session?.saveContext;
     const safe = parseMetabloomSavedWorkMetadata(artifact);
@@ -718,7 +720,17 @@ const OrbSection = ({
       || !mountedRef.current || workspaceRef.current !== session.controller
       || !session.controller.mounted || !session.controller.ownsSurface()) return;
     if (!messagesRef.current.some(message => message.id === origin.messageId && message.role === 'assistant')) return;
-    publishMessages(messagesRef.current.map(message => message.id === origin.messageId ? { ...message, savedArtifact: safe } : message));
+    // An idempotent create replay may report a later head. Only revision one
+    // proves that the frozen original request matches the returned revision.
+    const baseline = safe.revision === 1 && safe.headRevision === 1 && capturedRequest?.action === 'save'
+      ? createMetabloomSavedWorkBaseline(safe, capturedRequest) : null;
+    publishMessages(messagesRef.current.map(message => {
+      if (message.id !== origin.messageId) return message;
+      const next = { ...message, savedArtifact: safe };
+      delete next.savedWorkBaseline;
+      if (baseline) next.savedWorkBaseline = baseline;
+      return next;
+    }));
     if (session.messageId === origin.messageId) {
       const next = { ...session, artifact: safe };
       savedWorkRef.current = next;
@@ -755,6 +767,7 @@ const OrbSection = ({
       if (message.savedArtifact?.artifactId !== artifactId) return message;
       const next = { ...message };
       delete next.savedArtifact;
+      delete next.savedWorkBaseline;
       return next;
     }));
     if (session.artifact?.artifactId === artifactId) {
@@ -766,6 +779,19 @@ const OrbSection = ({
     }
     session.controller.refresh();
   }, [publishMessages]);
+  const invalidateSavedAssociation = React.useCallback((artifactId, { missing } = {}) => {
+    if (missing) { detachSavedAssociation(artifactId); return; }
+    const session = savedWorkRef.current;
+    if (!session || !mountedRef.current || workspaceRef.current !== session.controller
+      || !session.controller.mounted || !session.controller.ownsSurface()) return;
+    publishMessages(messagesRef.current.map(message => {
+      if (message.savedArtifact?.artifactId !== artifactId || !message.savedWorkBaseline) return message;
+      const next = { ...message };
+      delete next.savedWorkBaseline;
+      return next;
+    }));
+    session.controller.refresh();
+  }, [detachSavedAssociation, publishMessages]);
   const openSavedResult = React.useCallback(result => {
     const session = savedWorkRef.current;
     const controller = session?.controller;
@@ -788,12 +814,14 @@ const OrbSection = ({
     }
     // Prune only after successful placement, so a failed Open cannot discard an
     // older message or unmount its live component before we can roll back.
-    publishMessages(messagesRef.current.slice(-MAX_CHAT_MESSAGES));
+    publishMessages(messagesRef.current.slice(-MAX_CHAT_MESSAGES).map(item => item.id === message.id && prepared.savedWorkBaseline
+      ? { ...item, savedWorkBaseline: prepared.savedWorkBaseline } : item));
     const context = controller.captureSavedWorkContext();
     const next = { controller, revision: controller.workspaceSelectionRevision, focusWorkspaceOnClose: true, ...context,
       saveContext: { controller, messageId: context?.messageId } };
     savedWorkRef.current = next;
     setSavedWork(next);
+    controller.refresh();
     return true;
   }, [isActive, publishMessages]);
   React.useEffect(() => {
@@ -2761,6 +2789,7 @@ const OrbSection = ({
       {savedWork && sectionRef.current?.closest('.orb-page') && createPortal(<MetabloomSavedWorkPanel
         source={savedWork.source} saveContext={savedWork.saveContext} activeArtifact={savedWork.artifact} onSaved={acceptSavedWork}
         onRevisionSaved={updateSavedAssociation} onRenamed={updateSavedAssociation} onDeleted={detachSavedAssociation}
+        onInvalidated={invalidateSavedAssociation}
         onOpen={openSavedResult} onClose={closeSavedWork} />,
       sectionRef.current.closest('.orb-page'))}
     </section>

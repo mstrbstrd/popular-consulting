@@ -21,6 +21,10 @@
 }
 .orb-page .metabloom-component-workspace__summary,
 .orb-page .metabloom-component-workspace__toolbar > [data-workspace-toggle] { display: none; }
+.orb-page .metabloom-component-workspace__save-status {
+  display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--aetheris-ink-2); font: 400 max(1.1rem, 11px)/1.4 var(--aetheris-font-sans);
+}
 .orb-page .metabloom-component-workspace__revision {
   margin: 0.3rem 0; color: var(--aetheris-ink-2); font: 400 max(1.1rem, 11px)/1.45 var(--aetheris-font-mono);
 }
