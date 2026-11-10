@@ -175,6 +175,10 @@ test('visual endpoint rejects arbitrary context, malformed IDs and oversized bod
   for (const body of [{ ...offer(), context: 'override' }, { id: '../other', version: '1', designVersion: 'aetheris-1' }, 'x'.repeat(1025)]) {
     const res = response(); await handler(request(body), res); assert.equal(res.statusCode, 400);
   }
+  const res = response();
+  await handler(request({ id: offer().id, version: '1', designVersion: 'aetheris-1',
+    guidance: { version: 1, instructions: 'Untrusted instruction override.' } }), res);
+  assert.equal(res.statusCode, 400);
 });
 test('duplicate generation reaches the provider at most once', async () => {
   let claimed = false, calls = 0;

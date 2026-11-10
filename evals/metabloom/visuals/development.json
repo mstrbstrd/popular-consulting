@@ -1,0 +1,249 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "table-exact-values",
+      "message": "Create a table with columns Item and Quantity, and rows Pens 7 and Pads 12, in that order. Use exactly these column names, item names, and plain numeric cells.",
+      "expected": {
+        "mode": "requested",
+        "kind": "table",
+        "result": "generated",
+        "provenance": "user",
+        "data": {
+          "columns": [
+            "Item",
+            "Quantity"
+          ],
+          "rows": [
+            [
+              "Pens",
+              "7"
+            ],
+            [
+              "Pads",
+              "12"
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "id": "bar-negative-values",
+      "message": "Create a bar chart with labels Monday, Tuesday, Wednesday in that order, values -3, 0, 8, and unit USD. These are my supplied amounts.",
+      "expected": {
+        "mode": "requested",
+        "kind": "bar-chart",
+        "result": "generated",
+        "provenance": "user",
+        "data": {
+          "unit": "USD",
+          "points": [
+            {
+              "label": "Monday",
+              "value": -3
+            },
+            {
+              "label": "Tuesday",
+              "value": 0
+            },
+            {
+              "label": "Wednesday",
+              "value": 8
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "line-multiple-series",
+      "message": "Create a line chart of monthly sales. Cedar: 12,18,9. Birch: 8,10,14. Use labels M1, M2, M3, keep series in Cedar then Birch order, and use unit CAD.",
+      "expected": {
+        "mode": "requested",
+        "kind": "line-chart",
+        "result": "generated",
+        "provenance": "user",
+        "data": {
+          "unit": "CAD",
+          "labels": [
+            "M1",
+            "M2",
+            "M3"
+          ],
+          "series": [
+            {
+              "id": "cedar",
+              "label": "Cedar",
+              "values": [
+                12,
+                18,
+                9
+              ]
+            },
+            {
+              "id": "birch",
+              "label": "Birch",
+              "values": [
+                8,
+                10,
+                14
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "pie-zero-part",
+      "message": "Create a pie chart with these labels and values in order: Rent 80, Food 20, Other 0. Use unit CAD and keep the zero category.",
+      "expected": {
+        "mode": "requested",
+        "kind": "pie-chart",
+        "result": "generated",
+        "provenance": "user",
+        "data": {
+          "unit": "CAD",
+          "points": [
+            {
+              "label": "Rent",
+              "value": 80
+            },
+            {
+              "label": "Food",
+              "value": 20
+            },
+            {
+              "label": "Other",
+              "value": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "calculator-division",
+      "message": "Create a bill-splitting calculator with controls labelled Total and People. Total ranges from 0 to 1000, initially 120. People ranges from 0 to 20, initially 3. Divide Total by People. Use unit CAD per person. Division by zero must be undefined.",
+      "expected": {
+        "mode": "requested",
+        "kind": "calculator",
+        "result": "generated",
+        "provenance": "calculated",
+        "data": {
+          "unit": "CAD per person",
+          "probes": [
+            {
+              "inputs": {
+                "Total": 120,
+                "People": 3
+              },
+              "value": 40
+            },
+            {
+              "inputs": {
+                "Total": 90,
+                "People": 6
+              },
+              "value": 15
+            },
+            {
+              "inputs": {
+                "Total": 120,
+                "People": 0
+              },
+              "value": null
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "flowchart-retry",
+      "message": "Create a flowchart with exactly these node labels: Start, Check, Finish. Connect Start to Check with an empty label; Check to Finish labelled Yes; and Check back to Start labelled No.",
+      "expected": {
+        "mode": "requested",
+        "kind": "flowchart",
+        "result": "generated",
+        "provenance": "conceptual",
+        "data": {
+          "nodes": [
+            "Start",
+            "Check",
+            "Finish"
+          ],
+          "edges": [
+            {
+              "to": "Check",
+              "label": "",
+              "from": "Start"
+            },
+            {
+              "to": "Finish",
+              "label": "Yes",
+              "from": "Check"
+            },
+            {
+              "to": "Start",
+              "label": "No",
+              "from": "Check"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "pie-mixed-units",
+      "message": "Create a pie chart combining 2 cups of flour and 100 grams of sugar. I have no conversion factors. Do not assume conversions or amounts; return unavailable if these cannot form a meaningful whole.",
+      "expected": {
+        "mode": "requested",
+        "kind": "pie-chart",
+        "result": "unavailable"
+      }
+    },
+    {
+      "id": "text-only-opt-out",
+      "message": "Give me a text-only answer explaining a bar chart. No visuals.",
+      "expected": {
+        "mode": "text_only"
+      }
+    },
+    {
+      "id": "unsupported-map",
+      "message": "Create an interactive map of the Okanagan.",
+      "expected": {
+        "mode": "unsupported"
+      }
+    },
+    {
+      "id": "ordinary-explanation",
+      "message": "Explain what a pie chart is.",
+      "expected": {
+        "mode": "optional"
+      }
+    },
+    {
+      "id": "status-no-regeneration",
+      "message": "I cannot see it.",
+      "expected": {
+        "mode": "visual_status"
+      },
+      "history": [
+        {
+          "role": "user",
+          "content": "Create a bar chart of Apples 2 and Pears 3."
+        }
+      ]
+    },
+    {
+      "id": "vague-followup",
+      "message": "Next",
+      "expected": {
+        "mode": "clarification"
+      },
+      "history": [
+        {
+          "role": "user",
+          "content": "Create a calculator for splitting a bill."
+        }
+      ]
+    }
+  ]
+}

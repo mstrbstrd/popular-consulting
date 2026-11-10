@@ -1,0 +1,227 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "table-decimals",
+      "message": "Create a table with columns Part and Mass (g). Use rows Screw 2.5 and Washer 0.75, in that order. Keep exact labels and plain numeric cells.",
+      "expected": {
+        "mode": "requested",
+        "kind": "table",
+        "result": "generated",
+        "provenance": "user",
+        "data": {
+          "columns": [
+            "Part",
+            "Mass (g)"
+          ],
+          "rows": [
+            [
+              "Screw",
+              "2.5"
+            ],
+            [
+              "Washer",
+              "0.75"
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "id": "bar-fractional-values",
+      "message": "Create a bar chart with labels North, South, West in that order and values 1.25, -0.5, 0. Use unit kWh exactly.",
+      "expected": {
+        "mode": "requested",
+        "kind": "bar-chart",
+        "result": "generated",
+        "provenance": "user",
+        "data": {
+          "unit": "kWh",
+          "points": [
+            {
+              "label": "North",
+              "value": 1.25
+            },
+            {
+              "label": "South",
+              "value": -0.5
+            },
+            {
+              "label": "West",
+              "value": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "line-zero-series",
+      "message": "Create a line chart of monthly output. Alpha: 0,4,0. Beta: 6,0,3. Use labels M1, M2, M3 and series Alpha then Beta. Unit is units. Preserve zeros.",
+      "expected": {
+        "mode": "requested",
+        "kind": "line-chart",
+        "result": "generated",
+        "provenance": "user",
+        "data": {
+          "unit": "units",
+          "labels": [
+            "M1",
+            "M2",
+            "M3"
+          ],
+          "series": [
+            {
+              "id": "alpha",
+              "label": "Alpha",
+              "values": [
+                0,
+                4,
+                0
+              ]
+            },
+            {
+              "id": "beta",
+              "label": "Beta",
+              "values": [
+                6,
+                0,
+                3
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "pie-fractional-whole",
+      "message": "Create a pie chart with labels Oats, Seeds, Fruit in that order and masses 0.6, 0.15, 0.25. Use unit kg.",
+      "expected": {
+        "mode": "requested",
+        "kind": "pie-chart",
+        "result": "generated",
+        "provenance": "user",
+        "data": {
+          "unit": "kg",
+          "points": [
+            {
+              "label": "Oats",
+              "value": 0.6
+            },
+            {
+              "label": "Seeds",
+              "value": 0.15
+            },
+            {
+              "label": "Fruit",
+              "value": 0.25
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "calculator-multiply",
+      "message": "Create a cost calculator with controls labelled Hours and Rate. Hours ranges 0 to 100, initially 4; Rate ranges 0 to 200, initially 65. Multiply Hours by Rate. Use unit CAD.",
+      "expected": {
+        "mode": "requested",
+        "kind": "calculator",
+        "result": "generated",
+        "provenance": "calculated",
+        "data": {
+          "unit": "CAD",
+          "probes": [
+            {
+              "inputs": {
+                "Hours": 4,
+                "Rate": 65
+              },
+              "value": 260
+            },
+            {
+              "inputs": {
+                "Hours": 0,
+                "Rate": 90
+              },
+              "value": 0
+            },
+            {
+              "inputs": {
+                "Hours": 2.5,
+                "Rate": 80
+              },
+              "value": 200
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "flowchart-branch",
+      "message": "Create a flowchart with exactly these node labels: Request, Available, Wait, Fulfil. Request connects to Available with an empty label. Available connects to Fulfil labelled Yes and Wait labelled No. Wait connects back to Available labelled Retry.",
+      "expected": {
+        "mode": "requested",
+        "kind": "flowchart",
+        "result": "generated",
+        "provenance": "conceptual",
+        "data": {
+          "nodes": [
+            "Request",
+            "Available",
+            "Wait",
+            "Fulfil"
+          ],
+          "edges": [
+            {
+              "to": "Available",
+              "label": "",
+              "from": "Request"
+            },
+            {
+              "to": "Fulfil",
+              "label": "Yes",
+              "from": "Available"
+            },
+            {
+              "to": "Wait",
+              "label": "No",
+              "from": "Available"
+            },
+            {
+              "to": "Available",
+              "label": "Retry",
+              "from": "Wait"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "unsupported-export",
+      "message": "Export the chart as a PNG file.",
+      "expected": {
+        "mode": "unsupported"
+      }
+    },
+    {
+      "id": "capability-question",
+      "message": "What kinds of charts can you create?",
+      "expected": {
+        "mode": "capabilities"
+      }
+    },
+    {
+      "id": "source-code-request",
+      "message": "Write HTML code for a calculator.",
+      "expected": {
+        "mode": "optional"
+      }
+    },
+    {
+      "id": "empty-followup",
+      "message": "Show it again.",
+      "expected": {
+        "mode": "clarification"
+      }
+    }
+  ]
+}
