@@ -2,7 +2,7 @@
    Tokens and the shared nav chrome come from LiquidGlass.css.
      glass panes, unfrosted — welcome panel, tool cards, session panel, footer pill:
        tinted fill, specular rim and depth, the live field left unblurred behind
-     clear (lensed)         — session action; card arrows are lens highlights
+     clear (lensed)         — session action
    The entry animation must remove backdrop filters while surfaces move (Chrome
    clip desync). Frost that returned when it finished visibly snapped in, and
    the panes read better without it, so these surfaces never use a backdrop
@@ -32,7 +32,6 @@ html body .home-page .home-tool:hover::after { opacity: 0 !important; }
 html body .home-page .home-tool:focus-visible { box-shadow: var(--lg-specular), var(--aetheris-focus-halo) !important; }
 
 /* Welcome and session panels. */
-.home-page .home-welcome,
 .home-page .home-session,
 .home-page .home-footer-pill {
   border-color: transparent;
@@ -41,8 +40,15 @@ html body .home-page .home-tool:focus-visible { box-shadow: var(--lg-specular), 
   backdrop-filter: none;
   box-shadow: var(--lg-specular), var(--lg-shadow);
 }
-.home-page .home-welcome::before,
 .home-page .home-session::before { opacity: 0; }
+
+/* The greeting sits directly on the field, like an iOS home title: no pane. */
+.home-page .home-welcome {
+  padding: 8px 6px 4px; border-color: transparent; background: none; box-shadow: none;
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+.home-page .home-welcome::before { display: none; }
+.home-page .home-welcome :is(h1, p) { text-shadow: var(--lg-text-halo); }
 
 /* Clear glass controls. */
 .home-page .home-session-action {
@@ -52,18 +58,10 @@ html body .home-page .home-tool:focus-visible { box-shadow: var(--lg-specular), 
   backdrop-filter: var(--lg-refraction, var(--lg-clear-fallback)) var(--lg-post);
   box-shadow: var(--lg-specular), var(--lg-shadow);
 }
-/* Arrows sit inside a glass card: a nested backdrop filter would only sample the
-   card's own backdrop root, so they are lens highlights on the card instead. */
-.home-page .home-tool-arrow {
-  border-color: transparent; background: var(--lg-lens-hover);
-  -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: var(--lg-lens-edge);
-}
 .home-page .home-session-action { border-radius: 999px; color: var(--aetheris-ink); }
-.home-page .home-tool-arrow::before,
 .home-page .home-session-action::before { opacity: 0; }
 .home-page .home-footer-pill > span { text-shadow: var(--lg-text-halo); }
 @media (hover: hover) {
-  .home-page .home-tool:hover .home-tool-arrow { background: var(--lg-lens); }
   .home-page .home-session-action:hover { background: var(--lg-clear-fill-hover); }
 }
 
@@ -75,6 +73,6 @@ html body .home-page .home-tool:focus-visible { box-shadow: var(--lg-specular), 
 
 @media (forced-colors: active) {
   html body .home-page .home-tool { background: Canvas !important; border: 1px solid CanvasText !important; box-shadow: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
-  .home-page .home-footer-pill, .home-page .home-tool-arrow, .home-page .home-session-action,
+  .home-page .home-footer-pill, .home-page .home-session-action,
   .home-page .home-welcome, .home-page .home-session { background: Canvas; border: 1px solid CanvasText; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
 }

@@ -50,9 +50,8 @@ describe('Home liquid glass', () => {
     expect(shared).toContain(".home-page[data-entry='revealing'] .nav-pill::before");
   });
 
-  test('controls nested inside a lensed card are not separate backdrop panes', () => {
-    expect(HOME_REFRACTION_TARGETS).not.toContain('.home-tool-arrow');
-    expect(strip(home)).toMatch(/\.home-page \.home-tool-arrow \{[^}]*backdrop-filter: none;/);
+  test('the greeting sits on the field without a pane, and menus are the only lensed panels', () => {
+    expect(strip(home)).toMatch(/\.home-page \.home-welcome \{[^}]*background: none;[^}]*backdrop-filter: none;/);
     expect(HOME_REFRACTION_PANELS).toEqual(NAV_REFRACTION_MENUS);
   });
 
@@ -63,7 +62,7 @@ describe('Home liquid glass', () => {
       expect(selector).not.toMatch(/home-tool|home-welcome|home-footer-pill|home-session(?!-)/));
     const css = strip(home);
     expect(css).toMatch(/html body \.home-page \.home-tool \{[^}]*-webkit-backdrop-filter: none !important;[^}]*backdrop-filter: none !important;/);
-    expect(css).toMatch(/\.home-page \.home-welcome,\s*\.home-page \.home-session,\s*\.home-page \.home-footer-pill \{[^}]*backdrop-filter: none;/);
+    expect(css).toMatch(/\.home-page \.home-session,\s*\.home-page \.home-footer-pill \{[^}]*backdrop-filter: none;/);
     expect(css).toMatch(/\.home-page\[data-entry='open'\] \.nav-pill::before \{ animation: liquid-glass-in/);
   });
 

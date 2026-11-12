@@ -13,44 +13,104 @@ import './LiquidGlass.css';
 import './HomeLiquidGlass.css';
 
 const TOOLS = [
+  { id: 'orb', title: 'Orb', category: 'A more expressive conversation', href: '/orb',
+    description: 'Think out loud with a little character that responds in kind, and builds charts, tables and tools as you talk.', action: 'Start a conversation' },
   { id: 'popcan', title: 'Popcan', category: 'Drawing studio', href: '/popcan',
     description: 'Follow a colour. Make a mark. See where it takes you.', action: 'Open canvas' },
   { id: 'dither', title: 'Dither Canvas', category: 'Generative playground', href: '/dither-canvas',
     description: 'Explore living fields, shifting patterns, and spectral worlds.', action: 'Explore the lab' },
-  { id: 'orb', title: 'Orb', category: 'A more expressive conversation', href: '/orb',
-    description: 'Think out loud with a little character that responds in kind.', action: 'Start a conversation' },
   { id: 'invoice', title: 'Invoice Generator', category: 'Back to business', href: '/invoice-generator',
     description: 'Bring the details together. Preview, polish, and print your invoice.', action: 'Create an invoice' },
 ];
 
+// One spectral palette for every feature illustration, matching the site's
+// structural gradient (cyan, violet, magenta, amber).
+const SPECTRUM = [['#00d9ef', 0], ['#8b6cff', 0.38], ['#ff65c9', 0.7], ['#ffc94a', 1]];
+const Spectrum = ({ id, x1 = 0, y1 = 0, x2 = 1, y2 = 1, units }) => <linearGradient id={id} x1={x1} y1={y1} x2={x2} y2={y2} gradientUnits={units}>
+  {SPECTRUM.map(([color, offset]) => <stop key={offset} offset={offset} stopColor={color} />)}
+</linearGradient>;
+
+// Halftone wave field: dot radius follows diagonal travelling bands inside a
+// soft elliptical falloff, so the mark reads as a living dithered field.
+const DITHER_DOTS = (() => {
+  const dots = [];
+  const step = 11;
+  for (let row = 0; row < 17; row++) {
+    for (let col = 0; col < 23; col++) {
+      const x = 10 + col * step;
+      const y = 12 + row * step;
+      const nx = (x - 131) / 124;
+      const ny = (y - 100) / 92;
+      const d = nx * nx + ny * ny;
+      if (d > 1) continue;
+      const falloff = Math.cos(Math.min(1, d) * Math.PI / 2) ** 0.8;
+      const band = 0.5 + 0.5 * Math.sin(x * 0.055 + y * 0.03 + Math.sin(y * 0.045) * 1.8);
+      const r = 4.6 * (0.18 + 0.82 * band) * falloff;
+      if (r > 0.7) dots.push([x, y, Math.round(r * 10) / 10]);
+    }
+  }
+  return dots;
+})();
+
+// Metabloom silhouette: one lobed body (the field's metaball potential reads as
+// soft rounded lobes) plus a budding droplet. Faceless, like the live creature.
+const ORB_BODY = 'M64 128C40 86 82 44 124 60C150 26 216 36 214 90C246 112 236 176 186 180C164 212 102 210 92 180C52 186 34 152 64 128Z';
+
 function ToolArtwork({ kind }) {
   const id = useId();
-  if (kind === 'popcan') return <svg viewBox="0 0 260 200" focusable="false">
-    <defs><linearGradient id={id} x1="0" y1="0" x2="1" y2="1">
-      <stop stopColor="#00d9ef" /><stop offset=".42" stopColor="#ff65c9" />
-      <stop offset=".75" stopColor="#ffc94a" /><stop offset="1" stopColor="#995dff" />
-    </linearGradient></defs>
+  if (kind === 'orb') return <svg className="home-art home-art--orb" viewBox="0 0 260 230" focusable="false">
+    <defs>
+      <Spectrum id={`${id}-sp`} x1="52" y1="46" x2="226" y2="204" units="userSpaceOnUse" />
+      <radialGradient id={`${id}-sheen`} cx=".36" cy=".3" r=".62">
+        <stop offset="0" stopColor="#fff" stopOpacity=".9" /><stop offset=".4" stopColor="#fff" stopOpacity=".2" /><stop offset="1" stopColor="#fff" stopOpacity="0" />
+      </radialGradient>
+      <radialGradient id={`${id}-depth`} cx=".7" cy=".8" r=".7">
+        <stop offset="0" stopColor="#3a1a6e" stopOpacity=".28" /><stop offset="1" stopColor="#3a1a6e" stopOpacity="0" />
+      </radialGradient>
+      <pattern id={`${id}-bayer`} width="7" height="7" patternUnits="userSpaceOnUse">
+        <circle cx="3.5" cy="3.5" r="1.25" fill="#fff" fillOpacity=".55" />
+      </pattern>
+      <clipPath id={`${id}-clip`}><path d={ORB_BODY} /><circle cx="226" cy="54" r="11" /></clipPath>
+    </defs>
+    <path className="home-art-glow" d={ORB_BODY} fill={`url(#${id}-sp)`} />
+    <g clipPath={`url(#${id}-clip)`}>
+      <rect width="260" height="230" fill={`url(#${id}-sp)`} />
+      <rect width="260" height="230" fill={`url(#${id}-depth)`} />
+      <rect width="260" height="230" fill={`url(#${id}-bayer)`} />
+      <rect width="260" height="230" fill={`url(#${id}-sheen)`} />
+    </g>
+  </svg>;
+  if (kind === 'popcan') return <svg className="home-art home-art--popcan" viewBox="0 0 260 200" focusable="false">
+    <defs><Spectrum id={id} /></defs>
     <g fill="none" stroke={`url(#${id})`} strokeLinecap="round">
       <path d="M25 144C40 45 173 4 176 54S63 175 94 165S240 49 228 89S146 183 200 166" strokeWidth="24" />
       <path d="M35 164C56 79 139 43 138 65" strokeWidth="3" opacity=".65" />
     </g>
     <circle cx="223" cy="38" r="6" fill="#00d9ef" /><circle cx="49" cy="37" r="4" fill="#ff65c9" />
   </svg>;
-  if (kind === 'dither') return <svg viewBox="0 0 260 200" focusable="false">
-    <defs>
-      <linearGradient id={`${id}-colour`} x2="1" y2="1"><stop stopColor="#00d9ef" /><stop offset=".48" stopColor="#b057e7" /><stop offset="1" stopColor="#ffbc62" /></linearGradient>
-      <pattern id={`${id}-dots`} width="5" height="5" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1.6" fill="white" /></pattern>
-      <mask id={`${id}-mask`}><rect width="260" height="200" fill={`url(#${id}-dots)`} /></mask>
-    </defs>
-    <g mask={`url(#${id}-mask)`} fill={`url(#${id}-colour)`}>
-      <path d="M20 85C47 3 109 19 137 64S219 54 240 117S159 203 114 167S1 155 20 85Z" />
-      <ellipse cx="180" cy="33" rx="32" ry="14" transform="rotate(-25 180 33)" />
+  if (kind === 'dither') return <svg className="home-art home-art--dither" viewBox="0 0 260 200" focusable="false">
+    <defs><Spectrum id={id} x2="1" y2=".55" /></defs>
+    <g fill={`url(#${id})`}>{DITHER_DOTS.map(([x, y, r]) => <circle key={`${x}-${y}`} cx={x} cy={y} r={r} />)}</g>
+  </svg>;
+  return <svg className="home-art home-art--invoice" viewBox="0 0 260 200" focusable="false">
+    <defs><Spectrum id={id} x2="1" y2="0" /></defs>
+    <rect className="home-art-sheet home-art-sheet--back" x="78" y="22" width="112" height="146" rx="10" transform="rotate(-9 134 95)" />
+    <g transform="rotate(6 140 100)">
+      <rect className="home-art-sheet" x="84" y="24" width="112" height="146" rx="10" />
+      <text className="home-art-label" x="100" y="50">INVOICE</text>
+      <rect className="home-art-line" x="100" y="62" width="58" height="3" rx="1.5" />
+      <rect className="home-art-line" x="100" y="70" width="34" height="3" rx="1.5" />
+      <rect className="home-art-rule" x="100" y="90" width="80" height="1" />
+      <rect className="home-art-line" x="100" y="100" width="80" height="3" rx="1.5" />
+      <rect className="home-art-line" x="100" y="110" width="80" height="3" rx="1.5" />
+      <rect className="home-art-line" x="100" y="120" width="62" height="3" rx="1.5" />
+      <rect x="138" y="140" width="42" height="4" rx="2" fill={`url(#${id})`} />
+    </g>
+    <g transform="translate(196 146)">
+      <circle r="19" fill={`url(#${id})`} />
+      <path d="M-8 0.5 -2.5 6 8.5 -6" fill="none" stroke="#fff" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" />
     </g>
   </svg>;
-  if (kind === 'orb') return <div className="home-orb-art"><i /><i /><i /></div>;
-  return <div className="home-invoice-art"><div className="home-paper">
-    <span>INVOICE</span><i /><i /><div className="home-paper-items"><i /><i /><i /></div><b />
-  </div></div>;
 }
 
 function HomeContent() {
@@ -150,9 +210,7 @@ function HomeContent() {
         <section className="home-bento" aria-label="Your tools">
           {TOOLS.map(tool => <a key={tool.id} className={`aetheris-card home-tool home-tool--${tool.id}`} href={tool.href}
             aria-labelledby={`home-${tool.id}-title`} aria-describedby={`home-${tool.id}-description`}>
-            <div className="home-tool-top"><span>{tool.category}</span><span className="home-tool-arrow" aria-hidden="true">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" focusable="false"><path d="M6 18 18 6M6 6h12v12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-            </span></div>
+            <div className="home-tool-top"><span>{tool.category}</span></div>
             <div className="home-tool-art" aria-hidden="true"><ToolArtwork kind={tool.id} /></div>
             <div className="home-tool-copy"><h2 id={`home-${tool.id}-title`}>{tool.title}</h2>
               <p id={`home-${tool.id}-description`}>{tool.description}</p>

@@ -46,10 +46,13 @@ html.home-route:has(.nav-overlay--open) body { overflow: hidden !important; }
   text-decoration: none;
   transition: background var(--aetheris-motion-medium), box-shadow var(--aetheris-motion-medium);
 }
-.home-tool--popcan, .home-tool--invoice { grid-column: span 7; }
-.home-tool--dither, .home-tool--orb { grid-column: span 5; }
+/* Hierarchy: Orb is the featured tall card; the two creative tools stack beside
+   it; the business utility closes the grid as a slim full-width strip. */
+.home-tool--orb { grid-column: span 7; grid-row: span 2; min-height: 580px; }
+.home-tool--popcan, .home-tool--dither { grid-column: span 5; }
+.home-tool--invoice { grid-column: span 12; min-height: 196px; }
 /* Mask the spectral layer to its edge. The glass interior stays transparent. */
-.home-welcome::before, .home-session::before, .home-tool-arrow::before, .home-session-action::before {
+.home-welcome::before, .home-session::before, .home-session-action::before {
   content: "";
   position: absolute;
   inset: -1px;
@@ -64,34 +67,33 @@ html.home-route:has(.nav-overlay--open) body { overflow: hidden !important; }
 }
 .home-welcome::before, .home-session::before { opacity: .48; transition: opacity var(--aetheris-motion-medium); }
 .home-tool-top { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.home-tool-top > span:first-child { color: var(--aetheris-ink-2); font: 400 11px/1.6 var(--aetheris-font-mono); letter-spacing: .025em; }
-.home-tool-arrow { position: relative; flex: 0 0 36px; width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50%; background: var(--aetheris-glass-panel); }
-.home-tool-arrow svg { display: block; }
-.home-tool-arrow::before { opacity: .65; }
-.home-tool-copy { position: relative; z-index: 1; width: 58%; margin-top: auto; padding-top: 30px; }
-.home-tool--dither .home-tool-copy, .home-tool--orb .home-tool-copy { width: 67%; }
+.home-tool-top > span:first-child { color: var(--aetheris-ink-2); font: 400 12px/1.6 var(--aetheris-font-mono); letter-spacing: .03em; }
+.home-tool-copy { position: relative; z-index: 1; width: 52%; margin-top: auto; padding-top: 24px; }
 .home-tool h2 { margin: 0 0 8px; font: 500 clamp(24px, 2.5vw, 30px)/1.15 var(--aetheris-font-sans); letter-spacing: -.035em; }
-.home-tool-copy p { margin: 0; max-width: 290px; color: var(--aetheris-ink-2); font-size: 14px; line-height: 1.6; text-wrap: pretty; }
-.home-tool-action { display: flex; align-items: center; gap: 12px; margin-top: 24px; font-size: 12px; font-weight: 500; }
+.home-tool-copy p { margin: 0; max-width: 300px; color: var(--aetheris-ink-2); font-size: 14px; line-height: 1.6; text-wrap: pretty; }
+.home-tool-action { display: flex; align-items: center; gap: 12px; margin-top: 20px; font-size: 12px; font-weight: 500; }
 .home-tool-action > span { transition: transform var(--aetheris-motion-fast); }
-.home-tool-art { position: absolute; width: 43%; right: 0; top: 65px; bottom: 18px; display: grid; place-items: center; pointer-events: none; }
-.home-tool-art > svg { width: 100%; max-height: 200px; overflow: visible; }
-.home-tool--dither .home-tool-art { width: 40%; right: -1px; top: 65px; bottom: 60px; }
-.home-tool--orb .home-tool-art { width: 36%; right: 8px; }
-.home-orb-art { position: relative; width: 118px; height: 134px; filter: drop-shadow(0 12px 20px #936bf51c); }
-.home-orb-art i { position: absolute; width: 86px; height: 96px; border-radius: 48% 52% 44% 56%; background: radial-gradient(ellipse at 32% 25%, #fff9, transparent 45%), radial-gradient(ellipse at 75% 72%, #ffc57b, transparent 55%), linear-gradient(140deg, #5de9ef 5%, #898aeb 38%, #e09bed 66%, #bc94f2); box-shadow: inset 2px 3px 10px #fff7, inset -6px -4px 12px #9856ce44; }
-.home-orb-art i:nth-child(1) { top: 0; left: 3px; transform: rotate(-20deg); }
-.home-orb-art i:nth-child(2) { bottom: 0; right: 0; transform: rotate(40deg) scale(.83); }
-.home-orb-art i:nth-child(3) { bottom: 8px; left: -5px; transform: rotate(-30deg) scale(.7); }
-.home-invoice-art { position: relative; width: 132px; height: 162px; transform: rotate(9deg); }
-.home-invoice-art::before { content: ""; position: absolute; inset: 0; border-radius: 10px; background: var(--aetheris-glass-panel); border: 1px solid var(--aetheris-line-strong); transform: rotate(-17deg); }
-.home-paper { position: relative; height: 100%; padding: 21px 17px; border: 1px solid var(--aetheris-line-strong); border-radius: 10px; background: var(--aetheris-glass-panel-raised); box-shadow: var(--aetheris-shadow); }
-.home-paper > span { display: block; margin-bottom: 15px; font: 500 9px/1 var(--aetheris-font-mono); letter-spacing: .12em; }
-.home-paper i { display: block; height: 3px; margin-bottom: 7px; width: 70%; border-radius: 2px; background: var(--aetheris-line-strong); }
-.home-paper > i:nth-of-type(2) { width: 40%; }
-.home-paper-items { margin-top: 19px; padding-top: 10px; border-top: 1px solid var(--aetheris-line-strong); }
-.home-paper-items i { width: 100%; }
-.home-paper b { display: block; height: 2px; width: 32%; margin: 13px 0 0 auto; background: var(--aetheris-spectral-h); }
+/* Every illustration shares one art box per card shape, so their visual weight matches. */
+.home-tool-art { position: absolute; z-index: 0; top: 52px; right: 20px; bottom: 24px; width: 40%; display: grid; place-items: center; pointer-events: none; }
+.home-art { display: block; width: 100%; height: 100%; max-height: 190px; overflow: visible; }
+.home-tool--orb .home-tool-art { top: 56px; right: 24px; left: 24px; bottom: 200px; width: auto; }
+.home-tool--orb .home-art { max-height: 320px; }
+.home-tool--orb .home-tool-copy { width: 100%; }
+.home-tool--orb h2 { font-size: clamp(30px, 3.2vw, 40px); }
+.home-tool--orb .home-tool-copy p { max-width: 400px; font-size: 15px; }
+.home-tool--invoice .home-tool-art { top: 18px; bottom: 18px; width: 30%; right: 32px; }
+.home-tool--invoice .home-tool-copy { width: 60%; }
+/* Orb: a soft spectral halo under the dithered surface, like the live Metabloom. */
+.home-art--orb { filter: drop-shadow(0 18px 30px rgba(139, 108, 255, 0.22)); }
+.home-art--orb .home-art-glow { opacity: 0.5; filter: blur(22px); transform: translateY(10px); transform-origin: center; }
+.home-art--dither, .home-art--popcan { filter: drop-shadow(0 10px 18px rgba(139, 108, 255, 0.14)); }
+/* Invoice: theme-aware paper with a spectral total and a paid mark. */
+.home-art-sheet { fill: var(--aetheris-panel-raised); stroke: var(--aetheris-line-strong); stroke-width: 1; }
+.home-art-sheet--back { fill: var(--aetheris-panel); opacity: 0.85; }
+.home-art-label { fill: var(--aetheris-ink); font: 500 9px var(--aetheris-font-mono); letter-spacing: 0.14em; }
+.home-art-line { fill: var(--aetheris-line-strong); }
+.home-art-rule { fill: var(--aetheris-line-strong); }
+.home-art--invoice { filter: drop-shadow(0 12px 20px rgba(52, 28, 72, 0.14)); }
 .home-page .home-footer { position: relative; z-index: 1; display: flex; justify-content: center; padding: 12px 16px max(24px, env(safe-area-inset-bottom)); background: transparent; }
 .home-footer-pill { display: flex; align-items: center; padding: 0.75rem 1.6rem; border: 1px solid rgba(255,255,255,.22); border-radius: 100px; background: var(--aetheris-glass-surface); backdrop-filter: blur(32px) saturate(160%); -webkit-backdrop-filter: blur(32px) saturate(160%); box-shadow: 0 4px 24px #0000001a, 0 1px 4px #0000000f, inset 0 1px 0 #ffffff4d; }
 .home-footer-pill > span { padding-right: 0.4rem; color: var(--aetheris-ink-2); font: italic 300 1.2rem/1.5 'Poppins', sans-serif; letter-spacing: .025em; white-space: nowrap; }
@@ -116,11 +118,14 @@ html body .aetheris-card:focus-visible { box-shadow: var(--aetheris-focus-halo),
 .home-page .home-tool:active { background: var(--aetheris-card-panel-raised) !important; }
 @media (max-width: 900px) {
   .home-tool { grid-column: span 6; min-height: 320px; }
-  .home-tool .home-tool-copy { width: 100%; padding-top: 100px; }
-  .home-tool-art, .home-tool--dither .home-tool-art, .home-tool--orb .home-tool-art { width: 140px; height: 100px; top: 64px; bottom: auto; right: 22px; }
-  .home-tool-art > svg { height: 115px; }
-  .home-orb-art { transform: scale(.72); }
-  .home-invoice-art { transform: rotate(9deg) scale(.65); }
+  .home-tool--orb { grid-column: span 12; grid-row: auto; min-height: 340px; }
+  .home-tool--invoice { grid-column: span 12; min-height: 220px; }
+  .home-tool .home-tool-copy { width: 100%; padding-top: 110px; }
+  .home-tool-art { top: 48px; right: 20px; bottom: auto; width: 150px; height: 110px; }
+  .home-tool--orb .home-tool-art { top: 28px; bottom: 28px; left: auto; right: 28px; width: 42%; height: auto; }
+  .home-tool--orb .home-tool-copy { width: 54%; padding-top: 24px; }
+  .home-tool--invoice .home-tool-art { top: 24px; bottom: 24px; width: 34%; height: auto; }
+  .home-tool--invoice .home-tool-copy { width: 60%; padding-top: 24px; }
 }
 @media (max-width: 600px) {
   .home-stage > .nav-header { padding-inline: max(16px, env(safe-area-inset-left)) max(16px, env(safe-area-inset-right)); }
@@ -131,12 +136,13 @@ html body .aetheris-card:focus-visible { box-shadow: var(--aetheris-focus-halo),
   .home-welcome { margin-bottom: 20px; }
   .home-welcome > p:last-child { font-size: 15px; max-width: 270px; }
   .home-bento { grid-template-columns: minmax(0, 1fr); gap: 16px; }
-  .home-tool { grid-column: auto; min-height: 264px; padding: 22px; }
-  .home-tool .home-tool-copy { width: 68%; padding-top: 26px; }
-  .home-tool-art, .home-tool--dither .home-tool-art, .home-tool--orb .home-tool-art { top: 85px; right: 8px; width: 32%; }
+  .home-tool, .home-tool--orb, .home-tool--invoice { grid-column: auto; grid-row: auto; min-height: 250px; padding: 22px; }
+  .home-tool .home-tool-copy, .home-tool--orb .home-tool-copy, .home-tool--invoice .home-tool-copy { width: 64%; padding-top: 24px; }
+  .home-tool-art, .home-tool--orb .home-tool-art, .home-tool--invoice .home-tool-art { top: 64px; bottom: auto; left: auto; right: 10px; width: 34%; height: 120px; }
+  .home-tool--orb h2 { font-size: 30px; }
   .home-tool-copy p { font-size: 14px; }
   .home-tool h2 { font-size: 26px; }
-  .home-tool-top > span:first-child { font-size: 10px; }
+  .home-tool-top > span:first-child { font-size: 11px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .home-tool, .home-tool::before, .home-tool::after, .home-tool-action > span { transition: none; }
@@ -150,8 +156,8 @@ html body .aetheris-card:focus-visible { box-shadow: var(--aetheris-focus-halo),
   .home-page .home-footer-pill > span { color: CanvasText; }
   .home-footer-separator { background: CanvasText; }
   .home-welcome, .home-session { border: 1px solid CanvasText; background: Canvas; color: CanvasText; box-shadow: none; }
-  .home-session-action, .home-tool-arrow { border: 1px solid ButtonText; background: Canvas; color: LinkText; box-shadow: none; }
-  .home-welcome::before, .home-session::before, .home-session-action::before, .home-tool-arrow::before, .home-tool-art { display: none; }
+  .home-session-action { border: 1px solid ButtonText; background: Canvas; color: LinkText; box-shadow: none; }
+  .home-welcome::before, .home-session::before, .home-session-action::before, .home-tool-art { display: none; }
   .home-page a:focus-visible, .home-session-action:focus-visible { outline-color: Highlight; }
 }
 
