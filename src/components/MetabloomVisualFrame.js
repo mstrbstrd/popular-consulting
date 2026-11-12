@@ -73,6 +73,7 @@ const pieLabelText = (label, value, share) => {
   const repeated = match[3] ? Math.abs(number - parseFloat(share)) < 0.6 || Math.abs(number - value) < 1e-9 : Math.abs(number - value) < 1e-9;
   return repeated ? match[1] : label;
 };
+const truncateLabel = (text, limit) => Array.from(text).length > limit ? `${Array.from(text).slice(0, limit - 1).join('').trimEnd()}…` : text;
 const TABLE_FILTER_MIN_ROWS = 8;
 const sortTableRows = (rows, column, direction) => {
   if (column === null) return rows;
@@ -289,17 +290,23 @@ function VisualPieChart({ spec, id, viewState, onViewStateChange, onAskAbout }) 
     angle += fraction * Math.PI * 2;
     if (fraction === 0) return null;
     const midpoint = (start + angle) / 2;
-    const xy = value => `${110 + Math.cos(value) * 96} ${110 + Math.sin(value) * 96}`;
-    // Two arcs also represent a full circle when all other parts are zero.
-    const path = `M 110 110 L ${xy(start)} A 96 96 0 0 1 ${xy(midpoint)} A 96 96 0 0 1 ${xy(angle)} Z`;
+    const xy = (value, radius = 96) => `${110 + Math.cos(value) * radius} ${110 + Math.sin(value) * radius}`;
+    // A ring segment: outer arc forward, inner arc back. Two arcs per side keep
+    // any segment, up to a full turn, drawable.
+    const path = `M ${xy(start)} A 96 96 0 0 1 ${xy(midpoint)} A 96 96 0 0 1 ${xy(angle)}`
+      + ` L ${xy(angle, 60)} A 60 60 0 0 0 ${xy(midpoint, 60)} A 60 60 0 0 0 ${xy(start, 60)} Z`;
     const shape = positiveCount === 1
       ? <circle key={index} cx="110" cy="110" r="96" />
       : <path key={index} d={path} />;
+    // The selected segment moves a few units outward along its bisector.
+    const lift = index === selectedIndex && positiveCount > 1
+      ? { transform: `translate(${(Math.cos(midpoint) * 5).toFixed(2)}px, ${(Math.sin(midpoint) * 5).toFixed(2)}px)` } : undefined;
     // Keep the decorative perimeter separate from the interactive slice props.
-    if (index === selectedIndex) selectedShape = shape;
+    if (index === selectedIndex) selectedShape = lift ? React.cloneElement(shape, { style: lift }) : shape;
     const className = `metabloom-visual__pie-slice metabloom-visual__series-${index + 1}`;
     return React.cloneElement(shape, {
-      className, fill: `url(#${id}-series-${index + 1})`, 'data-selected': index === selectedIndex ? 'true' : 'false',
+      className, fill: `url(#${id}-series-${index + 1})`, 'data-selected': index === selectedIndex ? 'true' : 'false', style: lift,
+      mask: positiveCount === 1 ? `url(#${id}-pie-ring)` : undefined,
       role: 'button', tabIndex: 0, 'aria-pressed': index === selectedIndex, 'aria-controls': `${id}-pie-selection`,
       'aria-label': `${point.label} slice: ${numberText(point.value)} ${spec.unit} (${percentage(point.value)} of the total)`,
       onClick: () => setSelectedIndex(index),
@@ -324,15 +331,24 @@ function VisualPieChart({ spec, id, viewState, onViewStateChange, onAskAbout }) 
             <stop offset="42%" stopColor="var(--aetheris-spectral-magenta)" />
             <stop offset="72%" stopColor="var(--aetheris-spectral-yellow)" />
             <stop offset="100%" stopColor="var(--aetheris-spectral-violet)" />
-          </linearGradient></defs>
+          </linearGradient>
+            {/* A single complete part stays a circle; the mask opens it into the same ring. */}
+            <mask id={`${id}-pie-ring`} maskUnits="userSpaceOnUse" x="0" y="0" width="220" height="220">
+              <rect width="220" height="220" fill="white" />
+              <circle cx="110" cy="110" r="60" fill="black" />
+            </mask></defs>
+          <g className="metabloom-visual__pie-centre" aria-hidden="true">
+            <text x="110" y="108" textAnchor="middle" className="metabloom-visual__pie-centre-value">{percentage(selected.value)}</text>
+            <text x="110" y="128" textAnchor="middle" className="metabloom-visual__pie-centre-label">{truncateLabel(pieLabelText(selected.label, selected.value, percentage(selected.value)), 18)}</text>
+          </g>
           {slices}
           {/* Paint the selected perimeter last so adjacent slices cannot cover it. */}
           {selectedShape && React.cloneElement(selectedShape, {
             className: 'metabloom-visual__pie-edge', fill: 'none', 'aria-hidden': true, focusable: 'false',
-            stroke: `url(#${id}-pie-spectrum)`,
+            stroke: `url(#${id}-pie-spectrum)`, mask: positiveCount === 1 ? `url(#${id}-pie-ring)` : undefined,
           })}
         </svg>
-        <figcaption>Total: <strong>{numberText(total)} {spec.unit}</strong>. Percentages are rounded; zero values have no slice.</figcaption>
+        <figcaption><span>Total <strong>{numberText(total)} {spec.unit}</strong></span><span>Percentages are rounded; zero values have no slice.</span></figcaption>
       </figure>
       <ul className="metabloom-visual__pie-legend" aria-label="Pie chart categories">
         {spec.points.map((point, index) => <li key={index} className={`metabloom-visual__series-${index + 1}`}>

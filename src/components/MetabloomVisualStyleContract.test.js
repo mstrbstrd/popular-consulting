@@ -59,3 +59,19 @@ test('visual styles follow the Aetheris colour and type contract', () => {
   // Only mask alpha uses #000; every painted colour comes from an Aetheris token.
   expect(css.replace(/linear-gradient\(#000 0 0\)/g, '')).not.toMatch(/#[0-9a-f]{3,8}\b/i);
 });
+
+test('pie renders as a ring with a centre readout and lifts the selected segment', () => {
+  const { container } = render(<MetabloomVisualFrame artifact={ready('ring', {
+    kind: 'pie-chart', title: 'Budget', summary: 'Monthly budget.', unit: '%', provenance,
+    points: [{ label: 'Rent', value: 40 }, { label: 'Savings', value: 60 }],
+  })} />);
+  const slices = [...container.querySelectorAll('path.metabloom-visual__pie-slice')];
+  // Outer and inner arcs, never a wedge through the centre.
+  slices.forEach(slice => expect(slice.getAttribute('d')).not.toMatch(/^M 110 110/));
+  slices.forEach(slice => expect(slice.getAttribute('d')).toMatch(/A 60 60 0 0 0/));
+  expect(slices[0].style.transform).toMatch(/^translate\(/);
+  expect(slices[1].style.transform).toBe('');
+  const centre = container.querySelector('.metabloom-visual__pie-centre');
+  expect(centre).toHaveAttribute('aria-hidden', 'true');
+  expect(centre).toHaveTextContent('40%Rent');
+});

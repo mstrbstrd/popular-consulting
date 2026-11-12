@@ -158,7 +158,7 @@
 .orb-page .metabloom-visual :is(button, input, summary, a, [tabindex]):focus-visible { outline: none; box-shadow: var(--aetheris-focus-halo); }
 /* Preserve native visual shapes against the legacy #orb focus override. */
 .orb-page #orb .metabloom-visual button:focus-visible { border-radius: var(--aetheris-radius-pill) !important; }
-.orb-page #orb .metabloom-visual__pie-legend button:focus-visible { border-radius: var(--aetheris-radius-lg) !important; }
+.orb-page #orb .metabloom-visual__pie-legend button:focus-visible { border-radius: var(--aetheris-radius-md) !important; }
 .orb-page .metabloom-visual button:focus-visible::before,
 .orb-page .metabloom-visual__input-shell:focus-within::before { background: var(--aetheris-spectral); }
 @media (hover: hover) {
@@ -346,29 +346,53 @@
     var(--metabloom-series-paint-color, var(--metabloom-series-color)) 55%,
     var(--metabloom-series-paint-end, var(--metabloom-series-end)));
 }
-.orb-page .metabloom-visual__pie-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1.4rem; align-items: center; margin-top: 1.4rem; }
-/* Opaque pastel tints preserve category colors over either theme's background. */
+.orb-page .metabloom-visual__pie-layout { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 2rem; align-items: center; margin-top: 1.4rem; }
+/* Light tints keep each category distinct and readable over either theme,
+   while staying close to the bar and line chart hues. */
 .orb-page .metabloom-visual__pie-layout :is(.metabloom-visual__series-gradient, .metabloom-visual__series-dot) {
-  --metabloom-series-paint-start: color-mix(in srgb, var(--metabloom-series-start) 40%, white);
-  --metabloom-series-paint-color: color-mix(in srgb, var(--metabloom-series-color) 50%, white);
-  --metabloom-series-paint-end: color-mix(in srgb, var(--metabloom-series-end) 60%, white);
+  --metabloom-series-paint-start: color-mix(in srgb, var(--metabloom-series-start) 78%, white);
+  --metabloom-series-paint-color: color-mix(in srgb, var(--metabloom-series-color) 84%, white);
+  --metabloom-series-paint-end: color-mix(in srgb, var(--metabloom-series-end) 88%, white);
 }
 .orb-page .metabloom-visual__pie-chart { min-width: 0; margin: 0; }
-.orb-page .metabloom-visual__pie-chart svg { display: block; width: 100%; max-width: 30rem; height: auto; margin: 0 auto 1rem; }
-.orb-page .metabloom-visual__pie-slice { stroke: var(--aetheris-panel-raised); stroke-width: 1; vector-effect: non-scaling-stroke; cursor: pointer; touch-action: manipulation; }
-.orb-page .metabloom-visual__pie-slice[data-selected='true'] { filter: drop-shadow(0 0 3px color-mix(in srgb, var(--metabloom-series-color) 20%, transparent)); }
+.orb-page .metabloom-visual__pie-chart svg { display: block; width: 100%; max-width: 26rem; height: auto; margin: 0 auto 0.8rem; overflow: visible; }
+/* Segments are separated by a hairline of the panel colour; the selected one lifts. */
+.orb-page .metabloom-visual__pie-slice { stroke: var(--aetheris-panel); stroke-width: 2; stroke-linejoin: round; vector-effect: non-scaling-stroke; cursor: pointer; touch-action: manipulation;
+  transition: transform var(--aetheris-motion-medium) var(--aetheris-ease-standard), opacity var(--aetheris-motion-medium) var(--aetheris-ease-standard); }
+.orb-page .metabloom-visual__pie-slice[data-selected='true'] { filter: none; }
+@media (hover: hover) {
+  .orb-page .metabloom-visual__pie-slice:hover:not([data-selected='true']) { opacity: 0.82; }
+}
+.orb-page .metabloom-visual__pie-centre { pointer-events: none; }
+.orb-page .metabloom-visual__pie-centre-value { fill: var(--aetheris-ink); font: 500 22px var(--aetheris-font-mono); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.orb-page .metabloom-visual__pie-centre-label { fill: var(--aetheris-ink-2); font: 500 10.5px var(--aetheris-font-sans); }
 /* SVG focus follows the slice, including pointer focus and forced-color mode. */
 .orb-page .metabloom-visual .metabloom-visual__pie-slice:focus { outline: none !important; outline-offset: 0 !important; box-shadow: none !important; }
 .orb-page .metabloom-visual .metabloom-visual__pie-slice:focus-visible {
   stroke: var(--metabloom-pie-spectrum); stroke-width: 2; filter: none;
 }
-.orb-page .metabloom-visual__pie-edge { fill: none; stroke-width: 2; stroke-linejoin: round; vector-effect: non-scaling-stroke; pointer-events: none; }
-.orb-page .metabloom-visual__pie-legend { display: grid; gap: 0.8rem; min-width: 0; max-height: 36rem; overflow-y: auto; list-style: none; margin: 0; padding: 0.6rem; }
-.orb-page .metabloom-visual__pie-legend button { display: grid; grid-template-columns: 1.6rem minmax(0, 1fr) auto; align-items: center; gap: 0.8rem; width: 100%; text-align: left; border-radius: var(--aetheris-radius-lg); font: 1.2rem/1.4 var(--aetheris-font-sans); letter-spacing: normal; }
-.orb-page .metabloom-visual__pie-legend button[aria-pressed='true'] { background: color-mix(in srgb, var(--aetheris-teal) 6%, var(--aetheris-glass-panel-raised)); }
-.orb-page .metabloom-visual__pie-legend button[aria-pressed='true']::before { padding: 2px; }
-.orb-page .metabloom-visual__pie-legend strong { font: 1.1rem/1.4 var(--aetheris-font-mono); font-variant-numeric: tabular-nums; }
-.orb-page .metabloom-visual__pie-selection { padding: 1rem; border: 1px solid var(--aetheris-line); border-radius: var(--aetheris-radius-lg); background: var(--aetheris-glass-surface); }
+.orb-page .metabloom-visual__pie-edge { fill: none; stroke-width: 2; stroke-linejoin: round; vector-effect: non-scaling-stroke; pointer-events: none;
+  transition: transform var(--aetheris-motion-medium) var(--aetheris-ease-standard); }
+/* A quiet key: rows, not a stack of bordered buttons. */
+.orb-page .metabloom-visual__pie-legend { display: grid; gap: 0.2rem; min-width: 0; max-height: 36rem; overflow-y: auto; list-style: none; margin: 0; padding: 0; }
+.orb-page .metabloom-visual__pie-legend button { display: grid; grid-template-columns: 1rem minmax(0, 1fr) auto; align-items: center; gap: 1rem; width: 100%; padding: 0.6rem 1rem;
+  border: 0; border-radius: var(--aetheris-radius-md); background: transparent; box-shadow: none; color: var(--aetheris-ink-2);
+  text-align: left; font: 500 1.3rem/1.4 var(--aetheris-font-sans); letter-spacing: normal; }
+.orb-page .metabloom-visual__pie-legend button::before { display: none; }
+.orb-page .metabloom-visual__pie-legend .metabloom-visual__series-dot { width: 1rem; height: 1rem; flex-basis: 1rem; border-radius: 50%; }
+.orb-page .metabloom-visual__pie-legend strong { color: var(--aetheris-ink-2); font: 500 1.2rem/1.4 var(--aetheris-font-mono); font-variant-numeric: tabular-nums; }
+.orb-page .metabloom-visual__pie-legend button[aria-pressed='true'] { background: var(--aetheris-state-layer); color: var(--aetheris-ink); }
+.orb-page .metabloom-visual__pie-legend button[aria-pressed='true'] strong { color: var(--aetheris-ink); }
+@media (hover: hover) {
+  .orb-page .metabloom-visual .metabloom-visual__pie-legend button:hover:not(:disabled) { background: var(--aetheris-state-layer); color: var(--aetheris-ink); }
+}
+.orb-page .metabloom-visual .metabloom-visual__pie-legend button:focus-visible { box-shadow: var(--aetheris-focus-halo); }
+.orb-page .metabloom-visual__pie-chart figcaption { color: var(--aetheris-ink-2); font: 1.15rem/1.5 var(--aetheris-font-sans); text-align: center; }
+.orb-page .metabloom-visual__pie-chart figcaption > span { display: block; }
+.orb-page .metabloom-visual__pie-chart figcaption > span + span { margin-top: 0.2rem; font-size: 1.1rem; opacity: 0.85; }
+.orb-page .metabloom-visual__pie-chart figcaption strong { color: var(--aetheris-ink); font-family: var(--aetheris-font-mono); font-weight: 500; }
+.orb-page .metabloom-visual .metabloom-visual__pie-selection { margin: 1.2rem 0 0; padding: 0; border: 0; background: transparent; color: var(--aetheris-ink-2); font: 1.25rem/1.5 var(--aetheris-font-sans); }
+.orb-page .metabloom-visual__pie-selection strong { color: var(--aetheris-ink); font-weight: 600; }
 @media (max-width: 480px) { .orb-page .metabloom-visual__pie-layout { grid-template-columns: minmax(0, 1fr); } }
 @media (forced-colors: active) {
   .orb-page .metabloom-visual__series-dot,
@@ -379,6 +403,8 @@
   .orb-page .metabloom-visual__pie-slice[data-selected='true'] { fill: Highlight; stroke: CanvasText; filter: none; }
   .orb-page .metabloom-visual .metabloom-visual__pie-slice:focus-visible { stroke: Highlight; stroke-width: 3; filter: none; }
   .orb-page .metabloom-visual__pie-edge { stroke: CanvasText; forced-color-adjust: none; }
+  .orb-page :is(.metabloom-visual__pie-centre-value, .metabloom-visual__pie-centre-label) { fill: CanvasText; forced-color-adjust: none; }
+  .orb-page .metabloom-visual__pie-legend button[aria-pressed='true'] { background: Highlight; color: HighlightText; }
   .orb-page .metabloom-visual__pie-legend button[aria-pressed='true'] { outline: 2px solid Highlight; outline-offset: -3px; }
 }
 
@@ -448,7 +474,8 @@
 .orb-page .metabloom-visual__flow-node[data-dim='true'], .orb-page .metabloom-visual__flow-edge[data-dim='true'] { opacity: 0.3; }
 @media (max-width: 480px) { .orb-page .metabloom-visual__table-tools { max-width: none; } }
 @media (prefers-reduced-motion: reduce) {
-  .orb-page .metabloom-visual__flow-node, .orb-page .metabloom-visual__flow-edge { transition: none; }
+  .orb-page .metabloom-visual__flow-node, .orb-page .metabloom-visual__flow-edge,
+  .orb-page .metabloom-visual__pie-slice, .orb-page .metabloom-visual__pie-edge { transition: none; }
 }
 @media (forced-colors: active) {
   .orb-page .metabloom-visual input[type='search'] { background: Canvas; color: CanvasText; border: 1px solid CanvasText; }
