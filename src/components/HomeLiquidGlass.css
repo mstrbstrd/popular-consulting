@@ -1,16 +1,20 @@
 /* iOS-style Liquid Glass for the signed-in Home. Loaded after HomePage.css.
    Tokens and the shared nav chrome come from LiquidGlass.css.
-     regular (lensed) — welcome panel, tool cards, session panel
-     clear (lensed)   — footer pill, card arrow buttons, session action
-   The entry animation's rule that removes backdrop filters while surfaces move
-   (.home-page[data-entry="revealing"] …) is more specific and keeps priority. */
+     glass panes, unfrosted — welcome panel, tool cards, session panel, footer pill:
+       tinted fill, specular rim and depth, the live field left unblurred behind
+     clear (lensed)         — session action; card arrows are lens highlights
+   The entry animation must remove backdrop filters while surfaces move (Chrome
+   clip desync). Frost that returned when it finished visibly snapped in, and
+   the panes read better without it, so these surfaces never use a backdrop
+   filter: the entry look is the resting look. The nav pill keeps its glass and
+   fades it in once the entry completes. */
 
 /* Tool cards: the shared Aetheris card recipe becomes regular glass. */
 html body .home-page .home-tool {
   border-color: transparent !important;
   background: var(--lg-panel-fill) !important;
-  -webkit-backdrop-filter: var(--lg-regular-blur) var(--lg-post) !important;
-  backdrop-filter: var(--lg-refraction, var(--lg-regular-blur)) var(--lg-post) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
   box-shadow: var(--lg-specular), var(--lg-shadow) !important;
   border-radius: 26px !important;
 }
@@ -29,18 +33,18 @@ html body .home-page .home-tool:focus-visible { box-shadow: var(--lg-specular), 
 
 /* Welcome and session panels. */
 .home-page .home-welcome,
-.home-page .home-session {
+.home-page .home-session,
+.home-page .home-footer-pill {
   border-color: transparent;
   background: var(--lg-panel-fill);
-  -webkit-backdrop-filter: var(--lg-regular-blur) var(--lg-post);
-  backdrop-filter: var(--lg-refraction, var(--lg-regular-blur)) var(--lg-post);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
   box-shadow: var(--lg-specular), var(--lg-shadow);
 }
 .home-page .home-welcome::before,
 .home-page .home-session::before { opacity: 0; }
 
 /* Clear glass controls. */
-.home-page .home-footer-pill,
 .home-page .home-session-action {
   border-color: transparent;
   background: var(--lg-clear-fill);
@@ -61,6 +65,12 @@ html body .home-page .home-tool:focus-visible { box-shadow: var(--lg-specular), 
 @media (hover: hover) {
   .home-page .home-tool:hover .home-tool-arrow { background: var(--lg-lens); }
   .home-page .home-session-action:hover { background: var(--lg-clear-fill-hover); }
+}
+
+/* The nav pill's glass fades in when the entry completes instead of switching on. */
+.home-page[data-entry='open'] .nav-pill::before { animation: liquid-glass-in 520ms var(--aetheris-ease-standard, ease) both; }
+@media (prefers-reduced-motion: reduce) {
+  .home-page[data-entry='open'] .nav-pill::before { animation: none; }
 }
 
 @media (forced-colors: active) {

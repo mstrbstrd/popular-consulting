@@ -228,9 +228,9 @@ export const NAV_REFRACTION_MENUS = [
 ];
 // Card arrows sit inside a lensed card: a nested backdrop filter would only see
 // the card's own backdrop root, so they are highlights on the card, not panes.
-export const HOME_REFRACTION_TARGETS = ['.nav-pill', '.home-footer-pill', '.home-session-action'];
-// Home's cards and welcome panel stay frosted (regular glass) without a lens:
-// they are large, persistent and over the live background (see the budget above).
+export const HOME_REFRACTION_TARGETS = ['.nav-pill', '.home-session-action'];
+// Home's cards, welcome panel and footer are unfrosted glass panes with no
+// backdrop filter at all (see HomeLiquidGlass.css), so they take no lens.
 export const HOME_REFRACTION_PANELS = [...NAV_REFRACTION_MENUS];
 const HOME_LISTS = Object.freeze({ controls: HOME_REFRACTION_TARGETS, panels: HOME_REFRACTION_PANELS });
 export function useHomeLiquidGlass(rootRef) { useLiquidGlassRefraction(rootRef, HOME_LISTS); }

@@ -56,11 +56,15 @@ describe('Home liquid glass', () => {
     expect(HOME_REFRACTION_PANELS).toEqual(NAV_REFRACTION_MENUS);
   });
 
-  test('large persistent surfaces over the live background are frosted, never lensed', () => {
-    // Lensing the tool cards halved Home's frame rate while scrolling (59 -> 30 fps).
+  test('the panes look the same during and after the entry: no backdrop filter to snap in', () => {
+    // Lensing the tool cards halved Home's frame rate while scrolling (59 -> 30 fps),
+    // and frost returning after the entry animation visibly snapped in.
     [...HOME_REFRACTION_TARGETS, ...HOME_REFRACTION_PANELS].forEach(selector =>
-      expect(selector).not.toMatch(/home-tool|home-welcome|home-session(?!-)/));
-    expect(home).toMatch(/html body \.home-page \.home-tool \{[^}]*backdrop-filter: var\(--lg-refraction, var\(--lg-regular-blur\)\)/);
+      expect(selector).not.toMatch(/home-tool|home-welcome|home-footer-pill|home-session(?!-)/));
+    const css = strip(home);
+    expect(css).toMatch(/html body \.home-page \.home-tool \{[^}]*-webkit-backdrop-filter: none !important;[^}]*backdrop-filter: none !important;/);
+    expect(css).toMatch(/\.home-page \.home-welcome,\s*\.home-page \.home-session,\s*\.home-page \.home-footer-pill \{[^}]*backdrop-filter: none;/);
+    expect(css).toMatch(/\.home-page\[data-entry='open'\] \.nav-pill::before \{ animation: liquid-glass-in/);
   });
 
   test('the refraction budget keeps persistent lenses control-sized', () => {
