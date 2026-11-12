@@ -38,7 +38,7 @@ const METADATA_SELECTORS = Object.freeze({
   twitterDescription: 'meta[name="twitter:description"]',
 });
 
-const OrbConversationSurface = ({ navigation, threadSession, threadPanel, threadBusy,
+const OrbConversationSurface = ({ navigation, threadSession, threadBusy,
   onShowThreads, onConversationStateChange, onReady }) => {
   const [workspaceController, setWorkspaceController] = React.useState(null);
   const handleWorkspaceReady = React.useCallback(controller => {
@@ -48,7 +48,7 @@ const OrbConversationSurface = ({ navigation, threadSession, threadPanel, thread
   return <AppNavigationContext.Provider value={navigation}>
     <MetabloomWorkspaceContext.Provider value={workspaceController}>
       <OrbSection isActive pointerReactive={false} onConversationStateChange={onConversationStateChange} onReady={onReady}
-        threadSession={threadSession} threadPanel={threadPanel} threadBusy={threadBusy} onShowThreads={onShowThreads} />
+        threadSession={threadSession} threadBusy={threadBusy} onShowThreads={onShowThreads} />
       <MetabloomVisuals navigation={navigation} onWorkspaceReady={handleWorkspaceReady} threadSession={threadSession} />
     </MetabloomWorkspaceContext.Provider>
   </AppNavigationContext.Provider>;
@@ -336,6 +336,11 @@ const OrbPageContent = ({ onReady }) => {
               </button>
           </>}</OrbAppearance>
 
+          {/* History is page chrome, like Claude's sidebar: it sits outside the
+              conversation surface, so it never shares the transcript's stacking
+              context and survives the per-chat remount of that surface. */}
+          {threads.enabled && <MetabloomThreadsPanel {...threads.panelProps} />}
+
           <main
             id="main-content"
             className="orb-page__content"
@@ -345,7 +350,6 @@ const OrbPageContent = ({ onReady }) => {
             <OrbConversationSurface key={threads.enabled ? threads.session.key : 'conversation'}
               navigation={threads.enabled ? threads.navigation : navigation}
               threadSession={threads.enabled ? threads.session : null}
-              threadPanel={threads.enabled ? <MetabloomThreadsPanel {...threads.panelProps} /> : null}
               threadBusy={threads.enabled && threads.busy} onShowThreads={threads.enabled ? showThreads : undefined}
               onConversationStateChange={setConversationStarted} onReady={onReady} />
           </main>

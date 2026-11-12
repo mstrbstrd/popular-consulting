@@ -2,6 +2,7 @@ import React from 'react';
 import { createMetabloomThreadSnapshot, parseMetabloomThreadSnapshot,
   parseMetabloomThreadMetadata, isMetabloomThreadId } from './metabloomThreadProtocol';
 import { requestMetabloomThread, METABLOOM_THREAD_ERRORS } from './metabloomThreadApiClient';
+import { isMetabloomThreadsDocked } from './MetabloomThreadsPanel';
 
 const newId = () => {
   if (typeof globalThis.crypto?.randomUUID === 'function') return globalThis.crypto.randomUUID();
@@ -247,7 +248,7 @@ export default function useMetabloomThreads({ navigation, enabled, request = req
     const next = createSession({ snapshot, thread, confirmedSnapshot: thread ? snapshot : null },
       item => notifications.current(item));
     next.focusComposer = true;
-    if (!(window.matchMedia?.('(min-width: 1280px)')?.matches ?? window.innerWidth >= 1280)) {
+    if (!isMetabloomThreadsDocked()) {
       expandedRef.current = false;
       setExpanded(false);
     }

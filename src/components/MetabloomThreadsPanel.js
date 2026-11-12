@@ -1,9 +1,20 @@
 import React from 'react';
 
-const WIDE_QUERY = '(min-width: 1280px)';
+// The sidebar docks wherever a 760px conversation still fits beside it. The
+// thread owner uses the same breakpoint to decide whether a switch closes history.
+export const METABLOOM_THREADS_DOCK_MIN_WIDTH = 1100;
+const WIDE_QUERY = `(min-width: ${METABLOOM_THREADS_DOCK_MIN_WIDTH}px)`;
+const WIDE_FALLBACK = METABLOOM_THREADS_DOCK_MIN_WIDTH;
+export const isMetabloomThreadsDocked = () => window.matchMedia?.(WIDE_QUERY)?.matches ?? window.innerWidth >= WIDE_FALLBACK;
 const TITLE_LIMIT = 160;
-const HistoryIcon = () => <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false">
-  <path d="M3.5 4.5h13v11h-13zM7.5 4.5v11M10.5 8h3M10.5 11h3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+// Sidebar toggle: a panel with its left column marked, as in Claude's layout.
+const SidebarIcon = () => <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false">
+  <rect x="3" y="4" width="14" height="12" rx="2.5" stroke="currentColor" strokeWidth="1.4" />
+  <path d="M8 4v12" stroke="currentColor" strokeWidth="1.4" />
+</svg>;
+const NewChatIcon = () => <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false">
+  <circle cx="10" cy="10" r="7.25" stroke="currentColor" strokeWidth="1.4" />
+  <path d="M10 6.75v6.5M6.75 10h6.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
 </svg>;
 const dateLabel = value => {
   const date = new Date(value);
@@ -22,7 +33,7 @@ export default function MetabloomThreadsPanel({ expanded, onExpandedChange, item
   loading = false, busy = false, pending = false, error = '', saveStatus = '', onRetry, onRefresh,
   onNew, onOpen, onRename, onDelete, canSaveCopy = false, onSaveCopy }) {
   const id = React.useId();
-  const [wide, setWide] = React.useState(() => window.matchMedia?.(WIDE_QUERY).matches ?? window.innerWidth >= 1280);
+  const [wide, setWide] = React.useState(() => window.matchMedia?.(WIDE_QUERY).matches ?? window.innerWidth >= WIDE_FALLBACK);
   const [editor, setEditor] = React.useState(null);
   const [title, setTitle] = React.useState('');
   const [operation, setOperation] = React.useState(null);
@@ -57,7 +68,7 @@ export default function MetabloomThreadsPanel({ expanded, onExpandedChange, item
   React.useEffect(() => {
     const media = window.matchMedia?.(WIDE_QUERY);
     const resize = () => {
-      const next = media?.matches ?? window.innerWidth >= 1280;
+      const next = media?.matches ?? window.innerWidth >= WIDE_FALLBACK;
       if (next === latest.current.wide) return;
       moveFocusRef.current = panelRef.current?.contains(document.activeElement) === true;
       restoreFocusRef.current = false;
@@ -177,6 +188,8 @@ export default function MetabloomThreadsPanel({ expanded, onExpandedChange, item
   };
   const body = <>
     <div className="metabloom-threads__heading">
+      {wide && <button ref={closeRef} type="button" className="metabloom-threads__icon metabloom-threads__toggle"
+        aria-label="Collapse chats" title="Collapse sidebar" onClick={() => close()}><SidebarIcon /></button>}
       <h2 id={`${id}-title`}>Chats</h2>
       <button type="button" className="metabloom-threads__icon" aria-label="Refresh chats"
         disabled={Boolean(busy || loading || operation)} onClick={() => run('refresh', onRefresh)}>
@@ -184,16 +197,16 @@ export default function MetabloomThreadsPanel({ expanded, onExpandedChange, item
           <path d="M16 7.5a6.3 6.3 0 1 0 .3 4M16 3.8v4.3h-4.3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </button>
-      <button ref={closeRef} type="button" className="metabloom-threads__icon"
-        aria-label={wide ? 'Collapse chats' : 'Close chats'} onClick={() => close()}>
+      {!wide && <button ref={closeRef} type="button" className="metabloom-threads__icon"
+        aria-label="Close chats" onClick={() => close()}>
         <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false">
-          <path d={wide ? 'm12 5-5 5 5 5' : 'm5 5 10 10M15 5 5 15'} stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="m5 5 10 10M15 5 5 15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
-      </button>
+      </button>}
     </div>
     <div className="metabloom-threads__controls">
       <button ref={newRef} type="button" className="metabloom-threads__new" disabled={blocked} onClick={newThread}>
-        <span aria-hidden="true">+</span> New chat
+        <NewChatIcon /><span>New chat</span>
       </button>
       {saveStatus && <p id={`${id}-status`} className="metabloom-threads__status" role="status">{saveStatus}</p>}
       {pending && <p className="metabloom-threads__hint">Finish or stop the response to change chats.</p>}
@@ -208,6 +221,7 @@ export default function MetabloomThreadsPanel({ expanded, onExpandedChange, item
     <div className="metabloom-threads__body" aria-busy={loading}>
       {loading && <p className="metabloom-threads__empty" role="status">Loading chats…</p>}
       {!loading && !message && !items.length && <p className="metabloom-threads__empty">No saved chats yet. Start a new chat to begin.</p>}
+      {!!items.length && <p className="metabloom-threads__section" aria-hidden="true">Recents</p>}
       {!!items.length && <table className="metabloom-threads__table">
         <caption className="metabloom-threads__sr-only">Saved chats</caption>
         <colgroup><col /><col className="metabloom-threads__date-column" /><col className="metabloom-threads__actions-column" /></colgroup>
@@ -270,15 +284,15 @@ export default function MetabloomThreadsPanel({ expanded, onExpandedChange, item
   const trigger = <button ref={triggerRef} type="button" className="metabloom-threads__trigger" aria-expanded={expanded}
     aria-controls={`${id}-panel`} aria-haspopup={wide ? undefined : 'dialog'} aria-label={wide ? 'Expand chats' : 'Chats'}
     aria-describedby={message ? `${id}-error` : saveStatus ? `${id}-status` : undefined}
-    data-error={message ? 'true' : undefined} title={message ? `Chats: ${message}` : 'Chats'} onClick={expand}>
-    <HistoryIcon />{!wide && <span>Chats</span>}
+    data-error={message ? 'true' : undefined} title={message ? `Chats: ${message}` : wide ? 'Open sidebar' : 'Chats'} onClick={expand}>
+    <SidebarIcon />{!wide && <span>Chats</span>}
   </button>;
   return <>
     {wide ? <aside ref={panelRef} id={`${id}-panel`} className="metabloom-threads metabloom-threads__dock"
       data-expanded={expanded ? 'true' : 'false'} aria-label="Chat history" onKeyDown={keyboard}>
       {expanded ? body : <>
         {trigger}
-        <button ref={newRef} type="button" className="metabloom-threads__rail-new" aria-label="New chat" title="New chat" disabled={blocked} onClick={newThread}>+</button>
+        <button ref={newRef} type="button" className="metabloom-threads__rail-new" aria-label="New chat" title="New chat" disabled={blocked} onClick={newThread}><NewChatIcon /></button>
         {saveStatus && <p id={`${id}-status`} role="status" className="metabloom-threads__sr-only">{saveStatus}</p>}
         {message && <p id={`${id}-error`} role="alert" className="metabloom-threads__sr-only">{message}</p>}
       </>}

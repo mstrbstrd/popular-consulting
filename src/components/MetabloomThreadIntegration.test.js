@@ -108,7 +108,7 @@ async function fixture({ cached = false, mobile = false, failOpen = false } = {}
     return result;
   });
   window.innerWidth = mobile ? 390 : 1440;
-  window.matchMedia = query => ({ matches: query.includes('min-width: 1280') ? !mobile
+  window.matchMedia = query => ({ matches: query.includes('min-width: 1100') ? !mobile
     : query.includes('max-width: 900') ? mobile : false, addEventListener() {}, removeEventListener() {} });
   const visualRef = React.createRef(), threadRef = React.createRef();
   let view;

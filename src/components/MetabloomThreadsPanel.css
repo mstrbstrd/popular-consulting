@@ -96,7 +96,7 @@
   background: color-mix(in srgb, var(--aetheris-glass-surface) 45%, transparent);
   box-shadow: var(--aetheris-glass-specular);
 }
-.orb-page .metabloom-threads__new > span { font: 400 20px/1 var(--aetheris-font-sans); }
+.orb-page .metabloom-threads__new > span { font: inherit; }
 .orb-page .metabloom-threads .metabloom-threads__status,
 .orb-page .metabloom-threads .metabloom-threads__hint { color: var(--aetheris-ink-2); font: 400 11px/1.55 var(--aetheris-font-mono); overflow-wrap: anywhere; }
 .orb-page .metabloom-threads__error { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--aetheris-danger-line); border-radius: var(--aetheris-radius-md); background: var(--aetheris-red-soft); }
@@ -149,39 +149,95 @@
 }
 .metabloom-threads__drawer::backdrop { background: rgba(8, 8, 9, 0.5); }
 .orb-page .metabloom-threads__drawer:not([open]) { display: none; }
-@media (min-width: 1280px) {
-  .orb-page[data-thread-history-enabled='true'] { --orb-thread-history-width: 52px; }
-  .orb-page[data-thread-history-enabled='true'][data-thread-history='open'] { --orb-thread-history-width: 260px; }
-  .orb-page[data-thread-history-enabled='true'] .metabloom-chat__shell { width: min(1480px, 100%); margin-inline: auto; }
-  .orb-page[data-thread-history-enabled='true'][data-conversation-started='true'] .metabloom-chat__shell {
-    grid-template-columns: var(--orb-thread-history-width) minmax(0, 1fr);
-    column-gap: 16px;
+/* Shared row language for the docked sidebar and the drawer: Claude-style
+   flat rows, one line per chat, actions revealed on hover or focus. */
+.orb-page .metabloom-threads__section {
+  padding: 14px 10px 6px; color: var(--aetheris-ink-2);
+  font: 500 11px/1.4 var(--aetheris-font-mono); letter-spacing: 0.06em; text-transform: uppercase;
+}
+.orb-page .metabloom-threads__table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.orb-page .metabloom-threads__date-column { width: 0; }
+.orb-page .metabloom-threads__table td.metabloom-threads__date { width: 0; padding: 0; overflow: hidden; }
+.orb-page .metabloom-threads__date > time { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.orb-page .metabloom-threads__actions-column { width: 36px; }
+.orb-page .metabloom-threads__table td { border-bottom: 0; }
+.orb-page .metabloom-threads__table tr { border-radius: var(--aetheris-radius-md); }
+.orb-page .metabloom-threads__table tr > td:first-child { border-radius: var(--aetheris-radius-md) 0 0 var(--aetheris-radius-md); }
+.orb-page .metabloom-threads__table tr > td:last-child { border-radius: 0 var(--aetheris-radius-md) var(--aetheris-radius-md) 0; }
+.orb-page .metabloom-threads__table tr[data-current='true'] { background: transparent; }
+.orb-page .metabloom-threads__table tr[data-current='true'] > td { background: var(--aetheris-state-layer); }
+.orb-page .metabloom-threads__table tr[data-current='true'] > td:first-child { box-shadow: none; }
+.orb-page .metabloom-threads button.metabloom-threads__open {
+  min-height: 40px; padding: 8px 10px; color: var(--aetheris-ink-2);
+  font: 450 14px/1.4 var(--aetheris-font-sans);
+}
+.orb-page .metabloom-threads__open > span { display: block; -webkit-line-clamp: unset; max-height: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.orb-page .metabloom-threads button.metabloom-threads__open[aria-current='true'] { color: var(--aetheris-ink); font-weight: 600; }
+.orb-page .metabloom-threads__table button.metabloom-threads__icon { flex-basis: 36px; width: 36px; height: 40px; min-width: 36px; min-height: 40px; color: var(--aetheris-ink-2); }
+@media (hover: hover) {
+  .orb-page .metabloom-threads__table tr:hover > td { background: var(--aetheris-state-layer); }
+  .orb-page .metabloom-threads button.metabloom-threads__open:hover:not(:disabled) { background: transparent; color: var(--aetheris-ink); }
+  /* Row actions appear on hover, focus, the current chat, or while editing. */
+  .orb-page .metabloom-threads__table tr:not(:hover):not([data-current='true']) button.metabloom-threads__icon:not(:focus-visible):not([aria-expanded='true']) { opacity: 0; }
+}
+.orb-page .metabloom-threads button.metabloom-threads__new {
+  justify-content: flex-start; gap: 10px; min-height: 40px; padding: 8px 10px;
+  border: 0; border-radius: var(--aetheris-radius-md); background: transparent; box-shadow: none;
+  font: 550 14px/1.4 var(--aetheris-font-sans); letter-spacing: normal; text-align: left;
+}
+.orb-page .metabloom-threads button.metabloom-threads__new::before { display: none; }
+.orb-page .metabloom-threads button.metabloom-threads__new > svg { color: var(--aetheris-ink); }
+/* Save status stays announced; visually the current row already shows where you are. */
+.orb-page .metabloom-threads__controls > .metabloom-threads__status { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.orb-page .metabloom-threads__controls { gap: 4px; padding: 6px 8px; border-bottom: 0; }
+.orb-page .metabloom-threads__heading { padding: 10px 8px; border-bottom: 0; }
+.orb-page .metabloom-threads__heading h2 { font: 650 16px/1.3 var(--aetheris-font-sans); }
+
+/* Docked sidebar: full height, flush to the left edge, page content re-centres
+   in the remaining width. Width is published as --orb-sidebar-space. */
+@media (min-width: 1100px) {
+  .orb-page[data-thread-history-enabled='true'] { --orb-sidebar-space: 56px; }
+  .orb-page[data-thread-history-enabled='true'][data-thread-history='open'] { --orb-sidebar-space: 264px; }
+  .orb-page .metabloom-threads__dock {
+    position: fixed; top: 0; bottom: 0; left: 0; z-index: 20;
+    width: var(--orb-sidebar-space, 264px);
+    padding-top: max(0px, env(safe-area-inset-top)); padding-left: env(safe-area-inset-left);
+    border: 0; border-radius: 0; box-shadow: none;
+    background: var(--aetheris-card-panel);
+    transition: width var(--aetheris-motion-medium) var(--aetheris-ease-standard);
   }
-  .orb-page[data-thread-history-enabled='true'][data-active-component='true'][data-conversation-started='true'] .metabloom-chat__shell {
-    grid-template-columns: var(--orb-thread-history-width) minmax(0, 1.1fr) minmax(0, 0.9fr);
+  :where([data-theme='dark']) .orb-page .metabloom-threads__dock { background: var(--aetheris-card-panel); }
+  /* A structural spectral rail marks the sidebar edge instead of a glass ring. */
+  .orb-page .metabloom-threads__dock::before {
+    inset: 0 0 0 auto; width: 1px; padding: 0; border-radius: 0;
+    background: var(--aetheris-spectral-v); opacity: 0.45; -webkit-mask: none; mask: none;
   }
-  .orb-page[data-thread-history-enabled='true'][data-conversation-started='true'] .metabloom-chat[data-conversation-started='true'] .metabloom-chat__messages,
-  .orb-page[data-thread-history-enabled='true'][data-conversation-started='true'] .metabloom-chat .metabloom-chat__composer-area { grid-column: 2; }
-  .orb-page[data-thread-history-enabled='true'][data-active-component='true'] .metabloom-chat__workspace { grid-column: 3; }
-  .orb-page .metabloom-threads__dock { grid-column: 1; grid-row: 1 / -1; align-self: stretch; width: var(--orb-thread-history-width); }
-  .orb-page .metabloom-threads__dock[data-expanded='false'] { align-self: start; gap: 4px; padding: 3px; border-radius: var(--aetheris-radius-xl); }
+  .orb-page .metabloom-threads__dock[data-expanded='true'] > * { min-width: 264px; }
+  .orb-page .metabloom-threads__dock[data-expanded='false'] { align-items: center; gap: 4px; padding: 14px 6px; }
   .orb-page .metabloom-threads__dock[data-expanded='false'] > button { flex: 0 0 44px; width: 44px; height: 44px; padding: 0; }
-  .orb-page .metabloom-threads__dock .metabloom-threads__trigger { border-radius: var(--aetheris-radius-md); }
-  .orb-page .metabloom-threads button.metabloom-threads__rail-new { border-color: transparent; background: transparent; font: 400 24px/1 var(--aetheris-font-sans); }
-  .orb-page[data-thread-history-enabled='true'][data-conversation-started='false'] .metabloom-threads__dock {
-    position: absolute; top: calc(var(--orb-header-clearance, 96px) + var(--orb-theme-clearance, 52px));
-    bottom: max(12px, env(safe-area-inset-bottom)); left: max(20px, env(safe-area-inset-left));
+  .orb-page .metabloom-threads__dock .metabloom-threads__trigger {
+    border: 0; border-radius: var(--aetheris-radius-md); background: transparent; box-shadow: none;
   }
-  .orb-page[data-thread-history-enabled='true'][data-conversation-started='false'] .metabloom-threads__dock[data-expanded='false'] { bottom: auto; }
-  .orb-page[data-thread-history-enabled='true'][data-conversation-started='false'] .metabloom-chat .metabloom-chat__composer-area,
-  .orb-page[data-thread-history-enabled='true'][data-conversation-started='false'] .metabloom-chat__suggestions {
-    position: absolute;
-    left: calc((100% + var(--orb-thread-history-width) + 16px) / 2);
-    width: min(760px, calc(100% - var(--orb-thread-history-width) - 76px));
-    max-width: calc(100% - var(--orb-thread-history-width) - 76px);
+  .orb-page .metabloom-threads__dock .metabloom-threads__trigger::before { display: none; }
+  .orb-page .metabloom-threads button.metabloom-threads__rail-new { border: 0; border-radius: var(--aetheris-radius-md); background: transparent; }
+
+  /* Everything that was centred on the viewport is centred on what remains. */
+  .orb-page[data-thread-history-enabled='true'] .nav-header {
+    left: var(--orb-sidebar-space);
+    transition: left var(--aetheris-motion-medium) var(--aetheris-ease-standard), opacity 0.55s ease, transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .orb-page[data-thread-history-enabled='true'] .metabloom-chat__interface {
+    left: var(--orb-sidebar-space);
+    transition: left var(--aetheris-motion-medium) var(--aetheris-ease-standard);
+  }
+  /* The Orb moves with the column. Translate only: the field keeps its size,
+     so the living canvas is neither resized nor recreated. */
+  .orb-page[data-thread-history-enabled='true'] .metabloom-chat__field {
+    transform: translateX(calc(var(--orb-sidebar-space) / 2));
+    transition: transform var(--aetheris-motion-medium) var(--aetheris-ease-standard);
   }
 }
-@media (max-width: 1279px) {
+@media (max-width: 1099px) {
   .orb-page:is([data-compact-viewport='true'], [data-keyboard-open='true']) .metabloom-threads__floating { display: none; }
 }
 @media (max-width: 900px) {
@@ -193,7 +249,10 @@
   .orb-page .metabloom-threads__trigger:hover { background-color: var(--aetheris-state-layer); border-color: var(--aetheris-focus-line); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .orb-page .metabloom-threads :where(button, input), .orb-page .metabloom-threads__trigger { transition: none; }
+  .orb-page .metabloom-threads :where(button, input), .orb-page .metabloom-threads__trigger,
+  .orb-page .metabloom-threads__dock, .orb-page[data-thread-history-enabled='true'] .nav-header,
+  .orb-page[data-thread-history-enabled='true'] .metabloom-chat__interface,
+  .orb-page[data-thread-history-enabled='true'] .metabloom-chat__field { transition: none; }
 }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .orb-page .metabloom-threads, .orb-page .metabloom-threads__trigger { background: var(--aetheris-panel); }
@@ -207,6 +266,8 @@
   .orb-page .metabloom-threads button.metabloom-threads__new::before { display: none; }
   .orb-page .metabloom-threads :where(button, input), .orb-page .metabloom-threads__trigger,
   .orb-page .metabloom-threads button.metabloom-threads__new { border: 1px solid ButtonText; background: ButtonFace; color: ButtonText; box-shadow: none; }
-  .orb-page .metabloom-threads__table tr[data-current='true'] { outline: 1px solid Highlight; }
+  .orb-page .metabloom-threads__table tr[data-current='true'] > td { background: Canvas; outline: 1px solid Highlight; }
+  .orb-page .metabloom-threads__dock::before { display: none; }
+  .orb-page .metabloom-threads__dock { border-right: 1px solid CanvasText; }
   .orb-page .metabloom-threads :where(button, input):focus-visible, .orb-page .metabloom-threads__trigger:focus-visible { outline: 2px solid Highlight; box-shadow: none; }
 }
