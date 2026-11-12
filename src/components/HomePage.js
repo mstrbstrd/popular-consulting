@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { ThemeProvider } from '../contexts/ThemeContext';
+import { ThemeProvider, useThemeMode } from '../contexts/ThemeContext';
 import { useAppNavigation } from '../contexts/AppNavigationContext';
 import NavMenu from './NavMenu';
 import HomeBackground from './HomeBackground';
 import HeroLogo from './HeroLogo';
+import HomeOrbField from './HomeOrbField';
 import { consumeHomeEntryIntent, hasHomeEntryIntent } from '../utils/homeEntry';
 import logo from '../assets/icons/logo2026_128.png';
 import { useHomeLiquidGlass } from './liquidGlassRefraction';
@@ -15,7 +16,7 @@ import './HomeLiquidGlass.css';
 const TOOLS = [
   { id: 'orb', title: 'Orb', category: 'A more expressive conversation', href: '/orb',
     description: 'Think out loud with a little character that responds in kind, and builds charts, tables and tools as you talk.', action: 'Start a conversation' },
-  { id: 'popcan', title: 'Popcan', category: 'Drawing studio', href: '/popcan',
+  { id: 'popcan', title: 'Canvas', category: 'Drawing studio', href: '/popcan',
     description: 'Follow a colour. Make a mark. See where it takes you.', action: 'Open canvas' },
   { id: 'dither', title: 'Dither Canvas', category: 'Generative playground', href: '/dither-canvas',
     description: 'Explore living fields, shifting patterns, and spectral worlds.', action: 'Explore the lab' },
@@ -116,6 +117,7 @@ function ToolArtwork({ kind }) {
 function HomeContent() {
   const navigation = useAppNavigation();
   const { status, refresh } = useAuth();
+  const { isDark } = useThemeMode();
   const signedIn = status === 'authenticated';
   const [returning] = useState(() => Boolean(navigation?.hasEnteredWorkspace()));
   const [handoff] = useState(() => returning || hasHomeEntryIntent());
@@ -211,7 +213,9 @@ function HomeContent() {
           {TOOLS.map(tool => <a key={tool.id} className={`aetheris-card home-tool home-tool--${tool.id}`} href={tool.href}
             aria-labelledby={`home-${tool.id}-title`} aria-describedby={`home-${tool.id}-description`}>
             <div className="home-tool-top"><span>{tool.category}</span></div>
-            <div className="home-tool-art" aria-hidden="true"><ToolArtwork kind={tool.id} /></div>
+            <div className="home-tool-art" aria-hidden="true">{tool.id === 'orb'
+              ? <HomeOrbField active={entry === 'open'} isDark={isDark} fallback={<ToolArtwork kind="orb" />} />
+              : <ToolArtwork kind={tool.id} />}</div>
             <div className="home-tool-copy"><h2 id={`home-${tool.id}-title`}>{tool.title}</h2>
               <p id={`home-${tool.id}-description`}>{tool.description}</p>
               <span className="home-tool-action" aria-hidden="true">{tool.action}<span>→</span></span>

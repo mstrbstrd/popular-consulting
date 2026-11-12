@@ -31,4 +31,23 @@ describe('Home layout and feature art', () => {
     const orb = page.slice(page.indexOf("if (kind === 'orb')"), page.indexOf("if (kind === 'popcan')"));
     expect(orb).not.toMatch(/eye|mouth|face/i);
   });
+
+  test('Popcan is labelled Canvas everywhere outside its own page', () => {
+    expect(page).toContain("{ id: 'popcan', title: 'Canvas',");
+    expect(read('WorkspaceMenu.js')).toContain("{ label: 'Canvas', href: '/popcan' }");
+    const copy = fs.readFileSync(path.join(__dirname, '../content/siteCopy.js'), 'utf8');
+    expect(copy).not.toMatch(/label: "Popcan"/);
+    expect(copy.match(/label: "Canvas", href: "\/popcan"/g)).toHaveLength(2);
+  });
+
+  test('the Orb card hosts the real Metabloom field, with the drawing as fallback', () => {
+    expect(page).toContain('<HomeOrbField active={entry === \'open\'} isDark={isDark} fallback={<ToolArtwork kind="orb" />} />');
+    const field = read('HomeOrbField.js');
+    // Same renderer and avatar mode as /orb, lazily loaded, one localized context.
+    expect(field).toContain("import('./CreatorOSFieldCanvas')");
+    expect(field).toMatch(/metabloomAvatarEnabled\s+mode=\{0\}/);
+    expect(field).toContain('paused={!active || !visible}');
+    expect(field).toContain('hasHardwareWebGL && !isMobileTier');
+    expect(field).not.toMatch(/ManagedDitherBackground|BlackHoleCanvas|getContext/);
+  });
 });

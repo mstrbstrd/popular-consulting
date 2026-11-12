@@ -50,7 +50,7 @@ test('opens the four tools after session verification with accessible card names
   const tools = within(await enterHome());
   expect(tools.getAllByRole('link')).toHaveLength(4);
   tools.getAllByRole('link').forEach(card => expect(card).toHaveClass('aetheris-card'));
-  for (const [name, href] of [['Popcan', '/popcan'], ['Dither Canvas', '/dither-canvas'], ['Orb', '/orb'], ['Invoice Generator', '/invoice-generator']]) {
+  for (const [name, href] of [['Canvas', '/popcan'], ['Dither Canvas', '/dither-canvas'], ['Orb', '/orb'], ['Invoice Generator', '/invoice-generator']]) {
     expect(tools.getByRole('link', { name })).toHaveAttribute('href', href);
   }
   expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Welcome back.');

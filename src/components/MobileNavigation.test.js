@@ -27,7 +27,7 @@ describe('one mobile navigation menu', () => {
     expect(container.querySelector('.nav-header .site-account-menu')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Open navigation menu' }));
     const menu = within(screen.getByRole('dialog', { name: 'Navigation menu' }));
-    ['Home', 'Popcan', 'Dither Canvas', 'Orb', 'Invoice Generator', 'Selected work', 'Popular Consulting', 'Sign out'].forEach(name => {
+    ['Home', 'Canvas', 'Dither Canvas', 'Orb', 'Invoice Generator', 'Selected work', 'Popular Consulting', 'Sign out'].forEach(name => {
       expect(menu.getAllByRole('link', { name, exact: true })).toHaveLength(1);
     });
     expect(menu.queryByRole('link', { name: 'Work', exact: true })).not.toBeInTheDocument();

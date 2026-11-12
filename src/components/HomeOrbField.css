@@ -1,0 +1,25 @@
+/* Live Metabloom inside the Home Orb card. The field is the character: no frame,
+   ring or face is painted around it. The SVG drawing holds the place until the
+   first committed frame, then crossfades out. */
+.home-orb-field { position: relative; width: 100%; height: 100%; }
+.home-orb-field-fallback,
+.home-orb-field-live { position: absolute; inset: 0; display: grid; place-items: center; transition: opacity 600ms ease; }
+.home-orb-field-fallback[data-hidden='true'] { opacity: 0; }
+.home-orb-field-live { opacity: 0; }
+.home-orb-field-live[data-ready='true'] { opacity: 1; }
+
+.home-orb-field .creatoros-field-shell,
+.home-orb-field .creatoros-field-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.home-orb-field .creatoros-field-shell { background: transparent !important; touch-action: auto; pointer-events: none; }
+/* /orb's field fills the viewport, so its dither halo never meets an edge. In a
+   card it would stop at the canvas rectangle, so feather it out radially. */
+.home-orb-field-live {
+  -webkit-mask-image: radial-gradient(closest-side, #000 72%, transparent 100%);
+  mask-image: radial-gradient(closest-side, #000 72%, transparent 100%);
+}
+.home-orb-field .creatoros-field-fallback { display: none; }
+
+/* Fine pointers let the creature notice the cursor. The card link still owns
+   clicks: the field sits inside it, so a press anywhere still opens Orb. */
+.home-orb-field[data-pointer-reactive='true'] .creatoros-field-shell { pointer-events: auto; cursor: pointer; }
+
