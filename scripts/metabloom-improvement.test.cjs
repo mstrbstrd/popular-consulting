@@ -4,6 +4,7 @@ const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const { tmpdir } = require('node:os');
 const improvement = require('./lib/metabloomImprovement.cjs');
 const { ROOT, WORK_PATH, GUIDANCE_PATH, digest, baselineGuidance, runtimeHash, loadCases,
   validateCase, candidate, grade, runVisualAttempt, evaluate, inspectReport, assess, proposalPayload, promotionPatch } = improvement;
@@ -259,6 +260,35 @@ test('review patch only changes the fixed guidance file and applies cleanly', ()
   assert.ok(patch.includes('+++ b/' + GUIDANCE_PATH));
   execFileSync('git', ['apply', '--check', '-'], { cwd: ROOT, input: patch });
   assert.deepEqual(baselineGuidance(), original);
+});
+test('review patches handle LF and CRLF source text on both Git checkout styles', context => {
+  const value = proposal();
+  const originalRead = fs.readFileSync;
+  const originalText = JSON.stringify(baselineGuidance(), null, 2) + '\n';
+  for (const sourceEnding of ['\n', '\r\n']) for (const autoCrlf of ['false', 'true']) {
+    const directory = fs.mkdtempSync(path.join(tmpdir(), 'metabloom-patch-'));
+    const target = path.join(directory, GUIDANCE_PATH);
+    const git = args => execFileSync('git', ['-C', directory, ...args], { stdio: 'pipe' });
+    try {
+      git(['init', '--quiet']);
+      git(['config', 'core.autocrlf', autoCrlf]);
+      git(['config', 'core.safecrlf', 'false']);
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.writeFileSync(target, originalText);
+      git(['add', '--', GUIDANCE_PATH]);
+      fs.rmSync(target);
+      git(['checkout-index', '--', GUIDANCE_PATH]);
+      assert.equal(originalRead(target, 'utf8').includes('\r\n'), autoCrlf === 'true');
+      let patch;
+      context.mock.method(fs, 'readFileSync', (filename, ...args) => filename === path.join(ROOT, GUIDANCE_PATH)
+        ? originalText.replace(/\n/g, sourceEnding) : originalRead(filename, ...args));
+      try { patch = promotionPatch(value); } finally { context.mock.restoreAll(); }
+      execFileSync('git', ['-C', directory, 'apply', '--check', '-'], { input: patch, stdio: 'pipe' });
+      execFileSync('git', ['-C', directory, 'apply', '-'], { input: patch, stdio: 'pipe' });
+      assert.deepEqual(JSON.parse(originalRead(target, 'utf8')), { version: 1, instructions: value.instructions });
+      assert.equal(git(['diff', '--name-only']).toString().trim(), GUIDANCE_PATH);
+    } finally { context.mock.restoreAll(); fs.rmSync(directory, { recursive: true, force: true }); }
+  }
 });
 test('a reviewed correction becomes a development case without touching held-out data', async () => {
   const id = 'test-correction-' + crypto.randomBytes(6).toString('hex');

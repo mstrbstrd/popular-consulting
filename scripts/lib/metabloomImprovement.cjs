@@ -290,7 +290,8 @@ function proposalPayload(report, cases) {
   return { baseline: baselineGuidance(), previousCandidate: report.proposal?.instructions || null, evidence };
 }
 function promotionPatch(proposal) {
-  const oldLines = fs.readFileSync(path.join(ROOT, GUIDANCE_PATH), 'utf8').trimEnd().split('\n');
+  // Git compares normalized text even when a Windows checkout uses CRLF.
+  const oldLines = fs.readFileSync(path.join(ROOT, GUIDANCE_PATH), 'utf8').replace(/\r\n/g, '\n').trimEnd().split('\n');
   const newLines = JSON.stringify({ version: 1, instructions: proposal.instructions }, null, 2).split('\n');
   return `--- a/${GUIDANCE_PATH}\n+++ b/${GUIDANCE_PATH}\n@@ -1,${oldLines.length} +1,${newLines.length} @@\n`
     + oldLines.map(line => '-' + line).join('\n') + '\n' + newLines.map(line => '+' + line).join('\n') + '\n';

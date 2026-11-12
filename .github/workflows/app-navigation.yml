@@ -14,7 +14,8 @@ concurrency:
 
 jobs:
   browser:
-    runs-on: ubuntu-latest
+    # Playwright 1.51.1 supports Ubuntu 24.04, but not the newer latest image.
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
