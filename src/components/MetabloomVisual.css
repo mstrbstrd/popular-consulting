@@ -171,8 +171,11 @@
 .orb-page .metabloom-visual :is(th, td) { padding: 1rem; min-width: 9rem; max-width: 26rem; text-align: left; vertical-align: top; border-bottom: 1px solid var(--aetheris-line-strong); overflow-wrap: anywhere; }
 .orb-page .metabloom-visual th { background: var(--aetheris-glass-panel-raised); font: 500 1.1rem/1.5 var(--aetheris-font-mono); letter-spacing: 0.04em; }
 .orb-page .metabloom-visual tbody tr:last-child td { border-bottom: 0; }
+/* Figures follow the Aetheris number face, matching chart values and legends. */
+.orb-page .metabloom-visual td.metabloom-visual__number { font: 1.25rem/1.5 var(--aetheris-font-mono); font-variant-numeric: tabular-nums; }
 .orb-page .metabloom-visual__bars { display: grid; gap: 1.2rem; list-style: none; margin: 1.4rem 0; padding: 0; max-height: 36rem; overflow-y: auto; }
 .orb-page .metabloom-visual__bar-label { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; margin-bottom: 0.5rem; }
+.orb-page .metabloom-visual__bar-label > span { min-width: 0; color: var(--aetheris-ink); font: 500 1.3rem/1.4 var(--aetheris-font-sans); letter-spacing: -0.005em; overflow-wrap: anywhere; }
 .orb-page .metabloom-visual__bar-label strong { flex-shrink: 0; min-width: 0; max-width: 100%; overflow-wrap: anywhere; font: 1.2rem/1.4 var(--aetheris-font-mono); font-variant-numeric: tabular-nums; }
 .orb-page .metabloom-visual__bar-track { position: relative; height: 1.1rem; overflow: hidden; border-radius: var(--aetheris-radius-pill); background: var(--aetheris-state-layer); }
 .orb-page .metabloom-visual__bar { position: absolute; top: 0; bottom: 0; background: var(--aetheris-teal); border-radius: inherit; }
@@ -202,7 +205,7 @@
 .orb-page .metabloom-visual output { display: block; font: 500 clamp(1.6rem, 3vw, 2.4rem)/1.35 var(--aetheris-font-mono); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .orb-page .metabloom-visual__actions { display: flex; gap: 0.8rem; flex-wrap: wrap; }
 .orb-page .metabloom-visual__provenance { margin-top: 1.4rem; padding-top: 1.2rem; border-top: 1px solid var(--aetheris-line); font-size: 1.2rem; }
-.orb-page .metabloom-visual__badge { display: inline-block; padding: 0.4rem 0.8rem; border-radius: var(--aetheris-radius-pill); background: var(--aetheris-glass-surface); font: 1.05rem/1.4 var(--aetheris-font-mono); letter-spacing: 0.04em; text-transform: uppercase; }
+.orb-page .metabloom-visual__badge { display: inline-block; padding: 0.4rem 0.8rem; border-radius: var(--aetheris-radius-pill); background: var(--aetheris-glass-surface); font: 1.1rem/1.4 var(--aetheris-font-mono); letter-spacing: 0.04em; text-transform: uppercase; }
 .orb-page .metabloom-visual__provenance ul { margin: 0.8rem 0 0; padding-left: 1.6rem; }
 .orb-page .metabloom-visual a { color: var(--aetheris-ink); text-decoration: underline; text-underline-offset: 0.2em; }
 .orb-page .metabloom-visual__nodes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.8rem; margin: 1rem 0; padding: 0; list-style: none; }
@@ -247,6 +250,7 @@
 @media (prefers-reduced-transparency: reduce) {
   .orb-page[data-active-component='true'] .metabloom-chat__workspace { background: var(--aetheris-panel-raised); }
   .orb-page .metabloom-visual { backdrop-filter: none; -webkit-backdrop-filter: none; background: var(--aetheris-panel-raised); }
+  .orb-page .metabloom-visual__flow-node rect { fill: var(--aetheris-panel-raised); }
 }
 @media (forced-colors: active) {
   .orb-page[data-active-component='true'] .metabloom-chat__workspace,
@@ -267,7 +271,7 @@
   .orb-page .metabloom-visual__skeleton { display: none; }
 }
 
-.orb-page .metabloom-visual__axis-label { fill: var(--aetheris-ink-2); font: 10px var(--aetheris-font-mono); }
+.orb-page .metabloom-visual__axis-label { fill: var(--aetheris-ink-2); font: 11px var(--aetheris-font-mono); }
 
 /* Distinct hue families share the same three stops across SVG data and CSS swatches. */
 .orb-page .metabloom-visual__series-1 {
@@ -422,9 +426,14 @@
 .orb-page .metabloom-visual__flow-svg { display: block; height: auto; margin: 0 auto; }
 .orb-page .metabloom-visual__flow-node { cursor: pointer; touch-action: manipulation; transition: opacity var(--aetheris-motion-medium) var(--aetheris-ease-standard); }
 .orb-page .metabloom-visual .metabloom-visual__flow-node:focus { outline: none !important; outline-offset: 0 !important; box-shadow: none !important; }
-.orb-page .metabloom-visual__flow-node rect { fill: var(--aetheris-panel-raised); stroke: var(--aetheris-line-strong); stroke-width: 1; vector-effect: non-scaling-stroke; }
-.orb-page .metabloom-visual__flow-node[data-selected='true'] rect { stroke: var(--metabloom-flow-spectrum); stroke-width: 2; }
-.orb-page .metabloom-visual .metabloom-visual__flow-node:focus-visible rect { stroke: var(--metabloom-flow-spectrum); stroke-width: 3; }
+.orb-page .metabloom-visual__flow-node rect { fill: var(--aetheris-glass-surface); stroke: var(--metabloom-flow-spectrum); stroke-opacity: 0.42; stroke-width: 1; vector-effect: non-scaling-stroke; }
+/* Entry and exit steps carry a stronger structural edge; connections stay neutral until traced. */
+.orb-page .metabloom-visual__flow-node[data-terminal] rect { stroke-opacity: 0.85; stroke-width: 1.5; }
+.orb-page .metabloom-visual__flow-node[data-selected='true'] rect { stroke: var(--metabloom-flow-spectrum); stroke-opacity: 1; stroke-width: 2; }
+.orb-page .metabloom-visual .metabloom-visual__flow-node:focus-visible rect { stroke: var(--metabloom-flow-spectrum); stroke-opacity: 1; stroke-width: 3; }
+@media (hover: hover) {
+  .orb-page .metabloom-visual__flow-node:hover rect { fill: var(--aetheris-glass-panel-raised); stroke-opacity: 0.85; }
+}
 .orb-page .metabloom-visual__flow-badge { fill: var(--aetheris-glass-surface); stroke: var(--aetheris-line-strong); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .orb-page .metabloom-visual__flow-number { fill: var(--aetheris-ink-2); font: 11px var(--aetheris-font-mono); pointer-events: none; }
 .orb-page .metabloom-visual__flow-label { fill: var(--aetheris-ink); font: 500 13px var(--aetheris-font-sans); pointer-events: none; }
@@ -443,7 +452,7 @@
 }
 @media (forced-colors: active) {
   .orb-page .metabloom-visual input[type='search'] { background: Canvas; color: CanvasText; border: 1px solid CanvasText; }
-  .orb-page .metabloom-visual__flow-node rect { fill: Canvas; stroke: CanvasText; forced-color-adjust: none; }
+  .orb-page .metabloom-visual__flow-node rect { fill: Canvas; stroke: CanvasText; stroke-opacity: 1; forced-color-adjust: none; }
   .orb-page .metabloom-visual__flow-node[data-selected='true'] rect,
   .orb-page .metabloom-visual .metabloom-visual__flow-node:focus-visible rect { stroke: Highlight; stroke-width: 3; }
   .orb-page .metabloom-visual__flow-badge { fill: Canvas; stroke: CanvasText; forced-color-adjust: none; }

@@ -2,7 +2,7 @@
 // function of the validated nodes/edges: no DOM, no measurement, no randomness.
 // Spec limits (16 nodes, 32 edges) keep every step trivially bounded.
 export const FLOW_METRICS = Object.freeze({
-  nodeWidth: 184, lineHeight: 16, padY: 12, textX: 40, textRight: 12,
+  nodeWidth: 184, lineHeight: 16, padY: 14, textX: 40, textRight: 12,
   gapX: 28, gapY: 60, margin: 24, dummyWidth: 20, loopWidth: 26,
   wrap: 20, maxLines: 4, labelWrap: 18, portStep: 22, labelChar: 6.6, labelHeight: 14,
 });

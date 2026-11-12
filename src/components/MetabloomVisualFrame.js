@@ -49,7 +49,7 @@ const VisualContextDetails = ({ spec, sources, children }) => (
 const DataTable = ({ columns, rows, title }) => (
   <div className="metabloom-visual__table-scroll" tabIndex={0} role="region" aria-label={`${title} data`}>
     <table><caption>{title}</caption><thead><tr>{columns.map((column, index) => <th key={index} scope="col">{column}</th>)}</tr></thead>
-      <tbody>{rows.map((row, index) => <tr key={index}>{row.map((cell, i) => <td key={i}>{cell}</td>)}</tr>)}</tbody>
+      <tbody>{rows.map((row, index) => <tr key={index}>{row.map((cell, i) => <td key={i} className={numericCellClass(cell)}>{cell}</td>)}</tr>)}</tbody>
     </table>
   </div>
 );
@@ -62,6 +62,16 @@ const AskAboutAction = ({ onAskAbout, selection, disabled = false, label = 'Ask 
 const cellNumber = text => {
   const compact = text.trim().replace(/[\s,$€£¥]/g, '').replace('−', '-');
   return /^[-+]?(?:\d+\.?\d*|\.\d+)%?$/.test(compact) ? parseFloat(compact) : null;
+};
+const numericCellClass = cell => typeof cell === 'string' && cellNumber(cell) !== null ? 'metabloom-visual__number' : undefined;
+// A generated category label sometimes repeats its own value ("Rent — 40%").
+// The legend already shows the value, so display the label without it.
+const pieLabelText = (label, value, share) => {
+  const match = /^(.*?\S)\s*(?:[—–:-]\s*|\(\s*)([-+]?[\d.,]+)\s*(%?)\s*\)?$/.exec(label);
+  if (!match) return label;
+  const number = parseFloat(match[2].replace(/,/g, ''));
+  const repeated = match[3] ? Math.abs(number - parseFloat(share)) < 0.6 || Math.abs(number - value) < 1e-9 : Math.abs(number - value) < 1e-9;
+  return repeated ? match[1] : label;
 };
 const TABLE_FILTER_MIN_ROWS = 8;
 const sortTableRows = (rows, column, direction) => {
@@ -116,7 +126,7 @@ function VisualTable({ spec, id, viewState, onViewStateChange, onAskAbout }) {
           </th>;
         })}{onAskAbout && <th scope="col" className="metabloom-visual__row-action">Ask about a row</th>}</tr></thead>
         <tbody id={`${id}-table-body`}>{rows.length
-          ? rows.map(row => <tr key={row.position}>{row.cells.map((cell, i) => <td key={i}>{cell}</td>)}
+          ? rows.map(row => <tr key={row.position}>{row.cells.map((cell, i) => <td key={i} className={numericCellClass(cell)}>{cell}</td>)}
             {onAskAbout && <td className="metabloom-visual__row-action"><button type="button"
               aria-label={`Ask about this row ${row.position + 1} in ${spec.title}`}
               onClick={() => onAskAbout({ selector: { type: 'table-row', index: row.position } })}>Ask about this</button></td>}
@@ -329,13 +339,13 @@ function VisualPieChart({ spec, id, viewState, onViewStateChange, onAskAbout }) 
           <button type="button" aria-pressed={index === selectedIndex} aria-controls={`${id}-pie-selection`}
             onClick={() => setSelectedIndex(index)}>
             <span className="metabloom-visual__series-dot" aria-hidden="true" />
-            <span>{point.label}</span><strong>{percentage(point.value)}</strong>
+            <span>{pieLabelText(point.label, point.value, percentage(point.value))}</span><strong>{percentage(point.value)}</strong>
           </button>
         </li>)}
       </ul>
     </div>
     <p id={`${id}-pie-selection`} className="metabloom-visual__pie-selection" role="status" aria-live="polite" aria-atomic="true">
-      <strong>{selected.label}</strong>: {numberText(selected.value)} {spec.unit} ({percentage(selected.value)} of the total).
+      <strong>{pieLabelText(selected.label, selected.value, percentage(selected.value))}</strong>: {numberText(selected.value)} {spec.unit} ({percentage(selected.value)} of the total).
     </p>
     <AskAboutAction onAskAbout={onAskAbout} selection={{ selector: { type: 'pie-category', index: selectedIndex } }}
       label={`Ask about this category: ${selected.label}`} />
@@ -429,6 +439,7 @@ function VisualFlowchart({ spec, id, viewState, onViewStateChange, onAskAbout })
             const dim = selectedId && !related.has(node.id);
             return <g key={node.id} role="button" tabIndex={0} aria-pressed={isSelected} aria-label={flowSummary(spec, node)}
               className="metabloom-visual__flow-node" data-selected={isSelected ? 'true' : 'false'} data-dim={dim ? 'true' : undefined}
+              data-terminal={node.id === spec.nodes[0]?.id ? 'start' : !spec.edges.some(edge => edge.from === node.id) ? 'end' : undefined}
               onClick={() => toggle(node)}
               onKeyDown={event => {
                 if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggle(node); }
