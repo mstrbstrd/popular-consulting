@@ -12,6 +12,12 @@
   .orb-page[data-conversation-started="true"] {
     --orb-theme-clearance: 0px;
   }
+
+  /* The current-component panel occupies the right column, directly under
+     the Theme control, so it alone keeps that control's clearance. */
+  .orb-page[data-active-component="true"][data-conversation-started="true"] .metabloom-chat__workspace {
+    margin-top: 52px;
+  }
 }
 
 /* Fade earlier messages into the scene instead of slicing them with a hard

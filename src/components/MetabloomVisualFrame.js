@@ -502,7 +502,7 @@ class VisualCalculator extends React.Component {
         const value = values[control.id];
         const invalid = !Number.isFinite(value) || value < control.min || value > control.max;
         return <div className="metabloom-visual__field" key={control.id}>
-          <label htmlFor={`${id}-${control.id}`}>{control.label} {control.unit && <span>({control.unit})</span>}</label>
+          <label htmlFor={`${id}-${control.id}`}>{control.label} {control.unit && !control.label.includes(`(${control.unit})`) && <span>({control.unit})</span>}</label>
           <div className="metabloom-visual__input-shell"><input id={`${id}-${control.id}`} type="number" inputMode="decimal" min={control.min} max={control.max} step={control.step}
             value={this.state.inputs[control.id]} aria-invalid={invalid || undefined} aria-describedby={`${id}-formula`}
             onChange={event => this.change(control.id, event.target.value)} /></div>
