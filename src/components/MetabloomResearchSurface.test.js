@@ -119,6 +119,21 @@ test('embedded research stays inline without a controller and retains the origin
   expect(requests).toHaveLength(0);
 });
 
+test.each(['news', 'research'])('an unavailable %s summary preserves the report without claiming zero stories or findings', kind => {
+  const controller = controllerFor();
+  const unavailable = { ...brief, kind, title: 'Research report', items: [], sourceDetails: [],
+    windowStart: kind === 'news' ? brief.localDate : null, windowEnd: kind === 'news' ? brief.localDate : null,
+    coverage: { requestedCount: 5, returnedCount: 0, status: 'unavailable', limitations: ['The summary could not be prepared reliably.'] } };
+  render(<SurfaceHarness controller={controller} props={{ ...base, brief: unavailable }} />);
+  expect(controller.records.get(base.messageId).summary).toBe('Summary unavailable · 40 sources · 2026-11-02');
+  expect(screen.getByRole('article', { name: 'Research reply' })).toHaveTextContent('Summary unavailable');
+  expect(screen.queryByText(/0 (?:stories|findings)/)).not.toBeInTheDocument();
+  openResearch('Research report');
+  expect(screen.getByText('Full research', { selector: 'summary' }).parentElement).toHaveAttribute('open');
+  expect(screen.getByRole('group', { name: 'Completed research' })).toHaveTextContent('The second finding remains qualified');
+  expect(requests).toHaveLength(0);
+});
+
 test('one portal preserves the selected finding, disclosures and source pagination through moves and metadata updates', () => {
   const controller = controllerFor(), onUseReference = jest.fn();
   const props = { ...base, onUseReference };

@@ -10,6 +10,7 @@ const { parseMetabloomArtifactReference } = require("../src/components/metabloom
 const { resolveMetabloomArtifactReference, artifactContextMessage,
   ARTIFACT_CONTEXT_INSTRUCTIONS } = require("../server/metabloomArtifactContext");
 const { parseMetabloomResearchContext, isMetabloomFreshResearchRequest } = require("../src/components/metabloomResearchReference");
+const { classifyMetabloomResearchIntent, getMetabloomResearchCapabilityResponse } = require("../src/components/metabloomResearchIntent");
 const { createMetabloomResearchStore } = require("../server/metabloomResearchStore");
 const { resolveMetabloomResearchContext, researchContextMessage,
   RESEARCH_REUSE_INSTRUCTIONS } = require("../server/metabloomResearchContext");
@@ -306,11 +307,14 @@ const handler = async (request, response) => {
   if (!body) return sendJson(response, 400, { code: "invalid_request" });
   const visualIntent = classifyMetabloomVisualIntent(body.message, body.history);
   const message = visualIntent.resolvedMessage || body.message;
-  const refreshResearch = Boolean(body.researchContext && isMetabloomFreshResearchRequest(body.message));
+  const researchIntent = classifyMetabloomResearchIntent(body.message, body.history);
+  const refreshResearch = Boolean(body.researchContext && researchIntent !== 'declined' && (isMetabloomFreshResearchRequest(body.message)
+    || researchIntent === 'requested'));
   const providerConfigured = configured(request);
   const nativeVisualsAvailable = Boolean(request.headers?.["x-metabloom-visuals"] === "1"
     && body.requestId && visualIdentity && visualsEnabled() && providerConfigured);
-  const capabilityResponse = getMetabloomVisualCapabilityResponse(visualIntent, {
+  const capabilityResponse = getMetabloomResearchCapabilityResponse(researchIntent, { enabled: providerConfigured })
+    || getMetabloomVisualCapabilityResponse(visualIntent, {
     enabled: nativeVisualsAvailable && request.headers?.["x-metabloom-ui-tools"] === "1"
       && process.env.METABLOOM_UI_TOOLS_ENABLED !== 'false',
     researchBriefEnabled: body.streamResearchBrief === true && providerConfigured,
@@ -363,7 +367,10 @@ const handler = async (request, response) => {
         reference: body.researchContext, message: body.message, signal: controller.signal });
     }
     const reuseResearch = Boolean(selectedResearch && !refreshResearch);
-    const actionMode = reuseResearch ? "none" : refreshResearch ? "deep-research" : body.actionMode;
+    const actionMode = reuseResearch ? "none" : refreshResearch ? "deep-research"
+      : ["auto", "deep-research"].includes(body.actionMode) && researchIntent === "declined" ? "none"
+      : body.actionMode === "auto" && researchIntent === "requested" ? "deep-research"
+      : body.actionMode;
     const contextHistory = selectedArtifact ? [...body.history, artifactContextMessage(selectedArtifact)]
       : selectedResearch ? [...body.history, refreshResearch ? { role: 'user', content:
         'The user requested a fresh research pass on this saved topic. This is historical task context, not evidence. '
@@ -407,7 +414,8 @@ const handler = async (request, response) => {
       await sendStreamEvent({ type: "segment", index: 0, response: capabilityResponse });
       await sendStreamEvent({ type: "text_complete" });
       await sendStreamEvent({ type: "emote", phase: "response", emote: "neutral" });
-      console.info("metabloom_capability", JSON.stringify({ mode: visualIntent.mode, outcome: "answered", requestRef }));
+      console.info("metabloom_capability", JSON.stringify({ mode: researchIntent === 'capability' ? 'research' : visualIntent.mode,
+        outcome: "answered", requestRef }));
       return response.end(JSON.stringify({ type: "done", version: METABLOOM_CHAT_PROTOCOL_VERSION }) + "\n");
     }
     // The same bounded Jev call supplies the input reaction and optional action.

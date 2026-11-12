@@ -101,7 +101,8 @@ Jev's input call can select a scene independently of its emotional reaction:
 `METABLOOM_ACTION_QUESTION` asks about the latest user's intent. A genuine request
 for a deep dive can select research; a playful request for a trick or a look
 under Metabloom's hood can select the reveal. Quoted commands, declined research,
-ordinary questions, and literal vehicle-hood questions do not request a scene.
+ordinary questions that do not need live evidence, and literal vehicle-hood
+questions do not request a scene.
 The independent action resolver requires a known choice and finite confidence
 from 0.7 to 1; invalid or uncertain action answers become `none` without erasing
 a valid emotional reaction.
@@ -112,13 +113,48 @@ beside `questions.reaction` in the existing input Jev request. TypeSafe supports
 so the turn still uses two Jev requests; the extra question consumes tokens.
 The **Deep Research** toggle sends `actionMode: "deep-research"`, runs real web
 research when the endpoint is configured, and allows separate paragraphs.
-Automatic mode can also select research for investigation or sourced current
-facts. Explicit modes (`none`, `deep-research`, `under-the-hood`)
+Automatic mode selects research for investigation, sourced current facts, and
+follow-ups about missing news coverage. Before Jev, `src/components/metabloomResearchIntent.js`
+recognizes narrow, unambiguous research requests and current-news follow-ups.
+These requests run research even when Jev is unavailable, invalid, or uncertain;
+other automatic requests retain the semantic classifier. An explicit refusal
+to search or a request to use only supplied material prevents new research,
+including when the Deep Research toggle is enabled. Otherwise explicit modes (`none`, `deep-research`, `under-the-hood`)
 take precedence, omit classification, and survive Jev failure. Omitting
 `actionMode` retains the older reaction/text-only stream.
 The toggle also selects the research presentation for local demos and an
 unconfigured endpoint's demo fallback; their authored content and preview
 source labels remain intact, without provider calls.
+
+### Capability and execution boundaries
+
+The host answers direct web-access questions from its configured capability,
+without a model call or a new search. Authentication, origin validation, quota
+and reference ownership still apply. A capability question selects `none` even
+if the Deep Research toggle is enabled. With no configured provider, the answer
+states that research is not configured in this environment.
+
+Every writer prompt knows that Deep Research is the application's live web
+capability. Its current-turn instructions separately state whether new research
+completed or whether the answer uses conversation/saved evidence. Prior assistant
+denials cannot change those capabilities; no training cutoff is invented. Chat
+does not have a tool to edit or deploy its own harness, and must not claim that
+it applied code changes.
+
+| Situation | Required behavior | Must not happen |
+| --- | --- | --- |
+| Explicit research request in automatic mode | Run the existing bounded web-search pipeline | Lose the request because Jev failed |
+| Missing-coverage follow-up after a news request | Check the new coverage using live research | Repeatedly ask the user to choose a research mode |
+| Direct capability question | Answer from host configuration without searching | Let conversation prose invent or disable capabilities |
+| Existing report summary/reformat request | Retain reference reuse rules | Start an unrelated search or silently attach an old report |
+| Search completed, structured summary unavailable | Preserve the full report and sources; label the card `Summary unavailable` | Present `0 stories` as if no news was found, or retract the completed search |
+
+On November 12, 2026, production logs for request `97e42c102580` recorded a
+completed research pass with five completed searches followed by a summary
+validation failure (`brief_shape_invalid`). The logs do not identify the exact
+rejected field, so this change does not claim to fix that formatter failure.
+The incident is covered by API intent/capability regressions and research-card
+tests. Strict citation, date and summary validation remain in place.
 
 An opted-in server emits one `{ "type": "action", "action": "deep-research" }`
 record after the input emote and before text. `request.onAction(action)` receives

@@ -91,7 +91,12 @@ describe("Metabloom emote library", () => {
       expect(prompt).toContain("Jev independently selects");
       expect(prompt).toContain("natural or playful reference to the selected scene is welcome");
       expect(prompt).toContain("Discussion of emotions or what the interface shows is allowed");
-      expect(prompt).toContain("no web browsing or neural inspection tools");
+      expect(prompt).toContain("The application provides live web research through Deep Research");
+      expect(prompt).toContain("No new web research pass ran for this reply");
+      expect(prompt).not.toContain("this chat provides no web browsing");
+      expect(prompt).toContain("do not invent one");
+      expect(prompt).toContain("an unavailable summary does not mean the search failed");
+      expect(prompt).toContain("You cannot edit or deploy application code from this chat");
       expect(prompt).toContain("raw action or emote IDs");
       expect(prompt).toContain("between one and 4 consecutive paragraphs of ONE assistant reply");
       expect(prompt).toContain("response as the only field within each segment");

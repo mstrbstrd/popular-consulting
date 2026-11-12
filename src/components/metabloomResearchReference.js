@@ -1,4 +1,5 @@
 const { parseMetabloomResearchSources } = require('./metabloomResearchSources');
+const { isMetabloomResearchDeclined } = require('./metabloomResearchIntent');
 
 const MAX_METABLOOM_REUSED_RESEARCH_SOURCES = 40;
 const exactKeys = (value, required, optional = []) => value && typeof value === 'object' && !Array.isArray(value)
@@ -85,7 +86,7 @@ const parseMetabloomResearchAnswerSources = (value, { report } = {}) => {
 // Only explicit requests for a new search override an attached reference.
 // Mentions such as "summarize this research" or "update the table" keep reuse.
 const isMetabloomFreshResearchRequest = message => {
-  if (typeof message !== 'string') return false;
+  if (typeof message !== 'string' || isMetabloomResearchDeclined(message)) return false;
   const text = message.trim().toLowerCase().replace(/[’‘]/g, "'");
   if (/\b(?:do not|don't|without|never|no need to|avoid)\s+(?:\w+\s+){0,2}(?:research|search|browse|refresh|update)\b/.test(text)) return false;
   return /\b(?:update|refresh)\s+(?:(?:this|the|that|my|our|saved|completed|previous)\s+){0,3}(?:research|report|brief|briefing|sources|findings|news)\b/.test(text)

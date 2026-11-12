@@ -8,6 +8,7 @@ const handler = require("../api/metabloom");
 const { parseMetabloomEmoteEnvelope, createMetabloomSegmentStreamDecoder } = require("../src/components/metabloomEmoteProtocol");
 const { buildMetabloomChatSystemPrompt } = require("../src/components/metabloomEmoteLibrary");
 const { getMetabloomVisualCapabilityResponse } = require("../src/components/metabloomVisualCapabilities");
+const { classifyMetabloomResearchIntent } = require("../src/components/metabloomResearchIntent");
 const originalFetch = global.fetch;
 const env = { ...process.env };
 afterEach(() => {
@@ -140,6 +141,106 @@ const jevReply = (emote, confidence = 0.97, action, actionConfidence = 0.97) => 
     type: "choice", choice: action, confidence: actionConfidence, probabilities: { [action]: 0.97 },
   } }) }, usage: { input_tokens: 40, output_tokens: 10 },
 }), { headers: { "content-type": "application/json" } });
+
+const newsHistory = [
+  { role: "user", content: "can you deep research the top 5 global news stories today?" },
+  { role: "assistant", content: "The full research and its sources are shown below. I could not prepare the summary reliably." },
+];
+
+test("research intent recognizes requests and current-news omissions without turning capability or quoted discussion into searches", () => {
+  for (const message of [newsHistory[0].content, "Please research recent battery developments.", "What are the latest global headlines?",
+    "how did you miss the nvidia news?", "Why did you omit the election?", "What about the central bank announcement?"])
+    assert.equal(classifyMetabloomResearchIntent(message, newsHistory), "requested", message);
+  for (const message of ["you should have web access no?", "deep research has web access correct?", "Can you browse the web?",
+    "Do you have live web access in this chat?"])
+    assert.equal(classifyMetabloomResearchIntent(message, newsHistory), "capability", message);
+  for (const message of ["Don't research this again; explain the existing report.", "Without searching, what about the Nvidia news?",
+    "No need to browse; summarize this.", "Research this offline.", "Research this using only the provided text."])
+    assert.equal(classifyMetabloomResearchIntent(message, newsHistory), "declined", message);
+  for (const message of ["Hello", "Thanks", 'Explain the phrase "deep research the news".', "What is Deep Research?",
+    "Summarize this report", "Can you update your harness for this?", "Can you make a table of the existing findings?"])
+    assert.equal(classifyMetabloomResearchIntent(message, newsHistory), "auto", message);
+  assert.equal(classifyMetabloomResearchIntent("How did you miss that step?", [
+    ...newsHistory, { role: "user", content: "Explain long division." }, { role: "assistant", content: "A math explanation." },
+  ]), "auto");
+  assert.equal(classifyMetabloomResearchIntent("What about Nvidia?", [{ role: "assistant", content: newsHistory[0].content }]), "auto");
+});
+
+test("web capability answers are host-owned even after false denials and do not start a search", async () => {
+  local();
+  global.fetch = async () => { throw new Error("Capability answers must not invoke a provider"); };
+  const history = [...newsHistory, { role: "assistant", content: "I do not have live web access and my training cuts off at June 2024." }];
+  for (const message of ["you should have web access no?", "deep research has web access correct?", "Can you browse the web?"]) {
+    const res = response();
+    await handler(request({ message, history, actionMode: "deep-research", streamText: true }), res);
+    const events = res.body.trim().split("\n").map(JSON.parse);
+    assert.equal(res.statusCode, 200);
+    assert.equal(events.find(event => event.type === "action").action, "none");
+    assert(!events.some(event => event.type.startsWith("research")));
+    const answer = events.find(event => event.type === "segment").response;
+    assert.match(answer, /Deep Research is my live web research capability/);
+    assert.match(answer, /No new search was run/);
+    assert.doesNotMatch(answer, /2024|which would you like|I don.t have/);
+    const decoder = createMetabloomSegmentStreamDecoder();
+    assert.equal(decoder.push(res.body), true); assert.equal(decoder.finish().ok, true);
+    history.push({ role: "user", content: message }, { role: "assistant", content: answer });
+  }
+});
+
+test("unconfigured research capability answers do not advertise working web access", async () => {
+  local(); delete process.env.OPENAI_API_KEY;
+  global.fetch = async () => { throw new Error("No provider is configured"); };
+  const res = response(); await handler(request({ message: "Do you have web access?", actionMode: "auto" }), res);
+  assert.equal(res.statusCode, 200);
+  const answer = res.body.trim().split("\n").map(JSON.parse).find(event => event.type === "segment").response;
+  assert.match(answer, /not configured in this environment/);
+});
+
+test("explicit research and news-omission follow-ups run real web research when Jev is absent, fails, or misses the request", async () => {
+  for (const jevMode of ["unconfigured", "unavailable", "none"]) {
+    local(); if (jevMode !== "unconfigured") process.env.TYPESAFE_API_KEY = "fixture";
+    for (const message of [newsHistory[0].content, "how did you miss the nvidia news?"]) {
+      const calls = [];
+      global.fetch = async (url, options) => {
+        if (String(url).includes("typesafe.ai")) return jevMode === "none"
+          ? jevReply("reflective", 0.97, "none") : new Response("{}", { status: 503 });
+        const body = JSON.parse(options.body); calls.push(body);
+        return body.tools ? researchReply() : reply(textEnvelope("The new research supports this finding [1]."));
+      };
+      const res = response(); await handler(request({ message, history: newsHistory, actionMode: "auto" }), res);
+      assert.equal(res.statusCode, 200);
+      assert.equal(calls.length, 2);
+      assert.equal(calls[0].tools[0].type, "web_search"); assert.equal(calls[0].tool_choice, "required");
+      assert.deepEqual(calls[0].input.at(-1), { role: "user", content: message });
+      assert.deepEqual(calls[0].input.slice(0, -1), newsHistory);
+      assert.match(calls[1].instructions, /A web research pass has completed for this question/);
+      assert.doesNotMatch(calls[1].instructions, /No new web research pass ran/);
+      const events = res.body.trim().split("\n").map(JSON.parse);
+      assert.equal(events.find(event => event.type === "action").action, "deep-research");
+      assert.equal(events.at(-1).type, "done");
+    }
+  }
+});
+
+test("declining research and explicit conversation mode prevent the automatic research override", async () => {
+  local(); process.env.TYPESAFE_API_KEY = "fixture";
+  for (const [message, actionMode] of [["Don't research again; explain the missing coverage.", "auto"],
+    ["Don't search; use the existing report.", "deep-research"], ["Research this using only the provided text.", "auto"],
+    ["Research the latest headlines.", "none"], ["Can you update your harness for this?", "none"]]) {
+    const calls = [];
+    global.fetch = async (url, options) => {
+      if (String(url).includes("typesafe.ai")) return jevReply("reflective", 0.97, "deep-research");
+      const body = JSON.parse(options.body); calls.push(body);
+      return reply(textEnvelope("The summary was unavailable; this reply has not run a new search."));
+    };
+    const res = response(); await handler(request({ message, history: newsHistory, actionMode }), res);
+    assert.equal(res.statusCode, 200); assert.equal(calls.length, 1); assert.equal(calls[0].tools, undefined);
+    assert.match(calls[0].instructions, /No new web research pass ran for this reply/);
+    assert.match(calls[0].instructions, /You cannot edit or deploy application code from this chat/);
+    assert.doesNotMatch(calls[0].instructions, /this chat provides no web browsing/);
+    assert.equal(res.body.trim().split("\n").map(JSON.parse).find(event => event.type === "action").action, "none");
+  }
+});
 
 test("live endpoint streams response-only paragraphs with two neutral fallbacks when Jev is unconfigured", async () => {
   local(); let sent; let calls = 0;
@@ -444,9 +545,9 @@ test("auto prompt context matches the validated action rather than words in the 
   for (const { message, action, confidence = 0.97, emote = "warm", selected } of [
     { message: "Please do a deep dive", action: "under-the-hood", selected: "under-the-hood" },
     { message: "Show me a trick", action: "deep-research", selected: "deep-research" },
-    { message: "Research this deeply", action: "none", selected: "none" },
-    { message: "Research this deeply", action: "unknown", selected: "none" },
-    { message: "Research this deeply", action: "deep-research", confidence: 0.69, selected: "none" },
+    { message: "Please examine this carefully", action: "none", selected: "none" },
+    { message: "Please examine this carefully", action: "unknown", selected: "none" },
+    { message: "Please examine this carefully", action: "deep-research", confidence: 0.69, selected: "none" },
     { message: "Show me a trick", action: undefined, selected: "none" },
     { message: "Hello", action: "under-the-hood", emote: "unknown", selected: "under-the-hood" },
   ]) {
@@ -489,7 +590,7 @@ test("an auto decision timeout gives OpenAI the same ordinary presentation as th
     return reply(textEnvelope("Here is what we can establish."));
   };
   const res = response();
-  await handler(request({ message: "Research this deeply", actionMode: "auto", streamText: true }), res);
+  await handler(request({ message: "Please examine this carefully", actionMode: "auto", streamText: true }), res);
   const records = res.body.trim().split("\n").map(JSON.parse);
   assert.deepEqual(records[0], { type: "emote", phase: "input", emote: "neutral" });
   assert.deepEqual(records[1], { type: "action", action: "none" });

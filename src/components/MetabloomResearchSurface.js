@@ -75,7 +75,8 @@ export default function MetabloomResearchSurface({ messageId, report, brief, ref
   const title = savedTitle || brief?.title || source?.title || 'Research report';
   const count = brief?.items.length;
   const summary = [
-    brief ? `${count} ${brief.kind === 'news' ? (count === 1 ? 'story' : 'stories') : (count === 1 ? 'finding' : 'findings')}` : null,
+    brief?.coverage.status === 'unavailable' ? 'Summary unavailable'
+      : brief ? `${count} ${brief.kind === 'news' ? (count === 1 ? 'story' : 'stories') : (count === 1 ? 'finding' : 'findings')}` : null,
     `${report.sources.length} ${report.sources.length === 1 ? 'source' : 'sources'}`,
     brief?.localDate || source?.localDate,
   ].filter(Boolean).join(' · ');

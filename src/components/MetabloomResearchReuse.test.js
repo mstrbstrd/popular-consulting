@@ -151,6 +151,16 @@ test('a one-shot research locator overrides the persisted Deep Research toggle w
   expect(requests[1].request).not.toHaveProperty('researchContext');
 });
 
+test.each(['Refresh this research offline.', 'Update this research without browsing.'])('source-limited wording keeps the client in reuse mode: %s', async message => {
+  workspace({ messages: [messageFor()], deepResearch: true }).mount();
+  fireEvent.click(screen.getByRole('button', { name: 'Use this research' }));
+  fireEvent.change(screen.getByRole('textbox'), { target: { value: message } });
+  expect(screen.getByRole('group', { name: 'Selected research reference' })).toHaveTextContent('Use saved research');
+  await send(message);
+  expect(requests[0].request.actionMode).toBe('none');
+  expect(requests[0].request.researchContext).toEqual(attachmentFor().reference);
+});
+
 test('only an explicit finding action selects its original brief index, even beyond source eight', async () => {
   workspace().mount();
   fireEvent.change(screen.getByRole('combobox', { name: 'Choose a finding' }), { target: { value: '1' } });

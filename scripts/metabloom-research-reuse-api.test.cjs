@@ -225,6 +225,32 @@ test('an explicit fresh request resolves its attachment then runs new research w
   assert.notEqual(updated.researchId, metadata.researchId);
 });
 
+test('a missing-news follow-up can refresh an attached report without reusing its evidence or citation IDs', async () => {
+  const metadata = await save(), calls = installProvider(), res = response();
+  await handler(request({ message: 'How did you miss the Nvidia news?', actionMode: 'none',
+    history: [{ role: 'user', content: 'Deep research the top five global news stories today.' },
+      { role: 'assistant', content: 'The research completed but its summary is unavailable.' }],
+    researchContext: { researchId: metadata.researchId, selector: { type: 'report' } } }), res);
+  assert.deepEqual(calls.map(call => call.phase), ['research', 'brief']);
+  assert.equal(records(res).find(event => event.type === 'action').action, 'deep-research');
+  assert(!records(res).some(event => event.type === 'research_reuse'));
+  assert.equal(records(res).at(-1).type, 'done');
+  const background = calls[0].body.input.find(item => item.content.startsWith('The user requested a fresh research pass'));
+  assert(background); assert(!background.content.includes('"sources"'));
+  assert.notEqual(records(res).find(event => event.type === 'research_reference').research.researchId, metadata.researchId);
+  assert.equal(decode(res).reports.length, 1);
+});
+
+test('an offline refresh request keeps attached evidence and does not start a new search', async () => {
+  const metadata = await save(), calls = installProvider(), res = response();
+  await handler(request({ message: 'Refresh this research offline.', actionMode: 'deep-research',
+    researchContext: { researchId: metadata.researchId, selector: { type: 'report' } } }), res);
+  assert.deepEqual(calls.map(call => call.phase), ['writer']);
+  assert.equal(records(res).find(event => event.type === 'action').action, 'none');
+  assert(records(res).some(event => event.type === 'research_reuse'));
+  assert.equal(records(res).at(-1).type, 'done');
+});
+
 test('Stop after report completion prevents persistence and formatter work', async () => {
   const calls = installProvider(), res = response(), write = res.write;
   res.write = function(value) { write.call(this, value); if (JSON.parse(value).type === 'research_report_complete') {
