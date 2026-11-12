@@ -1,5 +1,7 @@
 # Tool-aware native UI in Orb
 
+Current ordinary chat uses the [conversation toolset](metabloom-chat-toolset.md), including model-selected `create_visual`. The forced start/generate/continue path described below remains for cached clients and explicit saved-reference conversions.
+
 ## Scope
 This extends the existing native Aetheris visual renderer. It does not execute generated HTML or JavaScript and does not install CopilotKit. The existing ordinary answer, Jev reaction, research, and optional post-answer visual paths remain intact.
 

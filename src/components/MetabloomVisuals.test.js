@@ -228,6 +228,49 @@ test('an explicit apple-pie request mounts the pie before its closing response',
   expect(screen.queryByText(/I could not create/)).not.toBeInTheDocument();
 });
 
+test('the ordinary agent owns tool choice without a competing visual request', () => {
+  const message = 'Create a pie chart of apple pie ingredients.';
+  messages = [{ id: 'user-1', role: 'user', content: message }];
+  render(<div className="orb-page"><article data-message-id="user-1">{message}</article><MetabloomVisuals /></div>);
+  const claim = jest.fn();
+  const event = new CustomEvent('metabloom:user-message', { cancelable: true, detail: {
+    requestId: 'agent-1', message, history: [], actionMode: 'auto', toolset: true,
+    signal: new AbortController().signal, claim,
+  } });
+  act(() => window.dispatchEvent(event));
+  expect(event.defaultPrevented).toBe(false);
+  expect(claim).not.toHaveBeenCalled();
+  expect(postMetabloomTool).not.toHaveBeenCalled();
+  expect(requestMetabloomVisual).not.toHaveBeenCalled();
+});
+
+test.each(['ready', 'failed'])('ordinary chat hands a queued visual to the native renderer exactly once: %s', async outcome => {
+  const originalMatchMedia = window.matchMedia;
+  window.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} });
+  const offer = { version: '1', designVersion: 'aetheris-1', id: 'c'.repeat(48), kind: 'table', expiresAt: Date.now() + 600000 };
+  const reply = { version: '2.0.0', segments: [{ response: 'I have requested the comparison table.' }] };
+  window.__metabloomRequest = async request => {
+    expect(request.toolset).toBe(true);
+    request.onReaction({ phase: 'input', emote: 'neutral' }); request.onAction('none');
+    for (const state of ['running', 'complete']) request.onToolActivity({ type: 'tool_activity', name: 'create_visual', callId: 'visual_1', state });
+    window.dispatchEvent(new CustomEvent(METABLOOM_VISUAL_OFFER_EVENT, {
+      detail: { offer, reply, requestId: request.requestId, signal: request.signal },
+    }));
+    return reply;
+  };
+  if (outcome === 'ready') requestMetabloomVisual.mockResolvedValue({ spec: table, sources: [], artifactVersion: 'b'.repeat(32) });
+  else requestMetabloomVisual.mockRejectedValue({ code: 'visual_unavailable' });
+  try {
+    render(<div className="orb-page"><OrbSection /><MetabloomVisuals /></div>);
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Create a table comparing A: 10 and B: 20.' } });
+    fireEvent.submit(screen.getByRole('form', { name: 'Message Metabloom' }));
+    await waitFor(() => expect(document.querySelector('.metabloom-visual')).toHaveAttribute('data-visual-state', outcome));
+    expect(screen.getByText(reply.segments[0].response)).toBeInTheDocument();
+    expect(requestMetabloomVisual).toHaveBeenCalledTimes(1);
+    expect(postMetabloomTool).not.toHaveBeenCalled();
+  } finally { cleanup(); window.__metabloomRequest = null; window.matchMedia = originalMatchMedia; }
+});
+
 test('disabled tool never falls back to the ordinary model or displays HTML source', async () => {
   postMetabloomTool.mockRejectedValue({ code: 'tool_disabled' });
   messages = [{ id: 'user-1', role: 'user', content: 'Create an interactive calculator.' }];
@@ -344,15 +387,19 @@ test.each(['pruning', 'unmount'])('a pending assistant visual is removed on %s a
 });
 
 describe('the explicit visual reading position in the real Orb transcript', () => {
+  const legacyToolRequest = event => { event.detail.toolset = false; };
   let matchMedia;
   let ordinaryRequests;
   beforeEach(() => {
+    // Preserve coverage of cached clients and scoped visual continuation.
+    window.addEventListener('metabloom:user-message', legacyToolRequest, { capture: true });
     matchMedia = window.matchMedia;
     window.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} });
     ordinaryRequests = [];
     window.__metabloomRequest = request => new Promise(finish => ordinaryRequests.push({ request, finish }));
   });
   afterEach(() => {
+    window.removeEventListener('metabloom:user-message', legacyToolRequest, { capture: true });
     cleanup();
     jest.restoreAllMocks();
     window.matchMedia = matchMedia;

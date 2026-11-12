@@ -71,6 +71,27 @@ const modelResponse = (overrides = {}) => ({
 });
 
 describe("OrbSection", () => {
+  test('ordinary tools show activity and retain cited sources in the reply', () => {
+    let request;
+    const receive = event => { request = event.detail; event.detail.claim(); };
+    window.addEventListener('metabloom:user-message', receive);
+    try {
+      render(<OrbSection isActive />);
+      const input = screen.getByRole('textbox', { name: 'Message Metabloom' });
+      fireEvent.change(input, { target: { value: 'What is the Nvidia news?' } });
+      fireEvent.keyDown(input, { key: 'Enter', shiftKey: false });
+      expect(request.toolset).toBe(true);
+      act(() => request.onToolActivity({ type: 'tool_activity', name: 'search_web', callId: 'search_1', state: 'running' }));
+      expect(screen.getAllByText('Searching the web').length).toBeGreaterThan(0);
+      act(() => {
+        request.onToolActivity({ type: 'tool_activity', name: 'search_web', callId: 'search_1', state: 'complete' });
+        expect(request.onSources([{ id: 1, title: 'Announcement', url: 'https://example.com/news' }])).toBe(true);
+        request.respond({ version: '2.0.0', segments: [{ response: 'Verified news. [1]' }] });
+      });
+      expect(window.__orbMessages().at(-1).sources).toEqual([{ id: 1, title: 'Announcement', url: 'https://example.com/news' }]);
+      expect(screen.queryAllByText('Searching the web')).toHaveLength(0);
+    } finally { window.removeEventListener('metabloom:user-message', receive); }
+  });
   beforeEach(() => {
     jest.useFakeTimers();
     mockAvatarProps = null;

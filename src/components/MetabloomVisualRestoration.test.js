@@ -68,7 +68,11 @@ let ordinaryRequests;
 let matchMedia;
 let hiddenDescriptor;
 let readyListener;
+// Preserve interruption/restoration coverage for cached visual-tool clients.
+// The threads browser suite covers restoration of new agent-generated offers.
+const legacyToolRequest = event => { event.detail.toolset = false; };
 beforeEach(() => {
+  window.addEventListener('metabloom:user-message', legacyToolRequest, { capture: true });
   requestMetabloomVisual.mockReset(); postMetabloomTool.mockReset();
   ordinaryRequests = [];
   window.__metabloomRequest = request => new Promise(finish => ordinaryRequests.push({ request, finish }));
@@ -80,6 +84,7 @@ beforeEach(() => {
   window.addEventListener('metabloom:visual-ready', readyListener);
 });
 afterEach(() => {
+  window.removeEventListener('metabloom:user-message', legacyToolRequest, { capture: true });
   cleanup(); jest.restoreAllMocks();
   window.__metabloomRequest = null;
   window.matchMedia = matchMedia;

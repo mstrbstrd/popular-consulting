@@ -3,6 +3,7 @@ import { METABLOOM_ACTION_MODES } from "./metabloomDecisionMapping";
 import { METABLOOM_REQUEST_ERROR_MESSAGES, parseMetabloomRequestError, parseMetabloomRequestRef, getMetabloomApiErrorMessage } from "./metabloomRequestErrors";
 import { METABLOOM_VISUAL_OFFER_EVENT, createMetabloomVisualStreamBridge } from "./metabloomVisualApiClient";
 import { parseMetabloomResearchContext, isMetabloomFreshResearchRequest } from "./metabloomResearchReference";
+import { METABLOOM_AGENT_TIMEOUT_MS } from './metabloomAgentTools';
 
 export { getMetabloomApiErrorMessage } from "./metabloomRequestErrors";
 
@@ -45,6 +46,8 @@ export const requestMetabloomResponse = async ({
   onResearchReference,
   onSources,
   onVisualOffer,
+  onToolActivity,
+  toolset = true,
   optional = false,
   requestId,
   signal,
@@ -62,13 +65,15 @@ export const requestMetabloomResponse = async ({
     if (optional && !researchContext) return null;
     throw new MetabloomApiError("Fetch is unavailable.");
   }
+  const useTools = toolset === true && !artifactContext && !researchContext && actionMode !== 'deep-research';
   const controller = new AbortController();
   const abort = () => controller.abort();
   if (signal?.aborted) abort();
   signal?.addEventListener("abort", abort, { once: true });
   const startedAt = Date.now();
   let researchStarted = false;
-  let timeout = setTimeout(abort, 30000);
+  let toolsStarted = false;
+  let timeout = setTimeout(abort, useTools ? METABLOOM_AGENT_TIMEOUT_MS : 30000);
   let reader;
   let responseStatus = 0;
   let responseRequestRef = null;
@@ -76,7 +81,8 @@ export const requestMetabloomResponse = async ({
     const response = await fetchImpl("/api/metabloom", {
       method: "POST",
       credentials: "same-origin",
-      headers: { "Content-Type": "application/json", Accept: "application/x-ndjson", "X-Metabloom-Visuals": "1", "X-Metabloom-Ui-Tools": "1" },
+      headers: { "Content-Type": "application/json", Accept: "application/x-ndjson", "X-Metabloom-Visuals": "1", "X-Metabloom-Ui-Tools": "1",
+        ...(useTools ? { 'X-Metabloom-Toolset': '1' } : {}) },
       body: JSON.stringify({ actionMode, allowMultiple: allowMultiple === true, streamText: true,
         streamResearchProgress: true, streamResearchDetails: true, streamResearchBrief: true, streamResearchMedia: true, streamResearchReuse: true, timeZone, history, message, requestId,
         ...(artifactContext ? { artifactContext } : {}), ...(researchContext ? { researchContext } : {}) }),
@@ -92,6 +98,16 @@ export const requestMetabloomResponse = async ({
       allowResearchDetails: true,
       allowResearchBrief: true,
       allowResearchReuse: true,
+      allowTools: useTools,
+      onToolActivity: (activity) => {
+        if (controller.signal.aborted) throw new MetabloomApiError('Cancelled.', { code: 'cancelled' });
+        if (!toolsStarted) {
+          toolsStarted = true;
+          clearTimeout(timeout);
+          timeout = setTimeout(abort, Math.max(0, startedAt + METABLOOM_AGENT_TIMEOUT_MS - Date.now()));
+        }
+        onToolActivity?.(activity);
+      },
       onError: (error) => {
         const code = error.code || "invalid_response";
         streamError = new MetabloomApiError(getMetabloomApiErrorMessage(code), {

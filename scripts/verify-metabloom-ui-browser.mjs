@@ -228,6 +228,9 @@ try {
     await call('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: width < 500 });
     await call('Page.navigate', { url: `${origin}/orb?graphics=css&test-case=${name}` });
     await until(`location.search.includes(${JSON.stringify(`test-case=${name}`)}) && typeof window.__orbMessages === 'function' && document.querySelector('#metabloom-message')`);
+    // Exercise the retained cached-client tool continuation contract here.
+    // Mobile-workspace and threads suites cover the new default agent stream.
+    await evaluate("window.addEventListener('metabloom:user-message', event => { event.detail.toolset = false; }, { capture: true })");
     if (await evaluate('document.documentElement.dataset.theme') !== theme) {
       await evaluate("document.querySelector('button[aria-label=\"Toggle dark mode\"]').click()");
       await until(`document.documentElement.dataset.theme === ${JSON.stringify(theme)}`);

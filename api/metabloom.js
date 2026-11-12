@@ -18,6 +18,7 @@ const { METABLOOM_VISUAL_KINDS, evaluateMetabloomVisualFormula } = require("../s
 const { classifyMetabloomVisualIntent } = require("../src/components/metabloomVisualIntent");
 const { getMetabloomVisualCapabilityResponse } = require("../src/components/metabloomVisualCapabilities");
 const { streamMetabloomProvider } = require("../server/metabloomProviderStream");
+const { runMetabloomAgent } = require("../server/metabloomAgent");
 const { conductMetabloomResearch, validateMetabloomResearchCitations } = require("../server/metabloomResearch");
 const { normalizeMetabloomResearchTimeZone, buildMetabloomResearchTemporalContext,
   generateMetabloomResearchBrief } = require("../server/metabloomResearchBrief");
@@ -294,7 +295,7 @@ const handler = async (request, response) => {
     version: METABLOOM_CHAT_PROTOCOL_VERSION, release: "jev-dual-reactions-v2", presentation: "single-message-stream",
     uiToolsEnabled: Boolean(visualIdentity) && visualsEnabled()
       && process.env.METABLOOM_UI_TOOLS_ENABLED !== 'false' && configured(request),
-    streaming: "validated-text-and-reactions", research: "web-search-with-citations", configured: configured(request),
+    streaming: "validated-text-and-reactions", research: "web-search-with-citations", toolset: 1, configured: configured(request),
     jevConfigured: Boolean(process.env.TYPESAFE_API_KEY), emotes: METABLOOM_EMOTE_IDS,
   });
   if (request.method !== "POST") {
@@ -311,6 +312,10 @@ const handler = async (request, response) => {
   const refreshResearch = Boolean(body.researchContext && researchIntent !== 'declined' && (isMetabloomFreshResearchRequest(body.message)
     || researchIntent === 'requested'));
   const providerConfigured = configured(request);
+  // Explicit saved references retain their owner-checked conversion/reuse path.
+  // Negotiation keeps cached clients on their existing stream contract.
+  const useAgent = request.headers?.["x-metabloom-toolset"] === "1"
+    && !body.artifactContext && !body.researchContext && body.actionMode !== "deep-research";
   const nativeVisualsAvailable = Boolean(request.headers?.["x-metabloom-visuals"] === "1"
     && body.requestId && visualIdentity && visualsEnabled() && providerConfigured);
   const capabilityResponse = getMetabloomResearchCapabilityResponse(researchIntent, { enabled: providerConfigured })
@@ -322,14 +327,14 @@ const handler = async (request, response) => {
   // A tool-capable client must not silently route an explicit native UI request
   // through the ordinary text writer. Old clients without this capability header
   // keep their existing protocol.
-  if (request.headers?.["x-metabloom-ui-tools"] === "1" && visualIntent.mode === "requested"
+  if (!useAgent && request.headers?.["x-metabloom-ui-tools"] === "1" && visualIntent.mode === "requested"
     && (body.actionMode !== "deep-research" || body.researchContext) && !refreshResearch) {
     return sendJson(response, 409, { code: "visual_tool_required" });
   }
   const requestRef = randomBytes(6).toString("hex");
   response.setHeader("X-Metabloom-Request-Ref", requestRef);
   // Fixed capability replies require the same quota boundary, but no model key.
-  if (!providerConfigured && (!capabilityResponse
+  if (!providerConfigured && (useAgent || !capabilityResponse
     || !(isLocal(request) || (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN)))) {
     return sendJson(response, 503, { code: "not_configured" });
   }
@@ -404,6 +409,36 @@ const handler = async (request, response) => {
         await sendStreamEvent({ type: "research_report_delta", index, delta: report.notes.slice(offset, offset + MAX_METABLOOM_RESEARCH_REPORT_CHUNK_CHARS) });
       await sendStreamEvent({ type: "research_report_complete" });
     };
+    if (useAgent) {
+      // One absolute deadline includes every model step, tool, and reaction.
+      armDeadline(startedAt + 75000);
+      stage = "agent";
+      const decision = await decideMetabloomInput({ phase: "input", actionMode: body.actionMode || 'none',
+        state: { latestUserMessage: body.message, recentConversation: body.history.slice(-4) },
+        signal: controller.signal, timeoutMs: 950 });
+      // Jev still chooses expressive scenes; only the agent chooses its tools.
+      const action = decision.action === 'under-the-hood' ? decision.action : 'none';
+      await sendStreamEvent({ type: 'emote', phase: 'input', emote: decision.emote });
+      await sendStreamEvent({ type: 'action', action });
+      const result = await runMetabloomAgent({ message: body.message, history: body.history,
+        allowMultiple: body.allowMultiple, presentationAction: action, timeZone: body.timeZone || 'UTC',
+        identity: visualIdentity, requestId: body.requestId, requestRef, signal: controller.signal,
+        visualsAvailable: nativeVisualsAvailable && request.headers?.['x-metabloom-ui-tools'] === '1'
+          && process.env.METABLOOM_UI_TOOLS_ENABLED !== 'false' && !['text_only', 'unsupported'].includes(visualIntent.mode),
+        visualStore: createMetabloomVisualStore(), onTool: sendStreamEvent });
+      if (result.sources.length) await sendStreamEvent({ type: 'tool_sources', sources: result.sources });
+      for (const [index, segment] of result.reply.segments.entries()) {
+        if (body.streamText === true) await sendStreamEvent({ type: 'text_delta', index, delta: segment.response });
+        await sendStreamEvent({ type: 'segment', index, ...segment });
+      }
+      await sendStreamEvent({ type: 'text_complete' });
+      const emote = await decideMetabloomReaction({ phase: 'response',
+        state: { latestUserMessage: body.message, assistantResponse: result.reply.segments.map(segment => segment.response).join('\n\n') },
+        signal: controller.signal, timeoutMs: 1200 });
+      await sendStreamEvent({ type: 'emote', phase: 'response', emote });
+      if (result.offer) await sendStreamEvent({ type: 'visual_offer', offer: result.offer });
+      return response.end(JSON.stringify({ type: 'done', version: METABLOOM_CHAT_PROTOCOL_VERSION }) + '\n');
+    }
     if (capabilityResponse) {
       // The host owns its capability and execution status. Conversation prose
       // cannot invent a tool, a paid task or a successful browser mount.

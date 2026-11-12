@@ -8,6 +8,7 @@ import { createBuildServer } from './auth-invoice-test-server.mjs';
 import { findBrowser } from './dark-evidence-browser.mjs';
 
 const require = createRequire(import.meta.url);
+const visualStream = require('./fixtures/metabloom-agent-stream.cjs');
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const buildRoot = path.resolve('build');
 const output = path.resolve(process.env.METABLOOM_THREADS_EVIDENCE || 'metabloom-threads');
@@ -15,7 +16,7 @@ assert(fs.existsSync(path.join(buildRoot, 'orb', 'index.html')), 'Build the appl
 fs.mkdirSync(output, { recursive: true });
 const question = 'Create an interactive project-price calculator. Hours: default 10, minimum 1, maximum 80. '
   + 'Hourly rate: default 65 CAD, minimum 10, maximum 200. Total equals hours multiplied by hourly rate.';
-const answer = 'Your project-price calculator is ready. Adjust the supplied hours and rate.';
+const answer = 'I have requested your project-price calculator with the supplied hours and rate.';
 const draft = 'Compare this estimate with three additional hours.';
 const savedTitle = 'Project pricing history';
 const temporaryTitle = 'Temporary chat for delete verification';
@@ -27,7 +28,7 @@ const spec = { version: '1', designVersion: 'aetheris-1', kind: 'calculator', ti
   formula: ['hours', 'rate', 'multiply'], formulaDescription: 'Hours multiplied by hourly rate.', unit: 'CAD' };
 const componentId = 'a'.repeat(48), artifactVersion = 'b'.repeat(32);
 const modelCalls = [], threadCalls = [], fixtureErrors = [], pageErrors = [], results = [];
-let generated = false, continued = false, sessions = 0, browser, activePage, activeCase = 'startup';
+let generated = false, sessions = 0, browser, activePage, activeCase = 'startup';
 const server = createBuildServer({ buildRoot,
   getSession: () => {
     sessions += 1;
@@ -52,11 +53,12 @@ server.on('request', async (request, response) => {
     for await (const part of request) { raw += part; assert(raw.length <= 24000); }
     const body = JSON.parse(raw);
     modelCalls.push({ path: pathname, phase: body.phase });
-    if (pathname === '/api/metabloom-tool' && body.phase === 'start') {
+    if (pathname === '/api/metabloom') {
+      assert.equal(request.headers['x-metabloom-toolset'], '1');
       assert.equal(body.message, question);
-      assert.equal(modelCalls.filter(call => call.phase === 'start').length, 1, 'Create only one component in this suite');
-      return send(response, 200, { emote: 'curious', offer: { id: componentId, version: '1', designVersion: 'aetheris-1',
-        kind: 'calculator', expiresAt: Date.now() + 600000 } });
+      assert.equal(modelCalls.filter(call => call.path === '/api/metabloom').length, 1, 'Create only one component in this suite');
+      return visualStream(response, { id: componentId, version: '1', designVersion: 'aetheris-1',
+        kind: 'calculator', expiresAt: Date.now() + 600000 }, answer);
     }
     if (pathname === '/api/metabloom-visual') {
       assert.equal(body.id, componentId);
@@ -64,13 +66,6 @@ server.on('request', async (request, response) => {
       assert.equal(generated, false, 'Restoring a thread must never regenerate its component');
       generated = true;
       return send(response, 200, { id: componentId, version: '1', designVersion: 'aetheris-1', spec, sources: [], artifactVersion });
-    }
-    if (pathname === '/api/metabloom-tool' && body.phase === 'continue') {
-      assert.equal(body.id, componentId);
-      assert(generated && !continued, 'Continue the generated component exactly once');
-      assert.equal(body.display, 'mounted');
-      continued = true;
-      return send(response, 200, { emote: 'warm', reply: { version: '2.0.0', segments: [{ response: answer }] } });
     }
     assert.fail(`Unexpected fictional model endpoint: ${pathname}`);
   } catch (error) {
@@ -82,8 +77,7 @@ await new Promise((resolve, reject) => { server.once('error', reject); server.li
 const origin = `http://127.0.0.1:${server.address().port}`;
 const settle = page => page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 const noRegeneration = () => assert.deepEqual(modelCalls, [
-  { path: '/api/metabloom-tool', phase: 'start' }, { path: '/api/metabloom-visual', phase: undefined },
-  { path: '/api/metabloom-tool', phase: 'continue' },
+  { path: '/api/metabloom', phase: undefined }, { path: '/api/metabloom-visual', phase: undefined },
 ], 'History, inputs, metadata and restored threads never repeat a model request');
 const rememberRenderer = page => page.evaluate(() => {
   window.__threadRenderer = document.querySelector('.metabloom-visual');

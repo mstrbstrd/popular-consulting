@@ -92,6 +92,9 @@ const activeWorkspace = () => screen.getByRole('region', { name: 'Current compon
 const workspaceSaveStatus = () => within(activeWorkspace()).getByRole('status', { name: 'Save status' });
 const show = title => fireEvent.click(screen.getByRole('button', { name: `Show component: ${title}` }));
 let requests, originalMatchMedia;
+// These fixtures exercise the retained start/generate/continue protocol.
+// Default agent offers are also exercised by the mobile-workspace browser suite.
+const legacyToolRequest = event => { event.detail.toolset = false; };
 beforeAll(() => {
   global.TextEncoder = TextEncoder;
   Object.defineProperty(globalThis, 'crypto', { configurable: true, value: {
@@ -103,6 +106,7 @@ afterAll(() => {
   else delete globalThis.crypto;
 });
 beforeEach(() => {
+  window.addEventListener('metabloom:user-message', legacyToolRequest, { capture: true });
   requests = [];
   requestMetabloomVisual.mockReset(); postMetabloomTool.mockReset();
   requestMetabloomSavedWork.mockReset();
@@ -111,6 +115,7 @@ beforeEach(() => {
   window.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} });
 });
 afterEach(() => {
+  window.removeEventListener('metabloom:user-message', legacyToolRequest, { capture: true });
   cleanup(); jest.restoreAllMocks();
   delete window.__metabloomRequest;
   window.matchMedia = originalMatchMedia;

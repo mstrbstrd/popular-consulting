@@ -17,6 +17,7 @@ const { MAX_METABLOOM_RESEARCH_REPORT_BYTES, MAX_METABLOOM_RESEARCH_REPORT_CHUNK
 const { MAX_METABLOOM_RESEARCH_BRIEF_BYTES, MAX_METABLOOM_RESEARCH_BRIEF_CHUNK_CHARS,
   parseMetabloomClientResearchBrief: parseMetabloomResearchBrief } = require("./metabloomResearchBriefProtocol");
 const { METABLOOM_STREAM_ERROR_CODES, parseMetabloomRequestError, getMetabloomApiErrorMessage } = require("./metabloomRequestErrors");
+const { parseMetabloomAgentActivity, MAX_METABLOOM_AGENT_CALLS } = require('./metabloomAgentTools');
 
 const MAX_SERIALIZED_CHARS = 24000;
 // Allow bounded NDJSON framing even when all 4,800 text characters arrive singly.
@@ -104,6 +105,7 @@ const createMetabloomSegmentStreamDecoder = ({
   allowResearchDetails = false,
   allowResearchBrief = false,
   allowResearchReuse = false,
+  allowTools = false,
   maxBufferChars = MAX_SERIALIZED_CHARS,
   onDone,
   onError,
@@ -117,6 +119,7 @@ const createMetabloomSegmentStreamDecoder = ({
   onResearchBrief,
   onResearchReference,
   onSources,
+  onToolActivity,
 } = {}) => {
   const limit = Number.isInteger(maxBufferChars) && maxBufferChars > 0
     ? Math.min(maxBufferChars, MAX_SERIALIZED_CHARS) : MAX_SERIALIZED_CHARS;
@@ -148,6 +151,10 @@ const createMetabloomSegmentStreamDecoder = ({
   let researchReference = null;
   let researchReused = false;
   let sources = null;
+  const toolCalls = new Set();
+  let activeTool = null;
+  let searched = false;
+  const toolTextReady = () => !activeTool && (!searched || sources !== null);
   const segments = [];
   const fail = (message, details = null) => {
     if (!errorMessage) {
@@ -174,10 +181,37 @@ const createMetabloomSegmentStreamDecoder = ({
       const details = parseMetabloomRequestError({ code: event.code, ...(!legacy ? { requestRef: event.requestRef } : {}) });
       return details ? fail(getMetabloomApiErrorMessage(details.code), details) : fail("Invalid stream error.");
     }
+    if (toolCalls.size && typeof event?.type === 'string' && event.type.startsWith('research')) return fail('Research and chat tool streams cannot be mixed.');
+    if (event?.type === 'tool_activity') {
+      const activity = parseMetabloomAgentActivity(event);
+      if (!allowTools || !activity || version !== METABLOOM_CHAT_PROTOCOL_VERSION
+        || !['none', 'under-the-hood'].includes(action) || researchState !== null || sources !== null
+        || segments.length || partialResponse !== null || textComplete) return fail('Invalid tool activity.');
+      if (activity.state === 'running') {
+        if (activeTool || toolCalls.has(activity.callId) || toolCalls.size >= MAX_METABLOOM_AGENT_CALLS) return fail('Invalid tool execution order.');
+        toolCalls.add(activity.callId);
+        activeTool = activity;
+      } else {
+        if (!activeTool || activeTool.callId !== activity.callId || activeTool.name !== activity.name) return fail('Invalid tool completion.');
+        if (activity.name === 'search_web' && activity.state === 'complete') searched = true;
+        activeTool = null;
+      }
+      onToolActivity?.(activity);
+      return true;
+    }
+    if (event?.type === 'tool_sources') {
+      if (!allowTools || !exactKeys(event, ['type', 'sources']) || !searched || activeTool || sources !== null
+        || researchState !== null || segments.length || partialResponse !== null || textComplete) return fail('Invalid tool sources.');
+      const parsed = parseMetabloomResearchSources(event.sources);
+      if (!parsed) return fail('Invalid tool sources.');
+      sources = parsed;
+      onSources?.(cloneResearchSources(sources));
+      return true;
+    }
     if (event?.type === "action") {
       if (!exactKeys(event, ["type", "action"]) || !METABLOOM_ACTION_IDS.includes(event.action)
         || version !== METABLOOM_CHAT_PROTOCOL_VERSION || action !== null
-        || segments.length || partialResponse !== null || textComplete) {
+        || toolCalls.size || segments.length || partialResponse !== null || textComplete) {
         return fail("Invalid or out-of-order action choice.");
       }
       action = event.action;
@@ -328,6 +362,7 @@ const createMetabloomSegmentStreamDecoder = ({
     }
     if (event?.type === "text_delta") {
       if (!exactKeys(event, ["type", "index", "delta"]) || version !== METABLOOM_CHAT_PROTOCOL_VERSION
+        || !toolTextReady()
         || textComplete || event.index !== segments.length || typeof event.delta !== "string" || !event.delta.length
         || (researchBriefChars > 0 && researchBrief === null)
         || (researchState !== null && researchState !== "synthesizing")
@@ -358,13 +393,14 @@ const createMetabloomSegmentStreamDecoder = ({
     }
     if (event?.type === "text_complete") {
       if (!exactKeys(event, ["type"]) || version !== METABLOOM_CHAT_PROTOCOL_VERSION
+        || !toolTextReady()
         || (researchState !== null && researchState !== "synthesizing")
         || !segments.length || partialResponse !== null || textComplete) return fail("Invalid text completion.");
       textComplete = true;
       return true;
     }
     if (event?.type === "done") {
-      if (!exactKeys(event, ["type", "version"]) || !segments.length || event.version !== version) {
+      if (!exactKeys(event, ["type", "version"]) || !toolTextReady() || !segments.length || event.version !== version) {
         return fail("Invalid or empty stream completion.");
       }
       if (version === METABLOOM_CHAT_PROTOCOL_VERSION && (!textComplete || !responseEmote)) {
@@ -386,6 +422,7 @@ const createMetabloomSegmentStreamDecoder = ({
     const expectedKeys = version === METABLOOM_CHAT_PROTOCOL_VERSION
       ? ["type", "index", "response"] : ["type", "index", "emote", "response"];
     if (!exactKeys(event, expectedKeys) || event.type !== "segment" || event.index !== segments.length
+      || !toolTextReady()
       || (researchBriefChars > 0 && researchBrief === null)
       || (researchState !== null && researchState !== "synthesizing")
       || (version === METABLOOM_CHAT_PROTOCOL_VERSION && textComplete)) {

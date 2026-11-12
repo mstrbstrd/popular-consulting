@@ -9,6 +9,43 @@ const headers = (contentType, requestRef = null) => ({
   get: (name) => name.toLowerCase() === "content-type" ? contentType : requestRef,
 });
 
+test('ordinary chat negotiates tool activity and renders search sources without a research scene', async () => {
+  const onToolActivity = jest.fn(), onSources = jest.fn(), onSegment = jest.fn();
+  const source = { id: 1, title: 'Official announcement', url: 'https://example.com/news' };
+  const events = [
+    { type: 'emote', phase: 'input', emote: 'neutral' }, { type: 'action', action: 'none' },
+    ...['running', 'complete'].map(state => ({ type: 'tool_activity', name: 'search_web', callId: 'search_1', state })),
+    { type: 'tool_sources', sources: [source] }, { type: 'segment', index: 0, response: 'Verified news. [1]' },
+    { type: 'text_complete' }, { type: 'emote', phase: 'response', emote: 'neutral' }, { type: 'done', version: '2.0.0' },
+  ];
+  const fetchImpl = jest.fn(async () => ({ ok: true, status: 200, headers: headers('application/x-ndjson'),
+    text: async () => events.map(event => JSON.stringify(event)).join('\n') + '\n' }));
+  await requestMetabloomResponse({ message: 'How did you miss the Nvidia news?', fetchImpl, onToolActivity, onSources, onSegment });
+  expect(fetchImpl.mock.calls[0][1].headers['X-Metabloom-Toolset']).toBe('1');
+  expect(onToolActivity.mock.calls.map(([event]) => event.state)).toEqual(['running', 'complete']);
+  expect(onSources).toHaveBeenCalledWith([source]);
+  expect(onSources.mock.invocationCallOrder[0]).toBeLessThan(onSegment.mock.invocationCallOrder[0]);
+  await expect(requestMetabloomResponse({ message: 'Deep research this', actionMode: 'deep-research', fetchImpl }))
+    .rejects.toBeInstanceOf(MetabloomApiError);
+  expect(fetchImpl.mock.calls[1][1].headers['X-Metabloom-Toolset']).toBeUndefined();
+});
+
+test('ordinary tools share one absolute 90 second timeout', async () => {
+  jest.useFakeTimers();
+  let signal;
+  const fetchImpl = jest.fn((_url, options) => { signal = options.signal; return new Promise((_resolve, reject) => {
+    signal.addEventListener('abort', () => reject(new Error('aborted')));
+  }); });
+  try {
+    const pending = requestMetabloomResponse({ message: 'Check this', fetchImpl }).catch(error => error);
+    jest.advanceTimersByTime(30000);
+    expect(signal.aborted).toBe(false);
+    jest.advanceTimersByTime(60000);
+    expect((await pending).code).toBe('cancelled');
+    expect(signal.aborted).toBe(true);
+  } finally { jest.useRealTimers(); }
+});
+
 describe("Metabloom API client", () => {
   test("validates a JSON envelope", async () => {
     const fetchImpl = jest.fn().mockResolvedValue({

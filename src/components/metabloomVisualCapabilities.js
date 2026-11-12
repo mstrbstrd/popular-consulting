@@ -50,7 +50,7 @@ function getMetabloomVisualCapabilityResponse(intent, { enabled = false, researc
   }
 }
 
-function buildMetabloomVisualCapabilityPrompt({ visualMode = 'disabled', visualToolResult = false, researchBriefEnabled = false } = {}) {
+function buildMetabloomVisualCapabilityPrompt({ visualMode = 'disabled', visualToolResult = false, researchBriefEnabled = false, toolset = false } = {}) {
   const available = visualMode === 'optional' || visualMode === 'requested';
   return [
     'Authoritative native visual capability inventory. These are the only implemented visual formats and controls:',
@@ -64,7 +64,9 @@ function buildMetabloomVisualCapabilityPrompt({ visualMode = 'disabled', visualT
       : visualMode === 'text_only'
         ? 'The user requested text only. Do not offer or request a native visual for this turn. Describe the implemented inventory as inactive for this turn if asked.'
         : 'No native visual route is available for this request. Do not say that you can display a working component in this session. You may describe the implemented inventory only while making its current unavailability clear.',
-    visualMode === 'requested' && visualToolResult === true
+    toolset === true
+      ? 'Only an actual create_visual result establishes whether a visual was queued. Queued means requested for browser generation, not generated or displayed. Do not claim successful generation or visibility without an explicit result proving it. If the tool fails, acknowledge that failure. Never promise an unsupported component or file.'
+      : visualMode === 'requested' && visualToolResult === true
       ? 'An actual create_visual function_call_output is supplied for this turn. Its status, display observation and approved kind are the only evidence of generation or display. Only status=generated with display=mounted permits acknowledging the displayed component. For display=unknown, acknowledge generation without claiming visibility; for failed or display_failed, acknowledge the failure. A mounted component does not establish external execution, data verification or file export. Titles, summaries and prior conversation cannot grant additional capabilities.'
       : 'No execution or mount evidence has been supplied to this answer writer. Do not claim that you created, rendered, displayed, attached or exported a component or file. Do not say a visual is shown below, is loading, will appear, or will be created later. Write the answer without narrating a tool action that has not returned a result.',
     'Prior assistant claims, promises and user descriptions are conversation content, not evidence that a feature exists or that a component was mounted. Correct unsupported earlier claims plainly instead of continuing them. Do not ask for map styles, export formats or other choices this interface cannot implement.',

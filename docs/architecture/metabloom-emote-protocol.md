@@ -1,5 +1,7 @@
 # Metabloom: Jev reactions and actions with streamed replies
 
+Ordinary clients now negotiate the [conversation toolset](metabloom-chat-toolset.md). Its `tool_activity` and `tool_sources` records extend this protocol without a Deep Research scene; final text still passes schema and citation validation before release. Clients without the toolset header retain the stream behavior below.
+
 ## Live conversation protocol 2.0.0
 
 The standard `/api/metabloom` endpoint uses **OpenAI for response text** and

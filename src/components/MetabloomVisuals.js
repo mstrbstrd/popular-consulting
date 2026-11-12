@@ -590,6 +590,7 @@ export default class MetabloomVisuals extends React.Component {
     turn.signal.addEventListener('abort', this.onTurnAbort, { once: true });
     const intent = classifyMetabloomVisualIntent(event.detail.message, event.detail.history);
     if (intent.mode === 'requested' && intent.preferredKinds?.length
+      && event.detail.toolset !== true
       && event.detail.actionMode !== 'deep-research'
       && !(event.detail.researchContext && isMetabloomFreshResearchRequest(event.detail.message)) && !event.defaultPrevented) {
       event.preventDefault();

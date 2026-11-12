@@ -9,6 +9,7 @@ import { createBuildServer } from './auth-invoice-test-server.mjs';
 import { findBrowser } from './dark-evidence-browser.mjs';
 
 const require = createRequire(import.meta.url);
+const visualStream = require('./fixtures/metabloom-agent-stream.cjs');
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const output = path.resolve(process.env.METABLOOM_MOBILE_WORKSPACE_EVIDENCE || 'metabloom-mobile-workspace');
 const buildRoot = path.resolve('build');
@@ -50,12 +51,13 @@ server.on('request', async (req, res) => {
     for await (const part of req) { raw += part; assert(raw.length <= 24000); }
     const body = JSON.parse(raw);
     calls.push({ path: pathname, phase: body.phase, body });
-    if (pathname === '/api/metabloom-tool' && body.phase === 'start') {
+    if (pathname === '/api/metabloom' && !body.artifactContext) {
+      assert.equal(req.headers['x-metabloom-toolset'], '1');
       assert.equal(body.message, question);
       const id = (++counter).toString(16).padStart(48, '0');
       const offer = { id, version: '1', designVersion: 'aetheris-1', kind: 'calculator', expiresAt: Date.now() + 600000 };
-      records.set(id, { offer, artifactVersion: id.slice(-32), generated: false, continued: false });
-      return send(res, 200, { offer, emote: 'curious' });
+      records.set(id, { offer, artifactVersion: id.slice(-32), generated: false });
+      return visualStream(res, offer, 'I have requested the calculator. You can adjust its inputs once it is ready.');
     }
     if (pathname === '/api/metabloom-visual') {
       const record = records.get(body.id);
@@ -65,16 +67,10 @@ server.on('request', async (req, res) => {
       return send(res, 200, { id: body.id, version: '1', designVersion: 'aetheris-1', spec,
         sources: [], artifactVersion: record.artifactVersion });
     }
-    if (pathname === '/api/metabloom-tool' && body.phase === 'continue') {
-      const record = records.get(body.id);
-      assert(record?.generated && !record.continued, 'Continue a mounted component exactly once');
-      assert.equal(body.display, 'mounted');
-      record.continued = true;
-      return send(res, 200, { reply: reply('Your calculator is ready. Adjust either control to explore the price.'), emote: 'warm' });
-    }
     if (pathname === '/api/metabloom') {
       const reference = body.artifactContext, record = records.get(reference?.id);
-      assert(record?.generated && record.continued);
+      assert(record?.generated);
+      assert.equal(req.headers['x-metabloom-toolset'], undefined, 'Selected references retain their scoped path');
       assert.equal(body.message, followup);
       assert.deepEqual(reference, { id: record.offer.id, version: record.artifactVersion,
         selector: { type: 'calculator' }, inputs: { hours: 17, rate: 85 } });
@@ -295,13 +291,13 @@ try {
       assert.equal(generated.view, 'compact', 'A new component keeps the mobile conversation available');
       assert(generated.summaryVisible && !generated.bodyVisible && generated.transcriptVisible);
       assert.match(generated.summary, /\b650\b/, 'The first compact summary contains the initial result');
-      assert.equal(calls.length, 3, 'Creation performs only start, generate, and continue');
+      assert.equal(calls.length, 2, 'Creation performs one agent turn and one visual generation');
       await changeView(page, 'expanded');
       const inputs = page.locator('.metabloom-chat__workspace input[type=number]');
       await inputs.nth(0).fill('17');
       await inputs.nth(1).fill('85');
       await page.waitForFunction(() => document.querySelector('.metabloom-visual output')?.textContent.replace(/[^0-9]/g, '') === '1445');
-      assert.equal(calls.length, 3, 'Editing a calculator is local');
+      assert.equal(calls.length, 2, 'Editing a calculator is local');
       await capture(page, `${activeCase}-expanded-editing`, { view: 'expanded' });
       await changeView(page, 'compact');
       await capture(page, `${activeCase}-compact-values`);
@@ -311,15 +307,15 @@ try {
       await page.waitForSelector('[data-artifact-reference]');
       await page.waitForSelector('.orb-page[data-component-view="compact"]');
       await capture(page, `${activeCase}-ask-compact`);
-      assert.equal(calls.length, 3, 'Attaching a scenario is local');
+      assert.equal(calls.length, 2, 'Attaching a scenario is local');
       await submit(page, followup);
       await page.waitForFunction(expected => !window.__orbState().pending && window.__orbMessages().at(-1).content === expected, answer);
       assert.equal(await page.locator('[data-artifact-reference]').count(), 0, 'The reference is consumed once');
       const initial = await capture(page, `${activeCase}-followup`);
       assert.equal(initial.theme, theme);
-      assert.equal(calls.length, 4);
+      assert.equal(calls.length, 3);
       assert.deepEqual(calls.map(call => `${call.path}:${call.phase || 'reply'}`),
-        ['/api/metabloom-tool:start', '/api/metabloom-visual:reply', '/api/metabloom-tool:continue', '/api/metabloom:reply']);
+        ['/api/metabloom:reply', '/api/metabloom-visual:reply', '/api/metabloom:reply']);
 
       await page.locator('.metabloom-chat__messages').evaluate(element => { element.scrollTop = 0; });
       const earlier = await capture(page, `${activeCase}-earlier-messages`);
@@ -332,7 +328,7 @@ try {
       await page.locator('.metabloom-chat__component-reply').click();
       await page.waitForSelector('.orb-page[data-component-view="compact"]');
       await capture(page, `${activeCase}-back-to-reply`);
-      assert.equal(calls.length, 4, 'Opening the component and returning to its reply are local');
+      assert.equal(calls.length, 3, 'Opening the component and returning to its reply are local');
       assert(await page.locator('.metabloom-chat__messages').evaluate(element =>
         element.scrollHeight - element.scrollTop - element.clientHeight < 72), 'The reply shortcut returns to the latest message');
 
@@ -392,7 +388,7 @@ try {
       await input.blur();
       await page.waitForSelector('.orb-page[data-keyboard-open=false][data-compact-viewport=false]');
       await capture(page, `${activeCase}-viewport-restored`);
-      assert.equal(calls.length, 4, 'Theme, selection, scrolling and resizing never regenerate or repeat a reply');
+      assert.equal(calls.length, 3, 'Theme, selection, scrolling and resizing never regenerate or repeat a reply');
       results.push({ case: activeCase, fictionalHttpRequests: calls.length, blockedExternalRequests: blocked });
       await context.close();
       activePage = null;

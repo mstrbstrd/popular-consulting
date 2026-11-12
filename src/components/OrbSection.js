@@ -39,6 +39,7 @@ import { createMetabloomResearchDisplayGate } from "./metabloomResearchDisplayGa
 import { METABLOOM_RESEARCH_TIMEOUT_MS, METABLOOM_RESEARCH_REUSE_TIMEOUT_MS, getMetabloomApiErrorMessage, requestMetabloomResponse } from "./metabloomApiClient";
 import { METABLOOM_REQUEST_ERROR_MESSAGES, parseMetabloomRequestRef } from "./metabloomRequestErrors";
 import { METABLOOM_TOOL_TURN_TIMEOUT_MS } from "./metabloomVisualProtocol";
+import { METABLOOM_AGENT_TIMEOUT_MS, METABLOOM_AGENT_TOOL_LABELS, parseMetabloomAgentActivity } from './metabloomAgentTools';
 import { METABLOOM_TRANSCRIPT_READY_EVENT, METABLOOM_RESET_EVENT,
   METABLOOM_WORKSPACE_VIEW_EVENT, METABLOOM_WORKSPACE_VIEW_REQUEST } from "./metabloomVisualSession";
 import { METABLOOM_ARTIFACT_REFERENCE_EVENT, METABLOOM_ARTIFACT_UPDATE_EVENT, parseMetabloomArtifactAttachment } from "./metabloomArtifactReference";
@@ -1837,9 +1838,14 @@ const OrbSection = ({
       const requestToken = ++requestTokenRef.current;
       const requestId = `${mountIdRef.current}-${requestToken}`;
       const activeRequest = { claimed: false, requestId, requestToken, allowMultiple,
+        toolset: !artifactContext && !researchContext && requestedActionMode !== 'deep-research',
         actionMode: requestedActionMode, skipScene: document.hidden, session, startedAt: Date.now(),
         ...(selectedResearch ? { submittedResearch: selectedResearch, submittedMessage: message } : {}) };
       activeRequestRef.current = activeRequest;
+      if (activeRequest.toolset) {
+        window.clearTimeout(previewTimerRef.current);
+        previewTimerRef.current = window.setTimeout(() => failReply(session, { code: 'answer_timeout' }), METABLOOM_AGENT_TIMEOUT_MS);
+      }
       const controller = new AbortController();
       requestAbortRef.current = controller;
       updateStateSnapshot({ conversationStarted: true, talking: false });
@@ -1925,7 +1931,7 @@ const OrbSection = ({
         return true;
       };
       const onSources = (sources) => {
-        if (!current() || !['searching', 'reusing'].includes(activeRequest.researchState) || activeRequest.sourcesReceived
+        if (!current() || (!activeRequest.toolSearchComplete && !['searching', 'reusing'].includes(activeRequest.researchState)) || activeRequest.sourcesReceived
           || session.snapshot().segments.length) return false;
         if (!session.attachSources(sources)) return false;
         activeRequest.sourcesReceived = true;
@@ -1958,6 +1964,15 @@ const OrbSection = ({
         try { return session.attachResearchReference(metadata); } catch { return false; }
       };
       const onToolActivity = (phase) => {
+        const activity = parseMetabloomAgentActivity(phase);
+        if (activity && activeRequest.toolset && current() && !session.snapshot().segments.length) {
+          if (activity.name === 'search_web' && activity.state === 'complete') activeRequest.toolSearchComplete = true;
+          setToolPending(activity.state === 'running' ? METABLOOM_AGENT_TOOL_LABELS[activity.name] : false);
+          window.clearTimeout(previewTimerRef.current);
+          const remaining = Math.max(0, activeRequest.startedAt + METABLOOM_AGENT_TIMEOUT_MS - Date.now());
+          previewTimerRef.current = window.setTimeout(() => failReply(session, { code: 'answer_timeout' }), remaining);
+          return true;
+        }
         if (!current() || !['start', 'complete'].includes(phase)) return false;
         setToolPending(phase === 'start');
         window.clearTimeout(previewTimerRef.current);
@@ -1967,6 +1982,7 @@ const OrbSection = ({
         return true;
       };
       const request = {
+        toolset: activeRequest.toolset,
         requestId, message, history, ...(artifactContext ? { artifactContext } : {}), ...(researchContext ? { researchContext } : {}), allowMultiple, actionMode: activeRequest.actionMode, onToolActivity,
         signal: controller.signal, onTextDelta, onSegment, onReaction, onAction, onResearch, onResearchProgress, onResearchDetails, onResearchBrief, onResearchReference, onSources,
         onActivity: (event) => current() && reportActivity(requestId, event),
@@ -2468,7 +2484,7 @@ const OrbSection = ({
     ? (activityPreview ? "Research scene preview" : METABLOOM_ACTIVITIES[activityId].label)
     : showResearchStatus ? "Researching"
     : pending
-    ? (toolPending ? "Building your visual" : hasStreamingReply ? "Responding" : "Thinking")
+    ? (toolPending ? (typeof toolPending === 'string' ? toolPending : "Building your visual") : hasStreamingReply ? "Responding" : "Thinking")
     : sequenceId
       ? "Responding"
       : paused
