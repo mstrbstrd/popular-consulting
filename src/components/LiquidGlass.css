@@ -1,0 +1,183 @@
+/* Shared iOS-style Liquid Glass for signed-in chrome (Orb and Home).
+   Tokens, accessibility fallbacks and the shared navigation chrome live here;
+   page surfaces live in OrbLiquidGlass.css and HomeLiquidGlass.css.
+     clear    — floating controls: near-transparent, lensed rim, specular highlights
+     regular  — panels and menus with text: frosted, same rim and lens
+   Rim refraction is added in Chromium by liquidGlassRefraction.js through
+   --lg-refraction; everything here falls back to blur without it.
+   Keep -webkit-backdrop-filter before backdrop-filter: Chromium aliases them. */
+
+:is(.orb-page, .home-page) {
+  --lg-clear-fill: rgba(255, 255, 255, 0.12);
+  --lg-clear-fill-hover: rgba(255, 255, 255, 0.24);
+  --lg-input-fill: rgba(255, 255, 255, 0.16);
+  --lg-panel-fill: rgba(255, 255, 255, 0.44);
+  --lg-menu-fill: rgba(255, 255, 255, 0.72);
+  --lg-clear-fallback: blur(7px);
+  --lg-regular-blur: blur(22px);
+  --lg-post: saturate(1.7) brightness(1.06);
+  --lg-specular:
+    inset 1.5px 1.5px 0.5px -1px rgba(255, 255, 255, 0.95),
+    inset -1.5px -1.5px 0.5px -1px rgba(255, 255, 255, 0.6),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.4),
+    inset 0 10px 14px -14px rgba(255, 255, 255, 0.85),
+    inset 0 -10px 16px -14px rgba(255, 255, 255, 0.45);
+  --lg-shadow: 0 10px 28px -10px rgba(36, 18, 52, 0.22), 0 1px 3px rgba(36, 18, 52, 0.07);
+  --lg-text-halo: 0 0 10px rgba(255, 255, 255, 0.85), 0 0 2px rgba(255, 255, 255, 0.9);
+  --lg-lens: rgba(64, 40, 88, 0.09);
+  --lg-lens-hover: rgba(64, 40, 88, 0.05);
+  --lg-spec-top: rgba(255, 255, 255, 0.95);
+  --lg-rim: rgba(255, 255, 255, 0.55);
+  --lg-lens-edge: inset 1px 1px 0.5px -0.5px rgba(255, 255, 255, 0.9), inset 0 0 0 0.5px rgba(255, 255, 255, 0.45), 0 1px 4px rgba(36, 18, 52, 0.08);
+  --lg-radius-menu: 24px;
+}
+:where([data-theme='dark']) :is(.orb-page, .home-page) {
+  --lg-clear-fill: rgba(18, 18, 26, 0.16);
+  --lg-clear-fill-hover: rgba(255, 255, 255, 0.08);
+  --lg-input-fill: rgba(18, 18, 26, 0.24);
+  --lg-panel-fill: rgba(20, 20, 28, 0.5);
+  --lg-menu-fill: rgba(18, 18, 26, 0.74);
+  --lg-post: saturate(1.6) brightness(0.92);
+  --lg-specular:
+    inset 1.5px 1.5px 0.5px -1px rgba(255, 255, 255, 0.5),
+    inset -1.5px -1.5px 0.5px -1px rgba(255, 255, 255, 0.24),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.14),
+    inset 0 10px 14px -14px rgba(255, 255, 255, 0.3),
+    inset 0 -10px 16px -14px rgba(255, 255, 255, 0.12);
+  --lg-shadow: 0 12px 32px -10px rgba(0, 0, 0, 0.6), 0 1px 3px rgba(0, 0, 0, 0.4);
+  --lg-text-halo: 0 0 10px rgba(0, 0, 0, 0.75), 0 0 2px rgba(0, 0, 0, 0.8);
+  --lg-lens: rgba(255, 255, 255, 0.13);
+  --lg-lens-hover: rgba(255, 255, 255, 0.07);
+  --lg-spec-top: rgba(255, 255, 255, 0.3);
+  --lg-rim: rgba(255, 255, 255, 0.14);
+  --lg-lens-edge: inset 1px 1px 0.5px -0.5px rgba(255, 255, 255, 0.35), inset 0 0 0 0.5px rgba(255, 255, 255, 0.14), 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+/* Accessibility preferences replace glass with solid Aetheris panels. */
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  :is(.orb-page, .home-page), :where([data-theme='dark']) :is(.orb-page, .home-page) {
+    --lg-clear-fill: var(--aetheris-panel);
+    --lg-clear-fill-hover: var(--aetheris-panel-raised);
+    --lg-input-fill: var(--aetheris-panel);
+    --lg-panel-fill: var(--aetheris-panel);
+    --lg-menu-fill: var(--aetheris-panel);
+    --lg-clear-fallback: none;
+    --lg-regular-blur: none;
+    --lg-post: none;
+    --lg-text-halo: none;
+    --lg-lens: var(--aetheris-state-layer);
+    --lg-lens-hover: var(--aetheris-state-layer);
+    --lg-specular: inset 0 0 0 1px var(--aetheris-line-strong);
+  }
+}
+
+/* ---------- Navigation pill (clear glass) ---------- */
+/* The glass lives on ::before, behind the pill's content. An element with a
+   backdrop filter becomes the backdrop root for its descendants, so if the pill
+   itself were glass, its experience/account menus could only sample the pill
+   and the page would show through them unblurred. */
+html body :is(.orb-page, .home-page) .nav-pill {
+  border-color: transparent !important;
+  background: transparent !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  box-shadow: var(--lg-specular), var(--lg-shadow) !important;
+  text-shadow: var(--lg-text-halo);
+}
+html body :is(.orb-page, .home-page) .nav-pill::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  background: var(--lg-clear-fill);
+  -webkit-backdrop-filter: var(--lg-clear-fallback) var(--lg-post);
+  backdrop-filter: var(--lg-refraction, var(--lg-clear-fallback)) var(--lg-post);
+}
+/* Entry motion: no backdrop filter while surfaces move (Chrome clip desync). */
+html body .home-page[data-entry='revealing'] .nav-pill::before { -webkit-backdrop-filter: none; backdrop-filter: none; }
+html body :is(.orb-page, .home-page) .nav-pill::after { opacity: 0 !important; }
+
+/* Nav icons: theme, experience switcher, account and mobile menu share one
+   glass button. No painted spectral ring, no flat outline and no lift on
+   hover (a transform inside a backdrop-filtered pill can desync Chrome's clip). */
+html body :is(.orb-page, .home-page) .nav-pill .nav-theme-toggle,
+html body :is(.orb-page, .home-page) .nav-pill .nav-burger,
+:is(.orb-page, .home-page) .nav-pill .workspace-menu > summary,
+:is(.orb-page, .home-page) .nav-pill .site-account-control {
+  border: 0 !important;
+  border-radius: 999px !important;
+  color: var(--aetheris-ink) !important;
+  background: var(--lg-lens-hover) !important;
+  box-shadow: var(--lg-lens-edge) !important;
+  transform: none !important;
+  text-shadow: none;
+}
+@media (hover: hover) {
+  html body :is(.orb-page, .home-page) .nav-pill .nav-theme-toggle:hover,
+  html body :is(.orb-page, .home-page) .nav-pill .nav-burger:hover,
+  :is(.orb-page, .home-page) .nav-pill .workspace-menu > summary:hover,
+  :is(.orb-page, .home-page) .nav-pill .site-account-control:hover {
+    background: var(--lg-lens) !important;
+    box-shadow: var(--lg-lens-edge) !important;
+    transform: none !important;
+  }
+}
+html body :is(.orb-page, .home-page) .nav-pill .nav-burger--open,
+:is(.orb-page, .home-page) .nav-pill .workspace-menu[open] > summary,
+:is(.orb-page, .home-page) .nav-pill .site-account-menu[open] > .site-account-control {
+  background: var(--lg-lens) !important;
+  box-shadow: var(--lg-lens-edge), inset 0 0 0 1px color-mix(in srgb, var(--aetheris-teal) 40%, transparent) !important;
+}
+/* Focus stays unmistakable on glass: the Aetheris focus halo. */
+html body :is(.orb-page, .home-page) .nav-pill :is(.nav-theme-toggle, .nav-burger):focus-visible,
+:is(.orb-page, .home-page) .nav-pill :is(.workspace-menu > summary, .site-account-control):focus-visible {
+  outline: 2px solid var(--aetheris-focus-line) !important;
+  outline-offset: 2px !important;
+  box-shadow: var(--lg-lens-edge), var(--aetheris-focus-halo) !important;
+}
+
+/* ---------- Experience switcher and account menus (regular glass) ---------- */
+:is(.orb-page, .home-page) .workspace-menu-panel,
+:is(.orb-page, .home-page) .site-account-panel {
+  border: 1px solid transparent !important;
+  border-radius: var(--lg-radius-menu) !important;
+  background: var(--lg-menu-fill) !important;
+  -webkit-backdrop-filter: var(--lg-regular-blur) var(--lg-post) !important;
+  backdrop-filter: var(--lg-refraction, var(--lg-regular-blur)) var(--lg-post) !important;
+  box-shadow: var(--lg-specular), var(--lg-shadow) !important;
+  color: var(--aetheris-ink) !important;
+  animation: liquid-glass-in var(--aetheris-motion-medium, 220ms) var(--aetheris-ease-standard, ease) both;
+}
+:is(.orb-page, .home-page) .workspace-menu-panel { padding: 8px; }
+:is(.orb-page, .home-page) .workspace-menu-panel a,
+:is(.orb-page, .home-page) .site-account-panel a { border-radius: 999px; padding-inline: 14px; }
+:is(.orb-page, .home-page) .workspace-menu-panel a:hover,
+:is(.orb-page, .home-page) .site-account-panel a:hover { background: var(--lg-lens-hover); }
+:is(.orb-page, .home-page) .workspace-menu-panel a[aria-current='page'] { background: var(--lg-lens); box-shadow: var(--lg-lens-edge); }
+:is(.orb-page, .home-page) .workspace-menu-panel > span,
+:is(.orb-page, .home-page) .site-account-panel > span { padding-inline: 14px; }
+:is(.orb-page, .home-page) .site-account-panel { padding: 8px; width: 220px; font-family: var(--aetheris-font-sans); font-size: 14px; }
+/* Opacity only: transforms on backdrop-filtered surfaces can desync Chrome's clip. */
+@keyframes liquid-glass-in { from { opacity: 0; } to { opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  :is(.orb-page, .home-page) .workspace-menu-panel, :is(.orb-page, .home-page) .site-account-panel { animation: none; }
+}
+@media (forced-colors: active) {
+  html body :is(.orb-page, .home-page) .nav-pill,
+  html body :is(.orb-page, .home-page) .nav-pill::before,
+  :is(.orb-page, .home-page) .workspace-menu-panel,
+  :is(.orb-page, .home-page) .site-account-panel,
+  html body :is(.orb-page, .home-page) .nav-pill .nav-theme-toggle,
+  html body :is(.orb-page, .home-page) .nav-pill .nav-burger,
+  :is(.orb-page, .home-page) .nav-pill .workspace-menu > summary,
+  :is(.orb-page, .home-page) .nav-pill .site-account-control {
+    background: Canvas !important; color: CanvasText !important;
+    border: 1px solid CanvasText !important; box-shadow: none !important;
+    -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+  }
+  :is(.orb-page, .home-page) .workspace-menu-panel a[aria-current='page'] { background: Highlight; color: HighlightText; }
+  html body :is(.orb-page, .home-page) .nav-pill :is(.nav-theme-toggle, .nav-burger):focus-visible,
+  :is(.orb-page, .home-page) .nav-pill :is(.workspace-menu > summary, .site-account-control):focus-visible { outline-color: Highlight !important; }
+}

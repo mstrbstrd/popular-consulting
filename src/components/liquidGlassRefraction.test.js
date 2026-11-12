@@ -1,5 +1,5 @@
 import { buildLensMap, lensGeometry, roundedRectField, supportsOrbRefraction,
-  ORB_REFRACTION_TARGETS, ORB_REFRACTION_MENUS } from './orbLiquidGlassRefraction';
+  ORB_REFRACTION_TARGETS, ORB_REFRACTION_MENUS } from './liquidGlassRefraction';
 
 const pixel = (data, width, x, y) => Array.from(data.slice((y * width + x) * 4, (y * width + x) * 4 + 4));
 const fakeWindow = ({ search = '', brands = [{ brand: 'Chromium' }], matches = [] } = {}) => ({

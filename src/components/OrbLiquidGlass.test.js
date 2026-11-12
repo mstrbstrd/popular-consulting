@@ -3,12 +3,15 @@ import path from 'path';
 
 const read = name => fs.readFileSync(path.join(__dirname, name), 'utf8');
 const css = read('OrbLiquidGlass.css');
+const shared = read('LiquidGlass.css');
 const page = read('OrbPage.js');
 const rules = css.replace(/\/\*[\s\S]*?\*\//g, '');
 
 describe('Orb liquid glass layer', () => {
-  test('loads after every other Orb presentation layer', () => {
+  test('loads after every other Orb presentation layer, with the shared layer just before it', () => {
     const glass = page.indexOf('import "./OrbLiquidGlass.css";');
+    expect(page.indexOf('import "./LiquidGlass.css";')).toBeGreaterThan(page.indexOf('import "./OrbChatRefinement.css";'));
+    expect(page.indexOf('import "./LiquidGlass.css";')).toBeLessThan(glass);
     expect(glass).toBeGreaterThan(-1);
     const otherCss = [...page.matchAll(/import ["']\.\/[^"']+\.css["'];/g)].map(match => match.index);
     expect(Math.max(...otherCss)).toBe(glass);
@@ -24,18 +27,18 @@ describe('Orb liquid glass layer', () => {
 
   test('clear and regular glass, with light and dark tokens', () => {
     ['--lg-clear-fill', '--lg-input-fill', '--lg-panel-fill', '--lg-menu-fill', '--lg-specular', '--lg-lens', '--lg-regular-blur']
-      .forEach(token => expect(css).toContain(`${token}:`));
-    expect(css).toMatch(/:where\(\[data-theme='dark'\]\) \.orb-page \{[^}]*--lg-menu-fill:/);
+      .forEach(token => expect(shared).toContain(`${token}:`));
+    expect(shared).toMatch(/:where\(\[data-theme='dark'\]\) :is\(\.orb-page, \.home-page\) \{[^}]*--lg-menu-fill:/);
   });
 
   test('accessibility preferences collapse glass to solid panels', () => {
-    expect(css).toMatch(/@media \(prefers-reduced-transparency: reduce\), \(prefers-contrast: more\) \{[^@]*--lg-regular-blur: none;[^@]*--lg-post: none;/);
+    expect(shared).toMatch(/@media \(prefers-reduced-transparency: reduce\), \(prefers-contrast: more\) \{[^@]*--lg-regular-blur: none;[^@]*--lg-post: none;/);
     expect(css).toMatch(/@media \(forced-colors: active\) \{[\s\S]*background: Canvas !important;[\s\S]*backdrop-filter: none !important;/);
     expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{[^}]*animation: none;/);
   });
 
   test('menu entrances animate opacity only, never a transform over backdrop-filter', () => {
-    const keyframes = css.match(/@keyframes orb-glass-in \{[^@]*?\}\s*\}/)?.[0] || css.match(/@keyframes orb-glass-in[^\n]*/)[0];
+    const keyframes = shared.match(/@keyframes liquid-glass-in[^\n]*/)[0];
     expect(keyframes).toContain('opacity');
     expect(keyframes).not.toContain('transform');
   });

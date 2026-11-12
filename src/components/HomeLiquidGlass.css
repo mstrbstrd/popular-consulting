@@ -1,0 +1,70 @@
+/* iOS-style Liquid Glass for the signed-in Home. Loaded after HomePage.css.
+   Tokens and the shared nav chrome come from LiquidGlass.css.
+     regular (lensed) — welcome panel, tool cards, session panel
+     clear (lensed)   — footer pill, card arrow buttons, session action
+   The entry animation's rule that removes backdrop filters while surfaces move
+   (.home-page[data-entry="revealing"] …) is more specific and keeps priority. */
+
+/* Tool cards: the shared Aetheris card recipe becomes regular glass. */
+html body .home-page .home-tool {
+  border-color: transparent !important;
+  background: var(--lg-panel-fill) !important;
+  -webkit-backdrop-filter: var(--lg-regular-blur) var(--lg-post) !important;
+  backdrop-filter: var(--lg-refraction, var(--lg-regular-blur)) var(--lg-post) !important;
+  box-shadow: var(--lg-specular), var(--lg-shadow) !important;
+  border-radius: 26px !important;
+}
+/* The painted spectral ring gives way to the glass rim; the soft colour wash stays faint. */
+html body .home-page .home-tool::after { opacity: 0 !important; }
+html body .home-page .home-tool::before { opacity: 0.42; }
+html body .home-page .home-tool:hover,
+html body .home-page .home-tool:active {
+  background: var(--lg-menu-fill) !important;
+  box-shadow: var(--lg-specular), var(--lg-shadow), 0 18px 40px -18px rgba(36, 18, 52, 0.28) !important;
+}
+html[data-theme='dark'] body .home-page .home-tool:hover { box-shadow: var(--lg-specular), var(--lg-shadow), 0 18px 40px -18px rgba(0, 0, 0, 0.7) !important; }
+html body .home-page .home-tool:hover::before { opacity: 0.6; }
+html body .home-page .home-tool:hover::after { opacity: 0 !important; }
+html body .home-page .home-tool:focus-visible { box-shadow: var(--lg-specular), var(--aetheris-focus-halo) !important; }
+
+/* Welcome and session panels. */
+.home-page .home-welcome,
+.home-page .home-session {
+  border-color: transparent;
+  background: var(--lg-panel-fill);
+  -webkit-backdrop-filter: var(--lg-regular-blur) var(--lg-post);
+  backdrop-filter: var(--lg-refraction, var(--lg-regular-blur)) var(--lg-post);
+  box-shadow: var(--lg-specular), var(--lg-shadow);
+}
+.home-page .home-welcome::before,
+.home-page .home-session::before { opacity: 0; }
+
+/* Clear glass controls. */
+.home-page .home-footer-pill,
+.home-page .home-session-action {
+  border-color: transparent;
+  background: var(--lg-clear-fill);
+  -webkit-backdrop-filter: var(--lg-clear-fallback) var(--lg-post);
+  backdrop-filter: var(--lg-refraction, var(--lg-clear-fallback)) var(--lg-post);
+  box-shadow: var(--lg-specular), var(--lg-shadow);
+}
+/* Arrows sit inside a glass card: a nested backdrop filter would only sample the
+   card's own backdrop root, so they are lens highlights on the card instead. */
+.home-page .home-tool-arrow {
+  border-color: transparent; background: var(--lg-lens-hover);
+  -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: var(--lg-lens-edge);
+}
+.home-page .home-session-action { border-radius: 999px; color: var(--aetheris-ink); }
+.home-page .home-tool-arrow::before,
+.home-page .home-session-action::before { opacity: 0; }
+.home-page .home-footer-pill > span { text-shadow: var(--lg-text-halo); }
+@media (hover: hover) {
+  .home-page .home-tool:hover .home-tool-arrow { background: var(--lg-lens); }
+  .home-page .home-session-action:hover { background: var(--lg-clear-fill-hover); }
+}
+
+@media (forced-colors: active) {
+  html body .home-page .home-tool { background: Canvas !important; border: 1px solid CanvasText !important; box-shadow: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+  .home-page .home-footer-pill, .home-page .home-tool-arrow, .home-page .home-session-action,
+  .home-page .home-welcome, .home-page .home-session { background: Canvas; border: 1px solid CanvasText; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+}

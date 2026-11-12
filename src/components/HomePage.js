@@ -7,7 +7,10 @@ import HomeBackground from './HomeBackground';
 import HeroLogo from './HeroLogo';
 import { consumeHomeEntryIntent, hasHomeEntryIntent } from '../utils/homeEntry';
 import logo from '../assets/icons/logo2026_128.png';
+import { useHomeLiquidGlass } from './liquidGlassRefraction';
 import './HomePage.css';
+import './LiquidGlass.css';
+import './HomeLiquidGlass.css';
 
 const TOOLS = [
   { id: 'popcan', title: 'Popcan', category: 'Drawing studio', href: '/popcan',
@@ -59,6 +62,8 @@ function HomeContent() {
   const [entryRequested, setEntryRequested] = useState(handoff);
   const [entry, setEntry] = useState(returning ? 'open' : 'intro');
   const mainRef = useRef(null);
+  const pageRef = useRef(null);
+  useHomeLiquidGlass(pageRef);
   const requestEntry = useCallback(() => setEntryRequested(true), []);
 
   const setImmersiveSection = navigation?.setImmersiveSection;
@@ -120,7 +125,7 @@ function HomeContent() {
     };
   }, []);
 
-  return <div className="home-page" data-entry={entry}>
+  return <div ref={pageRef} className="home-page" data-entry={entry}>
     {!navigation?.persistentImmersiveBackground && <HomeBackground activeSection={entry === 'intro' ? 0 : 1} />}
     {entry !== 'open' && <section className="home-intro" aria-label="Welcome"
       onTouchEnd={event => {

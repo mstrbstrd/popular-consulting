@@ -1,7 +1,7 @@
 import React from 'react';
 import { hasHardwareWebGL, isMobileTier } from '../utils/deviceTier';
 
-// Liquid-glass refraction for Orb chrome (Chromium only).
+// Liquid-glass refraction for signed-in chrome (Orb, Home). Chromium only.
 //
 // iOS Liquid Glass reads as a thick lens: near the rim the backdrop bends
 // inward and splits slightly by wavelength. Chromium can reproduce this with an
@@ -14,6 +14,8 @@ import { hasHardwareWebGL, isMobileTier } from '../utils/deviceTier';
 // off for mobile/software rendering, reduced transparency, increased contrast and
 // forced colours. No canvas is mounted; maps are encoded off-DOM.
 
+// Each page passes its own module-level lists: controls bend gently, panels
+// (menus, cards) a little more with a frosted interior.
 export const ORB_REFRACTION_TARGETS = [
   '.nav-pill',
   '.metabloom-chat__composer',
@@ -81,7 +83,7 @@ export const lensGeometry = ({ width, height, radius, menu }) => {
   // centre of the control optically flat and its label undistorted.
   const bezel = Math.max(6, Math.min(menu ? 18 : 12, r || 12, Math.min(width, height) / 2.5));
   const offset = Math.min(menu ? 10 : 7, bezel * 0.7);
-  return { r, bezel, scale: offset * 2, blur: menu ? 9 : 1.2 };
+  return { r, bezel, scale: offset * 2, blur: menu ? 14 : 1.2 };
 };
 
 const SVG = 'http://www.w3.org/2000/svg';
@@ -139,7 +141,7 @@ export const supportsOrbRefraction = (win = window) => {
     && !PREFERENCES.some(query => win.matchMedia?.(query)?.matches);
 };
 
-export default function useOrbLiquidGlass(rootRef) {
+export function useLiquidGlassRefraction(rootRef, { controls, panels }) {
   const [enabled, setEnabled] = React.useState(() => supportsOrbRefraction());
   React.useEffect(() => {
     const queries = PREFERENCES.map(query => window.matchMedia?.(query)).filter(Boolean);
@@ -162,7 +164,7 @@ export default function useOrbLiquidGlass(rootRef) {
       const height = Math.round(element.offsetHeight);
       if (!width || !height || width * height > MAX_AREA) { element.style.removeProperty('--lg-refraction'); return; }
       const radius = parseFloat(getComputedStyle(element).borderTopLeftRadius) || 0;
-      const menu = ORB_REFRACTION_MENUS.some(selector => element.matches(selector));
+      const menu = panels.some(selector => element.matches(selector));
       const geometry = lensGeometry({ width, height, radius, menu });
       const key = `orb-lens-${width}x${height}r${Math.round(geometry.r)}${menu ? 'm' : 'c'}`;
       if (!filters.has(key)) {
@@ -177,7 +179,7 @@ export default function useOrbLiquidGlass(rootRef) {
       element.style.setProperty('--lg-refraction', `url(#${key})`);
     };
     const resize = new ResizeObserver(entries => entries.forEach(entry => apply(entry.target)));
-    const selector = [...ORB_REFRACTION_TARGETS, ...ORB_REFRACTION_MENUS].join(',');
+    const selector = [...controls, ...panels].join(',');
     const scan = () => {
       frame = 0;
       const current = new Set(root.querySelectorAll(selector));
@@ -207,5 +209,19 @@ export default function useOrbLiquidGlass(rootRef) {
       delete root.dataset.liquidRefraction;
       svg.remove();
     };
-  }, [enabled, rootRef]);
+  }, [enabled, rootRef, controls, panels]);
 }
+
+export const NAV_REFRACTION_MENUS = [
+  '.workspace-menu[open] .workspace-menu-panel',
+  '.site-account-menu[open] .site-account-panel',
+];
+// Card arrows sit inside a lensed card: a nested backdrop filter would only see
+// the card's own backdrop root, so they are highlights on the card, not panes.
+export const HOME_REFRACTION_TARGETS = ['.nav-pill', '.home-footer-pill', '.home-session-action'];
+export const HOME_REFRACTION_PANELS = ['.home-welcome', '.home-tool', '.home-session', ...NAV_REFRACTION_MENUS];
+const HOME_LISTS = Object.freeze({ controls: HOME_REFRACTION_TARGETS, panels: HOME_REFRACTION_PANELS });
+export function useHomeLiquidGlass(rootRef) { useLiquidGlassRefraction(rootRef, HOME_LISTS); }
+
+const ORB_LISTS = Object.freeze({ controls: ORB_REFRACTION_TARGETS, panels: ORB_REFRACTION_MENUS });
+export default function useOrbLiquidGlass(rootRef) { useLiquidGlassRefraction(rootRef, ORB_LISTS); }

@@ -15,7 +15,7 @@ import OrbSection from "./OrbSection";
 import MetabloomVisuals from "./MetabloomVisuals";
 import MetabloomWorkspaceContext from './MetabloomWorkspaceContext';
 import MetabloomThreadsPanel from './MetabloomThreadsPanel';
-import useOrbLiquidGlass from './orbLiquidGlassRefraction';
+import useOrbLiquidGlass from './liquidGlassRefraction';
 import useMetabloomThreads from './useMetabloomThreads';
 import "./OrbPage.css";
 import "./OrbPageExperience.css";
@@ -27,6 +27,7 @@ import "./MetabloomVisual.css";
 import "./OrbWorkspaceLayout.css";
 import './MetabloomThreadsPanel.css';
 import "./OrbChatRefinement.css";
+import "./LiquidGlass.css";
 import "./OrbLiquidGlass.css";
 
 const METADATA_SELECTORS = Object.freeze({
