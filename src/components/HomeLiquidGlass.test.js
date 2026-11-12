@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { HOME_REFRACTION_TARGETS, HOME_REFRACTION_PANELS, NAV_REFRACTION_MENUS } from './liquidGlassRefraction';
+import { HOME_REFRACTION_TARGETS, HOME_REFRACTION_PANELS, NAV_REFRACTION_MENUS, MAX_PERSISTENT_LENS_AREA } from './liquidGlassRefraction';
 
 const read = name => fs.readFileSync(path.join(__dirname, name), 'utf8');
 const shared = read('LiquidGlass.css');
@@ -53,7 +53,21 @@ describe('Home liquid glass', () => {
   test('controls nested inside a lensed card are not separate backdrop panes', () => {
     expect(HOME_REFRACTION_TARGETS).not.toContain('.home-tool-arrow');
     expect(strip(home)).toMatch(/\.home-page \.home-tool-arrow \{[^}]*backdrop-filter: none;/);
-    expect(HOME_REFRACTION_PANELS).toEqual(expect.arrayContaining(['.home-tool', '.home-welcome', ...NAV_REFRACTION_MENUS]));
+    expect(HOME_REFRACTION_PANELS).toEqual(NAV_REFRACTION_MENUS);
+  });
+
+  test('large persistent surfaces over the live background are frosted, never lensed', () => {
+    // Lensing the tool cards halved Home's frame rate while scrolling (59 -> 30 fps).
+    [...HOME_REFRACTION_TARGETS, ...HOME_REFRACTION_PANELS].forEach(selector =>
+      expect(selector).not.toMatch(/home-tool|home-welcome|home-session(?!-)/));
+    expect(home).toMatch(/html body \.home-page \.home-tool \{[^}]*backdrop-filter: var\(--lg-refraction, var\(--lg-regular-blur\)\)/);
+  });
+
+  test('the refraction budget keeps persistent lenses control-sized', () => {
+    expect(MAX_PERSISTENT_LENS_AREA).toBeLessThanOrEqual(60000);
+    // The Orb composer (about 760 x 60) and nav pill (about 800 x 61) stay inside it.
+    expect(760 * 60).toBeLessThanOrEqual(MAX_PERSISTENT_LENS_AREA);
+    expect(645 * 280).toBeGreaterThan(MAX_PERSISTENT_LENS_AREA);
   });
 
   test('the header stacks above the workspace so its menus are never covered', () => {

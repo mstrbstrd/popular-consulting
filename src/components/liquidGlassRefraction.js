@@ -32,6 +32,13 @@ export const ORB_REFRACTION_MENUS = [
   '.workspace-menu[open] .workspace-menu-panel',
   '.site-account-menu[open] .site-account-panel',
 ];
+// SVG backdrop filters are re-rendered every frame the backdrop changes, and the
+// signed-in pages sit over live WebGL fields. Measured on Home: lensing four
+// ~180k px cards halved the frame rate (59 -> 30 fps) while scrolling and froze
+// the background, while small controls cost nothing measurable. Persistent
+// surfaces therefore get the lens only up to a control-sized area; transient
+// menus may be larger because they are on screen briefly.
+export const MAX_PERSISTENT_LENS_AREA = 60000;
 const MAX_AREA = 600000;
 const MAX_FILTERS = 32;
 
@@ -162,9 +169,12 @@ export function useLiquidGlassRefraction(rootRef, { controls, panels }) {
     const apply = element => {
       const width = Math.round(element.offsetWidth);
       const height = Math.round(element.offsetHeight);
-      if (!width || !height || width * height > MAX_AREA) { element.style.removeProperty('--lg-refraction'); return; }
-      const radius = parseFloat(getComputedStyle(element).borderTopLeftRadius) || 0;
       const menu = panels.some(selector => element.matches(selector));
+      if (!width || !height || width * height > (menu ? MAX_AREA : MAX_PERSISTENT_LENS_AREA)) {
+        element.style.removeProperty('--lg-refraction');
+        return;
+      }
+      const radius = parseFloat(getComputedStyle(element).borderTopLeftRadius) || 0;
       const geometry = lensGeometry({ width, height, radius, menu });
       const key = `orb-lens-${width}x${height}r${Math.round(geometry.r)}${menu ? 'm' : 'c'}`;
       if (!filters.has(key)) {
@@ -219,7 +229,9 @@ export const NAV_REFRACTION_MENUS = [
 // Card arrows sit inside a lensed card: a nested backdrop filter would only see
 // the card's own backdrop root, so they are highlights on the card, not panes.
 export const HOME_REFRACTION_TARGETS = ['.nav-pill', '.home-footer-pill', '.home-session-action'];
-export const HOME_REFRACTION_PANELS = ['.home-welcome', '.home-tool', '.home-session', ...NAV_REFRACTION_MENUS];
+// Home's cards and welcome panel stay frosted (regular glass) without a lens:
+// they are large, persistent and over the live background (see the budget above).
+export const HOME_REFRACTION_PANELS = [...NAV_REFRACTION_MENUS];
 const HOME_LISTS = Object.freeze({ controls: HOME_REFRACTION_TARGETS, panels: HOME_REFRACTION_PANELS });
 export function useHomeLiquidGlass(rootRef) { useLiquidGlassRefraction(rootRef, HOME_LISTS); }
 
