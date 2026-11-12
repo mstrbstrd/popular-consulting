@@ -1,0 +1,215 @@
+/* Chat refinement layer. Loaded after every other Orb presentation layer.
+   Scope: transcript rhythm, speaker attribution, reaction cues, composer
+   toolbar consistency, and the scrollport edge. It never changes the
+   Metabloom field, its renderer, or the page's bounded grid layout. */
+
+/* --- Scrollport edge ----------------------------------------------------- */
+
+/* Wide screens: the Theme control and the threads rail sit outside the
+   760px conversation column, so the transcript does not need to reserve
+   a second header row for them. */
+@media (min-width: 1100px) {
+  .orb-page[data-conversation-started="true"] {
+    --orb-theme-clearance: 0px;
+  }
+}
+
+/* Fade earlier messages into the scene instead of slicing them with a hard
+   edge. The fade is a fixed length anchored to the scrollport, and the
+   matching top padding keeps the first message fully opaque at rest. */
+.orb-page[data-conversation-started="true"] .metabloom-chat[data-conversation-started="true"] .metabloom-chat__messages {
+  padding-top: 3.2rem;
+  scroll-padding-top: 3.2rem;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 3.2rem);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 3.2rem);
+}
+
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more), (forced-colors: active) {
+  .orb-page[data-conversation-started="true"] .metabloom-chat[data-conversation-started="true"] .metabloom-chat__messages {
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+}
+
+/* --- Column and turn rhythm ------------------------------------------- */
+
+.orb-page .metabloom-chat__message-list {
+  max-width: 76rem;
+  gap: 0;
+}
+
+/* Turns are separated generously; consecutive messages from the same
+   speaker group tightly so a multi-part reply reads as one unit. */
+.orb-page .metabloom-chat__message-list > * + * {
+  margin-top: 2.4rem;
+}
+
+.orb-page .metabloom-chat__message--assistant + .metabloom-chat__message--assistant,
+.orb-page .metabloom-chat__message--user + .metabloom-chat__message--user {
+  margin-top: 0.6rem;
+}
+
+/* Assistant replies use the full conversation column so their edges line
+   up with the composer; user messages stay compact on the right. */
+.orb-page .metabloom-chat__message--assistant {
+  max-width: 100%;
+}
+
+.orb-page .metabloom-chat__message--user {
+  max-width: min(56rem, 82%);
+}
+
+.orb-page[data-active-component="true"] .metabloom-chat__message--assistant {
+  max-width: 100%;
+}
+
+/* --- Speaker attribution ---------------------------------------------- */
+
+/* Alignment and bubble treatment already identify the person. The label
+   stays available to assistive technology. */
+.orb-page .metabloom-chat__message--user .metabloom-chat__speaker,
+.orb-page .metabloom-chat__message--assistant + .metabloom-chat__message--assistant .metabloom-chat__speaker {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* One readable label opens each Metabloom turn, with a small spectral mark
+   tying it to the field. */
+.orb-page .metabloom-chat__message--assistant .metabloom-chat__speaker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0 0.2rem;
+  color: var(--aetheris-ink);
+  font: 600 1.05rem/1.4 var(--aetheris-font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.78;
+}
+
+.orb-page .metabloom-chat__message--assistant .metabloom-chat__speaker::before {
+  content: "";
+  flex: none;
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  background: var(--aetheris-spectral-v);
+}
+
+@media (prefers-contrast: more), (forced-colors: active) {
+  .orb-page .metabloom-chat__message--assistant .metabloom-chat__speaker { opacity: 1; }
+}
+
+/* --- Message surfaces --------------------------------------------------- */
+
+.orb-page .metabloom-chat__bubble {
+  padding: 1.2rem 1.6rem;
+}
+
+.orb-page .metabloom-chat__message--assistant .metabloom-chat__bubble {
+  padding: 1.3rem 1.8rem 1.3rem 2rem;
+}
+
+/* Paragraphs inside one reply breathe without needing a cue between them. */
+.orb-page .metabloom-chat__bubble > p + p {
+  margin-top: 0.9em;
+}
+
+/* Reaction cues are secondary metadata: quiet until hovered, focused, or
+   actively replaying. Pointer-fine devices get a compact chip; touch keeps
+   the 44px target from the base layer. */
+.orb-page .metabloom-chat__reaction-cue {
+  margin: 0 0 0.2rem -0.6rem;
+  color: var(--aetheris-ink-2);
+  font-size: 1.05rem;
+  letter-spacing: 0.02em;
+}
+
+.orb-page .metabloom-chat__bubble p + .metabloom-chat__reaction-cue {
+  margin-top: 0.8rem;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .orb-page .metabloom-chat__reaction-cue {
+    min-height: 2.8rem;
+    padding: 0.2rem 0.8rem;
+  }
+}
+
+.orb-page .metabloom-chat__reaction-cue:hover:not(:disabled) {
+  background: var(--aetheris-state-layer);
+}
+
+/* Status and provenance sit together as one quiet footer. */
+.orb-page .metabloom-chat__bubble > .metabloom-chat__stream-status,
+.orb-page .metabloom-chat__bubble > .metabloom-chat__preview-label {
+  display: inline-block;
+  margin-top: 0.8rem;
+  color: var(--aetheris-ink-2);
+  font: 500 1rem/1.4 var(--aetheris-font-mono);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.orb-page .metabloom-chat__bubble > .metabloom-chat__stream-status + .metabloom-chat__preview-label {
+  margin-left: 1.2rem;
+}
+
+/* --- Composer toolbar ------------------------------------------------- */
+
+/* More, Replay, Deep Research and Latest message read as one control set. */
+.orb-page .metabloom-reactions__toolbar > button,
+.orb-page .metabloom-chat__research-toggle,
+.orb-page .metabloom-chat__latest {
+  border: 1px solid var(--aetheris-line);
+  border-radius: var(--aetheris-radius-pill);
+  background: var(--orb-control-surface, var(--aetheris-glass-panel-raised));
+  color: var(--aetheris-ink);
+  font: 500 1.2rem/1.4 var(--aetheris-font-mono);
+  letter-spacing: 0.04em;
+}
+
+.orb-page .metabloom-reactions__toolbar > button[aria-haspopup="dialog"] {
+  border-color: var(--aetheris-line);
+}
+
+.orb-page .metabloom-reactions__replay-shortcut > span[aria-hidden="true"] {
+  margin: 0 0.4rem 0 0;
+}
+
+@media (hover: hover) and (pointer: fine) and (min-width: 901px) {
+  .orb-page .metabloom-reactions__toolbar > button,
+  .orb-page .metabloom-chat__research-toggle,
+  .orb-page .metabloom-chat__latest {
+    min-height: 3.6rem;
+    padding: 0.5rem 1.2rem;
+  }
+}
+
+.orb-page .metabloom-chat__research-toggle:hover:not([data-disabled="true"]) {
+  border-color: var(--aetheris-line-strong);
+  background: var(--aetheris-glass-panel-raised);
+}
+
+.orb-page .metabloom-chat__research-toggle[data-enabled="true"] {
+  border-color: var(--aetheris-focus-line);
+  background: var(--aetheris-teal-soft);
+}
+
+/* --- Composer send state ---------------------------------------------- */
+
+.orb-page .metabloom-chat__composer button:disabled {
+  opacity: 0.42;
+  cursor: default;
+}
+
+@media (forced-colors: active) {
+  .orb-page .metabloom-chat__composer button:disabled { opacity: 1; color: GrayText; }
+  .orb-page .metabloom-chat__research-toggle[data-enabled="true"] { border-color: Highlight; }
+}

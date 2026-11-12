@@ -107,7 +107,7 @@ const MetabloomReactionPanel = ({ onReact, disabled = false, intensity: controll
           {tools ? 'More' : 'Reactions'} <span aria-hidden="true">{open ? "−" : "+"}</span>
         </button>
         <button type="button" className="metabloom-reactions__replay-shortcut" disabled={disabled} onClick={() => play(selected)} aria-label={`Replay ${action.label.toLowerCase()} reaction`}>
-          Replay
+          <span aria-hidden="true">↻</span>{action.label}
         </button>
       </div>
       {open && (
