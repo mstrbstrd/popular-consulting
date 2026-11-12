@@ -22,14 +22,14 @@ describe('Orb liquid glass layer', () => {
     selectors.forEach(selector => expect(selector).toMatch(/\.orb-page/));
   });
 
-  test('one material in three densities, with light and dark tokens', () => {
-    ['--lg-fill-control', '--lg-fill-panel', '--lg-fill-menu', '--lg-edge', '--lg-lens', '--lg-filter']
+  test('clear and regular glass, with light and dark tokens', () => {
+    ['--lg-clear-fill', '--lg-input-fill', '--lg-panel-fill', '--lg-menu-fill', '--lg-specular', '--lg-lens', '--lg-regular-blur']
       .forEach(token => expect(css).toContain(`${token}:`));
-    expect(css).toMatch(/:where\(\[data-theme='dark'\]\) \.orb-page \{[^}]*--lg-fill-menu:/);
+    expect(css).toMatch(/:where\(\[data-theme='dark'\]\) \.orb-page \{[^}]*--lg-menu-fill:/);
   });
 
   test('accessibility preferences collapse glass to solid panels', () => {
-    expect(css).toMatch(/@media \(prefers-reduced-transparency: reduce\), \(prefers-contrast: more\) \{[^@]*--lg-filter: none;/);
+    expect(css).toMatch(/@media \(prefers-reduced-transparency: reduce\), \(prefers-contrast: more\) \{[^@]*--lg-regular-blur: none;[^@]*--lg-post: none;/);
     expect(css).toMatch(/@media \(forced-colors: active\) \{[\s\S]*background: Canvas !important;[\s\S]*backdrop-filter: none !important;/);
     expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\) \{[^}]*animation: none;/);
   });
@@ -38,6 +38,12 @@ describe('Orb liquid glass layer', () => {
     const keyframes = css.match(/@keyframes orb-glass-in \{[^@]*?\}\s*\}/)?.[0] || css.match(/@keyframes orb-glass-in[^\n]*/)[0];
     expect(keyframes).toContain('opacity');
     expect(keyframes).not.toContain('transform');
+  });
+
+  test('refraction is optional: every lensed surface keeps a blur fallback, prefixed first', () => {
+    const uses = [...css.matchAll(/(-webkit-backdrop-filter: [^;]+;)\s*backdrop-filter: (var\(--lg-refraction, [^)]+\)[^;]*);/g)];
+    expect(uses.length).toBeGreaterThanOrEqual(3);
+    uses.forEach(([, prefixed]) => expect(prefixed).not.toContain('--lg-refraction'));
   });
 
   test('no gradient-filled text', () => {

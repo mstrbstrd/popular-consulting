@@ -1,81 +1,80 @@
-/* Liquid glass for the Orb page chrome and menus. Loaded last on /orb only.
-   One material, three densities:
-     control  — capsules floating over the living field (nav, composer, chips)
-     panel    — persistent surfaces with text (sidebar, current-component panel)
-     menu     — transient menus that must stay readable over anything
-   The spectral ring the Aetheris system uses stays, faint, as edge dispersion;
-   the specular rim and lens-style selection come from the glass itself.
-   Values are tokens so reduced transparency/contrast collapse every surface at once. */
+/* iOS-style Liquid Glass for the Orb page chrome and menus. Loaded last, /orb only.
+
+   Two materials, as on iOS:
+     clear    — controls floating over the living field: nearly transparent,
+                lensed at the rim (Chromium refraction, see orbLiquidGlassRefraction.js),
+                curved specular highlights, no coloured border
+     regular  — sidebar and menus that carry text: frosted, same rim and lens
+   The prismatic edge now comes from per-channel refraction instead of a painted
+   spectral ring. Without refraction support the same shapes fall back to light
+   blur, so Safari/Firefox keep the clear look minus the bend.
+   Every value is a token so reduced transparency/contrast collapse all surfaces. */
 
 .orb-page {
-  --lg-blur: 26px;
-  --lg-filter: blur(var(--lg-blur)) saturate(1.8) brightness(1.08);
-  --lg-fill-control: rgba(255, 255, 255, 0.34);
-  --lg-fill-panel: rgba(255, 255, 255, 0.5);
-  --lg-fill-menu: rgba(255, 255, 255, 0.66);
-  --lg-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.34) 0%, rgba(255, 255, 255, 0) 46%);
-  --lg-spec-top: rgba(255, 255, 255, 0.95);
-  --lg-spec-bottom: rgba(255, 255, 255, 0.4);
-  --lg-rim: rgba(255, 255, 255, 0.6);
-  --lg-thickness: rgba(255, 255, 255, 0.22);
-  --lg-depth: 0 12px 32px -10px rgba(52, 28, 72, 0.24), 0 2px 6px rgba(52, 28, 72, 0.08);
-  /* Light lenses tint toward ink: white-on-white glass would hide the selection. */
+  --lg-clear-fill: rgba(255, 255, 255, 0.12);
+  --lg-clear-fill-hover: rgba(255, 255, 255, 0.24);
+  --lg-input-fill: rgba(255, 255, 255, 0.16);
+  --lg-panel-fill: rgba(255, 255, 255, 0.44);
+  --lg-menu-fill: rgba(255, 255, 255, 0.56);
+  --lg-clear-fallback: blur(7px);
+  --lg-regular-blur: blur(22px);
+  --lg-post: saturate(1.7) brightness(1.06);
+  --lg-specular:
+    inset 1.5px 1.5px 0.5px -1px rgba(255, 255, 255, 0.95),
+    inset -1.5px -1.5px 0.5px -1px rgba(255, 255, 255, 0.6),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.4),
+    inset 0 10px 14px -14px rgba(255, 255, 255, 0.85),
+    inset 0 -10px 16px -14px rgba(255, 255, 255, 0.45);
+  --lg-shadow: 0 10px 28px -10px rgba(36, 18, 52, 0.22), 0 1px 3px rgba(36, 18, 52, 0.07);
+  --lg-text-halo: 0 0 10px rgba(255, 255, 255, 0.85), 0 0 2px rgba(255, 255, 255, 0.9);
   --lg-lens: rgba(64, 40, 88, 0.09);
   --lg-lens-hover: rgba(64, 40, 88, 0.05);
-  --lg-dispersion: 0.38;
-  --lg-edge:
-    inset 0 1px 0.5px var(--lg-spec-top),
-    inset 0 -1px 0.5px var(--lg-spec-bottom),
-    inset 0 0 0 0.5px var(--lg-rim),
-    inset 0 0 20px var(--lg-thickness);
-  --lg-lens-edge:
-    inset 0 1px 0.5px var(--lg-spec-top),
-    inset 0 0 0 0.5px var(--lg-rim),
-    0 1px 4px rgba(52, 28, 72, 0.1);
-  --lg-radius-control: 999px;
-  --lg-radius-menu: 22px;
-  --lg-radius-panel: 26px;
-  --lg-gutter: 10px;
+  --lg-spec-top: rgba(255, 255, 255, 0.95);
+  --lg-rim: rgba(255, 255, 255, 0.55);
+  --lg-lens-edge: inset 1px 1px 0.5px -0.5px rgba(255, 255, 255, 0.9), inset 0 0 0 0.5px rgba(255, 255, 255, 0.45), 0 1px 4px rgba(36, 18, 52, 0.08);
+  --lg-radius-menu: 24px;
 }
 :where([data-theme='dark']) .orb-page {
-  --lg-filter: blur(var(--lg-blur)) saturate(1.6) brightness(0.9);
-  --lg-fill-control: rgba(30, 30, 40, 0.38);
-  --lg-fill-panel: rgba(24, 24, 32, 0.52);
-  --lg-fill-menu: rgba(20, 20, 28, 0.7);
-  --lg-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0) 46%);
-  --lg-spec-top: rgba(255, 255, 255, 0.3);
-  --lg-spec-bottom: rgba(255, 255, 255, 0.08);
-  --lg-rim: rgba(255, 255, 255, 0.14);
-  --lg-thickness: rgba(255, 255, 255, 0.04);
-  --lg-depth: 0 14px 36px -10px rgba(0, 0, 0, 0.6), 0 2px 6px rgba(0, 0, 0, 0.35);
+  --lg-clear-fill: rgba(18, 18, 26, 0.16);
+  --lg-clear-fill-hover: rgba(255, 255, 255, 0.08);
+  --lg-input-fill: rgba(18, 18, 26, 0.24);
+  --lg-panel-fill: rgba(20, 20, 28, 0.5);
+  --lg-menu-fill: rgba(18, 18, 26, 0.62);
+  --lg-post: saturate(1.6) brightness(0.92);
+  --lg-specular:
+    inset 1.5px 1.5px 0.5px -1px rgba(255, 255, 255, 0.5),
+    inset -1.5px -1.5px 0.5px -1px rgba(255, 255, 255, 0.24),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.14),
+    inset 0 10px 14px -14px rgba(255, 255, 255, 0.3),
+    inset 0 -10px 16px -14px rgba(255, 255, 255, 0.12);
+  --lg-shadow: 0 12px 32px -10px rgba(0, 0, 0, 0.6), 0 1px 3px rgba(0, 0, 0, 0.4);
+  --lg-text-halo: 0 0 10px rgba(0, 0, 0, 0.75), 0 0 2px rgba(0, 0, 0, 0.8);
   --lg-lens: rgba(255, 255, 255, 0.13);
   --lg-lens-hover: rgba(255, 255, 255, 0.07);
-  --lg-lens-edge:
-    inset 0 1px 0.5px var(--lg-spec-top),
-    inset 0 0 0 0.5px var(--lg-rim),
-    0 1px 4px rgba(0, 0, 0, 0.3);
-  --lg-dispersion: 0.5;
+  --lg-spec-top: rgba(255, 255, 255, 0.3);
+  --lg-rim: rgba(255, 255, 255, 0.14);
+  --lg-lens-edge: inset 1px 1px 0.5px -0.5px rgba(255, 255, 255, 0.35), inset 0 0 0 0.5px rgba(255, 255, 255, 0.14), 0 1px 4px rgba(0, 0, 0, 0.3);
 }
 /* Accessibility preferences replace glass with solid Aetheris panels. */
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
   .orb-page, :where([data-theme='dark']) .orb-page {
-    --lg-filter: none;
-    --lg-fill-control: var(--aetheris-panel);
-    --lg-fill-panel: var(--aetheris-panel);
-    --lg-fill-menu: var(--aetheris-panel);
-    --lg-sheen: linear-gradient(transparent, transparent);
+    --lg-clear-fill: var(--aetheris-panel);
+    --lg-clear-fill-hover: var(--aetheris-panel-raised);
+    --lg-input-fill: var(--aetheris-panel);
+    --lg-panel-fill: var(--aetheris-panel);
+    --lg-menu-fill: var(--aetheris-panel);
+    --lg-clear-fallback: none;
+    --lg-regular-blur: none;
+    --lg-post: none;
+    --lg-text-halo: none;
     --lg-lens: var(--aetheris-state-layer);
     --lg-lens-hover: var(--aetheris-state-layer);
-    --lg-thickness: transparent;
-    --lg-rim: var(--aetheris-line-strong);
+    --lg-specular: inset 0 0 0 1px var(--aetheris-line-strong);
   }
 }
 
-/* ---------- Material application ---------- */
-
-/* Controls */
+/* ---------- Clear glass: controls ---------- */
 html body .orb-page .nav-pill,
-.orb-page .metabloom-chat__composer,
 .orb-page .metabloom-reactions__toolbar > button,
 .orb-page .metabloom-chat__research-toggle,
 .orb-page .metabloom-chat__latest,
@@ -83,34 +82,54 @@ html body .orb-page .nav-pill,
 .orb-page .metabloom-threads__floating .metabloom-threads__trigger,
 .orb-page .metabloom-threads__dock[data-expanded='false'] {
   border-color: transparent !important;
-  background: var(--lg-sheen), var(--lg-fill-control) !important;
-  backdrop-filter: var(--lg-filter) !important;
-  -webkit-backdrop-filter: var(--lg-filter) !important;
-  box-shadow: var(--lg-edge), var(--lg-depth) !important;
+  background: var(--lg-clear-fill) !important;
+  -webkit-backdrop-filter: var(--lg-clear-fallback) var(--lg-post) !important;
+  backdrop-filter: var(--lg-refraction, var(--lg-clear-fallback)) var(--lg-post) !important;
+  box-shadow: var(--lg-specular), var(--lg-shadow) !important;
+  text-shadow: var(--lg-text-halo);
 }
-/* Panels */
+.orb-page .metabloom-chat__composer {
+  border-color: transparent !important;
+  background: var(--lg-input-fill) !important;
+  -webkit-backdrop-filter: var(--lg-clear-fallback) var(--lg-post) !important;
+  backdrop-filter: var(--lg-refraction, var(--lg-clear-fallback)) var(--lg-post) !important;
+  box-shadow: var(--lg-specular), var(--lg-shadow) !important;
+}
+@media (hover: hover) {
+  .orb-page .metabloom-reactions__toolbar > button:hover:not(:disabled),
+  .orb-page .metabloom-chat__research-toggle:hover,
+  .orb-page .metabloom-chat__latest:hover,
+  .orb-page .orb-appearance__trigger:hover,
+  .orb-page .orb-appearance__trigger[aria-expanded='true'] { background: var(--lg-clear-fill-hover) !important; }
+}
+.orb-page .metabloom-reactions__toolbar > button:active:not(:disabled),
+.orb-page .orb-appearance__trigger:active { background: var(--lg-lens) !important; }
+
+/* ---------- Regular glass: panels and menus ---------- */
 .orb-page .metabloom-threads__dock[data-expanded='true'],
 .orb-page[data-active-component='true'] .metabloom-chat__workspace {
   border-color: transparent;
-  background: var(--lg-sheen), var(--lg-fill-panel);
-  backdrop-filter: var(--lg-filter);
-  -webkit-backdrop-filter: var(--lg-filter);
-  box-shadow: var(--lg-edge), var(--lg-depth);
+  background: var(--lg-panel-fill);
+  -webkit-backdrop-filter: var(--lg-regular-blur) var(--lg-post);
+  backdrop-filter: var(--lg-regular-blur) var(--lg-post);
+  box-shadow: var(--lg-specular), var(--lg-shadow);
 }
-/* Menus */
 .orb-page .metabloom-reactions__panel,
 .orb-page .orb-appearance__dialog,
 .orb-page .workspace-menu-panel,
 .orb-page .site-account-panel,
-.orb-page .metabloom-threads__drawer,
-.orb-page .metabloom-threads__editing {
+.orb-page .metabloom-threads__drawer {
   border: 1px solid transparent !important;
   border-radius: var(--lg-radius-menu) !important;
-  background: var(--lg-sheen) padding-box, var(--lg-fill-menu) padding-box !important;
-  backdrop-filter: var(--lg-filter) !important;
-  -webkit-backdrop-filter: var(--lg-filter) !important;
-  box-shadow: var(--lg-edge), var(--lg-depth) !important;
+  background: var(--lg-menu-fill) !important;
+  -webkit-backdrop-filter: var(--lg-regular-blur) var(--lg-post) !important;
+  backdrop-filter: var(--lg-refraction, var(--lg-regular-blur)) var(--lg-post) !important;
+  box-shadow: var(--lg-specular), var(--lg-shadow) !important;
   color: var(--aetheris-ink) !important;
+}
+.orb-page .metabloom-threads__editing {
+  border: 0 !important; border-radius: 18px !important;
+  background: var(--lg-lens-hover) !important; box-shadow: inset 0 0 0 0.5px var(--lg-rim) !important;
 }
 .orb-page .workspace-menu-panel,
 .orb-page .site-account-panel,
@@ -119,14 +138,18 @@ html body .orb-page .nav-pill,
 /* Opacity only: transforms on backdrop-filtered surfaces can desync Chrome's clip. */
 @keyframes orb-glass-in { from { opacity: 0; } to { opacity: 1; } }
 
-/* Edge dispersion: the existing spectral rings become a faint prismatic fringe. */
+/* Painted spectral rings give way to the glass rim; refraction supplies the fringe. */
 html body .orb-page .nav-pill::after,
+.orb-page .metabloom-reactions__toolbar > button::before,
+.orb-page .orb-appearance__dialog::before,
+.orb-page .metabloom-reactions__panel::before,
 .orb-page .metabloom-chat__composer::before,
 .orb-page .orb-appearance__trigger::before,
 .orb-page .metabloom-threads::before,
-.orb-page .metabloom-threads__trigger::before { opacity: var(--lg-dispersion); }
-.orb-page[data-active-component='true'] .metabloom-chat__workspace::before { opacity: var(--lg-dispersion); }
-.orb-page .metabloom-chat__composer:focus-within::before { opacity: 1; }
+.orb-page .metabloom-threads__trigger::before,
+.orb-page[data-active-component='true'] .metabloom-chat__workspace::before { opacity: 0; }
+/* Focus keeps a softened Aetheris spectral rim so it stays unmistakable. */
+.orb-page .metabloom-chat__composer:focus-within::before { opacity: 0.6; }
 
 /* ---------- Lens selection inside glass ---------- */
 .orb-page .metabloom-threads__table tr > td,
@@ -151,7 +174,7 @@ html body .orb-page .nav-pill::after,
   }
 }
 /* Row actions sit inside the list as a small inset glass card. */
-.orb-page .metabloom-threads__editing { margin: 2px 0 6px; padding: 8px; box-shadow: var(--lg-edge) !important; }
+.orb-page .metabloom-threads__editing { margin: 2px 0 6px; padding: 8px; }
 .orb-page .metabloom-threads__editing .metabloom-threads__actions > button {
   border-color: transparent; border-radius: 999px; background: var(--lg-lens); box-shadow: var(--lg-lens-edge);
   font: 550 13px/1.4 var(--aetheris-font-sans); letter-spacing: normal;
@@ -197,7 +220,7 @@ html body .orb-page .nav-pill::after,
 /* Composer chips are capsules; the active Deep Research chip is a lens. */
 .orb-page .metabloom-chat__research-toggle[data-enabled='true'] {
   border-color: transparent !important;
-  background: var(--lg-sheen), var(--lg-lens) !important;
+  background: var(--lg-lens) !important;
   box-shadow: var(--lg-lens-edge), inset 0 0 0 1px color-mix(in srgb, var(--aetheris-teal) 45%, transparent) !important;
 }
 

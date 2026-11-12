@@ -15,6 +15,7 @@ import OrbSection from "./OrbSection";
 import MetabloomVisuals from "./MetabloomVisuals";
 import MetabloomWorkspaceContext from './MetabloomWorkspaceContext';
 import MetabloomThreadsPanel from './MetabloomThreadsPanel';
+import useOrbLiquidGlass from './orbLiquidGlassRefraction';
 import useMetabloomThreads from './useMetabloomThreads';
 import "./OrbPage.css";
 import "./OrbPageExperience.css";
@@ -76,6 +77,8 @@ const OrbPageContent = ({ onReady }) => {
   React.useEffect(() => () => { saveToolState?.('orbAppearance', appearance.current); }, [saveToolState]);
   const [loading, setLoading] = React.useState(false);
   const [pageHidden, setPageHidden] = React.useState(false);
+  const pageRef = React.useRef(null);
+  useOrbLiquidGlass(pageRef);
   const metadata = routeMetadata.orb;
 
   React.useEffect(() => {
@@ -171,6 +174,7 @@ const OrbPageContent = ({ onReady }) => {
   return (
     <MetabloomPaletteContext.Provider value={metabloomPalette}>
       <div
+        ref={pageRef}
         className="orb-page standalone-experience--orb"
         data-conversation-started={conversationStarted ? "true" : "false"}
         data-background-enabled={backgroundEnabled ? "true" : "false"}
