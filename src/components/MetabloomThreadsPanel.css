@@ -193,28 +193,24 @@
 .orb-page .metabloom-threads__heading { padding: 10px 8px; border-bottom: 0; }
 .orb-page .metabloom-threads__heading h2 { font: 650 16px/1.3 var(--aetheris-font-sans); }
 
-/* Docked sidebar: full height, flush to the left edge, page content re-centres
-   in the remaining width. Width is published as --orb-sidebar-space. */
+/* Docked sidebar: a floating full-height glass panel inset from the left edge
+   (a floating capsule rail when collapsed). Page content re-centres in the
+   remaining width, published as --orb-sidebar-space (panel + gutters). */
 @media (min-width: 1100px) {
-  .orb-page[data-thread-history-enabled='true'] { --orb-sidebar-space: 56px; }
-  .orb-page[data-thread-history-enabled='true'][data-thread-history='open'] { --orb-sidebar-space: 264px; }
+  .orb-page[data-thread-history-enabled='true'] { --orb-sidebar-space: 72px; }
+  .orb-page[data-thread-history-enabled='true'][data-thread-history='open'] { --orb-sidebar-space: 284px; }
   .orb-page .metabloom-threads__dock {
-    position: fixed; top: 0; bottom: 0; left: 0; z-index: 20;
-    width: var(--orb-sidebar-space, 264px);
-    padding-top: max(0px, env(safe-area-inset-top)); padding-left: env(safe-area-inset-left);
-    border: 0; border-radius: 0; box-shadow: none;
+    position: fixed; z-index: 20;
+    top: max(10px, env(safe-area-inset-top)); bottom: max(10px, env(safe-area-inset-bottom)); left: max(10px, env(safe-area-inset-left));
+    width: 264px;
+    border: 0; border-radius: var(--aetheris-radius-glass); box-shadow: none;
     background: var(--aetheris-card-panel);
     transition: width var(--aetheris-motion-medium) var(--aetheris-ease-standard);
   }
   :where([data-theme='dark']) .orb-page .metabloom-threads__dock { background: var(--aetheris-card-panel); }
-  /* A structural spectral rail marks the sidebar edge instead of a glass ring. */
-  .orb-page .metabloom-threads__dock::before {
-    inset: 0 0 0 auto; width: 1px; padding: 0; border-radius: 0;
-    background: var(--aetheris-spectral-v); opacity: 0.45; -webkit-mask: none; mask: none;
-  }
   .orb-page .metabloom-threads__dock[data-expanded='true'] > * { min-width: 264px; }
-  .orb-page .metabloom-threads__dock[data-expanded='false'] { align-items: center; gap: 4px; padding: 14px 6px; }
-  .orb-page .metabloom-threads__dock[data-expanded='false'] > button { flex: 0 0 44px; width: 44px; height: 44px; padding: 0; }
+  .orb-page .metabloom-threads__dock[data-expanded='false'] { bottom: auto; width: 52px; align-items: center; gap: 2px; padding: 4px; }
+  .orb-page .metabloom-threads__dock[data-expanded='false'] > button { flex: 0 0 44px; width: 44px; height: 44px; padding: 0; border-radius: 50%; }
   .orb-page .metabloom-threads__dock .metabloom-threads__trigger {
     border: 0; border-radius: var(--aetheris-radius-md); background: transparent; box-shadow: none;
   }
@@ -267,7 +263,6 @@
   .orb-page .metabloom-threads :where(button, input), .orb-page .metabloom-threads__trigger,
   .orb-page .metabloom-threads button.metabloom-threads__new { border: 1px solid ButtonText; background: ButtonFace; color: ButtonText; box-shadow: none; }
   .orb-page .metabloom-threads__table tr[data-current='true'] > td { background: Canvas; outline: 1px solid Highlight; }
-  .orb-page .metabloom-threads__dock::before { display: none; }
   .orb-page .metabloom-threads__dock { border-right: 1px solid CanvasText; }
   .orb-page .metabloom-threads :where(button, input):focus-visible, .orb-page .metabloom-threads__trigger:focus-visible { outline: 2px solid Highlight; box-shadow: none; }
 }

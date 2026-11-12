@@ -26,6 +26,7 @@ import "./MetabloomVisual.css";
 import "./OrbWorkspaceLayout.css";
 import './MetabloomThreadsPanel.css';
 import "./OrbChatRefinement.css";
+import "./OrbLiquidGlass.css";
 
 const METADATA_SELECTORS = Object.freeze({
   description: 'meta[name="description"]',

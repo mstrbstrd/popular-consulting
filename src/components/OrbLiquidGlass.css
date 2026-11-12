@@ -1,0 +1,248 @@
+/* Liquid glass for the Orb page chrome and menus. Loaded last on /orb only.
+   One material, three densities:
+     control  — capsules floating over the living field (nav, composer, chips)
+     panel    — persistent surfaces with text (sidebar, current-component panel)
+     menu     — transient menus that must stay readable over anything
+   The spectral ring the Aetheris system uses stays, faint, as edge dispersion;
+   the specular rim and lens-style selection come from the glass itself.
+   Values are tokens so reduced transparency/contrast collapse every surface at once. */
+
+.orb-page {
+  --lg-blur: 26px;
+  --lg-filter: blur(var(--lg-blur)) saturate(1.8) brightness(1.08);
+  --lg-fill-control: rgba(255, 255, 255, 0.34);
+  --lg-fill-panel: rgba(255, 255, 255, 0.5);
+  --lg-fill-menu: rgba(255, 255, 255, 0.66);
+  --lg-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.34) 0%, rgba(255, 255, 255, 0) 46%);
+  --lg-spec-top: rgba(255, 255, 255, 0.95);
+  --lg-spec-bottom: rgba(255, 255, 255, 0.4);
+  --lg-rim: rgba(255, 255, 255, 0.6);
+  --lg-thickness: rgba(255, 255, 255, 0.22);
+  --lg-depth: 0 12px 32px -10px rgba(52, 28, 72, 0.24), 0 2px 6px rgba(52, 28, 72, 0.08);
+  /* Light lenses tint toward ink: white-on-white glass would hide the selection. */
+  --lg-lens: rgba(64, 40, 88, 0.09);
+  --lg-lens-hover: rgba(64, 40, 88, 0.05);
+  --lg-dispersion: 0.38;
+  --lg-edge:
+    inset 0 1px 0.5px var(--lg-spec-top),
+    inset 0 -1px 0.5px var(--lg-spec-bottom),
+    inset 0 0 0 0.5px var(--lg-rim),
+    inset 0 0 20px var(--lg-thickness);
+  --lg-lens-edge:
+    inset 0 1px 0.5px var(--lg-spec-top),
+    inset 0 0 0 0.5px var(--lg-rim),
+    0 1px 4px rgba(52, 28, 72, 0.1);
+  --lg-radius-control: 999px;
+  --lg-radius-menu: 22px;
+  --lg-radius-panel: 26px;
+  --lg-gutter: 10px;
+}
+:where([data-theme='dark']) .orb-page {
+  --lg-filter: blur(var(--lg-blur)) saturate(1.6) brightness(0.9);
+  --lg-fill-control: rgba(30, 30, 40, 0.38);
+  --lg-fill-panel: rgba(24, 24, 32, 0.52);
+  --lg-fill-menu: rgba(20, 20, 28, 0.7);
+  --lg-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0) 46%);
+  --lg-spec-top: rgba(255, 255, 255, 0.3);
+  --lg-spec-bottom: rgba(255, 255, 255, 0.08);
+  --lg-rim: rgba(255, 255, 255, 0.14);
+  --lg-thickness: rgba(255, 255, 255, 0.04);
+  --lg-depth: 0 14px 36px -10px rgba(0, 0, 0, 0.6), 0 2px 6px rgba(0, 0, 0, 0.35);
+  --lg-lens: rgba(255, 255, 255, 0.13);
+  --lg-lens-hover: rgba(255, 255, 255, 0.07);
+  --lg-lens-edge:
+    inset 0 1px 0.5px var(--lg-spec-top),
+    inset 0 0 0 0.5px var(--lg-rim),
+    0 1px 4px rgba(0, 0, 0, 0.3);
+  --lg-dispersion: 0.5;
+}
+/* Accessibility preferences replace glass with solid Aetheris panels. */
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .orb-page, :where([data-theme='dark']) .orb-page {
+    --lg-filter: none;
+    --lg-fill-control: var(--aetheris-panel);
+    --lg-fill-panel: var(--aetheris-panel);
+    --lg-fill-menu: var(--aetheris-panel);
+    --lg-sheen: linear-gradient(transparent, transparent);
+    --lg-lens: var(--aetheris-state-layer);
+    --lg-lens-hover: var(--aetheris-state-layer);
+    --lg-thickness: transparent;
+    --lg-rim: var(--aetheris-line-strong);
+  }
+}
+
+/* ---------- Material application ---------- */
+
+/* Controls */
+html body .orb-page .nav-pill,
+.orb-page .metabloom-chat__composer,
+.orb-page .metabloom-reactions__toolbar > button,
+.orb-page .metabloom-chat__research-toggle,
+.orb-page .metabloom-chat__latest,
+.orb-page .orb-appearance__trigger,
+.orb-page .metabloom-threads__floating .metabloom-threads__trigger,
+.orb-page .metabloom-threads__dock[data-expanded='false'] {
+  border-color: transparent !important;
+  background: var(--lg-sheen), var(--lg-fill-control) !important;
+  backdrop-filter: var(--lg-filter) !important;
+  -webkit-backdrop-filter: var(--lg-filter) !important;
+  box-shadow: var(--lg-edge), var(--lg-depth) !important;
+}
+/* Panels */
+.orb-page .metabloom-threads__dock[data-expanded='true'],
+.orb-page[data-active-component='true'] .metabloom-chat__workspace {
+  border-color: transparent;
+  background: var(--lg-sheen), var(--lg-fill-panel);
+  backdrop-filter: var(--lg-filter);
+  -webkit-backdrop-filter: var(--lg-filter);
+  box-shadow: var(--lg-edge), var(--lg-depth);
+}
+/* Menus */
+.orb-page .metabloom-reactions__panel,
+.orb-page .orb-appearance__dialog,
+.orb-page .workspace-menu-panel,
+.orb-page .site-account-panel,
+.orb-page .metabloom-threads__drawer,
+.orb-page .metabloom-threads__editing {
+  border: 1px solid transparent !important;
+  border-radius: var(--lg-radius-menu) !important;
+  background: var(--lg-sheen) padding-box, var(--lg-fill-menu) padding-box !important;
+  backdrop-filter: var(--lg-filter) !important;
+  -webkit-backdrop-filter: var(--lg-filter) !important;
+  box-shadow: var(--lg-edge), var(--lg-depth) !important;
+  color: var(--aetheris-ink) !important;
+}
+.orb-page .workspace-menu-panel,
+.orb-page .site-account-panel,
+.orb-page .metabloom-reactions__panel,
+.orb-page .orb-appearance__dialog[open] { animation: orb-glass-in var(--aetheris-motion-medium, 220ms) var(--aetheris-ease-standard, ease) both; }
+/* Opacity only: transforms on backdrop-filtered surfaces can desync Chrome's clip. */
+@keyframes orb-glass-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* Edge dispersion: the existing spectral rings become a faint prismatic fringe. */
+html body .orb-page .nav-pill::after,
+.orb-page .metabloom-chat__composer::before,
+.orb-page .orb-appearance__trigger::before,
+.orb-page .metabloom-threads::before,
+.orb-page .metabloom-threads__trigger::before { opacity: var(--lg-dispersion); }
+.orb-page[data-active-component='true'] .metabloom-chat__workspace::before { opacity: var(--lg-dispersion); }
+.orb-page .metabloom-chat__composer:focus-within::before { opacity: 1; }
+
+/* ---------- Lens selection inside glass ---------- */
+.orb-page .metabloom-threads__table tr > td,
+.orb-page .metabloom-threads__table tr:hover > td { background: transparent; }
+.orb-page .metabloom-threads__table tr > td:first-child { border-radius: 999px 0 0 999px; }
+.orb-page .metabloom-threads__table tr > td:last-child { border-radius: 0 999px 999px 0; }
+@media (hover: hover) {
+  .orb-page .metabloom-threads__table tr:hover > td { background: var(--lg-lens-hover); }
+}
+.orb-page .metabloom-threads__table tr[data-current='true'] > td { background: var(--lg-lens); box-shadow: inset 0 1px 0.5px var(--lg-spec-top); }
+.orb-page .metabloom-threads__table tr[data-current='true'] > td:first-child { box-shadow: inset 0 1px 0.5px var(--lg-spec-top), inset 0.5px 0 0 var(--lg-rim); }
+.orb-page .metabloom-threads button.metabloom-threads__new,
+.orb-page .metabloom-threads__dock .metabloom-threads__trigger,
+.orb-page .metabloom-threads button.metabloom-threads__rail-new,
+.orb-page .metabloom-threads button.metabloom-threads__icon { border-radius: 999px; }
+@media (hover: hover) {
+  .orb-page .metabloom-threads button.metabloom-threads__new:hover:not(:disabled),
+  .orb-page .metabloom-threads button.metabloom-threads__icon:hover:not(:disabled),
+  .orb-page .metabloom-threads__dock .metabloom-threads__trigger:hover,
+  .orb-page .metabloom-threads button.metabloom-threads__rail-new:hover:not(:disabled) {
+    border-color: transparent; background: var(--lg-lens-hover); box-shadow: inset 0 1px 0.5px var(--lg-spec-top);
+  }
+}
+/* Row actions sit inside the list as a small inset glass card. */
+.orb-page .metabloom-threads__editing { margin: 2px 0 6px; padding: 8px; box-shadow: var(--lg-edge) !important; }
+.orb-page .metabloom-threads__editing .metabloom-threads__actions > button {
+  border-color: transparent; border-radius: 999px; background: var(--lg-lens); box-shadow: var(--lg-lens-edge);
+  font: 550 13px/1.4 var(--aetheris-font-sans); letter-spacing: normal;
+}
+.orb-page .metabloom-threads__editing button.metabloom-threads__danger {
+  background: color-mix(in srgb, var(--aetheris-red) 12%, var(--lg-lens)); color: var(--aetheris-red);
+}
+
+/* Experience switcher and account menus. */
+.orb-page .workspace-menu-panel { padding: 8px; }
+.orb-page .workspace-menu-panel a,
+.orb-page .site-account-panel a { border-radius: 999px; padding-inline: 14px; }
+.orb-page .workspace-menu-panel a:hover,
+.orb-page .site-account-panel a:hover { background: var(--lg-lens-hover); }
+.orb-page .workspace-menu-panel a[aria-current='page'] { background: var(--lg-lens); box-shadow: var(--lg-lens-edge); }
+.orb-page .workspace-menu-panel > span,
+.orb-page .site-account-panel > span { padding-inline: 14px; }
+.orb-page .site-account-panel { padding: 8px; width: 220px; font-family: var(--aetheris-font-sans); font-size: 14px; }
+
+/* More: rows on glass instead of stacked bordered cards. */
+.orb-page .metabloom-reactions__panel .metabloom-reactions__saved-tool {
+  border-color: transparent; border-radius: 16px; background: transparent; box-shadow: none;
+}
+.orb-page .metabloom-reactions__panel .metabloom-reactions__saved-tool::before { display: none; }
+@media (hover: hover) {
+  .orb-page .metabloom-reactions__panel .metabloom-reactions__saved-tool:hover:not(:disabled) {
+    background: var(--lg-lens-hover); box-shadow: inset 0 1px 0.5px var(--lg-spec-top);
+  }
+}
+.orb-page .metabloom-reactions__panel details,
+.orb-page .metabloom-reactions__panel summary { border-color: transparent; border-radius: 16px; background: transparent; }
+
+/* Theme: finishes as capsules with a lens for the active one. */
+.orb-page .orb-appearance__dialog[open] .orb-page__finish-option {
+  border-color: transparent; border-radius: 999px; background: transparent; box-shadow: none;
+}
+.orb-page .orb-appearance__dialog[open] .orb-page__finish-option::before { display: none; }
+.orb-page .orb-appearance__dialog[open] .orb-page__finish-option.is-active { background: var(--lg-lens); box-shadow: var(--lg-lens-edge); }
+@media (hover: hover) {
+  .orb-page .orb-appearance__dialog[open] .orb-page__finish-option:hover:not(.is-active) { background: var(--lg-lens-hover); }
+}
+
+/* Composer chips are capsules; the active Deep Research chip is a lens. */
+.orb-page .metabloom-chat__research-toggle[data-enabled='true'] {
+  border-color: transparent !important;
+  background: var(--lg-sheen), var(--lg-lens) !important;
+  box-shadow: var(--lg-lens-edge), inset 0 0 0 1px color-mix(in srgb, var(--aetheris-teal) 45%, transparent) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .orb-page .workspace-menu-panel, .orb-page .site-account-panel,
+  .orb-page .metabloom-reactions__panel, .orb-page .orb-appearance__dialog[open] { animation: none; }
+}
+@media (forced-colors: active) {
+  html body .orb-page .nav-pill,
+  .orb-page .metabloom-chat__composer,
+  .orb-page .metabloom-reactions__toolbar > button,
+  .orb-page .metabloom-chat__research-toggle,
+  .orb-page .orb-appearance__trigger,
+  .orb-page .metabloom-threads__dock,
+  .orb-page .metabloom-reactions__panel,
+  .orb-page .orb-appearance__dialog,
+  .orb-page .workspace-menu-panel,
+  .orb-page .site-account-panel,
+  .orb-page .metabloom-threads__drawer,
+  .orb-page .metabloom-threads__editing {
+    background: Canvas !important; color: CanvasText !important;
+    border: 1px solid CanvasText !important; box-shadow: none !important;
+    backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+  }
+  .orb-page .metabloom-threads__table tr[data-current='true'] > td,
+  .orb-page .workspace-menu-panel a[aria-current='page'],
+  .orb-page .orb-appearance__dialog[open] .orb-page__finish-option.is-active { background: Highlight; color: HighlightText; }
+}
+
+/* Remaining in-menu controls follow the same capsule and lens language. */
+.orb-page .orb-appearance__dialog .orb-page__background-toggle {
+  border-color: transparent !important; border-radius: 999px !important;
+  background: var(--lg-lens-hover) !important; box-shadow: inset 0 1px 0.5px var(--lg-spec-top) !important;
+}
+.orb-page .orb-appearance__dialog .orb-page__background-toggle::before { display: none; }
+.orb-page .orb-appearance__dialog .orb-page__background-toggle[aria-pressed='true'] {
+  background: var(--lg-lens) !important; box-shadow: var(--lg-lens-edge) !important;
+}
+.orb-page .metabloom-reactions__panel .metabloom-reactions__heading button,
+.orb-page .orb-appearance__close {
+  border-color: transparent !important; border-radius: 50% !important; background: transparent !important; box-shadow: none !important;
+}
+@media (hover: hover) {
+  .orb-page .metabloom-reactions__panel .metabloom-reactions__heading button:hover,
+  .orb-page .orb-appearance__close:hover { background: var(--lg-lens-hover) !important; box-shadow: inset 0 1px 0.5px var(--lg-spec-top) !important; }
+}
+.orb-page .metabloom-reactions__panel .metabloom-reactions__heading,
+.orb-page .orb-appearance__heading { border-bottom-color: color-mix(in srgb, var(--lg-rim) 70%, transparent); }

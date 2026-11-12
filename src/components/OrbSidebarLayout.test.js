@@ -21,7 +21,7 @@ describe('Orb chat sidebar layout', () => {
   test('the docked sidebar is fixed above the chat surface and publishes its width', () => {
     expect(css).toMatch(new RegExp(`@media \\(min-width: ${METABLOOM_THREADS_DOCK_MIN_WIDTH}px\\)`));
     expect(css).toMatch(/\.metabloom-threads__dock \{[^}]*position: fixed;[^}]*z-index: 20;/);
-    expect(css).toMatch(/\[data-thread-history='open'\] \{ --orb-sidebar-space: 264px; \}/);
+    expect(css).toMatch(/\[data-thread-history='open'\] \{ --orb-sidebar-space: 284px; \}/);
   });
 
   test('the Orb, conversation and navigation re-centre in the remaining width', () => {
