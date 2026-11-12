@@ -47,3 +47,6 @@ yarn-error.log*
 /auth-ui-evidence/
 /metabloom-research-reuse/
 /metabloom-mobile-workspace/
+
+# Private evaluation inputs, provider traces and unreviewed guidance candidates
+/.metabloom-improvement/

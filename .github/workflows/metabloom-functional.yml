@@ -51,6 +51,10 @@ jobs:
           scripts/metabloom-visual-store-diagnostics.test.cjs scripts/metabloom-artifact-reference.test.cjs
           scripts/metabloom-research-reuse.test.cjs scripts/metabloom-research-reuse-api.test.cjs
       - run: npm ci --no-audit --no-fund
+      - name: Verify the visual improvement loop without model calls
+        run: |
+          npm run metabloom:improve -- check
+          npm run test:metabloom-improvement
       - run: npm test -- --watch=false --runInBand --runTestsByPath src/components/MetabloomVisuals.test.js
         env:
           CI: true

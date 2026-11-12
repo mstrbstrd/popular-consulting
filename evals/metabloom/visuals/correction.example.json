@@ -1,0 +1,45 @@
+{
+  "id": "corrected-inventory-table",
+  "message": "Create a table with columns Item and Count. Use rows Bolts 4 and Nuts 9. Preserve those exact names and values.",
+  "expected": {
+    "mode": "requested",
+    "kind": "table",
+    "result": "generated",
+    "provenance": "user",
+    "data": {
+      "columns": [
+        "Item",
+        "Count"
+      ],
+      "rows": [
+        [
+          "Bolts",
+          "4"
+        ],
+        [
+          "Nuts",
+          "9"
+        ]
+      ]
+    }
+  },
+  "feedback": {
+    "correction": "The previous result changed Nuts from 9 to 8. Preserve supplied values.",
+    "observed": {
+      "columns": [
+        "Item",
+        "Count"
+      ],
+      "rows": [
+        [
+          "Bolts",
+          "4"
+        ],
+        [
+          "Nuts",
+          "8"
+        ]
+      ]
+    }
+  }
+}
