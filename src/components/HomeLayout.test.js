@@ -48,6 +48,9 @@ describe('Home layout and feature art', () => {
     expect(field).toMatch(/metabloomAvatarEnabled\s+mode=\{0\}/);
     expect(field).toContain('paused={!active || !visible}');
     expect(field).toContain('hasHardwareWebGL && !isMobileTier');
+    // Ambient only: it floats in its card and never takes pointer input.
+    expect(field).toContain('pointerReactive={false}');
+    expect(read('HomeOrbField.css')).not.toMatch(/pointer-events: auto/);
     expect(field).not.toMatch(/ManagedDitherBackground|BlackHoleCanvas|getContext/);
   });
 });
