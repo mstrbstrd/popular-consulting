@@ -23,7 +23,9 @@
 /* Fade earlier messages into the scene instead of slicing them with a hard
    edge. The fade is a fixed length anchored to the scrollport, and the
    matching top padding keeps the first message fully opaque at rest. */
-.orb-page[data-conversation-started="true"] .metabloom-chat[data-conversation-started="true"] .metabloom-chat__messages {
+/* Ordinary chat only: an active component's workspace layout owns the
+   transcript spacing there, and its conversation text must not fade. */
+.orb-page[data-conversation-started="true"]:not([data-active-component="true"]) .metabloom-chat[data-conversation-started="true"] .metabloom-chat__messages {
   padding-top: 3.2rem;
   scroll-padding-top: 3.2rem;
   -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 3.2rem);
@@ -31,7 +33,7 @@
 }
 
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more), (forced-colors: active) {
-  .orb-page[data-conversation-started="true"] .metabloom-chat[data-conversation-started="true"] .metabloom-chat__messages {
+  .orb-page[data-conversation-started="true"]:not([data-active-component="true"]) .metabloom-chat[data-conversation-started="true"] .metabloom-chat__messages {
     -webkit-mask-image: none;
     mask-image: none;
   }

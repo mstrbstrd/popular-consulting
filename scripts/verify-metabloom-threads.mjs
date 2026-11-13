@@ -146,7 +146,10 @@ function checkLayout(layout, { drawer = false, dock = false, collapsed = false }
         'The artifact stays to the right of the conversation and composer');
       assert(transcript.bottom <= composer.top + 1, 'Conversation and composer do not overlap');
       if (dock) {
-        assert(inside(panel, viewport) && header.bottom <= panel.top + 1, 'Docked history fits below the header');
+        // The Liquid Glass dock is a full-height sidebar beside the centred
+        // navigation; it must fit the viewport and never overlap the header.
+        assert(inside(panel, viewport) && (header.bottom <= panel.top + 1 || panel.right <= header.left + 1),
+          'Docked history fits the viewport without overlapping the header');
         assert(panel.right <= transcript.left + 1 && panel.right <= composer.left + 1, 'History is left of both conversation and composer');
         assert(workspace.width < transcript.width, 'The existing chat/artifact width preference is retained');
         assert(collapsed ? panel.width >= 44 && panel.width <= 64 : panel.width >= 240 && panel.width <= 280,

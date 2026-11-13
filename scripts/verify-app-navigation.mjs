@@ -233,11 +233,11 @@ try {
     await go('Invoice Generator', '/invoice-generator');
     await page.waitForSelector('.invoice-page');
     assert.equal(await page.locator('#invoice-number').inputValue(), 'FICTIONAL-ONLY', 'Unfinished invoice was lost');
-    await go('Popcan', '/popcan');
+    await go('Canvas', '/popcan');
     await page.waitForSelector('.pc-studio');
     await page.getByLabel('Canvas name').fill('Fictional canvas');
     await go('Home', '/home');
-    await go('Popcan', '/popcan');
+    await go('Canvas', '/popcan');
     await waitForCheck(page, () => document.querySelector('#pc-title')?.value === 'Fictional canvas');
     await go('Selected work', '/work');
     assert.equal(await page.locator('link[href*="work-typography"]').count(), 1);

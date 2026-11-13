@@ -159,7 +159,7 @@
 .orb-page .metabloom-threads__date-column { width: 0; }
 .orb-page .metabloom-threads__table td.metabloom-threads__date { width: 0; padding: 0; overflow: hidden; }
 .orb-page .metabloom-threads__date > time { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-.orb-page .metabloom-threads__actions-column { width: 36px; }
+.orb-page .metabloom-threads__actions-column { width: 44px; }
 .orb-page .metabloom-threads__table td { border-bottom: 0; }
 .orb-page .metabloom-threads__table tr { border-radius: var(--aetheris-radius-md); }
 .orb-page .metabloom-threads__table tr > td:first-child { border-radius: var(--aetheris-radius-md) 0 0 var(--aetheris-radius-md); }
@@ -167,13 +167,14 @@
 .orb-page .metabloom-threads__table tr[data-current='true'] { background: transparent; }
 .orb-page .metabloom-threads__table tr[data-current='true'] > td { background: var(--aetheris-state-layer); }
 .orb-page .metabloom-threads__table tr[data-current='true'] > td:first-child { box-shadow: none; }
+/* Sidebar rows and actions keep the 44px touch target used across the app. */
 .orb-page .metabloom-threads button.metabloom-threads__open {
-  min-height: 40px; padding: 8px 10px; color: var(--aetheris-ink-2);
+  min-height: 44px; padding: 10px; color: var(--aetheris-ink-2);
   font: 450 14px/1.4 var(--aetheris-font-sans);
 }
 .orb-page .metabloom-threads__open > span { display: block; -webkit-line-clamp: unset; max-height: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .orb-page .metabloom-threads button.metabloom-threads__open[aria-current='true'] { color: var(--aetheris-ink); font-weight: 600; }
-.orb-page .metabloom-threads__table button.metabloom-threads__icon { flex-basis: 36px; width: 36px; height: 40px; min-width: 36px; min-height: 40px; color: var(--aetheris-ink-2); }
+.orb-page .metabloom-threads__table button.metabloom-threads__icon { flex-basis: 44px; width: 44px; height: 44px; min-width: 44px; min-height: 44px; color: var(--aetheris-ink-2); }
 @media (hover: hover) {
   .orb-page .metabloom-threads__table tr:hover > td { background: var(--aetheris-state-layer); }
   .orb-page .metabloom-threads button.metabloom-threads__open:hover:not(:disabled) { background: transparent; color: var(--aetheris-ink); }
@@ -181,7 +182,7 @@
   .orb-page .metabloom-threads__table tr:not(:hover):not([data-current='true']) button.metabloom-threads__icon:not(:focus-visible):not([aria-expanded='true']) { opacity: 0; }
 }
 .orb-page .metabloom-threads button.metabloom-threads__new {
-  justify-content: flex-start; gap: 10px; min-height: 40px; padding: 8px 10px;
+  justify-content: flex-start; gap: 10px; min-height: 44px; padding: 10px;
   border: 0; border-radius: var(--aetheris-radius-md); background: transparent; box-shadow: none;
   font: 550 14px/1.4 var(--aetheris-font-sans); letter-spacing: normal; text-align: left;
 }

@@ -304,3 +304,23 @@ test('a late action receipt cannot close a reopened drawer or update an unmounte
   await act(async () => second.resolve(true));
   expect(next.actions.onExpansion.mock.calls).toEqual([[true]]);
 });
+
+test('the modal drawer wraps Tab and Shift+Tab inside itself, while the docked sidebar does not', () => {
+  mount();
+  const dialog = screen.getByRole('dialog', { name: 'Chat history' });
+  const buttons = [...dialog.querySelectorAll('button:not(:disabled)')];
+  const first = buttons[0], last = buttons[buttons.length - 1];
+  act(() => last.focus());
+  expect(fireEvent.keyDown(last, { key: 'Tab' })).toBe(false);
+  expect(first).toHaveFocus();
+  expect(fireEvent.keyDown(first, { key: 'Tab', shiftKey: true })).toBe(false);
+  expect(last).toHaveFocus();
+  act(() => buttons[1].focus());
+  expect(fireEvent.keyDown(buttons[1], { key: 'Tab' })).toBe(true);
+  cleanup();
+  mount({}, { wide: true });
+  const dock = screen.getByRole('complementary', { name: 'Chat history' });
+  const docked = [...dock.querySelectorAll('button:not(:disabled)')];
+  act(() => docked[docked.length - 1].focus());
+  expect(fireEvent.keyDown(docked[docked.length - 1], { key: 'Tab' })).toBe(true);
+});

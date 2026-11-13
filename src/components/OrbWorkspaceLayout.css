@@ -430,3 +430,24 @@
     outline-color: Highlight;
   }
 }
+
+/* At 360px and below, More is an icon button too, so the model picker, More,
+   Latest message and Deep Research still share one row. */
+@media (max-width: 360px) {
+  .orb-page .metabloom-chat__conversation-tools { gap: 4px; }
+  .orb-page .metabloom-reactions__toolbar > button[aria-haspopup="dialog"] {
+    justify-content: center;
+    width: 44px;
+    min-width: 44px;
+    padding: 0;
+    font-size: 18px;
+  }
+  .orb-page .metabloom-reactions__toolbar > button[aria-haspopup="dialog"] .metabloom-reactions__toggle-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .orb-page .metabloom-chat__research-toggle { padding: 6px 8px; }
+}

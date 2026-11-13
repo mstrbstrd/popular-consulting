@@ -2147,6 +2147,18 @@ const OrbSection = ({
         detail: { ...request, claim: claimRequest, respond },
       });
       window.dispatchEvent(requestEvent);
+      // A request listener may downgrade this turn to the cached-client
+      // contract (no toolset), as integrations and the legacy-path browser
+      // suite do. It can never enable tools: that remains this component's
+      // decision. The downgrade restores the ordinary response deadline.
+      if (requestEvent.detail.toolset === false && activeRequest.toolset && current()) {
+        activeRequest.toolset = false;
+        request.toolset = false;
+        delete request.orbContext;
+        window.clearTimeout(previewTimerRef.current);
+        previewTimerRef.current = window.setTimeout(() => failReply(session, { code: 'answer_timeout' }),
+          Math.max(0, activeRequest.startedAt + RESPONSE_TIMEOUT_MS - Date.now()));
+      }
       if (requestEvent.defaultPrevented) claimRequest();
       if (!current() || activeRequest.claimed) return true;
       const externalAdapter = window.__metabloomRequest;

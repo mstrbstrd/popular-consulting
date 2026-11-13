@@ -15,5 +15,22 @@
 .metabloom-model-picker button:disabled { opacity: .5; cursor: default; }
 .metabloom-model-picker :is(button,select):focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
 .orb-page .metabloom-chat__conversation-tools:has(> .metabloom-model-picker) { flex-wrap: wrap; }
-@media (max-width: 600px) { .metabloom-model-picker { flex: 1 0 100%; } .metabloom-model-picker__trigger { max-width: 100%; } .metabloom-model-picker__trigger span:nth-child(2) { max-width: 16rem; } }
+.metabloom-model-picker__glyph { display: none; width: 20px; height: 20px; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
+/* Narrow layouts keep More, Latest message and Deep Research on one fixed row
+   (OrbWorkspaceLayout.css). The picker joins that row as a 44px icon button;
+   its name stays "Choose chat model" and its tooltip names the current model.
+   A full-width picker row cost the conversation a whole row on short phones. */
+@media (max-width: 900px) {
+  .orb-page .metabloom-chat__conversation-tools:has(> .metabloom-model-picker) { flex-wrap: nowrap; }
+  .metabloom-model-picker { position: relative; flex: 0 0 auto; flex-wrap: nowrap; }
+  .metabloom-model-picker__trigger { justify-content: center; width: 44px; min-width: 44px; min-height: 44px; padding: 0; }
+  .metabloom-model-picker__trigger > span { display: none; }
+  .metabloom-model-picker__glyph { display: block; }
+  /* The status text stays announced; a dot marks the control visually. */
+  .metabloom-model-picker__warning { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .metabloom-model-picker:has(> .metabloom-model-picker__warning)::after {
+    content: ""; position: absolute; top: 2px; right: 2px; width: 10px; height: 10px; border-radius: 50%;
+    background: var(--aetheris-red, #c0392b); pointer-events: none;
+  }
+}
 @media (forced-colors: active) { .metabloom-model-picker__dialog { background: Canvas; color: CanvasText; border-color: CanvasText; box-shadow: none; } }
