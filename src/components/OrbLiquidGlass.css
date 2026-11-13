@@ -13,6 +13,7 @@
 
 /* ---------- Clear glass: controls ---------- */
 .orb-page .metabloom-reactions__toolbar > button,
+.orb-page .metabloom-model-picker__trigger,
 .orb-page .metabloom-chat__research-toggle,
 .orb-page .metabloom-chat__latest,
 .orb-page .orb-appearance__trigger,
@@ -52,6 +53,7 @@
   box-shadow: var(--lg-specular), var(--lg-shadow);
 }
 .orb-page .metabloom-reactions__panel,
+.orb-page .metabloom-model-picker__dialog,
 .orb-page .orb-appearance__dialog,
 .orb-page .metabloom-threads__drawer {
   border: 1px solid transparent !important;

@@ -153,6 +153,7 @@ for (const key of ['TYPESAFE_API_KEY', 'VERCEL', 'UPSTASH_REDIS_REST_URL', 'UPST
 
 // There is deliberately no passthrough to fetch, for any host.
 globalThis.fetch = async (url, options = {}) => {
+  if (String(url) === 'https://api.openai.com/v1/models') return Response.json({ data: [{ id: 'gpt-5-mini', created: 1 }] });
   if (String(url) !== 'https://api.openai.com/v1/responses') {
     unexpectedProviderRequests.push(String(url));
     throw new Error('Verification blocked an unexpected outbound request.');

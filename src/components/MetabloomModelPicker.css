@@ -1,0 +1,19 @@
+.metabloom-model-picker { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
+.metabloom-model-picker__trigger { display: flex; align-items: center; gap: .6rem; max-width: 27rem; min-height: 4.4rem; border: 1px solid currentColor; border-radius: 999px; padding: .5rem 1rem; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.metabloom-model-picker__trigger span:nth-child(2) { max-width: 16rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: .72; font-size: .9em; }
+.metabloom-model-picker__warning { font-size: 1.1rem; }
+.metabloom-model-picker__dialog { position: fixed; inset: 0; margin: auto; width: min(46rem, calc(100vw - 3.2rem)); max-height: min(80svh, 65rem); overflow: auto; padding: 0; border: 1px solid rgba(127,127,127,.35); border-radius: 2rem; background: var(--aetheris-panel, #fff8f7); color: var(--aetheris-ink, #17171a); box-shadow: 0 2rem 7rem rgba(0,0,0,.22); font: inherit; }
+.metabloom-model-picker__dialog::backdrop { background: rgba(12,12,18,.4); }
+.metabloom-model-picker__content { padding: 2rem; display: grid; gap: 1.4rem; }
+.metabloom-model-picker__heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.metabloom-model-picker__heading h2 { font-size: 1.9rem; margin: 0; }
+.metabloom-model-picker__content p, .metabloom-model-picker__content small { margin: 0; line-height: 1.5; }
+.metabloom-model-picker__content label { display: grid; gap: .6rem; }
+.metabloom-model-picker__content select { width: 100%; min-width: 0; min-height: 4.4rem; padding: .8rem; border: 1px solid currentColor; border-radius: .8rem; color: inherit; background: var(--aetheris-panel, #fff8f7); font: inherit; }
+.metabloom-model-picker__actions { display: flex; flex-wrap: wrap; gap: .8rem; }
+.metabloom-model-picker__dialog button { min-height: 4.4rem; padding: .7rem 1rem; border: 1px solid currentColor; border-radius: .9rem; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.metabloom-model-picker button:disabled { opacity: .5; cursor: default; }
+.metabloom-model-picker :is(button,select):focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+.orb-page .metabloom-chat__conversation-tools:has(> .metabloom-model-picker) { flex-wrap: wrap; }
+@media (max-width: 600px) { .metabloom-model-picker { flex: 1 0 100%; } .metabloom-model-picker__trigger { max-width: 100%; } .metabloom-model-picker__trigger span:nth-child(2) { max-width: 16rem; } }
+@media (forced-colors: active) { .metabloom-model-picker__dialog { background: Canvas; color: CanvasText; border-color: CanvasText; box-shadow: none; } }

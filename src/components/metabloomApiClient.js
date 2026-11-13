@@ -4,6 +4,7 @@ import { METABLOOM_REQUEST_ERROR_MESSAGES, parseMetabloomRequestError, parseMeta
 import { METABLOOM_VISUAL_OFFER_EVENT, createMetabloomVisualStreamBridge } from "./metabloomVisualApiClient";
 import { parseMetabloomResearchContext, isMetabloomFreshResearchRequest } from "./metabloomResearchReference";
 import { METABLOOM_AGENT_TIMEOUT_MS } from './metabloomAgentTools';
+import { parseMetabloomModelSelection } from './metabloomModelProtocol';
 
 export { getMetabloomApiErrorMessage } from "./metabloomRequestErrors";
 
@@ -34,6 +35,7 @@ export const requestMetabloomResponse = async ({
   history = [],
   artifactContext,
   researchContext,
+  modelSelection,
   message,
   onSegment,
   onTextDelta,
@@ -58,13 +60,17 @@ export const requestMetabloomResponse = async ({
   if (!METABLOOM_ACTION_MODES.includes(actionMode)) {
     throw new MetabloomApiError("Unknown presentation mode.", { code: "invalid_request" });
   }
+  if (modelSelection !== undefined) {
+    modelSelection = parseMetabloomModelSelection(modelSelection);
+    if (!modelSelection) throw new MetabloomApiError('Invalid model selection.', { code: 'invalid_request' });
+  }
   if (researchContext !== undefined) {
     researchContext = parseMetabloomResearchContext(researchContext);
     if (!researchContext || artifactContext) throw new MetabloomApiError(getMetabloomApiErrorMessage("research_reference_invalid"), { code: "research_reference_invalid" });
     actionMode = isMetabloomFreshResearchRequest(message) ? "deep-research" : "none";
   }
   if (typeof fetchImpl !== "function") {
-    if (optional && !researchContext) return null;
+    if (optional && !researchContext && !modelSelection) return null;
     throw new MetabloomApiError("Fetch is unavailable.");
   }
   const useTools = toolset === true && !artifactContext && !researchContext && actionMode !== 'deep-research';
@@ -87,6 +93,7 @@ export const requestMetabloomResponse = async ({
         ...(useTools ? { 'X-Metabloom-Toolset': '2' } : {}) },
       body: JSON.stringify({ actionMode, allowMultiple: allowMultiple === true, streamText: true,
         streamResearchProgress: true, streamResearchDetails: true, streamResearchBrief: true, streamResearchMedia: true, streamResearchReuse: true, timeZone, history, message, requestId,
+        ...(modelSelection ? { modelSelection } : {}),
         ...(artifactContext ? { artifactContext } : {}), ...(researchContext ? { researchContext } : {}) }),
       signal: controller.signal,
     });
@@ -218,7 +225,7 @@ export const requestMetabloomResponse = async ({
       const error = new MetabloomApiError(getMetabloomApiErrorMessage(code), {
         code, status: responseStatus, requestRef: details?.requestRef || responseRequestRef,
       });
-      if (optional && !researchContext && isMetabloomApiUnavailable(error)) return null;
+      if (optional && !researchContext && !modelSelection && isMetabloomApiUnavailable(error)) return null;
       throw error;
     }
     const result = isStream ? decoder.finish() : parseMetabloomChatEnvelope(text, { allowMultiple });

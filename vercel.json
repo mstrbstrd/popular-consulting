@@ -160,6 +160,7 @@
     "api/metabloom-source-media.js": { "maxDuration": 30 },
     "api/metabloom-saved-work.js": { "maxDuration": 30 },
     "api/metabloom-threads.js": { "maxDuration": 30 },
+    "api/metabloom-models.js": { "maxDuration": 30 },
     "api/auth/[action].js": { "maxDuration": 30 }
   }
 }

@@ -9,6 +9,7 @@ const { extractMetabloomResearch, validateMetabloomResearchCitations, readResear
 const { buildMetabloomResearchTemporalContext } = require('./metabloomResearchBrief');
 const { toolDefinition: visualTool } = require('./metabloomToolFlow');
 const { createMetabloomProviderError, readMetabloomProviderError } = require('./metabloomProviderErrors');
+const { requestMetabloomModel } = require('./metabloomModelProvider');
 
 const invalid = reason => createMetabloomProviderError('answer_invalid', reason);
 const define = (name, description, properties) => ({ type: 'function', name, description, strict: true,
@@ -100,7 +101,7 @@ function retainSearchEvidence(report, catalog) {
 }
 
 async function runMetabloomAgent({ message, history, allowMultiple = false, presentationAction = 'none', timeZone = 'UTC',
-  identity, requestId, visualStore, visualsAvailable = false, signal, requestRef,
+  identity, requestId, visualStore, visualsAvailable = false, signal, requestRef, modelSelection,
   fetchImpl = globalThis.fetch, search = searchMetabloomWeb, onTool = async () => {}, onToolProgress, onStatus }) {
   const lifecycle = createMetabloomAgentLifecycle({ requireStatus: true });
   const emit = async event => {
@@ -113,7 +114,7 @@ async function runMetabloomAgent({ message, history, allowMultiple = false, pres
     }
     await (event.type === 'tool_activity' ? onTool : event.type === 'tool_progress' ? onToolProgress : onStatus)?.(event);
   };
-  const webAvailable = !isMetabloomResearchDeclined(message);
+  const webAvailable = Boolean(process.env.OPENAI_API_KEY) && !isMetabloomResearchDeclined(message);
   const tools = [...(webAvailable ? [searchTool] : []), calculateTool, clockTool,
     ...(visualsAvailable ? [visualTool] : [])];
   const available = new Set(tools.map(tool => tool.name));
@@ -132,13 +133,13 @@ async function runMetabloomAgent({ message, history, allowMultiple = false, pres
   for (let step = 0; step <= MAX_METABLOOM_AGENT_CALLS; step++) {
     signal?.throwIfAborted();
     if (Buffer.byteLength(JSON.stringify(input), 'utf8') > 96000) throw invalid('agent_context_limit');
-    const result = await requestAgentResponse({
+    const result = await requestMetabloomModel({
       model: process.env.METABLOOM_OPENAI_MODEL || 'gpt-5-mini', instructions, input,
-      tools: step < MAX_METABLOOM_AGENT_CALLS ? tools : [], tool_choice: step < MAX_METABLOOM_AGENT_CALLS ? 'auto' : 'none',
+      tools: seen.size < MAX_METABLOOM_AGENT_CALLS ? tools : [], tool_choice: seen.size < MAX_METABLOOM_AGENT_CALLS ? 'auto' : 'none',
       parallel_tool_calls: false, include: ['reasoning.encrypted_content'],
       reasoning: { effort: 'low' }, max_output_tokens: 2400, store: false, stream: false,
       text: { format: { type: 'json_schema', name: 'metabloom_chat_response', strict: true, schema } },
-    }, { signal, fetchImpl, requestRef });
+    }, { signal, fetchImpl, requestRef, selection: modelSelection });
     if (result.output.some(item => !item || !['reasoning', 'function_call', 'message'].includes(item.type))) throw invalid('agent_output');
     const calls = result.output.filter(item => item.type === 'function_call');
     if (!calls.length) {
@@ -152,61 +153,72 @@ async function runMetabloomAgent({ message, history, allowMultiple = false, pres
       else if (parsed.value.segments.some(segment => /\[\d+\]/.test(segment.response))) throw invalid('agent_unsourced_citation');
       return { reply: parsed.value, sources, offer };
     }
-    const call = calls[0];
-    if (step === MAX_METABLOOM_AGENT_CALLS || calls.length !== 1 || !available.has(call.name)
+    const callIds = new Set();
+    if (step === MAX_METABLOOM_AGENT_CALLS || calls.length > MAX_METABLOOM_AGENT_CALLS - seen.size
+      || (modelSelection?.provider !== 'deepseek' && calls.length !== 1)) throw invalid('agent_tool_call');
+    for (const call of calls) {
+      if (!available.has(call.name)
       || (call.status !== undefined && call.status !== 'completed')
-      || typeof call.call_id !== 'string' || !/^[a-zA-Z0-9_-]{1,128}$/.test(call.call_id) || seen.has(call.call_id)
+      || typeof call.call_id !== 'string' || !/^[a-zA-Z0-9_-]{1,128}$/.test(call.call_id) || seen.has(call.call_id) || callIds.has(call.call_id)
       || typeof call.arguments !== 'string' || call.arguments.length > 4000
       || result.output.some(item => !['reasoning', 'function_call', 'message'].includes(item.type))) throw invalid('agent_tool_call');
-    seen.add(call.call_id);
-    let args; try { args = JSON.parse(call.arguments); } catch { throw invalid('agent_tool_arguments'); }
-    const activity = { type: 'tool_activity', name: call.name, callId: call.call_id };
-    await emit({ ...activity, state: 'running' });
-    let output;
-    try {
-      if (call.name === 'search_web') {
-        if (!visualKeys(args, ['query']) || !visualText(args.query, 800) || ++searches > 2) throw invalid('agent_search_arguments');
-        let sequence = 0;
-        const found = await search(args.query, { timeZone, signal, fetchImpl, requestRef,
-          onProgress: ({ summary }) => emit({ type: 'tool_progress', name: call.name, callId: call.call_id,
-            sequence: ++sequence, summary }) });
-        const retained = retainSearchEvidence(found.report, sources);
-        sources = retained.sources; evidence = [evidence, retained.notes].filter(Boolean).join('\n\n');
-        output = { status: 'complete', ...retained, asOf: found.asOf };
-      } else if (call.name === 'calculate') {
-        if (!visualKeys(args, ['tokens'])) throw invalid('agent_calculation_arguments');
-        const value = evaluateMetabloomVisualFormula(args.tokens, [], {});
-        if (value === null) throw invalid('agent_calculation_invalid');
-        output = { status: 'complete', value };
-      } else if (call.name === 'get_current_time') {
-        if (!visualKeys(args, [])) throw invalid('agent_clock_arguments');
-        const now = new Date();
-        output = { status: 'complete', utc: now.toISOString(), timeZone,
-          local: new Intl.DateTimeFormat('en-CA', { timeZone, dateStyle: 'full', timeStyle: 'long' }).format(now) };
-      } else {
-        if (!visualKeys(args, ['kind', 'brief']) || !visualTool.parameters.properties.kind.enum.includes(args.kind)
-          || !visualText(args.brief, 1200) || visualAttempted) throw invalid('agent_visual_arguments');
-        visualAttempted = true;
-        await visualStore.claimStart(identity, requestId, { signal });
-        await visualStore.checkQuota(identity, { signal });
-        offer = await visualStore.offer(identity, args.kind, { message, answer: '', toolBrief: args.brief,
-          sources, evidence, recentConversation: history.slice(-2), visualIntent: 'requested',
-          dataHints: extractMetabloomVisualData(message) }, { signal });
-        if (!offer) throw invalid('agent_visual_unavailable');
-        output = { status: 'queued', kind: offer.kind, display: 'unconfirmed' };
-      }
-      signal?.throwIfAborted();
-    } catch (error) {
-      signal?.throwIfAborted();
-      if (error?.reason === 'agent_progress') throw error;
-      output = { status: 'failed', code: error?.code === 'visual_quota' ? 'quota_exceeded' : 'tool_unavailable' };
+      try { JSON.parse(call.arguments); } catch { throw invalid('agent_tool_arguments'); }
+      callIds.add(call.call_id);
     }
-    await emit({ ...activity, state: output.status === 'failed' ? 'failed' : 'complete' });
-    await emit({ type: 'agent_status', state: 'reviewing' });
-    console.info('metabloom_agent_tool', JSON.stringify({ requestRef, name: call.name, status: output.status }));
-    // Preserve provider reasoning items privately for GPT-5 tool continuation.
-    // Neither arguments nor reasoning nor raw tool results are sent to the UI.
-    input.push(...result.output, { type: 'function_call_output', call_id: call.call_id, output: JSON.stringify(output) });
+    // DeepSeek may return several calls despite parallel_tool_calls=false.
+    // Execute them serially under the same shared four-call lifecycle.
+    input.push(...result.output);
+    for (const call of calls) {
+      seen.add(call.call_id);
+      let args; try { args = JSON.parse(call.arguments); } catch { throw invalid('agent_tool_arguments'); }
+      const activity = { type: 'tool_activity', name: call.name, callId: call.call_id };
+      await emit({ ...activity, state: 'running' });
+      let output;
+      try {
+        if (call.name === 'search_web') {
+          if (!visualKeys(args, ['query']) || !visualText(args.query, 800) || ++searches > 2) throw invalid('agent_search_arguments');
+          let sequence = 0;
+          const found = await search(args.query, { timeZone, signal, fetchImpl, requestRef,
+            onProgress: ({ summary }) => emit({ type: 'tool_progress', name: call.name, callId: call.call_id,
+              sequence: ++sequence, summary }) });
+          const retained = retainSearchEvidence(found.report, sources);
+          sources = retained.sources; evidence = [evidence, retained.notes].filter(Boolean).join('\n\n');
+          output = { status: 'complete', ...retained, asOf: found.asOf };
+        } else if (call.name === 'calculate') {
+          if (!visualKeys(args, ['tokens'])) throw invalid('agent_calculation_arguments');
+          const value = evaluateMetabloomVisualFormula(args.tokens, [], {});
+          if (value === null) throw invalid('agent_calculation_invalid');
+          output = { status: 'complete', value };
+        } else if (call.name === 'get_current_time') {
+          if (!visualKeys(args, [])) throw invalid('agent_clock_arguments');
+          const now = new Date();
+          output = { status: 'complete', utc: now.toISOString(), timeZone,
+            local: new Intl.DateTimeFormat('en-CA', { timeZone, dateStyle: 'full', timeStyle: 'long' }).format(now) };
+        } else {
+          if (!visualKeys(args, ['kind', 'brief']) || !visualTool.parameters.properties.kind.enum.includes(args.kind)
+            || !visualText(args.brief, 1200) || visualAttempted) throw invalid('agent_visual_arguments');
+          visualAttempted = true;
+          await visualStore.claimStart(identity, requestId, { signal });
+          await visualStore.checkQuota(identity, { signal });
+          offer = await visualStore.offer(identity, args.kind, { message, answer: '', toolBrief: args.brief,
+            sources, evidence, recentConversation: history.slice(-2), visualIntent: 'requested',
+            dataHints: extractMetabloomVisualData(message) }, { signal });
+          if (!offer) throw invalid('agent_visual_unavailable');
+          output = { status: 'queued', kind: offer.kind, display: 'unconfirmed' };
+        }
+        signal?.throwIfAborted();
+      } catch (error) {
+        signal?.throwIfAborted();
+        if (error?.reason === 'agent_progress') throw error;
+        output = { status: 'failed', code: error?.code === 'visual_quota' ? 'quota_exceeded' : 'tool_unavailable' };
+      }
+      await emit({ ...activity, state: output.status === 'failed' ? 'failed' : 'complete' });
+      await emit({ type: 'agent_status', state: 'reviewing' });
+      console.info('metabloom_agent_tool', JSON.stringify({ requestRef, name: call.name, status: output.status }));
+      // Preserve provider reasoning privately for continuation within this turn.
+      // Neither arguments nor reasoning nor raw tool results are sent to the UI.
+      input.push({ type: 'function_call_output', call_id: call.call_id, output: JSON.stringify(output) });
+    }
   }
   throw invalid('agent_step_limit');
 }

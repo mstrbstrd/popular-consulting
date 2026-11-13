@@ -32,6 +32,11 @@ jobs:
         run: node --test scripts/metabloom-visual-quota-redis.test.cjs scripts/metabloom-research-store-redis.test.cjs
         env:
           METABLOOM_QUOTA_TEST_REDIS_PORT: 6379
+      - name: Verify account model defaults against real Redis
+        run: node --test scripts/metabloom-model-preferences-redis.test.cjs
+        env:
+          METABLOOM_SAVED_WORK_TEST_REDIS_URL: redis://127.0.0.1:6379
+          METABLOOM_SAVED_WORK_TEST_ALLOW_DISPOSABLE: '1'
   emote-contract-and-browser:
     runs-on: windows-latest
     timeout-minutes: 20
@@ -44,6 +49,7 @@ jobs:
       - name: Verify Metabloom API, research, and provider contracts
         run: >-
           node --test scripts/metabloom-api.test.cjs scripts/metabloom-agent.test.cjs scripts/metabloom-agent-api.test.cjs scripts/metabloom-research.test.cjs
+          scripts/metabloom-models.test.cjs
           scripts/metabloom-research-brief.test.cjs scripts/metabloom-research-brief-api.test.cjs
           scripts/metabloom-research-output.test.cjs scripts/metabloom-stream.test.cjs
           scripts/jev-reaction.test.cjs scripts/metabloom-visual.test.cjs scripts/metabloom-ui-tools.test.cjs

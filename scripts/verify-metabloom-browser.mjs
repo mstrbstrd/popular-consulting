@@ -148,7 +148,7 @@ try {
     const originalFetch = window.fetch.bind(window);
     window.fetch = (...args) => {
       const pathname = new URL(args[0]?.url || args[0], location.href).pathname;
-      if (pathname.startsWith('/api/metabloom') && pathname !== '/api/metabloom-threads') {
+      if (pathname.startsWith('/api/metabloom') && !['/api/metabloom-threads', '/api/metabloom-models'].includes(pathname)) {
         window.__demoNetworkCalls++;
         return Promise.reject(new Error('A hardwired demo attempted a model request'));
       }
@@ -188,6 +188,20 @@ try {
     }
     await until(`document.documentElement.dataset.theme === ${JSON.stringify(expectedTheme)}`);
     await until("document.querySelector('.creatoros-field-shell[data-field-ready=\"true\"]')");
+    await until("document.querySelector('.metabloom-model-picker__trigger')?.textContent.includes('gpt-5-mini')");
+    await evaluate("document.querySelector('[aria-label=\"Choose chat model\"]').click()");
+    await until("document.querySelector('.metabloom-model-picker__dialog')?.open");
+    await evaluate(`(() => { const select = document.querySelector('[aria-label="Chat model"]');
+      select.value = 'gpt-5-mini'; select.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+    await evaluate("Array.from(document.querySelectorAll('.metabloom-model-picker__dialog button')).find(button => button.textContent === 'Save as provider default').click()");
+    await until("document.querySelector('.metabloom-model-picker__dialog')?.textContent.includes('Default saved for OpenAI.')");
+    const modelGeometry = await evaluate(`(() => { const r = document.querySelector('.metabloom-model-picker__dialog').getBoundingClientRect();
+      return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: innerWidth, height: innerHeight }; })()`);
+    assert(modelGeometry.left >= 0 && modelGeometry.right <= modelGeometry.width && modelGeometry.top >= 0
+      && modelGeometry.bottom <= modelGeometry.height, 'Model picker must fit the viewport');
+    await screenshot(`${config.id}-model-picker`);
+    await evaluate("document.querySelector('[aria-label=\"Close model settings\"]').click()");
+    await until("!document.querySelector('.metabloom-model-picker__dialog') && document.activeElement?.getAttribute('aria-label') === 'Choose chat model'");
     await screenshot(`${config.id}-landing`);
     const geometry = await evaluate(`(() => { const r = document.querySelector('.metabloom-chat__composer').getBoundingClientRect(); return {left:r.left,right:r.right,width:innerWidth}; })()`);
     assert.ok(geometry.left >= -1 && geometry.right <= geometry.width + 1, "Composer overflow");

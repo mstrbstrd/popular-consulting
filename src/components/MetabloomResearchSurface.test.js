@@ -7,6 +7,7 @@ import MetabloomWorkspaceContext from './MetabloomWorkspaceContext';
 import OrbSection from './OrbSection';
 import { METABLOOM_WORKSPACE_VIEW_REQUEST } from './metabloomVisualSession';
 
+jest.mock('./MetabloomModelPicker', () => require('../testHelpers/MetabloomModelPickerStub'));
 jest.mock('./MetabloomAvatar', () => () => null);
 jest.mock('../contexts/ThemeContext', () => ({ useThemeMode: () => ({ isDark: false }) }));
 

@@ -493,25 +493,30 @@ async function readBriefResponse(response, signal) {
   }
 }
 
-async function generateMetabloomResearchBrief({ message, history = [], report, temporalContext, evidenceLimited = false, signal, requestRef, fetchImpl = globalThis.fetch }) {
+async function generateMetabloomResearchBrief({ message, history = [], report, temporalContext, evidenceLimited = false, signal, requestRef, modelSelection, fetchImpl = globalThis.fetch }) {
   validateEvidence(report);
   const dateEvidenceCatalog = buildMetabloomResearchDateEvidenceCatalog(report);
   signal?.throwIfAborted();
   const startedAt = Date.now();
   let response, envelope, outcome = "failed", failure, result, diagnostics = {};
   try {
-    response = await fetchImpl("https://api.openai.com/v1/responses", {
-      method: "POST", redirect: "error", signal,
-      headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: process.env.METABLOOM_OPENAI_MODEL || "gpt-5-mini", store: false, stream: false,
+    const payload = { model: process.env.METABLOOM_OPENAI_MODEL || "gpt-5-mini", store: false, stream: false,
         max_output_tokens: 6000, reasoning: { effort: "low" }, instructions: briefInstructions,
         input: [...history, { role: "user", content: JSON.stringify({ request: message, temporalContext, evidenceLimited: evidenceLimited === true, dateEvidenceCatalog,
           report: { notes: report.notes, sources: report.sources.map((source) => ({ id: source.id, title: source.title, host: new URL(source.url).hostname })) } }) }],
         text: { format: { type: "json_schema", name: "metabloom_research_brief", strict: true, schema: researchBriefSchema(report.sources, dateEvidenceCatalog) } },
-      }),
-    });
-    if (!response.ok) throw await readMetabloomProviderError(response, signal);
-    envelope = await readBriefResponse(response, signal);
+      };
+    if (modelSelection) {
+      const { requestMetabloomModel } = require('./metabloomModelProvider');
+      envelope = await requestMetabloomModel(payload, { selection: modelSelection, signal, requestRef, fetchImpl });
+    } else {
+      response = await fetchImpl("https://api.openai.com/v1/responses", {
+        method: "POST", redirect: "error", signal,
+        headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, "Content-Type": "application/json" }, body: JSON.stringify(payload),
+      });
+      if (!response.ok) throw await readMetabloomProviderError(response, signal);
+      envelope = await readBriefResponse(response, signal);
+    }
     if (envelope?.status !== "completed" || envelope.error || !Array.isArray(envelope.output)) throw briefError("brief_response_not_completed", "answer_incomplete");
     const messages = envelope.output.filter((item) => item?.type === "message");
     if (messages.length !== 1 || messages[0].role !== "assistant" || messages[0].status !== "completed"

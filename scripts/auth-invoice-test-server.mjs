@@ -2,6 +2,7 @@
 // These mocks preserve the existing invoice interaction suite; server/auth-tests proves authorization separately.
 import { createBuildServer as createStaticBuildServer } from './dark-evidence-browser.mjs';
 import threadProtocol from '../src/components/metabloomThreadProtocol.js';
+import modelProtocol from '../src/components/metabloomModelProtocol.js';
 
 const { parseMetabloomThreadRequest, parseMetabloomThreadResponse, MAX_METABLOOM_THREAD_REQUEST_BYTES,
   MAX_METABLOOM_THREADS } = threadProtocol;
@@ -111,10 +112,30 @@ export function createBuildServer(options) {
     user: { id: 'a'.repeat(64), role: 'admin', name: 'Fictional test account' },
     csrfToken: 'b'.repeat(64), expiresAt: Date.now() + 3600000 }));
   const serveThreads = createThreadFixture(server, getSession, options.onThreadRequest);
+  const modelDefaults = new Map();
   const serve = server.listeners('request')[0];
   server.removeAllListeners('request');
   server.on('request', (request, response) => {
     const pathname = new URL(request.url, 'http://127.0.0.1').pathname;
+    if (pathname === '/api/metabloom-models') {
+      const session = getSession();
+      if (!session?.authenticated || session.user?.role !== 'admin') return send(response, 401, { code: 'authentication_required' });
+      const preferences = modelDefaults.get(session.user.id) || modelProtocol.defaultModelPreferences();
+      if (request.method === 'GET') return send(response, 200, { version: 1, preferences, preferencesAvailable: true,
+        providers: [
+          { id: 'openai', status: 'ready', defaultModel: 'gpt-5-mini', latestModel: 'gpt-5-mini', models: [{ id: 'gpt-5-mini', label: 'gpt-5-mini' }] },
+          ...['deepseek', 'anthropic'].map(id => ({ id, status: 'not_configured', defaultModel: null, latestModel: null, models: [] })),
+        ] });
+      let text = '';
+      request.on('data', chunk => { text += chunk; if (text.length > 512) request.destroy(); });
+      request.on('end', () => {
+        let choice; try { choice = modelProtocol.parseMetabloomModelSelection(JSON.parse(text)); } catch { /* Invalid fixture input. */ }
+        if (!choice || choice.provider !== 'openai' || !['default', 'latest', 'gpt-5-mini'].includes(choice.model)) return send(response, 400, { code: 'invalid_request' });
+        const saved = { provider: choice.provider, defaults: { ...preferences.defaults, [choice.provider]: choice.model } };
+        modelDefaults.set(session.user.id, saved); send(response, 200, { preferences: saved });
+      });
+      return;
+    }
     if (pathname === '/api/metabloom-threads') {
       void serveThreads(request, response);
       return;

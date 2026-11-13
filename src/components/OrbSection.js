@@ -7,6 +7,7 @@ import MetabloomAvatar from "./MetabloomAvatar";
 import MetabloomReactionPanel from "./MetabloomReactionPanel";
 import MetabloomResearchStatus from "./MetabloomResearchStatus";
 import MetabloomWorkStatus from './MetabloomWorkStatus';
+import MetabloomModelPicker from './MetabloomModelPicker';
 import MetabloomResearchSurface, { ResearchReferenceDates } from './MetabloomResearchSurface';
 import MetabloomWorkspaceContext from './MetabloomWorkspaceContext';
 import MetabloomSavedWorkPanel from './MetabloomSavedWorkPanel';
@@ -451,6 +452,8 @@ const OrbSection = ({
   const { isDark } = useThemeMode();
   const navigation = useAppNavigation();
   const workspace = React.useContext(MetabloomWorkspaceContext);
+  const [modelSelection, setModelSelection] = React.useState(null);
+  const [modelAvailable, setModelAvailable] = React.useState(!workspace);
   const workspaceRef = React.useRef(workspace);
   workspaceRef.current = workspace;
   const savedWorkRef = React.useRef(null);
@@ -1794,6 +1797,7 @@ const OrbSection = ({
   const sendMessage = React.useCallback(
     (value) => {
       if (!isActive) return false;
+      if (workspace && (!modelAvailable || !modelSelection)) { setErrorMessage('Choose an available model before sending.'); return false; }
       if (threadSession?.locked) return false;
       if (threadSession && captureConversation().messages.length > messageLimit - 2) {
         setErrorMessage('This chat has reached its message limit. Start a new chat to keep the full history.');
@@ -2007,6 +2011,7 @@ const OrbSection = ({
         return true;
       };
       const request = {
+        ...(modelSelection ? { modelSelection: { ...modelSelection } } : {}),
         toolset: activeRequest.toolset,
         onToolProgress: onAgentEvent, onAgentStatus: onAgentEvent,
         requestId, message, history, ...(artifactContext ? { artifactContext } : {}), ...(researchContext ? { researchContext } : {}), allowMultiple, actionMode: activeRequest.actionMode, onToolActivity,
@@ -2065,7 +2070,7 @@ const OrbSection = ({
       }).catch((error) => { if (current()) failReply(session, error); });
       return true;
     },
-    [allowEmoteChanges, appendMessage, beginReply, beginRequestScene, cancelResponse, captureConversation, deepResearch, failReply, finishReply, isActive, messageLimit, publishMessages, reactionPlayer, receiveModelResponse, reportActivity, threadSession, updateArtifactAttachment, updateResearchAttachment, updateStateSnapshot],
+    [allowEmoteChanges, appendMessage, beginReply, beginRequestScene, cancelResponse, captureConversation, deepResearch, failReply, finishReply, isActive, messageLimit, modelAvailable, modelSelection, publishMessages, reactionPlayer, receiveModelResponse, reportActivity, threadSession, updateArtifactAttachment, updateResearchAttachment, updateStateSnapshot, workspace],
   );
 
   const handleSubmit = React.useCallback(
@@ -2705,6 +2710,8 @@ const OrbSection = ({
             <div className="metabloom-chat__composer-options">
               {!conversationStarted && researchStatus && <div className="metabloom-chat__research-preview">{researchStatus}</div>}
               <div className="metabloom-chat__conversation-tools">
+                {workspace && <MetabloomModelPicker selection={modelSelection} onChange={setModelSelection}
+                  onAvailability={setModelAvailable} disabled={pending || threadBusy} isActive={isActive} />}
                 <MetabloomReactionPanel
                   onReact={previewReaction}
                   disabled={pending || !isActive}
@@ -2856,7 +2863,7 @@ const OrbSection = ({
               )}
               <button
                 type={pending && !draft.trim() ? "button" : "submit"}
-                disabled={threadBusy || (!pending && !draft.trim())}
+                disabled={threadBusy || (!pending && (!draft.trim() || (workspace && (!modelAvailable || !modelSelection))))}
                 onClick={pending && !draft.trim() ? stop : undefined}
                 aria-label={pending && !draft.trim() ? "Stop response" : "Send message"}
               >

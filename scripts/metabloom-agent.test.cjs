@@ -1,7 +1,10 @@
-const { test } = require('node:test');
+const { test, beforeEach, afterEach } = require('node:test');
 const assert = require('node:assert/strict');
 const { runMetabloomAgent, searchMetabloomWeb, retainSearchEvidence } = require('../server/metabloomAgent');
 const { createMetabloomSegmentStreamDecoder } = require('../src/components/metabloomEmoteProtocol');
+const previousKey = process.env.OPENAI_API_KEY;
+beforeEach(() => { process.env.OPENAI_API_KEY = 'fictional-agent-test'; });
+afterEach(() => { if (previousKey === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = previousKey; });
 const source = { id: 1, title: 'Official announcement', url: 'https://example.com/announcement' };
 const report = { notes: 'The announcement was published today. [1]', sources: [source] };
 const call = (name, args, id = 'call_1') => ({ type: 'function_call', name, arguments: JSON.stringify(args), call_id: id, status: 'completed' });

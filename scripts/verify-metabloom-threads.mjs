@@ -46,7 +46,7 @@ const send = (response, status, value) => {
 server.on('request', async (request, response) => {
   const pathname = new URL(request.url, 'http://127.0.0.1').pathname;
   // Let the shared authenticated fixture own thread parsing and persistence.
-  if (pathname === '/api/metabloom-threads' || !pathname.startsWith('/api/metabloom')) return serve(request, response);
+  if (['/api/metabloom-threads', '/api/metabloom-models'].includes(pathname) || !pathname.startsWith('/api/metabloom')) return serve(request, response);
   try {
     assert.equal(request.method, 'POST');
     let raw = '';

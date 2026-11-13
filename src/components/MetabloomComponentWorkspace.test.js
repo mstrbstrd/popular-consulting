@@ -9,6 +9,7 @@ import { requestMetabloomVisual } from './metabloomVisualApiClient';
 import { postMetabloomTool } from './metabloomToolClient';
 import { requestMetabloomSavedWork } from './metabloomSavedWorkApiClient';
 
+jest.mock('./MetabloomModelPicker', () => require('../testHelpers/MetabloomModelPickerStub'));
 jest.mock('./metabloomVisualApiClient', () => ({
   METABLOOM_VISUAL_OFFER_EVENT: 'metabloom:visual-offer', requestMetabloomVisual: jest.fn(),
 }));

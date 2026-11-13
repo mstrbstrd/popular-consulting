@@ -8,10 +8,14 @@ const { conductMetabloomResearch } = require("../server/metabloomResearch");
 const originalFetch = global.fetch;
 const originalKey = process.env.OPENAI_API_KEY;
 const originalModel = process.env.METABLOOM_OPENAI_MODEL;
+const originalProviderKeys = { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY, DEEPSEEK_API_KEY: process.env.DEEPSEEK_API_KEY };
 afterEach(() => {
   global.fetch = originalFetch;
   if (originalKey === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = originalKey;
   if (originalModel === undefined) delete process.env.METABLOOM_OPENAI_MODEL; else process.env.METABLOOM_OPENAI_MODEL = originalModel;
+  for (const [key, value] of Object.entries(originalProviderKeys)) {
+    if (value === undefined) delete process.env[key]; else process.env[key] = value;
+  }
 });
 const source = (id) => ({ id, title: `Outlet ${id} announcement`, url: `https://example.com/source-${id}` });
 const quote = (id, date = "2026-10-23") => `On ${date}, Agency ${id} announced a new public program.`;
@@ -599,6 +603,34 @@ test("the replacement writer makes exactly one bounded provider request with no 
   assert.deepEqual(data.report.sources.map((entry) => entry.id), [1, 5, 9]);
   assert.ok(data.report.sources.every((entry) => !Object.hasOwn(entry, "url")));
   assert.equal(actual.coverage.status, "partial");
+});
+
+for (const [provider, model, key, endpoint] of [
+  ["anthropic", "claude-sonnet", "ANTHROPIC_API_KEY", "https://api.anthropic.com/v1/messages"],
+  ["deepseek", "deepseek-flash", "DEEPSEEK_API_KEY", "https://api.deepseek.com/responses"],
+]) test(`${provider} briefs use the chosen writer and retain host citation and coverage validation`, async (t) => {
+  t.mock.method(console, "info", () => {});
+  process.env[key] = "fixture-not-a-real-key";
+  let calls = 0, value = candidate();
+  const fetchImpl = async (url, options) => {
+    calls++;
+    assert.equal(url, endpoint);
+    const body = JSON.parse(options.body);
+    assert.equal(body.model, model);
+    assert.equal(body.tools, undefined);
+    const schema = provider === "anthropic" ? body.output_config.format.schema : body.text.format.schema;
+    assert.deepEqual(schema.properties.items.items.properties.sourceIds.items.enum, [1, 5, 9]);
+    return jsonResponse(provider === "anthropic" ? { type: "message", role: "assistant", stop_reason: "end_turn",
+      content: [{ type: "text", text: JSON.stringify(referenceCandidate(value)) }] } : envelope(value));
+  };
+  const actual = await generate({ modelSelection: { provider, model }, fetchImpl });
+  assert.deepEqual(actual.items.map(entry => entry.sourceIds[0]), [1, 5, 9]);
+  assert.equal(actual.coverage.status, "partial");
+  assert.equal(actual.coverage.returnedCount, 3);
+  assert.equal(calls, 1);
+  value = candidate(); value.items[0].sourceIds = [999];
+  await assert.rejects(generate({ modelSelection: { provider, model }, fetchImpl }));
+  assert.equal(calls, 2);
 });
 
 test("malformed, incomplete and refused provider output does not trigger another generation", async (t) => {

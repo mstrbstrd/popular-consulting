@@ -11,6 +11,7 @@ import { parseMetabloomThreadSnapshot, parseMetabloomThreadRequest, parseMetablo
 import { requestMetabloomVisual } from './metabloomVisualApiClient';
 import { postMetabloomTool } from './metabloomToolClient';
 
+jest.mock('./MetabloomModelPicker', () => require('../testHelpers/MetabloomModelPickerStub'));
 jest.mock('./MetabloomAvatar', () => () => null);
 jest.mock('../contexts/ThemeContext', () => ({ useThemeMode: () => ({ isDark: false }) }));
 jest.mock('./metabloomVisualApiClient', () => ({
