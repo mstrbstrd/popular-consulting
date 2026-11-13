@@ -11,10 +11,9 @@ describe('Home layout and feature art', () => {
     expect(order).toEqual(['orb', 'popcan', 'dither', 'invoice']);
   });
 
-  test('Orb is the featured card and Invoice closes the grid as a full-width strip', () => {
-    expect(css).toMatch(/\.home-tool--orb \{ grid-column: span 7; grid-row: span 2;/);
-    expect(css).toMatch(/\.home-tool--popcan, \.home-tool--dither \{ grid-column: span 5; \}/);
-    expect(css).toMatch(/\.home-tool--invoice \{ grid-column: span 12;/);
+  test('the tools sit in an even 2x2 grid', () => {
+    expect(css).toMatch(/\.home-tool \{ grid-column: span 6; min-height: 300px; \}/);
+    expect(css).not.toMatch(/grid-row: span 2|grid-column: span (5|7|12)/);
   });
 
   test('each card has one action: no duplicate arrow button', () => {
