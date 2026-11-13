@@ -6,6 +6,7 @@ import { METABLOOM_HOOD_SEQUENCE } from "./metabloomUnderHood";
 import MetabloomAvatar from "./MetabloomAvatar";
 import MetabloomReactionPanel from "./MetabloomReactionPanel";
 import MetabloomResearchStatus from "./MetabloomResearchStatus";
+import MetabloomWorkStatus from './MetabloomWorkStatus';
 import MetabloomResearchSurface, { ResearchReferenceDates } from './MetabloomResearchSurface';
 import MetabloomWorkspaceContext from './MetabloomWorkspaceContext';
 import MetabloomSavedWorkPanel from './MetabloomSavedWorkPanel';
@@ -39,7 +40,7 @@ import { createMetabloomResearchDisplayGate } from "./metabloomResearchDisplayGa
 import { METABLOOM_RESEARCH_TIMEOUT_MS, METABLOOM_RESEARCH_REUSE_TIMEOUT_MS, getMetabloomApiErrorMessage, requestMetabloomResponse } from "./metabloomApiClient";
 import { METABLOOM_REQUEST_ERROR_MESSAGES, parseMetabloomRequestRef } from "./metabloomRequestErrors";
 import { METABLOOM_TOOL_TURN_TIMEOUT_MS } from "./metabloomVisualProtocol";
-import { METABLOOM_AGENT_TIMEOUT_MS, METABLOOM_AGENT_TOOL_LABELS, parseMetabloomAgentActivity } from './metabloomAgentTools';
+import { METABLOOM_AGENT_TIMEOUT_MS, createMetabloomAgentLifecycle, getMetabloomWorkPresentation } from './metabloomAgentTools';
 import { METABLOOM_TRANSCRIPT_READY_EVENT, METABLOOM_RESET_EVENT,
   METABLOOM_WORKSPACE_VIEW_EVENT, METABLOOM_WORKSPACE_VIEW_REQUEST } from "./metabloomVisualSession";
 import { METABLOOM_ARTIFACT_REFERENCE_EVENT, METABLOOM_ARTIFACT_UPDATE_EVENT, parseMetabloomArtifactAttachment } from "./metabloomArtifactReference";
@@ -495,6 +496,8 @@ const OrbSection = ({
   const [researchProgress, setResearchProgress] = React.useState(null);
   const [researchSummary, setResearchSummary] = React.useState(null);
   const [researchSource, setResearchSource] = React.useState(null);
+  const [workProgress, setWorkProgress] = React.useState(null);
+  const [workNotice, setWorkNotice] = React.useState(null);
   const workspaceReadingRef = React.useRef(null);
   const visibleTranscriptReadingRef = React.useRef({ scrollTop: 0, following: true });
   const [workspaceExpanded, setWorkspaceExpanded] = React.useState(false);
@@ -666,6 +669,7 @@ const OrbSection = ({
     researchProgress,
     researchSummary,
     researchSource,
+    workProgress,
     sceneAction,
     scenePhase,
     theme: METABLOOM_ACTIVITIES[activityId].theme,
@@ -997,8 +1001,10 @@ const OrbSection = ({
     if (retainedMessages) publishMessages(retainedMessages);
     replyDisplayRef.current = null;
     replyRef.current = null;
-    updateStateSnapshot({ researchProgress: null, researchSummary: null, researchSource: null });
+    updateStateSnapshot({ researchProgress: null, researchSummary: null, researchSource: null, workProgress: null });
     if (mountedRef.current) {
+      setWorkProgress(null);
+      setWorkNotice(null);
       setToolPending(false);
       setResearchProgress(null);
       setResearchSummary(null);
@@ -1148,7 +1154,9 @@ const OrbSection = ({
   );
 
   const stop = React.useCallback(() => {
+    const wasPending = stateRef.current?.pending;
     cancelResponse();
+    if (wasPending) setWorkNotice('Response stopped.');
     clearSequence();
     updateStateSnapshot({ talking: false, pending: false });
     setTalking(false);
@@ -1376,7 +1384,8 @@ const OrbSection = ({
     activeRequestRef.current = null;
     requestAbortRef.current = null;
     requestTokenRef.current += 1;
-    updateStateSnapshot({ pending: false, researchProgress: null, researchSummary: null, researchSource: null });
+    updateStateSnapshot({ pending: false, researchProgress: null, researchSummary: null, researchSource: null, workProgress: null });
+    setWorkProgress(null);
     setPending(false);
     setToolPending(false);
     setResearchProgress(null);
@@ -1853,11 +1862,29 @@ const OrbSection = ({
       setTalking(false);
       const current = () => mountedRef.current && requestTokenRef.current === requestToken
         && activeRequestRef.current === activeRequest && !session.closed;
+      const agentLifecycle = createMetabloomAgentLifecycle();
+      const onAgentEvent = event => {
+        if (!current() || !activeRequest.toolset || activeRequest.answerStarted || session.snapshot().segments.length) return false;
+        if (!agentLifecycle.accept(event)) return false;
+        const state = agentLifecycle.getState();
+        activeRequest.toolSearchComplete = state.searchComplete;
+        const progress = { ...getMetabloomWorkPresentation(state), startedAt: activeRequest.startedAt, updatedAt: Date.now() };
+        setWorkProgress(progress);
+        updateStateSnapshot({ workProgress: progress });
+        return true;
+      };
       const onTextDelta = (delta, index) => {
-        if (current()) session.appendText(delta, index);
+        if (!current() || !agentLifecycle.canAnswer()) return false;
+        activeRequest.answerStarted = true;
+        setWorkProgress(null);
+        updateStateSnapshot({ workProgress: null });
+        session.appendText(delta, index);
       };
       const onSegment = (segment, index) => {
-        if (!current()) return;
+        if (!current() || !agentLifecycle.canAnswer()) return false;
+        activeRequest.answerStarted = true;
+        setWorkProgress(null);
+        updateStateSnapshot({ workProgress: null });
         session.append(segment, index);
       };
       const onReaction = (reaction) => {
@@ -1964,10 +1991,8 @@ const OrbSection = ({
         try { return session.attachResearchReference(metadata); } catch { return false; }
       };
       const onToolActivity = (phase) => {
-        const activity = parseMetabloomAgentActivity(phase);
-        if (activity && activeRequest.toolset && current() && !session.snapshot().segments.length) {
-          if (activity.name === 'search_web' && activity.state === 'complete') activeRequest.toolSearchComplete = true;
-          setToolPending(activity.state === 'running' ? METABLOOM_AGENT_TOOL_LABELS[activity.name] : false);
+        if (phase?.type === 'tool_activity') {
+          if (!onAgentEvent(phase)) return false;
           window.clearTimeout(previewTimerRef.current);
           const remaining = Math.max(0, activeRequest.startedAt + METABLOOM_AGENT_TIMEOUT_MS - Date.now());
           previewTimerRef.current = window.setTimeout(() => failReply(session, { code: 'answer_timeout' }), remaining);
@@ -1983,6 +2008,7 @@ const OrbSection = ({
       };
       const request = {
         toolset: activeRequest.toolset,
+        onToolProgress: onAgentEvent, onAgentStatus: onAgentEvent,
         requestId, message, history, ...(artifactContext ? { artifactContext } : {}), ...(researchContext ? { researchContext } : {}), allowMultiple, actionMode: activeRequest.actionMode, onToolActivity,
         signal: controller.signal, onTextDelta, onSegment, onReaction, onAction, onResearch, onResearchProgress, onResearchDetails, onResearchBrief, onResearchReference, onSources,
         onActivity: (event) => current() && reportActivity(requestId, event),
@@ -2008,7 +2034,7 @@ const OrbSection = ({
         activeRequest.claimed = true;
         return true;
       };
-      const respond = (payload) => claimRequest() && receiveModelResponse(payload, { requestId, source: "external" });
+      const respond = (payload) => agentLifecycle.canAnswer() && claimRequest() && receiveModelResponse(payload, { requestId, source: "external" });
       const requestEvent = new CustomEvent(MODEL_REQUEST_EVENT, {
         cancelable: true,
         detail: { ...request, claim: claimRequest, respond },
@@ -2028,6 +2054,7 @@ const OrbSection = ({
           : requestMetabloomResponse({ ...request, optional: true });
       }).then((payload) => {
         if (!current()) return;
+        if (!agentLifecycle.canAnswer()) { failReply(session, { code: 'invalid_response' }); return; }
         if (!payload && !session.snapshot().segments.length) {
           if (researchContext) failReply(session, { code: 'not_configured' });
           else runDemo();
@@ -2226,7 +2253,7 @@ const OrbSection = ({
     }
     if (hasVisualScrollAnchor()) return;
     scrollToLatest();
-  }, [messages, pending, visibleResearchPhase, scenePhase, scrollToLatest, hasVisualScrollAnchor, transcriptIsHidden]);
+  }, [messages, pending, workProgress, visibleResearchPhase, scenePhase, scrollToLatest, hasVisualScrollAnchor, transcriptIsHidden]);
 
   const resizeComposer = React.useCallback(() => {
     const input = composerRef.current;
@@ -2476,8 +2503,9 @@ const OrbSection = ({
   }, []);
 
   const hasStreamingReply = messages.some((message) => message.status === "streaming");
-  const showResearchStatus = Boolean(visibleResearchPhase || (pending && researchProgress && !hasStreamingReply));
-  const statusText = visibleUnderHoodPhase
+  const showWorkStatus = Boolean(pending && workProgress && !hasStreamingReply);
+  const showResearchStatus = !showWorkStatus && Boolean(visibleResearchPhase || (pending && researchProgress && !hasStreamingReply));
+  const statusText = showWorkStatus ? workProgress.label : visibleUnderHoodPhase
     ? (visibleUnderHoodPhase === "seam" ? "Opening the seam..." : visibleUnderHoodPhase === "closing" ? "Sealing the seam..." : `Under the hood · Forward Pass ${requestScene ? "scene" : "preview"}`)
     : visibleResearchPhase === "surfacing" ? "Surfacing..." : scenePhase === "think" ? "Thinking"
     : sceneAction === "deep-research" ? "Diving deep..." : activityId !== "idle"
@@ -2485,7 +2513,7 @@ const OrbSection = ({
     : showResearchStatus ? "Researching"
     : pending
     ? (toolPending ? (typeof toolPending === 'string' ? toolPending : "Building your visual") : hasStreamingReply ? "Responding" : "Thinking")
-    : sequenceId
+    : workNotice ? 'Stopped' : sequenceId
       ? "Responding"
       : paused
         ? "Paused"
@@ -2496,7 +2524,7 @@ const OrbSection = ({
             : composerFocused ? "Listening" : "Here with you";
   const researchStatus = showResearchStatus ? <MetabloomResearchStatus phase={visibleResearchPhase} preview={visibleActivityPreview} progress={researchProgress} summary={researchSummary} source={researchSource} /> : null;
   const statusBeforeReply = visibleResearchPhase === "surfacing" && !visibleActivityPreview && messages[messages.length - 1]?.role === "assistant";
-  const showHoodStatus = sceneAction === "under-the-hood";
+  const showHoodStatus = !showWorkStatus && sceneAction === "under-the-hood";
   return (
     <section
       id="orb"
@@ -2552,7 +2580,7 @@ const OrbSection = ({
           <div
             className="metabloom-chat__presence"
             role="status"
-            aria-live={showResearchStatus || showHoodStatus ? "off" : "polite"}
+            aria-live={showResearchStatus || showHoodStatus || showWorkStatus || workNotice ? "off" : "polite"}
           >
             <span className="metabloom-chat__presence-dot" aria-hidden="true" />
             <span>Metabloom</span>
@@ -2652,8 +2680,10 @@ const OrbSection = ({
               })}
 
               {conversationStarted && !statusBeforeReply && researchStatus}
+              {showWorkStatus && <MetabloomWorkStatus progress={workProgress} />}
+              {workNotice && <p className="metabloom-chat__research-notice" role="status">{workNotice}</p>}
               {showHoodStatus && <div className="metabloom-chat__scene-status" role="status" aria-label="Scene progress" aria-live="polite" aria-atomic="true">{statusText}</div>}
-              {pending && !hasStreamingReply && !showResearchStatus && !showHoodStatus && (
+              {pending && !hasStreamingReply && !showResearchStatus && !showHoodStatus && !showWorkStatus && (
                 <article
                   className="metabloom-chat__message metabloom-chat__message--assistant"
                   aria-label={`Metabloom is ${statusText.toLowerCase()}`}

@@ -295,7 +295,7 @@ const handler = async (request, response) => {
     version: METABLOOM_CHAT_PROTOCOL_VERSION, release: "jev-dual-reactions-v2", presentation: "single-message-stream",
     uiToolsEnabled: Boolean(visualIdentity) && visualsEnabled()
       && process.env.METABLOOM_UI_TOOLS_ENABLED !== 'false' && configured(request),
-    streaming: "validated-text-and-reactions", research: "web-search-with-citations", toolset: 1, configured: configured(request),
+    streaming: "validated-text-and-reactions", research: "web-search-with-citations", toolset: 2, configured: configured(request),
     jevConfigured: Boolean(process.env.TYPESAFE_API_KEY), emotes: METABLOOM_EMOTE_IDS,
   });
   if (request.method !== "POST") {
@@ -314,7 +314,8 @@ const handler = async (request, response) => {
   const providerConfigured = configured(request);
   // Explicit saved references retain their owner-checked conversion/reuse path.
   // Negotiation keeps cached clients on their existing stream contract.
-  const useAgent = request.headers?.["x-metabloom-toolset"] === "1"
+  const streamToolProgress = request.headers?.['x-metabloom-toolset'] === '2';
+  const useAgent = ['1', '2'].includes(request.headers?.["x-metabloom-toolset"])
     && !body.artifactContext && !body.researchContext && body.actionMode !== "deep-research";
   const nativeVisualsAvailable = Boolean(request.headers?.["x-metabloom-visuals"] === "1"
     && body.requestId && visualIdentity && visualsEnabled() && providerConfigured);
@@ -425,7 +426,9 @@ const handler = async (request, response) => {
         identity: visualIdentity, requestId: body.requestId, requestRef, signal: controller.signal,
         visualsAvailable: nativeVisualsAvailable && request.headers?.['x-metabloom-ui-tools'] === '1'
           && process.env.METABLOOM_UI_TOOLS_ENABLED !== 'false' && !['text_only', 'unsupported'].includes(visualIntent.mode),
-        visualStore: createMetabloomVisualStore(), onTool: sendStreamEvent });
+        visualStore: createMetabloomVisualStore(), onTool: sendStreamEvent,
+        onToolProgress: streamToolProgress ? sendStreamEvent : undefined,
+        onStatus: streamToolProgress ? sendStreamEvent : undefined });
       if (result.sources.length) await sendStreamEvent({ type: 'tool_sources', sources: result.sources });
       for (const [index, segment] of result.reply.segments.entries()) {
         if (body.streamText === true) await sendStreamEvent({ type: 'text_delta', index, delta: segment.response });

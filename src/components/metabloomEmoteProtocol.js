@@ -17,7 +17,7 @@ const { MAX_METABLOOM_RESEARCH_REPORT_BYTES, MAX_METABLOOM_RESEARCH_REPORT_CHUNK
 const { MAX_METABLOOM_RESEARCH_BRIEF_BYTES, MAX_METABLOOM_RESEARCH_BRIEF_CHUNK_CHARS,
   parseMetabloomClientResearchBrief: parseMetabloomResearchBrief } = require("./metabloomResearchBriefProtocol");
 const { METABLOOM_STREAM_ERROR_CODES, parseMetabloomRequestError, getMetabloomApiErrorMessage } = require("./metabloomRequestErrors");
-const { parseMetabloomAgentActivity, MAX_METABLOOM_AGENT_CALLS } = require('./metabloomAgentTools');
+const { createMetabloomAgentLifecycle } = require('./metabloomAgentTools');
 
 const MAX_SERIALIZED_CHARS = 24000;
 // Allow bounded NDJSON framing even when all 4,800 text characters arrive singly.
@@ -106,6 +106,7 @@ const createMetabloomSegmentStreamDecoder = ({
   allowResearchBrief = false,
   allowResearchReuse = false,
   allowTools = false,
+  allowToolProgress = false,
   maxBufferChars = MAX_SERIALIZED_CHARS,
   onDone,
   onError,
@@ -120,6 +121,8 @@ const createMetabloomSegmentStreamDecoder = ({
   onResearchReference,
   onSources,
   onToolActivity,
+  onToolProgress,
+  onAgentStatus,
 } = {}) => {
   const limit = Number.isInteger(maxBufferChars) && maxBufferChars > 0
     ? Math.min(maxBufferChars, MAX_SERIALIZED_CHARS) : MAX_SERIALIZED_CHARS;
@@ -151,10 +154,8 @@ const createMetabloomSegmentStreamDecoder = ({
   let researchReference = null;
   let researchReused = false;
   let sources = null;
-  const toolCalls = new Set();
-  let activeTool = null;
-  let searched = false;
-  const toolTextReady = () => !activeTool && (!searched || sources !== null);
+  const toolLifecycle = createMetabloomAgentLifecycle({ requireStatus: allowToolProgress });
+  const toolTextReady = () => toolLifecycle.canAnswer() && (!toolLifecycle.getState().searchComplete || sources !== null);
   const segments = [];
   const fail = (message, details = null) => {
     if (!errorMessage) {
@@ -181,26 +182,20 @@ const createMetabloomSegmentStreamDecoder = ({
       const details = parseMetabloomRequestError({ code: event.code, ...(!legacy ? { requestRef: event.requestRef } : {}) });
       return details ? fail(getMetabloomApiErrorMessage(details.code), details) : fail("Invalid stream error.");
     }
-    if (toolCalls.size && typeof event?.type === 'string' && event.type.startsWith('research')) return fail('Research and chat tool streams cannot be mixed.');
-    if (event?.type === 'tool_activity') {
-      const activity = parseMetabloomAgentActivity(event);
-      if (!allowTools || !activity || version !== METABLOOM_CHAT_PROTOCOL_VERSION
+    if (toolLifecycle.getState().phase !== null && typeof event?.type === 'string' && event.type.startsWith('research')) return fail('Research and chat tool streams cannot be mixed.');
+    if (['tool_activity', 'tool_progress', 'agent_status'].includes(event?.type)) {
+      if (!allowTools || (event.type !== 'tool_activity' && !allowToolProgress) || version !== METABLOOM_CHAT_PROTOCOL_VERSION
         || !['none', 'under-the-hood'].includes(action) || researchState !== null || sources !== null
         || segments.length || partialResponse !== null || textComplete) return fail('Invalid tool activity.');
-      if (activity.state === 'running') {
-        if (activeTool || toolCalls.has(activity.callId) || toolCalls.size >= MAX_METABLOOM_AGENT_CALLS) return fail('Invalid tool execution order.');
-        toolCalls.add(activity.callId);
-        activeTool = activity;
-      } else {
-        if (!activeTool || activeTool.callId !== activity.callId || activeTool.name !== activity.name) return fail('Invalid tool completion.');
-        if (activity.name === 'search_web' && activity.state === 'complete') searched = true;
-        activeTool = null;
-      }
-      onToolActivity?.(activity);
+      const accepted = toolLifecycle.accept(event);
+      if (!accepted) return fail('Invalid tool execution order.');
+      if (event.type === 'tool_activity') onToolActivity?.(accepted);
+      else if (event.type === 'tool_progress') onToolProgress?.(accepted);
+      else onAgentStatus?.(accepted);
       return true;
     }
     if (event?.type === 'tool_sources') {
-      if (!allowTools || !exactKeys(event, ['type', 'sources']) || !searched || activeTool || sources !== null
+      if (!allowTools || !exactKeys(event, ['type', 'sources']) || !toolLifecycle.getState().searchComplete || !toolLifecycle.canAnswer() || sources !== null
         || researchState !== null || segments.length || partialResponse !== null || textComplete) return fail('Invalid tool sources.');
       const parsed = parseMetabloomResearchSources(event.sources);
       if (!parsed) return fail('Invalid tool sources.');
@@ -211,7 +206,7 @@ const createMetabloomSegmentStreamDecoder = ({
     if (event?.type === "action") {
       if (!exactKeys(event, ["type", "action"]) || !METABLOOM_ACTION_IDS.includes(event.action)
         || version !== METABLOOM_CHAT_PROTOCOL_VERSION || action !== null
-        || toolCalls.size || segments.length || partialResponse !== null || textComplete) {
+        || toolLifecycle.getState().phase !== null || segments.length || partialResponse !== null || textComplete) {
         return fail("Invalid or out-of-order action choice.");
       }
       action = event.action;

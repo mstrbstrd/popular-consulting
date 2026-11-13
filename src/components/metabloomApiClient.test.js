@@ -10,19 +10,25 @@ const headers = (contentType, requestRef = null) => ({
 });
 
 test('ordinary chat negotiates tool activity and renders search sources without a research scene', async () => {
-  const onToolActivity = jest.fn(), onSources = jest.fn(), onSegment = jest.fn();
+  const onToolActivity = jest.fn(), onToolProgress = jest.fn(), onAgentStatus = jest.fn(), onSources = jest.fn(), onSegment = jest.fn();
   const source = { id: 1, title: 'Official announcement', url: 'https://example.com/news' };
   const events = [
     { type: 'emote', phase: 'input', emote: 'neutral' }, { type: 'action', action: 'none' },
-    ...['running', 'complete'].map(state => ({ type: 'tool_activity', name: 'search_web', callId: 'search_1', state })),
+    { type: 'agent_status', state: 'working' },
+    { type: 'tool_activity', name: 'search_web', callId: 'search_1', state: 'running' },
+    { type: 'tool_progress', name: 'search_web', callId: 'search_1', sequence: 1, summary: 'Reading: example.com' },
+    { type: 'tool_activity', name: 'search_web', callId: 'search_1', state: 'complete' },
+    { type: 'agent_status', state: 'reviewing' }, { type: 'agent_status', state: 'validating' },
     { type: 'tool_sources', sources: [source] }, { type: 'segment', index: 0, response: 'Verified news. [1]' },
     { type: 'text_complete' }, { type: 'emote', phase: 'response', emote: 'neutral' }, { type: 'done', version: '2.0.0' },
   ];
   const fetchImpl = jest.fn(async () => ({ ok: true, status: 200, headers: headers('application/x-ndjson'),
     text: async () => events.map(event => JSON.stringify(event)).join('\n') + '\n' }));
-  await requestMetabloomResponse({ message: 'How did you miss the Nvidia news?', fetchImpl, onToolActivity, onSources, onSegment });
-  expect(fetchImpl.mock.calls[0][1].headers['X-Metabloom-Toolset']).toBe('1');
+  await requestMetabloomResponse({ message: 'How did you miss the Nvidia news?', fetchImpl, onToolActivity, onToolProgress, onAgentStatus, onSources, onSegment });
+  expect(fetchImpl.mock.calls[0][1].headers['X-Metabloom-Toolset']).toBe('2');
   expect(onToolActivity.mock.calls.map(([event]) => event.state)).toEqual(['running', 'complete']);
+  expect(onToolProgress).toHaveBeenCalledWith(expect.objectContaining({ summary: 'Reading: example.com' }));
+  expect(onAgentStatus.mock.calls.map(([event]) => event.state)).toEqual(['working', 'reviewing', 'validating']);
   expect(onSources).toHaveBeenCalledWith([source]);
   expect(onSources.mock.invocationCallOrder[0]).toBeLessThan(onSegment.mock.invocationCallOrder[0]);
   await expect(requestMetabloomResponse({ message: 'Deep research this', actionMode: 'deep-research', fetchImpl }))

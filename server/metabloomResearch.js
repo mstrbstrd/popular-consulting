@@ -149,7 +149,8 @@ const researchProgressSummary = (event) => {
   return null;
 };
 
-const readResearchResponse = async (response, signal, onProgress, includeSourceUrls = false) => {
+const readResearchResponse = async (response, signal, onProgress, includeSourceUrls = false,
+  { maxEventBytes = MAX_RESEARCH_BODY_BYTES, maxStreamBytes = MAX_RESEARCH_STREAM_BYTES } = {}) => {
   if (!response.headers.get("content-type")?.includes("text/event-stream") || !response.body?.getReader) {
     await response.body?.cancel?.().catch(() => {});
     throw createMetabloomProviderError("research_incomplete", "invalid_content_type");
@@ -182,6 +183,8 @@ const readResearchResponse = async (response, signal, onProgress, includeSourceU
     if (progressCount >= MAX_RESEARCH_PROGRESS_UPDATES || typeof onProgress !== "function") return;
     const observed = researchProgressSummary(event);
     if (!observed) return;
+    // Strip control and bidi characters from provider-authored progress labels.
+    // eslint-disable-next-line no-control-regex
     const normalized = observed.replace(/[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/g, " ").replace(/\s+/g, " ").trim();
     const summary = normalized.length <= 200 ? normalized : `${normalized.slice(0, 197).trimEnd()}...`;
     if (!summary || summary === lastSummary) return;
@@ -201,7 +204,7 @@ const readResearchResponse = async (response, signal, onProgress, includeSourceU
       if (signal.aborted) throw createMetabloomProviderError("research_incomplete", "cancelled");
       if (chunk.done) break;
       bytes += chunk.value.byteLength;
-      if (bytes > MAX_RESEARCH_STREAM_BYTES) throw researchSizeError("stream_byte_limit", "stream_bytes", bytes, MAX_RESEARCH_STREAM_BYTES);
+      if (bytes > maxStreamBytes) throw researchSizeError("stream_byte_limit", "stream_bytes", bytes, maxStreamBytes);
       try { buffer += utf8.decode(chunk.value, { stream: true }); }
       catch { throw createMetabloomProviderError("research_incomplete", "invalid_stream_encoding"); }
       let newline;
@@ -210,12 +213,12 @@ const readResearchResponse = async (response, signal, onProgress, includeSourceU
         const line = wireLine.slice(0, -1).replace(/\r$/, "");
         buffer = buffer.slice(newline + 1);
         eventBytes += Buffer.byteLength(wireLine, "utf8");
-        if (eventBytes > MAX_RESEARCH_BODY_BYTES) throw researchSizeError("event_byte_limit", "event_bytes", eventBytes, MAX_RESEARCH_BODY_BYTES);
+        if (eventBytes > maxEventBytes) throw researchSizeError("event_byte_limit", "event_bytes", eventBytes, maxEventBytes);
         if (!line) { await consume(); eventBytes = 0; }
         else if (line.startsWith("data:")) data.push(line.slice(5).replace(/^ /, ""));
       }
-      if (!completed && eventBytes + Buffer.byteLength(buffer, "utf8") > MAX_RESEARCH_BODY_BYTES) {
-        throw researchSizeError("event_byte_limit", "event_bytes", eventBytes + Buffer.byteLength(buffer, "utf8"), MAX_RESEARCH_BODY_BYTES);
+      if (!completed && eventBytes + Buffer.byteLength(buffer, "utf8") > maxEventBytes) {
+        throw researchSizeError("event_byte_limit", "event_bytes", eventBytes + Buffer.byteLength(buffer, "utf8"), maxEventBytes);
       }
     }
     if (!completed) throw createMetabloomProviderError("research_incomplete", "stream_ended_early");
@@ -313,4 +316,4 @@ const validateMetabloomResearchCitations = (reply, sources) => {
   }
 };
 
-module.exports = { conductMetabloomResearch, extractMetabloomResearch, validateMetabloomResearchCitations };
+module.exports = { conductMetabloomResearch, extractMetabloomResearch, validateMetabloomResearchCitations, readResearchResponse };

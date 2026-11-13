@@ -2,6 +2,8 @@
 
 Ordinary chat now selects tools through the OpenAI Responses API. It can answer directly, call a tool, inspect the result, and continue. A current-news follow-up no longer depends on Jev choosing the Deep Research scene or a keyword classifier selecting a separate writer.
 
+The [UX invariants](metabloom-ux-invariants.md) are enforced by a shared host/browser lifecycle. Ordinary search now streams its actual search and source activity with visible handoffs, elapsed time and explicit cancellation.
+
 ## Runtime map
 
 ```mermaid
@@ -31,24 +33,28 @@ The visual formats remain table, bar chart, line chart, pie chart, flowchart and
 - Authentication, same-origin validation, bounded input and shared chat quota precede all paid work. Client-supplied tool names never execute directly.
 - Four serial function calls and five conversation-model responses per turn. At most two web searches and one visual offer. The final model step has no tools.
 - One absolute 75-second server deadline and 90-second browser deadline. Tool activity cannot renew them. Disconnect aborts downstream requests.
-- Provider JSON is limited to 128 KiB per response; replay input to 96,000 UTF-8 bytes. Search keeps complete cited passages, at most 12,000 characters per result, with one stable eight-source namespace per turn.
+- Provider JSON is limited to 128 KiB per response; ordinary search uses bounded SSE with 128 KiB per event and 512 KiB per stream. Replay input is limited to 96,000 UTF-8 bytes. Search keeps complete cited passages, at most 12,000 characters per result, with one stable eight-source namespace per turn.
 - Unknown tools, duplicate call IDs, parallel calls and malformed envelopes fail closed. Known tool failures return bounded failure results so the model can explain or recover within the remaining budget. Visual storage failure never becomes a successful offer.
 - Responses use `store: false`. Encrypted reasoning and tool outputs are replayed privately to the model for continuation. The browser receives only validated activity, sources, answer text and an optional visual offer. Logs contain safe tool names, outcomes, token counts and request references, not raw queries, arguments, source evidence or reasoning.
 - Final text stays private until its schema and citation IDs validate. A successful search requires citations in the final answer. Citation validation proves the ID belongs to this turn; it does not prove semantic support or guarantee news coverage. Source text remains untrusted data.
 
 ## Transport and compatibility
 
-The current client negotiates `X-Metabloom-Toolset: 1` for ordinary turns without an attached artifact or saved research reference. GET metadata advertises `toolset: 1`. Jev still chooses the input/output gestures and optional Under the Hood scene; it does not select or execute ordinary-chat tools.
+The current client negotiates `X-Metabloom-Toolset: 2` for ordinary turns without an attached artifact or saved research reference. GET metadata advertises `toolset: 2`. Version 1 remains supported without the new progress records. Jev still chooses the input/output gestures and optional Under the Hood scene; it does not select or execute ordinary-chat tools.
 
 New bounded NDJSON records precede the first answer segment:
 
 ```jsonl
+{"type":"agent_status","state":"working"}
 {"type":"tool_activity","name":"search_web","callId":"call_1","state":"running"}
+{"type":"tool_progress","name":"search_web","callId":"call_1","sequence":1,"summary":"Reading: example.com"}
 {"type":"tool_activity","name":"search_web","callId":"call_1","state":"complete"}
+{"type":"agent_status","state":"reviewing"}
+{"type":"agent_status","state":"validating"}
 {"type":"tool_sources","sources":[{"id":1,"title":"Announcement","url":"https://example.com/news"}]}
 ```
 
-`failed` is the other terminal activity state. The decoder requires matched serial activity, a completed search before source metadata, and sources before text. Source IDs use the existing clickable inline `[n]` citation renderer. There is no Deep Research scene requirement for these events. A `visual_offer` retains its existing position after validated text and the final gesture, before `done`.
+`failed` is the other terminal activity state. The decoder requires matched serial activity, a completed search before source metadata, and sources before text. Version 2 also requires the tool lifecycle's handoff and validation stages before committing text. Source IDs use the existing clickable inline `[n]` citation renderer. There is no Deep Research scene requirement for these events. A `visual_offer` retains its existing position after validated text and the final gesture, before `done`.
 
 Explicit Deep Research mode keeps the longer report/brief pipeline. Selected saved research and artifact follow-ups keep their existing owner-checked reuse, fresh-research and conversion paths. Cached clients without the header retain the previous writer and forced visual continuation contract. New ordinary visual requests are no longer intercepted by the browser's legacy classifier.
 

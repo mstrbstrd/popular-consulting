@@ -54,7 +54,7 @@ server.on('request', async (request, response) => {
     const body = JSON.parse(raw);
     modelCalls.push({ path: pathname, phase: body.phase });
     if (pathname === '/api/metabloom') {
-      assert.equal(request.headers['x-metabloom-toolset'], '1');
+      assert.equal(request.headers['x-metabloom-toolset'], '2');
       assert.equal(body.message, question);
       assert.equal(modelCalls.filter(call => call.path === '/api/metabloom').length, 1, 'Create only one component in this suite');
       return visualStream(response, { id: componentId, version: '1', designVersion: 'aetheris-1',

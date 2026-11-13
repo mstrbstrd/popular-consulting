@@ -52,7 +52,7 @@ server.on('request', async (req, res) => {
     const body = JSON.parse(raw);
     calls.push({ path: pathname, phase: body.phase, body });
     if (pathname === '/api/metabloom' && !body.artifactContext) {
-      assert.equal(req.headers['x-metabloom-toolset'], '1');
+      assert.equal(req.headers['x-metabloom-toolset'], '2');
       assert.equal(body.message, question);
       const id = (++counter).toString(16).padStart(48, '0');
       const offer = { id, version: '1', designVersion: 'aetheris-1', kind: 'calculator', expiresAt: Date.now() + 600000 };

@@ -47,6 +47,8 @@ export const requestMetabloomResponse = async ({
   onSources,
   onVisualOffer,
   onToolActivity,
+  onToolProgress,
+  onAgentStatus,
   toolset = true,
   optional = false,
   requestId,
@@ -82,7 +84,7 @@ export const requestMetabloomResponse = async ({
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json", Accept: "application/x-ndjson", "X-Metabloom-Visuals": "1", "X-Metabloom-Ui-Tools": "1",
-        ...(useTools ? { 'X-Metabloom-Toolset': '1' } : {}) },
+        ...(useTools ? { 'X-Metabloom-Toolset': '2' } : {}) },
       body: JSON.stringify({ actionMode, allowMultiple: allowMultiple === true, streamText: true,
         streamResearchProgress: true, streamResearchDetails: true, streamResearchBrief: true, streamResearchMedia: true, streamResearchReuse: true, timeZone, history, message, requestId,
         ...(artifactContext ? { artifactContext } : {}), ...(researchContext ? { researchContext } : {}) }),
@@ -99,6 +101,15 @@ export const requestMetabloomResponse = async ({
       allowResearchBrief: true,
       allowResearchReuse: true,
       allowTools: useTools,
+      allowToolProgress: useTools,
+      onToolProgress: (progress) => {
+        if (controller.signal.aborted) throw new MetabloomApiError('Cancelled.', { code: 'cancelled' });
+        onToolProgress?.(progress);
+      },
+      onAgentStatus: (status) => {
+        if (controller.signal.aborted) throw new MetabloomApiError('Cancelled.', { code: 'cancelled' });
+        onAgentStatus?.(status);
+      },
       onToolActivity: (activity) => {
         if (controller.signal.aborted) throw new MetabloomApiError('Cancelled.', { code: 'cancelled' });
         if (!toolsStarted) {

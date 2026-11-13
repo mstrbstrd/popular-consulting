@@ -9,9 +9,12 @@ const answer = (text = 'Hello.') => ({ type: 'message', role: 'assistant', statu
   content: [{ type: 'output_text', text: JSON.stringify({ version: '2.0.0', segments: [{ response: text }] }) }] });
 const provider = (outputs, seen = []) => async (url, options) => {
   assert.equal(url, 'https://api.openai.com/v1/responses');
-  seen.push(JSON.parse(options.body));
+  const payload = JSON.parse(options.body);
+  seen.push(payload);
   assert(outputs.length, 'Unexpected provider call');
-  return Response.json({ status: 'completed', output: outputs.shift() });
+  const result = { status: 'completed', output: outputs.shift() };
+  return payload.stream ? new Response(`data: ${JSON.stringify({ type: 'response.completed', response: result })}\n\n`,
+    { headers: { 'content-type': 'text/event-stream' } }) : Response.json(result);
 };
 const run = options => runMetabloomAgent({ message: 'Help with this question', history: [], ...options });
 

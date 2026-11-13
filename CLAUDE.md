@@ -71,6 +71,7 @@ npm run lint    # eslint --max-warnings 0 (CI-gated)
 - WebGL-unavailable or policy-disabled fallback: CSS gradient orbs remain mounted beneath the managed canvas and preserve the complete content path.
 
 ### /orb (living Metabloom lab)
+- Chat/tool changes must preserve the [UX invariants](docs/architecture/metabloom-ux-invariants.md). Execute ordinary tools through `runMetabloomAgent` and its shared `createMetabloomAgentLifecycle`; show work before execution, stream only observed progress, retain truthful handoff/failure states, and reject late events after cancellation. Progress must not extend deadlines, move focus, or pull readers away from earlier content. Add lifecycle and streaming/cancellation regression cases when adding or changing tools.
 - `OrbSection.js` owns public creature state and the legacy `window.__orb*` control API. It preserves seven expressions, four forms, bounded sequences, speech, pause, pulse, and reset without owning a canvas itself.
 - `MetabloomAvatar.js` owns semantics, interaction, normalization, pause propagation, and fallback selection. It must not construct a body shell, clipping frame, SVG face, decorative petal layer, or orbit rings.
 - `LivingMetabloomCanvas.js` owns exactly one transparent, localized, half-resolution WebGL2 context and one draw call per frame. It inherits the shared cadence and pixel-budget utilities, suspends on hidden tabs, draws a static reduced-motion state, recovers locally, and explicitly releases its buffer and program.

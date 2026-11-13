@@ -28,6 +28,8 @@ const response = () => Object.assign(new EventEmitter(), { headers: {}, body: ''
 const answer = text => ({ type: 'message', role: 'assistant', status: 'completed', content: [{ type: 'output_text',
   text: JSON.stringify({ version: '2.0.0', segments: [{ response: text }] }) }] });
 const events = res => res.body.trim().split('\n').map(line => JSON.parse(line));
+const searchResponse = value => new Response(`data: ${JSON.stringify({ type: 'response.completed', response: value })}\n\n`,
+  { headers: { 'content-type': 'text/event-stream' } });
 
 test('Nvidia news follow-up reaches search_web directly and returns a cited ordinary answer', async () => {
   const calls = [];
@@ -38,7 +40,7 @@ test('Nvidia news follow-up reaches search_web directly and returns a cited ordi
     ] });
     if (calls.length === 2) {
       assert.equal(body.tools[0].type, 'web_search');
-      return Response.json({ status: 'completed', output: [{ type: 'web_search_call', status: 'completed', action: { type: 'search' } },
+      return searchResponse({ status: 'completed', output: [{ type: 'web_search_call', status: 'completed', action: { type: 'search' } },
         { type: 'message', role: 'assistant', status: 'completed', content: [{ type: 'output_text', text: 'The announcement is current.',
           annotations: [{ type: 'url_citation', title: 'Official announcement', url: 'https://example.com/announcement', start_index: 0, end_index: 28 }] }] }] });
     }
@@ -54,6 +56,7 @@ test('Nvidia news follow-up reaches search_web directly and returns a cited ordi
   const stream = events(res);
   assert.equal(stream.find(event => event.type === 'action').action, 'none');
   assert(!stream.some(event => event.type.startsWith('research')));
+  assert(!stream.some(event => ['tool_progress', 'agent_status'].includes(event.type)), 'Cached v1 clients receive no new record types');
   assert.deepEqual(stream.filter(event => event.type === 'tool_activity').map(event => event.state), ['running', 'complete']);
   assert(stream.findIndex(event => event.type === 'tool_sources') < stream.findIndex(event => event.type === 'text_delta'));
   const decoder = createMetabloomSegmentStreamDecoder({ allowTools: true });
@@ -114,4 +117,65 @@ test('disconnect aborts provider work and does not report completion', async () 
   };
   await handler(request('Hello'), res);
   assert(!events(res).some(event => event.type === 'done'));
+});
+
+test('v2 sends observed search progress before the provider completes, then validates before text', { timeout: 3000 }, async () => {
+  const req = request('Search for the latest announcement'), res = response();
+  req.headers['x-metabloom-toolset'] = '2';
+  let stream, release;
+  const observed = new Promise(resolve => { release = resolve; });
+  const write = res.write;
+  res.write = function (line) {
+    const result = write.call(this, line), event = JSON.parse(line);
+    if (event.type === 'tool_progress' && event.summary === 'Reading: example.com') release();
+    return result;
+  };
+  let calls = 0;
+  const encode = event => new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`);
+  global.fetch = async (_url, options) => {
+    const body = JSON.parse(options.body); calls++;
+    if (calls === 1) {
+      assert(events(res).some(event => event.type === 'agent_status' && event.state === 'working'));
+      return Response.json({ status: 'completed', output: [{ type: 'function_call', name: 'search_web', call_id: 'web_live',
+        arguments: JSON.stringify({ query: 'latest announcement' }) }] });
+    }
+    if (calls === 2) {
+      assert.equal(body.stream, true);
+      assert(events(res).some(event => event.type === 'tool_activity' && event.state === 'running'));
+      return new Response(new ReadableStream({ start(controller) {
+        stream = controller;
+        controller.enqueue(encode({ type: 'response.output_item.added', item: { type: 'reasoning', summary: [{ text: 'private-reasoning' }] } }));
+        controller.enqueue(encode({ type: 'response.output_item.added', item: { type: 'web_search_call', status: 'in_progress',
+          action: { type: 'search', query: 'latest announcement' } } }));
+        controller.enqueue(encode({ type: 'response.output_item.added', item: { type: 'web_search_call', status: 'in_progress',
+          action: { type: 'open_page', url: 'https://example.com/news' } } }));
+      } }), { headers: { 'content-type': 'text/event-stream' } });
+    }
+    assert(events(res).some(event => event.type === 'agent_status' && event.state === 'reviewing'));
+    return Response.json({ status: 'completed', output: [answer('Verified announcement. [1]')] });
+  };
+  const running = handler(req, res);
+  try {
+    await observed;
+    assert.equal(calls, 2);
+    assert(!res.writableEnded);
+    assert(!events(res).some(event => ['segment', 'text_delta', 'done'].includes(event.type)));
+    assert(!res.body.includes('private-reasoning'));
+    const text = 'Verified announcement.';
+    stream.enqueue(encode({ type: 'response.completed', response: { status: 'completed', output: [
+      { type: 'web_search_call', status: 'completed', action: { type: 'search' } },
+      { type: 'message', role: 'assistant', status: 'completed', content: [{ type: 'output_text', text, annotations: [
+        { type: 'url_citation', title: 'Announcement', url: 'https://example.com/news', start_index: 0, end_index: text.length },
+      ] }] },
+    ] } }));
+    stream.close();
+    await running;
+    const records = events(res);
+    assert.deepEqual(records.filter(event => event.type === 'agent_status').map(event => event.state), ['working', 'reviewing', 'validating']);
+    assert.deepEqual(records.filter(event => event.type === 'tool_progress').map(event => event.sequence), [1, 2]);
+    assert(records.findIndex(event => event.type === 'agent_status' && event.state === 'validating')
+      < records.findIndex(event => event.type === 'text_delta'));
+    const decoder = createMetabloomSegmentStreamDecoder({ allowTools: true, allowToolProgress: true });
+    assert(decoder.push(res.body)); assert(decoder.finish().ok);
+  } finally { res.destroyed = true; res.emit('close'); await running; }
 });
