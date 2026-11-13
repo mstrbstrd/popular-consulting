@@ -182,6 +182,19 @@ export default function MetabloomThreadsPanel({ expanded, onExpandedChange, item
     onExpandedChange(true);
   };
   const keyboard = event => {
+    // The modal drawer keeps Tab inside itself (WAI-ARIA modal dialog
+    // pattern); browsers otherwise let Tab leave a native modal dialog for
+    // their own interface after the last control.
+    if (event.key === 'Tab' && event.currentTarget.tagName === 'DIALOG') {
+      const focusable = [...event.currentTarget.querySelectorAll(
+        'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])',
+      )].filter(element => !element.closest('[hidden], [inert]'));
+      const first = focusable[0], last = focusable[focusable.length - 1];
+      if (!first) return;
+      if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+      else if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      return;
+    }
     if (event.key !== 'Escape') return;
     if (editor) { event.preventDefault(); event.stopPropagation(); closeEditor(); }
     else if (wide) { event.preventDefault(); close(); }

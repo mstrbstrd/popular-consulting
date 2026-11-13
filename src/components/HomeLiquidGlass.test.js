@@ -73,7 +73,10 @@ describe('Home liquid glass', () => {
     expect(645 * 280).toBeGreaterThan(MAX_PERSISTENT_LENS_AREA);
   });
 
-  test('the header stacks above the workspace so its menus are never covered', () => {
-    expect(homeBase).toMatch(/\.home-stage > \.nav-header \{ z-index: 2; \}/);
+  test('the header stacks above the workspace and the mobile overlay, so its menus and Close button are never covered', () => {
+    const zIndex = Number(homeBase.match(/\.home-stage > \.nav-header \{ z-index: (\d+); \}/)?.[1]);
+    expect(zIndex).toBeGreaterThan(1); // .home-main workspace
+    expect(zIndex).toBeGreaterThan(999); // .nav-overlay, whose Close button lives in this header
+    expect(zIndex).toBeLessThan(1100); // the .home-intro entry scene stays on top
   });
 });

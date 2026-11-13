@@ -108,7 +108,12 @@ try {
         await capture('unavailable');
         session = admin();
         await call('Page.navigate', { url: `${origin}/logout?graphics=css` });
-        await wait('document.querySelector(".auth-checkbox input")');
+        // Measure only after the route transition settles: mid-transition the
+        // outlet can swap its content between the wait and the measurement.
+        await wait('document.querySelector(".auth-checkbox input") && document.querySelector(".auth-primary")'
+          + ' && (!document.querySelector(".app-route-curtain") || document.querySelector(".app-route-curtain").dataset.phase === "idle")');
+        await evaluate('new Promise(resolve => setTimeout(resolve, 300))');
+        await wait('document.querySelector(".auth-primary")');
         await evaluate('document.fonts.ready'); await geometry('logout');
         check(await evaluate('document.querySelector(".auth-primary").getBoundingClientRect().height>=44'), 'Sign-out target too small');
         await capture('logout');

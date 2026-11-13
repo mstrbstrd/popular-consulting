@@ -168,7 +168,11 @@ export default class MetabloomVisuals extends React.Component {
         replyId = null;
       }
       if (!article || article.dataset.visualAnswer) continue;
-      const slot = this.createSlot(saved.id, saved.userId);
+      // A restored optional component names the user message directly before
+      // its reply, matching the slot created during the live turn.
+      const replyIndex = saved.mode === 'optional' ? messages.findIndex(message => message.id === replyId) : -1;
+      const precedingUser = replyIndex > 0 && messages[replyIndex - 1].role === 'user' ? messages[replyIndex - 1].id : null;
+      const slot = this.createSlot(saved.id, saved.userId || precedingUser);
       if (saved.mode === 'tool') article.insertBefore(slot, article.querySelector('.metabloom-chat__bubble'));
       else article.appendChild(slot);
       article.dataset.visualAnswer = saved.id;
@@ -714,7 +718,11 @@ export default class MetabloomVisuals extends React.Component {
       if (article?.querySelector('.metabloom-chat__bubble')) {
         const offer = this.turn.offer;
         this.turn.started = true;
-        const slot = this.createSlot(offer.id);
+        // Like tool-mode components, the slot names the originating user message
+        // so its provenance (question -> answer -> component) is explicit. The
+        // record keeps userId null: an optional component is owned by its reply,
+        // and the saved-thread snapshot format requires exactly that.
+        const slot = this.createSlot(offer.id, turn.userId);
         // A sibling of the text bubble avoids nested backdrop blurs while
         // remaining part of this exact assistant message.
         article.appendChild(slot);

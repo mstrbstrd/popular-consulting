@@ -167,11 +167,19 @@ try {
   const tabs = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
   socket = new WebSocket(tabs.find(tab => tab.type === 'page').webSocketDebuggerUrl);
   await new Promise((resolve, reject) => { socket.addEventListener('open', resolve, { once: true }); socket.addEventListener('error', reject, { once: true }); });
-  let sequence = 0;
+  let sequence = 0, leavePrompts = 0;
   const pending = new Map();
   socket.addEventListener('message', event => {
     const message = JSON.parse(event.data);
     if (message.method === 'Runtime.exceptionThrown') pageErrors.push(message.params.exceptionDetails.text);
+    // Saved threads correctly ask before leaving while a save is pending, and
+    // Chromium shows that prompt once the page has a user gesture (the keyboard
+    // steps). Leaving each case is this suite's intent, so confirm it; an
+    // unanswered prompt would otherwise block the next Page.navigate forever.
+    if (message.method === 'Page.javascriptDialogOpening' && message.params.type === 'beforeunload') {
+      leavePrompts++;
+      socket.send(JSON.stringify({ id: ++sequence, method: 'Page.handleJavaScriptDialog', params: { accept: true } }));
+    }
     const item = pending.get(message.id);
     if (!item) return;
     pending.delete(message.id); clearTimeout(item.timer);
@@ -230,7 +238,16 @@ try {
     await until(`location.search.includes(${JSON.stringify(`test-case=${name}`)}) && typeof window.__orbMessages === 'function' && document.querySelector('#metabloom-message')`);
     // Exercise the retained cached-client tool continuation contract here.
     // Mobile-workspace and threads suites cover the new default agent stream.
-    await evaluate("window.addEventListener('metabloom:user-message', event => { event.detail.toolset = false; }, { capture: true })");
+    // Listeners on the window target run in registration order, and the visual
+    // controller registered its request listener at mount. Downgrade the event
+    // as it is dispatched, so every listener sees the legacy (no-toolset) turn.
+    await evaluate(`(() => {
+      const dispatch = window.dispatchEvent;
+      window.dispatchEvent = function (event) {
+        if (event?.type === 'metabloom:user-message' && event.detail) event.detail.toolset = false;
+        return dispatch.call(this, event);
+      };
+    })()`);
     if (await evaluate('document.documentElement.dataset.theme') !== theme) {
       await evaluate("document.querySelector('button[aria-label=\"Toggle dark mode\"]').click()");
       await until(`document.documentElement.dataset.theme === ${JSON.stringify(theme)}`);
@@ -555,7 +572,7 @@ try {
   results.push({ case: 'cancelled-new-turn', staleReplyRejected: true });
   assert.deepEqual(fixture.errors, []);
   assert.deepEqual(pageErrors, []);
-  fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ success: true, mode: 'built-app-http-fixtures', results }, null, 2));
+  fs.writeFileSync(path.join(output, 'result.json'), JSON.stringify({ success: true, mode: 'built-app-http-fixtures', leavePromptsConfirmed: leavePrompts, results }, null, 2));
   console.log(JSON.stringify({ success: true, results }));
 } catch (error) {
   let browserState;

@@ -22,8 +22,10 @@ html.home-route:has(.nav-overlay--open),
 html.home-route:has(.nav-overlay--open) body { overflow: hidden !important; }
 .home-stage > .nav-header { position: relative; inset: auto; width: 100%; padding: max(16px, env(safe-area-inset-top)) 24px 12px; }
 /* The header's show/hide transform makes it a stacking context; keep it (and its
-   experience/account menus) above the workspace, which sits at z-index 1. */
-.home-stage > .nav-header { z-index: 2; }
+   experience/account menus) above the workspace, which sits at z-index 1. It
+   must also stay above the mobile navigation overlay (z-index 999), as it is on
+   every other route, or the open overlay covers the header's Close button. */
+.home-stage > .nav-header { z-index: 1000; }
 .home-page .nav-overlay { justify-content: flex-start; overflow-y: auto; overscroll-behavior: contain; padding: max(100px, calc(env(safe-area-inset-top) + 80px)) 16px max(24px, env(safe-area-inset-bottom)); }
 .home-page .nav-overlay > * { flex-shrink: 0; }
 .home-main { position: relative; z-index: 1; flex: 1; width: min(100%, 1168px); margin: 0 auto; padding: 44px 24px 24px; }
