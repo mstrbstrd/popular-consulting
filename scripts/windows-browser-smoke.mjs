@@ -83,7 +83,14 @@ const runEdgeRoute = async (edgePath, origin, check, index) => {
     if (typeof error.stdout === "string") fs.writeFileSync(path.join(output, `route-${index}-failure.html`), error.stdout);
     const stderr = typeof error.stderr === "string" ? error.stderr : "";
     if (error.code === "ETIMEDOUT" || error.killed) throw new Error(`${check.route}: Edge timed out after 30000ms${stderr ? `\n${stderr}` : ""}`);
-    if (typeof error.code === "number") throw new Error(`${check.route}: Edge exited with ${error.code}\n${stderr}`);
+    if (typeof error.code === "number") {
+      // Distinguish a renderer/browser crash before the document was produced
+      // from a crash while Edge shut down after dumping a complete document.
+      const dumped = typeof error.stdout === "string" ? error.stdout : "";
+      const markers = check.markers.filter(marker => dumped.includes(marker));
+      throw new Error(`${check.route}: Edge exited with ${error.code}; dumped ${dumped.length} characters`
+        + `, closing </html>: ${dumped.trimEnd().endsWith("</html>")}, markers: ${markers.join(", ") || "none"}\n${stderr}`);
+    }
     throw new Error(`${check.route}: Edge failed to start: ${error.message}${stderr ? `\n${stderr}` : ""}`);
   } finally {
     try { fs.rmSync(profileDirectory, { force: true, maxRetries: 5, recursive: true, retryDelay: 200 }); }
