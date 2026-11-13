@@ -75,7 +75,8 @@ export default function MetabloomModelPicker({ selection, onChange, onAvailabili
   const label = activeProvider?.models.find(model => model.id === activeId)?.label;
   const valid = availableModelSelection(catalog, draft);
   const unavailableSaved = selection && catalog && !availableModelSelection(catalog, selection);
-  return <div className="metabloom-model-picker">
+  const showWarning = !open && Boolean(error || unavailableSaved || (!loading && !selection));
+  return <div className="metabloom-model-picker" data-warning={showWarning ? 'true' : undefined}>
     <button type="button" ref={trigger} className="metabloom-model-picker__trigger" disabled={disabled || !isActive}
       aria-label="Choose chat model" aria-haspopup="dialog" aria-expanded={open}
       title={label || 'Choose provider and model'} onClick={() => {
@@ -86,7 +87,7 @@ export default function MetabloomModelPicker({ selection, onChange, onAvailabili
       <svg className="metabloom-model-picker__glyph" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
         <rect x="6.5" y="6.5" width="11" height="11" rx="2.5" /><path d="M9.5 2.5v4M14.5 2.5v4M9.5 17.5v4M14.5 17.5v4M2.5 9.5h4M2.5 14.5h4M17.5 9.5h4M17.5 14.5h4" />
       </svg><span aria-hidden="true">⌄</span></button>
-    {!open && (error || unavailableSaved || (!loading && !selection)) && <span className="metabloom-model-picker__warning" role="status">Choose an available model to continue.</span>}
+    {showWarning && <span className="metabloom-model-picker__warning" role="status">Choose an available model to continue.</span>}
     {open && <dialog ref={dialog} className="metabloom-model-picker__dialog" aria-labelledby="metabloom-model-title"
       onCancel={event => { event.preventDefault(); close(); }} onClick={event => { if (event.target === dialog.current) close(); }}>
       <div className="metabloom-model-picker__content">
