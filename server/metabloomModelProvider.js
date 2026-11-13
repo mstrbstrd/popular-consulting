@@ -72,7 +72,9 @@ async function requestMetabloomModel(payload, { selection, signal, fetchImpl = g
     // does not guarantee every generated answer obeys the schema parameter.
     if (payload.text?.format?.type === 'json_schema') body.instructions = (payload.instructions || '')
       + '\n\nFinal answer contract: return one JSON object matching the following JSON Schema. '
-      + 'Use native tool calls when needed; their results are not final answer objects. '
+      + (payload.tools?.length && payload.tool_choice !== 'none'
+        ? 'Use native tool calls when needed; their results are not final answer objects. '
+        : 'No tools are enabled for this response. Return the final answer using only the supplied context. ')
       + 'For the final answer, use the required fields and exact enum values, with no extra fields, code fences or surrounding text. '
       + 'Do not imitate the plain-text formatting of earlier conversation messages.\n'
       + JSON.stringify(payload.text.format.schema);

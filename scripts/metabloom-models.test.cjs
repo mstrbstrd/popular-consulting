@@ -155,7 +155,7 @@ test('DeepSeek follow-ups receive the exact chat format and current schema along
     assert.equal(calls, 1);
   }
 });
-test('DeepSeek format rejection stays strict and logs only safe host diagnostics without retries', async () => {
+test('DeepSeek format rejection stays strict after one recovery and logs only safe host diagnostics', async () => {
   const logs = [];
   mock.method(console, 'warn', (event, data) => { logs.push({ event, ...JSON.parse(data) }); });
   const cases = [
@@ -170,8 +170,8 @@ test('DeepSeek format rejection stays strict and logs only safe host diagnostics
         calls++; const value = answer(); value.output[0].content[0].text = text; return Response.json(value);
       } }), { code: 'answer_invalid', reason: 'agent_answer' });
     assert.deepEqual(logs.at(-1), { event: 'metabloom_agent_answer_rejected', requestRef: 'abcdef123456',
-      provider: 'deepseek', model: 'deepseek-flash', validation: diagnostic });
-    assert.equal(calls, 1);
+      provider: 'deepseek', model: 'deepseek-flash', validation: diagnostic, attempt: 2, blank: false });
+    assert.equal(calls, 2);
   }
   assert.doesNotMatch(JSON.stringify(logs), /private-provider-answer|private-user-input|fictional-DEEPSEEK_API_KEY/);
 });

@@ -49,7 +49,7 @@ jobs:
       - name: Verify Metabloom API, research, and provider contracts
         run: >-
           node --test scripts/metabloom-api.test.cjs scripts/metabloom-agent.test.cjs scripts/metabloom-agent-api.test.cjs scripts/metabloom-research.test.cjs
-          scripts/metabloom-models.test.cjs scripts/metabloom-expression.test.cjs
+          scripts/metabloom-models.test.cjs scripts/metabloom-expression.test.cjs scripts/metabloom-answer-recovery.test.cjs
           scripts/metabloom-research-brief.test.cjs scripts/metabloom-research-brief-api.test.cjs
           scripts/metabloom-research-output.test.cjs scripts/metabloom-stream.test.cjs
           scripts/jev-reaction.test.cjs scripts/metabloom-visual.test.cjs scripts/metabloom-ui-tools.test.cjs

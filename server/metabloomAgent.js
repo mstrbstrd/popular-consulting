@@ -149,7 +149,7 @@ async function runMetabloomAgent({ message, history, allowMultiple = false, pres
   for (let step = 0; step <= MAX_METABLOOM_AGENT_CALLS; step++) {
     signal?.throwIfAborted();
     if (Buffer.byteLength(JSON.stringify(input), 'utf8') > 96000) throw invalid('agent_context_limit');
-    const result = await requestMetabloomModel({
+    const payload = {
       model: process.env.METABLOOM_OPENAI_MODEL || 'gpt-5-mini', input,
       instructions: seen.size < MAX_METABLOOM_AGENT_CALLS ? instructions : instructions
         + '\nThe four-call budget is now exhausted. No tools are enabled for this continuation. Answer using the actual results already received, and state any remaining limitation without promising further work.',
@@ -157,21 +157,42 @@ async function runMetabloomAgent({ message, history, allowMultiple = false, pres
       parallel_tool_calls: false, include: ['reasoning.encrypted_content'],
       reasoning: { effort: 'low' }, max_output_tokens: 2400, store: false, stream: false,
       text: { format: { type: 'json_schema', name: 'metabloom_chat_response', strict: true, schema } },
-    }, { signal, fetchImpl, requestRef, selection: modelSelection });
+    };
+    let result = await requestMetabloomModel(payload, { signal, fetchImpl, requestRef, selection: modelSelection });
     if (result.output.some(item => !item || !['reasoning', 'function_call', 'message'].includes(item.type))) throw invalid('agent_output');
     const calls = result.output.filter(item => item.type === 'function_call');
     if (!calls.length) {
       await emit({ type: 'agent_status', state: 'validating' });
-      const messages = result.output.filter(item => item.type === 'message');
-      if (messages.length !== 1 || messages[0].role !== 'assistant' || messages[0].status !== 'completed'
-        || messages[0].content?.length !== 1 || messages[0].content[0].type !== 'output_text') throw invalid('agent_message');
-      const parsed = parseMetabloomChatEnvelope(messages[0].content[0].text, { allowMultiple });
-      if (!parsed.ok || parsed.value.version !== '2.0.0') {
+      let parsed;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        signal?.throwIfAborted();
+        const messages = result.output.filter(item => item?.type === 'message');
+        // A format retry is final-answer-only. Even a provider ignoring
+        // tool_choice cannot execute another tool or release a queued action.
+        if (result.output.some(item => !item || !['reasoning', 'message'].includes(item.type))
+          || messages.length !== 1 || messages[0].role !== 'assistant' || messages[0].status !== 'completed'
+          || messages[0].content?.length !== 1 || messages[0].content[0].type !== 'output_text'
+          || typeof messages[0].content[0].text !== 'string') throw invalid('agent_message');
+        const text = messages[0].content[0].text;
+        parsed = parseMetabloomChatEnvelope(text, { allowMultiple });
+        if (parsed.ok && parsed.value.version === '2.0.0') break;
         // The parser returns fixed diagnostic messages, never provider text.
         console.warn('metabloom_agent_answer_rejected', JSON.stringify({ requestRef,
           provider: modelSelection?.provider || 'openai', ...(modelSelection ? { model: modelSelection.model } : {}),
+          attempt: attempt + 1, blank: !text.trim(),
           validation: parsed.ok ? 'Unsupported chat response version.' : parsed.error }));
-        throw invalid('agent_answer');
+        if (modelSelection?.provider !== 'deepseek' || attempt === 1) throw invalid('agent_answer');
+        // DeepSeek can mark invalid/blank JSON as completed. Regenerate once
+        // from the original context and tool results, never from rejected text.
+        // The existing abort signal, model, schema and tool budget stay fixed.
+        signal?.throwIfAborted();
+        result = await requestMetabloomModel({ ...payload, tools: [], tool_choice: 'none',
+          instructions: payload.instructions + '\n\nThe previous final answer failed format validation and was not displayed. '
+            + 'Generate the final answer again as one JSON object matching the supplied schema. '
+            + 'All tools are disabled for this final answer. Use only the conversation and actual tool results already provided. '
+            + 'Do not repeat or request any tool action. Queued expressions and visuals are still unconfirmed, not displayed. '
+            + 'Return nonempty JSON, with no Markdown fences or surrounding prose.',
+        }, { signal, fetchImpl, requestRef, selection: modelSelection });
       }
       if (sources.length) validateMetabloomResearchCitations(parsed.value, sources);
       else if (parsed.value.segments.some(segment => /\[\d+\]/.test(segment.response))) throw invalid('agent_unsourced_citation');

@@ -12,6 +12,7 @@ These are execution and rendering requirements. Prompts may describe them, but p
 | Tool completion does not invent success. | `failed` is distinct from `complete`; a failed search cannot populate sources. A visual tool completes its queue operation, with generation/display still pending. Final source IDs and output schema validate before text is sent. | Failure, source namespace, queued-visual and citation tests. |
 | Progress does not take control away from the reader. | Updates reuse the transcript's existing follow-latest guard and never focus or scroll the page. Stop stays available. The progress surface uses polite announcements, hides its per-second clock from assistive technology, and inherits reduced-motion/forced-colour styling. | Reading-position, composer-focus, timer-cleanup and accessible-status tests. |
 | Work has a finite lifetime. | Existing four-call, search, size and absolute server/browser time limits remain in force. Progress cannot renew them. | Budget and deadline tests. |
+| Format recovery cannot repeat completed work. | Ordinary DeepSeek chat may regenerate an invalid final answer once with tools disabled and the same model, context, results and abort signal. The lifecycle stays in `validating`; text, expressions and visual offers remain withheld until final validation succeeds. | `metabloom-answer-recovery.test.cjs` covers queued actions, exhausted budgets, cancellation, citations and API-to-decoder terminal validation. |
 
 ## State transitions
 

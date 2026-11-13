@@ -20,6 +20,8 @@ The picker freezes while a request is running. The request carries an exact `{ p
 
 The shared chat prompt includes a valid final-answer example with the exact protocol version. DeepSeek also receives the actual server-generated response schema in its system instructions, including per-request segment or citation constraints. This keeps its output contract explicit when following conversation text written by a different provider. The schema transport parameter and strict host validators remain mandatory; malformed output is never salvaged into a successful answer. Rejections log the provider/model and a fixed host-parser diagnostic, never the raw answer, prompt, conversation or private reasoning.
 
+DeepSeek may report a completed answer whose text is invalid or blank JSON, including after successful tool calls. Ordinary chat allows exactly one final-answer regeneration after a format rejection. It uses the same provider, resolved model, original context, completed tool results, schema and absolute request deadline. Tools are disabled, and the host rejects any returned tool call without executing it. Rejected answer text is never added to the context or displayed. The existing checking-answer phase remains active; only a valid final answer can release queued expressions or visual offers. A second invalid answer fails visibly. Citation failures, refusals, truncation, transport errors and cancellation do not trigger recovery, and tools are never replayed. Diagnostics include the attempt number and whether the rejected text was blank, without logging content. This bounded recovery is specific to ordinary DeepSeek chat; research writers and the other providers retain their existing request policies.
+
 ## Account persistence
 
 `POST /api/metabloom-models` accepts only `{ provider, model }`. The session guard enforces the authenticated account and same-origin POST. Model validation precedes persistence. A bounded Redis script updates that one provider's default and the preferred provider atomically, preserving defaults saved concurrently for other providers. The key uses the existing durable saved-work environment scope and authenticated issuer/subject account hash. No browser-supplied owner is accepted; defaults cannot cross accounts or production/preview environments. There is no Postgres dependency.
@@ -39,6 +41,7 @@ Ordinary tools retain visible status, observed progress, cancellation and budget
 - [OpenAI model list](https://developers.openai.com/api/reference/resources/models/methods/list)
 - [DeepSeek model list](https://api-docs.deepseek.com/api/list-models/)
 - [DeepSeek Responses compatibility](https://api-docs.deepseek.com/guides/responses_api/)
+- [DeepSeek JSON output and completed blank content](https://api-docs.deepseek.com/guides/json_mode/)
 - [Claude model list](https://platform.claude.com/docs/en/api/models/list)
 - [Claude structured output constraints](https://platform.claude.com/docs/en/build-with-claude/structured-outputs)
 
