@@ -11,7 +11,7 @@ const { METABLOOM_ACTION_IDS } = require("./metabloomDecisionMapping");
 const { parseMetabloomResearchSources } = require("./metabloomResearchSources");
 const { parseMetabloomResearchReferenceMetadata, parseMetabloomResearchAnswerSources,
   MAX_METABLOOM_REUSED_RESEARCH_SOURCES } = require("./metabloomResearchReference");
-const { parseMetabloomProgressSource } = require("./metabloomSourceMediaProtocol");
+const { parseMetabloomProgressSource, parseMetabloomToolImages, parseMetabloomToolMedia } = require("./metabloomSourceMediaProtocol");
 const { MAX_METABLOOM_RESEARCH_REPORT_BYTES, MAX_METABLOOM_RESEARCH_REPORT_CHUNK_CHARS,
   getMetabloomUtf8ByteLength, parseMetabloomResearchReport } = require("./metabloomResearchReport");
 const { MAX_METABLOOM_RESEARCH_BRIEF_BYTES, MAX_METABLOOM_RESEARCH_BRIEF_CHUNK_CHARS,
@@ -107,6 +107,7 @@ const createMetabloomSegmentStreamDecoder = ({
   allowResearchBrief = false,
   allowResearchReuse = false,
   allowTools = false,
+  allowToolMedia = false,
   allowToolProgress = false,
   allowExpressions = false,
   requestId,
@@ -123,6 +124,8 @@ const createMetabloomSegmentStreamDecoder = ({
   onResearchBrief,
   onResearchReference,
   onSources,
+  onSourceMedia,
+  onToolImages,
   onToolActivity,
   onToolProgress,
   onAgentStatus,
@@ -159,6 +162,8 @@ const createMetabloomSegmentStreamDecoder = ({
   let researchReference = null;
   let researchReused = false;
   let sources = null;
+  let sourceMedia = null;
+  let toolImages = null;
   const toolLifecycle = createMetabloomAgentLifecycle({ requireStatus: allowToolProgress });
   const toolTextReady = () => toolLifecycle.canAnswer() && (!toolLifecycle.getState().searchComplete || sources !== null);
   const segments = [];
@@ -211,6 +216,24 @@ const createMetabloomSegmentStreamDecoder = ({
       if (!parsed) return fail('Invalid tool sources.');
       sources = parsed;
       onSources?.(cloneResearchSources(sources));
+      return true;
+    }
+    // Optional publisher previews for the answer's cited sources. They follow the
+    // validated source catalog and precede all answer text, exactly once.
+    if (event?.type === 'tool_media') {
+      if (!allowTools || !allowToolMedia || !exactKeys(event, ['type', 'media']) || sources === null || sourceMedia !== null
+        || researchState !== null || segments.length || partialResponse !== null || textComplete) return fail('Invalid tool media.');
+      sourceMedia = parseMetabloomToolMedia(event.media, { sourceIds: new Set(sources.map(source => source.id)) });
+      if (sourceMedia.length) onSourceMedia?.(sourceMedia.map(entry => ({ ...entry })));
+      return true;
+    }
+    // Subject photos from a completed find_image call, once, before answer text.
+    if (event?.type === 'tool_images') {
+      if (!allowTools || !allowToolMedia || !exactKeys(event, ['type', 'images']) || toolImages !== null
+        || !toolLifecycle.getState().imageComplete || !toolLifecycle.canAnswer()
+        || researchState !== null || segments.length || partialResponse !== null || textComplete) return fail('Invalid tool images.');
+      toolImages = parseMetabloomToolImages(event.images);
+      if (toolImages.length) onToolImages?.(toolImages.map(image => ({ ...image })));
       return true;
     }
     if (event?.type === "action") {

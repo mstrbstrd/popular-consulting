@@ -65,6 +65,66 @@ test('ordinary chat negotiates tool activity and renders search sources without 
   expect(fetchImpl.mock.calls[1][1].headers['X-Metabloom-Toolset']).toBeUndefined();
 });
 
+describe('cited source media for ordinary search answers', () => {
+  const sources = [{ id: 1, title: 'Agency notice', url: 'https://agency.example.com/notice' },
+    { id: 2, title: 'Ceremony report', url: 'https://news.example.com/ceremony' }];
+  const media = [{ sourceId: 2, token: 'm1.second-capability' }, { sourceId: 1, token: 'm1.first-capability' }];
+  const toolEvents = (extra, { mediaAt = 'after-sources' } = {}) => {
+    const before = [
+      { type: 'emote', phase: 'input', emote: 'neutral' }, { type: 'action', action: 'none' },
+      { type: 'agent_status', state: 'working' },
+      { type: 'tool_activity', name: 'search_web', callId: 'search_1', state: 'running' },
+      { type: 'tool_activity', name: 'search_web', callId: 'search_1', state: 'complete' },
+      { type: 'agent_status', state: 'reviewing' }, { type: 'agent_status', state: 'validating' }];
+    const sourcesEvent = { type: 'tool_sources', sources };
+    const answer = [{ type: 'segment', index: 0, response: 'Confirmed [2] and dated [1].' }, { type: 'text_complete' },
+      { type: 'emote', phase: 'response', emote: 'neutral' }, { type: 'done', version: '2.0.0' }];
+    if (mediaAt === 'before-sources') return [...before, ...extra, sourcesEvent, ...answer];
+    if (mediaAt === 'after-text') return [...before, sourcesEvent, answer[0], ...extra, ...answer.slice(1)];
+    return [...before, sourcesEvent, ...extra, ...answer];
+  };
+  const respond = events => jest.fn(async () => ({ ok: true, status: 200, headers: headers('application/x-ndjson'),
+    text: async () => events.map(event => JSON.stringify(event)).join('\n') + '\n' }));
+
+  test('opts in only for tool answers and delivers media after sources and before any answer text', async () => {
+    const onSources = jest.fn(), onSourceMedia = jest.fn(), onSegment = jest.fn();
+    const fetchImpl = respond(toolEvents([{ type: 'tool_media', media }]));
+    await requestMetabloomResponse({ message: 'Did the bridge reopen?', fetchImpl, onSources, onSourceMedia, onSegment });
+    expect(JSON.parse(fetchImpl.mock.calls[0][1].body).streamToolMedia).toBe(true);
+    expect(onSourceMedia).toHaveBeenCalledWith(media);
+    expect(onSources.mock.invocationCallOrder[0]).toBeLessThan(onSourceMedia.mock.invocationCallOrder[0]);
+    expect(onSourceMedia.mock.invocationCallOrder[0]).toBeLessThan(onSegment.mock.invocationCallOrder[0]);
+    await expect(requestMetabloomResponse({ message: 'Research', actionMode: 'deep-research', fetchImpl }))
+      .rejects.toBeInstanceOf(MetabloomApiError);
+    expect(JSON.parse(fetchImpl.mock.calls[1][1].body).streamToolMedia).toBeUndefined();
+  });
+
+  test('drops malformed or uncited entries without affecting the answer', async () => {
+    const onSourceMedia = jest.fn(), onSegment = jest.fn();
+    const mixed = [media[0], { sourceId: 9, token: 'm1.unknown-source' }, { sourceId: 1, token: 'bad token' },
+      { sourceId: 1, token: 'm1.first-capability', url: 'https://attacker.example' }];
+    await requestMetabloomResponse({ message: 'Did the bridge reopen?', fetchImpl: respond(toolEvents([{ type: 'tool_media', media: mixed }])),
+      onSourceMedia, onSegment });
+    expect(onSourceMedia).toHaveBeenCalledWith([media[0]]);
+    expect(onSegment).toHaveBeenCalledTimes(1);
+    const none = jest.fn();
+    await requestMetabloomResponse({ message: 'Did the bridge reopen?', onSourceMedia: none,
+      fetchImpl: respond(toolEvents([{ type: 'tool_media', media: Array.from({ length: 5 }, (_, index) => ({ sourceId: 1, token: `m1.t${index}` })) }])) });
+    expect(none).not.toHaveBeenCalled();
+  });
+
+  test.each([
+    ['before the source catalog', [{ type: 'tool_media', media }], { mediaAt: 'before-sources' }],
+    ['after answer text', [{ type: 'tool_media', media }], { mediaAt: 'after-text' }],
+    ['twice', [{ type: 'tool_media', media }, { type: 'tool_media', media }], {}],
+    ['with extra fields', [{ type: 'tool_media', media, html: '<img>' }], {}],
+  ])('rejects tool media %s', async (_, extra, options) => {
+    const onSourceMedia = jest.fn();
+    await expect(requestMetabloomResponse({ message: 'Did the bridge reopen?', onSourceMedia,
+      fetchImpl: respond(toolEvents(extra, options)) })).rejects.toBeInstanceOf(MetabloomApiError);
+  });
+});
+
 test('ordinary tools share one absolute 90 second timeout', async () => {
   jest.useFakeTimers();
   let signal;

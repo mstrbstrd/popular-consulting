@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const { EventEmitter } = require('node:events');
 const auth = require('../server/metabloomAuth');
 const handler = require('../api/metabloom');
+const sourceMedia = require('../server/metabloomSourceMedia');
 const { createMetabloomSegmentStreamDecoder } = require('../src/components/metabloomEmoteProtocol');
 const env = { ...process.env }, originalFetch = global.fetch;
 beforeEach(() => {
@@ -61,6 +62,152 @@ test('Nvidia news follow-up reaches search_web directly and returns a cited ordi
   assert(stream.findIndex(event => event.type === 'tool_sources') < stream.findIndex(event => event.type === 'text_delta'));
   const decoder = createMetabloomSegmentStreamDecoder({ allowTools: true });
   assert(decoder.push(res.body)); assert(decoder.finish().ok);
+});
+
+const citedSearch = (reply) => {
+  let call = 0;
+  return async () => {
+    call++;
+    if (call === 1) return Response.json({ status: 'completed', output: [
+      { type: 'function_call', name: 'search_web', call_id: 'web_1', arguments: JSON.stringify({ query: 'Harbor bridge reopening' }) }] });
+    if (call === 2) return searchResponse({ status: 'completed', output: [{ type: 'web_search_call', status: 'completed', action: { type: 'search' } },
+      { type: 'message', role: 'assistant', status: 'completed', content: [{ type: 'output_text', text: 'The agency confirmed it. Reporters described the ceremony.',
+        annotations: [
+          { type: 'url_citation', title: 'Agency notice', url: 'https://agency.example.com/notice', start_index: 0, end_index: 25 },
+          { type: 'url_citation', title: 'Ceremony report', url: 'https://news.example.com/ceremony', start_index: 26, end_index: 58 }] }] }] });
+    return Response.json({ status: 'completed', output: [answer(reply)] });
+  };
+};
+
+test('opted-in search answers receive preview capabilities for cited sources in first-citation order', async () => {
+  const minted = [];
+  mock.method(sourceMedia, 'createSourceMediaToken', async (identity, url) => {
+    assert.equal(identity.owner, 'a'.repeat(64)); minted.push(url); return `m1.capability-${minted.length}-${'x'.repeat(60)}`;
+  });
+  global.fetch = citedSearch('The ceremony drew a crowd [2], after the agency confirmed the date [1]. Again [2].');
+  const req = request('Did the harbor bridge reopen?'); req.body.streamToolMedia = true;
+  const res = response(); await handler(req, res);
+  const stream = events(res);
+  const sourcesAt = stream.findIndex(event => event.type === 'tool_sources');
+  const mediaAt = stream.findIndex(event => event.type === 'tool_media');
+  assert(sourcesAt >= 0 && mediaAt === sourcesAt + 1, 'Media directly follows the validated source catalog');
+  assert(mediaAt < stream.findIndex(event => event.type === 'text_delta'));
+  const sources = stream[sourcesAt].sources;
+  assert.deepEqual(stream[mediaAt].media.map(entry => entry.sourceId), [2, 1]);
+  assert.deepEqual(minted, [sources[1].url, sources[0].url]);
+  assert.equal(JSON.stringify(stream[mediaAt]).includes('example.com'), false, 'No publisher URL is sent as media');
+  let received = null;
+  const decoder = createMetabloomSegmentStreamDecoder({ allowTools: true, allowToolMedia: true, onSourceMedia: media => { received = media; } });
+  assert(decoder.push(res.body)); assert(decoder.finish().ok);
+  assert.deepEqual(received.map(entry => entry.sourceId), [2, 1]);
+  const cached = createMetabloomSegmentStreamDecoder({ allowTools: true });
+  assert.equal(cached.push(res.body), false, 'A client that did not opt in would reject the record');
+});
+
+test('search answers without the opt-in, or with unavailable capabilities, keep the complete cited answer', async () => {
+  let mints = 0;
+  mock.method(sourceMedia, 'createSourceMediaToken', async () => { mints++; return null; });
+  for (const streamToolMedia of [undefined, false, true]) {
+    global.fetch = citedSearch('The agency confirmed the date [1].');
+    const req = request('Did the harbor bridge reopen?');
+    if (streamToolMedia !== undefined) req.body.streamToolMedia = streamToolMedia;
+    const res = response(); await handler(req, res);
+    const stream = events(res);
+    assert(!stream.some(event => event.type === 'tool_media'));
+    assert(stream.some(event => event.type === 'tool_sources'));
+    assert.equal(stream.at(-1).type, 'done');
+    const decoder = createMetabloomSegmentStreamDecoder({ allowTools: true });
+    assert(decoder.push(res.body)); assert(decoder.finish().ok);
+  }
+  assert.equal(mints, 1, 'Only the opted-in request mints, and only for its one cited source');
+  mock.method(sourceMedia, 'createSourceMediaToken', async () => { throw new Error('Configuration unavailable'); });
+  global.fetch = citedSearch('The agency confirmed the date [1].');
+  const req = request('Did the harbor bridge reopen?'); req.body.streamToolMedia = true;
+  const res = response(); await handler(req, res);
+  assert(!events(res).some(event => event.type === 'tool_media'));
+  assert.equal(events(res).at(-1).type, 'done');
+  for (const streamToolMedia of [null, 1, 'true', {}]) {
+    const invalid = request('Did the harbor bridge reopen?'); invalid.body.streamToolMedia = streamToolMedia;
+    const rejected = response(); await handler(invalid, rejected);
+    assert.equal(rejected.statusCode, 400);
+  }
+});
+
+test('tool media is limited to four cited sources and ignores uncited catalog entries', async () => {
+  const sources = Array.from({ length: 6 }, (_, index) => ({ id: index + 1, title: `Source ${index + 1}`, url: `https://site${index + 1}.example.com/a` }));
+  mock.method(sourceMedia, 'createSourceMediaToken', async (_identity, url) => `token-for-${url}`);
+  const media = await handler._internals.attachToolMedia({ segments: [{ response: 'A [6] B [3] [3] C [9] D [1] E [2] F [5]' }] },
+    sources, { owner: 'a'.repeat(64), scope: 'c'.repeat(64) });
+  assert.deepEqual(media.map(entry => entry.sourceId), [6, 3, 1, 2]);
+  assert.deepEqual(await handler._internals.attachToolMedia({ segments: [{ response: 'Uncited.' }] }, sources, { owner: 'a' }), []);
+  assert.deepEqual(await handler._internals.attachToolMedia({ segments: [{ response: '[1]' }] }, sources, null), []);
+});
+
+const wikipedia = url => {
+  const parsed = new URL(url);
+  if (parsed.searchParams.get('generator') === 'search') return Response.json({ query: { pages: [{ index: 1, title: 'Fictional Singer',
+    fullurl: 'https://en.wikipedia.org/wiki/Fictional_Singer', pageimage: 'Singer.jpg', thumbnail: { source: 'x', width: 640, height: 960 } }] } });
+  return Response.json({ query: { pages: [{ imageinfo: [{ thumburl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/Singer.jpg/640px-Singer.jpg',
+    thumbwidth: 640, thumbheight: 960, mime: 'image/jpeg', descriptionurl: 'https://commons.wikimedia.org/wiki/File:Singer.jpg',
+    extmetadata: { LicenseShortName: { value: 'CC BY 2.0' }, LicenseUrl: { value: 'https://creativecommons.org/licenses/by/2.0' },
+      Artist: { value: 'Example Photographer' }, ImageDescription: { value: 'Fictional Singer on stage' } } }] }] } });
+};
+const imageTurn = () => {
+  const model = [];
+  global.fetch = async (url, options) => {
+    if (String(url).startsWith('https://en.wikipedia.org/')) return wikipedia(url);
+    const body = JSON.parse(options.body); model.push(body);
+    if (model.length === 1) return Response.json({ status: 'completed', output: [
+      { type: 'function_call', name: 'find_image', call_id: 'image_1', arguments: JSON.stringify({ subject: 'Fictional Singer' }) }] });
+    return Response.json({ status: 'completed', output: [answer('Here is Fictional Singer, a fictional pop performer.')] });
+  };
+  return model;
+};
+
+test('opted-in browsers receive a found photo as an image capability with attribution, before the answer text', async () => {
+  const minted = [];
+  mock.method(sourceMedia, 'createSourceMediaToken', async (identity, pageUrl, options) => {
+    minted.push({ owner: identity.owner, pageUrl, options }); return 'm1.image-capability-fixture';
+  });
+  const model = imageTurn();
+  const req = request('Can you show me who Fictional Singer is?'); req.body.streamToolMedia = true;
+  const res = response(); await handler(req, res);
+  assert.equal(res.statusCode, 200);
+  assert(model[0].tools.some(tool => tool.name === 'find_image'));
+  assert.deepEqual(minted, [{ owner: 'a'.repeat(64), pageUrl: 'https://en.wikipedia.org/wiki/Fictional_Singer',
+    options: { image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/Singer.jpg/640px-Singer.jpg' } }]);
+  const stream = events(res);
+  const imagesAt = stream.findIndex(event => event.type === 'tool_images');
+  assert(imagesAt > stream.findIndex(event => event.type === 'tool_activity' && event.state === 'complete'));
+  assert(imagesAt < stream.findIndex(event => event.type === 'text_delta'));
+  assert.deepEqual(stream[imagesAt].images, [{ token: 'm1.image-capability-fixture', width: 640, height: 960,
+    alt: 'Fictional Singer on stage', title: 'Fictional Singer', pageUrl: 'https://en.wikipedia.org/wiki/Fictional_Singer',
+    fileUrl: 'https://commons.wikimedia.org/wiki/File:Singer.jpg', artist: 'Example Photographer', license: 'CC BY 2.0',
+    licenseUrl: 'https://creativecommons.org/licenses/by/2.0' }]);
+  assert.equal(JSON.stringify(stream).includes('upload.wikimedia.org'), false, 'The raster URL never reaches the browser');
+  let received = null;
+  const decoder = createMetabloomSegmentStreamDecoder({ allowTools: true, allowToolMedia: true, onToolImages: images => { received = images; } });
+  assert(decoder.push(res.body)); assert(decoder.finish().ok);
+  assert.equal(received[0].token, 'm1.image-capability-fixture');
+});
+
+test('the photo tool is not offered without the opt-in or when disabled, and a minting failure leaves the answer intact', async () => {
+  for (const [streamToolMedia, enabled] of [[undefined, true], [true, false]]) {
+    const model = imageTurn();
+    if (!enabled) process.env.METABLOOM_IMAGE_SEARCH_ENABLED = 'false';
+    try {
+      const req = request('Can you show me who Fictional Singer is?');
+      if (streamToolMedia !== undefined) req.body.streamToolMedia = streamToolMedia;
+      const res = response(); await handler(req, res);
+      assert.equal(model[0].tools.some(tool => tool.name === 'find_image'), false);
+    } finally { delete process.env.METABLOOM_IMAGE_SEARCH_ENABLED; }
+  }
+  mock.method(sourceMedia, 'createSourceMediaToken', async () => { throw new Error('Configuration unavailable'); });
+  imageTurn();
+  const req = request('Can you show me who Fictional Singer is?'); req.body.streamToolMedia = true;
+  const res = response(); await handler(req, res);
+  assert(!events(res).some(event => event.type === 'tool_images'));
+  assert.equal(events(res).at(-1).type, 'done');
 });
 
 test('capability questions reach the supplied tools and do not trigger a forced search', async () => {

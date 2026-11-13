@@ -51,6 +51,7 @@ import { parseMetabloomResearchSources } from "./metabloomResearchSources";
 import { parseMetabloomProgressSource } from "./metabloomSourceMediaProtocol";
 import { parseMetabloomResearchReport } from "./metabloomResearchReport";
 import { parseMetabloomClientResearchBrief as parseMetabloomResearchBrief } from "./metabloomResearchBriefProtocol";
+import { MetabloomAnswerImages, MetabloomSourceGallery } from "./MetabloomSourceMedia";
 import { parseMetabloomResearchReferenceMetadata, parseMetabloomResearchAttachment,
   parseMetabloomResearchAnswerSources, isMetabloomFreshResearchRequest } from "./metabloomResearchReference";
 import { renderMetabloomResearchText } from "./metabloomResearchText";
@@ -537,6 +538,20 @@ const OrbSection = ({
   const [sequenceId, setSequenceId] = React.useState(null);
   const [fieldState, setFieldState] = React.useState("forming");
   const [messages, setMessages] = React.useState(() => (savedConversation?.messages || initialMessages).map(cloneMessage));
+  // Session-bound preview capabilities for ordinary search answers. They are
+  // presentation only and never enter a message, thread or saved conversation.
+  // Each entry remembers the exact source catalog it was issued for, so a later
+  // message that reuses the same id after a thread change cannot inherit it.
+  const [answerMedia, setAnswerMedia] = React.useState(() => new Map());
+  const rememberAnswerMedia = React.useCallback((messageId, value) => setAnswerMedia(previous => {
+    const next = new Map(previous);
+    const entry = { ...next.get(messageId), ...value };
+    next.delete(messageId);
+    next.set(messageId, entry);
+    // Bounded: only recent answers keep their (short-lived) capabilities.
+    while (next.size > 24) next.delete(next.keys().next().value);
+    return next;
+  }), []);
   const messagesRef = React.useRef(messages);
   const [draft, setDraft] = React.useState(savedConversation?.draft || '');
   const [artifactAttachment, setArtifactAttachment] = React.useState(() =>
@@ -1562,6 +1577,7 @@ const OrbSection = ({
       interrupt: (reason) => deliver("interrupt", () => validationSession.interrupt(reason)),
       snapshot: validationSession.snapshot,
       get closed() { return validationSession.closed; },
+      get messageId() { return messageId; },
     });
     gate = createMetabloomResearchDisplayGate({
       onUpdate: publishSnapshot,
@@ -1923,6 +1939,7 @@ const OrbSection = ({
         if (!agentLifecycle.accept(event)) return false;
         const state = agentLifecycle.getState();
         activeRequest.toolSearchComplete = state.searchComplete;
+        activeRequest.toolImageComplete = state.imageComplete;
         const progress = { ...getMetabloomWorkPresentation(state), startedAt: activeRequest.startedAt, updatedAt: Date.now() };
         setWorkProgress(progress);
         updateStateSnapshot({ workProgress: progress });
@@ -2036,6 +2053,22 @@ const OrbSection = ({
         activeRequest.sourcesReceived = true;
         return true;
       };
+      const onSourceMedia = (media) => {
+        const snapshot = session.snapshot();
+        if (!current() || !activeRequest.toolset || !activeRequest.sourcesReceived || activeRequest.sourceMediaReceived
+          || !snapshot.sources || snapshot.segments.length) return false;
+        activeRequest.sourceMediaReceived = true;
+        const catalog = JSON.stringify(snapshot.sources.map(source => [source.id, source.url]));
+        rememberAnswerMedia(session.messageId, { catalog, media });
+        return true;
+      };
+      const onToolImages = (images) => {
+        if (!current() || !activeRequest.toolset || !activeRequest.toolImageComplete || activeRequest.toolImagesReceived
+          || session.snapshot().segments.length) return false;
+        activeRequest.toolImagesReceived = true;
+        rememberAnswerMedia(session.messageId, { images });
+        return true;
+      };
       const onResearchDetails = (details) => {
         const acceptsResearch = (activeRequest.action === 'deep-research' && activeRequest.researchState === 'searching')
           || (activeRequest.action === 'none' && activeRequest.researchState === 'reusing');
@@ -2084,7 +2117,7 @@ const OrbSection = ({
         ...(activeRequest.toolset ? { orbContext: getOrbContext() } : {}),
         onToolProgress: onAgentEvent, onAgentStatus: onAgentEvent,
         requestId, message, history, ...(artifactContext ? { artifactContext } : {}), ...(researchContext ? { researchContext } : {}), allowMultiple, actionMode: activeRequest.actionMode, onToolActivity,
-        signal: controller.signal, onTextDelta, onSegment, onReaction, onAction, onResearch, onResearchProgress, onResearchDetails, onResearchBrief, onResearchReference, onSources,
+        signal: controller.signal, onTextDelta, onSegment, onReaction, onAction, onResearch, onResearchProgress, onResearchDetails, onResearchBrief, onResearchReference, onSources, onSourceMedia, onToolImages,
         onActivity: (event) => current() && reportActivity(requestId, event),
         reactionQuestion: METABLOOM_REACTION_QUESTION,
         resolveDecision: resolveMetabloomDecision,
@@ -2139,7 +2172,7 @@ const OrbSection = ({
       }).catch((error) => { if (current()) failReply(session, error); });
       return true;
     },
-    [allowEmoteChanges, appendMessage, beginReply, beginRequestScene, cancelResponse, captureConversation, deepResearch, failReply, finishReply, getOrbContext, isActive, messageLimit, modelAvailable, modelSelection, publishMessages, reactionPlayer, receiveModelResponse, recordExpression, reportActivity, threadSession, updateArtifactAttachment, updateResearchAttachment, updateStateSnapshot, workspace],
+    [allowEmoteChanges, appendMessage, beginReply, beginRequestScene, cancelResponse, captureConversation, deepResearch, failReply, finishReply, getOrbContext, isActive, messageLimit, modelAvailable, modelSelection, publishMessages, reactionPlayer, receiveModelResponse, recordExpression, rememberAnswerMedia, reportActivity, threadSession, updateArtifactAttachment, updateResearchAttachment, updateStateSnapshot, workspace],
   );
 
   const handleSubmit = React.useCallback(
@@ -2725,6 +2758,10 @@ const OrbSection = ({
                       {message.role === "assistant" ? "Metabloom" : "You"}
                     </span>
                     <div className="metabloom-chat__bubble">
+                      {/* Subject photos arrive before the answer text with known
+                          dimensions, so the text streams in below a stable frame. */}
+                      {message.role === "assistant" && message.status !== "error" && answerMedia.get(message.id)?.images
+                        && <MetabloomAnswerImages images={answerMedia.get(message.id).images} />}
                       {message.segments?.length
                         ? message.segments.map((segment, index) => (
                           <React.Fragment key={index}>
@@ -2755,6 +2792,14 @@ const OrbSection = ({
                           </ol>
                         </div>
                       )}
+                      {/* Photos load after the answer; appending them last never moves text
+                          or source links the reader may already be using. */}
+                      {sources && !researchBrief && message.status === "complete" && (() => {
+                        const entry = answerMedia.get(message.id);
+                        return !researchDetails && entry?.media
+                          && entry.catalog === JSON.stringify(sources.map(source => [source.id, source.url]))
+                          ? <MetabloomSourceGallery sources={sources} media={entry.media} /> : null;
+                      })()}
                       {researchDetails && (
                         <>
                           {message.status === "error" && <p className="metabloom-chat__research-notice">Research completed. The short answer could not be prepared.</p>}

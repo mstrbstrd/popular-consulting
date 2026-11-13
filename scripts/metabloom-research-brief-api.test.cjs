@@ -355,6 +355,17 @@ test("news media gives each story its first source before bounded alternates wit
   const enriched = await handler._internals.attachResearchMedia(oneStory, sources, identity);
   assert.deepEqual(enriched.media.map(entry => entry.sourceId), [1, 2, 3]);
   assert.deepEqual(minted, sources.slice(0, 3).map(source => source.url));
+
+  // General research findings use the same bounded first-source-then-alternate
+  // order. The media service's article gate still decides which pages qualify.
+  minted.length = 0;
+  const research = { ...oneStory, kind: "research", windowStart: null, windowEnd: null,
+    coverage: { ...oneStory.coverage, requestedCount: null } };
+  const researchMedia = await handler._internals.attachResearchMedia(research, sources, identity);
+  assert.equal(researchMedia.kind, "research");
+  assert.deepEqual(researchMedia.media.map(entry => entry.sourceId), [1, 2, 3]);
+  assert.deepEqual(minted, sources.slice(0, 3).map(source => source.url));
+  assert.equal(await handler._internals.attachResearchMedia(research, sources, null), research);
 });
 
 test("optional media failures and old clients retain the complete paid brief", async () => {

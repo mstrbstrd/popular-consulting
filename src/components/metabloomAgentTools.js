@@ -6,6 +6,7 @@ const METABLOOM_AGENT_TOOL_LABELS = Object.freeze({
   search_web: 'Searching the web', calculate: 'Calculating',
   get_current_time: 'Checking the time', create_visual: 'Preparing your visual',
   get_orb_state: 'Checking the Orb', express_orb: 'Choosing an expression',
+  find_image: 'Finding a photo',
 });
 const parseMetabloomAgentActivity = value => {
   if (!value || typeof value !== 'object' || Array.isArray(value)
@@ -33,7 +34,7 @@ const parseMetabloomAgentStatus = value => exactKeys(value, ['type', 'state']) &
 // not model-authored prose or a timer that pretends a milestone happened.
 const createMetabloomAgentLifecycle = ({ requireStatus = false } = {}) => {
   const calls = new Set();
-  let phase = null, activeTool = null, lastTool = null, sequence = 0, summary = null, searchComplete = false;
+  let phase = null, activeTool = null, lastTool = null, sequence = 0, summary = null, searchComplete = false, imageComplete = false;
   return {
     accept(event) {
       if (event?.type === 'agent_status') {
@@ -59,13 +60,14 @@ const createMetabloomAgentLifecycle = ({ requireStatus = false } = {}) => {
       } else {
         if (!activeTool || activity.callId !== activeTool.callId || activity.name !== activeTool.name) return null;
         if (activity.name === 'search_web' && activity.state === 'complete') searchComplete = true;
+        if (activity.name === 'find_image' && activity.state === 'complete') imageComplete = true;
         lastTool = activity; activeTool = null; phase = 'between'; summary = null;
       }
       return activity;
     },
     canAnswer: () => !activeTool && (!requireStatus || phase === null || phase === 'validating'),
     getState: () => ({ phase, activeTool: activeTool && { ...activeTool }, lastTool: lastTool && { ...lastTool },
-      summary, searchComplete, callCount: calls.size }),
+      summary, searchComplete, imageComplete, callCount: calls.size }),
   };
 };
 
@@ -77,7 +79,8 @@ const getMetabloomWorkPresentation = ({ phase, activeTool, lastTool, summary, se
     summary: lastTool.state === 'failed' ? `${METABLOOM_AGENT_TOOL_LABELS[lastTool.name]} did not finish successfully.`
       : ({ search_web: 'Search complete. Reviewing the sources.', calculate: 'Calculation complete.',
         get_current_time: 'Current time checked.', create_visual: 'Visual requested. Generation and display are still pending.',
-        get_orb_state: 'Orb snapshot checked.', express_orb: 'Expression chosen. Playback is still pending.' })[lastTool.name] };
+        get_orb_state: 'Orb snapshot checked.', express_orb: 'Expression chosen. Playback is still pending.',
+        find_image: 'Photo lookup complete.' })[lastTool.name] };
   return { label: 'Working on your request', summary: null };
 };
 module.exports = { METABLOOM_AGENT_TIMEOUT_MS, MAX_METABLOOM_AGENT_CALLS,

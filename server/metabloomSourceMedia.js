@@ -21,13 +21,23 @@ function createSourceMediaTokenCodec({ readSecret = readProductionSecret, now = 
   };
   const binding = identity => Buffer.from(`source-media-v1\n${identity.scope}\n${identity.owner}`, 'utf8');
   return Object.freeze({
-    async create(identity, sourceUrl, { now: issuedAt = now() } = {}) {
+    // An image capability (v2) names the exact raster the host already selected
+    // and validated from this page's metadata. Serving it needs one publisher
+    // request and no second metadata read, so a different serverless instance
+    // cannot reach a different conclusion than the preview that offered it.
+    async create(identity, sourceUrl, { now: issuedAt = now(), image, expiresAt } = {}) {
       try {
         const url = parsePublicMediaUrl(sourceUrl);
         if (!validIdentity(identity) || !url || !Number.isSafeInteger(issuedAt) || issuedAt < 0) return null;
+        const imageUrl = image === undefined ? null : parsePublicMediaUrl(image);
+        if (image !== undefined && !imageUrl) return null;
+        const exp = Math.min(issuedAt + SOURCE_MEDIA_TTL_MS, Number.isSafeInteger(expiresAt) ? expiresAt : Infinity);
+        if (exp <= issuedAt) return null;
         const iv = randomBytes(12), cipher = createCipheriv('aes-256-gcm', await key(), iv);
         cipher.setAAD(binding(identity));
-        const payload = Buffer.from(JSON.stringify({ v: 1, iat: issuedAt, exp: issuedAt + SOURCE_MEDIA_TTL_MS, url: url.href }));
+        const payload = Buffer.from(JSON.stringify(imageUrl
+          ? { v: 2, iat: issuedAt, exp, url: url.href, img: imageUrl.href }
+          : { v: 1, iat: issuedAt, exp, url: url.href }));
         const encrypted = Buffer.concat([cipher.update(payload), cipher.final()]);
         const token = `m1.${Buffer.concat([iv, cipher.getAuthTag(), encrypted]).toString('base64url')}`;
         return token.length <= MAX_SOURCE_MEDIA_TOKEN_CHARS ? token : null;
@@ -43,11 +53,15 @@ function createSourceMediaTokenCodec({ readSecret = readProductionSecret, now = 
         decipher.setAuthTag(bytes.subarray(12, 28));
         decipher.setAAD(binding(identity));
         const value = JSON.parse(Buffer.concat([decipher.update(bytes.subarray(28)), decipher.final()]).toString('utf8'));
-        if (!value || Object.keys(value).length !== 4 || value.v !== 1 || !Number.isSafeInteger(value.iat)
+        if (!value || Object.keys(value).length !== (value.v === 2 ? 5 : 4) || ![1, 2].includes(value.v) || !Number.isSafeInteger(value.iat)
           || !Number.isSafeInteger(value.exp) || value.iat < 0 || value.iat > checkedAt + 30000
           || value.exp <= checkedAt || value.exp <= value.iat || value.exp - value.iat > SOURCE_MEDIA_TTL_MS) return null;
         const url = parsePublicMediaUrl(value.url);
-        return url && url.href === value.url ? Object.freeze({ url: value.url, expiresAt: value.exp }) : null;
+        if (!url || url.href !== value.url) return null;
+        if (value.v === 1) return Object.freeze({ url: value.url, expiresAt: value.exp });
+        const imageUrl = parsePublicMediaUrl(value.img);
+        return imageUrl && imageUrl.href === value.img
+          ? Object.freeze({ url: value.url, image: value.img, expiresAt: value.exp }) : null;
       } catch { return null; }
     },
   });
@@ -364,10 +378,23 @@ function icoDimensions(bytes) {
   return { width, height };
 }
 
-function validateSourceMediaImage(body, type, kind = 'image') {
+// Object stores commonly label publisher social images as generic binary.
+// Only these labels are sniffed, and only into a format whose complete
+// structure is then validated below; HTML, SVG and GIF still never qualify.
+const GENERIC_BINARY_TYPES = new Set(['application/octet-stream', 'binary/octet-stream']);
+function sniffRasterType(body, kind) {
+  if (body.length >= 8 && body.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) return 'image/png';
+  if (body.length >= 3 && body[0] === 255 && body[1] === 216 && body[2] === 255) return 'image/jpeg';
+  if (body.length >= 12 && body.toString('ascii', 0, 4) === 'RIFF' && body.toString('ascii', 8, 12) === 'WEBP') return 'image/webp';
+  if (kind === 'icon' && body.length >= 4 && body.readUInt16LE(0) === 0 && body.readUInt16LE(2) === 1) return 'image/vnd.microsoft.icon';
+  return null;
+}
+
+function validateSourceMediaImage(body, declaredType, kind = 'image') {
   try {
     if (!['image', 'icon'].includes(kind) || !Buffer.isBuffer(body) || !body.length
       || body.length > (kind === 'icon' ? MAX_ICON_BYTES : MAX_IMAGE_BYTES)) return null;
+    const type = GENERIC_BINARY_TYPES.has(declaredType) ? sniffRasterType(body, kind) : declaredType;
     const readers = { 'image/png': pngDimensions, 'image/jpeg': jpegDimensions, 'image/webp': webpDimensions,
       ...(kind === 'icon' ? { 'image/x-icon': icoDimensions, 'image/vnd.microsoft.icon': icoDimensions, 'image/ico': icoDimensions } : {}) };
     const dimensions = Object.prototype.hasOwnProperty.call(readers, type) ? readers[type](body) : null;
@@ -465,51 +492,70 @@ function createSourceMediaService({ fetchPublic = createPublicMediaFetcher(), co
       return null;
     }
   }, signal, value => value ? Buffer.byteLength(JSON.stringify(value)) : 8);
-  const loadAsset = (url, kind, metadata, signal) => {
+  // Validated rasters are cached by their own URL, so a preview and the image
+  // capability it mints share one download on a warm instance.
+  const loadRaster = (url, kind, signal) => memo(assetCache, `${kind}:${url}`, async workSignal => {
+    try {
+      const result = await gate(() => fetchPublic(url, { kind, signal: workSignal }), workSignal);
+      return validateSourceMediaImage(result.body, result.type, kind);
+    } catch {
+      if (workSignal.aborted) throw mediaError('source_media_cancelled');
+      return null;
+    }
+  }, signal, value => value ? value.body.length + 512 : 8);
+  const loadAsset = async (url, kind, metadata, signal) => {
     // A site's generic social card/logo is not evidence of article imagery.
     // The same gate applies to direct image requests as to preview JSON.
-    if (kind === 'image' && metadata?.isArticle !== true) return Promise.resolve(null);
-    return memo(assetCache, `${kind}:${url}`, async workSignal => {
-      const fallback = { url: new URL('/favicon.ico', url).href, alt: '' };
-      const candidates = (kind === 'image' ? metadata?.images : metadata?.icons) || (kind === 'icon' ? [fallback] : []);
-      for (const candidate of candidates.slice(0, 3)) {
-        try {
-          const result = await gate(() => fetchPublic(candidate.url, { kind, signal: workSignal }), workSignal);
-          const value = validateSourceMediaImage(result.body, result.type, kind);
-          if (value) return { ...value, alt: metadataText(candidate.alt) };
-        } catch { if (workSignal.aborted) throw mediaError('source_media_cancelled'); }
-      }
-      return null;
-    }, signal, value => value ? value.body.length + 512 : 8);
+    if (kind === 'image' && metadata?.isArticle !== true) return null;
+    const fallback = { url: new URL('/favicon.ico', url).href, alt: '' };
+    const candidates = (kind === 'image' ? metadata?.images : metadata?.icons) || (kind === 'icon' ? [fallback] : []);
+    for (const candidate of candidates.slice(0, 3)) {
+      const value = await loadRaster(candidate.url, kind, signal);
+      if (value) return { ...value, alt: metadataText(candidate.alt), source: candidate.url };
+    }
+    return null;
   };
-  const run = async (identity, token, signal, operation) => {
+  const run = async (identity, token, signal, operation, { image = false } = {}) => {
     const capability = await codec.verify(identity, token);
-    if (!capability) throw mediaError('source_media_invalid');
+    // Page capabilities read metadata; image capabilities only name one raster.
+    if (!capability || Boolean(capability.image) !== image) throw mediaError('source_media_invalid');
     const controller = new AbortController(), abort = () => controller.abort();
     signal?.addEventListener('abort', abort, { once: true });
     if (signal?.aborted) controller.abort();
     const timer = setTimeout(abort, SOURCE_MEDIA_TIMEOUT_MS); timer.unref?.();
-    try { return await operation(capability.url, controller.signal); }
+    try { return await operation(capability, controller.signal); }
     finally { clearTimeout(timer); signal?.removeEventListener('abort', abort); controller.abort(); }
   };
   const endpoint = (token, kind) => `/api/metabloom-source-media?token=${encodeURIComponent(token)}&kind=${kind}`;
   return Object.freeze({
     async getPreview(identity, token, { signal } = {}) {
-      return run(identity, token, signal, async (url, currentSignal) => {
+      return run(identity, token, signal, async ({ url, expiresAt }, currentSignal) => {
         const metadata = await loadMetadata(url, currentSignal);
         const [image, icon] = await Promise.all([
           loadAsset(url, 'image', metadata, currentSignal).catch(() => null),
           loadAsset(url, 'icon', metadata, currentSignal).catch(() => null),
         ]);
-        return { version: SOURCE_MEDIA_VERSION, image: image ? { src: endpoint(token, 'image'), alt: image.alt } : null,
+        // The offered image is the raster this preview just validated. Its
+        // capability never outlives the page capability that selected it.
+        const imageToken = image && await codec.create(identity, url, { image: image.source, expiresAt });
+        return { version: SOURCE_MEDIA_VERSION,
+          image: image && imageToken ? { src: endpoint(imageToken, 'image'), alt: image.alt } : null,
           icon: icon ? { src: endpoint(token, 'icon') } : null, isArticle: metadata?.isArticle === true };
       });
     },
     async getImage(identity, token, { signal } = {}) {
-      return run(identity, token, signal, async (url, currentSignal) => loadAsset(url, 'image', await loadMetadata(url, currentSignal), currentSignal));
+      let capability;
+      try { capability = await codec.verify(identity, token); } catch { capability = null; }
+      if (capability?.image) {
+        return run(identity, token, signal, async ({ image }, currentSignal) => {
+          const value = await loadRaster(image, 'image', currentSignal);
+          return value ? { ...value, alt: '', source: image } : null;
+        }, { image: true });
+      }
+      return run(identity, token, signal, async ({ url }, currentSignal) => loadAsset(url, 'image', await loadMetadata(url, currentSignal), currentSignal));
     },
     async getIcon(identity, token, { signal } = {}) {
-      return run(identity, token, signal, async (url, currentSignal) => loadAsset(url, 'icon', await loadMetadata(url, currentSignal), currentSignal));
+      return run(identity, token, signal, async ({ url }, currentSignal) => loadAsset(url, 'icon', await loadMetadata(url, currentSignal), currentSignal));
     },
   });
 }

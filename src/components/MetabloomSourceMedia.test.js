@@ -1,8 +1,9 @@
 import React from 'react';
-import { act, fireEvent, render, screen } from '@testing-library/react';
-import { MetabloomArticlePreview, MetabloomPublisherIcon } from './MetabloomSourceMedia';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { MetabloomAnswerImages, MetabloomArticlePreview, MetabloomPublisherIcon, MetabloomSourceGallery } from './MetabloomSourceMedia';
 import { requestMetabloomSourcePreview } from './metabloomSourceMediaClient';
 import { metabloomSourceMediaUrl } from './metabloomSourceMediaProtocol';
+import { createSourceMediaResolver } from './metabloomSourceMediaResolver';
 
 jest.mock('./metabloomSourceMediaClient', () => ({ requestMetabloomSourcePreview: jest.fn() }));
 const source = { id: 1, title: 'Fictional published article', url: 'https://publisher.example.test/original?story=1' };
@@ -26,8 +27,10 @@ test('keeps the original source usable while media loads, then mounts only its a
   const { container } = render(<div className="orb-page"><MetabloomArticlePreview source={source} token={token} publisher="Fictional publisher" /></div>);
   const reserved = container.querySelector('.metabloom-source-preview__image-area');
   expect(screen.getByRole('link', { name: /Open source: Fictional published article/ })).toHaveAttribute('href', source.url);
-  expect(screen.getByText('publisher.example.test')).toBeInTheDocument();
+  const content = within(container.querySelector('.metabloom-source-preview__content'));
+  expect(content.getByText('publisher.example.test')).toBeInTheDocument();
   expect(screen.getByText('Fictional publisher')).toBeInTheDocument();
+  expect(container.querySelector('.metabloom-source-preview__plate-host')).toHaveTextContent('publisher.example.test');
   expect(screen.queryByRole('img')).not.toBeInTheDocument();
   await act(async () => finish(media()));
   const image = screen.getByRole('img', { name: 'The original article’s image.' });
@@ -64,7 +67,7 @@ test('a compact preview identifies its canonical article and source number befor
     token={token} publisher="Fictional wire service" compact /></div>);
   expect(screen.getByText(syndicated.title)).toBeVisible();
   expect(screen.getByText('Source 13')).toBeVisible();
-  expect(screen.getByText('publisher.example.test')).toBeVisible();
+  expect(within(view.container.querySelector('.metabloom-source-preview__content')).getByText('publisher.example.test')).toBeVisible();
   const articleLink = screen.getByRole('link', { name: `Open source: ${syndicated.title}` });
   expect(articleLink).toHaveAttribute('href', syndicated.url);
   expect(articleLink).toHaveAttribute('title', syndicated.title);
@@ -77,7 +80,8 @@ test('a compact preview identifies its canonical article and source number befor
   expect(screen.getByText(syndicated.title)).toBeVisible();
   expect(screen.getByText('Source 13')).toBeVisible();
   expect(articleLink).toHaveAttribute('href', syndicated.url);
-  expect(view.container.querySelector('.metabloom-source-preview__image-area')).toHaveAttribute('hidden');
+  expect(view.container.querySelector('.metabloom-source-preview__image-area')).not.toHaveAttribute('hidden');
+  expect(view.container.querySelector('.metabloom-source-preview__fallback')).toHaveAttribute('data-plate-state', 'unavailable');
 });
 
 test.each(['unavailable', 'not an article'])('uses a text-complete card when preview is %s', async mode => {
@@ -182,7 +186,7 @@ test('failed image delivery advances to a cited alternate while a successful pri
   expect(requestMetabloomSourcePreview).toHaveBeenCalledTimes(2);
 });
 
-test('an exhausted compact preview keeps the original article title and link without an empty photo placeholder', async () => {
+test('an exhausted compact preview keeps the original article, link and a consistent source plate in its media slot', async () => {
   const entries = candidates();
   requestMetabloomSourcePreview.mockResolvedValue({ version: '1', isArticle: true, image: null, icon: null });
   const view = render(<MetabloomArticlePreview candidates={entries} compact />);
@@ -194,11 +198,13 @@ test('an exhausted compact preview keeps the original article title and link wit
   expect(screen.getByText('Cited article 1')).toBeInTheDocument();
   expect(screen.queryByRole('img')).not.toBeInTheDocument();
   expect(view.container.querySelector('.metabloom-source-preview__image-area')).toBe(reserved);
-  expect(reserved).toHaveAttribute('hidden');
+  expect(reserved).not.toHaveAttribute('hidden');
+  expect(reserved.querySelector('.metabloom-source-preview__plate-host')).toHaveTextContent('publisher1.example.test');
+  expect(reserved.querySelector('.metabloom-source-preview__fallback')).toHaveAttribute('aria-hidden', 'true');
   expect(view.container.querySelector('.metabloom-source-preview')).toHaveAttribute('data-preview-state', 'unavailable');
 });
 
-test('a compact preview only removes its reserved image area after every image delivery fails', async () => {
+test('a compact preview keeps its media slot as a source plate after every image delivery fails', async () => {
   const entries = candidates().slice(0, 2);
   requestMetabloomSourcePreview.mockImplementation(selected => Promise.resolve(media(selected)));
   const view = render(<MetabloomArticlePreview candidates={entries} compact />);
@@ -211,7 +217,8 @@ test('a compact preview only removes its reserved image area after every image d
   expect(alternate).toHaveAttribute('src', metabloomSourceMediaUrl(entries[1].token, 'image'));
   expect(reserved).not.toHaveAttribute('hidden');
   fireEvent.error(alternate);
-  expect(reserved).toHaveAttribute('hidden');
+  expect(reserved).not.toHaveAttribute('hidden');
+  expect(reserved.querySelector('.metabloom-source-preview__fallback')).toHaveAttribute('data-plate-state', 'unavailable');
   expect(screen.getByText('Cited article 1')).toBeInTheDocument();
   expect(screen.getByRole('link', { name: 'Read article: Cited article 1' })).toHaveAttribute('href', entries[0].source.url);
   expect(screen.queryByRole('img')).not.toBeInTheDocument();
@@ -231,4 +238,101 @@ test('unmounting during an alternate lookup aborts it and never advances to anot
   expect(signal.aborted).toBe(true);
   await act(async () => finish({ version: '1', isArticle: true, image: null, icon: null }));
   expect(requestMetabloomSourcePreview).toHaveBeenCalledTimes(2);
+});
+
+test('a source-only card keeps the same shape without any capability or request', async () => {
+  const view = render(<MetabloomArticlePreview candidates={[]} compact
+    fallbackSource={{ source, publisher: 'Fictional publisher' }} />);
+  await act(async () => {});
+  expect(requestMetabloomSourcePreview).not.toHaveBeenCalled();
+  expect(view.container.querySelector('.metabloom-source-preview')).toHaveAttribute('data-preview-state', 'unavailable');
+  expect(view.container.querySelector('.metabloom-source-preview__plate-host')).toHaveTextContent('publisher.example.test');
+  expect(screen.getByRole('link', { name: `Open source: ${source.title}` })).toHaveAttribute('href', source.url);
+  expect(view.container.querySelector('img')).toBeNull();
+  const forged = render(<MetabloomArticlePreview candidates={[]} fallbackSource={{ source: { ...source, url: 'data:text/html,forged' } }} />);
+  expect(forged.container.firstChild).toBeNull();
+});
+
+test('a brief resolver schedules hidden slides without viewport observation and loads their images eagerly', async () => {
+  const observers = [];
+  window.IntersectionObserver = jest.fn(() => { const value = { observe: jest.fn(), disconnect: jest.fn() }; observers.push(value); return value; });
+  const entries = candidates();
+  requestMetabloomSourcePreview.mockImplementation(selected => Promise.resolve(media(selected)));
+  const resolver = createSourceMediaResolver();
+  const release = resolver.retain();
+  const view = render(<div hidden><MetabloomArticlePreview candidates={entries} compact resolver={resolver} priority={2} /></div>);
+  await act(async () => {});
+  expect(requestMetabloomSourcePreview).not.toHaveBeenCalled();
+  expect(observers).toHaveLength(0);
+  await act(async () => { resolver.start(); });
+  expect(requestMetabloomSourcePreview.mock.calls.map(([selected]) => selected)).toEqual(entries.slice(0, 3).map(entry => entry.token));
+  const image = view.container.querySelector('img.metabloom-source-preview__image');
+  expect(image).toHaveAttribute('loading', 'eager');
+  expect(image).toHaveAttribute('src', metabloomSourceMediaUrl(entries[0].token, 'image'));
+  fireEvent.load(image);
+  expect(view.container.querySelector('.metabloom-source-preview')).toHaveAttribute('data-preview-state', 'ready');
+  release();
+});
+
+test('an answer gallery requests only cited catalog entries and marks only loaded photos ready', async () => {
+  const sources = [1, 2, 3, 4, 5].map(id => ({ id, title: `Cited article ${id}`, url: `https://publisher${id}.example.test/a` }));
+  const cited = [{ sourceId: 2, token: 'm1.two' }, { sourceId: 7, token: 'm1.unknown' }, { sourceId: 1, token: 'm1.one' },
+    { sourceId: 3, token: 'm1.three' }, { sourceId: 4, token: 'm1.four' }, { sourceId: 5, token: 'm1.five' }];
+  requestMetabloomSourcePreview.mockImplementation(selected => Promise.resolve(selected === 'm1.one'
+    ? { version: '1', isArticle: false, image: null, icon: null } : media(selected)));
+  const view = render(<div className="orb-page"><MetabloomSourceGallery sources={sources} media={cited} /></div>);
+  await act(async () => {});
+  expect(requestMetabloomSourcePreview.mock.calls.map(([token]) => token)).toEqual(['m1.two', 'm1.one', 'm1.three', 'm1.four']);
+  const gallery = screen.getByRole('group', { name: 'Images from cited sources' });
+  const tiles = gallery.querySelectorAll('.metabloom-source-preview--tile');
+  expect(tiles).toHaveLength(4);
+  expect(tiles[1]).toHaveAttribute('data-preview-state', 'unavailable');
+  const first = tiles[0].querySelector('img.metabloom-source-preview__image');
+  expect(first).toHaveAttribute('loading', 'eager');
+  expect(tiles[0]).toHaveAttribute('data-preview-state', 'loading');
+  fireEvent.load(first);
+  expect(tiles[0]).toHaveAttribute('data-preview-state', 'ready');
+  expect(within(tiles[0]).getByRole('link', { name: 'Read article: Cited article 2' })).toHaveAttribute('href', sources[1].url);
+  expect(within(tiles[0]).getByText('Source 2')).toBeInTheDocument();
+  view.rerender(<div className="orb-page"><MetabloomSourceGallery sources={sources} media={[{ sourceId: 9, token: 'm1.nine' }]} /></div>);
+  expect(screen.queryByRole('group', { name: 'Images from cited sources' })).toBeNull();
+});
+
+describe('subject photos', () => {
+  const photo = { token: 'm1.image-capability', width: 640, height: 960, alt: 'Fictional Singer on stage', title: 'Fictional Singer',
+    pageUrl: 'https://en.wikipedia.org/wiki/Fictional_Singer', fileUrl: 'https://commons.wikimedia.org/wiki/File:Singer.jpg',
+    artist: 'Example Photographer', license: 'CC BY 2.0', licenseUrl: 'https://creativecommons.org/licenses/by/2.0' };
+
+  test('reserves the photo frame and always shows the complete credit', () => {
+    const view = render(<div className="orb-page"><MetabloomAnswerImages images={[photo]} /></div>);
+    const figure = view.container.querySelector('figure.metabloom-answer-image');
+    expect(figure.style.getPropertyValue('--metabloom-image-ratio')).toBe('640 / 960');
+    const image = screen.getByRole('img', { name: 'Fictional Singer on stage' });
+    expect(image).toHaveAttribute('src', metabloomSourceMediaUrl(photo.token, 'image'));
+    expect(image).toHaveAttribute('width', '640');
+    expect(image).toHaveAttribute('referrerpolicy', 'no-referrer');
+    expect(figure).toHaveAttribute('data-image-state', 'loading');
+    fireEvent.load(image);
+    expect(figure).toHaveAttribute('data-image-state', 'ready');
+    expect(screen.getByRole('link', { name: /Fictional Singer.*Wikipedia/ })).toHaveAttribute('href', photo.pageUrl);
+    expect(screen.getByRole('link', { name: /CC BY 2\.0 licence/ })).toHaveAttribute('href', photo.licenseUrl);
+    expect(screen.getByRole('link', { name: /Wikimedia Commons file page/ })).toHaveAttribute('href', photo.fileUrl);
+    for (const link of screen.getAllByRole('link')) expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+    expect(figure).toHaveTextContent('Photo: Example Photographer');
+  });
+
+  test('a failed photo keeps its frame, credit and links', () => {
+    const view = render(<MetabloomAnswerImages images={[{ ...photo, licenseUrl: null }]} />);
+    fireEvent.error(screen.getByRole('img', { name: 'Fictional Singer on stage' }));
+    expect(view.container.querySelector('figure')).toHaveAttribute('data-image-state', 'failed');
+    expect(screen.queryByRole('img')).toBeNull();
+    expect(screen.getByText('Photo unavailable')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /licence/ })).toBeNull();
+    expect(view.container).toHaveTextContent('CC BY 2.0');
+  });
+
+  test('renders nothing without a valid capability', () => {
+    const view = render(<MetabloomAnswerImages images={[{ ...photo, token: 'https://upload.wikimedia.org/a.jpg' }]} />);
+    expect(view.container.firstChild).toBeNull();
+  });
 });
