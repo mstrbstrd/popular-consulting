@@ -119,3 +119,11 @@ test('Orb sends the chosen provider, freezes it for the request and applies a sw
     expect(requests[0].modelSelection).toEqual({ provider: 'openai', model: 'gpt-5-mini' });
   } finally { delete window.__metabloomRequest; }
 });
+
+test('marks the picker with a warning state only while the warning is shown', async () => {
+  requestMetabloomModels.mockRejectedValueOnce(new Error('unavailable'));
+  const { container } = render(<MetabloomModelPicker selection={null} onChange={jest.fn()} onAvailability={jest.fn()} isActive />);
+  const root = container.querySelector('.metabloom-model-picker');
+  await waitFor(() => expect(screen.queryByRole('status')).toHaveTextContent('Choose an available model to continue.'));
+  expect(root).toHaveAttribute('data-warning', 'true');
+});

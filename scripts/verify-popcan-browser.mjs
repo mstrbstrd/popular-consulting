@@ -5,6 +5,7 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { findBrowser, createBuildServer } from './dark-evidence-browser.mjs';
+import { readDevToolsPort } from './devtools-port.mjs';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const output = path.resolve(process.env.POPCAN_VERIFY_OUTPUT || 'popcan-functional');
@@ -24,9 +25,7 @@ try {
     '--remote-debugging-port=0', `--user-data-dir=${profile}`, ...(process.getuid?.() === 0 || process.env.CI ? ['--no-sandbox'] : []), 'about:blank'], { stdio: ['ignore', 'ignore', 'pipe'] });
   child.stderr.on('data', (chunk) => fs.appendFileSync(path.join(output, 'browser.log'), chunk));
   const portFile = path.join(profile, 'DevToolsActivePort');
-  for (let i = 0; i < 300 && !fs.existsSync(portFile); i++) await sleep(100);
-  assert.ok(fs.existsSync(portFile), 'Browser did not start');
-  const port = fs.readFileSync(portFile, 'utf8').split('\n')[0];
+  const port = await readDevToolsPort(portFile);
   const tabs = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
   socket = new WebSocket(tabs.find((tab) => tab.type === 'page').webSocketDebuggerUrl);
   await new Promise((resolve, reject) => { socket.addEventListener('open', resolve, { once: true }); socket.addEventListener('error', reject, { once: true }); });

@@ -28,7 +28,7 @@
   .metabloom-model-picker__glyph { display: block; }
   /* The status text stays announced; a dot marks the control visually. */
   .metabloom-model-picker__warning { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  .metabloom-model-picker:has(> .metabloom-model-picker__warning)::after {
+  .metabloom-model-picker[data-warning='true']::after {
     content: ""; position: absolute; top: 2px; right: 2px; width: 10px; height: 10px; border-radius: 50%;
     background: var(--aetheris-red, #c0392b); pointer-events: none;
   }

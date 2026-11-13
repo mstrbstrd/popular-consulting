@@ -2150,14 +2150,18 @@ const OrbSection = ({
       // A request listener may downgrade this turn to the cached-client
       // contract (no toolset), as integrations and the legacy-path browser
       // suite do. It can never enable tools: that remains this component's
-      // decision. The downgrade restores the ordinary response deadline.
+      // decision. An unclaimed downgraded turn gets the ordinary response
+      // deadline; a listener that claimed the turn (the legacy visual tool)
+      // already set its own, longer tool-turn deadline, which must stand.
       if (requestEvent.detail.toolset === false && activeRequest.toolset && current()) {
         activeRequest.toolset = false;
         request.toolset = false;
         delete request.orbContext;
-        window.clearTimeout(previewTimerRef.current);
-        previewTimerRef.current = window.setTimeout(() => failReply(session, { code: 'answer_timeout' }),
-          Math.max(0, activeRequest.startedAt + RESPONSE_TIMEOUT_MS - Date.now()));
+        if (!activeRequest.claimed && !requestEvent.defaultPrevented) {
+          window.clearTimeout(previewTimerRef.current);
+          previewTimerRef.current = window.setTimeout(() => failReply(session, { code: 'answer_timeout' }),
+            Math.max(0, activeRequest.startedAt + RESPONSE_TIMEOUT_MS - Date.now()));
+        }
       }
       if (requestEvent.defaultPrevented) claimRequest();
       if (!current() || activeRequest.claimed) return true;

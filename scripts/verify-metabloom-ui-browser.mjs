@@ -7,6 +7,7 @@ import path from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
 import { createBuildServer } from './auth-invoice-test-server.mjs';
 import { findBrowser } from './dark-evidence-browser.mjs';
+import { readDevToolsPort } from './devtools-port.mjs';
 
 const output = path.resolve('metabloom-ui-functional');
 fs.mkdirSync(output, { recursive: true });
@@ -161,9 +162,7 @@ try {
     '--disable-background-networking', '--remote-debugging-port=0', `--user-data-dir=${profile}`,
     ...(process.getuid?.() === 0 ? ['--no-sandbox'] : []), 'about:blank'], { stdio: 'ignore' });
   const portFile = path.join(profile, 'DevToolsActivePort');
-  for (let i = 0; i < 100 && !fs.existsSync(portFile); i++) await sleep(200);
-  assert(fs.existsSync(portFile), 'Browser did not start');
-  const port = fs.readFileSync(portFile, 'utf8').split('\n')[0];
+  const port = await readDevToolsPort(portFile);
   const tabs = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
   socket = new WebSocket(tabs.find(tab => tab.type === 'page').webSocketDebuggerUrl);
   await new Promise((resolve, reject) => { socket.addEventListener('open', resolve, { once: true }); socket.addEventListener('error', reject, { once: true }); });
