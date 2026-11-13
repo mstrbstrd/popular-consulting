@@ -49,6 +49,19 @@ const send = (method, params = {}, sessionId) => new Promise((resolve, reject) =
 });
 const reports = [];
 try {
+  // A cold CI runner can take longer than one command timeout to start Chrome.
+  // Wait for the DevTools pipe before the first real command; report a crash.
+  {
+    let exited = null;
+    browser.once('exit', code => { exited = code; });
+    const startedAt = Date.now();
+    for (;;) {
+      try { await send('Browser.getVersion'); break; } catch (error) {
+        if (exited !== null) throw new Error(`Browser exited during startup with ${exited}`);
+        if (Date.now() - startedAt > 60000) throw error;
+      }
+    }
+  }
   for (const [width, height] of [[1440, 900], [390, 844]]) for (const theme of ['light', 'dark']) {
     const mobile = width <= 768;
     // Reduce only the software test's drawing resolution; CSS layout is unchanged.
