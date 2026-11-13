@@ -68,33 +68,44 @@ const findEdge = () => [
 ].find(candidate => candidate && fs.existsSync(candidate));
 
 const runEdgeRoute = async (edgePath, origin, check, index) => {
-  const profileDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "popcon-edge-smoke-"));
   const url = `${origin}${check.route}`;
   const webGLArguments = check.requiresWebGL ? ["--enable-unsafe-swiftshader", "--use-angle=swiftshader"] : [];
-  let result;
-  try {
-    result = await execFileAsync(edgePath, [
-      "--headless=new", "--disable-background-networking", "--disable-component-update", "--disable-default-apps",
-      "--disable-extensions", "--disable-sync", "--metrics-recording-only", "--mute-audio",
-      "--no-default-browser-check", "--no-first-run", "--run-all-compositor-stages-before-draw", "--virtual-time-budget=5000",
-      ...webGLArguments, `--user-data-dir=${profileDirectory}`, "--dump-dom", url,
-    ], { encoding: "utf8", maxBuffer: 10 * 1024 * 1024, timeout: 30_000, windowsHide: true });
-  } catch (error) {
-    if (typeof error.stdout === "string") fs.writeFileSync(path.join(output, `route-${index}-failure.html`), error.stdout);
-    const stderr = typeof error.stderr === "string" ? error.stderr : "";
-    if (error.code === "ETIMEDOUT" || error.killed) throw new Error(`${check.route}: Edge timed out after 30000ms${stderr ? `\n${stderr}` : ""}`);
-    if (typeof error.code === "number") {
-      // Distinguish a renderer/browser crash before the document was produced
-      // from a crash while Edge shut down after dumping a complete document.
-      const dumped = typeof error.stdout === "string" ? error.stdout : "";
-      const markers = check.markers.filter(marker => dumped.includes(marker));
-      throw new Error(`${check.route}: Edge exited with ${error.code}; dumped ${dumped.length} characters`
-        + `, closing </html>: ${dumped.trimEnd().endsWith("</html>")}, markers: ${markers.join(", ") || "none"}\n${stderr}`);
+  // Headless Edge on Windows intermittently crashes (access violation) while
+  // shutting down after --dump-dom has already written a complete document.
+  // That teardown crash is retried once; if it repeats, the complete document
+  // is still validated below and the crash is reported as a warning. A crash
+  // before a complete document, a crash page or a missing marker still fails.
+  const dumpOnce = async () => {
+    const profileDirectory = fs.mkdtempSync(path.join(os.tmpdir(), "popcon-edge-smoke-"));
+    try {
+      return { stdout: (await execFileAsync(edgePath, [
+        "--headless=new", "--disable-background-networking", "--disable-component-update", "--disable-default-apps",
+        "--disable-extensions", "--disable-sync", "--metrics-recording-only", "--mute-audio",
+        "--no-default-browser-check", "--no-first-run", "--run-all-compositor-stages-before-draw", "--virtual-time-budget=5000",
+        ...webGLArguments, `--user-data-dir=${profileDirectory}`, "--dump-dom", url,
+      ], { encoding: "utf8", maxBuffer: 10 * 1024 * 1024, timeout: 30_000, windowsHide: true })).stdout };
+    } catch (error) {
+      if (typeof error.stdout === "string") fs.writeFileSync(path.join(output, `route-${index}-failure.html`), error.stdout);
+      const stderr = typeof error.stderr === "string" ? error.stderr : "";
+      if (error.code === "ETIMEDOUT" || error.killed) throw new Error(`${check.route}: Edge timed out after 30000ms${stderr ? `\n${stderr}` : ""}`);
+      if (typeof error.code === "number") {
+        const dumped = typeof error.stdout === "string" ? error.stdout : "";
+        const complete = /<\/html>\s*$/i.test(dumped);
+        const detail = `${check.route}: Edge exited with ${error.code}; dumped ${dumped.length} characters, complete document: ${complete}`;
+        if (complete) return { stdout: dumped, shutdownCrash: detail };
+        throw new Error(`${detail}\n${stderr}`);
+      }
+      throw new Error(`${check.route}: Edge failed to start: ${error.message}${stderr ? `\n${stderr}` : ""}`);
+    } finally {
+      try { fs.rmSync(profileDirectory, { force: true, maxRetries: 5, recursive: true, retryDelay: 200 }); }
+      catch { /* Edge may still be releasing temporary profile handles. */ }
     }
-    throw new Error(`${check.route}: Edge failed to start: ${error.message}${stderr ? `\n${stderr}` : ""}`);
-  } finally {
-    try { fs.rmSync(profileDirectory, { force: true, maxRetries: 5, recursive: true, retryDelay: 200 }); }
-    catch { /* Edge may still be releasing temporary profile handles. */ }
+  };
+  let result = await dumpOnce();
+  if (result.shutdownCrash) {
+    process.stdout.write(`Windows Edge smoke retrying after a shutdown crash: ${result.shutdownCrash}\n`);
+    result = await dumpOnce();
+    if (result.shutdownCrash) process.stdout.write(`::warning::${result.shutdownCrash} (repeated; validating the complete document)\n`);
   }
 
   const documentHtml = result.stdout || "";
