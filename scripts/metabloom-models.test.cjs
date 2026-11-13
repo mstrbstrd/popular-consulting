@@ -134,6 +134,47 @@ test('DeepSeek tool batches run serially and cannot exceed the shared budget', a
   await runMetabloomAgent({ message: 'Check times', history: [], modelSelection: { provider: 'deepseek', model: 'deepseek-flash' }, fetchImpl, onTool: event => events.push(event) });
   assert.deepEqual(events.map(event => [event.callId, event.state]), [['a', 'running'], ['a', 'complete'], ['b', 'running'], ['b', 'complete']]);
 });
+test('DeepSeek follow-ups receive the exact chat format and current schema alongside plain-text history', async () => {
+  const history = [{ role: 'user', content: 'Hello' }, { role: 'assistant', content: 'Hello. What are we looking into today?' }];
+  for (const allowMultiple of [false, true]) {
+    let calls = 0;
+    const result = await runMetabloomAgent({ message: 'Do you have context of this conversation?', history, allowMultiple,
+      modelSelection: { provider: 'deepseek', model: 'deepseek-flash' }, fetchImpl: async (url, options) => {
+        calls++; assert.equal(url, 'https://api.deepseek.com/responses');
+        const body = JSON.parse(options.body), schema = body.text.format.schema;
+        assert.equal(body.model, 'deepseek-flash'); assert.equal(body.text.format.strict, true);
+        assert.deepEqual(schema.properties.version.enum, ['2.0.0']);
+        assert.equal(schema.properties.segments.maxItems, allowMultiple ? 4 : 1);
+        assert(body.instructions.includes('{"version":"2.0.0","segments":[{"response":"Your answer goes here."}]}'));
+        assert(body.instructions.endsWith(JSON.stringify(schema)));
+        assert.deepEqual(body.input.slice(0, 2), history);
+        assert(body.tools.some(tool => tool.name === 'calculate'));
+        return Response.json(answer());
+      } });
+    assert.equal(result.reply.version, '2.0.0');
+    assert.equal(calls, 1);
+  }
+});
+test('DeepSeek format rejection stays strict and logs only safe host diagnostics without retries', async () => {
+  const logs = [];
+  mock.method(console, 'warn', (event, data) => { logs.push({ event, ...JSON.parse(data) }); });
+  const cases = [
+    ['private-provider-answer', 'Invalid response JSON.'],
+    [JSON.stringify({ version: '2.0.0', segments: [{ response: 'private-provider-answer', extra: true }] }), 'Invalid chat response text or total length.'],
+    [JSON.stringify({ version: '1.0.0', segments: [{ emote: 'curious', response: 'private-provider-answer' }] }), 'Unsupported chat response version.'],
+  ];
+  for (const [text, diagnostic] of cases) {
+    let calls = 0;
+    await assert.rejects(runMetabloomAgent({ message: 'private-user-input', history: [], requestRef: 'abcdef123456',
+      modelSelection: { provider: 'deepseek', model: 'deepseek-flash' }, fetchImpl: async () => {
+        calls++; const value = answer(); value.output[0].content[0].text = text; return Response.json(value);
+      } }), { code: 'answer_invalid', reason: 'agent_answer' });
+    assert.deepEqual(logs.at(-1), { event: 'metabloom_agent_answer_rejected', requestRef: 'abcdef123456',
+      provider: 'deepseek', model: 'deepseek-flash', validation: diagnostic });
+    assert.equal(calls, 1);
+  }
+  assert.doesNotMatch(JSON.stringify(logs), /private-provider-answer|private-user-input|fictional-DEEPSEEK_API_KEY/);
+});
 test('provider truncation and refusal cannot masquerade as a complete answer', async () => {
   const payload = { model: 'gpt-5-mini', instructions: 'Return JSON', input: [], max_output_tokens: 100,
     text: { format: { schema: { type: 'object', properties: {}, additionalProperties: false } } } };

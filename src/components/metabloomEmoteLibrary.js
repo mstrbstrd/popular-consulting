@@ -185,6 +185,7 @@ const buildMetabloomChatSystemPrompt = ({ allowMultiple = false, presentationAct
     allowMultiple
       ? `Use between one and ${MAX_METABLOOM_EMOTE_SEGMENTS} consecutive paragraphs of ONE assistant reply only when it genuinely improves readability. Do not repeat greetings or restart the answer.`
       : "Return exactly one response segment containing the entire assistant reply.",
+    `Final answer JSON example: ${JSON.stringify({ version: METABLOOM_CHAT_PROTOCOL_VERSION, segments: [{ response: "Your answer goes here." }] })}. Use this exact version string and field structure, replacing the example response with your answer. Do not add fields, Markdown code fences or text outside the JSON object. Earlier assistant messages are displayed text, not examples of the wire format.`,
     "Preserve JSON key order: version before segments and response as the only field within each segment. Each response must be a nonempty plain-text paragraph of at most 1600 characters; the total is at most 4800 characters.",
   ].join("\n\n");
 };

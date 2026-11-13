@@ -166,7 +166,13 @@ async function runMetabloomAgent({ message, history, allowMultiple = false, pres
       if (messages.length !== 1 || messages[0].role !== 'assistant' || messages[0].status !== 'completed'
         || messages[0].content?.length !== 1 || messages[0].content[0].type !== 'output_text') throw invalid('agent_message');
       const parsed = parseMetabloomChatEnvelope(messages[0].content[0].text, { allowMultiple });
-      if (!parsed.ok || parsed.value.version !== '2.0.0') throw invalid('agent_answer');
+      if (!parsed.ok || parsed.value.version !== '2.0.0') {
+        // The parser returns fixed diagnostic messages, never provider text.
+        console.warn('metabloom_agent_answer_rejected', JSON.stringify({ requestRef,
+          provider: modelSelection?.provider || 'openai', ...(modelSelection ? { model: modelSelection.model } : {}),
+          validation: parsed.ok ? 'Unsupported chat response version.' : parsed.error }));
+        throw invalid('agent_answer');
+      }
       if (sources.length) validateMetabloomResearchCitations(parsed.value, sources);
       else if (parsed.value.segments.some(segment => /\[\d+\]/.test(segment.response))) throw invalid('agent_unsourced_citation');
       return { reply: parsed.value, sources, offer, expression };

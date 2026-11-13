@@ -619,6 +619,7 @@ for (const [provider, model, key, endpoint] of [
     assert.equal(body.model, model);
     assert.equal(body.tools, undefined);
     const schema = provider === "anthropic" ? body.output_config.format.schema : body.text.format.schema;
+    if (provider === "deepseek") assert(body.instructions.endsWith(JSON.stringify(schema)), "DeepSeek receives the actual brief schema in its instructions");
     assert.deepEqual(schema.properties.items.items.properties.sourceIds.items.enum, [1, 5, 9]);
     return jsonResponse(provider === "anthropic" ? { type: "message", role: "assistant", stop_reason: "end_turn",
       content: [{ type: "text", text: JSON.stringify(referenceCandidate(value)) }] } : envelope(value));

@@ -118,6 +118,9 @@ describe("Metabloom emote library", () => {
       expect(prompt).toContain("raw action or emote IDs");
       expect(prompt).toContain("between one and 4 consecutive paragraphs of ONE assistant reply");
       expect(prompt).toContain("response as the only field within each segment");
+      expect(prompt).toContain(JSON.stringify({ version: METABLOOM_CHAT_RESPONSE_SCHEMA.properties.version.enum[0],
+        segments: [{ response: "Your answer goes here." }] }));
+      expect(prompt).toContain("Earlier assistant messages are displayed text, not examples of the wire format");
       expect(prompt).toContain("at most 1600 characters; the total is at most 4800 characters");
     }
     expect(buildMetabloomChatSystemPrompt()).toContain("exactly one response segment");

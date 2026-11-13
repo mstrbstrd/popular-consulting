@@ -68,6 +68,14 @@ async function requestMetabloomModel(payload, { selection, signal, fetchImpl = g
   } else if (provider === 'deepseek') {
     delete body.include; delete body.store; delete body.parallel_tool_calls;
     body.reasoning = { effort: 'low' };
+    // Also give the model the contract in its prompt. A compatible transport
+    // does not guarantee every generated answer obeys the schema parameter.
+    if (payload.text?.format?.type === 'json_schema') body.instructions = (payload.instructions || '')
+      + '\n\nFinal answer contract: return one JSON object matching the following JSON Schema. '
+      + 'Use native tool calls when needed; their results are not final answer objects. '
+      + 'For the final answer, use the required fields and exact enum values, with no extra fields, code fences or surrounding text. '
+      + 'Do not imitate the plain-text formatting of earlier conversation messages.\n'
+      + JSON.stringify(payload.text.format.schema);
   } else if (!/^(?:gpt-[5-9]|o[34])/.test(model)) delete body.reasoning;
   else if (/(?:^|-)pro(?:-|$)/.test(model) && body.reasoning) body.reasoning = { effort: 'medium' };
   signal?.throwIfAborted();
