@@ -53,3 +53,20 @@ describe('Orb liquid glass layer', () => {
     expect(css).not.toMatch(/background-clip:\s*text/);
   });
 });
+
+describe('shared liquid glass lenses', () => {
+  const sharedRules = shared.replace(/\/\*[\s\S]*?\*\//g, '');
+  test('a lens never inherits into the icons and menus inside a lensed surface', () => {
+    expect(sharedRules).toMatch(/@property --lg-refraction \{ syntax: "\*"; inherits: false; \}/);
+    // The pill's lens is set on the pill but drawn by its pseudo-element.
+    const pill = sharedRules.slice(sharedRules.indexOf('.nav-pill::before {'));
+    expect(pill.slice(0, pill.indexOf('}'))).toContain('--lg-refraction: inherit;');
+  });
+
+  test('opening a nav menu marks its button with a ring, not a darker fill', () => {
+    const open = sharedRules.slice(sharedRules.indexOf('.workspace-menu[open] > summary'));
+    const body = open.slice(open.indexOf('{') + 1, open.indexOf('}'));
+    expect(body).toContain('background: var(--lg-lens-hover) !important;');
+    expect(body).not.toMatch(/background: var\(--lg-lens\) /);
+  });
+});

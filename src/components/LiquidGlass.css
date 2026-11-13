@@ -7,6 +7,12 @@
    --lg-refraction; everything here falls back to blur without it.
    Keep -webkit-backdrop-filter before backdrop-filter: Chromium aliases them. */
 
+/* Each lens is sized to the element that owns it. Custom properties inherit by
+   default, so the nav pill's lens used to leak into every icon and menu inside
+   it, which then sampled the backdrop through a wrong-sized map and turned
+   murky and dark, most visibly as a menu opened. Lenses never inherit. */
+@property --lg-refraction { syntax: "*"; inherits: false; }
+
 :is(.orb-page, .home-page) {
   --lg-clear-fill: rgba(255, 255, 255, 0.12);
   --lg-clear-fill-hover: rgba(255, 255, 255, 0.24);
@@ -91,6 +97,8 @@ html body :is(.orb-page, .home-page) .nav-pill::before {
   border-radius: inherit;
   pointer-events: none;
   background: var(--lg-clear-fill);
+  /* The pill's lens is set on the pill; its glass is this pseudo-element. */
+  --lg-refraction: inherit;
   -webkit-backdrop-filter: var(--lg-clear-fallback) var(--lg-post);
   backdrop-filter: var(--lg-refraction, var(--lg-clear-fallback)) var(--lg-post);
 }
@@ -126,7 +134,8 @@ html body :is(.orb-page, .home-page) .nav-pill .nav-burger,
 html body :is(.orb-page, .home-page) .nav-pill .nav-burger--open,
 :is(.orb-page, .home-page) .nav-pill .workspace-menu[open] > summary,
 :is(.orb-page, .home-page) .nav-pill .site-account-menu[open] > .site-account-control {
-  background: var(--lg-lens) !important;
+  /* Open is marked by the teal ring alone: opening a menu never darkens it. */
+  background: var(--lg-lens-hover) !important;
   box-shadow: var(--lg-lens-edge), inset 0 0 0 1px color-mix(in srgb, var(--aetheris-teal) 40%, transparent) !important;
 }
 /* Focus stays unmistakable on glass: the Aetheris focus halo. */
