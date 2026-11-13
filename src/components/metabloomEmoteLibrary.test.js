@@ -88,7 +88,8 @@ describe("Metabloom emote library", () => {
     for (const presentationAction of ["none", "deep-research", "under-the-hood"]) {
       const prompt = buildMetabloomChatSystemPrompt({ presentationAction, allowMultiple: true });
       expect(prompt).toContain("speaking through an expressive Orb");
-      expect(prompt).toContain("Jev independently selects");
+      expect(prompt).toContain("your words can indirectly influence its reaction");
+      expect(prompt).toContain("No direct expression tool is supplied for this reply");
       expect(prompt).toContain("natural or playful reference to the selected scene is welcome");
       expect(prompt).toContain("Discussion of emotions or what the interface shows is allowed");
       expect(prompt).toContain("The application provides live web research through Deep Research");

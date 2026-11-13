@@ -1,22 +1,26 @@
 const { resolveMetabloomEmote } = require("./metabloomEmoteLibrary");
 
 // Text arrives immediately. Body language gets one complete, bounded beat at a time.
-export const createMetabloomReactionPlayer = ({ onPlay, onIdle }) => {
+export const createMetabloomReactionPlayer = ({ onPlay, onIdle, onCancel }) => {
   let timer = 0;
   let queue = [];
   let generation = 0;
-  const cancel = () => {
+  const cancel = (reason = 'replaced') => {
     generation += 1;
     clearTimeout(timer);
     timer = 0;
     queue = [];
+    onCancel?.(reason);
   };
   const advance = () => {
     timer = 0;
     const next = queue.shift();
     if (!next) { onIdle(); return; }
     const token = generation;
-    onPlay(next.emote, next.messageId, next.index);
+    if (onPlay(next.emote, next.messageId, next.index) === false) {
+      cancel('stopped'); onIdle(); return;
+    }
+    if (token !== generation) return;
     timer = setTimeout(() => {
       if (token === generation) advance();
     }, resolveMetabloomEmote(next.emote).duration);
@@ -30,7 +34,7 @@ export const createMetabloomReactionPlayer = ({ onPlay, onIdle }) => {
       // Neutral is an intentional settle. Reduced motion never builds a backlog.
       if (emote === "neutral" || reducedMotion) {
         cancel();
-        onPlay(reducedMotion ? steps[steps.length - 1] : emote, messageId, index);
+        if (onPlay(reducedMotion ? steps[steps.length - 1] : emote, messageId, index) === false) return false;
         onIdle();
         return true;
       }

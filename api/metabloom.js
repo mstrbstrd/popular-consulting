@@ -4,6 +4,7 @@ const metabloomAuth = require("../server/metabloomAuth");
 const sourceMedia = require("../server/metabloomSourceMedia");
 const { METABLOOM_CHAT_PROTOCOL_VERSION, METABLOOM_EMOTE_IDS, METABLOOM_CHAT_RESPONSE_SCHEMA, buildMetabloomChatSystemPrompt } = require("../src/components/metabloomEmoteLibrary");
 const { METABLOOM_ACTION_MODES } = require("../src/components/metabloomDecisionMapping");
+const { parseMetabloomOrbContext } = require('../src/components/metabloomExpressionProtocol');
 const { decideMetabloomReaction, decideMetabloomInput, decideMetabloomResponse } = require("../server/jevReactionService");
 const { enabled: visualsEnabled, createMetabloomVisualStore } = require("../server/metabloomVisualStore");
 const { parseMetabloomArtifactReference } = require("../src/components/metabloomArtifactReference");
@@ -66,7 +67,12 @@ const parseBody = (request) => {
     const text = typeof request.body === "string" ? request.body : JSON.stringify(request.body);
     if (typeof text !== "string" || Buffer.byteLength(text, "utf8") > MAX_BODY_BYTES) return null;
     const value = JSON.parse(text);
-    if (!exactKeys(value, ["message"], ["requestId", "history", "allowMultiple", "streamText", "streamResearchProgress", "streamResearchDetails", "streamResearchBrief", "streamResearchMedia", "streamResearchReuse", "timeZone", "actionMode", "artifactContext", "researchContext", "modelSelection"])) return null;
+    if (!exactKeys(value, ["message"], ["requestId", "history", "allowMultiple", "streamText", "streamResearchProgress", "streamResearchDetails", "streamResearchBrief", "streamResearchMedia", "streamResearchReuse", "timeZone", "actionMode", "artifactContext", "researchContext", "modelSelection", "orbContext"])) return null;
+    if (value.orbContext !== undefined) {
+      value.orbContext = parseMetabloomOrbContext(value.orbContext);
+      if (!value.orbContext || request.headers?.['x-metabloom-expressions'] !== '1' || !value.requestId
+        || value.orbContext.lastExpression?.requestId === value.requestId) return null;
+    }
     if (value.modelSelection !== undefined) {
       value.modelSelection = parseMetabloomModelSelection(value.modelSelection);
       if (!value.modelSelection) return null;
@@ -304,6 +310,7 @@ const handler = async (request, response) => {
     uiToolsEnabled: Boolean(visualIdentity) && visualsEnabled()
       && process.env.METABLOOM_UI_TOOLS_ENABLED !== 'false' && configured(request),
     streaming: "validated-text-and-reactions", research: "web-search-with-citations", toolset: 2, configured: configured(request),
+    expressions: process.env.METABLOOM_EXPRESSIONS_ENABLED === 'false' ? 0 : 1,
     jevConfigured: Boolean(process.env.TYPESAFE_API_KEY), emotes: METABLOOM_EMOTE_IDS,
   });
   if (request.method !== "POST") {
@@ -433,7 +440,10 @@ const handler = async (request, response) => {
       const action = decision.action === 'under-the-hood' ? decision.action : 'none';
       await sendStreamEvent({ type: 'emote', phase: 'input', emote: decision.emote });
       await sendStreamEvent({ type: 'action', action });
+      const expressions = request.headers?.['x-metabloom-expressions'] === '1' && body.orbContext
+        && process.env.METABLOOM_EXPRESSIONS_ENABLED !== 'false';
       const result = await runMetabloomAgent({ message: body.message, history: body.history,
+        ...(expressions ? { orbContext: body.orbContext } : {}),
         modelSelection,
         allowMultiple: body.allowMultiple, presentationAction: action, timeZone: body.timeZone || 'UTC',
         identity: visualIdentity, requestId: body.requestId, requestRef, signal: controller.signal,
@@ -448,9 +458,11 @@ const handler = async (request, response) => {
         await sendStreamEvent({ type: 'segment', index, ...segment });
       }
       await sendStreamEvent({ type: 'text_complete' });
-      const emote = await decideMetabloomReaction({ phase: 'response',
+      const emote = result.expression?.emote || await decideMetabloomReaction({ phase: 'response',
         state: { latestUserMessage: body.message, assistantResponse: result.reply.segments.map(segment => segment.response).join('\n\n') },
         signal: controller.signal, timeoutMs: 1200 });
+      if (expressions) await sendStreamEvent({ type: 'orb_expression', requestId: body.requestId,
+        emote, source: result.expression ? 'model' : 'automatic' });
       await sendStreamEvent({ type: 'emote', phase: 'response', emote });
       if (result.offer) await sendStreamEvent({ type: 'visual_offer', offer: result.offer });
       return response.end(JSON.stringify({ type: 'done', version: METABLOOM_CHAT_PROTOCOL_VERSION }) + '\n');

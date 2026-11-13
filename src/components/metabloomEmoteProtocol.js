@@ -33,6 +33,7 @@ const isPlainObject = (value) => {
 const exactKeys = (value, keys) => isPlainObject(value)
   && Object.keys(value).length === keys.length
   && keys.every((key) => Object.prototype.hasOwnProperty.call(value, key));
+const { parseMetabloomExpressionEvent } = require('./metabloomExpressionProtocol');
 const cloneSegment = ({ emote, response }) => ({ emote, response });
 const normalizeSegment = (value) => {
   if (!exactKeys(value, ["emote", "response"])) return null;
@@ -107,6 +108,8 @@ const createMetabloomSegmentStreamDecoder = ({
   allowResearchReuse = false,
   allowTools = false,
   allowToolProgress = false,
+  allowExpressions = false,
+  requestId,
   maxBufferChars = MAX_SERIALIZED_CHARS,
   onDone,
   onError,
@@ -136,6 +139,8 @@ const createMetabloomSegmentStreamDecoder = ({
   let version = null;
   let inputEmote = null;
   let responseEmote = null;
+  let expression = null;
+  let expressionChosen = false;
   let textComplete = false;
   let partialResponse = null;
   let action = null;
@@ -185,10 +190,15 @@ const createMetabloomSegmentStreamDecoder = ({
     if (toolLifecycle.getState().phase !== null && typeof event?.type === 'string' && event.type.startsWith('research')) return fail('Research and chat tool streams cannot be mixed.');
     if (['tool_activity', 'tool_progress', 'agent_status'].includes(event?.type)) {
       if (!allowTools || (event.type !== 'tool_activity' && !allowToolProgress) || version !== METABLOOM_CHAT_PROTOCOL_VERSION
+        || (!allowExpressions && ['get_orb_state', 'express_orb'].includes(event.name))
         || !['none', 'under-the-hood'].includes(action) || researchState !== null || sources !== null
         || segments.length || partialResponse !== null || textComplete) return fail('Invalid tool activity.');
       const accepted = toolLifecycle.accept(event);
       if (!accepted) return fail('Invalid tool execution order.');
+      if (accepted.name === 'express_orb' && accepted.state === 'complete') {
+        if (expressionChosen) return fail('More than one expression was chosen.');
+        expressionChosen = true;
+      }
       if (event.type === 'tool_activity') onToolActivity?.(accepted);
       else if (event.type === 'tool_progress') onToolProgress?.(accepted);
       else onAgentStatus?.(accepted);
@@ -371,6 +381,14 @@ const createMetabloomSegmentStreamDecoder = ({
       onTextDelta?.(event.delta, event.index);
       return true;
     }
+    if (event?.type === 'orb_expression') {
+      const parsed = parseMetabloomExpressionEvent(event, requestId);
+      if (!allowExpressions || !allowTools || !parsed || expression || responseEmote || !textComplete
+        || version !== METABLOOM_CHAT_PROTOCOL_VERSION || !toolTextReady()
+        || (parsed.source === 'model') !== expressionChosen) return fail('Invalid expression receipt metadata.');
+      expression = parsed;
+      return true;
+    }
     if (event?.type === "emote") {
       if (!exactKeys(event, ["type", "phase", "emote"]) || !resolveMetabloomEmote(event.emote)) return fail("Invalid Jev emote.");
       if (event.phase === "input" && version === null && segments.length === 0) {
@@ -381,6 +399,7 @@ const createMetabloomSegmentStreamDecoder = ({
       }
       if (event.phase === "response" && version === METABLOOM_CHAT_PROTOCOL_VERSION
         && inputEmote && textComplete && !responseEmote) {
+        if (expression && expression.emote !== event.emote) return fail('Expression and reaction disagree.');
         responseEmote = event.emote;
         return true;
       }
@@ -401,6 +420,7 @@ const createMetabloomSegmentStreamDecoder = ({
       if (version === METABLOOM_CHAT_PROTOCOL_VERSION && (!textComplete || !responseEmote)) {
         return fail("Jev stream ended without both reactions.");
       }
+      if (expressionChosen && !expression) return fail('A chosen expression requires matching metadata.');
       if (researchState !== null && (researchState !== "synthesizing" || sources === null)) {
         return fail("Research stream ended before synthesis.");
       }
@@ -408,7 +428,8 @@ const createMetabloomSegmentStreamDecoder = ({
       if (researchBriefChars > 0 && researchBrief === null) return fail("Research brief was not completed.");
       completed = true;
       // Only dispatch the final emote once the terminal record is verified.
-      if (version === METABLOOM_CHAT_PROTOCOL_VERSION) onReaction?.({ phase: "response", emote: responseEmote });
+      if (version === METABLOOM_CHAT_PROTOCOL_VERSION) onReaction?.({ phase: "response", emote: responseEmote,
+        ...(expression ? { expression: { ...expression } } : {}) });
       onDone?.(envelope());
       return true;
     }

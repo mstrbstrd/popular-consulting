@@ -33,7 +33,8 @@
     "test:saved-work": "node --test scripts/metabloom-saved-content.test.cjs scripts/metabloom-saved-work-database.test.cjs scripts/metabloom-saved-work-store.test.cjs scripts/metabloom-saved-work-api.test.cjs scripts/metabloom-saved-work-client.test.cjs scripts/metabloom-saved-work-revisions.test.cjs scripts/metabloom-threads-api.test.cjs scripts/metabloom-thread-client.test.cjs",
     "test:saved-work:redis": "node --test scripts/metabloom-saved-work-redis.test.cjs scripts/metabloom-threads-redis.test.cjs",
     "metabloom:improve": "node scripts/metabloom-improvement.cjs",
-    "test:metabloom-improvement": "node --test scripts/metabloom-improvement.test.cjs"
+    "test:metabloom-improvement": "node --test scripts/metabloom-improvement.test.cjs",
+    "test:metabloom-expression": "node --test scripts/metabloom-expression.test.cjs"
   },
   "eslintConfig": {
     "extends": [

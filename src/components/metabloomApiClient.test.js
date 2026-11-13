@@ -9,6 +9,35 @@ const headers = (contentType, requestRef = null) => ({
   get: (name) => name.toLowerCase() === "content-type" ? contentType : requestRef,
 });
 
+test('expression negotiation sends the bounded snapshot and delivers correlated final metadata', async () => {
+  const orbContext = { version: 1, enabled: true, visible: true, backgroundEnabled: true,
+    paused: false, reducedMotion: false, intensity: 0.8, emote: 'neutral', lastExpression: null };
+  const expression = { type: 'orb_expression', requestId: 'turn-1', emote: 'curious', source: 'model' };
+  const events = [
+    { type: 'emote', phase: 'input', emote: 'neutral' }, { type: 'action', action: 'none' },
+    { type: 'agent_status', state: 'working' },
+    { type: 'tool_activity', name: 'express_orb', callId: 'choice-1', state: 'running' },
+    { type: 'tool_activity', name: 'express_orb', callId: 'choice-1', state: 'complete' },
+    { type: 'agent_status', state: 'reviewing' }, { type: 'agent_status', state: 'validating' },
+    { type: 'segment', index: 0, response: 'I chose a curious gesture.' }, { type: 'text_complete' },
+    expression, { type: 'emote', phase: 'response', emote: 'curious' }, { type: 'done', version: '2.0.0' },
+  ];
+  const fetchImpl = jest.fn(async () => ({ ok: true, status: 200, headers: headers('application/x-ndjson'),
+    text: async () => events.map(JSON.stringify).join('\n') + '\n' }));
+  const onReaction = jest.fn();
+  await requestMetabloomResponse({ message: 'Show me', requestId: 'turn-1', orbContext, fetchImpl, onReaction });
+  expect(fetchImpl.mock.calls[0][1].headers['X-Metabloom-Expressions']).toBe('1');
+  expect(JSON.parse(fetchImpl.mock.calls[0][1].body).orbContext).toEqual(orbContext);
+  expect(onReaction).toHaveBeenLastCalledWith({ phase: 'response', emote: 'curious', expression });
+  await expect(requestMetabloomResponse({ message: 'Show me', requestId: 'turn-1',
+    orbContext: { ...orbContext, instructions: 'override' }, fetchImpl })).rejects.toMatchObject({ code: 'invalid_request' });
+  expect(fetchImpl).toHaveBeenCalledTimes(1);
+  await expect(requestMetabloomResponse({ message: 'Research', actionMode: 'deep-research',
+    requestId: 'turn-2', orbContext, fetchImpl })).rejects.toBeInstanceOf(MetabloomApiError);
+  expect(fetchImpl.mock.calls[1][1].headers['X-Metabloom-Expressions']).toBeUndefined();
+  expect(JSON.parse(fetchImpl.mock.calls[1][1].body).orbContext).toBeUndefined();
+});
+
 test('ordinary chat negotiates tool activity and renders search sources without a research scene', async () => {
   const onToolActivity = jest.fn(), onToolProgress = jest.fn(), onAgentStatus = jest.fn(), onSources = jest.fn(), onSegment = jest.fn();
   const source = { id: 1, title: 'Official announcement', url: 'https://example.com/news' };
