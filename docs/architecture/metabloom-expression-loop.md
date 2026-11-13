@@ -91,5 +91,32 @@ required TextEncoder polyfill.
 
 Deterministic fixtures establish the contract, not live provider behavior or
 gesture quality. Live API keys were not used. Production rendering and live
-model selection of gestures remain rollout checks. Delivery is a feature branch
-for review, without merging or deploying to production.
+model selection of gestures remain rollout checks. Initial delivery was a feature
+branch for review. The user subsequently authorized merging to main and requested
+the system-prompt audit below.
+
+## System-prompt audit before main
+
+The prompt is part of the feature contract, not an independent personality layer.
+Its allowed claims, choice of medium and interpretation of results must agree
+with the tools supplied for that specific turn.
+
+| Prompt boundary | Updated behavior |
+| --- | --- |
+| Shared live chat (`buildMetabloomChatSystemPrompt`) | Use available tools before the final response schema. Express a viewpoint through concrete ideas and demonstrations. Adapt to requests for candor without a personality pitch or routine AI disclaimer. Correct previous capability denials when the current inventory contradicts them. |
+| Ordinary agent (`runMetabloomAgent`) | Explain the actual enabled tool inventory, including unavailable visuals and the distinction between user-declined search and unavailable search. State explicitly when the four-call budget is exhausted. |
+| State and expression tools | Read state when a question depends on presentation or prior playback; do not poll a fixed snapshot. Interpret every receipt state, including null, without treating runtime scheduling as proof of human perception. Do not work around user pause or accessibility settings. |
+| Provider adapters | OpenAI, Claude and DeepSeek receive the same behavioral and receipt guidance through their existing instruction transports. Provider fixture tests inspect the assembled instructions, not only the standalone prompt builder. |
+| Legacy schema adapter (`metabloomProtocol.json`) | Permit relevant discussion of the Orb and schema-selected emotes. Remove the obsolete ban on mentioning the avatar and the independent-message instruction. Do not imply that this adapter has ordinary-chat function tools. |
+| Research and visual continuations | Keep their existing evidence and display contracts. A non-tool writing step does not inherit direct expression tools. A selected scene is a presentation metaphor, not access to actual model internals. |
+
+Prompt tests cover the original capability-denial regression, enabled and disabled
+tools, unavailable configuration, user restrictions, provider instruction
+transport, and budget exhaustion. These checks establish instruction consistency;
+they do not prove that every live model will follow every instruction or choose
+the best expression.
+
+Post-audit validation: the same Node contract command above passed **159 tests**;
+the full React command passed **236 suites and 2,463 tests**. Frontend lint,
+changed Node-file lint, `git diff --check`, and the production build also passed.
+Live-provider evaluation and deployed visual verification were not performed.

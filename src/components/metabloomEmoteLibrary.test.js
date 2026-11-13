@@ -52,6 +52,23 @@ describe("Metabloom emote library", () => {
     expect(buildMetabloomSystemPrompt()).toContain("reflective:");
   });
 
+  test("live and legacy prompts support candid expression without conflating their control surfaces", () => {
+    const active = buildMetabloomChatSystemPrompt({ toolset: true, expressionTools: true });
+    const legacy = buildMetabloomSystemPrompt();
+    expect(active).toContain('Use supplied tools');
+    expect(active).toContain('An explicit choice takes priority');
+    expect(active).toContain('Never copy a prior denial');
+    expect(active).toContain('a routine disclaimer about being an AI');
+    expect(active).toContain('do not invent an inner life');
+    expect(active).not.toContain('No direct expression tool is supplied');
+    expect(legacy).toContain('This legacy adapter chooses expressions through the response schema, not function calls');
+    expect(legacy).toContain('You may discuss the Orb');
+    expect(legacy).toContain('selecting an emote does not prove it appeared');
+    expect(legacy).toContain('do not claim access to the ordinary chat function tools');
+    expect(legacy).not.toContain('or the avatar in the response text');
+    expect(legacy).not.toContain('delivered independently');
+  });
+
   test("resolves only exact enum values", () => {
     expect(resolveMetabloomEmote("whimsy")?.action).toBe("surprised");
     expect(resolveMetabloomEmote("Whimsy")).toBeNull();

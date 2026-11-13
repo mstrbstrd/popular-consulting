@@ -72,6 +72,32 @@ test('a capability question can answer without a tool or invented receipt', asyn
   assert.match(seen[0].instructions, /next user turn may supply the actual runtime observation/);
   assert.doesNotMatch(seen[0].instructions, /No direct expression tool is supplied/);
 });
+test('the assembled prompt explains runtime observations, human controls and honest expression', async () => {
+  const seen = [];
+  await run({ fetchImpl: provider([[answer()]], seen) });
+  const prompt = seen[0].instructions;
+  for (const rule of ['Use get_orb_state when the question depends', 'Do not poll it',
+    'Never work around pause', 'simplified means a reduced-motion pose', 'suppressed means it did not play',
+    'interrupted means the remaining playback was cancelled', 'A null receipt means no observation is available',
+    'Never copy a prior denial', 'silence from the expression channel is also a valid choice']) assert(prompt.includes(rule), rule);
+});
+test('tool availability and its explanation agree across configuration and user preferences', async () => {
+  const seen = [];
+  await run({ visualsAvailable: false, fetchImpl: provider([[answer()]], seen) });
+  assert.match(seen[0].instructions, /create_visual is unavailable for this turn/);
+  assert.doesNotMatch(seen[0].instructions, /Use create_visual when/);
+  await run({ visualsAvailable: true, fetchImpl: provider([[answer()]], seen) });
+  assert.match(seen[1].instructions, /Use create_visual when/);
+  assert(seen[1].tools.some(tool => tool.name === 'create_visual'));
+  delete process.env.OPENAI_API_KEY;
+  const selection = { provider: 'deepseek', model: 'deepseek-chat' };
+  await run({ modelSelection: selection, fetchImpl: provider([[answer()]], seen) });
+  assert.match(seen[2].instructions, /Web search is unavailable for this turn/);
+  assert.doesNotMatch(seen[2].instructions, /source-limited request|The user requested no web search/);
+  assert(!seen[2].tools.some(tool => tool.name === 'search_web'));
+  await run({ modelSelection: selection, message: 'Without searching, answer this.', fetchImpl: provider([[answer()]], seen) });
+  assert.match(seen[3].instructions, /The user requested no web search for this turn/);
+});
 test('the transcript regression can inspect the prior receipt and intentionally queue a gesture', async () => {
   const seen = [];
   const result = await run({ message: "i think you can can you not? is there not a way, directly or indirectly, to influence the choices of the orb",
@@ -106,6 +132,7 @@ test('expression calls share the four-call budget and cancelled work cannot fini
   const seen = [];
   await run({ fetchImpl: provider([...Array.from({ length: 4 }, (_, i) => [call('get_orb_state', {}, 'call_' + i)]), [answer()]], seen) });
   assert.deepEqual(seen[4].tools, []);
+  assert.match(seen[4].instructions, /No tools are enabled for this continuation/);
   const controller = new AbortController();
   await assert.rejects(run({ signal: controller.signal, fetchImpl: provider([[call('express_orb', { emote: 'curious' })]]),
     onTool: event => { if (event.state === 'complete') controller.abort(); } }), { name: 'AbortError' });
@@ -117,6 +144,8 @@ for (const providerName of ['openai', 'anthropic', 'deepseek']) test(`${provider
     model: providerName === 'anthropic' ? 'claude-opus' : providerName === 'deepseek' ? 'deepseek-chat' : 'gpt-5-mini' },
     fetchImpl: async (url, options) => {
       const body = JSON.parse(options.body); seen.push(body);
+      assert.match(providerName === 'anthropic' ? body.system : body.instructions, /Never copy a prior denial/);
+      assert.match(providerName === 'anthropic' ? body.system : body.instructions, /applied and finished describe runtime application/);
       if (providerName === 'anthropic') {
         assert.equal(url, 'https://api.anthropic.com/v1/messages');
         if (seen.length === 1) {
