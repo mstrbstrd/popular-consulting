@@ -1,7 +1,7 @@
 import React from 'react';
 import { parseMetabloomClientResearchBrief as parseMetabloomResearchBrief } from './metabloomResearchBriefProtocol';
 import { parseMetabloomResearchSources } from './metabloomResearchSources';
-import { MetabloomArticlePreview, MetabloomPublisherIcon } from './MetabloomSourceMedia';
+import { MetabloomArticlePreview, MetabloomPublisherIcon, useMetabloomSourceMediaResolver } from './MetabloomSourceMedia';
 import './MetabloomResearchBrief.css';
 
 const evidenceLabels = {
@@ -48,14 +48,21 @@ function Citations({ sourceIds, sourceMap }) {
   </span>;
 }
 
-function BriefItem({ item, index, active, news, id, sourceMap, mediaMap, detailsMap, onUseFinding, reuseDisabled }) {
+function BriefItem({ item, index, active, distance, news, id, sourceMap, mediaMap, detailsMap, resolver, onUseFinding, reuseDisabled }) {
   const hasDepth = item.background.length > 0 || Boolean(item.whyItMatters)
     || item.uncertainty.length > 0 || item.watchNext.length > 0 || item.dateEvidence;
   const showEvidenceStatus = news || ['disputed', 'uncertain'].includes(item.evidenceStatus);
-  const mediaCandidates = news ? Array.from(new Set([item.dateEvidence?.sourceId, ...item.sourceIds]))
-    .filter(sourceId => mediaMap.has(sourceId) && sourceMap.has(sourceId)).slice(0, 3)
+  // Stories and research findings share one media slot. The dated source (news)
+  // or first citation leads; up to two further citations are alternates.
+  const preferredIds = Array.from(new Set([item.dateEvidence?.sourceId, ...item.sourceIds]))
+    .filter(sourceId => sourceMap.has(sourceId));
+  const mediaCandidates = preferredIds.filter(sourceId => mediaMap.has(sourceId)).slice(0, 3)
     .map(sourceId => ({ source: sourceMap.get(sourceId), token: mediaMap.get(sourceId),
-      publisher: detailsMap.get(sourceId)?.publisher })) : [];
+      publisher: detailsMap.get(sourceId)?.publisher }));
+  // Without a capability (restored threads, or more items than media entries)
+  // the slide still shows the same card and plate for its primary source.
+  const fallbackSource = preferredIds.length ? { source: sourceMap.get(preferredIds[0]),
+    publisher: detailsMap.get(preferredIds[0])?.publisher } : null;
   return <li id={id} className="metabloom-research-brief__item" hidden={!active}
     data-slide-index={index + 1} aria-roledescription="slide">
     <article aria-labelledby={`${id}-title`}>
@@ -73,7 +80,8 @@ function BriefItem({ item, index, active, news, id, sourceMap, mediaMap, details
       <p className="metabloom-research-brief__overview">{item.summary}<Citations sourceIds={item.sourceIds} sourceMap={sourceMap} /></p>
       {onUseFinding && <button type="button" className="metabloom-research-brief__reuse"
         disabled={reuseDisabled} onClick={() => onUseFinding(index, item)}>Use this finding</button>}
-      {mediaCandidates.length > 0 && <MetabloomArticlePreview candidates={mediaCandidates} compact />}
+      {(mediaCandidates.length > 0 || fallbackSource) && <MetabloomArticlePreview candidates={mediaCandidates}
+        fallbackSource={fallbackSource} compact resolver={resolver} priority={distance} />}
       {hasDepth && <details className="metabloom-research-brief__details">
         <summary>Analysis and context<span className="metabloom-research-brief__sr-only">: {item.headline}</span></summary>
         <div className="metabloom-research-brief__depth">
@@ -108,7 +116,7 @@ const NavigationArrow = ({ previous = false }) => <svg viewBox="0 0 16 16" fill=
   <path d={previous ? 'm10 3-5 5 5 5' : 'm6 3 5 5-5 5'} />
 </svg>;
 
-function BriefCarousel({ brief, id, sourceMap, mediaMap, detailsMap, onUseFinding, reuseDisabled }) {
+function BriefCarousel({ brief, id, sourceMap, mediaMap, detailsMap, resolver, onUseFinding, reuseDisabled }) {
   const [selectedIndex, setSelectedIndex] = React.useState(0);
   const activeIndex = Math.min(selectedIndex, brief.items.length - 1);
   const news = brief.kind === 'news';
@@ -152,8 +160,8 @@ function BriefCarousel({ brief, id, sourceMap, mediaMap, detailsMap, onUseFindin
     </p>
     <ol id={`${id}-items`} className="metabloom-research-brief__items" aria-label={news ? 'Covered stories' : 'Research findings'}>
       {brief.items.map((item, index) => <BriefItem key={item.headline} item={item} index={index}
-        active={index === activeIndex} news={news} id={`${id}-item-${index + 1}`}
-        sourceMap={sourceMap} mediaMap={mediaMap} detailsMap={detailsMap}
+        active={index === activeIndex} distance={Math.abs(index - activeIndex)} news={news} id={`${id}-item-${index + 1}`}
+        sourceMap={sourceMap} mediaMap={mediaMap} detailsMap={detailsMap} resolver={resolver}
         onUseFinding={onUseFinding} reuseDisabled={reuseDisabled} />)}
     </ol>
   </>;
@@ -201,6 +209,9 @@ function SourceEvidence({ brief, sourceMap, mediaMap }) {
 
 export default function MetabloomResearchBrief({ brief, sources, onUseBrief, onUseFinding, reuseDisabled = false }) {
   const id = React.useId();
+  // One bounded preview queue per brief. It starts once the brief nears the
+  // viewport and then prepares every slide, so navigation never waits on media.
+  const [resolver, observeBrief] = useMetabloomSourceMediaResolver();
   let safeBrief;
   let safeSources;
   try {
@@ -237,7 +248,7 @@ export default function MetabloomResearchBrief({ brief, sources, onUseBrief, onU
   const headerStart = news && safeBrief.windowStart ? safeBrief.windowStart : safeBrief.localDate;
   const headerEnd = news && safeBrief.windowEnd ? safeBrief.windowEnd : headerStart;
 
-  return <section className="metabloom-research-brief" aria-label={safeBrief.title} aria-roledescription="carousel"
+  return <section ref={observeBrief} className="metabloom-research-brief" aria-label={safeBrief.title} aria-roledescription="carousel"
     data-research-brief-kind={safeBrief.kind} data-coverage-status={coverage.status}>
     <header className="metabloom-research-brief__header">
       <div className="metabloom-research-brief__header-line">
@@ -254,7 +265,7 @@ export default function MetabloomResearchBrief({ brief, sources, onUseBrief, onU
         disabled={reuseDisabled} onClick={onUseBrief}>Use this brief</button>}
     </header>
     <BriefCarousel brief={safeBrief} id={id} sourceMap={sourceMap} mediaMap={mediaMap} detailsMap={detailsMap}
-      onUseFinding={onUseFinding} reuseDisabled={reuseDisabled} />
+      resolver={resolver} onUseFinding={onUseFinding} reuseDisabled={reuseDisabled} />
     <details className="metabloom-research-brief__details metabloom-research-brief__briefing-details">
       <summary>Briefing details</summary>
       <p className="metabloom-research-brief__full-title">{safeBrief.title}</p>

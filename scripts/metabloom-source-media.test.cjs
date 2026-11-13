@@ -179,6 +179,8 @@ test('network reader bounds bytes and rejects compressed, wrong-type and oversiz
     { body: raster, type: 'image/png', headers: { 'content-length': String(MAX_IMAGE_BYTES + 1) } },
     { body: Buffer.alloc(MAX_IMAGE_BYTES + 1), type: 'image/png' }]) await assert.rejects(fixtureNetwork(() => fixture).fetch(imageUrl, { kind: 'image' }));
   await assert.rejects(fixtureNetwork(() => ({ body: Buffer.alloc(MAX_ICON_BYTES + 1), type: 'image/png' })).fetch(iconUrl, { kind: 'icon' }));
+  assert.equal((await fixtureNetwork(() => ({ body: raster, type: 'binary/octet-stream' })).fetch(imageUrl, { kind: 'image' })).type, 'binary/octet-stream');
+  await assert.rejects(fixtureNetwork(() => ({ body: previewHtml(), type: 'application/octet-stream' })).fetch(sourceUrl));
   const controller = new AbortController();
   const lookup = () => new Promise(() => {});
   let sent = false;
@@ -420,15 +422,66 @@ test('preview exposes only same-origin capabilities and reuses validated cached 
   const result = await service.getPreview(identity, token);
   assert.equal(result.version, '1'); assert.equal(result.isArticle, true);
   assert.equal(result.image.alt, 'Publisher-provided description');
-  assert.equal(new URL(result.image.src, 'https://app.example.com').origin, 'https://app.example.com');
-  assert.equal(new URL(result.image.src, 'https://app.example.com').searchParams.get('token'), token);
+  const imageSrc = new URL(result.image.src, 'https://app.example.com');
+  assert.equal(imageSrc.origin, 'https://app.example.com');
+  assert.equal(imageSrc.searchParams.get('kind'), 'image');
+  const imageToken = imageSrc.searchParams.get('token');
+  assert.notEqual(imageToken, token, 'The offered image has its own capability naming the validated raster');
+  assert.match(imageToken, /^m1\.[A-Za-z0-9_-]+$/);
   assert.equal(result.image.src.includes(imageUrl), false);
+  assert.deepEqual(await codec.verify(identity, imageToken), { url: sourceUrl, image: imageUrl, expiresAt: clock + SOURCE_MEDIA_TTL_MS });
   assert.equal(result.icon.src.endsWith('&kind=icon'), true);
-  assert.deepEqual((await service.getImage(identity, token)).body, raster);
+  assert.deepEqual((await service.getImage(identity, imageToken)).body, raster);
+  assert.deepEqual((await service.getImage(identity, token)).body, raster, 'Page capabilities keep the metadata-gated image route');
   assert.deepEqual((await service.getIcon(identity, token)).body, favicon);
   assert.equal(calls.length, 3, 'Preview validates resources once and later image loads use the bounded cache');
   await assert.rejects(service.getPreview({ ...identity, owner: 'd'.repeat(64) }, token), { code: 'source_media_invalid' });
+  await assert.rejects(service.getImage({ ...identity, owner: 'd'.repeat(64) }, imageToken), { code: 'source_media_invalid' });
+  await assert.rejects(service.getPreview(identity, imageToken), { code: 'source_media_invalid' });
+  await assert.rejects(service.getIcon(identity, imageToken), { code: 'source_media_invalid' });
   assert.equal(calls.length, 3, 'A different session must not access even a cached preview');
+});
+
+test('an image capability is served by a cold instance with one raster request and no second metadata read', async () => {
+  const codec = makeCodec(), token = await codec.create(identity, sourceUrl);
+  const warm = createSourceMediaService({ codec, now: () => clock, fetchPublic: async (url, { kind }) => (
+    kind === 'html' ? { url, body: previewHtml(), type: 'text/html' } : { url, body: kind === 'icon' ? favicon : raster, type: kind === 'icon' ? 'image/x-icon' : 'image/png' }) });
+  const imageToken = new URL((await warm.getPreview(identity, token)).image.src, 'https://app.example.com').searchParams.get('token');
+  const calls = [];
+  const cold = createSourceMediaService({ codec, now: () => clock, fetchPublic: async (url, { kind }) => {
+    calls.push(`${kind}:${url}`);
+    if (kind === 'html') throw new Error('A changed or blocked page must not affect the already selected image');
+    return { url, body: raster, type: 'image/png' };
+  } });
+  assert.deepEqual((await cold.getImage(identity, imageToken)).body, raster);
+  assert.deepEqual(calls, [`image:${imageUrl}`]);
+  const failing = createSourceMediaService({ codec, now: () => clock, fetchPublic: async url => ({ url, body: Buffer.from('<html>'), type: 'image/png' }) });
+  assert.equal(await failing.getImage(identity, imageToken), null);
+  assert.equal(await codec.verify(identity, imageToken, { now: clock + SOURCE_MEDIA_TTL_MS }), null);
+});
+
+test('image capabilities never outlive their page capability and reject unsafe image targets', async () => {
+  const codec = makeCodec();
+  const capped = await codec.create(identity, sourceUrl, { image: imageUrl, expiresAt: clock + 5000 });
+  assert.equal((await codec.verify(identity, capped)).expiresAt, clock + 5000);
+  assert.equal(await codec.verify(identity, capped, { now: clock + 5000 }), null);
+  assert.equal(await codec.create(identity, sourceUrl, { image: imageUrl, expiresAt: clock }), null);
+  for (const image of ['http://cdn.example.com/a.png', 'https://127.0.0.1/a.png', 'https://localhost/a.png', 'not a url']) {
+    assert.equal(await codec.create(identity, sourceUrl, { image }), null);
+  }
+});
+
+test('generic binary labels are sniffed only into fully validated rasters', () => {
+  assert.equal(validateSourceMediaImage(raster, 'application/octet-stream').type, 'image/png');
+  assert.equal(validateSourceMediaImage(jpegFixture, 'binary/octet-stream').type, 'image/jpeg');
+  assert.equal(validateSourceMediaImage(webpFixtures[0], 'binary/octet-stream').type, 'image/webp');
+  assert.equal(validateSourceMediaImage(favicon, 'application/octet-stream', 'icon').type, 'image/vnd.microsoft.icon');
+  assert.equal(validateSourceMediaImage(favicon, 'application/octet-stream'), null, 'ICO is never an article image');
+  for (const body of [Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>'), Buffer.from('GIF89a\x01\x00\x01\x00'),
+    Buffer.from('<html><body>Not an image</body></html>'), raster.subarray(0, raster.length - 1)]) {
+    assert.equal(validateSourceMediaImage(body, 'application/octet-stream'), null);
+  }
+  assert.equal(validateSourceMediaImage(raster, 'text/plain'), null);
 });
 
 test('preview and direct image requests both omit station branding while retaining its publisher icon', async () => {
@@ -552,35 +605,42 @@ test('after the last caller cancels, a new caller can fetch the source again', a
 
 test('concurrent loads are deduplicated and public fetching has a bounded concurrency', async () => {
   const codec = makeCodec();
-  let active = 0, maximum = 0, calls = 0;
+  let active = 0, maximum = 0, calls = 0, pageImages = false;
   const fetchPublic = async (url, { kind }) => {
     calls++; active++; maximum = Math.max(maximum, active);
     await new Promise(resolve => setImmediate(resolve)); active--;
-    return kind === 'html' ? { body: previewHtml(), type: 'text/html', url } : { body: kind === 'icon' ? favicon : raster, type: kind === 'icon' ? 'image/x-icon' : 'image/png', url };
+    return kind === 'html' ? { body: previewHtml(pageImages ? `${imageUrl}?page=${encodeURIComponent(url)}` : imageUrl), type: 'text/html', url } : { body: kind === 'icon' ? favicon : raster, type: kind === 'icon' ? 'image/x-icon' : 'image/png', url };
   };
   const service = createSourceMediaService({ codec, fetchPublic, concurrency: 2 });
   const token = await codec.create(identity, sourceUrl);
   const same = await Promise.all(Array.from({ length: 8 }, () => service.getPreview(identity, token)));
   assert.equal(calls, 3); assert.ok(same.every(value => value.image && value.icon));
+  // Each further page declares its own story image; the shared site icon is
+  // validated once and reused from the raster cache.
+  pageImages = true;
   const tokens = await Promise.all(Array.from({ length: 6 }, (_, index) => codec.create(identity, `${sourceUrl}/${index}`)));
   await Promise.all(tokens.map(value => service.getPreview(identity, value)));
-  assert.ok(maximum <= 2); assert.equal(calls, 21);
+  assert.ok(maximum <= 2); assert.equal(calls, 15);
 });
 
 test('cache expiration and its total byte limit prevent unbounded warm-instance storage', async () => {
   let current = clock;
   const codec = makeCodec({ now: () => current }), largePng = png(1, 1, 1024 * 1024), counts = new Map();
+  // Every page declares its own large story image, so twenty distinct rasters
+  // compete for the bounded byte budget.
+  const pageImage = url => `${imageUrl}?page=${encodeURIComponent(url)}`;
   const service = createSourceMediaService({ codec, now: () => current, fetchPublic: async (url, { kind }) => {
-    if (kind === 'html') return { url, body: previewHtml(), type: 'text/html' };
+    if (kind === 'html') return { url, body: previewHtml(pageImage(url)), type: 'text/html' };
     counts.set(url, (counts.get(url) || 0) + 1); return { url, body: largePng, type: 'image/png' };
   } });
   const tokens = await Promise.all(Array.from({ length: 20 }, (_, index) => codec.create(identity, `${sourceUrl}/${index}`)));
   for (const token of tokens) assert.ok(await service.getImage(identity, token));
-  assert.equal(counts.get(imageUrl), 20);
+  const first = pageImage(`${sourceUrl}/0`);
+  assert.equal([...counts.values()].reduce((sum, value) => sum + value, 0), 20);
   assert.ok(await service.getImage(identity, tokens[0]));
-  assert.equal(counts.get(imageUrl), 21, 'An old >1MiB cached image must be evicted by the 16MiB budget');
+  assert.equal(counts.get(first), 2, 'An old >1MiB cached image must be evicted by the 16MiB budget');
   current += 600001;
-  assert.ok(await service.getImage(identity, tokens[0])); assert.equal(counts.get(imageUrl), 22);
+  assert.ok(await service.getImage(identity, tokens[0])); assert.equal(counts.get(first), 3);
 });
 
 function response() {

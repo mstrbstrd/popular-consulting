@@ -143,7 +143,10 @@ function createPublicMediaFetcher({ lookup = dns.lookup, request = https.request
             if (options?.all) callback(null, [{ address: pinned.address, family: pinned.family }]);
             else callback(null, pinned.address, pinned.family);
           },
-          headers: { 'User-Agent': 'PopularConsulting-ArticlePreview/1.0',
+          // The conventional "compatible" bot form passes naive UA filters that
+          // reject unknown agents outright, while still identifying this preview
+          // reader honestly. It never impersonates a browser or another crawler.
+          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; PopularConsultingPreview/1.1; +https://popular-consulting.com/)',
             Accept: kind === 'html' ? 'text/html,application/xhtml+xml;q=0.9' : 'image/png,image/jpeg,image/webp,image/x-icon',
             'Accept-Encoding': 'identity' },
         }, result => {
@@ -157,8 +160,11 @@ function createPublicMediaFetcher({ lookup = dns.lookup, request = https.request
             finish(null, { redirect: result.headers.location }); return;
           }
           const type = typeof result.headers['content-type'] === 'string' ? result.headers['content-type'].split(';', 1)[0].trim().toLowerCase() : '';
+          // Generic binary labels are accepted only so the raster validator can
+          // sniff and fully validate PNG/JPEG/WebP(/ICO); nothing else passes.
           const allowed = kind === 'html' ? ['text/html', 'application/xhtml+xml']
-            : ['image/png', 'image/jpeg', 'image/webp', ...(kind === 'icon' ? ['image/x-icon', 'image/vnd.microsoft.icon', 'image/ico'] : [])];
+            : ['image/png', 'image/jpeg', 'image/webp', 'application/octet-stream', 'binary/octet-stream',
+              ...(kind === 'icon' ? ['image/x-icon', 'image/vnd.microsoft.icon', 'image/ico'] : [])];
           const encoding = result.headers['content-encoding'];
           const length = result.headers['content-length'];
           if (status !== 200 || !allowed.includes(type) || (encoding && encoding !== 'identity')

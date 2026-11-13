@@ -223,3 +223,83 @@ test('tool streams reject unnegotiated, orphaned, reordered, and fabricated reco
     [activity('running'), activity('complete'), activity('running')]]) assert(!decode([...initial, ...tail]).ok);
   assert(!decode([...initial, activity('running')], { allowTools: false }).ok);
 });
+
+const foundImage = Object.freeze({ found: true, title: 'Fictional Singer', pageUrl: 'https://en.wikipedia.org/wiki/Fictional_Singer',
+  imageUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/Singer.jpg/640px-Singer.jpg',
+  fileUrl: 'https://commons.wikimedia.org/wiki/File:Singer.jpg', width: 640, height: 960, license: 'CC BY-SA 4.0',
+  licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0', artist: 'Example Photographer',
+  alt: 'Fictional Singer performing in 2024', source: 'Wikimedia Commons' });
+
+test('find_image is offered only to opted-in browsers and only when web lookups are allowed', async () => {
+  for (const [options, expected] of [[{}, false], [{ imagesAvailable: false }, false], [{ imagesAvailable: 'yes' }, false],
+    [{ imagesAvailable: true }, true], [{ imagesAvailable: true, message: 'Without searching the web, who is she?' }, false]]) {
+    const seen = [];
+    await run({ ...options, fetchImpl: provider([[answer()]], seen) });
+    assert.equal(seen[0].tools.some(tool => tool.name === 'find_image'), expected);
+    assert.match(seen[0].instructions, expected ? /never say you cannot show pictures/ : /find_image is unavailable for this turn/);
+    if (expected) assert.match(seen[0].instructions, /search_web cannot fetch or display pictures/);
+  }
+});
+
+test('a found photo reaches the host with its URLs while the model receives attribution only', async () => {
+  const seen = [], events = [], subjects = [];
+  const result = await run({ message: 'Can you show me who Fictional Singer is?', imagesAvailable: true,
+    findImage: async (subject, { signal }) => { assert.ok(signal === undefined || signal instanceof AbortSignal); subjects.push(subject); return foundImage; },
+    onTool: event => events.push(event),
+    fetchImpl: provider([[call('find_image', { subject: 'Fictional Singer' })], [answer('Here is Fictional Singer.')]], seen) });
+  assert.deepEqual(subjects, ['Fictional Singer']);
+  assert.deepEqual(result.images, [foundImage]);
+  assert.deepEqual(result.sources, []);
+  const output = JSON.parse(seen[1].input.at(-1).output);
+  assert.deepEqual(output, { status: 'complete', found: true, title: 'Fictional Singer', description: 'Fictional Singer performing in 2024',
+    credit: 'Example Photographer, CC BY-SA 4.0, via Wikimedia Commons', display: 'shown with your answer' });
+  assert.equal(JSON.stringify(output).includes('http'), false, 'No URL is handed to the model');
+  assert.deepEqual(events.map(event => `${event.name}:${event.state}`), ['find_image:running', 'find_image:complete']);
+});
+
+test('no photo, a failed lookup, repeats and a third lookup are reported honestly', async () => {
+  const seen = [];
+  let lookups = 0;
+  const result = await run({ imagesAvailable: true,
+    findImage: async subject => { lookups++; if (subject === 'Broken') throw Object.assign(new Error('down'), { code: 'image_search_unavailable' });
+      return subject === 'Nobody' ? { found: false } : foundImage; },
+    fetchImpl: provider([[call('find_image', { subject: 'Nobody' }, 'image_1')], [call('find_image', { subject: 'Broken' }, 'image_2')],
+      [call('find_image', { subject: 'Fictional Singer' }, 'image_3')], [answer('No photo was available.')]], seen) });
+  assert.equal(lookups, 2, 'At most two lookups run per turn');
+  assert.deepEqual(JSON.parse(seen[1].input.at(-1).output), { status: 'complete', found: false });
+  assert.deepEqual(JSON.parse(seen[2].input.at(-1).output), { status: 'failed', code: 'tool_unavailable' });
+  assert.deepEqual(JSON.parse(seen[3].input.at(-1).output), { status: 'failed', code: 'tool_unavailable' });
+  assert.deepEqual(result.images, []);
+  const duplicate = await run({ imagesAvailable: true, findImage: async () => foundImage,
+    fetchImpl: provider([[call('find_image', { subject: 'Fictional Singer' }, 'a')], [call('find_image', { subject: 'Fictional Singer' }, 'b')], [answer()]]) });
+  assert.equal(duplicate.images.length, 1);
+  const malformed = [];
+  await run({ imagesAvailable: true, findImage: async () => assert.fail('Malformed arguments must not search'),
+    fetchImpl: provider([[call('find_image', { subject: 'x', url: 'https://evil.example' })], [answer()]], malformed) });
+  assert.equal(JSON.parse(malformed[1].input.at(-1).output).status, 'failed');
+});
+
+test('cancellation during a photo lookup stops the turn', async () => {
+  const controller = new AbortController(), seen = [];
+  await assert.rejects(run({ imagesAvailable: true, signal: controller.signal, fetchImpl: provider([[call('find_image', { subject: 'Fictional Singer' })]], seen),
+    findImage: async () => { controller.abort(); return foundImage; } }), { name: 'AbortError' });
+  assert.equal(seen.length, 1);
+});
+
+test('tool image records follow a completed find_image call and precede answer text', () => {
+  const image = { token: 'm1.image-capability', width: 640, height: 960, alt: foundImage.alt, title: foundImage.title,
+    pageUrl: foundImage.pageUrl, fileUrl: foundImage.fileUrl, artist: foundImage.artist, license: foundImage.license, licenseUrl: foundImage.licenseUrl };
+  const find = state => ({ type: 'tool_activity', name: 'find_image', callId: 'image_1', state });
+  const answerText = [{ type: 'segment', index: 0, response: 'Here she is.' }, ...finish.slice(1)];
+  const received = [];
+  assert(decode([...initial, find('running'), find('complete'), { type: 'tool_images', images: [image] }, ...answerText],
+    { allowToolMedia: true, onToolImages: value => received.push(value) }).ok);
+  assert.deepEqual(received, [[image]]);
+  for (const [events, options] of [
+    [[...initial, find('running'), find('complete'), { type: 'tool_images', images: [image] }, ...answerText], {}],
+    [[...initial, { type: 'tool_images', images: [image] }, ...answerText], { allowToolMedia: true }],
+    [[...initial, find('running'), find('failed'), { type: 'tool_images', images: [image] }, ...answerText], { allowToolMedia: true }],
+    [[...initial, find('running'), find('complete'), answerText[0], { type: 'tool_images', images: [image] }, ...answerText.slice(1)], { allowToolMedia: true }],
+    [[...initial, find('running'), find('complete'), { type: 'tool_images', images: [image] }, { type: 'tool_images', images: [image] }, ...answerText], { allowToolMedia: true }],
+  ]) assert(!decode(events, options).ok);
+});

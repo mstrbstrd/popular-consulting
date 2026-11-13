@@ -108,6 +108,82 @@ test('unavailable optional media never removes the completed brief, its evidence
   expect(screen.queryByText(/Private transport detail/)).not.toBeInTheDocument();
 });
 
+const imagePreview = token => Promise.resolve({ version: '1', isArticle: true,
+  image: { src: metabloomSourceMediaUrl(`${token}.image`, 'image'), alt: `Image for ${token}` }, icon: null });
+
+test('every slide is prepared before navigation, with the visible story requested first', async () => {
+  const brief = fixture();
+  brief.media = [1, 2, 3, 4, 9].map(sourceId => ({ sourceId, token: `signed.source.${sourceId}` }));
+  requestMetabloomSourcePreview.mockImplementation(imagePreview);
+  renderBrief(brief);
+  await act(async () => {});
+  expect(requestMetabloomSourcePreview.mock.calls.map(([token]) => token)).toEqual(
+    ['signed.source.1', 'signed.source.2', 'signed.source.3', 'signed.source.4', 'signed.source.9']);
+  const fourth = screen.getByRole('article', { name: brief.items[3].headline, hidden: true });
+  const preloaded = fourth.querySelector('img.metabloom-source-preview__image');
+  expect(preloaded).toHaveAttribute('src', metabloomSourceMediaUrl('signed.source.4.image', 'image'));
+  expect(preloaded).toHaveAttribute('loading', 'eager');
+  fireEvent.load(preloaded);
+  fireEvent.change(screen.getByRole('combobox', { name: 'Choose a story' }), { target: { value: '3' } });
+  expect(within(fourth).getByRole('img', { name: 'Image for signed.source.4' })).toBe(preloaded);
+  expect(fourth.querySelector('.metabloom-source-preview')).toHaveAttribute('data-preview-state', 'ready');
+  expect(requestMetabloomSourcePreview).toHaveBeenCalledTimes(5);
+});
+
+test('preview work waits until the brief nears the viewport and stops when it unmounts', async () => {
+  const original = Object.getOwnPropertyDescriptor(window, 'IntersectionObserver');
+  let notify;
+  const disconnect = jest.fn();
+  window.IntersectionObserver = jest.fn(callback => { notify = callback; return { observe: jest.fn(), disconnect }; });
+  try {
+    const brief = fixture();
+    brief.media = [{ sourceId: 1, token: 'signed.source.1' }, { sourceId: 2, token: 'signed.source.2' }];
+    const pending = [];
+    requestMetabloomSourcePreview.mockImplementation((token, { signal }) => new Promise((resolve, reject) => {
+      pending.push(signal); signal.addEventListener('abort', () => reject(new DOMException('Stopped', 'AbortError')));
+    }));
+    const view = renderBrief(brief);
+    await act(async () => {});
+    expect(requestMetabloomSourcePreview).not.toHaveBeenCalled();
+    await act(async () => notify([{ isIntersecting: true }]));
+    expect(requestMetabloomSourcePreview).toHaveBeenCalledTimes(2);
+    expect(disconnect).toHaveBeenCalled();
+    view.unmount();
+    expect(pending.every(signal => signal.aborted)).toBe(true);
+  } finally {
+    if (original) Object.defineProperty(window, 'IntersectionObserver', original);
+    else delete window.IntersectionObserver;
+  }
+});
+
+test('general research findings receive the same media slot and images as news stories', async () => {
+  const brief = fixture();
+  brief.kind = 'research'; brief.title = 'Five fictional research findings';
+  brief.coverage.requestedCount = null; brief.windowStart = null; brief.windowEnd = null;
+  brief.media = [{ sourceId: 1, token: 'signed.source.1' }];
+  requestMetabloomSourcePreview.mockImplementation(imagePreview);
+  renderBrief(brief);
+  await act(async () => {});
+  const first = within(screen.getByRole('article', { name: brief.items[0].headline }));
+  expect(first.getByRole('img', { name: 'Image for signed.source.1' })).toBeInTheDocument();
+  expect(first.getByRole('link', { name: /Read article: Fictional source 1/ })).toHaveAttribute('href', sources[0].url);
+});
+
+test('slides without media capabilities keep one consistent source card and plate', async () => {
+  const brief = fixture();
+  renderBrief(brief);
+  await act(async () => {});
+  expect(requestMetabloomSourcePreview).not.toHaveBeenCalled();
+  brief.items.forEach((item, index) => {
+    const article = screen.getByRole('article', { name: item.headline, hidden: true });
+    const sourceId = item.sourceIds[0];
+    expect(article.querySelector('.metabloom-source-preview')).toHaveAttribute('data-preview-state', 'unavailable');
+    expect(article.querySelector('.metabloom-source-preview__plate-host')).toHaveTextContent(`news-${sourceId}.example.test`);
+    expect(within(article).getByRole('link', { name: `Open source: Fictional source ${sourceId}`, hidden: index !== 0 }))
+      .toHaveAttribute('href', sources[sourceId - 1].url);
+  });
+});
+
 test('shows one complete overview at a time and native story selection preserves citations above source eight', () => {
   const brief = fixture();
   brief.items[4].summary = `${'The fifth fictional development remains fully readable alongside its immediate context. '.repeat(10)}The final sentence is preserved.`;

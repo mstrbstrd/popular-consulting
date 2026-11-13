@@ -58,6 +58,26 @@ New bounded NDJSON records precede the first answer segment:
 {"type":"tool_sources","sources":[{"id":1,"title":"Announcement","url":"https://example.com/news"}]}
 ```
 
+A client that also sends `streamToolMedia: true` may receive one optional record directly after `tool_sources`:
+
+```jsonl
+{"type":"tool_media","media":[{"sourceId":2,"token":"m1.<opaque capability>"},{"sourceId":1,"token":"m1.<opaque capability>"}]}
+```
+
+The host lists at most four sources, in the order the validated reply first cites them, and only sources in that reply's catalog. Each token is a session-bound [publisher preview capability](metabloom-source-media.md); minting is local cryptography, so this record never waits on a publisher or alters the answer. The decoder accepts it once, only after `tool_sources` and before any answer text, and discards malformed or uncited entries. Clients without the flag receive no new record. The browser keeps these capabilities in session-only state keyed by message and source catalog; they never enter a message, thread or saved conversation. After the answer completes, a row of photos from those cited articles appears below the answer's source list. A tile appears only once its photo has loaded, so pending or imageless sources stay in the text list alone.
+
+### Subject photos (`find_image`)
+
+When the browser sends `streamToolMedia: true`, the agent is also offered `find_image({ subject })` (unless the user declined web lookups, or `METABLOOM_IMAGE_SEARCH_ENABLED=false`). It looks up the subject on English Wikipedia (`server/metabloomImageSearch.js`), skips disambiguation pages, and takes the top result's lead image from PageImages with `pilicense=free`, so only freely licensed images qualify. It then reads the file's Commons attribution. A photo is offered only as a JPEG, PNG or WebP thumbnail (960px wide) hosted on `upload.wikimedia.org`, with a licence name, an author or credit, a Commons file page and sane dimensions; otherwise the tool returns `found: false`. Each lookup is bounded to 8 seconds and 256 KiB per API response, and identifies itself with the preview User-Agent. At most two lookups run per turn.
+
+The model receives only the title, description and credit text, never a URL, and is told it cannot see the image. The host turns each photo into a session-bound image capability (the same version 2 token the [source media proxy](metabloom-source-media.md) uses) and sends, after any `tool_sources`/`tool_media` and before answer text:
+
+```jsonl
+{"type":"tool_images","images":[{"token":"m1.<opaque>","width":640,"height":960,"alt":"…","title":"…","pageUrl":"https://en.wikipedia.org/wiki/…","fileUrl":"https://commons.wikimedia.org/wiki/File:…","artist":"…","license":"CC BY 2.0","licenseUrl":"https://creativecommons.org/licenses/by/2.0"}]}
+```
+
+The decoder accepts it once, only after a completed `find_image` activity and before any text. Every link must be https on its expected host (`*.wikipedia.org` page, Wikimedia file page, any https licence link). The raster URL itself never reaches the browser. The photo renders at the top of the answer in a frame that reserves its exact aspect ratio (capped at 36rem tall), with the title, author, licence and Commons links always visible. Like `tool_media`, these capabilities live only in session state and never enter a message, thread or saved conversation.
+
 `failed` is the other terminal activity state. The decoder requires matched serial activity, a completed search before source metadata, and sources before text. Version 2 also requires the tool lifecycle's handoff and validation stages before committing text. Source IDs use the existing clickable inline `[n]` citation renderer. There is no Deep Research scene requirement for these events. A `visual_offer` retains its existing position after validated text and the final gesture, before `done`.
 
 Explicit Deep Research mode keeps the longer report/brief pipeline. Selected saved research and artifact follow-ups keep their existing owner-checked reuse, fresh-research and conversion paths. Cached clients without the header retain the previous writer and forced visual continuation contract. New ordinary visual requests are no longer intercepted by the browser's legacy classifier.
@@ -71,9 +91,11 @@ Explicit Deep Research mode keeps the longer report/brief pipeline. Selected sav
 | Expression vocabulary and bounded observations | `src/components/metabloomExpressionProtocol.js` |
 | Activity vocabulary and decoder | `src/components/metabloomAgentTools.js`, `metabloomEmoteProtocol.js` |
 | Client, status and citations | `metabloomApiClient.js`, `OrbSection.js` |
+| Cited-source photos | `MetabloomSourceMedia.js` (`MetabloomSourceGallery`), `metabloomSourceMediaResolver.js` |
+| Subject photos | `server/metabloomImageSearch.js`, `MetabloomSourceMedia.js` (`MetabloomAnswerImages`) |
 | Visual handoff | `MetabloomVisuals.js`, `server/metabloomVisualStore.js`, `api/metabloom-visual.js` |
 
-`scripts/metabloom-agent.test.cjs` tests tool selection transport, argument rejection, replay, search extraction, citation merging, numerical failures, clock, quotas, budgets, cancellation and stream ordering. `scripts/metabloom-agent-api.test.cjs` exercises the authenticated route and the missing-news regression with fictional provider responses. UI tests exercise ordinary status, source attachment and suppression of duplicate visual routing. The mobile-workspace and thread browser suites use the new default agent stream; the UI-browser suite explicitly preserves legacy continuation coverage.
+`scripts/metabloom-agent.test.cjs` tests tool selection transport, argument rejection, replay, search extraction, citation merging, numerical failures, clock, quotas, budgets, cancellation and stream ordering. `scripts/metabloom-image-search.test.cjs` tests the Wikimedia lookup with fixture API responses. `scripts/metabloom-agent-api.test.cjs` exercises the authenticated route and the missing-news regression with fictional provider responses. UI tests exercise ordinary status, source attachment, cited-source photos (`MetabloomAnswerMedia.test.js`) and suppression of duplicate visual routing. The mobile-workspace and thread browser suites use the new default agent stream; the UI-browser suite explicitly preserves legacy continuation coverage.
 
 Provider fixtures are not proof of live model behavior or production news coverage. No new credential is required beyond the existing OpenAI and quota/visual storage configuration. The separate Deep Research summary-formatting incident is not fixed by this change.
 

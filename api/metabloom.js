@@ -19,7 +19,7 @@ const { METABLOOM_VISUAL_KINDS, evaluateMetabloomVisualFormula } = require("../s
 const { classifyMetabloomVisualIntent } = require("../src/components/metabloomVisualIntent");
 const { getMetabloomVisualCapabilityResponse } = require("../src/components/metabloomVisualCapabilities");
 const { streamMetabloomProvider } = require("../server/metabloomProviderStream");
-const { runMetabloomAgent } = require("../server/metabloomAgent");
+const { MAX_METABLOOM_AGENT_IMAGES, runMetabloomAgent } = require("../server/metabloomAgent");
 const { modelCatalog, providerConfigured: isModelProviderConfigured } = require('../server/metabloomModels');
 const { requestMetabloomModel } = require('../server/metabloomModelProvider');
 const { parseMetabloomModelSelection } = require('../src/components/metabloomModelProtocol');
@@ -31,7 +31,7 @@ const { createMetabloomProviderError, readMetabloomProviderError, providerReques
 const { METABLOOM_STREAM_ERROR_CODES } = require("../src/components/metabloomRequestErrors");
 const { MAX_METABLOOM_RESEARCH_SOURCES } = require("../src/components/metabloomResearchSources");
 const { MAX_METABLOOM_RESEARCH_REPORT_CHUNK_CHARS } = require("../src/components/metabloomResearchReport");
-const { MAX_METABLOOM_SOURCE_MEDIA_ENTRIES } = require("../src/components/metabloomSourceMediaProtocol");
+const { MAX_METABLOOM_SOURCE_MEDIA_ENTRIES, MAX_METABLOOM_TOOL_MEDIA_ENTRIES } = require("../src/components/metabloomSourceMediaProtocol");
 const { METABLOOM_RESEARCH_BRIEF_VERSION, MAX_METABLOOM_RESEARCH_BRIEF_CHUNK_CHARS, MAX_METABLOOM_RESEARCH_BRIEF_SOURCES,
   parseMetabloomResearchBrief } = require("../src/components/metabloomResearchBriefProtocol");
 const MAX_BODY_BYTES = 24000;
@@ -67,7 +67,7 @@ const parseBody = (request) => {
     const text = typeof request.body === "string" ? request.body : JSON.stringify(request.body);
     if (typeof text !== "string" || Buffer.byteLength(text, "utf8") > MAX_BODY_BYTES) return null;
     const value = JSON.parse(text);
-    if (!exactKeys(value, ["message"], ["requestId", "history", "allowMultiple", "streamText", "streamResearchProgress", "streamResearchDetails", "streamResearchBrief", "streamResearchMedia", "streamResearchReuse", "timeZone", "actionMode", "artifactContext", "researchContext", "modelSelection", "orbContext"])) return null;
+    if (!exactKeys(value, ["message"], ["requestId", "history", "allowMultiple", "streamText", "streamResearchProgress", "streamResearchDetails", "streamResearchBrief", "streamResearchMedia", "streamResearchReuse", "streamToolMedia", "timeZone", "actionMode", "artifactContext", "researchContext", "modelSelection", "orbContext"])) return null;
     if (value.orbContext !== undefined) {
       value.orbContext = parseMetabloomOrbContext(value.orbContext);
       if (!value.orbContext || request.headers?.['x-metabloom-expressions'] !== '1' || !value.requestId
@@ -85,6 +85,7 @@ const parseBody = (request) => {
     if (value.streamResearchBrief !== undefined && typeof value.streamResearchBrief !== "boolean") return null;
     if (value.streamResearchMedia !== undefined && typeof value.streamResearchMedia !== "boolean") return null;
     if (value.streamResearchReuse !== undefined && typeof value.streamResearchReuse !== "boolean") return null;
+    if (value.streamToolMedia !== undefined && typeof value.streamToolMedia !== "boolean") return null;
     if (value.streamResearchBrief === true && value.streamResearchDetails !== true) return null;
     if (value.streamResearchReuse === true && value.streamResearchDetails !== true) return null;
     if (value.timeZone !== undefined && !normalizeMetabloomResearchTimeZone(value.timeZone)) return null;
@@ -265,8 +266,10 @@ const sendJson = (response, status, body) => {
 };
 // Preview permissions are added by the host after evidence validation. Retrieving
 // publisher metadata happens later, so it cannot delay or discard paid research.
+// News and general research briefs share this path. The article-metadata gate
+// in the media service still decides whether a cited page has a story image.
 const attachResearchMedia = async (brief, sources, identity) => {
-  if (brief?.kind !== "news" || !identity) return brief;
+  if (!["news", "research"].includes(brief?.kind) || !Array.isArray(brief.items) || !identity) return brief;
   const sourceMap = new Map(sources.map(source => [source.id, source]));
   const candidates = brief.items.map(item => [...new Set([item.dateEvidence?.sourceId, ...item.sourceIds])]
     .filter(sourceId => item.sourceIds.includes(sourceId) && sourceMap.has(sourceId)).slice(0, 3));
@@ -288,6 +291,41 @@ const attachResearchMedia = async (brief, sources, identity) => {
   }))).filter(Boolean);
   if (!media.length) return brief;
   return parseMetabloomResearchBrief({ ...brief, media }, { sources }) || brief;
+};
+
+// Ordinary search answers offer previews only for sources the validated reply
+// actually cites, in first-citation order. Minting is local cryptography: no
+// publisher request happens here, so media can never delay or alter the answer.
+const attachToolMedia = async (reply, sources, identity) => {
+  if (!identity || !Array.isArray(sources) || !sources.length) return [];
+  const sourceMap = new Map(sources.map(source => [source.id, source]));
+  const ids = [];
+  for (const segment of reply?.segments || []) {
+    for (const match of String(segment.response || "").matchAll(/\[(\d+)\]/g)) {
+      const sourceId = Number(match[1]);
+      if (sourceMap.has(sourceId) && !ids.includes(sourceId) && ids.length < MAX_METABLOOM_TOOL_MEDIA_ENTRIES) ids.push(sourceId);
+    }
+  }
+  return (await Promise.all(ids.map(async sourceId => {
+    try {
+      const token = await sourceMedia.createSourceMediaToken(identity, sourceMap.get(sourceId).url);
+      return token ? { sourceId, token } : null;
+    } catch { return null; }
+  }))).filter(Boolean);
+};
+
+// Photos found by find_image travel as image capabilities: the browser gets
+// an opaque same-origin URL plus attribution, never the Wikimedia raster URL.
+const attachToolImages = async (images, identity) => {
+  if (!identity || !Array.isArray(images)) return [];
+  return (await Promise.all(images.slice(0, MAX_METABLOOM_AGENT_IMAGES).map(async image => {
+    try {
+      const token = await sourceMedia.createSourceMediaToken(identity, image.pageUrl, { image: image.imageUrl });
+      return token ? { token, width: image.width, height: image.height, alt: image.alt, title: image.title,
+        pageUrl: image.pageUrl, fileUrl: image.fileUrl, artist: image.artist, license: image.license,
+        licenseUrl: image.licenseUrl } : null;
+    } catch { return null; }
+  }))).filter(Boolean);
 };
 
 const handler = async (request, response) => {
@@ -449,10 +487,24 @@ const handler = async (request, response) => {
         identity: visualIdentity, requestId: body.requestId, requestRef, signal: controller.signal,
         visualsAvailable: nativeVisualsAvailable && request.headers?.['x-metabloom-ui-tools'] === '1'
           && process.env.METABLOOM_UI_TOOLS_ENABLED !== 'false' && !['text_only', 'unsupported'].includes(visualIntent.mode),
+        // Subject photos are offered only to browsers that render tool media.
+        imagesAvailable: body.streamToolMedia === true && Boolean(visualIdentity)
+          && process.env.METABLOOM_IMAGE_SEARCH_ENABLED !== 'false',
         visualStore: createMetabloomVisualStore(), onTool: sendStreamEvent,
         onToolProgress: streamToolProgress ? sendStreamEvent : undefined,
         onStatus: streamToolProgress ? sendStreamEvent : undefined });
-      if (result.sources.length) await sendStreamEvent({ type: 'tool_sources', sources: result.sources });
+      if (result.sources.length) {
+        await sendStreamEvent({ type: 'tool_sources', sources: result.sources });
+        // Opt-in only: older clients reject unknown stream events.
+        if (body.streamToolMedia === true) {
+          const media = await attachToolMedia(result.reply, result.sources, visualIdentity);
+          if (media.length) await sendStreamEvent({ type: 'tool_media', media });
+        }
+      }
+      if (body.streamToolMedia === true && result.images?.length) {
+        const images = await attachToolImages(result.images, visualIdentity);
+        if (images.length) await sendStreamEvent({ type: 'tool_images', images });
+      }
       for (const [index, segment] of result.reply.segments.entries()) {
         if (body.streamText === true) await sendStreamEvent({ type: 'text_delta', index, delta: segment.response });
         await sendStreamEvent({ type: 'segment', index, ...segment });
@@ -794,4 +846,4 @@ const handler = async (request, response) => {
 };
 module.exports = handler;
 module.exports._internals = { parseBody, requestOriginIsAllowed, consumeRateLimit, configured, localBuckets,
-  selectResearchBriefEvidence, researchBriefIntroduction, researchBriefFallback, attachResearchMedia };
+  selectResearchBriefEvidence, researchBriefIntroduction, researchBriefFallback, attachResearchMedia, attachToolMedia, attachToolImages };

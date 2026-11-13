@@ -19,19 +19,36 @@
 }
 .orb-page .metabloom-source-preview__fallback {
   position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 0.4rem; color: var(--aetheris-ink-2); font: 1rem/1.4 var(--aetheris-font-mono);
+  gap: 0.6rem; padding: 0.8rem; color: var(--aetheris-ink-2); font: 1rem/1.4 var(--aetheris-font-mono);
+  background: radial-gradient(120% 90% at 50% 0%, var(--aetheris-glass-surface), transparent 70%);
 }
-.orb-page .metabloom-source-preview__fallback svg { width: 2.4rem; height: 2.4rem; stroke: currentColor; stroke-width: 1; }
-.orb-page .metabloom-source-preview__image { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; }
+/* The source plate is the same in every slide without a photo: the publisher
+   mark and host, so the media slot never collapses or changes shape. */
+.orb-page .metabloom-source-preview__plate-mark { display: inline-flex; }
+.orb-page .metabloom-source-preview__plate-mark .metabloom-source-icon {
+  flex-basis: 3.2rem; width: 3.2rem; height: 3.2rem; border-radius: var(--aetheris-radius-md);
+}
+.orb-page .metabloom-source-preview__plate-mark .metabloom-source-icon > svg { width: 2rem; height: 2rem; stroke-width: 1.2; }
+.orb-page .metabloom-source-preview__plate-host {
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center;
+}
+.orb-page .metabloom-source-preview__fallback[data-plate-state='pending'],
+.orb-page .metabloom-source-preview__fallback[data-plate-state='loading'] { opacity: 0.72; }
+.orb-page .metabloom-source-preview__image {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0;
+  transition: opacity 180ms ease-out;
+}
 .orb-page .metabloom-source-preview[data-preview-state='ready'] .metabloom-source-preview__image { opacity: 1; }
 .orb-page .metabloom-source-preview[data-preview-state='ready'] .metabloom-source-preview__fallback { visibility: hidden; }
+@media (prefers-reduced-motion: reduce) {
+  .orb-page .metabloom-source-preview__image { transition: none; }
+}
 .orb-page .metabloom-source-preview__content { display: flex; flex-direction: column; align-items: flex-start; gap: 0.6rem; min-width: 0; }
 .orb-page .metabloom-source-preview--compact {
   grid-template-columns: minmax(8.5rem, 28%) minmax(0, 1fr);
   gap: 1.2rem; margin-top: 1.2rem; padding: 1rem;
 }
 .orb-page .metabloom-source-preview--compact .metabloom-source-preview__image-area { align-self: center; }
-.orb-page .metabloom-source-preview__image-area[hidden] { display: none !important; }
 .orb-page .metabloom-source-preview--compact .metabloom-source-preview__content { justify-content: center; gap: 0.3rem; }
 .orb-page .metabloom-source-preview--compact .metabloom-source-preview__publisher { overflow-wrap: anywhere; }
 .orb-page .metabloom-source-preview__publisher { display: flex; align-items: center; gap: 0.6rem; width: 100%; color: var(--aetheris-ink-2); font: 500 max(1.1rem, 12px)/1.4 var(--aetheris-font-mono); }
@@ -46,7 +63,6 @@
   color: var(--aetheris-ink); font: 500 max(1.1rem, 12px)/1.4 var(--aetheris-font-mono); text-decoration: none;
   background: transparent;
 }
-.orb-page .metabloom-source-preview--compact[data-preview-state='unavailable'] { grid-template-columns: minmax(0, 1fr); }
 .orb-page .metabloom-research-brief a.metabloom-source-preview__article-link {
   justify-content: space-between;
   gap: 0.7rem;
@@ -73,21 +89,90 @@
       var(--aetheris-spectral) border-box;
   }
 }
+/* Ordinary search answers: a row of photos from cited articles. A tile is
+   shown only once its photo has loaded, so the row never shows placeholders;
+   the wrapper stays laid out (zero height) so it can be observed. */
+.orb-page .metabloom-source-gallery {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 0.8rem;
+}
+.orb-page .metabloom-source-gallery:has(.metabloom-source-preview[data-preview-state='ready']) { margin-top: 1.2rem; }
+.orb-page .metabloom-source-gallery .metabloom-source-preview:not([data-preview-state='ready']) { display: none; }
+.orb-page .metabloom-source-preview--tile {
+  grid-template-columns: minmax(0, 1fr); gap: 0.7rem; margin-top: 0; padding: 0.7rem;
+  border-radius: var(--aetheris-radius-lg);
+}
+.orb-page .metabloom-source-preview--tile .metabloom-source-preview__content { gap: 0.3rem; }
+.orb-page .metabloom-source-preview--tile .metabloom-source-preview__publisher { overflow-wrap: anywhere; }
+.orb-page .metabloom-source-gallery a.metabloom-source-preview__article-link {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 0.6rem; width: 100%;
+  min-height: 44px; padding: 0.3rem 0.2rem; border-radius: var(--aetheris-radius-md);
+  color: var(--aetheris-ink); font: 500 max(1.2rem, 13px)/1.45 var(--aetheris-font-sans); text-decoration: none;
+}
+.orb-page .metabloom-source-gallery a.metabloom-source-preview__article-link:focus-visible {
+  outline: 2px solid transparent; outline-offset: 3px; box-shadow: var(--aetheris-focus-halo);
+}
+@media (hover: hover) {
+  .orb-page .metabloom-source-gallery a.metabloom-source-preview__article-link:hover { text-decoration: underline; text-underline-offset: 0.2em; }
+}
+/* Subject photos (find_image). The frame takes the photo's own aspect ratio,
+   capped at 36rem tall, so portraits are not cropped and nothing reflows. */
+.orb-page .metabloom-sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
+  clip-path: inset(50%); white-space: nowrap; border: 0;
+}
+.orb-page .metabloom-answer-images { display: grid; gap: 1rem; margin: 0.4rem 0 1.2rem; }
+.orb-page .metabloom-answer-images[data-count='2'] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.orb-page .metabloom-answer-image { display: grid; gap: 0.6rem; margin: 0; min-width: 0; }
+.orb-page .metabloom-answer-image__frame {
+  position: relative; width: min(100%, calc(36rem * var(--metabloom-image-aspect, 1.5)));
+  aspect-ratio: var(--metabloom-image-ratio, 3 / 2); overflow: hidden; border-radius: var(--aetheris-radius-lg);
+  background: var(--aetheris-state-layer); border: 1px solid var(--aetheris-line);
+}
+.orb-page .metabloom-answer-image__photo {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 180ms ease-out;
+}
+.orb-page .metabloom-answer-image[data-image-state='ready'] .metabloom-answer-image__photo { opacity: 1; }
+.orb-page .metabloom-answer-image__unavailable {
+  position: absolute; inset: 0; display: grid; place-items: center; color: var(--aetheris-ink-2);
+  font: 1rem/1.4 var(--aetheris-font-mono);
+}
+.orb-page .metabloom-answer-image__caption {
+  display: grid; gap: 0.2rem; color: var(--aetheris-ink-2); font: max(1.1rem, 12px)/1.45 var(--aetheris-font-sans);
+  overflow-wrap: anywhere;
+}
+.orb-page .metabloom-answer-image__caption a { color: inherit; text-underline-offset: 0.2em; }
+.orb-page .metabloom-answer-image__caption a:focus-visible {
+  outline: 2px solid transparent; outline-offset: 2px; box-shadow: var(--aetheris-focus-halo); border-radius: 4px;
+}
+.orb-page a.metabloom-answer-image__title { color: var(--aetheris-ink); font-weight: 600; text-decoration: none; }
+@media (hover: hover) {
+  .orb-page a.metabloom-answer-image__title:hover { text-decoration: underline; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .orb-page .metabloom-answer-image__photo { transition: none; }
+}
+@media (forced-colors: active) {
+  .orb-page .metabloom-answer-image__frame { border-color: CanvasText; background: Canvas; }
+  .orb-page .metabloom-answer-image__caption a { color: LinkText; }
+}
 @media (max-width: 480px) {
+  .orb-page .metabloom-answer-images[data-count='2'] { grid-template-columns: minmax(0, 1fr); }
   .orb-page .metabloom-source-preview { grid-template-columns: minmax(0, 1fr); }
   .orb-page .metabloom-source-preview--compact { grid-template-columns: minmax(7.5rem, 30%) minmax(0, 1fr); gap: 0.9rem; }
-  .orb-page .metabloom-source-preview--compact:not([data-preview-state='unavailable']) .metabloom-source-preview__content { display: contents; }
-  .orb-page .metabloom-source-preview--compact:not([data-preview-state='unavailable']) .metabloom-source-preview__publisher { grid-column: 1 / -1; grid-row: 1; }
-  .orb-page .metabloom-source-preview--compact:not([data-preview-state='unavailable']) .metabloom-source-preview__image-area { grid-column: 1; grid-row: 2; }
-  .orb-page .metabloom-source-preview--compact:not([data-preview-state='unavailable']) .metabloom-source-preview__article-link { grid-column: 2; grid-row: 2; align-self: center; }
+  .orb-page .metabloom-source-preview--compact .metabloom-source-preview__content { display: contents; }
+  .orb-page .metabloom-source-preview--compact .metabloom-source-preview__publisher { grid-column: 1 / -1; grid-row: 1; }
+  .orb-page .metabloom-source-preview--compact .metabloom-source-preview__image-area { grid-column: 1; grid-row: 2; }
+  .orb-page .metabloom-source-preview--compact .metabloom-source-preview__article-link { grid-column: 2; grid-row: 2; align-self: center; }
   .orb-page .metabloom-source-preview__content { gap: 0.7rem; }
 }
 @media (prefers-reduced-transparency: reduce) {
   .orb-page .metabloom-source-preview, .orb-page .metabloom-source-icon { background: var(--aetheris-panel-raised); }
+  .orb-page .metabloom-source-preview__fallback { background: none; }
 }
 @media (forced-colors: active) {
   .orb-page .metabloom-source-preview, .orb-page .metabloom-source-icon { background: Canvas; color: CanvasText; border-color: CanvasText; }
-  .orb-page .metabloom-source-preview__fallback, .orb-page .metabloom-source-preview__publisher { color: CanvasText; }
-  .orb-page .metabloom-research-brief a.metabloom-source-preview__action { background: Canvas; color: LinkText; border-color: LinkText; }
+  .orb-page .metabloom-source-preview__fallback, .orb-page .metabloom-source-preview__publisher { color: CanvasText; background: Canvas; }
+  .orb-page .metabloom-research-brief a.metabloom-source-preview__action,
+  .orb-page .metabloom-source-gallery a.metabloom-source-preview__article-link { background: Canvas; color: LinkText; border-color: LinkText; }
   .orb-page .metabloom-research-brief a.metabloom-source-preview__action:focus-visible { background: Canvas; outline-color: Highlight; box-shadow: none; }
 }

@@ -49,6 +49,8 @@ export const requestMetabloomResponse = async ({
   onResearchBrief,
   onResearchReference,
   onSources,
+  onSourceMedia,
+  onToolImages,
   onVisualOffer,
   onToolActivity,
   onToolProgress,
@@ -102,6 +104,7 @@ export const requestMetabloomResponse = async ({
         ...(useExpressions ? { 'X-Metabloom-Expressions': '1' } : {}) },
       body: JSON.stringify({ actionMode, allowMultiple: allowMultiple === true, streamText: true,
         streamResearchProgress: true, streamResearchDetails: true, streamResearchBrief: true, streamResearchMedia: true, streamResearchReuse: true, timeZone, history, message, requestId,
+        ...(useTools ? { streamToolMedia: true } : {}),
         ...(modelSelection ? { modelSelection } : {}),
         ...(useExpressions ? { orbContext } : {}),
         ...(artifactContext ? { artifactContext } : {}), ...(researchContext ? { researchContext } : {}) }),
@@ -118,6 +121,7 @@ export const requestMetabloomResponse = async ({
       allowResearchBrief: true,
       allowResearchReuse: true,
       allowTools: useTools,
+      allowToolMedia: useTools,
       allowToolProgress: useTools,
       allowExpressions: useExpressions,
       requestId,
@@ -180,6 +184,14 @@ export const requestMetabloomResponse = async ({
       onSources: (sources) => {
         if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
         onSources?.(sources);
+      },
+      onSourceMedia: (media) => {
+        if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
+        onSourceMedia?.(media);
+      },
+      onToolImages: (images) => {
+        if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
+        onToolImages?.(images);
       },
       onTextDelta: (delta, index) => {
         if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });

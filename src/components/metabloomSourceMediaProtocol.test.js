@@ -1,4 +1,4 @@
-const { parseMetabloomProgressSource, parseMetabloomBriefMedia, metabloomSourceMediaUrl,
+const { parseMetabloomProgressSource, parseMetabloomBriefMedia, parseMetabloomToolImages, metabloomSourceMediaUrl,
   parseMetabloomSourceMediaPreview, MAX_METABLOOM_SOURCE_MEDIA_TOKEN_CHARS } = require('./metabloomSourceMediaProtocol');
 
 const token = 'signed_source.payload-1.signature_2';
@@ -44,10 +44,19 @@ test('accepts only this token’s authenticated media endpoints and normalizes a
     .toEqual({ version: '1', isArticle: false, image: null, icon: null });
 });
 
+test('accepts the separate same-origin capability the host issued for its validated image', () => {
+  const value = fixture();
+  value.image.src = metabloomSourceMediaUrl('m1.selected-image_capability', 'image');
+  expect(parseMetabloomSourceMediaPreview(value, { token, origin }).image.src)
+    .toBe(metabloomSourceMediaUrl('m1.selected-image_capability', 'image'));
+});
+
 test.each([
   ['remote image', value => { value.image.src = 'https://publisher.example.test/photo.jpg'; }],
   ['remote same-path image', value => { value.image.src = `https://attacker.test${value.image.src}`; }],
-  ['another token', value => { value.image.src = metabloomSourceMediaUrl('another.token', 'image'); }],
+  ['another icon token', value => { value.icon.src = metabloomSourceMediaUrl('another.token', 'icon'); }],
+  ['malformed image token', value => { value.image.src = '/api/metabloom-source-media?token=bad%20token&kind=image'; }],
+  ['empty image token', value => { value.image.src = '/api/metabloom-source-media?token=&kind=image'; }],
   ['another media kind', value => { value.image.src = metabloomSourceMediaUrl(token, 'icon'); }],
   ['extra query parameter', value => { value.image.src += '&url=https://attacker.test/photo'; }],
   ['duplicate token', value => { value.image.src += `&token=${token}`; }],
@@ -61,4 +70,37 @@ test.each([
 ])('rejects %s before any image can mount', (_, change) => {
   const value = fixture(); change(value);
   expect(parseMetabloomSourceMediaPreview(value, { token, origin })).toBeNull();
+});
+
+describe('subject photo records', () => {
+  const image = () => ({ token: 'm1.image-capability', width: 640, height: 960, alt: 'Fictional Singer on stage',
+    title: 'Fictional Singer', pageUrl: 'https://en.wikipedia.org/wiki/Fictional_Singer',
+    fileUrl: 'https://commons.wikimedia.org/wiki/File:Singer.jpg', artist: 'Example Photographer', license: 'CC BY 2.0',
+    licenseUrl: 'https://creativecommons.org/licenses/by/2.0' });
+
+  test('accepts complete attribution with an opaque capability', () => {
+    expect(parseMetabloomToolImages([image()])).toEqual([image()]);
+    expect(parseMetabloomToolImages([{ ...image(), licenseUrl: null }])[0].licenseUrl).toBeNull();
+  });
+
+  test.each([
+    ['a publisher raster URL as token', { token: 'https://upload.wikimedia.org/a.jpg' }],
+    ['a non-Wikipedia page', { pageUrl: 'https://wiki.example.test/Fictional_Singer' }],
+    ['a look-alike host', { pageUrl: 'https://en.wikipedia.org.example.test/wiki/A' }],
+    ['an insecure file page', { fileUrl: 'http://commons.wikimedia.org/wiki/File:Singer.jpg' }],
+    ['a non-web licence link', { licenseUrl: 'data:text/html,forged' }],
+    ['missing attribution', { artist: '' }],
+    ['control characters', { title: 'Fictional‮Singer' }],
+    ['a tiny frame', { width: 10 }],
+    ['an absurd frame', { height: 50000 }],
+    ['an extra field', { html: '<img>' }],
+  ])('drops %s', (_, change) => {
+    expect(parseMetabloomToolImages([{ ...image(), ...change }])).toEqual([]);
+  });
+
+  test('keeps at most two distinct photos', () => {
+    expect(parseMetabloomToolImages([image(), image()])).toHaveLength(1);
+    expect(parseMetabloomToolImages([image(), { ...image(), token: 'm1.b' }, { ...image(), token: 'm1.c' }])).toEqual([]);
+    expect(parseMetabloomToolImages(null)).toEqual([]);
+  });
 });
