@@ -5,6 +5,7 @@ import { METABLOOM_VISUAL_OFFER_EVENT, createMetabloomVisualStreamBridge } from 
 import { parseMetabloomResearchContext, isMetabloomFreshResearchRequest } from "./metabloomResearchReference";
 import { METABLOOM_AGENT_TIMEOUT_MS } from './metabloomAgentTools';
 import { parseMetabloomModelSelection } from './metabloomModelProtocol';
+import { parseMetabloomOrbContext } from './metabloomExpressionProtocol';
 
 export { getMetabloomApiErrorMessage } from "./metabloomRequestErrors";
 
@@ -36,6 +37,7 @@ export const requestMetabloomResponse = async ({
   artifactContext,
   researchContext,
   modelSelection,
+  orbContext,
   message,
   onSegment,
   onTextDelta,
@@ -74,6 +76,12 @@ export const requestMetabloomResponse = async ({
     throw new MetabloomApiError("Fetch is unavailable.");
   }
   const useTools = toolset === true && !artifactContext && !researchContext && actionMode !== 'deep-research';
+  if (orbContext !== undefined) {
+    orbContext = parseMetabloomOrbContext(orbContext);
+    if (!orbContext || typeof requestId !== 'string' || !/^[a-zA-Z0-9-]{1,160}$/.test(requestId))
+      throw new MetabloomApiError('Invalid Orb context.', { code: 'invalid_request' });
+  }
+  const useExpressions = Boolean(useTools && orbContext);
   const controller = new AbortController();
   const abort = () => controller.abort();
   if (signal?.aborted) abort();
@@ -90,10 +98,12 @@ export const requestMetabloomResponse = async ({
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json", Accept: "application/x-ndjson", "X-Metabloom-Visuals": "1", "X-Metabloom-Ui-Tools": "1",
-        ...(useTools ? { 'X-Metabloom-Toolset': '2' } : {}) },
+        ...(useTools ? { 'X-Metabloom-Toolset': '2' } : {}),
+        ...(useExpressions ? { 'X-Metabloom-Expressions': '1' } : {}) },
       body: JSON.stringify({ actionMode, allowMultiple: allowMultiple === true, streamText: true,
         streamResearchProgress: true, streamResearchDetails: true, streamResearchBrief: true, streamResearchMedia: true, streamResearchReuse: true, timeZone, history, message, requestId,
         ...(modelSelection ? { modelSelection } : {}),
+        ...(useExpressions ? { orbContext } : {}),
         ...(artifactContext ? { artifactContext } : {}), ...(researchContext ? { researchContext } : {}) }),
       signal: controller.signal,
     });
@@ -109,6 +119,8 @@ export const requestMetabloomResponse = async ({
       allowResearchReuse: true,
       allowTools: useTools,
       allowToolProgress: useTools,
+      allowExpressions: useExpressions,
+      requestId,
       onToolProgress: (progress) => {
         if (controller.signal.aborted) throw new MetabloomApiError('Cancelled.', { code: 'cancelled' });
         onToolProgress?.(progress);

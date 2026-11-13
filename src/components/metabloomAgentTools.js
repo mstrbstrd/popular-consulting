@@ -5,6 +5,7 @@ const METABLOOM_PROGRESS_WAIT_MS = 12000;
 const METABLOOM_AGENT_TOOL_LABELS = Object.freeze({
   search_web: 'Searching the web', calculate: 'Calculating',
   get_current_time: 'Checking the time', create_visual: 'Preparing your visual',
+  get_orb_state: 'Checking the Orb', express_orb: 'Choosing an expression',
 });
 const parseMetabloomAgentActivity = value => {
   if (!value || typeof value !== 'object' || Array.isArray(value)
@@ -75,7 +76,8 @@ const getMetabloomWorkPresentation = ({ phase, activeTool, lastTool, summary, se
   if (lastTool) return { label: lastTool.state === 'failed' ? 'Handling a tool problem' : 'Reviewing results',
     summary: lastTool.state === 'failed' ? `${METABLOOM_AGENT_TOOL_LABELS[lastTool.name]} did not finish successfully.`
       : ({ search_web: 'Search complete. Reviewing the sources.', calculate: 'Calculation complete.',
-        get_current_time: 'Current time checked.', create_visual: 'Visual requested. Generation and display are still pending.' })[lastTool.name] };
+        get_current_time: 'Current time checked.', create_visual: 'Visual requested. Generation and display are still pending.',
+        get_orb_state: 'Orb snapshot checked.', express_orb: 'Expression chosen. Playback is still pending.' })[lastTool.name] };
   return { label: 'Working on your request', summary: null };
 };
 module.exports = { METABLOOM_AGENT_TIMEOUT_MS, MAX_METABLOOM_AGENT_CALLS,

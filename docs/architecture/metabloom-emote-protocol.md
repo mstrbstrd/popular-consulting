@@ -5,14 +5,24 @@ Ordinary clients now negotiate the [conversation toolset](metabloom-chat-toolset
 ## Live conversation protocol 2.0.0
 
 The standard `/api/metabloom` endpoint uses **OpenAI for response text** and
-**TypeSafe Jev for the Orb's nonverbal decisions**. A server-only Jev Choice
+**TypeSafe Jev for automatic nonverbal decisions**. Ordinary tool-enabled chat
+also supports the selected Claude or DeepSeek provider. With negotiated
+[expression tools](metabloom-expression-loop.md), a deliberate model choice
+replaces the final Jev selection. A server-only Jev Choice
 request reads the latest user message first. Its result (or neutral fallback) is
 published as soon as it is available. Automatic scene mode waits for that bounded
 decision so the text model knows the selected presentation; ordinary explicit
 modes and legacy requests start the text model in parallel with input Jev. Live
 Deep Research first completes a bounded web pass, then writes the answer. A
 second Choice request starts only after OpenAI's complete text has passed schema
-validation. The reply stays a single assistant message regardless of segment count.
+validation, unless an expression tool already supplied that choice. The reply stays a single assistant message regardless of segment count.
+
+Expression-capable clients send `X-Metabloom-Expressions: 1` with a validated
+`orbContext`. They receive one additional record between `text_complete` and
+the final `emote`: `{ "type": "orb_expression", "requestId": "...", "emote": "curious", "source": "model" }`.
+The source is `automatic` when Jev supplied the choice. Request correlation,
+tool completion, source, ordering and matching emote must validate before
+`done` can release playback. Other clients keep the stream vocabulary below.
 
 ```jsonl
 {"type":"emote","phase":"input","emote":"curious"}

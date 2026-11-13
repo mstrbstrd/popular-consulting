@@ -42,6 +42,8 @@ import { METABLOOM_RESEARCH_TIMEOUT_MS, METABLOOM_RESEARCH_REUSE_TIMEOUT_MS, get
 import { METABLOOM_REQUEST_ERROR_MESSAGES, parseMetabloomRequestRef } from "./metabloomRequestErrors";
 import { METABLOOM_TOOL_TURN_TIMEOUT_MS } from "./metabloomVisualProtocol";
 import { METABLOOM_AGENT_TIMEOUT_MS, createMetabloomAgentLifecycle, getMetabloomWorkPresentation } from './metabloomAgentTools';
+import { parseMetabloomOrbContext, parseMetabloomExpressionReceipt, parseMetabloomExpressionEvent,
+  getMetabloomExpressionBlock, describeMetabloomExpression } from './metabloomExpressionProtocol';
 import { METABLOOM_TRANSCRIPT_READY_EVENT, METABLOOM_RESET_EVENT,
   METABLOOM_WORKSPACE_VIEW_EVENT, METABLOOM_WORKSPACE_VIEW_REQUEST } from "./metabloomVisualSession";
 import { METABLOOM_ARTIFACT_REFERENCE_EVENT, METABLOOM_ARTIFACT_UPDATE_EVENT, parseMetabloomArtifactAttachment } from "./metabloomArtifactReference";
@@ -508,6 +510,12 @@ const OrbSection = ({
   const [composerFocused, setComposerFocused] = React.useState(false);
   const [activeReaction, setActiveReaction] = React.useState(null);
   const [expressiveness, setExpressiveness] = React.useState(savedConversation?.expressiveness ?? 0.8);
+  const [allowModelExpressions, setAllowModelExpressions] = React.useState(savedConversation?.allowModelExpressions !== false);
+  const [expressionReceipt, setExpressionReceipt] = React.useState(null);
+  const expressionReceiptRef = React.useRef(null);
+  const expressionOwnerRef = React.useRef(null);
+  const expressionSettingsRef = React.useRef(null);
+  expressionSettingsRef.current = { enabled: allowModelExpressions, backgroundEnabled: navigation?.orbBackgroundEnabled !== false, active: isActive };
   const expressivenessRef = React.useRef(expressiveness);
   expressivenessRef.current = expressiveness;
   const stateRef = React.useRef(null);
@@ -548,7 +556,7 @@ const OrbSection = ({
   const [errorMessage, setErrorMessage] = React.useState(savedConversation?.interrupted ? 'The response was interrupted when you changed tools. Any visible reply is incomplete. Send another message to continue.' : '');
   const [responseSource, setResponseSource] = React.useState(savedConversation?.responseSource || 'interface');
   const retainedConversation = React.useRef(null);
-  retainedConversation.current = { draft, artifactAttachment, researchAttachment, unavailableResearchIds, expressiveness, pending, responseSource, paused, allowEmoteChanges, deepResearch };
+  retainedConversation.current = { draft, artifactAttachment, researchAttachment, unavailableResearchIds, expressiveness, pending, responseSource, paused, allowEmoteChanges, allowModelExpressions, deepResearch };
   const updateArtifactAttachment = React.useCallback(value => {
     const next = parseMetabloomArtifactAttachment(value);
     artifactAttachmentRef.current = next;
@@ -650,7 +658,7 @@ const OrbSection = ({
     return () => window.cancelAnimationFrame(frame);
   }, [threadSession]);
   React.useEffect(() => { threadSession?.changed(); }, [threadSession, messages, draft, artifactAttachment,
-    researchAttachment, unavailableResearchIds, expressiveness, pending, responseSource, paused, allowEmoteChanges, deepResearch]);
+    researchAttachment, unavailableResearchIds, expressiveness, pending, responseSource, paused, allowEmoteChanges, allowModelExpressions, deepResearch]);
   const activeAction =
     resolveMetabloomAction(actionId) || getDefaultMetabloomAction();
   const legacyForm = ACTION_FORMS[activeAction.id] || "companion";
@@ -704,6 +712,24 @@ const OrbSection = ({
     };
     return stateRef.current;
   }, []);
+
+  // This report stays in the mounted conversation. Saved threads never restore
+  // old runtime observations as if an expression had just played.
+  const recordExpression = React.useCallback(value => {
+    const next = value === null ? null : parseMetabloomExpressionReceipt(value);
+    if (value !== null && !next) return false;
+    expressionReceiptRef.current = next;
+    if (mountedRef.current) setExpressionReceipt(next);
+    return true;
+  }, []);
+  const getOrbContext = React.useCallback(() => parseMetabloomOrbContext({
+    version: 1, enabled: expressionSettingsRef.current.enabled,
+    visible: !document.hidden, backgroundEnabled: expressionSettingsRef.current.backgroundEnabled && expressionSettingsRef.current.active,
+    paused: stateRef.current?.paused === true,
+    reducedMotion: window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true,
+    intensity: expressivenessRef.current, emote: stateRef.current?.emote || 'neutral',
+    lastExpression: expressionReceiptRef.current,
+  }), []);
 
   const publishMessages = React.useCallback((nextMessages) => {
     messagesRef.current = nextMessages;
@@ -989,7 +1015,7 @@ const OrbSection = ({
     setActivity("idle");
     window.clearTimeout(thinkingTimerRef.current);
     thinkingTimerRef.current = 0;
-    reactionPlayerRef.current?.cancel();
+    reactionPlayerRef.current?.cancel(reason === 'interrupted' ? 'replaced' : 'stopped');
     if (mountedRef.current) setActiveReaction(null);
     requestTokenRef.current += 1;
     activeRequestRef.current = null;
@@ -1039,7 +1065,7 @@ const OrbSection = ({
         ? nextAction
         : { ...options, action: nextAction };
       const resolved = resolveMetabloomAction(request.action);
-      if (!resolved) return false;
+      if (!resolved || (options.respectPause && stateRef.current?.paused)) return false;
       if (!options.preserveReaction) {
         reactionPlayerRef.current?.cancel();
         setActiveReaction(null);
@@ -1084,14 +1110,14 @@ const OrbSection = ({
 
   const performEmote = React.useCallback((nextEmote, preserveReaction = false) => {
     const emote = resolveMetabloomEmote(nextEmote);
-    if (!emote) return false;
+    if (!emote || stateRef.current?.paused) return false;
     updateStateSnapshot({ emote: emote.id });
     setEmoteId(emote.id);
     return performAction({ action: emote.action || "reform", duration: emote.duration, intensity: Math.min(1, emote.intensity * (expressivenessRef.current / 0.8)), talking: false }, { pulse: false, preserveReaction });
   }, [performAction, updateStateSnapshot]);
 
   const beginRequestScene = React.useCallback((action, session) => {
-    if (!mountedRef.current || (document.hidden && action !== "deep-research")) return false;
+    if (!mountedRef.current || stateRef.current?.paused || (document.hidden && action !== "deep-research")) return false;
     cancelRequestScene();
     window.clearTimeout(thinkingTimerRef.current);
     thinkingTimerRef.current = 0;
@@ -1134,18 +1160,41 @@ const OrbSection = ({
 
   const reactionPlayer = React.useMemo(() => createMetabloomReactionPlayer({
     onPlay: (emote, messageId, index) => {
-      if (!mountedRef.current) return;
-      performEmote(emote, true);
+      if (!mountedRef.current) return false;
+      const owner = expressionOwnerRef.current;
+      const tracked = owner?.requestId === messageId && index === -2;
+      if (tracked && owner.session !== replyRef.current) return false;
+      const context = getOrbContext();
+      const blocked = getMetabloomExpressionBlock(context, tracked ? owner.source : 'automatic');
+      if (blocked) {
+        if (tracked) recordExpression({ requestId: owner.requestId, emote: owner.emote, source: owner.source,
+          status: expressionReceiptRef.current?.requestId === messageId && expressionReceiptRef.current.status === 'applied' ? 'interrupted' : 'suppressed', reason: blocked });
+        return false;
+      }
+      if (!performEmote(emote, true)) return false;
+      if (tracked) recordExpression({ requestId: owner.requestId, emote: owner.emote, source: owner.source,
+        status: context.reducedMotion ? 'simplified' : 'applied', reason: context.reducedMotion ? 'reduced_motion' : 'runtime' });
       setActiveReaction({ emote, messageId, index });
+      return true;
     },
-    onIdle: () => { if (mountedRef.current) setActiveReaction(null); },
-  }), [performEmote]);
+    onIdle: () => {
+      const receipt = expressionReceiptRef.current;
+      if (receipt?.status === 'applied' && receipt.requestId === expressionOwnerRef.current?.requestId)
+        recordExpression({ ...receipt, status: 'finished' });
+      if (mountedRef.current) setActiveReaction(null);
+    },
+    onCancel: (reason) => {
+      const receipt = expressionReceiptRef.current;
+      if (receipt?.status === 'applied' && receipt.requestId === expressionOwnerRef.current?.requestId)
+        recordExpression({ ...receipt, status: 'interrupted', reason });
+    },
+  }), [getOrbContext, performEmote, recordExpression]);
   reactionPlayerRef.current = reactionPlayer;
 
   const attendToComposer = React.useCallback(() => {
     setComposerFocused(true);
     if (!isActive || stateRef.current?.pending || stateRef.current?.sequenceId || activeReaction) return;
-    performAction({ action: "listening", intensity: 0.32 * expressivenessRef.current / 0.8, talking: false }, { pulse: false });
+    performAction({ action: "listening", intensity: 0.32 * expressivenessRef.current / 0.8, talking: false }, { pulse: false, respectPause: true });
   }, [activeReaction, isActive, performAction]);
 
   const transform = React.useCallback(
@@ -1158,7 +1207,7 @@ const OrbSection = ({
 
   const stop = React.useCallback(() => {
     const wasPending = stateRef.current?.pending;
-    cancelResponse();
+    cancelResponse('stopped');
     if (wasPending) setWorkNotice('Response stopped.');
     clearSequence();
     updateStateSnapshot({ talking: false, pending: false });
@@ -1168,6 +1217,8 @@ const OrbSection = ({
 
   const reset = React.useCallback(() => {
     cancelResponse();
+    expressionOwnerRef.current = null;
+    recordExpression(null);
     closeSavedWork();
     updateArtifactAttachment(null);
     updateResearchAttachment(null);
@@ -1206,7 +1257,7 @@ const OrbSection = ({
     setErrorMessage("");
     setResetVersion((value) => value + 1);
     setPulseVersion(nextPulseVersion);
-  }, [cancelResponse, clearSequence, closeSavedWork, updateArtifactAttachment, updateResearchAttachment, updateStateSnapshot]);
+  }, [cancelResponse, clearSequence, closeSavedWork, recordExpression, updateArtifactAttachment, updateResearchAttachment, updateStateSnapshot]);
 
   const playSequence = React.useCallback(
     (steps, nextSequenceId = "custom") => {
@@ -1539,7 +1590,7 @@ const OrbSection = ({
     // Fast replies go straight into their own gesture without a distracting flash.
     thinkingTimerRef.current = window.setTimeout(() => {
       if (replyRef.current === session && !session.closed && !session.snapshot().segments.length && stateRef.current?.activity === "idle") {
-        performAction({ action: "thinking", intensity: 0.3 * expressivenessRef.current / 0.8, talking: false }, { pulse: false });
+        performAction({ action: "thinking", intensity: 0.3 * expressivenessRef.current / 0.8, talking: false }, { pulse: false, respectPause: true });
       }
     }, 650);
     previewTimerRef.current = window.setTimeout(() => failReply(session, { code: "answer_timeout" }), RESPONSE_TIMEOUT_MS);
@@ -1898,8 +1949,24 @@ const OrbSection = ({
           window.clearTimeout(thinkingTimerRef.current);
           thinkingTimerRef.current = 0;
         }
-        const play = () => reactionPlayer.enqueue(reaction.emote, requestId, reaction.phase === "input" ? -1 : -2,
-          document.hidden || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches);
+        const expression = reaction.expression === undefined ? null : parseMetabloomExpressionEvent(reaction.expression, requestId);
+        if (reaction.expression !== undefined && (!expression || expression.emote !== reaction.emote || reaction.phase !== 'response')) return;
+        const play = () => {
+          if (!mountedRef.current || requestTokenRef.current !== requestToken) return false;
+          if (expression) {
+            // Intentional final expression takes ownership immediately; an input
+            // reaction cannot delay it, and later automatic callbacks cannot win.
+            reactionPlayer.cancel();
+            // Playback belongs to the reply, including after its network token
+            // closes. A new reply or cancellation still invalidates the player.
+            expressionOwnerRef.current = { ...expression, session };
+          }
+          const accepted = reactionPlayer.enqueue(reaction.emote, requestId, reaction.phase === 'input' ? -1 : -2,
+            document.hidden || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
+          if (!accepted && expression && expressionReceiptRef.current?.requestId !== requestId)
+            recordExpression({ requestId, emote: expression.emote, source: expression.source, status: 'suppressed', reason: 'unavailable' });
+          return accepted;
+        };
         const display = replyDisplayRef.current;
         if (reaction.phase === "response" && display?.session === session) display.gate.deferReaction("response", play);
         else play();
@@ -1910,6 +1977,7 @@ const OrbSection = ({
         activeRequest.actionReceived = true;
         activeRequest.action = action;
         if (action === "deep-research") activeRequest.skipScene = false;
+        if (stateRef.current?.paused) activeRequest.skipScene = true;
         return action === "none" || activeRequest.skipScene || beginRequestScene(action, session);
       };
       const onResearch = (research) => {
@@ -2013,6 +2081,7 @@ const OrbSection = ({
       const request = {
         ...(modelSelection ? { modelSelection: { ...modelSelection } } : {}),
         toolset: activeRequest.toolset,
+        ...(activeRequest.toolset ? { orbContext: getOrbContext() } : {}),
         onToolProgress: onAgentEvent, onAgentStatus: onAgentEvent,
         requestId, message, history, ...(artifactContext ? { artifactContext } : {}), ...(researchContext ? { researchContext } : {}), allowMultiple, actionMode: activeRequest.actionMode, onToolActivity,
         signal: controller.signal, onTextDelta, onSegment, onReaction, onAction, onResearch, onResearchProgress, onResearchDetails, onResearchBrief, onResearchReference, onSources,
@@ -2070,7 +2139,7 @@ const OrbSection = ({
       }).catch((error) => { if (current()) failReply(session, error); });
       return true;
     },
-    [allowEmoteChanges, appendMessage, beginReply, beginRequestScene, cancelResponse, captureConversation, deepResearch, failReply, finishReply, isActive, messageLimit, modelAvailable, modelSelection, publishMessages, reactionPlayer, receiveModelResponse, reportActivity, threadSession, updateArtifactAttachment, updateResearchAttachment, updateStateSnapshot, workspace],
+    [allowEmoteChanges, appendMessage, beginReply, beginRequestScene, cancelResponse, captureConversation, deepResearch, failReply, finishReply, getOrbContext, isActive, messageLimit, modelAvailable, modelSelection, publishMessages, reactionPlayer, receiveModelResponse, recordExpression, reportActivity, threadSession, updateArtifactAttachment, updateResearchAttachment, updateStateSnapshot, workspace],
   );
 
   const handleSubmit = React.useCallback(
@@ -2100,7 +2169,33 @@ const OrbSection = ({
   React.useEffect(() => {
     if (isActive) return;
     stop();
-  }, [isActive, stop]);
+    expressionOwnerRef.current = null;
+    recordExpression(null);
+  }, [isActive, recordExpression, stop]);
+
+  React.useEffect(() => {
+    if (navigation?.orbBackgroundEnabled === false || (!allowModelExpressions && expressionOwnerRef.current?.source === 'model')) {
+      reactionPlayer.cancel('disabled');
+      setActiveReaction(null);
+    }
+  }, [allowModelExpressions, navigation?.orbBackgroundEnabled, reactionPlayer]);
+
+  React.useEffect(() => {
+    const media = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+    const change = () => {
+      const receipt = expressionReceiptRef.current;
+      const owner = expressionOwnerRef.current;
+      if (!media?.matches || receipt?.status !== 'applied' || owner?.session !== replyRef.current) return;
+      reactionPlayer.cancel('stopped');
+      const choice = resolveMetabloomEmote(receipt.emote);
+      if (!getMetabloomExpressionBlock(getOrbContext(), receipt.source)
+        && performEmote(choice.steps?.[choice.steps.length - 1] || choice.id, true))
+        recordExpression({ ...receipt, status: 'simplified', reason: 'reduced_motion' });
+      setActiveReaction(null);
+    };
+    media?.addEventListener?.('change', change);
+    return () => media?.removeEventListener?.('change', change);
+  }, [getOrbContext, performEmote, reactionPlayer, recordExpression]);
 
   React.useEffect(() => {
     const handleVisibility = () => {
@@ -2119,7 +2214,7 @@ const OrbSection = ({
           display?.gate.release();
         }
         cancelUnderHood();
-        reactionPlayer.cancel();
+        reactionPlayer.cancel('hidden');
         setActiveReaction(null);
       }
     };
@@ -2740,6 +2835,31 @@ const OrbSection = ({
                 >
                   {({ close }) => (
                     <>
+                      <label className="metabloom-chat__stream-option">
+                        <input type="checkbox" checked={allowModelExpressions} onChange={event => {
+                          expressionSettingsRef.current.enabled = event.target.checked;
+                          setAllowModelExpressions(event.target.checked);
+                          if (!event.target.checked && expressionOwnerRef.current?.source === 'model') reactionPlayer.cancel('disabled');
+                        }} />
+                        Allow model-chosen expressions
+                      </label>
+                      <label className="metabloom-chat__stream-option">
+                        <input type="checkbox" checked={paused} onChange={event => {
+                          updateStateSnapshot({ paused: event.target.checked });
+                          setPaused(event.target.checked);
+                          if (event.target.checked) {
+                            reactionPlayer.cancel('paused');
+                            clearSequence();
+                            cancelRequestScene();
+                            replyDisplayRef.current?.gate.release();
+                            setActiveReaction(null);
+                          }
+                        }} />
+                        Pause Orb motion
+                      </label>
+                      {expressionReceipt && <p className="metabloom-chat__expression-receipt" role="status" aria-label="Last Orb expression">
+                        {describeMetabloomExpression(expressionReceipt)}
+                      </p>}
                       <label className="metabloom-chat__stream-option">
                         <input type="checkbox" checked={allowEmoteChanges} onChange={(event) => setAllowEmoteChanges(event.target.checked)} />
                         Allow separate response paragraphs

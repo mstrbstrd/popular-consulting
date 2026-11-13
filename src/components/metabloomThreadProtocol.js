@@ -170,12 +170,12 @@ function parseMetabloomThreadSnapshot(input) {
     if (!keys(value, ['schemaVersion', 'conversation', 'visuals', 'workspace']) || value.schemaVersion !== 1) return null;
     const conversation = value.conversation;
     if (!keys(conversation, ['messages', 'counter', 'draft', 'deepResearch'], ['artifactAttachment', 'researchAttachment',
-      'unavailableResearchIds', 'expressiveness', 'allowEmoteChanges', 'paused', 'responseSource', 'interrupted'])
+      'unavailableResearchIds', 'expressiveness', 'allowEmoteChanges', 'allowModelExpressions', 'paused', 'responseSource', 'interrupted'])
       || !Array.isArray(conversation.messages) || conversation.messages.length > MAX_METABLOOM_THREAD_MESSAGES
       || !integer(conversation.counter, 0, Number.MAX_SAFE_INTEGER - 1)
       || typeof conversation.draft !== 'string' || conversation.draft.length > 1600
       || typeof conversation.deepResearch !== 'boolean') return null;
-    for (const name of ['allowEmoteChanges', 'paused', 'interrupted']) {
+    for (const name of ['allowEmoteChanges', 'allowModelExpressions', 'paused', 'interrupted']) {
       if (has(conversation, name) && typeof conversation[name] !== 'boolean') return null;
     }
     if (has(conversation, 'expressiveness') && (typeof conversation.expressiveness !== 'number'
