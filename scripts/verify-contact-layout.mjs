@@ -4,6 +4,7 @@ import path from "node:path";
 import assert from "node:assert/strict";
 import { spawn, execFileSync } from "node:child_process";
 import { findBrowser, createBuildServer } from "./dark-evidence-browser.mjs";
+import { readDevToolsPort } from './devtools-port.mjs';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const output = path.resolve("contact-layout-evidence");
@@ -26,9 +27,7 @@ try {
     ...(process.getuid?.() === 0 ? ["--no-sandbox"] : []), "about:blank",
   ], { stdio: "ignore" });
   const portFile = path.join(profile, "DevToolsActivePort");
-  for (let attempt = 0; attempt < 100 && !fs.existsSync(portFile); attempt++) await sleep(200);
-  assert.ok(fs.existsSync(portFile), "Browser debugging endpoint did not start");
-  const port = fs.readFileSync(portFile, "utf8").split("\n")[0];
+  const port = await readDevToolsPort(portFile);
   const tabs = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
   socket = new WebSocket(tabs.find((tab) => tab.type === "page").webSocketDebuggerUrl);
   await new Promise((resolve, reject) => {
