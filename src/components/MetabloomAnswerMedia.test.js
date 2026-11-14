@@ -51,6 +51,9 @@ test('a cited search answer shows loaded source photos after its source list, wi
   const gallery = within(message).getByRole('group', { name: 'Images from cited sources' });
   const list = within(message).getByRole('group', { name: 'Sources for this answer' });
   expect(list.compareDocumentPosition(gallery) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  // The bubble frames only the message text; photo tiles sit below it on the page.
+  expect(gallery.closest('.metabloom-chat__bubble')).toBeNull();
+  expect(list.closest('.metabloom-chat__bubble')).not.toBeNull();
   expect(requestMetabloomSourcePreview.mock.calls.map(([token]) => token)).toEqual(['m1.ceremony', 'm1.notice']);
   const photo = within(gallery).getByRole('img', { name: 'Crowd at the reopened bridge.' });
   fireEvent.load(photo);
@@ -99,6 +102,9 @@ test('a found subject photo appears above the streaming answer and never enters 
   await act(async () => finish({ version: '2.0.0', segments: [{ response: 'Here is Fictional Singer.' }] })); await tick(2000);
   const text = within(message).getByText('Here is Fictional Singer.');
   expect(image.compareDocumentPosition(text) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  // The photo sits above the bubble with no surface of its own; the bubble holds only the text.
+  expect(image.closest('.metabloom-chat__bubble')).toBeNull();
+  expect(text.closest('.metabloom-chat__bubble')).not.toBeNull();
   expect(within(message).getByRole('link', { name: /Wikimedia Commons file page/ })).toHaveAttribute('href', photo.fileUrl);
   const stored = JSON.stringify(window.__orbMessages());
   expect(stored).not.toContain('m1.image-capability');
