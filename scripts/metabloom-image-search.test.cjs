@@ -51,6 +51,29 @@ test('selects the top free lead image and returns complete attribution without t
   }
 });
 
+test('accepts the current thumb.wikimedia.org response shape and canonicalizes it to the upload origin', async () => {
+  // Shape observed from the live API in November 2026 (Rome's lead image).
+  const thumb = 'https://thumb.wikimedia.org/wikipedia/commons/thumb/7/7e/Trevi_Fountain%2C_Rome%2C_Italy_2_-_May_2007.jpg/960px-Trevi_Fountain%2C_Rome%2C_Italy_2_-_May_2007.jpg';
+  const { fetchImpl } = fixture(searchResult([
+    page({ title: 'Rome', fullurl: 'https://en.wikipedia.org/wiki/Rome', pageimage: 'Trevi_Fountain,_Rome,_Italy_2_-_May_2007.jpg',
+      thumbnail: { source: `${thumb}?utm_source=en.wikipedia.org&utm_campaign=api&utm_content=thumbnail`, width: 960, height: 638 } }),
+    { pageid: 2, ns: 0, title: 'Rome (disambiguation)', index: 3, fullurl: 'https://en.wikipedia.org/wiki/Rome_(disambiguation)', pageprops: { disambiguation: '' } },
+  ]), imageInfo({ thumburl: `${thumb}?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=thumbnail`,
+    thumbwidth: 960, thumbheight: 638,
+    url: 'https://upload.wikimedia.org/wikipedia/commons/7/7e/Trevi_Fountain%2C_Rome%2C_Italy_2_-_May_2007.jpg?utm_source=en.wikipedia.org&utm_campaign=imageinfo&utm_content=original',
+    descriptionurl: 'https://commons.wikimedia.org/wiki/File:Trevi_Fountain,_Rome,_Italy_2_-_May_2007.jpg?utm_source=x' },
+  { LicenseShortName: { value: 'CC BY 3.0' }, LicenseUrl: { value: 'https://creativecommons.org/licenses/by/3.0' },
+    Artist: { value: '<a href="//commons.wikimedia.org/wiki/User:Diliff" title="User:Diliff">Diliff</a>' },
+    Credit: { value: '<span class="int-own-work" lang="en">Own work</span>' }, ImageDescription: undefined }));
+  const image = await findMetabloomImage('Rome', { fetchImpl });
+  assert.equal(image.found, true);
+  assert.equal(image.imageUrl, thumb.replace('https://thumb.', 'https://upload.'));
+  assert.equal(image.fileUrl, 'https://commons.wikimedia.org/wiki/File:Trevi_Fountain,_Rome,_Italy_2_-_May_2007.jpg');
+  assert.equal(image.artist, 'Diliff');
+  assert.equal(image.license, 'CC BY 3.0');
+  assert.deepEqual([image.width, image.height], [960, 638]);
+});
+
 test('reports no image instead of guessing when the subject has no usable free photo', async () => {
   const cases = [
     [searchResult([])],
@@ -61,6 +84,9 @@ test('reports no image instead of guessing when the subject has no usable free p
     [searchResult([page({ fullurl: 'https://wiki.example.test/Fictional_Singer' })])],
     [searchResult([page()]), imageInfo({ thumburl: 'https://cdn.example.test/a.jpg' })],
     [searchResult([page()]), imageInfo({ thumburl: 'http://upload.wikimedia.org/a.jpg' })],
+    [searchResult([page()]), imageInfo({ thumburl: 'https://thumb.wikimedia.org/a.jpg' })],
+    [searchResult([page()]), imageInfo({ thumburl: 'https://commons.wikimedia.org/wikipedia/commons/a.jpg' })],
+    [searchResult([page()]), imageInfo({ thumburl: 'https://thumb.wikimedia.org.example.test/wikipedia/commons/a.jpg' })],
     [searchResult([page()]), imageInfo({ descriptionurl: 'https://files.example.test/a' })],
     [searchResult([page()]), imageInfo({ mime: 'image/svg+xml' })],
     [searchResult([page()]), imageInfo({ thumbwidth: 20 })],

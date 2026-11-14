@@ -29,6 +29,27 @@ const httpsUrl = (value, hosts) => {
   } catch { return null; }
 };
 
+// Wikimedia now reports thumbnails on thumb.wikimedia.org with utm_* tracking
+// queries; upload.wikimedia.org still serves the identical static path and is
+// the long-standing origin, so both hosts are accepted and canonicalized to it.
+// Raster paths are static files, so any query string is discarded.
+const WIKIMEDIA_RASTER_HOSTS = new Set(['upload.wikimedia.org', 'thumb.wikimedia.org']);
+const rasterUrl = value => {
+  const href = httpsUrl(value, ['wikimedia.org']);
+  if (!href) return null;
+  const url = new URL(href);
+  if (!WIKIMEDIA_RASTER_HOSTS.has(url.hostname) || !url.pathname.startsWith('/wikipedia/')) return null;
+  url.hostname = 'upload.wikimedia.org';
+  url.search = '';
+  return url.href;
+};
+const stripTracking = href => {
+  if (!href) return href;
+  const url = new URL(href);
+  for (const key of [...url.searchParams.keys()]) if (/^utm_/i.test(key)) url.searchParams.delete(key);
+  return url.href;
+};
+
 async function readApi(params, { signal, fetchImpl }) {
   const url = new URL(WIKIPEDIA_API);
   for (const [key, value] of Object.entries({ format: 'json', formatversion: '2', ...params })) url.searchParams.set(key, value);
@@ -82,8 +103,8 @@ async function findMetabloomImage(subject, { signal, fetchImpl = globalThis.fetc
       iiurlwidth: String(IMAGE_WIDTH), iiextmetadatafilter: 'LicenseShortName|LicenseUrl|Artist|Credit|ImageDescription|ObjectName' }, options);
     const info = meta?.query?.pages?.[0]?.imageinfo?.[0];
     const extmetadata = info?.extmetadata || {};
-    const imageUrl = httpsUrl(info?.thumburl, ['upload.wikimedia.org']);
-    const fileUrl = httpsUrl(info?.descriptionurl, ['wikimedia.org', 'wikipedia.org']);
+    const imageUrl = rasterUrl(info?.thumburl);
+    const fileUrl = stripTracking(httpsUrl(info?.descriptionurl, ['wikimedia.org', 'wikipedia.org']));
     const license = text(extmetadata.LicenseShortName?.value, 80);
     const artist = text(extmetadata.Artist?.value, 120) || text(extmetadata.Credit?.value, 120);
     const width = info?.thumbwidth, height = info?.thumbheight;
