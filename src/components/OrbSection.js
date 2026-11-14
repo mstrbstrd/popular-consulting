@@ -2773,11 +2773,13 @@ const OrbSection = ({
                     <span className="metabloom-chat__speaker">
                       {message.role === "assistant" ? "Metabloom" : "You"}
                     </span>
+                    {/* Media sits on the page beside the text bubble, not inside it:
+                        the bubble and its spectral rail frame only the message text.
+                        Subject photos arrive before the answer text with known
+                        dimensions, so the text streams in below a stable frame. */}
+                    {message.role === "assistant" && message.status !== "error" && answerMedia.get(message.id)?.images
+                      && <MetabloomAnswerImages images={answerMedia.get(message.id).images} />}
                     <div className="metabloom-chat__bubble">
-                      {/* Subject photos arrive before the answer text with known
-                          dimensions, so the text streams in below a stable frame. */}
-                      {message.role === "assistant" && message.status !== "error" && answerMedia.get(message.id)?.images
-                        && <MetabloomAnswerImages images={answerMedia.get(message.id).images} />}
                       {message.segments?.length
                         ? message.segments.map((segment, index) => (
                           <React.Fragment key={index}>
@@ -2808,14 +2810,6 @@ const OrbSection = ({
                           </ol>
                         </div>
                       )}
-                      {/* Photos load after the answer; appending them last never moves text
-                          or source links the reader may already be using. */}
-                      {sources && !researchBrief && message.status === "complete" && (() => {
-                        const entry = answerMedia.get(message.id);
-                        return !researchDetails && entry?.media
-                          && entry.catalog === JSON.stringify(sources.map(source => [source.id, source.url]))
-                          ? <MetabloomSourceGallery sources={sources} media={entry.media} /> : null;
-                      })()}
                       {researchDetails && (
                         <>
                           {message.status === "error" && <p className="metabloom-chat__research-notice">Research completed. The short answer could not be prepared.</p>}
@@ -2835,6 +2829,14 @@ const OrbSection = ({
                         </span>
                       )}
                     </div>
+                    {/* Source photos load after the answer; appending them below the
+                        bubble never moves text or source links the reader may be using. */}
+                    {sources && !researchBrief && message.status === "complete" && (() => {
+                      const entry = answerMedia.get(message.id);
+                      return !researchDetails && entry?.media
+                        && entry.catalog === JSON.stringify(sources.map(source => [source.id, source.url]))
+                        ? <MetabloomSourceGallery sources={sources} media={entry.media} /> : null;
+                    })()}
                   </article>
                 </React.Fragment>
                 );
