@@ -210,17 +210,17 @@ export default function MetabloomThreadsPanel({ expanded, onExpandedChange, item
     else if (wide) { event.preventDefault(); close(); }
   };
   const themeIcon = <svg width="18" height="18" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="5.5" stroke="currentColor" strokeWidth="1.3" /><path d="M8 2.5a5.5 5.5 0 0 1 0 11Z" fill="currentColor" /></svg>;
-  const body = <>
-    <div className="metabloom-threads__heading">
-      {wide && <button ref={closeRef} type="button" className="metabloom-threads__icon metabloom-threads__toggle"
-        aria-label="Collapse chats" title="Collapse sidebar" onClick={() => close()}><SidebarIcon /></button>}
-      <h2 id={`${id}-title`}>{renderBrand ? renderBrand({ onNavigate: () => close(false) }) : 'Chats'}</h2>
-      <button type="button" className="metabloom-threads__icon" aria-label="Refresh chats"
+  const refresh = <button type="button" className="metabloom-threads__icon" aria-label="Refresh chats"
         disabled={Boolean(busy || loading || operation)} onClick={() => run('refresh', onRefresh)}>
         <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false">
           <path d="M16 7.5a6.3 6.3 0 1 0 .3 4M16 3.8v4.3h-4.3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
-      </button>
+      </button>;
+  const body = <>
+    <div className="metabloom-threads__heading">
+      <h2 id={`${id}-title`}>{renderBrand ? renderBrand({ onNavigate: () => close(false) }) : 'Chats'}</h2>
+      {wide && <button ref={closeRef} type="button" className="metabloom-threads__icon metabloom-threads__toggle"
+        aria-label="Collapse chats" title="Collapse sidebar" onClick={() => close()}><SidebarIcon /></button>}
       {!wide && <button ref={closeRef} type="button" className="metabloom-threads__icon"
         aria-label="Close chats" onClick={() => close()}>
         <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false">
@@ -244,9 +244,9 @@ export default function MetabloomThreadsPanel({ expanded, onExpandedChange, item
     </div>
     <div className="metabloom-threads__body" aria-busy={loading}>
       {renderNavigation?.({ onNavigate: () => close(false), initialOpen: requestedSection === 'navigation' })}
+      <div className="metabloom-threads__list-heading"><p className="metabloom-threads__section" aria-hidden="true">Recents</p>{refresh}</div>
       {loading && <p className="metabloom-threads__empty" role="status">Loading chats…</p>}
       {!loading && !message && !items.length && <p className="metabloom-threads__empty">No saved chats yet. Start a new chat to begin.</p>}
-      {!!items.length && <p className="metabloom-threads__section" aria-hidden="true">Recents</p>}
       {!!items.length && <table className="metabloom-threads__table">
         <caption className="metabloom-threads__sr-only">Saved chats</caption>
         <colgroup><col /><col className="metabloom-threads__date-column" /><col className="metabloom-threads__actions-column" /></colgroup>

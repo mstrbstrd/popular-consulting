@@ -34,11 +34,11 @@ export function OrbSidebarLinks({ onNavigate, initialOpen = false }) {
   const follow = event => navigateFromSidebar(event, navigation, onNavigate);
   const links = getSiteCopy(SITE_AUDIENCES.BUSINESS).navigation.links.filter(link => !workspaceHrefs.has(link.href));
   return <details ref={root} className="orb-sidebar-links" open={initialOpen || undefined} onKeyDown={dismissDisclosure}>
-    <summary>Explore</summary>
-    <WorkspaceMenu inline onNavigate={follow} />
+    <summary><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="2" stroke="currentColor" strokeWidth="1.5"/><rect x="14" y="3" width="7" height="7" rx="2" stroke="currentColor" strokeWidth="1.5"/><rect x="3" y="14" width="7" height="7" rx="2" stroke="currentColor" strokeWidth="1.5"/><rect x="14" y="14" width="7" height="7" rx="2" stroke="currentColor" strokeWidth="1.5"/></svg><span>Explore</span></summary>
+    <WorkspaceMenu inline linkClassName="orb-sidebar-link" onNavigate={follow} />
     <nav aria-label="Popular Consulting">
       <span className="workspace-menu-heading">Company</span>
-      {links.map(link => <a key={link.label} href={link.href || getImmersiveRouteDestination(link.section)} onClick={follow}>{link.label}</a>)}
+      {links.map(link => <a className="orb-sidebar-link" key={link.label} href={link.href || getImmersiveRouteDestination(link.section)} onClick={follow}>{link.label}</a>)}
     </nav>
   </details>;
 }
@@ -48,7 +48,7 @@ export function OrbSidebarAccount({ onNavigate, initialOpen = false }) {
   React.useLayoutEffect(() => { if (initialOpen) root.current?.querySelector('summary')?.focus(); }, [initialOpen]);
   return <details ref={root} className="orb-sidebar-account" open={initialOpen || undefined} onKeyDown={dismissDisclosure}>
     <summary><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.5" stroke="currentColor" strokeWidth="1.5"/><path d="M5 21v-2a7 7 0 0 1 14 0v2" stroke="currentColor" strokeWidth="1.5"/></svg><span>Account</span></summary>
-    <AuthNavControl mobile showWorkspaceLinks={false} onNavigate={event => navigateFromSidebar(event, navigation, onNavigate)} />
+    <AuthNavControl mobile linkClassName="orb-sidebar-link" showWorkspaceLinks={false} onNavigate={event => navigateFromSidebar(event, navigation, onNavigate)} />
   </details>;
 }
 export function OrbSidebarColorMode() {

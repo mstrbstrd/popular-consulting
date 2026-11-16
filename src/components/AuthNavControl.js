@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import './AuthPage.css';
 import { LOGIN_SECTION_INDEX } from '../utils/loginScene';
 
-export default function AuthNavControl({ mobile = false, onNavigate = () => {}, menuRole, showWorkspaceLinks = true }) {
+export default function AuthNavControl({ mobile = false, onNavigate = () => {}, menuRole, showWorkspaceLinks = true, linkClassName }) {
   const { status } = useAuth();
   const menu = useRef(null);
   useEffect(() => {
@@ -27,9 +27,9 @@ export default function AuthNavControl({ mobile = false, onNavigate = () => {}, 
   };
   const icon = <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.5" stroke="currentColor" strokeWidth="1.5"/><path d="M5 21v-2a7 7 0 0 1 14 0v2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>;
   if (mobile) return <>
-    {signedIn && showWorkspaceLinks && <a className="nav-overlay-link auth-admin-link" role={menuRole} href="/home" onClick={onNavigate}>Home</a>}
-    {signedIn && showWorkspaceLinks && <a className="nav-overlay-link auth-admin-link" role={menuRole} href="/invoice-generator" onClick={onNavigate}>Invoice generator</a>}
-    <a className="nav-overlay-link" role={menuRole} href={signedIn ? '/logout' : '/login'} onClick={navigateToAccount}>{signedIn ? 'Sign out' : 'Sign in'}</a>
+    {signedIn && showWorkspaceLinks && <a className={`${linkClassName || 'nav-overlay-link'} auth-admin-link`} role={menuRole} href="/home" onClick={onNavigate}>Home</a>}
+    {signedIn && showWorkspaceLinks && <a className={`${linkClassName || 'nav-overlay-link'} auth-admin-link`} role={menuRole} href="/invoice-generator" onClick={onNavigate}>Invoice generator</a>}
+    <a className={linkClassName || 'nav-overlay-link'} role={menuRole} href={signedIn ? '/logout' : '/login'} onClick={navigateToAccount}>{signedIn ? 'Sign out' : 'Sign in'}</a>
   </>;
   if (!signedIn) return <a className="site-account-control" href="/login" onClick={navigateToAccount} aria-label="Sign in" title="Sign in">{icon}</a>;
   return <details className="site-account-menu" ref={menu}>

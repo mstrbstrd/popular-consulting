@@ -6,29 +6,62 @@
 }
 .orb-page .orb-sidebar-brand img { flex: 0 0 24px; object-fit: contain; }
 .orb-page .orb-sidebar-brand:focus-visible { outline: 2px solid var(--aetheris-focus-line); outline-offset: -2px; border-radius: 8px; }
+/* One row system for navigation, chat actions, and settings. No public overlay
+   classes or nested glass panels: the sidebar itself owns the material. */
+.orb-page[data-sidebar-navigation='true'] .metabloom-threads { overflow: clip; }
+.orb-page[data-sidebar-navigation='true'] .metabloom-threads__heading { padding: 8px; }
+.orb-page[data-sidebar-navigation='true'] .metabloom-threads__list-heading { display: flex; align-items: center; justify-content: space-between; min-height: 44px; margin-top: 8px; }
+.orb-page[data-sidebar-navigation='true'] .metabloom-threads__list-heading .metabloom-threads__section { padding: 10px; font-family: var(--aetheris-font-sans); }
+.orb-page[data-sidebar-navigation='true'] .metabloom-threads__controls { padding: 8px; gap: 6px; border-bottom: 0; }
+.orb-page[data-sidebar-navigation='true'] .metabloom-threads__appearance { display: flex; flex-direction: column; gap: 4px; overscroll-behavior: contain; }
+.orb-page[data-sidebar-navigation='true'] .metabloom-threads__body,
+.orb-page[data-sidebar-navigation='true'] .metabloom-threads__appearance { contain: paint; }
 .orb-page .metabloom-threads :is(.orb-sidebar-links, .orb-sidebar-account) { margin: 0; min-width: 0; }
-.orb-page .metabloom-threads :is(.orb-sidebar-links, .orb-sidebar-account) > summary {
-  cursor: pointer; min-height: 44px; padding: 12px 10px; border-radius: 8px;
-  font: 550 14px/1.4 var(--aetheris-font-sans); color: var(--aetheris-ink);
+.orb-page .metabloom-threads :is(.orb-sidebar-links, .orb-sidebar-account) > summary,
+.orb-page[data-sidebar-navigation='true'] .metabloom-threads .orb-appearance__trigger,
+.orb-page[data-sidebar-navigation='true'] .metabloom-threads button.metabloom-threads__new {
+  display: flex; align-items: center; justify-content: flex-start; gap: 10px;
+  width: 100%; min-height: 44px; padding: 10px; border: 0; border-radius: 10px;
+  color: var(--aetheris-ink); background: transparent; box-shadow: none;
+  font: 500 14px/1.4 var(--aetheris-font-sans); letter-spacing: normal; text-align: left;
+  cursor: pointer; list-style: none; backdrop-filter: none; -webkit-backdrop-filter: none;
 }
-.orb-page .metabloom-threads :is(.orb-sidebar-links, .orb-sidebar-account) > summary:focus-visible {
-  outline: 2px solid var(--aetheris-focus-line); outline-offset: -2px;
+.orb-page .metabloom-threads :is(.orb-sidebar-links, .orb-sidebar-account) > summary::-webkit-details-marker { display: none; }
+.orb-page .metabloom-threads :is(.orb-sidebar-links, .orb-sidebar-account) > summary > svg,
+.orb-page[data-sidebar-navigation='true'] .metabloom-threads .orb-appearance__trigger > svg,
+.orb-page[data-sidebar-navigation='true'] .metabloom-threads__new > svg { flex: 0 0 20px; width: 20px; height: 20px; }
+.orb-page .metabloom-threads :is(.orb-sidebar-links, .orb-sidebar-account) > summary::after,
+.orb-page[data-sidebar-navigation='true'] .metabloom-threads .orb-appearance__trigger::after {
+  content: ''; width: 6px; height: 6px; flex: 0 0 6px; margin: 0 4px 3px auto;
+  border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg);
 }
-.orb-page .metabloom-threads :is(.orb-sidebar-links, .orb-sidebar-account) a {
-  display: flex; align-items: center; justify-content: space-between; min-height: 44px; padding: 10px 12px;
-  border-radius: 8px; color: var(--aetheris-ink); font: 400 13px/1.4 var(--aetheris-font-sans);
-  letter-spacing: normal; text-decoration: none; overflow-wrap: anywhere;
+.orb-page .metabloom-threads :is(.orb-sidebar-links, .orb-sidebar-account)[open] > summary::after,
+.orb-page[data-sidebar-navigation='true'] .metabloom-threads .orb-appearance__trigger[aria-expanded='true']::after { transform: rotate(225deg); margin-bottom: -3px; }
+.orb-page[data-sidebar-navigation='true'] .metabloom-threads__new::before { display: none; }
+.orb-page .metabloom-threads .orb-sidebar-link {
+  display: flex; align-items: center; min-width: 0; min-height: 44px; padding: 10px 12px 10px 40px;
+  border-radius: 10px; color: var(--aetheris-ink-2); font: 400 14px/1.4 var(--aetheris-font-sans);
+  letter-spacing: normal; text-transform: none; text-decoration: none; overflow-wrap: anywhere;
 }
-.orb-page .metabloom-threads :is(.orb-sidebar-links, .orb-sidebar-account) a:focus-visible { outline: 2px solid var(--aetheris-focus-line); outline-offset: -2px; }
-.orb-page .orb-sidebar-links .workspace-menu-heading { display: block; padding: 12px 12px 4px; font: 500 11px/1.5 var(--aetheris-font-sans); color: var(--aetheris-ink-2); }
+.orb-page .metabloom-threads .orb-sidebar-link[aria-current='page'] { color: var(--aetheris-ink); background: var(--lg-lens); font-weight: 600; }
+.orb-page .metabloom-threads :is(.orb-sidebar-links, .orb-sidebar-account) > summary:focus-visible,
+.orb-page .metabloom-threads .orb-sidebar-link:focus-visible,
+.orb-page[data-sidebar-navigation='true'] .metabloom-threads .orb-appearance__trigger:focus-visible { outline: 2px solid var(--aetheris-focus-line); outline-offset: -2px; box-shadow: none; }
+.orb-page .orb-sidebar-links .workspace-menu-heading { display: block; padding: 12px 12px 4px 40px; font: 500 11px/1.5 var(--aetheris-font-sans); color: var(--aetheris-ink-2); letter-spacing: 0.06em; text-align: left; }
 .orb-page .orb-sidebar-links .workspace-menu-inline { padding: 0; }
 .orb-page .orb-sidebar-links nav { display: grid; gap: 2px; }
-.orb-page .orb-sidebar-account > summary { display: flex; align-items: center; gap: 10px; list-style: none; }
-.orb-page .orb-sidebar-account > summary::-webkit-details-marker { display: none; }
-.orb-page .orb-sidebar-account > summary::after { content: '⌄'; margin-left: auto; }
-.orb-page .orb-sidebar-account[open] > summary::after { content: '⌃'; }
-.orb-page .metabloom-threads .orb-sidebar-color-mode { width: 100%; justify-content: space-between; min-height: 44px; font: 500 13px/1.4 var(--aetheris-font-sans); }
-.orb-page .metabloom-threads__appearance { display: grid; gap: 4px; }
+.orb-page[data-sidebar-navigation='true'] .orb-appearance__dialog[data-inline='true'] {
+  margin: 4px 0 0; border: 0; border-radius: 0; background: transparent; box-shadow: none;
+  backdrop-filter: none; -webkit-backdrop-filter: none; animation: none;
+}
+.orb-page[data-sidebar-navigation='true'] .metabloom-threads .orb-appearance__content { padding: 0 10px 8px; gap: 8px; }
+.orb-page[data-sidebar-navigation='true'] .metabloom-threads .orb-appearance__content button {
+  min-height: 44px; padding: 10px; border: 0; border-radius: 10px; background: transparent; box-shadow: none;
+  font: 400 13px/1.4 var(--aetheris-font-sans); letter-spacing: normal;
+}
+.orb-page[data-sidebar-navigation='true'] .metabloom-threads .orb-appearance__content button[aria-pressed='true'] { background: var(--lg-lens); box-shadow: none; }
+.orb-page[data-sidebar-navigation='true'] .metabloom-threads .orb-page__finish-label { font: 500 11px/1.5 var(--aetheris-font-sans); letter-spacing: 0.06em; padding: 4px 10px; }
+.orb-page[data-sidebar-navigation='true'] .metabloom-threads .orb-sidebar-color-mode { width: 100%; justify-content: space-between; }
 .orb-page .metabloom-threads__rail-spacer { flex: 1; }
 .orb-page .metabloom-threads :is(.metabloom-threads__rail-explore, .metabloom-threads__rail-account) { border: 0; background: transparent; box-shadow: none; }
 @media (min-width: 1100px) {
@@ -52,5 +85,12 @@
 }
 @media (hover: hover) {
   .orb-page .metabloom-threads :is(.orb-sidebar-links, .orb-sidebar-account) > summary:hover,
-  .orb-page .metabloom-threads :is(.orb-sidebar-links, .orb-sidebar-account) a:hover { background: var(--aetheris-state-layer); }
+  .orb-page .metabloom-threads .orb-sidebar-link:hover,
+  .orb-page[data-sidebar-navigation='true'] .metabloom-threads .orb-appearance__trigger:hover,
+  .orb-page[data-sidebar-navigation='true'] .metabloom-threads .orb-appearance__content button:hover { background: var(--lg-lens-hover); }
+}
+
+@media (forced-colors: active) {
+  .orb-page .metabloom-threads .orb-sidebar-link[aria-current='page'],
+  .orb-page[data-sidebar-navigation='true'] .metabloom-threads .orb-appearance__content button[aria-pressed='true'] { background: Highlight; color: HighlightText; }
 }

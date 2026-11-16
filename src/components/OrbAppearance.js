@@ -62,7 +62,7 @@ const OrbAppearance = ({ children, inline = false, initialOpen = false }) => {
         if (openMode === 'hover' && !panelRef.current?.contains(document.activeElement)) close(false);
       }}
       onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) close(false); }}>
-      <button type="button" className="orb-appearance__trigger" ref={triggerRef}
+      <button type="button" className="orb-appearance__trigger" ref={triggerRef} id={`${id}-trigger`}
         aria-haspopup={inline ? undefined : "dialog"} aria-expanded={open} aria-controls={id}
         onClick={() => { if (openMode === 'explicit') close(); else setOpenMode('explicit'); }}>
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false">
@@ -72,16 +72,16 @@ const OrbAppearance = ({ children, inline = false, initialOpen = false }) => {
         <span>Theme</span>
       </button>
       {open && (
-        <Panel open={inline ? undefined : true} data-inline={inline || undefined} role={inline ? "region" : undefined} ref={panelRef} id={id} className="orb-appearance__dialog" aria-modal={inline ? undefined : "false"} aria-labelledby={`${id}-title`}
+        <Panel open={inline ? undefined : true} data-inline={inline || undefined} role={inline ? "region" : undefined} ref={panelRef} id={id} className="orb-appearance__dialog" aria-modal={inline ? undefined : "false"} aria-labelledby={inline ? `${id}-trigger` : `${id}-title`}
           onCancel={event => { event.preventDefault(); close(); }}>
-          <div className="orb-appearance__heading">
+          {!inline && <div className="orb-appearance__heading">
             <h2 id={`${id}-title`}>Theme</h2>
             <button type="button" className="orb-appearance__close" onClick={() => close()} aria-label="Close theme">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false">
                 <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
               </svg>
             </button>
-          </div>
+          </div>}
           <div className="orb-appearance__content">{typeof children === 'function' ? children({ close }) : children}</div>
         </Panel>
       )}

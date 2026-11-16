@@ -13,7 +13,7 @@ const tools = [
   { label: 'Popular Consulting', href: '/#section-1' },
 ];
 export const workspaceHrefs = new Set(tools.map(tool => tool.href));
-export default function WorkspaceMenu({ inline = false, onNavigate, menuRole, mobileControls }) {
+export default function WorkspaceMenu({ inline = false, onNavigate, menuRole, mobileControls, linkClassName }) {
   const navigation = useAppNavigation();
   const { status } = useAuth();
   const ref = useRef(null);
@@ -31,7 +31,7 @@ export default function WorkspaceMenu({ inline = false, onNavigate, menuRole, mo
   if (!navigation) return null;
   const links = tools.filter(tool => !tool.private || status === 'authenticated').map(tool =>
     <a key={tool.href} href={tool.href} role={menuRole}
-      className={inline ? 'nav-overlay-link' : undefined}
+      className={linkClassName || (inline ? 'nav-overlay-link' : undefined)}
       aria-current={navigation.pathname === tool.href ? 'page' : undefined}
       onClick={event => { if (ref.current) ref.current.open = false; onNavigate?.(event); }}>
       {tool.label}<span aria-hidden="true">↗</span>

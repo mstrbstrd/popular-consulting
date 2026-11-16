@@ -196,6 +196,49 @@ async function history(page) {
     return button && !button.disabled;
   });
 }
+// Exercise the expanded sections too: collapsed-only checks missed public
+// fullscreen-navigation fonts leaking into the sidebar's links.
+async function verifySidebarChrome(page, name) {
+  await page.locator('.orb-sidebar-links > summary').click();
+  const inspect = () => page.evaluate(() => {
+    const panel = document.querySelector('.metabloom-threads__drawer[open], .metabloom-threads__dock');
+    const heading = panel.querySelector('.metabloom-threads__heading');
+    return {
+      scrollTop: panel.scrollTop,
+      headingTop: heading.getBoundingClientRect().top,
+      panelTop: panel.getBoundingClientRect().top,
+      rows: [...panel.querySelectorAll('.orb-sidebar-link')].filter(e => e.getBoundingClientRect().height > 0).map(e => {
+        const style = getComputedStyle(e), bounds = e.getBoundingClientRect();
+        return { label: e.textContent.trim(), fontSize: parseFloat(style.fontSize), fontFamily: style.fontFamily,
+          textTransform: style.textTransform, height: bounds.height, overflow: e.scrollWidth - e.clientWidth };
+      }),
+    };
+  });
+  const check = layout => {
+    assert.equal(layout.scrollTop, 0, 'Opening settings never scrolls the sidebar shell');
+    assert(layout.headingTop >= layout.panelTop, 'The brand and collapse control remain visible');
+    assert(layout.rows.length > 0);
+    for (const row of layout.rows) {
+      assert.equal(row.fontSize, 14, `${row.label} uses the sidebar type scale`);
+      assert(row.fontFamily.includes('Hanken'), `${row.label} uses the sidebar typeface`);
+      assert.equal(row.textTransform, 'none', `${row.label} keeps sentence case`);
+      assert(row.height >= 43.9 && row.height <= 48 && row.overflow <= 1, `${row.label} fits one accessible row`);
+    }
+  };
+  check(await inspect());
+  await page.getByRole('button', { name: 'Theme', exact: true }).click();
+  check(await inspect());
+  const theme = page.getByRole('region', { name: 'Theme', exact: true });
+  assert.equal(await theme.getByRole('heading').count(), 0, 'Inline settings do not repeat a dialog heading');
+  assert.equal(await theme.evaluate(e => getComputedStyle(e).boxShadow), 'none', 'Inline settings share the sidebar surface');
+  await page.screenshot({ path: path.join(output, `${name}-sidebar-theme.png`) });
+  await page.getByRole('button', { name: 'Theme', exact: true }).click();
+  await page.locator('.orb-sidebar-account > summary').click();
+  check(await inspect());
+  assert(await page.getByRole('link', { name: 'Sign out', exact: true }).isVisible());
+  await page.locator('.orb-sidebar-account > summary').click();
+  await page.locator('.orb-sidebar-links > summary').click();
+}
 async function waitSaved(page) {
   await page.waitForFunction(() => document.querySelector('.metabloom-threads__status')?.textContent === 'Saved');
 }
@@ -337,6 +380,9 @@ try {
       }
     }
     await values(page);
+    await history(page);
+    await verifySidebarChrome(page, profile.name);
+    if (profile.width < 1100) await page.getByRole('button', { name: 'Close chats', exact: true }).click();
     evidence.push(await capture(page, `${profile.name}-restored`, { dock: profile.width >= 1280 }));
     noRegeneration();
     results.push({ case: profile.name, evidence, modelRequestCount: modelCalls.length, blockedExternalRequests: blocked });

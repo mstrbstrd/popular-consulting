@@ -116,11 +116,17 @@ try {
         await inspectForeground(page, `${label}-background-on`, mobile);
         await page.evaluate(() => { window.__foregroundTestAvatar = document.querySelector('.metabloom-avatar'); });
         const toggleBackground = async () => {
+          const sidebar = await page.locator('.orb-page[data-sidebar-navigation="true"]').count() > 0;
+          const wasCollapsed = await page.locator('.metabloom-threads__dock[data-expanded="false"]').count() > 0;
+          if (sidebar && mobile) await press(page.getByRole('button', { name: 'Chats', exact: true }));
           await press(page.getByRole('button', { name: 'Theme', exact: true }));
-          const appearance = page.getByRole('dialog', { name: 'Theme', exact: true });
+          const appearance = page.getByRole(sidebar ? 'region' : 'dialog', { name: 'Theme', exact: true });
           await press(appearance.getByRole('button', { name: 'Animated background', exact: true }));
-          await press(appearance.getByRole('button', { name: 'Close theme', exact: true }));
+          await press(sidebar ? page.getByRole('button', { name: 'Theme', exact: true })
+            : appearance.getByRole('button', { name: 'Close theme', exact: true }));
           await appearance.waitFor({ state: 'detached' });
+          if (sidebar && mobile) await press(page.getByRole('button', { name: 'Close chats', exact: true }));
+          else if (wasCollapsed) await press(page.getByRole('button', { name: 'Collapse chats', exact: true }));
         };
         await toggleBackground();
         await page.waitForSelector('.orb-page[data-background-enabled="false"]');

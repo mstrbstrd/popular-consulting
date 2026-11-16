@@ -37,10 +37,14 @@ test('Explore retains the site and workspace routes, active destination, and con
   const { navigate } = mount();
   const draft = screen.getByRole('textbox', { name: 'Draft' });
   fireEvent.click(screen.getByRole('button', { name: 'Explore', exact: true }));
-  const explore = screen.getByText('Explore', { selector: 'summary' });
+  const explore = screen.getByText('Explore', { selector: 'summary span' }).closest('summary');
   expect(explore).toHaveFocus();
   expect(explore.parentElement).toHaveAttribute('open');
   const links = within(explore.parentElement).getAllByRole('link');
+  links.forEach(link => {
+    expect(link).toHaveClass('orb-sidebar-link');
+    expect(link).not.toHaveClass('nav-overlay-link');
+  });
   for (const href of ['/home', '/popcan', '/dither-canvas', '/orb', '/invoice-generator', '/work', '/#section-1', '/#section-2', '/engineering', '/#section-3']) {
     expect(links.some(link => link.getAttribute('href') === href)).toBe(true);
   }
@@ -71,7 +75,10 @@ test('Account retains the original sign-out destination and dismisses only its d
   fireEvent.click(screen.getByRole('button', { name: 'Account', exact: true }));
   const summary = screen.getByText('Account', { selector: 'summary span' }).closest('summary');
   expect(summary).toHaveFocus();
-  expect(screen.getByRole('link', { name: 'Sign out' })).toHaveAttribute('href', '/logout');
+  const signOut = screen.getByRole('link', { name: 'Sign out' });
+  expect(signOut).toHaveAttribute('href', '/logout');
+  expect(signOut).toHaveClass('orb-sidebar-link');
+  expect(signOut).not.toHaveClass('nav-overlay-link');
   fireEvent.keyDown(summary, { key: 'Escape' });
   expect(summary.parentElement).not.toHaveAttribute('open');
   expect(screen.getByRole('complementary')).toHaveAttribute('data-expanded', 'true');
@@ -85,6 +92,9 @@ test('Theme uses the shared color mode without replacing the draft or starting a
   fireEvent.click(screen.getByRole('button', { name: 'Theme', exact: true }));
   const toggle = screen.getByRole('button', { name: 'Toggle dark mode' });
   expect(toggle).toHaveAttribute('aria-pressed', 'true');
+  expect(toggle).toHaveFocus();
+  expect(screen.queryByRole('heading', { name: 'Theme' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Close theme' })).not.toBeInTheDocument();
   fireEvent.click(toggle);
   expect(toggleTheme).toHaveBeenCalledTimes(1);
   expect(onNew).not.toHaveBeenCalled();

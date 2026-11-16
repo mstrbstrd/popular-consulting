@@ -353,7 +353,7 @@ test('mobile Theme stays inside the drawer and Escape closes settings before the
   fireEvent.click(themeButton);
   expect(within(drawer).getByRole('region', { name: 'Theme' })).toBeVisible();
   expect(screen.getAllByRole('dialog')).toHaveLength(1);
-  fireEvent.keyDown(screen.getByRole('button', { name: 'Close theme' }), { key: 'Escape' });
+  fireEvent.keyDown(screen.getByRole('button', { name: 'Use fixture finish' }), { key: 'Escape' });
   expect(screen.queryByRole('region', { name: 'Theme' })).not.toBeInTheDocument();
   expect(drawer).toHaveAttribute('open');
   expect(themeButton).toHaveFocus();
