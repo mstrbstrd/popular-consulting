@@ -37,11 +37,27 @@ test('Stop aborts the owned council request and suppresses late contributions an
   act(() => options.onEvent({ type: 'council_start', members, chair: 'openai' }));
   act(() => options.onEvent({ type: 'council_step', index: 0, state: 'running' }));
   expect(screen.getByRole('status', { name: 'Work progress' })).toHaveTextContent('Opening · OpenAI · Responding');
+  act(() => options.onEvent({ type: 'council_step', index: 0, state: 'repairing' }));
+  expect(screen.getByRole('status', { name: 'Work progress' })).toHaveTextContent('Opening · OpenAI · Correcting response format');
   fireEvent.click(screen.getByRole('button', { name: 'Stop response' }));
   expect(options.signal.aborted).toBe(true);
   await act(async () => { options.onEvent({ type: 'council_step', index: 0, state: 'complete', text: 'Late contribution' }); resolve(reply()); });
   expect(screen.queryByText('Late contribution')).not.toBeInTheDocument();
   expect(screen.queryByText(/Council synthesis/)).not.toBeInTheDocument();
+});
+test('correction progress names the actual member and preserves the original elapsed time', () => {
+  jest.useFakeTimers();
+  const events = [{ type: 'council_start', members, chair: 'openai' }, { type: 'council_step', index: 4, state: 'running' }];
+  const view = render(<MetabloomCouncilProgress pending events={events} />);
+  act(() => jest.advanceTimersByTime(13000));
+  const correcting = [...events, { type: 'council_step', index: 4, state: 'repairing' }];
+  view.rerender(<MetabloomCouncilProgress pending events={correcting} />);
+  expect(screen.getByRole('status', { name: 'Work progress' })).toHaveTextContent('Critique · DeepSeek · Correcting response format');
+  expect(screen.getByText('13s elapsed')).toBeInTheDocument();
+  expect(screen.queryByText('Waiting for the next update.')).not.toBeInTheDocument();
+  view.rerender(<MetabloomCouncilProgress pending={false} events={correcting} />);
+  expect(screen.getByRole('status')).toHaveTextContent('Council incomplete during Critique · DeepSeek');
+  view.unmount(); jest.useRealTimers();
 });
 test('progress exposes real contributions as readable details and marks partial failure', () => {
   render(<MetabloomCouncilProgress pending={false} events={[{ type: 'council_start', members, chair: 'openai' },

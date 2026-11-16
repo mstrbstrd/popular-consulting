@@ -31,6 +31,15 @@ test('pre-aborted requests cannot start network work', async () => {
   await expect(requestMetabloomCouncil({ message: 'Hi', signal: controller.signal, fetchImpl })).rejects.toMatchObject({ code: 'cancelled' });
   expect(fetchImpl).not.toHaveBeenCalled();
 });
+test('correction events stream without committing an invalid draft or duplicating a saved contribution', async () => {
+  const records = events(), seen = [];
+  records.splice(10, 0, { type: 'council_step', index: 4, state: 'repairing' });
+  const reply = await requestMetabloomCouncil({ message: 'Hi', fetchImpl: async () => response(records), onEvent: event => seen.push(event) });
+  expect(seen).toHaveLength(17); expect(seen[10].state).toBe('repairing');
+  expect(reply.segments[1].response).toContain('Reply 4'); expect(reply.segments).toHaveLength(4);
+  records.splice(10, 0, records[10]);
+  await expect(requestMetabloomCouncil({ message: 'Hi', fetchImpl: async () => response(records) })).rejects.toThrow();
+});
 test('cancellation during a contribution prevents the next event from arriving', async () => {
   const controller = new AbortController(), seen = [];
   await expect(requestMetabloomCouncil({ message: 'Hi', signal: controller.signal, fetchImpl: async () => response(events()),

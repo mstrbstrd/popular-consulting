@@ -136,3 +136,129 @@ test('maximum-size discussion round trips through the actual saved-thread parser
   visuals: { version: 1, records: [], lastInteractedId: null }, workspace: null };
   assert.deepEqual(parseMetabloomThreadSnapshot(snapshot)?.conversation.messages[0].segments, reply.segments);
 });
+
+async function runFixture(makeText, options = {}) {
+  const keys = ['OPENAI_API_KEY', 'DEEPSEEK_API_KEY', 'ANTHROPIC_API_KEY'];
+  const previous = keys.map(k => process.env[k]); keys.forEach(k => { process.env[k] = 'fictional'; });
+  const events = [], calls = [], charges = [], logs = [], oldWarn = console.warn;
+  const controller = new AbortController(); let index, attempt;
+  console.warn = (...args) => logs.push(args);
+  try {
+    const promise = runMetabloomCouncil({ message: 'A fictional question', history: [], members, chair: 'openai',
+      requestRef: 'test-ref', signal: controller.signal,
+      reserveRepair: async () => { charges.push(1); await options.reserveRepair?.(controller); },
+      onEvent: async event => { events.push(event);
+        if (event.type === 'council_step' && event.state === 'running') { index = event.index; attempt = 0; }
+        await options.onEvent?.(event, controller);
+      }, fetchImpl: async (url, request) => {
+        const body = JSON.parse(request.body); calls.push({ index, body, signal: request.signal });
+        const text = makeText(index, attempt++);
+        if (typeof text !== 'string') return Response.json(text);
+        return url.includes('anthropic') ? Response.json({ type: 'message', role: 'assistant', stop_reason: 'end_turn', content: [{ type: 'text', text }] })
+          : Response.json({ status: 'completed', usage: { output_tokens: 316 }, output: [{ type: 'message', role: 'assistant', status: 'completed', content: [{ type: 'output_text', text }] }] });
+      } });
+    let reply, error; try { reply = await promise; } catch (failure) { error = failure; }
+    return { reply, error, events, calls, charges, logs };
+  } finally { console.warn = oldWarn; keys.forEach((k, i) => { if (previous[i] === undefined) delete process.env[k]; else process.env[k] = previous[i]; }); }
+}
+const good = index => JSON.stringify({ response: 'Valid contribution ' + index });
+test('a completed overlength DeepSeek critique recovers without restarting or exposing the rejected draft', async () => {
+  const privateText = 'Rejected private text '.repeat(50);
+  const result = await runFixture((index, attempt) => index === 4 && !attempt ? JSON.stringify({ response: privateText }) : good(index));
+  assert.equal(result.error, undefined); assert.equal(result.calls.length, 8); assert.deepEqual(result.charges, [1]);
+  assert.deepEqual(result.calls.map(c => c.index), [0, 1, 2, 3, 4, 4, 5, 6]);
+  const [original, correction] = result.calls.slice(4, 6);
+  assert.equal(correction.body.model, original.body.model); assert.equal(correction.signal, original.signal);
+  assert.deepEqual(correction.body.input, original.body.input); assert.deepEqual(correction.body.tools, []);
+  assert.equal(correction.body.tool_choice, 'none'); assert.equal(correction.body.max_output_tokens, 2200);
+  assert.match(correction.body.instructions, /450 characters/);
+  assert(!JSON.stringify(correction.body).includes(privateText));
+  assert(!JSON.stringify(result.events).includes(privateText)); assert(!JSON.stringify(result.logs).includes(privateText));
+  assert.deepEqual(JSON.parse(result.logs[0][1]), { requestRef: 'test-ref', provider: 'deepseek', model: 'deepseek-flash',
+    index: 4, round: 'Critique', attempt: 1, reason: 'council_length', responseChars: privateText.trim().length, limit: 450 });
+  assert(result.events.some(e => e.index === 4 && e.state === 'repairing'));
+  assert.equal(result.events.at(-1).type, 'council_done');
+  assert.match(result.reply.segments[1].response, /Valid contribution 4/);
+});
+test('invalid JSON, fields, blank text and ungrounded citations each get one bounded correction', async () => {
+  for (const [text, reason] of [['```json\n{}\n```', 'council_json'], ['{"text":"wrong"}', 'council_format'],
+    ['{"response":" "}', 'council_blank'], ['{"response":"Unsupported [1]"}', 'council_citation']]) {
+    const result = await runFixture((index, attempt) => index === 4 && !attempt ? text : good(index));
+    assert.equal(result.error, undefined); assert.equal(result.calls.length, 8);
+    assert.equal(JSON.parse(result.logs[0][1]).reason, reason);
+  }
+});
+test('a failed correction stops after one extra call without completing the council', async () => {
+  const result = await runFixture(index => index === 4 ? '{' : good(index));
+  assert.equal(result.error.code, 'answer_invalid'); assert.equal(result.calls.length, 6);
+  assert.deepEqual(result.charges, [1]); assert(!result.events.some(e => e.type === 'council_done'));
+  assert.equal(result.events.filter(e => e.state === 'complete').length, 4);
+});
+test('the entire discussion allows at most two corrections even across different providers', async () => {
+  const result = await runFixture((index, attempt) => [0, 1, 6].includes(index) && !attempt ? '{' : good(index));
+  assert.equal(result.error.code, 'answer_invalid'); assert.equal(result.calls.length, 9);
+  assert.deepEqual(result.charges, [1, 1]); assert.equal(result.events.filter(e => e.state === 'repairing').length, 2);
+  assert(!result.events.some(e => e.type === 'council_done'));
+});
+test('Stop while correcting or reserving quota prevents another provider call', async () => {
+  for (const options of [{ onEvent: (event, controller) => { if (event.state === 'repairing') controller.abort(); } },
+    { reserveRepair: controller => controller.abort() }]) {
+    const result = await runFixture(index => index === 4 ? '{' : good(index), options);
+    assert.equal(result.error.name, 'AbortError'); assert.equal(result.calls.length, 5);
+    assert(!result.events.some(e => e.type === 'council_done'));
+  }
+});
+test('refusals, incomplete responses and unexpected tools are never retried as formatting failures', async () => {
+  const output = content => ({ status: 'completed', output: [{ type: 'message', role: 'assistant', status: 'completed', content }] });
+  for (const rejected of [output([{ type: 'refusal', refusal: 'No' }]), { status: 'incomplete', output: [] },
+    { status: 'completed', output: [{ type: 'function_call', name: 'web_search' }] }]) {
+    const result = await runFixture(index => index === 4 ? rejected : good(index));
+    assert(result.error); assert.equal(result.calls.length, 5); assert.deepEqual(result.charges, []);
+    assert(!result.events.some(e => e.state === 'repairing' || e.type === 'council_done'));
+  }
+});
+test('corrections reserve one extra quota unit and preserve quota/incomplete failure codes', async () => {
+  for (const mode of ['allowed', 'denied', 'unavailable', 'incomplete']) {
+    const costs = [], response = res();
+    await fixture({ quota: async (_req, _signal, cost) => { costs.push(cost);
+      if (cost === 1 && mode === 'unavailable') throw new Error('Private quota detail');
+      return cost === 7 || mode !== 'denied'; },
+      run: async ({ reserveRepair, onEvent }) => {
+        await onEvent({ type: 'council_start', members, chair: 'openai' });
+        if (mode === 'incomplete') throw Object.assign(new Error('Private incomplete detail'), { code: 'answer_incomplete' });
+        await reserveRepair();
+      },
+    })(req(), response);
+    const events = response.body.trim().split('\n').map(JSON.parse);
+    assert.deepEqual(costs, mode === 'incomplete' ? [7] : [7, 1]);
+    if (mode === 'allowed') assert.equal(events.length, 1);
+    else assert.equal(events.at(-1).code, { denied: 'rate_limited', unavailable: 'quota_unavailable', incomplete: 'answer_incomplete' }[mode]);
+    assert(!response.body.includes('Private'));
+  }
+});
+test('the stream accepts at most one correction per active step and two per council', () => {
+  const decoder = createCouncilDecoder();
+  assert(decoder.accept({ type: 'council_start', members, chair: 'openai' }));
+  assert(!decoder.accept({ type: 'council_step', index: 0, state: 'repairing' }));
+  for (let index = 0; index < 7; index++) {
+    assert(decoder.accept({ type: 'council_step', index, state: 'running' }));
+    assert.equal(decoder.accept({ type: 'council_step', index, state: 'repairing' }), index < 2);
+    assert(!decoder.accept({ type: 'council_step', index, state: 'repairing' }));
+    assert(decoder.accept({ type: 'council_step', index, state: 'complete', text: 'Accepted view' }));
+    assert(!decoder.accept({ type: 'council_step', index, state: 'repairing' }));
+  }
+  assert(decoder.accept({ type: 'council_done' })); assert(decoder.finish());
+});
+test('terminal diagnostics log allowlisted reasons without leaking provider error text', async () => {
+  const logs = [], oldWarn = console.warn; console.warn = (...args) => logs.push(args);
+  try {
+    for (const reason of ['council_message', 'private-provider-text']) {
+      const response = res();
+      await fixture({ run: async () => { throw Object.assign(new Error('private-provider-text'), { code: 'answer_invalid', reason }); } })(req(), response);
+      assert(!response.body.includes(reason));
+    }
+    assert.equal(JSON.parse(logs[0][1]).reason, 'council_message');
+    assert.equal(JSON.parse(logs[1][1]).reason, undefined);
+    assert(!JSON.stringify(logs).includes('private-provider-text'));
+  } finally { console.warn = oldWarn; }
+});

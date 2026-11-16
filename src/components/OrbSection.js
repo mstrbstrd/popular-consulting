@@ -3036,7 +3036,7 @@ const OrbSection = ({
                 </div>
               )}
             </div>
-              {(councilEnabled || councilRequested(draft)) && <p className="metabloom-council__notice">Council: 3 saved provider defaults, 7 model calls. Shares this conversation across OpenAI, DeepSeek and Claude. No live search.</p>}
+              {(councilEnabled || councilRequested(draft)) && <p className="metabloom-council__notice">Council: 3 saved provider defaults, 7 model calls plus up to 2 format corrections. Shares this conversation across OpenAI, DeepSeek and Claude. No live search.</p>}
             <form
               className="metabloom-chat__composer"
               data-has-stop={pending && draft.trim() ? "true" : "false"}

@@ -12,9 +12,9 @@ export default function MetabloomCouncilProgress({ events, pending }) {
   return <section className="metabloom-council" aria-label="Council discussion">
     <p>{start.members.map(member => `${METABLOOM_PROVIDERS[member.provider]}: ${member.model}`).join(" · ")}</p>
     {pending ? <MetabloomWorkStatus progress={{ startedAt: startedAt.current, updatedAt,
-      label: current ? `${current.round} · ${METABLOOM_PROVIDERS[current.member.provider]} · ${last.state === 'running' ? 'Responding' : 'Complete'}` : 'Council starting',
+      label: current ? `${current.round} · ${METABLOOM_PROVIDERS[current.member.provider]} · ${last.state === 'repairing' ? 'Correcting response format' : last.state === 'running' ? 'Responding' : 'Complete'}` : 'Council starting',
       summary: 'Independent views, peer critique, then synthesis.',
-    }} /> : <p role="status">Council incomplete. Contributions below are provisional.</p>}
+    }} /> : <p role="status">Council incomplete{current ? ` during ${current.round} · ${METABLOOM_PROVIDERS[current.member.provider]}` : ''}. Contributions below are provisional.</p>}
     {events.filter(event => event.type === 'council_step' && event.state === 'complete').map(event => {
       const step = councilStep(event.index, start.members, start.chair);
       return <details key={event.index}>

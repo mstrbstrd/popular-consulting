@@ -44,6 +44,14 @@ function createCouncilHandler({ authenticate = auth.requireMetabloomSession, cat
       if (!await quota(request, signal, 7)) { response.setHeader('Retry-After', '60'); return send(429, { code: 'rate_limited' }); }
       stage = 'council';
       await run({ message: body.message, history: body.history, members, chair: saved.provider, signal, requestRef,
+        reserveRepair: async () => {
+          signal.throwIfAborted();
+          let allowed;
+          try { allowed = await quota(request, signal, 1); }
+          catch { throw Object.assign(new Error('Council repair quota unavailable'), { code: 'quota_unavailable' }); }
+          signal.throwIfAborted();
+          if (!allowed) throw Object.assign(new Error('Council repair quota exhausted'), { code: 'rate_limited' });
+        },
         onEvent: async event => {
           signal.throwIfAborted(); if (response.destroyed) throw new Error('Disconnected');
           if (!streaming) { response.statusCode = 200; response.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8'); streaming = true; }
@@ -52,8 +60,11 @@ function createCouncilHandler({ authenticate = auth.requireMetabloomSession, cat
       signal.throwIfAborted(); response.end();
     } catch (error) {
       const code = expired ? 'answer_timeout' : ['preferences', 'catalog'].includes(stage) ? 'council_unavailable'
-        : stage === 'quota' ? 'quota_unavailable' : error?.code === 'answer_invalid' ? 'answer_invalid' : 'provider_unavailable';
-      console.warn('metabloom_council_failed', JSON.stringify({ requestRef, stage, code, durationMs: Date.now() - startedAt }));
+        : stage === 'quota' ? 'quota_unavailable'
+          : ['answer_invalid', 'answer_incomplete', 'rate_limited', 'quota_unavailable'].includes(error?.code) ? error.code : 'provider_unavailable';
+      const reason = ['council_event', 'council_message', 'council_json', 'council_format', 'council_blank', 'council_length',
+        'council_citation', 'agent_response_incomplete', 'claude_response_incomplete'].includes(error?.reason) ? error.reason : undefined;
+      console.warn('metabloom_council_failed', JSON.stringify({ requestRef, stage, code, ...(reason ? { reason } : {}), durationMs: Date.now() - startedAt }));
       if (response.destroyed || (signal.aborted && !expired)) return;
       if (streaming) response.end(JSON.stringify({ type: 'error', code, requestRef }) + '\n');
       else send(expired ? 504 : 503, { code, requestRef });

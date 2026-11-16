@@ -2,6 +2,7 @@ const { METABLOOM_PROVIDERS, parseMetabloomModelSelection } = require('./metablo
 const { parseMetabloomChatEnvelope } = require('./metabloomEmoteProtocol');
 const COUNCIL_TIMEOUT_MS = 165000;
 const COUNCIL_STEPS = 7;
+const COUNCIL_MAX_REPAIRS = 2;
 const councilRequested = message => typeof message === 'string'
   && /\bask(?:ing)?\s+(?:the\s+)?council\b/i.test(message)
   && !/\b(?:don['’]t|do not|never|without)\s+ask(?:ing)?\s+(?:the\s+)?council\b/i.test(message);
@@ -15,7 +16,7 @@ const buildCouncilReply = (members, texts, chair) => ({ version: '2.0.0', segmen
 ] });
 // Shared host/browser contract: complete one observed speaker before the next.
 function createCouncilDecoder(onEvent = () => {}) {
-  let members, chair, active = false, done = false, failed = false;
+  let members, chair, active = false, repaired = false, repairs = 0, done = false, failed = false;
   const texts = [];
   return {
     accept(event) {
@@ -28,7 +29,8 @@ function createCouncilDecoder(onEvent = () => {}) {
       } else if (event?.type === 'council_step') {
         if (!members || texts.length >= COUNCIL_STEPS || event.index !== texts.length
           || !exact(event, event.state === 'complete' ? ['type', 'index', 'state', 'text'] : ['type', 'index', 'state'])) return false;
-        if (event.state === 'running' && !active) active = true;
+        if (event.state === 'running' && !active) { active = true; repaired = false; }
+        else if (event.state === 'repairing' && active && !repaired && repairs < COUNCIL_MAX_REPAIRS) { repaired = true; repairs++; }
         else if (event.state === 'complete' && active && typeof event.text === 'string' && event.text.trim() === event.text
           && event.text.length > 0 && event.text.length <= councilStep(texts.length, members, chair).limit
           && !/\[\d+\]/.test(event.text)) { texts.push(event.text); active = false; }
@@ -44,4 +46,4 @@ function createCouncilDecoder(onEvent = () => {}) {
     finish() { return done && !failed ? buildCouncilReply(members, texts, chair) : null; },
   };
 }
-module.exports = { COUNCIL_TIMEOUT_MS, COUNCIL_STEPS, councilRequested, councilStep, buildCouncilReply, createCouncilDecoder };
+module.exports = { COUNCIL_TIMEOUT_MS, COUNCIL_STEPS, COUNCIL_MAX_REPAIRS, councilRequested, councilStep, buildCouncilReply, createCouncilDecoder };

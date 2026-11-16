@@ -93,6 +93,8 @@ jobs:
       - name: Verify council rounds through the built Orb with fictional providers
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: node scripts/verify-metabloom-council.mjs
+        env:
+          COUNCIL_EVIDENCE: metabloom-council
       - name: Verify price-book draft, publish, and exact estimate through the built Orb
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: node scripts/verify-metabloom-price-book.mjs
@@ -109,6 +111,7 @@ jobs:
             metabloom-mobile-workspace/*
             metabloom-research-reuse/*
             metabloom-threads/*
+            metabloom-council/*
             metabloom-price-book/*
           retention-days: 7
       - name: Verify production denies anonymous Orb and paid API access
