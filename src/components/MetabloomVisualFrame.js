@@ -1,5 +1,6 @@
 import React from 'react';
 import MetabloomPriceBookCard from './MetabloomPriceBookCard';
+import MetabloomPriceBookEstimate, { priceBookEstimateLayout } from './MetabloomPriceBookEstimate';
 import { evaluateMetabloomVisualFormula, METABLOOM_VISUAL_ERRORS } from './metabloomVisualProtocol';
 import { formatMetabloomVisualQuotaMessage } from './metabloomVisualQuota';
 import { layoutFlowchart, describeFlowStep, truncateFlowEdgeLabel, FLOW_METRICS } from './metabloomFlowLayout';
@@ -610,7 +611,8 @@ export default function MetabloomVisualFrame({ artifact, workspace = false, onSt
     };
   }, [status]);
   React.useEffect(() => { if (status === 'ready' && !expansion.current) onReady?.(); }, [status, onReady, revealRevision]);
-  return <section ref={frameRef} className="metabloom-visual" data-visual-state={status} data-visual-kind={spec?.kind || artifact.kind} aria-label={spec?.title || 'Visual answer'} aria-busy={status === 'generating'}>
+  const estimateLayout = spec && priceBookEstimateLayout(spec);
+  return <section ref={frameRef} className="metabloom-visual" data-visual-state={status} data-visual-kind={spec?.kind || artifact.kind} data-price-estimate={estimateLayout ? "true" : undefined} aria-label={spec?.title || 'Visual answer'} aria-busy={status === 'generating'}>
     {(!workspace || status !== 'ready') && <header className="metabloom-visual__header"><div><h3>{spec?.title || (status === 'cancelled' ? 'Visual stopped' : code === 'visual_quota' ? 'Visual limit reached' : status === 'failed' ? 'Visual unavailable' : 'Preparing your visual')}</h3></div>
       {status === 'generating' && <button type="button" onClick={onStop}>Stop visual</button>}
     </header>}
@@ -621,7 +623,7 @@ export default function MetabloomVisualFrame({ artifact, workspace = false, onSt
     {['failed', 'cancelled'].includes(status) && <p role="status">{code === 'visual_quota'
       ? formatMetabloomVisualQuotaMessage(artifact.quota) : METABLOOM_VISUAL_ERRORS[code] || METABLOOM_VISUAL_ERRORS.visual_unavailable}</p>}
     {status === 'ready' && spec && <div className="metabloom-visual__content">
-      {spec.kind === 'table' && <VisualTable spec={spec} id={id} viewState={artifact.viewState} onViewStateChange={onViewStateChange} onAskAbout={askAbout} />}
+      {spec.kind === 'table' && (estimateLayout ? <MetabloomPriceBookEstimate spec={spec} layout={estimateLayout} onAskAbout={askAbout} /> : <VisualTable spec={spec} id={id} viewState={artifact.viewState} onViewStateChange={onViewStateChange} onAskAbout={askAbout} />)}
       {['bar-chart', 'line-chart'].includes(spec.kind) && <VisualChart spec={spec} id={id} viewState={artifact.viewState} onViewStateChange={onViewStateChange} onAskAbout={askAbout} />}
       {spec.kind === 'pie-chart' && <VisualPieChart spec={spec} id={id} viewState={artifact.viewState} onViewStateChange={onViewStateChange} onAskAbout={askAbout} />}
       {spec.kind === 'flowchart' && <VisualFlowchart spec={spec} id={id} viewState={artifact.viewState} onViewStateChange={onViewStateChange} onAskAbout={askAbout} />}

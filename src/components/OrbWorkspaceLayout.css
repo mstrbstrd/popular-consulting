@@ -465,3 +465,14 @@
   }
   .orb-page .metabloom-chat__research-toggle { padding: 6px 8px; }
 }
+
+/* Give pricing documents useful reading width and a stable paper surface. */
+.orb-page .metabloom-component-workspace__body:has(.metabloom-price-book, .metabloom-price-estimate) {
+  background: var(--aetheris-panel);
+}
+@media (min-width: 901px) {
+  .orb-page[data-active-component='true'][data-conversation-started='true'] .metabloom-chat__shell:has(.metabloom-chat__workspace :is(.metabloom-price-book, .metabloom-price-estimate)) {
+    width: min(1320px, 100%);
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  }
+}

@@ -220,3 +220,16 @@ test('price-book workspace summaries do not assume chart data or expose an unsup
   expect(summarizeMetabloomVisual({ spec })).toBe('2 pricing rules · CAD · Review rules and examples');
   expect(currentMetabloomVisualSelection({ spec })).toBeNull();
 });
+
+test('starts with active status and usable job inputs while pricing rules remain reviewable on demand', async () => {
+  requestMetabloomPriceBook.mockResolvedValueOnce({ enabled: true, active: active(2) });
+  renderCard();
+  const status = await screen.findByText('This is your active price book, version 2.');
+  const input = screen.getByLabelText('Hours');
+  expect(status.compareDocumentPosition(input) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(input).toBeVisible();
+  expect(screen.getByText('(Hours × 95)')).not.toBeVisible();
+  expect(screen.getByText('Pricing rules', { exact: false, selector: 'summary' })).toBeVisible();
+  expect(screen.getByText('Ready to quote. Ask the chat for an estimate using this price book.')).toBeVisible();
+  expect(requestMetabloomPriceBook.mock.calls.filter(([request]) => request.book)).toHaveLength(0);
+});

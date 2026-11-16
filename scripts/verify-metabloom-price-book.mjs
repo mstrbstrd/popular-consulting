@@ -200,6 +200,11 @@ try {
     await card.getByText('No active price book. This draft has not been published.', { exact: true }).waitFor();
     assert.equal(publishes, beforePublishes, 'Draft generation must never publish');
     assert(await card.getByRole('button', { name: 'Publish price book', exact: true }).isDisabled());
+    const rules = card.locator('details').filter({ has: page.locator('.metabloom-price-book__rules') });
+    assert.equal(await rules.getAttribute('open'), null, 'Rules do not displace job inputs on first open');
+    await rules.locator('summary').click();
+    await rules.locator('.metabloom-price-book__rules').waitFor({ state: 'visible' });
+    await rules.locator('summary').click();
     assert.equal(await card.getByRole('region', { name: 'Preview estimate breakdown' }).getByRole('cell', { name: 'CAD 299.25', exact: true }).count(), 1);
     await card.getByLabel('Hours', { exact: true }).fill('6');
     await card.getByLabel('Distance in km', { exact: true }).fill('30');
@@ -224,7 +229,14 @@ try {
       await page.getByRole('button', { name: 'Open', exact: true }).click();
     }
     await quoteCard.waitFor();
-    assert.match(await quoteCard.innerText(), /751\.28/);
+    await quoteCard.getByText('CAD 751.28', { exact: true }).waitFor();
+    assert.equal(await quoteCard.getByRole('searchbox').count(), 0, 'Estimates have no row-filter clutter');
+    await quoteCard.getByRole('table', { name: 'Estimate breakdown', exact: true }).waitFor();
+    assert.equal(await quoteCard.getByRole('button', { name: 'Ask about this estimate', exact: true }).count(), 1);
+    const headline = await quoteCard.locator('.metabloom-price-estimate__headline').boundingBox();
+    const workspaceBody = await page.locator('.metabloom-component-workspace__body').boundingBox();
+    assert(headline && workspaceBody && headline.y >= workspaceBody.y - 1
+      && headline.y + headline.height <= workspaceBody.y + workspaceBody.height + 1, 'The estimate total is visible without scrolling');
     assert.equal(quoteCalls, beforeQuotes + 1);
     assert.equal(generatedDrafts, beforeDrafts + 1, 'A quote bypasses the model builder');
     assert.equal(publishes, beforePublishes + 1, 'Quoting must not publish');

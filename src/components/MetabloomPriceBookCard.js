@@ -111,23 +111,19 @@ export default class MetabloomPriceBookCard extends React.Component {
     const examplesValid = examples.length > 0 && examples.every(example => example.quote);
     const isActive = availability === 'ready' && sameBook(active?.book, book);
     return <div className="metabloom-price-book">
-      <p className="metabloom-price-book__intro">Review your pricing rules, try a job, then publish when the worked examples match your business.</p>
-      <details className="metabloom-visual__details" open>
-        <summary>Pricing rules</summary>
-        <ul className="metabloom-price-book__rules">{book.lines.map(line => <li key={line.id}>
-          <strong>{line.label}</strong><span>{formulaText(book, line.formula)}</span>
-          <small>{conditionText(book, line.when)}. {line.taxes.length ? `Taxes: ${line.taxes.map(taxId => {
-            const tax = book.taxes.find(value => value.id === taxId);
-            return `${tax.label} (${tax.rate}%)`;
-          }).join(', ')}` : 'No tax applied'}.</small>
-        </li>)}</ul>
-      </details>
+      <div className="metabloom-price-book__status" data-active={isActive}>
+        <p role="status" aria-live="polite">{availability === 'loading' ? 'Checking active price book…'
+          : availability !== 'ready' ? 'Active status unavailable.' : isActive ? `This is your active price book, version ${active.version}.`
+            : active ? `Publishing will replace your active price book, version ${active.version}.` : 'No active price book. This draft has not been published.'}</p>
+        <button type="button" aria-label="Refresh active status" onClick={this.refreshActive} disabled={publishing || availability === 'loading'}>Refresh</button>
+      </div>
+      <div className="metabloom-price-book__trial">
       <fieldset className="metabloom-price-book__fields"><legend>Try a job</legend>
         {book.inputs.map(input => {
           const invalid = input.type === 'number' && (!String(inputs[input.id]).trim()
             || String(inputs[input.id]).length > 24 || !/^-?(?:\d+|\d*\.\d{1,6})$/.test(String(inputs[input.id]))
             || Number(inputs[input.id]) < input.min || Number(inputs[input.id]) > input.max);
-          return <div className="metabloom-price-book__field" key={input.id}>
+          return <div className="metabloom-price-book__field" data-type={input.type} key={input.id}>
             <label htmlFor={`${id}-price-${input.id}`}>{input.label}</label>
             {input.type === 'boolean' ? <input id={`${id}-price-${input.id}`} type="checkbox" checked={inputs[input.id]}
               onChange={event => this.change(input.id, event.target.checked)} />
@@ -144,8 +140,19 @@ export default class MetabloomPriceBookCard extends React.Component {
           {quote ? money(quote.totalCents, quote.currency) : 'Enter valid inputs within the allowed ranges to see an estimate.'}
         </p>
         {quote && <QuoteBreakdown quote={quote} title="Preview estimate breakdown" />}
-        <p>Calculated from this draft. An estimate is not a final invoice.</p>
+        <p>{isActive ? `Using published version ${active.version}.` : 'Using this draft.'} Preview inputs do not change your pricing rules.</p>
       </section>
+      </div>
+      <details className="metabloom-visual__details">
+        <summary>Pricing rules <span>{book.lines.length} rules · {book.currency}</span></summary>
+        <ul className="metabloom-price-book__rules">{book.lines.map(line => <li key={line.id}>
+          <strong>{line.label}</strong><span>{formulaText(book, line.formula)}</span>
+          <small>{conditionText(book, line.when)}. {line.taxes.length ? `Taxes: ${line.taxes.map(taxId => {
+            const tax = book.taxes.find(value => value.id === taxId);
+            return `${tax.label} (${tax.rate}%)`;
+          }).join(', ')}` : 'No tax applied'}.</small>
+        </li>)}</ul>
+      </details>
       <section aria-labelledby={`${id}-price-examples`} className="metabloom-price-book__examples">
         <h4 id={`${id}-price-examples`}>Worked examples</h4>
         <p>Check these results before publishing. Each total is calculated from the pricing rules.</p>
@@ -156,9 +163,7 @@ export default class MetabloomPriceBookCard extends React.Component {
         </details>)}
       </section>
       <section className="metabloom-price-book__publish" aria-label="Publish price book" aria-busy={publishing || availability === 'loading'}>
-        <p role="status" aria-live="polite">{availability === 'loading' ? 'Checking active price book…'
-          : availability !== 'ready' ? 'Active status unavailable.' : isActive ? `This is your active price book, version ${active.version}.`
-            : active ? `Publishing will replace your active price book, version ${active.version}.` : 'No active price book. This draft has not been published.'}</p>
+        <p>{isActive ? 'Ready to quote. Ask the chat for an estimate using this price book.' : 'Review the pricing rules and examples, then activate these rates for future quotes.'}</p>
         {!isActive && <label className="metabloom-price-book__review"><input type="checkbox" checked={reviewed}
           disabled={publishing || availability !== 'ready' || !examplesValid} onChange={event => this.setState({ reviewed: event.target.checked })} />
           <span>I reviewed the pricing rules and worked examples.</span>
@@ -167,7 +172,6 @@ export default class MetabloomPriceBookCard extends React.Component {
           <button type="button" onClick={this.publish} disabled={!reviewed || availability !== 'ready' || publishing || isActive || !examplesValid}>
             {publishing ? 'Publishing…' : isActive ? `Published version ${active.version}` : 'Publish price book'}
           </button>
-          <button type="button" onClick={this.refreshActive} disabled={publishing || availability === 'loading'}>Refresh active status</button>
         </div>
         {message && <p role="status" aria-live="polite">{message}</p>}
       </section>
