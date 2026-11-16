@@ -1,3 +1,6 @@
+import { councilRequested, COUNCIL_TIMEOUT_MS } from './metabloomCouncilProtocol';
+import { requestMetabloomCouncil } from './metabloomCouncilClient';
+import MetabloomCouncilProgress from './MetabloomCouncilProgress';
 import React from "react";
 import { createPortal, flushSync } from 'react-dom';
 import { useThemeMode } from "../contexts/ThemeContext";
@@ -455,6 +458,8 @@ const OrbSection = ({
   const { isDark } = useThemeMode();
   const navigation = useAppNavigation();
   const workspace = React.useContext(MetabloomWorkspaceContext);
+  const [councilEnabled, setCouncilEnabled] = React.useState(false);
+  const [councilEvents, setCouncilEvents] = React.useState([]);
   const [modelSelection, setModelSelection] = React.useState(null);
   const [modelAvailable, setModelAvailable] = React.useState(!workspace);
   const workspaceRef = React.useRef(workspace);
@@ -1864,7 +1869,8 @@ const OrbSection = ({
   const sendMessage = React.useCallback(
     (value) => {
       if (!isActive) return false;
-      if (workspace && (!modelAvailable || !modelSelection)) { setErrorMessage('Choose an available model before sending.'); return false; }
+      const useCouncil = councilEnabled || councilRequested(value);
+      if (!useCouncil && workspace && (!modelAvailable || !modelSelection)) { setErrorMessage('Choose an available model before sending.'); return false; }
       if (threadSession?.locked) return false;
       if (threadSession && captureConversation().messages.length > messageLimit - 2) {
         setErrorMessage('This chat has reached its message limit. Start a new chat to keep the full history.');
@@ -1875,6 +1881,9 @@ const OrbSection = ({
       if (message.length > MAX_USER_MESSAGE_CHARS) {
         setErrorMessage("Your message is longer than this interface allows.");
         return false;
+      }
+      if (useCouncil && (researchAttachmentRef.current || artifactAttachmentRef.current)) {
+        setErrorMessage('Remove the attached reference before asking the council. Include the relevant text in your question.'); return false;
       }
       const selectedResearch = parseMetabloomResearchAttachment(researchAttachmentRef.current);
       if (selectedResearch && unavailableResearchIdsRef.current.includes(selectedResearch.reference.researchId)) {
@@ -1888,9 +1897,10 @@ const OrbSection = ({
       }
       const researchContext = selectedResearch?.reference;
       const freshResearch = Boolean(researchContext && isMetabloomFreshResearchRequest(message));
-      const requestedActionMode = researchContext ? (freshResearch ? 'deep-research' : 'none')
+      const requestedActionMode = useCouncil ? 'none' : researchContext ? (freshResearch ? 'deep-research' : 'none')
         : deepResearch ? 'deep-research' : 'auto';
       cancelResponse();
+      setCouncilEvents([]);
       const artifactContext = parseMetabloomArtifactAttachment(artifactAttachmentRef.current)?.reference;
       // A reference belongs to this one submitted message. No hidden calculator
       // fallback may attach context after the user removes it.
@@ -1911,14 +1921,14 @@ const OrbSection = ({
       visualScrollAnchorRef.current = null;
       setReadingEarlier(false);
       appendMessage("user", message);
-      const demo = artifactContext || researchContext ? null : METABLOOM_DEMOS.find((item) => item.prompt === message);
-      const allowMultiple = requestedActionMode === 'deep-research' || (demo ? demo.segments.length > 1 : allowEmoteChanges);
+      const demo = useCouncil || artifactContext || researchContext ? null : METABLOOM_DEMOS.find((item) => item.prompt === message);
+      const allowMultiple = useCouncil || requestedActionMode === 'deep-research' || (demo ? demo.segments.length > 1 : allowEmoteChanges);
       const source = demo ? "preview" : "model";
       const session = beginReply(source, allowMultiple);
       const requestToken = ++requestTokenRef.current;
       const requestId = `${mountIdRef.current}-${requestToken}`;
       const activeRequest = { claimed: false, requestId, requestToken, allowMultiple,
-        toolset: !artifactContext && !researchContext && requestedActionMode !== 'deep-research',
+        toolset: !useCouncil && !artifactContext && !researchContext && requestedActionMode !== 'deep-research',
         actionMode: requestedActionMode, skipScene: document.hidden, session, startedAt: Date.now(),
         ...(selectedResearch ? { submittedResearch: selectedResearch, submittedMessage: message } : {}) };
       activeRequestRef.current = activeRequest;
@@ -2135,6 +2145,17 @@ const OrbSection = ({
           finishReply(session, payload);
         }).catch((error) => { if (current()) failReply(session, error); });
       };
+      if (useCouncil) {
+        window.clearTimeout(previewTimerRef.current);
+        previewTimerRef.current = window.setTimeout(() => failReply(session, { code: 'answer_timeout' }), COUNCIL_TIMEOUT_MS);
+        onAction('none');
+        setWorkProgress({ label: 'Convening the council', summary: 'Loading your three saved provider defaults.', startedAt: Date.now(), updatedAt: Date.now() });
+        requestMetabloomCouncil({ message, history, requestId, signal: controller.signal,
+          onEvent: event => { if (current()) { setWorkProgress(null); setCouncilEvents(events => [...events, event]); } },
+        }).then(payload => { if (current()) { setCouncilEvents([]); finishReply(session, payload); } })
+          .catch(error => { if (current()) failReply(session, error); });
+        return true;
+      }
       if (demo) { runDemo(); return true; }
       const claimRequest = () => {
         if (!current()) return false;
@@ -2188,7 +2209,7 @@ const OrbSection = ({
       }).catch((error) => { if (current()) failReply(session, error); });
       return true;
     },
-    [allowEmoteChanges, appendMessage, beginReply, beginRequestScene, cancelResponse, captureConversation, deepResearch, failReply, finishReply, getOrbContext, isActive, messageLimit, modelAvailable, modelSelection, publishMessages, reactionPlayer, receiveModelResponse, recordExpression, rememberAnswerMedia, reportActivity, threadSession, updateArtifactAttachment, updateResearchAttachment, updateStateSnapshot, workspace],
+    [allowEmoteChanges, appendMessage, beginReply, beginRequestScene, cancelResponse, captureConversation, councilEnabled, deepResearch, failReply, finishReply, getOrbContext, isActive, messageLimit, modelAvailable, modelSelection, publishMessages, reactionPlayer, receiveModelResponse, recordExpression, rememberAnswerMedia, reportActivity, threadSession, updateArtifactAttachment, updateResearchAttachment, updateStateSnapshot, workspace],
   );
 
   const handleSubmit = React.useCallback(
@@ -2844,9 +2865,10 @@ const OrbSection = ({
 
               {conversationStarted && !statusBeforeReply && researchStatus}
               {showWorkStatus && <MetabloomWorkStatus progress={workProgress} />}
+              {councilEvents.length > 0 && <MetabloomCouncilProgress events={councilEvents} pending={pending} />}
               {workNotice && <p className="metabloom-chat__research-notice" role="status">{workNotice}</p>}
               {showHoodStatus && <div className="metabloom-chat__scene-status" role="status" aria-label="Scene progress" aria-live="polite" aria-atomic="true">{statusText}</div>}
-              {pending && !hasStreamingReply && !showResearchStatus && !showHoodStatus && !showWorkStatus && (
+              {pending && !councilEvents.length && !hasStreamingReply && !showResearchStatus && !showHoodStatus && !showWorkStatus && (
                 <article
                   className="metabloom-chat__message metabloom-chat__message--assistant"
                   aria-label={`Metabloom is ${statusText.toLowerCase()}`}
@@ -2941,8 +2963,12 @@ const OrbSection = ({
                     </>
                   )}
                 </MetabloomReactionPanel>
+                <label className="metabloom-chat__research-toggle" data-enabled={councilEnabled || councilRequested(draft) ? "true" : "false"}>
+                  <input type="checkbox" checked={councilEnabled} disabled={pending || !isActive} onChange={event => { setCouncilEnabled(event.target.checked); if (event.target.checked) setDeepResearch(false); }} />
+                  <span>Council</span>
+                </label>
                 <label className="metabloom-chat__research-toggle" data-enabled={deepResearch ? "true" : "false"} data-disabled={pending || !isActive ? "true" : "false"}>
-                  <input type="checkbox" checked={deepResearch} disabled={pending || !isActive} onChange={(event) => setDeepResearch(event.target.checked)} />
+                  <input type="checkbox" checked={deepResearch} disabled={pending || !isActive} onChange={(event) => { setDeepResearch(event.target.checked); if (event.target.checked) setCouncilEnabled(false); }} />
                   <span>Deep Research</span>
                 </label>
                 {readingEarlier && <button type="button" className="metabloom-chat__latest" aria-label="Latest message" onClick={scrollToLatest}>
@@ -3010,6 +3036,7 @@ const OrbSection = ({
                 </div>
               )}
             </div>
+              {(councilEnabled || councilRequested(draft)) && <p className="metabloom-council__notice">Council: 3 saved provider defaults, 7 model calls. Shares this conversation across OpenAI, DeepSeek and Claude. No live search.</p>}
             <form
               className="metabloom-chat__composer"
               data-has-stop={pending && draft.trim() ? "true" : "false"}
@@ -3046,7 +3073,7 @@ const OrbSection = ({
               )}
               <button
                 type={pending && !draft.trim() ? "button" : "submit"}
-                disabled={threadBusy || (!pending && (!draft.trim() || (workspace && (!modelAvailable || !modelSelection))))}
+                disabled={threadBusy || (!pending && (!draft.trim() || (!councilEnabled && !councilRequested(draft) && workspace && (!modelAvailable || !modelSelection))))}
                 onClick={pending && !draft.trim() ? stop : undefined}
                 aria-label={pending && !draft.trim() ? "Stop response" : "Send message"}
               >

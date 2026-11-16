@@ -155,6 +155,7 @@
   ],
   "functions": {
     "api/metabloom.js": { "maxDuration": 180 },
+    "api/metabloom-council.js": { "maxDuration": 180 },
     "api/metabloom-visual.js": { "maxDuration": 90 },
     "api/metabloom-tool.js": { "maxDuration": 60 },
     "api/metabloom-source-media.js": { "maxDuration": 30 },

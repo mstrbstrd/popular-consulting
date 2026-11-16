@@ -1,0 +1,138 @@
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const { EventEmitter } = require('node:events');
+const { councilRequested, councilStep, createCouncilDecoder, buildCouncilReply } = require('../src/components/metabloomCouncilProtocol');
+const { parseMetabloomChatEnvelope } = require('../src/components/metabloomEmoteProtocol');
+const { runMetabloomCouncil } = require('../server/metabloomCouncil');
+const { createCouncilHandler } = require('../api/metabloom-council');
+const { consumeRateLimit, localBuckets } = require('../api/metabloom')._internals;
+const members = [{ provider: 'openai', model: 'gpt-5-mini' }, { provider: 'deepseek', model: 'deepseek-flash' }, { provider: 'anthropic', model: 'claude-sonnet' }];
+const prefs = { provider: 'anthropic', defaults: { openai: 'latest', deepseek: 'default', anthropic: 'claude-sonnet' } };
+const req = (extra = {}) => ({ method: 'POST', headers: { host: 'localhost:3000', origin: 'http://localhost:3000', 'content-type': 'application/json' },
+  socket: { remoteAddress: '127.0.0.1' }, body: { message: 'Ask the council: compare options.', history: [] }, ...extra });
+const res = () => Object.assign(new EventEmitter(), { body: '', headers: {}, setHeader(k, v) { this.headers[k] = v; },
+  write(v) { this.body += v; return true; }, end(v = '') { this.body += v; this.writableEnded = true; } });
+const authenticate = async (_req, options) => { options.onAccountIdentity({ accountKey: 'a'.repeat(64) }); };
+const fixture = (overrides = {}) => createCouncilHandler({ authenticate, getPreferences: () => async () => prefs,
+  catalog: { resolve: async selection => members.find(m => m.provider === selection.provider) }, quota: async () => true,
+  run: async () => {}, ...overrides });
+
+test('automatic council phrases match only the current user message and respect explicit negatives', () => {
+  for (const message of ['Ask the council about this', 'I am asking the council', 'Could we ASK THE COUNCIL?', 'ask council']) assert(councilRequested(message));
+  for (const message of ['council tax', 'a council meeting', "Don't ask the council", 'do not ask the council', 'without asking the council', null]) assert(!councilRequested(message));
+});
+test('three independent openings precede mutual critiques and the preferred-provider synthesis', async () => {
+  const originals = ['OPENAI_API_KEY', 'DEEPSEEK_API_KEY', 'ANTHROPIC_API_KEY'].map(k => [k, process.env[k]]);
+  originals.forEach(([k]) => { process.env[k] = 'fictional'; });
+  const requests = [], events = [], controller = new AbortController();
+  try {
+    const reply = await runMetabloomCouncil({ message: 'Compare options', history: [{ role: 'user', content: 'A costs 3, B costs 4.' }],
+      members, chair: 'anthropic', signal: controller.signal, onEvent: async event => events.push(event),
+      fetchImpl: async (url, options) => {
+        const body = JSON.parse(options.body), i = requests.length; requests.push(body);
+        assert.equal(events.at(-1).state, 'running'); assert.equal(events.at(-1).index, i);
+        assert.equal(options.signal, controller.signal); assert.equal(body.model, councilStep(i, members, 'anthropic').member.model);
+        const input = body.input || body.messages.flatMap(m => m.content.map(part => ({ content: part.text })));
+        assert.equal(input.length, i < 3 ? 2 : 3);
+        if (i >= 3) {
+          const last = input.at(-1).content;
+          const data = typeof last === 'string' ? last : last[0].text;
+          const peers = JSON.parse(data.split('\n')[1]); assert.equal(peers.length, i < 6 ? 3 : 6);
+        }
+        if (url.includes('anthropic')) { assert.equal(body.tools, undefined); return Response.json({ type: 'message', role: 'assistant', stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify({ response: 'Contribution ' + i }) }] }); }
+        assert.deepEqual(body.tools, []);
+        return Response.json({ status: 'completed', output: [{ type: 'message', role: 'assistant', status: 'completed', content: [{ type: 'output_text', text: JSON.stringify({ response: 'Contribution ' + i }) }] }] });
+      } });
+    assert.equal(requests.length, 7); assert.equal(events.length, 16); assert.equal(events.at(-1).type, 'council_done');
+    assert.equal(reply.segments.length, 4); assert(parseMetabloomChatEnvelope(reply, { allowMultiple: true }).ok);
+    assert.match(reply.segments[3].response, /Claude/);
+  } finally { originals.forEach(([k, v]) => { if (v === undefined) delete process.env[k]; else process.env[k] = v; }); }
+});
+test('wire protocol rejects missing, duplicated, oversized, misordered and ungrounded contributions', () => {
+  const decoder = createCouncilDecoder();
+  assert(!decoder.accept({ type: 'council_done' }));
+  assert(decoder.accept({ type: 'council_start', members, chair: 'openai' }));
+  assert(!decoder.accept({ type: 'council_step', index: 0, state: 'complete', text: 'Early' }));
+  assert(decoder.accept({ type: 'council_step', index: 0, state: 'running' }));
+  assert(!decoder.accept({ type: 'council_step', index: 1, state: 'running' }));
+  for (const text of ['x'.repeat(401), 'Fake evidence [1]', '', ' padded ']) assert(!decoder.accept({ type: 'council_step', index: 0, state: 'complete', text }));
+  assert(decoder.accept({ type: 'council_step', index: 0, state: 'complete', text: 'Opening' }));
+  assert.equal(decoder.finish(), null);
+  const maximum = members.map(m => ({ ...m, model: 'x'.repeat(120) }));
+  const reply = buildCouncilReply(maximum, Array.from({ length: 7 }, (_, i) => 'x'.repeat(councilStep(i, maximum, 'openai').limit)), 'openai');
+  assert(parseMetabloomChatEnvelope(reply, { allowMultiple: true }).ok, 'Maximum discussion fits saved chat bounds');
+});
+test('cancellation after a progress event prevents paid work', async () => {
+  const controller = new AbortController();
+  await assert.rejects(runMetabloomCouncil({ message: 'Hi', history: [], members, chair: 'openai', signal: controller.signal,
+    onEvent: async event => { if (event.type === 'council_step') controller.abort(); }, fetchImpl: () => assert.fail('No paid call') }), { name: 'AbortError' });
+});
+test('authentication, origin and input validation precede preferences or paid work', async () => {
+  const blocked = () => assert.fail('No preference access');
+  for (const [request, auth, status] of [[req(), async () => ({ status: 401, code: 'authentication_required' }), 401],
+    [req({ headers: { host: 'localhost:3000', origin: 'https://evil.example' } }), authenticate, 403],
+    [req({ body: { message: 'Hi', members } }), authenticate, 400], [req({ body: { message: 'x'.repeat(1601) } }), authenticate, 400]]) {
+    const response = res(); await fixture({ authenticate: auth, getPreferences: blocked })(request, response); assert.equal(response.statusCode, status);
+  }
+});
+test('account defaults are snapshotted and resolved before seven units of quota or generation', async () => {
+  const operations = []; const response = res();
+  await fixture({ getPreferences: () => async identity => { assert.equal(identity.accountKey, 'a'.repeat(64)); operations.push('preferences'); return prefs; },
+    catalog: { resolve: async selection => { assert.equal(selection.model, prefs.defaults[selection.provider]); operations.push('resolve'); return members.find(m => m.provider === selection.provider); } },
+    quota: async (_request, signal, cost) => { assert.equal(cost, 7); assert(!signal.aborted); operations.push('quota'); return true; },
+    run: async options => { operations.push('run'); assert.deepEqual(options.members, members); assert.equal(options.chair, 'anthropic'); },
+  })(req(), response);
+  assert.deepEqual(operations, ['preferences', 'resolve', 'resolve', 'resolve', 'quota', 'run']);
+});
+test('missing provider or preference storage fails visibly without fallback or generation', async () => {
+  for (const overrides of [{ getPreferences: () => async () => { throw new Error('private'); } },
+    { catalog: { resolve: async () => { throw new Error('private'); } } }]) {
+    const response = res(); await fixture({ ...overrides, quota: () => assert.fail('No quota'), run: () => assert.fail('No generation') })(req(), response);
+    assert.equal(JSON.parse(response.body).code, 'council_unavailable'); assert(!response.body.includes('private'));
+  }
+});
+test('quota denial and disconnect cannot start generation', async () => {
+  const response = res(); await fixture({ quota: async () => false, run: () => assert.fail('No generation') })(req(), response);
+  assert.equal(response.statusCode, 429);
+  const closed = res(); closed.destroyed = true;
+  await fixture({ getPreferences: () => () => assert.fail('Disconnected') })(req(), closed);
+});
+test('partial failures never send council_done and never expose upstream messages', async () => {
+  const response = res(); await fixture({ run: async ({ onEvent }) => {
+    await onEvent({ type: 'council_start', members, chair: 'openai' }); throw new Error('secret provider error');
+  } })(req(), response);
+  const events = response.body.trim().split('\n').map(JSON.parse);
+  assert.equal(events.at(-1).type, 'error'); assert(!response.body.includes('secret')); assert(!response.body.includes('council_done'));
+});
+test('weighted quota cannot overspend or partially debit a council request', async () => {
+  const original = process.env.VERCEL_ENV; process.env.VERCEL_ENV = 'development'; localBuckets.clear();
+  try {
+    assert(await consumeRateLimit(req(), undefined, 7)); assert(!await consumeRateLimit(req(), undefined, 7));
+    assert.equal(localBuckets.get('127.0.0.1').count, 7);
+    for (let i = 0; i < 5; i++) assert(await consumeRateLimit(req()));
+    assert(!await consumeRateLimit(req()));
+    await assert.rejects(consumeRateLimit(req(), undefined, 0));
+  } finally { localBuckets.clear(); if (original === undefined) delete process.env.VERCEL_ENV; else process.env.VERCEL_ENV = original; }
+});
+test('production quota carries the full council cost into the atomic Redis operation', async () => {
+  const keys = ['VERCEL_ENV', 'UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN'];
+  const old = keys.map(k => [k, process.env[k]]), oldFetch = global.fetch;
+  process.env.VERCEL_ENV = 'production'; process.env.UPSTASH_REDIS_REST_URL = 'https://quota.example'; process.env.UPSTASH_REDIS_REST_TOKEN = 'fictional';
+  try {
+    global.fetch = async (_url, options) => {
+      const command = JSON.parse(options.body); assert.equal(command[0], 'EVAL'); assert.equal(command.at(-1), '7');
+      assert.match(command[1], /client \+ cost > 12 or total \+ cost > 300/);
+      assert.match(command[1], /INCRBY/); assert.equal(options.redirect, 'error');
+      return Response.json({ result: 1 });
+    };
+    assert(await consumeRateLimit(req(), undefined, 7));
+  } finally { global.fetch = oldFetch; old.forEach(([k, v]) => { if (v === undefined) delete process.env[k]; else process.env[k] = v; }); }
+});
+test('maximum-size discussion round trips through the actual saved-thread parser', () => {
+  const { parseMetabloomThreadSnapshot } = require('../src/components/metabloomThreadProtocol');
+  const reply = buildCouncilReply(members, Array.from({ length: 7 }, (_, i) => 'x'.repeat(councilStep(i, members, 'openai').limit)), 'openai');
+  const snapshot = { schemaVersion: 1, conversation: { messages: [{ id: 'assistant-1', role: 'assistant', status: 'complete',
+    source: 'model', content: reply.segments.map(s => s.response).join('\n\n'), segments: reply.segments }], counter: 1, draft: '', deepResearch: false },
+  visuals: { version: 1, records: [], lastInteractedId: null }, workspace: null };
+  assert.deepEqual(parseMetabloomThreadSnapshot(snapshot)?.conversation.messages[0].segments, reply.segments);
+});

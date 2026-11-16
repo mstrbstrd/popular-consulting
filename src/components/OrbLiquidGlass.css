@@ -185,3 +185,10 @@
 }
 .orb-page .metabloom-reactions__panel .metabloom-reactions__heading,
 .orb-page .orb-appearance__heading { border-bottom-color: color-mix(in srgb, var(--lg-rim) 70%, transparent); }
+
+/* Council contributions stay in normal flow and never move reader focus. */
+.orb-page .metabloom-council { padding: 1.6rem; margin-block: 1.2rem; border: 1px solid currentColor; border-radius: 1.6rem; }
+.orb-page .metabloom-council details { margin-block: 1rem; }
+.orb-page .metabloom-council summary { cursor: pointer; overflow-wrap: anywhere; }
+.orb-page .metabloom-council p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.orb-page .metabloom-council__notice { flex-basis: 100%; font-size: 1.2rem; line-height: 1.5; margin: 0.8rem; }

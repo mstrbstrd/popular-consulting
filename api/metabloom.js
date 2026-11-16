@@ -41,9 +41,10 @@ const localBuckets = new Map();
 const QUOTA_SCRIPT = `
 local client = tonumber(redis.call('GET', KEYS[1]) or '0')
 local total = tonumber(redis.call('GET', KEYS[2]) or '0')
-if client >= 12 or total >= 300 then return 0 end
-if redis.call('INCR', KEYS[1]) == 1 then redis.call('EXPIRE', KEYS[1], 60) end
-if redis.call('INCR', KEYS[2]) == 1 then redis.call('EXPIRE', KEYS[2], 86400) end
+local cost = tonumber(ARGV[1]) or 1
+if client + cost > 12 or total + cost > 300 then return 0 end
+if redis.call('INCRBY', KEYS[1], cost) == cost then redis.call('EXPIRE', KEYS[1], 60) end
+if redis.call('INCRBY', KEYS[2], cost) == cost then redis.call('EXPIRE', KEYS[2], 86400) end
 return 1`;
 const exactKeys = (value, required, optional = []) => value && typeof value === "object" && !Array.isArray(value)
   && required.every((key) => Object.prototype.hasOwnProperty.call(value, key))
@@ -236,14 +237,17 @@ const readBoundedJson = async (response, limit) => {
   }
   return JSON.parse(text);
 };
-const consumeRateLimit = async (request, signal) => {
+const consumeRateLimit = async (request, signal, cost = 1) => {
+  if (!Number.isInteger(cost) || cost < 1 || cost > 7) throw new Error("Invalid quota cost");
   if (isLocal(request)) {
     const key = request.socket.remoteAddress;
     const now = Date.now();
     for (const [id, value] of localBuckets) if (value.until <= now) localBuckets.delete(id);
     const bucket = localBuckets.get(key) || { count: 0, until: now + 60000 };
     localBuckets.set(key, bucket);
-    return ++bucket.count <= 12;
+    if (bucket.count + cost > 12) return false;
+    bucket.count += cost;
+    return true;
   }
   const url = new URL(process.env.UPSTASH_REDIS_REST_URL);
   if (url.protocol !== "https:" || url.username || url.password) throw new Error("Invalid quota configuration");
@@ -252,7 +256,7 @@ const consumeRateLimit = async (request, signal) => {
   const result = await fetch(url, {
     method: "POST", redirect: "error", signal,
     headers: { Authorization: `Bearer ${process.env.UPSTASH_REDIS_REST_TOKEN}`, "Content-Type": "application/json" },
-    body: JSON.stringify(["EVAL", QUOTA_SCRIPT, "2", `metabloom:{quota}:client:${key}`, "metabloom:{quota}:daily"]),
+    body: JSON.stringify(["EVAL", QUOTA_SCRIPT, "2", `metabloom:{quota}:client:${key}`, "metabloom:{quota}:daily", String(cost)]),
   });
   if (!result.ok) throw new Error("Quota service unavailable");
   const data = await readBoundedJson(result, 4096);
