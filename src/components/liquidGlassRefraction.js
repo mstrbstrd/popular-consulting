@@ -23,7 +23,8 @@ export const ORB_REFRACTION_TARGETS = [
   '.metabloom-chat__research-toggle',
   '.metabloom-chat__latest',
   '.orb-appearance:not([data-inline="true"]) > .orb-appearance__trigger',
-  '.metabloom-threads__dock[data-expanded="false"]',
+  '.metabloom-threads__dock',
+  '.metabloom-threads__drawer[open]',
   '.metabloom-threads__floating .metabloom-threads__trigger',
 ];
 export const ORB_REFRACTION_MENUS = [

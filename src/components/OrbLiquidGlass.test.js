@@ -52,6 +52,17 @@ describe('Orb liquid glass layer', () => {
   test('no gradient-filled text', () => {
     expect(css).not.toMatch(/background-clip:\s*text/);
   });
+
+  test('both sidebar layouts use clear nav glass rather than an opaque menu fill', () => {
+    const start = css.indexOf('.orb-page .metabloom-threads__dock,');
+    const material = css.slice(start, css.indexOf('}', start));
+    expect(material).toContain('.orb-page .metabloom-threads__drawer');
+    expect(material).toContain('background: var(--lg-clear-fill) !important;');
+    expect(material).toContain('var(--lg-refraction, var(--lg-clear-fallback))');
+    expect(material).toContain('box-shadow: var(--lg-specular), var(--lg-shadow)');
+    expect(css).not.toContain(".metabloom-threads__dock[data-expanded='true']");
+    expect(css).toContain('@supports not ((backdrop-filter: blur(1px))');
+  });
 });
 
 describe('shared liquid glass lenses', () => {

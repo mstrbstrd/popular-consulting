@@ -4,7 +4,7 @@
      clear    — controls floating over the living field: nearly transparent,
                 lensed at the rim (Chromium refraction, see orbLiquidGlassRefraction.js),
                 curved specular highlights, no coloured border
-     regular  — sidebar and menus that carry text: frosted, same rim and lens
+     regular  — artifact panels and popover menus: frosted, same rim and lens
    The prismatic edge now comes from per-channel refraction instead of a painted
    spectral ring. Without refraction support the same shapes fall back to light
    blur, so Safari/Firefox keep the clear look minus the bend.
@@ -18,7 +18,8 @@
 .orb-page .metabloom-chat__latest,
 .orb-page .orb-appearance:not([data-inline='true']) > .orb-appearance__trigger,
 .orb-page .metabloom-threads__floating .metabloom-threads__trigger,
-.orb-page .metabloom-threads__dock[data-expanded='false'] {
+.orb-page .metabloom-threads__dock,
+.orb-page .metabloom-threads__drawer {
   border-color: transparent !important;
   background: var(--lg-clear-fill) !important;
   -webkit-backdrop-filter: var(--lg-clear-fallback) var(--lg-post) !important;
@@ -44,7 +45,6 @@
 .orb-page .orb-appearance:not([data-inline='true']) > .orb-appearance__trigger:active { background: var(--lg-lens) !important; }
 
 /* ---------- Regular glass: panels and menus ---------- */
-.orb-page .metabloom-threads__dock[data-expanded='true'],
 .orb-page[data-active-component='true'] .metabloom-chat__workspace {
   border-color: transparent;
   background: var(--lg-panel-fill);
@@ -54,8 +54,7 @@
 }
 .orb-page .metabloom-reactions__panel,
 .orb-page .metabloom-model-picker__dialog,
-.orb-page .orb-appearance__dialog:not([data-inline='true']),
-.orb-page .metabloom-threads__drawer {
+.orb-page .orb-appearance__dialog:not([data-inline='true']) {
   border: 1px solid transparent !important;
   border-radius: var(--lg-radius-menu) !important;
   background: var(--lg-menu-fill) !important;
@@ -145,6 +144,33 @@
   box-shadow: var(--lg-lens-edge), inset 0 0 0 1px color-mix(in srgb, var(--aetheris-teal) 45%, transparent) !important;
 }
 
+/* The sidebar shares the former nav's clear glass and inset control lenses.
+   The outer shell owns the blur; rows never add nested backdrop filters. */
+.orb-page[data-sidebar-navigation='true'] .metabloom-threads button.metabloom-threads__new,
+.orb-page[data-sidebar-navigation='true'] .metabloom-threads .orb-appearance__trigger,
+.orb-page[data-sidebar-navigation='true'] .orb-sidebar-links > summary,
+.orb-page[data-sidebar-navigation='true'] .orb-sidebar-account > summary {
+  background: var(--lg-lens-hover); box-shadow: var(--lg-lens-edge); text-shadow: none;
+}
+@media (hover: hover) {
+  .orb-page[data-sidebar-navigation='true'] .metabloom-threads button.metabloom-threads__new:hover:not(:disabled),
+  .orb-page[data-sidebar-navigation='true'] .metabloom-threads .orb-appearance__trigger:hover,
+  .orb-page[data-sidebar-navigation='true'] .orb-sidebar-links > summary:hover,
+  .orb-page[data-sidebar-navigation='true'] .orb-sidebar-account > summary:hover {
+    background: var(--lg-lens); box-shadow: var(--lg-lens-edge);
+  }
+}
+.orb-page[data-sidebar-navigation='true'] .metabloom-threads .orb-appearance__trigger[aria-expanded='true'],
+.orb-page[data-sidebar-navigation='true'] .orb-sidebar-links[open] > summary,
+.orb-page[data-sidebar-navigation='true'] .orb-sidebar-account[open] > summary {
+  background: var(--lg-lens-hover);
+  box-shadow: var(--lg-lens-edge), inset 0 0 0 1px color-mix(in srgb, var(--aetheris-teal) 40%, transparent);
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .orb-page .metabloom-threads__dock,
+  .orb-page .metabloom-threads__drawer { background: var(--aetheris-panel) !important; text-shadow: none; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .orb-page .metabloom-reactions__panel, .orb-page .orb-appearance__dialog:not([data-inline='true']) { animation: none; }
 }
@@ -161,6 +187,13 @@
     background: Canvas !important; color: CanvasText !important;
     border: 1px solid CanvasText !important; box-shadow: none !important;
     backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+  }
+  .orb-page[data-sidebar-navigation='true'] .metabloom-threads button.metabloom-threads__new,
+  .orb-page[data-sidebar-navigation='true'] .metabloom-threads .orb-appearance__trigger,
+  .orb-page[data-sidebar-navigation='true'] .orb-sidebar-links > summary,
+  .orb-page[data-sidebar-navigation='true'] .orb-sidebar-account > summary {
+    background: ButtonFace !important; color: ButtonText !important;
+    box-shadow: none !important; outline: 1px solid ButtonText;
   }
   .orb-page .metabloom-threads__table tr[data-current='true'] > td,
   .orb-page .orb-appearance__dialog .orb-page__finish-option.is-active { background: Highlight; color: HighlightText; }
