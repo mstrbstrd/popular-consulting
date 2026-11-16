@@ -317,7 +317,10 @@ try {
       assert.deepEqual(calls.map(call => `${call.path}:${call.phase || 'reply'}`),
         ['/api/metabloom:reply', '/api/metabloom-visual:reply', '/api/metabloom:reply']);
 
+      const latestNavigation = page.getByRole('button', { name: 'Latest message', exact: true });
+      assert.equal(await latestNavigation.count(), 0, 'Latest navigation is absent while already reading the latest reply');
       await page.locator('.metabloom-chat__messages').evaluate(element => { element.scrollTop = 0; });
+      await latestNavigation.waitFor({ state: 'visible' });
       const earlier = await capture(page, `${activeCase}-earlier-messages`);
       assert(Math.abs(earlier.composer.height - initial.composer.height) <= 1, 'Latest-message navigation must not add another control row');
       assert.equal(earlier.workspace.top, initial.workspace.top);

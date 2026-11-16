@@ -104,7 +104,17 @@ try {
           };
         ` });
         await call('Page.navigate', { url:`${origin}/invoice-generator${fieldReview ? '?graphics=webgl' : ''}` });
-        await evaluate(`new Promise((resolve,reject)=>{let n=0;const t=setInterval(()=>{if(document.querySelector('.invoice-paper')){clearInterval(t);resolve(true)}else if(++n>300){clearInterval(t);reject(new Error('Invoice page not mounted'))}},100)})`);
+        // The shared shell mounts the invoice while its outlet is still inert.
+        // Wait for the actual reveal boundary before hit-testing or focusing:
+        // a present paper does not yet mean a user can interact with the page.
+        report.readiness = await evaluate(`new Promise((resolve,reject)=>{let n=0;const t=setInterval(()=>{
+          const paper=document.querySelector('.invoice-paper');
+          const outlet=document.querySelector('.app-outlet');
+          const state={phase:outlet?.dataset.phase,inert:outlet?.hasAttribute('inert'),opacity:outlet?getComputedStyle(outlet).opacity:null};
+          if(paper&&outlet?.dataset.route==='/invoice-generator'&&state.phase==='idle'&&!state.inert
+            &&!paper.closest('[inert]')&&state.opacity==='1') {clearInterval(t);resolve(state);}
+          else if(++n>=600){clearInterval(t);reject(new Error('Invoice page did not become interactive: '+JSON.stringify(state)));}
+        },50)})`);
         await evaluate('document.fonts.ready');
         const currentMode = await evaluate('document.documentElement.dataset.theme');
         if (currentMode !== mode) {
@@ -150,8 +160,16 @@ try {
             };
           })()`);
           for (const [name, passed] of Object.entries(report.styling)) check(passed, 'Aetheris style: '+name);
-          const focusHalo = await evaluate(`(() => {const input=document.getElementById('invoice-number');input.focus({preventScroll:true});const visible=input.matches(':focus-visible')&&getComputedStyle(input).boxShadow!=='none';input.blur();return visible;})()`);
-          check(focusHalo,'Input focus halo missing');
+          // Focus styles transition on the next paint. Keep focus in place
+          // while checking the rendered result, rather than blur in the same task.
+          report.focus = await evaluate(`new Promise(resolve=>{
+            const input=document.getElementById('invoice-number');input.focus({preventScroll:true});
+            let attempts=0;const timer=setInterval(()=>{
+              const state={focused:document.activeElement===input,visible:input.matches(':focus-visible'),boxShadow:getComputedStyle(input).boxShadow};
+              if((state.focused&&state.visible&&state.boxShadow!=='none')||++attempts>=20){clearInterval(timer);input.blur();resolve(state);}
+            },50);
+          })`);
+          check(report.focus.focused&&report.focus.visible&&report.focus.boxShadow!=='none','Input focus halo missing');
           await settle();
         }
         const expectedLinks = width <= 768
@@ -165,10 +183,13 @@ try {
         check(await evaluate(`document.querySelector('.invoice-actions').getBoundingClientRect().top>=document.querySelector('.nav-header').getBoundingClientRect().bottom`),'Site menu overlaps invoice actions');
         if (width<=768) {
           await click('.nav-burger');
-          check(await evaluate(`document.querySelector('.invoice-page').hasAttribute('inert') && document.querySelector('.nav-overlay--open').contains(document.activeElement)`),'Mobile menu did not isolate the form or move focus');
+          check(await evaluate(`document.querySelector('.invoice-page').hasAttribute('inert') && document.querySelector('.nav-overlay--open')?.getAttribute('aria-modal')==='true' && document.activeElement===document.querySelector('.nav-burger')`),'Mobile menu did not isolate the form or focus its close control');
           await call('Input.dispatchKeyEvent',{type:'keyDown',key:'Tab',code:'Tab',modifiers:8});
           await call('Input.dispatchKeyEvent',{type:'keyUp',key:'Tab',code:'Tab',modifiers:8});
-          check(await evaluate(`document.activeElement.classList.contains('nav-overlay-theme')`),'Mobile menu focus escaped');
+          check(await evaluate(`(() => {const controls=[...document.querySelectorAll('.nav-overlay--open a[href],.nav-overlay--open button:not(:disabled)')];return controls.length>0&&document.activeElement===controls[controls.length-1];})()`),'Mobile menu reverse focus wrap escaped');
+          await call('Input.dispatchKeyEvent',{type:'keyDown',key:'Tab',code:'Tab'});
+          await call('Input.dispatchKeyEvent',{type:'keyUp',key:'Tab',code:'Tab'});
+          check(await evaluate(`document.activeElement===document.querySelector('.nav-burger')`),'Mobile menu forward focus wrap escaped');
           await capture('navigation');
           await call('Input.dispatchKeyEvent',{type:'keyDown',key:'Escape',code:'Escape'});
           await call('Input.dispatchKeyEvent',{type:'keyUp',key:'Escape',code:'Escape'});

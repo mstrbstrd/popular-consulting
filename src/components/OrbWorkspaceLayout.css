@@ -81,6 +81,8 @@
 
 .orb-page .metabloom-chat__composer-options {
   display: grid;
+  /* Toolbar controls must not enlarge the track used by selected references. */
+  grid-template-columns: minmax(0, 1fr);
   min-width: 0;
   min-height: 0;
   gap: 6px;
@@ -308,7 +310,9 @@
   }
 
   .orb-page .metabloom-chat__conversation-tools {
-    flex-wrap: nowrap;
+    /* Council and Latest message can exceed a phone's available row width. */
+    flex-wrap: wrap;
+    min-width: 0;
     gap: 6px;
   }
 
@@ -334,6 +338,16 @@
     width: 44px;
     padding: 0;
     font-size: 20px;
+  }
+
+  /* Reserve the final navigation slot before it is needed. Reading earlier
+     messages must not add a flex row and move the composer or transcript. */
+  .orb-page .metabloom-chat__conversation-tools:not(:has(> .metabloom-chat__latest))::after {
+    content: "";
+    flex: 0 0 44px;
+    width: 44px;
+    height: 44px;
+    pointer-events: none;
   }
 
   .orb-page .metabloom-chat__latest-label {
@@ -431,8 +445,8 @@
   }
 }
 
-/* At 360px and below, More is an icon button too, so the model picker, More,
-   Latest message and Deep Research still share one row. */
+/* At 360px and below, More is an icon button too. Keep touch targets intact
+   and let the toolbar wrap when all conversation controls are present. */
 @media (max-width: 360px) {
   .orb-page .metabloom-chat__conversation-tools { gap: 4px; }
   .orb-page .metabloom-reactions__toolbar > button[aria-haspopup="dialog"] {

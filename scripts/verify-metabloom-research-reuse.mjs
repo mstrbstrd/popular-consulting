@@ -574,19 +574,41 @@ try {
       const rect = element.getBoundingClientRect();
       return { left: rect.left, right: rect.right, width: rect.width, scrollWidth: element.scrollWidth, viewport: window.innerWidth };
     });
-    assert(chipGeometry.left >= -1 && chipGeometry.right <= chipGeometry.viewport + 1);
-    assert(chipGeometry.scrollWidth <= chipGeometry.width + 1, 'The selected reference must fit at narrow mobile widths.');
+    // The toolbar shares a grid track with the selected reference. Its controls
+    // must remain visible when Council and Latest message are both present.
+    const toolbarGeometry = await page.locator('.metabloom-chat__conversation-tools').evaluate(element => ({
+      viewport: window.innerWidth,
+      controls: Array.from(element.querySelectorAll('button, .metabloom-chat__research-toggle'))
+        .filter(control => control.getBoundingClientRect().width > 0)
+        .map(control => {
+          const rect = control.getBoundingClientRect();
+          return { label: control.getAttribute('aria-label') || control.textContent.trim(),
+            left: rect.left, right: rect.right, width: rect.width, height: rect.height };
+        }),
+    }));
     const geometry = await page.locator('.metabloom-chat__composer').evaluate(element => {
       const rect = element.getBoundingClientRect();
       return { left: rect.left, right: rect.right, viewport: window.innerWidth, pageWidth: document.documentElement.scrollWidth };
     });
+    // Preserve measurements even if an assertion fails, so CI artifacts identify
+    // the affected viewport and element instead of retaining only earlier cases.
+    report.layoutCheck = { profile, chipGeometry, geometry, toolbarGeometry };
+    assert(chipGeometry.left >= -1 && chipGeometry.right <= chipGeometry.viewport + 1,
+      'Selected research reference exceeds viewport: ' + JSON.stringify(report.layoutCheck));
+    assert(chipGeometry.scrollWidth <= chipGeometry.width + 1, 'The selected reference must fit at narrow mobile widths.');
     assert(geometry.left >= -1 && geometry.right <= geometry.viewport + 1);
     assert(geometry.pageWidth <= geometry.viewport + 1, 'The composer must not cause horizontal overflow.');
+    for (const control of toolbarGeometry.controls) {
+      assert(control.left >= -1 && control.right <= toolbarGeometry.viewport + 1,
+        'Composer toolbar control exceeds viewport: ' + JSON.stringify(control));
+      if (profile.isMobile) assert(control.width >= 43 && control.height >= 43,
+        'Mobile toolbar touch targets remain at least 44 CSS pixels: ' + JSON.stringify(control));
+    }
     assert.deepEqual(errors, []);
     assert.deepEqual(serverErrors, []);
     assert.deepEqual(unexpectedProviderRequests, []);
     if (captureScreenshots) await page.screenshot({ path: path.join(output, profile.id + '.png') });
-    report.scenarios.push({ profile, geometry, chipGeometry, counts: countsSince(start), reportAudit, findingAudit,
+    report.scenarios.push({ profile, geometry, chipGeometry, toolbarGeometry, counts: countsSince(start), reportAudit, findingAudit,
       redisCommands: redisCommands.slice(commandsStart), pageErrors: errors,
       fixtures: [initial, reused, finding, brief, failed, fallback, expired, fresh, freshCommand].map(snapshot) });
     fs.writeFileSync(path.join(output, 'report.json'), JSON.stringify(report, null, 2));

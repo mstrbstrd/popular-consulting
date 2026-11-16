@@ -189,6 +189,13 @@ try {
     await composer.fill('Build my price book: CAD 95/hour, 2-hour minimum, CAD 60 travel past 20 km, 15% weekend premium, and 5% GST.');
     await page.getByRole('button', { name: 'Send message', exact: true }).click();
     const card = page.locator('.metabloom-price-book');
+    await card.waitFor({ state: 'attached' });
+    assert.equal(publishes, beforePublishes, 'Draft generation must never publish');
+    if (width <= 900) {
+      assert.equal(await page.locator('.orb-page').getAttribute('data-component-view'), 'compact');
+      assert(await card.isHidden(), 'Mobile drafts start compact until explicitly opened');
+      await page.getByRole('button', { name: 'Open', exact: true }).click();
+    }
     await card.waitFor();
     await card.getByText('No active price book. This draft has not been published.', { exact: true }).waitFor();
     assert.equal(publishes, beforePublishes, 'Draft generation must never publish');
@@ -209,8 +216,14 @@ try {
     await page.screenshot({ path: path.join(output, name + '-published.png'), fullPage: true });
     await composer.fill('Quote a 6-hour weekend job 30 km out.');
     await page.getByRole('button', { name: 'Send message', exact: true }).click();
-    await page.locator('.metabloom-visual').filter({ hasText: /Published price book v1/ }).waitFor();
     const quoteCard = page.locator('.metabloom-visual').filter({ hasText: /Published price book v1/ });
+    await quoteCard.waitFor({ state: 'attached' });
+    if (width <= 900) {
+      assert.equal(await page.locator('.orb-page').getAttribute('data-component-view'), 'compact');
+      assert(await quoteCard.isHidden(), 'Mobile quotes preserve the compact chat workspace');
+      await page.getByRole('button', { name: 'Open', exact: true }).click();
+    }
+    await quoteCard.waitFor();
     assert.match(await quoteCard.innerText(), /751\.28/);
     assert.equal(quoteCalls, beforeQuotes + 1);
     assert.equal(generatedDrafts, beforeDrafts + 1, 'A quote bypasses the model builder');
