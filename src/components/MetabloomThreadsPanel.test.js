@@ -1,6 +1,7 @@
 import React from 'react';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import MetabloomThreadsPanel from './MetabloomThreadsPanel';
+import OrbAppearance from './OrbAppearance';
 
 const originalMedia = window.matchMedia;
 const originalWidth = window.innerWidth;
@@ -323,4 +324,39 @@ test('the modal drawer wraps Tab and Shift+Tab inside itself, while the docked s
   const docked = [...dock.querySelectorAll('button:not(:disabled)')];
   act(() => docked[docked.length - 1].focus());
   expect(fireEvent.keyDown(docked[docked.length - 1], { key: 'Tab' })).toBe(true);
+});
+
+
+const renderAppearance = props => <OrbAppearance {...props}>{({ close }) => <button type="button" onClick={() => close()}>Use fixture finish</button>}</OrbAppearance>;
+
+test('collapsed desktop Theme expands the left menu directly to its settings without changing chat data', () => {
+  const { actions } = mount({ renderAppearance }, { wide: true, open: false });
+  const draft = screen.getByRole('textbox', { name: 'Existing draft' });
+  fireEvent.click(screen.getByRole('button', { name: 'Theme', exact: true }));
+  const sidebar = screen.getByRole('complementary', { name: 'Chat history' });
+  const theme = within(sidebar).getByRole('region', { name: 'Theme' });
+  expect(theme).toBeVisible();
+  expect(screen.queryByRole('dialog', { name: 'Theme' })).not.toBeInTheDocument();
+  fireEvent.click(within(theme).getByRole('button', { name: 'Use fixture finish' }));
+  expect(screen.queryByRole('region', { name: 'Theme' })).not.toBeInTheDocument();
+  expect(within(sidebar).getByRole('button', { name: 'Theme', exact: true })).toHaveFocus();
+  expect(screen.getByRole('textbox', { name: 'Existing draft' })).toBe(draft);
+  expect(draft).toHaveValue('Keep this draft');
+  expect(actions.onNew).not.toHaveBeenCalled();
+  expect(actions.onOpen).not.toHaveBeenCalled();
+});
+
+test('mobile Theme stays inside the drawer and Escape closes settings before the menu', () => {
+  mount({ renderAppearance });
+  const drawer = screen.getByRole('dialog', { name: 'Chat history' });
+  const themeButton = within(drawer).getByRole('button', { name: 'Theme', exact: true });
+  fireEvent.click(themeButton);
+  expect(within(drawer).getByRole('region', { name: 'Theme' })).toBeVisible();
+  expect(screen.getAllByRole('dialog')).toHaveLength(1);
+  fireEvent.keyDown(screen.getByRole('button', { name: 'Close theme' }), { key: 'Escape' });
+  expect(screen.queryByRole('region', { name: 'Theme' })).not.toBeInTheDocument();
+  expect(drawer).toHaveAttribute('open');
+  expect(themeButton).toHaveFocus();
+  fireEvent.click(within(drawer).getByRole('button', { name: 'Close chats' }));
+  expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 });

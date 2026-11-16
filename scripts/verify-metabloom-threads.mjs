@@ -120,7 +120,8 @@ const readLayout = page => page.evaluate(() => {
     bodyVisible: visible(get('.metabloom-component-workspace__body')),
     overflow: document.documentElement.scrollWidth - window.innerWidth,
     workspaceOverflow: workspace ? workspace.scrollWidth - workspace.clientWidth : 0,
-    themeOutsideNavigation: !theme?.closest('.nav-header, .nav-pill'),
+    themeInMenu: !theme || Boolean(theme.closest('.metabloom-threads')),
+    themeClearance: getComputedStyle(get('.orb-page')).getPropertyValue('--orb-theme-clearance').trim(),
     componentCount: document.querySelectorAll('.metabloom-visual').length,
     sourceId: get('.metabloom-visual')?.closest('.metabloom-visual-slot')?.dataset.visualId,
     inputValues: [...document.querySelectorAll('.metabloom-visual input[type=number]')].map(input => input.value),
@@ -132,7 +133,8 @@ function checkLayout(layout, { drawer = false, dock = false, collapsed = false }
   const { panel, workspace, transcript, composer, header, viewport } = layout;
   assert(layout.overflow <= 1 && layout.panelOverflow <= 1 && layout.workspaceOverflow <= 1, 'No horizontal overflow');
   assert.equal(viewport.scrollY, 0, 'Scrolling history must not move the document');
-  assert(layout.themeOutsideNavigation, 'Theme stays outside navigation');
+  assert(layout.themeInMenu, 'Theme belongs to the left menu');
+  assert.equal(layout.themeClearance, '0px', 'The floating Theme row is reclaimed');
   if (drawer) {
     assert(layout.drawer && inside(panel, viewport), 'The native history drawer fits the visible viewport');
     assert(panel.left <= 24, 'History opens from the left');

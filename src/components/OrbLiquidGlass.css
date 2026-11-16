@@ -69,7 +69,7 @@
   background: var(--lg-lens-hover) !important; box-shadow: inset 0 0 0 0.5px var(--lg-rim) !important;
 }
 .orb-page .metabloom-reactions__panel,
-.orb-page .orb-appearance__dialog[open] { animation: liquid-glass-in var(--aetheris-motion-medium, 220ms) var(--aetheris-ease-standard, ease) both; }
+.orb-page .orb-appearance__dialog { animation: liquid-glass-in var(--aetheris-motion-medium, 220ms) var(--aetheris-ease-standard, ease) both; }
 
 /* Painted spectral rings give way to the glass rim; refraction supplies the fringe. */
 .orb-page .metabloom-reactions__toolbar > button::before,
@@ -129,13 +129,13 @@
 .orb-page .metabloom-reactions__panel summary { border-color: transparent; border-radius: 16px; background: transparent; }
 
 /* Theme: finishes as capsules with a lens for the active one. */
-.orb-page .orb-appearance__dialog[open] .orb-page__finish-option {
+.orb-page .orb-appearance__dialog .orb-page__finish-option {
   border-color: transparent; border-radius: 999px; background: transparent; box-shadow: none;
 }
-.orb-page .orb-appearance__dialog[open] .orb-page__finish-option::before { display: none; }
-.orb-page .orb-appearance__dialog[open] .orb-page__finish-option.is-active { background: var(--lg-lens); box-shadow: var(--lg-lens-edge); }
+.orb-page .orb-appearance__dialog .orb-page__finish-option::before { display: none; }
+.orb-page .orb-appearance__dialog .orb-page__finish-option.is-active { background: var(--lg-lens); box-shadow: var(--lg-lens-edge); }
 @media (hover: hover) {
-  .orb-page .orb-appearance__dialog[open] .orb-page__finish-option:hover:not(.is-active) { background: var(--lg-lens-hover); }
+  .orb-page .orb-appearance__dialog .orb-page__finish-option:hover:not(.is-active) { background: var(--lg-lens-hover); }
 }
 
 /* Composer chips are capsules; the active Deep Research chip is a lens. */
@@ -146,7 +146,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .orb-page .metabloom-reactions__panel, .orb-page .orb-appearance__dialog[open] { animation: none; }
+  .orb-page .metabloom-reactions__panel, .orb-page .orb-appearance__dialog { animation: none; }
 }
 @media (forced-colors: active) {
   .orb-page .metabloom-chat__composer,
@@ -163,7 +163,7 @@
     backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
   }
   .orb-page .metabloom-threads__table tr[data-current='true'] > td,
-  .orb-page .orb-appearance__dialog[open] .orb-page__finish-option.is-active { background: Highlight; color: HighlightText; }
+  .orb-page .orb-appearance__dialog .orb-page__finish-option.is-active { background: Highlight; color: HighlightText; }
 }
 
 /* Remaining in-menu controls follow the same capsule and lens language. */

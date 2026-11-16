@@ -35,6 +35,7 @@ test('authenticated Orb reveals its interface before its renderer is ready', asy
   expect(typeof mockReady).toBe('function');
   act(() => mockReady());
   expect(onReady).toHaveBeenCalledTimes(2);
+  fireEvent.click(screen.getByRole('button', { name: 'Chats', exact: true }));
   fireEvent.click(screen.getByRole('button', { name: 'Theme', exact: true }));
   fireEvent.click(screen.getByRole('button', { name: 'Use Nova fire for Metabloom' }));
   expect(screen.getByTestId('startup-field')).toBe(field);

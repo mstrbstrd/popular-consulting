@@ -128,7 +128,7 @@
 
 /* Keep the authored finishes inside the anchored panel; their old floating
    positions must not affect the compact two-column layout. */
-.orb-page .orb-appearance__dialog[open] .orb-page__finish-selector {
+.orb-page .orb-appearance__dialog .orb-page__finish-selector {
   position: static;
   inset: auto;
   display: grid;
@@ -149,8 +149,8 @@
   visibility: visible;
   pointer-events: auto;
 }
-.orb-page .orb-appearance__dialog[open] .orb-page__finish-selector::before { display: none; }
-.orb-page .orb-appearance__dialog[open] .orb-page__finish-label {
+.orb-page .orb-appearance__dialog .orb-page__finish-selector::before { display: none; }
+.orb-page .orb-appearance__dialog .orb-page__finish-label {
   position: static;
   grid-column: 1 / -1;
   width: auto;
@@ -163,7 +163,7 @@
   font: 500 11px/1.5 var(--aetheris-font-mono);
   letter-spacing: 0.08em;
 }
-.orb-page .orb-appearance__dialog[open] .orb-page__finish-option {
+.orb-page .orb-appearance__dialog .orb-page__finish-option {
   justify-content: flex-start;
   min-height: 44px;
   padding: 8px 10px;
@@ -175,21 +175,21 @@
   letter-spacing: 0.02em;
   transform: none;
 }
-.orb-page .orb-appearance__dialog[open] .orb-page__finish-option.is-active {
+.orb-page .orb-appearance__dialog .orb-page__finish-option.is-active {
   border-color: transparent; color: var(--aetheris-ink); background: var(--aetheris-panel);
   box-shadow: var(--aetheris-glass-specular);
 }
-.orb-page .orb-appearance__dialog[open] .orb-page__finish-option.is-active::before { padding: 2px; }
-.orb-page .orb-appearance__dialog[open] .orb-page__finish-option.is-active::after {
+.orb-page .orb-appearance__dialog .orb-page__finish-option.is-active::before { padding: 2px; }
+.orb-page .orb-appearance__dialog .orb-page__finish-option.is-active::after {
   content: ""; flex: 0 0 5px; width: 5px; height: 9px; margin-left: auto;
   border-right: 1.5px solid var(--aetheris-teal); border-bottom: 1.5px solid var(--aetheris-teal); transform: rotate(45deg);
 }
-.orb-page .orb-appearance__dialog[open] .orb-page__finish-swatch {
+.orb-page .orb-appearance__dialog .orb-page__finish-swatch {
   width: 10px;
   height: 10px;
   flex-basis: 10px;
 }
-.orb-page .orb-appearance__dialog[open] .orb-page__background-toggle {
+.orb-page .orb-appearance__dialog .orb-page__background-toggle {
   position: static;
   inset: auto;
   justify-content: flex-start;
@@ -204,13 +204,13 @@
   pointer-events: auto;
 }
 @media (hover: hover) {
-  .orb-page .orb-appearance__dialog[open] .orb-page__finish-option:hover,
-  .orb-page .orb-appearance__dialog[open] .orb-page__background-toggle:hover {
+  .orb-page .orb-appearance__dialog .orb-page__finish-option:hover,
+  .orb-page .orb-appearance__dialog .orb-page__background-toggle:hover {
     background: var(--aetheris-state-layer); box-shadow: var(--aetheris-glass-specular); transform: none;
   }
 }
-.orb-page .orb-appearance__dialog[open] .orb-page__finish-option:focus-visible,
-.orb-page .orb-appearance__dialog[open] .orb-page__background-toggle:focus-visible {
+.orb-page .orb-appearance__dialog .orb-page__finish-option:focus-visible,
+.orb-page .orb-appearance__dialog .orb-page__background-toggle:focus-visible {
   outline: 2px solid var(--aetheris-focus-line); outline-offset: 2px; box-shadow: var(--aetheris-focus-halo);
 }
 
@@ -284,8 +284,8 @@
   .orb-page .orb-appearance__dialog,
   .orb-page .orb-appearance__trigger,
   .orb-page .orb-appearance__close,
-  .orb-page .orb-appearance__dialog[open] .orb-page__finish-option,
-  .orb-page .orb-appearance__dialog[open] .orb-page__background-toggle {
+  .orb-page .orb-appearance__dialog .orb-page__finish-option,
+  .orb-page .orb-appearance__dialog .orb-page__background-toggle {
     border: 1px solid CanvasText;
     color: CanvasText;
     background: Canvas;
@@ -295,9 +295,9 @@
   }
   .orb-page .orb-appearance__dialog::before,
   .orb-page .orb-appearance__trigger::before,
-  .orb-page .orb-appearance__dialog[open] .orb-page__finish-option::before { display: none; }
-  .orb-page .orb-appearance__dialog[open] .orb-page__finish-option.is-active { outline: 2px solid Highlight; outline-offset: -3px; }
-  .orb-page .orb-appearance__dialog[open] .orb-page__finish-option.is-active::after { border-color: Highlight; }
+  .orb-page .orb-appearance__dialog .orb-page__finish-option::before { display: none; }
+  .orb-page .orb-appearance__dialog .orb-page__finish-option.is-active { outline: 2px solid Highlight; outline-offset: -3px; }
+  .orb-page .orb-appearance__dialog .orb-page__finish-option.is-active::after { border-color: Highlight; }
   .orb-page .orb-appearance__trigger:focus-visible,
   .orb-page .orb-appearance__close:focus-visible { outline-color: Highlight; }
 }

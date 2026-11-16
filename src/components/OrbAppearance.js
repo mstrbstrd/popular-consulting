@@ -3,8 +3,8 @@ import './OrbAppearance.css';
 
 // Settings stay in their original owners. This disclosure never recreates the
 // Orb, takes focus on hover, or makes the conversation inert.
-const OrbAppearance = ({ children }) => {
-  const [openMode, setOpenMode] = React.useState(null);
+const OrbAppearance = ({ children, inline = false, initialOpen = false }) => {
+  const [openMode, setOpenMode] = React.useState(initialOpen ? 'explicit' : null);
   const open = openMode !== null;
   const rootRef = React.useRef(null);
   const triggerRef = React.useRef(null);
@@ -29,7 +29,7 @@ const OrbAppearance = ({ children }) => {
     if (page) page.dataset.appearanceOpen = 'true';
     const outside = event => { if (!root.contains(event.target)) close(false); };
     const escape = event => {
-      if (event.key !== 'Escape') return;
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
       if (root.contains(document.activeElement)) event.preventDefault();
       close();
     };
@@ -48,10 +48,14 @@ const OrbAppearance = ({ children }) => {
     };
   }, [open, close]);
 
+  const Panel = inline ? 'section' : 'dialog';
   return (
-    <div className="orb-appearance" ref={rootRef}
+    <div className="orb-appearance" data-inline={inline || undefined} ref={rootRef}
+      onKeyDown={event => {
+        if (inline && open && event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(); }
+      }}
       onPointerEnter={event => {
-        if (!open && event.pointerType === 'mouse'
+        if (!inline && !open && event.pointerType === 'mouse'
           && window.matchMedia('(hover: hover) and (pointer: fine)').matches) setOpenMode('hover');
       }}
       onPointerLeave={() => {
@@ -59,7 +63,7 @@ const OrbAppearance = ({ children }) => {
       }}
       onBlur={event => { if (!event.currentTarget.contains(event.relatedTarget)) close(false); }}>
       <button type="button" className="orb-appearance__trigger" ref={triggerRef}
-        aria-haspopup="dialog" aria-expanded={open} aria-controls={id}
+        aria-haspopup={inline ? undefined : "dialog"} aria-expanded={open} aria-controls={id}
         onClick={() => { if (openMode === 'explicit') close(); else setOpenMode('explicit'); }}>
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false">
           <circle cx="8" cy="8" r="5.5" stroke="currentColor" strokeWidth="1.3" />
@@ -68,7 +72,7 @@ const OrbAppearance = ({ children }) => {
         <span>Theme</span>
       </button>
       {open && (
-        <dialog open ref={panelRef} id={id} className="orb-appearance__dialog" aria-modal="false" aria-labelledby={`${id}-title`}
+        <Panel open={inline ? undefined : true} data-inline={inline || undefined} role={inline ? "region" : undefined} ref={panelRef} id={id} className="orb-appearance__dialog" aria-modal={inline ? undefined : "false"} aria-labelledby={`${id}-title`}
           onCancel={event => { event.preventDefault(); close(); }}>
           <div className="orb-appearance__heading">
             <h2 id={`${id}-title`}>Theme</h2>
@@ -79,7 +83,7 @@ const OrbAppearance = ({ children }) => {
             </button>
           </div>
           <div className="orb-appearance__content">{typeof children === 'function' ? children({ close }) : children}</div>
-        </dialog>
+        </Panel>
       )}
     </div>
   );

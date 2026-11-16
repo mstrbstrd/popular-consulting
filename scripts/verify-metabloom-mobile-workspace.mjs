@@ -126,13 +126,14 @@ const readLayout = page => page.evaluate(() => {
     }
     return false;
   };
-  const actions = ['.orb-appearance__trigger', '.nav-burger'].map(selector => box(get(selector)));
+  const actions = ['.metabloom-threads__trigger', '.nav-burger'].map(selector => box(get(selector)));
   const workspaceActions = ['[data-workspace-saved]', '[data-workspace-toggle]'].map(selector => {
     const button = workspace?.querySelector(selector);
     return { label: button?.getAttribute('aria-label') || button?.textContent.trim(), bounds: box(button),
       visible: visible(button), enabled: !!button && !button.disabled, receivesPointer: hit(button) };
   });
   const themeTrigger = get('.orb-appearance__trigger'), themeVisible = visible(themeTrigger);
+  const menuTrigger = get('.metabloom-threads__trigger');
   const inputs = [...(card?.querySelectorAll('input[type=number]') || [])];
   return {
     viewport: { width: window.innerWidth, height: window.innerHeight,
@@ -151,8 +152,10 @@ const readLayout = page => page.evaluate(() => {
     horizontalOverflow: document.documentElement.scrollWidth - window.innerWidth,
     workspaceOverflow: workspace ? workspace.scrollWidth - workspace.clientWidth : null,
     bodyOverflow: visible(body) ? body.scrollWidth - body.clientWidth : 0,
-    actions, workspaceActions, themeControl: { visible: themeVisible, outsideNavigation: !themeTrigger.closest('.nav-header, .nav-pill'),
+    actions, workspaceActions, themeControl: { visible: themeVisible, outsideNavigation: !themeTrigger?.closest('.nav-header, .nav-pill'),
       receivesPointer: themeVisible && hit(themeTrigger) },
+    menuControl: { visible: visible(menuTrigger), receivesPointer: hit(menuTrigger) },
+    themeClearance: getComputedStyle(get('.orb-page')).getPropertyValue('--orb-theme-clearance').trim(),
     returnActionReceivesPointer: hit(get('.metabloom-component-workspace__toolbar button[aria-label="Return component to conversation"]')),
     toggleLabel: toggle?.getAttribute('aria-label') || toggle?.textContent.trim(), toggleReceivesPointer: hit(toggle),
     latestReplyVisible: visible(latestReply), latestReplyReceivesPointer: hit(latestReply),
@@ -227,15 +230,12 @@ function assertLayout(layout, { short = false, view = 'compact', resultVisible =
     `${action.label} stays fully inside the visible viewport`);
   }
   assert(layout.actions[1]?.height >= 43.9, 'Menu retains its touch target');
-  assert(layout.themeControl.outsideNavigation, 'Theme belongs to the Orb content controls, outside navigation');
-  assert.equal(layout.themeControl.visible, !short && view === 'compact', 'Expanded and short keyboard views give the Theme row back to the content');
-  if (layout.themeControl.visible) {
-    const theme = layout.actions[0];
-    assert(theme.height >= 43.9 && theme.width >= 43.9, 'Theme retains its touch target');
-    assert(theme.top >= header.bottom - 1, 'Theme stays below the navigation in the original finish-control area');
-    assert(theme.bottom <= workspace.top + 1, 'The collapsed Theme row must not cover the component');
-    assert(layout.themeControl.receivesPointer, 'The collapsed Theme control receives pointer events');
-  }
+  assert.equal(layout.themeControl.visible, false, 'Theme is inside the closed left menu');
+  assert.equal(layout.themeClearance, '0px', 'Theme no longer reserves a content row');
+  assert(layout.menuControl.visible && layout.menuControl.receivesPointer, 'The left menu remains reachable');
+  const menu = layout.actions[0];
+  assert(menu.width >= 43.9 && menu.height >= 43.9, 'The left menu retains a 44px touch target');
+  assert(menu.bottom <= workspace.top + 1, 'The left menu does not cover the component');
   if (resultVisible) assert(layout.outputVisibleHeight >= Math.min(20, layout.output.height), 'The current result remains visible when the follow-up arrives');
 }
 async function capture(page, name, options) {
@@ -335,10 +335,11 @@ try {
       assert(await page.locator('.metabloom-chat__messages').evaluate(element =>
         element.scrollHeight - element.scrollTop - element.clientHeight < 72), 'The reply shortcut returns to the latest message');
 
+      await page.getByRole('button', { name: 'Chats', exact: true }).tap();
       await page.getByRole('button', { name: 'Theme', exact: true }).tap();
-      const appearance = page.getByRole('dialog', { name: 'Theme', exact: true });
+      const appearance = page.getByRole('region', { name: 'Theme', exact: true });
       await appearance.waitFor({ state: 'visible' });
-      assert.equal(await appearance.getAttribute('aria-modal'), 'false', 'Theme must not make the page inert');
+      assert.equal(await page.getByRole('dialog').count(), 1, 'Theme stays inside the existing menu without a nested dialog');
       const dialogBounds = await appearance.boundingBox();
       assert(dialogBounds.x >= 0 && dialogBounds.x + dialogBounds.width <= viewport.width + 1);
       assert(dialogBounds.y >= 0 && dialogBounds.y + dialogBounds.height <= viewport.height + 1);
@@ -351,6 +352,7 @@ try {
       await page.keyboard.press('Escape');
       await appearance.waitFor({ state: 'detached' });
       assert.equal(await page.getByRole('button', { name: 'Theme', exact: true }).evaluate(button => button === document.activeElement), true);
+      await page.getByRole('button', { name: 'Close chats', exact: true }).click();
       await capture(page, `${activeCase}-appearance-preserved`);
 
       await page.getByRole('button', { name: 'Return component to conversation', exact: true }).click();

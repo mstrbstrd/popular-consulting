@@ -267,3 +267,48 @@
   .orb-page .metabloom-threads__dock { border-right: 1px solid CanvasText; }
   .orb-page .metabloom-threads :where(button, input):focus-visible, .orb-page .metabloom-threads__trigger:focus-visible { outline: 2px solid Highlight; box-shadow: none; }
 }
+
+/* Appearance belongs to the sidebar, not a separate row above the work. */
+.orb-page[data-theme-in-menu='true'] { --orb-theme-clearance: 0px; }
+.orb-page .metabloom-threads__appearance {
+  flex: 0 1 auto; min-height: 0; max-height: 70%; overflow-y: auto;
+  padding: 8px; border-top: 1px solid var(--aetheris-line); scrollbar-width: thin;
+}
+.orb-page .metabloom-threads .orb-appearance[data-inline='true'] {
+  display: flex; flex-direction: column; position: static; inset: auto;
+  width: 100%; padding: 0; transform: none;
+}
+.orb-page .metabloom-threads .orb-appearance[data-inline='true'] > .orb-appearance__trigger {
+  justify-content: flex-start; width: 100%; border-radius: var(--aetheris-radius-md);
+  font: 550 14px/1.4 var(--aetheris-font-sans);
+}
+.orb-page .metabloom-threads .orb-appearance__dialog[data-inline='true'] {
+  position: static; inset: auto; width: 100%; max-height: none;
+  margin-top: 6px; transform: none; flex: 0 0 auto;
+}
+.orb-page .metabloom-threads .orb-appearance__dialog[data-inline='true'] .orb-appearance__content {
+  overflow: visible; padding: 10px;
+}
+.orb-page .metabloom-threads .orb-appearance__dialog[data-inline='true'] .orb-page__finish-selector { gap: 6px; }
+.orb-page .metabloom-threads button.metabloom-threads__rail-theme { border: 0; background: transparent; box-shadow: none; }
+@media (max-width: 1099px) {
+  .orb-page[data-theme-in-menu='true'] .nav-header { padding-left: max(68px, calc(env(safe-area-inset-left) + 56px)); }
+  .orb-page[data-theme-in-menu='true'] .metabloom-threads__floating {
+    position: fixed; display: block; top: max(24px, env(safe-area-inset-top)); left: max(12px, env(safe-area-inset-left));
+  }
+  .orb-page[data-theme-in-menu='true'] .metabloom-threads__trigger { width: 44px; height: 44px; padding: 0; }
+  .orb-page[data-theme-in-menu='true'] .metabloom-threads__trigger > span {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+  }
+  .orb-page[data-theme-in-menu='true']:is([data-compact-viewport='true'], [data-keyboard-open='true'], [data-component-view='expanded']) .metabloom-threads__floating { display: block; }
+}
+@media (max-width: 768px) {
+  .orb-page[data-theme-in-menu='true'] .metabloom-threads__floating { top: max(12px, calc(env(safe-area-inset-top) + 4px)); }
+}
+@media (max-width: 360px) {
+  .orb-page[data-theme-in-menu='true'] .nav-brand-name { display: none; }
+}
+@media (min-width: 769px) and (max-width: 900px) {
+  /* Keep the full navigation usable beside the left-menu opener on tablets. */
+  .orb-page[data-theme-in-menu='true'] .nav-brand-name { display: none; }
+}

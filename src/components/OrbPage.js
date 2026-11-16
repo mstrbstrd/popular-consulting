@@ -172,69 +172,8 @@ const OrbPageContent = ({ onReady }) => {
     ? { visibility: "hidden", pointerEvents: "none" }
     : undefined;
 
-  return (
-    <MetabloomPaletteContext.Provider value={metabloomPalette}>
-      <div
-        ref={pageRef}
-        className="orb-page standalone-experience--orb"
-        data-conversation-started={conversationStarted ? "true" : "false"}
-        data-background-enabled={backgroundEnabled ? "true" : "false"}
-        data-metabloom-palette={metabloomPalette}
-        data-site-audience={SITE_AUDIENCES.BUSINESS}
-        data-thread-history-enabled={threads.enabled ? 'true' : undefined}
-        data-thread-history={threads.expanded ? 'open' : 'closed'}
-      >
-        <a className="skip-to-content orb-page__skip" href="#main-content">
-          Skip to Metabloom
-        </a>
-
-        <svg
-          className="orb-page__svg-definitions"
-          width="0"
-          height="0"
-          aria-hidden="true"
-          focusable="false"
-        >
-          <defs>
-
-            <linearGradient
-              id="orb-send-gradient"
-              x1="3"
-              y1="21"
-              x2="21"
-              y2="3"
-              gradientUnits="userSpaceOnUse"
-            >
-              <stop
-                className="orb-page__send-stop orb-page__send-stop--cyan"
-                offset="0"
-              />
-              <stop
-                className="orb-page__send-stop orb-page__send-stop--magenta"
-                offset="0.42"
-              />
-              <stop
-                className="orb-page__send-stop orb-page__send-stop--gold"
-                offset="0.72"
-              />
-              <stop
-                className="orb-page__send-stop orb-page__send-stop--violet"
-                offset="1"
-              />
-            </linearGradient>
-          </defs>
-        </svg>
-
-        <div className="orb-page__background" aria-hidden="true">
-          <div className="orb-page__ambient" />
-          <div className="orb-page__grid" />
-          <div className="orb-page__vignette" />
-        </div>
-
-        <div className="orb-page__foreground" style={pageHideStyle}>
-          <ImmersiveRouteNavigationBridge />
-          <NavMenu audience={SITE_AUDIENCES.BUSINESS} />
-          <OrbAppearance>{({ close }) => <>
+  const renderAppearance = ({ inline = false, initialOpen = false } = {}) => (
+    <OrbAppearance inline={inline} initialOpen={initialOpen}>{({ close }) => <>
               <div
                 className="orb-page__finish-selector"
                 role="group"
@@ -341,11 +280,77 @@ const OrbPageContent = ({ onReady }) => {
                 <span>Background {backgroundEnabled ? "On" : "Off"}</span>
               </button>
           </>}</OrbAppearance>
+  );
+
+  return (
+    <MetabloomPaletteContext.Provider value={metabloomPalette}>
+      <div
+        ref={pageRef}
+        className="orb-page standalone-experience--orb"
+        data-conversation-started={conversationStarted ? "true" : "false"}
+        data-background-enabled={backgroundEnabled ? "true" : "false"}
+        data-metabloom-palette={metabloomPalette}
+        data-site-audience={SITE_AUDIENCES.BUSINESS}
+        data-thread-history-enabled={threads.enabled ? 'true' : undefined}
+        data-theme-in-menu={threads.enabled ? 'true' : undefined}
+        data-thread-history={threads.expanded ? 'open' : 'closed'}
+      >
+        <a className="skip-to-content orb-page__skip" href="#main-content">
+          Skip to Metabloom
+        </a>
+
+        <svg
+          className="orb-page__svg-definitions"
+          width="0"
+          height="0"
+          aria-hidden="true"
+          focusable="false"
+        >
+          <defs>
+
+            <linearGradient
+              id="orb-send-gradient"
+              x1="3"
+              y1="21"
+              x2="21"
+              y2="3"
+              gradientUnits="userSpaceOnUse"
+            >
+              <stop
+                className="orb-page__send-stop orb-page__send-stop--cyan"
+                offset="0"
+              />
+              <stop
+                className="orb-page__send-stop orb-page__send-stop--magenta"
+                offset="0.42"
+              />
+              <stop
+                className="orb-page__send-stop orb-page__send-stop--gold"
+                offset="0.72"
+              />
+              <stop
+                className="orb-page__send-stop orb-page__send-stop--violet"
+                offset="1"
+              />
+            </linearGradient>
+          </defs>
+        </svg>
+
+        <div className="orb-page__background" aria-hidden="true">
+          <div className="orb-page__ambient" />
+          <div className="orb-page__grid" />
+          <div className="orb-page__vignette" />
+        </div>
+
+        <div className="orb-page__foreground" style={pageHideStyle}>
+          <ImmersiveRouteNavigationBridge />
+          <NavMenu audience={SITE_AUDIENCES.BUSINESS} />
+          {!threads.enabled && renderAppearance()}
 
           {/* History is page chrome, like Claude's sidebar: it sits outside the
               conversation surface, so it never shares the transcript's stacking
               context and survives the per-chat remount of that surface. */}
-          {threads.enabled && <MetabloomThreadsPanel {...threads.panelProps} />}
+          {threads.enabled && <MetabloomThreadsPanel {...threads.panelProps} renderAppearance={renderAppearance} />}
 
           <main
             id="main-content"

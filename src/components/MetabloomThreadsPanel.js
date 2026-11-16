@@ -31,9 +31,10 @@ const dateLabel = value => {
 // request cancellation, and the paired conversation/workspace transition.
 export default function MetabloomThreadsPanel({ expanded, onExpandedChange, items = [], activeThreadId,
   loading = false, busy = false, pending = false, error = '', saveStatus = '', onRetry, onRefresh,
-  onNew, onOpen, onRename, onDelete, canSaveCopy = false, onSaveCopy }) {
+  onNew, onOpen, onRename, onDelete, canSaveCopy = false, onSaveCopy, renderAppearance }) {
   const id = React.useId();
   const [wide, setWide] = React.useState(() => window.matchMedia?.(WIDE_QUERY).matches ?? window.innerWidth >= WIDE_FALLBACK);
+  const [themeRequested, setThemeRequested] = React.useState(false);
   const [editor, setEditor] = React.useState(null);
   const [title, setTitle] = React.useState('');
   const [operation, setOperation] = React.useState(null);
@@ -138,6 +139,7 @@ export default function MetabloomThreadsPanel({ expanded, onExpandedChange, item
     });
   };
   const close = (restoreFocus = true) => {
+    setThemeRequested(false);
     restoreFocusRef.current = restoreFocus;
     operationRef.current = null;
     setOperation(null);
@@ -199,6 +201,7 @@ export default function MetabloomThreadsPanel({ expanded, onExpandedChange, item
     if (editor) { event.preventDefault(); event.stopPropagation(); closeEditor(); }
     else if (wide) { event.preventDefault(); close(); }
   };
+  const themeIcon = <svg width="18" height="18" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="5.5" stroke="currentColor" strokeWidth="1.3" /><path d="M8 2.5a5.5 5.5 0 0 1 0 11Z" fill="currentColor" /></svg>;
   const body = <>
     <div className="metabloom-threads__heading">
       {wide && <button ref={closeRef} type="button" className="metabloom-threads__icon metabloom-threads__toggle"
@@ -293,6 +296,7 @@ export default function MetabloomThreadsPanel({ expanded, onExpandedChange, item
         })}</tbody>
       </table>}
     </div>
+    {renderAppearance && <div className="metabloom-threads__appearance">{renderAppearance({ inline: true, initialOpen: themeRequested })}</div>}
   </>;
   const trigger = <button ref={triggerRef} type="button" className="metabloom-threads__trigger" aria-expanded={expanded}
     aria-controls={`${id}-panel`} aria-haspopup={wide ? undefined : 'dialog'} aria-label={wide ? 'Expand chats' : 'Chats'}
@@ -306,6 +310,8 @@ export default function MetabloomThreadsPanel({ expanded, onExpandedChange, item
       {expanded ? body : <>
         {trigger}
         <button ref={newRef} type="button" className="metabloom-threads__rail-new" aria-label="New chat" title="New chat" disabled={blocked} onClick={newThread}><NewChatIcon /></button>
+        {renderAppearance && <button type="button" className="metabloom-threads__rail-theme" aria-label="Theme" title="Theme"
+          onClick={() => { setThemeRequested(true); onExpandedChange(true); }}>{themeIcon}</button>}
         {saveStatus && <p id={`${id}-status`} role="status" className="metabloom-threads__sr-only">{saveStatus}</p>}
         {message && <p id={`${id}-error`} role="alert" className="metabloom-threads__sr-only">{message}</p>}
       </>}

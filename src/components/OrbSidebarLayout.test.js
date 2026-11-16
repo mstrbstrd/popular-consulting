@@ -11,7 +11,7 @@ describe('Orb chat sidebar layout', () => {
   test('history is page chrome outside the conversation surface', () => {
     // Inside the surface, the empty-state transcript layer covered the panel and
     // swallowed every click on a saved chat. It must stay a sibling of <main>.
-    const panel = page.indexOf('<MetabloomThreadsPanel {...threads.panelProps} />');
+    const panel = page.indexOf('<MetabloomThreadsPanel {...threads.panelProps}');
     const main = page.indexOf('<main');
     expect(panel).toBeGreaterThan(-1);
     expect(panel).toBeLessThan(main);
