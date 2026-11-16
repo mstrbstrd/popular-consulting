@@ -11,6 +11,7 @@ import ImmersiveRouteNavigationBridge from "./ImmersiveRouteNavigationBridge";
 import LoadingOverlay from "./LoadingOverlay";
 import NavMenu from "./NavMenu";
 import OrbAppearance from "./OrbAppearance";
+import { OrbSidebarBrand, OrbSidebarLinks, OrbSidebarAccount, OrbSidebarColorMode } from "./OrbSidebarNavigation";
 import OrbSection from "./OrbSection";
 import MetabloomVisuals from "./MetabloomVisuals";
 import MetabloomWorkspaceContext from './MetabloomWorkspaceContext';
@@ -26,6 +27,7 @@ import "./OrbNovaFinish.css";
 import "./MetabloomVisual.css";
 import "./OrbWorkspaceLayout.css";
 import './MetabloomThreadsPanel.css';
+import './OrbSidebarNavigation.css';
 import "./OrbChatRefinement.css";
 import "./LiquidGlass.css";
 import "./OrbLiquidGlass.css";
@@ -174,6 +176,7 @@ const OrbPageContent = ({ onReady }) => {
 
   const renderAppearance = ({ inline = false, initialOpen = false } = {}) => (
     <OrbAppearance inline={inline} initialOpen={initialOpen}>{({ close }) => <>
+              {inline && <OrbSidebarColorMode />}
               <div
                 className="orb-page__finish-selector"
                 role="group"
@@ -293,6 +296,7 @@ const OrbPageContent = ({ onReady }) => {
         data-site-audience={SITE_AUDIENCES.BUSINESS}
         data-thread-history-enabled={threads.enabled ? 'true' : undefined}
         data-theme-in-menu={threads.enabled ? 'true' : undefined}
+        data-sidebar-navigation={threads.enabled ? 'true' : undefined}
         data-thread-history={threads.expanded ? 'open' : 'closed'}
       >
         <a className="skip-to-content orb-page__skip" href="#main-content">
@@ -343,14 +347,16 @@ const OrbPageContent = ({ onReady }) => {
         </div>
 
         <div className="orb-page__foreground" style={pageHideStyle}>
-          <ImmersiveRouteNavigationBridge />
-          <NavMenu audience={SITE_AUDIENCES.BUSINESS} />
+          {!threads.enabled && <><ImmersiveRouteNavigationBridge /><NavMenu audience={SITE_AUDIENCES.BUSINESS} /></>}
           {!threads.enabled && renderAppearance()}
 
           {/* History is page chrome, like Claude's sidebar: it sits outside the
               conversation surface, so it never shares the transcript's stacking
               context and survives the per-chat remount of that surface. */}
-          {threads.enabled && <MetabloomThreadsPanel {...threads.panelProps} renderAppearance={renderAppearance} />}
+          {threads.enabled && <MetabloomThreadsPanel {...threads.panelProps} renderAppearance={renderAppearance}
+            renderBrand={props => <OrbSidebarBrand {...props} />}
+            renderNavigation={props => <OrbSidebarLinks {...props} />}
+            renderAccount={props => <OrbSidebarAccount {...props} />} />}
 
           <main
             id="main-content"

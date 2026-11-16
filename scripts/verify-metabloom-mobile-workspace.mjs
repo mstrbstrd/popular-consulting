@@ -126,7 +126,7 @@ const readLayout = page => page.evaluate(() => {
     }
     return false;
   };
-  const actions = ['.metabloom-threads__trigger', '.nav-burger'].map(selector => box(get(selector)));
+  const actions = ['.metabloom-threads__trigger', '.metabloom-threads__mobile-new'].map(selector => box(get(selector)));
   const workspaceActions = ['[data-workspace-saved]', '[data-workspace-toggle]'].map(selector => {
     const button = workspace?.querySelector(selector);
     return { label: button?.getAttribute('aria-label') || button?.textContent.trim(), bounds: box(button),
@@ -141,7 +141,8 @@ const readLayout = page => page.evaluate(() => {
     theme: document.documentElement.dataset.theme,
     active: get('.orb-page')?.dataset.activeComponent === 'true',
     view: get('.orb-page')?.dataset.componentView,
-    header: box(get('.nav-pill')), workspace: box(workspace), body: bb, transcript: box(transcript), composer: box(composer),
+    topNavigationCount: document.querySelectorAll('.nav-header').length,
+    header: box(get('.metabloom-threads__floating')), workspace: box(workspace), body: bb, transcript: box(transcript), composer: box(composer),
     bodyVisible: visible(body), transcriptVisible: visible(transcript), summaryVisible: visible(summary),
     summary: summary?.textContent, summaryBounds: box(summary),
     summaryValuesVisible: ['1,445', '17', '85'].every(value => visibleText(summary, value)),
@@ -229,8 +230,9 @@ function assertLayout(layout, { short = false, view = 'compact', resultVisible =
       && target.top >= -1 && target.bottom <= viewport.height + 1,
     `${action.label} stays fully inside the visible viewport`);
   }
-  assert(layout.actions[1]?.height >= 43.9, 'Menu retains its touch target');
+  assert(layout.actions[1]?.height >= 43.9, 'New chat retains its touch target');
   assert.equal(layout.themeControl.visible, false, 'Theme is inside the closed left menu');
+  assert.equal(layout.topNavigationCount, 0, 'Orb folds site navigation into the sidebar');
   assert.equal(layout.themeClearance, '0px', 'Theme no longer reserves a content row');
   assert(layout.menuControl.visible && layout.menuControl.receivesPointer, 'The left menu remains reachable');
   const menu = layout.actions[0];

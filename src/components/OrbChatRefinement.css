@@ -13,9 +13,9 @@
     --orb-theme-clearance: 0px;
   }
 
-  /* The current-component panel occupies the right column, directly under
-     the Theme control, so it alone keeps that control's clearance. */
-  .orb-page[data-active-component="true"][data-conversation-started="true"] .metabloom-chat__workspace {
+  /* Only the standalone fallback still has a floating Theme control.
+     Sidebar navigation gives the artifact the full available height. */
+  .orb-page:not([data-theme-in-menu="true"])[data-active-component="true"][data-conversation-started="true"] .metabloom-chat__workspace {
     margin-top: 52px;
   }
 }

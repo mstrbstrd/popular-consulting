@@ -301,16 +301,19 @@ try {
         await evaluate('new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))');
         const layout = await evaluate(`(() => {
           const box = selector => {
-            const rect = document.querySelector(selector).getBoundingClientRect();
+            const element = document.querySelector(selector);
+            if (!element) return null;
+            const rect = element.getBoundingClientRect();
             return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom, width: rect.width, height: rect.height };
           };
           return { viewport: { width: window.innerWidth, height: window.innerHeight },
-            header: box('.nav-pill'), workspace: box('.metabloom-chat__workspace'),
+            header: box('.metabloom-threads__floating'), workspace: box('.metabloom-chat__workspace'),
             transcript: box('.metabloom-chat__messages'), composer: box('.metabloom-chat__composer-area'),
             overflow: document.documentElement.scrollWidth - window.innerWidth,
             sameComponent: window.__testedArtifact === document.querySelector('.metabloom-visual') };
         })()`);
         results.push({ case: `desktop-workspace-${width}`, layout });
+        if (width >= 1100) assert(!layout.header && layout.workspace.top <= 24, 'Desktop reclaims the top navigation space');
         const { workspace, transcript, composer, header, viewport } = layout;
         assert(transcript.width > 0 && transcript.height > 0 && composer.width > 0 && composer.height > 0,
           `At ${width}px, the conversation and composer remain visible`);
@@ -320,7 +323,7 @@ try {
           `At ${width}px, the composer stays below the conversation in the same left column`);
         assert(workspace.width > 0 && workspace.width < transcript.width,
           `At ${width}px, the artifact retains its narrower width preference`);
-        assert(header.bottom <= workspace.top + 1 && workspace.right <= viewport.width + 1
+        assert((!header || header.bottom <= workspace.top + 1) && workspace.right <= viewport.width + 1
           && workspace.bottom <= viewport.height + 1 && composer.bottom <= viewport.height + 1
           && transcript.left >= 0 && composer.top >= 0 && layout.overflow <= 1,
         `At ${width}px, both columns fit below the header and inside the viewport`);

@@ -10,7 +10,7 @@ jest.mock('./metabloomThreadApiClient', () => ({
   ...jest.requireActual('./metabloomThreadApiClient'),
   requestMetabloomThread: jest.fn(async () => ({ items: [] })),
 }));
-jest.mock('./NavMenu', () => () => null);
+jest.mock('./NavMenu', () => () => <nav aria-label="Public site header" />);
 jest.mock('./BlackHoleBackground', () => () => null);
 jest.mock('./CreatorOSFieldCanvas', () => function MockField({ onReady }) {
   mockReady = onReady;
@@ -31,6 +31,8 @@ test('authenticated Orb reveals its interface before its renderer is ready', asy
     </AuthContext.Provider>);
   });
   const field = await screen.findByTestId('startup-field');
+  expect(screen.queryByRole('navigation', { name: 'Public site header' })).not.toBeInTheDocument();
+  expect(screen.getByRole('banner', { name: 'Orb workspace' })).toBeInTheDocument();
   await waitFor(() => expect(onReady).toHaveBeenCalledTimes(1));
   expect(typeof mockReady).toBe('function');
   act(() => mockReady());

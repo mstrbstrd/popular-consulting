@@ -1,0 +1,56 @@
+/* Orb owns an app sidebar. The public site's navigation remains on other routes. */
+.orb-page[data-sidebar-navigation='true'] { --orb-header-clearance: max(60px, calc(env(safe-area-inset-top) + 52px)); --orb-theme-clearance: 0px; }
+.orb-page .orb-sidebar-brand {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 44px; min-width: 0;
+  color: var(--aetheris-ink); text-decoration: none; font: 600 14px/1.3 var(--aetheris-font-sans);
+}
+.orb-page .orb-sidebar-brand img { flex: 0 0 24px; object-fit: contain; }
+.orb-page .orb-sidebar-brand:focus-visible { outline: 2px solid var(--aetheris-focus-line); outline-offset: -2px; border-radius: 8px; }
+.orb-page .metabloom-threads :is(.orb-sidebar-links, .orb-sidebar-account) { margin: 0; min-width: 0; }
+.orb-page .metabloom-threads :is(.orb-sidebar-links, .orb-sidebar-account) > summary {
+  cursor: pointer; min-height: 44px; padding: 12px 10px; border-radius: 8px;
+  font: 550 14px/1.4 var(--aetheris-font-sans); color: var(--aetheris-ink);
+}
+.orb-page .metabloom-threads :is(.orb-sidebar-links, .orb-sidebar-account) > summary:focus-visible {
+  outline: 2px solid var(--aetheris-focus-line); outline-offset: -2px;
+}
+.orb-page .metabloom-threads :is(.orb-sidebar-links, .orb-sidebar-account) a {
+  display: flex; align-items: center; justify-content: space-between; min-height: 44px; padding: 10px 12px;
+  border-radius: 8px; color: var(--aetheris-ink); font: 400 13px/1.4 var(--aetheris-font-sans);
+  letter-spacing: normal; text-decoration: none; overflow-wrap: anywhere;
+}
+.orb-page .metabloom-threads :is(.orb-sidebar-links, .orb-sidebar-account) a:focus-visible { outline: 2px solid var(--aetheris-focus-line); outline-offset: -2px; }
+.orb-page .orb-sidebar-links .workspace-menu-heading { display: block; padding: 12px 12px 4px; font: 500 11px/1.5 var(--aetheris-font-sans); color: var(--aetheris-ink-2); }
+.orb-page .orb-sidebar-links .workspace-menu-inline { padding: 0; }
+.orb-page .orb-sidebar-links nav { display: grid; gap: 2px; }
+.orb-page .orb-sidebar-account > summary { display: flex; align-items: center; gap: 10px; list-style: none; }
+.orb-page .orb-sidebar-account > summary::-webkit-details-marker { display: none; }
+.orb-page .orb-sidebar-account > summary::after { content: '⌄'; margin-left: auto; }
+.orb-page .orb-sidebar-account[open] > summary::after { content: '⌃'; }
+.orb-page .metabloom-threads .orb-sidebar-color-mode { width: 100%; justify-content: space-between; min-height: 44px; font: 500 13px/1.4 var(--aetheris-font-sans); }
+.orb-page .metabloom-threads__appearance { display: grid; gap: 4px; }
+.orb-page .metabloom-threads__rail-spacer { flex: 1; }
+.orb-page .metabloom-threads :is(.metabloom-threads__rail-explore, .metabloom-threads__rail-account) { border: 0; background: transparent; box-shadow: none; }
+@media (min-width: 1100px) {
+  .orb-page[data-sidebar-navigation='true'] { --orb-header-clearance: max(12px, env(safe-area-inset-top)); }
+  .orb-page[data-sidebar-navigation='true'] .metabloom-threads__dock[data-expanded='false'] { bottom: max(10px, env(safe-area-inset-bottom)); }
+  .orb-page[data-sidebar-navigation='true'] .metabloom-threads__dock[data-expanded='false'] > .orb-sidebar-brand { width: 44px; justify-content: center; flex: 0 0 44px; }
+}
+@media (max-width: 1099px) {
+  .orb-page[data-sidebar-navigation='true'][data-theme-in-menu='true'] .metabloom-threads__floating {
+    display: flex; align-items: center; gap: 10px; top: max(4px, env(safe-area-inset-top));
+    left: max(12px, env(safe-area-inset-left)); right: max(12px, env(safe-area-inset-right));
+    height: 48px; width: auto; padding: 0; background: transparent;
+  }
+  .orb-page .metabloom-threads__mobile-title { font: 600 14px/1.4 var(--aetheris-font-sans); }
+  .orb-page .metabloom-threads__mobile-new {
+    display: inline-flex; align-items: center; justify-content: center; margin-left: auto;
+    width: 44px; height: 44px; border: 1px solid var(--aetheris-line); border-radius: 12px;
+    color: var(--aetheris-ink); background: var(--aetheris-glass-panel); cursor: pointer;
+  }
+  .orb-page .metabloom-threads__mobile-new:focus-visible { outline: 2px solid var(--aetheris-focus-line); outline-offset: -2px; }
+}
+@media (hover: hover) {
+  .orb-page .metabloom-threads :is(.orb-sidebar-links, .orb-sidebar-account) > summary:hover,
+  .orb-page .metabloom-threads :is(.orb-sidebar-links, .orb-sidebar-account) a:hover { background: var(--aetheris-state-layer); }
+}

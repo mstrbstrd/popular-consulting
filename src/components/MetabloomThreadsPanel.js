@@ -31,10 +31,10 @@ const dateLabel = value => {
 // request cancellation, and the paired conversation/workspace transition.
 export default function MetabloomThreadsPanel({ expanded, onExpandedChange, items = [], activeThreadId,
   loading = false, busy = false, pending = false, error = '', saveStatus = '', onRetry, onRefresh,
-  onNew, onOpen, onRename, onDelete, canSaveCopy = false, onSaveCopy, renderAppearance }) {
+  onNew, onOpen, onRename, onDelete, canSaveCopy = false, onSaveCopy, renderAppearance, renderBrand, renderNavigation, renderAccount }) {
   const id = React.useId();
   const [wide, setWide] = React.useState(() => window.matchMedia?.(WIDE_QUERY).matches ?? window.innerWidth >= WIDE_FALLBACK);
-  const [themeRequested, setThemeRequested] = React.useState(false);
+  const [requestedSection, setRequestedSection] = React.useState(null);
   const [editor, setEditor] = React.useState(null);
   const [title, setTitle] = React.useState('');
   const [operation, setOperation] = React.useState(null);
@@ -139,7 +139,7 @@ export default function MetabloomThreadsPanel({ expanded, onExpandedChange, item
     });
   };
   const close = (restoreFocus = true) => {
-    setThemeRequested(false);
+    setRequestedSection(null);
     restoreFocusRef.current = restoreFocus;
     operationRef.current = null;
     setOperation(null);
@@ -189,8 +189,16 @@ export default function MetabloomThreadsPanel({ expanded, onExpandedChange, item
     // their own interface after the last control.
     if (event.key === 'Tab' && event.currentTarget.tagName === 'DIALOG') {
       const focusable = [...event.currentTarget.querySelectorAll(
-        'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])',
-      )].filter(element => !element.closest('[hidden], [inert]'));
+        'button:not(:disabled), summary, [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])',
+      )].filter(element => {
+        if (element.closest('[hidden], [inert]')) return false;
+        let closed = element.closest('details:not([open])');
+        while (closed) {
+          if (element !== closed.querySelector(':scope > summary')) return false;
+          closed = closed.parentElement?.closest('details:not([open])');
+        }
+        return true;
+      });
       const first = focusable[0], last = focusable[focusable.length - 1];
       if (!first) return;
       if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
@@ -206,7 +214,7 @@ export default function MetabloomThreadsPanel({ expanded, onExpandedChange, item
     <div className="metabloom-threads__heading">
       {wide && <button ref={closeRef} type="button" className="metabloom-threads__icon metabloom-threads__toggle"
         aria-label="Collapse chats" title="Collapse sidebar" onClick={() => close()}><SidebarIcon /></button>}
-      <h2 id={`${id}-title`}>Chats</h2>
+      <h2 id={`${id}-title`}>{renderBrand ? renderBrand({ onNavigate: () => close(false) }) : 'Chats'}</h2>
       <button type="button" className="metabloom-threads__icon" aria-label="Refresh chats"
         disabled={Boolean(busy || loading || operation)} onClick={() => run('refresh', onRefresh)}>
         <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true" focusable="false">
@@ -235,6 +243,7 @@ export default function MetabloomThreadsPanel({ expanded, onExpandedChange, item
       </div>}
     </div>
     <div className="metabloom-threads__body" aria-busy={loading}>
+      {renderNavigation?.({ onNavigate: () => close(false), initialOpen: requestedSection === 'navigation' })}
       {loading && <p className="metabloom-threads__empty" role="status">Loading chats…</p>}
       {!loading && !message && !items.length && <p className="metabloom-threads__empty">No saved chats yet. Start a new chat to begin.</p>}
       {!!items.length && <p className="metabloom-threads__section" aria-hidden="true">Recents</p>}
@@ -296,7 +305,10 @@ export default function MetabloomThreadsPanel({ expanded, onExpandedChange, item
         })}</tbody>
       </table>}
     </div>
-    {renderAppearance && <div className="metabloom-threads__appearance">{renderAppearance({ inline: true, initialOpen: themeRequested })}</div>}
+    {(renderAppearance || renderAccount) && <div className="metabloom-threads__appearance">
+      {renderAppearance?.({ inline: true, initialOpen: requestedSection === 'theme' })}
+      {renderAccount?.({ onNavigate: () => close(false), initialOpen: requestedSection === 'account' })}
+    </div>}
   </>;
   const trigger = <button ref={triggerRef} type="button" className="metabloom-threads__trigger" aria-expanded={expanded}
     aria-controls={`${id}-panel`} aria-haspopup={wide ? undefined : 'dialog'} aria-label={wide ? 'Expand chats' : 'Chats'}
@@ -308,16 +320,24 @@ export default function MetabloomThreadsPanel({ expanded, onExpandedChange, item
     {wide ? <aside ref={panelRef} id={`${id}-panel`} className="metabloom-threads metabloom-threads__dock"
       data-expanded={expanded ? 'true' : 'false'} aria-label="Chat history" onKeyDown={keyboard}>
       {expanded ? body : <>
+        {renderBrand?.({ compact: true })}
         {trigger}
         <button ref={newRef} type="button" className="metabloom-threads__rail-new" aria-label="New chat" title="New chat" disabled={blocked} onClick={newThread}><NewChatIcon /></button>
+        {renderNavigation && <button type="button" className="metabloom-threads__rail-explore" aria-label="Explore" title="Explore"
+          onClick={() => { setRequestedSection('navigation'); onExpandedChange(true); }}><svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true"><rect x="3" y="3" width="5" height="5" rx="1" stroke="currentColor"/><rect x="12" y="3" width="5" height="5" rx="1" stroke="currentColor"/><rect x="3" y="12" width="5" height="5" rx="1" stroke="currentColor"/><rect x="12" y="12" width="5" height="5" rx="1" stroke="currentColor"/></svg></button>}
+        {renderAccount && <span className="metabloom-threads__rail-spacer" />}
         {renderAppearance && <button type="button" className="metabloom-threads__rail-theme" aria-label="Theme" title="Theme"
-          onClick={() => { setThemeRequested(true); onExpandedChange(true); }}>{themeIcon}</button>}
+          onClick={() => { setRequestedSection('theme'); onExpandedChange(true); }}>{themeIcon}</button>}
+        {renderAccount && <button type="button" className="metabloom-threads__rail-account" aria-label="Account" title="Account"
+          onClick={() => { setRequestedSection('account'); onExpandedChange(true); }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.5" stroke="currentColor" strokeWidth="1.5"/><path d="M5 21v-2a7 7 0 0 1 14 0v2" stroke="currentColor" strokeWidth="1.5"/></svg></button>}
         {saveStatus && <p id={`${id}-status`} role="status" className="metabloom-threads__sr-only">{saveStatus}</p>}
         {message && <p id={`${id}-error`} role="alert" className="metabloom-threads__sr-only">{message}</p>}
       </>}
     </aside> : <>
-      <div className="metabloom-threads__floating">
+      <div className="metabloom-threads__floating" role={renderNavigation ? 'banner' : undefined} aria-label={renderNavigation ? 'Orb workspace' : undefined}>
         {trigger}
+        {renderNavigation && !expanded && <><span className="metabloom-threads__mobile-title">Metabloom</span>
+          <button type="button" className="metabloom-threads__mobile-new" aria-label="New chat" title="New chat" disabled={blocked} onClick={newThread}><NewChatIcon /></button></>}
         {!expanded && saveStatus && <p id={`${id}-status`} role="status" className="metabloom-threads__sr-only">{saveStatus}</p>}
         {!expanded && message && <p id={`${id}-error`} role="alert" className="metabloom-threads__sr-only">{message}</p>}
       </div>

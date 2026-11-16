@@ -24,10 +24,9 @@ describe('Orb chat sidebar layout', () => {
     expect(css).toMatch(/\[data-thread-history='open'\] \{ --orb-sidebar-space: 284px; \}/);
   });
 
-  test('the Orb, conversation and navigation re-centre in the remaining width', () => {
+  test('the Orb and conversation re-centre in the remaining width', () => {
     expect(css).toMatch(/\.metabloom-chat__field \{[^}]*transform: translateX\(calc\(var\(--orb-sidebar-space\) \/ 2\)\);/);
     expect(css).toMatch(/\.metabloom-chat__interface \{[^}]*left: var\(--orb-sidebar-space\);/);
-    expect(css).toMatch(/\.nav-header \{[^}]*left: var\(--orb-sidebar-space\);/);
     // Translate, never resize: the living canvas must not be reallocated by the sidebar.
     expect(css).not.toMatch(/\.metabloom-chat__field \{[^}]*(?:width|left):/);
   });

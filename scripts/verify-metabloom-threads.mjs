@@ -112,7 +112,8 @@ const readLayout = page => page.evaluate(() => {
   return { viewport: { width: window.innerWidth, height: window.innerHeight, scrollY: window.scrollY },
     theme: document.documentElement.dataset.theme, expanded: get('.orb-page')?.dataset.threadHistory,
     componentView: get('.orb-page')?.dataset.componentView,
-    header: box(get('.nav-pill')), panel: box(panel), drawer: !!get('.metabloom-threads__drawer[open]'),
+    topNavigationCount: document.querySelectorAll('.nav-header').length,
+    header: box(get('.metabloom-threads__floating')), panel: box(panel), drawer: !!get('.metabloom-threads__drawer[open]'),
     panelOverflow: panel ? panel.scrollWidth - panel.clientWidth : 0,
     list: box(get('.metabloom-threads__body')), controls,
     workspace: box(workspace), transcript: box(transcript), composer: box(composer),
@@ -134,6 +135,7 @@ function checkLayout(layout, { drawer = false, dock = false, collapsed = false }
   assert(layout.overflow <= 1 && layout.panelOverflow <= 1 && layout.workspaceOverflow <= 1, 'No horizontal overflow');
   assert.equal(viewport.scrollY, 0, 'Scrolling history must not move the document');
   assert(layout.themeInMenu, 'Theme belongs to the left menu');
+  assert.equal(layout.topNavigationCount, 0, 'Orb folds site navigation into the sidebar');
   assert.equal(layout.themeClearance, '0px', 'The floating Theme row is reclaimed');
   if (drawer) {
     assert(layout.drawer && inside(panel, viewport), 'The native history drawer fits the visible viewport');
@@ -142,16 +144,14 @@ function checkLayout(layout, { drawer = false, dock = false, collapsed = false }
   } else {
     assert(!layout.drawer && inside(composer, viewport), 'The composer fits without an overlapping drawer');
     assert(layout.workspaceVisible && layout.componentCount === 1, 'The restored component has one visible workspace');
-    assert(inside(workspace, viewport) && header.bottom <= workspace.top + 1, 'The component stays below navigation');
+    assert(inside(workspace, viewport) && (!header || header.bottom <= workspace.top + 1), 'The component fits below the compact mobile toolbar or at the desktop top edge');
     if (viewport.width > 900) {
       assert(layout.transcriptVisible && transcript.right <= workspace.left + 1 && composer.right <= workspace.left + 1,
         'The artifact stays to the right of the conversation and composer');
       assert(transcript.bottom <= composer.top + 1, 'Conversation and composer do not overlap');
       if (dock) {
-        // The Liquid Glass dock is a full-height sidebar beside the centred
-        // navigation; it must fit the viewport and never overlap the header.
-        assert(inside(panel, viewport) && (header.bottom <= panel.top + 1 || panel.right <= header.left + 1),
-          'Docked history fits the viewport without overlapping the header');
+        assert(inside(panel, viewport), 'Docked history fits the viewport');
+        assert(!header && workspace.top <= 24, 'Desktop reclaims the former navigation height');
         assert(panel.right <= transcript.left + 1 && panel.right <= composer.left + 1, 'History is left of both conversation and composer');
         assert(workspace.width < transcript.width, 'The existing chat/artifact width preference is retained');
         assert(collapsed ? panel.width >= 44 && panel.width <= 64 : panel.width >= 240 && panel.width <= 280,
