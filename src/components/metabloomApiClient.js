@@ -99,7 +99,7 @@ export const requestMetabloomResponse = async ({
     const response = await fetchImpl("/api/metabloom", {
       method: "POST",
       credentials: "same-origin",
-      headers: { "Content-Type": "application/json", Accept: "application/x-ndjson", "X-Metabloom-Visuals": "1", "X-Metabloom-Ui-Tools": "1",
+      headers: { "Content-Type": "application/json", Accept: "application/x-ndjson", "X-Metabloom-Visuals": "1", "X-Metabloom-Ui-Tools": "1", "X-Metabloom-Pricebook": "1",
         ...(useTools ? { 'X-Metabloom-Toolset': '2' } : {}),
         ...(useExpressions ? { 'X-Metabloom-Expressions': '1' } : {}) },
       body: JSON.stringify({ actionMode, allowMultiple: allowMultiple === true, streamText: true,

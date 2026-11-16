@@ -87,7 +87,7 @@ test('the atomic claim checks current counters before incrementing or consuming 
   const args = commands[0];
   assert.equal(args[1], CLAIM_SCRIPT);
   assert.equal(args[2], '3');
-  assert.deepEqual(args.slice(-2), ['30', '200']);
+  assert.deepEqual(args.slice(-3), ['30', '200', '0']);
   const denial = args[1].indexOf('if quota[3]==0 or quota[6]==0 then return quota end');
   assert.ok(denial >= 0 && denial < args[1].indexOf("redis.call('INCR'"));
   assert.ok(args[1].indexOf("record.status~='offered'") < args[1].indexOf('local quota=quotaState'));

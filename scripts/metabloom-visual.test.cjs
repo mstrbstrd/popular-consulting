@@ -15,6 +15,12 @@ const identity = { owner: 'a'.repeat(64), subject: 'b'.repeat(64), scope: 'c'.re
 const offer = () => ({ version: '1', designVersion: 'aetheris-1', id: 'd'.repeat(48), kind: 'table', expiresAt: Date.now() + 600000 });
 const spec = (kind = 'table') => {
   const common = { version: '1', designVersion: 'aetheris-1', kind, title: 'A useful comparison', summary: 'Values supplied by the user.', provenance: { type: 'user', label: 'User-provided values, not live data.', sourceIds: [] } };
+  if (kind === 'price-book') return { ...common, priceBook: { version: 1, currency: 'CAD',
+    inputs: [{ id: 'hours', label: 'Hours', type: 'number', min: 1, max: 12, initial: 3 }],
+    taxes: [{ id: 'gst', label: 'GST', rate: '5' }],
+    lines: [{ id: 'labour', label: 'Labour', formula: ['hours', '95', 'multiply'], taxes: ['gst'], when: null }],
+    examples: [{ label: 'Three hours', inputs: { hours: 3 } }],
+  } };
   if (kind === 'table') return { ...common, columns: ['Option', 'Value'], rows: [['A', '10'], ['B', '20']] };
   if (kind === 'calculator') return { ...common, controls: [{ id: 'total', label: 'Total', unit: 'CAD', min: 0, max: 1000, step: 1, initial: 120 }, { id: 'people', label: 'People', unit: '', min: 0, max: 20, step: 1, initial: 3 }], formula: ['total', 'people', 'divide'], formulaDescription: 'Total divided by people.', unit: 'CAD per person' };
   if (kind === 'flowchart') return { ...common, nodes: [{ id: 'a', label: 'Begin' }, { id: 'b', label: 'Finish' }], edges: [{ from: 'a', to: 'b', label: 'Continue' }] };
@@ -43,7 +49,7 @@ function response() {
 }
 const request = body => ({ method: 'POST', headers: { host: 'localhost', origin: 'http://localhost', 'content-type': 'application/json' }, body, socket: { remoteAddress: '127.0.0.1' }, aborted: false });
 const authenticate = async (_request, options) => { options.onIdentity?.(identity); return null; };
-const envNames = ['METABLOOM_VISUALS_ENABLED', 'METABLOOM_VISUAL_SUBJECT_LIMIT_PER_HOUR',
+const envNames = ['METABLOOM_PRICEBOOK_ENABLED', 'METABLOOM_VISUALS_ENABLED', 'METABLOOM_VISUAL_SUBJECT_LIMIT_PER_HOUR',
   'METABLOOM_VISUAL_DEPLOYMENT_LIMIT_PER_DAY', 'OPENAI_API_KEY', 'TYPESAFE_API_KEY', 'VERCEL', 'VERCEL_ENV', 'NODE_ENV'];
 const originalEnv = Object.fromEntries(envNames.map(name => [name, process.env[name]]));
 process.env.METABLOOM_VISUALS_ENABLED = 'true'; process.env.OPENAI_API_KEY = 'fixture-only'; process.env.TYPESAFE_API_KEY = 'fixture-only';
@@ -128,7 +134,7 @@ test('claims carry session ownership and both quotas in one atomic script', asyn
   const args = commands[0]; assert.equal(args[0], 'EVAL'); assert.equal(args[2], '3'); assert.equal(args[6], identity.owner);
   assert.ok(args[4].endsWith(identity.subject)); assert.ok(args[5].endsWith(':daily'));
   assert.match(args[1], /record\.owner~=ARGV\[1\]/); assert.match(args[1], /quotaState\(KEYS\[2\],KEYS\[3\]/); assert.match(args[1], /KEEPTTL/);
-  assert.deepEqual(args.slice(-2), ['30', '200']);
+  assert.deepEqual(args.slice(-3), ['30', '200', '0']);
 });
 for (const result of ['expired', 'claimed']) test(`claim ${result} cannot return generation context`, async () => {
   const store = createMetabloomVisualStore({ command: async () => result });
@@ -455,4 +461,70 @@ test('explicit visuals survive low-confidence or none Jev choices, while optiona
     { emote: 'warm', visualization: 'line-chart' });
   const abort = new AbortController(); abort.abort();
   assert.deepEqual(await jev.decideMetabloomResponse({ ...opts, signal: abort.signal }), { emote: 'neutral', visualization: 'none' });
+});
+
+
+test('price book builder derives examples as bounded input dictionaries and rejects invented totals', async () => {
+  const expected = spec('price-book');
+  const generated = clone(expected);
+  generated.priceBook.examples[0].inputs = [{ input: 'hours', value: 3 }];
+  const calls = [];
+  const result = await generateMetabloomVisual(record('price-book'), { fetchImpl: async (_url, options) => {
+    calls.push(JSON.parse(options.body)); return Response.json(providerEnvelope(generated));
+  } });
+  assert.deepEqual(result, expected);
+  assert.match(calls[0].instructions, /only a separate explicit user action can publish/);
+  const duplicate = clone(generated); duplicate.priceBook.examples[0].inputs.push({ input: 'hours', value: 9 });
+  await assert.rejects(generateMetabloomVisual(record('price-book'), {
+    fetchImpl: async () => Response.json(providerEnvelope(duplicate)),
+  }), { code: 'visual_invalid' });
+  const injected = clone(expected); injected.priceBook.examples[0].totalCents = 1;
+  assert.equal(protocol.parseMetabloomVisual(injected), null);
+});
+
+test('price book visual generation requires flag and client negotiation before provider use', async () => {
+  const original = process.env.METABLOOM_PRICEBOOK_ENABLED;
+  try {
+    for (const [flag, header] of [['0', '1'], ['1', undefined], ['1', '0']]) {
+      process.env.METABLOOM_PRICEBOOK_ENABLED = flag;
+      let called = false;
+      const handler = createMetabloomVisualHandler({ authenticate,
+        store: { claim: async () => record('price-book'), complete: async () => {} },
+        generate: async () => { called = true; return spec('price-book'); },
+      });
+      const req = request({ id: offer().id, version: '1', designVersion: 'aetheris-1' });
+      if (header) req.headers['x-metabloom-pricebook'] = header;
+      const res = response(); await handler(req, res);
+      assert.equal(res.statusCode, 503); assert.equal(called, false);
+      assert.equal(JSON.parse(res.body).code, 'visual_disabled');
+    }
+  } finally { if (original === undefined) delete process.env.METABLOOM_PRICEBOOK_ENABLED; else process.env.METABLOOM_PRICEBOOK_ENABLED = original; }
+});
+
+test('host-computed quote table bypasses model generation and does not require provider credentials', async () => {
+  const original = process.env.METABLOOM_PRICEBOOK_ENABLED, key = process.env.OPENAI_API_KEY;
+  process.env.METABLOOM_PRICEBOOK_ENABLED = '1'; delete process.env.OPENAI_API_KEY;
+  try {
+    const value = record('table'); value.context.hostQuote = spec('table');
+    let persisted;
+    const handler = createMetabloomVisualHandler({ authenticate,
+      store: { claim: async () => value, complete: async (_identity, _id, result) => { persisted = result; } },
+      generate: async () => assert.fail('prices must never pass through the model'),
+    });
+    const req = request({ id: offer().id, version: '1', designVersion: 'aetheris-1' });
+    req.headers['x-metabloom-pricebook'] = '1';
+    const res = response(); await handler(req, res);
+    assert.equal(res.statusCode, 200); assert.deepEqual(JSON.parse(res.body).spec, value.context.hostQuote);
+    assert.deepEqual(persisted.spec, value.context.hostQuote);
+  } finally {
+    if (original === undefined) delete process.env.METABLOOM_PRICEBOOK_ENABLED; else process.env.METABLOOM_PRICEBOOK_ENABLED = original;
+    if (key === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = key;
+  }
+});
+
+test('the price-book visual decision has explicit criteria and keeps quotation separate', () => {
+  const { createMetabloomVisualizationQuestion } = require('../src/components/metabloomVisualDesign');
+  const question = createMetabloomVisualizationQuestion(['price-book']);
+  assert.match(question.criteria['price-book'], /use get_quote for estimates/);
+  assert.deepEqual(Object.keys(question.criteria), ['none', 'price-book']);
 });

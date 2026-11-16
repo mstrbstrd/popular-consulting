@@ -1,5 +1,6 @@
 const { randomBytes } = require('node:crypto');
 const auth = require('../server/metabloomAuth');
+const { isMetabloomPriceBookEnabled } = require('../server/metabloomPriceBookFeature');
 const { enabled, createMetabloomVisualStore, visualError } = require('../server/metabloomVisualStore');
 const { visualStoreDiagnostics } = require('../server/metabloomVisualStoreDiagnostics');
 const { generateMetabloomVisual } = require('../server/metabloomVisualGenerator');
@@ -40,7 +41,7 @@ function createMetabloomVisualHandler({ store = createMetabloomVisualStore(), ge
       if (!visualKeys(body, bodyKeys) || typeof body.id !== 'string' || !/^[a-f0-9]{48}$/.test(body.id)
         || body.version !== METABLOOM_VISUAL_VERSION || body.designVersion !== METABLOOM_VISUAL_DESIGN_VERSION) throw new Error();
     } catch { return send(response, 400, { code: 'visual_invalid', requestRef }); }
-    if (!process.env.OPENAI_API_KEY) return send(response, 503, { code: 'visual_unavailable', requestRef });
+    const priceBookEnabled = isMetabloomPriceBookEnabled() && request.headers?.['x-metabloom-pricebook'] === '1';
     const controller = new AbortController();
     let deadlineExpired = false;
     const timeout = setTimeout(() => { deadlineExpired = true; controller.abort(); }, METABLOOM_VISUAL_GENERATION_TIMEOUT_MS);
@@ -53,10 +54,16 @@ function createMetabloomVisualHandler({ store = createMetabloomVisualStore(), ge
     let persisted = false;
     try {
       if (request.aborted || response.destroyed) throw visualError('visual_cancelled');
-      const record = await store.claim(identity, body.id, { signal: controller.signal });
+      const record = await store.claim(identity, body.id, { signal: controller.signal, priceBookEnabled });
       claimed = true;
       if (controller.signal.aborted) throw visualError('visual_cancelled');
-      const generated = await generate(record, { signal: controller.signal, requestRef });
+      const hostQuote = record.context?.hostQuote;
+      if ((record.offer.kind === 'price-book' || hostQuote) && !priceBookEnabled) throw visualError('visual_disabled');
+      if (hostQuote && record.offer.kind !== 'table') throw visualError('visual_invalid');
+      if (!hostQuote && !process.env.OPENAI_API_KEY) throw visualError('visual_unavailable');
+      // hostQuote is created by the server's exact quote tool and loaded from its
+      // account-owned offer. Never send its prices back through a model builder.
+      const generated = hostQuote || await generate(record, { signal: controller.signal, requestRef });
       const spec = parseMetabloomVisual(generated, { kind: record.offer.kind, sources: record.context.sources || [] });
       if (!spec) throw visualError('visual_invalid');
       if (controller.signal.aborted) throw visualError('visual_cancelled');
@@ -82,7 +89,7 @@ function createMetabloomVisualHandler({ store = createMetabloomVisualStore(), ge
           { signal: AbortSignal.timeout(2500) }); } catch { /* Claim remains consumed if storage is unavailable. */ }
       }
       outcome = code;
-      const status = code === 'visual_expired' ? 410 : code === 'visual_claimed' ? 409 : code === 'visual_quota' ? 429
+      const status = code === 'visual_disabled' ? 503 : code === 'visual_expired' ? 410 : code === 'visual_claimed' ? 409 : code === 'visual_quota' ? 429
         : code === 'visual_timeout' ? 504 : code === 'visual_cancelled' ? 499 : 502;
       const quota = code === 'visual_quota' ? parseMetabloomVisualQuota(error?.quota) : null;
       if (quota) response.setHeader('Retry-After', String(quota.retryAfterSeconds));

@@ -1,0 +1,22 @@
+.orb-page .metabloom-price-book { display: grid; gap: 1.6rem; min-width: 0; }
+.orb-page .metabloom-price-book p { margin: 0.4rem 0; }
+.orb-page .metabloom-price-book h4 { margin: 0 0 0.7rem; color: var(--aetheris-ink); font: 600 max(1.4rem, 14px)/1.4 var(--aetheris-font-sans); }
+.orb-page .metabloom-price-book__intro,
+.orb-page .metabloom-price-book small { color: var(--aetheris-ink-2); }
+.orb-page .metabloom-price-book__rules { display: grid; gap: 1.2rem; padding: 0; list-style: none; }
+.orb-page .metabloom-price-book__rules li { display: grid; gap: 0.3rem; overflow-wrap: anywhere; }
+.orb-page .metabloom-price-book__fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); gap: 1.2rem; border: 0; padding: 0; margin: 0; min-width: 0; }
+.orb-page .metabloom-price-book__fields legend { padding: 0 0 0.8rem; font-weight: 600; }
+.orb-page .metabloom-price-book__field { display: grid; align-content: start; gap: 0.5rem; min-width: 0; }
+.orb-page .metabloom-price-book__field input[type='number'] { width: 100%; box-sizing: border-box; min-height: 44px; min-width: 0; padding: 8px 10px; border: 1px solid var(--aetheris-line-strong); border-radius: var(--aetheris-radius-md); color: var(--aetheris-ink); background: var(--aetheris-glass-surface); font: inherit; }
+.orb-page .metabloom-price-book input[type='checkbox'] { width: 22px; height: 22px; flex: 0 0 22px; margin: 0; accent-color: var(--aetheris-focus-line); }
+.orb-page .metabloom-price-book input:focus-visible { outline: 2px solid var(--aetheris-focus-line); outline-offset: 3px; }
+.orb-page .metabloom-price-book__preview,
+.orb-page .metabloom-price-book__publish { padding: 1.2rem; border: 1px solid var(--aetheris-line); border-radius: var(--aetheris-radius-md); min-width: 0; }
+.orb-page .metabloom-price-book__total { font: 600 clamp(2rem, 4vw, 3rem)/1.3 var(--aetheris-font-sans); letter-spacing: -0.03em; overflow-wrap: anywhere; }
+.orb-page .metabloom-price-book td { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.orb-page .metabloom-price-book tbody th { text-align: left; font-weight: 400; }
+.orb-page .metabloom-price-book tfoot { font-weight: 600; }
+.orb-page .metabloom-price-book__examples summary strong { display: inline-block; margin-left: 1rem; font-variant-numeric: tabular-nums; }
+.orb-page .metabloom-price-book__review { display: flex; align-items: center; gap: 0.9rem; padding: 1rem 0; min-height: 44px; }
+.orb-page .metabloom-price-book__publish .metabloom-visual__actions { flex-wrap: wrap; }

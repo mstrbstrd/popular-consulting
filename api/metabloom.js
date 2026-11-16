@@ -1,6 +1,7 @@
 const { createHmac, randomBytes } = require("node:crypto");
 const { once } = require("node:events");
 const metabloomAuth = require("../server/metabloomAuth");
+const { isMetabloomPriceBookEnabled } = require('../server/metabloomPriceBookFeature');
 const sourceMedia = require("../server/metabloomSourceMedia");
 const { METABLOOM_CHAT_PROTOCOL_VERSION, METABLOOM_EMOTE_IDS, METABLOOM_CHAT_RESPONSE_SCHEMA, buildMetabloomChatSystemPrompt } = require("../src/components/metabloomEmoteLibrary");
 const { METABLOOM_ACTION_MODES } = require("../src/components/metabloomDecisionMapping");
@@ -341,9 +342,10 @@ const handler = async (request, response) => {
   response.setHeader("X-Content-Type-Options", "nosniff");
   response.setHeader("X-Metabloom-Protocol", METABLOOM_CHAT_PROTOCOL_VERSION);
   // No metadata, quota consumption, OpenAI request, or Jev decision without a live session.
-  let visualIdentity;
+  let visualIdentity, accountIdentity;
   const denial = await metabloomAuth.requireMetabloomSession(request, {
     onIdentity: (identity) => { visualIdentity = identity; },
+    onAccountIdentity: (identity) => { accountIdentity = identity; },
   });
   if (denial) return sendJson(response, denial.status, { code: denial.code });
   if (response.destroyed || request.aborted) return;
@@ -376,11 +378,14 @@ const handler = async (request, response) => {
     && !body.artifactContext && !body.researchContext && body.actionMode !== "deep-research";
   const nativeVisualsAvailable = Boolean(request.headers?.["x-metabloom-visuals"] === "1"
     && body.requestId && visualIdentity && visualsEnabled() && configured(request));
+  const priceBookEnabled = nativeVisualsAvailable && isMetabloomPriceBookEnabled()
+    && request.headers?.['x-metabloom-pricebook'] === '1';
+  const availableVisualKinds = METABLOOM_VISUAL_KINDS.filter(kind => kind !== 'price-book' || priceBookEnabled);
   const capabilityResponse = getMetabloomResearchCapabilityResponse(researchIntent, { enabled: configured(request) })
     || getMetabloomVisualCapabilityResponse(visualIntent, {
     enabled: nativeVisualsAvailable && request.headers?.["x-metabloom-ui-tools"] === "1"
       && process.env.METABLOOM_UI_TOOLS_ENABLED !== 'false',
-    researchBriefEnabled: body.streamResearchBrief === true && providerConfigured,
+    researchBriefEnabled: body.streamResearchBrief === true && providerConfigured, priceBookEnabled,
   });
   // A tool-capable client must not silently route an explicit native UI request
   // through the ordinary text writer. Old clients without this capability header
@@ -488,7 +493,7 @@ const handler = async (request, response) => {
         ...(expressions ? { orbContext: body.orbContext } : {}),
         modelSelection,
         allowMultiple: body.allowMultiple, presentationAction: action, timeZone: body.timeZone || 'UTC',
-        identity: visualIdentity, requestId: body.requestId, requestRef, signal: controller.signal,
+        identity: visualIdentity, accountIdentity, priceBookEnabled, requestId: body.requestId, requestRef, signal: controller.signal,
         visualsAvailable: nativeVisualsAvailable && request.headers?.['x-metabloom-ui-tools'] === '1'
           && process.env.METABLOOM_UI_TOOLS_ENABLED !== 'false' && !['text_only', 'unsupported'].includes(visualIntent.mode),
         // Subject photos are offered only to browsers that render tool media.
@@ -683,7 +688,7 @@ const handler = async (request, response) => {
       schema.properties.segments.maxItems = body.allowMultiple ? 4 : 1;
       const instructions = buildMetabloomChatSystemPrompt({ allowMultiple: body.allowMultiple, presentationAction,
         researchEnabled: Boolean(research), visualMode: nativeVisualsAvailable ? visualIntent.mode : "disabled",
-        researchBriefEnabled: body.streamResearchBrief === true })
+        researchBriefEnabled: body.streamResearchBrief === true, priceBookEnabled })
         + (researchReport && research !== researchReport
           ? "\n\nThe research evidence is a selection of complete passages from a larger report. Summarize only the supplied findings and do not imply exhaustive coverage."
             + (body.streamResearchDetails === true ? " The full research report is available separately below the short answer." : "")
@@ -787,12 +792,12 @@ const handler = async (request, response) => {
       phase: "response",
       state: { latestUserMessage: message, assistantResponse,
         ...(canVisualize ? { recentConversation: body.history.slice(-2).map((item) => ({ role: item.role, content: item.content.slice(0, 1600) })),
-          evidence: research?.notes || "", sources: research?.sources || [], availableVisualizations: METABLOOM_VISUAL_KINDS,
+          evidence: research?.notes || "", sources: research?.sources || [], availableVisualizations: availableVisualKinds,
           visualIntent: visualIntent.mode, dataHints: visualIntent.dataHints } : {}) },
       signal: controller.signal, timeoutMs: 1200,
     };
     const finalDecision = canVisualize
-      ? await decideMetabloomResponse({ ...finalOptions, visualKinds: METABLOOM_VISUAL_KINDS,
+      ? await decideMetabloomResponse({ ...finalOptions, visualKinds: availableVisualKinds,
         visualIntent: visualIntent.mode, preferredKinds: visualIntent.preferredKinds, requiredKind: visualIntent.requiredKind })
       : { emote: await decideMetabloomReaction(finalOptions), visualization: "none" };
     await sendStreamEvent({ type: "emote", phase: "response", emote: finalDecision.emote });
@@ -802,7 +807,7 @@ const handler = async (request, response) => {
     }));
     // Optional metadata has its own failure boundary. It never regenerates text,
     // runs a visual provider here, or consumes the remaining research deadline.
-    if (canVisualize && METABLOOM_VISUAL_KINDS.includes(finalDecision.visualization)
+    if (canVisualize && availableVisualKinds.includes(finalDecision.visualization)
       && (research ? requestDeadline - Date.now() > 2500 : Date.now() - startedAt < 20000)) {
       try {
         const offer = await createMetabloomVisualStore().offer(visualIdentity, finalDecision.visualization, {
@@ -810,7 +815,7 @@ const handler = async (request, response) => {
           recentConversation: body.history.slice(-2).map((item) => ({ role: item.role, content: item.content.slice(0, 1600) })),
           dataHints: visualIntent.dataHints, visualIntent: visualIntent.mode,
         }, { signal: controller.signal });
-        if (offer) { await sendStreamEvent({ type: "visual_offer", offer });
+        if (offer && (offer.kind !== 'price-book' || priceBookEnabled)) { await sendStreamEvent({ type: "visual_offer", offer });
           console.info("metabloom_visual_route", JSON.stringify({ intent: visualIntent.mode, outcome: "offered", kind: offer.kind })); }
       } catch {
         console.info("metabloom_visual_offer", JSON.stringify({ outcome: "unavailable", requestRef }));

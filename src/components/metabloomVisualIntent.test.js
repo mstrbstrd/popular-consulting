@@ -142,3 +142,12 @@ test('history resolution is bounded and never truncates task data to force a rep
   expect(classifyMetabloomVisualIntent('lets go', [user('Create a map. ' + 'a'.repeat(8000))]).mode).toBe('optional');
   expect(classifyMetabloomVisualIntent('lets go', null).mode).toBe('optional');
 });
+
+
+test('price-book creation is distinct from an ordinary quote request', () => {
+  expect(classifyMetabloomVisualIntent('Set up my price book: $95/hr, two-hour minimum, GST at 5%.'))
+    .toMatchObject({ mode: 'requested', requiredKind: 'price-book' });
+  expect(classifyMetabloomVisualIntent('Create a price-book for my business.'))
+    .toMatchObject({ mode: 'requested', requiredKind: 'price-book' });
+  expect(classifyMetabloomVisualIntent('Quote a six-hour weekend job.').mode).toBe('optional');
+});

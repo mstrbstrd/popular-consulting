@@ -40,7 +40,7 @@ function response() {
   return res;
 }
 const request = body => ({ method: 'POST', headers: { host: 'localhost', origin: 'http://localhost', 'content-type': 'application/json' }, body, aborted: false });
-const authenticate = async (_req, opts) => { opts.onIdentity(identity); return null; };
+const authenticate = async (_req, opts) => { opts.onIdentity(identity); opts.onAccountIdentity?.({ accountKey: 'e'.repeat(64) }); return null; };
 test('explicit native UI requests route to tools without converting code-writing tasks', () => {
   const { classifyMetabloomVisualIntent } = require('../src/components/metabloomVisualIntent');
   for (const message of [
@@ -566,4 +566,91 @@ test('an explicit render follow-up preserves the original user task and ignores 
   assert.deepEqual(JSON.parse(res.body).offer, offer);
   assert.equal(calls, 1);
   assert.equal(offers, 1);
+});
+
+test('price book tool definitions and forced calls require explicit negotiation', async () => {
+  const { toolDefinition, getMetabloomVisualToolDefinition } = require('../server/metabloomToolFlow');
+  assert.equal(toolDefinition.parameters.properties.kind.enum.includes('price-book'), false);
+  assert.equal(getMetabloomVisualToolDefinition().parameters.properties.kind.enum.includes('price-book'), false);
+  assert.equal(getMetabloomVisualToolDefinition({ priceBookEnabled: true }).parameters.properties.kind.enum.includes('price-book'), true);
+  await assert.rejects(requestVisualTool({ message: 'Create my price book.', history: [], requiredKind: 'price-book',
+    fetchImpl: async () => assert.fail('must not call provider'),
+  }), { code: 'visual_disabled' });
+});
+
+test('explicit price-book route fails closed before claims, quotas or providers when not negotiated', async () => {
+  const originalFlag = process.env.METABLOOM_PRICEBOOK_ENABLED;
+  try {
+    for (const [flag, header] of [['0', '1'], ['1', undefined], ['1', '0']]) {
+      process.env.METABLOOM_PRICEBOOK_ENABLED = flag;
+      const unexpected = async () => assert.fail('disabled request must not perform paid work or claim');
+      const handler = createMetabloomToolHandler({ authenticate,
+        store: { claimStart: unexpected, checkQuota: unexpected, offer: unexpected },
+        start: unexpected, rateLimit: unexpected, reaction: unexpected,
+      });
+      const req = request({ phase: 'start', message: 'Create a price book: $95/hr.', history: [], requestId: 'pb-disabled' });
+      if (header) req.headers['x-metabloom-pricebook'] = header;
+      const res = response(); await handler(req, res);
+      assert.equal(res.statusCode, 503); assert.equal(JSON.parse(res.body).code, 'tool_disabled');
+    }
+  } finally {
+    if (originalFlag === undefined) delete process.env.METABLOOM_PRICEBOOK_ENABLED;
+    else process.env.METABLOOM_PRICEBOOK_ENABLED = originalFlag;
+  }
+});
+
+test('enabled price-book route forwards negotiation and preserves server offer context', async () => {
+  const originalFlag = process.env.METABLOOM_PRICEBOOK_ENABLED;
+  process.env.METABLOOM_PRICEBOOK_ENABLED = '1';
+  try {
+    let started, offered;
+    const handler = createMetabloomToolHandler({ authenticate, rateLimit: async () => true, reaction: async () => 'neutral',
+      getPriceBookStore: () => ({ read: async () => null }),
+      store: { claimStart: async () => {}, checkQuota: async () => {}, offer: async (_identity, kind, context) => {
+        offered = { kind, context }; return { kind, id: 'a'.repeat(48), version: '1', designVersion: 'aetheris-1', expiresAt: Date.now() + 600000 };
+      } },
+      start: async options => { started = options; return { kind: 'price-book', brief: 'User pricing', tool: fixtureTool }; },
+    });
+    const req = request({ phase: 'start', message: 'Create my price book: $95/hr.', history: [], requestId: 'pb-enabled' });
+    req.headers['x-metabloom-pricebook'] = '1';
+    const res = response(); await handler(req, res);
+    assert.equal(res.statusCode, 200); assert.equal(started.priceBookEnabled, true);
+    assert.equal(offered.kind, 'price-book'); assert.equal(offered.context.message, req.body.message);
+  } finally {
+    if (originalFlag === undefined) delete process.env.METABLOOM_PRICEBOOK_ENABLED;
+    else process.env.METABLOOM_PRICEBOOK_ENABLED = originalFlag;
+  }
+});
+
+
+test('price-book revisions retain only server-resolved active rules and fail closed on storage errors', async () => {
+  const originalFlag = process.env.METABLOOM_PRICEBOOK_ENABLED;
+  process.env.METABLOOM_PRICEBOOK_ENABLED = '1';
+  try {
+    const activeBook = { version: 1, currency: 'CAD' };
+    let offered;
+    const options = { authenticate, rateLimit: async () => true, reaction: async () => 'neutral',
+      getPriceBookStore: () => ({ read: async account => {
+        assert.equal(account.accountKey, 'e'.repeat(64)); return { version: 3, book: activeBook };
+      } }),
+      store: { claimStart: async () => {}, checkQuota: async () => {}, offer: async (_identity, kind, context) => {
+        offered = context; return { kind, id: 'a'.repeat(48), version: '1', designVersion: 'aetheris-1', expiresAt: Date.now() + 600000 };
+      } },
+      start: async () => ({ kind: 'price-book', brief: 'Change hourly rate', tool: fixtureTool }),
+    };
+    const req = request({ phase: 'start', message: 'Rebuild my price book with a $100 hourly rate.', history: [], requestId: 'pb-revise' });
+    req.headers['x-metabloom-pricebook'] = '1';
+    const res = response(); await createMetabloomToolHandler(options)(req, res);
+    assert.equal(res.statusCode, 200); assert.deepEqual(offered.activePriceBook, activeBook);
+    const failed = response();
+    await createMetabloomToolHandler({ ...options,
+      getPriceBookStore: () => ({ read: async () => { throw new Error('private storage error'); } }),
+      start: async () => assert.fail('must not invent missing previous rules'),
+    })(req, failed);
+    assert.equal(failed.statusCode, 502); assert.equal(JSON.parse(failed.body).code, 'tool_unavailable');
+    assert.equal(failed.body.includes('private storage'), false);
+  } finally {
+    if (originalFlag === undefined) delete process.env.METABLOOM_PRICEBOOK_ENABLED;
+    else process.env.METABLOOM_PRICEBOOK_ENABLED = originalFlag;
+  }
 });

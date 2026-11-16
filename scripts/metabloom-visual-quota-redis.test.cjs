@@ -161,6 +161,29 @@ test('real Redis visual quota integration', { timeout: 45000 }, async t => {
   const port = fixturePort();
   assert.equal(await redisCommand(port, ['PING']), 'PONG');
 
+  await t.test('price-book gating preserves offers, quotas and continuation for a later enabled client', async t => {
+    const f = fixture(t, port), keys = f.keys();
+    for (const kind of ['price-book', 'table']) {
+      const offer = await f.store.offer(f.identity, kind, { ...context,
+        ...(kind === 'table' ? { hostQuote: { kind: 'table' } } : {}),
+      });
+      const names = [...Object.values(keys), f.offerKey(offer)];
+      const before = await f.snapshot(names);
+      await rejected(f.store.claim(f.identity, offer.id, { priceBookEnabled: false }), 'visual_disabled');
+      assert.deepEqual(await f.snapshot(names), before, 'Disabled requests cannot consume or mutate an offer or quota');
+      await f.store.claim(f.identity, offer.id, { priceBookEnabled: true });
+      await f.store.complete(f.identity, offer.id, { status: 'failed', code: 'visual_unavailable' });
+      const ready = await f.snapshot(names);
+      await rejected(f.store.claimContinuation(f.identity, offer.id, { priceBookEnabled: false }), 'visual_disabled');
+      assert.deepEqual(await f.snapshot(names), ready, 'Disabled continuation cannot leave a stuck claim');
+      assert.equal((await f.store.claimContinuation(f.identity, offer.id, { priceBookEnabled: true })).result.status, 'failed');
+      const reply = { reply: 'Fixture completed' };
+      await f.store.completeContinuation(f.identity, offer.id, reply);
+      await rejected(f.store.getContinuation(f.identity, offer.id, { priceBookEnabled: false }), 'visual_disabled');
+      assert.deepEqual(await f.store.getContinuation(f.identity, offer.id, { priceBookEnabled: true }), reply);
+    }
+  });
+
   await t.test('fresh defaults and existing counters are read-only preflight, with exact public metadata', async t => {
     const f = fixture(t, port, undefined, true), keys = f.keys();
     const available = await f.store.checkQuota(f.identity);
@@ -189,7 +212,7 @@ test('real Redis visual quota integration', { timeout: 45000 }, async t => {
       quotaMatches(f, preflight.quota, f.last(CHECK_QUOTA_SCRIPT).value, scope, 3 - subjectCount, 5 - deploymentCount);
       const claim = await rejected(f.store.claim(f.identity, offer.id), 'visual_quota');
       quotaMatches(f, claim.quota, f.last(CLAIM_SCRIPT).value, scope, 3 - subjectCount, 5 - deploymentCount);
-      assert.deepEqual(f.last(CLAIM_SCRIPT).args.slice(-4), [f.identity.owner, String(f.checkedAt), '3', '5']);
+      assert.deepEqual(f.last(CLAIM_SCRIPT).args.slice(-5), [f.identity.owner, String(f.checkedAt), '3', '5', '0']);
       assert.deepEqual(await f.snapshot(names), before);
     });
   }
@@ -209,7 +232,7 @@ test('real Redis visual quota integration', { timeout: 45000 }, async t => {
     const tombstone = JSON.parse(await f.command(['GET', f.offerKey(first)]));
     assert.equal(typeof tombstone.tool, 'string', 'Lua carries tool data as opaque JSON');
     assert.deepEqual({ ...tombstone, tool: JSON.parse(tombstone.tool) },
-      { owner: f.identity.owner, status: 'claimed', offer: first, tool: context.tool });
+      { owner: f.identity.owner, status: 'claimed', offer: first, tool: context.tool, priceBook: false });
     await f.command(['PEXPIRE', keys.subject, '65000']);
     await f.command(['PEXPIRE', keys.deployment, '125000']);
     const deadlines = await Promise.all(Object.values(keys).map(key => f.command(['PEXPIRETIME', key])));

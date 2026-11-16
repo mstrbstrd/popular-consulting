@@ -78,12 +78,14 @@ local record=cjson.decode(raw)
 if record.owner~=ARGV[1] then return 'expired' end
 if record.offer.expiresAt<=tonumber(ARGV[2]) then return 'expired' end
 if record.status~='offered' then return 'claimed' end
+local priceBook=record.offer.kind=='price-book' or (record.context and record.context.hostQuote~=nil)
+if priceBook and ARGV[5]~='1' then return 'disabled' end
 local quota=quotaState(KEYS[2],KEYS[3],tonumber(ARGV[3]),tonumber(ARGV[4]))
 if not quota then return 'quota_unavailable' end
 if quota[3]==0 or quota[6]==0 then return quota end
 if redis.call('INCR',KEYS[2])==1 then redis.call('EXPIRE',KEYS[2],3600) end
 if redis.call('INCR',KEYS[3])==1 then redis.call('EXPIRE',KEYS[3],86400) end
-local tombstone=cjson.encode({owner=record.owner,status='claimed',offer=record.offer,tool=record.context.tool})
+local tombstone=cjson.encode({owner=record.owner,status='claimed',offer=record.offer,tool=record.context.tool,priceBook=priceBook})
 redis.call('SET',KEYS[1],tombstone,'KEEPTTL')
 return raw`;
 
@@ -102,6 +104,7 @@ local raw=redis.call('GET',KEYS[1])
 if not raw then return 'expired' end
 local record=cjson.decode(raw)
 if record.owner~=ARGV[1] then return 'expired' end
+if (record.offer.kind=='price-book' or record.priceBook==true) and ARGV[2]~='1' then return 'disabled' end
 if record.status=='offered' then return 'invalid' end
 if not record.tool then return 'invalid' end
 if record.status~='ready' and record.status~='failed' then return 'claimed' end
@@ -236,8 +239,8 @@ function createMetabloomVisualStore({ command = visualCommand, now = Date.now } 
       if (outcome !== 'OK') throw visualError('visual_unavailable');
     },
     async claimContinuation(identity, id, options = {}) {
-      const raw = await command(['EVAL', CONTINUE_SCRIPT, '1', recordKey(identity, id), identity.owner], options);
-      if (['expired', 'invalid', 'claimed'].includes(raw)) throw visualError(`visual_${raw}`);
+      const raw = await command(['EVAL', CONTINUE_SCRIPT, '1', recordKey(identity, id), identity.owner, options.priceBookEnabled === true ? '1' : '0'], options);
+      if (['expired', 'invalid', 'claimed', 'disabled'].includes(raw)) throw visualError(`visual_${raw}`);
       if (typeof raw !== 'string' || Buffer.byteLength(raw, 'utf8') > MAX_STORED_RECORD_BYTES) throw visualError('visual_invalid');
       let record;
       try { record = decodeRecord(raw); } catch { throw visualError('visual_invalid'); }
@@ -287,6 +290,8 @@ function createMetabloomVisualStore({ command = visualCommand, now = Date.now } 
     },
     async getContinuation(identity, id, options = {}) {
       const record = await readRecord(identity, id, options);
+      if (record && (record.offer.kind === 'price-book' || record.priceBook === true) && options.priceBookEnabled !== true)
+        throw visualError('visual_disabled');
       return record?.status === 'complete' && record.reply ? record.reply : null;
     },
     async offer(identity, kind, context, options = {}) {
@@ -306,8 +311,8 @@ function createMetabloomVisualStore({ command = visualCommand, now = Date.now } 
       if (typeof id !== 'string' || !/^[a-f0-9]{48}$/.test(id)) throw visualError('visual_expired');
       const key = prefix(identity), limits = readVisualQuotaLimits(), checkedAt = now();
       const raw = await command(['EVAL', CLAIM_SCRIPT, '3', `${key}offer:${id}`, `${key}subject:${identity.subject}`,
-        `${key}daily`, identity.owner, String(checkedAt), String(limits.subject), String(limits.deployment)], options);
-      if (['expired', 'claimed'].includes(raw)) throw visualError(`visual_${raw}`);
+        `${key}daily`, identity.owner, String(checkedAt), String(limits.subject), String(limits.deployment), options.priceBookEnabled === true ? '1' : '0'], options);
+      if (['expired', 'claimed', 'disabled'].includes(raw)) throw visualError(`visual_${raw}`);
       if (raw === 'quota_unavailable') throw visualStoreError('quota_state_invalid');
       if (Array.isArray(raw)) {
         const quota = readVisualQuotaReply(raw, { checkedAt, limits });

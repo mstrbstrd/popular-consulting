@@ -8,6 +8,7 @@ const emptySnapshot = () => ({ version: 1, records: [], lastInteractedId: null }
 const validIndex = (value, length) => Number.isInteger(value) && value >= 0 && value < length;
 const defaultViewState = spec => {
   if (spec.kind === 'table') return { sort: { column: null, direction: 'asc' }, filter: '' };
+  if (spec.kind === 'price-book') return { inputs: Object.fromEntries(spec.priceBook.inputs.map(input => [input.id, input.type === 'boolean' ? input.initial : String(input.initial)])) };
   if (spec.kind === 'calculator') return { inputs: Object.fromEntries(spec.controls.map(control => [control.id, String(control.initial)])) };
   if (spec.kind === 'line-chart') return { active: null, detailsOpen: false };
   if (spec.kind === 'pie-chart') return { selectedIndex: spec.points.findIndex(point => point.value > 0), detailsOpen: false };
@@ -27,6 +28,13 @@ const parseViewState = (value, spec) => {
     // their numeric range before calculating or offering follow-up context.
     const valid = Object.values(value.inputs).every(input => typeof input === 'string' && input.length <= 64
       && (input === '' || /^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i.test(input)));
+    return valid ? { inputs: { ...value.inputs } } : null;
+  }
+  if (spec.kind === 'price-book') {
+    if (!visualKeys(value, ['inputs']) || !visualKeys(value.inputs, spec.priceBook.inputs.map(input => input.id))) return null;
+    const valid = spec.priceBook.inputs.every(input => input.type === 'boolean' ? typeof value.inputs[input.id] === 'boolean'
+      : typeof value.inputs[input.id] === 'string' && value.inputs[input.id].length <= 64
+        && (value.inputs[input.id] === '' || /^-?(?:\d+\.?\d*|\.\d+)$/.test(value.inputs[input.id])));
     return valid ? { inputs: { ...value.inputs } } : null;
   }
   if (typeof value?.detailsOpen !== 'boolean') return null;

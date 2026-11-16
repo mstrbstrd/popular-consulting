@@ -24,7 +24,7 @@ async function postMetabloomTool(body, { signal, fetchImpl = globalThis.fetch } 
     if (signal?.aborted) throw cancelled();
     const response = await fetchImpl('/api/metabloom-tool', {
       method: 'POST', credentials: 'same-origin', redirect: 'error', signal,
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(body),
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-Metabloom-PriceBook': '1' }, body: JSON.stringify(body),
     });
     if (signal?.aborted) { await response.body?.cancel?.().catch(() => {}); throw cancelled(); }
     status = response.status;

@@ -1,7 +1,7 @@
 // Bounded, deterministic intent hints shared by the browser and API. Conversation
 // text is never evidence that an operation exists, is pending, or has completed.
 const RENDER_ACTION = /\b(?:show|draw|redraw|make|build|rebuild|create|recreate|render|display|generate|regenerate|produce|give me|put together|set up|visualiz(?:e|ation)|visualis(?:e|ation)|i (?:want|need|would like)|we (?:want|need|would like)|looking for)\b/i;
-const VISUAL_TOPIC = /\b(?:gen(?:erative)?[ -]?ui|ui|interactive (?:ui|tools?|models?|widgets?|components?|visuals?)|visualizations?|visualisations?|charts?|graphs?|plots?|diagrams?|flowcharts?|calculators?)\b/i;
+const VISUAL_TOPIC = /\b(?:gen(?:erative)?[ -]?ui|ui|interactive (?:ui|tools?|models?|widgets?|components?|visuals?)|visualizations?|visualisations?|charts?|graphs?|plots?|diagrams?|flowcharts?|calculators?|price[ -]?books?)\b/i;
 // Requests for source code must not be mistaken for requests to render native UI.
 const SOURCE_CODE_REQUEST = /\b(?:write|show|provide|generate|create|give me|make|build|implement)\b.{0,100}\b(?:html|javascript|css|jsx|react (?:component|code)|source code|code snippet|code example|code for)\b|\b(?:html|javascript|jsx|react)\s+(?:code|snippet|example)\b/i;
 const REJECT_SOURCE_CODE = /\b(?:do not|don't|without|rather than|instead of|no)\b.{0,45}\b(?:code|html|javascript|css|jsx|snippet)\b/i;
@@ -10,7 +10,7 @@ const CAPABILITY_QUESTION = /\b(?:what (?:else )?can you (?:do|make|build|create
 const GENERIC_FOLLOWUP = /^(?:i (?:shouldn't|should not) have to[,!. ]*)?(?:(?:ok(?:ay)?|sure|yes|yep|yeah|please)[,.! ]*)?(?:yes|yep|yeah|sure|ok(?:ay)?|next|next one|continue|go ahead|do it|let'?s go|let'?s do it|just (?:pick|choose)(?: (?:one|something|yourself|for me))?|(?:pick|choose) (?:one|something|yourself|for me)|you (?:pick|choose|decide)|(?:let'?s do )?all (?:three|of them)(?: one at a time)?|one at a time)(?:[, ]+please)?[.!? ]*$/i;
 const SHORT_STATUS = /^(?:no|nope|not yet|still nothing)[.!? ]*$/i;
 const VISUAL_STATUS = /\b(?:i (?:don't|do not|can't|cannot) see (?:it|that|anything|any of (?:it|that|them)|the (?:map|chart|visual|component|ui))|(?:nothing|it) (?:showed|shows|is showing|appeared)|where (?:is|are) (?:it|they|the (?:map|chart|visual|component|ui))|(?:it|the (?:map|chart|visual|component|ui)) (?:isn't|is not|wasn't|was not) (?:visible|showing|displayed))\b/i;
-const REPEAT_OBJECT = '(?:(?:pie|bar|line)[ -]?(?:chart|graph)|table|flowchart|calculator|chart|visual|component|ui)';
+const REPEAT_OBJECT = '(?:(?:pie|bar|line)[ -]?(?:chart|graph)|table|flowchart|calculator|price[ -]?book|chart|visual|component|ui)';
 const EXPLICIT_FOLLOWUP = new RegExp('^(?:please )?(?:(?:can|could|would) you )?(?:'
   + '(?:show|draw|redraw|build|rebuild|create|recreate|render|display|generate|regenerate) (?:me )?(?:it|that|this|the (?:same|previous|last))(?: ' + REPEAT_OBJECT + ')?(?: again)?'
   + '|(?:redraw|rebuild|recreate|regenerate) (?:the )?' + REPEAT_OBJECT + '(?: again)?'
@@ -32,6 +32,7 @@ const FORMATS = [
   { kind: 'bar-chart', pattern: /\bbar[ -]?(?:charts?|graphs?)\b/i },
   { kind: 'line-chart', pattern: /\bline[ -]?(?:charts?|graphs?)\b/i },
   { kind: 'flowchart', pattern: /\b(?:flow[ -]?charts?|diagrams?)\b/i },
+  { kind: 'price-book', pattern: /\bprice[ -]?books?\b/i },
   { kind: 'calculator', pattern: /\bcalculators?\b/i },
   { kind: 'table', pattern: /\btables?\b/i },
   { kind: null, pattern: /\b(?:charts?|graphs?|plots?)\b/i },

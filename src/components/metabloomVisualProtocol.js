@@ -1,7 +1,8 @@
 // Shared browser/server contract. Model output is data, never parent-document code.
+const { validateMetabloomPriceBook } = require('./metabloomPriceBook');
 const METABLOOM_VISUAL_VERSION = '1';
 const METABLOOM_VISUAL_DESIGN_VERSION = 'aetheris-1';
-const METABLOOM_VISUAL_KINDS = Object.freeze(['table', 'bar-chart', 'line-chart', 'pie-chart', 'flowchart', 'calculator']);
+const METABLOOM_VISUAL_KINDS = Object.freeze(['table', 'bar-chart', 'line-chart', 'pie-chart', 'flowchart', 'calculator', 'price-book']);
 const MAX_METABLOOM_VISUAL_BYTES = 65536;
 const MAX_METABLOOM_VISUAL_CONTEXT_BYTES = 65536;
 // Server deadlines leave room for bounded persistence before the hosting limit.
@@ -134,6 +135,11 @@ const parseMetabloomVisual = (input, expected = {}) => {
       || !visualList(value.edges, 0, 32, edge => visualKeys(edge, ['from', 'to', 'label'])
         && value.nodes.some(node => node.id === edge.from) && value.nodes.some(node => node.id === edge.to)
         && visualText(edge.label, 100, true))) return null;
+  } else if (value.kind === 'price-book') {
+    if (!visualKeys(value, [...common, 'priceBook'])) return null;
+    const priceBook = validateMetabloomPriceBook(value.priceBook);
+    if (!priceBook) return null;
+    value.priceBook = priceBook;
   } else if (value.kind === 'calculator') {
     if (!visualKeys(value, [...common, 'controls', 'formula', 'unit', 'formulaDescription'])
       || !visualText(value.unit, 60, true) || !visualText(value.formulaDescription, 400)

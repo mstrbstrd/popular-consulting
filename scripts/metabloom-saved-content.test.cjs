@@ -17,6 +17,11 @@ const specFor = (kind = 'table') => {
   const common = { version: '1', designVersion: 'aetheris-1', kind, title: 'Fictional orchard comparison',
     summary: 'The original recorded values and qualifications.',
     provenance: { type: 'sources', label: 'Recorded fictional evidence.', sourceIds: [9, 65] } };
+  if (kind === 'price-book') return { ...common, priceBook: { version: 1, currency: 'CAD',
+    inputs: [{ id: 'hours', label: 'Hours', type: 'number', min: 1, max: 80, initial: 2 }],
+    taxes: [{ id: 'gst', label: 'GST', rate: '5' }],
+    lines: [{ id: 'labour', label: 'Labour', formula: ['hours', '95', 'multiply'], taxes: ['gst'], when: null }],
+    examples: [{ label: 'Two hours', inputs: { hours: 2 } }] } };
   if (kind === 'table') return { ...common, columns: ['Item', 'Value'], rows: [['Alpha', '10'], ['Beta', '20.5']] };
   if (kind === 'calculator') return { ...common,
     controls: [{ id: 'total', label: 'Total', unit: 'CAD', min: 0, max: 1000, step: 0.5, initial: 120 },

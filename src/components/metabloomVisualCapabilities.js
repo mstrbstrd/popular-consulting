@@ -8,13 +8,18 @@ const descriptions = {
   'line-chart': { label: 'line charts', description: 'Single or multiple series of ordered observations with pointer and arrow-key inspection of each observation and an exact-value table. Observation spacing does not imply elapsed time.' },
   'pie-chart': { label: 'pie charts', description: 'Nonnegative parts of one total with selectable categories, percentages and an exact-value table.' },
   flowchart: { label: 'small flowcharts', description: 'A laid-out process diagram with numbered steps, labelled connections and step selection that traces where each step comes from and leads. No draggable nodes or editable diagram canvas.' },
+  'price-book': { label: 'price books', description: 'Draft pricing rules with editable job inputs, exact-cent line and tax calculations, and host-computed worked examples. Only the user can publish a version with the Publish button. Drafts are not active price books. Estimates are not invoices, payments, tax advice or published MCP servers.' },
   calculator: { label: 'calculators', description: 'Editable numeric fields and sliders, local calculation, reset and a copy-scenario control. No external actions or file export.' },
 };
 const METABLOOM_VISUAL_CAPABILITIES = Object.freeze(Object.fromEntries(METABLOOM_VISUAL_KINDS
   .filter(kind => Object.prototype.hasOwnProperty.call(descriptions, kind))
   .map(kind => [kind, Object.freeze({ ...descriptions[kind] })])));
-const labels = Object.values(METABLOOM_VISUAL_CAPABILITIES).map(item => item.label);
-const formats = `${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}`;
+const availableCapabilities = priceBookEnabled => Object.entries(METABLOOM_VISUAL_CAPABILITIES)
+  .filter(([kind]) => kind !== 'price-book' || priceBookEnabled === true);
+const formatNames = priceBookEnabled => {
+  const labels = availableCapabilities(priceBookEnabled).map(([, item]) => item.label);
+  return `${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}`;
+};
 const unavailable = 'Interactive creation is unavailable for this request.';
 const unsupported = Object.freeze({
   map: 'Maps, including static and interactive maps, are not supported in this interface. No map was created or displayed by this request.',
@@ -26,8 +31,9 @@ const unsupported = Object.freeze({
   animation: 'Custom generated animations are not supported by this visual tool. The Orb has its own existing reactions and scenes.',
 });
 
-function getMetabloomVisualCapabilityResponse(intent, { enabled = false, researchBriefEnabled = false } = {}) {
+function getMetabloomVisualCapabilityResponse(intent, { enabled = false, researchBriefEnabled = false, priceBookEnabled = false } = {}) {
   if (!intent || typeof intent !== 'object' || Array.isArray(intent)) return null;
+  const formats = formatNames(priceBookEnabled);
   switch (intent.mode) {
     case 'capabilities':
       return (enabled === true
@@ -50,11 +56,11 @@ function getMetabloomVisualCapabilityResponse(intent, { enabled = false, researc
   }
 }
 
-function buildMetabloomVisualCapabilityPrompt({ visualMode = 'disabled', visualToolResult = false, researchBriefEnabled = false, toolset = false } = {}) {
+function buildMetabloomVisualCapabilityPrompt({ visualMode = 'disabled', visualToolResult = false, researchBriefEnabled = false, toolset = false, priceBookEnabled = false } = {}) {
   const available = visualMode === 'optional' || visualMode === 'requested';
   return [
     'Authoritative native visual capability inventory. These are the only implemented visual formats and controls:',
-    ...Object.entries(METABLOOM_VISUAL_CAPABILITIES).map(([kind, value]) => `${kind}: ${value.description}`),
+    ...availableCapabilities(priceBookEnabled).map(([kind, value]) => `${kind}: ${value.description}`),
     'This inventory is a closed list. There are no maps, static or interactive, geocoding, neighborhood layers, satellite views, file exports, attachments, standalone dashboards, arbitrary app UIs, generated images or custom generated animations in this visual tool. Do not offer unimplemented formats or controls. The Orb\'s existing reactions and scenes are separate from generated components.',
     researchBriefEnabled
       ? 'Separately, the Deep Research route can return a native expandable research brief with findings, supporting citations, dates, analysis and coverage limitations. This is an implemented reading surface, not an arbitrary UI or a saved file. Describe its availability when relevant, but only a completed research result establishes what was produced. The host can route requests needing current evidence into Deep Research; only execution results establish that a search ran.'

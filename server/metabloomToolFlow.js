@@ -36,14 +36,20 @@ const toolDefinition = Object.freeze({
   parameters: {
     type: 'object', additionalProperties: false, required: ['kind', 'brief'],
     properties: {
-      kind: { type: 'string', enum: METABLOOM_VISUAL_KINDS },
+      kind: { type: 'string', enum: METABLOOM_VISUAL_KINDS.filter(kind => kind !== 'price-book') },
       brief: { type: 'string', minLength: 1, maxLength: 1200, description: 'A short task brief preserving all required inputs, units and constraints.' },
     },
   },
 });
-async function requestVisualTool({ message, history, requiredKind, artifactContext, researchContext, signal, fetchImpl, requestRef } = {}) {
+function getMetabloomVisualToolDefinition({ priceBookEnabled = false } = {}) {
+  return { ...toolDefinition, parameters: { ...toolDefinition.parameters, properties: { ...toolDefinition.parameters.properties,
+    kind: { type: 'string', enum: METABLOOM_VISUAL_KINDS.filter(kind => kind !== 'price-book' || priceBookEnabled === true) },
+  } } };
+}
+async function requestVisualTool({ message, history, requiredKind, artifactContext, researchContext, priceBookEnabled = false, signal, fetchImpl, requestRef } = {}) {
   if (typeof message !== 'string' || !message.trim() || message.length > 1600 || !Array.isArray(history)
     || !METABLOOM_VISUAL_KINDS.includes(requiredKind)) throw visualError('visual_invalid');
+  if (requiredKind === 'price-book' && priceBookEnabled !== true) throw visualError('visual_disabled');
   let researchProvenance;
   if (researchContext) {
     const replay = prepareMetabloomResearchToolReplay({ message, history, researchContext });
@@ -98,7 +104,7 @@ async function continueVisualTool({ tool, result, display = 'unknown', signal, f
   const answer = await requestVisualResponse({
     model, reasoning: visualReasoning(model, true),
     store: false, stream: false, max_output_tokens: 1600,
-    instructions: buildMetabloomChatSystemPrompt({ visualMode: 'requested', visualToolResult: true })
+    instructions: buildMetabloomChatSystemPrompt({ visualMode: 'requested', visualToolResult: true, priceBookEnabled: spec?.kind === 'price-book' })
       + '\n\nA native create_visual tool was actually invoked. Its tool result is authoritative for this turn. '
       + 'Answer in one concise, helpful sentence using the real result. If status is generated and display is mounted, acknowledge the working component. '
       + 'If display is unknown, say the component was generated without claiming it is visible. If display_failed or failed, acknowledge the failure. '
@@ -116,5 +122,5 @@ async function continueVisualTool({ tool, result, display = 'unknown', signal, f
   if (!validated.ok || validated.value.version !== METABLOOM_CHAT_PROTOCOL_VERSION) throw visualError('visual_invalid');
   return validated.value;
 }
-module.exports = { TOOL_NAME, toolDefinition, requestVisualTool, continueVisualTool,
+module.exports = { TOOL_NAME, toolDefinition, getMetabloomVisualToolDefinition, requestVisualTool, continueVisualTool,
   prepareMetabloomResearchToolReplay, MAX_RESEARCH_TOOL_STORED_BYTES };

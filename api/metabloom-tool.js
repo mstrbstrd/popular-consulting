@@ -1,5 +1,7 @@
 const { randomBytes } = require('node:crypto');
 const auth = require('../server/metabloomAuth');
+const { createMetabloomPriceBookStore } = require('../server/metabloomPriceBookStore');
+const { isMetabloomPriceBookEnabled } = require('../server/metabloomPriceBookFeature');
 const { enabled: visualsEnabled, createMetabloomVisualStore } = require('../server/metabloomVisualStore');
 const { visualStoreDiagnostics } = require('../server/metabloomVisualStoreDiagnostics');
 const { parseMetabloomArtifactReference } = require('../src/components/metabloomArtifactReference');
@@ -37,14 +39,14 @@ const send = (response, status, value) => {
   response.end(JSON.stringify(value));
 };
 function createMetabloomToolHandler({ store = createMetabloomVisualStore(), researchStore = createMetabloomResearchStore(), authenticate = auth.requireMetabloomSession,
-  start = requestVisualTool, finish = continueVisualTool, rateLimit = consumeRateLimit, reaction = decideMetabloomReaction } = {}) {
+  start = requestVisualTool, finish = continueVisualTool, getPriceBookStore = createMetabloomPriceBookStore, rateLimit = consumeRateLimit, reaction = decideMetabloomReaction } = {}) {
   return async function handler(request, response) {
     for (const [key, value] of Object.entries({ 'Cache-Control': 'private, no-store, no-transform',
       'CDN-Cache-Control': 'no-store', 'Vercel-CDN-Cache-Control': 'no-store', Vary: 'Cookie',
       'X-Content-Type-Options': 'nosniff', 'X-Robots-Tag': 'noindex, nofollow, noarchive' })) response.setHeader(key, value);
-    let identity;
+    let identity, accountIdentity;
     let denial;
-    try { denial = await authenticate(request, { onIdentity: value => { identity = value; } }); }
+    try { denial = await authenticate(request, { onIdentity: value => { identity = value; }, onAccountIdentity: value => { accountIdentity = value; } }); }
     catch { return send(response, 503, { code: 'tool_unavailable' }); }
     if (denial || !identity) return send(response, denial?.status || 401, { code: 'authentication_required' });
     if (request.method !== 'POST') { response.setHeader('Allow', 'POST'); return send(response, 405, { code: 'method_not_allowed' }); }
@@ -86,6 +88,7 @@ function createMetabloomToolHandler({ store = createMetabloomVisualStore(), rese
           || !/^[a-f0-9]{48}$/.test(body.id) || !['mounted', 'failed', 'unknown'].includes(body.display)) throw new Error();
       } else throw new Error();
     } catch { return send(response, 400, { code: 'invalid_request' }); }
+    const priceBookEnabled = isMetabloomPriceBookEnabled() && request.headers?.['x-metabloom-pricebook'] === '1';
     const controller = new AbortController();
     let deadlineExpired = false;
     const timeout = setTimeout(() => { deadlineExpired = true; controller.abort(); },
@@ -102,6 +105,13 @@ function createMetabloomToolHandler({ store = createMetabloomVisualStore(), rese
         const intent = classifyMetabloomVisualIntent(body.message, body.history);
         const requiredKind = intent.requiredKind || intent.preferredKinds?.[0];
         if (intent.mode !== 'requested' || !requiredKind) return send(response, 400, { code: 'tool_not_requested' });
+        if (requiredKind === 'price-book' && !priceBookEnabled) return send(response, 503, { code: 'tool_disabled' });
+        let activePriceBook = null;
+        if (requiredKind === 'price-book') {
+          if (!accountIdentity) return send(response, 503, { code: 'tool_unavailable' });
+          stage = 'price_book_read';
+          activePriceBook = await getPriceBookStore().read(accountIdentity, { signal: controller.signal });
+        }
         const message = intent.resolvedMessage || body.message;
         let artifactContext = null;
         if (body.artifactContext) {
@@ -140,7 +150,7 @@ function createMetabloomToolHandler({ store = createMetabloomVisualStore(), rese
         if (!(await rateLimit(request, controller.signal))) return send(response, 429, { code: 'rate_limited' });
         stage = 'provider';
         const [call, emote] = await Promise.all([
-          start({ message, history: body.history, requiredKind,
+          start({ message, history: body.history, requiredKind, priceBookEnabled,
             ...(artifactContext ? { artifactContext } : {}),
             ...(retainedResearch ? { researchContext: retainedResearch.researchContext } : {}), signal: controller.signal, requestRef }),
           Promise.resolve().then(() => reaction({ phase: 'input', state: { latestUserMessage: message },
@@ -149,7 +159,8 @@ function createMetabloomToolHandler({ store = createMetabloomVisualStore(), rese
         if (controller.signal.aborted) throw new Error('cancelled');
         stage = 'offer';
         const offer = await store.offer(identity, call.kind, {
-          message, answer: '', toolBrief: call.brief, sources: retainedResearch?.sources || artifactContext?.sources || [],
+          message, answer: '', toolBrief: call.brief,
+          ...(activePriceBook ? { activePriceBook: activePriceBook.book } : {}), sources: retainedResearch?.sources || artifactContext?.sources || [],
           ...(artifactContext ? { artifactContext } : {}),
           ...(retainedResearch ? { researchContext: retainedResearch.researchContext } : {}),
           recentConversation: retainedResearch ? [] : body.history.slice(-2), tool: call.tool, visualIntent: 'requested',
@@ -160,10 +171,11 @@ function createMetabloomToolHandler({ store = createMetabloomVisualStore(), rese
         return send(response, 200, { offer, emote });
       }
       stage = 'continuation_read';
-      const cached = await store.getContinuation(identity, body.id, { signal: controller.signal });
+      const cached = await store.getContinuation(identity, body.id, { signal: controller.signal, priceBookEnabled });
       if (cached) return send(response, 200, cached);
       stage = 'continuation_claim';
-      const record = await store.claimContinuation(identity, body.id, { signal: controller.signal });
+      const record = await store.claimContinuation(identity, body.id, { signal: controller.signal, priceBookEnabled });
+      if (record.offer.kind === 'price-book' && !priceBookEnabled) return send(response, 503, { code: 'tool_disabled' });
       let reply;
       let fallback = false;
       stage = 'explanation';
@@ -193,7 +205,7 @@ function createMetabloomToolHandler({ store = createMetabloomVisualStore(), rese
         ...(fallback ? { code: deadlineExpired ? 'tool_timeout' : 'tool_unavailable' } : {}) }));
       return send(response, 200, result);
     } catch (error) {
-      const codes = { visual_invalid: 'tool_invalid', visual_output_limit: 'tool_output_limit',
+      const codes = { visual_disabled: 'tool_disabled', visual_invalid: 'tool_invalid', visual_output_limit: 'tool_output_limit',
         visual_claimed: 'tool_claimed', visual_expired: 'tool_expired', visual_quota: 'tool_quota',
         provider_authentication_failed: 'provider_authentication_failed',
         model_configuration_error: 'model_configuration_error', provider_rate_limited: 'provider_rate_limited',
@@ -203,7 +215,7 @@ function createMetabloomToolHandler({ store = createMetabloomVisualStore(), rese
         research_conversion_unavailable: 'research_conversion_unavailable' };
       const code = controller.signal.aborted ? (deadlineExpired ? 'tool_timeout' : 'tool_cancelled')
         : Object.prototype.hasOwnProperty.call(codes, error?.code) ? codes[error.code] : 'tool_unavailable';
-      const status = code === 'tool_timeout' ? 504 : code === 'tool_cancelled' ? 499
+      const status = code === 'tool_disabled' ? 503 : code === 'tool_timeout' ? 504 : code === 'tool_cancelled' ? 499
         : ['artifact_invalid', 'artifact_unavailable', 'artifact_conversion_unavailable', 'research_reference_invalid',
           'research_reference_unavailable', 'research_conversion_unavailable'].includes(code) ? error.status || 410
         : code === 'tool_claimed' ? 409 : code === 'tool_expired' ? 410

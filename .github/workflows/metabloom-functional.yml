@@ -32,8 +32,8 @@ jobs:
         run: node --test scripts/metabloom-visual-quota-redis.test.cjs scripts/metabloom-research-store-redis.test.cjs
         env:
           METABLOOM_QUOTA_TEST_REDIS_PORT: 6379
-      - name: Verify account model defaults against real Redis
-        run: node --test scripts/metabloom-model-preferences-redis.test.cjs
+      - name: Verify account model defaults and price books against real Redis
+        run: node --test scripts/metabloom-model-preferences-redis.test.cjs scripts/metabloom-price-book-redis.test.cjs
         env:
           METABLOOM_SAVED_WORK_TEST_REDIS_URL: redis://127.0.0.1:6379
           METABLOOM_SAVED_WORK_TEST_ALLOW_DISPOSABLE: '1'
@@ -49,6 +49,7 @@ jobs:
       - name: Verify Metabloom API, research, and provider contracts
         run: >-
           node --test scripts/metabloom-api.test.cjs scripts/metabloom-agent.test.cjs scripts/metabloom-agent-api.test.cjs scripts/metabloom-research.test.cjs
+          scripts/metabloom-price-book.test.cjs scripts/metabloom-price-book-store.test.cjs scripts/metabloom-price-book-agent.test.cjs
           scripts/metabloom-models.test.cjs scripts/metabloom-expression.test.cjs scripts/metabloom-answer-recovery.test.cjs scripts/metabloom-council.test.cjs
           scripts/metabloom-research-brief.test.cjs scripts/metabloom-research-brief-api.test.cjs
           scripts/metabloom-research-output.test.cjs scripts/metabloom-stream.test.cjs
@@ -92,6 +93,11 @@ jobs:
       - name: Verify council rounds through the built Orb with fictional providers
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: node scripts/verify-metabloom-council.mjs
+      - name: Verify price-book draft, publish, and exact estimate through the built Orb
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: node scripts/verify-metabloom-price-book.mjs
+        env:
+          PRICEBOOK_EVIDENCE: metabloom-price-book
       - name: Preserve functional evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -103,6 +109,7 @@ jobs:
             metabloom-mobile-workspace/*
             metabloom-research-reuse/*
             metabloom-threads/*
+            metabloom-price-book/*
           retention-days: 7
       - name: Verify production denies anonymous Orb and paid API access
         if: ${{ !cancelled() && steps.build.outcome == 'success' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/test/orb-auth-browser-verification') }}

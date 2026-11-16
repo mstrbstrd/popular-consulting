@@ -19,6 +19,7 @@ const descriptions = Object.freeze({
   'line-chart': 'Show an ordered series of actual comparable numeric observations. Not an invented forecast.',
   'pie-chart': 'Show nonnegative parts of one whole in a common unit. Preserve provided quantities; label illustrative example assumptions explicitly.',
   flowchart: 'Clarify a small process, dependency, or decision structure from the completed explanation.',
+  'price-book': 'Draft or revise explicitly supplied business pricing rules for user review, with host-computed examples and explicit publishing. Never use this to quote from a published book; use get_quote for estimates.',
   calculator: 'User-adjustable calculation with explicit inputs, units, and a known simple formula; no unsupported predictions.',
 });
 const createMetabloomVisualizationQuestion = (kinds, intent = "optional") => ({

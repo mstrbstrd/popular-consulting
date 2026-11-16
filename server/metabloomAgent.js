@@ -7,7 +7,10 @@ const { extractMetabloomVisualData } = require('../src/components/metabloomVisua
 const { parseMetabloomResearchSources } = require('../src/components/metabloomResearchSources');
 const { extractMetabloomResearch, validateMetabloomResearchCitations, readResearchResponse } = require('./metabloomResearch');
 const { buildMetabloomResearchTemporalContext } = require('./metabloomResearchBrief');
-const { toolDefinition: visualTool } = require('./metabloomToolFlow');
+const { getMetabloomVisualToolDefinition } = require('./metabloomToolFlow');
+const { createMetabloomPriceBookStore } = require('./metabloomPriceBookStore');
+const { deriveMetabloomPriceBookToolSchema, quoteMetabloomPriceBook } = require('../src/components/metabloomPriceBook');
+const { buildMetabloomPriceBookQuoteVisual } = require('./metabloomPriceBookQuote');
 const { createMetabloomProviderError, readMetabloomProviderError } = require('./metabloomProviderErrors');
 const { requestMetabloomModel } = require('./metabloomModelProvider');
 const { findMetabloomImage } = require('./metabloomImageSearch');
@@ -108,7 +111,8 @@ function retainSearchEvidence(report, catalog) {
 }
 
 async function runMetabloomAgent({ message, history, allowMultiple = false, presentationAction = 'none', timeZone = 'UTC',
-  identity, requestId, visualStore, visualsAvailable = false, imagesAvailable = false, signal, requestRef, modelSelection, orbContext,
+  identity, accountIdentity, requestId, visualStore, visualsAvailable = false, imagesAvailable = false,
+  priceBookEnabled = false, priceBookStore, signal, requestRef, modelSelection, orbContext,
   fetchImpl = globalThis.fetch, search = searchMetabloomWeb, findImage = findMetabloomImage, onTool = async () => {}, onToolProgress, onStatus }) {
   const lifecycle = createMetabloomAgentLifecycle({ requireStatus: true });
   const emit = async event => {
@@ -129,19 +133,34 @@ async function runMetabloomAgent({ message, history, allowMultiple = false, pres
   // Photos need the browser's opt-in to display them; otherwise the tool is not
   // offered at all, so the model cannot promise a picture nobody will see.
   const imageAvailable = imagesAvailable === true && !webDeclined;
+  const visualTool = getMetabloomVisualToolDefinition({ priceBookEnabled });
+  let activePriceBook = null;
+  if (priceBookEnabled && visualsAvailable && accountIdentity) {
+    try {
+      priceBookStore = priceBookStore || createMetabloomPriceBookStore();
+      activePriceBook = await priceBookStore.read(accountIdentity, { signal });
+    } catch { signal?.throwIfAborted(); }
+  }
+  const quoteTool = activePriceBook ? { type: 'function', name: 'get_quote', strict: true,
+    description: `Compute an estimate from the account's published price book version ${activePriceBook.version}. Supply only job facts. Do not invent missing inputs. Prices and taxes are computed by the host.`,
+    parameters: deriveMetabloomPriceBookToolSchema(activePriceBook.book) } : null;
   const tools = [...(webAvailable ? [searchTool] : []), ...(imageAvailable ? [imageTool] : []), calculateTool, clockTool,
-    ...(visualsAvailable ? [visualTool] : []), ...expressionTools];
+    ...(visualsAvailable ? [visualTool] : []), ...(quoteTool ? [quoteTool] : []), ...expressionTools];
   const available = new Set(tools.map(tool => tool.name));
   const schema = JSON.parse(JSON.stringify(METABLOOM_CHAT_RESPONSE_SCHEMA));
   schema.properties.segments.maxItems = allowMultiple ? 4 : 1;
   const instructions = buildMetabloomChatSystemPrompt({ allowMultiple, presentationAction, toolset: true, expressionTools: Boolean(orbSnapshot),
-    visualMode: visualsAvailable ? 'optional' : 'disabled' })
+    visualMode: visualsAvailable ? 'optional' : 'disabled', priceBookEnabled })
     + '\n\nAvailable tools for this turn: ' + tools.map(tool => tool.name).join(', ') + '. '
     + (webAvailable ? 'Use search_web for current news, missing-news follow-ups and facts needing live verification, without asking the user to choose a separate mode. '
       : webDeclined ? 'The user requested no web search for this turn. Do not search or claim fresh verification. '
         : 'Web search is unavailable for this turn. Do not search or claim fresh verification, and do not imply the user disabled it. ')
     + (imageAvailable ? 'Use find_image when the user asks to see, show or picture a specific notable subject, or asks what one looks like; do not ask which kind of photo they want first. The app shows the returned photo, its title and its credit with your answer, so never say you cannot show pictures. You do not see the image: never describe its contents, appearance or setting beyond the returned title and description, and do not identify anyone from it. Do not write image URLs, markdown images or a separate credit line. When it returns found: false, say no freely licensed photo was found and offer a web search; never imply a photo is shown. search_web cannot fetch or display pictures, so do not use it to look for photos or galleries, and never say you found or are showing photos unless find_image returned found: true. When the user accepts an earlier offer to show pictures, call find_image for that subject instead of asking them to choose a site. At most two find_image calls. '
       : 'find_image is unavailable for this turn. Do not promise to show a picture; search results may still include publisher photos the app displays on its own. ')
+    + (priceBookEnabled ? 'Price books are drafts of declarative pricing rules. Use create_visual with kind price-book to build or revise one, preserving every supplied rule and asking for missing essential rates. Never invent business rates or taxes. The user must review worked examples and explicitly press Publish in the card. You have no publish tool and must never claim you published anything. '
+      + (quoteTool ? 'Use get_quote for estimates from the published book. Never substitute calculate, a model-written table, or mental arithmetic for that tool. The host queues the authoritative estimate table with the published version. Do not repeat, change or invent monetary amounts in your prose; refer to the estimate card and any tool failure. '
+        : 'No published price book is available for quoting on this turn. Ask the user to build and publish a price-book card before requesting an estimate, or retry if their published book could not be loaded. Do not compute a replacement quote. ')
+      : 'Price-book creation, publishing and get_quote are unavailable for this turn. ')
     + 'Use calculate for arithmetic and get_current_time for the current local date/time. '
     + (visualsAvailable ? 'Use create_visual when a supported component serves the request; supply complete requirements, not code. That tool queues a native component for the browser to build. Its queued result does not establish successful generation or display. Do not claim it is already visible. '
       : 'create_visual is unavailable for this turn. Do not request or promise a native component. ')
@@ -250,6 +269,22 @@ async function runMetabloomAgent({ message, history, allowMultiple = false, pres
           output = found?.found ? { status: 'complete', found: true, title: found.title, description: found.alt,
             credit: `${found.artist}, ${found.license}, via ${found.source}`, display: 'shown with your answer' }
             : { status: 'complete', found: false };
+        } else if (call.name === 'get_quote') {
+          if (!activePriceBook || visualAttempted) throw invalid('agent_quote_unavailable');
+          const current = await priceBookStore.read(accountIdentity, { signal });
+          if (!current || current.version !== activePriceBook.version
+            || JSON.stringify(current.book) !== JSON.stringify(activePriceBook.book)) throw invalid('agent_quote_stale');
+          const quote = quoteMetabloomPriceBook(current.book, args);
+          const spec = buildMetabloomPriceBookQuoteVisual(current, quote);
+          visualAttempted = true;
+          await visualStore.claimStart(identity, requestId, { signal });
+          await visualStore.checkQuota(identity, { signal });
+          offer = await visualStore.offer(identity, 'table', { hostQuote: spec, priceBookVersion: current.version,
+            sources: [] }, { signal });
+          if (!offer) throw invalid('agent_visual_unavailable');
+          // Money remains in the server-built card, never model-authored output.
+          output = { status: 'queued', kind: 'table', priceBookVersion: current.version,
+            currency: quote.currency, display: 'unconfirmed', estimate: true };
         } else if (call.name === 'calculate') {
           if (!visualKeys(args, ['tokens'])) throw invalid('agent_calculation_arguments');
           const value = evaluateMetabloomVisualFormula(args.tokens, [], {});
@@ -276,6 +311,7 @@ async function runMetabloomAgent({ message, history, allowMultiple = false, pres
           await visualStore.checkQuota(identity, { signal });
           offer = await visualStore.offer(identity, args.kind, { message, answer: '', toolBrief: args.brief,
             sources, evidence, recentConversation: history.slice(-2), visualIntent: 'requested',
+            ...(args.kind === 'price-book' && activePriceBook ? { activePriceBook: activePriceBook.book } : {}),
             dataHints: extractMetabloomVisualData(message) }, { signal });
           if (!offer) throw invalid('agent_visual_unavailable');
           output = { status: 'queued', kind: offer.kind, display: 'unconfirmed' };

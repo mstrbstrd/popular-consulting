@@ -15,6 +15,11 @@ const visualSpec = (kind = 'calculator') => {
     controls: [{ id: 'hours', label: 'Hours', unit: 'h', min: 1, max: 80, step: 1, initial: 10 },
       { id: 'rate', label: 'Hourly rate', unit: 'CAD/h', min: 10, max: 200, step: 1, initial: 65 }],
     formula: ['hours', 'rate', 'multiply'], formulaDescription: 'Hours multiplied by hourly rate.' };
+  if (kind === 'price-book') return { ...common, priceBook: { version: 1, currency: 'CAD',
+    inputs: [{ id: 'hours', label: 'Hours', type: 'number', min: 1, max: 80, initial: 2 }],
+    taxes: [{ id: 'gst', label: 'GST', rate: '5' }],
+    lines: [{ id: 'labour', label: 'Labour', formula: ['hours', '95', 'multiply'], taxes: ['gst'], when: null }],
+    examples: [{ label: 'Two hours', inputs: { hours: 2 } }] } };
   if (kind === 'table') return { ...common, columns: ['Item', 'Value'], rows: [['One', '10'], ['Two', '20']] };
   if (kind === 'flowchart') return { ...common, nodes: [{ id: 'start', label: 'Start' }, { id: 'end', label: 'End' }],
     edges: [{ from: 'start', to: 'end', label: 'Continue' }] };

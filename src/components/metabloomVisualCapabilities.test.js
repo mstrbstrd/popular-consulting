@@ -3,10 +3,10 @@ const { METABLOOM_VISUAL_CAPABILITIES, getMetabloomVisualCapabilityResponse,
   buildMetabloomVisualCapabilityPrompt } = require('./metabloomVisualCapabilities');
 
 describe('Metabloom native visual capability contract', () => {
-  test('describes exactly the six approved renderers with no generic capability fallback', () => {
+  test('describes exactly the seven approved renderers with no generic capability fallback', () => {
     expect(Object.keys(METABLOOM_VISUAL_CAPABILITIES)).toEqual(METABLOOM_VISUAL_KINDS);
     expect(Object.keys(METABLOOM_VISUAL_CAPABILITIES)).toEqual([
-      'table', 'bar-chart', 'line-chart', 'pie-chart', 'flowchart', 'calculator',
+      'table', 'bar-chart', 'line-chart', 'pie-chart', 'flowchart', 'calculator', 'price-book',
     ]);
     expect(Object.isFrozen(METABLOOM_VISUAL_CAPABILITIES)).toBe(true);
     for (const capability of Object.values(METABLOOM_VISUAL_CAPABILITIES)) {
@@ -17,7 +17,7 @@ describe('Metabloom native visual capability contract', () => {
   });
 
   test('lists real formats and renderer controls without promising an action', () => {
-    const response = getMetabloomVisualCapabilityResponse({ mode: 'capabilities' }, { enabled: true });
+    const response = getMetabloomVisualCapabilityResponse({ mode: 'capabilities' }, { enabled: true, priceBookEnabled: true });
     for (const capability of Object.values(METABLOOM_VISUAL_CAPABILITIES)) {
       expect(response).toContain(capability.label);
     }
@@ -85,7 +85,7 @@ describe('Metabloom native visual capability contract', () => {
 
   test('all prompts carry the bounded catalogue, prior-claim boundary and explicit source-code exception', () => {
     for (const visualMode of ['disabled', 'text_only', 'optional', 'requested']) {
-      const prompt = buildMetabloomVisualCapabilityPrompt({ visualMode });
+      const prompt = buildMetabloomVisualCapabilityPrompt({ visualMode, priceBookEnabled: true });
       for (const [kind, capability] of Object.entries(METABLOOM_VISUAL_CAPABILITIES)) {
         expect(prompt).toContain(`${kind}: ${capability.description}`);
       }
@@ -126,4 +126,11 @@ describe('Metabloom native visual capability contract', () => {
     expect(textOnly).not.toContain('A native visual route is available');
     expect(buildMetabloomVisualCapabilityPrompt({ visualMode: 'requested' })).toContain('use sensible defaults and disclose illustrative assumptions');
   });
+});
+
+
+test('price book inventory requires explicit feature negotiation', () => {
+  expect(buildMetabloomVisualCapabilityPrompt({ visualMode: 'optional' })).not.toContain('price-book:');
+  expect(getMetabloomVisualCapabilityResponse({ mode: 'capabilities' }, { enabled: true })).not.toContain('price books');
+  expect(buildMetabloomVisualCapabilityPrompt({ visualMode: 'optional', priceBookEnabled: true })).toContain('Only the user can publish');
 });
