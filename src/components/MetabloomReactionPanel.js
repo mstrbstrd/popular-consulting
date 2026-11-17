@@ -69,6 +69,12 @@ const MetabloomReactionPanel = ({ onReact, disabled = false, intensity: controll
     panel.querySelector("button")?.focus({ preventScroll: true });
     const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(schedule);
     observer?.observe(anchor);
+    // The panel itself can grow after opening (expanding Reactions and
+    // previews). Re-anchor it so it grows upward from the toggle and then
+    // scrolls inside its height limit, instead of extending off screen.
+    // Moving the panel never resizes it, so this cannot loop.
+    observer?.observe(panel);
+    panel.addEventListener("toggle", schedule, true);
     const composer = anchor.closest(".metabloom-chat__composer-area");
     if (composer) observer?.observe(composer);
     if (navigation) observer?.observe(navigation);
@@ -76,6 +82,7 @@ const MetabloomReactionPanel = ({ onReact, disabled = false, intensity: controll
     viewport?.addEventListener("resize", schedule);
     viewport?.addEventListener("scroll", schedule);
     return () => {
+      panel.removeEventListener("toggle", schedule, true);
       if (panel.open) panel.close();
       if (page) delete page.dataset.reactionsOpen;
       window.cancelAnimationFrame(frame);

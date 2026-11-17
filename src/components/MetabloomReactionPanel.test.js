@@ -165,3 +165,39 @@ test("the toolbar has only the panel toggle: there is no separate replay shortcu
   expect(toolbar.querySelectorAll("button")).toHaveLength(1);
   expect(screen.queryByRole("button", { name: /^Replay .* reaction$/ })).toBeNull();
 });
+
+test("expanding content re-anchors the panel above its toggle instead of pushing it off screen", () => {
+  const originalViewport = window.visualViewport;
+  const originalObserver = window.ResizeObserver;
+  window.visualViewport = { width: 960, height: 636, offsetTop: 0, offsetLeft: 0, addEventListener: jest.fn(), removeEventListener: jest.fn() };
+  const observed = [];
+  window.ResizeObserver = class { observe(node) { observed.push(node); } disconnect() {} };
+  let frame;
+  const raf = jest.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => { frame = callback; return 7; });
+  const cancel = jest.spyOn(window, "cancelAnimationFrame").mockImplementation(() => {});
+  let panelHeight = 200;
+  const bounds = jest.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function () {
+    if (this.classList.contains("metabloom-reactions")) return rect(100, 500, 164, 44);
+    if (this.classList.contains("metabloom-reactions__panel")) return rect(0, 0, 400, panelHeight);
+    return rect(0, 0, 960, 64);
+  });
+  try {
+    render(<><nav className="nav-pill" /><MetabloomReactionPanel onReact={() => true} tools={() => <button type="button">Saved work</button>} /></>);
+    fireEvent.click(screen.getByRole("button", { name: /^More/ }));
+    const panel = screen.getByRole("dialog", { name: "More options" });
+    // Collapsed: the panel sits just above the toggle (bottom edge at 492px).
+    expect(panel).toHaveStyle({ top: "292px", maxHeight: "416px" });
+    expect(observed).toContain(panel);
+    // Expanding "Reactions and previews" grows the panel past its limit.
+    panelHeight = 900;
+    const details = panel.querySelector("details");
+    details.open = true;
+    fireEvent(details, new Event("toggle"));
+    frame();
+    // It grows upward and is capped, so its bottom stays above the toggle and its content scrolls.
+    expect(panel).toHaveStyle({ top: "76px", maxHeight: "416px" });
+  } finally {
+    bounds.mockRestore(); raf.mockRestore(); cancel.mockRestore();
+    window.visualViewport = originalViewport; window.ResizeObserver = originalObserver;
+  }
+});
