@@ -1,4 +1,5 @@
 import React from "react";
+import { METABLOOM_PROVIDER_COLORWAYS as PROVIDER_COLORWAYS } from "./metabloomCouncilScene";
 import { useMetabloomPalette } from "../contexts/MetabloomPaletteContext";
 import CreatorOSFieldCanvas from "./CreatorOSFieldCanvas";
 import "./CreatorOSFieldCanvas.css";
@@ -15,11 +16,6 @@ const ACTION_CODES = Object.freeze(Object.fromEntries(
 ));
 const NOVA_FALLBACK_COLORS = Object.freeze(["#ff4b14", "#ffb52e", "#fff0b3"]);
 const METALNOVA_FALLBACK_COLORS = Object.freeze(["#7a818b", "#c3cbd7", "#f3f6ff"]);
-const PROVIDER_COLORWAYS = Object.freeze({
-  openai: { label: "OpenAI jade, teal, and mint", colors: ["#16a77a", "#20c9b5", "#98efd0"] },
-  deepseek: { label: "DeepSeek cobalt, indigo, and ice blue", colors: ["#386bff", "#6654df", "#82c9ff"] },
-  anthropic: { label: "Claude burnt orange, amber, and peach", colors: ["#d96638", "#f59c46", "#ffd0a1"] },
-});
 
 const clamp = (value, minimum, maximum) =>
   Math.max(minimum, Math.min(maximum, value));
@@ -53,6 +49,10 @@ const MetabloomAvatar = ({
   paused = false,
   pointerReactive = true,
   provider = null,
+  council = false,
+  councilSpeaker = null,
+  councilEmotes = true,
+  councilIntensity = 0.8,
   pulseVersion = 0,
   resetVersion = 0,
   talking = false,
@@ -93,7 +93,9 @@ const MetabloomAvatar = ({
     onPulse?.();
   };
 
-  const accessibleLabel = underHoodPhase ? "Under the hood. Metabloom opens to reveal the Forward Pass neural-network visualization." : fieldMode !== 0 ? `${themeLabel}.` :
+  const accessibleLabel = council
+    ? `Council of three: DeepSeek on the left, OpenAI in the centre, Claude on the right. ${councilSpeaker ? `${PROVIDER_COLORWAYS[councilSpeaker.provider]?.label.split(' ')[0]} ${councilSpeaker.state === 'repairing' ? 'correcting its response' : 'responding'}.` : 'Council at rest.'}`
+    : underHoodPhase ? "Under the hood. Metabloom opens to reveal the Forward Pass neural-network visualization." : fieldMode !== 0 ? `${themeLabel}.` :
     `Faceless Metabloom avatar expressing ${normalizedAction.label.toLowerCase()}. `
     + `${normalizedAction.motion}. ${colorwayLabel} colorway, `
     + `${materialLabel} finish.`;
@@ -101,6 +103,8 @@ const MetabloomAvatar = ({
   return (
     <div
       className="metabloom-avatar"
+      data-council={council ? "true" : "false"}
+      data-council-speaker={councilSpeaker?.provider || undefined}
       data-under-hood={underHoodPhase || undefined}
       data-avatar-theme={fieldMode === 0 ? "metabloom" : activityTheme}
       data-avatar-action={normalizedAction.id}
@@ -122,6 +126,8 @@ const MetabloomAvatar = ({
       onClick={onPulse}
       onKeyDown={handleKeyDown}
       style={{
+        ...Object.fromEntries(Object.entries(PROVIDER_COLORWAYS).flatMap(([id, colorway]) =>
+          colorway.colors.map((color, index) => [`--council-${id}-${index}`, color]))),
         "--avatar-fallback-transform": `translate(${fallbackPose.offsetX * 100}%, ${-fallbackPose.offsetY * 100}%) rotate(${-fallbackPose.rotation}rad) scale(${fallbackPose.scaleX}, ${fallbackPose.scaleY})`,
         "--avatar-color-a": fallbackColors[0],
         "--avatar-color-b": fallbackColors[1],
@@ -129,6 +135,10 @@ const MetabloomAvatar = ({
       }}
     >
       <CreatorOSFieldCanvas
+        metabloomCouncil={council}
+        metabloomCouncilSpeaker={councilSpeaker}
+        metabloomCouncilEmotes={councilEmotes}
+        metabloomCouncilIntensity={councilIntensity}
         externalPulseVersion={pulseVersion}
         isDark={isDark}
         metabloomAvatarAction={actionCode}

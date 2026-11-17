@@ -273,3 +273,19 @@ test.each(["spectral", "metalbloom", "nova", "metalnova"])(
     }
   },
 );
+
+
+test('council keeps one field and describes the actual seats and speaker', () => {
+  const { rerender } = render(<MetabloomAvatar />);
+  const field = screen.getByTestId('creatoros-metabloom-field');
+  rerender(<MetabloomAvatar council councilSpeaker={{ provider: 'deepseek', state: 'running', round: 'Critique', key: '4' }} />);
+  expect(screen.getByTestId('creatoros-metabloom-field')).toBe(field);
+  const avatar = screen.getByTestId('metabloom-avatar');
+  expect(avatar).toHaveAccessibleName(/DeepSeek on the left, OpenAI in the centre, Claude on the right.*DeepSeek responding/);
+  expect(mockFieldProps.metabloomCouncil).toBe(true);
+  expect(mockFieldProps.metabloomProviderColorway).toBe(false);
+  expect(avatar.style.getPropertyValue('--council-anthropic-0')).toBe('#d96638');
+  rerender(<MetabloomAvatar />);
+  expect(avatar).toHaveAttribute('data-council', 'false');
+  expect(avatar).toHaveAccessibleName(/Native Metabloom colorway/);
+});

@@ -5,7 +5,8 @@ import MetabloomCouncilProgress from './MetabloomCouncilProgress';
 import { requestMetabloomCouncil } from './metabloomCouncilClient';
 import { buildCouncilReply } from './metabloomCouncilProtocol';
 jest.mock('./metabloomCouncilClient', () => ({ requestMetabloomCouncil: jest.fn() }));
-jest.mock('./MetabloomAvatar', () => () => null);
+let mockAvatar;
+jest.mock('./MetabloomAvatar', () => props => { mockAvatar = props; return null; });
 jest.mock('../contexts/ThemeContext', () => ({ useThemeMode: () => ({ isDark: false }) }));
 const members = [{ provider: 'openai', model: 'gpt-5-mini' }, { provider: 'deepseek', model: 'deepseek-flash' }, { provider: 'anthropic', model: 'claude-sonnet' }];
 const reply = () => buildCouncilReply(members, ['One', 'Two', 'Three', 'Critique one', 'Critique two', 'Critique three', 'Synthesis'], 'openai');
@@ -37,10 +38,13 @@ test('Stop aborts the owned council request and suppresses late contributions an
   act(() => options.onEvent({ type: 'council_start', members, chair: 'openai' }));
   act(() => options.onEvent({ type: 'council_step', index: 0, state: 'running' }));
   expect(screen.getByRole('status', { name: 'Work progress' })).toHaveTextContent('Opening · OpenAI · Responding');
+  expect(mockAvatar).toMatchObject({ council: true, councilSpeaker: { provider: 'openai', round: 'Opening', state: 'running' } });
   act(() => options.onEvent({ type: 'council_step', index: 0, state: 'repairing' }));
   expect(screen.getByRole('status', { name: 'Work progress' })).toHaveTextContent('Opening · OpenAI · Correcting response format');
   fireEvent.click(screen.getByRole('button', { name: 'Stop response' }));
   expect(options.signal.aborted).toBe(true);
+  expect(mockAvatar.councilSpeaker).toBeNull();
+  expect(mockAvatar.council).toBe(false);
   await act(async () => { options.onEvent({ type: 'council_step', index: 0, state: 'complete', text: 'Late contribution' }); resolve(reply()); });
   expect(screen.queryByText('Late contribution')).not.toBeInTheDocument();
   expect(screen.queryByText(/Council synthesis/)).not.toBeInTheDocument();
@@ -74,4 +78,42 @@ test('quiet council work retains the shared elapsed-time and waiting status with
   expect(screen.getByText('Waiting for the next update.')).toBeInTheDocument();
   expect(screen.getByRole('status', { name: 'Work progress' })).toHaveTextContent('Opening · OpenAI · Responding');
   view.unmount(); jest.useRealTimers();
+});
+
+
+test('manual council seats enter before sending, follow the actual critique and synthesis chair, and settle on failure', async () => {
+  let options, reject;
+  requestMetabloomCouncil.mockImplementation(value => { options = value; return new Promise((_, fail) => { reject = fail; }); });
+  render(<OrbSection />);
+  expect(mockAvatar.council).toBe(false);
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Council' }));
+  expect(mockAvatar.council).toBe(true);
+  expect(mockAvatar.councilSpeaker).toBeNull();
+  send('Discuss this.');
+  await waitFor(() => expect(options).toBeDefined());
+  act(() => options.onEvent({ type: 'council_start', members, chair: 'anthropic' }));
+  const onEvent = options.onEvent;
+  for (const [index, provider, round] of [[0, 'openai', 'Opening'], [1, 'deepseek', 'Opening'], [2, 'anthropic', 'Opening'], [4, 'deepseek', 'Critique'], [6, 'anthropic', 'Synthesis']]) {
+    act(() => onEvent({ type: 'council_step', index, state: 'running' }));
+    expect(mockAvatar.councilSpeaker).toMatchObject({ provider, round, state: 'running' });
+    act(() => onEvent({ type: 'council_step', index, state: 'complete', text: 'Completed contribution' }));
+    expect(mockAvatar.councilSpeaker).toBeNull();
+  }
+  act(() => options.onEvent({ type: 'council_step', index: 6, state: 'repairing' }));
+  expect(mockAvatar.councilSpeaker.state).toBe('repairing');
+  await act(async () => reject({ code: 'answer_invalid' }));
+  expect(mockAvatar.councilSpeaker).toBeNull();
+  expect(mockAvatar.council).toBe(true);
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Council' }));
+  expect(mockAvatar.council).toBe(false);
+  expect(mockAvatar.provider).toBeUndefined();
+});
+
+test('automatic council preview exits for negated or removed requests', () => {
+  render(<OrbSection />);
+  const input = screen.getByRole('textbox', { name: 'Message Metabloom' });
+  fireEvent.change(input, { target: { value: 'asking the council about this' } });
+  expect(mockAvatar.council).toBe(true);
+  fireEvent.change(input, { target: { value: 'do not ask the council' } });
+  expect(mockAvatar.council).toBe(false);
 });

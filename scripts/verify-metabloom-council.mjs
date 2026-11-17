@@ -55,16 +55,22 @@ try {
     const page = await context.newPage(); page.on('pageerror', error => errors.push(error.message));
     await page.goto(`${origin}/orb?graphics=css`, { waitUntil: 'networkidle' });
     const composer = page.getByRole('textbox', { name: 'Message Metabloom', exact: true });
+    const avatar = page.locator('.metabloom-avatar');
+    assert.equal(await avatar.getAttribute('data-council'), 'false');
+    assert.equal(await avatar.getAttribute('data-avatar-provider'), null);
     await composer.fill('Ask the council: which design should we choose?');
+    assert.equal(await avatar.getAttribute('data-council'), 'true');
     await page.getByText(/Shares this conversation across/).waitFor();
     await page.getByRole('button', { name: 'Send message', exact: true }).click();
     await page.getByText('Opening · OpenAI · Responding', { exact: true }).waitFor();
+    assert.equal(await avatar.getAttribute('data-council-speaker'), 'openai');
     await page.screenshot({ path: path.join(output, name + '-progress.png'), fullPage: true });
     assert(await page.getByRole('button', { name: 'Stop response', exact: true }).isVisible());
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'No horizontal overflow');
     release();
     await page.getByText('Critique · DeepSeek · Correcting response format', { exact: true }).waitFor();
     assert.equal(await page.locator('.metabloom-council details').count(), 4);
+    assert.equal(await avatar.getAttribute('data-council-speaker'), 'deepseek');
     assert.equal(await page.getByText(/Rejected draft/).count(), 0);
     assert(await page.getByRole('button', { name: 'Stop response', exact: true }).isVisible());
     await page.screenshot({ path: path.join(output, name + '-correction.png'), fullPage: true });
@@ -72,6 +78,8 @@ try {
     await page.getByText(/Council synthesis · OpenAI/).waitFor();
     await page.getByRole('button', { name: 'Send message', exact: true }).waitFor();
     assert.equal(await page.locator('.metabloom-council').count(), 0);
+    await page.waitForFunction(() => document.querySelector('.metabloom-avatar')?.dataset.council === 'false');
+    assert.equal(await avatar.getAttribute('data-council-speaker'), null);
     await page.screenshot({ path: path.join(output, name + '-complete.png'), fullPage: true });
     await context.close();
   }

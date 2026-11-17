@@ -217,3 +217,25 @@
     radial-gradient(ellipse 17% 19% at 50% 56%, color-mix(in srgb, var(--avatar-color-c) 75%, transparent), transparent 100%);
   filter: blur(8px) saturate(1.2);
 }
+
+/* The graphics fallback keeps the same three seats without extra body elements
+   or canvases. Work status remains the accessible source of speaker progress. */
+.metabloom-avatar[data-council="true"] {
+  --council-fallback:
+    radial-gradient(ellipse 7% 10% at 16% 48%, var(--council-deepseek-0), transparent 100%),
+    radial-gradient(ellipse 6% 9% at 20% 52%, var(--council-deepseek-1), transparent 100%),
+    radial-gradient(ellipse 5% 7% at 18% 45%, var(--council-deepseek-2), transparent 100%),
+    radial-gradient(ellipse 7% 10% at 48% 48%, var(--council-openai-0), transparent 100%),
+    radial-gradient(ellipse 6% 9% at 52% 52%, var(--council-openai-1), transparent 100%),
+    radial-gradient(ellipse 5% 7% at 50% 45%, var(--council-openai-2), transparent 100%),
+    radial-gradient(ellipse 7% 10% at 80% 48%, var(--council-anthropic-0), transparent 100%),
+    radial-gradient(ellipse 6% 9% at 84% 52%, var(--council-anthropic-1), transparent 100%),
+    radial-gradient(ellipse 5% 7% at 82% 45%, var(--council-anthropic-2), transparent 100%);
+}
+.metabloom-avatar[data-council="true"][data-avatar-theme="metabloom"]
+  .creatoros-field-shell.is-fallback .creatoros-field-fallback,
+.metabloom-avatar[data-council="true"][data-avatar-theme="metabloom"]
+  .creatoros-field-shell[data-field-ready="false"]::after {
+  background: var(--council-fallback);
+  transform: none;
+}

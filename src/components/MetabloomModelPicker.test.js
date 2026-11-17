@@ -130,26 +130,27 @@ test('marks the picker with a warning state only while the warning is shown', as
 });
 
 
-test('Orb colour follows restored and committed providers, never draft or failed saves', async () => {
+test('regular Orb keeps its normal styling across saved defaults and model switches', async () => {
   const saved = catalog(); saved.preferences.provider = 'anthropic';
   requestMetabloomModels.mockResolvedValueOnce(saved);
   render(<MetabloomWorkspaceContext.Provider value={{}}><OrbSection /></MetabloomWorkspaceContext.Provider>);
   expect(mockAvatar.provider).toBeUndefined();
-  await waitFor(() => expect(mockAvatar.provider).toBe('anthropic'));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Choose chat model' })).toHaveTextContent('Claude'));
+  expect(mockAvatar.council).toBe(false);
   const chooseProvider = provider => {
     fireEvent.click(screen.getByRole('button', { name: 'Choose chat model' }));
     fireEvent.change(screen.getByRole('combobox', { name: 'Model provider' }), { target: { value: provider } });
   };
   chooseProvider('deepseek');
-  expect(mockAvatar.provider).toBe('anthropic');
+  expect(mockAvatar.provider).toBeUndefined();
   requestMetabloomModels.mockRejectedValueOnce(new Error('offline'));
   fireEvent.click(screen.getByRole('button', { name: 'Save as provider default' }));
   await screen.findByText(/could not be confirmed/);
-  expect(mockAvatar.provider).toBe('anthropic');
+  expect(mockAvatar.provider).toBeUndefined();
   fireEvent.click(screen.getByRole('button', { name: 'Use model' }));
-  expect(mockAvatar.provider).toBe('deepseek');
+  expect(mockAvatar.provider).toBeUndefined();
   chooseProvider('openai');
-  expect(mockAvatar.provider).toBe('deepseek');
+  expect(mockAvatar.provider).toBeUndefined();
   fireEvent.click(screen.getByRole('button', { name: 'Use model' }));
-  expect(mockAvatar.provider).toBe('openai');
+  expect(mockAvatar.provider).toBeUndefined();
 });

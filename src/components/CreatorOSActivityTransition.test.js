@@ -335,3 +335,80 @@ test("context restoration keeps the latest provider colour", () => {
   expect(uniform("uniform1f", "u_metabloomProviderMix")).toEqual([1]);
   expect(container.querySelector("canvas")).toBe(canvas);
 });
+
+test.each(["spectral", "metalbloom", "nova", "metalnova"])(
+  "three council seats reuse one %s context, program and draw per frame", finish => {
+    const speaker = provider => ({ provider, round: "Critique", state: "running", key: provider });
+    const avatar = (council, provider = null) => <MetabloomPaletteContext.Provider value={finish}>
+      <MetabloomAvatar council={council} councilSpeaker={provider ? speaker(provider) : null} />
+    </MetabloomPaletteContext.Provider>;
+    const { container, rerender } = render(avatar(false));
+    frame(8);
+    const canvas = container.querySelector("canvas"), seed = uniform("uniform1f", "u_seed")[0];
+    const time = uniform("uniform1f", "u_time")[0];
+    expect(uniform("uniform1f", "u_councilLayout")).toEqual([0]);
+    rerender(avatar(true)); frame(5);
+    expect(uniform("uniform1f", "u_councilLayout")[0]).toBeGreaterThan(0);
+    expect(uniform("uniform1f", "u_councilLayout")[0]).toBeLessThan(1);
+    frame(10);
+    expect(uniform("uniform1f", "u_councilLayout")).toEqual([1]);
+    for (const [provider, seat] of [["openai", 1], ["deepseek", 0], ["anthropic", 2]]) {
+      rerender(avatar(true, provider)); frame(30);
+      const gestures = uniform("uniform4fv", "u_councilGesture[0]")[0];
+      expect(gestures[seat * 4 + 3]).toBeGreaterThan(0);
+      const draws = mockGl.drawArrays.mock.calls.length;
+      frame();
+      expect(mockGl.drawArrays).toHaveBeenCalledTimes(draws + 1);
+    }
+    rerender(avatar(false)); frame(15);
+    expect(uniform("uniform1f", "u_councilLayout")).toEqual([0]);
+    expect(uniform("uniform1f", "u_metabloomProviderMix")).toEqual([0]);
+    expect(uniform("uniform1f", "u_seed")[0]).toBe(seed);
+    expect(uniform("uniform1f", "u_time")[0]).toBeGreaterThan(time);
+    expect(container.querySelector("canvas")).toBe(canvas);
+    expect(createDitherCanvasContext).toHaveBeenCalledTimes(1);
+    expect(mockGl.createProgram).toHaveBeenCalledTimes(1);
+  },
+);
+
+test.each(["paused", "reduced-motion"])("%s council switches seats statically and never speaks", state => {
+  mockMotion.matches = state === "reduced-motion";
+  const avatar = council => <MetabloomAvatar council={council} paused={state === "paused"}
+    councilSpeaker={{ provider: "anthropic", state: "running", round: "Opening", key: "2" }} />;
+  const { rerender } = render(avatar(false));
+  if (!mockMotion.matches) frame();
+  const time = uniform("uniform1f", "u_time")[0];
+  rerender(avatar(true));
+  if (!mockMotion.matches) act(() => expect(mockFrame({ deltaMs: 100 })).toBe(false));
+  expect(uniform("uniform1f", "u_councilLayout")).toEqual([1]);
+  const gestures = uniform("uniform4fv", "u_councilGesture[0]")[0];
+  [3, 7, 11].forEach(index => expect(gestures[index]).toBe(0));
+  expect(uniform("uniform1f", "u_time")[0]).toBe(time);
+  if (mockMotion.matches) expect(mockCadence.schedule).not.toHaveBeenCalled();
+  expect(createDitherCanvasContext).toHaveBeenCalledTimes(1);
+});
+
+test("hidden council updates wait for visibility and context recovery retains the latest roster", () => {
+  let hidden = false;
+  jest.spyOn(document, "visibilityState", "get").mockImplementation(() => hidden ? "hidden" : "visible");
+  const { container, rerender } = render(<MetabloomAvatar council />);
+  frame(15);
+  hidden = true;
+  act(() => document.dispatchEvent(new Event("visibilitychange")));
+  const draws = mockGl.drawArrays.mock.calls.length;
+  rerender(<MetabloomAvatar council councilSpeaker={{ provider: "deepseek", state: "running", round: "Opening", key: "1" }} />);
+  frame(20);
+  expect(mockGl.drawArrays).toHaveBeenCalledTimes(draws);
+  hidden = false;
+  act(() => document.dispatchEvent(new Event("visibilitychange")));
+  frame(20);
+  expect(uniform("uniform4fv", "u_councilGesture[0]")[0][3]).toBeGreaterThan(0);
+  const canvas = container.querySelector("canvas");
+  act(() => canvas.dispatchEvent(new Event("webglcontextlost", { cancelable: true })));
+  rerender(<MetabloomAvatar council paused />);
+  act(() => canvas.dispatchEvent(new Event("webglcontextrestored")));
+  frame();
+  expect(uniform("uniform1f", "u_councilLayout")).toEqual([1]);
+  [3, 7, 11].forEach(index => expect(uniform("uniform4fv", "u_councilGesture[0]")[0][index]).toBe(0));
+  expect(container.querySelector("canvas")).toBe(canvas);
+});

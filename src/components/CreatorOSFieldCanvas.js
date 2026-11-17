@@ -1,3 +1,4 @@
+import { createCouncilMotion } from "./metabloomCouncilScene";
 import React, { useEffect, useRef, useState } from "react";
 import { normalizeNavierProgress } from "./navierStokesModel";
 import { getNavierColorway } from "./navierStokesColorways";
@@ -464,6 +465,10 @@ const CreatorOSFieldCanvas = ({
   metabloomAvatarVersion = 0,
   metabloomPalette = "spectral",
   metabloomProviderColorway = false,
+  metabloomCouncil = false,
+  metabloomCouncilSpeaker = null,
+  metabloomCouncilEmotes = true,
+  metabloomCouncilIntensity = 0.8,
   metabloomSceneTransitions = false,
   metabloomUnderHoodPhase = null,
   mode = 0,
@@ -496,6 +501,8 @@ const CreatorOSFieldCanvas = ({
   );
   const metabloomNovaRef = useRef(resolveMetabloomNovaMix(metabloomPalette));
   const metabloomProviderMixRef = useRef(metabloomProviderColorway ? 1 : 0);
+  const councilRef = useRef({ enabled: metabloomCouncil, speaker: metabloomCouncilSpeaker,
+    emotes: metabloomCouncilEmotes, intensity: metabloomCouncilIntensity });
   const metabloomAvatarActionRef = useRef(
     normalizeMetabloomAvatarAction(metabloomAvatarAction),
   );
@@ -609,6 +616,12 @@ const CreatorOSFieldCanvas = ({
     modeRef.current = clampMode(mode);
     redrawRef.current();
   }, [mode]);
+
+  useEffect(() => {
+    councilRef.current = { enabled: metabloomCouncil, speaker: metabloomCouncilSpeaker,
+      emotes: metabloomCouncilEmotes, intensity: metabloomCouncilIntensity };
+    redrawRef.current();
+  }, [metabloomCouncil, metabloomCouncilSpeaker, metabloomCouncilEmotes, metabloomCouncilIntensity]);
 
   useEffect(() => {
     metabloomPaletteRef.current = resolveMetabloomPaletteMix(
@@ -834,6 +847,8 @@ const CreatorOSFieldCanvas = ({
     let metabloomRenderedPaletteMix = metabloomPaletteRef.current;
     let metabloomRenderedNovaMix = metabloomNovaRef.current;
     let metabloomRenderedProviderMix = metabloomProviderMixRef.current;
+    const councilMotion = createCouncilMotion();
+    let councilFrame = councilMotion.sample({ ...councilRef.current, staticFrame: contextVersion > 0 });
     let metabloomRenderedIntensity = metabloomAvatarIntensityRef.current;
     let metabloomRenderedColorA = [...metabloomAvatarColorARef.current];
     let metabloomRenderedColorB = [...metabloomAvatarColorBRef.current];
@@ -1052,6 +1067,10 @@ const CreatorOSFieldCanvas = ({
       "u_underHood",
       "u_metabloomPaletteMix",
       "u_metabloomProviderMix",
+      "u_councilLayout",
+      "u_councilPose[0]",
+      "u_councilGesture[0]",
+      "u_councilExpression[0]",
       "u_metabloomNovaMix",
       "u_novaTime",
       "u_contourPaletteMix",
@@ -1424,6 +1443,8 @@ const CreatorOSFieldCanvas = ({
         sceneTransition.advance(presentationDelta);
         hoodValues = hoodTransition.sample(underHoodPhaseRef.current, presentationDelta);
       }
+      councilFrame = councilMotion.sample({ ...councilRef.current, deltaSeconds: delta,
+        timeSeconds: localTime, seed });
       const avatarRestarted = applyMetabloomAvatarRestart();
       const avatarDuration = metabloomAvatarDurationRef.current;
       if (!metabloomAvatarEnabledRef.current) {
@@ -1715,6 +1736,10 @@ const CreatorOSFieldCanvas = ({
       );
       gl.uniform1f(activeDisplayUniforms.u_metabloomNovaMix, metabloomRenderedNovaMix);
       gl.uniform1f(activeDisplayUniforms.u_metabloomProviderMix, metabloomRenderedProviderMix);
+      gl.uniform1f(activeDisplayUniforms.u_councilLayout, councilFrame.layout);
+      gl.uniform4fv(activeDisplayUniforms["u_councilPose[0]"], councilFrame.pose);
+      gl.uniform4fv(activeDisplayUniforms["u_councilGesture[0]"], councilFrame.gesture);
+      gl.uniform4fv(activeDisplayUniforms["u_councilExpression[0]"], councilFrame.expression);
       gl.uniform1f(activeDisplayUniforms.u_novaTime, novaTime);
       gl.uniform1f(
         activeDisplayUniforms.u_contourPaletteMix,
@@ -1876,6 +1901,7 @@ const CreatorOSFieldCanvas = ({
     };
 
     const drawStatic = () => {
+      councilFrame = councilMotion.sample({ ...councilRef.current, staticFrame: true });
       navierImpulse = [0, 0];
       applyRestart();
       snapScene();
@@ -1997,6 +2023,7 @@ const CreatorOSFieldCanvas = ({
         modeMix = 1;
         snapScene();
         hoodValues = hoodTransition.sample(underHoodPhaseRef.current, 0, true);
+        councilFrame = councilMotion.sample({ ...councilRef.current, staticFrame: true });
         // A finish can change on a paused frame without starting the simulation.
         metabloomRenderedPaletteMix = metabloomPaletteRef.current;
         metabloomRenderedNovaMix = metabloomNovaRef.current;
@@ -2172,6 +2199,7 @@ const CreatorOSFieldCanvas = ({
       data-runtime-profile={ditherCanvasRuntimeProfile.id}
       data-field-specialization={FIELD_SCENE_FUNCTIONS[clampMode(mode)]}
       data-activity-scenes={activityScenes ? "true" : "false"}
+      data-council={metabloomCouncil ? "true" : "false"}
       data-pointer-reactive={pointerReactive ? "true" : "false"}
       data-metabloom-avatar={metabloomAvatarEnabled ? "true" : "false"}
       data-metabloom-avatar-action={normalizeMetabloomAvatarAction(

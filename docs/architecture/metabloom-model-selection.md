@@ -24,9 +24,9 @@ DeepSeek may report a completed answer whose text is invalid or blank JSON, incl
 
 ## Provider colour identity
 
-The Orb follows the committed model selection, including the account default loaded on entry. OpenAI uses jade, teal and mint; DeepSeek uses cobalt, indigo and ice blue; Claude uses burnt orange, amber and peach. Picker drafts and unconfirmed saves cannot change that identity. An absent or unknown provider retains the original expression colours rather than implying a connection.
+Regular chat retains the original action colourways and selected material finish, regardless of the chosen provider. Provider colours are retained for the council: DeepSeek cobalt/indigo/ice blue at the left, OpenAI jade/teal/mint in the centre, and Claude burnt orange/amber/peach at the right. A temporary model choice cannot reshuffle those seats or imply a different council roster. The saved preferred provider still chairs synthesis, as reported by the server.
 
-Provider colour persists while idle and through expressions. It changes only the existing Metabloom material's RGB, preserving silhouette/alpha, motion, lighting contrast, the selected Spectral/Metalbloom/Nova/MetalNova finish, and the single canvas/program. Research and analysis scenes keep their native palettes. Animated changes blend through uniforms; paused and reduced-motion states redraw the chosen colour without restarting motion. The CSS fallback and accessible colour description use the same provider palette. Colour is a companion to the explicit picker label, never the sole identification or a claim about tool-service providers or council speakers.
+Council entrance, speaking turns and exit run inside the existing single canvas, program and draw pass. Each pixel evaluates one member's native field. Provider colour is applied before Bayer output and preserves the material finish. Regular chat, other field studies, and research/analysis scenes retain their native appearance. The CSS fallback shows the same three colour-coded seats. See the [council scene contract](metabloom-council.md#council-scene).
 
 ## Account persistence
 

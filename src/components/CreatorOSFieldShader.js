@@ -1,3 +1,4 @@
+import { METABLOOM_COUNCIL_SHADER } from "./metabloomCouncilScene";
 import { NAVIER_STOKES_SHADER } from "./NavierStokesShader";
 import { CHIRAL_WEAVE_SHADER } from "./ChiralWeaveShader";
 import { METABLOOM_NOVA_SHADER } from "./MetabloomNovaShader";
@@ -618,27 +619,52 @@ vec4 fluidMaterial(
 }
 
 ${METABLOOM_NOVA_SHADER}
+${METABLOOM_COUNCIL_SHADER}
 
 // Provider identity is independent of the expression envelope and finish.
 // Grade only this material, before Bayer output; preserve alpha and the native
 // lighting contrast, including Nova's early return and metal's bright reflections.
-vec4 metabloomProviderMaterial(vec4 material, float hue) {
-  if (u_metabloomProviderMix <= 0.0) return material;
+vec4 metabloomProviderMaterial(vec4 material, float hue, vec3 colorA, vec3 colorB, vec3 colorC, float amount, float opacity) {
+  if (amount <= 0.0) return material;
   float coordinate = 0.5 + 0.5 * sin(hue * TAU);
   vec3 tint = coordinate < 0.5
-    ? mix(u_avatarColorA, u_avatarColorB, coordinate * 2.0)
-    : mix(u_avatarColorB, u_avatarColorC, (coordinate - 0.5) * 2.0);
+    ? mix(colorA, colorB, coordinate * 2.0)
+    : mix(colorB, colorC, (coordinate - 0.5) * 2.0);
   float brightness = max(material.r, max(material.g, material.b));
   float highlight = smoothstep(0.85, 1.65, brightness)
     * mix(0.35, 0.65, sat(u_metabloomPaletteMix));
   vec3 color = mix(tint, vec3(1.0), highlight) * brightness;
-  material.rgb = mix(material.rgb, color, sat(u_metabloomProviderMix));
+  material.rgb = mix(material.rgb, color, sat(amount));
+  material.a *= opacity;
   return material;
 }
 
 vec4 sceneMetabloom(vec2 uv, float time) {
   vec2 scale = aspectScale();
   uv = pointerFlow(uv, 0.075);
+  float council = smoothstep(0.0, 1.0, sat(u_councilLayout));
+  int councilSeat = 1;
+  float councilOpacity = 1.0;
+  vec3 colorA = u_avatarColorA, colorB = u_avatarColorB, colorC = u_avatarColorC;
+  float providerMix = u_metabloomProviderMix;
+  if (council > 0.0) {
+    // One field evaluation per pixel, one draw, one context. The seats' glow
+    // reaches zero before the nearest-seat boundary, so no hard panel edges show.
+    vec2 world = (uv - 0.5) * scale;
+    float spacing = mix(0.95, 0.32, council) * scale.x;
+    councilSeat = world.x < -spacing * 0.5 ? 0 : world.x > spacing * 0.5 ? 2 : 1;
+    vec2 centre = vec2(float(councilSeat - 1) * spacing, 0.0);
+    float compactScale = min(0.36, scale.x * 0.20);
+    float size = councilSeat == 1 ? mix(1.0, compactScale, council) : compactScale;
+    float glow = 1.0 - smoothstep(spacing * 0.38, spacing * 0.49, length(world - centre));
+    councilOpacity = councilSeat == 1 ? mix(1.0, glow, council) : glow * council;
+    uv = 0.5 + (world - centre) / max(size, 0.001) / scale;
+    colorA = mix(colorA, councilColorA[councilSeat], council);
+    colorB = mix(colorB, councilColorB[councilSeat], council);
+    colorC = mix(colorC, councilColorC[councilSeat], council);
+    providerMix = max(providerMix, council);
+    time += float(councilSeat - 1) * council * 2.7;
+  }
   // Move only Nova/MetalNova down inside the existing canvas, not the canvas
   // itself. Blend placement with the finish; other activity scenes stay put.
   float novaPlacementY = NOVA_VERTICAL_OFFSET * step(0.5, u_avatarEnabled)
@@ -684,6 +710,22 @@ vec4 sceneMetabloom(vec2 uv, float time) {
   float avatarOrbit = clamp(u_avatarOrbit, 0.0, 0.80) * avatarEnabled;
   float avatarTremble = clamp(u_avatarTremble, -0.75, 0.75)
     * avatarEnabled;
+
+  if (council > 0.0) {
+    vec4 pose = u_councilPose[councilSeat];
+    vec4 gesture = u_councilGesture[councilSeat];
+    vec4 expression = u_councilExpression[councilSeat];
+    avatarOffset = mix(avatarOffset, pose.xy, council);
+    avatarScale = mix(avatarScale, pose.zw, council);
+    avatarRotation = mix(avatarRotation, gesture.x, council);
+    avatarCenterScale = mix(avatarCenterScale, gesture.y, council);
+    avatarRadiusScale = mix(avatarRadiusScale, gesture.z, council);
+    avatarVoice = mix(avatarVoice, gesture.w, council);
+    avatarBurst = mix(avatarBurst, expression.x, council);
+    avatarOrbit = mix(avatarOrbit, expression.y, council);
+    avatarTremble = mix(avatarTremble, expression.z, council);
+    avatarExpression = mix(avatarExpression, expression.w, council);
+  }
 
   avatarScale *= vec2(
     1.0 - avatarVoice * 0.014,
@@ -872,7 +914,7 @@ if (u_metabloomNovaMix > 0.001) {
   if (u_metabloomNovaMix >= 0.999 && u_metabloomPaletteMix <= 0.001) {
     return metabloomProviderMaterial(
       novaPrismaticEdges(novaMaterial, p, baseHue, novaFlameSurface, novaLiftedSignal),
-      baseHue
+      baseHue, colorA, colorB, colorC, providerMix, councilOpacity
     );
   }
 }
@@ -1134,7 +1176,7 @@ return metabloomProviderMaterial(blendNovaFire(mix(
   spectralMaterial,
   metalMaterial,
   sat(u_metabloomPaletteMix)
-), novaMaterial), baseHue);
+), novaMaterial), baseHue, colorA, colorB, colorC, providerMix, councilOpacity);
 }
 
 vec4 sceneTidalWeave(vec2 uv, float time) {

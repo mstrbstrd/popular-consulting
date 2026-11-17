@@ -233,6 +233,13 @@
     transform: translateX(calc(var(--orb-sidebar-space) / 2));
     transition: transform var(--aetheris-motion-medium) var(--aetheris-ease-standard);
   }
+  /* A council needs all three seats inside the available column. Resize the
+     same drawing buffer; the ordinary single Orb keeps its existing geometry. */
+  .orb-page[data-thread-history-enabled='true'] .metabloom-chat[data-council='true'] .metabloom-chat__field {
+    left: var(--orb-sidebar-space);
+    transform: none;
+    transition: left var(--aetheris-motion-medium) var(--aetheris-ease-standard), transform var(--aetheris-motion-medium) var(--aetheris-ease-standard);
+  }
 }
 @media (max-width: 1099px) {
   .orb-page:is([data-compact-viewport='true'], [data-keyboard-open='true']) .metabloom-threads__floating { display: none; }
@@ -249,7 +256,8 @@
   .orb-page .metabloom-threads :where(button, input), .orb-page .metabloom-threads__trigger,
   .orb-page .metabloom-threads__dock, .orb-page[data-thread-history-enabled='true'] .nav-header,
   .orb-page[data-thread-history-enabled='true'] .metabloom-chat__interface,
-  .orb-page[data-thread-history-enabled='true'] .metabloom-chat__field { transition: none; }
+  .orb-page[data-thread-history-enabled='true'] .metabloom-chat__field,
+  .orb-page[data-thread-history-enabled='true'] .metabloom-chat[data-council='true'] .metabloom-chat__field { transition: none; }
 }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .orb-page .metabloom-threads, .orb-page .metabloom-threads__trigger { background: var(--aetheris-panel); }

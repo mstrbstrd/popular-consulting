@@ -1,3 +1,4 @@
+import { getCouncilScene } from "./metabloomCouncilScene";
 import { councilRequested, COUNCIL_TIMEOUT_MS } from './metabloomCouncilProtocol';
 import { requestMetabloomCouncil } from './metabloomCouncilClient';
 import MetabloomCouncilProgress from './MetabloomCouncilProgress';
@@ -460,6 +461,7 @@ const OrbSection = ({
   const workspace = React.useContext(MetabloomWorkspaceContext);
   const [councilEnabled, setCouncilEnabled] = React.useState(false);
   const [councilEvents, setCouncilEvents] = React.useState([]);
+  const [councilPending, setCouncilPending] = React.useState(false);
   const [modelSelection, setModelSelection] = React.useState(null);
   const [modelAvailable, setModelAvailable] = React.useState(!workspace);
   const workspaceRef = React.useRef(workspace);
@@ -1053,6 +1055,7 @@ const OrbSection = ({
     updateStateSnapshot({ researchProgress: null, researchSummary: null, researchSource: null, workProgress: null });
     if (mountedRef.current) {
       setWorkProgress(null);
+      setCouncilPending(false);
       setWorkNotice(null);
       setToolPending(false);
       setResearchProgress(null);
@@ -1461,6 +1464,7 @@ const OrbSection = ({
     updateStateSnapshot({ pending: false, researchProgress: null, researchSummary: null, researchSource: null, workProgress: null });
     setWorkProgress(null);
     setPending(false);
+    setCouncilPending(false);
     setToolPending(false);
     setResearchProgress(null);
     setResearchSummary(null);
@@ -1925,6 +1929,7 @@ const OrbSection = ({
       const allowMultiple = useCouncil || requestedActionMode === 'deep-research' || (demo ? demo.segments.length > 1 : allowEmoteChanges);
       const source = demo ? "preview" : "model";
       const session = beginReply(source, allowMultiple);
+      setCouncilPending(useCouncil);
       const requestToken = ++requestTokenRef.current;
       const requestId = `${mountIdRef.current}-${requestToken}`;
       const activeRequest = { claimed: false, requestId, requestToken, allowMultiple,
@@ -2702,6 +2707,7 @@ const OrbSection = ({
       className="metabloom-chat"
       aria-label="Metabloom model chat interface"
       data-conversation-started={conversationStarted ? "true" : "false"}
+      data-council={councilEnabled || councilRequested(draft) || councilPending ? "true" : "false"}
       data-orb-action={activeAction.id}
       data-orb-action-version={actionVersion}
       data-orb-renderer="creatoros-metabloom"
@@ -2723,7 +2729,10 @@ const OrbSection = ({
 
       <div className="metabloom-chat__field">
         <MetabloomAvatar
-          provider={modelSelection?.provider}
+          council={councilEnabled || councilRequested(draft) || councilPending}
+          councilSpeaker={getCouncilScene(councilEvents, councilPending && pending)}
+          councilEmotes={allowModelExpressions}
+          councilIntensity={expressiveness}
           activityTheme={visibleTheme}
           underHoodPhase={visibleUnderHoodPhase}
           action={activeAction.id}

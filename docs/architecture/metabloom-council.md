@@ -13,7 +13,7 @@
 
 The `/orb` composer has a Council toggle. The current user message automatically selects council mode when it contains `ask the council`, `asking the council`, or `ask council`, case-insensitively. Explicit negatives such as `do not ask the council` suppress automatic activation. History, peer output and assistant messages never activate the mode. The client routes the request to `/api/metabloom-council`; no model can trigger delegation by emitting prose. Council takes precedence over the Deep Research checkbox for an automatically matched message; manual toggles are mutually exclusive.
 
-Before sending, the UI explains that council uses seven model calls plus up to two format corrections, shares the bounded conversation across the three providers, and has no live search. It deliberates on supplied text. Attached artifact/research references require removal and relevant text supplied in the question; they are never silently ignored or converted into cross-account access. Live browsing, external actions, expression tools, generated visuals and iterative/unbounded debate are outside this version.
+Before sending, the UI explains that council uses seven model calls plus up to two format corrections, shares the bounded conversation across the three providers, and has no live search. It deliberates on supplied text. Attached artifact/research references require removal and relevant text supplied in the question; they are never silently ignored or converted into cross-account access. Live browsing, external actions, model-invoked expression tools, generated visuals and iterative/unbounded debate are outside this version.
 
 ## Structural invariants
 
@@ -33,11 +33,23 @@ Before sending, the UI explains that council uses seven model calls plus up to t
 
 The progress panel uses native expandable details, polite status updates, normal document flow and existing Stop behavior. It does not move focus. After success, the ordinary saved chat reply includes the entire bounded discussion and synthesis. Partial discussions remain transient and labelled incomplete after failure or Stop.
 
+## Council scene
+
+Regular chat uses the original full-size Orb and native expression colours. Selecting Council or drafting an affirmative council request shrinks the centre Orb and brings two smaller Orbs inward from outside the field. The seats are stable: DeepSeek left (blue/indigo), OpenAI centre (jade/teal), Claude right (orange/amber). Automatic invocation retains the scene while the request and final presentation are pending; manual mode keeps the resting council until disabled. Leaving the mode reverses the entrance.
+
+Only accepted `council_step` running/repairing events identify the active member, with the actual server-selected chair for synthesis. The active member uses the existing curious, thinking or resolute motion with speaking modulation; peers use listening poses and turn toward that member. Correcting a response shows thinking without speech. These are host presentation cues for observed work, not model-chosen emotions, assertions of agreement, or private reasoning. Complete, Stop, errors, reset and stale events cannot continue a speaking turn.
+
+The existing canvas, WebGL context, program, render cadence and draw count are retained. One field evaluation per pixel selects the closest seat, and its glow is feathered before the seat boundary. Each member has a bounded instance of the existing motion runtime. Desktop council bounds account for the docked sidebar; mobile sizes use the available width. No faces, shells, overlay creatures, extra canvases, artificial progress timers or extra model calls are added. The selected material finish is preserved.
+
+Pause, reduced motion and inactive views draw static seats without motion or speech. Disabling model expressions or setting expressiveness to zero suppresses the conversational gestures while leaving the council visible. Hidden pages stop rendering; context restoration uses the latest state. Without WebGL, the existing CSS fallback displays three static provider-coloured forms and the textual progress panel continues normally. The accessible description names seat positions and the actual active member, so colour is never the sole indication.
+
 ## Verification
 
 - `scripts/metabloom-council.test.cjs`: real adapter requests with fictional providers, round isolation, default resolution, auth/origin/body gates, quota, cancellation, bounded envelopes and failure handling.
 - `MetabloomCouncil.test.js`: automatic/manual routing, disclosure, streamed speaker status, Stop and late results, final discussion rendering.
 - `metabloomCouncilClient.test.js`: ordered stream completion, interruption, duplicate/oversized records and cancellation.
+- `metabloomCouncilScene.test.js`, `CreatorOSActivityTransition.test.js`, avatar/model-picker/sidebar tests: native styling restoration, bounded seat transitions, actual speaker/chair routing, single-context/draw ownership, expression controls, hidden/pause/reduced-motion behavior and context recovery.
+- `scripts/verify-council-orbs.mjs`: native WebGL compilation and rendered seat colours for desktop/mobile, light/dark and all four finishes; registered beside the built council browser fixture in functional CI.
 - Full existing API and React suites, lint and production build.
 
 Deterministic tests establish the execution contract, not the quality of agreement or live provider reliability. No live council has been submitted as part of implementation verification.

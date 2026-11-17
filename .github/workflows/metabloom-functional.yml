@@ -95,6 +95,11 @@ jobs:
         run: node scripts/verify-metabloom-council.mjs
         env:
           COUNCIL_EVIDENCE: metabloom-council
+      - name: Verify three native council Orbs across materials and viewports
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: node scripts/verify-council-orbs.mjs
+        env:
+          COUNCIL_EVIDENCE: metabloom-council
       - name: Verify price-book draft, publish, and exact estimate through the built Orb
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: node scripts/verify-metabloom-price-book.mjs
