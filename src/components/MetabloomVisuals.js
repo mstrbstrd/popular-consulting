@@ -317,7 +317,7 @@ export default class MetabloomVisuals extends React.Component {
   };
   updateResearchSurface = (record, presentation) => {
     if (this.researchRecords.get(record.messageId) !== record || !this.researchOriginIsOwned(record)) return;
-    if (record.title === presentation.title && record.summary === presentation.summary
+    if (record.title === presentation.title && record.summary === presentation.summary && record.heading === presentation.heading
       && JSON.stringify(record.source) === JSON.stringify(presentation.source)) return;
     Object.assign(record, presentation);
     this.refresh();
@@ -849,6 +849,8 @@ export default class MetabloomVisuals extends React.Component {
     const saveStatus = active && getMetabloomSavedWorkStatus({ artifact: savedArtifact, baseline: savedMessage?.savedWorkBaseline,
       selection, invalidInputs: visual?.spec?.kind === 'calculator' && !selection });
     const title = visual ? this.visualTitle(visual) : research?.title;
+    // The bar shows a brief's kind; the brief's own header shows its title.
+    const barTitle = visual ? title : research?.heading || title;
     const activeKey = visual?.id || (research && `research:${research.messageId}`);
     const messageOrder = new Map(this.messages().map((message, index) => [message.id, index]));
     const components = [
@@ -862,7 +864,7 @@ export default class MetabloomVisuals extends React.Component {
       <span ref={this.captureAnchor} hidden aria-hidden="true" />
       {active && this.workspaceToolbar && createPortal(<>
         <div className="metabloom-component-workspace__identity">
-          <h3 title={title} className={components.length > 1 ? 'metabloom-visual__sr-only' : undefined}>{title}</h3>
+          <h3 title={barTitle} className={components.length > 1 ? 'metabloom-visual__sr-only' : undefined}>{barTitle}</h3>
           {components.length > 1 && <label className="metabloom-component-workspace__picker">
             <span className="metabloom-visual__sr-only">Components in this conversation</span>
             <select value={activeKey} onChange={event => this.selectWorkspaceItem(event.target.value)}>

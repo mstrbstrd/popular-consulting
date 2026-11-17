@@ -80,8 +80,12 @@ export default function MetabloomResearchSurface({ messageId, report, brief, ref
     `${report.sources.length} ${report.sources.length === 1 ? 'source' : 'sources'}`,
     brief?.localDate || source?.localDate,
   ].filter(Boolean).join(' · ');
+  // A displayed brief carries its own editorial title, so the workspace bar
+  // names only what it is. The full title remains for launchers and pickers.
+  const heading = brief && brief.coverage.status !== 'unavailable'
+    ? (brief.kind === 'news' ? 'News briefing' : 'Research brief') : null;
   const presentationRef = React.useRef(null);
-  presentationRef.current = { title, summary, source };
+  presentationRef.current = { title, summary, source, heading };
 
   React.useLayoutEffect(() => {
     const origin = originRef.current;
@@ -113,7 +117,7 @@ export default function MetabloomResearchSurface({ messageId, report, brief, ref
     if (registration?.controller === workspace) {
       workspace.updateResearchSurface(registration.descriptor, presentationRef.current);
     }
-  }, [source, summary, title, workspace]);
+  }, [heading, source, summary, title, workspace]);
 
   const openResearch = () => {
     const registration = registrationRef.current;

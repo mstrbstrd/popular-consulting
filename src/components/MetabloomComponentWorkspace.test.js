@@ -1468,6 +1468,11 @@ describe('research finished in the current turn', () => {
     await completeResearch(requests[0].request, liveResearch());
     expect(await within(activeWorkspace()).findByRole('region', { name: 'Coastal evidence' })).toBeVisible();
     expect(document.querySelector('.orb-page')).toHaveAttribute('data-active-component', 'true');
+    // The title appears once, in the brief's own header; the bar names the kind.
+    const identity = document.querySelector('.metabloom-component-workspace__identity');
+    expect(within(identity).getByRole('heading', { level: 3 })).toHaveTextContent(/^Research brief$/);
+    expect(within(activeWorkspace()).getAllByText('Coastal evidence', { selector: 'h3' })).toHaveLength(1);
+    expect(screen.getByRole('button', { name: 'Open research: Coastal evidence' })).toBeInTheDocument();
   });
 
   test('does not replace a component the reader explicitly opened during the turn', async () => {
