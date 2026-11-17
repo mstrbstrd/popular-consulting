@@ -322,6 +322,10 @@ const installObserver = () => {
     if (row.chars && row.researchPhase) audit.earlyText = true;
     if (row.sourceGroups && row.statuses.some((status) => status !== "complete")) audit.earlySourceList = true;
     if ((row.briefs || row.briefLinks) && (row.researchPhase || row.statuses.some((status) => status !== "complete"))) audit.earlyBrief = true;
+    if (row.researchPhase) {
+      const field = chat.querySelector('.metabloom-chat__field')?.getBoundingClientRect();
+      if (!field || Math.abs(field.left) > 1 || Math.abs(field.right - innerWidth) > 1) audit.sceneGap = true;
+    }
     const serialized = JSON.stringify(row);
     if (serialized !== audit.last) {
       audit.rows.push({ at: performance.now(), ...row });
@@ -337,7 +341,7 @@ const installObserver = () => {
 const beginAudit = (page) => page.evaluate(() => {
   window.__researchVerification = {
     baseline: [...document.querySelectorAll('article[aria-label="Metabloom message"]')].map((node) => node.dataset.messageId),
-    rows: [], last: "", earlyText: false, earlySourceList: false, earlyBrief: false,
+    rows: [], last: "", earlyText: false, earlySourceList: false, earlyBrief: false, sceneGap: false,
   };
 });
 const readAudit = (page) => page.evaluate(() => {
@@ -407,6 +411,26 @@ try {
     await send(page, research.question);
     await waitFor(research.researchRequested.promise, "research provider request");
     await page.getByText("Searching sources", { exact: true }).waitFor({ state: "visible" });
+    // A docked conversation is offset, but its immersive scene must still cover
+    // both viewport edges. Exercise the open panel and collapsed rail while the
+    // same research request and native renderer remain alive.
+    const checkSceneWidth = async () => {
+      const bounds = await page.locator('.metabloom-chat__field').evaluate(element => {
+        const rect = element.getBoundingClientRect();
+        return { left: rect.left, right: rect.right, viewport: innerWidth };
+      });
+      assert(Math.abs(bounds.left) <= 1 && Math.abs(bounds.right - bounds.viewport) <= 1,
+        'Research scene must span the viewport without a sidebar gap or horizontal overshoot');
+    };
+    await checkSceneWidth();
+    if (!profile.isMobile) {
+      await page.locator('.metabloom-threads__dock').waitFor({ state: 'visible' });
+      const wasOpen = await page.getByRole('button', { name: 'Collapse chats', exact: true }).isVisible();
+      for (const open of [!wasOpen, wasOpen]) {
+        await page.getByRole('button', { name: open ? 'Expand chats' : 'Collapse chats', exact: true }).click();
+        await checkSceneWidth();
+      }
+    }
     assert.equal(await messages.count(), 0, "Searching must not manufacture an answer bubble.");
     assert.equal(await page.locator(".metabloom-chat__sources").count(), 0);
     research.reportSearch();
@@ -464,6 +488,7 @@ try {
       href: node.href, target: node.target, rel: node.rel,
     }))), sourceList.map((source) => ({ href: source.url, target: "_blank", rel: "noopener noreferrer" })));
     const researchAudit = await readAudit(page);
+    assert.equal(researchAudit.sceneGap, false, 'Entry, research and surfacing retain full viewport coverage');
     assert.equal(researchAudit.earlyText, false, "Research text appeared before the scene returned.");
     assert.equal(researchAudit.earlySourceList, false);
     assert.equal(researchAudit.earlyBrief, false, "Brief content or source links appeared before surfacing and completion.");

@@ -240,6 +240,17 @@
     transform: none;
     transition: left var(--aetheris-motion-medium) var(--aetheris-ease-standard), transform var(--aetheris-motion-medium) var(--aetheris-ease-standard);
   }
+  /* Immersive scenes cover the viewport, including behind either sidebar size.
+     Keep those bounds through entry and surfacing: interpolating the column
+     offset would expose an unpainted strip during the scene crossfade. */
+  .orb-page[data-thread-history-enabled='true'] .metabloom-chat:is(
+    [data-scene-action='deep-research'], [data-research-phase],
+    [data-activity-theme='tidal-weave'], [data-activity-theme='contour-drift']
+  ) .metabloom-chat__field {
+    left: 0;
+    transform: none;
+    transition: none;
+  }
 }
 @media (max-width: 1099px) {
   .orb-page:is([data-compact-viewport='true'], [data-keyboard-open='true']) .metabloom-threads__floating { display: none; }
