@@ -62,7 +62,7 @@ function SourcePlate({ token, host, state }) {
   </div>;
 }
 
-function ArticlePreview({ candidates, compact, tile, resolver, priority, subjectImage }) {
+function ArticlePreview({ candidates, compact, tile, hero, resolver, priority, subjectImage }) {
   const root = React.useRef(null);
   const [entries] = React.useState(candidates);
   const requestable = entries.some(entry => entry.token);
@@ -141,9 +141,9 @@ function ArticlePreview({ candidates, compact, tile, resolver, priority, subject
     if (attempt + 1 < entries.length) { setAttempt(attempt + 1); setState('loading'); }
     else setState('unavailable');
   };
-  const condensed = compact || tile;
+  const condensed = compact || tile || hero;
   return <div ref={root} className={`metabloom-source-preview${tile ? ' metabloom-source-preview--tile'
-    : compact ? ' metabloom-source-preview--compact' : ''}`} data-preview-state={state}
+    : hero ? ' metabloom-source-preview--hero' : compact ? ' metabloom-source-preview--compact' : ''}`} data-preview-state={state}
     data-related-photo={showRelated ? relatedState : undefined}>
     <div className="metabloom-source-preview__image-area" aria-busy={state === 'pending' || state === 'loading'}>
       <SourcePlate token={token} host={host} state={state} />
@@ -185,7 +185,7 @@ function ArticlePreview({ candidates, compact, tile, resolver, priority, subject
 // available (for example after the session-bound tokens were stripped from a
 // restored thread), so every slide keeps one consistent shape.
 export function MetabloomArticlePreview({ source, token, publisher, candidates, compact = false, tile = false,
-  resolver = null, priority = 0, fallbackSource = null, subjectImage = null }) {
+  hero = false, resolver = null, priority = 0, fallbackSource = null, subjectImage = null }) {
   const ids = new Set(), tokens = new Set();
   const entries = (Array.isArray(candidates) ? candidates : [{ source, token, publisher }]).slice(0, 3).flatMap(entry => {
     const parsed = entry?.source && parseMetabloomResearchSources([entry.source], { startId: entry.source.id });
@@ -200,7 +200,7 @@ export function MetabloomArticlePreview({ source, token, publisher, candidates, 
   }
   if (!entries.length) return null;
   const related = metabloomSourceMediaUrl(subjectImage?.token, 'image') ? subjectImage : null;
-  return <ArticlePreview key={`${JSON.stringify(entries)}:${related?.token || ''}`} candidates={entries} compact={compact} tile={tile}
+  return <ArticlePreview key={`${JSON.stringify(entries)}:${related?.token || ''}`} candidates={entries} compact={compact} tile={tile} hero={hero}
     resolver={resolver} priority={Math.max(0, Math.min(Number.isSafeInteger(priority) ? priority : 0, 20))}
     subjectImage={related} />;
 }

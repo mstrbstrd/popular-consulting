@@ -596,7 +596,7 @@ test("the replacement writer makes exactly one bounded provider request with no 
   assert.match(calls[0].body.instructions, /faithful cited paraphrase/);
   assert.match(calls[0].body.instructions, /missing publication date does not invalidate/i);
   assert.match(calls[0].body.instructions, /more than one publisher/);
-  assert.match(calls[0].body.instructions, /imageSubject names the one clearly photographable public subject/);
+  assert.match(calls[0].body.instructions, /imageSubjects lists up to three clearly photographable public subjects/);
   assert.match(calls[0].body.input[0].content, /World coverage/);
   const data = JSON.parse(calls[0].body.input.at(-1).content);
   assert.equal(data.temporalContext.localDate, "2026-10-23");
@@ -749,19 +749,25 @@ test("the research pass receives the same local date evidence instructions witho
   assert.match(actual.notes, /\[1\]/);
 });
 
-test("image subjects are lookup phrases aligned with the delivered items and never enter the presentation", () => {
+test("image subjects are ordered lookup candidates aligned with the delivered items and never enter the presentation", () => {
   const value = referenceCandidate(candidate());
-  value.items = value.items.map((entry, index) => ({ ...entry,
-    imageSubject: ["Agency One", "https://example.com/not-a-name", " "][index] }));
+  value.items = value.items.map((entry, index) => ({ ...entry, imageSubjects: [
+    ["Agency One", "Measles", "Mexico", "Extra"], ["https://example.com/not-a-name", "Vancouver"], [" "]][index] }));
   let subjects;
   const result = extractMetabloomResearchBrief(value, { report: report(), temporalContext: context("Top 2 news events today"),
     onImageSubjects: (list) => { subjects = list; } });
   assert.equal(result.items.length, 2);
-  assert.ok(result.items.every((entry) => !Object.hasOwn(entry, "imageSubject")));
-  assert.deepEqual(subjects, ["Agency One", ""]);
-  // Older candidates without the field remain valid and simply offer no subjects.
+  assert.ok(result.items.every((entry) => !Object.hasOwn(entry, "imageSubjects")));
+  assert.deepEqual(subjects, [["Agency One", "Measles", "Mexico"], ["Vancouver"]]);
+  // Older output with one subject, or none, remains valid.
+  const single = referenceCandidate(candidate());
+  single.items = single.items.map((entry) => ({ ...entry, imageSubject: "Agency One" }));
+  let legacySingle;
+  extractMetabloomResearchBrief(single, { report: report(), temporalContext: context(),
+    onImageSubjects: (list) => { legacySingle = list; } });
+  assert.deepEqual(legacySingle, [["Agency One"], ["Agency One"], ["Agency One"]]);
   let legacy;
   extractMetabloomResearchBrief(referenceCandidate(candidate()), { report: report(), temporalContext: context(),
     onImageSubjects: (list) => { legacy = list; } });
-  assert.deepEqual(legacy, ["", "", ""]);
+  assert.deepEqual(legacy, [[], [], []]);
 });

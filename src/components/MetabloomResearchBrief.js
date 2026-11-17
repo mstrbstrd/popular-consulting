@@ -66,6 +66,10 @@ function BriefItem({ item, index, active, distance, news, id, sourceMap, mediaMa
   return <li id={id} className="metabloom-research-brief__item" hidden={!active}
     data-slide-index={index + 1} aria-roledescription="slide">
     <article aria-labelledby={`${id}-title`}>
+      {/* The story leads with its photo: a cited article's image, else a
+          credited related photo, else a short source band. */}
+      {(mediaCandidates.length > 0 || fallbackSource) && <MetabloomArticlePreview candidates={mediaCandidates}
+        fallbackSource={fallbackSource} subjectImage={subjectImage} hero resolver={resolver} priority={distance} />}
       <h4 id={`${id}-title`}>{item.headline}</h4>
       <div className="metabloom-research-brief__item-kicker">
         {showEvidenceStatus && <span className="metabloom-research-brief__evidence-status"
@@ -80,8 +84,6 @@ function BriefItem({ item, index, active, distance, news, id, sourceMap, mediaMa
       <p className="metabloom-research-brief__overview">{item.summary}<Citations sourceIds={item.sourceIds} sourceMap={sourceMap} /></p>
       {onUseFinding && <button type="button" className="metabloom-research-brief__reuse"
         disabled={reuseDisabled} onClick={() => onUseFinding(index, item)}>Use this finding</button>}
-      {(mediaCandidates.length > 0 || fallbackSource) && <MetabloomArticlePreview candidates={mediaCandidates}
-        fallbackSource={fallbackSource} subjectImage={subjectImage} compact resolver={resolver} priority={distance} />}
       {hasDepth && <details className="metabloom-research-brief__details">
         <summary>Analysis and context<span className="metabloom-research-brief__sr-only">: {item.headline}</span></summary>
         <div className="metabloom-research-brief__depth">

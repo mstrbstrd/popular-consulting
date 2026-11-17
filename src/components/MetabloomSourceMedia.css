@@ -40,6 +40,39 @@
 }
 .orb-page .metabloom-source-preview[data-preview-state='ready'] .metabloom-source-preview__image { opacity: 1; }
 .orb-page .metabloom-source-preview[data-preview-state='ready'] .metabloom-source-preview__fallback { visibility: hidden; }
+/* Research brief stories lead with a full-width photo. The caption under it
+   names the cited article (publisher, source number and title link) and, for a
+   related photo, its credit. A story with no photo keeps a short source band
+   rather than a large empty frame. */
+.orb-page .metabloom-source-preview--hero {
+  display: flex; flex-direction: column; gap: 0.8rem; margin: 0 0 1.6rem; padding: 0;
+  border: 0; border-radius: 0; background: none;
+}
+.orb-page .metabloom-source-preview--hero .metabloom-source-preview__image-area {
+  aspect-ratio: 16 / 9; max-height: min(56vh, 36rem); border-radius: var(--aetheris-radius-lg);
+  box-shadow: 0 0 0 1px var(--aetheris-line);
+}
+.orb-page .metabloom-source-preview--hero[data-preview-state='unavailable']:not([data-related-photo]) .metabloom-source-preview__image-area {
+  aspect-ratio: 5 / 1;
+}
+.orb-page .metabloom-source-preview--hero[data-preview-state='unavailable']:not([data-related-photo]) .metabloom-source-preview__fallback {
+  flex-direction: row; gap: 0.8rem;
+}
+.orb-page .metabloom-source-preview--hero .metabloom-source-preview__content { gap: 0.2rem; padding: 0 0.2rem; }
+.orb-page .metabloom-source-preview--hero .metabloom-source-preview__publisher { font-size: max(1.05rem, 11px); }
+.orb-page .metabloom-source-preview--hero .metabloom-source-preview__publisher .metabloom-source-icon {
+  flex-basis: 1.6rem; width: 1.6rem; height: 1.6rem; border-radius: 0.35rem;
+}
+.orb-page .metabloom-source-preview--hero .metabloom-source-preview__publisher-name { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 0.6rem; }
+/* The publisher name is enough under a photo; the host stays in the link's
+   destination and in the no-photo band. */
+.orb-page .metabloom-source-preview--hero .metabloom-source-preview__host { display: none; }
+.orb-page .metabloom-research-brief .metabloom-source-preview--hero a.metabloom-source-preview__article-link {
+  min-height: 32px; padding: 0.2rem 0; color: var(--aetheris-ink-2); font: 400 max(1.15rem, 12px)/1.45 var(--aetheris-font-sans);
+}
+.orb-page .metabloom-research-brief .metabloom-source-preview--hero .metabloom-source-preview__article-title { -webkit-line-clamp: 1; }
+.orb-page .metabloom-research-brief .metabloom-source-preview--hero p.metabloom-source-preview__related-credit { padding: 0; }
+
 /* A related subject photo (Wikimedia) stands in when no cited article offers
    one. Its label sits on the photo so it is never mistaken for the article's. */
 .orb-page .metabloom-source-preview[data-related-photo='ready'] .metabloom-source-preview__related { opacity: 1; }

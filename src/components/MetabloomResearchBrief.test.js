@@ -153,6 +153,24 @@ test('preview work starts as soon as the brief arrives, even off screen, and sto
   }
 });
 
+test('each story leads with its photo, before the headline, and keeps the cited article link under it', async () => {
+  const brief = fixture();
+  brief.media = [{ sourceId: 1, token: 'signed.source.1' }];
+  requestMetabloomSourcePreview.mockImplementation(imagePreview);
+  renderBrief(brief);
+  await act(async () => {});
+  const story = screen.getByRole('article', { name: brief.items[0].headline });
+  const preview = story.querySelector('.metabloom-source-preview--hero');
+  const heading = within(story).getByRole('heading', { name: brief.items[0].headline });
+  expect(preview.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  expect(within(preview).getByRole('img', { name: 'Image for signed.source.1' })).toBeInTheDocument();
+  expect(within(preview).getByRole('link', { name: /Fictional source 1/ })).toHaveAttribute('href', sources[0].url);
+  // A story without any photo keeps a short source band, not an empty frame.
+  const last = screen.getByRole('article', { name: brief.items[4].headline, hidden: true });
+  expect(last.querySelector('.metabloom-source-preview--hero')).toHaveAttribute('data-preview-state', 'unavailable');
+  expect(last.querySelector('.metabloom-source-preview--hero')).not.toHaveAttribute('data-related-photo');
+});
+
 describe('related subject photos', () => {
   const related = (itemIndex = 0) => ({ itemIndex, token: `signed.subject.${itemIndex}`, width: 640, height: 480,
     alt: 'Fictional town hall exterior', title: 'Fictional Town Hall',

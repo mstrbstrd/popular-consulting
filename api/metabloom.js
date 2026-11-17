@@ -301,34 +301,49 @@ const attachResearchMedia = async (brief, sources, identity) => {
 };
 
 // Each story may also carry one freely licensed Wikimedia photo of its named
-// subject. The browser shows it, labelled "Related photo" with full credit,
-// only when none of the story's cited articles offers a photo. Lookups run in
-// parallel under one short budget; a slow or failed lookup only omits a photo.
+// subject. The formatter lists up to three candidates per story, most specific
+// first; the host takes the first that has a usable photo not already shown
+// for an earlier story. The browser shows it, labelled "Related photo" with
+// full credit, only when none of the story's cited articles offers a photo.
+// All distinct lookups run in parallel under one short budget; a slow or
+// failed lookup only omits that candidate.
 const RESEARCH_SUBJECT_IMAGE_BUDGET_MS = 4000;
+const MAX_RESEARCH_SUBJECT_LOOKUPS = 15;
 const attachResearchSubjectImages = async (brief, subjects, sources, identity, { signal, requestRef,
   findImage = imageSearch.findMetabloomImage, budgetMs = RESEARCH_SUBJECT_IMAGE_BUDGET_MS } = {}) => {
   if (!["news", "research"].includes(brief?.kind) || !Array.isArray(brief.items) || !identity
     || !Array.isArray(subjects) || subjects.length !== brief.items.length) return brief;
-  const wanted = subjects.map(subject => typeof subject === "string" ? subject.trim() : "");
-  const requested = wanted.filter(Boolean).length;
+  const wanted = subjects.map(list => (Array.isArray(list) ? list : [list]).slice(0, 3)
+    .map(subject => typeof subject === "string" ? subject.trim() : "").filter(Boolean));
+  const requested = wanted.filter(list => list.length).length;
   if (!requested) return brief;
   const controller = new AbortController();
   const stop = () => controller.abort();
   signal?.addEventListener("abort", stop, { once: true });
   const timer = setTimeout(stop, budgetMs);
   const lookups = new Map(), startedAt = Date.now();
+  const lookup = subject => {
+    const key = subject.toLocaleLowerCase("en-US");
+    if (!lookups.has(key)) {
+      if (lookups.size >= MAX_RESEARCH_SUBJECT_LOOKUPS) return Promise.resolve(null);
+      lookups.set(key, Promise.resolve().then(() => findImage(subject, { signal: controller.signal })).catch(() => null));
+    }
+    return lookups.get(key);
+  };
   try {
-    const found = await Promise.all(wanted.map(subject => {
-      if (!subject) return null;
-      const key = subject.toLocaleLowerCase("en-US");
-      if (!lookups.has(key)) lookups.set(key, Promise.resolve().then(() => findImage(subject, { signal: controller.signal })).catch(() => null));
-      return lookups.get(key);
-    }));
-    const seen = new Set();
-    const images = (await Promise.all(found.map(async (image, itemIndex) => {
-      // One photo illustrates one story; a repeated subject is shown once.
-      if (!image?.found || seen.has(image.fileUrl)) return null;
+    // Start every story's first choice before any fallback, so the bounded
+    // lookup count is spent on the subjects most likely to be shown.
+    for (let rank = 0; rank < 3; rank++) for (const list of wanted) if (list[rank]) lookup(list[rank]);
+    const results = await Promise.all(wanted.map(list => Promise.all(list.map(lookup))));
+    const seen = new Set(), chosen = [];
+    results.forEach((candidates, itemIndex) => {
+      // One photo illustrates one story; a photo already used is skipped.
+      const image = candidates.find(entry => entry?.found && !seen.has(entry.fileUrl));
+      if (!image) return;
       seen.add(image.fileUrl);
+      chosen.push({ itemIndex, image });
+    });
+    const images = (await Promise.all(chosen.map(async ({ itemIndex, image }) => {
       try {
         const token = await sourceMedia.createSourceMediaToken(identity, image.pageUrl, { image: image.imageUrl });
         return token ? { itemIndex, token, width: image.width, height: image.height, alt: image.alt, title: image.title,
@@ -339,8 +354,8 @@ const attachResearchSubjectImages = async (brief, subjects, sources, identity, {
     const attached = images.length ? parseMetabloomResearchBrief({ ...brief, subjectImages: images }, { sources }) : null;
     // Counts only: subjects, titles and URLs never enter logs.
     console.info(JSON.stringify({ event: "metabloom_research_subject_images", ...(/^[a-f0-9]{12}$/.test(requestRef) ? { requestRef } : {}),
-      requested, found: attached?.subjectImages?.length || 0, timedOut: controller.signal.aborted && !signal?.aborted,
-      durationMs: Date.now() - startedAt }));
+      requested, lookups: lookups.size, found: attached?.subjectImages?.length || 0,
+      timedOut: controller.signal.aborted && !signal?.aborted, durationMs: Date.now() - startedAt }));
     return attached || brief;
   } finally {
     clearTimeout(timer);

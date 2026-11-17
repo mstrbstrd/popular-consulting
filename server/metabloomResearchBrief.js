@@ -172,7 +172,7 @@ function researchBriefSchema(sources, dateEvidenceCatalog = []) {
         ? { anyOf: [object({ evidenceId: { type: "string", enum: dateEvidenceCatalog.map((entry) => entry.id) } }), { type: "null" }] }
         : { type: "null" },
       evidenceStatus: { type: "string", enum: ["announced", "reported", "disputed", "uncertain"] },
-      imageSubject: text(120),
+      imageSubjects: array(text(120), 3),
     }), MAX_METABLOOM_RESEARCH_BRIEF_ITEMS),
     sourceDetails: array(object({ sourceId, publisher: text(120), publishedDate: optionalDateSchema,
       dateEvidence: text(600), sourceType: { type: "string", enum: ["official", "reporting", "syndicated", "analysis", "unknown"] },
@@ -188,7 +188,7 @@ const briefInstructions = [
   "dateEvidence selects a supplied dateEvidenceCatalog entry by evidenceId, or is null. Each entry contains a host-copied excerpt, its explicit date and supporting canonical sourceId. Select only the entry that supports the specific development in this item's headline and summary, and include that sourceId in the item's sourceIds. The host copies the selected date and exact excerpt into the result; do not retype them, create IDs, return developmentDate or dateBasis fields, or select a different claim from the same publisher merely because its date fits. A faithful cited paraphrase is eligible; no original-webpage quotation or original publication date is required. If no supplied entry supports this development, select null. Never infer a date from the requested interval, a source ID or another nearby event.",
   "The catalog establishes consistency with the supplied research, not independent confirmation of the original source. Compare its excerpt with the whole report before selecting it. The eligible date is when the specific actual development or announcement happened, not when older background was published or discussed, and not a future scheduled milestone. A Monday article about Sunday's result does not make that result a Monday event; a separately supported Monday objection or certification is a different development. A planned trip or a statement that someone is heading to a place is not evidence that the trip was completed. Distinguish a present announcement from its scheduled future event and keep scheduledDate separate. Never rewrite an older result, a plan or ambiguous timing as a completed event today. Navigation, wrapper, copyright, crawl and unrelated page-update dates remain ineligible.",
   "sourceDetails describes only sources used by the selected items. publishedDate is an explicitly supported original article/publication date, not a wrapper, crawl, copyright or unrelated update date. Its dateEvidence copies the supporting excerpt from the cited research report; an attributed paraphrase in the report is sufficient and no original-webpage quotation is required. Use dateBasis=article-publication only for that support; otherwise publishedDate=null, dateEvidence='', dateBasis=unknown. A missing publication date does not invalidate an independently supported development date. If the publisher is not identified in the supplied evidence or canonical title, use an empty string. Do not infer publication dates from URLs. Source classification describes the cited material; it is not a certification that it is true.",
-  "imageSubject names the one clearly photographable public subject of the item as its English Wikipedia article title: a well-known public figure, place, organization, building, vehicle, species or object (for example \"Federal Reserve\" or \"Kīlauea\"). The host uses it only to find a freely licensed related photo when no cited article offers one; it is never evidence and is never shown as a claim. Prefer the subject the story is about over the reporter or a bystander. Use an empty string when there is no clear subject, or when the only candidate is a private individual, a minor, a crime victim, or a person who is not a public figure.",
+  "imageSubjects lists up to three clearly photographable public subjects for the item, each as an exact English Wikipedia article title, from most specific to broadest. Start with what the story is about (a well-known public figure, organization, building, vehicle, event or object), then a broader fallback such as the place where it happened or the general topic (for example [\"Pan American Health Organization\", \"Measles\", \"Mexico\"] or [\"Federal Aviation Administration\", \"Boeing 737 MAX\"]). Countries, cities, diseases, species and widely known organizations usually have a free photo, so include one when it fits. The host uses these only to find one freely licensed related photo when no cited article offers one; they are never evidence and never shown as a claim. Never list a private individual, a minor, a crime victim, a reporter, or a person who is not a public figure. Use an empty array when nothing fits.",
   "Write reader-facing limitations about actual evidence gaps and domain uncertainty. Do not mention JSON fields, schema names, null values, report.notes, report.sources, dateBasis, developmentDate, the formatter, or internal generation steps. Do not claim to have covered a requested number if fewer eligible items are available.",
 ].join("\n\n");
 
@@ -361,6 +361,7 @@ const ITEM_KEYS = ["headline", "summary", "sourceIds", "background", "whyItMatte
   "watchNext", "scheduledDate", "dateEvidence", "evidenceStatus"];
 // A subject is only a lookup phrase for an optional related photo. It never
 // reaches the presentation, and anything that is not a short plain name is dropped.
+const imageSubjectList = (value) => (Array.isArray(value) ? value : [value]).slice(0, 3).map(imageSubjectText).filter(Boolean);
 const imageSubjectText = (value) => typeof value === "string" && value.trim().length <= 120
   && !hasUrl(value) && !/[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/.test(value) ? value.trim() : "";
 
@@ -381,9 +382,11 @@ function extractMetabloomResearchBrief(candidate, { report, temporalContext, evi
   let omitted = 0;
   const omit = (reason) => { omitted++; diagnostics[reason]++; };
   for (const rawEntry of candidate.items) {
-    const hasSubject = rawEntry && typeof rawEntry === "object" && Object.prototype.hasOwnProperty.call(rawEntry, "imageSubject");
-    if (!exactKeys(rawEntry, hasSubject ? [...ITEM_KEYS, "imageSubject"] : ITEM_KEYS)) throw briefError("brief_item_invalid");
-    const { imageSubject, ...entry } = rawEntry;
+    // `imageSubjects` (current) or a single `imageSubject` (older formatter output).
+    const subjectKey = ["imageSubjects", "imageSubject"].find((key) => rawEntry && typeof rawEntry === "object"
+      && Object.prototype.hasOwnProperty.call(rawEntry, key));
+    if (!exactKeys(rawEntry, subjectKey ? [...ITEM_KEYS, subjectKey] : ITEM_KEYS)) throw briefError("brief_item_invalid");
+    const { [subjectKey || "imageSubjects"]: imageSubjects, ...entry } = rawEntry;
     if (entry.dateEvidence !== null && (!exactKeys(entry.dateEvidence, ["evidenceId"])
       || typeof entry.dateEvidence.evidenceId !== "string")) throw briefError("brief_item_invalid");
     const selected = entry.dateEvidence && dateEvidenceCatalog.get(entry.dateEvidence.evidenceId);
@@ -415,7 +418,7 @@ function extractMetabloomResearchBrief(candidate, { report, temporalContext, evi
     if (headline) headlines.add(headline);
     if (eventKey) eventEvidence.add(eventKey);
     items.push(item);
-    subjects.push(imageSubjectText(imageSubject));
+    subjects.push(imageSubjectList(imageSubjects));
   }
   if (temporalContext.requestedCount !== null) { items.splice(temporalContext.requestedCount); subjects.splice(temporalContext.requestedCount); }
   const usedIds = new Set(items.flatMap((item) => [...item.sourceIds, ...(Array.isArray(item.background)
@@ -477,7 +480,7 @@ function extractMetabloomResearchBrief(candidate, { report, temporalContext, evi
     coverage, items, sourceDetails }, { sources: report.sources });
   if (!result) throw briefError("brief_shape_invalid");
   if (typeof onDiagnostics === "function") onDiagnostics({ ...diagnostics });
-  // Aligned with result.items; the host may look these up for related photos.
+  // Aligned with result.items (one candidate list per item); the host may look these up for related photos.
   if (typeof onImageSubjects === "function") onImageSubjects(result.items.length === subjects.length ? subjects : []);
   return result;
 }

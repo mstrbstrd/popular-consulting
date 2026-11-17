@@ -383,26 +383,30 @@ test("each story can carry one credited related subject photo found by the host"
     artist: "Fictional Photographer", alt: `${name} exterior`, source: "wikimedia" });
   mock.method(imageSearch, "findMetabloomImage", async (subject) => {
     looked.push(subject);
-    return subject === "Fictional_Agency" ? photo("Fictional_Agency") : { found: false };
+    return ["Fictional_Agency", "Fictional_City"].includes(subject) ? photo(subject) : { found: false };
   });
   const calls = installProvider({
     research: () => new Response(`data: ${JSON.stringify({ type: "response.completed", response: researchDocument(sources) })}\n\n`,
       { headers: { "content-type": "text/event-stream" } }),
     formatter: body => {
       const value = candidate(JSON.parse(body.input.at(-1).content).dateEvidenceCatalog, [1, 2, 3]);
-      value.items.forEach((item, index) => { item.imageSubject = ["Fictional_Agency", "Unknown subject", "fictional_agency"][index]; });
+      value.items.forEach((item, index) => { item.imageSubjects = [["Fictional_Agency", "Fictional_City"],
+        ["Unknown subject", "Fictional_City"], ["fictional_agency"]][index]; });
       return briefReply(value);
     },
   });
   const res = response(); await handler(request({ streamResearchMedia: true }), res);
   const brief = decode(res).briefs[0];
-  // One lookup per distinct subject; the repeated subject is shown once.
-  assert.deepEqual(looked, ["Fictional_Agency", "Unknown subject"]);
-  assert.deepEqual(brief.subjectImages, [{ itemIndex: 0, token: "signed.image.Fictional_Agency", width: 640, height: 480,
-    alt: "Fictional_Agency exterior", title: "Fictional_Agency", pageUrl: "https://en.wikipedia.org/wiki/Fictional_Agency",
-    fileUrl: "https://commons.wikimedia.org/wiki/File:Fictional_Agency.jpg", artist: "Fictional Photographer",
-    license: "CC BY-SA 4.0", licenseUrl: "https://creativecommons.org/licenses/by-sa/4.0" }]);
-  assert.ok(brief.items.every(item => !Object.hasOwn(item, "imageSubject")));
+  // Every story's first choice is looked up before fallbacks, once per
+  // distinct subject. Story 2 falls back to the city; story 3's only
+  // candidate is already shown for story 1, so it gets no repeat.
+  assert.deepEqual(looked, ["Fictional_Agency", "Unknown subject", "Fictional_City"]);
+  const record = (itemIndex, name) => ({ itemIndex, token: `signed.image.${name}`, width: 640, height: 480,
+    alt: `${name} exterior`, title: name, pageUrl: `https://en.wikipedia.org/wiki/${name}`,
+    fileUrl: `https://commons.wikimedia.org/wiki/File:${name}.jpg`, artist: "Fictional Photographer",
+    license: "CC BY-SA 4.0", licenseUrl: "https://creativecommons.org/licenses/by-sa/4.0" });
+  assert.deepEqual(brief.subjectImages, [record(0, "Fictional_Agency"), record(1, "Fictional_City")]);
+  assert.ok(brief.items.every(item => !Object.hasOwn(item, "imageSubjects")));
   assert.deepEqual(calls.map(call => call.phase), ["research", "brief"]);
 
   // The subject lookup is part of host media: old clients and the opt-out skip it.
@@ -411,7 +415,7 @@ test("each story can carry one credited related subject photo found by the host"
     { headers: { "content-type": "text/event-stream" } }),
   formatter: body => {
     const value = candidate(JSON.parse(body.input.at(-1).content).dateEvidenceCatalog, [1, 2, 3]);
-    value.items.forEach(item => { item.imageSubject = "Fictional_Agency"; });
+    value.items.forEach(item => { item.imageSubjects = ["Fictional_Agency"]; });
     return briefReply(value);
   } });
   const old = response(); await handler(request({ streamResearchMedia: false }), old);
@@ -424,13 +428,13 @@ test("a slow subject lookup only omits the photo", async () => {
   const identity = { owner: "a".repeat(64), subject: "b".repeat(64), scope: "c".repeat(64) };
   const brief = { kind: "news", items: [{ headline: "A" }] };
   let aborted = false;
-  const result = await handler._internals.attachResearchSubjectImages(brief, ["Slow subject"], sources, identity, {
+  const result = await handler._internals.attachResearchSubjectImages(brief, [["Slow subject"]], sources, identity, {
     budgetMs: 20, findImage: (_subject, { signal }) => new Promise((_resolve, reject) => {
       signal.addEventListener("abort", () => { aborted = true; reject(new Error("aborted")); });
     }) });
   assert.equal(result, brief);
   assert.equal(aborted, true);
-  assert.equal(await handler._internals.attachResearchSubjectImages(brief, ["x", "y"], sources, identity), brief);
+  assert.equal(await handler._internals.attachResearchSubjectImages(brief, [["x"], ["y"]], sources, identity), brief);
 });
 
 test("optional media failures and old clients retain the complete paid brief", async () => {
