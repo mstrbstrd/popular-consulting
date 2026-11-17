@@ -258,21 +258,19 @@ export default function MetabloomResearchBrief({ brief, sources, onUseBrief, onU
   const coverageLabel = coverage.status === 'partial' ? 'Partial coverage' : 'Complete';
   const headerStart = news && safeBrief.windowStart ? safeBrief.windowStart : safeBrief.localDate;
   const headerEnd = news && safeBrief.windowEnd ? safeBrief.windowEnd : headerStart;
-  const kindLabel = news ? 'News briefing' : 'Research brief';
-  // The editorial title leads. A generic host title would only repeat the
-  // eyebrow, so a single-day news briefing names its day instead.
-  const displayTitle = safeBrief.title !== kindLabel ? safeBrief.title
-    : news && headerStart === headerEnd ? weekdayDate(headerStart) : kindLabel;
+  // The editorial title leads, under a date line. A generic host title would
+  // only repeat the workspace bar, so the date becomes the heading instead.
+  const editorialTitle = safeBrief.title !== (news ? 'News briefing' : 'Research brief');
+  const dateLine = headerStart === headerEnd
+    ? <time dateTime={headerStart}>{news && !editorialTitle ? weekdayDate(headerStart) : calendarDate(headerStart)}</time>
+    : <><time dateTime={headerStart}>{calendarDate(headerStart)}</time> – <time dateTime={headerEnd}>{calendarDate(headerEnd)}</time></>;
 
   return <section ref={observeBrief} className="metabloom-research-brief" aria-label={safeBrief.title} aria-roledescription="carousel"
     data-research-brief-kind={safeBrief.kind} data-coverage-status={coverage.status}>
     <header className="metabloom-research-brief__header">
-      <p className="metabloom-research-brief__eyebrow">
-        <span>{kindLabel}</span><span aria-hidden="true"> · </span>
-        <time dateTime={headerStart}>{calendarDate(headerStart)}</time>
-        {headerStart !== headerEnd && <> – <time dateTime={headerEnd}>{calendarDate(headerEnd)}</time></>}
-      </p>
-      <h3 className="metabloom-research-brief__title">{displayTitle}</h3>
+      {/* The workspace bar names the kind; the header carries the date and title. */}
+      {editorialTitle && <p className="metabloom-research-brief__eyebrow">{dateLine}</p>}
+      <h3 className="metabloom-research-brief__title">{editorialTitle ? safeBrief.title : dateLine}</h3>
       <div className="metabloom-research-brief__header-meta">
         <p className="metabloom-research-brief__coverage-heading">
           <strong>{countText}</strong>

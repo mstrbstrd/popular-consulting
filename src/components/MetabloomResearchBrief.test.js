@@ -184,13 +184,16 @@ test('the header leads with the editorial title, and a generic title names the d
   const { unmount } = renderBrief(brief);
   const header = document.querySelector('.metabloom-research-brief__header');
   expect(within(header).getByRole('heading', { level: 3, name: brief.title })).toBeInTheDocument();
-  expect(within(header).getByText('News briefing')).toBeInTheDocument();
+  // The kind is named by the workspace bar, not repeated in the header.
+  expect(within(header).queryByText(/News briefing/)).toBeNull();
+  expect(header.querySelector('.metabloom-research-brief__eyebrow')).toHaveTextContent('Oct 19, 2026 – Oct 23, 2026');
   expect(header.querySelector('.metabloom-research-brief__coverage-status')).toHaveAttribute('data-coverage-status', brief.coverage.status);
   unmount();
   brief.title = 'News briefing';
   const range = renderBrief(brief);
-  // A multi-day window keeps the generic title; one day is named.
-  expect(screen.getByRole('heading', { level: 3, name: 'News briefing' })).toBeInTheDocument();
+  // A generic title becomes the date: the range, or one named day.
+  expect(screen.getByRole('heading', { level: 3, name: 'Oct 19, 2026 – Oct 23, 2026' })).toBeInTheDocument();
+  expect(document.querySelector('.metabloom-research-brief__eyebrow')).toBeNull();
   range.unmount();
   brief.windowStart = brief.windowEnd = '2026-10-23';
   renderBrief(brief);
@@ -503,7 +506,8 @@ test('supports general research findings without applying news dates or story la
   brief.kind = 'research'; brief.title = 'Five fictional research findings';
   brief.coverage.requestedCount = null; brief.windowStart = null; brief.windowEnd = null;
   renderBrief(brief);
-  expect(screen.getByText('Research brief')).toBeVisible();
+  // The kind is named by the workspace bar; the brief leads with its title.
+  expect(screen.getByRole('heading', { level: 3, name: 'Five fictional research findings' })).toBeVisible();
   expect(screen.getByText('5 findings')).toBeVisible();
   expect(screen.queryByText('Briefing target')).not.toBeInTheDocument();
   expect(screen.queryByText('Included')).not.toBeInTheDocument();
