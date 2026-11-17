@@ -20,14 +20,16 @@ const handler = createCouncilHandler({
   getPreferences: () => async () => ({ provider: 'openai', defaults: Object.fromEntries(members.map(m => [m.provider, m.model])) }),
   catalog: { resolve: async selected => selected }, quota: async (_request, _signal, cost) => { costs.push(cost); return true; },
   run: options => runMetabloomCouncil({ ...options, fetchImpl: async (url, request) => {
-    calls.push(JSON.parse(request.body).model);
+    const body = JSON.parse(request.body); calls.push(body.model);
+    if (url.includes('anthropic')) assert.equal(body.output_config, undefined);
+    else assert.deepEqual(body.text, { format: { type: 'text' } });
     await held;
     // Four valid contributions, then DeepSeek exceeds its critique limit.
     // Hold its corrected answer until the browser observes the real repair.
     const call = (calls.length - 1) % 8;
     if (call === 5) await repairHeld;
-    const text = JSON.stringify({ response: call === 4 ? 'Rejected draft '.repeat(50)
-      : 'Consider both costs and maintainability. The strongest objection is uncertainty about future demand.' });
+    const text = call === 4 ? 'Rejected draft '.repeat(50)
+      : 'Consider both costs and maintainability. The strongest objection is uncertainty about future demand.';
     return url.includes('anthropic') ? Response.json({ type: 'message', role: 'assistant', stop_reason: 'end_turn', content: [{ type: 'text', text }] })
       : Response.json({ status: 'completed', output: [{ type: 'message', role: 'assistant', status: 'completed', content: [{ type: 'output_text', text }] }] });
   } }),

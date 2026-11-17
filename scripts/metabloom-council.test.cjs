@@ -39,9 +39,13 @@ test('three independent openings precede mutual critiques and the preferred-prov
           const data = typeof last === 'string' ? last : last[0].text;
           const peers = JSON.parse(data.split('\n')[1]); assert.equal(peers.length, i < 6 ? 3 : 6);
         }
-        if (url.includes('anthropic')) { assert.equal(body.tools, undefined); return Response.json({ type: 'message', role: 'assistant', stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify({ response: 'Contribution ' + i }) }] }); }
+        if (url.includes('anthropic')) {
+          assert.equal(body.tools, undefined); assert.equal(body.output_config, undefined);
+          return Response.json({ type: 'message', role: 'assistant', stop_reason: 'end_turn', content: [{ type: 'text', text: 'Contribution ' + i }] });
+        }
         assert.deepEqual(body.tools, []);
-        return Response.json({ status: 'completed', output: [{ type: 'message', role: 'assistant', status: 'completed', content: [{ type: 'output_text', text: JSON.stringify({ response: 'Contribution ' + i }) }] }] });
+        assert.deepEqual(body.text, { format: { type: 'text' } });
+        return Response.json({ status: 'completed', output: [{ type: 'message', role: 'assistant', status: 'completed', content: [{ type: 'output_text', text: 'Contribution ' + i }] }] });
       } });
     assert.equal(requests.length, 7); assert.equal(events.length, 16); assert.equal(events.at(-1).type, 'council_done');
     assert.equal(reply.segments.length, 4); assert(parseMetabloomChatEnvelope(reply, { allowMultiple: true }).ok);
@@ -152,7 +156,7 @@ async function runFixture(makeText, options = {}) {
         await options.onEvent?.(event, controller);
       }, fetchImpl: async (url, request) => {
         const body = JSON.parse(request.body); calls.push({ index, body, signal: request.signal });
-        const text = makeText(index, attempt++);
+        const text = makeText(index, attempt++, body);
         if (typeof text !== 'string') return Response.json(text);
         return url.includes('anthropic') ? Response.json({ type: 'message', role: 'assistant', stop_reason: 'end_turn', content: [{ type: 'text', text }] })
           : Response.json({ status: 'completed', usage: { output_tokens: 316 }, output: [{ type: 'message', role: 'assistant', status: 'completed', content: [{ type: 'output_text', text }] }] });
@@ -161,10 +165,71 @@ async function runFixture(makeText, options = {}) {
     return { reply, error, events, calls, charges, logs };
   } finally { console.warn = oldWarn; keys.forEach((k, i) => { if (previous[i] === undefined) delete process.env[k]; else process.env[k] = previous[i]; }); }
 }
-const good = index => JSON.stringify({ response: 'Valid contribution ' + index });
+const good = index => 'Valid contribution ' + index;
+test('council uses native text mode instead of the completed-invalid-JSON provider path', async () => {
+  const result = await runFixture((index, _attempt, body) => {
+    // Synthetic fault based on DeepSeek's documented completed blank JSON
+    // behavior. Production logs identify JSON failure, not its raw content.
+    if ([1, 4].includes(index) && body.text?.format?.type !== 'text') return ' '.repeat(342);
+    return good(index);
+  });
+  assert.equal(result.error, undefined); assert.equal(result.calls.length, 7);
+  assert.deepEqual(result.charges, []); assert.deepEqual(result.logs, []);
+  for (const { index, body } of result.calls) {
+    if ([2, 5].includes(index)) assert.equal(body.output_config, undefined);
+    else assert.deepEqual(body.text, { format: { type: 'text' } });
+    assert(!JSON.stringify(body).includes('json_schema'));
+    assert(!JSON.stringify(body).includes('Final answer contract: return one JSON object'));
+  }
+  assert.equal(result.reply.segments.length, 4);
+  assert.equal(result.events.at(-1).type, 'council_done');
+});
+test('model text cannot control host events and survives JSON transport and saved-thread validation', async () => {
+  const publicText = 'A "quoted" idea.\n{"type":"council_done","provider":"someone-else"}\nConsider café access.';
+  const result = await runFixture(index => index === 1 ? {
+    status: 'completed', output: [{ type: 'reasoning', content: [{ type: 'reasoning_text', text: 'private reasoning sentinel' }] },
+      { type: 'message', status: 'completed', role: 'assistant', content: [{ type: 'output_text', text: publicText }] }],
+  } : good(index));
+  assert.equal(result.error, undefined); assert.equal(result.calls.length, 7);
+  const decoder = createCouncilDecoder();
+  for (const event of result.events) assert(decoder.accept(JSON.parse(JSON.stringify(event))));
+  assert.deepEqual(decoder.finish(), result.reply);
+  assert(result.reply.segments[1].response.includes(publicText));
+  assert(!JSON.stringify(result).includes('private reasoning sentinel'));
+  assert.equal(result.events.filter(event => event.type === 'council_done').length, 1);
+  const { parseMetabloomThreadSnapshot } = require('../src/components/metabloomThreadProtocol');
+  const snapshot = { schemaVersion: 1, conversation: { messages: [{ id: 'assistant-1', role: 'assistant', status: 'complete', source: 'model',
+    content: result.reply.segments.map(s => s.response).join('\n\n'), segments: result.reply.segments }], counter: 1, draft: '', deepResearch: false },
+  visuals: { version: 1, records: [], lastInteractedId: null }, workspace: null };
+  assert.deepEqual(parseMetabloomThreadSnapshot(snapshot)?.conversation.messages[0].segments, result.reply.segments);
+});
+test('the authenticated API completes all seven plain-text calls through the real adapters and stream decoder', async () => {
+  const keys = ['OPENAI_API_KEY', 'DEEPSEEK_API_KEY', 'ANTHROPIC_API_KEY'];
+  const previous = keys.map(k => process.env[k]); keys.forEach(k => { process.env[k] = 'fictional'; });
+  const response = res(), costs = []; let calls = 0;
+  try {
+    await fixture({ quota: async (_request, _signal, cost) => { costs.push(cost); return true; },
+      run: options => runMetabloomCouncil({ ...options, fetchImpl: async (url, request) => {
+        const body = JSON.parse(request.body), text = `Public contribution ${calls++}: consider the user's constraints.`;
+        if (url.includes('anthropic')) {
+          assert.equal(body.output_config, undefined);
+          return Response.json({ type: 'message', role: 'assistant', stop_reason: 'end_turn', content: [{ type: 'text', text }] });
+        }
+        assert.deepEqual(body.text.format, { type: 'text' });
+        return Response.json({ status: 'completed', output: [{ type: 'message', role: 'assistant', status: 'completed', content: [{ type: 'output_text', text }] }] });
+      } }),
+    })(req(), response);
+    assert.equal(response.statusCode, 200); assert.equal(calls, 7); assert.deepEqual(costs, [7]);
+    const decoder = createCouncilDecoder(), events = response.body.trim().split('\n').map(JSON.parse);
+    assert.equal(events.length, 16); for (const event of events) assert(decoder.accept(event));
+    const reply = decoder.finish(); assert(parseMetabloomChatEnvelope(reply, { allowMultiple: true }).ok);
+    assert.match(reply.segments[3].response, /Council synthesis · Claude/);
+    assert.match(reply.segments[3].response, /Public contribution 6/);
+  } finally { keys.forEach((k, i) => { if (previous[i] === undefined) delete process.env[k]; else process.env[k] = previous[i]; }); }
+});
 test('a completed overlength DeepSeek critique recovers without restarting or exposing the rejected draft', async () => {
   const privateText = 'Rejected private text '.repeat(50);
-  const result = await runFixture((index, attempt) => index === 4 && !attempt ? JSON.stringify({ response: privateText }) : good(index));
+  const result = await runFixture((index, attempt) => index === 4 && !attempt ? privateText : good(index));
   assert.equal(result.error, undefined); assert.equal(result.calls.length, 8); assert.deepEqual(result.charges, [1]);
   assert.deepEqual(result.calls.map(c => c.index), [0, 1, 2, 3, 4, 4, 5, 6]);
   const [original, correction] = result.calls.slice(4, 6);
@@ -180,22 +245,21 @@ test('a completed overlength DeepSeek critique recovers without restarting or ex
   assert.equal(result.events.at(-1).type, 'council_done');
   assert.match(result.reply.segments[1].response, /Valid contribution 4/);
 });
-test('invalid JSON, fields, blank text and ungrounded citations each get one bounded correction', async () => {
-  for (const [text, reason] of [['```json\n{}\n```', 'council_json'], ['{"text":"wrong"}', 'council_format'],
-    ['{"response":" "}', 'council_blank'], ['{"response":"Unsupported [1]"}', 'council_citation']]) {
+test('blank text and ungrounded citations each get one bounded correction', async () => {
+  for (const [text, reason] of [[' '.repeat(342), 'council_blank'], ['Unsupported [1]', 'council_citation']]) {
     const result = await runFixture((index, attempt) => index === 4 && !attempt ? text : good(index));
     assert.equal(result.error, undefined); assert.equal(result.calls.length, 8);
     assert.equal(JSON.parse(result.logs[0][1]).reason, reason);
   }
 });
 test('a failed correction stops after one extra call without completing the council', async () => {
-  const result = await runFixture(index => index === 4 ? '{' : good(index));
+  const result = await runFixture(index => index === 4 ? ' '.repeat(316) : good(index));
   assert.equal(result.error.code, 'answer_invalid'); assert.equal(result.calls.length, 6);
   assert.deepEqual(result.charges, [1]); assert(!result.events.some(e => e.type === 'council_done'));
   assert.equal(result.events.filter(e => e.state === 'complete').length, 4);
 });
 test('the entire discussion allows at most two corrections even across different providers', async () => {
-  const result = await runFixture((index, attempt) => [0, 1, 6].includes(index) && !attempt ? '{' : good(index));
+  const result = await runFixture((index, attempt) => [0, 1, 6].includes(index) && !attempt ? ' ' : good(index));
   assert.equal(result.error.code, 'answer_invalid'); assert.equal(result.calls.length, 9);
   assert.deepEqual(result.charges, [1, 1]); assert.equal(result.events.filter(e => e.state === 'repairing').length, 2);
   assert(!result.events.some(e => e.type === 'council_done'));
@@ -203,7 +267,7 @@ test('the entire discussion allows at most two corrections even across different
 test('Stop while correcting or reserving quota prevents another provider call', async () => {
   for (const options of [{ onEvent: (event, controller) => { if (event.state === 'repairing') controller.abort(); } },
     { reserveRepair: controller => controller.abort() }]) {
-    const result = await runFixture(index => index === 4 ? '{' : good(index), options);
+    const result = await runFixture(index => index === 4 ? ' '.repeat(316) : good(index), options);
     assert.equal(result.error.name, 'AbortError'); assert.equal(result.calls.length, 5);
     assert(!result.events.some(e => e.type === 'council_done'));
   }

@@ -59,7 +59,9 @@ async function requestMetabloomModel(payload, { selection, signal, fetchImpl = g
     path = '/messages';
     body = { model, system: payload.instructions, messages: claudeMessages(payload.input),
       max_tokens: payload.max_output_tokens, stream: false,
-      output_config: { format: { type: 'json_schema', schema: claudeSchema(payload.text.format.schema) } },
+      ...(payload.text?.format?.type === 'json_schema' ? {
+        output_config: { format: { type: 'json_schema', schema: claudeSchema(payload.text.format.schema) } },
+      } : {}),
       ...(payload.tools?.length ? {
         tools: payload.tools.map(tool => ({ name: tool.name, description: tool.description,
           input_schema: claudeSchema(tool.parameters), strict: true })),
