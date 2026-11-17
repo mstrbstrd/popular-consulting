@@ -2723,6 +2723,7 @@ const OrbSection = ({
 
       <div className="metabloom-chat__field">
         <MetabloomAvatar
+          provider={modelSelection?.provider}
           activityTheme={visibleTheme}
           underHoodPhase={visibleUnderHoodPhase}
           action={activeAction.id}

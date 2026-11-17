@@ -15,6 +15,11 @@ const ACTION_CODES = Object.freeze(Object.fromEntries(
 ));
 const NOVA_FALLBACK_COLORS = Object.freeze(["#ff4b14", "#ffb52e", "#fff0b3"]);
 const METALNOVA_FALLBACK_COLORS = Object.freeze(["#7a818b", "#c3cbd7", "#f3f6ff"]);
+const PROVIDER_COLORWAYS = Object.freeze({
+  openai: { label: "OpenAI jade, teal, and mint", colors: ["#16a77a", "#20c9b5", "#98efd0"] },
+  deepseek: { label: "DeepSeek cobalt, indigo, and ice blue", colors: ["#386bff", "#6654df", "#82c9ff"] },
+  anthropic: { label: "Claude burnt orange, amber, and peach", colors: ["#d96638", "#f59c46", "#ffd0a1"] },
+});
 
 const clamp = (value, minimum, maximum) =>
   Math.max(minimum, Math.min(maximum, value));
@@ -47,6 +52,7 @@ const MetabloomAvatar = ({
   onPulse,
   paused = false,
   pointerReactive = true,
+  provider = null,
   pulseVersion = 0,
   resetVersion = 0,
   talking = false,
@@ -71,10 +77,13 @@ const MetabloomAvatar = ({
   });
   const isNova = metabloomPalette === "nova";
   const isMetalNova = metabloomPalette === "metalnova";
-  const fallbackColors = isMetalNova ? METALNOVA_FALLBACK_COLORS :
-    isNova ? NOVA_FALLBACK_COLORS : normalizedAction.colors;
-  const colorwayLabel = isMetalNova ? "mercury, silver, and prismatic white" :
-    isNova ? "ember, flame, and gold" : normalizedAction.colorway;
+  const providerColorway = Object.prototype.hasOwnProperty.call(PROVIDER_COLORWAYS, provider)
+    ? PROVIDER_COLORWAYS[provider] : null;
+  const avatarColors = providerColorway?.colors || normalizedAction.colors;
+  const fallbackColors = providerColorway?.colors || (isMetalNova ? METALNOVA_FALLBACK_COLORS :
+    isNova ? NOVA_FALLBACK_COLORS : normalizedAction.colors);
+  const colorwayLabel = providerColorway?.label || (isMetalNova ? "mercury, silver, and prismatic white" :
+    isNova ? "ember, flame, and gold" : normalizedAction.colorway);
   const materialLabel = isMetalNova ? "MetalNova liquid-metal fire" : isNova ? "Nova fire" :
     metabloomPalette === "metalbloom" ? "liquid metal" : "spectral fluid";
 
@@ -97,7 +106,8 @@ const MetabloomAvatar = ({
       data-avatar-action={normalizedAction.id}
       data-avatar-action-version={actionVersion}
       data-avatar-active={active ? "true" : "false"}
-      data-avatar-colorway={normalizedAction.colorway}
+      data-avatar-colorway={colorwayLabel}
+      data-avatar-provider={providerColorway ? provider : undefined}
       data-avatar-duration={actionDuration}
       data-avatar-engine="intrinsic-shader"
       data-avatar-faceless="true"
@@ -122,9 +132,9 @@ const MetabloomAvatar = ({
         externalPulseVersion={pulseVersion}
         isDark={isDark}
         metabloomAvatarAction={actionCode}
-        metabloomAvatarColorA={normalizedAction.colors[0]}
-        metabloomAvatarColorB={normalizedAction.colors[1]}
-        metabloomAvatarColorC={normalizedAction.colors[2]}
+        metabloomAvatarColorA={avatarColors[0]}
+        metabloomAvatarColorB={avatarColors[1]}
+        metabloomAvatarColorC={avatarColors[2]}
         metabloomAvatarDuration={actionDuration}
         metabloomAvatarEnabled
         metabloomSceneTransitions
@@ -133,6 +143,7 @@ const MetabloomAvatar = ({
         metabloomAvatarTalking={talking}
         metabloomAvatarVersion={actionVersion}
         metabloomPalette={metabloomPalette}
+        metabloomProviderColorway={Boolean(providerColorway)}
         mode={fieldMode}
         onFieldStateChange={onFieldStateChange}
         onReady={onReady}

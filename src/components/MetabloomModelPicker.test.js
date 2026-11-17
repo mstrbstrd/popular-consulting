@@ -7,7 +7,8 @@ import OrbSection from './OrbSection';
 import MetabloomWorkspaceContext from './MetabloomWorkspaceContext';
 
 jest.mock('./metabloomModelApiClient', () => ({ requestMetabloomModels: jest.fn() }));
-jest.mock('./MetabloomAvatar', () => () => null);
+let mockAvatar;
+jest.mock('./MetabloomAvatar', () => props => { mockAvatar = props; return null; });
 jest.mock('../contexts/ThemeContext', () => ({ useThemeMode: () => ({ isDark: false }) }));
 const preferences = () => ({ provider: 'openai', defaults: { openai: 'gpt-5-mini', deepseek: 'deepseek-flash', anthropic: 'latest' } });
 const catalog = () => ({ version: 1, preferences: preferences(), preferencesAvailable: true,
@@ -126,4 +127,29 @@ test('marks the picker with a warning state only while the warning is shown', as
   const root = container.querySelector('.metabloom-model-picker');
   await waitFor(() => expect(screen.queryByRole('status')).toHaveTextContent('Choose an available model to continue.'));
   expect(root).toHaveAttribute('data-warning', 'true');
+});
+
+
+test('Orb colour follows restored and committed providers, never draft or failed saves', async () => {
+  const saved = catalog(); saved.preferences.provider = 'anthropic';
+  requestMetabloomModels.mockResolvedValueOnce(saved);
+  render(<MetabloomWorkspaceContext.Provider value={{}}><OrbSection /></MetabloomWorkspaceContext.Provider>);
+  expect(mockAvatar.provider).toBeUndefined();
+  await waitFor(() => expect(mockAvatar.provider).toBe('anthropic'));
+  const chooseProvider = provider => {
+    fireEvent.click(screen.getByRole('button', { name: 'Choose chat model' }));
+    fireEvent.change(screen.getByRole('combobox', { name: 'Model provider' }), { target: { value: provider } });
+  };
+  chooseProvider('deepseek');
+  expect(mockAvatar.provider).toBe('anthropic');
+  requestMetabloomModels.mockRejectedValueOnce(new Error('offline'));
+  fireEvent.click(screen.getByRole('button', { name: 'Save as provider default' }));
+  await screen.findByText(/could not be confirmed/);
+  expect(mockAvatar.provider).toBe('anthropic');
+  fireEvent.click(screen.getByRole('button', { name: 'Use model' }));
+  expect(mockAvatar.provider).toBe('deepseek');
+  chooseProvider('openai');
+  expect(mockAvatar.provider).toBe('deepseek');
+  fireEvent.click(screen.getByRole('button', { name: 'Use model' }));
+  expect(mockAvatar.provider).toBe('openai');
 });

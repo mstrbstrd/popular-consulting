@@ -435,6 +435,7 @@ uniform int u_modeA;
 uniform int u_modeB;
 uniform float u_modeMix;
 uniform float u_metabloomPaletteMix;
+uniform float u_metabloomProviderMix;
 uniform float u_contourPaletteMix;
 uniform float u_tidalPaletteMix;
 uniform float u_avatarEnabled;
@@ -617,6 +618,23 @@ vec4 fluidMaterial(
 }
 
 ${METABLOOM_NOVA_SHADER}
+
+// Provider identity is independent of the expression envelope and finish.
+// Grade only this material, before Bayer output; preserve alpha and the native
+// lighting contrast, including Nova's early return and metal's bright reflections.
+vec4 metabloomProviderMaterial(vec4 material, float hue) {
+  if (u_metabloomProviderMix <= 0.0) return material;
+  float coordinate = 0.5 + 0.5 * sin(hue * TAU);
+  vec3 tint = coordinate < 0.5
+    ? mix(u_avatarColorA, u_avatarColorB, coordinate * 2.0)
+    : mix(u_avatarColorB, u_avatarColorC, (coordinate - 0.5) * 2.0);
+  float brightness = max(material.r, max(material.g, material.b));
+  float highlight = smoothstep(0.85, 1.65, brightness)
+    * mix(0.35, 0.65, sat(u_metabloomPaletteMix));
+  vec3 color = mix(tint, vec3(1.0), highlight) * brightness;
+  material.rgb = mix(material.rgb, color, sat(u_metabloomProviderMix));
+  return material;
+}
 
 vec4 sceneMetabloom(vec2 uv, float time) {
   vec2 scale = aspectScale();
@@ -852,7 +870,10 @@ if (u_metabloomNovaMix > 0.001) {
   novaMaterial = novaFireMaterial(spectralMaterial, vec3(potential, membrane, edge),
     novaFlow, novaPotential, novaEmbers, novaFlameSurface);
   if (u_metabloomNovaMix >= 0.999 && u_metabloomPaletteMix <= 0.001) {
-    return novaPrismaticEdges(novaMaterial, p, baseHue, novaFlameSurface, novaLiftedSignal);
+    return metabloomProviderMaterial(
+      novaPrismaticEdges(novaMaterial, p, baseHue, novaFlameSurface, novaLiftedSignal),
+      baseHue
+    );
   }
 }
 
@@ -1109,11 +1130,11 @@ if (u_metabloomNovaMix > 0.001) {
   );
 }
 
-return blendNovaFire(mix(
+return metabloomProviderMaterial(blendNovaFire(mix(
   spectralMaterial,
   metalMaterial,
   sat(u_metabloomPaletteMix)
-), novaMaterial);
+), novaMaterial), baseHue);
 }
 
 vec4 sceneTidalWeave(vec2 uv, float time) {

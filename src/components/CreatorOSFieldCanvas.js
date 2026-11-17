@@ -463,6 +463,7 @@ const CreatorOSFieldCanvas = ({
   metabloomAvatarTalking = false,
   metabloomAvatarVersion = 0,
   metabloomPalette = "spectral",
+  metabloomProviderColorway = false,
   metabloomSceneTransitions = false,
   metabloomUnderHoodPhase = null,
   mode = 0,
@@ -494,6 +495,7 @@ const CreatorOSFieldCanvas = ({
     resolveMetabloomPaletteMix(metabloomPalette),
   );
   const metabloomNovaRef = useRef(resolveMetabloomNovaMix(metabloomPalette));
+  const metabloomProviderMixRef = useRef(metabloomProviderColorway ? 1 : 0);
   const metabloomAvatarActionRef = useRef(
     normalizeMetabloomAvatarAction(metabloomAvatarAction),
   );
@@ -647,6 +649,7 @@ const CreatorOSFieldCanvas = ({
   ]);
 
   useEffect(() => {
+    metabloomProviderMixRef.current = metabloomProviderColorway ? 1 : 0;
     metabloomAvatarColorARef.current = morphogenColorToRgb(
       metabloomAvatarColorA,
       METABLOOM_AVATAR_DEFAULT_COLOR_A,
@@ -663,6 +666,7 @@ const CreatorOSFieldCanvas = ({
       normalizeMetabloomAvatarIntensity(metabloomAvatarIntensity);
     redrawRef.current();
   }, [
+    metabloomProviderColorway,
     metabloomAvatarColorA,
     metabloomAvatarColorB,
     metabloomAvatarColorC,
@@ -829,6 +833,7 @@ const CreatorOSFieldCanvas = ({
     let metabloomMotionFrame = metabloomMotionRuntime.snapshot();
     let metabloomRenderedPaletteMix = metabloomPaletteRef.current;
     let metabloomRenderedNovaMix = metabloomNovaRef.current;
+    let metabloomRenderedProviderMix = metabloomProviderMixRef.current;
     let metabloomRenderedIntensity = metabloomAvatarIntensityRef.current;
     let metabloomRenderedColorA = [...metabloomAvatarColorARef.current];
     let metabloomRenderedColorB = [...metabloomAvatarColorBRef.current];
@@ -1046,6 +1051,7 @@ const CreatorOSFieldCanvas = ({
       "u_activityWeights",
       "u_underHood",
       "u_metabloomPaletteMix",
+      "u_metabloomProviderMix",
       "u_metabloomNovaMix",
       "u_novaTime",
       "u_contourPaletteMix",
@@ -1364,6 +1370,7 @@ const CreatorOSFieldCanvas = ({
       metabloomMotionFrame = metabloomMotionRuntime.snapshot();
       metabloomRenderedPaletteMix = metabloomPaletteRef.current;
       metabloomRenderedNovaMix = metabloomNovaRef.current;
+      metabloomRenderedProviderMix = metabloomProviderMixRef.current;
       metabloomRenderedIntensity = metabloomAvatarIntensityRef.current;
       metabloomRenderedColorA = [...metabloomAvatarColorARef.current];
       metabloomRenderedColorB = [...metabloomAvatarColorBRef.current];
@@ -1448,6 +1455,12 @@ const CreatorOSFieldCanvas = ({
         metabloomNovaRef.current,
         delta,
         6.5,
+      );
+      metabloomRenderedProviderMix = dampMetabloomValue(
+        metabloomRenderedProviderMix,
+        metabloomProviderMixRef.current,
+        delta,
+        7.0,
       );
       metabloomRenderedIntensity = dampMetabloomValue(
         metabloomRenderedIntensity,
@@ -1701,6 +1714,7 @@ const CreatorOSFieldCanvas = ({
         metabloomRenderedPaletteMix,
       );
       gl.uniform1f(activeDisplayUniforms.u_metabloomNovaMix, metabloomRenderedNovaMix);
+      gl.uniform1f(activeDisplayUniforms.u_metabloomProviderMix, metabloomRenderedProviderMix);
       gl.uniform1f(activeDisplayUniforms.u_novaTime, novaTime);
       gl.uniform1f(
         activeDisplayUniforms.u_contourPaletteMix,
@@ -1891,6 +1905,7 @@ const CreatorOSFieldCanvas = ({
       introElapsed = INTRO_DURATION_SECONDS;
       metabloomRenderedPaletteMix = metabloomPaletteRef.current;
       metabloomRenderedNovaMix = metabloomNovaRef.current;
+      metabloomRenderedProviderMix = metabloomProviderMixRef.current;
       metabloomRenderedIntensity = metabloomAvatarIntensityRef.current;
       metabloomRenderedColorA = [...metabloomAvatarColorARef.current];
       metabloomRenderedColorB = [...metabloomAvatarColorBRef.current];
@@ -1985,6 +2000,10 @@ const CreatorOSFieldCanvas = ({
         // A finish can change on a paused frame without starting the simulation.
         metabloomRenderedPaletteMix = metabloomPaletteRef.current;
         metabloomRenderedNovaMix = metabloomNovaRef.current;
+        metabloomRenderedProviderMix = metabloomProviderMixRef.current;
+        metabloomRenderedColorA = [...metabloomAvatarColorARef.current];
+        metabloomRenderedColorB = [...metabloomAvatarColorBRef.current];
+        metabloomRenderedColorC = [...metabloomAvatarColorCRef.current];
         if (paintBrushPending) {
           drawReactionStep(0.62, true);
         }

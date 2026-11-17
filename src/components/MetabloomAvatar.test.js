@@ -235,3 +235,41 @@ describe("MetabloomAvatar", () => {
     expect(mockFieldProps.metabloomAvatarAction).toBe(7);
   });
 });
+
+
+test.each(["spectral", "metalbloom", "nova", "metalnova"])(
+  "provider colour persists through expressions while preserving the %s finish", (finish) => {
+    const avatar = (provider, action = "reform") => <MetabloomPaletteContext.Provider value={finish}>
+      <MetabloomAvatar provider={provider} action={action} actionVersion={3} paused />
+    </MetabloomPaletteContext.Provider>;
+    const { rerender } = render(avatar(null));
+    const field = screen.getByTestId("creatoros-metabloom-field");
+    for (const [provider, label, colors] of [
+      ["openai", "OpenAI", ["#16a77a", "#20c9b5", "#98efd0"]],
+      ["deepseek", "DeepSeek", ["#386bff", "#6654df", "#82c9ff"]],
+      ["anthropic", "Claude", ["#d96638", "#f59c46", "#ffd0a1"]],
+    ]) {
+      for (const action of ["reform", "happy", "disagree"]) {
+        rerender(avatar(provider, action));
+        const body = screen.getByTestId("metabloom-avatar");
+        expect(body).toHaveAttribute("data-avatar-provider", provider);
+        expect(body).toHaveAccessibleName(new RegExp(label));
+        ["a", "b", "c"].forEach((key, i) => expect(body.style.getPropertyValue(`--avatar-color-${key}`)).toBe(colors[i]));
+        expect(mockFieldProps).toMatchObject({
+          metabloomProviderColorway: true,
+          metabloomAvatarColorA: colors[0], metabloomAvatarColorB: colors[1], metabloomAvatarColorC: colors[2],
+          metabloomPalette: finish, metabloomAvatarVersion: 3, paused: true,
+        });
+        expect(screen.getByTestId("creatoros-metabloom-field")).toBe(field);
+      }
+    }
+    // Loading, sign-out, and invalid identifiers cannot imply a different provider.
+    for (const provider of [null, "unknown", "toString"]) {
+      rerender(avatar(provider, "disagree"));
+      expect(screen.getByTestId("metabloom-avatar")).not.toHaveAttribute("data-avatar-provider");
+      expect(mockFieldProps.metabloomProviderColorway).toBe(false);
+      expect(mockFieldProps.metabloomAvatarColorA).toBe("#ff315f");
+      expect(mockFieldProps.metabloomPalette).toBe(finish);
+    }
+  },
+);

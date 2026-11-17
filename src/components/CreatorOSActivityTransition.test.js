@@ -1,4 +1,6 @@
 import React from "react";
+import MetabloomAvatar from "./MetabloomAvatar";
+import MetabloomPaletteContext from "../contexts/MetabloomPaletteContext";
 import { act, cleanup, render } from "@testing-library/react";
 import CreatorOSFieldCanvas, { specializeCreatorOSFieldFragmentShader } from "./CreatorOSFieldCanvas";
 import { CREATOROS_FIELD_FRAGMENT_SHADER } from "./CreatorOSFieldShader";
@@ -268,4 +270,68 @@ test("disabling pointer response clears previous hover state without replacing t
   expect(uniform("uniform1f", "u_energy")[0]).toBeGreaterThan(0);
   expect(container.querySelector("canvas")).toBe(canvas);
   expect(createDitherCanvasContext).toHaveBeenCalledTimes(1);
+});
+
+
+test.each(["spectral", "metalbloom", "nova", "metalnova"])(
+  "provider colours transition in the same %s renderer without resetting time or seed", (finish) => {
+    const avatar = provider => <MetabloomPaletteContext.Provider value={finish}>
+      <MetabloomAvatar provider={provider} />
+    </MetabloomPaletteContext.Provider>;
+    const { container, rerender } = render(avatar(null));
+    frame(8);
+    expect(uniform("uniform1f", "u_metabloomProviderMix")).toEqual([0]);
+    const canvas = container.querySelector("canvas");
+    const time = uniform("uniform1f", "u_time")[0];
+    const seed = uniform("uniform1f", "u_seed")[0];
+    for (const [provider, color] of [["anthropic", [217, 102, 56]], ["openai", [22, 167, 122]], ["deepseek", [56, 107, 255]]]) {
+      const previous = uniform("uniform3f", "u_avatarColorA");
+      rerender(avatar(provider));
+      frame();
+      const transitioning = uniform("uniform3f", "u_avatarColorA");
+      expect(transitioning).not.toEqual(previous);
+      expect(transitioning).not.toEqual(color.map(value => value / 255));
+      frame(30);
+      uniform("uniform3f", "u_avatarColorA").forEach((value, i) => expect(value).toBeCloseTo(color[i] / 255, 4));
+      expect(uniform("uniform1f", "u_metabloomProviderMix")[0]).toBeCloseTo(1, 4);
+      expect(uniform("uniform1f", "u_time")[0]).toBeGreaterThan(time);
+      expect(uniform("uniform1f", "u_seed")[0]).toBe(seed);
+      expect(container.querySelector("canvas")).toBe(canvas);
+    }
+    expect(uniform("uniform1f", "u_metabloomPaletteMix")).toEqual([finish.startsWith("metal") ? 1 : 0]);
+    expect(uniform("uniform1f", "u_metabloomNovaMix")).toEqual([finish.includes("nova") ? 1 : 0]);
+    expect(createDitherCanvasContext).toHaveBeenCalledTimes(1);
+    expect(mockGl.createProgram).toHaveBeenCalledTimes(1);
+  },
+);
+
+test.each(["paused", "reduced-motion"])("provider colours redraw a %s Orb without advancing motion", state => {
+  mockMotion.matches = state === "reduced-motion";
+  const avatar = provider => <MetabloomAvatar provider={provider} paused={state === "paused"} />;
+  const { rerender } = render(avatar("openai"));
+  if (!mockMotion.matches) frame();
+  const time = uniform("uniform1f", "u_time")[0];
+  rerender(avatar("anthropic"));
+  if (!mockMotion.matches) act(() => expect(mockFrame({ deltaMs: 100 })).toBe(false));
+  expect(uniform("uniform3f", "u_avatarColorA")).toEqual([217 / 255, 102 / 255, 56 / 255]);
+  expect(uniform("uniform1f", "u_metabloomProviderMix")).toEqual([1]);
+  expect(uniform("uniform1f", "u_time")[0]).toBe(time);
+  expect(createDitherCanvasContext).toHaveBeenCalledTimes(1);
+  if (mockMotion.matches) expect(mockCadence.schedule).not.toHaveBeenCalled();
+});
+
+test("context restoration keeps the latest provider colour", () => {
+  const { container, rerender } = render(<MetabloomAvatar provider="openai" paused />);
+  frame();
+  const canvas = container.querySelector("canvas");
+  act(() => canvas.dispatchEvent(new Event("webglcontextlost", { cancelable: true })));
+  const draws = mockGl.drawArrays.mock.calls.length;
+  rerender(<MetabloomAvatar provider="anthropic" paused />);
+  frame();
+  expect(mockGl.drawArrays).toHaveBeenCalledTimes(draws);
+  act(() => canvas.dispatchEvent(new Event("webglcontextrestored")));
+  frame();
+  expect(uniform("uniform3f", "u_avatarColorA")).toEqual([217 / 255, 102 / 255, 56 / 255]);
+  expect(uniform("uniform1f", "u_metabloomProviderMix")).toEqual([1]);
+  expect(container.querySelector("canvas")).toBe(canvas);
 });
