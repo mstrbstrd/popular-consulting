@@ -91,17 +91,19 @@ export default function MetabloomModelPicker({ selection, onChange, onAvailabili
     {open && <dialog ref={dialog} className="metabloom-model-picker__dialog" aria-labelledby="metabloom-model-title"
       onCancel={event => { event.preventDefault(); close(); }} onClick={event => { if (event.target === dialog.current) close(); }}>
       <div className="metabloom-model-picker__content">
-        <div className="metabloom-model-picker__heading"><h2 id="metabloom-model-title">Chat model</h2><button type="button" aria-label="Close model settings" onClick={close}>×</button></div>
+        <div className="metabloom-model-picker__heading"><h2 id="metabloom-model-title">Chat model</h2><button type="button" className="metabloom-model-picker__close" aria-label="Close model settings" onClick={close}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
+        </button></div>
         <p>Your selected provider writes replies and research briefs. Web research and visuals use shared OpenAI services.</p>
-        <label>Provider<select aria-label="Model provider" value={draft.provider} disabled={saving} onChange={event => {
+        <label>Provider<span className="metabloom-model-picker__field"><select aria-label="Model provider" value={draft.provider} disabled={saving} onChange={event => {
           const id = event.target.value; setDraft({ provider: id, model: preferences.defaults[id] }); setError(''); setNotice('');
-        }}>{Object.entries(METABLOOM_PROVIDERS).map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></label>
-        {provider?.status === 'ready' ? <label>Model<select aria-label="Chat model" value={draft.model} disabled={saving} onChange={event => setDraft({ ...draft, model: event.target.value })}>
+        }}>{Object.entries(METABLOOM_PROVIDERS).map(([id, name]) => <option key={id} value={id}>{name}</option>)}</select></span></label>
+        {provider?.status === 'ready' ? <label>Model<span className="metabloom-model-picker__field"><select aria-label="Chat model" value={draft.model} disabled={saving} onChange={event => setDraft({ ...draft, model: event.target.value })}>
           {provider.defaultModel && <option value="default">Configured default ({provider.defaultModel})</option>}
           {provider.latestModel && <option value="latest">Latest available ({provider.latestModel})</option>}
           {!valid && <option value={draft.model} disabled>{draft.model} (unavailable)</option>}
           {provider.models.map(model => <option key={model.id} value={model.id}>{model.label}</option>)}
-        </select></label> : <p role="status">{loading ? 'Loading provider models…' : provider?.status === 'not_configured'
+        </select></span></label> : <p role="status">{loading ? 'Loading provider models…' : provider?.status === 'not_configured'
           ? `${METABLOOM_PROVIDERS[draft.provider]} is not connected yet. Its server API key must be configured.`
           : 'This provider’s model list is unavailable. Retry to check the connection.'}</p>}
         {provider?.status === 'ready' && <small>Default for this provider: {preferences.defaults[draft.provider]}. Latest follows release metadata or the version reported by the provider. Lists refresh within five minutes.</small>}
@@ -110,7 +112,7 @@ export default function MetabloomModelPicker({ selection, onChange, onAvailabili
         <div className="metabloom-model-picker__actions">
           <button type="button" disabled={loading || saving} onClick={() => setRevision(value => value + 1)}>Refresh models</button>
           <button type="button" disabled={!valid || saving || disabled} onClick={save}>{saving ? 'Saving…' : 'Save as provider default'}</button>
-          <button type="button" disabled={!valid || saving || disabled} onClick={() => { choose(draft); close(); }}>Use model</button>
+          <button type="button" className="metabloom-model-picker__primary" disabled={!valid || saving || disabled} onClick={() => { choose(draft); close(); }}>Use model</button>
         </div>
       </div>
     </dialog>}

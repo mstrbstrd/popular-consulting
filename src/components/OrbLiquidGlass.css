@@ -70,7 +70,9 @@
 .orb-page .metabloom-reactions__panel,
 .orb-page .orb-appearance__dialog:not([data-inline='true']) { animation: liquid-glass-in var(--aetheris-motion-medium, 220ms) var(--aetheris-ease-standard, ease) both; }
 
-/* Painted spectral rings give way to the glass rim; refraction supplies the fringe. */
+/* Large glass surfaces keep only the glass rim; refraction supplies the fringe.
+   Composer controls and the controls inside the More and model dialogs carry
+   the Aetheris spectral ring instead (see "Spectral rings" at the end). */
 .orb-page .metabloom-reactions__toolbar > button::before,
 .orb-page .orb-appearance__dialog::before,
 .orb-page .metabloom-reactions__panel::before,
@@ -137,11 +139,12 @@
   .orb-page .orb-appearance__dialog .orb-page__finish-option:hover:not(.is-active) { background: var(--lg-lens-hover); }
 }
 
-/* Composer chips are capsules; the active Deep Research chip is a lens. */
+/* Composer chips are capsules; an active Council or Deep Research chip is a
+   lens with the selected spectral ring (see "Spectral rings" below). */
 .orb-page .metabloom-chat__research-toggle[data-enabled='true'] {
   border-color: transparent !important;
   background: var(--lg-lens) !important;
-  box-shadow: var(--lg-lens-edge), inset 0 0 0 1px color-mix(in srgb, var(--aetheris-teal) 45%, transparent) !important;
+  box-shadow: var(--lg-lens-edge) !important;
 }
 
 /* The sidebar shares the former nav's clear glass and inset control lenses.
@@ -225,3 +228,85 @@
 .orb-page .metabloom-council summary { cursor: pointer; overflow-wrap: anywhere; }
 .orb-page .metabloom-council p { white-space: pre-wrap; overflow-wrap: anywhere; }
 .orb-page .metabloom-council__notice { flex-basis: 100%; font-size: 1.2rem; line-height: 1.5; margin: 0.8rem; }
+
+/* ---------- Spectral rings on glass controls ----------
+   The Aetheris control language on top of the glass: a 1px soft spectral ring
+   at rest, the full spectrum on hover and keyboard focus, and a 2px full ring
+   for the selected state (the same rule as the reaction picker and the native
+   visual buttons). List rows inside a menu stay ringless until hovered or
+   focused, so the menu never reads as a stack of bordered cards. The ring is a
+   masked pseudo-element: it adds no backdrop filter and no layout. */
+.orb-page .metabloom-model-picker__trigger,
+.orb-page .metabloom-chat__research-toggle,
+.orb-page .metabloom-chat__latest { position: relative; isolation: isolate; }
+.orb-page .metabloom-model-picker__trigger::before,
+.orb-page .metabloom-reactions__toolbar > button::before,
+.orb-page .metabloom-chat__research-toggle::before,
+.orb-page .metabloom-chat__latest::before,
+.orb-page .metabloom-model-picker__dialog button::before,
+.orb-page .metabloom-model-picker__field::before,
+.orb-page .metabloom-reactions__panel .metabloom-reactions__heading button::before,
+.orb-page .metabloom-reactions__panel .metabloom-reactions__saved-tool::before {
+  content: ""; display: block; position: absolute; inset: 0; z-index: 2; padding: 1px;
+  border-radius: inherit; pointer-events: none; opacity: 1;
+  background: var(--aetheris-spectral-border-soft);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); mask-composite: exclude;
+}
+/* Hover and keyboard focus light the full spectrum. */
+@media (hover: hover) {
+  .orb-page .metabloom-model-picker__trigger:hover:not(:disabled)::before,
+  .orb-page .metabloom-reactions__toolbar > button:hover:not(:disabled)::before,
+  .orb-page .metabloom-chat__research-toggle:hover:not([data-disabled='true'])::before,
+  .orb-page .metabloom-chat__latest:hover::before,
+  .orb-page .metabloom-model-picker__dialog button:hover:not(:disabled)::before,
+  .orb-page .metabloom-model-picker__field:hover::before,
+  .orb-page .metabloom-reactions__panel .metabloom-reactions__heading button:hover::before { background: var(--aetheris-spectral); }
+}
+.orb-page .metabloom-model-picker__trigger:focus-visible::before,
+.orb-page .metabloom-reactions__toolbar > button:focus-visible::before,
+.orb-page .metabloom-chat__research-toggle:has(input:focus-visible)::before,
+.orb-page .metabloom-chat__latest:focus-visible::before,
+.orb-page .metabloom-model-picker__dialog button:focus-visible::before,
+.orb-page .metabloom-model-picker__field:focus-within::before,
+.orb-page .metabloom-reactions__panel .metabloom-reactions__heading button:focus-visible::before { background: var(--aetheris-spectral); }
+/* Selected: an enabled chip, or the control whose menu is open. */
+.orb-page .metabloom-chat__research-toggle[data-enabled='true']::before,
+.orb-page .metabloom-reactions__toolbar > button[aria-expanded='true']::before,
+.orb-page .metabloom-model-picker__trigger[aria-expanded='true']::before { padding: 2px; background: var(--aetheris-spectral); }
+.orb-page .metabloom-reactions__toolbar > button[aria-expanded='true'] { background: var(--lg-lens) !important; }
+
+/* Model dialog: capsule controls on lens fills, one primary action. */
+.orb-page .metabloom-model-picker__dialog button { background: var(--lg-lens-hover); box-shadow: var(--lg-lens-edge); }
+.orb-page .metabloom-model-picker__dialog .metabloom-model-picker__close { background: transparent; box-shadow: none; }
+.orb-page .metabloom-model-picker__dialog .metabloom-model-picker__primary { background: var(--lg-lens); }
+.orb-page .metabloom-model-picker__dialog .metabloom-model-picker__primary::before { background: var(--aetheris-spectral); }
+.orb-page .metabloom-model-picker__field { background: var(--lg-lens-hover); box-shadow: var(--lg-lens-edge); }
+@media (hover: hover) {
+  .orb-page .metabloom-model-picker__dialog button:hover:not(:disabled),
+  .orb-page .metabloom-model-picker__field:hover { background: var(--lg-lens); }
+}
+.orb-page .metabloom-model-picker__heading { border-bottom-color: color-mix(in srgb, var(--lg-rim) 70%, transparent); }
+
+/* More: the close control is a ringed circle; rows light up only on hover/focus. */
+.orb-page .metabloom-reactions__panel .metabloom-reactions__saved-tool::before { opacity: 0; background: var(--aetheris-spectral); }
+@media (hover: hover) {
+  .orb-page .metabloom-reactions__panel .metabloom-reactions__saved-tool:hover:not(:disabled)::before { opacity: 1; }
+}
+.orb-page .metabloom-reactions__panel .metabloom-reactions__saved-tool:focus-visible { background: var(--lg-lens-hover); box-shadow: inset 0 1px 0.5px var(--lg-spec-top); }
+.orb-page .metabloom-reactions__panel .metabloom-reactions__saved-tool:focus-visible::before { opacity: 1; }
+
+@media (forced-colors: active) {
+  .orb-page .metabloom-model-picker__trigger::before,
+  .orb-page .metabloom-reactions__toolbar > button::before,
+  .orb-page .metabloom-chat__research-toggle::before,
+  .orb-page .metabloom-chat__latest::before,
+  .orb-page .metabloom-model-picker__dialog button::before,
+  .orb-page .metabloom-model-picker__field::before,
+  .orb-page .metabloom-reactions__panel .metabloom-reactions__heading button::before,
+  .orb-page .metabloom-reactions__panel .metabloom-reactions__saved-tool::before { display: none; }
+  .orb-page .metabloom-model-picker__dialog button,
+  .orb-page .metabloom-model-picker__field { background: ButtonFace; color: ButtonText; box-shadow: none; }
+  .orb-page .metabloom-chat__research-toggle[data-enabled='true'],
+  .orb-page .metabloom-reactions__toolbar > button[aria-expanded='true'] { outline: 2px solid Highlight; outline-offset: -2px; }
+}

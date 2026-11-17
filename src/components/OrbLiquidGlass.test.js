@@ -80,4 +80,24 @@ describe('shared liquid glass lenses', () => {
     expect(body).toContain('background: var(--lg-lens-hover) !important;');
     expect(body).not.toMatch(/background: var\(--lg-lens\) /);
   });
+
+  test('composer and dialog controls carry the spectral ring: soft, full on hover/focus, 2px when selected', () => {
+    const ring = css.slice(css.indexOf('Spectral rings on glass controls'));
+    ['.metabloom-model-picker__trigger', '.metabloom-reactions__toolbar > button', '.metabloom-chat__research-toggle',
+      '.metabloom-chat__latest', '.metabloom-model-picker__dialog button', '.metabloom-model-picker__field']
+      .forEach(control => expect(ring).toContain(`.orb-page ${control}::before`));
+    expect(ring).toMatch(/background: var\(--aetheris-spectral-border-soft\);/);
+    expect(ring).toMatch(/mask-composite: exclude;/);
+    expect(rules).toMatch(/\.metabloom-chat__research-toggle\[data-enabled='true'\]::before,[^{]*\{ padding: 2px; background: var\(--aetheris-spectral\); \}/);
+    expect(rules).toMatch(/\.metabloom-reactions__toolbar > button:focus-visible::before,[^{]*\{ background: var\(--aetheris-spectral\); \}/);
+    // The teal ring no longer marks an enabled chip; the spectral ring does.
+    expect(rules).not.toMatch(/research-toggle\[data-enabled='true'\] \{[^}]*--aetheris-teal/);
+    // Forced colours drop painted rings for system colours.
+    expect(rules).toMatch(/@media \(forced-colors: active\) \{[^@]*\.metabloom-chat__research-toggle::before,[^@]*display: none;/);
+  });
+
+  test('menu rows stay ringless until hovered or focused', () => {
+    expect(rules).toMatch(/\.metabloom-reactions__panel \.metabloom-reactions__saved-tool::before \{ opacity: 0; background: var\(--aetheris-spectral\); \}/);
+    expect(rules).toMatch(/\.metabloom-reactions__saved-tool:focus-visible::before \{ opacity: 1; \}/);
+  });
 });
