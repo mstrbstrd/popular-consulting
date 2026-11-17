@@ -46,7 +46,11 @@ const brief = () => ({ version: 'metabloom-research-brief-v1', kind: 'research',
     background: [], whyItMatters: 'The supported interpretation.', uncertainty: [], watchNext: [],
     developmentDate: null, scheduledDate: null, dateEvidence: null, evidenceStatus: 'reported' }],
   sourceDetails: [{ sourceId: 9, publisher: 'Fictional publication', publishedDate: null,
-    dateEvidence: '', sourceType: 'reporting' }], media: [{ sourceId: 9, token: 'signed-session-only-token' }] });
+    dateEvidence: '', sourceType: 'reporting' }], media: [{ sourceId: 9, token: 'signed-session-only-token' }],
+  subjectImages: [{ itemIndex: 0, token: 'signed-session-only-image', width: 640, height: 480, alt: 'Fictional hall',
+    title: 'Fictional Hall', pageUrl: 'https://en.wikipedia.org/wiki/Fictional_Hall',
+    fileUrl: 'https://commons.wikimedia.org/wiki/File:Hall.jpg', artist: 'Fictional Photographer',
+    license: 'CC BY 4.0', licenseUrl: null }] });
 const withResearch = () => {
   const value = snapshot();
   Object.assign(value.conversation.messages[1], { researchDetails: { notes: 'Full original evidence. [9]', sources: copy(evidence) },
@@ -121,6 +125,7 @@ test('keeps full research, sparse source IDs, original dates and expired referen
   expect(report.researchReference).toEqual(reference());
   expect(report.researchBrief).toEqual(expect.objectContaining({ asOf: reference().asOf, localDate: '2020-01-01' }));
   expect(report.researchBrief).not.toHaveProperty('media');
+  expect(report.researchBrief).not.toHaveProperty('subjectImages');
   expect(parsed.workspace).toEqual(value.workspace);
   expect(parseMetabloomThreadSnapshot(parsed)).toEqual(parsed);
 });

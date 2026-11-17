@@ -1443,3 +1443,48 @@ test('retrying a captured Save after restoring different work associates only th
   expect(workspaceSaveStatus()).toHaveTextContent(/^Saved · Revision 1$/);
   expect(within(activeWorkspace()).getByRole('spinbutton', { name: 'Hours' })).toHaveValue(17);
 });
+
+describe('research finished in the current turn', () => {
+  const liveResearch = () => {
+    const restored = researchState({ reference: false }).orb.messages.find(message => message.id === 'assistant-4');
+    return { report: restored.researchDetails, brief: restored.researchBrief };
+  };
+  const completeResearch = async (request, { report, brief }) => {
+    act(() => {
+      request.onAction('deep-research');
+      request.onResearch({ state: 'searching' });
+      request.onResearchDetails(report);
+      request.onSources(report.sources);
+      request.onResearch({ state: 'synthesizing' });
+      request.onResearchBrief(brief);
+    });
+    await act(async () => requests[0].finish(envelope('Your research brief is ready.')));
+  };
+
+  test('opens in the workspace by itself once the reply completes', async () => {
+    workspace().mount();
+    send('Do a deep dive on the coastal evidence.');
+    await waitFor(() => expect(requests).toHaveLength(1));
+    await completeResearch(requests[0].request, liveResearch());
+    expect(await within(activeWorkspace()).findByRole('region', { name: 'Coastal evidence' })).toBeVisible();
+    expect(document.querySelector('.orb-page')).toHaveAttribute('data-active-component', 'true');
+  });
+
+  test('does not replace a component the reader explicitly opened during the turn', async () => {
+    workspace(initialState([record(1)])).mount();
+    await screen.findByRole('button', { name: 'Show component: Project price' });
+    send('Do a deep dive on the coastal evidence.');
+    await waitFor(() => expect(requests).toHaveLength(1));
+    show('Project price');
+    expect(within(activeWorkspace()).getByRole('region', { name: 'Project price' })).toBeVisible();
+    await completeResearch(requests[0].request, liveResearch());
+    expect(within(activeWorkspace()).getByRole('region', { name: 'Project price' })).toBeVisible();
+    expect(within(activeWorkspace()).queryByRole('region', { name: 'Coastal evidence' })).toBeNull();
+  });
+
+  test('a restored report never opens by itself', async () => {
+    workspace(researchState()).mount();
+    await screen.findByRole('button', { name: 'Open research: Coastal evidence' });
+    expect(within(activeWorkspace()).queryByRole('region', { name: 'Coastal evidence' })).toBeNull();
+  });
+});

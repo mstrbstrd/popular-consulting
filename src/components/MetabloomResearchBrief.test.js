@@ -130,11 +130,10 @@ test('every slide is prepared before navigation, with the visible story requeste
   expect(requestMetabloomSourcePreview).toHaveBeenCalledTimes(5);
 });
 
-test('preview work waits until the brief nears the viewport and stops when it unmounts', async () => {
+test('preview work starts as soon as the brief arrives, even off screen, and stops when it unmounts', async () => {
   const original = Object.getOwnPropertyDescriptor(window, 'IntersectionObserver');
-  let notify;
-  const disconnect = jest.fn();
-  window.IntersectionObserver = jest.fn(callback => { notify = callback; return { observe: jest.fn(), disconnect }; });
+  // A closed workspace slot never intersects; the brief must not wait for it.
+  window.IntersectionObserver = jest.fn(() => ({ observe: jest.fn(), disconnect: jest.fn() }));
   try {
     const brief = fixture();
     brief.media = [{ sourceId: 1, token: 'signed.source.1' }, { sourceId: 2, token: 'signed.source.2' }];
@@ -144,16 +143,83 @@ test('preview work waits until the brief nears the viewport and stops when it un
     }));
     const view = renderBrief(brief);
     await act(async () => {});
-    expect(requestMetabloomSourcePreview).not.toHaveBeenCalled();
-    await act(async () => notify([{ isIntersecting: true }]));
     expect(requestMetabloomSourcePreview).toHaveBeenCalledTimes(2);
-    expect(disconnect).toHaveBeenCalled();
+    expect(window.IntersectionObserver).not.toHaveBeenCalled();
     view.unmount();
     expect(pending.every(signal => signal.aborted)).toBe(true);
   } finally {
     if (original) Object.defineProperty(window, 'IntersectionObserver', original);
     else delete window.IntersectionObserver;
   }
+});
+
+describe('related subject photos', () => {
+  const related = (itemIndex = 0) => ({ itemIndex, token: `signed.subject.${itemIndex}`, width: 640, height: 480,
+    alt: 'Fictional town hall exterior', title: 'Fictional Town Hall',
+    pageUrl: 'https://en.wikipedia.org/wiki/Fictional_Town_Hall',
+    fileUrl: 'https://commons.wikimedia.org/wiki/File:Fictional_Town_Hall.jpg', artist: 'Fictional Photographer',
+    license: 'CC BY-SA 4.0', licenseUrl: 'https://creativecommons.org/licenses/by-sa/4.0' });
+  const noPhoto = () => Promise.resolve({ version: '1', isArticle: true, image: null, icon: null });
+
+  test('stands in, labelled and credited, only when no cited article offers a photo', async () => {
+    const brief = fixture();
+    brief.media = [{ sourceId: 1, token: 'signed.source.1' }];
+    brief.subjectImages = [related(0)];
+    requestMetabloomSourcePreview.mockImplementation(noPhoto);
+    renderBrief(brief);
+    await act(async () => {});
+    const first = within(screen.getByRole('article', { name: brief.items[0].headline }));
+    const photo = first.getByRole('img', { name: 'Related to this story, not from the cited article: Fictional town hall exterior' });
+    expect(photo).toHaveAttribute('src', metabloomSourceMediaUrl('signed.subject.0', 'image'));
+    expect(first.queryByRole('link', { name: /Related photo: Fictional Town Hall/ })).not.toBeInTheDocument();
+    fireEvent.load(photo);
+    const preview = first.getByRole('img', { name: /Related to this story/ }).closest('.metabloom-source-preview');
+    expect(preview).toHaveAttribute('data-related-photo', 'ready');
+    expect(first.getByRole('link', { name: /Related photo: Fictional Town Hall/ }))
+      .toHaveAttribute('href', 'https://en.wikipedia.org/wiki/Fictional_Town_Hall');
+    expect(first.getByText(/Photo: Fictional Photographer/)).toBeInTheDocument();
+    expect(first.getByRole('link', { name: /CC BY-SA 4.0/ })).toHaveAttribute('href', 'https://creativecommons.org/licenses/by-sa/4.0');
+    // The card still leads to the cited article, not to the photo.
+    expect(first.getByRole('link', { name: /Read article: Fictional source 1|Open source: Fictional source 1/ }))
+      .toHaveAttribute('href', sources[0].url);
+  });
+
+  test('never replaces a cited article photo, and a failed related photo returns to the plate', async () => {
+    const brief = fixture();
+    brief.media = [{ sourceId: 1, token: 'signed.source.1' }, { sourceId: 2, token: 'signed.source.2' }];
+    brief.subjectImages = [related(0), related(1)];
+    requestMetabloomSourcePreview.mockImplementation(token => token === 'signed.source.1' ? imagePreview(token) : noPhoto());
+    renderBrief(brief);
+    await act(async () => {});
+    const first = within(screen.getByRole('article', { name: brief.items[0].headline }));
+    expect(first.getByRole('img', { name: 'Image for signed.source.1' })).toBeInTheDocument();
+    expect(first.queryByRole('img', { name: /Related to this story/ })).not.toBeInTheDocument();
+    const second = screen.getByRole('article', { name: brief.items[1].headline, hidden: true });
+    const photo = within(second).getByRole('img', { name: /Related to this story/, hidden: true });
+    expect(photo).toHaveAttribute('loading', 'eager');
+    fireEvent.error(photo);
+    expect(within(second).queryByRole('img', { name: /Related to this story/, hidden: true })).not.toBeInTheDocument();
+    expect(second.querySelector('.metabloom-source-preview')).not.toHaveAttribute('data-related-photo');
+  });
+
+  test('a story without any media capability can still show its related photo', async () => {
+    const brief = fixture();
+    brief.subjectImages = [related(0)];
+    renderBrief(brief);
+    await act(async () => {});
+    expect(requestMetabloomSourcePreview).not.toHaveBeenCalled();
+    const first = within(screen.getByRole('article', { name: brief.items[0].headline }));
+    expect(first.getByRole('img', { name: /Related to this story/ })).toBeInTheDocument();
+  });
+
+  test('is accessible once shown', async () => {
+    const brief = fixture();
+    brief.subjectImages = [related(0)];
+    const view = renderBrief(brief);
+    await act(async () => {});
+    fireEvent.load(screen.getByRole('img', { name: /Related to this story/ }));
+    expect(await axe(view.container)).toHaveNoViolations();
+  });
 });
 
 test('general research findings receive the same media slot and images as news stories', async () => {

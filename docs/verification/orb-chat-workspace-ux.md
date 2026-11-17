@@ -122,6 +122,13 @@ one portal container in the same workspace as native components. The conversatio
 picker orders both kinds by their original message. Opening or switching reports
 starts no search and does not change the composer's captured context.
 
+Research that finishes in the current, uncancelled turn opens in the workspace's
+compact view once, like a generated component, so the reader does not have to
+find the card. It never opens over something the reader explicitly chose during
+that turn, and a report restored from a saved thread never opens by itself. Its
+article previews start loading as soon as the brief arrives, even before the
+panel is visible.
+
 Use this research, Use this brief, and Use this finding retain the existing exact
 server-owned reference protocol. On mobile, a successful selection returns the
 workspace to its compact view and focuses the existing composer. Expired or
@@ -139,7 +146,7 @@ pruning and account/route cleanup release their portal registrations. An embedde
 OrbSection without the workspace controller continues to render reports inline.
 
 The real-controller tests in `MetabloomComponentWorkspace.test.js` cover native and
-research switching, frozen attachments, exact finding reuse, expired handles,
+research switching, live-turn research opening (and its no-takeover and restore cases), frozen attachments, exact finding reuse, expired handles,
 StrictMode navigation, reset, pruning, and delayed generation. The surface tests
 also cover sparse original source IDs, disclosure/source pagination continuity,
 metadata changes, and interrupted report fallback. Browser layout checks remain

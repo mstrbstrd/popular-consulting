@@ -483,12 +483,21 @@ function createSourceMediaService({ fetchPublic = createPublicMediaFetcher(), co
       if (!entry.waiters && !entry.settled) entry.controller.abort();
     }
   };
+  // Why a page could not be read, kept only as an error class and HTTP status
+  // for outcome logs. Bounded; never holds a URL beyond this instance's cache key.
+  const metadataFailures = new Map();
+  const failureClass = error => ({ reason: /^source_media_[a-z_]{1,40}$/.test(error?.code) ? error.code : 'source_media_failed',
+    ...(Number.isSafeInteger(error?.status) && error.status > 0 ? { status: error.status } : {}) });
   const loadMetadata = (url, signal) => memo(metadataCache, `metadata:${url}`, async workSignal => {
     try {
       const result = await gate(() => fetchPublic(url, { kind: 'html', signal: workSignal }), workSignal);
+      metadataFailures.delete(url);
       return extractSourceMediaMetadata(result.body, result.url);
-    } catch {
+    } catch (error) {
       if (workSignal.aborted) throw mediaError('source_media_cancelled');
+      metadataFailures.delete(url);
+      metadataFailures.set(url, failureClass(error));
+      if (metadataFailures.size > 128) metadataFailures.delete(metadataFailures.keys().next().value);
       return null;
     }
   }, signal, value => value ? Buffer.byteLength(JSON.stringify(value)) : 8);
@@ -528,7 +537,9 @@ function createSourceMediaService({ fetchPublic = createPublicMediaFetcher(), co
   };
   const endpoint = (token, kind) => `/api/metabloom-source-media?token=${encodeURIComponent(token)}&kind=${kind}`;
   return Object.freeze({
-    async getPreview(identity, token, { signal } = {}) {
+    // `onOutcome` receives only an outcome class (and an HTTP status when a
+    // publisher refused the page), never the URL, token or identity.
+    async getPreview(identity, token, { signal, onOutcome } = {}) {
       return run(identity, token, signal, async ({ url, expiresAt }, currentSignal) => {
         const metadata = await loadMetadata(url, currentSignal);
         const [image, icon] = await Promise.all([
@@ -538,6 +549,11 @@ function createSourceMediaService({ fetchPublic = createPublicMediaFetcher(), co
         // The offered image is the raster this preview just validated. Its
         // capability never outlives the page capability that selected it.
         const imageToken = image && await codec.create(identity, url, { image: image.source, expiresAt });
+        if (typeof onOutcome === 'function' && !currentSignal.aborted) onOutcome(!metadata
+          ? { outcome: 'page_unavailable', ...(metadataFailures.get(url) || { reason: 'source_media_failed' }) }
+          : metadata.isArticle !== true ? { outcome: 'not_article' }
+          : !metadata.images?.length ? { outcome: 'no_image_candidates' }
+          : !image || !imageToken ? { outcome: 'image_invalid' } : { outcome: 'image' });
         return { version: SOURCE_MEDIA_VERSION,
           image: image && imageToken ? { src: endpoint(imageToken, 'image'), alt: image.alt } : null,
           icon: icon ? { src: endpoint(token, 'icon') } : null, isArticle: metadata?.isArticle === true };

@@ -40,8 +40,29 @@
 }
 .orb-page .metabloom-source-preview[data-preview-state='ready'] .metabloom-source-preview__image { opacity: 1; }
 .orb-page .metabloom-source-preview[data-preview-state='ready'] .metabloom-source-preview__fallback { visibility: hidden; }
+/* A related subject photo (Wikimedia) stands in when no cited article offers
+   one. Its label sits on the photo so it is never mistaken for the article's. */
+.orb-page .metabloom-source-preview[data-related-photo='ready'] .metabloom-source-preview__related { opacity: 1; }
+.orb-page .metabloom-source-preview[data-related-photo='ready'] .metabloom-source-preview__fallback { visibility: hidden; }
+.orb-page .metabloom-source-preview__related-badge {
+  position: absolute; left: 0.5rem; bottom: 0.5rem; padding: 0.2rem 0.5rem; border-radius: var(--aetheris-radius-sm, 6px);
+  max-width: calc(100% - 1rem); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: #fff; font: 500 max(1rem, 11px)/1.3 var(--aetheris-font-mono); letter-spacing: 0.01em;
+  background: rgba(8, 8, 9, 0.68); opacity: 0; transition: opacity 180ms ease-out; pointer-events: none;
+}
+.orb-page .metabloom-source-preview[data-related-photo='ready'] .metabloom-source-preview__related-badge { opacity: 1; }
+.orb-page .metabloom-research-brief p.metabloom-source-preview__related-credit,
+.orb-page p.metabloom-source-preview__related-credit {
+  display: flex; flex-wrap: wrap; gap: 0.2rem 0.5rem; margin: 0; padding: 0 0.2rem;
+  color: var(--aetheris-ink-2); font: 400 max(1rem, 11px)/1.45 var(--aetheris-font-mono); overflow-wrap: anywhere;
+}
+.orb-page .metabloom-source-preview__related-credit a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.orb-page .metabloom-source-preview__related-credit a:focus-visible {
+  outline: 2px solid transparent; border-radius: 4px; box-shadow: var(--aetheris-focus-halo);
+}
 @media (prefers-reduced-motion: reduce) {
-  .orb-page .metabloom-source-preview__image { transition: none; }
+  .orb-page .metabloom-source-preview__image,
+  .orb-page .metabloom-source-preview__related-badge { transition: none; }
 }
 .orb-page .metabloom-source-preview__content { display: flex; flex-direction: column; align-items: flex-start; gap: 0.6rem; min-width: 0; }
 .orb-page .metabloom-source-preview--compact {
@@ -195,6 +216,8 @@
   .orb-page .metabloom-source-preview--compact .metabloom-source-preview__publisher { grid-column: 1 / -1; grid-row: 1; }
   .orb-page .metabloom-source-preview--compact .metabloom-source-preview__image-area { grid-column: 1; grid-row: 2; }
   .orb-page .metabloom-source-preview--compact .metabloom-source-preview__article-link { grid-column: 2; grid-row: 2; align-self: center; }
+  .orb-page .metabloom-source-preview--compact p.metabloom-source-preview__related-credit { grid-column: 1 / -1; grid-row: 3; }
+  .orb-page .metabloom-source-preview__related-badge { left: 0.3rem; bottom: 0.3rem; padding: 0.1rem 0.35rem; font-size: 10px; letter-spacing: 0; }
   .orb-page .metabloom-source-preview__content { gap: 0.7rem; }
 }
 @media (prefers-reduced-transparency: reduce) {
@@ -202,6 +225,8 @@
   .orb-page .metabloom-source-preview__fallback { background: none; }
 }
 @media (forced-colors: active) {
+  .orb-page .metabloom-source-preview__related-badge { color: CanvasText; background: Canvas; border: 1px solid CanvasText; }
+  .orb-page .metabloom-source-preview__related-credit a { color: LinkText; }
   .orb-page .metabloom-source-preview, .orb-page .metabloom-source-icon { background: Canvas; color: CanvasText; border-color: CanvasText; }
   .orb-page .metabloom-source-preview__fallback, .orb-page .metabloom-source-preview__publisher { color: CanvasText; background: Canvas; }
   .orb-page .metabloom-research-brief a.metabloom-source-preview__action,

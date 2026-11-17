@@ -3,6 +3,7 @@ const { once } = require("node:events");
 const metabloomAuth = require("../server/metabloomAuth");
 const { isMetabloomPriceBookEnabled } = require('../server/metabloomPriceBookFeature');
 const sourceMedia = require("../server/metabloomSourceMedia");
+const imageSearch = require("../server/metabloomImageSearch");
 const { METABLOOM_CHAT_PROTOCOL_VERSION, METABLOOM_EMOTE_IDS, METABLOOM_CHAT_RESPONSE_SCHEMA, buildMetabloomChatSystemPrompt } = require("../src/components/metabloomEmoteLibrary");
 const { METABLOOM_ACTION_MODES } = require("../src/components/metabloomDecisionMapping");
 const { parseMetabloomOrbContext } = require('../src/components/metabloomExpressionProtocol');
@@ -297,6 +298,54 @@ const attachResearchMedia = async (brief, sources, identity) => {
   }))).filter(Boolean);
   if (!media.length) return brief;
   return parseMetabloomResearchBrief({ ...brief, media }, { sources }) || brief;
+};
+
+// Each story may also carry one freely licensed Wikimedia photo of its named
+// subject. The browser shows it, labelled "Related photo" with full credit,
+// only when none of the story's cited articles offers a photo. Lookups run in
+// parallel under one short budget; a slow or failed lookup only omits a photo.
+const RESEARCH_SUBJECT_IMAGE_BUDGET_MS = 4000;
+const attachResearchSubjectImages = async (brief, subjects, sources, identity, { signal, requestRef,
+  findImage = imageSearch.findMetabloomImage, budgetMs = RESEARCH_SUBJECT_IMAGE_BUDGET_MS } = {}) => {
+  if (!["news", "research"].includes(brief?.kind) || !Array.isArray(brief.items) || !identity
+    || !Array.isArray(subjects) || subjects.length !== brief.items.length) return brief;
+  const wanted = subjects.map(subject => typeof subject === "string" ? subject.trim() : "");
+  const requested = wanted.filter(Boolean).length;
+  if (!requested) return brief;
+  const controller = new AbortController();
+  const stop = () => controller.abort();
+  signal?.addEventListener("abort", stop, { once: true });
+  const timer = setTimeout(stop, budgetMs);
+  const lookups = new Map(), startedAt = Date.now();
+  try {
+    const found = await Promise.all(wanted.map(subject => {
+      if (!subject) return null;
+      const key = subject.toLocaleLowerCase("en-US");
+      if (!lookups.has(key)) lookups.set(key, Promise.resolve().then(() => findImage(subject, { signal: controller.signal })).catch(() => null));
+      return lookups.get(key);
+    }));
+    const seen = new Set();
+    const images = (await Promise.all(found.map(async (image, itemIndex) => {
+      // One photo illustrates one story; a repeated subject is shown once.
+      if (!image?.found || seen.has(image.fileUrl)) return null;
+      seen.add(image.fileUrl);
+      try {
+        const token = await sourceMedia.createSourceMediaToken(identity, image.pageUrl, { image: image.imageUrl });
+        return token ? { itemIndex, token, width: image.width, height: image.height, alt: image.alt, title: image.title,
+          pageUrl: image.pageUrl, fileUrl: image.fileUrl, artist: image.artist, license: image.license,
+          licenseUrl: image.licenseUrl } : null;
+      } catch { return null; }
+    }))).filter(Boolean);
+    const attached = images.length ? parseMetabloomResearchBrief({ ...brief, subjectImages: images }, { sources }) : null;
+    // Counts only: subjects, titles and URLs never enter logs.
+    console.info(JSON.stringify({ event: "metabloom_research_subject_images", ...(/^[a-f0-9]{12}$/.test(requestRef) ? { requestRef } : {}),
+      requested, found: attached?.subjectImages?.length || 0, timedOut: controller.signal.aborted && !signal?.aborted,
+      durationMs: Date.now() - startedAt }));
+    return attached || brief;
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener("abort", stop);
+  }
 };
 
 // Ordinary search answers offer previews only for sources the validated reply
@@ -633,12 +682,12 @@ const handler = async (request, response) => {
       // This replaces the ordinary research writer. A format/provider failure
       // preserves the paid report and never starts another writer or search.
       const evidence = selectResearchBriefEvidence(researchReport);
-      let fallbackReason = null;
+      let fallbackReason = null, briefImageSubjects = null;
       if (evidence) {
         stage = "research_brief";
         try {
           researchBrief = await generateMetabloomResearchBrief({ message, history: contextHistory, report: evidence,
-            modelSelection,
+            modelSelection, onImageSubjects: subjects => { briefImageSubjects = subjects; },
             evidenceLimited: evidence !== researchReport,
             temporalContext, signal: controller.signal, requestRef });
         } catch (error) {
@@ -655,6 +704,10 @@ const handler = async (request, response) => {
       if (researchBrief) {
         if (body.streamResearchMedia === true) {
           researchBrief = await attachResearchMedia(researchBrief, researchReport.sources, visualIdentity);
+          if (briefImageSubjects && process.env.METABLOOM_IMAGE_SEARCH_ENABLED !== 'false') {
+            researchBrief = await attachResearchSubjectImages(researchBrief, briefImageSubjects, researchReport.sources,
+              visualIdentity, { signal: controller.signal, requestRef });
+          }
         }
         const serialized = JSON.stringify(researchBrief);
         for (let offset = 0, index = 0; offset < serialized.length; offset += MAX_METABLOOM_RESEARCH_BRIEF_CHUNK_CHARS, index++) {
@@ -856,4 +909,4 @@ const handler = async (request, response) => {
 };
 module.exports = handler;
 module.exports._internals = { parseBody, requestOriginIsAllowed, consumeRateLimit, configured, localBuckets,
-  selectResearchBriefEvidence, researchBriefIntroduction, researchBriefFallback, attachResearchMedia, attachToolMedia, attachToolImages };
+  selectResearchBriefEvidence, researchBriefIntroduction, researchBriefFallback, attachResearchMedia, attachResearchSubjectImages, attachToolMedia, attachToolImages };

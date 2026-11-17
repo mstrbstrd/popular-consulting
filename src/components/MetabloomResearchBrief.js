@@ -48,7 +48,7 @@ function Citations({ sourceIds, sourceMap }) {
   </span>;
 }
 
-function BriefItem({ item, index, active, distance, news, id, sourceMap, mediaMap, detailsMap, resolver, onUseFinding, reuseDisabled }) {
+function BriefItem({ item, index, active, distance, news, id, sourceMap, mediaMap, detailsMap, subjectImage, resolver, onUseFinding, reuseDisabled }) {
   const hasDepth = item.background.length > 0 || Boolean(item.whyItMatters)
     || item.uncertainty.length > 0 || item.watchNext.length > 0 || item.dateEvidence;
   const showEvidenceStatus = news || ['disputed', 'uncertain'].includes(item.evidenceStatus);
@@ -81,7 +81,7 @@ function BriefItem({ item, index, active, distance, news, id, sourceMap, mediaMa
       {onUseFinding && <button type="button" className="metabloom-research-brief__reuse"
         disabled={reuseDisabled} onClick={() => onUseFinding(index, item)}>Use this finding</button>}
       {(mediaCandidates.length > 0 || fallbackSource) && <MetabloomArticlePreview candidates={mediaCandidates}
-        fallbackSource={fallbackSource} compact resolver={resolver} priority={distance} />}
+        fallbackSource={fallbackSource} subjectImage={subjectImage} compact resolver={resolver} priority={distance} />}
       {hasDepth && <details className="metabloom-research-brief__details">
         <summary>Analysis and context<span className="metabloom-research-brief__sr-only">: {item.headline}</span></summary>
         <div className="metabloom-research-brief__depth">
@@ -116,7 +116,7 @@ const NavigationArrow = ({ previous = false }) => <svg viewBox="0 0 16 16" fill=
   <path d={previous ? 'm10 3-5 5 5 5' : 'm6 3 5 5-5 5'} />
 </svg>;
 
-function BriefCarousel({ brief, id, sourceMap, mediaMap, detailsMap, resolver, onUseFinding, reuseDisabled }) {
+function BriefCarousel({ brief, id, sourceMap, mediaMap, detailsMap, subjectImageMap, resolver, onUseFinding, reuseDisabled }) {
   const [selectedIndex, setSelectedIndex] = React.useState(0);
   const activeIndex = Math.min(selectedIndex, brief.items.length - 1);
   const news = brief.kind === 'news';
@@ -161,7 +161,7 @@ function BriefCarousel({ brief, id, sourceMap, mediaMap, detailsMap, resolver, o
     <ol id={`${id}-items`} className="metabloom-research-brief__items" aria-label={news ? 'Covered stories' : 'Research findings'}>
       {brief.items.map((item, index) => <BriefItem key={item.headline} item={item} index={index}
         active={index === activeIndex} distance={Math.abs(index - activeIndex)} news={news} id={`${id}-item-${index + 1}`}
-        sourceMap={sourceMap} mediaMap={mediaMap} detailsMap={detailsMap} resolver={resolver}
+        sourceMap={sourceMap} mediaMap={mediaMap} detailsMap={detailsMap} subjectImage={subjectImageMap.get(index)} resolver={resolver}
         onUseFinding={onUseFinding} reuseDisabled={reuseDisabled} />)}
     </ol>
   </>;
@@ -209,9 +209,10 @@ function SourceEvidence({ brief, sourceMap, mediaMap }) {
 
 export default function MetabloomResearchBrief({ brief, sources, onUseBrief, onUseFinding, reuseDisabled = false }) {
   const id = React.useId();
-  // One bounded preview queue per brief. It starts once the brief nears the
-  // viewport and then prepares every slide, so navigation never waits on media.
-  const [resolver, observeBrief] = useMetabloomSourceMediaResolver();
+  // One bounded preview queue per brief. It starts as soon as the brief arrives,
+  // even in a closed workspace slot, and prepares every slide, so neither
+  // opening the report nor navigating between stories waits on media.
+  const [resolver, observeBrief] = useMetabloomSourceMediaResolver({ eager: true });
   let safeBrief;
   let safeSources;
   try {
@@ -224,6 +225,7 @@ export default function MetabloomResearchBrief({ brief, sources, onUseBrief, onU
 
   const sourceMap = new Map(safeSources.map(source => [source.id, source]));
   const mediaMap = new Map((safeBrief.media || []).map(entry => [entry.sourceId, entry.token]));
+  const subjectImageMap = new Map((safeBrief.subjectImages || []).map(entry => [entry.itemIndex, entry]));
   const detailsMap = new Map(safeBrief.sourceDetails.map(detail => [detail.sourceId, detail]));
   const news = safeBrief.kind === 'news';
   const { coverage } = safeBrief;
@@ -264,7 +266,7 @@ export default function MetabloomResearchBrief({ brief, sources, onUseBrief, onU
       {onUseBrief && <button type="button" className="metabloom-research-brief__reuse"
         disabled={reuseDisabled} onClick={onUseBrief}>Use this brief</button>}
     </header>
-    <BriefCarousel brief={safeBrief} id={id} sourceMap={sourceMap} mediaMap={mediaMap} detailsMap={detailsMap}
+    <BriefCarousel brief={safeBrief} id={id} sourceMap={sourceMap} mediaMap={mediaMap} detailsMap={detailsMap} subjectImageMap={subjectImageMap}
       resolver={resolver} onUseFinding={onUseFinding} reuseDisabled={reuseDisabled} />
     <details className="metabloom-research-brief__details metabloom-research-brief__briefing-details">
       <summary>Briefing details</summary>

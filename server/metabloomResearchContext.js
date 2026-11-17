@@ -98,7 +98,7 @@ async function resolveMetabloomResearchContext({ store, identity, reference, mes
   if (!evidence) throw researchReferenceError('research_reference_invalid', 422);
   // Images and signed media tokens are presentation metadata, not evidence.
   const plainBrief = brief ? { ...brief } : null;
-  if (plainBrief) delete plainBrief.media;
+  if (plainBrief) { delete plainBrief.media; delete plainBrief.subjectImages; }
   const context = { research: { ...record.research, ...(brief ? { briefId: parsed.selector.briefId } : {}) },
     report: record.report, temporalContext: record.temporalContext, originalQuestion: record.message,
     selection: parsed.selector, ...(brief ? { coverage: clone(brief.coverage) } : {}),

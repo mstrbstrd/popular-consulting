@@ -1,4 +1,4 @@
-const { parseMetabloomProgressSource, parseMetabloomBriefMedia, parseMetabloomToolImages, metabloomSourceMediaUrl,
+const { parseMetabloomProgressSource, parseMetabloomBriefMedia, parseMetabloomToolImages, parseMetabloomBriefSubjectImages, metabloomSourceMediaUrl,
   parseMetabloomSourceMediaPreview, MAX_METABLOOM_SOURCE_MEDIA_TOKEN_CHARS } = require('./metabloomSourceMediaProtocol');
 
 const token = 'signed_source.payload-1.signature_2';
@@ -96,6 +96,18 @@ describe('subject photo records', () => {
     ['an extra field', { html: '<img>' }],
   ])('drops %s', (_, change) => {
     expect(parseMetabloomToolImages([{ ...image(), ...change }])).toEqual([]);
+  });
+
+  test('a brief keeps one related photo per existing story', () => {
+    const subject = (itemIndex, token = `m1.subject-${itemIndex}`) => ({ ...image(), itemIndex, token });
+    expect(parseMetabloomBriefSubjectImages([subject(0), subject(2)], { itemCount: 3 })).toEqual([subject(0), subject(2)]);
+    expect(parseMetabloomBriefSubjectImages([subject(0), subject(0, 'm1.other')], { itemCount: 3 })).toEqual([subject(0)]);
+    expect(parseMetabloomBriefSubjectImages([subject(0), subject(1, 'm1.subject-0')], { itemCount: 3 })).toEqual([subject(0)]);
+    expect(parseMetabloomBriefSubjectImages([subject(3), subject(-1), subject(0.5)], { itemCount: 3 })).toEqual([]);
+    expect(parseMetabloomBriefSubjectImages([image()], { itemCount: 3 })).toEqual([]);
+    expect(parseMetabloomBriefSubjectImages([{ ...subject(0), pageUrl: 'https://wiki.example.test/A' }], { itemCount: 1 })).toEqual([]);
+    expect(parseMetabloomBriefSubjectImages(Array.from({ length: 11 }, (_, index) => subject(index)), { itemCount: 11 })).toEqual([]);
+    expect(parseMetabloomBriefSubjectImages([subject(0)], {})).toEqual([]);
   });
 
   test('keeps at most two distinct photos', () => {

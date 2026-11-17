@@ -66,25 +66,46 @@ const toolImageUrl = (value, hosts) => {
     return url.href;
   } catch { return null; }
 };
+const parseToolImage = (entry, keys = TOOL_IMAGE_KEYS) => {
+  if (!entry || typeof entry !== 'object' || Array.isArray(entry)
+    || Object.keys(entry).sort().join(',') !== keys.join(',')) return null;
+  const token = parseMetabloomSourceMediaToken(entry.token);
+  const image = { token, width: entry.width, height: entry.height,
+    alt: toolImageText(entry.alt, 240), title: toolImageText(entry.title, 160),
+    artist: toolImageText(entry.artist, 120), license: toolImageText(entry.license, 80),
+    pageUrl: toolImageUrl(entry.pageUrl, ['wikipedia.org']),
+    fileUrl: toolImageUrl(entry.fileUrl, ['wikimedia.org', 'wikipedia.org']),
+    licenseUrl: entry.licenseUrl === null ? null : toolImageUrl(entry.licenseUrl) };
+  if (!token || !Number.isSafeInteger(image.width) || !Number.isSafeInteger(image.height)
+    || image.width < 64 || image.height < 64 || image.width > 4096 || image.height > 4096
+    || !image.alt || !image.title || !image.artist || !image.license || !image.pageUrl || !image.fileUrl
+    || (entry.licenseUrl !== null && !image.licenseUrl)) return null;
+  return image;
+};
 const parseMetabloomToolImages = value => {
   if (!Array.isArray(value) || value.length > MAX_METABLOOM_TOOL_IMAGES) return [];
   const tokens = new Set();
   return value.flatMap(entry => {
-    if (!entry || typeof entry !== 'object' || Array.isArray(entry)
-      || Object.keys(entry).sort().join(',') !== TOOL_IMAGE_KEYS.join(',')) return [];
-    const token = parseMetabloomSourceMediaToken(entry.token);
-    const image = { token, width: entry.width, height: entry.height,
-      alt: toolImageText(entry.alt, 240), title: toolImageText(entry.title, 160),
-      artist: toolImageText(entry.artist, 120), license: toolImageText(entry.license, 80),
-      pageUrl: toolImageUrl(entry.pageUrl, ['wikipedia.org']),
-      fileUrl: toolImageUrl(entry.fileUrl, ['wikimedia.org', 'wikipedia.org']),
-      licenseUrl: entry.licenseUrl === null ? null : toolImageUrl(entry.licenseUrl) };
-    if (!token || tokens.has(token) || !Number.isSafeInteger(image.width) || !Number.isSafeInteger(image.height)
-      || image.width < 64 || image.height < 64 || image.width > 4096 || image.height > 4096
-      || !image.alt || !image.title || !image.artist || !image.license || !image.pageUrl || !image.fileUrl
-      || (entry.licenseUrl !== null && !image.licenseUrl)) return [];
-    tokens.add(token);
+    const image = parseToolImage(entry);
+    if (!image || tokens.has(image.token)) return [];
+    tokens.add(image.token);
     return [image];
+  });
+};
+
+// A research brief may carry one freely licensed photo of each story's subject,
+// shown only when none of the story's cited articles offers a photo. It is a
+// related illustration, never evidence, and always travels with its credit.
+const SUBJECT_IMAGE_KEYS = [...TOOL_IMAGE_KEYS, 'itemIndex'].sort();
+const parseMetabloomBriefSubjectImages = (value, { itemCount } = {}) => {
+  if (!Array.isArray(value) || value.length > MAX_METABLOOM_SOURCE_MEDIA_ENTRIES || !Number.isSafeInteger(itemCount)) return [];
+  const indexes = new Set(), tokens = new Set();
+  return value.flatMap(entry => {
+    const image = parseToolImage(entry, SUBJECT_IMAGE_KEYS);
+    if (!image || !Number.isSafeInteger(entry.itemIndex) || entry.itemIndex < 0 || entry.itemIndex >= itemCount
+      || indexes.has(entry.itemIndex) || tokens.has(image.token)) return [];
+    indexes.add(entry.itemIndex); tokens.add(image.token);
+    return [{ itemIndex: entry.itemIndex, ...image }];
   });
 };
 
@@ -150,6 +171,7 @@ module.exports = {
   parseMetabloomBriefMedia,
   parseMetabloomToolMedia,
   parseMetabloomToolImages,
+  parseMetabloomBriefSubjectImages,
   metabloomSourceMediaUrl,
   parseMetabloomSourceMediaPreview,
 };

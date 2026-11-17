@@ -701,3 +701,39 @@ test('endpoint returns validated raster with private headers; invalid token or f
   const fallback = response(); await broken(request(token), fallback);
   assert.equal(fallback.statusCode, 200); assert.deepEqual(JSON.parse(fallback.body), { version: '1', image: null, icon: null, isArticle: false });
 });
+
+test('outcome logs classify why a preview has no photo without recording URLs, tokens or identities', async (t) => {
+  const codec = makeCodec(), token = await codec.create(identity, sourceUrl);
+  const lines = [];
+  t.mock.method(console, 'info', line => { lines.push(line); });
+  const refused = createSourceMediaService({ codec, fetchPublic: async () => {
+    throw Object.assign(new Error('source_media_status'), { code: 'source_media_status', status: 403 }); } });
+  const outcomes = [];
+  await refused.getPreview(identity, token, { onOutcome: value => outcomes.push(value) });
+  assert.deepEqual(outcomes, [{ outcome: 'page_unavailable', reason: 'source_media_status', status: 403 }]);
+
+  const handler = createMetabloomSourceMediaHandler({ authenticate, service: refused });
+  const res = response(); await handler(request(token), res);
+  assert.equal(res.statusCode, 200);
+  const working = createMetabloomSourceMediaHandler({ authenticate, service: createSourceMediaService({ codec,
+    fetchPublic: async (url, { kind }) => ({ url, body: kind === 'html' ? previewHtml() : raster, type: kind === 'html' ? 'text/html' : 'image/png' }) }) });
+  await working(request(token), response());
+  await working(request(token, 'preview', { headers: { host: 'app.example.com', 'sec-fetch-site': 'cross-site' } }), response());
+  const events = lines.map(line => JSON.parse(line)).filter(entry => entry.event === 'metabloom_source_media');
+  assert.deepEqual(events.map(({ durationMs, ...entry }) => entry), [
+    { event: 'metabloom_source_media', kind: 'preview', outcome: 'page_unavailable', reason: 'source_media_status', status: 403 },
+    { event: 'metabloom_source_media', kind: 'preview', outcome: 'image' },
+    { event: 'metabloom_source_media', kind: 'unknown', outcome: 'origin_denied' },
+  ]);
+  const logged = lines.join('\n');
+  for (const secret of [token, sourceUrl, identity.owner, identity.scope, 'example.com']) assert.equal(logged.includes(secret), false);
+});
+
+test('a refused publisher page is reported apart from an unsupported response', async () => {
+  const refused = fixtureNetwork(() => ({ status: 403, body: Buffer.from('Forbidden'), type: 'text/html' }));
+  await assert.rejects(refused.fetch('https://news.example.com/story', { kind: 'html' }),
+    error => error.code === 'source_media_status' && error.status === 403);
+  const wrongType = fixtureNetwork(() => ({ body: Buffer.from('{}'), type: 'application/json' }));
+  await assert.rejects(wrongType.fetch('https://news.example.com/story', { kind: 'html' }),
+    error => error.code === 'source_media_type' && error.status === undefined);
+});

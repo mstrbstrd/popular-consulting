@@ -167,7 +167,12 @@ function createPublicMediaFetcher({ lookup = dns.lookup, request = https.request
               ...(kind === 'icon' ? ['image/x-icon', 'image/vnd.microsoft.icon', 'image/ico'] : [])];
           const encoding = result.headers['content-encoding'];
           const length = result.headers['content-length'];
-          if (status !== 200 || !allowed.includes(type) || (encoding && encoding !== 'identity')
+          // A refused or missing page is reported apart from an unsupported
+          // response, so outcome logs can tell a blocked reader from a bad page.
+          if (status !== 200) {
+            finish(Object.assign(mediaError('source_media_status'), { status: Number.isSafeInteger(status) ? status : 0 })); return;
+          }
+          if (!allowed.includes(type) || (encoding && encoding !== 'identity')
             || (length !== undefined && (!/^\d+$/.test(String(length)) || (kind !== 'html' && Number(length) > limit)))) {
             finish(mediaError('source_media_type')); return;
           }

@@ -1,7 +1,7 @@
 const { parseMetabloomResearchSources } = require("./metabloomResearchSources");
 const { getMetabloomUtf8ByteLength } = require("./metabloomResearchReport");
 const { isMetabloomServerResearchDate } = require("./metabloomResearchReference");
-const { parseMetabloomBriefMedia } = require("./metabloomSourceMediaProtocol");
+const { parseMetabloomBriefMedia, parseMetabloomBriefSubjectImages } = require("./metabloomSourceMediaProtocol");
 
 const METABLOOM_RESEARCH_BRIEF_VERSION = "metabloom-research-brief-v1";
 const MAX_METABLOOM_RESEARCH_BRIEF_BYTES = 98304;
@@ -42,9 +42,10 @@ const parseMetabloomResearchBrief = (input, { sources, serverTemporalContext = f
     if (value.length > MAX_METABLOOM_RESEARCH_BRIEF_BYTES) return null;
     try { value = JSON.parse(value); } catch { return null; }
   }
-  const hasMedia = value && typeof value === "object" && Object.prototype.hasOwnProperty.call(value, "media");
+  const has = key => value && typeof value === "object" && Object.prototype.hasOwnProperty.call(value, key);
   if (!exactKeys(value, ["version", "kind", "title", "scope", "asOf", "timeZone", "localDate",
-    "windowStart", "windowEnd", "coverage", "items", "sourceDetails", ...(hasMedia ? ["media"] : [])])
+    "windowStart", "windowEnd", "coverage", "items", "sourceDetails",
+    ...(has("media") ? ["media"] : []), ...(has("subjectImages") ? ["subjectImages"] : [])])
     || value.version !== METABLOOM_RESEARCH_BRIEF_VERSION || !["news", "research"].includes(value.kind)
     || !boundedText(value.title, 160) || !boundedText(value.scope, 200)
     || !boundedText(value.timeZone, 100) || typeof value.asOf !== "string"
@@ -144,6 +145,10 @@ const parseMetabloomResearchBrief = (input, { sources, serverTemporalContext = f
   const media = parseMetabloomBriefMedia(value.media, { sourceIds: new Set(items.flatMap(item => item.sourceIds)) });
   if (media.length && getMetabloomUtf8ByteLength(JSON.stringify({ ...brief, media })) <= MAX_METABLOOM_RESEARCH_BRIEF_BYTES)
     brief.media = media;
+  // Related subject photos are the same kind of optional, session-bound decoration.
+  const subjectImages = parseMetabloomBriefSubjectImages(value.subjectImages, { itemCount: items.length });
+  if (subjectImages.length && getMetabloomUtf8ByteLength(JSON.stringify({ ...brief, subjectImages })) <= MAX_METABLOOM_RESEARCH_BRIEF_BYTES)
+    brief.subjectImages = subjectImages;
   return brief;
 };
 

@@ -595,6 +595,8 @@ test("the replacement writer makes exactly one bounded provider request with no 
   assert.equal(Object.hasOwn(calls[0].body.text.format.schema.properties.items.items.properties, "dateBasis"), false);
   assert.match(calls[0].body.instructions, /faithful cited paraphrase/);
   assert.match(calls[0].body.instructions, /missing publication date does not invalidate/i);
+  assert.match(calls[0].body.instructions, /more than one publisher/);
+  assert.match(calls[0].body.instructions, /imageSubject names the one clearly photographable public subject/);
   assert.match(calls[0].body.input[0].content, /World coverage/);
   const data = JSON.parse(calls[0].body.input.at(-1).content);
   assert.equal(data.temporalContext.localDate, "2026-10-23");
@@ -743,5 +745,23 @@ test("the research pass receives the same local date evidence instructions witho
   assert.match(calls[0].instructions, /wrapper/);
   assert.match(calls[0].instructions, /YYYY-MM-DD/);
   assert.match(calls[0].instructions, /return fewer/i);
+  assert.match(calls[0].instructions, /at least two different publishers/);
   assert.match(actual.notes, /\[1\]/);
+});
+
+test("image subjects are lookup phrases aligned with the delivered items and never enter the presentation", () => {
+  const value = referenceCandidate(candidate());
+  value.items = value.items.map((entry, index) => ({ ...entry,
+    imageSubject: ["Agency One", "https://example.com/not-a-name", " "][index] }));
+  let subjects;
+  const result = extractMetabloomResearchBrief(value, { report: report(), temporalContext: context("Top 2 news events today"),
+    onImageSubjects: (list) => { subjects = list; } });
+  assert.equal(result.items.length, 2);
+  assert.ok(result.items.every((entry) => !Object.hasOwn(entry, "imageSubject")));
+  assert.deepEqual(subjects, ["Agency One", ""]);
+  // Older candidates without the field remain valid and simply offer no subjects.
+  let legacy;
+  extractMetabloomResearchBrief(referenceCandidate(candidate()), { report: report(), temporalContext: context(),
+    onImageSubjects: (list) => { legacy = list; } });
+  assert.deepEqual(legacy, ["", "", ""]);
 });

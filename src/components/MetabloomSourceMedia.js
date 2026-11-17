@@ -7,9 +7,11 @@ import { createSourceMediaResolver } from './metabloomSourceMediaResolver';
 import './MetabloomSourceMedia.css';
 
 // One bounded preview queue per media surface (a research brief or an answer's
-// image row). It starts once the surface nears the viewport; the returned
+// image row). By default it starts once the surface nears the viewport, so the
 // callback ref must be attached to an element that is laid out (not display:none).
-export function useMetabloomSourceMediaResolver() {
+// `eager` starts it as soon as the surface mounts, even while hidden: a research
+// brief can wait in a closed workspace slot and should be ready when opened.
+export function useMetabloomSourceMediaResolver({ eager = false } = {}) {
   const [resolver] = React.useState(() => createSourceMediaResolver());
   React.useEffect(() => resolver.retain(), [resolver]);
   const viewportObserver = React.useRef(null);
@@ -17,7 +19,7 @@ export function useMetabloomSourceMediaResolver() {
     viewportObserver.current?.disconnect();
     viewportObserver.current = null;
     if (!node || resolver.started) return;
-    if (typeof IntersectionObserver !== 'function') { resolver.start(); return; }
+    if (eager || typeof IntersectionObserver !== 'function') { resolver.start(); return; }
     const observer = new IntersectionObserver(entries => {
       if (!entries.some(entry => entry.isIntersecting)) return;
       resolver.start();
@@ -25,7 +27,7 @@ export function useMetabloomSourceMediaResolver() {
     }, { rootMargin: '480px' });
     observer.observe(node);
     viewportObserver.current = observer;
-  }, [resolver]);
+  }, [resolver, eager]);
   return [resolver, observe];
 }
 
@@ -60,7 +62,7 @@ function SourcePlate({ token, host, state }) {
   </div>;
 }
 
-function ArticlePreview({ candidates, compact, tile, resolver, priority }) {
+function ArticlePreview({ candidates, compact, tile, resolver, priority, subjectImage }) {
   const root = React.useRef(null);
   const [entries] = React.useState(candidates);
   const requestable = entries.some(entry => entry.token);
@@ -72,6 +74,12 @@ function ArticlePreview({ candidates, compact, tile, resolver, priority }) {
   const [resolved, setResolved] = React.useState(null);
   const [failedImage, setFailedImage] = React.useState(false);
   const [state, setState] = React.useState(requestable ? 'pending' : 'unavailable');
+  // A related subject photo stands in only once every cited article has come
+  // back without one. It is labelled as related, credited, and never replaces
+  // the link to the cited article.
+  const relatedSrc = subjectImage ? metabloomSourceMediaUrl(subjectImage.token, 'image') : null;
+  const [relatedState, setRelatedState] = React.useState('loading');
+  const showRelated = Boolean(relatedSrc) && state === 'unavailable' && relatedState !== 'failed';
   React.useEffect(() => {
     // A brief-level resolver owns viewport gating and scheduling for every slide.
     if (resolver || !requestable) return undefined;
@@ -135,7 +143,8 @@ function ArticlePreview({ candidates, compact, tile, resolver, priority }) {
   };
   const condensed = compact || tile;
   return <div ref={root} className={`metabloom-source-preview${tile ? ' metabloom-source-preview--tile'
-    : compact ? ' metabloom-source-preview--compact' : ''}`} data-preview-state={state}>
+    : compact ? ' metabloom-source-preview--compact' : ''}`} data-preview-state={state}
+    data-related-photo={showRelated ? relatedState : undefined}>
     <div className="metabloom-source-preview__image-area" aria-busy={state === 'pending' || state === 'loading'}>
       <SourcePlate token={token} host={host} state={state} />
       {/* Resolver-scheduled images load eagerly, even on hidden slides, so the
@@ -143,6 +152,13 @@ function ArticlePreview({ candidates, compact, tile, resolver, priority }) {
       {image && <img className="metabloom-source-preview__image" src={image.src} alt={image.alt}
         width="640" height="360" loading={resolver ? 'eager' : 'lazy'} decoding="async" referrerPolicy="no-referrer"
         onLoad={() => { if (attempt === latestAttempt.current) setState('ready'); }} onError={imageFailed} />}
+      {showRelated && <>
+        <img className="metabloom-source-preview__image metabloom-source-preview__related" src={relatedSrc}
+          alt={`Related to this story, not from the cited article: ${subjectImage.alt}`} width={subjectImage.width} height={subjectImage.height}
+          loading={resolver ? 'eager' : 'lazy'} decoding="async" referrerPolicy="no-referrer"
+          onLoad={() => setRelatedState('ready')} onError={() => setRelatedState('failed')} />
+        <span className="metabloom-source-preview__related-badge" aria-hidden="true">Related photo</span>
+      </>}
     </div>
     <div className="metabloom-source-preview__content">
       <div className="metabloom-source-preview__publisher"><MetabloomPublisherIcon token={token} />
@@ -156,6 +172,11 @@ function ArticlePreview({ candidates, compact, tile, resolver, priority }) {
         {condensed ? <span className="metabloom-source-preview__article-title">{source.title}</span> : action}
         <span aria-hidden="true"> ↗</span>
       </a>
+      {showRelated && relatedState === 'ready' && <p className="metabloom-source-preview__related-credit">
+        <a href={subjectImage.pageUrl} {...external}>Related photo: {subjectImage.title}<span aria-hidden="true"> ↗</span>
+          <span className="metabloom-sr-only"> (Wikipedia, opens in a new tab)</span></a>
+        <PhotoCredit image={subjectImage} />
+      </p>}
     </div>
   </div>;
 }
@@ -164,7 +185,7 @@ function ArticlePreview({ candidates, compact, tile, resolver, priority }) {
 // available (for example after the session-bound tokens were stripped from a
 // restored thread), so every slide keeps one consistent shape.
 export function MetabloomArticlePreview({ source, token, publisher, candidates, compact = false, tile = false,
-  resolver = null, priority = 0, fallbackSource = null }) {
+  resolver = null, priority = 0, fallbackSource = null, subjectImage = null }) {
   const ids = new Set(), tokens = new Set();
   const entries = (Array.isArray(candidates) ? candidates : [{ source, token, publisher }]).slice(0, 3).flatMap(entry => {
     const parsed = entry?.source && parseMetabloomResearchSources([entry.source], { startId: entry.source.id });
@@ -178,8 +199,10 @@ export function MetabloomArticlePreview({ source, token, publisher, candidates, 
       publisher: typeof fallbackSource.publisher === 'string' ? fallbackSource.publisher : '' });
   }
   if (!entries.length) return null;
-  return <ArticlePreview key={JSON.stringify(entries)} candidates={entries} compact={compact} tile={tile}
-    resolver={resolver} priority={Math.max(0, Math.min(Number.isSafeInteger(priority) ? priority : 0, 20))} />;
+  const related = metabloomSourceMediaUrl(subjectImage?.token, 'image') ? subjectImage : null;
+  return <ArticlePreview key={`${JSON.stringify(entries)}:${related?.token || ''}`} candidates={entries} compact={compact} tile={tile}
+    resolver={resolver} priority={Math.max(0, Math.min(Number.isSafeInteger(priority) ? priority : 0, 20))}
+    subjectImage={related} />;
 }
 
 // An ordinary search answer shows images only for the cited sources whose

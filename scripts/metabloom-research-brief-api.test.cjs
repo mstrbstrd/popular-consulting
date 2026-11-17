@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const { EventEmitter } = require("node:events");
 const metabloomAuth = require("../server/metabloomAuth");
 const sourceMedia = require("../server/metabloomSourceMedia");
+const imageSearch = require("../server/metabloomImageSearch");
 const handler = require("../api/metabloom");
 const { createMetabloomSegmentStreamDecoder } = require("../src/components/metabloomEmoteProtocol");
 
@@ -366,6 +367,70 @@ test("news media gives each story its first source before bounded alternates wit
   assert.deepEqual(researchMedia.media.map(entry => entry.sourceId), [1, 2, 3]);
   assert.deepEqual(minted, sources.slice(0, 3).map(source => source.url));
   assert.equal(await handler._internals.attachResearchMedia(research, sources, null), research);
+});
+
+test("each story can carry one credited related subject photo found by the host", async () => {
+  const identity = { owner: "a".repeat(64), subject: "b".repeat(64), scope: "c".repeat(64) };
+  metabloomAuth.requireMetabloomSession.mock.mockImplementation(async (_req, { onIdentity }) => { onIdentity(identity); return null; });
+  const sources = Array.from({ length: 5 }, (_, index) => ({ id: index + 1,
+    title: `Fictional agency bulletin ${index + 1}`, url: `https://example.org/bulletin-${index + 1}` }));
+  mock.method(sourceMedia, "createSourceMediaToken", async (_owner, url, options) =>
+    options?.image ? `signed.image.${url.split("/").pop()}` : `signed.source.${sources.find(source => source.url === url).id}`);
+  const looked = [];
+  const photo = (name) => ({ found: true, title: name, pageUrl: `https://en.wikipedia.org/wiki/${name}`,
+    imageUrl: `https://upload.wikimedia.org/${name}.jpg`, fileUrl: `https://commons.wikimedia.org/wiki/File:${name}.jpg`,
+    width: 640, height: 480, license: "CC BY-SA 4.0", licenseUrl: "https://creativecommons.org/licenses/by-sa/4.0",
+    artist: "Fictional Photographer", alt: `${name} exterior`, source: "wikimedia" });
+  mock.method(imageSearch, "findMetabloomImage", async (subject) => {
+    looked.push(subject);
+    return subject === "Fictional_Agency" ? photo("Fictional_Agency") : { found: false };
+  });
+  const calls = installProvider({
+    research: () => new Response(`data: ${JSON.stringify({ type: "response.completed", response: researchDocument(sources) })}\n\n`,
+      { headers: { "content-type": "text/event-stream" } }),
+    formatter: body => {
+      const value = candidate(JSON.parse(body.input.at(-1).content).dateEvidenceCatalog, [1, 2, 3]);
+      value.items.forEach((item, index) => { item.imageSubject = ["Fictional_Agency", "Unknown subject", "fictional_agency"][index]; });
+      return briefReply(value);
+    },
+  });
+  const res = response(); await handler(request({ streamResearchMedia: true }), res);
+  const brief = decode(res).briefs[0];
+  // One lookup per distinct subject; the repeated subject is shown once.
+  assert.deepEqual(looked, ["Fictional_Agency", "Unknown subject"]);
+  assert.deepEqual(brief.subjectImages, [{ itemIndex: 0, token: "signed.image.Fictional_Agency", width: 640, height: 480,
+    alt: "Fictional_Agency exterior", title: "Fictional_Agency", pageUrl: "https://en.wikipedia.org/wiki/Fictional_Agency",
+    fileUrl: "https://commons.wikimedia.org/wiki/File:Fictional_Agency.jpg", artist: "Fictional Photographer",
+    license: "CC BY-SA 4.0", licenseUrl: "https://creativecommons.org/licenses/by-sa/4.0" }]);
+  assert.ok(brief.items.every(item => !Object.hasOwn(item, "imageSubject")));
+  assert.deepEqual(calls.map(call => call.phase), ["research", "brief"]);
+
+  // The subject lookup is part of host media: old clients and the opt-out skip it.
+  looked.length = 0;
+  installProvider({ research: () => new Response(`data: ${JSON.stringify({ type: "response.completed", response: researchDocument(sources) })}\n\n`,
+    { headers: { "content-type": "text/event-stream" } }),
+  formatter: body => {
+    const value = candidate(JSON.parse(body.input.at(-1).content).dateEvidenceCatalog, [1, 2, 3]);
+    value.items.forEach(item => { item.imageSubject = "Fictional_Agency"; });
+    return briefReply(value);
+  } });
+  const old = response(); await handler(request({ streamResearchMedia: false }), old);
+  assert.equal(decode(old).briefs[0].subjectImages, undefined);
+  assert.equal(looked.length, 0);
+});
+
+test("a slow subject lookup only omits the photo", async () => {
+  const sources = [{ id: 1, title: "Fictional bulletin", url: "https://example.org/bulletin-1" }];
+  const identity = { owner: "a".repeat(64), subject: "b".repeat(64), scope: "c".repeat(64) };
+  const brief = { kind: "news", items: [{ headline: "A" }] };
+  let aborted = false;
+  const result = await handler._internals.attachResearchSubjectImages(brief, ["Slow subject"], sources, identity, {
+    budgetMs: 20, findImage: (_subject, { signal }) => new Promise((_resolve, reject) => {
+      signal.addEventListener("abort", () => { aborted = true; reject(new Error("aborted")); });
+    }) });
+  assert.equal(result, brief);
+  assert.equal(aborted, true);
+  assert.equal(await handler._internals.attachResearchSubjectImages(brief, ["x", "y"], sources, identity), brief);
 });
 
 test("optional media failures and old clients retain the complete paid brief", async () => {

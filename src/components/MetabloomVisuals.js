@@ -277,6 +277,16 @@ export default class MetabloomVisuals extends React.Component {
       && this.root.contains(record.origin) && article?.dataset.messageId === record.messageId
       && ['complete', 'error', 'interrupted'].includes(article.dataset.streamStatus);
   };
+  // True only for the reply to the current, uncancelled turn. Restored threads
+  // reset the turn first, so a saved report never opens by itself.
+  isLiveTurnResearch = messageId => {
+    const turn = this.turn;
+    if (!turn || turn.signal.aborted || turn.researchOpened
+      || turn.workspaceSelectionRevision !== this.workspaceSelectionRevision) return false;
+    const messages = this.messages();
+    const index = messages.findIndex(message => message.id === turn.userId && message.role === 'user');
+    return index >= 0 && messages[index + 1]?.role === 'assistant' && messages[index + 1].id === messageId;
+  };
   registerResearchSurface = record => {
     if (!this.researchOriginIsOwned(record) || !record.origin.contains(record.slot)
       || !this.workspaceHost() || this.researchRecords.has(record.messageId)) return undefined;
@@ -286,6 +296,11 @@ export default class MetabloomVisuals extends React.Component {
     if (pending?.messageId === record.messageId) {
       this.pendingResearchWorkspace = null;
       if (!this.activeVisualId && this.workspaceSelectionRevision === 0) this.activateResearchSurface(record, { view: pending.view });
+    } else if (this.isLiveTurnResearch(record.messageId)) {
+      // Research finished in this turn opens like a generated component: once,
+      // never over something the reader explicitly chose during the turn.
+      this.turn.researchOpened = true;
+      this.activateResearchSurface(record, { view: 'compact' });
     }
     this.refresh();
     return () => {

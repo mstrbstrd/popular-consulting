@@ -143,6 +143,7 @@ const parseMessage = value => {
     // Only signed, session-bound optional decoration is removed. Evidence,
     // source IDs and the original research calendar are retained unchanged.
     delete presentation.media;
+    delete presentation.subjectImages;
     const brief = parseMetabloomClientResearchBrief(presentation, { sources: report.sources });
     if (!brief) return null;
     result.researchBrief = brief;
