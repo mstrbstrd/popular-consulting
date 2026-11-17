@@ -4,7 +4,7 @@ import MetabloomPaletteContext from "../contexts/MetabloomPaletteContext";
 import { act, cleanup, render } from "@testing-library/react";
 import CreatorOSFieldCanvas, { specializeCreatorOSFieldFragmentShader } from "./CreatorOSFieldCanvas";
 import { CREATOROS_FIELD_FRAGMENT_SHADER } from "./CreatorOSFieldShader";
-import { createDitherCanvasContext, createDitherCanvasCadence } from "../utils/ditherCanvasRuntime";
+import { createDitherCanvasContext, createDitherCanvasCadence, getDitherCanvasSize } from "../utils/ditherCanvasRuntime";
 
 let mockGl, mockFrame, mockCadence, mockMotion, mockWebGLAllowed;
 const originalMatchMedia = window.matchMedia;
@@ -17,7 +17,7 @@ jest.mock("../utils/ditherCanvasRuntime", () => ({
   createDitherCanvasCadence: jest.fn(),
   ditherCanvasRuntimeProfile: { id: "desktop" },
   getDitherCanvasFrameInterval: (value) => value,
-  getDitherCanvasSize: () => ({ width: 400, height: 300 }),
+  getDitherCanvasSize: jest.fn(() => ({ width: 400, height: 300 })),
 }));
 const frame = (count = 1) => act(() => { for (let i = 0; i < count; i++) mockFrame({ deltaMs: 100 }); });
 const uniform = (method, name) => mockGl[method].mock.calls.filter(([key]) => key === name).at(-1)?.slice(1);
@@ -26,6 +26,7 @@ const field = (mode, paused = false) => <CreatorOSFieldCanvas mode={mode} metabl
 beforeEach(() => {
   jest.clearAllMocks();
   mockWebGLAllowed = true;
+  getDitherCanvasSize.mockReturnValue({ width: 400, height: 300 });
   mockGl = new Proxy({
     createShader: jest.fn(() => ({})), createProgram: jest.fn(() => ({})),
     createBuffer: jest.fn(() => ({})), createTexture: jest.fn(() => ({})),
@@ -411,4 +412,69 @@ test("hidden council updates wait for visibility and context recovery retains th
   expect(uniform("uniform1f", "u_councilLayout")).toEqual([1]);
   [3, 7, 11].forEach(index => expect(uniform("uniform4fv", "u_councilGesture[0]")[0][index]).toBe(0));
   expect(container.querySelector("canvas")).toBe(canvas);
+});
+
+
+test.each(["moving", "paused", "reduced-motion"])("%s council resize retains the previous buffer until its replacement draw", state => {
+  const OriginalObserver = global.ResizeObserver;
+  let resize;
+  global.ResizeObserver = class {
+    constructor(callback) { resize = callback; }
+    observe() {}
+    disconnect() {}
+  };
+  try {
+    mockMotion.matches = state === "reduced-motion";
+    const { container, rerender, unmount } = render(<MetabloomAvatar paused={state === "paused"} />);
+    if (!mockMotion.matches) frame();
+    const canvas = container.querySelector("canvas");
+    expect(canvas.width).toBe(400);
+    const widthWrites = jest.spyOn(HTMLCanvasElement.prototype, "width", "set");
+    const heightWrites = jest.spyOn(HTMLCanvasElement.prototype, "height", "set");
+    const seed = uniform("uniform1f", "u_seed")[0];
+    rerender(<MetabloomAvatar council paused={state === "paused"} />);
+    // CSS emits several ResizeObserver records between cadence ticks. They may
+    // invalidate a frame, but cannot erase the already-presented image.
+    mockGl.drawArrays.mockClear(); widthWrites.mockClear(); heightWrites.mockClear();
+    const notifyResize = resize;
+    for (const width of [380, 360, 340]) {
+      getDitherCanvasSize.mockReturnValue({ width, height: 300 });
+      act(notifyResize);
+      if (mockMotion.matches) {
+        expect(canvas.width).toBe(width);
+        expect(mockGl.drawArrays).toHaveBeenCalledTimes((400 - width) / 20);
+      } else {
+        expect(canvas.width).toBe(400);
+        expect(widthWrites).not.toHaveBeenCalled();
+        expect(mockGl.drawArrays).not.toHaveBeenCalled();
+      }
+    }
+    if (!mockMotion.matches) {
+      frame();
+      expect(canvas.width).toBe(340);
+      expect(widthWrites).toHaveBeenCalledTimes(1);
+      expect(mockGl.drawArrays).toHaveBeenCalledTimes(1);
+    }
+    expect(widthWrites.mock.invocationCallOrder.at(-1)).toBeLessThan(mockGl.drawArrays.mock.invocationCallOrder.at(-1));
+    expect(heightWrites.mock.invocationCallOrder.at(-1)).toBeLessThan(mockGl.drawArrays.mock.invocationCallOrder.at(-1));
+    expect(uniform("uniform1f", "u_seed")[0]).toBe(seed);
+    expect(createDitherCanvasContext).toHaveBeenCalledTimes(1);
+    expect(mockGl.createProgram).toHaveBeenCalledTimes(1);
+    let hidden = true;
+    jest.spyOn(document, "visibilityState", "get").mockImplementation(() => hidden ? "hidden" : "visible");
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    mockGl.drawArrays.mockClear(); widthWrites.mockClear();
+    getDitherCanvasSize.mockReturnValue({ width: 320, height: 300 });
+    act(notifyResize);
+    frame();
+    expect(canvas.width).toBe(340);
+    expect(widthWrites).not.toHaveBeenCalled();
+    expect(mockGl.drawArrays).not.toHaveBeenCalled();
+    hidden = false;
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    if (!mockMotion.matches) frame();
+    expect(canvas.width).toBe(320);
+    expect(mockGl.drawArrays).toHaveBeenCalledTimes(1);
+    unmount();
+  } finally { global.ResizeObserver = OriginalObserver; }
 });

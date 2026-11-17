@@ -14,6 +14,20 @@ const buildCouncilReply = (members, texts, chair) => ({ version: '2.0.0', segmen
   ...members.map((member, i) => ({ response: `${METABLOOM_PROVIDERS[member.provider]} · ${member.model}\nOpening: ${texts[i]}\nCritique and revision: ${texts[i + 3]}` })),
   { response: `Council synthesis · ${METABLOOM_PROVIDERS[chair]}\n${texts[6]}` },
 ] });
+// Recognize the host's saved four-segment format, including existing threads.
+// Keep storage intact while presenting only the final answer by default.
+const getCouncilReplyView = segments => {
+  if (!Array.isArray(segments) || segments.length !== 4 || segments.some(segment => segment?.emote !== undefined)) return null;
+  const providers = Object.values(METABLOOM_PROVIDERS);
+  if (providers.some((provider, index) => typeof segments[index]?.response !== 'string'
+    || !segments[index].response.startsWith(`${provider} · `)
+    || !/^[^\n]+\nOpening: [\s\S]+\nCritique and revision: [\s\S]+$/.test(segments[index].response))) return null;
+  const final = segments[3]?.response;
+  if (typeof final !== 'string') return null;
+  const prefix = providers.map(provider => `Council synthesis · ${provider}\n`).find(label => final.startsWith(label));
+  if (!prefix || !final.slice(prefix.length).trim()) return null;
+  return { answer: final.slice(prefix.length), discussion: segments.slice(0, 3).map(segment => segment.response) };
+};
 // Shared host/browser contract: complete one observed speaker before the next.
 function createCouncilDecoder(onEvent = () => {}) {
   let members, chair, active = false, repaired = false, repairs = 0, done = false, failed = false;
@@ -46,4 +60,4 @@ function createCouncilDecoder(onEvent = () => {}) {
     finish() { return done && !failed ? buildCouncilReply(members, texts, chair) : null; },
   };
 }
-module.exports = { COUNCIL_TIMEOUT_MS, COUNCIL_STEPS, COUNCIL_MAX_REPAIRS, councilRequested, councilStep, buildCouncilReply, createCouncilDecoder };
+module.exports = { COUNCIL_TIMEOUT_MS, COUNCIL_STEPS, COUNCIL_MAX_REPAIRS, councilRequested, councilStep, buildCouncilReply, getCouncilReplyView, createCouncilDecoder };

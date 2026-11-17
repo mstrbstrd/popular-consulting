@@ -1,5 +1,5 @@
 import { getCouncilScene } from "./metabloomCouncilScene";
-import { councilRequested, COUNCIL_TIMEOUT_MS } from './metabloomCouncilProtocol';
+import { councilRequested, getCouncilReplyView, COUNCIL_TIMEOUT_MS } from './metabloomCouncilProtocol';
 import { requestMetabloomCouncil } from './metabloomCouncilClient';
 import MetabloomCouncilProgress from './MetabloomCouncilProgress';
 import React from "react";
@@ -2706,7 +2706,7 @@ const OrbSection = ({
       className="metabloom-chat"
       aria-label="Metabloom model chat interface"
       data-conversation-started={conversationStarted ? "true" : "false"}
-      data-council={councilEnabled || councilRequested(draft) || councilPending ? "true" : "false"}
+      data-council={councilEnabled || councilPending ? "true" : "false"}
       data-orb-action={activeAction.id}
       data-orb-action-version={actionVersion}
       data-orb-renderer="creatoros-metabloom"
@@ -2728,7 +2728,7 @@ const OrbSection = ({
 
       <div className="metabloom-chat__field">
         <MetabloomAvatar
-          council={councilEnabled || councilRequested(draft) || councilPending}
+          council={councilEnabled || councilPending}
           councilSpeaker={getCouncilScene(councilEvents, councilPending && pending)}
           councilEmotes={allowModelExpressions}
           councilIntensity={expressiveness}
@@ -2782,6 +2782,7 @@ const OrbSection = ({
           >
             <div className="metabloom-chat__message-list">
               {messages.map((message, messageIndex) => {
+                const councilReply = message.role === "assistant" ? getCouncilReplyView(message.segments) : null;
                 const researchDetails = message.role === "assistant" ? parseMetabloomResearchReport(message.researchDetails) : null;
                 const sources = researchDetails ? parseMetabloomResearchAnswerSources(message.sources, { report: researchDetails })
                   : message.role === 'assistant' ? parseMetabloomResearchSources(message.sources) : null;
@@ -2810,7 +2811,13 @@ const OrbSection = ({
                     {message.role === "assistant" && message.status !== "error" && answerMedia.get(message.id)?.images
                       && <MetabloomAnswerImages images={answerMedia.get(message.id).images} />}
                     <div className="metabloom-chat__bubble">
-                      {message.segments?.length
+                      {councilReply ? <>
+                        <p>{councilReply.answer}</p>
+                        <details className="metabloom-council__discussion">
+                          <summary>View council discussion</summary>
+                          {councilReply.discussion.map((contribution, index) => <p key={index}>{contribution}</p>)}
+                        </details>
+                      </> : message.segments?.length
                         ? message.segments.map((segment, index) => (
                           <React.Fragment key={index}>
                             {segment.emote && <button

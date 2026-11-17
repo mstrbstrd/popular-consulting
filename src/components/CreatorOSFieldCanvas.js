@@ -818,6 +818,7 @@ const CreatorOSFieldCanvas = ({
     let contextLost = false;
     let reducedMotion = false;
     let forceRender = true;
+    let sizeDirty = true;
     let currentMode = modeRef.current;
     let incomingMode = currentMode;
     let modeMix = 1;
@@ -1182,14 +1183,15 @@ const CreatorOSFieldCanvas = ({
       }
     };
 
-    const readPointer = (event) => ({
-      x: clamp(
-        (event.clientX - pointerBounds.left) / pointerBounds.width,
-      ),
-      y: clamp(
-        1 - (event.clientY - pointerBounds.top) / pointerBounds.height,
-      ),
-    });
+    const readPointer = (event) => {
+      // Input can arrive before the first replacement frame. Measure its bounds
+      // without clearing the canvas just to normalize a pointer coordinate.
+      const bounds = sizeDirty ? root.getBoundingClientRect() : pointerBounds;
+      return {
+        x: clamp((event.clientX - bounds.left) / Math.max(bounds.width, 1)),
+        y: clamp(1 - (event.clientY - bounds.top) / Math.max(bounds.height, 1)),
+      };
+    };
 
     // Full-frame UVs are shared with the shader, including portrait layouts.
     const navierPoint = (x, y) => [clamp(x), clamp(y)];
@@ -1683,6 +1685,13 @@ const CreatorOSFieldCanvas = ({
     };
 
     const draw = () => {
+      // Changing either buffer dimension clears the presented image. Coalesce
+      // resize records and replace that image in this same draw, never between
+      // cadence ticks while the council entrance changes the field's bounds.
+      if (sizeDirty) {
+        updateSize();
+        sizeDirty = false;
+      }
       const morphogenVisible =
         currentMode === REACTION_MODE || incomingMode === REACTION_MODE;
       const usePaintDisplayProgram =
@@ -1901,6 +1910,7 @@ const CreatorOSFieldCanvas = ({
     };
 
     const drawStatic = () => {
+      if (!documentVisible || contextLost) return;
       councilFrame = councilMotion.sample({ ...councilRef.current, staticFrame: true });
       navierImpulse = [0, 0];
       applyRestart();
@@ -1967,7 +1977,6 @@ const CreatorOSFieldCanvas = ({
         }
       }
 
-      updateSize();
       draw();
       reportState(
         currentMode === REACTION_MODE
@@ -2075,7 +2084,7 @@ const CreatorOSFieldCanvas = ({
       if (contextLost) return;
       frameCadence.reset();
       applyRestart();
-      updateSize();
+      sizeDirty = true;
       // Restoring a paused conversation still needs a visible first pose.
       if (pausedRef.current) introElapsed = INTRO_DURATION_SECONDS;
       if (reducedMotion) {
@@ -2110,11 +2119,10 @@ const CreatorOSFieldCanvas = ({
     };
 
     const handleResize = () => {
-      updateSize();
+      sizeDirty = true;
       redrawRef.current();
     };
 
-    updateSize();
     if (typeof ResizeObserver !== "undefined") {
       resizeObserver = new ResizeObserver(handleResize);
       resizeObserver.observe(root);

@@ -244,6 +244,8 @@
 .orb-page .metabloom-council summary { cursor: pointer; overflow-wrap: anywhere; }
 .orb-page .metabloom-council p { white-space: pre-wrap; overflow-wrap: anywhere; }
 .orb-page .metabloom-council__notice { flex-basis: 100%; font-size: 1.2rem; line-height: 1.5; margin: 0.8rem; }
+.orb-page .metabloom-council__discussion { margin-block-start: 1rem; }
+.orb-page .metabloom-council__discussion summary { cursor: pointer; overflow-wrap: anywhere; }
 
 /* ---------- Spectral rings on glass controls ----------
    The Aetheris control language on top of the glass: a 1px soft spectral ring

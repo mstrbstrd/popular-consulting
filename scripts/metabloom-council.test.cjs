@@ -1,7 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { EventEmitter } = require('node:events');
-const { councilRequested, councilStep, createCouncilDecoder, buildCouncilReply } = require('../src/components/metabloomCouncilProtocol');
+const { councilRequested, councilStep, createCouncilDecoder, buildCouncilReply, getCouncilReplyView } = require('../src/components/metabloomCouncilProtocol');
 const { parseMetabloomChatEnvelope } = require('../src/components/metabloomEmoteProtocol');
 const { runMetabloomCouncil } = require('../server/metabloomCouncil');
 const { createCouncilHandler } = require('../api/metabloom-council');
@@ -50,6 +50,10 @@ test('three independent openings precede mutual critiques and the preferred-prov
     assert.equal(requests.length, 7); assert.equal(events.length, 16); assert.equal(events.at(-1).type, 'council_done');
     assert.equal(reply.segments.length, 4); assert(parseMetabloomChatEnvelope(reply, { allowMultiple: true }).ok);
     assert.match(reply.segments[3].response, /Claude/);
+    const synthesisInstructions = requests[6].system;
+    assert.match(synthesisInstructions, /Answer the user directly/);
+    assert.match(synthesisInstructions, /Do not summarize the discussion/);
+    assert.match(synthesisInstructions, /uncertainty or unresolved objections that materially change the answer/);
   } finally { originals.forEach(([k, v]) => { if (v === undefined) delete process.env[k]; else process.env[k] = v; }); }
 });
 test('wire protocol rejects missing, duplicated, oversized, misordered and ungrounded contributions', () => {
@@ -139,6 +143,21 @@ test('maximum-size discussion round trips through the actual saved-thread parser
     source: 'model', content: reply.segments.map(s => s.response).join('\n\n'), segments: reply.segments }], counter: 1, draft: '', deepResearch: false },
   visuals: { version: 1, records: [], lastInteractedId: null }, workspace: null };
   assert.deepEqual(parseMetabloomThreadSnapshot(snapshot)?.conversation.messages[0].segments, reply.segments);
+  const restored = parseMetabloomThreadSnapshot(snapshot).conversation.messages[0];
+  const view = getCouncilReplyView(restored.segments);
+  assert.equal(view.answer, 'x'.repeat(1100));
+  assert.equal(view.discussion.length, 3);
+});
+
+test('ordinary, partial and malformed replies are never hidden as council discussion', () => {
+  const complete = buildCouncilReply(members, ['A', 'B', 'C', 'D', 'E', 'F', 'Final answer'], 'openai').segments;
+  assert.equal(getCouncilReplyView(complete).answer, 'Final answer');
+  for (const segments of [null, [], complete.slice(0, 3), [...complete, { response: 'Extra' }],
+    complete.map(segment => ({ ...segment, emote: 'curious' })),
+    complete.map((segment, index) => index === 3 ? { response: 123 } : segment),
+    complete.map((segment, index) => index === 0 ? { response: 'A normal paragraph' } : segment)]) {
+    assert.equal(getCouncilReplyView(segments), null);
+  }
 });
 
 async function runFixture(makeText, options = {}) {

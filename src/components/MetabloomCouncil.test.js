@@ -4,6 +4,12 @@ import OrbSection from './OrbSection';
 import MetabloomCouncilProgress from './MetabloomCouncilProgress';
 import { requestMetabloomCouncil } from './metabloomCouncilClient';
 import { buildCouncilReply } from './metabloomCouncilProtocol';
+import { AppNavigationContext } from '../contexts/AppNavigationContext';
+import { parseMetabloomThreadSnapshot } from './metabloomThreadProtocol';
+const { TextEncoder } = require('util');
+const originalTextEncoder = global.TextEncoder;
+beforeAll(() => { global.TextEncoder = TextEncoder; });
+afterAll(() => { global.TextEncoder = originalTextEncoder; });
 jest.mock('./metabloomCouncilClient', () => ({ requestMetabloomCouncil: jest.fn() }));
 let mockAvatar;
 jest.mock('./MetabloomAvatar', () => props => { mockAvatar = props; return null; });
@@ -12,14 +18,21 @@ const members = [{ provider: 'openai', model: 'gpt-5-mini' }, { provider: 'deeps
 const reply = () => buildCouncilReply(members, ['One', 'Two', 'Three', 'Critique one', 'Critique two', 'Critique three', 'Synthesis'], 'openai');
 beforeEach(() => { requestMetabloomCouncil.mockReset(); });
 const send = value => { fireEvent.change(screen.getByRole('textbox', { name: 'Message Metabloom' }), { target: { value } }); fireEvent.click(screen.getByRole('button', { name: 'Send message' })); };
-test('asking the council automatically routes to the council and persists the complete discussion as one reply', async () => {
+test('asking the council shows only the final answer with the full discussion closed until expanded', async () => {
   requestMetabloomCouncil.mockResolvedValue(reply());
   render(<OrbSection />);
   send('I am asking the council: what should we do?');
   await waitFor(() => expect(requestMetabloomCouncil).toHaveBeenCalledTimes(1));
   expect(requestMetabloomCouncil.mock.calls[0][0].message).toBe('I am asking the council: what should we do?');
-  expect(await screen.findByText(/Critique and revision: Critique one/)).toBeInTheDocument();
-  expect(screen.getByText(/Council synthesis/)).toBeInTheDocument();
+  expect(await screen.findByText('Synthesis')).toBeVisible();
+  const contribution = screen.getByText(/Critique and revision: Critique one/);
+  expect(contribution).not.toBeVisible();
+  expect(screen.queryByText(/Council synthesis/)).not.toBeInTheDocument();
+  fireEvent.click(screen.getByText('View council discussion'));
+  expect(contribution).toBeVisible();
+  fireEvent.click(screen.getByText('View council discussion'));
+  expect(contribution).not.toBeVisible();
+  expect(mockAvatar.council).toBe(false);
 });
 test('manual mode uses council for an ordinary message and excludes Deep Research', async () => {
   requestMetabloomCouncil.mockResolvedValue(reply()); render(<OrbSection />);
@@ -109,11 +122,44 @@ test('manual council seats enter before sending, follow the actual critique and 
   expect(mockAvatar.provider).toBeUndefined();
 });
 
-test('automatic council preview exits for negated or removed requests', () => {
+test('typing, negating and removing a council request cannot activate its scene or start work', () => {
   render(<OrbSection />);
   const input = screen.getByRole('textbox', { name: 'Message Metabloom' });
   fireEvent.change(input, { target: { value: 'asking the council about this' } });
-  expect(mockAvatar.council).toBe(true);
+  expect(mockAvatar.council).toBe(false);
+  expect(screen.getByText(/Shares this conversation across/)).toBeVisible();
   fireEvent.change(input, { target: { value: 'do not ask the council' } });
   expect(mockAvatar.council).toBe(false);
+  fireEvent.change(input, { target: { value: '' } });
+  expect(mockAvatar.council).toBe(false);
+  expect(requestMetabloomCouncil).not.toHaveBeenCalled();
+});
+
+test('submitting an automatic request activates the council even after the composer clears', async () => {
+  requestMetabloomCouncil.mockImplementation(() => new Promise(() => {}));
+  render(<OrbSection />);
+  const input = screen.getByRole('textbox', { name: 'Message Metabloom' });
+  fireEvent.change(input, { target: { value: 'Ask the council about this' } });
+  expect(mockAvatar.council).toBe(false);
+  fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
+  await waitFor(() => expect(requestMetabloomCouncil).toHaveBeenCalledTimes(1));
+  expect(input).toHaveValue('');
+  expect(mockAvatar.council).toBe(true);
+  fireEvent.click(screen.getByRole('button', { name: 'Stop response' }));
+  expect(mockAvatar.council).toBe(false);
+});
+
+test('saved council replies reopen with their answer visible and discussion collapsed', () => {
+  const segments = reply().segments;
+  const saved = parseMetabloomThreadSnapshot({ schemaVersion: 1, conversation: { counter: 1, draft: '', deepResearch: false,
+    messages: [{ id: 'assistant-1', role: 'assistant', status: 'complete', source: 'model', segments,
+      content: segments.map(segment => segment.response).join('\n\n') }] },
+    visuals: { version: 1, records: [], lastInteractedId: null }, workspace: null });
+  expect(saved).not.toBeNull();
+  render(<AppNavigationContext.Provider value={{ getToolState: () => saved.conversation }}><OrbSection /></AppNavigationContext.Provider>);
+  expect(screen.getByText('Synthesis')).toBeVisible();
+  expect(screen.getByText(/Critique and revision: Critique three/)).not.toBeVisible();
+  fireEvent.click(screen.getByText('View council discussion'));
+  expect(screen.getByText(/Critique and revision: Critique three/)).toBeVisible();
+  expect(requestMetabloomCouncil).not.toHaveBeenCalled();
 });

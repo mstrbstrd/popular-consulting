@@ -59,10 +59,11 @@ try {
     assert.equal(await avatar.getAttribute('data-council'), 'false');
     assert.equal(await avatar.getAttribute('data-avatar-provider'), null);
     await composer.fill('Ask the council: which design should we choose?');
-    assert.equal(await avatar.getAttribute('data-council'), 'true');
+    assert.equal(await avatar.getAttribute('data-council'), 'false');
     await page.getByText(/Shares this conversation across/).waitFor();
     await page.getByRole('button', { name: 'Send message', exact: true }).click();
     await page.getByText('Opening · OpenAI · Responding', { exact: true }).waitFor();
+    assert.equal(await avatar.getAttribute('data-council'), 'true');
     assert.equal(await avatar.getAttribute('data-council-speaker'), 'openai');
     await page.screenshot({ path: path.join(output, name + '-progress.png'), fullPage: true });
     assert(await page.getByRole('button', { name: 'Stop response', exact: true }).isVisible());
@@ -75,7 +76,14 @@ try {
     assert(await page.getByRole('button', { name: 'Stop response', exact: true }).isVisible());
     await page.screenshot({ path: path.join(output, name + '-correction.png'), fullPage: true });
     releaseRepair();
-    await page.getByText(/Council synthesis · OpenAI/).waitFor();
+    await page.getByText('View council discussion', { exact: true }).waitFor();
+    const discussion = page.locator('.metabloom-council__discussion');
+    assert.equal(await discussion.getAttribute('open'), null);
+    assert(!(await discussion.locator('p').first().isVisible()));
+    assert(await discussion.locator('..').locator('p').first().isVisible());
+    await page.getByText('View council discussion', { exact: true }).click();
+    assert(await discussion.locator('p').first().isVisible());
+    await page.getByText('View council discussion', { exact: true }).click();
     await page.getByRole('button', { name: 'Send message', exact: true }).waitFor();
     assert.equal(await page.locator('.metabloom-council').count(), 0);
     await page.waitForFunction(() => document.querySelector('.metabloom-avatar')?.dataset.council === 'false');
