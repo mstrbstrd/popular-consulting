@@ -309,9 +309,11 @@ test('mobile Open and New close the drawer across the paired remount and focus t
   await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Chat history' })).not.toBeInTheDocument());
   await waitFor(() => expect(composer()).toHaveFocus());
   const previous = composer();
+  // Chat history reopens from the sidebar's own Chats control; More no longer lists it.
   fireEvent.click(screen.getByRole('button', { name: /^More/ }));
-  fireEvent.click(within(screen.getByRole('dialog', { name: 'More options' })).getByRole('button', { name: 'Saved chats' }));
-  expect(screen.queryByRole('dialog', { name: 'More options' })).not.toBeInTheDocument();
+  expect(within(screen.getByRole('dialog', { name: 'More options' })).queryByRole('button', { name: 'Saved chats' })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Close more options' }));
+  await openHistory(true);
   expect(screen.getByRole('dialog', { name: 'Chat history' })).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'New chat', exact: true }));
   await waitFor(() => expect(composer()).not.toBe(previous));
@@ -321,4 +323,16 @@ test('mobile Open and New close the drawer across the paired remount and focus t
   expect(state.threadRef.current.expanded).toBe(false);
   expect(document.querySelectorAll('.metabloom-visual')).toHaveLength(0);
   noGeneration();
+});
+
+test('More is the last composer control, with no replay shortcut and no chats row', async () => {
+  await fixture();
+  const tools = document.querySelector('.metabloom-chat__conversation-tools');
+  const more = screen.getByRole('button', { name: /^More/ });
+  expect(tools.lastElementChild).toContainElement(more);
+  expect(screen.queryByRole('button', { name: /^Replay .* reaction$/ })).toBeNull();
+  fireEvent.click(more);
+  const panel = screen.getByRole('dialog', { name: 'More options' });
+  expect(within(panel).queryByRole('button', { name: 'Saved chats' })).toBeNull();
+  expect(within(panel).getByRole('button', { name: 'Saved work' })).toBeInTheDocument();
 });

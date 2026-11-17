@@ -291,6 +291,9 @@
   align-items: center;
   gap: 0.8rem;
 }
+/* More is always the far-right control. Ordering it after everything else also
+   keeps it in place when Latest message (or its reserved phone slot) appears. */
+.orb-page .metabloom-chat__conversation-tools > .metabloom-reactions { order: 1; }
 .orb-page .metabloom-chat .metabloom-reactions .metabloom-chat__stream-option {
   position: static;
   margin-top: 1rem;

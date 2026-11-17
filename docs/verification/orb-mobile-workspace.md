@@ -35,9 +35,10 @@ the navigation so it cannot cover the component or conversation. On mobile,
 expanded component view, keyboard-open viewports, and short viewports below
 520 pixels hide this secondary row and give its space back to the content.
 Header clearance itself remains 76 CSS pixels
-without a larger safe-area inset. The external
-Replay shortcut moves into the Reactions panel on mobile, and the desktop send
-hint is visually hidden. The four response demo buttons below the composer and
+without a larger safe-area inset. There is no
+external Replay shortcut: Replay lives only inside the More panel, whose button
+sits at the far right of the composer controls, and the desktop send hint is
+visually hidden. The four response demo buttons below the composer and
 their duplicate entry inside Reactions are removed. Deep Research remains an
 explicit control.
 

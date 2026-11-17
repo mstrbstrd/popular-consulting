@@ -454,7 +454,6 @@ const OrbSection = ({
   threadSession = null,
   threadPanel = null,
   threadBusy = false,
-  onShowThreads,
 }) => {
   const { isDark } = useThemeMode();
   const navigation = useAppNavigation();
@@ -2902,20 +2901,24 @@ const OrbSection = ({
               <div className="metabloom-chat__conversation-tools">
                 {workspace && <MetabloomModelPicker selection={modelSelection} onChange={setModelSelection}
                   onAvailability={setModelAvailable} disabled={pending || threadBusy} isActive={isActive} />}
+                <label className="metabloom-chat__research-toggle" data-enabled={councilEnabled || councilRequested(draft) ? "true" : "false"}>
+                  <input type="checkbox" checked={councilEnabled} disabled={pending || !isActive} onChange={event => { setCouncilEnabled(event.target.checked); if (event.target.checked) setDeepResearch(false); }} />
+                  <span>Council</span>
+                </label>
+                <label className="metabloom-chat__research-toggle" data-enabled={deepResearch ? "true" : "false"} data-disabled={pending || !isActive ? "true" : "false"}>
+                  <input type="checkbox" checked={deepResearch} disabled={pending || !isActive} onChange={(event) => { setDeepResearch(event.target.checked); if (event.target.checked) setCouncilEnabled(false); }} />
+                  <span>Deep Research</span>
+                </label>
+                {readingEarlier && <button type="button" className="metabloom-chat__latest" aria-label="Latest message" onClick={scrollToLatest}>
+                  <span className="metabloom-chat__latest-label">Latest message</span><span aria-hidden="true">↓</span>
+                </button>}
+                {/* More sits at the far right of the control set. */}
                 <MetabloomReactionPanel
                   onReact={previewReaction}
                   disabled={pending || !isActive}
                   intensity={expressiveness}
                   onIntensityChange={setExpressiveness}
                   tools={workspace ? ({ close }) => <>
-                    {onShowThreads && <button type="button" className="metabloom-reactions__saved-tool"
-                      aria-label="Saved chats" onClick={() => { close(); onShowThreads(); }}>
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
-                        <path d="M4 4.5h16v12H9l-5 4v-16Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" />
-                        <path d="M8 9h8M8 12h5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-                      </svg>
-                      <span><strong>Chats</strong><span>Open a saved conversation</span></span>
-                    </button>}
                     <button type="button" className="metabloom-reactions__saved-tool"
                     aria-label="Saved work" disabled={pending || !isActive} onClick={() => { close(); openSavedWork(); }}>
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
@@ -2973,17 +2976,6 @@ const OrbSection = ({
                     </>
                   )}
                 </MetabloomReactionPanel>
-                <label className="metabloom-chat__research-toggle" data-enabled={councilEnabled || councilRequested(draft) ? "true" : "false"}>
-                  <input type="checkbox" checked={councilEnabled} disabled={pending || !isActive} onChange={event => { setCouncilEnabled(event.target.checked); if (event.target.checked) setDeepResearch(false); }} />
-                  <span>Council</span>
-                </label>
-                <label className="metabloom-chat__research-toggle" data-enabled={deepResearch ? "true" : "false"} data-disabled={pending || !isActive ? "true" : "false"}>
-                  <input type="checkbox" checked={deepResearch} disabled={pending || !isActive} onChange={(event) => { setDeepResearch(event.target.checked); if (event.target.checked) setCouncilEnabled(false); }} />
-                  <span>Deep Research</span>
-                </label>
-                {readingEarlier && <button type="button" className="metabloom-chat__latest" aria-label="Latest message" onClick={scrollToLatest}>
-                  <span className="metabloom-chat__latest-label">Latest message</span><span aria-hidden="true">↓</span>
-                </button>}
               </div>
               {workspaceExpanded && <button type="button" className="metabloom-chat__component-reply" aria-label="Read latest reply in chat" onClick={() => {
                 workspaceReadingRef.current = null;

@@ -187,10 +187,6 @@
   border-color: var(--aetheris-line);
 }
 
-.orb-page .metabloom-reactions__replay-shortcut > span[aria-hidden="true"] {
-  margin: 0 0.4rem 0 0;
-}
-
 @media (hover: hover) and (pointer: fine) and (min-width: 901px) {
   .orb-page .metabloom-reactions__toolbar > button,
   .orb-page .metabloom-chat__research-toggle,

@@ -44,7 +44,7 @@ const METADATA_SELECTORS = Object.freeze({
 });
 
 const OrbConversationSurface = ({ navigation, threadSession, threadBusy,
-  onShowThreads, onConversationStateChange, onReady }) => {
+  onConversationStateChange, onReady }) => {
   const [workspaceController, setWorkspaceController] = React.useState(null);
   const handleWorkspaceReady = React.useCallback(controller => {
     setWorkspaceController(controller);
@@ -53,7 +53,7 @@ const OrbConversationSurface = ({ navigation, threadSession, threadBusy,
   return <AppNavigationContext.Provider value={navigation}>
     <MetabloomWorkspaceContext.Provider value={workspaceController}>
       <OrbSection isActive pointerReactive={false} onConversationStateChange={onConversationStateChange} onReady={onReady}
-        threadSession={threadSession} threadBusy={threadBusy} onShowThreads={onShowThreads} />
+        threadSession={threadSession} threadBusy={threadBusy} />
       <MetabloomVisuals navigation={navigation} onWorkspaceReady={handleWorkspaceReady} threadSession={threadSession} />
     </MetabloomWorkspaceContext.Provider>
   </AppNavigationContext.Provider>;
@@ -63,8 +63,6 @@ const OrbPageContent = ({ onReady }) => {
   const navigation = useAppNavigation();
   const auth = useAuth();
   const threads = useMetabloomThreads({ navigation, enabled: auth.status === 'authenticated' });
-  const setThreadsExpanded = threads.setExpanded;
-  const showThreads = React.useCallback(() => setThreadsExpanded(true), [setThreadsExpanded]);
   // The route's foreground is interactive as soon as React mounts. Do not
   // block its reveal on WebGL's first frame: on mobile Safari a busy/failed
   // GPU can otherwise leave the entire chat hidden behind the background.
@@ -367,7 +365,7 @@ const OrbPageContent = ({ onReady }) => {
             <OrbConversationSurface key={threads.enabled ? threads.session.key : 'conversation'}
               navigation={threads.enabled ? threads.navigation : navigation}
               threadSession={threads.enabled ? threads.session : null}
-              threadBusy={threads.enabled && threads.busy} onShowThreads={threads.enabled ? showThreads : undefined}
+              threadBusy={threads.enabled && threads.busy}
               onConversationStateChange={setConversationStarted} onReady={onReady} />
           </main>
         </div>

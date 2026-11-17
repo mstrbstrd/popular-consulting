@@ -290,9 +290,6 @@
   outline: none;
   box-shadow: var(--aetheris-focus-halo);
 }
-@media (max-width: 768px) {
-  .orb-page .metabloom-reactions__toolbar .metabloom-reactions__replay-shortcut { display: none; }
-}
 
 @media (max-width: 360px) {
   .metabloom-reactions__heading { padding-inline: 12px; }

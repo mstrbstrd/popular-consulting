@@ -325,6 +325,9 @@
     font-size: 12px;
   }
 
+  /* When the row wraps on a phone, More keeps the far-right position. */
+  .orb-page .metabloom-chat__conversation-tools > .metabloom-reactions { margin-left: auto; }
+
   .orb-page .metabloom-reactions__toolbar > button,
   .orb-page .metabloom-chat__latest {
     min-height: 44px;

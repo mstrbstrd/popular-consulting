@@ -106,9 +106,6 @@ const MetabloomReactionPanel = ({ onReact, disabled = false, intensity: controll
         <button ref={toggleRef} type="button" aria-haspopup="dialog" aria-expanded={open} aria-controls="metabloom-reaction-panel" onClick={() => setOpen(!open)}>
           <span className="metabloom-reactions__toggle-label">{tools ? 'More' : 'Reactions'}</span> <span aria-hidden="true">{open ? "−" : "+"}</span>
         </button>
-        <button type="button" className="metabloom-reactions__replay-shortcut" disabled={disabled} onClick={() => play(selected)} aria-label={`Replay ${action.label.toLowerCase()} reaction`}>
-          <span aria-hidden="true">↻</span>{action.label}
-        </button>
       </div>
       {open && (
         <dialog ref={popoverRef} id="metabloom-reaction-panel" className="metabloom-reactions__panel" aria-label={tools ? 'More options' : 'Reaction studio'} onClose={close} onCancel={(event) => {

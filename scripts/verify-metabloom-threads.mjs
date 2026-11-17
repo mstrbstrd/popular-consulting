@@ -184,12 +184,10 @@ async function history(page) {
     const trigger = page.getByRole('button', { name: 'Expand chats', exact: true });
     if (await trigger.isVisible()) await trigger.click();
   } else if (!(await page.getByRole('dialog', { name: 'Chat history' }).isVisible())) {
+    // Below 1280px the floating Chats control is the only entry point; More no longer lists chats.
     const trigger = page.locator('.metabloom-threads__floating .metabloom-threads__trigger');
-    if (await trigger.isVisible()) await trigger.click();
-    else {
-      await page.getByRole('button', { name: /^More/ }).click();
-      await page.getByRole('dialog', { name: 'More options' }).getByRole('button', { name: 'Saved chats', exact: true }).click();
-    }
+    assert(await trigger.isVisible(), 'The floating Chats control is available whenever history is closed');
+    await trigger.click();
   }
   await page.waitForFunction(() => {
     const button = document.querySelector('.metabloom-threads button[aria-label="Refresh chats"]');

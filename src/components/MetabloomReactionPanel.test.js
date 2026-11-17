@@ -13,8 +13,10 @@ test("previews a chosen reaction, restores focus, and replays with bounded expre
   expect(onReact).toHaveBeenLastCalledWith({ action: "curious", duration: 2080, intensity: 0.8, talking: false });
   expect(screen.queryByRole("dialog", { name: "Reaction studio" })).not.toBeInTheDocument();
   expect(toggle).toHaveFocus();
-  fireEvent.click(screen.getByRole("button", { name: "Replay curious reaction" }));
+  fireEvent.click(toggle);
+  fireEvent.click(screen.getByRole("button", { name: "Replay selected reaction" }));
   expect(onReact).toHaveBeenCalledTimes(2);
+  expect(onReact).toHaveBeenLastCalledWith({ action: "curious", duration: 2080, intensity: 0.8, talking: false });
   fireEvent.click(toggle);
   fireEvent(screen.getByRole("dialog", { name: "Reaction studio" }), new Event("cancel", { cancelable: true }));
   expect(toggle).toHaveFocus();
@@ -26,7 +28,6 @@ test("preview controls cannot interrupt an active reply", () => {
   render(<MetabloomReactionPanel onReact={onReact} disabled />);
   fireEvent.click(screen.getByRole("button", { name: /Reactions/ }));
   fireEvent.click(screen.getByRole("button", { name: "Preview surprised reaction" }));
-  fireEvent.click(screen.getByRole("button", { name: "Replay curious reaction" }));
   fireEvent.click(screen.getByRole("button", { name: "Replay selected reaction" }));
   expect(onReact).not.toHaveBeenCalled();
 });
@@ -156,4 +157,11 @@ test("opening the studio yields overlapping route chrome until it closes or unmo
   fireEvent.click(toggle);
   unmount();
   expect(page).not.toHaveAttribute("data-reactions-open");
+});
+
+test("the toolbar has only the panel toggle: there is no separate replay shortcut", () => {
+  const view = render(<MetabloomReactionPanel onReact={jest.fn()} />);
+  const toolbar = view.container.querySelector(".metabloom-reactions__toolbar");
+  expect(toolbar.querySelectorAll("button")).toHaveLength(1);
+  expect(screen.queryByRole("button", { name: /^Replay .* reaction$/ })).toBeNull();
 });
