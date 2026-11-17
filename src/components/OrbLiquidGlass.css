@@ -4,7 +4,8 @@
      clear    — controls floating over the living field: nearly transparent,
                 lensed at the rim (Chromium refraction, see orbLiquidGlassRefraction.js),
                 curved specular highlights, no coloured border
-     regular  — artifact panels and popover menus: frosted, same rim and lens
+     regular  — the component workspace panel: frosted, same rim and lens
+   The sidebar and the More, chat model and Theme popovers use clear glass.
    The prismatic edge now comes from per-channel refraction instead of a painted
    spectral ring. Without refraction support the same shapes fall back to light
    blur, so Safari/Firefox keep the clear look minus the bend.
@@ -52,16 +53,28 @@
   backdrop-filter: var(--lg-regular-blur) var(--lg-post);
   box-shadow: var(--lg-specular), var(--lg-shadow);
 }
+/* Popover dialogs (More, chat model, Theme) match the sidebar and composer:
+   clear glass with the lensed rim and a text halo, not a frosted menu fill. */
 .orb-page .metabloom-reactions__panel,
 .orb-page .metabloom-model-picker__dialog,
 .orb-page .orb-appearance__dialog:not([data-inline='true']) {
   border: 1px solid transparent !important;
   border-radius: var(--lg-radius-menu) !important;
-  background: var(--lg-menu-fill) !important;
-  -webkit-backdrop-filter: var(--lg-regular-blur) var(--lg-post) !important;
-  backdrop-filter: var(--lg-refraction, var(--lg-regular-blur)) var(--lg-post) !important;
+  background: var(--lg-clear-fill) !important;
+  -webkit-backdrop-filter: var(--lg-clear-fallback) var(--lg-post) !important;
+  backdrop-filter: var(--lg-refraction, var(--lg-clear-fallback)) var(--lg-post) !important;
   box-shadow: var(--lg-specular), var(--lg-shadow) !important;
   color: var(--aetheris-ink) !important;
+  text-shadow: var(--lg-text-halo);
+}
+/* The field shows through clear glass, so secondary text sits closer to full
+   ink than on a frosted panel. Alerts keep their own colour. */
+.orb-page .metabloom-model-picker__content p:not([role='alert']),
+.orb-page .metabloom-model-picker__content small,
+.orb-page .metabloom-model-picker__content label,
+.orb-page .metabloom-reactions__panel .metabloom-reactions__heading p,
+.orb-page .metabloom-reactions__panel .metabloom-reactions__saved-tool > span > span {
+  color: color-mix(in srgb, var(--aetheris-ink) 84%, transparent);
 }
 .orb-page .metabloom-threads__editing {
   border: 0 !important; border-radius: 18px !important;
@@ -171,7 +184,10 @@
 }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .orb-page .metabloom-threads__dock,
-  .orb-page .metabloom-threads__drawer { background: var(--aetheris-panel) !important; text-shadow: none; }
+  .orb-page .metabloom-threads__drawer,
+  .orb-page .metabloom-reactions__panel,
+  .orb-page .metabloom-model-picker__dialog,
+  .orb-page .orb-appearance__dialog:not([data-inline='true']) { background: var(--aetheris-panel) !important; text-shadow: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

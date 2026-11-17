@@ -100,4 +100,17 @@ describe('shared liquid glass lenses', () => {
     expect(rules).toMatch(/\.metabloom-reactions__panel \.metabloom-reactions__saved-tool::before \{ opacity: 0; background: var\(--aetheris-spectral\); \}/);
     expect(rules).toMatch(/\.metabloom-reactions__saved-tool:focus-visible::before \{ opacity: 1; \}/);
   });
+
+  test('the More, chat model and Theme popovers share the sidebar clear glass', () => {
+    const start = css.indexOf('.orb-page .metabloom-reactions__panel,\n.orb-page .metabloom-model-picker__dialog,');
+    const material = css.slice(start, css.indexOf('}', start));
+    expect(material).toContain(".orb-page .orb-appearance__dialog:not([data-inline='true'])");
+    expect(material).toContain('background: var(--lg-clear-fill) !important;');
+    expect(material).toContain('var(--lg-refraction, var(--lg-clear-fallback))');
+    expect(material).toContain('text-shadow: var(--lg-text-halo);');
+    expect(material).not.toContain('--lg-menu-fill');
+    expect(read('MetabloomModelPicker.css')).toContain('.metabloom-model-picker__dialog::backdrop { background: rgba(8, 8, 9, 0.12); }');
+    // Like the More panel, the model dialog is a transient menu that receives the rim lens.
+    expect(read('liquidGlassRefraction.js')).toContain("'.metabloom-model-picker__dialog[open]',");
+  });
 });

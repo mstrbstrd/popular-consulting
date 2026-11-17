@@ -3,7 +3,8 @@
 .metabloom-model-picker__trigger span:nth-child(2) { max-width: 16rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: .72; font-size: .9em; }
 .metabloom-model-picker__warning { font-size: 1.1rem; }
 .metabloom-model-picker__dialog { position: fixed; inset: 0; margin: auto; width: min(46rem, calc(100vw - 3.2rem)); max-height: min(80svh, 65rem); overflow: auto; padding: 0; border: 1px solid rgba(127,127,127,.35); border-radius: 2rem; background: var(--aetheris-panel, #fff8f7); color: var(--aetheris-ink, #17171a); box-shadow: 0 2rem 7rem rgba(0,0,0,.22); font: inherit; }
-.metabloom-model-picker__dialog::backdrop { background: rgba(12,12,18,.4); }
+/* Barely dimmed, like the More panel, so the clear glass shows the live field. */
+.metabloom-model-picker__dialog::backdrop { background: rgba(8, 8, 9, 0.12); }
 /* The dialog mirrors the More panel: a heading row over a divider, mono
    metadata, and capsule controls. Explicit type overrides the site-wide
    h2 (italic 4rem) and p/label (2rem) defaults in index.css. */

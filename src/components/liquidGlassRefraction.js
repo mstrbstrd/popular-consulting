@@ -29,6 +29,7 @@ export const ORB_REFRACTION_TARGETS = [
 ];
 export const ORB_REFRACTION_MENUS = [
   '.metabloom-reactions__panel[open]',
+  '.metabloom-model-picker__dialog[open]',
   '.orb-appearance__dialog[open]',
   '.workspace-menu[open] .workspace-menu-panel',
   '.site-account-menu[open] .site-account-panel',
