@@ -1,4 +1,4 @@
-const { isMetabloomResearchDeclined } = require('./metabloomResearchIntent');
+const { isMetabloomResearchDeclined, isMetabloomNewsRequest } = require('./metabloomResearchIntent');
 
 // Explicit scene commands are product controls, not probabilistic model choices.
 // Anchor them to the current request so quoted examples and old turns cannot
@@ -14,6 +14,8 @@ function getMetabloomExplicitAction(message) {
     && /^(?:(?:do|run|start|perform|give me|take) (?:a )?)?(?:deep[- ]dive|deep research)(?:\s|$)/.test(text)
     && !/^(?:deep[- ]dive|deep research) (?:is|was|means|has|supports|can|mode|animation|feature)\b/.test(text))
     return 'deep-research';
+  // News is always presented as a research briefing.
+  if (isMetabloomNewsRequest(message)) return 'deep-research';
   return null;
 }
 

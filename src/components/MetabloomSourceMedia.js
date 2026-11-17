@@ -62,7 +62,7 @@ function SourcePlate({ token, host, state }) {
   </div>;
 }
 
-function ArticlePreview({ candidates, compact, tile, hero, resolver, priority, subjectImage }) {
+function ArticlePreview({ candidates, compact, tile, hero, overlay, resolver, priority, subjectImage }) {
   const root = React.useRef(null);
   const [entries] = React.useState(candidates);
   const requestable = entries.some(entry => entry.token);
@@ -142,10 +142,16 @@ function ArticlePreview({ candidates, compact, tile, hero, resolver, priority, s
     else setState('unavailable');
   };
   const condensed = compact || tile || hero;
+  // A hero carries the story's headline on its photo; without a photo the same
+  // headline sits on the source plate in the theme's ink.
+  const photoShown = state === 'ready' || (showRelated && relatedState === 'ready');
+  const heroPhoto = photoShown ? 'shown' : state === 'unavailable' && !showRelated ? 'none' : 'pending';
+  const busy = state === 'pending' || state === 'loading';
   return <div ref={root} className={`metabloom-source-preview${tile ? ' metabloom-source-preview--tile'
     : hero ? ' metabloom-source-preview--hero' : compact ? ' metabloom-source-preview--compact' : ''}`} data-preview-state={state}
-    data-related-photo={showRelated ? relatedState : undefined}>
-    <div className="metabloom-source-preview__image-area" aria-busy={state === 'pending' || state === 'loading'}>
+    data-related-photo={showRelated ? relatedState : undefined} data-hero-photo={hero ? heroPhoto : undefined}>
+    {/* aria-busy never covers the headline overlay, which is always readable. */}
+    <div className="metabloom-source-preview__image-area" aria-busy={overlay ? undefined : busy}>
       <SourcePlate token={token} host={host} state={state} />
       {/* Resolver-scheduled images load eagerly, even on hidden slides, so the
           photo is already decoded when a reader moves to that slide. */}
@@ -159,6 +165,7 @@ function ArticlePreview({ candidates, compact, tile, hero, resolver, priority, s
           onLoad={() => setRelatedState('ready')} onError={() => setRelatedState('failed')} />
         <span className="metabloom-source-preview__related-badge" aria-hidden="true">Related photo</span>
       </>}
+      {overlay && <div className="metabloom-source-preview__overlay">{overlay}</div>}
     </div>
     <div className="metabloom-source-preview__content">
       <div className="metabloom-source-preview__publisher"><MetabloomPublisherIcon token={token} />
@@ -185,7 +192,7 @@ function ArticlePreview({ candidates, compact, tile, hero, resolver, priority, s
 // available (for example after the session-bound tokens were stripped from a
 // restored thread), so every slide keeps one consistent shape.
 export function MetabloomArticlePreview({ source, token, publisher, candidates, compact = false, tile = false,
-  hero = false, resolver = null, priority = 0, fallbackSource = null, subjectImage = null }) {
+  hero = false, overlay = null, resolver = null, priority = 0, fallbackSource = null, subjectImage = null }) {
   const ids = new Set(), tokens = new Set();
   const entries = (Array.isArray(candidates) ? candidates : [{ source, token, publisher }]).slice(0, 3).flatMap(entry => {
     const parsed = entry?.source && parseMetabloomResearchSources([entry.source], { startId: entry.source.id });
@@ -200,7 +207,7 @@ export function MetabloomArticlePreview({ source, token, publisher, candidates, 
   }
   if (!entries.length) return null;
   const related = metabloomSourceMediaUrl(subjectImage?.token, 'image') ? subjectImage : null;
-  return <ArticlePreview key={`${JSON.stringify(entries)}:${related?.token || ''}`} candidates={entries} compact={compact} tile={tile} hero={hero}
+  return <ArticlePreview key={`${JSON.stringify(entries)}:${related?.token || ''}`} candidates={entries} compact={compact} tile={tile} hero={hero} overlay={hero ? overlay : null}
     resolver={resolver} priority={Math.max(0, Math.min(Number.isSafeInteger(priority) ? priority : 0, 20))}
     subjectImage={related} />;
 }

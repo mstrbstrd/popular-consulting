@@ -30,7 +30,7 @@ Standalone previews outside a brief keep their own lazy, viewport-gated loading.
 
 ### Story layout
 
-Each brief story leads with its photo: a full-width 16:9 frame (capped at `min(56vh, 36rem)` tall) above the headline. Under the photo, a caption names the cited article's publisher and source number and links the article title; a related photo adds its credit line. A story whose candidates are all exhausted without any photo keeps a short source band (publisher mark and host) instead of the full frame, so no slide shows a large empty box.
+Each brief story leads with its photo frame, which carries the story's date line and headline over a dark fade; the caption under it names the cited article's publisher, source number and title link, and a related photo adds its credit line. The frame is a 16:9 minimum (capped at `min(56vh, 36rem)` before text growth) that grows for long headlines. A story whose candidates are all exhausted without any photo becomes a compact text card on the source plate instead of a large empty frame. See the structured research brief verification note for contrast and accessibility details.
 
 ### Consistent media slot
 

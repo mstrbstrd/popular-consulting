@@ -162,13 +162,39 @@ test('each story leads with its photo, before the headline, and keeps the cited 
   const story = screen.getByRole('article', { name: brief.items[0].headline });
   const preview = story.querySelector('.metabloom-source-preview--hero');
   const heading = within(story).getByRole('heading', { name: brief.items[0].headline });
-  expect(preview.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  // The headline and its date line are set on the photo, as a real heading.
+  expect(preview.querySelector('.metabloom-source-preview__overlay')).toContainElement(heading);
+  expect(preview).toHaveAttribute('data-hero-photo', 'pending');
+  fireEvent.load(within(preview).getByRole('img', { name: 'Image for signed.source.1' }));
+  expect(preview).toHaveAttribute('data-hero-photo', 'shown');
+  expect(preview.querySelector('.metabloom-source-preview__image-area')).not.toHaveAttribute('aria-busy');
   expect(within(preview).getByRole('img', { name: 'Image for signed.source.1' })).toBeInTheDocument();
   expect(within(preview).getByRole('link', { name: /Fictional source 1/ })).toHaveAttribute('href', sources[0].url);
   // A story without any photo keeps a short source band, not an empty frame.
   const last = screen.getByRole('article', { name: brief.items[4].headline, hidden: true });
   expect(last.querySelector('.metabloom-source-preview--hero')).toHaveAttribute('data-preview-state', 'unavailable');
   expect(last.querySelector('.metabloom-source-preview--hero')).not.toHaveAttribute('data-related-photo');
+  expect(last.querySelector('.metabloom-source-preview--hero')).toHaveAttribute('data-hero-photo', 'none');
+  expect(within(last).getByRole('heading', { name: brief.items[4].headline, hidden: true })).toBeInTheDocument();
+});
+
+test('the header leads with the editorial title, and a generic title names the day instead', () => {
+  const brief = fixture();
+  brief.title = 'Fictional Canada today: strikes, trade and the North';
+  const { unmount } = renderBrief(brief);
+  const header = document.querySelector('.metabloom-research-brief__header');
+  expect(within(header).getByRole('heading', { level: 3, name: brief.title })).toBeInTheDocument();
+  expect(within(header).getByText('News briefing')).toBeInTheDocument();
+  expect(header.querySelector('.metabloom-research-brief__coverage-status')).toHaveAttribute('data-coverage-status', brief.coverage.status);
+  unmount();
+  brief.title = 'News briefing';
+  const range = renderBrief(brief);
+  // A multi-day window keeps the generic title; one day is named.
+  expect(screen.getByRole('heading', { level: 3, name: 'News briefing' })).toBeInTheDocument();
+  range.unmount();
+  brief.windowStart = brief.windowEnd = '2026-10-23';
+  renderBrief(brief);
+  expect(screen.getByRole('heading', { level: 3, name: 'Friday, October 23' })).toBeInTheDocument();
 });
 
 describe('related subject photos', () => {

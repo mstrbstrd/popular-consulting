@@ -58,22 +58,29 @@
 .orb-page .metabloom-research-brief li + li { margin-top: 0.5rem; }
 
 .orb-page .metabloom-research-brief__header { min-width: 0; }
-.orb-page .metabloom-research-brief__header-line {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.2rem 1.2rem;
+/* Eyebrow, editorial title, then one meta row: count, coverage and reuse. */
+.orb-page .metabloom-research-brief p.metabloom-research-brief__eyebrow {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0 0.4rem;
+  color: var(--aetheris-ink-2); font: 500 max(1.05rem, 11px)/1.5 var(--aetheris-font-mono);
+  letter-spacing: 0.06em; text-transform: uppercase;
 }
+.orb-page .metabloom-research-brief p.metabloom-research-brief__eyebrow::before {
+  content: ''; flex: 0 0 auto; width: 0.7rem; height: 0.7rem; margin-inline-end: 0.3rem; border-radius: 50%;
+  background: var(--aetheris-spectral);
+}
+.orb-page .metabloom-research-brief h3.metabloom-research-brief__title {
+  margin-top: 0.5rem; font: 650 clamp(22px, 3vw, 30px)/1.15 var(--aetheris-font-sans);
+  letter-spacing: -0.025em; text-wrap: balance;
+}
+.orb-page .metabloom-research-brief__header-meta {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.6rem 1.2rem; margin-top: 1rem;
+}
+.orb-page .metabloom-research-brief__header-meta .metabloom-research-brief__reuse { margin-top: 0; min-height: 3.6rem; }
 .orb-page .metabloom-research-brief h3 {
   font-size: max(1.4rem, 14px);
   font-weight: 650;
   line-height: 1.4;
   letter-spacing: -0.01em;
-}
-.orb-page .metabloom-research-brief p.metabloom-research-brief__header-date {
-  color: var(--aetheris-ink-2);
-  font: 400 max(1.1rem, 12px)/1.5 var(--aetheris-font-mono);
 }
 .orb-page .metabloom-research-brief p.metabloom-research-brief__scope {
   margin-top: 1rem;
@@ -100,18 +107,20 @@
 .orb-page .metabloom-research-brief p.metabloom-research-brief__coverage-heading {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.35rem 1rem;
-  margin-top: 0.5rem;
-  font-size: max(1.2rem, 12px);
-  line-height: 1.6;
+  align-items: center;
+  gap: 0.35rem 0.8rem;
+  margin: 0;
+  font: 500 max(1.15rem, 12px)/1.5 var(--aetheris-font-mono);
 }
-.orb-page .metabloom-research-brief__coverage-heading strong { font-weight: 650; }
+.orb-page .metabloom-research-brief__coverage-heading strong { font-weight: 600; }
 .orb-page .metabloom-research-brief__coverage-status {
-  margin-inline-start: auto;
+  padding: 0.15rem 0.7rem;
+  border: 1px solid var(--aetheris-line-strong);
+  border-radius: 999px;
   color: var(--aetheris-ink-2);
-  font-size: max(1.1rem, 11px);
+  font-size: max(1.05rem, 11px);
 }
+.orb-page .metabloom-research-brief__coverage-status[data-coverage-status='complete'] { border-color: var(--aetheris-line); }
 .orb-page .metabloom-research-brief__briefing-details { border-top: 1px solid var(--aetheris-line); }
 .orb-page .metabloom-research-brief__briefing-details > ul { margin-top: 1rem; }
 .orb-page .metabloom-research-brief p.metabloom-research-brief__full-title { font-weight: 600; }
@@ -172,7 +181,7 @@
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   width: min(100%, 34rem);
-  margin: 1.5rem auto 0;
+  margin: 1.6rem auto 0;
   padding: 0.3rem;
   border: 1px solid transparent;
   border-radius: var(--aetheris-radius-lg);

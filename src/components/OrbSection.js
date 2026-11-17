@@ -1,6 +1,7 @@
 import { getCouncilScene } from "./metabloomCouncilScene";
 import { councilRequested, getCouncilReplyView, COUNCIL_TIMEOUT_MS } from './metabloomCouncilProtocol';
 import { requestMetabloomCouncil } from './metabloomCouncilClient';
+import { isMetabloomNewsRequest } from './metabloomResearchIntent';
 import MetabloomCouncilProgress from './MetabloomCouncilProgress';
 import React from "react";
 import { createPortal, flushSync } from 'react-dom';
@@ -1900,8 +1901,10 @@ const OrbSection = ({
       }
       const researchContext = selectedResearch?.reference;
       const freshResearch = Boolean(researchContext && isMetabloomFreshResearchRequest(message));
+      // A news request takes the same path as Deep Research so every news
+      // answer arrives as a briefing; the toggle itself is left unchanged.
       const requestedActionMode = useCouncil ? 'none' : researchContext ? (freshResearch ? 'deep-research' : 'none')
-        : deepResearch ? 'deep-research' : 'auto';
+        : deepResearch || isMetabloomNewsRequest(message) ? 'deep-research' : 'auto';
       cancelResponse();
       setCouncilEvents([]);
       const artifactContext = parseMetabloomArtifactAttachment(artifactAttachmentRef.current)?.reference;

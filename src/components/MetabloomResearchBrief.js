@@ -17,6 +17,10 @@ const calendarDate = value => new Intl.DateTimeFormat('en', {
   year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC',
 }).format(new Date(`${value}T00:00:00Z`));
 
+const weekdayDate = value => new Intl.DateTimeFormat('en', {
+  weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC',
+}).format(new Date(`${value}T00:00:00Z`));
+
 const asOfTime = value => new Intl.DateTimeFormat('en', {
   year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
   hourCycle: 'h23', timeZone: 'UTC',
@@ -63,24 +67,27 @@ function BriefItem({ item, index, active, distance, news, id, sourceMap, mediaMa
   // the slide still shows the same card and plate for its primary source.
   const fallbackSource = preferredIds.length ? { source: sourceMap.get(preferredIds[0]),
     publisher: detailsMap.get(preferredIds[0])?.publisher } : null;
+  const heading = <>
+    <div className="metabloom-research-brief__item-kicker">
+      {showEvidenceStatus && <span className="metabloom-research-brief__evidence-status"
+        data-evidence-status={item.evidenceStatus}>{evidenceLabels[item.evidenceStatus]}</span>}
+      {news && <div className="metabloom-research-brief__dates">
+        <span><span className="metabloom-research-brief__date-label">Development · </span>{item.developmentDate
+          ? <time dateTime={item.developmentDate}>{calendarDate(item.developmentDate)}</time>
+          : 'Date not established'}</span>
+        {item.scheduledDate && <span>Scheduled: <time dateTime={item.scheduledDate}>{calendarDate(item.scheduledDate)}</time></span>}
+      </div>}
+    </div>
+    <h4 id={`${id}-title`}>{item.headline}</h4>
+  </>;
   return <li id={id} className="metabloom-research-brief__item" hidden={!active}
     data-slide-index={index + 1} aria-roledescription="slide">
     <article aria-labelledby={`${id}-title`}>
-      {/* The story leads with its photo: a cited article's image, else a
-          credited related photo, else a short source band. */}
-      {(mediaCandidates.length > 0 || fallbackSource) && <MetabloomArticlePreview candidates={mediaCandidates}
-        fallbackSource={fallbackSource} subjectImage={subjectImage} hero resolver={resolver} priority={distance} />}
-      <h4 id={`${id}-title`}>{item.headline}</h4>
-      <div className="metabloom-research-brief__item-kicker">
-        {showEvidenceStatus && <span className="metabloom-research-brief__evidence-status"
-          data-evidence-status={item.evidenceStatus}>{evidenceLabels[item.evidenceStatus]}</span>}
-        {news && <div className="metabloom-research-brief__dates">
-          <span><span className="metabloom-research-brief__date-label">Development · </span>{item.developmentDate
-            ? <time dateTime={item.developmentDate}>{calendarDate(item.developmentDate)}</time>
-            : 'Date not established'}</span>
-          {item.scheduledDate && <span>Scheduled: <time dateTime={item.scheduledDate}>{calendarDate(item.scheduledDate)}</time></span>}
-        </div>}
-      </div>
+      {/* The story leads with its photo, headline set on it: a cited
+          article's image, else a credited related photo, else the source plate. */}
+      {(mediaCandidates.length > 0 || fallbackSource) ? <MetabloomArticlePreview candidates={mediaCandidates}
+        fallbackSource={fallbackSource} subjectImage={subjectImage} hero overlay={heading} resolver={resolver} priority={distance} />
+        : heading}
       <p className="metabloom-research-brief__overview">{item.summary}<Citations sourceIds={item.sourceIds} sourceMap={sourceMap} /></p>
       {onUseFinding && <button type="button" className="metabloom-research-brief__reuse"
         disabled={reuseDisabled} onClick={() => onUseFinding(index, item)}>Use this finding</button>}
@@ -251,22 +258,29 @@ export default function MetabloomResearchBrief({ brief, sources, onUseBrief, onU
   const coverageLabel = coverage.status === 'partial' ? 'Partial coverage' : 'Complete';
   const headerStart = news && safeBrief.windowStart ? safeBrief.windowStart : safeBrief.localDate;
   const headerEnd = news && safeBrief.windowEnd ? safeBrief.windowEnd : headerStart;
+  const kindLabel = news ? 'News briefing' : 'Research brief';
+  // The editorial title leads. A generic host title would only repeat the
+  // eyebrow, so a single-day news briefing names its day instead.
+  const displayTitle = safeBrief.title !== kindLabel ? safeBrief.title
+    : news && headerStart === headerEnd ? weekdayDate(headerStart) : kindLabel;
 
   return <section ref={observeBrief} className="metabloom-research-brief" aria-label={safeBrief.title} aria-roledescription="carousel"
     data-research-brief-kind={safeBrief.kind} data-coverage-status={coverage.status}>
     <header className="metabloom-research-brief__header">
-      <div className="metabloom-research-brief__header-line">
-        <h3>{news ? 'News briefing' : 'Research brief'}</h3>
-        <p className="metabloom-research-brief__header-date"><time dateTime={headerStart}>{calendarDate(headerStart)}</time>
-          {headerStart !== headerEnd && <> – <time dateTime={headerEnd}>{calendarDate(headerEnd)}</time></>}
-        </p>
-      </div>
-      <p className="metabloom-research-brief__coverage-heading">
-        <strong>{countText}</strong>
-        <span className="metabloom-research-brief__coverage-status">{coverageLabel}</span>
+      <p className="metabloom-research-brief__eyebrow">
+        <span>{kindLabel}</span><span aria-hidden="true"> · </span>
+        <time dateTime={headerStart}>{calendarDate(headerStart)}</time>
+        {headerStart !== headerEnd && <> – <time dateTime={headerEnd}>{calendarDate(headerEnd)}</time></>}
       </p>
-      {onUseBrief && <button type="button" className="metabloom-research-brief__reuse"
-        disabled={reuseDisabled} onClick={onUseBrief}>Use this brief</button>}
+      <h3 className="metabloom-research-brief__title">{displayTitle}</h3>
+      <div className="metabloom-research-brief__header-meta">
+        <p className="metabloom-research-brief__coverage-heading">
+          <strong>{countText}</strong>
+          <span className="metabloom-research-brief__coverage-status" data-coverage-status={coverage.status}>{coverageLabel}</span>
+        </p>
+        {onUseBrief && <button type="button" className="metabloom-research-brief__reuse"
+          disabled={reuseDisabled} onClick={onUseBrief}>Use this brief</button>}
+      </div>
     </header>
     <BriefCarousel brief={safeBrief} id={id} sourceMap={sourceMap} mediaMap={mediaMap} detailsMap={detailsMap} subjectImageMap={subjectImageMap}
       resolver={resolver} onUseFinding={onUseFinding} reuseDisabled={reuseDisabled} />

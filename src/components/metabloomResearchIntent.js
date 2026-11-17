@@ -28,6 +28,25 @@ function classifyMetabloomResearchIntent(message, history = []) {
   return 'auto';
 }
 
+// A request for current news always becomes a research briefing, Deep Research
+// toggle or not, so news is consistently presented as dated, cited stories with
+// photos. Writing about news, questions about news outlets or apps, and
+// explicit no-search requests are excluded.
+const NEWS_TERMS = /\b(?:news|headlines|top stories|current events)\b/;
+const NEWS_AUTHORING = /\b(?:write|draft|compose|rewrite|edit|proofread|translate|design|build|code|create|generate)\b|\bpress release\b|\bnewsletter\b/;
+const NEWS_META = /\b(?:fake news|news literacy|news (?:apps?|sites?|websites?|api|feeds?|readers?|aggregators?|anchors?|channels?|outlets?|sources|organi[sz]ations?|industry|business))\b/;
+const NEWS_ASK = /^(?:what(?:'s| is| are| was| were)?|whats|which|give me|show me|tell me|find|get me|fetch|bring me|catch me up|brief me|update me|any|is there|are there|latest|top|today's|todays|breaking|news|headlines|summari[sz]e|recap|round ?up)\b/;
+const NEWS_CURRENT = /\b(?:today|tonight|this (?:morning|afternoon|evening|week)|of the day|right now|latest|current|breaking|so far|recent|this hour)\b/;
+function isMetabloomNewsRequest(message) {
+  const text = normalize(message).replace(/[?!.]+$/g, '').trim();
+  if (!text || text.length > 300 || declined(text) || !NEWS_TERMS.test(text)
+    || NEWS_AUTHORING.test(text) || NEWS_META.test(text)) return false;
+  const request = text.replace(requestStart, '');
+  return NEWS_ASK.test(request) && (NEWS_CURRENT.test(text) || /^(?:news|headlines|top stories)\b/.test(request)
+    || /\b(?:top|biggest|major|main|key)\s+(?:\d+\s+)?(?:news|stories|headlines)\b/.test(text)
+    || /\bthe (?:news|headlines)(?: in [\p{L} .'-]{2,40})?$/u.test(text));
+}
+
 function getMetabloomResearchCapabilityResponse(intent, { enabled } = {}) {
   if (intent !== 'capability') return null;
   return enabled
@@ -35,5 +54,5 @@ function getMetabloomResearchCapabilityResponse(intent, { enabled } = {}) {
     : 'Deep Research supports live web research, but it is not configured in this environment right now. I cannot run a live search here until it is configured.';
 }
 
-module.exports = { classifyMetabloomResearchIntent, getMetabloomResearchCapabilityResponse,
+module.exports = { classifyMetabloomResearchIntent, getMetabloomResearchCapabilityResponse, isMetabloomNewsRequest,
   isMetabloomResearchDeclined: message => declined(normalize(message)) };

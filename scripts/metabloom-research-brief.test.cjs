@@ -455,9 +455,12 @@ test("an announcement today keeps its future scheduled milestone distinct and so
   assert.equal(actual.items[0].developmentDate, "2026-10-23");
   assert.equal(actual.items[0].scheduledDate, "2026-11-01");
   assert.equal(actual.items[0].evidenceStatus, "announced");
+  // An unsupported milestone is withheld; the dated development itself stays.
   value.items[0].scheduledDate = "2027-01-01";
   actual = extract(value, evidence);
-  assert.deepEqual(actual.items.map((entry) => entry.sourceIds[0]), [5, 9]);
+  assert.deepEqual(actual.items.map((entry) => entry.sourceIds[0]), [1, 5, 9]);
+  assert.equal(actual.items[0].scheduledDate, null);
+  assert.match(actual.coverage.limitations.join(" "), /scheduled dates lacked support/);
 });
 
 test("an entirely unsupported news selection returns an unavailable brief without fabricated replacements", () => {
@@ -482,7 +485,8 @@ test("zero and partial coverage use host framing and omit protocol chatter while
     "Casualty counts may change as reporting develops.",
   ];
   let actual = extract(value);
-  assert.equal(actual.title, "Partial news briefing");
+  // A title that promises a count falls back; coverage is shown beside the title.
+  assert.equal(actual.title, "News briefing");
   assert.equal(actual.scope, "Requested news for 2026-10-23 (America/Vancouver).");
   assert.match(actual.coverage.limitations.join(" "), /3 of 5 requested stories/);
   assert.match(actual.coverage.limitations.join(" "), /Casualty counts may change/);
@@ -493,6 +497,19 @@ test("zero and partial coverage use host framing and omit protocol chatter while
   assert.equal(actual.title, "News briefing unavailable");
   assert.equal(actual.items.length, 0);
   assert.doesNotMatch(actual.scope, /summarizing all five/);
+});
+
+test("an editorial title survives partial coverage, but a count or protocol term does not", () => {
+  const value = candidate();
+  value.title = "Canada today: strikes, trade and the North";
+  assert.equal(extract(value).coverage.status, "partial");
+  assert.equal(extract(value).title, "Canada today: strikes, trade and the North");
+  for (const title of ["5 stories shaping Canada today", "Top 5 Canadian headlines", "Five key developments in Ottawa"]) {
+    value.title = title;
+    assert.equal(extract(value).title, "News briefing", title);
+  }
+  value.title = "The day in Canada";
+  assert.equal(extract(value).title, "The day in Canada");
 });
 
 test("a brief from selected passages does not claim the entire report lacks evidence", () => {
@@ -596,6 +613,8 @@ test("the replacement writer makes exactly one bounded provider request with no 
   assert.match(calls[0].body.instructions, /faithful cited paraphrase/);
   assert.match(calls[0].body.instructions, /missing publication date does not invalidate/i);
   assert.match(calls[0].body.instructions, /more than one publisher/);
+  assert.match(calls[0].body.instructions, /up to two additional items after the requested ones/);
+  assert.match(calls[0].body.instructions, /title is a short editorial headline/);
   assert.match(calls[0].body.instructions, /imageSubjects lists up to three clearly photographable public subjects/);
   assert.match(calls[0].body.input[0].content, /World coverage/);
   const data = JSON.parse(calls[0].body.input.at(-1).content);

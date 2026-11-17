@@ -48,9 +48,12 @@ test('explicit neural reveal survives a missing classifier and reaches the ordin
   assert.equal(events(res).at(-1).type, 'done');
 });
 
-for (const semantic of [false, true]) test(`${semantic ? 'semantic' : 'explicit'} deep dive reaches real research before the writer, even with the toolset enabled`, async () => {
+for (const variant of ['explicit', 'semantic', 'news']) test(`${variant} research request reaches real research before the writer, even with the toolset enabled`, async () => {
+  const semantic = variant === 'semantic';
   if (semantic) process.env.TYPESAFE_API_KEY = 'fictional-fixture';
-  const req = request(semantic ? 'Investigate this thoroughly for me' : 'deep dive on the top news of the day for me please');
+  // A plain news request takes the briefing path without the Deep Research toggle.
+  const req = request(semantic ? 'Investigate this thoroughly for me' : variant === 'news'
+    ? 'can you give me a top 5 news articles of the day for Canada?' : 'deep dive on the top news of the day for me please');
   req.headers['x-metabloom-toolset'] = '2';
   req.body.streamResearchDetails = true;
   const res = response(), calls = [];
