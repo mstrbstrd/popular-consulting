@@ -91,26 +91,27 @@ const evaluateMetabloomVisualFormula = (tokens, controls, values) => {
   return stack.length === 1 && visualNumber(stack[0]) ? stack[0] : null;
 };
 const parseMetabloomVisual = (input, expected = {}) => {
+  const invalid = reason => { expected.onInvalid?.(reason); return null; };
   let value;
   try {
     const text = typeof input === 'string' ? input : JSON.stringify(input);
-    if (typeof text !== 'string' || byteLength(text) > MAX_METABLOOM_VISUAL_BYTES) return null;
+    if (typeof text !== 'string' || byteLength(text) > MAX_METABLOOM_VISUAL_BYTES) return invalid('payload');
     value = JSON.parse(text);
-  } catch { return null; }
+  } catch { return invalid('payload'); }
   if (!visualObject(value) || value.version !== METABLOOM_VISUAL_VERSION
     || value.designVersion !== METABLOOM_VISUAL_DESIGN_VERSION || !METABLOOM_VISUAL_KINDS.includes(value.kind)
     || (expected.kind && value.kind !== expected.kind) || !visualText(value.title, 100)
-    || !visualText(value.summary, 600) || !parseProvenance(value.provenance)) return null;
-  if (expected.sources && value.provenance.sourceIds.some(id => !expected.sources.some(source => source.id === id))) return null;
+    || !visualText(value.summary, 600) || !parseProvenance(value.provenance)) return invalid('metadata');
+  if (expected.sources && value.provenance.sourceIds.some(id => !expected.sources.some(source => source.id === id))) return invalid('source_reference');
   const common = ['version', 'designVersion', 'kind', 'title', 'summary', 'provenance'];
   if (value.kind === 'table') {
     if (!visualKeys(value, [...common, 'columns', 'rows']) || !visualList(value.columns, 1, 8, text => visualText(text, 80))
-      || !visualList(value.rows, 1, 100, row => visualList(row, value.columns.length, value.columns.length, text => visualText(text, 400, true)))) return null;
+      || !visualList(value.rows, 1, 100, row => visualList(row, value.columns.length, value.columns.length, text => visualText(text, 400, true)))) return invalid('table_shape');
   } else if (['bar-chart', 'line-chart'].includes(value.kind)) {
-    if (!visualText(value.unit, 60, true)) return null;
+    if (!visualText(value.unit, 60, true)) return invalid('chart_shape');
     if (visualKeys(value, [...common, 'unit', 'points'])) {
       if (!visualList(value.points, value.kind === 'line-chart' ? 2 : 1, 60, point => visualKeys(point, ['label', 'value'])
-        && visualText(point.label, 100) && visualNumber(point.value))) return null;
+        && visualText(point.label, 100) && visualNumber(point.value))) return invalid('chart_shape');
     } else if (visualKeys(value, [...common, 'unit', 'labels', 'series'])) {
       if (!visualList(value.labels, value.kind === 'line-chart' ? 2 : 1, 24, label => visualText(label, 100))
         || new Set(value.labels).size !== value.labels.length
@@ -118,8 +119,8 @@ const parseMetabloomVisual = (input, expected = {}) => {
           && validId(series.id) && visualText(series.label, 80)
           && visualList(series.values, value.labels.length, value.labels.length, visualNumber))
         || new Set(value.series.map(series => series.id)).size !== value.series.length
-        || value.series.length * value.labels.length > 120) return null;
-    } else return null;
+        || value.series.length * value.labels.length > 120) return invalid('chart_shape');
+    } else return invalid('chart_shape');
     // Labels are ordinal for lines; the UI must not imply irregular intervals are a scaled time axis.
   } else if (value.kind === 'pie-chart') {
     // A pie represents nonnegative parts of one whole, never separate series.
@@ -127,18 +128,18 @@ const parseMetabloomVisual = (input, expected = {}) => {
       || !visualList(value.points, 1, 12, point => visualKeys(point, ['label', 'value'])
         && visualText(point.label, 100) && visualNumber(point.value) && point.value >= 0)
       || new Set(value.points.map(point => point.label.trim().toLowerCase())).size !== value.points.length
-      || !value.points.some(point => point.value > 0)) return null;
+      || !value.points.some(point => point.value > 0)) return invalid('pie_shape');
   } else if (value.kind === 'flowchart') {
     if (!visualKeys(value, [...common, 'nodes', 'edges'])
       || !visualList(value.nodes, 1, 16, node => visualKeys(node, ['id', 'label']) && validId(node.id) && visualText(node.label, 160))
       || new Set(value.nodes.map(node => node.id)).size !== value.nodes.length
       || !visualList(value.edges, 0, 32, edge => visualKeys(edge, ['from', 'to', 'label'])
         && value.nodes.some(node => node.id === edge.from) && value.nodes.some(node => node.id === edge.to)
-        && visualText(edge.label, 100, true))) return null;
+        && visualText(edge.label, 100, true))) return invalid('flowchart_shape');
   } else if (value.kind === 'price-book') {
-    if (!visualKeys(value, [...common, 'priceBook'])) return null;
+    if (!visualKeys(value, [...common, 'priceBook'])) return invalid('price_book_shape');
     const priceBook = validateMetabloomPriceBook(value.priceBook);
-    if (!priceBook) return null;
+    if (!priceBook) return invalid('price_book_rules');
     value.priceBook = priceBook;
   } else if (value.kind === 'calculator') {
     if (!visualKeys(value, [...common, 'controls', 'formula', 'unit', 'formulaDescription'])
@@ -148,9 +149,9 @@ const parseMetabloomVisual = (input, expected = {}) => {
         && [control.min, control.max, control.step, control.initial].every(visualNumber)
         && control.min < control.max && control.step > 0 && control.step <= control.max - control.min
         && control.initial >= control.min && control.initial <= control.max)
-      || new Set(value.controls.map(control => control.id)).size !== value.controls.length
-      || !validateFormula(value.formula, value.controls)) return null;
-    if (evaluateMetabloomVisualFormula(value.formula, value.controls, Object.fromEntries(value.controls.map(c => [c.id, c.initial]))) === null) return null;
+      || new Set(value.controls.map(control => control.id)).size !== value.controls.length) return invalid('calculator_controls');
+    if (!validateFormula(value.formula, value.controls)) return invalid('calculator_formula');
+    if (evaluateMetabloomVisualFormula(value.formula, value.controls, Object.fromEntries(value.controls.map(c => [c.id, c.initial]))) === null) return invalid('calculator_initial_result');
   }
   return value;
 };

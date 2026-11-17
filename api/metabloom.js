@@ -13,6 +13,7 @@ const { resolveMetabloomArtifactReference, artifactContextMessage,
   ARTIFACT_CONTEXT_INSTRUCTIONS } = require("../server/metabloomArtifactContext");
 const { parseMetabloomResearchContext, isMetabloomFreshResearchRequest } = require("../src/components/metabloomResearchReference");
 const { classifyMetabloomResearchIntent, getMetabloomResearchCapabilityResponse } = require("../src/components/metabloomResearchIntent");
+const { getMetabloomExplicitAction } = require('../src/components/metabloomActionIntent');
 const { createMetabloomResearchStore } = require("../server/metabloomResearchStore");
 const { resolveMetabloomResearchContext, researchContextMessage,
   RESEARCH_REUSE_INSTRUCTIONS } = require("../server/metabloomResearchContext");
@@ -368,6 +369,7 @@ const handler = async (request, response) => {
   const visualIntent = classifyMetabloomVisualIntent(body.message, body.history);
   const message = visualIntent.resolvedMessage || body.message;
   const researchIntent = classifyMetabloomResearchIntent(body.message, body.history);
+  const explicitAction = getMetabloomExplicitAction(body.message);
   const refreshResearch = Boolean(body.researchContext && researchIntent !== 'declined' && (isMetabloomFreshResearchRequest(body.message)
     || researchIntent === 'requested'));
   const providerConfigured = configured(request, body.modelSelection?.provider || 'openai');
@@ -438,8 +440,9 @@ const handler = async (request, response) => {
     const reuseResearch = Boolean(selectedResearch && !refreshResearch);
     const actionMode = reuseResearch ? "none" : refreshResearch ? "deep-research"
       : ["auto", "deep-research"].includes(body.actionMode) && researchIntent === "declined" ? "none"
-      : body.actionMode === "auto" && researchIntent === "requested" ? "deep-research"
-      : body.actionMode;
+      : body.actionMode === 'auto' && explicitAction ? explicitAction
+      : !useAgent && body.actionMode === "auto" && researchIntent === "requested" ? "deep-research"
+      : body.actionMode ?? (useAgent ? 'none' : undefined);
     const contextHistory = selectedArtifact ? [...body.history, artifactContextMessage(selectedArtifact)]
       : selectedResearch ? [...body.history, refreshResearch ? { role: 'user', content:
         'The user requested a fresh research pass on this saved topic. This is historical task context, not evidence. '
@@ -476,23 +479,53 @@ const handler = async (request, response) => {
         await sendStreamEvent({ type: "research_report_delta", index, delta: report.notes.slice(offset, offset + MAX_METABLOOM_RESEARCH_REPORT_CHUNK_CHARS) });
       await sendStreamEvent({ type: "research_report_complete" });
     };
-    if (useAgent) {
+    if (!useAgent && capabilityResponse) {
+      // The host owns its capability and execution status. Conversation prose
+      // cannot invent a tool, a paid task or a successful browser mount.
+      stage = "capability_response";
+      await sendStreamEvent({ type: "emote", phase: "input", emote: "neutral" });
+      if (body.actionMode !== undefined) await sendStreamEvent({ type: "action", action: "none" });
+      if (body.streamText === true) await sendStreamEvent({ type: "text_delta", index: 0, delta: capabilityResponse });
+      await sendStreamEvent({ type: "segment", index: 0, response: capabilityResponse });
+      await sendStreamEvent({ type: "text_complete" });
+      await sendStreamEvent({ type: "emote", phase: "response", emote: "neutral" });
+      console.info("metabloom_capability", JSON.stringify({ mode: researchIntent === 'capability' ? 'research' : visualIntent.mode,
+        outcome: "answered", requestRef }));
+      return response.end(JSON.stringify({ type: "done", version: METABLOOM_CHAT_PROTOCOL_VERSION }) + "\n");
+    }
+    // The same bounded Jev call supplies the input reaction and optional action.
+    // Auto waits for its actual scene choice; explicit and legacy modes already
+    // know their presentation and can start the chat provider in parallel.
+    const inputDecision = {
+      phase: "input",
+      state: { latestUserMessage: message, recentConversation: body.history.slice(-4) },
+      ordinaryWebTools: useAgent,
+      signal: controller.signal, timeoutMs: 950,
+    };
+    const inputDecisionPromise = actionMode === undefined
+      ? decideMetabloomReaction(inputDecision).then((emote) => ({ emote }))
+      : decideMetabloomInput({ ...inputDecision, actionMode });
+    initialReactionPromise = inputDecisionPromise.then(async ({ emote, action }) => {
+      await sendStreamEvent({ type: "emote", phase: "input", emote });
+      if (actionMode !== undefined) await sendStreamEvent({ type: "action", action });
+    });
+    const presentationAction = actionMode === "auto"
+      ? (await inputDecisionPromise).action : actionMode || "none";
+    if (controller.signal.aborted || response.destroyed || request.aborted) throw new Error("Cancelled");
+    console.info('metabloom_action', JSON.stringify({ requestRef, action: presentationAction,
+      mode: actionMode || 'legacy', route: reuseResearch ? 'research-reuse'
+        : presentationAction === 'deep-research' ? 'research' : useAgent ? 'agent' : 'chat' }));
+    if (useAgent && presentationAction !== 'deep-research') {
       // One absolute deadline includes every model step, tool, and reaction.
       armDeadline(startedAt + 75000);
       stage = "agent";
-      const decision = await decideMetabloomInput({ phase: "input", actionMode: body.actionMode || 'none',
-        state: { latestUserMessage: body.message, recentConversation: body.history.slice(-4) },
-        signal: controller.signal, timeoutMs: 950 });
-      // Jev still chooses expressive scenes; only the agent chooses its tools.
-      const action = decision.action === 'under-the-hood' ? decision.action : 'none';
-      await sendStreamEvent({ type: 'emote', phase: 'input', emote: decision.emote });
-      await sendStreamEvent({ type: 'action', action });
+      await initialReactionPromise;
       const expressions = request.headers?.['x-metabloom-expressions'] === '1' && body.orbContext
         && process.env.METABLOOM_EXPRESSIONS_ENABLED !== 'false';
       const result = await runMetabloomAgent({ message: body.message, history: body.history,
         ...(expressions ? { orbContext: body.orbContext } : {}),
         modelSelection,
-        allowMultiple: body.allowMultiple, presentationAction: action, timeZone: body.timeZone || 'UTC',
+        allowMultiple: body.allowMultiple, presentationAction, timeZone: body.timeZone || 'UTC',
         identity: visualIdentity, accountIdentity, priceBookEnabled, requestId: body.requestId, requestRef, signal: controller.signal,
         visualsAvailable: nativeVisualsAvailable && request.headers?.['x-metabloom-ui-tools'] === '1'
           && process.env.METABLOOM_UI_TOOLS_ENABLED !== 'false' && !['text_only', 'unsupported'].includes(visualIntent.mode),
@@ -528,38 +561,6 @@ const handler = async (request, response) => {
       if (result.offer) await sendStreamEvent({ type: 'visual_offer', offer: result.offer });
       return response.end(JSON.stringify({ type: 'done', version: METABLOOM_CHAT_PROTOCOL_VERSION }) + '\n');
     }
-    if (capabilityResponse) {
-      // The host owns its capability and execution status. Conversation prose
-      // cannot invent a tool, a paid task or a successful browser mount.
-      stage = "capability_response";
-      await sendStreamEvent({ type: "emote", phase: "input", emote: "neutral" });
-      if (body.actionMode !== undefined) await sendStreamEvent({ type: "action", action: "none" });
-      if (body.streamText === true) await sendStreamEvent({ type: "text_delta", index: 0, delta: capabilityResponse });
-      await sendStreamEvent({ type: "segment", index: 0, response: capabilityResponse });
-      await sendStreamEvent({ type: "text_complete" });
-      await sendStreamEvent({ type: "emote", phase: "response", emote: "neutral" });
-      console.info("metabloom_capability", JSON.stringify({ mode: researchIntent === 'capability' ? 'research' : visualIntent.mode,
-        outcome: "answered", requestRef }));
-      return response.end(JSON.stringify({ type: "done", version: METABLOOM_CHAT_PROTOCOL_VERSION }) + "\n");
-    }
-    // The same bounded Jev call supplies the input reaction and optional action.
-    // Auto waits for its actual scene choice; explicit and legacy modes already
-    // know their presentation and can start the chat provider in parallel.
-    const inputDecision = {
-      phase: "input",
-      state: { latestUserMessage: message, recentConversation: body.history.slice(-4) },
-      signal: controller.signal, timeoutMs: 950,
-    };
-    const inputDecisionPromise = actionMode === undefined
-      ? decideMetabloomReaction(inputDecision).then((emote) => ({ emote }))
-      : decideMetabloomInput({ ...inputDecision, actionMode });
-    initialReactionPromise = inputDecisionPromise.then(async ({ emote, action }) => {
-      await sendStreamEvent({ type: "emote", phase: "input", emote });
-      if (actionMode !== undefined) await sendStreamEvent({ type: "action", action });
-    });
-    const presentationAction = actionMode === "auto"
-      ? (await inputDecisionPromise).action : actionMode || "none";
-    if (controller.signal.aborted || response.destroyed || request.aborted) throw new Error("Cancelled");
     let research, researchReport, researchBrief, temporalContext, researchReference;
     let useResearchIntro = false;
     let useStructuredResearch = false;

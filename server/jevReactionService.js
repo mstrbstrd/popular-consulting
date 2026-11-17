@@ -57,7 +57,7 @@ const isChoiceAnswer = (answer) => answer?.type === "choice" && typeof answer.ch
   && Object.prototype.hasOwnProperty.call(answer.probabilities, answer.choice)
   && Number.isFinite(answer.probabilities[answer.choice]);
 
-const decideMetabloomChoices = async ({ phase, state, actionMode, visualKinds, visualIntent = "optional", preferredKinds = [], requiredKind = null, signal, timeoutMs = 1000, fetchImpl = globalThis.fetch } = {}) => {
+const decideMetabloomChoices = async ({ phase, state, actionMode, ordinaryWebTools = false, visualKinds, visualIntent = "optional", preferredKinds = [], requiredKind = null, signal, timeoutMs = 1000, fetchImpl = globalThis.fetch } = {}) => {
   // Capability/status replies and unsupported requests never create an offer,
   // even if a caller accidentally includes a visual inventory.
   const allowedVisuals = phase === "response" && ["optional", "requested"].includes(visualIntent) && Array.isArray(visualKinds)
@@ -76,7 +76,8 @@ const decideMetabloomChoices = async ({ phase, state, actionMode, visualKinds, v
   if (!apiKey || typeof fetchImpl !== "function") return fallback();
   const classifyAction = phase === "input" && actionMode === "auto";
   const questions = { reaction: QUESTIONS[phase] };
-  if (classifyAction) questions.action = METABLOOM_ACTION_QUESTION;
+  if (classifyAction) questions.action = ordinaryWebTools ? { ...METABLOOM_ACTION_QUESTION,
+    instructions: METABLOOM_ACTION_QUESTION.instructions + ' Ordinary chat has its own live web search tools. For this turn, choose deep-research only for an extended investigation or deep-dive report, not a routine lookup, current fact or quick news question. Choose none for ordinary searches so the conversation model can use those tools directly.' } : METABLOOM_ACTION_QUESTION;
   if (allowedVisuals.length) questions.visualization = createMetabloomVisualizationQuestion(allowedVisuals, visualIntent);
   const startedAt = Date.now();
   const controller = new AbortController();

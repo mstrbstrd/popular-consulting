@@ -166,7 +166,7 @@ test.each(["authored demo", "unconfigured fallback"])("Deep Research also select
 
 test("under the hood stays open across the input chain, ordinary emotes, and a held response", async () => {
   render(<OrbSection />);
-  send("Show me a trick");
+  send("show me what you're made of");
   await tick(0);
   const { request, finish } = latest();
   expect(request.actionMode).toBe("auto");

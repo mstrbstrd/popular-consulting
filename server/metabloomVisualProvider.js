@@ -14,7 +14,7 @@ async function requestVisualResponse(payload, { signal, fetchImpl = globalThis.f
   if (!process.env.OPENAI_API_KEY) throw visualError('visual_unavailable');
   const startedAt = Date.now();
   const details = {
-    phase: ['start', 'generate', 'continue'].includes(phase) ? phase : 'unknown',
+    phase: ['start', 'generate', 'repair', 'continue'].includes(phase) ? phase : 'unknown',
     model: /^[a-zA-Z0-9._:-]{1,100}$/.test(payload.model) ? payload.model : 'invalid',
     reasoningEffort: payload.reasoning?.effort || 'default',
     ...(/^[a-f0-9]{12}$/.test(requestRef) ? { requestRef } : {}),

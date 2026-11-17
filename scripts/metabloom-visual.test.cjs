@@ -154,13 +154,60 @@ test('builder makes one bounded request using the approved kind and completed an
   const body = JSON.parse(calls[0].body); assert.equal(body.store, false); assert.equal(body.stream, false); assert.equal(body.max_output_tokens, 6000); assert.equal(body.tools, undefined);
   assert.equal(JSON.parse(body.input[0].content).answer, value.context.answer); assert.equal(calls[0].redirect, 'error');
 });
-test('builder rejects truncated output, wrong kind and unsupported source claims without retry', async () => {
-  for (const envelope of [providerEnvelope(spec(), 'incomplete'), providerEnvelope(spec('calculator')), providerEnvelope({ ...spec(), provenance: { type: 'sources', label: 'Missing.', sourceIds: [2] } })]) {
+test('builder rejects truncation immediately and bounds invalid kind/source corrections to one attempt', async () => {
+  for (const [envelope, expectedCalls] of [[providerEnvelope(spec(), 'incomplete'), 1], [providerEnvelope(spec('calculator')), 2],
+    [providerEnvelope({ ...spec(), provenance: { type: 'sources', label: 'Missing.', sourceIds: [2] } }), 2]]) {
     let calls = 0;
     await assert.rejects(generateMetabloomVisual(record(), { fetchImpl: async () => { calls++; return Response.json(envelope); } }));
-    assert.equal(calls, 1);
+    assert.equal(calls, expectedCalls);
   }
 });
+test('builder repairs invalid calculator structure once with the same context, schema, signal and strict validation', async () => {
+  for (const [change, reason] of [
+    [{ formula: ['total', 'people', 'pow'] }, 'calculator_formula'],
+    [{ controls: spec('calculator').controls.map(control => ({ ...control, step: 0 })) }, 'calculator_controls'],
+    [{ controls: spec('calculator').controls.map(control => ({ ...control, initial: 0 })) }, 'calculator_initial_result'],
+  ]) {
+    const calls = [], controller = new AbortController();
+    const repaired = await generateMetabloomVisual(record('calculator'), { signal: controller.signal,
+      fetchImpl: async (_url, options) => {
+        assert.equal(options.signal, controller.signal);
+        calls.push(JSON.parse(options.body));
+        return Response.json(providerEnvelope(calls.length === 1 ? { ...spec('calculator'), ...change } : spec('calculator')));
+      } });
+    assert.deepEqual(repaired, spec('calculator'));
+    assert.equal(calls.length, 2);
+    assert.deepEqual(calls[1].input, calls[0].input);
+    assert.deepEqual(calls[1].text, calls[0].text);
+    assert.match(calls[1].instructions, new RegExp(`failed host validation \\(${reason}\\)`));
+    assert.match(calls[0].instructions, /exactly ONE numeric result/);
+    assert.equal(calls[1].tools, undefined);
+  }
+});
+
+test('repair cannot escape the schema or turn invented data into trusted evidence', async () => {
+  for (const invalid of [{ ...spec('calculator'), formula: ['eval'] },
+    { ...spec('calculator'), outputs: [{ formula: ['total'] }] },
+    { ...spec('calculator'), provenance: { type: 'sources', label: 'Unsupported claim', sourceIds: [55] } }]) {
+    let calls = 0;
+    await assert.rejects(generateMetabloomVisual(record('calculator'), { fetchImpl: async () => {
+      calls++; return Response.json(providerEnvelope(invalid));
+    } }), { code: 'visual_invalid' });
+    assert.equal(calls, 2);
+  }
+});
+
+test('cancellation stops a pending correction and an aborted request does no provider work', async () => {
+  const controller = new AbortController();
+  let calls = 0;
+  await assert.rejects(generateMetabloomVisual(record('calculator'), { signal: controller.signal,
+    fetchImpl: async () => { calls++; controller.abort(); return Response.json(providerEnvelope(spec('calculator'))); } }));
+  assert.equal(calls, 1);
+  await assert.rejects(generateMetabloomVisual(record('calculator'), { signal: controller.signal,
+    fetchImpl: async () => { calls++; } }));
+  assert.equal(calls, 1);
+});
+
 test('unavailable data is a fixed error, never a fabricated chart or raw model message', async () => {
   await assert.rejects(generateMetabloomVisual(record(), { fetchImpl: async () => Response.json(providerEnvelope({ kind: 'unavailable', reason: 'private provider text' })) }), { code: 'visual_unavailable', message: 'visual_unavailable' });
 });

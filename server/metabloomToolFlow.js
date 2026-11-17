@@ -32,7 +32,7 @@ function prepareMetabloomResearchToolReplay({ message, history, researchContext 
 }
 const toolDefinition = Object.freeze({
   type: 'function', name: TOOL_NAME, strict: true,
-  description: 'Request a native Aetheris table, chart, flowchart or interactive calculator. The host generates and renders it. Never generate HTML, JavaScript or styling.',
+  description: 'Request a native Aetheris table, chart, flowchart or interactive calculator. A calculator has one numeric result, up to six inputs, and a 32-token formula using add/subtract/multiply/divide/min/max. No multiple outputs or arbitrary functions. The host generates and renders it. Never generate HTML, JavaScript or styling.',
   parameters: {
     type: 'object', additionalProperties: false, required: ['kind', 'brief'],
     properties: {

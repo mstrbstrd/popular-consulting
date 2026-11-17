@@ -543,7 +543,8 @@ test("explicit and legacy requests start OpenAI while the input reaction is stil
 test("auto prompt context matches the validated action rather than words in the request or history", async () => {
   local(); process.env.TYPESAFE_API_KEY = "fixture";
   for (const { message, action, confidence = 0.97, emote = "warm", selected } of [
-    { message: "Please do a deep dive", action: "under-the-hood", selected: "under-the-hood" },
+    { message: "Please do a deep dive", action: "under-the-hood", selected: "deep-research" },
+    { message: "Explain the phrase 'do a deep dive'", action: "under-the-hood", selected: "under-the-hood" },
     { message: "Show me a trick", action: "deep-research", selected: "deep-research" },
     { message: "Please examine this carefully", action: "none", selected: "none" },
     { message: "Please examine this carefully", action: "unknown", selected: "none" },

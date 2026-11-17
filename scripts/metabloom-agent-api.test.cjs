@@ -32,6 +32,78 @@ const events = res => res.body.trim().split('\n').map(line => JSON.parse(line));
 const searchResponse = value => new Response(`data: ${JSON.stringify({ type: 'response.completed', response: value })}\n\n`,
   { headers: { 'content-type': 'text/event-stream' } });
 
+test('explicit neural reveal survives a missing classifier and reaches the ordinary agent as presentation context', async () => {
+  const req = request("show me what you're made of"), res = response();
+  const calls = [];
+  global.fetch = async (_url, options) => {
+    calls.push(JSON.parse(options.body));
+    assert.equal(events(res).find(event => event.type === 'action').action, 'under-the-hood');
+    return Response.json({ status: 'completed', output: [answer('This neural network scene is a visual metaphor.')] });
+  };
+  await handler(req, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(calls.length, 1);
+  assert.match(calls[0].instructions, /Selected presentation: Under the Hood/);
+  assert.equal(events(res).filter(event => event.type === 'action').length, 1);
+  assert.equal(events(res).at(-1).type, 'done');
+});
+
+for (const semantic of [false, true]) test(`${semantic ? 'semantic' : 'explicit'} deep dive reaches real research before the writer, even with the toolset enabled`, async () => {
+  if (semantic) process.env.TYPESAFE_API_KEY = 'fictional-fixture';
+  const req = request(semantic ? 'Investigate this thoroughly for me' : 'deep dive on the top news of the day for me please');
+  req.headers['x-metabloom-toolset'] = '2';
+  req.body.streamResearchDetails = true;
+  const res = response(), calls = [];
+  global.fetch = async (url, options) => {
+    const body = JSON.parse(options.body);
+    if (String(url).includes('typesafe.ai')) {
+      if (body.questions.action) assert.match(body.questions.action.instructions, /not a routine lookup/);
+      const choice = value => ({ type: 'choice', choice: value, confidence: 0.98, probabilities: { [value]: 0.98 } });
+      return Response.json({ answers: { reaction: choice('neutral'), action: choice('deep-research') } });
+    }
+    calls.push(body);
+    if (calls.length === 1) {
+      assert.deepEqual(events(res).slice(0, 3).map(event => event.type), ['emote', 'action', 'research']);
+      assert.equal(events(res)[1].action, 'deep-research');
+      assert.equal(body.tools[0].type, 'web_search');
+      return searchResponse({ status: 'completed', output: [
+        { type: 'web_search_call', status: 'completed', action: { type: 'search' } },
+        { type: 'message', role: 'assistant', status: 'completed', content: [{ type: 'output_text',
+          text: 'The official report confirms this.', annotations: [{ type: 'url_citation', title: 'Official report',
+            url: 'https://example.com/report', start_index: 0, end_index: 33 }] }] },
+      ] });
+    }
+    const output = answer('The official report confirms this. [1]');
+    return new Response([
+      { type: 'response.output_text.delta', item_id: 'm1', output_index: 0, content_index: 0, delta: output.content[0].text },
+      { type: 'response.completed', response: { status: 'completed', output: [output] } },
+    ].map(event => `data: ${JSON.stringify(event)}\n\n`).join(''), { headers: { 'content-type': 'text/event-stream' } });
+  };
+  await handler(req, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(calls.length, 2);
+  assert.equal(events(res).filter(event => event.type === 'action').length, 1);
+  assert(events(res).some(event => event.type === 'research_report_complete'));
+  assert(!events(res).some(event => event.type === 'tool_activity'));
+  assert.equal(events(res).at(-1).type, 'done');
+  const decoder = createMetabloomSegmentStreamDecoder({ allowTools: true, allowToolProgress: true, allowResearchDetails: true });
+  assert(decoder.push(res.body)); assert(decoder.finish().ok);
+});
+
+test('explicit none, historical commands and cached requests cannot accidentally start a scene', async () => {
+  for (const variant of ['disabled', 'history', 'cached']) {
+    const req = request(variant === 'disabled' ? "show me what you're made of" : 'Hello');
+    if (variant === 'disabled') req.body.actionMode = 'none';
+    if (variant === 'history') req.body.history = [{ role: 'user', content: 'deep dive on the news' }];
+    if (variant === 'cached') delete req.body.actionMode;
+    global.fetch = async () => Response.json({ status: 'completed', output: [answer('Hello.')] });
+    const res = response(); await handler(req, res);
+    assert.equal(events(res).find(event => event.type === 'action').action, 'none');
+    assert(!events(res).some(event => event.type.startsWith('research')));
+    assert.equal(events(res).at(-1).type, 'done');
+  }
+});
+
 test('Nvidia news follow-up reaches search_web directly and returns a cited ordinary answer', async () => {
   const calls = [];
   global.fetch = async (_url, options) => {

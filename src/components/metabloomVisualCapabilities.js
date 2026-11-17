@@ -9,7 +9,7 @@ const descriptions = {
   'pie-chart': { label: 'pie charts', description: 'Nonnegative parts of one total with selectable categories, percentages and an exact-value table.' },
   flowchart: { label: 'small flowcharts', description: 'A laid-out process diagram with numbered steps, labelled connections and step selection that traces where each step comes from and leads. No draggable nodes or editable diagram canvas.' },
   'price-book': { label: 'price books', description: 'Draft pricing rules with editable job inputs, exact-cent line and tax calculations, and host-computed worked examples. Only the user can publish a version with the Publish button. Drafts are not active price books. Estimates are not invoices, payments, tax advice or published MCP servers.' },
-  calculator: { label: 'calculators', description: 'Editable numeric fields and sliders, local calculation, reset and a copy-scenario control. No external actions or file export.' },
+  calculator: { label: 'calculators', description: 'Up to six numeric fields and sliders, one numeric result from add/subtract/multiply/divide/min/max, reset and a copy-scenario control. No external actions or file export.' },
 };
 const METABLOOM_VISUAL_CAPABILITIES = Object.freeze(Object.fromEntries(METABLOOM_VISUAL_KINDS
   .filter(kind => Object.prototype.hasOwnProperty.call(descriptions, kind))
