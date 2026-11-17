@@ -23,7 +23,7 @@ const titleFor = snapshot => {
     const code = character.charCodeAt(0);
     return code >= 32 && !(code >= 127 && code <= 159) && !(code >= 0x202a && code <= 0x202e)
       && !(code >= 0x2066 && code <= 0x2069);
-  }).join('').replace(/\s+/g, ' ').trim().slice(0, 80) || 'New chat';
+  }).join('').replace(/\s+/g, ' ').trim().slice(0, 80).trim() || 'New chat';
 };
 const sortThreads = items => [...items].sort((first, second) => second.updatedAt.localeCompare(first.updatedAt)
   || first.threadId.localeCompare(second.threadId));

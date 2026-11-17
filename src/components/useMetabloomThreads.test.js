@@ -2,6 +2,7 @@ import React from 'react';
 import { TextEncoder } from 'util';
 import { act, cleanup, render } from '@testing-library/react';
 import useMetabloomThreads from './useMetabloomThreads';
+import { parseMetabloomThreadRequest } from './metabloomThreadProtocol';
 
 const clone = value => JSON.parse(JSON.stringify(value));
 const id = number => `00000000-0000-4000-8000-${String(number).padStart(12, '0')}`;
@@ -91,6 +92,25 @@ test('does not save an empty render and automatically saves a completed conversa
     snapshot: { conversation: { counter: 2, draft: 'Next question', messages: snapshot().conversation.messages } } });
   expect(state.current.panelProps.saveStatus).toBe('Saved');
   expect(state.current.panelProps.items).toHaveLength(1);
+});
+
+test('a title truncated at a word boundary passes the real save validator without changing conversation text', async () => {
+  const question = "i'd like to ask the council if they can come up with an optimal spaghetti sauce recipe";
+  expect(question.slice(0, 80).endsWith(' ')).toBe(true);
+  const api = server();
+  api.request.mockImplementation(input => {
+    const parsed = parseMetabloomThreadRequest(input);
+    if (!parsed) throw Object.assign(new Error(), { code: 'threads_invalid' });
+    return api.handler(parsed);
+  });
+  const state = await harness({ request: api.request });
+  await state.change(model => { model.conversation = snapshot(question).conversation; });
+  await tick(1200);
+  expect(state.current.panelProps.saveStatus).toBe('Saved');
+  expect(state.current.panelProps.error).toBe('');
+  const saved = [...api.records.values()][0];
+  expect(saved.thread.title).toBe(question.slice(0, 80).trim());
+  expect(saved.snapshot.conversation.messages).toEqual(snapshot(question).conversation.messages);
 });
 
 test('serializes writes and sends the newest draft after an earlier save is acknowledged', async () => {
