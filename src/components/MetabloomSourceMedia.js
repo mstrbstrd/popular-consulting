@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { metabloomSourceMediaUrl, parseMetabloomSourceMediaToken } from './metabloomSourceMediaProtocol';
 import { parseMetabloomResearchSources } from './metabloomResearchSources';
 import { requestMetabloomSourcePreview } from './metabloomSourceMediaClient';
@@ -195,31 +196,92 @@ export function MetabloomSourceGallery({ sources, media }) {
   </div>;
 }
 
-// A subject photo found for this answer (find_image). Its frame reserves the
-// photo's exact aspect ratio before loading, and the credit is always shown:
-// title, author, licence and the Wikimedia Commons file page.
-function AnswerImage({ image }) {
+const external = { target: '_blank', rel: 'noopener noreferrer' };
+
+// The licence requires attribution wherever the photo is shown.
+function PhotoCredit({ image, className }) {
+  return <span className={className}>
+    Photo: {image.artist} · {image.licenseUrl
+      ? <a href={image.licenseUrl} {...external}>{image.license}<span className="metabloom-sr-only"> licence, opens in a new tab</span></a>
+      : image.license} · <a href={image.fileUrl} {...external}>Wikimedia Commons<span className="metabloom-sr-only"> file page, opens in a new tab</span></a>
+  </span>;
+}
+
+// An explicitly opened, larger view of one subject photo. It is portalled to
+// the page root, outside the transcript's live region, so opening it is never
+// announced as new conversation content. Opening moves focus into the dialog
+// (the reader asked for it); closing returns focus to the thumbnail.
+function PhotoViewer({ image, src, container, onClose }) {
+  const dialogRef = React.useRef(null);
+  const closeRef = React.useRef(null);
+  const titleId = React.useId();
   const [state, setState] = React.useState('loading');
-  const src = metabloomSourceMediaUrl(image.token, 'image');
-  const external = { target: '_blank', rel: 'noopener noreferrer' };
-  return <figure className="metabloom-answer-image" data-image-state={state}
-    style={{ '--metabloom-image-ratio': `${image.width} / ${image.height}`, '--metabloom-image-aspect': image.width / image.height }}>
-    <div className="metabloom-answer-image__frame">
-      {src && state !== 'failed' && <img className="metabloom-answer-image__photo" src={src} alt={image.alt}
+  React.useLayoutEffect(() => {
+    const dialog = dialogRef.current;
+    const opener = document.activeElement;
+    dialog.showModal();
+    closeRef.current?.focus({ preventScroll: true });
+    return () => {
+      if (dialog.open) dialog.close();
+      if (opener?.isConnected) opener.focus({ preventScroll: true });
+    };
+  }, []);
+  return createPortal(<dialog ref={dialogRef} className="metabloom-photo-viewer" aria-labelledby={titleId}
+    data-image-state={state}
+    onCancel={event => { event.preventDefault(); onClose(); }}
+    // A click on the dialog element itself is a click on its backdrop.
+    onClick={event => { if (event.target === dialogRef.current) onClose(); }}>
+    <div className="metabloom-photo-viewer__header">
+      <h2 id={titleId} className="metabloom-photo-viewer__title">{image.title}</h2>
+      <button ref={closeRef} type="button" className="metabloom-photo-viewer__close" aria-label="Close photo" onClick={onClose}>
+        <span aria-hidden="true">×</span>
+      </button>
+    </div>
+    <div className="metabloom-photo-viewer__stage" style={{ '--metabloom-image-ratio': `${image.width} / ${image.height}` }}>
+      {state !== 'failed' && <img className="metabloom-photo-viewer__photo" src={src} alt={image.alt}
         width={image.width} height={image.height} decoding="async" referrerPolicy="no-referrer"
         onLoad={() => setState('ready')} onError={() => setState('failed')} />}
-      {state === 'failed' && <span className="metabloom-answer-image__unavailable">Photo unavailable</span>}
+      {state === 'failed' && <span className="metabloom-photo-viewer__unavailable">Photo unavailable</span>}
     </div>
+    <p className="metabloom-photo-viewer__caption">
+      <a className="metabloom-photo-viewer__page" href={image.pageUrl} {...external}>
+        Wikipedia article<span aria-hidden="true"> ↗</span><span className="metabloom-sr-only"> (opens in a new tab)</span>
+      </a>
+      <PhotoCredit image={image} className="metabloom-photo-viewer__credit" />
+    </p>
+  </dialog>, container);
+}
+
+// A subject photo found for this answer (find_image). It stays beside the
+// answer as a compact thumbnail so the reply text remains in view; selecting
+// it opens a larger view on request. The thumbnail reserves its exact aspect
+// ratio before loading, and the credit is always shown: title, author,
+// licence and the Wikimedia Commons file page.
+function AnswerImage({ image }) {
+  const [state, setState] = React.useState('loading');
+  const [viewer, setViewer] = React.useState(null);
+  const src = metabloomSourceMediaUrl(image.token, 'image');
+  const showPhoto = src && state !== 'failed';
+  return <figure className="metabloom-answer-image" data-image-state={state}
+    style={{ '--metabloom-image-ratio': `${image.width} / ${image.height}`, '--metabloom-image-aspect': image.width / image.height }}>
+    {showPhoto
+      ? <button type="button" className="metabloom-answer-image__frame" aria-haspopup="dialog"
+        aria-label={`View larger photo: ${image.alt || image.title}`}
+        onClick={event => setViewer(event.currentTarget.closest('.orb-page') || document.body)}>
+        <img className="metabloom-answer-image__photo" src={src} alt={image.alt}
+          width={image.width} height={image.height} decoding="async" referrerPolicy="no-referrer"
+          onLoad={() => setState('ready')} onError={() => setState('failed')} />
+      </button>
+      : <div className="metabloom-answer-image__frame">
+        <span className="metabloom-answer-image__unavailable">Photo unavailable</span>
+      </div>}
     <figcaption className="metabloom-answer-image__caption">
       <a className="metabloom-answer-image__title" href={image.pageUrl} {...external}>
         {image.title}<span aria-hidden="true"> ↗</span><span className="metabloom-sr-only"> (Wikipedia, opens in a new tab)</span>
       </a>
-      <span className="metabloom-answer-image__credit">
-        Photo: {image.artist} · {image.licenseUrl
-          ? <a href={image.licenseUrl} {...external}>{image.license}<span className="metabloom-sr-only"> licence, opens in a new tab</span></a>
-          : image.license} · <a href={image.fileUrl} {...external}>Wikimedia Commons<span className="metabloom-sr-only"> file page, opens in a new tab</span></a>
-      </span>
+      <PhotoCredit image={image} className="metabloom-answer-image__credit" />
     </figcaption>
+    {viewer && showPhoto && <PhotoViewer image={image} src={src} container={viewer} onClose={() => setViewer(null)} />}
   </figure>;
 }
 

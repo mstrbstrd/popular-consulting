@@ -1,10 +1,12 @@
 import React from 'react';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { axe, toHaveNoViolations } from 'jest-axe';
 import { MetabloomAnswerImages, MetabloomArticlePreview, MetabloomPublisherIcon, MetabloomSourceGallery } from './MetabloomSourceMedia';
 import { requestMetabloomSourcePreview } from './metabloomSourceMediaClient';
 import { metabloomSourceMediaUrl } from './metabloomSourceMediaProtocol';
 import { createSourceMediaResolver } from './metabloomSourceMediaResolver';
 
+expect.extend(toHaveNoViolations);
 jest.mock('./metabloomSourceMediaClient', () => ({ requestMetabloomSourcePreview: jest.fn() }));
 const source = { id: 1, title: 'Fictional published article', url: 'https://publisher.example.test/original?story=1' };
 const token = 'signed.article.source';
@@ -303,11 +305,17 @@ describe('subject photos', () => {
     pageUrl: 'https://en.wikipedia.org/wiki/Fictional_Singer', fileUrl: 'https://commons.wikimedia.org/wiki/File:Singer.jpg',
     artist: 'Example Photographer', license: 'CC BY 2.0', licenseUrl: 'https://creativecommons.org/licenses/by/2.0' };
 
-  test('reserves the photo frame and always shows the complete credit', () => {
+  const thumbnail = () => screen.getByRole('button', { name: 'View larger photo: Fictional Singer on stage' });
+
+  test('shows a compact thumbnail with the complete credit beside it', () => {
     const view = render(<div className="orb-page"><MetabloomAnswerImages images={[photo]} /></div>);
     const figure = view.container.querySelector('figure.metabloom-answer-image');
     expect(figure.style.getPropertyValue('--metabloom-image-ratio')).toBe('640 / 960');
-    const image = screen.getByRole('img', { name: 'Fictional Singer on stage' });
+    expect(figure.style.getPropertyValue('--metabloom-image-aspect')).toBe(String(640 / 960));
+    const button = thumbnail();
+    expect(button).toHaveAttribute('aria-haspopup', 'dialog');
+    const image = button.querySelector('img');
+    expect(image).toHaveAttribute('alt', 'Fictional Singer on stage');
     expect(image).toHaveAttribute('src', metabloomSourceMediaUrl(photo.token, 'image'));
     expect(image).toHaveAttribute('width', '640');
     expect(image).toHaveAttribute('referrerpolicy', 'no-referrer');
@@ -319,16 +327,83 @@ describe('subject photos', () => {
     expect(screen.getByRole('link', { name: /Wikimedia Commons file page/ })).toHaveAttribute('href', photo.fileUrl);
     for (const link of screen.getAllByRole('link')) expect(link).toHaveAttribute('rel', 'noopener noreferrer');
     expect(figure).toHaveTextContent('Photo: Example Photographer');
+    expect(document.querySelector('dialog')).toBeNull();
   });
 
-  test('a failed photo keeps its frame, credit and links', () => {
+  test('the thumbnail opens a larger view outside the transcript and returns focus on close', () => {
+    const view = render(<div className="orb-page">
+      <section aria-live="polite" data-testid="transcript"><MetabloomAnswerImages images={[photo]} /></section>
+    </div>);
+    const button = thumbnail();
+    fireEvent.load(button.querySelector('img'));
+    button.focus();
+    fireEvent.click(button);
+    const dialog = screen.getByRole('dialog', { name: 'Fictional Singer' });
+    expect(dialog).toHaveAttribute('open');
+    // Portalled to the page root, never into the live transcript.
+    expect(dialog.parentElement).toBe(view.container.querySelector('.orb-page'));
+    expect(screen.getByTestId('transcript')).not.toContainElement(dialog);
+    const close = within(dialog).getByRole('button', { name: 'Close photo' });
+    expect(close).toHaveFocus();
+    const large = within(dialog).getByRole('img', { name: 'Fictional Singer on stage' });
+    expect(large).toHaveAttribute('src', metabloomSourceMediaUrl(photo.token, 'image'));
+    expect(large).toHaveAttribute('referrerpolicy', 'no-referrer');
+    expect(within(dialog).getByRole('link', { name: /CC BY 2\.0 licence/ })).toHaveAttribute('href', photo.licenseUrl);
+    expect(within(dialog).getByRole('link', { name: /Wikipedia article/ })).toHaveAttribute('href', photo.pageUrl);
+    fireEvent.click(close);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(button).toHaveFocus();
+  });
+
+  test('Escape and a backdrop click close the viewer; a click inside it does not', () => {
+    render(<div className="orb-page"><MetabloomAnswerImages images={[photo]} /></div>);
+    fireEvent.click(thumbnail());
+    let dialog = screen.getByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('img'));
+    expect(screen.getByRole('dialog')).toBe(dialog);
+    const cancel = new Event('cancel', { cancelable: true });
+    act(() => { dialog.dispatchEvent(cancel); });
+    expect(cancel.defaultPrevented).toBe(true);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    fireEvent.click(thumbnail());
+    dialog = screen.getByRole('dialog');
+    fireEvent.click(dialog);
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  test('a viewer whose photo fails keeps its credit', () => {
+    render(<div className="orb-page"><MetabloomAnswerImages images={[photo]} /></div>);
+    fireEvent.click(thumbnail());
+    const dialog = screen.getByRole('dialog');
+    fireEvent.error(within(dialog).getByRole('img'));
+    expect(within(dialog).getByText('Photo unavailable')).toBeInTheDocument();
+    expect(within(dialog).getByRole('link', { name: /Wikimedia Commons file page/ })).toHaveAttribute('href', photo.fileUrl);
+  });
+
+  test('a failed photo keeps its frame, credit and links, and offers no viewer', () => {
     const view = render(<MetabloomAnswerImages images={[{ ...photo, licenseUrl: null }]} />);
-    fireEvent.error(screen.getByRole('img', { name: 'Fictional Singer on stage' }));
+    fireEvent.error(thumbnail().querySelector('img'));
     expect(view.container.querySelector('figure')).toHaveAttribute('data-image-state', 'failed');
-    expect(screen.queryByRole('img')).toBeNull();
+    expect(view.container.querySelector('img')).toBeNull();
+    expect(screen.queryByRole('button')).toBeNull();
     expect(screen.getByText('Photo unavailable')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /licence/ })).toBeNull();
     expect(view.container).toHaveTextContent('CC BY 2.0');
+  });
+
+  test('two photos each get their own thumbnail and viewer', () => {
+    const second = { ...photo, token: 'm1.second-capability', alt: 'Fictional Band on stage', title: 'Fictional Band' };
+    render(<div className="orb-page"><MetabloomAnswerImages images={[photo, second]} /></div>);
+    fireEvent.click(screen.getByRole('button', { name: 'View larger photo: Fictional Band on stage' }));
+    expect(screen.getByRole('dialog', { name: 'Fictional Band' })).toBeInTheDocument();
+    expect(screen.getAllByRole('dialog')).toHaveLength(1);
+  });
+
+  test('the thumbnail and the open viewer have no axe violations', async () => {
+    const view = render(<div className="orb-page"><MetabloomAnswerImages images={[photo]} /></div>);
+    expect(await axe(view.container)).toHaveNoViolations();
+    fireEvent.click(thumbnail());
+    expect(await axe(view.container)).toHaveNoViolations();
   });
 
   test('renders nothing without a valid capability', () => {
