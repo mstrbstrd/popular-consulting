@@ -1,0 +1,16 @@
+.metabloom-boom-request { display: grid; gap: 1.6rem; min-width: 0; }
+.metabloom-boom-request p { margin: 0; line-height: 1.6; }
+.metabloom-boom-request__status, .metabloom-boom-request__actions { display: flex; align-items: center; flex-wrap: wrap; gap: 1.2rem; }
+.metabloom-boom-request__status { font-size: 1.3rem; }
+.metabloom-boom-request__status strong { padding: .5rem 1rem; border: 1px solid currentColor; border-radius: 999px; }
+.metabloom-boom-request dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 0; gap: 0 2rem; }
+.metabloom-boom-request dl > div { padding: 1.2rem 0; border-bottom: 1px solid color-mix(in srgb, currentColor 20%, transparent); }
+.metabloom-boom-request dt { display: flex; gap: .8rem; align-items: baseline; font-weight: 600; }
+.metabloom-boom-request dt small { font-weight: 400; font-size: 1.1rem; }
+.metabloom-boom-request dd { margin: .5rem 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.metabloom-boom-request dd[data-missing] { font-style: italic; }
+.metabloom-boom-request__actions button, .metabloom-boom-request__actions a { min-height: 44px; padding: 1rem 1.4rem; border-radius: 14px; color: inherit; }
+.metabloom-boom-request__actions button { background: transparent; border: 1px solid currentColor; cursor: pointer; font: inherit; }
+.metabloom-boom-request__actions button:disabled { opacity: .55; cursor: not-allowed; }
+.metabloom-boom-request__actions :focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+@media (max-width: 600px) { .metabloom-boom-request dl { grid-template-columns: minmax(0, 1fr); } }

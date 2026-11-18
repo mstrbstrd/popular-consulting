@@ -33,7 +33,7 @@ jobs:
         env:
           METABLOOM_QUOTA_TEST_REDIS_PORT: 6379
       - name: Verify account model defaults and price books against real Redis
-        run: node --test scripts/metabloom-model-preferences-redis.test.cjs scripts/metabloom-price-book-redis.test.cjs
+        run: node --test scripts/metabloom-model-preferences-redis.test.cjs scripts/metabloom-price-book-redis.test.cjs scripts/metabloom-boom-request-redis.test.cjs
         env:
           METABLOOM_SAVED_WORK_TEST_REDIS_URL: redis://127.0.0.1:6379
           METABLOOM_SAVED_WORK_TEST_ALLOW_DISPOSABLE: '1'
@@ -49,6 +49,7 @@ jobs:
       - name: Verify Metabloom API, research, and provider contracts
         run: >-
           node --test scripts/metabloom-api.test.cjs scripts/metabloom-agent.test.cjs scripts/metabloom-agent-api.test.cjs scripts/metabloom-research.test.cjs
+          scripts/metabloom-boom-request.test.cjs scripts/metabloom-boom-request-agent.test.cjs
           scripts/metabloom-price-book.test.cjs scripts/metabloom-price-book-store.test.cjs scripts/metabloom-price-book-workflow.test.cjs scripts/metabloom-price-book-agent.test.cjs
           scripts/metabloom-models.test.cjs scripts/metabloom-expression.test.cjs scripts/metabloom-answer-recovery.test.cjs scripts/metabloom-council.test.cjs
           scripts/metabloom-research-brief.test.cjs scripts/metabloom-research-brief-api.test.cjs
@@ -76,6 +77,9 @@ jobs:
       - name: Verify authenticated local demos in a real browser
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: node scripts/verify-metabloom-browser.mjs
+      - name: Verify boom quote request demo in desktop and mobile chat
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: node scripts/verify-metabloom-boom-request.mjs
       - name: Verify native UI interactions with local HTTP fixtures
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: node scripts/verify-metabloom-ui-browser.mjs

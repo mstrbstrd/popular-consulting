@@ -1,4 +1,5 @@
 import React from 'react';
+import MetabloomBoomRequestCard from './MetabloomBoomRequestCard';
 import MetabloomPriceBookCard from './MetabloomPriceBookCard';
 import MetabloomPriceBookEstimate, { priceBookEstimateLayout } from './MetabloomPriceBookEstimate';
 import { evaluateMetabloomVisualFormula, METABLOOM_VISUAL_ERRORS } from './metabloomVisualProtocol';
@@ -628,6 +629,7 @@ export default function MetabloomVisualFrame({ artifact, workspace = false, onSt
       {spec.kind === 'pie-chart' && <VisualPieChart spec={spec} id={id} viewState={artifact.viewState} onViewStateChange={onViewStateChange} onAskAbout={askAbout} />}
       {spec.kind === 'flowchart' && <VisualFlowchart spec={spec} id={id} viewState={artifact.viewState} onViewStateChange={onViewStateChange} onAskAbout={askAbout} />}
       {spec.kind === 'calculator' && <VisualCalculator spec={spec} id={id} sources={sources} viewState={artifact.viewState} onInputsChange={onInputsChange} onViewStateChange={onViewStateChange} onAskAbout={askAbout} />}
+      {spec.kind === 'boom-request' && <MetabloomBoomRequestCard draft={spec.boomRequest} />}
       {spec.kind === 'price-book' && <MetabloomPriceBookCard spec={spec} id={id} viewState={artifact.viewState} onViewStateChange={onViewStateChange} />}
       {spec.kind !== 'calculator' && <VisualContextDetails spec={spec} sources={sources} />}
     </div>}

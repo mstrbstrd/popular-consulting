@@ -3,10 +3,10 @@ const { METABLOOM_VISUAL_CAPABILITIES, getMetabloomVisualCapabilityResponse,
   buildMetabloomVisualCapabilityPrompt } = require('./metabloomVisualCapabilities');
 
 describe('Metabloom native visual capability contract', () => {
-  test('describes exactly the seven approved renderers with no generic capability fallback', () => {
+  test('describes exactly the approved renderers with no generic capability fallback', () => {
     expect(Object.keys(METABLOOM_VISUAL_CAPABILITIES)).toEqual(METABLOOM_VISUAL_KINDS);
     expect(Object.keys(METABLOOM_VISUAL_CAPABILITIES)).toEqual([
-      'table', 'bar-chart', 'line-chart', 'pie-chart', 'flowchart', 'calculator', 'price-book',
+      'table', 'bar-chart', 'line-chart', 'pie-chart', 'flowchart', 'calculator', 'price-book', 'boom-request',
     ]);
     expect(Object.isFrozen(METABLOOM_VISUAL_CAPABILITIES)).toBe(true);
     for (const capability of Object.values(METABLOOM_VISUAL_CAPABILITIES)) {
@@ -17,7 +17,7 @@ describe('Metabloom native visual capability contract', () => {
   });
 
   test('lists real formats and renderer controls without promising an action', () => {
-    const response = getMetabloomVisualCapabilityResponse({ mode: 'capabilities' }, { enabled: true, priceBookEnabled: true });
+    const response = getMetabloomVisualCapabilityResponse({ mode: 'capabilities' }, { enabled: true, priceBookEnabled: true, boomRequestsEnabled: true });
     for (const capability of Object.values(METABLOOM_VISUAL_CAPABILITIES)) {
       expect(response).toContain(capability.label);
     }
@@ -85,7 +85,7 @@ describe('Metabloom native visual capability contract', () => {
 
   test('all prompts carry the bounded catalogue, prior-claim boundary and explicit source-code exception', () => {
     for (const visualMode of ['disabled', 'text_only', 'optional', 'requested']) {
-      const prompt = buildMetabloomVisualCapabilityPrompt({ visualMode, priceBookEnabled: true });
+      const prompt = buildMetabloomVisualCapabilityPrompt({ visualMode, priceBookEnabled: true, boomRequestsEnabled: true });
       for (const [kind, capability] of Object.entries(METABLOOM_VISUAL_CAPABILITIES)) {
         expect(prompt).toContain(`${kind}: ${capability.description}`);
       }

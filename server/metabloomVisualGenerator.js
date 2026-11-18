@@ -46,6 +46,7 @@ const repairInstructions = Object.freeze({
 // One correction remains inside the original claim, quota and abort deadline.
 // It receives the original context and a static rule, never relaxed validation.
 async function generateMetabloomVisual(record, options = {}) {
+  if (record.offer.kind === 'boom-request') throw visualError('visual_invalid');
   if (record.offer.kind === 'price-book') throw visualError('price_book_unsupported_rules');
   let repairReason;
   for (let attempt = 0; attempt < 2; attempt++) {

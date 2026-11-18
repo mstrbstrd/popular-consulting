@@ -57,16 +57,21 @@ function createMetabloomVisualHandler({ store = createMetabloomVisualStore(), ge
       const record = await store.claim(identity, body.id, { signal: controller.signal, priceBookEnabled });
       claimed = true;
       if (controller.signal.aborted) throw visualError('visual_cancelled');
+      const hostBoomRequest = record.context?.hostBoomRequest;
+      if ((hostBoomRequest && record.offer.kind !== 'boom-request')
+        || (record.offer.kind === 'boom-request' && !hostBoomRequest)) throw visualError('visual_invalid');
+      if (hostBoomRequest && (request.headers?.['x-metabloom-boom-request'] !== '1'
+        || process.env.METABLOOM_BOOM_REQUEST_ENABLED === 'false')) throw visualError('visual_disabled');
       const hostQuote = record.context?.hostQuote;
       if ((record.offer.kind === 'price-book' || hostQuote) && !priceBookEnabled) throw visualError('visual_disabled');
       if (hostQuote && record.offer.kind !== 'table') throw visualError('visual_invalid');
       const hostPriceBook = record.context?.hostPriceBook;
       if (hostPriceBook && record.offer.kind !== 'price-book') throw visualError('visual_invalid');
       if (record.offer.kind === 'price-book' && !hostPriceBook) throw visualError('price_book_unsupported_rules');
-      if (!hostQuote && !hostPriceBook && !process.env.OPENAI_API_KEY) throw visualError('visual_unavailable');
+      if (!hostBoomRequest && !hostQuote && !hostPriceBook && !process.env.OPENAI_API_KEY) throw visualError('visual_unavailable');
       // hostQuote is created by the server's exact quote tool and loaded from its
       // account-owned offer. Never send its prices back through a model builder.
-      const generated = hostQuote || hostPriceBook || await generate(record, { signal: controller.signal, requestRef });
+      const generated = hostBoomRequest || hostQuote || hostPriceBook || await generate(record, { signal: controller.signal, requestRef });
       const spec = parseMetabloomVisual(generated, { kind: record.offer.kind, sources: record.context.sources || [] });
       if (!spec) throw visualError('visual_invalid');
       if (controller.signal.aborted) throw visualError('visual_cancelled');

@@ -2139,7 +2139,7 @@ const OrbSection = ({
         toolset: activeRequest.toolset,
         ...(activeRequest.toolset ? { orbContext: getOrbContext() } : {}),
         onToolProgress: onAgentEvent, onAgentStatus: onAgentEvent,
-        requestId, message, history, ...(artifactContext ? { artifactContext } : {}), ...(researchContext ? { researchContext } : {}), allowMultiple, actionMode: activeRequest.actionMode, onToolActivity,
+        requestId, ...(threadSession?.id ? { conversationId: threadSession.id } : {}), message, history, ...(artifactContext ? { artifactContext } : {}), ...(researchContext ? { researchContext } : {}), allowMultiple, actionMode: activeRequest.actionMode, onToolActivity,
         signal: controller.signal, onTextDelta, onSegment, onReaction, onAction, onResearch, onResearchProgress, onResearchDetails, onResearchBrief, onResearchReference, onSources, onSourceMedia, onToolImages,
         onActivity: (event) => current() && reportActivity(requestId, event),
         reactionQuestion: METABLOOM_REACTION_QUESTION,
