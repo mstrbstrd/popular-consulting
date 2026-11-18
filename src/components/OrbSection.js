@@ -1918,7 +1918,11 @@ const OrbSection = ({
       const history = [];
       for (const item of [...messagesRef.current].reverse()) {
         if (item.status === "interrupted" || item.status === "error") continue;
-        const content = messageHistoryContent(item);
+        const failure = item.role === 'assistant' ? workspace?.getVisualFailure?.(item.id) : null;
+        // Carry the browser's actual failed generation into a retry. The model
+        // otherwise sees only its earlier promise that the component was queued.
+        const observation = failure ? `[App observation: visual generation failed. ${failure}]\n` : '';
+        const content = observation + messageHistoryContent(item).slice(0, 4806 - observation.length);
         if (history.length >= MAX_HISTORY_MESSAGES || historyChars + content.length > 16000) break;
         history.unshift({ role: item.role, content });
         historyChars += content.length;

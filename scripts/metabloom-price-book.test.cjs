@@ -73,6 +73,43 @@ test('rounds each independent tax per rounded line, never compounds or taxes agg
   assert.equal(quote(simple(['100'], taxes), values()).totalCents, 11200);
 });
 
+test('started distance blocks use exact ceilings at zero, fractional and whole boundaries', () => {
+  const book = simple(['distance', '25', 'divide', 'ceil', '50', 'multiply']);
+  assert.ok(validate(book));
+  for (const [distance, cents] of [[0, 0], [0.000001, 5000], [24.999999, 5000],
+    [25, 5000], [25.000001, 10000], [30, 10000], [50, 10000], [50.000001, 15000]]) {
+    assert.equal(quote(book, values({ distance })).totalCents, cents);
+  }
+  // No float epsilon or positive-only shortcut: ceil is also exact on negatives.
+  for (const [formula, cents] of [[['-1', '3', 'divide', 'ceil'], 0],
+    [['-4', '3', 'divide', 'ceil', '2', 'add'], 100], [['-2', 'ceil', '2', 'add'], 0]]) {
+    assert.equal(quote(simple(formula), values()).totalCents, cents);
+  }
+  for (const formula of [['ceil'], ['ceil', '1'], ['1', '2', 'ceil'], ['1', 'ceil', 'add'],
+    ['1', ...Array(32).fill('ceil')]]) assert.equal(validate(simple(formula)), null);
+});
+
+test('confirmed block travel combines with minimum hours, weekend labour and a whole-job minimum', () => {
+  const book = fixture();
+  book.inputs[0] = { ...book.inputs[0], min: 0, initial: 1 };
+  book.lines = [false, true].map(weekend => ({ id: weekend ? 'weekend' : 'weekday', label: 'Job',
+    formula: ['hours', '3', 'max', weekend ? '97.5' : '65', 'multiply',
+      'distance', '25', 'divide', 'ceil', '50', 'multiply', 'add', '200', 'max'],
+    taxes: ['gst'], when: { input: 'weekend', operator: 'eq', value: weekend } }));
+  for (const [hours, distance, weekend, total] of [[1, 0, false, 21000], [3, 30, false, 30975],
+    [3, 30, true, 41213], [1, 0, true, 30713]]) {
+    assert.equal(quote(book, { hours, distance, weekend }).totalCents, total);
+  }
+});
+
+test('existing version-1 inputs named ceil keep their original meaning', () => {
+  const book = simple(['ceil', '2', 'multiply']);
+  book.inputs.push({ id: 'ceil', label: 'Legacy input', type: 'number', min: 0, max: 10, initial: 3 });
+  book.examples[0].inputs.ceil = 3;
+  assert.ok(validate(book));
+  assert.equal(quote(book, { ...values(), ceil: 3 }).totalCents, 600);
+});
+
 test('money and tax results match the existing invoice engine across decimal inputs', () => {
   const filename = path.resolve(__dirname, '../src/utils/invoice.js');
   const loaded = new Module(filename, module);

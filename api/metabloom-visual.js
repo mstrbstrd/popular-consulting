@@ -90,7 +90,7 @@ function createMetabloomVisualHandler({ store = createMetabloomVisualStore(), ge
       }
       outcome = code;
       const status = code === 'visual_disabled' ? 503 : code === 'visual_expired' ? 410 : code === 'visual_claimed' ? 409 : code === 'visual_quota' ? 429
-        : code === 'visual_timeout' ? 504 : code === 'visual_cancelled' ? 499 : 502;
+        : code === 'visual_timeout' ? 504 : code === 'visual_cancelled' ? 499 : code.startsWith('price_book_') ? 422 : 502;
       const quota = code === 'visual_quota' ? parseMetabloomVisualQuota(error?.quota) : null;
       if (quota) response.setHeader('Retry-After', String(quota.retryAfterSeconds));
       return send(response, status, { code, requestRef, ...(quota ? { quota } : {}) });

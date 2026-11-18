@@ -1,6 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import MetabloomVisualFrame, { MetabloomVisualBoundary } from './MetabloomVisualFrame';
+import { METABLOOM_VISUAL_ERRORS } from './metabloomVisualProtocol';
 import { METABLOOM_VISUAL_OFFER_EVENT, requestMetabloomVisual } from './metabloomVisualApiClient';
 import { METABLOOM_TRANSCRIPT_READY_EVENT, METABLOOM_RESET_EVENT,
   beginMetabloomVisualTurn, acceptMetabloomVisualOffer, findMetabloomVisualReply,
@@ -549,6 +550,13 @@ export default class MetabloomVisuals extends React.Component {
     this.onTurnAbort = null;
   };
   ownsSurface = () => this.root?.isConnected && document.querySelectorAll('.orb-page').length === 1;
+  getVisualFailure = messageId => {
+    if (!this.mounted || !this.ownsSurface()) return null;
+    const record = Array.from(this.records.values()).reverse().find(item => item.replyId === messageId);
+    return record?.status === 'failed'
+      ? Object.prototype.hasOwnProperty.call(METABLOOM_VISUAL_ERRORS, record.code)
+        ? METABLOOM_VISUAL_ERRORS[record.code] : METABLOOM_VISUAL_ERRORS.visual_unavailable : null;
+  };
   snapshot = () => {
     const record = this.records.get(this.lastInteractedId)
       || Array.from(this.records.values()).reverse().find(item => item.status === 'ready' && item.spec?.kind === 'calculator');

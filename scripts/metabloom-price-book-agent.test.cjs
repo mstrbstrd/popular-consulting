@@ -56,6 +56,28 @@ test('store failure preserves ordinary chat without exposing an invented quote',
   assert(!seen[0].tools.some(tool => tool.name === 'get_quote'));
 });
 
+test('price-book intake retains original rules beyond the last two messages and requires confirmation', async () => {
+  const history = [
+    { role: 'user', content: 'CAD 65/hour, three-hour minimum, 50 for every 25 km, weekend labour 1.5 times, minimum job 200.' },
+    { role: 'assistant', content: 'Confirm travel rounding and taxes.' },
+    { role: 'user', content: 'We are in BC.' },
+    { role: 'assistant', content: 'Which tax rates apply and is travel per started block?' },
+  ];
+  for (const kind of ['price-book', 'table']) {
+    let context; const seen = [];
+    await runMetabloomAgent({ ...base, message: 'I am registered.', history,
+      priceBookStore: { read: async () => null },
+      visualStore: { claimStart: async () => {}, checkQuota: async () => {}, offer: async (_owner, _kind, value) => {
+        context = value; return { kind, id: 'fixture' };
+      } }, fetchImpl: provider([[call('create_visual', { kind, brief: 'Prepare the draft.' })], [answer]], seen) });
+    assert.deepEqual(context.recentConversation, kind === 'price-book' ? history : history.slice(-2));
+    assert.match(seen[0].instructions, /Registration or province alone is not confirmation/);
+    assert.match(seen[0].instructions, /Browser-reported failure observations/);
+    assert.match(seen[0].tools.find(tool => tool.name === 'create_visual').description, /unary ceil/);
+    assert.equal(JSON.parse(seen[1].input.at(-1).output).display, 'unconfirmed');
+  }
+});
+
 test('changed published version and invalid job inputs fail before creating an estimate', async () => {
   for (const stale of [true, false]) {
     let reads = 0; const seen = [];

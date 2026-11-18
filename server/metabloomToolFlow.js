@@ -42,7 +42,8 @@ const toolDefinition = Object.freeze({
   },
 });
 function getMetabloomVisualToolDefinition({ priceBookEnabled = false } = {}) {
-  return { ...toolDefinition, parameters: { ...toolDefinition.parameters, properties: { ...toolDefinition.parameters.properties,
+  return { ...toolDefinition, ...(priceBookEnabled ? { description: toolDefinition.description
+    + ' Price books additionally support exact unary ceil for started distance/time blocks, minimums and conditional lines. Include all confirmed rates, currency, taxes and rounding rules. Ask about unresolved rules before calling; never invent them.' } : {}), parameters: { ...toolDefinition.parameters, properties: { ...toolDefinition.parameters.properties,
     kind: { type: 'string', enum: METABLOOM_VISUAL_KINDS.filter(kind => kind !== 'price-book' || priceBookEnabled === true) },
   } } };
 }

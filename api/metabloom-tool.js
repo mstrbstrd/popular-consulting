@@ -163,7 +163,7 @@ function createMetabloomToolHandler({ store = createMetabloomVisualStore(), rese
           ...(activePriceBook ? { activePriceBook: activePriceBook.book } : {}), sources: retainedResearch?.sources || artifactContext?.sources || [],
           ...(artifactContext ? { artifactContext } : {}),
           ...(retainedResearch ? { researchContext: retainedResearch.researchContext } : {}),
-          recentConversation: retainedResearch ? [] : body.history.slice(-2), tool: call.tool, visualIntent: 'requested',
+          recentConversation: retainedResearch ? [] : call.kind === 'price-book' ? body.history : body.history.slice(-2), tool: call.tool, visualIntent: 'requested',
           dataHints: retainedResearch ? null : artifactContext ? artifactNumericHints(artifactContext) : intent.dataHints,
         }, { signal: controller.signal });
         if (!offer) throw new Error('unavailable');

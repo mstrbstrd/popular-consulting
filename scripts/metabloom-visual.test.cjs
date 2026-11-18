@@ -350,6 +350,8 @@ test('client retains a negotiated artifact revision and rejects malformed revisi
   }
 });
 test('client rejects cross-artifact payloads and unsafe source URLs', async () => {
+  // Deliberately unsafe input must be rejected by the client URL validator.
+  // eslint-disable-next-line no-script-url
   for (const change of [{ id: 'a'.repeat(48) }, { sources: [{ id: 1, title: 'Bad', url: 'javascript:alert(1)' }] }]) {
     const value = offer(); await assert.rejects(requestMetabloomVisual(value, { fetchImpl: async () => Response.json({ id: value.id, version: '1', designVersion: 'aetheris-1', spec: spec(), sources: [], ...change }) }));
   }
@@ -521,12 +523,53 @@ test('price book builder derives examples as bounded input dictionaries and reje
   } });
   assert.deepEqual(result, expected);
   assert.match(calls[0].instructions, /only a separate explicit user action can publish/);
+  assert.match(calls[0].instructions, /unary ceil/);
+  assert.match(calls[0].instructions, /cannot confirm assumptions the user never accepted/);
   const duplicate = clone(generated); duplicate.priceBook.examples[0].inputs.push({ input: 'hours', value: 9 });
   await assert.rejects(generateMetabloomVisual(record('price-book'), {
     fetchImpl: async () => Response.json(providerEnvelope(duplicate)),
   }), { code: 'visual_invalid' });
   const injected = clone(expected); injected.priceBook.examples[0].totalCents = 1;
   assert.equal(protocol.parseMetabloomVisual(injected), null);
+});
+
+test('price-book clarification categories survive generation, persistence and the client without raw prose or retries', async () => {
+  process.env.METABLOOM_PRICEBOOK_ENABLED = '1';
+  const reasons = ['missing_rates', 'missing_currency', 'missing_taxes', 'missing_travel_rule',
+    'missing_minimum_rule', 'unsupported_rules'];
+  const logs = [], previousInfo = console.info;
+  console.info = (...args) => logs.push(args);
+  try {
+    for (const reason of [...reasons, 'private provider text', '__proto__']) {
+      let calls = 0, completion;
+      const handler = createMetabloomVisualHandler({ authenticate,
+        store: { claim: async () => record('price-book'), complete: async (_identity, _id, value) => { completion = value; } },
+        generate: (value, options) => generateMetabloomVisual(value, { ...options, fetchImpl: async (_url, request) => {
+          calls++;
+          const schema = JSON.parse(request.body).text.format.schema;
+          assert.deepEqual(schema.properties.result.anyOf.at(-1).properties.reason.enum, reasons);
+          return Response.json(providerEnvelope({ kind: 'unavailable', reason }));
+        } }) });
+      const req = request({ id: offer().id, version: '1', designVersion: 'aetheris-1' });
+      req.headers['x-metabloom-pricebook'] = '1';
+      const res = response(); await handler(req, res);
+      const code = reasons.includes(reason) ? `price_book_${reason}` : 'visual_unavailable';
+      assert.equal(calls, 1);
+      assert.equal(JSON.parse(res.body).code, code);
+      assert.equal(res.statusCode, reasons.includes(reason) ? 422 : 502);
+      assert.deepEqual(completion, { status: 'failed', code });
+      assert.ok(protocol.METABLOOM_VISUAL_ERRORS[code]);
+      await assert.rejects(requestMetabloomVisual({ ...offer(), kind: 'price-book' }, {
+        fetchImpl: async () => Response.json(JSON.parse(res.body), { status: res.statusCode }),
+      }), { code, message: protocol.METABLOOM_VISUAL_ERRORS[code] });
+      assert.ok(!res.body.includes('private provider text'));
+    }
+    assert.ok(logs.some(([name, data]) => name === 'metabloom_visual_declined' && JSON.parse(data).reason === 'missing_taxes'));
+    assert.ok(!JSON.stringify(logs).includes('private provider text'));
+  } finally {
+    console.info = previousInfo;
+    delete process.env.METABLOOM_PRICEBOOK_ENABLED;
+  }
 });
 
 test('price book visual generation requires flag and client negotiation before provider use', async () => {

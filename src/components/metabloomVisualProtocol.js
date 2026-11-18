@@ -157,6 +157,12 @@ const parseMetabloomVisual = (input, expected = {}) => {
 };
 const METABLOOM_VISUAL_ERRORS = Object.freeze({
   visual_unavailable: 'The visual could not be prepared. Your answer is unchanged.',
+  price_book_missing_rates: 'Confirm the missing business rates before creating the price book. No draft was created.',
+  price_book_missing_currency: 'Confirm the currency for the price book. No draft was created.',
+  price_book_missing_taxes: 'Confirm the exact tax rates and which charges they apply to, or explicitly choose no tax. No draft was created.',
+  price_book_missing_travel_rule: 'Confirm whether travel is charged proportionally or per started distance block. No draft was created.',
+  price_book_missing_minimum_rule: 'Confirm what the minimum charge covers and whether it applies before tax. No draft was created.',
+  price_book_unsupported_rules: 'These pricing rules cannot be represented by the current price-book tool. No draft was created and no rules were substituted.',
   visual_expired: 'This visual offer has expired. Your answer is unchanged.',
   visual_claimed: 'This visual has already been requested. It will not be generated twice.',
   visual_quota: 'The visual generation limit has been reached. Please try again later.',

@@ -5,7 +5,7 @@ import { AppNavigationContext } from '../contexts/AppNavigationContext';
 import OrbSection from './OrbSection';
 import MetabloomVisuals from './MetabloomVisuals';
 import MetabloomWorkspaceContext from './MetabloomWorkspaceContext';
-import { requestMetabloomVisual } from './metabloomVisualApiClient';
+import { requestMetabloomVisual, METABLOOM_VISUAL_OFFER_EVENT } from './metabloomVisualApiClient';
 import { postMetabloomTool } from './metabloomToolClient';
 import { requestMetabloomSavedWork } from './metabloomSavedWorkApiClient';
 
@@ -120,6 +120,31 @@ afterEach(() => {
   cleanup(); jest.restoreAllMocks();
   delete window.__metabloomRequest;
   window.matchMedia = originalMatchMedia;
+});
+
+test('an ordinary failed price-book build gives the next turn its real failure instead of only a queued promise', async () => {
+  window.removeEventListener('metabloom:user-message', legacyToolRequest, { capture: true });
+  const state = workspace(); state.mount();
+  const reply = envelope('I have requested the draft.');
+  const offer = { version: '1', designVersion: 'aetheris-1', id: id(1), kind: 'price-book', expiresAt: Date.now() + 600000 };
+  requestMetabloomVisual.mockRejectedValueOnce({ code: 'price_book_missing_travel_rule' });
+  send('Create my price book.');
+  await waitFor(() => expect(requests).toHaveLength(1));
+  await act(async () => {
+    window.dispatchEvent(new CustomEvent(METABLOOM_VISUAL_OFFER_EVENT, { detail: {
+      offer, reply, requestId: requests[0].request.requestId, signal: requests[0].request.signal,
+    } }));
+    requests[0].finish(reply);
+  });
+  await screen.findByText('Confirm whether travel is charged proportionally or per started distance block. No draft was created.');
+  expect(screen.getByText('I have requested the draft.')).toBeInTheDocument();
+  send('Try again.');
+  await waitFor(() => expect(requests).toHaveLength(2));
+  const history = requests[1].request.history;
+  expect(history.find(message => message.role === 'assistant').content).toContain(
+    '[App observation: visual generation failed. Confirm whether travel is charged proportionally or per started distance block. No draft was created.]');
+  expect(history.find(message => message.role === 'user').content).toBe('Create my price book.');
+  expect(postMetabloomTool).not.toHaveBeenCalled();
 });
 
 test('new generation opens one live component and its closing reply keeps the original message association', async () => {

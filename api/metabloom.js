@@ -881,7 +881,8 @@ const handler = async (request, response) => {
       try {
         const offer = await createMetabloomVisualStore().offer(visualIdentity, finalDecision.visualization, {
           message, answer: assistantResponse, evidence: research?.notes || "", sources: research?.sources || [],
-          recentConversation: body.history.slice(-2).map((item) => ({ role: item.role, content: item.content.slice(0, 1600) })),
+          recentConversation: finalDecision.visualization === 'price-book' ? body.history
+            : body.history.slice(-2).map((item) => ({ role: item.role, content: item.content.slice(0, 1600) })),
           dataHints: visualIntent.dataHints, visualIntent: visualIntent.mode,
         }, { signal: controller.signal });
         if (offer && (offer.kind !== 'price-book' || priceBookEnabled)) { await sendStreamEvent({ type: "visual_offer", offer });

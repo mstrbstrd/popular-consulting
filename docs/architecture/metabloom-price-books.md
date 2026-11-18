@@ -28,12 +28,18 @@ Publishing status is always read from the server. Restoring or saving a draft ne
 | Publishing never invents success after a timeout | No automatic mutation retries; receipt must match submitted book and next version |
 | Optional pricing failure does not erase chat | Store load/tool failures preserve ordinary answer flow; visual failures retain the text answer |
 | Operational logs do not expose prices or identities | Fixed lifecycle/status categories; no book, job facts, account IDs or monetary output logging |
+| Multi-turn intake does not lose the owner's earlier rules | Price-book builders receive the full already-bounded request history; briefs and assistant assumptions cannot confirm unanswered questions |
+| Started-block charges remain exact | Unary `ceil` uses BigInt rational arithmetic, including boundary distances; proportional pricing is never substituted |
+| Missing rules produce an actionable failure | Fixed categories identify missing rates, currency, taxes, travel rounding, minimum scope or unsupported rules; no arbitrary provider explanation is exposed or logged |
+| A retry knows the current card failed | The active workspace adds its observed failure to the matching assistant history entry within existing history limits; a queued promise is not proof of generation |
 
 The `get_quote` schema is derived from the active book. It accepts only job facts, not rates, taxes, discounts, executable formulas or a publish command. The same schema derivation can be reused by a later MCP endpoint. Model-written chat prose is not an authoritative estimate; the host-built card is.
 
 ## Storage and contracts
 
 Shared schema/engine: `src/components/metabloomPriceBook.js`. Book schema version 1 supports CAD/USD, bounded numeric/boolean inputs, conditional line formulas, tax percentage strings, and input-only worked examples. All totals are computed by the host. Numeric inputs allow at most six decimal places; taxes allow two. Each quote total is capped at one billion currency units. No exchange rates or tax-jurisdiction inference occurs.
+
+Formulas support binary `add/subtract/multiply/divide/min/max` and unary `ceil`. A confirmed $50 charge per started 25 km uses `["distance","25","divide","ceil","50","multiply"]`. Zero distance yields zero blocks, 25 km yields one, and 25.000001 km yields two. Existing version-1 inputs named `ceil` retain their original input meaning. Ordinary calculator capabilities are unchanged. Tax registration and location alone do not confirm rates or applicability; unresolved rules must be clarified before drafting. Failed cards are still transient, so the browser failure observation is available only while its current workspace record remains present.
 
 `GET /api/metabloom-price-book` returns `{enabled:true,active:null|{version,publishedAt,book}}`. `POST` accepts `{book,expectedVersion}`. Expected version 0 creates the first publication. A 409 requires a fresh read. The persistent active record has no automatic expiry and uses the existing saved-work Redis configuration, in a separate price-book namespace. There is no local-memory storage fallback and this release does not retain publication history. Saved-work revisions can retain individual draft cards independently.
 
