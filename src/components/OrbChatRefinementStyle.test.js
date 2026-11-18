@@ -54,7 +54,11 @@ test("phones keep the header and conversation controls compact", () => {
   expect(phone).toMatch(/\.metabloom-reactions__toolbar > button \{\s*display: inline-flex; align-items: center; justify-content: center;/);
   expect(phone).toMatch(/\.metabloom-reactions__toolbar > button > span \{ margin: 0; \}/);
   expect(phone).toMatch(/\.metabloom-chat__composer button \{\s*-webkit-appearance: none; appearance: none; display: grid; place-items: center;/);
-  expect(phone).toMatch(/\.metabloom-chat__composer button:disabled \{\s*opacity: 1; background: var\(--aetheris-panel\);/);
+  expect(phone).toMatch(/\.metabloom-chat__composer button:disabled \{ opacity: 1; \}/);
+  // On phones the send button and New chat use the same clear glass as the controls beside them.
+  const glass = readSource("./OrbLiquidGlass.css");
+  const phoneGlass = glass.slice(glass.indexOf("@media (max-width: 560px)"));
+  expect(phoneGlass).toMatch(/\.orb-page \.metabloom-chat__composer button,\s*\.orb-page \.metabloom-threads__mobile-new \{\s*border-color: transparent !important;\s*background: var\(--lg-clear-fill\) !important;/);
   // The phone composer column and its button use the same pixel size.
   expect(readSource("./OrbPageFinalPolish.css")).toContain("grid-template-columns: minmax(0, 1fr) 44px;");
 });

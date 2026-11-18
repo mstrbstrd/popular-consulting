@@ -496,17 +496,15 @@
     width: 44px; min-width: 44px; padding: 0; font-size: 18px; line-height: 1;
   }
   .orb-page .metabloom-chat__conversation-tools .metabloom-reactions__toolbar > button > span { margin: 0; }
-  /* The send button is a plain centered circle in its 44px column on every
-     engine. With an empty message it keeps an opaque surface, so its spectral
-     arrow shows its own colours instead of blending with the scene behind it. */
+  /* The send button is a centered circle in its 44px column on every engine.
+     Its clear glass comes from OrbLiquidGlass.css; with an empty message it
+     stays at full opacity so its spectral arrow keeps its colours. */
   .orb-page .metabloom-chat .metabloom-chat__composer button {
     -webkit-appearance: none; appearance: none; display: grid; place-items: center;
     align-self: end; justify-self: center; box-sizing: border-box; margin: 0; padding: 0;
   }
-  .orb-page .metabloom-chat .metabloom-chat__composer button:disabled {
-    opacity: 1; background: var(--aetheris-panel);
-  }
-  .orb-page .metabloom-chat .metabloom-chat__composer button:disabled svg { opacity: 0.6; }
+  .orb-page .metabloom-chat .metabloom-chat__composer button:disabled { opacity: 1; }
+  .orb-page .metabloom-chat .metabloom-chat__composer button:disabled svg { opacity: 0.85; }
   .orb-page[data-active-component="true"][data-component-view="expanded"] .metabloom-chat__conversation-tools { display: none; }
   .orb-page[data-active-component="true"][data-component-view="expanded"] .metabloom-chat__component-reply {
     grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px; min-height: 40px; padding: 6px 12px;

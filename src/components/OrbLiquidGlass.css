@@ -12,6 +12,19 @@
    Tokens, accessibility fallbacks and the shared nav chrome (pill, icons,
    experience and account menus) live in LiquidGlass.css. */
 
+/* Phones: the send button and the header's New chat pill join the clear-glass
+   controls around them (desktop keeps its composer-integrated send button). */
+@media (max-width: 560px) {
+  .orb-page .metabloom-chat__composer button,
+  .orb-page .metabloom-threads__mobile-new {
+    border-color: transparent !important;
+    background: var(--lg-clear-fill) !important;
+    -webkit-backdrop-filter: var(--lg-clear-fallback) var(--lg-post) !important;
+    backdrop-filter: var(--lg-refraction, var(--lg-clear-fallback)) var(--lg-post) !important;
+    box-shadow: var(--lg-specular), var(--lg-shadow) !important;
+  }
+}
+
 /* ---------- Clear glass: controls ---------- */
 .orb-page .metabloom-reactions__toolbar > button,
 .orb-page .metabloom-model-picker__trigger,
