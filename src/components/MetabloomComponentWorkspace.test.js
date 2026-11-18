@@ -1504,6 +1504,18 @@ describe('research finished in the current turn', () => {
     expect(screen.getByRole('button', { name: 'Open research: Coastal evidence' })).toBeInTheDocument();
   });
 
+  test.each([[true, 'expanded'], [false, 'compact']])('on a phone (%s) it opens %s', async (mobile, view) => {
+    // A phone's compact view is only a title bar, so the briefing opens in full there.
+    window.matchMedia = query => ({ matches: query === '(max-width: 900px)' ? mobile : true,
+      addEventListener() {}, removeEventListener() {} });
+    workspace().mount();
+    send('Do a deep dive on the coastal evidence.');
+    await waitFor(() => expect(requests).toHaveLength(1));
+    await completeResearch(requests[0].request, liveResearch());
+    expect(await within(activeWorkspace()).findByRole('region', { name: 'Coastal evidence' })).toBeInTheDocument();
+    expect(document.querySelector('.orb-page')).toHaveAttribute('data-component-view', view);
+  });
+
   test('does not replace a component the reader explicitly opened during the turn', async () => {
     workspace(initialState([record(1)])).mount();
     await screen.findByRole('button', { name: 'Show component: Project price' });

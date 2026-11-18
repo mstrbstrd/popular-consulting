@@ -35,3 +35,17 @@ describe("Orb chat refinement layer", () => {
     expect(css).not.toContain("@keyframes");
   });
 });
+
+test("phones keep the header and conversation controls compact", () => {
+  // The site-wide button padding must not widen the New chat icon button.
+  const sidebar = readSource("./OrbSidebarNavigation.css");
+  const newChat = sidebar.slice(sidebar.indexOf(".orb-page .metabloom-threads__mobile-new {"));
+  expect(newChat.slice(0, newChat.indexOf("}"))).toMatch(/width: 44px; height: 44px; padding: 0;/);
+  const layout = readSource("./OrbWorkspaceLayout.css");
+  const phone = layout.slice(layout.indexOf("@media (max-width: 560px)"));
+  // More shows its plus mark and Deep Research reads "Research"; names stay full.
+  expect(phone).toMatch(/:is\(\.metabloom-chat__label-qualifier, \.metabloom-reactions__toggle-label\) \{\s*position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset\(50%\)/);
+  // An open component or briefing keeps only the route back and the message box below it.
+  expect(phone).toMatch(/\[data-component-view="expanded"\] \.metabloom-chat__conversation-tools \{ display: none; \}/);
+  expect(phone).toMatch(/\.metabloom-chat__component-reply > span \{\s*-webkit-line-clamp: 1;/);
+});

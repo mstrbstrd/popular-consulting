@@ -16,6 +16,14 @@ of the visible scroll area. A new follow-up moved to the newest message, while
 the live calculator remained in its original assistant article. Increasing its
 stacking order could not keep an offscreen component visible.
 
+## Phone refinement (2026-11-18)
+
+- The header's **New chat** button resets the site-wide `button` padding; it had grown into a blank 122-pixel pill with a zero-width icon.
+- Below 560 pixels the conversation controls share one row: the model, Council, Research (visible label; accessible name stays "Deep Research"), the reserved Latest slot, and More as its plus mark (accessible name stays "More").
+- While a component or briefing is in the expanded view, those controls hide and the route back to the latest reply shrinks to one line, so only it and the message box sit below the work. Focusing the message box still returns to the conversation.
+- Research that finishes in the current turn opens in the expanded view on phones (the compact view there is only a title bar); desktop keeps the side panel.
+- **More** opens directly above its toggle whenever its content fits there, and uses the sheet below navigation only for taller content such as expanded reactions.
+
 ## Updated layout
 
 The mobile header contains the home/logo control and Menu. A separate compact

@@ -300,8 +300,10 @@ export default class MetabloomVisuals extends React.Component {
     } else if (this.isLiveTurnResearch(record.messageId)) {
       // Research finished in this turn opens like a generated component: once,
       // never over something the reader explicitly chose during the turn.
+      // On phones the compact view is only a title bar, so the briefing opens
+      // in full; typing in the composer returns to the conversation.
       this.turn.researchOpened = true;
-      this.activateResearchSurface(record, { view: 'compact' });
+      this.activateResearchSurface(record, { view: this.mobileQuery?.matches ? 'expanded' : 'compact' });
     }
     this.refresh();
     return () => {

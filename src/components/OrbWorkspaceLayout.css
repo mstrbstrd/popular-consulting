@@ -479,3 +479,25 @@
     grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
   }
 }
+
+/* Phones: the conversation controls share one row. More shows its plus mark
+   and Deep Research reads "Research"; both keep their full accessible names.
+   While a component or briefing fills the screen, only the route back to the
+   reply (one line) and the message box stay below it. */
+@media (max-width: 560px) {
+  .orb-page .metabloom-chat__conversation-tools .metabloom-chat__research-toggle { margin-left: 0; }
+  .orb-page .metabloom-chat__conversation-tools :is(.metabloom-chat__label-qualifier, .metabloom-reactions__toggle-label) {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+  }
+  .orb-page .metabloom-chat__conversation-tools .metabloom-reactions__toolbar > button {
+    justify-content: center; width: 44px; min-width: 44px; padding: 0; font-size: 18px;
+  }
+  .orb-page[data-active-component="true"][data-component-view="expanded"] .metabloom-chat__conversation-tools { display: none; }
+  .orb-page[data-active-component="true"][data-component-view="expanded"] .metabloom-chat__component-reply {
+    grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px; min-height: 40px; padding: 6px 12px;
+  }
+  .orb-page[data-active-component="true"][data-component-view="expanded"] .metabloom-chat__component-reply > strong { white-space: nowrap; }
+  .orb-page[data-active-component="true"][data-component-view="expanded"] .metabloom-chat__component-reply > span {
+    -webkit-line-clamp: 1; max-height: 1.4em;
+  }
+}

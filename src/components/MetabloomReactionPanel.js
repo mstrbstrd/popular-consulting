@@ -47,10 +47,12 @@ const MetabloomReactionPanel = ({ onReact, disabled = false, intensity: controll
         (navigation?.getBoundingClientRect().bottom || 0) + 12));
       const panelBottom = Math.min(bounds.top - 8, viewportBottom);
       const availableAbove = panelBottom - top;
-      // Phones use the space below navigation as a sheet, not a tiny slice
-      // above the centered landing composer. Desktop keeps its anchored popover.
-      const compact = viewportWidth <= 720 || availableAbove < 160;
       panel.style.maxWidth = `${Math.max(0, viewportWidth - leftGutter - rightGutter)}px`;
+      // The panel opens beside its toggle whenever its full content fits above
+      // it. On phones, content too tall for that space (an expanded section)
+      // uses the space below navigation as a sheet instead of a tiny slice.
+      const naturalHeight = Math.max(panel.scrollHeight, panel.getBoundingClientRect().height);
+      const compact = availableAbove < 160 || (viewportWidth <= 720 && naturalHeight > availableAbove);
       const width = panel.getBoundingClientRect().width;
       const preferredLeft = bounds.left + bounds.width / 2 > viewportLeft + viewportWidth / 2
         ? bounds.right - width : bounds.left;

@@ -2921,7 +2921,8 @@ const OrbSection = ({
                 </label>
                 <label className="metabloom-chat__research-toggle" data-enabled={deepResearch ? "true" : "false"} data-disabled={pending || !isActive ? "true" : "false"}>
                   <input type="checkbox" checked={deepResearch} disabled={pending || !isActive} onChange={(event) => { setDeepResearch(event.target.checked); if (event.target.checked) setCouncilEnabled(false); }} />
-                  <span>Deep Research</span>
+                  {/* Phones show "Research"; the accessible name stays "Deep Research". */}
+                  <span><span className="metabloom-chat__label-qualifier">Deep </span>Research</span>
                 </label>
                 {readingEarlier && <button type="button" className="metabloom-chat__latest" aria-label="Latest message" onClick={scrollToLatest}>
                   <span className="metabloom-chat__latest-label">Latest message</span><span aria-hidden="true">↓</span>

@@ -78,7 +78,10 @@
   .orb-page .metabloom-threads__mobile-title { font: 600 14px/1.4 var(--aetheris-font-sans); }
   .orb-page .metabloom-threads__mobile-new {
     display: inline-flex; align-items: center; justify-content: center; margin-left: auto;
-    width: 44px; height: 44px; border: 1px solid var(--aetheris-line); border-radius: 12px;
+    /* Reset the site-wide button padding, which otherwise widens this to a
+       blank 122px pill and collapses its icon to zero width. */
+    flex: 0 0 44px; box-sizing: border-box; width: 44px; height: 44px; padding: 0;
+    border: 1px solid var(--aetheris-line); border-radius: 12px;
     color: var(--aetheris-ink); background: var(--aetheris-glass-panel); cursor: pointer;
   }
   .orb-page .metabloom-threads__mobile-new:focus-visible { outline: 2px solid var(--aetheris-focus-line); outline-offset: -2px; }

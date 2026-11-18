@@ -51,6 +51,23 @@ test("the selected reaction can be replayed from inside the studio when its mobi
 
 const rect = (left, top, width, height) => ({ left, top, right: left + width, bottom: top + height, width, height });
 
+test("a phone panel that fits above its toggle opens there, beside the controls", () => {
+  const originalViewport = window.visualViewport;
+  window.visualViewport = { width: 390, height: 844, offsetTop: 0, offsetLeft: 0, addEventListener: jest.fn(), removeEventListener: jest.fn() };
+  const anchor = rect(330, 560, 44, 44);
+  const bounds = jest.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function () {
+    if (this.classList.contains("metabloom-reactions")) return anchor;
+    if (this.classList.contains("metabloom-reactions__panel")) return rect(0, 0, 358, 240);
+    return rect(0, 0, 390, 64);
+  });
+  try {
+    render(<><nav className="nav-pill" /><MetabloomReactionPanel onReact={() => true} /></>);
+    fireEvent.click(screen.getByRole("button", { name: /Reactions/ }));
+    // Bottom edge 8px above the toggle: 560 - 8 - 240.
+    expect(screen.getByRole("dialog", { name: "Reaction studio" })).toHaveStyle({ top: "312px", maxHeight: "476px" });
+  } finally { bounds.mockRestore(); window.visualViewport = originalViewport; }
+});
+
 test.each([
   ["landing desktop", 960, 636, rect(626, 368, 164, 44), 400, 390, 284, 76],
   ["narrow phone", 390, 844, rect(210, 354, 164, 44), 358, 16, 752, 76],
