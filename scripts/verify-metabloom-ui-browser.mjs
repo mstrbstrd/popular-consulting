@@ -8,6 +8,7 @@ import { spawn, execFileSync } from 'node:child_process';
 import { createBuildServer } from './auth-invoice-test-server.mjs';
 import { findBrowser } from './dark-evidence-browser.mjs';
 import { readDevToolsPort } from './devtools-port.mjs';
+import { toggleOrbTheme } from './fixtures/orb-theme-controls.mjs';
 
 const output = path.resolve('metabloom-ui-functional');
 fs.mkdirSync(output, { recursive: true });
@@ -248,7 +249,7 @@ try {
       };
     })()`);
     if (await evaluate('document.documentElement.dataset.theme') !== theme) {
-      await evaluate("document.querySelector('button[aria-label=\"Toggle dark mode\"]').click()");
+      await toggleOrbTheme(evaluate, until);
       await until(`document.documentElement.dataset.theme === ${JSON.stringify(theme)}`);
     }
   };
@@ -273,9 +274,9 @@ try {
     await setInput('.metabloom-visual__field:nth-child(2) input[type=range]', 135);
     await until(`${value} === '1350'`);
     assert.equal(fixture.calls.length, 3, 'Input changes must not call a model');
-    await evaluate("document.querySelector('button[aria-label=\"Toggle dark mode\"]').click()");
+    await toggleOrbTheme(evaluate, until);
     assert.equal(await evaluate(value), '1350', 'Theme changes must preserve calculator state');
-    await evaluate("document.querySelector('button[aria-label=\"Toggle dark mode\"]').click()");
+    await toggleOrbTheme(evaluate, until);
     await askAbout('.metabloom-visual button[aria-label="Ask about this scenario"]');
     assert.equal(fixture.calls.length, 3, 'Attaching a scenario must not call a model');
     await submit('Why is the current total 1350 CAD?');

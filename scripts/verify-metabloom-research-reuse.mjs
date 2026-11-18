@@ -272,13 +272,16 @@ const complete = (page, count) => page.waitForFunction(expected =>
   && document.querySelector('.metabloom-chat')?.dataset.chatPhase === 'ready', count);
 const savedMessages = page => page.evaluate(() => window.__orbMessages().filter(message => message.role === 'assistant'));
 const referenceChip = page => page.getByRole('group', { name: 'Selected research reference', exact: true });
+const returnToChat = async page => {
+  // Mobile hides the transcript and mode controls while a report is expanded.
+  const backToChat = page.getByRole('button', { name: 'Back to chat', exact: true });
+  if (await backToChat.isVisible()) await backToChat.click();
+};
 const openResearch = async (page, message) => {
   const messageId = await message.getAttribute('data-message-id');
   assert.match(messageId, /^assistant-\d{1,16}$/);
-  // Mobile hides the transcript while a report is expanded. Reopen the exact
-  // message through its launcher so every check uses its currently owned slot.
-  const backToChat = page.getByRole('button', { name: 'Back to chat', exact: true });
-  if (await backToChat.isVisible()) await backToChat.click();
+  // Reopen the exact message so every check uses its currently owned slot.
+  await returnToChat(page);
   await message.getByRole('button', { name: /^Open research:/ }).click();
   const workspace = page.locator('.metabloom-chat__workspace');
   const research = workspace.locator(`.metabloom-research-slot[data-research-message-id="${messageId}"]`);
@@ -437,6 +440,7 @@ try {
     await waitFor(reused.finished.promise, 'report reuse completion');
     await complete(page, 2);
     assertReuse(reused, reference, 'report');
+    await returnToChat(page);
     assert.equal(await toggle.isChecked(), true);
     const reusedResearch = await openResearch(page, messages.last());
     assert.equal(await reusedResearch.locator('.metabloom-chat__research-reuse').getAttribute('data-research-reused'), 'true');
@@ -464,6 +468,7 @@ try {
     await waitFor(finding.finished.promise, 'finding reuse completion');
     await complete(page, 3);
     assertReuse(finding, reference, 'finding');
+    await returnToChat(page);
     assert.equal(await toggle.isChecked(), true);
     assert.deepEqual(finding.api.researchContext.selector, { type: 'finding', briefId: reference.briefId, index: 1 });
     assert.deepEqual(writerResearchContext(finding).coverage, initialMessage.researchBrief.coverage,
@@ -538,6 +543,7 @@ try {
     await page.getByPlaceholder('Message Metabloom', { exact: true }).fill(fresh.question);
     await page.getByRole('button', { name: 'Search again', exact: true }).click();
     assert.equal(await referenceChip(page).count(), 0);
+    await returnToChat(page);
     assert.equal(await toggle.isChecked(), true);
     assert.equal(await page.getByPlaceholder('Message Metabloom', { exact: true }).inputValue(), fresh.question);
     assert.deepEqual(countsSince(start), { search: 2, brief: 2, writer: 4 }, 'Search again waits for Send.');

@@ -12,7 +12,6 @@ function priceBookMemoryDatabase(scope = 'c'.repeat(64)) {
   const data = new Map(), calls = [];
   return { config: { scope }, data, calls, command: async args => {
     calls.push(args);
-    if (args[0] === 'GET') return data.get(args[1]) ?? null;
     if (args[0] !== 'EVAL') throw new Error('Unsupported fictional transport command');
     const count = Number(args[2]), keys = args.slice(3, 3 + count), values = args.slice(3 + count);
     if (count === 1) {

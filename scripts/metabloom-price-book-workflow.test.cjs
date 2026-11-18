@@ -7,10 +7,33 @@ const { quoteMetabloomPriceBook: quote } = require('../src/components/metabloomP
 const { parseMetabloomVisual } = require('../src/components/metabloomVisualProtocol');
 const { createMetabloomPriceBookWorkflowStore: createStore, priceBookDraftView } = require('../server/metabloomPriceBookWorkflow');
 const { createMetabloomPriceBookStore } = require('../server/metabloomPriceBookStore');
+const { readMetabloomSavedWorkConfig, createMetabloomSavedWorkTransport } = require('../server/metabloomSavedWorkDatabase');
 const identity = { accountKey: 'a'.repeat(64) };
 const setup = () => { const database = priceBookMemoryDatabase(); return { database, store: createStore(database, { now: () => 1000 }) }; };
 const complete = store => store.update(identity, { expectedRevision: 0, requestId: 'initial-draft', changes: ruleChanges(serviceRules()) });
 const publish = draft => ({ draftId: draft.id, draftRevision: draft.revision, compiler: 'service-rates-1', expectedVersion: 0, requestId: 'publish-draft' });
+
+test('draft loading, updates and publication receipts pass through the production Redis adapter', async () => {
+  const config = readMetabloomSavedWorkConfig({ AUTH_ENVIRONMENT: 'production', AUTH_APP_ORIGIN: 'https://pricing.example.test',
+    AUTH_REDIS_REST_URL: 'https://redis.example.test', AUTH_REDIS_REST_TOKEN: 'fictional-test-token' });
+  const memory = priceBookMemoryDatabase(config.scope);
+  const command = createMetabloomSavedWorkTransport(config, { fetchImpl: async (url, options) => {
+    assert.equal(url, config.redisUrl);
+    return new Response(JSON.stringify({ result: await memory.command(JSON.parse(options.body)) }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } });
+  const database = { config, command }, store = createStore(database, { now: () => 1000 });
+  assert.equal(await store.read(identity), null);
+  assert.equal(memory.calls.length, 1, 'The empty-draft read must reach Redis through the production adapter');
+  const draft = await complete(store);
+  assert.deepEqual(await complete(store), draft, 'Duplicate updates must resolve their stored receipt');
+  assert.deepEqual(await createStore(database).read(identity), draft);
+  const active = await store.publish(identity, publish(draft));
+  assert.deepEqual(await store.publish(identity, publish(draft)), active, 'Duplicate publications must resolve their stored receipt');
+  assert.deepEqual(await createMetabloomPriceBookStore(database).read(identity), active);
+  assert.equal(quote(active.book, { hours: 3, distance: 30, weekend: true }).totalCents, 55388);
+});
 
 test('missing business values remain unknown; no model or location can supply implicit rates', () => {
   const empty = emptyMetabloomPriceRules();

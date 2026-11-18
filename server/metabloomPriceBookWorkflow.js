@@ -6,6 +6,9 @@ const { METABLOOM_PRICE_BOOK_COMPILER, METABLOOM_PRICE_RULE_FIELDS, emptyMetablo
   normalizeMetabloomPriceRule, getMetabloomPriceRuleState,
   compileMetabloomPriceBook, buildMetabloomPriceBookDraftVisual, parseMetabloomPriceBookDraft } = require('../src/components/metabloomPriceBookRules');
 
+// Use the same bounded EVAL transport as published price books. Raw Redis
+// commands are deliberately rejected by the production saved-work adapter.
+const READ_SCRIPT = "return redis.call('GET', KEYS[1])";
 const UPDATE_SCRIPT = `
 local receipt=redis.call('GET',KEYS[2])
 if receipt then local saved=cjson.decode(receipt); if saved.hash~=ARGV[1] then return {'conflict'} end; return {'ok',saved.result} end
@@ -75,7 +78,7 @@ function createMetabloomPriceBookWorkflowStore(database = getMetabloomSavedWorkD
     catch { throw error(); }
   };
   const receipt = async (key, digest, options) => {
-    const raw = await command(['GET', key], options);
+    const raw = await command(['EVAL', READ_SCRIPT, '1', key], options);
     if (raw === null) return null;
     try {
       if (typeof raw !== 'string' || Buffer.byteLength(raw) > 2 * MAX_METABLOOM_PRICE_BOOK_BYTES + 1024) throw error();
@@ -88,7 +91,7 @@ function createMetabloomPriceBookWorkflowStore(database = getMetabloomSavedWorkD
   };
   return {
     async read(identity, options) {
-      const raw = await command(['GET', keysFor(identity).draft], options);
+      const raw = await command(['EVAL', READ_SCRIPT, '1', keysFor(identity).draft], options);
       return raw === null ? null : decodeDraft(raw);
     },
     async update(identity, { expectedRevision, requestId, changes }, { source = 'form', message = '', ...options } = {}) {

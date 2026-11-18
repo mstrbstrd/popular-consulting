@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const { randomBytes } = require('node:crypto');
 const { redisRuntime, startDisposableRedis } = require('./fixtures/metabloom-saved-work-redis.cjs');
 const { createMetabloomPriceBookStore } = require('../server/metabloomPriceBookStore');
+const { readMetabloomSavedWorkConfig, createMetabloomSavedWorkTransport } = require('../server/metabloomSavedWorkDatabase');
 
 const book = () => ({ version: 1, currency: 'CAD', inputs: [{ id: 'hours', label: 'Hours', type: 'number', min: 2, max: 12, initial: 3 }],
   taxes: [{ id: 'gst', label: 'GST', rate: '5' }], lines: [{ id: 'labour', label: 'Labour', formula: ['hours', '95', 'multiply'], taxes: ['gst'], when: null }],
@@ -16,11 +17,20 @@ test('real Redis binds draft revisions, deduplicates concurrent retries and pres
 }, async t => {
   assert(runtime.available, 'The required disposable Redis must be available');
   const redis = await startDisposableRedis(runtime); t.after(() => redis.dispose());
-  const scope = randomBytes(32).toString('hex'), identity = { accountKey: randomBytes(32).toString('hex') };
-  const database = { config: { scope }, command: async (args, options) => {
-    if (args[0] === 'EVAL') args.slice(3, 3 + Number(args[2])).forEach(key => redis.registerKey(key));
-    return redis.command(args, options);
-  } };
+  const config = readMetabloomSavedWorkConfig({ AUTH_ENVIRONMENT: 'production',
+    AUTH_APP_ORIGIN: `https://${randomBytes(16).toString('hex')}.pricing.example.test`,
+    AUTH_REDIS_REST_URL: 'https://redis.example.test', AUTH_REDIS_REST_TOKEN: 'fictional-test-token' });
+  const { scope } = config, identity = { accountKey: randomBytes(32).toString('hex') };
+  // Only the HTTP endpoint is fictional. Exercise the exact production
+  // validation/encoding adapter and run its resulting Lua on real Redis.
+  const database = { config, command: createMetabloomSavedWorkTransport(config, { fetchImpl: async (url, options) => {
+    assert.equal(url, config.redisUrl);
+    const args = JSON.parse(options.body);
+    args.slice(3, 3 + Number(args[2])).forEach(key => redis.registerKey(key));
+    return new Response(JSON.stringify({ result: await redis.command(args, { signal: options.signal }) }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } }) };
   const workflow = createMetabloomPriceBookWorkflowStore(database, { now: () => 1000 });
   const activeStore = createMetabloomPriceBookStore(database, { now: () => 500 });
   const legacy = await activeStore.publish(identity, { book: book(), expectedVersion: 0 });

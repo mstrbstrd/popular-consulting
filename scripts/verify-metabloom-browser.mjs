@@ -6,6 +6,7 @@ import { spawn, execFileSync } from "node:child_process";
 import { findBrowser } from "./dark-evidence-browser.mjs";
 import { createBuildServer } from "./auth-invoice-test-server.mjs";
 import { readDevToolsPort } from './devtools-port.mjs';
+import { toggleOrbTheme } from './fixtures/orb-theme-controls.mjs';
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const SCREENSHOT_TIMEOUT_MS = 45000;
@@ -181,9 +182,8 @@ try {
     assert.equal(await evaluate("document.querySelectorAll('.metabloom-chat__suggestions, .metabloom-chat__demos').length"), 0,
       "Response demo buttons must not occupy the chat interface");
     const expectedTheme = config.dark ? "dark" : "light";
-    await until(`document.querySelector('button[aria-label="Toggle dark mode"]') !== null`);
     if (await evaluate("document.documentElement.dataset.theme") !== expectedTheme) {
-      await evaluate(`document.querySelector('button[aria-label="Toggle dark mode"]').click()`);
+      await toggleOrbTheme(evaluate, until);
     }
     await until(`document.documentElement.dataset.theme === ${JSON.stringify(expectedTheme)}`);
     await until("document.querySelector('.creatoros-field-shell[data-field-ready=\"true\"]')");
