@@ -18,7 +18,7 @@
   },
   "scripts": {
     "start": "react-scripts start",
-    "build": "react-scripts build && node scripts/generate-route-html.mjs && node scripts/build-private-invoice.mjs",
+    "build": "react-scripts build && node scripts/generate-route-html.mjs && node scripts/build-private-invoice.mjs && node scripts/generate-sms-pages.cjs",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
     "lint": "eslint --ext .js src --max-warnings 0",
@@ -34,7 +34,8 @@
     "test:saved-work:redis": "node --test scripts/metabloom-saved-work-redis.test.cjs scripts/metabloom-threads-redis.test.cjs",
     "metabloom:improve": "node scripts/metabloom-improvement.cjs",
     "test:metabloom-improvement": "node --test scripts/metabloom-improvement.test.cjs",
-    "test:metabloom-expression": "node --test scripts/metabloom-expression.test.cjs"
+    "test:metabloom-expression": "node --test scripts/metabloom-expression.test.cjs",
+    "test:sms-consent": "node --test scripts/sms-consent.test.cjs"
   },
   "eslintConfig": {
     "extends": [

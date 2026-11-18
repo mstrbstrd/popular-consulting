@@ -135,6 +135,9 @@
     }
   ],
   "rewrites": [
+    { "source": "/sms-consent", "destination": "/sms-consent/index.html" },
+    { "source": "/terms", "destination": "/terms/index.html" },
+    { "source": "/privacy", "destination": "/privacy/index.html" },
     { "source": "/popcan", "destination": "/popcan/index.html" },
     { "source": "/popcan/:path*", "destination": "/popcan/index.html" },
     { "source": "/login", "destination": "/login/index.html" },
@@ -154,6 +157,7 @@
     { "source": "/((?!static/|api/|_private/).*)", "destination": "/index.html" }
   ],
   "functions": {
+    "api/sms-consent.js": { "maxDuration": 30 },
     "api/metabloom.js": { "maxDuration": 180 },
     "api/metabloom-council.js": { "maxDuration": 180 },
     "api/metabloom-visual.js": { "maxDuration": 90 },
