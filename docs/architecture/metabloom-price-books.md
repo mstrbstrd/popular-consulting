@@ -15,6 +15,8 @@ Publishing status is always read from the server. Restoring or saving a draft ne
 
 ## Invariants and failure boundaries
 
+`metabloomPriceBookGuidance.js` owns the standard setup explanation: currency, labour, travel, premiums/fees, minimum job charge, and explicit tax rules, followed by draft examples, owner review, Publish, and job-fact-only estimates. Direct feature questions and an immediate request to walk through that explanation receive this exact host answer across providers. The browser does not classify them as render requests. No model, visual generation, publication or quotation runs for the explanation; authentication, quota and cancellation still apply. Disabled sessions receive the same requirements with an explicit unavailability notice. Shared model instructions use the same guide for other phrasings and direct ongoing intake to ask only for unresolved rules. Supplied rates, edit requests, quotes, code requests, combined tasks and unrelated follow-ups retain their existing routes.
+
 | Must remain true | Enforcement |
 | --- | --- |
 | Model text never becomes executable pricing code | Strict bounded schema and reverse-Polish tokens; no eval or Function |

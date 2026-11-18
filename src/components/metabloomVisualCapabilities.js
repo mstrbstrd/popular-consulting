@@ -1,4 +1,5 @@
 const { METABLOOM_VISUAL_KINDS } = require('./metabloomVisualProtocol');
+const { METABLOOM_PRICE_BOOK_GUIDE } = require('./metabloomPriceBookGuidance');
 
 // The protocol approves kinds. This catalogue describes only those renderers;
 // it never grants a new capability because a model or conversation names one.
@@ -61,6 +62,7 @@ function buildMetabloomVisualCapabilityPrompt({ visualMode = 'disabled', visualT
   return [
     'Authoritative native visual capability inventory. These are the only implemented visual formats and controls:',
     ...availableCapabilities(priceBookEnabled).map(([kind, value]) => `${kind}: ${value.description}`),
+    ...(priceBookEnabled ? ['Use this standard explanation when asked about price books or their setup requirements. During intake, retain the confirmed answers and ask only for unresolved rules instead of repeating the checklist.\n' + METABLOOM_PRICE_BOOK_GUIDE] : []),
     'This inventory is a closed list. There are no maps, static or interactive, geocoding, neighborhood layers, satellite views, file exports, attachments, standalone dashboards, arbitrary app UIs, generated images or custom generated animations in this visual tool. Do not offer unimplemented formats or controls. The Orb\'s existing reactions and scenes are separate from generated components.',
     researchBriefEnabled
       ? 'Separately, the Deep Research route can return a native expandable research brief with findings, supporting citations, dates, analysis and coverage limitations. This is an implemented reading surface, not an arbitrary UI or a saved file. Describe its availability when relevant, but only a completed research result establishes what was produced. The host can route requests needing current evidence into Deep Research; only execution results establish that a search ran.'

@@ -21,6 +21,7 @@ const { resolveMetabloomResearchContext, researchContextMessage,
 const { METABLOOM_VISUAL_KINDS, evaluateMetabloomVisualFormula } = require("../src/components/metabloomVisualProtocol");
 const { classifyMetabloomVisualIntent } = require("../src/components/metabloomVisualIntent");
 const { getMetabloomVisualCapabilityResponse } = require("../src/components/metabloomVisualCapabilities");
+const { getMetabloomPriceBookGuidanceResponse } = require('../src/components/metabloomPriceBookGuidance');
 const { streamMetabloomProvider } = require("../server/metabloomProviderStream");
 const { MAX_METABLOOM_AGENT_IMAGES, runMetabloomAgent } = require("../server/metabloomAgent");
 const { modelCatalog, providerConfigured: isModelProviderConfigured } = require('../server/metabloomModels');
@@ -447,7 +448,10 @@ const handler = async (request, response) => {
   const priceBookEnabled = nativeVisualsAvailable && isMetabloomPriceBookEnabled()
     && request.headers?.['x-metabloom-pricebook'] === '1';
   const availableVisualKinds = METABLOOM_VISUAL_KINDS.filter(kind => kind !== 'price-book' || priceBookEnabled);
-  const capabilityResponse = getMetabloomResearchCapabilityResponse(researchIntent, { enabled: configured(request) })
+  const priceBookGuidance = !body.artifactContext && !body.researchContext
+    ? getMetabloomPriceBookGuidanceResponse(body.message, body.history, { enabled: priceBookEnabled
+      && request.headers?.['x-metabloom-ui-tools'] === '1' && process.env.METABLOOM_UI_TOOLS_ENABLED !== 'false' }) : null;
+  const capabilityResponse = priceBookGuidance || getMetabloomResearchCapabilityResponse(researchIntent, { enabled: configured(request) })
     || getMetabloomVisualCapabilityResponse(visualIntent, {
     enabled: nativeVisualsAvailable && request.headers?.["x-metabloom-ui-tools"] === "1"
       && process.env.METABLOOM_UI_TOOLS_ENABLED !== 'false',
@@ -456,14 +460,14 @@ const handler = async (request, response) => {
   // A tool-capable client must not silently route an explicit native UI request
   // through the ordinary text writer. Old clients without this capability header
   // keep their existing protocol.
-  if (!useAgent && request.headers?.["x-metabloom-ui-tools"] === "1" && visualIntent.mode === "requested"
+  if (!useAgent && !priceBookGuidance && request.headers?.["x-metabloom-ui-tools"] === "1" && visualIntent.mode === "requested"
     && (body.actionMode !== "deep-research" || body.researchContext) && !refreshResearch) {
     return sendJson(response, 409, { code: "visual_tool_required" });
   }
   const requestRef = randomBytes(6).toString("hex");
   response.setHeader("X-Metabloom-Request-Ref", requestRef);
   // Fixed capability replies require the same quota boundary, but no model key.
-  if (!providerConfigured && (useAgent || !capabilityResponse
+  if (!providerConfigured && ((useAgent && !priceBookGuidance) || !capabilityResponse
     || !(isLocal(request) || (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN)))) {
     return sendJson(response, 503, { code: "not_configured" });
   }
@@ -519,9 +523,12 @@ const handler = async (request, response) => {
       response.setHeader("Retry-After", "60");
       return sendJson(response, 429, { code: "rate_limited" });
     }
-    if (body.modelSelection) modelSelection = await modelCatalog.resolve(body.modelSelection, { signal: controller.signal });
-    response.setHeader('X-Metabloom-Provider', modelSelection?.provider || 'openai');
-    response.setHeader('X-Metabloom-Model', modelSelection?.model || process.env.METABLOOM_OPENAI_MODEL || 'gpt-5-mini');
+    if (priceBookGuidance) response.setHeader('X-Metabloom-Answer-Source', 'host');
+    else {
+      if (body.modelSelection) modelSelection = await modelCatalog.resolve(body.modelSelection, { signal: controller.signal });
+      response.setHeader('X-Metabloom-Provider', modelSelection?.provider || 'openai');
+      response.setHeader('X-Metabloom-Model', modelSelection?.model || process.env.METABLOOM_OPENAI_MODEL || 'gpt-5-mini');
+    }
     if (controller.signal.aborted) throw new Error("Cancelled");
     stage = "provider";
     const sendStreamEvent = async (event) => {
@@ -543,7 +550,7 @@ const handler = async (request, response) => {
         await sendStreamEvent({ type: "research_report_delta", index, delta: report.notes.slice(offset, offset + MAX_METABLOOM_RESEARCH_REPORT_CHUNK_CHARS) });
       await sendStreamEvent({ type: "research_report_complete" });
     };
-    if (!useAgent && capabilityResponse) {
+    if ((!useAgent || priceBookGuidance) && capabilityResponse) {
       // The host owns its capability and execution status. Conversation prose
       // cannot invent a tool, a paid task or a successful browser mount.
       stage = "capability_response";
@@ -553,7 +560,7 @@ const handler = async (request, response) => {
       await sendStreamEvent({ type: "segment", index: 0, response: capabilityResponse });
       await sendStreamEvent({ type: "text_complete" });
       await sendStreamEvent({ type: "emote", phase: "response", emote: "neutral" });
-      console.info("metabloom_capability", JSON.stringify({ mode: researchIntent === 'capability' ? 'research' : visualIntent.mode,
+      console.info("metabloom_capability", JSON.stringify({ mode: priceBookGuidance ? 'price_book' : researchIntent === 'capability' ? 'research' : visualIntent.mode,
         outcome: "answered", requestRef }));
       return response.end(JSON.stringify({ type: "done", version: METABLOOM_CHAT_PROTOCOL_VERSION }) + "\n");
     }

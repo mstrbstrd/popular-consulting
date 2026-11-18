@@ -1,5 +1,6 @@
 // Bounded, deterministic intent hints shared by the browser and API. Conversation
 // text is never evidence that an operation exists, is pending, or has completed.
+const { getMetabloomPriceBookGuidanceResponse } = require('./metabloomPriceBookGuidance');
 const RENDER_ACTION = /\b(?:show|draw|redraw|make|build|rebuild|create|recreate|render|display|generate|regenerate|produce|give me|put together|set up|visualiz(?:e|ation)|visualis(?:e|ation)|i (?:want|need|would like)|we (?:want|need|would like)|looking for)\b/i;
 const VISUAL_TOPIC = /\b(?:gen(?:erative)?[ -]?ui|ui|interactive (?:ui|tools?|models?|widgets?|components?|visuals?)|visualizations?|visualisations?|charts?|graphs?|plots?|diagrams?|flowcharts?|calculators?|price[ -]?books?)\b/i;
 // Requests for source code must not be mistaken for requests to render native UI.
@@ -131,6 +132,8 @@ function findUserVisualTopic(history) {
 
 function classifyMetabloomVisualIntent(message, history = []) {
   const text = normalize(message);
+  // A setup explanation must not be claimed as a paid render by cached clients.
+  if (getMetabloomPriceBookGuidanceResponse(message, history)) return nonrender('capabilities');
   const direct = classifyDirect(message);
   if (['text_only', 'capabilities', 'unsupported'].includes(direct.mode) || isSourceCodeRequest(text)) return direct;
   const topic = findUserVisualTopic(history);

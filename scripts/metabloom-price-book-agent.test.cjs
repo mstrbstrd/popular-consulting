@@ -5,6 +5,7 @@ afterEach(() => { if (previousKey === undefined) delete process.env.OPENAI_API_K
 const assert = require('node:assert/strict');
 const { runMetabloomAgent } = require('../server/metabloomAgent');
 const { createMetabloomAgentLifecycle } = require('../src/components/metabloomAgentTools');
+const { METABLOOM_PRICE_BOOK_GUIDE } = require('../src/components/metabloomPriceBookGuidance');
 const book = { version: 1, currency: 'CAD',
   inputs: [{ id: 'hours', label: 'Hours', type: 'number', min: 2, max: 12, initial: 3 }],
   taxes: [{ id: 'gst', label: 'GST', rate: '5' }],
@@ -72,6 +73,7 @@ test('price-book intake retains original rules beyond the last two messages and 
       } }, fetchImpl: provider([[call('create_visual', { kind, brief: 'Prepare the draft.' })], [answer]], seen) });
     assert.deepEqual(context.recentConversation, kind === 'price-book' ? history : history.slice(-2));
     assert.match(seen[0].instructions, /Registration or province alone is not confirmation/);
+    assert.ok(seen[0].instructions.includes(METABLOOM_PRICE_BOOK_GUIDE));
     assert.match(seen[0].instructions, /Browser-reported failure observations/);
     assert.match(seen[0].tools.find(tool => tool.name === 'create_visual').description, /unary ceil/);
     assert.equal(JSON.parse(seen[1].input.at(-1).output).display, 'unconfirmed');

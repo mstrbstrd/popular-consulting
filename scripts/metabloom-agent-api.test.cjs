@@ -4,6 +4,8 @@ const { EventEmitter } = require('node:events');
 const auth = require('../server/metabloomAuth');
 const handler = require('../api/metabloom');
 const sourceMedia = require('../server/metabloomSourceMedia');
+const { modelCatalog } = require('../server/metabloomModels');
+const { METABLOOM_PRICE_BOOK_GUIDE } = require('../src/components/metabloomPriceBookGuidance');
 const { createMetabloomSegmentStreamDecoder } = require('../src/components/metabloomEmoteProtocol');
 const env = { ...process.env }, originalFetch = global.fetch;
 beforeEach(() => {
@@ -13,10 +15,14 @@ beforeEach(() => {
   process.env.VERCEL_ENV = 'development'; process.env.OPENAI_API_KEY = 'fictional-fixture';
   delete process.env.TYPESAFE_API_KEY; delete process.env.UPSTASH_REDIS_REST_URL;
   delete process.env.UPSTASH_REDIS_REST_TOKEN;
+  delete process.env.METABLOOM_PRICEBOOK_ENABLED;
+  delete process.env.METABLOOM_VISUALS_ENABLED;
+  delete process.env.METABLOOM_UI_TOOLS_ENABLED;
   handler._internals.localBuckets.clear();
 });
 afterEach(() => { mock.restoreAll(); global.fetch = originalFetch;
-  for (const key of ['VERCEL_ENV', 'OPENAI_API_KEY', 'TYPESAFE_API_KEY', 'UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN']) {
+  for (const key of ['VERCEL_ENV', 'OPENAI_API_KEY', 'TYPESAFE_API_KEY', 'UPSTASH_REDIS_REST_URL', 'UPSTASH_REDIS_REST_TOKEN',
+    'METABLOOM_PRICEBOOK_ENABLED', 'METABLOOM_VISUALS_ENABLED', 'METABLOOM_UI_TOOLS_ENABLED']) {
     if (env[key] === undefined) delete process.env[key]; else process.env[key] = env[key];
   }
 });
@@ -31,6 +37,71 @@ const answer = text => ({ type: 'message', role: 'assistant', status: 'completed
 const events = res => res.body.trim().split('\n').map(line => JSON.parse(line));
 const searchResponse = value => new Response(`data: ${JSON.stringify({ type: 'response.completed', response: value })}\n\n`,
   { headers: { 'content-type': 'text/event-stream' } });
+
+test('price-book explanations are host-owned and identical across providers and cached/agent clients', async () => {
+  process.env.METABLOOM_PRICEBOOK_ENABLED = '1';
+  process.env.METABLOOM_VISUALS_ENABLED = 'true';
+  global.fetch = async () => assert.fail('A setup explanation must not call providers or storage');
+  mock.method(modelCatalog, 'resolve', async () => assert.fail('No model is used for a host explanation'));
+  for (const provider of ['openai', 'deepseek', 'anthropic']) for (const toolset of [undefined, '1', '2']) {
+    const req = request('you can do rates for me and my business right?'), res = response();
+    if (toolset) req.headers['x-metabloom-toolset'] = toolset;
+    else delete req.headers['x-metabloom-toolset'];
+    req.headers['x-metabloom-pricebook'] = '1';
+    req.body.modelSelection = { provider, model: 'latest' };
+    await handler(req, res);
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.headers['X-Metabloom-Answer-Source'], 'host');
+    assert.equal(res.headers['X-Metabloom-Provider'], undefined);
+    const records = events(res);
+    assert.equal(records.find(record => record.type === 'segment').response, METABLOOM_PRICE_BOOK_GUIDE);
+    assert(!records.some(record => /^(?:tool_|agent_|research|visual_)/.test(record.type)));
+    assert.deepEqual(records.find(record => record.type === 'action'), { type: 'action', action: 'none' });
+    const decoder = createMetabloomSegmentStreamDecoder({ allowTools: Boolean(toolset), allowToolProgress: toolset === '2' });
+    assert(decoder.push(res.body)); assert(decoder.finish().ok);
+  }
+});
+
+test('price-book explanations disclose unavailable flags and negotiation without attempting paid work', async () => {
+  global.fetch = async () => assert.fail('Unavailable capability must not call a model');
+  for (const disabled of ['feature', 'visuals', 'tools', 'header', 'key']) {
+    process.env.METABLOOM_PRICEBOOK_ENABLED = disabled === 'feature' ? '0' : '1';
+    process.env.METABLOOM_VISUALS_ENABLED = disabled === 'visuals' ? 'false' : 'true';
+    process.env.METABLOOM_UI_TOOLS_ENABLED = disabled === 'tools' ? 'false' : 'true';
+    if (disabled === 'key') delete process.env.OPENAI_API_KEY;
+    const req = request('What do you need for a price book?'), res = response();
+    if (disabled !== 'header') req.headers['x-metabloom-pricebook'] = '1';
+    await handler(req, res);
+    assert.equal(res.statusCode, 200);
+    const text = events(res).find(event => event.type === 'segment').response;
+    assert.match(text, /^Price-book drafting and quoting are unavailable/);
+    assert(text.endsWith(METABLOOM_PRICE_BOOK_GUIDE));
+  }
+});
+
+test('host setup explanations preserve authentication and request quota boundaries', async () => {
+  global.fetch = async () => assert.fail('No paid work');
+  mock.method(auth, 'requireMetabloomSession', async () => ({ status: 401, code: 'authentication_required' }));
+  let res = response(); await handler(request('Tell me about price books.'), res);
+  assert.equal(res.statusCode, 401);
+  assert(!res.body.includes(METABLOOM_PRICE_BOOK_GUIDE));
+  mock.restoreAll();
+  mock.method(auth, 'requireMetabloomSession', async () => null);
+  for (let attempt = 0; attempt < 13; attempt++) {
+    res = response(); await handler(request('Tell me about price books.'), res);
+  }
+  assert.equal(res.statusCode, 429);
+  assert(!res.body.includes(METABLOOM_PRICE_BOOK_GUIDE));
+});
+
+test('a cancelled setup explanation stops before answer completion', async () => {
+  global.fetch = async () => assert.fail('No paid work');
+  const res = response(), write = res.write;
+  res.write = function(value) { const accepted = write.call(this, value); this.emit('close'); return accepted; };
+  await handler(request('Tell me about price books.'), res);
+  assert(!res.body.includes('"type":"done"'));
+  assert(!res.body.includes(METABLOOM_PRICE_BOOK_GUIDE));
+});
 
 test('explicit neural reveal survives a missing classifier and reaches the ordinary agent as presentation context', async () => {
   const req = request("show me what you're made of"), res = response();
