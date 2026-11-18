@@ -764,6 +764,11 @@ const WorkPageContent = () => {
           Systems
         </span>
         <span>Popular Consulting © {new Date().getFullYear()}</span>
+        <nav aria-label="Messaging and policies" style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem' }}>
+          <a href="/sms-consent" data-document-navigation="true">Messaging consent</a>
+          <a href="/terms" data-document-navigation="true">Terms &amp; Conditions</a>
+          <a href="/privacy" data-document-navigation="true">Privacy Policy</a>
+        </nav>
       </footer>
     </div>
   );

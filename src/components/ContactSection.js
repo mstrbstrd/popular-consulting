@@ -688,6 +688,11 @@ const ContactSection = ({
                 {copy.buttonLabel}
               </Button>
             </form>
+            <nav aria-label="Messaging and policies" style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: "0.6rem 1.2rem", marginTop: "1rem", fontSize: "0.95rem", position: "relative", zIndex: 2 }}>
+              {[["/sms-consent", "Messaging consent"], ["/terms", "Terms & Conditions"], ["/privacy", "Privacy Policy"]].map(([href, label]) => (
+                <a key={href} href={href} data-document-navigation="true" style={{ color: isDark ? "#cfbfff" : "#5331be", textUnderlineOffset: "3px" }}>{label}</a>
+              ))}
+            </nav>
           </Container>
         </div>
 
