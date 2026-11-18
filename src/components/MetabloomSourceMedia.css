@@ -51,7 +51,7 @@
   border: 0; border-radius: 0; background: none;
 }
 .orb-page .metabloom-source-preview--hero .metabloom-source-preview__image-area {
-  display: grid; aspect-ratio: auto; border-radius: var(--aetheris-radius-lg);
+  display: grid; grid-template-columns: minmax(0, 1fr); aspect-ratio: auto; border-radius: var(--aetheris-radius-lg);
   box-shadow: 0 0 0 1px var(--aetheris-line), var(--aetheris-shadow, none);
 }
 .orb-page .metabloom-source-preview--hero .metabloom-source-preview__image-area::before {
@@ -69,6 +69,20 @@
      contrast over the brightest photo; only the top padding fades out. */
   background: linear-gradient(to top, rgba(8, 8, 9, 0.9) 0%, rgba(8, 8, 9, 0.78) calc(100% - 3.2rem), rgba(8, 8, 9, 0) 100%);
   text-shadow: 0 1px 2px rgba(8, 8, 9, 0.45);
+}
+/* The briefing's title and date, set above each story on its photo: the
+   spectral mark, the title in sentence case, then the date kept whole. */
+.orb-page .metabloom-research-brief p.metabloom-research-brief__brief-line {
+  margin: 0 0 0.3rem; color: inherit; font: 600 max(1.3rem, 13px)/1.4 var(--aetheris-font-sans); letter-spacing: -0.005em;
+}
+.orb-page .metabloom-research-brief p.metabloom-research-brief__brief-line::before {
+  content: ''; display: inline-block; width: 0.7rem; height: 0.7rem; margin-inline-end: 0.6rem; border-radius: 50%;
+  vertical-align: 0.05em; background: var(--aetheris-spectral);
+}
+.orb-page .metabloom-research-brief__brief-title { margin-inline-end: 0.7rem; }
+.orb-page .metabloom-research-brief__brief-date {
+  display: inline-block; white-space: nowrap; opacity: 0.86;
+  font: 500 max(1.05rem, 11px)/1.4 var(--aetheris-font-mono); letter-spacing: 0.04em; text-transform: uppercase;
 }
 .orb-page .metabloom-research-brief .metabloom-source-preview__overlay h4 {
   margin: 0; color: inherit; font: 650 clamp(20px, 2.6vw, 30px)/1.18 var(--aetheris-font-sans); letter-spacing: -0.022em;

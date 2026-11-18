@@ -151,7 +151,9 @@ test('one portal preserves the selected finding, disclosures and source paginati
   const selection = within(carousel).getByRole('combobox', { name: 'Choose a finding' });
   fireEvent.change(selection, { target: { value: '1' } });
   const finding = within(carousel).getByRole('article', { name: brief.items[1].headline });
-  const analysis = within(finding).getByText('Analysis and context', { selector: 'summary' });
+  expect(finding).toBeVisible();
+  // The current finding's analysis follows the finding navigation.
+  const analysis = within(carousel).getByText('Analysis and context', { selector: 'summary' });
   fireEvent.click(analysis);
   const fullResearch = openDetails('Full research');
   const sources = openDetails('Research sources (40)');

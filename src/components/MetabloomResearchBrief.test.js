@@ -178,26 +178,64 @@ test('each story leads with its photo, before the headline, and keeps the cited 
   expect(within(last).getByRole('heading', { name: brief.items[4].headline, hidden: true })).toBeInTheDocument();
 });
 
-test('the header leads with the editorial title, and a generic title names the day instead', () => {
+test('the title and date ride on each story photo, with one structural heading for assistive technology', () => {
   const brief = fixture();
   brief.title = 'Fictional Canada today: strikes, trade and the North';
   const { unmount } = renderBrief(brief);
   const header = document.querySelector('.metabloom-research-brief__header');
+  expect(header).toHaveClass('metabloom-research-brief__sr-only');
   expect(within(header).getByRole('heading', { level: 3, name: brief.title })).toBeInTheDocument();
-  // The kind is named by the workspace bar, not repeated in the header.
+  expect(header).toHaveTextContent('Oct 19, 2026 – Oct 23, 2026. 5 stories. Complete.');
+  // The kind is named by the workspace bar, not repeated in the brief.
   expect(within(header).queryByText(/News briefing/)).toBeNull();
-  expect(header.querySelector('.metabloom-research-brief__eyebrow')).toHaveTextContent('Oct 19, 2026 – Oct 23, 2026');
-  expect(header.querySelector('.metabloom-research-brief__coverage-status')).toHaveAttribute('data-coverage-status', brief.coverage.status);
+  const story = screen.getByRole('article', { name: brief.items[0].headline });
+  const line = story.querySelector('.metabloom-source-preview__overlay .metabloom-research-brief__brief-line');
+  expect(line).toHaveAttribute('aria-hidden', 'true');
+  expect(line).toHaveTextContent(brief.title);
+  // A dated story shows its own date, so the briefing date is not repeated on it.
+  expect(line.querySelector('.metabloom-research-brief__brief-date')).toBeNull();
   unmount();
   brief.title = 'News briefing';
   const range = renderBrief(brief);
   // A generic title becomes the date: the range, or one named day.
   expect(screen.getByRole('heading', { level: 3, name: 'Oct 19, 2026 – Oct 23, 2026' })).toBeInTheDocument();
-  expect(document.querySelector('.metabloom-research-brief__eyebrow')).toBeNull();
   range.unmount();
   brief.windowStart = brief.windowEnd = '2026-10-23';
-  renderBrief(brief);
+  const day = renderBrief(brief);
   expect(screen.getByRole('heading', { level: 3, name: 'Friday, October 23' })).toBeInTheDocument();
+  day.unmount();
+  // Findings carry no development date, so the briefing date rides on the photo.
+  const research = fixture();
+  research.kind = 'research'; research.title = 'Five fictional research findings';
+  research.coverage.requestedCount = null; research.windowStart = null; research.windowEnd = null;
+  renderBrief(research);
+  const finding = screen.getByRole('article', { name: research.items[0].headline });
+  expect(finding.querySelector('.metabloom-research-brief__brief-date')).toHaveTextContent(/\w{3} \d{1,2}, \d{4}/);
+});
+
+test('pagination sits under the story and above its analysis, and both reuse actions sit with the story', () => {
+  const brief = fixture();
+  const onUseBrief = jest.fn(), onUseFinding = jest.fn();
+  render(<div className="orb-page"><MetabloomResearchBrief brief={brief} sources={sources}
+    onUseBrief={onUseBrief} onUseFinding={onUseFinding} /></div>);
+  const list = screen.getByRole('list', { name: 'Covered stories' });
+  const navigation = screen.getByRole('group', { name: 'Story navigation' });
+  const analysis = screen.getByText('Analysis and context', { selector: 'summary' });
+  const follows = (a, b) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+  expect(follows(list, navigation)).toBe(true);
+  expect(follows(navigation, analysis)).toBe(true);
+  expect(list).not.toContainElement(analysis);
+  const story = within(screen.getByRole('article', { name: brief.items[0].headline }));
+  fireEvent.click(story.getByRole('button', { name: 'Use this brief' }));
+  fireEvent.click(story.getByRole('button', { name: 'Use this finding' }));
+  expect(onUseBrief).toHaveBeenCalledTimes(1);
+  expect(onUseFinding).toHaveBeenCalledWith(0, expect.objectContaining({ headline: brief.items[0].headline }));
+  // The open analysis stays open while paging and follows the current story.
+  fireEvent.click(analysis);
+  expect(screen.getByText(brief.items[0].whyItMatters)).toBeVisible();
+  fireEvent.click(screen.getByRole('button', { name: 'Next story' }));
+  expect(screen.getByText(brief.items[1].whyItMatters)).toBeVisible();
+  expect(screen.queryByText(brief.items[0].whyItMatters)).not.toBeInTheDocument();
 });
 
 describe('related subject photos', () => {
@@ -302,8 +340,9 @@ test('shows one complete overview at a time and native story selection preserves
   brief.items[4].summary = `${'The fifth fictional development remains fully readable alongside its immediate context. '.repeat(10)}The final sentence is preserved.`;
   const { container } = renderBrief(brief);
   expect(screen.getByRole('region', { name: brief.title })).toHaveAttribute('data-coverage-status', 'complete');
+  // Count and coverage live in the Briefing details summary; complete coverage adds no chip.
   expect(screen.getByText('5 stories')).toBeVisible();
-  expect(screen.getByText('Complete')).toBeVisible();
+  expect(screen.getByText('5 stories').closest('summary')).not.toHaveTextContent('Partial coverage');
   expectPosition('Story 1 of 5');
   expect(screen.getByRole('region', { name: brief.title })).toHaveAttribute('aria-roledescription', 'carousel');
   const stories = within(screen.getByRole('list', { name: 'Covered stories' }));
@@ -388,7 +427,8 @@ test('keeps background citations, labeled analysis, unknowns, next developments,
   expect(summary.tagName).toBe('SUMMARY');
   expect(summary.parentElement.tagName).toBe('DETAILS');
   fireEvent.click(summary);
-  const item = within(screen.getByRole('article', { name: brief.items[0].headline }));
+  // The current story's analysis follows the story navigation.
+  const item = within(summary.parentElement);
   expect(item.getByRole('heading', { name: 'Why it matters Analysis' })).toBeVisible();
   expect(item.getByText(brief.items[0].whyItMatters)).toBeVisible();
   const claim = item.getByText(brief.items[0].background[0].text);
@@ -400,7 +440,7 @@ test('keeps background citations, labeled analysis, unknowns, next developments,
   expect(item.getByText(brief.items[0].dateEvidence.quote)).toBeVisible();
   fireEvent.click(summary);
   expect(item.getByText(brief.items[0].whyItMatters)).not.toBeVisible();
-  expect(item.getByText(brief.items[0].summary)).toBeVisible();
+  expect(screen.getByText(brief.items[0].summary)).toBeVisible();
 });
 
 test('displays the supplied timezone and historical covered interval independently of the as-of time', () => {
@@ -451,7 +491,7 @@ test('reports partial and unavailable coverage honestly without inventing missin
   expect(screen.getByText('3 stories')).toBeVisible();
   expectPosition('Story 1 of 3');
   expect(within(screen.getByRole('combobox', { name: 'Choose a story' })).getAllByRole('option')).toHaveLength(3);
-  expect(screen.getByText('3 stories').closest('header')).not.toHaveTextContent('5');
+  expect(screen.getByText('3 stories').closest('summary')).not.toHaveTextContent('5');
   expect(screen.getByRole('group', { name: 'Story navigation' })).not.toHaveTextContent('5');
   expect(screen.getByText('Briefing target')).not.toBeVisible();
   expect(screen.getByText('Included')).not.toBeVisible();

@@ -52,9 +52,8 @@ function Citations({ sourceIds, sourceMap }) {
   </span>;
 }
 
-function BriefItem({ item, index, active, distance, news, id, sourceMap, mediaMap, detailsMap, subjectImage, resolver, onUseFinding, reuseDisabled }) {
-  const hasDepth = item.background.length > 0 || Boolean(item.whyItMatters)
-    || item.uncertainty.length > 0 || item.watchNext.length > 0 || item.dateEvidence;
+function BriefItem({ item, index, active, distance, news, id, sourceMap, mediaMap, detailsMap, subjectImage, resolver,
+  briefLine, onUseFinding, onUseBrief, reuseDisabled }) {
   const showEvidenceStatus = news || ['disputed', 'uncertain'].includes(item.evidenceStatus);
   // Stories and research findings share one media slot. The dated source (news)
   // or first citation leads; up to two further citations are alternates.
@@ -68,6 +67,13 @@ function BriefItem({ item, index, active, distance, news, id, sourceMap, mediaMa
   const fallbackSource = preferredIds.length ? { source: sourceMap.get(preferredIds[0]),
     publisher: detailsMap.get(preferredIds[0])?.publisher } : null;
   const heading = <>
+    {/* The briefing's title and date ride on every story's photo; the
+        briefing's own heading carries them for assistive technology. */}
+    {/* A dated story shows its own date below, so the briefing date is not repeated. */}
+    {(briefLine.title || !(news && item.developmentDate)) && <p className="metabloom-research-brief__brief-line" aria-hidden="true">
+      {briefLine.title && <span className="metabloom-research-brief__brief-title">{briefLine.title}</span>}
+      {!(news && item.developmentDate) && <span className="metabloom-research-brief__brief-date">{briefLine.date}</span>}
+    </p>}
     <div className="metabloom-research-brief__item-kicker">
       {showEvidenceStatus && <span className="metabloom-research-brief__evidence-status"
         data-evidence-status={item.evidenceStatus}>{evidenceLabels[item.evidenceStatus]}</span>}
@@ -89,43 +95,56 @@ function BriefItem({ item, index, active, distance, news, id, sourceMap, mediaMa
         fallbackSource={fallbackSource} subjectImage={subjectImage} hero overlay={heading} resolver={resolver} priority={distance} />
         : heading}
       <p className="metabloom-research-brief__overview">{item.summary}<Citations sourceIds={item.sourceIds} sourceMap={sourceMap} /></p>
-      {onUseFinding && <button type="button" className="metabloom-research-brief__reuse"
-        disabled={reuseDisabled} onClick={() => onUseFinding(index, item)}>Use this finding</button>}
-      {hasDepth && <details className="metabloom-research-brief__details">
-        <summary>Analysis and context<span className="metabloom-research-brief__sr-only">: {item.headline}</span></summary>
-        <div className="metabloom-research-brief__depth">
-          {item.whyItMatters && <section className="metabloom-research-brief__section">
-            <h5 id={`${id}-analysis`}>Why it matters <span className="metabloom-research-brief__analysis-label">Analysis</span></h5>
-            <p>{item.whyItMatters}</p>
-          </section>}
-          {item.background.length > 0 && <section className="metabloom-research-brief__section">
-            <h5 id={`${id}-background`}>Background</h5>
-            {item.background.map((claim, claimIndex) => <p key={claimIndex}>{claim.text}<Citations sourceIds={claim.sourceIds} sourceMap={sourceMap} /></p>)}
-          </section>}
-          {item.uncertainty.length > 0 && <section className="metabloom-research-brief__section">
-            <h5 id={`${id}-uncertainty`}>What is uncertain</h5>
-            <ul>{item.uncertainty.map((text, textIndex) => <li key={textIndex}>{text}</li>)}</ul>
-          </section>}
-          {item.watchNext.length > 0 && <section className="metabloom-research-brief__section">
-            <h5 id={`${id}-watch`}>Watch next</h5>
-            <ul>{item.watchNext.map((text, textIndex) => <li key={textIndex}>{text}</li>)}</ul>
-          </section>}
-          {news && item.dateEvidence && <section className="metabloom-research-brief__section">
-            <h5 id={`${id}-date-evidence`}>Date evidence</h5>
-            <blockquote cite={sourceMap.get(item.dateEvidence.sourceId)?.url}><p>{item.dateEvidence.quote}</p></blockquote>
-            <p className="metabloom-research-brief__excerpt-label">Supporting research excerpt<Citations sourceIds={[item.dateEvidence.sourceId]} sourceMap={sourceMap} /></p>
-          </section>}
-        </div>
-      </details>}
+      {(onUseFinding || onUseBrief) && <div className="metabloom-research-brief__actions">
+        {onUseFinding && <button type="button" className="metabloom-research-brief__reuse"
+          disabled={reuseDisabled} onClick={() => onUseFinding(index, item)}>Use this finding</button>}
+        {onUseBrief && <button type="button" className="metabloom-research-brief__reuse"
+          disabled={reuseDisabled} onClick={onUseBrief}>Use this brief</button>}
+      </div>}
     </article>
   </li>;
+}
+
+// The active story's analysis follows the story navigation, so the controls
+// sit directly under the story they move between.
+function StoryDepth({ item, news, id, sourceMap }) {
+  const hasDepth = item.background.length > 0 || Boolean(item.whyItMatters)
+    || item.uncertainty.length > 0 || item.watchNext.length > 0 || item.dateEvidence;
+  if (!hasDepth) return null;
+  return <details className="metabloom-research-brief__details metabloom-research-brief__story-depth">
+      <summary>Analysis and context<span className="metabloom-research-brief__sr-only">: {item.headline}</span></summary>
+      <div className="metabloom-research-brief__depth">
+        {item.whyItMatters && <section className="metabloom-research-brief__section">
+          <h5 id={`${id}-analysis`}>Why it matters <span className="metabloom-research-brief__analysis-label">Analysis</span></h5>
+          <p>{item.whyItMatters}</p>
+        </section>}
+        {item.background.length > 0 && <section className="metabloom-research-brief__section">
+          <h5 id={`${id}-background`}>Background</h5>
+          {item.background.map((claim, claimIndex) => <p key={claimIndex}>{claim.text}<Citations sourceIds={claim.sourceIds} sourceMap={sourceMap} /></p>)}
+        </section>}
+        {item.uncertainty.length > 0 && <section className="metabloom-research-brief__section">
+          <h5 id={`${id}-uncertainty`}>What is uncertain</h5>
+          <ul>{item.uncertainty.map((text, textIndex) => <li key={textIndex}>{text}</li>)}</ul>
+        </section>}
+        {item.watchNext.length > 0 && <section className="metabloom-research-brief__section">
+          <h5 id={`${id}-watch`}>Watch next</h5>
+          <ul>{item.watchNext.map((text, textIndex) => <li key={textIndex}>{text}</li>)}</ul>
+        </section>}
+        {news && item.dateEvidence && <section className="metabloom-research-brief__section">
+          <h5 id={`${id}-date-evidence`}>Date evidence</h5>
+          <blockquote cite={sourceMap.get(item.dateEvidence.sourceId)?.url}><p>{item.dateEvidence.quote}</p></blockquote>
+          <p className="metabloom-research-brief__excerpt-label">Supporting research excerpt<Citations sourceIds={[item.dateEvidence.sourceId]} sourceMap={sourceMap} /></p>
+        </section>}
+      </div>
+    </details>;
 }
 
 const NavigationArrow = ({ previous = false }) => <svg viewBox="0 0 16 16" fill="none" aria-hidden="true" focusable="false">
   <path d={previous ? 'm10 3-5 5 5 5' : 'm6 3 5 5-5 5'} />
 </svg>;
 
-function BriefCarousel({ brief, id, sourceMap, mediaMap, detailsMap, subjectImageMap, resolver, onUseFinding, reuseDisabled }) {
+function BriefCarousel({ brief, id, sourceMap, mediaMap, detailsMap, subjectImageMap, resolver, briefLine,
+  onUseFinding, onUseBrief, reuseDisabled }) {
   const [selectedIndex, setSelectedIndex] = React.useState(0);
   const activeIndex = Math.min(selectedIndex, brief.items.length - 1);
   const news = brief.kind === 'news';
@@ -144,6 +163,12 @@ function BriefCarousel({ brief, id, sourceMap, mediaMap, detailsMap, subjectImag
   };
 
   return <>
+    <ol id={`${id}-items`} className="metabloom-research-brief__items" aria-label={news ? 'Covered stories' : 'Research findings'}>
+      {brief.items.map((item, index) => <BriefItem key={item.headline} item={item} index={index}
+        active={index === activeIndex} distance={Math.abs(index - activeIndex)} news={news} id={`${id}-item-${index + 1}`}
+        sourceMap={sourceMap} mediaMap={mediaMap} detailsMap={detailsMap} subjectImage={subjectImageMap.get(index)} resolver={resolver}
+        briefLine={briefLine} onUseFinding={onUseFinding} onUseBrief={onUseBrief} reuseDisabled={reuseDisabled} />)}
+    </ol>
     <div className="metabloom-research-brief__navigation" role="group" aria-label={`${label} navigation`}
       onKeyDown={handleNavigationKey}>
       <button type="button" aria-label={`Previous ${noun}`} aria-controls={`${id}-items`}
@@ -167,12 +192,8 @@ function BriefCarousel({ brief, id, sourceMap, mediaMap, detailsMap, subjectImag
     <p className="metabloom-research-brief__sr-only" role="status" aria-live="polite" aria-atomic="true">
       {label} {activeIndex + 1} of {brief.items.length}
     </p>
-    <ol id={`${id}-items`} className="metabloom-research-brief__items" aria-label={news ? 'Covered stories' : 'Research findings'}>
-      {brief.items.map((item, index) => <BriefItem key={item.headline} item={item} index={index}
-        active={index === activeIndex} distance={Math.abs(index - activeIndex)} news={news} id={`${id}-item-${index + 1}`}
-        sourceMap={sourceMap} mediaMap={mediaMap} detailsMap={detailsMap} subjectImage={subjectImageMap.get(index)} resolver={resolver}
-        onUseFinding={onUseFinding} reuseDisabled={reuseDisabled} />)}
-    </ol>
+    {/* One analysis disclosure that keeps its open state while paging. */}
+    <StoryDepth item={brief.items[activeIndex]} news={news} id={`${id}-item-${activeIndex + 1}`} sourceMap={sourceMap} />
   </>;
 }
 
@@ -264,26 +285,25 @@ export default function MetabloomResearchBrief({ brief, sources, onUseBrief, onU
   const dateLine = headerStart === headerEnd
     ? <time dateTime={headerStart}>{news && !editorialTitle ? weekdayDate(headerStart) : calendarDate(headerStart)}</time>
     : <><time dateTime={headerStart}>{calendarDate(headerStart)}</time> – <time dateTime={headerEnd}>{calendarDate(headerEnd)}</time></>;
+  const briefLine = { title: editorialTitle ? safeBrief.title : null, date: dateLine };
 
   return <section ref={observeBrief} className="metabloom-research-brief" aria-label={safeBrief.title} aria-roledescription="carousel"
     data-research-brief-kind={safeBrief.kind} data-coverage-status={coverage.status}>
-    <header className="metabloom-research-brief__header">
-      {/* The workspace bar names the kind; the header carries the date and title. */}
-      {editorialTitle && <p className="metabloom-research-brief__eyebrow">{dateLine}</p>}
+    {/* The visible title, date and story text share one section: each story's
+        photo. This heading gives the briefing its structure for assistive
+        technology; the visible line on the photo is hidden from it. */}
+    <header className="metabloom-research-brief__header metabloom-research-brief__sr-only">
       <h3 className="metabloom-research-brief__title">{editorialTitle ? safeBrief.title : dateLine}</h3>
-      <div className="metabloom-research-brief__header-meta">
-        <p className="metabloom-research-brief__coverage-heading">
-          <strong>{countText}</strong>
-          <span className="metabloom-research-brief__coverage-status" data-coverage-status={coverage.status}>{coverageLabel}</span>
-        </p>
-        {onUseBrief && <button type="button" className="metabloom-research-brief__reuse"
-          disabled={reuseDisabled} onClick={onUseBrief}>Use this brief</button>}
-      </div>
+      <p className="metabloom-research-brief__coverage-heading">
+        {editorialTitle && <>{dateLine}. </>}{countText}. {coverageLabel}.
+      </p>
     </header>
     <BriefCarousel brief={safeBrief} id={id} sourceMap={sourceMap} mediaMap={mediaMap} detailsMap={detailsMap} subjectImageMap={subjectImageMap}
-      resolver={resolver} onUseFinding={onUseFinding} reuseDisabled={reuseDisabled} />
+      resolver={resolver} briefLine={briefLine} onUseFinding={onUseFinding} onUseBrief={onUseBrief} reuseDisabled={reuseDisabled} />
     <details className="metabloom-research-brief__details metabloom-research-brief__briefing-details">
-      <summary>Briefing details</summary>
+      <summary>Briefing details<span className="metabloom-research-brief__briefing-summary">
+        <span>{countText}</span>{coverage.status === 'partial' && <> · <span className="metabloom-research-brief__coverage-status"
+          data-coverage-status={coverage.status}>{coverageLabel}</span></>}</span></summary>
       <p className="metabloom-research-brief__full-title">{safeBrief.title}</p>
       <p className="metabloom-research-brief__scope">{safeBrief.scope}</p>
       <BriefContext brief={safeBrief} includeCoverage />

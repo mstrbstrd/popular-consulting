@@ -58,24 +58,6 @@
 .orb-page .metabloom-research-brief li + li { margin-top: 0.5rem; }
 
 .orb-page .metabloom-research-brief__header { min-width: 0; }
-/* Eyebrow, editorial title, then one meta row: count, coverage and reuse. */
-.orb-page .metabloom-research-brief p.metabloom-research-brief__eyebrow {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 0 0.4rem;
-  color: var(--aetheris-ink-2); font: 500 max(1.05rem, 11px)/1.5 var(--aetheris-font-mono);
-  letter-spacing: 0.06em; text-transform: uppercase;
-}
-.orb-page .metabloom-research-brief p.metabloom-research-brief__eyebrow::before {
-  content: ''; flex: 0 0 auto; width: 0.7rem; height: 0.7rem; margin-inline-end: 0.3rem; border-radius: 50%;
-  background: var(--aetheris-spectral);
-}
-.orb-page .metabloom-research-brief h3.metabloom-research-brief__title {
-  margin-top: 0.5rem; font: 650 clamp(22px, 3vw, 30px)/1.15 var(--aetheris-font-sans);
-  letter-spacing: -0.025em; text-wrap: balance;
-}
-.orb-page .metabloom-research-brief__header-meta {
-  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.6rem 1.2rem; margin-top: 1rem;
-}
-.orb-page .metabloom-research-brief__header-meta .metabloom-research-brief__reuse { margin-top: 0; min-height: 3.6rem; }
 .orb-page .metabloom-research-brief h3 {
   font-size: max(1.4rem, 14px);
   font-weight: 650;
@@ -159,19 +141,36 @@
 .orb-page .metabloom-research-brief__fallback-notes { padding: 0 0.2rem 1.1rem; }
 .orb-page .metabloom-research-brief__fallback-notes > ul { margin-top: 1.2rem; }
 
+/* Every story occupies the same grid cell, so the list is as tall as its
+   tallest story and the navigation under it stays put while paging. Inactive
+   stories keep their space but are invisible, unfocusable and absent from the
+   accessibility tree. */
 .orb-page .metabloom-research-brief ol.metabloom-research-brief__items {
-  min-height: clamp(24rem, 33vh, 32rem);
-  margin-top: 1.7rem;
+  display: grid;
+  margin-top: 0;
   padding: 0;
   list-style: none;
 }
 .orb-page .metabloom-research-brief li.metabloom-research-brief__item {
+  grid-area: 1 / 1;
   min-width: 0;
   margin: 0;
   padding: 0;
+}
+.orb-page .metabloom-research-brief li.metabloom-research-brief__item:not([hidden]) {
   animation: metabloom-brief-slide-in 180ms var(--aetheris-ease-standard);
 }
-.orb-page .metabloom-research-brief .metabloom-research-brief__item[hidden] { display: none !important; }
+.orb-page .metabloom-research-brief .metabloom-research-brief__item[hidden] { display: block !important; visibility: hidden; }
+.orb-page .metabloom-research-brief__actions {
+  display: flex; flex-wrap: wrap; gap: 0.4rem 0.8rem; margin-top: 0.4rem;
+}
+.orb-page .metabloom-research-brief__actions .metabloom-research-brief__reuse { margin-top: 0; }
+.orb-page .metabloom-research-brief__briefing-summary {
+  margin-inline-start: 0.8rem; color: var(--aetheris-ink-2);
+  font: 500 max(1.1rem, 11px)/1.4 var(--aetheris-font-mono); letter-spacing: 0.01em;
+}
+.orb-page .metabloom-research-brief__briefing-summary .metabloom-research-brief__coverage-status { padding: 0.1rem 0.6rem; }
+.orb-page .metabloom-research-brief__story-depth { margin-top: 1.4rem; }
 @keyframes metabloom-brief-slide-in { from { opacity: 0.6; } to { opacity: 1; } }
 
 .orb-page .metabloom-research-brief__navigation {
@@ -181,7 +180,7 @@
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   width: min(100%, 34rem);
-  margin: 1.6rem auto 0;
+  margin: 1.4rem auto 0;
   padding: 0.3rem;
   border: 1px solid transparent;
   border-radius: var(--aetheris-radius-lg);

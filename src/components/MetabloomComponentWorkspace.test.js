@@ -595,7 +595,9 @@ test('research shares the workspace while each live renderer, reading position, 
   const choice = within(carousel).getByRole('combobox', { name: 'Choose a finding' });
   fireEvent.change(choice, { target: { value: '1' } });
   const finding = within(carousel).getByRole('article', { name: 'Finding 2' });
-  const analysis = within(finding).getByText('Analysis and context', { selector: 'summary' });
+  expect(finding).toBeVisible();
+  // The current finding's analysis follows the finding navigation.
+  const analysis = within(carousel).getByText('Analysis and context', { selector: 'summary' });
   fireEvent.click(analysis);
   body.scrollTop = 160;
   expect(attachment).toHaveTextContent('Hours: 17 · Hourly rate: 85 CAD · Result: 1,445 CAD');
@@ -815,7 +817,9 @@ test('the workspace Saved launcher follows selected research and Escape restores
   const choice = within(brief).getByRole('combobox', { name: 'Choose a finding' });
   fireEvent.change(choice, { target: { value: '1' } });
   const finding = within(brief).getByRole('article', { name: 'Finding 2' });
-  const analysis = within(finding).getByText('Analysis and context', { selector: 'summary' });
+  expect(finding).toBeVisible();
+  // The current finding's analysis follows the finding navigation.
+  const analysis = within(brief).getByText('Analysis and context', { selector: 'summary' });
   fireEvent.click(analysis);
   const body = brief.closest('.metabloom-component-workspace__body');
   body.scrollTop = 160;
