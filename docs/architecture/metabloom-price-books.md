@@ -32,6 +32,8 @@ Publishing status is always read from the server. Restoring or saving a draft ne
 | Operational logs do not expose prices or identities | Fixed lifecycle/status categories; no book, job facts, account IDs or monetary output logging |
 | Multi-turn intake does not lose the owner's earlier rules | Price-book builders receive the full already-bounded request history; briefs and assistant assumptions cannot confirm unanswered questions |
 | Started-block charges remain exact | Unary `ceil` uses BigInt rational arithmetic, including boundary distances; proportional pricing is never substituted |
+| Builder validation identifies the rejected contract | Fixed shape/input/tax/line/formula/condition/initial-result/example categories guide the single bounded repair; no rejected payloads or exception text are logged |
+| Pricing rules show the actual formula | Review text applies unary ceiling to its operand and retains every subsequent rate/minimum operation; legacy inputs named `ceil` remain labels |
 | Missing rules produce an actionable failure | Fixed categories identify missing rates, currency, taxes, travel rounding, minimum scope or unsupported rules; no arbitrary provider explanation is exposed or logged |
 | A retry knows the current card failed | The active workspace adds its observed failure to the matching assistant history entry within existing history limits; a queued promise is not proof of generation |
 
@@ -56,3 +58,8 @@ A price-book visual carries `priceBook` beside the standard visual metadata. Exi
 - `node scripts/verify-metabloom-price-book.mjs` after the build, using fictional providers and local HTTP fixtures only.
 
 The functional workflow includes the new server and real Redis tests plus the browser exercise. Turning the feature off stops new drafting, publishing and quote requests; already-saved drafts remain readable and locally previewable.
+
+
+A November 18 browser walkthrough confirmed sequential intake across currency, labour, travel, premiums, minimum and tax rules. It also exposed a rejected builder response and a later syntactically valid draft with the minimum top-up reversed. Structural validation does not prove that generated rules match the owner's intent. Builder guidance now explicitly specifies `max(0, minimum - covered subtotal)`, conditional weekend top-ups and below/above-minimum examples; the owner still reviews the computed examples before publishing. Regression cases cover $95/hour, two-hour minimum, quarter-hour ceiling, $50 per started 25 km, 1.5x weekend labour, a $200 combined pre-tax minimum and 5% GST. The failed draft was never published.
+
+After correction through chat, the live unpublished draft passed six interactive checks: CAD 210.00 for 1 hour/0 km weekday, CAD 252.00 for 2 hours/25 km weekday, CAD 304.50 just above 25 km, CAD 224.44 for 2.01 hours/0 km weekday, CAD 399.00 for 4 hours/0 km weekday, and CAD 553.88 for 3 hours/30 km weekend. This browser evidence preceded deployment of the builder-guidance and formula-display changes; it verifies the correction flow and existing exact engine, not first-attempt reliability of the new guidance. The account's published version 1 remained unchanged.

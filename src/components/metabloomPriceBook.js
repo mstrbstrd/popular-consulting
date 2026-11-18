@@ -141,48 +141,60 @@ const quoteValidated = (book, values, allowStrings = true) => {
     subtotalCents: centsNumber(subtotal), taxCents: centsNumber(taxTotal), totalCents: centsNumber(subtotal + taxTotal),
   };
 };
-const validateMetabloomPriceBook = value => {
+const validateMetabloomPriceBook = (value, { onInvalid } = {}) => {
+  // Fixed categories only. Never expose labels, formulas, job facts or exception text.
+  let reason = 'shape';
+  const invalid = () => { onInvalid?.(reason); return null; };
   try {
     if (!keys(value, ['version', 'currency', 'inputs', 'taxes', 'lines', 'examples']) || value.version !== 1
       || !['CAD', 'USD'].includes(value.currency)
       || new TextEncoder().encode(JSON.stringify(value)).byteLength > MAX_METABLOOM_PRICE_BOOK_BYTES
-      || !list(value.inputs, 1, 8) || !list(value.taxes, 0, 4) || !list(value.lines, 1, 24) || !list(value.examples, 1, 6)) return null;
+      || !list(value.inputs, 1, 8) || !list(value.taxes, 0, 4) || !list(value.lines, 1, 24) || !list(value.examples, 1, 6)) return invalid();
+    reason = 'inputs';
     for (const input of value.inputs) {
-      if (!object(input) || !id(input.id) || !text(input.label)) return null;
+      if (!object(input) || !id(input.id) || !text(input.label)) return invalid();
       if (input.type === 'boolean') {
-        if (!keys(input, ['id', 'label', 'type', 'initial']) || typeof input.initial !== 'boolean') return null;
+        if (!keys(input, ['id', 'label', 'type', 'initial']) || typeof input.initial !== 'boolean') return invalid();
       } else if (input.type !== 'number' || !keys(input, ['id', 'label', 'type', 'min', 'max', 'initial'])
         || ![input.min, input.max, input.initial].every(validNumber) || input.min >= input.max
-        || input.initial < input.min || input.initial > input.max) return null;
+        || input.initial < input.min || input.initial > input.max) return invalid();
     }
-    if (!unique(value.inputs.map(input => input.id))) return null;
+    if (!unique(value.inputs.map(input => input.id))) return invalid();
+    reason = 'taxes';
     for (const tax of value.taxes) {
-      if (!keys(tax, ['id', 'label', 'rate']) || !id(tax.id) || !text(tax.label) || typeof tax.rate !== 'string') return null;
+      if (!keys(tax, ['id', 'label', 'rate']) || !id(tax.id) || !text(tax.label) || typeof tax.rate !== 'string') return invalid();
       const rate = decimal(tax.rate, 2);
-      if (rate.n < 0n || rate.n > rate.d * 100n) return null;
+      if (rate.n < 0n || rate.n > rate.d * 100n) return invalid();
     }
-    if (!unique(value.taxes.map(tax => tax.id))) return null;
+    if (!unique(value.taxes.map(tax => tax.id))) return invalid();
     for (const line of value.lines) {
+      reason = 'lines';
       if (!keys(line, ['id', 'label', 'formula', 'taxes', 'when']) || !id(line.id) || !text(line.label)
-        || !validateFormula(line.formula, value.inputs) || !list(line.taxes, 0, 4)
-        || !unique(line.taxes) || line.taxes.some(taxId => !value.taxes.some(tax => tax.id === taxId))) return null;
+        || !list(line.taxes, 0, 4)
+        || !unique(line.taxes) || line.taxes.some(taxId => !value.taxes.some(tax => tax.id === taxId))) return invalid();
+      reason = 'formula';
+      if (!validateFormula(line.formula, value.inputs)) return invalid();
+      reason = 'condition';
       if (line.when !== null) {
-        if (!keys(line.when, ['input', 'operator', 'value'])) return null;
+        if (!keys(line.when, ['input', 'operator', 'value'])) return invalid();
         const input = value.inputs.find(candidate => candidate.id === line.when.input);
-        if (!input || !['eq', 'gt', 'gte', 'lt', 'lte'].includes(line.when.operator)) return null;
+        if (!input || !['eq', 'gt', 'gte', 'lt', 'lte'].includes(line.when.operator)) return invalid();
         if (input.type === 'boolean') {
-          if (line.when.operator !== 'eq' || typeof line.when.value !== 'boolean') return null;
-        } else if (!validNumber(line.when.value)) return null;
+          if (line.when.operator !== 'eq' || typeof line.when.value !== 'boolean') return invalid();
+        } else if (!validNumber(line.when.value)) return invalid();
       }
     }
-    if (!unique(value.lines.map(line => line.id))) return null;
+    reason = 'lines';
+    if (!unique(value.lines.map(line => line.id))) return invalid();
+    reason = 'initial_result';
     quoteValidated(value, Object.fromEntries(value.inputs.map(input => [input.id, input.initial])), false);
+    reason = 'examples';
     for (const example of value.examples) {
-      if (!keys(example, ['label', 'inputs']) || !text(example.label)) return null;
+      if (!keys(example, ['label', 'inputs']) || !text(example.label)) return invalid();
       quoteValidated(value, example.inputs, false);
     }
     return JSON.parse(JSON.stringify(value));
-  } catch { return null; }
+  } catch { return invalid(); }
 };
 const quoteMetabloomPriceBook = (book, values) => {
   const validated = validateMetabloomPriceBook(book);

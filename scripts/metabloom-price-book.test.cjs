@@ -219,3 +219,52 @@ test('derives the complete strict tool schema without defaults, prices or execut
   assert.equal(result.properties.hours.default, undefined);
   assert.throws(() => schema({}));
 });
+
+
+test('walkthrough rules preserve quarter-hour rounding, conditional minimum top-ups and GST', () => {
+  const book = fixture();
+  book.inputs[0] = { ...book.inputs[0], min: 0, initial: 1 };
+  const travel = ['distance', '25', 'divide', 'ceil', '50', 'multiply'];
+  book.lines = [{ id: 'travel', label: 'Travel', formula: travel, taxes: ['gst'], when: null }];
+  for (const weekend of [false, true]) {
+    const suffix = weekend ? 'weekend' : 'weekday';
+    const labour = ['hours', '0.25', 'divide', 'ceil', '0.25', 'multiply', '2', 'max',
+      weekend ? '142.5' : '95', 'multiply'];
+    const when = { input: 'weekend', operator: 'eq', value: weekend };
+    book.lines.push({ id: `labour_${suffix}`, label: 'Labour', formula: labour, taxes: ['gst'], when },
+      { id: `minimum_${suffix}`, label: 'Minimum top-up',
+        formula: ['200', ...labour, ...travel, 'add', 'subtract', '0', 'max'], taxes: ['gst'], when });
+  }
+  for (const [hours, distance, weekend, subtotal, total, topUp] of [
+    [1, 0, false, 20000, 21000, 1000], [2, 25, false, 24000, 25200, 0],
+    [2, 25.000001, false, 29000, 30450, 0], [2.01, 0, false, 21375, 22444, 0],
+    [2, 0, true, 28500, 29925, 0], [3, 30, true, 52750, 55388, 0],
+    [4, 0, false, 38000, 39900, 0],
+  ]) {
+    const result = quote(book, { hours, distance, weekend });
+    assert.equal(result.subtotalCents, subtotal);
+    assert.equal(result.totalCents, total);
+    assert.equal(result.lines.find(line => line.id.startsWith('minimum_')).subtotalCents, topUp);
+  }
+});
+
+test('validation diagnostics expose fixed rule categories without changing rejection or leaking values', () => {
+  const cases = [
+    ['shape', book => { book.currency = 'private-currency'; }],
+    ['inputs', book => { book.inputs[0].min = 12; }],
+    ['taxes', book => { book.taxes[0].rate = 'private-tax'; }],
+    ['lines', book => { book.lines[0].taxes = ['unknown']; }],
+    ['formula', book => { book.lines[0].formula = ['weekend', '95', 'multiply']; }],
+    ['formula', book => { book.lines[0].formula = ['premium', '95', 'multiply']; }],
+    ['condition', book => { book.lines[0].when = { input: 'weekend', operator: 'gt', value: true }; }],
+    ['initial_result', book => { book.lines[0].formula = ['1', '0', 'divide']; }],
+    ['examples', book => { book.examples[0].inputs.hours = 13; }],
+  ];
+  for (const [expected, change] of cases) {
+    const book = fixture(), reasons = []; change(book);
+    assert.equal(validate(book, { onInvalid: reason => reasons.push(reason) }), null);
+    assert.deepEqual(reasons, [expected]);
+    assert.equal(validate(book), null);
+  }
+  assert.deepEqual(validate(fixture(), { onInvalid: () => assert.fail('Valid book') }), fixture());
+});

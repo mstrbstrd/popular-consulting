@@ -233,3 +233,23 @@ test('starts with active status and usable job inputs while pricing rules remain
   expect(screen.getByText('Ready to quote. Ask the chat for an estimate using this price book.')).toBeVisible();
   expect(requestMetabloomPriceBook.mock.calls.filter(([request]) => request.book)).toHaveLength(0);
 });
+
+
+test('pricing rule review shows every rounding operation and rate while preserving legacy ceil inputs', async () => {
+  const rounded = JSON.parse(JSON.stringify(spec));
+  rounded.priceBook.lines = [{ id: 'labour', label: 'Rounded labour',
+    formula: ['hours', '0.25', 'divide', 'ceil', '0.25', 'multiply', '2', 'max', '95', 'multiply'],
+    taxes: ['gst'], when: null }];
+  const view = renderCard({ spec: rounded }); await ready();
+  expect(screen.getByText('(higher of ((round up to a whole number ((Hours ÷ 0.25)) × 0.25), 2) × 95)')).toBeInTheDocument();
+  const preview = screen.getByRole('region', { name: 'Preview estimate' });
+  fireEvent.change(screen.getByLabelText('Hours'), { target: { value: '2.01' } });
+  expect(within(preview).getByRole('status')).toHaveTextContent('CAD 224.44');
+  expect(screen.getByRole('button', { name: 'Publish price book' })).toBeDisabled();
+  const legacy = JSON.parse(JSON.stringify(spec));
+  legacy.priceBook.inputs.push({ id: 'ceil', label: 'Legacy units', type: 'number', min: 0, max: 10, initial: 2 });
+  legacy.priceBook.examples.forEach(example => { example.inputs.ceil = 2; });
+  legacy.priceBook.lines = [{ id: 'units', label: 'Units', formula: ['ceil', '95', 'multiply'], taxes: [], when: null }];
+  view.rerender(<MetabloomPriceBookCard spec={legacy} id="price-demo" />); await ready();
+  expect(screen.getByText('(Legacy units × 95)')).toBeInTheDocument();
+});

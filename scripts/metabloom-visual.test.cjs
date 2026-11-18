@@ -618,3 +618,45 @@ test('the price-book visual decision has explicit criteria and keeps quotation s
   assert.match(question.criteria['price-book'], /use get_quote for estimates/);
   assert.deepEqual(Object.keys(question.criteria), ['none', 'price-book']);
 });
+
+
+test('price-book repair receives the failed rule category and remains bounded and private', async () => {
+  const cases = [
+    ['price_book_formula', book => { book.lines[0].formula = ['private_invalid_token']; }],
+    ['price_book_condition', book => { book.lines[0].when = { input: 'private_unknown_input', operator: 'eq', value: 1 }; }],
+    ['price_book_initial_result', book => { book.lines[0].formula = ['0', '1', 'subtract']; }],
+    ['price_book_examples', book => { book.examples[0].inputs[0].value = 100; }],
+  ];
+  const logs = [], originalInfo = console.info;
+  console.info = (...parts) => logs.push(parts.join(' '));
+  try {
+    for (const [reason, change] of cases) {
+      const expected = spec('price-book'), generated = clone(expected);
+      generated.priceBook.examples[0].inputs = [{ input: 'hours', value: 3 }];
+      const invalid = clone(generated); change(invalid.priceBook);
+      const calls = [], controller = new AbortController();
+      const result = await generateMetabloomVisual(record('price-book'), { signal: controller.signal,
+        requestRef: 'abcdef123456', fetchImpl: async (_url, options) => {
+          assert.equal(options.signal, controller.signal);
+          calls.push(JSON.parse(options.body));
+          return Response.json(providerEnvelope(calls.length === 1 ? invalid : generated));
+        } });
+      assert.deepEqual(result, expected);
+      assert.equal(calls.length, 2);
+      assert.deepEqual(calls[0].input, calls[1].input);
+      assert.deepEqual(calls[0].text, calls[1].text);
+      assert.ok(calls[1].instructions.includes(`failed host validation (${reason})`));
+      assert.match(calls[0].instructions, /never boolean inputs or other line IDs/);
+      assert.ok(calls[0].instructions.includes('max(0, M - S), NEVER max(0, S - M)'));
+      assert.match(calls[0].instructions, /Preserve any user-supplied check cases/);
+      let attempts = 0;
+      await assert.rejects(generateMetabloomVisual(record('price-book'), { fetchImpl: async () => {
+        attempts++; return Response.json(providerEnvelope(invalid));
+      } }), { code: 'visual_invalid' });
+      assert.equal(attempts, 2);
+    }
+    assert.ok(logs.some(log => log.includes('price_book_formula')));
+    assert.ok(logs.some(log => log.includes('abcdef123456')));
+    assert.ok(logs.every(log => !log.includes('private_') && !log.includes('formula":[')));
+  } finally { console.info = originalInfo; }
+});

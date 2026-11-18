@@ -20,7 +20,9 @@ const formulaText = (book, tokens) => {
   const labels = new Map(book.inputs.map(input => [input.id, input.label]));
   const stack = [];
   for (const token of tokens) {
-    if (['add', 'subtract', 'multiply', 'divide', 'min', 'max'].includes(token)) {
+    if (token === 'ceil' && !labels.has(token)) {
+      stack.push(`round up to a whole number (${stack.pop()})`);
+    } else if (['add', 'subtract', 'multiply', 'divide', 'min', 'max'].includes(token)) {
       const right = stack.pop(), left = stack.pop();
       stack.push(token === 'min' ? `lower of (${left}, ${right})` : token === 'max' ? `higher of (${left}, ${right})`
         : `(${left} ${{ add: '+', subtract: '−', multiply: '×', divide: '÷' }[token]} ${right})`);
