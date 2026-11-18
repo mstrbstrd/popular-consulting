@@ -37,10 +37,11 @@ describe("Orb chat refinement layer", () => {
 });
 
 test("phones keep the header and conversation controls compact", () => {
-  // The site-wide button padding must not widen the New chat icon button.
+  // New chat is a labelled pill with explicit padding (never the site-wide button padding).
   const sidebar = readSource("./OrbSidebarNavigation.css");
   const newChat = sidebar.slice(sidebar.indexOf(".orb-page .metabloom-threads__mobile-new {"));
-  expect(newChat.slice(0, newChat.indexOf("}"))).toMatch(/width: 44px; height: 44px; padding: 0;/);
+  expect(newChat.slice(0, newChat.indexOf("}"))).toMatch(/height: 44px; padding: 0 14px 0 12px;/);
+  expect(readSource("./MetabloomThreadsPanel.js")).toContain("<NewChatIcon /><span>New chat</span></button>");
   const layout = readSource("./OrbWorkspaceLayout.css");
   const phone = layout.slice(layout.indexOf("@media (max-width: 560px)"));
   // More shows its plus mark and Deep Research reads "Research"; names stay full.
@@ -48,4 +49,12 @@ test("phones keep the header and conversation controls compact", () => {
   // An open component or briefing keeps only the route back and the message box below it.
   expect(phone).toMatch(/\[data-component-view="expanded"\] \.metabloom-chat__conversation-tools \{ display: none; \}/);
   expect(phone).toMatch(/\.metabloom-chat__component-reply > span \{\s*-webkit-line-clamp: 1;/);
+  // More's plus mark is centered; the send circle is centered in its column and
+  // keeps an opaque surface when empty so its spectral arrow keeps its colours.
+  expect(phone).toMatch(/\.metabloom-reactions__toolbar > button \{\s*display: inline-flex; align-items: center; justify-content: center;/);
+  expect(phone).toMatch(/\.metabloom-reactions__toolbar > button > span \{ margin: 0; \}/);
+  expect(phone).toMatch(/\.metabloom-chat__composer button \{\s*-webkit-appearance: none; appearance: none; display: grid; place-items: center;/);
+  expect(phone).toMatch(/\.metabloom-chat__composer button:disabled \{\s*opacity: 1; background: var\(--aetheris-panel\);/);
+  // The phone composer column and its button use the same pixel size.
+  expect(readSource("./OrbPageFinalPolish.css")).toContain("grid-template-columns: minmax(0, 1fr) 44px;");
 });

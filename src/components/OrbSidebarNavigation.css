@@ -76,14 +76,17 @@
     height: 48px; width: auto; padding: 0; background: transparent;
   }
   .orb-page .metabloom-threads__mobile-title { font: 600 14px/1.4 var(--aetheris-font-sans); }
+  /* A labelled pill: an icon alone did not say what it does. Padding is set
+     explicitly so the site-wide button padding never applies. */
   .orb-page .metabloom-threads__mobile-new {
-    display: inline-flex; align-items: center; justify-content: center; margin-left: auto;
-    /* Reset the site-wide button padding, which otherwise widens this to a
-       blank 122px pill and collapses its icon to zero width. */
-    flex: 0 0 44px; box-sizing: border-box; width: 44px; height: 44px; padding: 0;
-    border: 1px solid var(--aetheris-line); border-radius: 12px;
-    color: var(--aetheris-ink); background: var(--aetheris-glass-panel); cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px; margin-left: auto;
+    flex: 0 0 auto; box-sizing: border-box; height: 44px; padding: 0 14px 0 12px;
+    border: 1px solid var(--aetheris-line); border-radius: 999px;
+    color: var(--aetheris-ink); background: var(--aetheris-glass-panel);
+    backdrop-filter: var(--aetheris-glass-blur); -webkit-backdrop-filter: var(--aetheris-glass-blur);
+    font: 500 13px/1 var(--aetheris-font-sans); letter-spacing: 0; white-space: nowrap; cursor: pointer;
   }
+  .orb-page .metabloom-threads__mobile-new svg { flex: 0 0 auto; }
   .orb-page .metabloom-threads__mobile-new:focus-visible { outline: 2px solid var(--aetheris-focus-line); outline-offset: -2px; }
 }
 @media (hover: hover) {

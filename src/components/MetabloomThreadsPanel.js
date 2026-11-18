@@ -337,7 +337,7 @@ export default function MetabloomThreadsPanel({ expanded, onExpandedChange, item
       <div className="metabloom-threads__floating" role={renderNavigation ? 'banner' : undefined} aria-label={renderNavigation ? 'Orb workspace' : undefined}>
         {trigger}
         {renderNavigation && !expanded && <><span className="metabloom-threads__mobile-title">Metabloom</span>
-          <button type="button" className="metabloom-threads__mobile-new" aria-label="New chat" title="New chat" disabled={blocked} onClick={newThread}><NewChatIcon /></button></>}
+          <button type="button" className="metabloom-threads__mobile-new" disabled={blocked} onClick={newThread}><NewChatIcon /><span>New chat</span></button></>}
         {!expanded && saveStatus && <p id={`${id}-status`} role="status" className="metabloom-threads__sr-only">{saveStatus}</p>}
         {!expanded && message && <p id={`${id}-error`} role="alert" className="metabloom-threads__sr-only">{message}</p>}
       </div>

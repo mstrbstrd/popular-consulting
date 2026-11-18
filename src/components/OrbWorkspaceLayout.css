@@ -489,9 +489,24 @@
   .orb-page .metabloom-chat__conversation-tools :is(.metabloom-chat__label-qualifier, .metabloom-reactions__toggle-label) {
     position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
   }
+  /* More's plus mark sits at the exact center: the button is a flex box and
+     the mark drops the label spacing it uses beside the visible word. */
   .orb-page .metabloom-chat__conversation-tools .metabloom-reactions__toolbar > button {
-    justify-content: center; width: 44px; min-width: 44px; padding: 0; font-size: 18px;
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 44px; min-width: 44px; padding: 0; font-size: 18px; line-height: 1;
   }
+  .orb-page .metabloom-chat__conversation-tools .metabloom-reactions__toolbar > button > span { margin: 0; }
+  /* The send button is a plain centered circle in its 44px column on every
+     engine. With an empty message it keeps an opaque surface, so its spectral
+     arrow shows its own colours instead of blending with the scene behind it. */
+  .orb-page .metabloom-chat .metabloom-chat__composer button {
+    -webkit-appearance: none; appearance: none; display: grid; place-items: center;
+    align-self: end; justify-self: center; box-sizing: border-box; margin: 0; padding: 0;
+  }
+  .orb-page .metabloom-chat .metabloom-chat__composer button:disabled {
+    opacity: 1; background: var(--aetheris-panel);
+  }
+  .orb-page .metabloom-chat .metabloom-chat__composer button:disabled svg { opacity: 0.6; }
   .orb-page[data-active-component="true"][data-component-view="expanded"] .metabloom-chat__conversation-tools { display: none; }
   .orb-page[data-active-component="true"][data-component-view="expanded"] .metabloom-chat__component-reply {
     grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px; min-height: 40px; padding: 6px 12px;

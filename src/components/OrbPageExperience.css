@@ -608,10 +608,10 @@
   }
 
   .orb-page .metabloom-chat__composer button {
-    width: 4.4rem;
-    height: 4.4rem;
-    min-width: 4.4rem;
-    min-height: 4.4rem;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
   }
 
   .orb-page .metabloom-chat__composer button svg {

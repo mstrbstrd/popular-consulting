@@ -180,16 +180,18 @@
     max-width: 48rem;
   }
 
+  /* Pixels, not rem: if the browser scales text (iOS text size), a rem
+     column narrower than the 44px button pushed it off center. */
   .orb-page .metabloom-chat__composer {
-    grid-template-columns: minmax(0, 1fr) 4.4rem;
+    grid-template-columns: minmax(0, 1fr) 44px;
   }
 
   .orb-page .metabloom-chat__composer button {
-    width: 4.4rem;
-    height: 4.4rem;
-    min-width: 4.4rem;
-    min-height: 4.4rem;
-    flex-basis: 4.4rem;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    flex-basis: 44px;
   }
 
   .orb-page .metabloom-chat__suggestions {

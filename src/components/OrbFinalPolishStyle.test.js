@@ -189,7 +189,7 @@ describe("Orb final presentation guardrails", () => {
 
   test("bounds narrow-screen composer, prompts, and finish controls", () => {
     expect(css).toContain("width: calc(100% - 2.4rem);");
-    expect(css).toContain("grid-template-columns: minmax(0, 1fr) 4.4rem;");
+    expect(css).toContain("grid-template-columns: minmax(0, 1fr) 44px;");
     expect(css).toContain(
       "grid-template-columns: repeat(2, minmax(0, 1fr));",
     );
