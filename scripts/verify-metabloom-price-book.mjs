@@ -11,12 +11,13 @@ const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
 const { createMetabloomPriceBookHandler } = require('../api/metabloom-price-book');
 const { createMetabloomPriceBookStore } = require('../server/metabloomPriceBookStore');
-const { createMetabloomToolHandler } = require('../api/metabloom-tool');
 const { createMetabloomVisualHandler } = require('../api/metabloom-visual');
 const agent = require('../server/metabloomAgent');
 const visualModule = require('../server/metabloomVisualStore');
 const modelModule = require('../server/metabloomModels');
-const { validateMetabloomPriceBook } = require('../src/components/metabloomPriceBook');
+const { compileMetabloomPriceBook } = require('../src/components/metabloomPriceBookRules');
+const { createMetabloomPriceBookWorkflowStore } = require('../server/metabloomPriceBookWorkflow');
+const { serviceRules, ruleChanges, priceBookMemoryDatabase } = require('./fixtures/metabloom-price-book-workflow.cjs');
 process.env.METABLOOM_PRICEBOOK_ENABLED = '1';
 process.env.METABLOOM_VISUALS_ENABLED = 'true';
 process.env.OPENAI_API_KEY = 'fictional-browser-fixture';
@@ -31,35 +32,20 @@ const accountIdentity = { accountKey: 'a'.repeat(64) };
 const authenticate = async (_request, options) => {
   options.onIdentity?.(identity); options.onAccountIdentity?.(accountIdentity); return null;
 };
-const book = {
-  version: 1, currency: 'CAD',
-  inputs: [{ id: 'hours', label: 'Hours', type: 'number', min: 2, max: 12, initial: 3 },
-    { id: 'distance', label: 'Distance in km', type: 'number', min: 0, max: 150, initial: 10 },
-    { id: 'weekend', label: 'Weekend', type: 'boolean', initial: false }],
-  taxes: [{ id: 'gst', label: 'GST', rate: '5' }],
-  lines: [{ id: 'labour', label: 'Labour', formula: ['hours', '95', 'multiply'], taxes: ['gst'], when: null },
-    { id: 'premium', label: 'Weekend premium', formula: ['hours', '95', 'multiply', '0.15', 'multiply'], taxes: ['gst'], when: { input: 'weekend', operator: 'eq', value: true } },
-    { id: 'travel', label: 'Travel', formula: ['60'], taxes: ['gst'], when: { input: 'distance', operator: 'gt', value: 20 } }],
-  examples: [{ label: 'Weekday local job', inputs: { hours: 3, distance: 10, weekend: false } },
-    { label: 'Weekend travel job', inputs: { hours: 6, distance: 30, weekend: true } }],
-};
-assert(validateMetabloomPriceBook(book));
-const spec = { version: '1', designVersion: 'aetheris-1', kind: 'price-book', title: 'Service price book',
-  summary: 'Review the supplied hourly rate, weekend premium, travel fee and GST.',
-  provenance: { type: 'user', label: 'Fictional owner-supplied business rules.', sourceIds: [] }, priceBook: book };
-const records = new Map(), data = new Map(), errors = [], calls = [];
+const book = compileMetabloomPriceBook(serviceRules());
+const pricingMessage = 'Build a CAD price book: hourly labour 95, minimum 2 hours, round up to 15 minutes; one-way travel 50 per started 25 km, no free distance; weekend 1.5 on labour; no call-out or other fees; 200 minimum labour plus travel before tax; 5% GST on all charges.';
+const records = new Map(), errors = [], calls = [];
 let counter = 0, publishes = 0, quoteCalls = 0, generatedDrafts = 0;
-// Uses the real store serialization and CAS handling with a tiny Redis transport
-// stand-in. Native Redis atomicity is covered by the separate Redis test suite.
-const priceBookStore = createMetabloomPriceBookStore({ config: { scope: identity.scope }, command: async args => {
-  const key = args[3];
-  assert.equal(key, `metabloom:price-book:v1:${identity.scope}:${accountIdentity.accountKey}`);
-  if (args.length === 4) return data.get(key) || null;
-  const current = JSON.parse(data.get(key) || 'null');
-  if ((current?.version || 0) !== Number(args[4])) return ['conflict'];
-  data.set(key, args[5]); publishes++;
-  return ['ok', args[5]];
-} });
+const database = priceBookMemoryDatabase(identity.scope), data = database.data;
+const priceBookStore = createMetabloomPriceBookStore(database);
+const priceBookWorkflowStore = createMetabloomPriceBookWorkflowStore(database);
+const originalPublish = priceBookWorkflowStore.publish.bind(priceBookWorkflowStore);
+priceBookWorkflowStore.publish = async (...args) => {
+  const before = await priceBookStore.read(accountIdentity);
+  const result = await originalPublish(...args);
+  if (result.version > (before?.version || 0)) publishes++;
+  return result;
+};
 const owned = (owner, id) => { assert.equal(owner.owner, identity.owner); const record = records.get(id); assert(record); return record; };
 const visualStore = {
   claimStart: async owner => { assert.equal(owner.owner, identity.owner); },
@@ -86,12 +72,13 @@ const modelFetch = async (url, options) => {
       content: [{ type: 'output_text', text: JSON.stringify(reply('The estimate is queued from your published pricing rules. Review the host-calculated card.')) }] }] });
   }
   const quoting = /quote/i.test(payload.input.filter(input => input.role === 'user').at(-1)?.content || '');
-  const name = quoting ? 'get_quote' : 'create_visual';
+  const name = quoting ? 'get_quote' : 'propose_price_book_changes';
+  const draft = await priceBookWorkflowStore.read(accountIdentity);
   assert(payload.tools.some(tool => tool.name === name), `Expected available tool ${name}`);
   if (quoting) quoteCalls++;
   return Response.json({ status: 'completed', output: [{ type: 'function_call', name, call_id: `fixture_${counter}_${name}`,
-    arguments: JSON.stringify(quoting ? { hours: 6, distance: 30, weekend: true }
-      : { kind: 'price-book', brief: 'Create the supplied service price book.' }) }] });
+    arguments: JSON.stringify(quoting ? { hours: 3, distance: 30, weekend: true }
+      : { expectedRevision: draft?.revision || 0, changes: ruleChanges(serviceRules()).map(change => ({ ...change, sourceText: pricingMessage })) }) }] });
 };
 // This loader injects fixture transports only into the test's module instance.
 function loadChatHandler() {
@@ -101,7 +88,7 @@ function loadChatHandler() {
   const mocks = {
     '../server/metabloomAuth': { requireMetabloomSession: authenticate },
     '../server/metabloomVisualStore': { ...visualModule, createMetabloomVisualStore: () => visualStore },
-    '../server/metabloomAgent': { ...agent, runMetabloomAgent: options => agent.runMetabloomAgent({ ...options, priceBookStore, fetchImpl: modelFetch }) },
+    '../server/metabloomAgent': { ...agent, runMetabloomAgent: options => agent.runMetabloomAgent({ ...options, priceBookStore, priceBookWorkflowStore, fetchImpl: modelFetch }) },
     '../server/metabloomModels': { ...modelModule, modelCatalog: { resolve: async selected => ({ provider: selected.provider, model: 'gpt-5-mini' }) } },
     '../server/jevReactionService': { decideMetabloomInput: async () => ({ emote: 'neutral', action: 'none' }),
       decideMetabloomReaction: async () => 'neutral', decideMetabloomResponse: async () => 'neutral' },
@@ -111,20 +98,15 @@ function loadChatHandler() {
   return loaded.exports;
 }
 const chatHandler = loadChatHandler();
-const toolHandler = createMetabloomToolHandler({ store: visualStore, authenticate, getPriceBookStore: () => priceBookStore, rateLimit: async () => true,
-  start: async ({ requiredKind, priceBookEnabled, message }) => { assert(priceBookEnabled); assert.equal(requiredKind, 'price-book');
-    return { kind: 'price-book', brief: message, tool: { message } }; },
-  finish: async () => reply('Your draft price book is ready. Review the examples before publishing.'), reaction: async () => 'neutral' });
-const visualHandler = createMetabloomVisualHandler({ store: visualStore, authenticate, generate: async record => {
-  assert.equal(record.offer.kind, 'price-book', 'Host quotes must never invoke the model builder');
-  generatedDrafts++; return spec;
+const visualHandler = createMetabloomVisualHandler({ store: visualStore, authenticate, generate: async () => {
+  generatedDrafts++; assert.fail('Price-book previews and quotes must never invoke the model builder');
 } });
-const publishHandler = createMetabloomPriceBookHandler({ authenticate, getStore: () => priceBookStore });
+const publishHandler = createMetabloomPriceBookHandler({ authenticate, getStore: () => priceBookStore, getWorkflowStore: () => priceBookWorkflowStore });
 const server = createBuildServer({ buildRoot: path.resolve('build') });
 const serve = server.listeners('request')[0]; server.removeAllListeners('request');
 server.on('request', async (request, response) => {
   const pathname = request.url.split('?')[0];
-  const handler = { '/api/metabloom': chatHandler, '/api/metabloom-tool': toolHandler,
+  const handler = { '/api/metabloom': chatHandler,
     '/api/metabloom-visual': visualHandler, '/api/metabloom-price-book': publishHandler }[pathname];
   if (!handler) return serve(request, response);
   try {
@@ -137,22 +119,28 @@ await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const origin = `http://127.0.0.1:${server.address().port}`;
 let browser;
 async function verifyHttpFlow() {
-  const headers = { Origin: origin, 'Content-Type': 'application/json', 'x-metabloom-pricebook': '1',
+  const headers = { Origin: origin, 'Content-Type': 'application/json', 'x-metabloom-pricebook': '2',
     'x-metabloom-visuals': '1', 'x-metabloom-ui-tools': '1', 'x-metabloom-toolset': '2' };
   const post = (endpoint, body) => fetch(origin + endpoint, { method: 'POST', headers, body: JSON.stringify(body) });
-  const started = await post('/api/metabloom-tool', { phase: 'start', message: 'Build my price book with CAD 95/hour and 5% GST.', history: [], requestId: 'fixture-http-draft' });
-  assert.equal(started.status, 200, await started.clone().text());
-  const { offer } = await started.json();
+  const started = await post('/api/metabloom', { message: pricingMessage, history: [], requestId: 'fixture-http-draft',
+    streamText: true, actionMode: 'auto', timeZone: 'America/Vancouver' });
+  const startRaw = await started.text(); assert.equal(started.status, 200, startRaw);
+  const draftEvents = startRaw.trim().split('\n').map(line => JSON.parse(line));
+  assert(draftEvents.some(event => event.type === 'tool_activity' && event.name === 'propose_price_book_changes' && event.state === 'complete'), startRaw);
+  const offer = draftEvents.find(event => event.type === 'visual_offer')?.offer;
+  assert(offer, startRaw);
   const generated = await post('/api/metabloom-visual', { id: offer.id, version: '1', designVersion: 'aetheris-1', includeReference: true });
   assert.equal(generated.status, 200, await generated.clone().text());
-  assert.deepEqual((await generated.json()).spec.priceBook, book);
+  const draftSpec = (await generated.json()).spec; assert.deepEqual(draftSpec.priceBook, book);
   assert.equal(publishes, 0);
-  const continued = await post('/api/metabloom-tool', { phase: 'continue', id: offer.id, display: 'mounted' });
-  assert.equal(continued.status, 200, await continued.clone().text());
-  const published = await post('/api/metabloom-price-book', { book, expectedVersion: 0 });
+  const publication = { action: 'publish_draft', draftId: draftSpec.priceBookDraft.id, draftRevision: draftSpec.priceBookDraft.revision,
+    compiler: 'service-rates-1', expectedVersion: 0, requestId: 'http-publish' };
+  const published = await post('/api/metabloom-price-book', publication);
   assert.equal(published.status, 200, await published.clone().text());
   assert.equal((await published.json()).active.version, 1);
-  const chat = await post('/api/metabloom', { message: 'Quote a 6-hour weekend job 30 km out.', history: [],
+  const duplicate = await post('/api/metabloom-price-book', publication);
+  assert.equal(duplicate.status, 200); assert.equal(publishes, 1);
+  const chat = await post('/api/metabloom', { message: 'Quote a 3-hour weekend job 30 km out.', history: [],
     requestId: 'fixture-http-quote', streamText: true, actionMode: 'auto', timeZone: 'America/Vancouver' });
   const raw = await chat.text();
   assert.equal(chat.status, 200, raw);
@@ -164,10 +152,10 @@ async function verifyHttpFlow() {
   assert.equal(quoted.status, 200, await quoted.clone().text());
   const payload = await quoted.json();
   assert.equal(payload.spec.kind, 'table');
-  assert(payload.spec.rows.some(row => row[0] === 'Estimated total' && row[1] === '751.28'));
-  assert.equal(generatedDrafts, 1, 'Host quote must not call the model builder');
+  assert(payload.spec.rows.some(row => row[0] === 'Estimated total' && row[1] === '553.88'));
+  assert.equal(generatedDrafts, 0, 'Neither draft nor quote calls a model builder');
   assert.equal(quoteCalls, 1);
-  const stale = await post('/api/metabloom-price-book', { book, expectedVersion: 0 });
+  const stale = await post('/api/metabloom-price-book', { ...publication, requestId: 'stale-publication' });
   assert.equal(stale.status, 409);
   assert.equal(publishes, 1);
   assert.deepEqual(errors, []);
@@ -185,8 +173,19 @@ try {
     const page = await context.newPage(); page.on('pageerror', error => errors.push(error.message));
     page.setDefaultTimeout(20000);
     await page.goto(`${origin}/orb?graphics=css`, { waitUntil: 'networkidle' });
+    await page.getByRole('button', { name: 'More', exact: true }).click();
+    await page.getByRole('button', { name: /Price book setup/ }).click();
+    const setup = page.getByRole('dialog', { name: 'Price book setup', exact: true });
+    await setup.getByLabel('Currency', { exact: true }).selectOption('CAD');
+    await setup.getByRole('button', { name: 'Save pricing rules', exact: true }).click();
+    await setup.getByText('Pricing draft saved.', { exact: true }).waitFor();
+    assert.equal((await priceBookWorkflowStore.read(accountIdentity)).revision, 1);
+    assert.equal(quoteCalls, beforeQuotes); assert.equal(generatedDrafts, beforeDrafts);
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
+    await page.screenshot({ path: path.join(output, name + '-manual-setup.png'), fullPage: true });
+    await setup.getByRole('button', { name: 'Close price book setup', exact: true }).click();
     const composer = page.getByRole('textbox', { name: 'Message Metabloom', exact: true });
-    await composer.fill('Build my price book: CAD 95/hour, 2-hour minimum, CAD 60 travel past 20 km, 15% weekend premium, and 5% GST.');
+    await composer.fill(pricingMessage);
     await page.getByRole('button', { name: 'Send message', exact: true }).click();
     const card = page.locator('.metabloom-price-book');
     await card.waitFor({ state: 'attached' });
@@ -205,21 +204,21 @@ try {
     await rules.locator('summary').click();
     await rules.locator('.metabloom-price-book__rules').waitFor({ state: 'visible' });
     await rules.locator('summary').click();
-    assert.equal(await card.getByRole('region', { name: 'Preview estimate breakdown' }).getByRole('cell', { name: 'CAD 299.25', exact: true }).count(), 1);
-    await card.getByLabel('Hours', { exact: true }).fill('6');
-    await card.getByLabel('Distance in km', { exact: true }).fill('30');
-    await card.getByLabel('Weekend', { exact: true }).check();
-    await card.getByRole('region', { name: 'Preview estimate breakdown' }).getByRole('cell', { name: 'CAD 751.28', exact: true }).waitFor();
-    await card.getByLabel('Hours', { exact: true }).fill('1');
+    assert.equal(await card.getByRole('region', { name: 'Preview estimate breakdown' }).getByRole('cell', { name: 'CAD 210.00', exact: true }).count(), 1);
+    await card.getByLabel('Hours worked', { exact: true }).fill('3');
+    await card.getByLabel('One-way kilometres', { exact: true }).fill('30');
+    await card.getByLabel('Weekend job', { exact: true }).check();
+    await card.getByRole('region', { name: 'Preview estimate breakdown' }).getByRole('cell', { name: 'CAD 553.88', exact: true }).waitFor();
+    await card.getByLabel('Hours worked', { exact: true }).fill('');
     await card.getByText('Enter valid inputs within the allowed ranges to see an estimate.', { exact: true }).waitFor();
-    await card.getByLabel('Hours', { exact: true }).fill('6');
+    await card.getByLabel('Hours worked', { exact: true }).fill('3');
     await card.getByLabel('I reviewed the pricing rules and worked examples.', { exact: true }).check();
     await card.getByRole('button', { name: 'Publish price book', exact: true }).click();
     await card.getByRole('button', { name: 'Published version 1', exact: true }).waitFor();
     assert.equal(publishes, beforePublishes + 1);
     assert(await card.getByRole('button', { name: 'Published version 1', exact: true }).isDisabled());
     await page.screenshot({ path: path.join(output, name + '-published.png'), fullPage: true });
-    await composer.fill('Quote a 6-hour weekend job 30 km out.');
+    await composer.fill('Quote a 3-hour weekend job 30 km out.');
     await page.getByRole('button', { name: 'Send message', exact: true }).click();
     const quoteCard = page.locator('.metabloom-visual').filter({ hasText: /Published price book v1/ });
     await quoteCard.waitFor({ state: 'attached' });
@@ -229,7 +228,7 @@ try {
       await page.getByRole('button', { name: 'Open', exact: true }).click();
     }
     await quoteCard.waitFor();
-    await quoteCard.getByText('CAD 751.28', { exact: true }).waitFor();
+    await quoteCard.getByText('CAD 553.88', { exact: true }).waitFor();
     assert.equal(await quoteCard.getByRole('searchbox').count(), 0, 'Estimates have no row-filter clutter');
     await quoteCard.getByRole('table', { name: 'Estimate breakdown', exact: true }).waitFor();
     assert.equal(await quoteCard.getByRole('button', { name: 'Ask about this estimate', exact: true }).count(), 1);
@@ -238,13 +237,14 @@ try {
     assert(headline && workspaceBody && headline.y >= workspaceBody.y - 1
       && headline.y + headline.height <= workspaceBody.y + workspaceBody.height + 1, 'The estimate total is visible without scrolling');
     assert.equal(quoteCalls, beforeQuotes + 1);
-    assert.equal(generatedDrafts, beforeDrafts + 1, 'A quote bypasses the model builder');
+    assert.equal(generatedDrafts, beforeDrafts, 'Drafts and quotes bypass the model builder');
     assert.equal(publishes, beforePublishes + 1, 'Quoting must not publish');
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'No viewport horizontal overflow');
     await page.screenshot({ path: path.join(output, name + '-quote.png'), fullPage: true });
     // A stale tab or replay cannot replace the published version.
+    const savedDraft = await priceBookWorkflowStore.read(accountIdentity);
     const stale = await context.request.post(`${origin}/api/metabloom-price-book`, {
-      headers: { Origin: origin }, data: { book, expectedVersion: 0 } });
+      headers: { Origin: origin }, data: { action: 'publish_draft', draftId: savedDraft.id, draftRevision: savedDraft.revision, compiler: 'service-rates-1', expectedVersion: 0, requestId: 'stale-browser-publication' } });
     assert.equal(stale.status(), 409);
     assert.equal((await stale.json()).code, 'price_book_conflict');
     assert.equal((await priceBookStore.read(accountIdentity)).version, 1);

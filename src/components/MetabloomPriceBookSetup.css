@@ -1,0 +1,11 @@
+.orb-page .metabloom-price-setup { width: min(900px, calc(100vw - 24px)); }
+.orb-page .metabloom-price-setup__fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; border: 0; padding: 0; margin: 20px 0; }
+.orb-page .metabloom-price-setup__fields > legend { padding-bottom: 12px; font-weight: 600; }
+.orb-page .metabloom-price-setup__field { display: grid; align-content: start; gap: 6px; min-width: 0; }
+.orb-page .metabloom-price-setup :is(input:not([type='checkbox']), select) { width: 100%; min-width: 0; box-sizing: border-box; min-height: 44px; padding: 8px; border: 1px solid var(--aetheris-line-strong); border-radius: 8px; background: var(--aetheris-glass-surface); color: var(--aetheris-ink); font: inherit; font-size: 16px; }
+.orb-page .metabloom-price-setup input[type='checkbox'] { width: 20px; height: 20px; margin-right: 8px; accent-color: var(--aetheris-focus-line); }
+.orb-page .metabloom-price-setup__taxes { grid-column: 1 / -1; min-width: 0; padding: 12px; border: 1px solid var(--aetheris-line); border-radius: 8px; }
+.orb-page .metabloom-price-setup__taxes label { display: block; padding: 8px 0; }
+.orb-page .metabloom-price-setup__taxes fieldset { min-width: 0; margin: 12px 0; border: 1px solid var(--aetheris-line); }
+.orb-page .metabloom-price-setup :is(input, select, button):focus-visible { outline: 2px solid var(--aetheris-focus-line); outline-offset: 2px; }
+@media (max-width: 560px) { .orb-page .metabloom-price-setup__fields { grid-template-columns: minmax(0, 1fr); } }

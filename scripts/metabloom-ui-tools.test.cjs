@@ -572,7 +572,7 @@ test('price book tool definitions and forced calls require explicit negotiation'
   const { toolDefinition, getMetabloomVisualToolDefinition } = require('../server/metabloomToolFlow');
   assert.equal(toolDefinition.parameters.properties.kind.enum.includes('price-book'), false);
   assert.equal(getMetabloomVisualToolDefinition().parameters.properties.kind.enum.includes('price-book'), false);
-  assert.equal(getMetabloomVisualToolDefinition({ priceBookEnabled: true }).parameters.properties.kind.enum.includes('price-book'), true);
+  assert.equal(getMetabloomVisualToolDefinition({ priceBookEnabled: true }).parameters.properties.kind.enum.includes('price-book'), false);
   await assert.rejects(requestVisualTool({ message: 'Create my price book.', history: [], requiredKind: 'price-book',
     fetchImpl: async () => assert.fail('must not call provider'),
   }), { code: 'visual_disabled' });

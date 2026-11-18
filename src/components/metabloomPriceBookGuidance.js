@@ -1,15 +1,14 @@
 // One product-owned explanation for intake questions and every model provider.
 const METABLOOM_PRICE_BOOK_GUIDE = [
-  'A price book stores your confirmed business pricing rules so the app can calculate estimates. To set it up, provide:',
+  'A price book saves your business rules for application-calculated estimates. Setup needs:',
   '1. Currency: CAD or USD.',
-  '2. Labour: hourly or fixed rates, minimum billable time, and time rounding.',
-  '3. Travel: flat, per km, or per started block; the amount, block size, free allowance, and whether distance is one way or round trip.',
-  '4. Premiums and fees: weekend or after-hours charges, call-out fees, and which charges each applies to.',
-  '5. Minimum job charge: the amount, what it covers, and whether it applies before or after tax.',
-  '6. Taxes: exact rates, which charges they apply to, and whether your prices include or exclude tax.',
-  'Say "none" for rules that do not apply, including no tax if that is your rule. Missing or ambiguous rules need confirmation; registration and location alone do not settle taxes.',
-  'Supported rules include arithmetic, minimums, conditional charges and rounding up for started blocks. Unsupported rules must be flagged, never silently replaced.',
-  'The workflow is a draft card with worked examples, your review, then your explicit Publish click. After publishing, estimates need only the job facts defined by your book, such as hours, distance and weekend status. Estimates are not invoices or payments. This explanation creates or publishes nothing.',
+  '2. Labour: hourly or fixed rate, minimum billable time, and rounding increment.',
+  '3. Travel: flat, per km, or per started block; rate, block size, free distance, and one way or round trip.',
+  '4. Premiums and fees: weekend multiplier, its scope, and fixed call-out fee. Disclose any other fees.',
+  '5. Minimum job charge: amount, covered charges, and timing.',
+  '6. Taxes: exact percentages and applicable charges; whether prices include or exclude tax.',
+  'Say "none" where appropriate. Missing values remain unresolved; location and registration do not confirm taxes. This version supports pre-tax minimums and independent tax-exclusive taxes. Other premiums, compound taxes and tax-inclusive pricing need additional support.',
+  'Chat saves proposed inputs. More > Price book setup lets you enter or resume the same draft without chat. The app compiles rules and examples. Review them; your explicit Publish click activates that saved revision. After publishing, estimates need only the job facts, such as hours, distance and weekend status. Estimates are not invoices or payments. This explanation saves or publishes nothing.',
 ].join('\n\n');
 
 const normalize = value => typeof value === 'string' && value.length <= 1600

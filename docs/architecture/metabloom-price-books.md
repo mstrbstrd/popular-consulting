@@ -1,65 +1,75 @@
 # Orb price books
 
-The admin-only Orb can turn an owner's pricing rules into a draft price-book card, let the owner review and publish it, and compute estimates from the published version. MCP hosting, public embeds, and invoice export are outside this release.
+Metabloom collects business inputs in a durable account-owned draft. Application code compiles the pricing rules and examples, and the owner explicitly reviews and publishes a saved revision. Models cannot author formulas or publish. MCP hosting, public embeds, invoice export and payment collection are outside this release.
 
 ## Enable and try
 
-Set `METABLOOM_PRICEBOOK_ENABLED=1` in the deployment environment. It is disabled unless that exact value is present. Existing Orb authentication, `METABLOOM_VISUALS_ENABLED=true`, native UI tools, the OpenAI visual builder, and Upstash Redis must also be configured. The browser negotiates `X-Metabloom-Pricebook: 1`; cached clients receive no new price-book tool or stream events.
+Set `METABLOOM_PRICEBOOK_ENABLED=1` and configure the existing saved-work Redis connection and Orb authentication. Chat intake uses the selected OpenAI, DeepSeek or Claude provider. The manual **More > Price book setup** editor requires no model. Showing a card through chat also uses the existing visual feature flag, owned-offer storage and quota. Pricing compilation does not require an OpenAI visual builder.
 
-1. Ask in `/orb`: “Set up my price book in CAD: $95/hour, two-hour minimum, hours up to 12, $60 travel when distance is over 20 km (up to 150 km), 15% weekend labour premium, 5% GST on each line.”
-2. Review the rules, input ranges and worked examples. Try the inputs yourself. Check the review box and select **Publish price book**.
-3. Ask: “Quote a six-hour weekend job 30 km away using my published price book.” The tool queues a server-built estimate table, stamped with the published version and the exact job inputs. For these rules, subtotal is CAD 715.50, GST is CAD 35.78 and total is CAD 751.28.
-4. Ask for a revised price-book draft. Publishing the new draft replaces the active version only after another explicit review and click.
+The browser negotiates `X-Metabloom-Pricebook: 2`. Version-1 clients retain their existing event vocabulary and can quote existing published books; new workflow tools are not advertised to them. Old generated draft cards remain locally previewable but cannot publish. Existing published rules remain active and are never recompiled or migrated implicitly.
 
-Publishing status is always read from the server. Restoring or saving a draft never publishes it. After a conflict or uncertain network response, refresh active status and review again before retrying.
+1. Ask: "Build a CAD price book: hourly labour 95, minimum 2 hours, round up to 15 minutes; one-way travel 50 per started 25 km, no free distance; weekend 1.5 on labour; no call-out or other fees; 200 minimum labour plus travel before tax; 5% GST on all charges."
+2. The host saves supplied fields and asks the next missing question. A complete supported draft produces a host-compiled preview. **Price book setup** can resume the same draft without conversation history or a working model provider.
+3. Review the fields, formulas, allowed job inputs and calculated examples. Check the review box and select **Publish price book**. Unsaved edits or a changed revision invalidate review.
+4. Ask for a three-hour weekend job 30 km away. `get_quote` calculates CAD 527.50 subtotal, CAD 26.38 GST and CAD 553.88 total from the published version.
+
+A single saved draft is shared across the account's chats. There is no automatic import of legacy model-authored formulas into structured inputs. Creating or editing a draft does not replace the active book.
 
 ## Invariants and failure boundaries
 
-`metabloomPriceBookGuidance.js` owns the standard setup explanation: currency, labour, travel, premiums/fees, minimum job charge, and explicit tax rules, followed by draft examples, owner review, Publish, and job-fact-only estimates. Direct feature questions and an immediate request to walk through that explanation receive this exact host answer across providers. The browser does not classify them as render requests. No model, visual generation, publication or quotation runs for the explanation; authentication, quota and cancellation still apply. Disabled sessions receive the same requirements with an explicit unavailability notice. Shared model instructions use the same guide for other phrasings and direct ongoing intake to ask only for unresolved rules. Supplied rates, edit requests, quotes, code requests, combined tasks and unrelated follow-ups retain their existing routes.
-
 | Must remain true | Enforcement |
 | --- | --- |
-| Model text never becomes executable pricing code | Strict bounded schema and reverse-Polish tokens; no eval or Function |
-| Prices use exact arithmetic | BigInt rational arithmetic, half-up line rounding, then independent per-line taxes; parity tests against invoice engine |
-| Only validated job facts enter the engine | Every declared input required, no extra inputs, numeric ranges and boolean types checked |
-| The model cannot publish | No publish tool; authenticated same-origin API is called only by explicit card action |
-| One account cannot read or overwrite another account's book | Server-derived durable account identity and environment-scoped Redis keys |
-| A stale card cannot overwrite newer rules | Atomic Redis compare-and-set on expected published version |
-| A quote cannot silently use changed rules | Published snapshot re-read before computing; changed version or rules fails the tool |
-| A quote table cannot be rewritten by a model | Host constructs the table from integer cents; visual endpoint uses stored hostQuote directly without a provider call |
-| Publishing never invents success after a timeout | No automatic mutation retries; receipt must match submitted book and next version |
-| Optional pricing failure does not erase chat | Store load/tool failures preserve ordinary answer flow; visual failures retain the text answer |
-| Operational logs do not expose prices or identities | Fixed lifecycle/status categories; no book, job facts, account IDs or monetary output logging |
-| Multi-turn intake does not lose the owner's earlier rules | Price-book builders receive the full already-bounded request history; briefs and assistant assumptions cannot confirm unanswered questions |
-| Started-block charges remain exact | Unary `ceil` uses BigInt rational arithmetic, including boundary distances; proportional pricing is never substituted |
-| Builder validation identifies the rejected contract | Fixed shape/input/tax/line/formula/condition/initial-result/example categories guide the single bounded repair; no rejected payloads or exception text are logged |
-| Pricing rules show the actual formula | Review text applies unary ceiling to its operand and retains every subsequent rate/minimum operation; legacy inputs named `ceil` remain labels |
-| Missing rules produce an actionable failure | Fixed categories identify missing rates, currency, taxes, travel rounding, minimum scope or unsupported rules; no arbitrary provider explanation is exposed or logged |
-| A retry knows the current card failed | The active workspace adds its observed failure to the matching assistant history entry within existing history limits; a queued promise is not proof of generation |
+| The model cannot write pricing formulas | Dedicated `get_price_book_draft` and `propose_price_book_changes` tools; generic `create_visual` excludes price books; the model visual builder rejects them before provider work |
+| Unknown business values stay unknown | Fixed field catalogue, explicit null values, conditional required fields and host-selected next questions |
+| Chat proposals have traceable input | Each changed value requires an exact excerpt from the current user message; the saved draft retains field provenance |
+| Unsupported intent cannot silently become a supported default | Unsupported values on known fields persist as blocking clarification issues; old valid values do not remove the blocker |
+| Saved input survives conversation truncation | Account-owned durable draft and revision are loaded independently of chat history |
+| The model cannot narrate an unconfirmed save | Pricing tools end with fixed host responses; no second model call is needed for confirmation or the next question |
+| Pricing uses exact arithmetic | BigInt rational calculation, half-up line rounding, independent per-line taxes and exact started-block ceilings |
+| Minimum top-ups cover rounded components | Compiler uses `max(0, minimum - rounded covered charges)`; independent boundary and generated-job oracles verify the result |
+| The model cannot publish | No publish tool; the authenticated same-origin endpoint accepts a saved draft ID/revision and expected active version, never client formulas |
+| Stale review cannot overwrite new state | Atomic Redis comparison checks both the saved draft and current published version |
+| Retries do not create duplicate versions | Operation receipts bind a request ID to a payload digest and return the original confirmed result; receipts expire after 24 hours |
+| Publication history remains immutable | Each publication archives the compiler version and reviewed draft; the previous legacy active version is retained on first replacement |
+| Another account cannot read or overwrite these records | Server-derived account identity and environment-scoped Redis keys |
+| Failed or cancelled work cannot invent success | Abort checks, fixed errors, no automatic mutation retry, receipt validation and explicit reload after ambiguous results |
+| A provider outage does not remove the setup path | The manual editor uses the same typed draft API, compiler and explicit publication controls |
+| Quote prose cannot rewrite calculated totals | `get_quote` accepts only complete job facts and queues a host-built estimate card; a changed published snapshot fails the tool |
+| Progress reflects observed execution | Both pricing tools use the shared lifecycle and negotiated stream; draft saves are distinct from preview/display success |
+| Logs do not expose business data | Fixed tool/status categories; no rates, rules, source excerpts, account IDs or job facts in operational logs |
 
-The `get_quote` schema is derived from the active book. It accepts only job facts, not rates, taxes, discounts, executable formulas or a publish command. The same schema derivation can be reused by a later MCP endpoint. Model-written chat prose is not an authoritative estimate; the host-built card is.
+Source excerpts prove where the model looked, not that its interpretation is correct. Natural-language extraction can still misunderstand a request. The owner reviews the actual saved fields and computed examples before publication. The manual editor is the deterministic input path. Provider and storage outages remain possible and produce recoverable failures, not invented completion.
 
-## Storage and contracts
+## Supported semantics
 
-Shared schema/engine: `src/components/metabloomPriceBook.js`. Book schema version 1 supports CAD/USD, bounded numeric/boolean inputs, conditional line formulas, tax percentage strings, and input-only worked examples. All totals are computed by the host. Numeric inputs allow at most six decimal places; taxes allow two. Each quote total is capped at one billion currency units. No exchange rates or tax-jurisdiction inference occurs.
+Compiler version `service-rates-1` supports CAD/USD; hourly or fixed labour; minimum billable hours; time rounded upward in minutes; no, flat, per-kilometre or started-block travel; free distance; one-way or total round-trip quote inputs; a weekend multiplier on labour, travel or both; a fixed per-job call-out fee; pre-tax minimums on labour, labour plus travel, or those charges plus call-out; and up to four independent tax-exclusive taxes with explicit charge scopes.
 
-Formulas support binary `add/subtract/multiply/divide/min/max` and unary `ceil`. A confirmed $50 charge per started 25 km uses `["distance","25","divide","ceil","50","multiply"]`. Zero distance yields zero blocks, 25 km yields one, and 25.000001 km yields two. Existing version-1 inputs named `ceil` retain their original input meaning. Ordinary calculator capabilities are unchanged. Tax registration and location alone do not confirm rates or applicability; unresolved rules must be clarified before drafting. Failed cards are still transient, so the browser failure observation is available only while its current workspace record remains present.
+Time is rounded upward first, then clamped to minimum hours. Quotes ask for the stated distance basis directly; they do not double one-way distances automatically. A flat travel fee applies either to every job or to any positive distance. Arbitrary distance thresholds, after-hours premiums, discounts, compound taxes, tax-inclusive amounts and post-tax minimums require additional support. The fixed input bounds are 0 to 1,000 hours and 0 to 10,000 kilometres. Compilation checks all input extremes against the engine's money bound.
 
-`GET /api/metabloom-price-book` returns `{enabled:true,active:null|{version,publishedAt,book}}`. `POST` accepts `{book,expectedVersion}`. Expected version 0 creates the first publication. A 409 requires a fresh read. The persistent active record has no automatic expiry and uses the existing saved-work Redis configuration, in a separate price-book namespace. There is no local-memory storage fallback and this release does not retain publication history. Saved-work revisions can retain individual draft cards independently.
+Each line rounds half up to cents before its taxes are computed; each independent tax rounds per line. There is no geographic tax inference or currency conversion. Formulas are bounded to 64 tokens and use existing arithmetic plus unary `ceil` and `round_money`. Legacy version-1 inputs named either unary operator keep their input meaning. Ordinary calculators retain their existing 32-token contract.
 
-A price-book visual carries `priceBook` beside the standard visual metadata. Existing offer ownership, generation quotas, immutable artifact references and saved-work validation apply. Preview changes do not edit the rules. Estimates retain their published version even if the owner later publishes new rules.
+## Storage and API
+
+`metabloomPriceBookRules.js` owns field validation, completeness, the versioned compiler and preview construction. `metabloomPriceBookWorkflow.js` owns account state, source evidence, CAS and idempotent publication. The original exact engine and active-book record format are retained.
+
+| Request | Contract |
+| --- | --- |
+| `GET /api/metabloom-price-book` | `{enabled:true, active:null or {version,publishedAt,book}}` |
+| `GET /api/metabloom-price-book?draft=1` | Same envelope plus `draft` |
+| `POST`, `action: update_draft` | `expectedRevision`, `requestId`, `changes: [{field,value}]`; returns confirmed draft and active status |
+| `POST`, `action: publish_draft` | `draftId`, `draftRevision`, `compiler`, `expectedVersion`, `requestId`; the server compiles the saved rules and returns the confirmed active record |
+
+Client-owned IDs, extra body fields and legacy `{book,expectedVersion}` publications are rejected. A draft contains `id`, `revision`, `updatedAt`, `rules`, `sources` and `issues`. A compiled visual also carries a `priceBookDraft` reference with ID, revision and compiler version. Restored previews do not imply current publishability.
+
+Draft, active and history keys have no automatic expiry. Receipt keys have a 24-hour TTL. History uses `${activeKey}:history:${version}`; subsequent writes cannot replace an existing history version. There is no memory fallback for production state. Reload after a 409 or ambiguous save; retained manual edits are rebased onto the newly observed revision and require another explicit save.
 
 ## Verification
 
-- `node --test scripts/metabloom-price-book.test.cjs scripts/metabloom-price-book-store.test.cjs scripts/metabloom-price-book-agent.test.cjs`
-- `node --test scripts/metabloom-price-book-redis.test.cjs` with a disposable local Redis or the existing CI Redis fixture.
-- `CI=true npm test -- --watchAll=false --runInBand`
-- `npm run lint` and `CI=true npm run build`
-- `node scripts/verify-metabloom-price-book.mjs` after the build, using fictional providers and local HTTP fixtures only.
+- `node --test scripts/metabloom-price-book.test.cjs scripts/metabloom-price-book-workflow.test.cjs scripts/metabloom-price-book-store.test.cjs scripts/metabloom-price-book-agent.test.cjs`
+- `node --test scripts/metabloom-price-book-redis.test.cjs` against disposable Redis, required by the CI Redis job.
+- Full Jest suite, source/server lint and production build.
+- `node scripts/verify-metabloom-price-book.mjs` after building: fictional providers, real handlers, local transport fixture, desktop/mobile manual intake, compiled draft, explicit publication, exact quote, stale-publication rejection and overflow checks. `--http-only` runs the request flow without launching a browser.
 
-The functional workflow includes the new server and real Redis tests plus the browser exercise. Turning the feature off stops new drafting, publishing and quote requests; already-saved drafts remain readable and locally previewable.
+Tests pin the original six agreed totals, 1,200 generated jobs against an independent cents oracle, supported mode boundaries, unsupported rules, incomplete drafts, source evidence, revision conflicts, ambiguous receipts, old drafts, cancellation and all three provider adapters. Adapter fixtures verify transport behavior; they are not live-model extraction quality measurements. Changing provider defaults or expanding supported semantics still requires a representative live walkthrough before claiming first-attempt language reliability.
 
-
-A November 18 browser walkthrough confirmed sequential intake across currency, labour, travel, premiums, minimum and tax rules. It also exposed a rejected builder response and a later syntactically valid draft with the minimum top-up reversed. Structural validation does not prove that generated rules match the owner's intent. Builder guidance now explicitly specifies `max(0, minimum - covered subtotal)`, conditional weekend top-ups and below/above-minimum examples; the owner still reviews the computed examples before publishing. Regression cases cover $95/hour, two-hour minimum, quarter-hour ceiling, $50 per started 25 km, 1.5x weekend labour, a $200 combined pre-tax minimum and 5% GST. The failed draft was never published.
-
-After correction through chat, the live unpublished draft passed six interactive checks: CAD 210.00 for 1 hour/0 km weekday, CAD 252.00 for 2 hours/25 km weekday, CAD 304.50 just above 25 km, CAD 224.44 for 2.01 hours/0 km weekday, CAD 399.00 for 4 hours/0 km weekday, and CAD 553.88 for 3 hours/30 km weekend. This browser evidence preceded deployment of the builder-guidance and formula-display changes; it verifies the correction flow and existing exact engine, not first-attempt reliability of the new guidance. The account's published version 1 remained unchanged.
+The earlier November 18 browser walkthrough exposed a valid-looking generated formula with a reversed minimum top-up. That is why this workflow removes model-authored pricing formulas entirely. The existing published account version was not changed by that walkthrough or local fixtures.

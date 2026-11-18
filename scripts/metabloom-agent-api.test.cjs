@@ -10,7 +10,7 @@ const { createMetabloomSegmentStreamDecoder } = require('../src/components/metab
 const env = { ...process.env }, originalFetch = global.fetch;
 beforeEach(() => {
   mock.method(auth, 'requireMetabloomSession', async (_request, options) => {
-    options.onIdentity({ owner: 'a'.repeat(64), subject: 'b'.repeat(64) }); return null;
+    options.onIdentity({ owner: 'a'.repeat(64), subject: 'b'.repeat(64) }); options.onAccountIdentity?.({ accountKey: 'a'.repeat(64) }); return null;
   });
   process.env.VERCEL_ENV = 'development'; process.env.OPENAI_API_KEY = 'fictional-fixture';
   delete process.env.TYPESAFE_API_KEY; delete process.env.UPSTASH_REDIS_REST_URL;
@@ -64,7 +64,7 @@ test('price-book explanations are host-owned and identical across providers and 
 
 test('price-book explanations disclose unavailable flags and negotiation without attempting paid work', async () => {
   global.fetch = async () => assert.fail('Unavailable capability must not call a model');
-  for (const disabled of ['feature', 'visuals', 'tools', 'header', 'key']) {
+  for (const disabled of ['feature', 'tools', 'header']) {
     process.env.METABLOOM_PRICEBOOK_ENABLED = disabled === 'feature' ? '0' : '1';
     process.env.METABLOOM_VISUALS_ENABLED = disabled === 'visuals' ? 'false' : 'true';
     process.env.METABLOOM_UI_TOOLS_ENABLED = disabled === 'tools' ? 'false' : 'true';
@@ -92,6 +92,14 @@ test('host setup explanations preserve authentication and request quota boundari
   }
   assert.equal(res.statusCode, 429);
   assert(!res.body.includes(METABLOOM_PRICE_BOOK_GUIDE));
+});
+
+test('pricing setup explanation remains available without the optional OpenAI visual builder', async () => {
+  process.env.METABLOOM_PRICEBOOK_ENABLED = '1'; delete process.env.OPENAI_API_KEY;
+  global.fetch = async () => assert.fail('Host explanation does not require a provider');
+  const req = request('Explain price books.'), res = response(); req.headers['x-metabloom-pricebook'] = '2';
+  await handler(req, res); assert.equal(res.statusCode, 200);
+  assert.equal(events(res).find(event => event.type === 'segment').response, METABLOOM_PRICE_BOOK_GUIDE);
 });
 
 test('a cancelled setup explanation stops before answer completion', async () => {

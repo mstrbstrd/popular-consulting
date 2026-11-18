@@ -41,16 +41,12 @@ const toolDefinition = Object.freeze({
     },
   },
 });
-function getMetabloomVisualToolDefinition({ priceBookEnabled = false } = {}) {
-  return { ...toolDefinition, ...(priceBookEnabled ? { description: toolDefinition.description
-    + ' Price books additionally support exact unary ceil for started distance/time blocks, minimums and conditional lines. Include all confirmed rates, currency, taxes and rounding rules. Ask about unresolved rules before calling; never invent them.' } : {}), parameters: { ...toolDefinition.parameters, properties: { ...toolDefinition.parameters.properties,
-    kind: { type: 'string', enum: METABLOOM_VISUAL_KINDS.filter(kind => kind !== 'price-book' || priceBookEnabled === true) },
-  } } };
-}
+function getMetabloomVisualToolDefinition() { return toolDefinition; }
+
 async function requestVisualTool({ message, history, requiredKind, artifactContext, researchContext, priceBookEnabled = false, signal, fetchImpl, requestRef } = {}) {
   if (typeof message !== 'string' || !message.trim() || message.length > 1600 || !Array.isArray(history)
     || !METABLOOM_VISUAL_KINDS.includes(requiredKind)) throw visualError('visual_invalid');
-  if (requiredKind === 'price-book' && priceBookEnabled !== true) throw visualError('visual_disabled');
+  if (requiredKind === 'price-book') throw visualError('visual_disabled');
   let researchProvenance;
   if (researchContext) {
     const replay = prepareMetabloomResearchToolReplay({ message, history, researchContext });

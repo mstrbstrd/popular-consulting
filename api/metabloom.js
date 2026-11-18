@@ -445,9 +445,10 @@ const handler = async (request, response) => {
     && !body.artifactContext && !body.researchContext && body.actionMode !== "deep-research";
   const nativeVisualsAvailable = Boolean(request.headers?.["x-metabloom-visuals"] === "1"
     && body.requestId && visualIdentity && visualsEnabled() && configured(request));
-  const priceBookEnabled = nativeVisualsAvailable && isMetabloomPriceBookEnabled()
-    && request.headers?.['x-metabloom-pricebook'] === '1';
-  const availableVisualKinds = METABLOOM_VISUAL_KINDS.filter(kind => kind !== 'price-book' || priceBookEnabled);
+  const priceBookEnabled = Boolean(accountIdentity) && isMetabloomPriceBookEnabled()
+    && ['1', '2'].includes(request.headers?.['x-metabloom-pricebook']);
+  const priceBookWorkflowEnabled = priceBookEnabled && request.headers?.['x-metabloom-pricebook'] === '2';
+  const availableVisualKinds = METABLOOM_VISUAL_KINDS.filter(kind => kind !== 'price-book');
   const priceBookGuidance = !body.artifactContext && !body.researchContext
     ? getMetabloomPriceBookGuidanceResponse(body.message, body.history, { enabled: priceBookEnabled
       && request.headers?.['x-metabloom-ui-tools'] === '1' && process.env.METABLOOM_UI_TOOLS_ENABLED !== 'false' }) : null;
@@ -597,7 +598,10 @@ const handler = async (request, response) => {
         ...(expressions ? { orbContext: body.orbContext } : {}),
         modelSelection,
         allowMultiple: body.allowMultiple, presentationAction, timeZone: body.timeZone || 'UTC',
-        identity: visualIdentity, accountIdentity, priceBookEnabled, requestId: body.requestId, requestRef, signal: controller.signal,
+        identity: visualIdentity, accountIdentity, priceBookEnabled, priceBookWorkflowEnabled, requestId: body.requestId, requestRef, signal: controller.signal,
+        priceBookVisualsAvailable: Boolean(request.headers?.['x-metabloom-visuals'] === '1' && body.requestId && visualIdentity
+          && visualsEnabled() && request.headers?.['x-metabloom-ui-tools'] === '1'
+          && process.env.METABLOOM_UI_TOOLS_ENABLED !== 'false' && !['text_only', 'unsupported'].includes(visualIntent.mode)),
         visualsAvailable: nativeVisualsAvailable && request.headers?.['x-metabloom-ui-tools'] === '1'
           && process.env.METABLOOM_UI_TOOLS_ENABLED !== 'false' && !['text_only', 'unsupported'].includes(visualIntent.mode),
         // Subject photos are offered only to browsers that render tool media.

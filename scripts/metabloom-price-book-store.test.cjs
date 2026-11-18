@@ -13,6 +13,7 @@ const record = () => ({ version: 1, publishedAt: 1000, book: book() });
 const res = () => Object.assign(new EventEmitter(), { headers: {}, body: '',
   setHeader(name, value) { this.headers[name] = value; }, end(value = '') { this.body += value; this.writableEnded = true; } });
 const req = (method = 'GET', body) => ({ method, headers: { 'content-type': 'application/json' }, body });
+const publication = { draftId: 'd'.repeat(32), draftRevision: 1, compiler: 'service-rates-1', expectedVersion: 0, requestId: 'publish-draft' };
 const authenticate = async (request, options) => { options.onAccountIdentity(identity); return null; };
 
 test('feature is off by default and only the explicit server flag enables it', () => {
@@ -46,7 +47,7 @@ test('endpoint authenticates and applies feature gate before any store access', 
   const getStore = () => { touched++; throw new Error('must not run'); };
   for (const denial of [{ status: 401, code: 'authentication_required' }, { status: 403, code: 'origin_not_allowed' }]) {
     const handler = createMetabloomPriceBookHandler({ authenticate: async () => denial, enabled: () => true, getStore });
-    const response = res(); await handler(req('POST', { book: book(), expectedVersion: 0 }), response);
+    const response = res(); await handler(req('POST', { action: 'publish_draft', ...publication }), response);
     assert.equal(response.statusCode, denial.status);
   }
   const response = res();
@@ -76,25 +77,47 @@ test('read and publish use the authenticated account, no-cache headers, bounded 
   const events = [], active = record();
   const handler = createMetabloomPriceBookHandler({ authenticate, enabled: () => true, getStore: () => ({
     read: async (owner, options) => { events.push(['read', owner]); assert(options.signal); return null; },
+  }), getWorkflowStore: () => ({
     publish: async (owner, value, options) => { events.push(['publish', owner, value]); assert(options.signal); return active; },
   }) });
   let response = res(); await handler(req(), response);
   assert.deepEqual(JSON.parse(response.body), { enabled: true, active: null });
-  response = res(); await handler(req('POST', { book: book(), expectedVersion: 0 }), response);
+  response = res(); await handler(req('POST', { action: 'publish_draft', ...publication }), response);
   assert.equal(response.statusCode, 200); assert.deepEqual(JSON.parse(response.body), { enabled: true, active });
   assert.equal(response.headers['Cache-Control'], 'private, no-store'); assert.equal(response.headers.Vary, 'Cookie');
-  assert.deepEqual(events, [['read', identity], ['publish', identity, { book: book(), expectedVersion: 0 }]]);
+  assert.deepEqual(events, [['read', identity], ['publish', identity, publication]]);
 });
 
 test('conflicts and unavailable storage never produce a successful publish or disclose backend details', async () => {
   for (const [code, status] of [['price_book_conflict', 409], ['private_backend_error', 503]]) {
     let calls = 0;
-    const handler = createMetabloomPriceBookHandler({ authenticate, enabled: () => true, getStore: () => ({
+    const handler = createMetabloomPriceBookHandler({ authenticate, enabled: () => true, getWorkflowStore: () => ({
       publish: async () => { calls++; throw Object.assign(new Error('secret backend information'), { code }); },
     }) });
-    const response = res(); await handler(req('POST', { book: book(), expectedVersion: 0 }), response);
+    const response = res(); await handler(req('POST', { action: 'publish_draft', ...publication }), response);
     assert.equal(response.statusCode, status); assert.equal(calls, 1);
     assert.equal(response.body.includes('secret'), false);
     assert.equal(JSON.parse(response.body).code, status === 409 ? code : 'price_book_unavailable');
   }
+});
+
+test('draft endpoint saves only account-owned changes, resumes them and rejects old formula publications', async () => {
+  const { createMetabloomPriceBookWorkflowStore } = require('../server/metabloomPriceBookWorkflow');
+  const { priceBookMemoryDatabase } = require('./fixtures/metabloom-price-book-workflow.cjs');
+  const database = priceBookMemoryDatabase(), workflow = createMetabloomPriceBookWorkflowStore(database);
+  const handler = createMetabloomPriceBookHandler({ authenticate, enabled: () => true,
+    getStore: () => createMetabloomPriceBookStore(database), getWorkflowStore: () => workflow });
+  const mutation = { action: 'update_draft', expectedRevision: 0, requestId: 'manual-draft', changes: [{ field: 'currency', value: 'CAD' }] };
+  let response = res(); await handler(req('POST', mutation), response);
+  assert.equal(response.statusCode, 200); const saved = JSON.parse(response.body);
+  assert.equal(saved.draft.rules.currency, 'CAD'); assert.equal(saved.active, null);
+  response = res(); await handler({ ...req(), url: '/api/metabloom-price-book?draft=1' }, response);
+  assert.deepEqual(JSON.parse(response.body), saved);
+  for (const value of [{ ...mutation, accountKey: 'b'.repeat(64) }, { book: book(), expectedVersion: 0 },
+    { ...mutation, changes: [null] }, { ...mutation, expectedRevision: '0' }]) {
+    response = res(); await handler(req('POST', value), response); assert.equal(response.statusCode, 400);
+  }
+  response = res(); await handler(req('POST', { action: 'publish_draft', ...publication, draftId: saved.draft.id }), response);
+  assert.equal(response.statusCode, 422); assert.equal(JSON.parse(response.body).code, 'price_book_incomplete');
+  assert.equal(await createMetabloomPriceBookStore(database).read(identity), null);
 });

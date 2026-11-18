@@ -41,7 +41,7 @@ function createMetabloomVisualHandler({ store = createMetabloomVisualStore(), ge
       if (!visualKeys(body, bodyKeys) || typeof body.id !== 'string' || !/^[a-f0-9]{48}$/.test(body.id)
         || body.version !== METABLOOM_VISUAL_VERSION || body.designVersion !== METABLOOM_VISUAL_DESIGN_VERSION) throw new Error();
     } catch { return send(response, 400, { code: 'visual_invalid', requestRef }); }
-    const priceBookEnabled = isMetabloomPriceBookEnabled() && request.headers?.['x-metabloom-pricebook'] === '1';
+    const priceBookEnabled = isMetabloomPriceBookEnabled() && ['1', '2'].includes(request.headers?.['x-metabloom-pricebook']);
     const controller = new AbortController();
     let deadlineExpired = false;
     const timeout = setTimeout(() => { deadlineExpired = true; controller.abort(); }, METABLOOM_VISUAL_GENERATION_TIMEOUT_MS);
@@ -60,10 +60,13 @@ function createMetabloomVisualHandler({ store = createMetabloomVisualStore(), ge
       const hostQuote = record.context?.hostQuote;
       if ((record.offer.kind === 'price-book' || hostQuote) && !priceBookEnabled) throw visualError('visual_disabled');
       if (hostQuote && record.offer.kind !== 'table') throw visualError('visual_invalid');
-      if (!hostQuote && !process.env.OPENAI_API_KEY) throw visualError('visual_unavailable');
+      const hostPriceBook = record.context?.hostPriceBook;
+      if (hostPriceBook && record.offer.kind !== 'price-book') throw visualError('visual_invalid');
+      if (record.offer.kind === 'price-book' && !hostPriceBook) throw visualError('price_book_unsupported_rules');
+      if (!hostQuote && !hostPriceBook && !process.env.OPENAI_API_KEY) throw visualError('visual_unavailable');
       // hostQuote is created by the server's exact quote tool and loaded from its
       // account-owned offer. Never send its prices back through a model builder.
-      const generated = hostQuote || await generate(record, { signal: controller.signal, requestRef });
+      const generated = hostQuote || hostPriceBook || await generate(record, { signal: controller.signal, requestRef });
       const spec = parseMetabloomVisual(generated, { kind: record.offer.kind, sources: record.context.sources || [] });
       if (!spec) throw visualError('visual_invalid');
       if (controller.signal.aborted) throw visualError('visual_cancelled');

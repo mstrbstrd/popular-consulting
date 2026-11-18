@@ -2,10 +2,11 @@
 // never executable code or authoritative totals. Every monetary result is cents.
 const MAX_METABLOOM_PRICE_BOOK_BYTES = 65536;
 const MAX_CENTS = 100000000000;
-const OPERATORS = ['add', 'subtract', 'multiply', 'divide', 'min', 'max', 'ceil'];
-// `ceil` was a legal input ID in existing version-1 books. Such an input
-// keeps its meaning; only an unbound ceil token is the new unary operator.
-const RESERVED_IDS = [...OPERATORS.filter(operator => operator !== 'ceil'), 'constructor', 'prototype', '__proto__'];
+const MAX_METABLOOM_PRICE_FORMULA_TOKENS = 64;
+const OPERATORS = ['add', 'subtract', 'multiply', 'divide', 'min', 'max', 'ceil', 'round_money'];
+// Existing version-1 inputs named ceil or round_money keep their meaning.
+// Only unbound tokens are interpreted as the corresponding unary operator.
+const RESERVED_IDS = [...OPERATORS.filter(operator => !['ceil', 'round_money'].includes(operator)), 'constructor', 'prototype', '__proto__'];
 const object = value => value && typeof value === 'object' && !Array.isArray(value)
   && [Object.prototype, null].includes(Object.getPrototypeOf(value));
 const keys = (value, names) => object(value) && Object.keys(value).length === names.length
@@ -47,13 +48,13 @@ const validNumber = value => {
   try { decimal(value); return true; } catch { return false; }
 };
 const validateFormula = (tokens, inputs) => {
-  if (!list(tokens, 1, 32)) return false;
+  if (!list(tokens, 1, MAX_METABLOOM_PRICE_FORMULA_TOKENS)) return false;
   let depth = 0;
   for (const token of tokens) {
     if (typeof token !== 'string' || token.length > 24) return false;
     const input = inputs.find(input => input.id === token);
     if (input) { if (input.type !== 'number') return false; depth++; }
-    else if (token === 'ceil') { if (depth < 1) return false; }
+    else if (['ceil', 'round_money'].includes(token)) { if (depth < 1) return false; }
     else if (OPERATORS.includes(token)) { if (depth < 2) return false; depth--; }
     else { try { decimal(token); depth++; } catch { return false; } }
   }
@@ -64,6 +65,12 @@ const evaluate = (tokens, values) => {
   for (const token of tokens) {
     if (Object.prototype.hasOwnProperty.call(values, token) || !OPERATORS.includes(token)) {
       stack.push(Object.prototype.hasOwnProperty.call(values, token) ? values[token] : decimal(token));
+      continue;
+    }
+    if (token === 'round_money') {
+      const value = stack.pop();
+      if (value.n < 0n) return fail('A pricing formula produced a negative amount.');
+      stack.push(rational(round(value.n * 100n, value.d), 100n));
       continue;
     }
     if (token === 'ceil') {
@@ -212,4 +219,4 @@ const deriveMetabloomPriceBookToolSchema = book => {
     required: validated.inputs.map(input => input.id),
   };
 };
-module.exports = { MAX_METABLOOM_PRICE_BOOK_BYTES, validateMetabloomPriceBook, quoteMetabloomPriceBook, deriveMetabloomPriceBookToolSchema };
+module.exports = { MAX_METABLOOM_PRICE_BOOK_BYTES, MAX_METABLOOM_PRICE_FORMULA_TOKENS, validateMetabloomPriceBook, quoteMetabloomPriceBook, deriveMetabloomPriceBookToolSchema };

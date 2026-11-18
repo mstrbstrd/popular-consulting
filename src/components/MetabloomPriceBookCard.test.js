@@ -22,15 +22,33 @@ const book = {
   examples: [{ label: 'Weekday job', inputs: { hours: 3, weekend: false } }, { label: 'Weekend job', inputs: { hours: 6, weekend: true } }],
 };
 const spec = { version: '1', designVersion: 'aetheris-1', kind: 'price-book', title: 'Service pricing',
-  summary: 'Your service pricing rules.', provenance: { type: 'user', label: 'Your pricing rules.', sourceIds: [] }, priceBook: book };
+  summary: 'Your service pricing rules.', provenance: { type: 'user', label: 'Your pricing rules.', sourceIds: [] }, priceBook: book,
+  priceBookDraft: { id: 'd'.repeat(32), revision: 1, compiler: 'service-rates-1' } };
 const active = (version = 1, value = book) => ({ version, publishedAt: 1800000000000, book: value });
-const originalTextEncoder = global.TextEncoder;
+const originalTextEncoder = global.TextEncoder, originalCrypto = global.crypto;
 beforeAll(() => { global.TextEncoder = TextEncoder; });
-afterAll(() => { global.TextEncoder = originalTextEncoder; });
-beforeEach(() => { requestMetabloomPriceBook.mockReset().mockResolvedValue({ enabled: true, active: null }); });
+afterAll(() => { global.TextEncoder = originalTextEncoder; global.crypto = originalCrypto; });
+beforeEach(() => { global.crypto = { randomUUID: () => 'fixture-request-id' }; requestMetabloomPriceBook.mockReset().mockResolvedValue({ enabled: true, active: null }); });
 afterEach(cleanup);
 const renderCard = props => render(<MetabloomPriceBookCard spec={spec} id="price-demo" {...props} />);
 const ready = () => screen.findByText('No active price book. This draft has not been published.');
+
+test('legacy drafts remain usable previews but cannot publish unverified model-authored formulas', async () => {
+  const { priceBookDraft, ...legacy } = spec;
+  renderCard({ spec: legacy }); await ready();
+  expect(screen.queryByLabelText('I reviewed the pricing rules and worked examples.')).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Publish price book' })).toBeDisabled();
+  expect(screen.getByText(/Price book setup/)).toBeVisible();
+});
+
+test('a new draft revision invalidates review even when the compiled formulas are unchanged', async () => {
+  const view = renderCard(); await ready();
+  fireEvent.click(screen.getByLabelText('I reviewed the pricing rules and worked examples.'));
+  view.rerender(<MetabloomPriceBookCard spec={{ ...spec, priceBookDraft: { ...spec.priceBookDraft, revision: 2 } }} id="price-demo" />);
+  await ready();
+  expect(screen.getByLabelText('I reviewed the pricing rules and worked examples.')).not.toBeChecked();
+  expect(screen.getByRole('button', { name: 'Publish price book' })).toBeDisabled();
+});
 
 test('calculates live exact estimates and examples, without publishing on mount or input changes', async () => {
   const changed = jest.fn();
@@ -67,7 +85,7 @@ test('publishes only after review and an explicit click with the last observed v
   expect(requestMetabloomPriceBook).toHaveBeenCalledTimes(1);
   fireEvent.click(screen.getByRole('button', { name: 'Publish price book' }));
   await screen.findByText('This is your active price book, version 5.');
-  expect(requestMetabloomPriceBook.mock.calls[1][0]).toMatchObject({ book, expectedVersion: 4 });
+  expect(requestMetabloomPriceBook.mock.calls[1][0]).toMatchObject({ expectedBook: book, draftId: spec.priceBookDraft.id, draftRevision: 1, expectedVersion: 4 });
   expect(screen.getByRole('button', { name: 'Published version 5' })).toBeDisabled();
   expect(screen.queryByLabelText('I reviewed the pricing rules and worked examples.')).not.toBeInTheDocument();
 });
@@ -158,7 +176,7 @@ test('a lost publish receipt is resolved by reading active status without republ
   await screen.findByText('Publication could not be confirmed. Refresh the active status before trying again.');
   fireEvent.click(screen.getByRole('button', { name: 'Refresh active status' }));
   await screen.findByText('This is your active price book, version 1.');
-  expect(requestMetabloomPriceBook.mock.calls.filter(([request]) => request.book)).toHaveLength(1);
+  expect(requestMetabloomPriceBook.mock.calls.filter(([request]) => request.draftId)).toHaveLength(1);
   expect(screen.getByRole('button', { name: 'Published version 1' })).toBeDisabled();
 });
 
@@ -203,7 +221,7 @@ test('a restored price book opens in the actual component workspace and remains 
     fireEvent.click(screen.getByLabelText('I reviewed the pricing rules and worked examples.'));
     fireEvent.click(screen.getByRole('button', { name: 'Publish price book' }));
     await screen.findByText('This is your active price book, version 1.');
-    expect(requestMetabloomPriceBook.mock.calls.filter(([request]) => request.book)).toHaveLength(1);
+    expect(requestMetabloomPriceBook.mock.calls.filter(([request]) => request.draftId)).toHaveLength(1);
     expect(screen.getByText('Your price book is ready.')).toBeVisible();
     view.unmount();
     const saved = navigation.saveToolState.mock.calls.find(([key]) => key === 'orbVisuals')[1];
@@ -231,7 +249,7 @@ test('starts with active status and usable job inputs while pricing rules remain
   expect(screen.getByText('(Hours × 95)')).not.toBeVisible();
   expect(screen.getByText('Pricing rules', { exact: false, selector: 'summary' })).toBeVisible();
   expect(screen.getByText('Ready to quote. Ask the chat for an estimate using this price book.')).toBeVisible();
-  expect(requestMetabloomPriceBook.mock.calls.filter(([request]) => request.book)).toHaveLength(0);
+  expect(requestMetabloomPriceBook.mock.calls.filter(([request]) => request.draftId)).toHaveLength(0);
 });
 
 

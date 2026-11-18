@@ -86,7 +86,7 @@ test('started distance blocks use exact ceilings at zero, fractional and whole b
     assert.equal(quote(simple(formula), values()).totalCents, cents);
   }
   for (const formula of [['ceil'], ['ceil', '1'], ['1', '2', 'ceil'], ['1', 'ceil', 'add'],
-    ['1', ...Array(32).fill('ceil')]]) assert.equal(validate(simple(formula)), null);
+    ['1', ...Array(64).fill('ceil')]]) assert.equal(validate(simple(formula)), null);
 });
 
 test('confirmed block travel combines with minimum hours, weekend labour and a whole-job minimum', () => {

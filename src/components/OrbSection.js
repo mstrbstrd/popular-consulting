@@ -16,6 +16,7 @@ import MetabloomModelPicker from './MetabloomModelPicker';
 import MetabloomResearchSurface, { ResearchReferenceDates } from './MetabloomResearchSurface';
 import MetabloomWorkspaceContext from './MetabloomWorkspaceContext';
 import MetabloomSavedWorkPanel from './MetabloomSavedWorkPanel';
+import MetabloomPriceBookSetup from './MetabloomPriceBookSetup';
 import { createMetabloomSavedWorkBaseline, parseMetabloomSavedWorkBaseline, prepareMetabloomSavedOpen } from './metabloomSavedWorkspace';
 import { parseMetabloomSavedWorkMetadata } from './metabloomSavedWorkProtocol';
 import { METABLOOM_SCENE_TRANSITION_SECONDS } from "./metabloomSceneTransition";
@@ -469,6 +470,7 @@ const OrbSection = ({
   const savedWorkRef = React.useRef(null);
   const savedWorkFocusFrame = React.useRef(0);
   const [savedWork, setSavedWork] = React.useState(null);
+  const [priceBookSetupOpen, setPriceBookSetupOpen] = React.useState(false);
   const [savedConversation] = React.useState(() => navigation?.getToolState('orb'));
   const messageLimit = threadSession ? MAX_METABLOOM_THREAD_MESSAGES : MAX_CHAT_MESSAGES;
   const initialMessages = React.useMemo(
@@ -2934,6 +2936,8 @@ const OrbSection = ({
                   intensity={expressiveness}
                   onIntensityChange={setExpressiveness}
                   tools={workspace ? ({ close }) => <>
+                    <button type="button" className="metabloom-reactions__saved-tool" disabled={pending || !isActive}
+                      onClick={() => { close(); setPriceBookSetupOpen(true); }}><span><strong>Price book setup</strong><span>Review and edit your saved business rates</span></span></button>
                     <button type="button" className="metabloom-reactions__saved-tool"
                     aria-label="Saved work" disabled={pending || !isActive} onClick={() => { close(); openSavedWork(); }}>
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
@@ -3117,6 +3121,8 @@ const OrbSection = ({
         </div>
       </div>
 
+      {priceBookSetupOpen && sectionRef.current?.closest('.orb-page') && createPortal(<MetabloomPriceBookSetup
+        onClose={() => setPriceBookSetupOpen(false)} />, sectionRef.current.closest('.orb-page'))}
       {savedWork && sectionRef.current?.closest('.orb-page') && createPortal(<MetabloomSavedWorkPanel
         source={savedWork.source} saveContext={savedWork.saveContext} activeArtifact={savedWork.artifact} onSaved={acceptSavedWork}
         onRevisionSaved={updateSavedAssociation} onRenamed={updateSavedAssociation} onDeleted={detachSavedAssociation}

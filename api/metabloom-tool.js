@@ -88,7 +88,7 @@ function createMetabloomToolHandler({ store = createMetabloomVisualStore(), rese
           || !/^[a-f0-9]{48}$/.test(body.id) || !['mounted', 'failed', 'unknown'].includes(body.display)) throw new Error();
       } else throw new Error();
     } catch { return send(response, 400, { code: 'invalid_request' }); }
-    const priceBookEnabled = isMetabloomPriceBookEnabled() && request.headers?.['x-metabloom-pricebook'] === '1';
+    const priceBookEnabled = isMetabloomPriceBookEnabled() && ['1', '2'].includes(request.headers?.['x-metabloom-pricebook']);
     const controller = new AbortController();
     let deadlineExpired = false;
     const timeout = setTimeout(() => { deadlineExpired = true; controller.abort(); },

@@ -9,6 +9,12 @@ expression instead of incorrectly denying all influence over the interface.
 The renderer, native visual tools, saved artifacts and provider adapters remain
 the foundation. This change does not grant application editing or account access.
 
+Pricing setup follows the [structured price-book contract](metabloom-price-books.md).
+Its two dedicated tools share this ordinary-agent lifecycle, but their saved-state
+confirmation and next question come directly from the host. Models propose typed
+business inputs, not formulas. Pricing never depends on an expression, animation
+or a second model response succeeding, and text-only turns do not queue cards.
+
 ## Invariant-led execution plan
 
 | Invariant | Enforcement | Required evidence |

@@ -137,7 +137,11 @@ const parseMetabloomVisual = (input, expected = {}) => {
         && value.nodes.some(node => node.id === edge.from) && value.nodes.some(node => node.id === edge.to)
         && visualText(edge.label, 100, true))) return invalid('flowchart_shape');
   } else if (value.kind === 'price-book') {
-    if (!visualKeys(value, [...common, 'priceBook'])) return invalid('price_book_shape');
+    const draft = value.priceBookDraft;
+    if (!visualKeys(value, [...common, 'priceBook', ...(draft === undefined ? [] : ['priceBookDraft'])])) return invalid('price_book_shape');
+    if (draft !== undefined && (!visualKeys(draft, ['id', 'revision', 'compiler'])
+      || typeof draft.id !== 'string' || !/^[a-f0-9]{32}$/.test(draft.id)
+      || !Number.isSafeInteger(draft.revision) || draft.revision < 1 || draft.compiler !== 'service-rates-1')) return invalid('price_book_shape');
     const priceBook = validateMetabloomPriceBook(value.priceBook);
     if (!priceBook) return invalid('price_book_rules');
     value.priceBook = priceBook;

@@ -20,7 +20,9 @@ const formulaText = (book, tokens) => {
   const labels = new Map(book.inputs.map(input => [input.id, input.label]));
   const stack = [];
   for (const token of tokens) {
-    if (token === 'ceil' && !labels.has(token)) {
+    if (token === 'round_money' && !labels.has(token)) {
+      stack.push(`round to cents (${stack.pop()})`);
+    } else if (token === 'ceil' && !labels.has(token)) {
       stack.push(`round up to a whole number (${stack.pop()})`);
     } else if (['add', 'subtract', 'multiply', 'divide', 'min', 'max'].includes(token)) {
       const right = stack.pop(), left = stack.pop();
@@ -58,7 +60,8 @@ export default class MetabloomPriceBookCard extends React.Component {
   componentDidMount() { this.mounted = true; this.refreshActive(); }
   componentWillUnmount() { this.mounted = false; this.controller?.abort(); }
   componentDidUpdate(previous) {
-    if (!sameBook(previous.spec.priceBook, this.props.spec.priceBook)) {
+    if (!sameBook(previous.spec.priceBook, this.props.spec.priceBook)
+      || !sameBook(previous.spec.priceBookDraft, this.props.spec.priceBookDraft)) {
       this.controller?.abort();
       this.drafts = defaults(this.props.spec.priceBook);
       this.setState({ inputs: this.drafts, active: null, publishing: false, reviewed: false }, this.refreshActive);
@@ -87,14 +90,16 @@ export default class MetabloomPriceBookCard extends React.Component {
   publish = async () => {
     const { active, availability, reviewed, publishing } = this.state;
     const book = this.props.spec.priceBook;
-    if (!reviewed || availability !== 'ready' || publishing || sameBook(active?.book, book)
+    const reference = this.props.spec.priceBookDraft;
+    if (!reference || !reviewed || availability !== 'ready' || publishing || sameBook(active?.book, book)
       || !book.examples.every(example => preview(book, example.inputs))) return;
     const controller = new AbortController();
     this.controller?.abort();
     this.controller = controller;
     this.setState({ publishing: true, message: '' });
     try {
-      const value = await requestMetabloomPriceBook({ book, expectedVersion: active?.version || 0, signal: controller.signal });
+      const value = await requestMetabloomPriceBook({ draftId: reference.id, draftRevision: reference.revision,
+        compiler: reference.compiler, expectedBook: book, expectedVersion: active?.version || 0, requestId: crypto.randomUUID(), signal: controller.signal });
       if (this.mounted && !controller.signal.aborted) this.setState({ active: value.active, publishing: false,
         reviewed: false, message: `Published version ${value.active.version}. Ask the chat for a quote using this price book.` });
     } catch (error) {
@@ -112,6 +117,7 @@ export default class MetabloomPriceBookCard extends React.Component {
     const examples = book.examples.map(example => ({ ...example, quote: preview(book, example.inputs) }));
     const examplesValid = examples.length > 0 && examples.every(example => example.quote);
     const isActive = availability === 'ready' && sameBook(active?.book, book);
+    const legacy = !spec.priceBookDraft && !isActive;
     return <div className="metabloom-price-book">
       <div className="metabloom-price-book__status" data-active={isActive}>
         <p role="status" aria-live="polite">{availability === 'loading' ? 'Checking active price book…'
@@ -165,13 +171,15 @@ export default class MetabloomPriceBookCard extends React.Component {
         </details>)}
       </section>
       <section className="metabloom-price-book__publish" aria-label="Publish price book" aria-busy={publishing || availability === 'loading'}>
-        <p>{isActive ? 'Ready to quote. Ask the chat for an estimate using this price book.' : 'Review the pricing rules and examples, then activate these rates for future quotes.'}</p>
-        {!isActive && <label className="metabloom-price-book__review"><input type="checkbox" checked={reviewed}
+        <p>{isActive ? 'Ready to quote. Ask the chat for an estimate using this price book.'
+          : legacy ? 'This older draft is preview-only. Open Price book setup to enter and review structured pricing rules before publishing.'
+            : 'Review the pricing rules and examples, then activate these rates for future quotes.'}</p>
+        {!isActive && !legacy && <label className="metabloom-price-book__review"><input type="checkbox" checked={reviewed}
           disabled={publishing || availability !== 'ready' || !examplesValid} onChange={event => this.setState({ reviewed: event.target.checked })} />
           <span>I reviewed the pricing rules and worked examples.</span>
         </label>}
         <div className="metabloom-visual__actions">
-          <button type="button" onClick={this.publish} disabled={!reviewed || availability !== 'ready' || publishing || isActive || !examplesValid}>
+          <button type="button" onClick={this.publish} disabled={legacy || !reviewed || availability !== 'ready' || publishing || isActive || !examplesValid}>
             {publishing ? 'Publishing…' : isActive ? `Published version ${active.version}` : 'Publish price book'}
           </button>
         </div>

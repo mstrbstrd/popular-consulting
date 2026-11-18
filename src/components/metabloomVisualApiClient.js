@@ -61,7 +61,7 @@ async function requestMetabloomVisual(offer, { signal, fetchImpl = globalThis.fe
   try {
     if (controller.signal.aborted) throw visualFailure('visual_cancelled');
     const response = await fetchImpl('/api/metabloom-visual', { method: 'POST', credentials: 'same-origin',
-      redirect: 'error', signal: controller.signal, headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-Metabloom-PriceBook': '1' },
+      redirect: 'error', signal: controller.signal, headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-Metabloom-PriceBook': '2' },
       body: JSON.stringify({ id: offer.id, version: METABLOOM_VISUAL_VERSION, designVersion: METABLOOM_VISUAL_DESIGN_VERSION,
         includeReference: true }) });
     if (!response.headers?.get?.('content-type')?.includes('application/json') || !response.body?.getReader) throw visualFailure('visual_unavailable');
