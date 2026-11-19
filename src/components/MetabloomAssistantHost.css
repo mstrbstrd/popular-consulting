@@ -1,0 +1,85 @@
+.metabloom-assistant-host { position: relative; z-index: 50; }
+.metabloom-assistant-host[data-assistant-presentation="docked"] .orb-page {
+  position: static; inset: auto; height: auto; overflow: visible; background: transparent;
+  isolation: auto; pointer-events: none;
+}
+.metabloom-assistant-host[data-assistant-presentation="docked"] .orb-page__background,
+.metabloom-assistant-host[data-assistant-presentation="docked"] .orb-page__skip,
+.metabloom-assistant-host[data-assistant-presentation="docked"] .metabloom-chat__scrim { display: none; }
+.metabloom-assistant-host[data-assistant-presentation="docked"] .orb-page__foreground,
+.metabloom-assistant-host[data-assistant-presentation="docked"] .orb-page__content,
+.metabloom-assistant-host[data-assistant-presentation="docked"] .metabloom-chat {
+  position: static; inset: auto; width: auto; height: auto; min-height: 0; overflow: visible;
+  transform: none; isolation: auto; pointer-events: none;
+}
+.metabloom-assistant-host[data-assistant-presentation="docked"] .metabloom-chat__field {
+  position: fixed; inset: auto; right: var(--metabloom-companion-inset);
+  bottom: calc(var(--metabloom-companion-bottom-inset) + var(--metabloom-companion-keyboard-offset, 0px));
+  width: var(--metabloom-companion-orb-size); height: var(--metabloom-companion-orb-size);
+  z-index: 51; overflow: visible; pointer-events: none;
+}
+.metabloom-assistant-host[data-assistant-presentation="docked"] .metabloom-chat__interface {
+  position: fixed; inset: auto; right: var(--metabloom-companion-inset); z-index: 1;
+  bottom: var(--metabloom-companion-panel-bottom); width: var(--metabloom-companion-panel-width);
+  height: calc(var(--metabloom-companion-panel-height) - var(--metabloom-companion-header-height)); pointer-events: auto;
+}
+.metabloom-assistant-host[data-assistant-presentation="docked"][data-assistant-open="false"] .metabloom-chat__interface,
+.metabloom-assistant-host[data-assistant-presentation="docked"][data-assistant-hidden="true"] .metabloom-chat__field { visibility: hidden; pointer-events: none; }
+.metabloom-assistant-host[data-assistant-presentation="docked"] .metabloom-chat__shell {
+  width: 100%; height: 100%; padding: 8px; margin: 0; gap: 8px; min-height: 0;
+}
+.metabloom-assistant-host[data-assistant-presentation="docked"] .metabloom-chat__messages {
+  min-height: 0; overflow: auto; overscroll-behavior: contain;
+}
+@media print { .metabloom-assistant-host { display: none !important; } }
+
+/* Invoice mode has its own bounded reading surface. Existing scene/results
+   remain mounted and can be inspected through Open full chat. */
+.metabloom-assistant-host[data-assistant-presentation="docked"] .metabloom-chat__workspace,
+.metabloom-assistant-host[data-assistant-presentation="docked"] .metabloom-chat__presence { display: none; }
+.metabloom-assistant-host[data-assistant-presentation="docked"] .metabloom-chat__shell {
+  display: grid; grid-template-rows: minmax(0, 1fr) auto; padding: 8px 12px 12px;
+}
+.metabloom-assistant-host[data-assistant-presentation="docked"] .metabloom-chat__messages {
+  position: relative; inset: auto; width: 100%; margin: 0; padding: 8px 0;
+  max-height: none; visibility: inherit; opacity: 1; transform: none;
+}
+.metabloom-assistant-host[data-assistant-presentation="docked"] .metabloom-chat__bubble {
+  padding: 10px 12px; font-size: 14px; line-height: 1.55;
+}
+.metabloom-assistant-host[data-assistant-presentation="docked"] .metabloom-chat__message { margin-bottom: 12px; }
+.metabloom-assistant-host[data-assistant-presentation="docked"] .metabloom-chat__composer-area {
+  position: relative; inset: auto; width: 100%; min-width: 0; margin: 0; padding: 0; transform: none;
+}
+.metabloom-assistant-host[data-assistant-presentation="docked"] .metabloom-chat__composer-options { gap: 6px; }
+.metabloom-assistant-host[data-assistant-presentation="docked"] .metabloom-chat__conversation-tools { gap: 6px; flex-wrap: wrap; }
+.metabloom-assistant-host[data-assistant-presentation="docked"] .metabloom-chat__composer textarea { font-size: 14px; min-height: 42px; }
+.metabloom-assistant-host[data-assistant-presentation="docked"] .metabloom-chat__composer-help,
+.metabloom-assistant-host[data-assistant-presentation="docked"] .metabloom-council__notice { font-size: 10px; line-height: 1.4; }
+.metabloom-assistant-host[data-assistant-presentation="docked"] .metabloom-chat__research-toggle { font-size: 11px; min-height: 36px; padding: 6px 8px; }
+.metabloom-assistant-host[data-assistant-presentation="docked"] .metabloom-chat__research-toggle input { width: 14px; height: 14px; }
+.metabloom-assistant-host[data-assistant-presentation="docked"][data-assistant-hidden="true"] .metabloom-chat__interface { visibility: hidden; pointer-events: none; }
+/* These bounded geometry rules intentionally override expanded-result layouts. */
+.metabloom-assistant-host[data-assistant-presentation="docked"] .orb-page .metabloom-chat__shell {
+  grid-template-columns: minmax(0, 1fr) !important; grid-template-rows: minmax(0, 1fr) auto !important;
+  width: 100% !important; padding: 8px 12px 12px !important; gap: 8px !important;
+}
+.metabloom-assistant-host[data-assistant-presentation="docked"] .orb-page .metabloom-chat__messages {
+  display: block !important; position: relative !important; inset: auto !important; grid-column: 1 !important; grid-row: 1 !important;
+  width: 100% !important; height: auto !important; max-height: none !important; visibility: inherit !important;
+  opacity: 1 !important; transform: none !important; mask-image: none !important; -webkit-mask-image: none !important;
+}
+.metabloom-assistant-host[data-assistant-presentation="docked"] .orb-page .metabloom-chat__composer-area {
+  display: grid !important; position: relative !important; inset: auto !important; grid-column: 1 !important; grid-row: 2 !important;
+  width: 100% !important; height: auto !important; margin: 0 !important; transform: none !important;
+}
+.metabloom-assistant-host[data-assistant-presentation="docked"] .metabloom-model-picker__trigger { min-height: 36px; max-width: 140px; padding: 6px 8px; font-size: 11px; }
+.metabloom-assistant-host[data-assistant-presentation="docked"] .metabloom-model-picker__trigger span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.metabloom-assistant-host[data-assistant-presentation="docked"] .metabloom-chat__latest--placeholder { display: none; }
+
+.metabloom-assistant-host[data-assistant-editing="true"] .metabloom-companion__bubble { visibility: hidden; pointer-events: none; }
+
+.metabloom-chat__invoice-review { max-height: 200px; overflow: auto; padding: 10px; font-size: 13px; line-height: 1.5; border-radius: 12px; background: var(--metabloom-chat-control); }
+.metabloom-chat__invoice-review summary { cursor: pointer; }
+.metabloom-chat__invoice-review dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; }
+.metabloom-chat__invoice-review dd { margin: 0; overflow-wrap: anywhere; }

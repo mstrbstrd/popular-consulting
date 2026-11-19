@@ -6,6 +6,8 @@ import { parseMetabloomResearchContext, isMetabloomFreshResearchRequest } from "
 import { METABLOOM_AGENT_TIMEOUT_MS } from './metabloomAgentTools';
 import { parseMetabloomModelSelection } from './metabloomModelProtocol';
 import { parseMetabloomOrbContext } from './metabloomExpressionProtocol';
+import { MAX_METABLOOM_WORKSPACE_BODY_BYTES, MAX_METABLOOM_WORKSPACE_EVENT_BYTES,
+  parseMetabloomWorkspaceContext } from './metabloomWorkspaceProtocol';
 
 export { getMetabloomApiErrorMessage } from "./metabloomRequestErrors";
 
@@ -38,6 +40,8 @@ export const requestMetabloomResponse = async ({
   researchContext,
   modelSelection,
   orbContext,
+  workspaceContext,
+  onWorkspaceProposal,
   message,
   onSegment,
   onTextDelta,
@@ -85,6 +89,13 @@ export const requestMetabloomResponse = async ({
       throw new MetabloomApiError('Invalid Orb context.', { code: 'invalid_request' });
   }
   const useExpressions = Boolean(useTools && orbContext);
+  const useWorkspace = workspaceContext !== undefined;
+  if (useWorkspace) {
+    workspaceContext = parseMetabloomWorkspaceContext(workspaceContext);
+    if (!useTools || !workspaceContext || workspaceContext.conversationId !== conversationId
+      || typeof requestId !== 'string' || !/^[a-zA-Z0-9-]{1,160}$/.test(requestId))
+      throw new MetabloomApiError('Invalid invoice workspace context.', { code: 'invalid_request' });
+  }
   const controller = new AbortController();
   const abort = () => controller.abort();
   if (signal?.aborted) abort();
@@ -97,18 +108,22 @@ export const requestMetabloomResponse = async ({
   let responseStatus = 0;
   let responseRequestRef = null;
   try {
+    const requestBody = JSON.stringify({ actionMode, allowMultiple: allowMultiple === true, streamText: true,
+      streamResearchProgress: true, streamResearchDetails: true, streamResearchBrief: true, streamResearchMedia: true, streamResearchReuse: true, timeZone, history, message, requestId,
+      ...(useTools ? { streamToolMedia: true, ...(conversationId ? { conversationId } : {}) } : {}),
+      ...(modelSelection ? { modelSelection } : {}), ...(useExpressions ? { orbContext } : {}),
+      ...(useWorkspace ? { workspaceContext } : {}),
+      ...(artifactContext ? { artifactContext } : {}), ...(researchContext ? { researchContext } : {}) });
+    if (useWorkspace && new TextEncoder().encode(requestBody).byteLength > MAX_METABLOOM_WORKSPACE_BODY_BYTES)
+      throw new MetabloomApiError("The selected invoice context is too large. Narrow the request or edit it manually.", { code: "invalid_request" });
     const response = await fetchImpl("/api/metabloom", {
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json", Accept: "application/x-ndjson", "X-Metabloom-Visuals": "1", "X-Metabloom-Ui-Tools": "1", "X-Metabloom-Pricebook": "2",
         ...(useTools ? { 'X-Metabloom-Toolset': '2', 'X-Metabloom-Boom-Request': '1', 'X-Metabloom-Invoice': '1' } : {}),
-        ...(useExpressions ? { 'X-Metabloom-Expressions': '1' } : {}) },
-      body: JSON.stringify({ actionMode, allowMultiple: allowMultiple === true, streamText: true,
-        streamResearchProgress: true, streamResearchDetails: true, streamResearchBrief: true, streamResearchMedia: true, streamResearchReuse: true, timeZone, history, message, requestId,
-        ...(useTools ? { streamToolMedia: true, ...(conversationId ? { conversationId } : {}) } : {}),
-        ...(modelSelection ? { modelSelection } : {}),
-        ...(useExpressions ? { orbContext } : {}),
-        ...(artifactContext ? { artifactContext } : {}), ...(researchContext ? { researchContext } : {}) }),
+        ...(useExpressions ? { 'X-Metabloom-Expressions': '1' } : {}),
+        ...(useWorkspace ? { 'X-Metabloom-Workspace': '1' } : {}) },
+      body: requestBody,
       signal: controller.signal,
     });
     const contentType = response.headers?.get?.("content-type") || "";
@@ -125,6 +140,7 @@ export const requestMetabloomResponse = async ({
       allowToolMedia: useTools,
       allowToolProgress: useTools,
       allowExpressions: useExpressions,
+      allowWorkspace: useWorkspace,
       requestId,
       onToolProgress: (progress) => {
         if (controller.signal.aborted) throw new MetabloomApiError('Cancelled.', { code: 'cancelled' });
@@ -206,7 +222,7 @@ export const requestMetabloomResponse = async ({
         if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
         onSegment?.(segment, index);
       },
-    }));
+    }), { maxRecordChars: useWorkspace ? MAX_METABLOOM_WORKSPACE_EVENT_BYTES : 24000 });
     let text = "";
     let bytes = 0;
     if (response.ok && !isStream && !contentType.includes("application/json")) {
@@ -257,6 +273,12 @@ export const requestMetabloomResponse = async ({
     if (!result.ok) throw streamError || new MetabloomApiError(getMetabloomApiErrorMessage("invalid_response"), {
       code: "invalid_response", status: responseStatus, requestRef: responseRequestRef,
     });
+    if (result.value.workspaceProposal && (!useWorkspace
+      || result.value.workspaceProposal.conversationId !== conversationId
+      || result.value.workspaceProposal.workspaceInstanceId !== workspaceContext.workspaceInstanceId
+      || result.value.workspaceProposal.bindingEpoch !== workspaceContext.bindingEpoch
+      || result.value.workspaceProposal.expectedDataRevision !== workspaceContext.dataRevision))
+      throw new MetabloomApiError('The invoice operation did not match this request.', { code: 'invalid_response' });
     // JSON compatibility responses use the same callback, exactly once per segment.
     if (!isStream) result.value.segments.forEach((segment, index) => onSegment?.(segment, index));
     // A visual is offered only after the entire text stream has validated. Its
@@ -267,6 +289,9 @@ export const requestMetabloomResponse = async ({
         if (onVisualOffer) onVisualOffer(detail);
         else if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(METABLOOM_VISUAL_OFFER_EVENT, { detail }));
       } catch { /* Text completion is independent of optional presentation. */ }
+    }
+    if (result.value.workspaceProposal && !signal?.aborted) {
+      try { onWorkspaceProposal?.(result.value.workspaceProposal); } catch { /* Caller may instead consume the returned metadata. */ }
     }
     return result.value;
   } catch (error) {

@@ -1,8 +1,5 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const Module = require('node:module');
-const path = require('node:path');
 const { validateMetabloomPriceBook: validate, quoteMetabloomPriceBook: quote,
   deriveMetabloomPriceBookToolSchema: schema } = require('../src/components/metabloomPriceBook');
 const clone = value => JSON.parse(JSON.stringify(value));
@@ -111,12 +108,7 @@ test('existing version-1 inputs named ceil keep their original meaning', () => {
 });
 
 test('money and tax results match the existing invoice engine across decimal inputs', () => {
-  const filename = path.resolve(__dirname, '../src/utils/invoice.js');
-  const loaded = new Module(filename, module);
-  loaded._compile(fs.readFileSync(filename, 'utf8')
-    .replace(/export \{ INVOICE_DRAFT_KEY \} from "\.\/invoiceDraftKey";/, '')
-    .replace(/export const /g, 'const ') + '\nmodule.exports = { calculateInvoice };', filename);
-  const { calculateInvoice } = loaded.exports;
+  const { calculateInvoice } = require('../src/utils/invoiceCore');
   for (const [qty, cost, gst, pst] of [
     ['2.125', '95.15', '5', '7'], ['3.333', '0.15', '5', '7'],
     ['0.001', '5.00', '5', '0'], ['9.999', '12.35', '13', '9.75'],

@@ -19,6 +19,7 @@ jest.mock('./ImmersiveBackground', () => function MockScene({ pathname, transiti
   return <div data-testid="shared-scene" data-scene-path={pathname} data-transition-phase={transitionPhase}><canvas /></div>;
 });
 jest.mock('./BlackHoleBackground', () => () => null);
+jest.mock('./MetabloomSessionProvider', () => ({ children }) => children);
 jest.mock('../utils/privateInvoiceLoader', () => ({ syncPrivateInvoiceSession: jest.fn() }));
 jest.mock('../SiteRouter', () => ({ __esModule: true, preloadSiteRoute: async () => {}, default: function MockRouter({ pathname, onReady }) {
   const ReactModule = require('react');

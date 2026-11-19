@@ -85,3 +85,18 @@
   .app-route-backdrop, .app-route-curtain, .app-navigation-status, .app-navigation-recovery,
   .immersive-background { display: none !important; }
 }
+
+/* This lightweight entry does not load the assistant until it is selected. */
+.metabloom-assistant-launcher {
+  position: fixed; z-index: 50; right: max(16px, env(safe-area-inset-right));
+  bottom: max(16px, env(safe-area-inset-bottom)); min-height: 44px;
+  padding: 10px 18px; border: 1px solid var(--aetheris-line, #b7aebc);
+  border-radius: 999px; background: var(--aetheris-panel, #fff8f7);
+  color: var(--aetheris-ink, #241e2d); font: 500 14px/1.4 system-ui, sans-serif; cursor: pointer;
+}
+.metabloom-assistant-launcher:focus-visible { outline: 2px solid var(--aetheris-teal, #007b83); outline-offset: 3px; }
+@media print { .metabloom-assistant-launcher { display: none !important; } }
+
+body[data-metabloom-companion="invoice"] .private-invoice-host { padding-bottom: 140px; }
+body[data-metabloom-companion="invoice"] .invoice-page :is(input, textarea, select, button) { scroll-margin-bottom: 140px; }
+@media print { body[data-metabloom-companion="invoice"] .private-invoice-host { padding-bottom: 0; } }

@@ -1,5 +1,7 @@
 # Chat invoice drafts
 
+> This document describes the compatible chat-only draft/card path. Clients with the persistent companion use the real invoice workspace described in [metabloom-companion.md](metabloom-companion.md). Connected page edits do not synchronize back into this Redis draft.
+
 The ordinary `/orb` agent can prepare an invoice for the existing private
 `/invoice-generator` editor. This is draft preparation, not an accounting ledger.
 It works across OpenAI, DeepSeek and Claude through the common tool adapter.

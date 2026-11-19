@@ -3,6 +3,8 @@ const MAX_METABLOOM_AGENT_CALLS = 4;
 const MAX_METABLOOM_TOOL_PROGRESS = 24;
 const METABLOOM_PROGRESS_WAIT_MS = 12000;
 const METABLOOM_AGENT_TOOL_LABELS = Object.freeze({
+  open_invoice_workspace: 'Preparing the invoice workspace', get_invoice_workspace: 'Reading the approved invoice details',
+  update_invoice_workspace: 'Preparing invoice changes', focus_invoice_section: 'Preparing a field highlight',
   get_invoice_draft: 'Loading invoice draft', create_invoice_draft: 'Validating and calculating invoice draft',
   get_boom_quote_request: 'Loading boom quote request', update_boom_quote_request: 'Checking and saving boom request details',
   search_web: 'Searching the web', calculate: 'Calculating',
@@ -80,7 +82,11 @@ const getMetabloomWorkPresentation = ({ phase, activeTool, lastTool, summary, se
     summary: searchComplete ? 'Checking the response and its source references.' : 'Checking the response.' };
   if (lastTool) return { label: lastTool.state === 'failed' ? 'Handling a tool problem' : 'Reviewing results',
     summary: lastTool.state === 'failed' ? `${METABLOOM_AGENT_TOOL_LABELS[lastTool.name]} did not finish successfully.`
-      : ({ search_web: 'Search complete. Reviewing the sources.', calculate: 'Calculation complete.',
+      : ({ open_invoice_workspace: 'Workspace opening requested. The browser must confirm it.',
+        get_invoice_workspace: 'Approved invoice snapshot checked.',
+        update_invoice_workspace: 'Invoice changes prepared. Page application is still pending.',
+        focus_invoice_section: 'Field highlight requested. Display is still pending.',
+        search_web: 'Search complete. Reviewing the sources.', calculate: 'Calculation complete.',
         get_invoice_draft: 'Invoice draft checked.', create_invoice_draft: 'Invoice draft saved. Checking required fields.',
         get_boom_quote_request: 'Boom request checked.', update_boom_quote_request: 'Boom request details saved. Checking required fields.',
         get_current_time: 'Current time checked.', create_visual: 'Visual requested. Generation and display are still pending.',

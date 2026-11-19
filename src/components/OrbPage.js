@@ -18,6 +18,8 @@ import MetabloomWorkspaceContext from './MetabloomWorkspaceContext';
 import MetabloomThreadsPanel from './MetabloomThreadsPanel';
 import useOrbLiquidGlass from './liquidGlassRefraction';
 import useMetabloomThreads from './useMetabloomThreads';
+import { MetabloomSessionContext } from './MetabloomSessionProvider';
+import { metabloomWorkspaceBridge } from './metabloomWorkspaceBridge';
 import "./OrbPage.css";
 import "./OrbPageExperience.css";
 import "./OrbPageFinalPolish.css";
@@ -44,7 +46,7 @@ const METADATA_SELECTORS = Object.freeze({
 });
 
 const OrbConversationSurface = ({ navigation, threadSession, threadBusy,
-  onConversationStateChange, onReady }) => {
+  onConversationStateChange, onReady, companion = null }) => {
   const [workspaceController, setWorkspaceController] = React.useState(null);
   const handleWorkspaceReady = React.useCallback(controller => {
     setWorkspaceController(controller);
@@ -53,16 +55,26 @@ const OrbConversationSurface = ({ navigation, threadSession, threadBusy,
   return <AppNavigationContext.Provider value={navigation}>
     <MetabloomWorkspaceContext.Provider value={workspaceController}>
       <OrbSection isActive pointerReactive={false} onConversationStateChange={onConversationStateChange} onReady={onReady}
-        threadSession={threadSession} threadBusy={threadBusy} />
+        threadSession={threadSession} threadBusy={threadBusy} companion={companion} />
       <MetabloomVisuals navigation={navigation} onWorkspaceReady={handleWorkspaceReady} threadSession={threadSession} />
     </MetabloomWorkspaceContext.Provider>
   </AppNavigationContext.Provider>;
 };
 
-const OrbPageContent = ({ onReady }) => {
+const OrbPageContent = ({ onReady, hosted = false }) => {
+  const session = React.useContext(MetabloomSessionContext);
+  const companion = hosted ? session : null;
+  const full = !companion || companion.full;
   const navigation = useAppNavigation();
   const auth = useAuth();
   const threads = useMetabloomThreads({ navigation, enabled: auth.status === 'authenticated' });
+  const conversationId = threads.enabled ? threads.session?.id : null;
+  React.useLayoutEffect(() => {
+    if (!hosted) return;
+    metabloomWorkspaceBridge.configure({ auth, navigate: navigation?.navigate, pathname: navigation?.pathname,
+      getConversationId: () => conversationId });
+  }, [auth, hosted, navigation, conversationId]);
+  React.useEffect(() => () => { if (hosted) metabloomWorkspaceBridge.cancel(); }, [hosted]);
   // The route's foreground is interactive as soon as React mounts. Do not
   // block its reveal on WebGL's first frame: on mobile Safari a busy/failed
   // GPU can otherwise leave the entire chat hidden behind the background.
@@ -83,6 +95,7 @@ const OrbPageContent = ({ onReady }) => {
   const metadata = routeMetadata.orb;
 
   React.useEffect(() => {
+    if (!full) return undefined;
     const targets = Object.fromEntries(
       Object.entries(METADATA_SELECTORS).map(([key, selector]) => [
         key,
@@ -151,9 +164,10 @@ const OrbPageContent = ({ onReady }) => {
         );
       });
     };
-  }, [metadata]);
+  }, [metadata, full]);
 
   React.useEffect(() => {
+    if (!full) return undefined;
     let loadingTimer = 0;
     window.__triggerLoading = (durationMs = 4000) => {
       setPageHidden(true);
@@ -166,7 +180,7 @@ const OrbPageContent = ({ onReady }) => {
       window.clearTimeout(loadingTimer);
       window.__triggerLoading = null;
     };
-  }, []);
+  }, [full]);
 
   const pageHideStyle = pageHidden
     ? { visibility: "hidden", pointerEvents: "none" }
@@ -292,10 +306,10 @@ const OrbPageContent = ({ onReady }) => {
         data-background-enabled={backgroundEnabled ? "true" : "false"}
         data-metabloom-palette={metabloomPalette}
         data-site-audience={SITE_AUDIENCES.BUSINESS}
-        data-thread-history-enabled={threads.enabled ? 'true' : undefined}
-        data-theme-in-menu={threads.enabled ? 'true' : undefined}
-        data-sidebar-navigation={threads.enabled ? 'true' : undefined}
-        data-thread-history={threads.expanded ? 'open' : 'closed'}
+        data-thread-history-enabled={full && threads.enabled ? 'true' : undefined}
+        data-theme-in-menu={full && threads.enabled ? 'true' : undefined}
+        data-sidebar-navigation={full && threads.enabled ? 'true' : undefined}
+        data-thread-history={full && threads.expanded ? 'open' : 'closed'}
       >
         <a className="skip-to-content orb-page__skip" href="#main-content">
           Skip to Metabloom
@@ -345,19 +359,19 @@ const OrbPageContent = ({ onReady }) => {
         </div>
 
         <div className="orb-page__foreground" style={pageHideStyle}>
-          {!threads.enabled && <><ImmersiveRouteNavigationBridge /><NavMenu audience={SITE_AUDIENCES.BUSINESS} /></>}
-          {!threads.enabled && renderAppearance()}
+          {full && !threads.enabled && <><ImmersiveRouteNavigationBridge /><NavMenu audience={SITE_AUDIENCES.BUSINESS} /></>}
+          {full && !threads.enabled && renderAppearance()}
 
           {/* History is page chrome, like Claude's sidebar: it sits outside the
               conversation surface, so it never shares the transcript's stacking
               context and survives the per-chat remount of that surface. */}
-          {threads.enabled && <MetabloomThreadsPanel {...threads.panelProps} renderAppearance={renderAppearance}
+          {full && threads.enabled && <MetabloomThreadsPanel {...threads.panelProps} renderAppearance={renderAppearance}
             renderBrand={props => <OrbSidebarBrand {...props} />}
             renderNavigation={props => <OrbSidebarLinks {...props} />}
             renderAccount={props => <OrbSidebarAccount {...props} />} />}
 
           <main
-            id="main-content"
+            id={full ? "main-content" : undefined}
             className="orb-page__content"
             aria-label="Metabloom"
             tabIndex={-1}
@@ -366,7 +380,7 @@ const OrbPageContent = ({ onReady }) => {
               navigation={threads.enabled ? threads.navigation : navigation}
               threadSession={threads.enabled ? threads.session : null}
               threadBusy={threads.enabled && threads.busy}
-              onConversationStateChange={setConversationStarted} onReady={onReady} />
+              onConversationStateChange={setConversationStarted} onReady={onReady} companion={companion} />
           </main>
         </div>
 
@@ -379,10 +393,17 @@ const OrbPageContent = ({ onReady }) => {
   );
 };
 
-const OrbPage = ({ onReady }) => (
-  <ThemeProvider enableBackground={false}>
-    <OrbPageContent onReady={onReady} />
-  </ThemeProvider>
-);
+function OrbRouteReady({ onReady }) {
+  React.useEffect(() => { onReady?.(); }, [onReady]);
+  return <div data-metabloom-route="persistent" />;
+}
+
+const OrbPage = ({ onReady, hosted = false }) => {
+  const session = React.useContext(MetabloomSessionContext);
+  if (session?.persistent && !hosted) return <OrbRouteReady onReady={onReady} />;
+  return <ThemeProvider enableBackground={false}>
+    <OrbPageContent onReady={onReady} hosted={hosted} />
+  </ThemeProvider>;
+};
 
 export default OrbPage;

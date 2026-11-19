@@ -1,0 +1,180 @@
+/* Stable chrome around the real conversation and Orb. Never hide, filter or
+   transform the body: it contains the persistent canvas. The session host
+   independently controls the chat interface and the Orb's fixed geometry. */
+.metabloom-companion {
+  --metabloom-companion-orb-size: 88px;
+  --metabloom-companion-inset: max(16px, env(safe-area-inset-right, 0px));
+  --metabloom-companion-bottom-inset: max(16px, env(safe-area-inset-bottom, 0px));
+  --metabloom-companion-panel-width: min(380px, calc(100vw - 2 * var(--metabloom-companion-inset)));
+  --metabloom-companion-panel-bottom: calc(var(--metabloom-companion-bottom-inset) + var(--metabloom-companion-keyboard-offset, 0px) + var(--metabloom-companion-orb-size) + 12px);
+  --metabloom-companion-panel-height: min(65dvh, calc(var(--metabloom-companion-visible-height, 100dvh) - var(--metabloom-companion-orb-size) - 44px));
+  --metabloom-companion-header-height: 72px;
+  --metabloom-companion-ink: var(--aetheris-ink, #241e2d);
+  --metabloom-companion-panel: var(--lg-menu-fill, rgba(255, 248, 247, 0.9));
+  display: contents;
+  color: var(--metabloom-companion-ink);
+  font: 400 14px/1.5 var(--aetheris-font-sans, system-ui, sans-serif);
+}
+.metabloom-companion__panel,
+.metabloom-companion__body { display: contents; }
+.metabloom-companion[data-docked='false'] { color: inherit; font: inherit; }
+.metabloom-companion [hidden] { display: none !important; }
+.metabloom-companion[data-docked='true'] > .metabloom-companion__panel {
+  position: fixed; display: block; z-index: 80;
+  inset-inline-end: var(--metabloom-companion-inset);
+  bottom: var(--metabloom-companion-panel-bottom);
+  width: var(--metabloom-companion-panel-width);
+  height: var(--metabloom-companion-panel-height);
+  pointer-events: none;
+}
+.metabloom-companion__panel::before {
+  content: ''; position: absolute; inset: 0; z-index: -1; opacity: 0;
+  border: 1px solid transparent; border-radius: 24px;
+  background: var(--metabloom-companion-panel);
+  -webkit-backdrop-filter: blur(22px) saturate(1.45);
+  backdrop-filter: blur(22px) saturate(1.45);
+  box-shadow: var(--lg-specular, inset 0 1px 0 rgba(255,255,255,.8)), var(--lg-shadow, 0 12px 32px -12px rgba(36,18,52,.28));
+  transition: opacity 180ms ease;
+  pointer-events: none;
+}
+.metabloom-companion[data-docked='false'] > .metabloom-companion__panel::before { display: none; }
+.metabloom-companion[data-open='true'] > .metabloom-companion__panel::before { opacity: 1; }
+.metabloom-companion__header {
+  box-sizing: border-box; position: relative; z-index: 1;
+  min-height: var(--metabloom-companion-header-height);
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 12px 12px 10px 18px; pointer-events: auto;
+  border-bottom: 1px solid var(--aetheris-line, rgba(36,18,52,.12));
+}
+.metabloom-companion__identity { min-width: 0; }
+.metabloom-companion__header h2 {
+  margin: 0; color: inherit; font: 650 16px/1.3 var(--aetheris-font-sans, system-ui, sans-serif);
+  letter-spacing: -.02em; outline-offset: 4px;
+}
+.metabloom-companion__provider {
+  margin: 3px 0 0; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--aetheris-ink-2, #62576a); font: 400 11px/1.4 var(--aetheris-font-mono, monospace);
+}
+.metabloom-companion__header-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; max-width: 100%; gap: 2px; flex-shrink: 0; }
+.metabloom-companion :is(.metabloom-companion__header, .metabloom-companion__bubble, .metabloom-companion__controls) button {
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+  color: inherit; cursor: pointer; font: inherit;
+}
+.metabloom-companion__icon-button {
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0; width: 36px; height: 40px; padding: 8px;
+  border: 1px solid transparent; border-radius: 999px; background: transparent;
+}
+.metabloom-companion :is(.metabloom-companion__header, .metabloom-companion__bubble, .metabloom-companion__controls) button svg { width: 18px; height: 18px; flex-shrink: 0; }
+.metabloom-companion :is(.metabloom-companion__header, .metabloom-companion__bubble, .metabloom-companion__controls) button:focus-visible,
+.metabloom-companion__header h2:focus-visible {
+  outline: 2px solid var(--aetheris-teal, #007b83); outline-offset: 3px;
+  box-shadow: var(--aetheris-focus-halo, 0 0 0 5px rgba(0,123,131,.14));
+}
+.metabloom-companion__controls {
+  position: fixed; z-index: 82; display: flex; align-items: center; gap: 8px;
+  inset-inline-end: calc(var(--metabloom-companion-inset) + var(--metabloom-companion-orb-size) + 8px);
+  bottom: calc(var(--metabloom-companion-bottom-inset) + var(--metabloom-companion-keyboard-offset, 0px) + var(--metabloom-companion-orb-size) / 2 - 22px);
+  pointer-events: auto;
+}
+.metabloom-companion__toggle,
+.metabloom-companion__stop {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 44px; padding: 9px 14px; border: 1px solid transparent; border-radius: 999px;
+  background: var(--metabloom-companion-panel);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  backdrop-filter: blur(16px) saturate(1.4);
+  box-shadow: var(--lg-specular, inset 0 1px 0 rgba(255,255,255,.8)), var(--lg-shadow, 0 8px 24px -12px rgba(36,18,52,.3));
+  white-space: nowrap; font-size: 13px !important;
+}
+.metabloom-companion__stop { padding-inline: 12px; }
+.metabloom-companion__unread {
+  width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+  background: var(--aetheris-teal, #007b83);
+}
+.metabloom-companion__bubble {
+  box-sizing: border-box; position: fixed; z-index: 81;
+  inset-inline-end: var(--metabloom-companion-inset); bottom: var(--metabloom-companion-panel-bottom);
+  width: min(280px, calc(100vw - 2 * var(--metabloom-companion-inset)));
+  padding: 16px 40px 12px 16px; border: 1px solid transparent; border-radius: 22px 22px 8px 22px;
+  background: var(--metabloom-companion-panel);
+  -webkit-backdrop-filter: blur(22px) saturate(1.4);
+  backdrop-filter: blur(22px) saturate(1.4);
+  box-shadow: var(--lg-specular, inset 0 1px 0 rgba(255,255,255,.8)), var(--lg-shadow, 0 12px 32px -12px rgba(36,18,52,.28));
+  pointer-events: auto;
+}
+.metabloom-companion__bubble p { margin: 0; font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+.metabloom-companion__bubble > .metabloom-companion__icon-button { position: absolute; top: 3px; right: 3px; }
+.metabloom-companion__read {
+  margin: 7px 0 -4px; min-height: 32px; padding: 4px 0;
+  border: 0; background: none; font-size: 11px !important; text-decoration: underline; text-underline-offset: 3px;
+}
+.metabloom-companion__status {
+  position: fixed; z-index: 82; max-width: min(280px, calc(100vw - 32px));
+  inset-inline-end: calc(var(--metabloom-companion-inset) + var(--metabloom-companion-orb-size) + 8px);
+  bottom: calc(var(--metabloom-companion-bottom-inset) + var(--metabloom-companion-keyboard-offset, 0px) - 3px);
+  display: flex; align-items: center; gap: 6px; margin: 0; padding: 3px 8px;
+  border-radius: 8px; background: var(--metabloom-companion-panel);
+  color: var(--metabloom-companion-ink); font-size: 11px; line-height: 1.3;
+  overflow-wrap: anywhere; pointer-events: none;
+}
+.metabloom-companion__status:empty { padding: 0; background: transparent; }
+.metabloom-companion__activity { width: 6px; height: 6px; flex-shrink: 0; border-radius: 50%; background: currentColor; }
+:where([data-theme='dark']) .metabloom-companion {
+  --metabloom-companion-ink: var(--aetheris-ink, #f5eff8);
+  --metabloom-companion-panel: var(--lg-menu-fill, rgba(22,19,29,.92));
+}
+@media (hover: hover) {
+  .metabloom-companion__icon-button:hover,
+  .metabloom-companion__toggle:hover,
+  .metabloom-companion__stop:hover { background: var(--aetheris-state-layer, rgba(127,100,140,.14)); }
+}
+@media (max-width: 600px) {
+  .metabloom-companion {
+    --metabloom-companion-orb-size: 72px;
+    --metabloom-companion-inset: max(12px, env(safe-area-inset-right, 0px));
+    --metabloom-companion-bottom-inset: max(12px, env(safe-area-inset-bottom, 0px));
+    --metabloom-companion-panel-width: calc(100vw - 2 * var(--metabloom-companion-inset));
+    --metabloom-companion-panel-height: min(65dvh, calc(var(--metabloom-companion-visible-height, 100dvh) - var(--metabloom-companion-orb-size) - 36px));
+  }
+  .metabloom-companion__icon-button { min-width: 40px; min-height: 44px; }
+  .metabloom-companion__header { padding-inline: 14px 8px; }
+  .metabloom-companion__provider { max-width: 120px; }
+  .metabloom-companion__status { max-width: calc(100vw - var(--metabloom-companion-orb-size) - 40px); }
+  .metabloom-companion__controls { gap: 5px; }
+  .metabloom-companion__toggle, .metabloom-companion__stop { padding-inline: 11px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .metabloom-companion__panel::before { transition: none; }
+}
+@media (max-width: 360px) {
+  .metabloom-companion { --metabloom-companion-header-height: 112px; }
+  .metabloom-companion__header { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .metabloom-companion__identity { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+  .metabloom-companion__provider { margin: 0; min-width: 0; }
+}
+@media (max-width: 240px) {
+  .metabloom-companion { --metabloom-companion-header-height: 156px; }
+  .metabloom-companion__identity { display: block; }
+}
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .metabloom-companion { --metabloom-companion-panel: var(--aetheris-panel, #fff8f7); }
+  :where([data-theme='dark']) .metabloom-companion { --metabloom-companion-panel: var(--aetheris-panel, #16131d); }
+  .metabloom-companion__panel::before, .metabloom-companion__bubble,
+  .metabloom-companion__toggle, .metabloom-companion__stop { -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+@media (forced-colors: active) {
+  .metabloom-companion { --metabloom-companion-panel: Canvas; --metabloom-companion-ink: CanvasText; }
+  .metabloom-companion__panel::before, .metabloom-companion__bubble,
+  .metabloom-companion__toggle, .metabloom-companion__stop { border-color: CanvasText; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .metabloom-companion__provider { color: CanvasText; }
+  .metabloom-companion__unread { background: Highlight; }
+  .metabloom-companion :is(.metabloom-companion__header, .metabloom-companion__bubble, .metabloom-companion__controls) button:focus-visible { outline-color: Highlight; box-shadow: none; }
+}
+@media print {
+  .metabloom-companion,
+  .metabloom-companion__panel,
+  .metabloom-companion__bubble,
+  .metabloom-companion__controls,
+  .metabloom-companion__status { display: none !important; }
+}

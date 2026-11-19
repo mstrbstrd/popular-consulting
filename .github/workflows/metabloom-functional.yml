@@ -50,6 +50,7 @@ jobs:
         run: >-
           node --test scripts/metabloom-api.test.cjs scripts/metabloom-agent.test.cjs scripts/metabloom-agent-api.test.cjs scripts/metabloom-research.test.cjs
           scripts/metabloom-boom-request.test.cjs scripts/metabloom-boom-request-agent.test.cjs scripts/metabloom-invoice.test.cjs
+          scripts/metabloom-workspace-protocol.test.cjs scripts/metabloom-workspace-agent.test.cjs scripts/metabloom-workspace-security.test.cjs
           scripts/metabloom-price-book.test.cjs scripts/metabloom-price-book-store.test.cjs scripts/metabloom-price-book-workflow.test.cjs scripts/metabloom-price-book-agent.test.cjs
           scripts/metabloom-models.test.cjs scripts/metabloom-expression.test.cjs scripts/metabloom-answer-recovery.test.cjs scripts/metabloom-council.test.cjs
           scripts/metabloom-research-brief.test.cjs scripts/metabloom-research-brief-api.test.cjs
@@ -59,6 +60,8 @@ jobs:
           scripts/metabloom-visual-store-diagnostics.test.cjs scripts/metabloom-artifact-reference.test.cjs
           scripts/metabloom-research-reuse.test.cjs scripts/metabloom-research-reuse-api.test.cjs
       - run: npm ci --no-audit --no-fund
+      - name: Verify private invoice dependency isolation
+        run: node --test scripts/private-invoice-boundary.test.mjs
       - name: Verify the visual improvement loop without model calls
         run: |
           npm run metabloom:improve -- check

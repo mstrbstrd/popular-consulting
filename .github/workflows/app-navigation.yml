@@ -31,6 +31,13 @@ jobs:
       - run: npm run build
         env:
           CI: true
+      - name: Preserve this exact built application for companion verification
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-navigation-build-${{ github.sha }}
+          path: build/
+          if-no-files-found: error
+          retention-days: 1
       - name: Verify continuous navigation, retained state, previews and session revocation
         run: node scripts/verify-app-navigation.mjs
         env:
@@ -40,5 +47,43 @@ jobs:
         with:
           name: app-navigation-evidence
           path: app-navigation-evidence/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  companion:
+    needs: browser
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm install --no-save --package-lock=false playwright@1.51.1
+      - run: npx playwright install --with-deps ${{ matrix.browser }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: app-navigation-build-${{ github.sha }}
+          path: build/
+      - name: Verify public/private boundary and adversarial workspace envelopes
+        run: node --test scripts/private-invoice-boundary.test.mjs scripts/metabloom-workspace-security.test.cjs
+      - name: Verify persistent companion with controlled provider responses
+        run: node scripts/verify-metabloom-companion.mjs
+        env:
+          COMPANION_BROWSER: ${{ matrix.browser }}
+          COMPANION_EVIDENCE: companion-evidence-${{ matrix.browser }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: companion-evidence-${{ matrix.browser }}-${{ github.sha }}
+          path: companion-evidence-${{ matrix.browser }}/
           if-no-files-found: ignore
           retention-days: 7

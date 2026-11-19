@@ -4,6 +4,7 @@ import { useThemeMode } from '../contexts/ThemeContext';
 import { navigateInApp, useAppNavigation } from '../contexts/AppNavigationContext';
 import { loadPrivateInvoice, syncPrivateInvoiceSession } from '../utils/privateInvoiceLoader';
 import AuthPage from './AuthPage';
+import { metabloomWorkspaceBridge } from './metabloomWorkspaceBridge';
 
 export default function PrivateInvoicePage({ onReady }) {
   const auth = useAuth();
@@ -16,8 +17,8 @@ export default function PrivateInvoicePage({ onReady }) {
   const [attempt, setAttempt] = useState(0);
   const host = useRef(null);
   const controller = useRef(null);
-  const current = useRef({ auth, theme, navigation, onReady });
-  current.current = { auth, theme, navigation, onReady };
+  const current = useRef({ auth, theme, navigation, onReady, workspaceBridge: metabloomWorkspaceBridge });
+  current.current = { auth, theme, navigation, onReady, workspaceBridge: metabloomWorkspaceBridge };
   useEffect(() => {
     if (error || (status !== 'loading' && status !== 'authenticated')) onReady?.();
   }, [error, status, onReady]);

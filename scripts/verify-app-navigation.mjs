@@ -83,7 +83,7 @@ try {
         if (Date.now() - started > 5000) console.log(JSON.stringify({ profile, navigationWarmupMs: Date.now() - started }));
       } catch (failure) {
         console.log(JSON.stringify({ profile, errors, navigationFailure: await page.evaluate(() => ({
-          url: location.href, route: document.querySelector('.app-outlet')?.dataset.route,
+          url: window.location.href, route: document.querySelector('.app-outlet')?.dataset.route,
           phase: document.querySelector('.app-route-curtain')?.dataset.phase,
           entry: document.querySelector('.home-page')?.dataset.entry,
           heading: document.querySelector('main h1')?.textContent,
@@ -94,6 +94,17 @@ try {
       }
     };
     const openNavigation = async () => {
+      // Authenticated Orb uses the history sidebar for navigation. The live
+      // assistant stays mounted elsewhere, but only full Orb has this chrome.
+      if (await page.locator('.orb-page[data-sidebar-navigation="true"]').count()) {
+        const sidebar = page.locator('.orb-sidebar-links');
+        if (!(await sidebar.locator(':scope > summary').isVisible())) {
+          await press(page.getByRole('button', { name: mobile ? 'Chats' : 'Expand chats', exact: true }));
+        }
+        await sidebar.locator(':scope > summary').waitFor({ state: 'visible' });
+        if ((await sidebar.getAttribute('open')) === null) await press(sidebar.locator(':scope > summary'));
+        return sidebar;
+      }
       const toggle = page.getByRole('button', { name: 'Open navigation menu', exact: true });
       if (mobile && await toggle.isVisible()) {
         assert.equal(await page.locator('.workspace-menu > summary:visible').count(), 0, 'Mobile header has two menu openers');
@@ -120,7 +131,7 @@ try {
         throw failure;
       }
       assert.equal(await page.evaluate(() => window.__appNavigationDocument), documentId, 'Navigation replaced the document');
-      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, 'Route overflowed the viewport');
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true, 'Route overflowed the viewport');
     };
     const graphics = profile.includes('webgl') || profile.startsWith('webkit') ? 'webgl' : 'css';
     const openInvoiceThroughScene = async theme => {
@@ -150,7 +161,7 @@ try {
               hasCanvas: Boolean(scene?.querySelector('canvas')),
               mobileLight: scene?.dataset.mobileLightRuntime,
               blackHole: Boolean(scene?.querySelector('[data-theme-renderer="black-hole"]')),
-              viewport: rect?.left <= 0 && rect?.right >= innerWidth && rect?.bottom >= innerHeight,
+              viewport: rect?.left <= 0 && rect?.right >= window.innerWidth && rect?.bottom >= window.innerHeight,
               inert: document.querySelector('.app-outlet').hasAttribute('inert'),
             };
           });
@@ -184,7 +195,7 @@ try {
     } else await opener.click({ force: true });
     try { await page.waitForSelector('.home-page[data-entry="open"]'); }
     catch (failure) {
-      console.log(JSON.stringify({ profile, errors, opening: await page.evaluate(() => ({ url: location.href,
+      console.log(JSON.stringify({ profile, errors, opening: await page.evaluate(() => ({ url: window.location.href,
         initialEntry: document.querySelector('.home-page')?.dataset.entry,
         status: document.querySelector('.home-intro-status')?.textContent,
         phase: document.querySelector('.app-route-curtain')?.dataset.phase })) }));
@@ -193,8 +204,8 @@ try {
     }
     assert.equal(await page.evaluate(() => window.__openingScene === document.querySelector('.immersive-background')), true, 'Opening scene was replaced entering Home');
     assert.equal(await page.evaluate(() => window.__openingCanvas === document.querySelector('.immersive-background canvas')), true, 'Opening canvas was restarted entering Home');
-    assert.equal(await page.evaluate(() => innerWidth - document.documentElement.clientWidth), 0, 'Home exposed a scrollbar gutter');
-    assert.equal(await page.evaluate(() => { const r = document.querySelector('.immersive-background').getBoundingClientRect(); return r.left <= 0 && r.right >= innerWidth && r.bottom >= innerHeight; }), true, 'Background does not cover the viewport');
+    assert.equal(await page.evaluate(() => window.innerWidth - document.documentElement.clientWidth), 0, 'Home exposed a scrollbar gutter');
+    assert.equal(await page.evaluate(() => { const r = document.querySelector('.immersive-background').getBoundingClientRect(); return r.left <= 0 && r.right >= window.innerWidth && r.bottom >= window.innerHeight; }), true, 'Background does not cover the viewport');
     const documentId = await page.evaluate(() => window.__appNavigationDocument);
     if (mobile) {
       const menu = await openNavigation();
@@ -324,7 +335,7 @@ try {
     await go('Home', '/home');
     assert.equal(await page.evaluate(() => window.__darkScene === document.querySelector('.immersive-background')), true, 'Dark scene was replaced');
     assert.equal(await page.evaluate(() => window.__darkCanvas === document.querySelector('.immersive-background canvas')), true, 'Dark canvas was restarted');
-    assert.equal(await page.evaluate(() => innerWidth - document.documentElement.clientWidth), 0, 'Dark Home exposed a scrollbar gutter');
+    assert.equal(await page.evaluate(() => window.innerWidth - document.documentElement.clientWidth), 0, 'Dark Home exposed a scrollbar gutter');
     await openInvoiceThroughScene('dark'); await page.waitForSelector('.invoice-page');
     assert.equal(await page.locator('html').getAttribute('data-theme'), 'dark');
     await go('Home', '/home');

@@ -63,3 +63,16 @@ test('a successful tool alone cannot commit text on the progress protocol', () =
     { type: 'segment', index: 0, response: 'An unchecked answer.' }];
   expect(decoder.push(events.map(value => JSON.stringify(value)).join('\n') + '\n')).toBe(false);
 });
+
+
+test('workspace tools report preparation rather than page application', () => {
+  const { METABLOOM_AGENT_TOOL_LABELS, getMetabloomWorkPresentation } = require('./metabloomAgentTools');
+  const { getMetabloomApiErrorMessage, parseMetabloomRequestError } = require('./metabloomRequestErrors');
+  for (const name of ['open_invoice_workspace', 'get_invoice_workspace', 'update_invoice_workspace', 'focus_invoice_section']) {
+    expect(typeof METABLOOM_AGENT_TOOL_LABELS[name]).toBe('string');
+    expect(getMetabloomWorkPresentation({ lastTool: { name, state: 'complete' } }).summary).toBeTruthy();
+  }
+  expect(getMetabloomWorkPresentation({ lastTool: { name: 'update_invoice_workspace', state: 'complete' } }).summary).toMatch(/application is still pending/);
+  expect(parseMetabloomRequestError({ code: 'workspace_unavailable' })).toEqual({ code: 'workspace_unavailable' });
+  expect(getMetabloomApiErrorMessage('workspace_unavailable')).toMatch(/manual editing/);
+});

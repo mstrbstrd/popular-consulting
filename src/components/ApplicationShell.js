@@ -7,6 +7,7 @@ import { syncPrivateInvoiceSession } from '../utils/privateInvoiceLoader';
 import { markHomeEntryIntent } from '../utils/homeEntry';
 import ImmersiveBackground from './ImmersiveBackground';
 import './ApplicationShell.css';
+import MetabloomSessionProvider from './MetabloomSessionProvider';
 
 const readLocation = () => window.location.pathname + window.location.search + window.location.hash;
 const reducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
@@ -157,7 +158,8 @@ export default function ApplicationShell() {
   useEffect(() => {
     if (phase !== 'idle' || !focusPending.current) return;
     focusPending.current = false;
-    const main = outletRef.current?.querySelector('main');
+    const main = outletRef.current?.querySelector('main')
+      || document.querySelector('[data-assistant-presentation="full"] main');
     if (main && !main.closest('[inert], [aria-hidden="true"]')) {
       if (!main.hasAttribute('tabindex')) main.setAttribute('tabindex', '-1');
       main.focus({ preventScroll: true });
@@ -262,6 +264,7 @@ export default function ApplicationShell() {
   const busy = phase !== 'idle';
   const routeEpoch = ['/home', '/orb', '/popcan', '/dither-canvas', '/invoice-generator'].includes(routeMetadataFor(navigation.pathname)?.path) ? stateRevision : 0;
   return <AppNavigationContext.Provider value={navigation}>
+    <MetabloomSessionProvider navigation={navigation} onReady={ready}>
     {/* Index, Home, opted-in Orb and Popcan share one scene. Each tool can
         release it independently without remounting its foreground content. */}
     <div className="app-route-backdrop" data-route={routeMetadataFor(navigation.pathname)?.path} aria-hidden="true" />
@@ -282,6 +285,7 @@ export default function ApplicationShell() {
       <button type="button" onClick={() => window.location.reload()}>Reload</button>
     </section>}
     <p className="app-navigation-status" role="status" aria-live="polite">{busy ? `Opening ${destination}.` : ''}</p>
+  </MetabloomSessionProvider>
   </AppNavigationContext.Provider>;
 }
 

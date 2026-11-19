@@ -8,6 +8,8 @@ import { calculateInvoice, createInvoice, createInvoiceItem, formatInvoiceMoney,
   INVOICE_DRAFT_KEY, MAX_DRAFT_BYTES, MAX_INVOICE_ITEMS, normalizeInvoiceDraft,
   parseInvoiceDraft, validateInvoice } from "../utils/invoice";
 import { readInvoiceLogo } from "../utils/invoiceLogo";
+import { createGuidedInvoice, createInvoiceWorkspaceController } from "../utils/invoiceWorkspaceController";
+import { generateInvoiceNumber, invoiceDateToday } from "../utils/invoice";
 import "./InvoiceGeneratorPage.css";
 import "./InvoiceGeneratorScene.css";
 
@@ -22,7 +24,7 @@ const InvoiceField = ({ id, label, value, onChange, multiline = false, ...props 
   );
 };
 
-export const InvoiceDocument = ({ invoice, calculation }) => {
+export const InvoiceDocument = ({ invoice, calculation, guided = false }) => {
   const money = (cents) => formatInvoiceMoney(cents, invoice.currency);
   return (
     <article className="invoice-paper" aria-label="Invoice preview">
@@ -60,8 +62,8 @@ export const InvoiceDocument = ({ invoice, calculation }) => {
               <td role="cell" data-label="Service"><span className="invoice-line-description">{item.description || "Service description"}</span><small>{item.date}</small></td>
               <td role="cell" data-label="Quantity">{item.qty || "–"}</td>
               <td role="cell" data-label="Rate">{calculation ? money(calculation.lines[index].rate) : "Pending"}</td>
-              <td role="cell" data-label="Discount">{item.discount || "0"}%{calculation && calculation.lines[index].discount > 0 && <small>{money(calculation.lines[index].discount)}</small>}</td>
-              <td role="cell" data-label="Tax">{[item.gst && "GST", item.pst && "PST"].filter(Boolean).join(" + ") || "None"}</td>
+              <td role="cell" data-label="Discount">{guided && item.discount === '' ? "Pending" : `${item.discount || "0"}%`}{calculation && calculation.lines[index].discount > 0 && <small>{money(calculation.lines[index].discount)}</small>}</td>
+              <td role="cell" data-label="Tax">{item.gst === null || item.pst === null ? "Not set" : [item.gst && "GST", item.pst && "PST"].filter(Boolean).join(" + ") || "None"}</td>
               <td role="cell" data-label="Amount">{calculation ? money(calculation.lines[index].net) : "Pending"}</td>
             </tr>
           ))}</tbody>
@@ -87,9 +89,26 @@ export const InvoiceDocument = ({ invoice, calculation }) => {
   );
 };
 
-export const InvoiceGeneratorContent = ({ initialWorkspace = null, onWorkspaceChange, onReady } = {}) => {
+export const InvoiceGeneratorContent = ({ initialWorkspace = null, onWorkspaceChange, onReady, workspaceBridge, isWorkspaceAuthorized = () => true } = {}) => {
   const locked = useWorkspaceLocked();
-  const [invoice, setInvoice] = useState(() => initialWorkspace?.invoice || createInvoice());
+  const authorization = useRef(isWorkspaceAuthorized);
+  authorization.current = isWorkspaceAuthorized;
+  const lockRef = useRef(locked);
+  lockRef.current = locked;
+  const privateController = useRef(null);
+  if (!privateController.current) privateController.current = createInvoiceWorkspaceController({
+    invoice: initialWorkspace?.invoice || createInvoice(), assistance: initialWorkspace?.assistance,
+    isAuthorized: () => !lockRef.current && authorization.current(),
+  });
+  const controller = privateController.current;
+  const [, refreshWorkspace] = useState(0);
+  const invoice = controller.getInvoice();
+  const assistant = controller.getStatus();
+  const completion = controller.getCompletion();
+  const [includePrivateFields, setIncludePrivateFields] = useState(assistant.includePrivateFields);
+  const [highlighted, setHighlighted] = useState([]);
+  const highlightTimer = useRef(null);
+  const [bridgeStatus, setBridgeStatus] = useState(() => workspaceBridge?.getStatus?.() || null);
   const [chatDraftKey, setChatDraftKey] = useState(initialWorkspace?.chatDraftKey || null);
   const [status, setStatus] = useState("");
   const [actionError, setActionError] = useState("");
@@ -111,15 +130,56 @@ export const InvoiceGeneratorContent = ({ initialWorkspace = null, onWorkspaceCh
   const siteNavRef = useRef(null);
   let calculation = null;
   let calculationError = "";
-  try { calculation = calculateInvoice(invoice); } catch (error) { calculationError = error.message; }
-  const errors = validateInvoice(invoice);
+  try { calculation = assistant.guided ? completion.calculation : calculateInvoice(invoice); } catch (error) { calculationError = error.message; }
+  const errors = assistant.guided ? completion.missing : validateInvoice(invoice);
   const ready = errors.length === 0 && !logoPending;
   const saveState = dirty ? "Unsaved changes" : savedOnDevice ? "Saved on this device" : "Not saved yet";
+  const workspaceWriter = useRef(onWorkspaceChange);
+  const currentWorkspace = useRef(null);
+  workspaceWriter.current = onWorkspaceChange;
+  currentWorkspace.current = { invoice, dirty, savedOnDevice, view, ...(chatDraftKey ? { chatDraftKey } : {}) };
   useEffect(() => { onReady?.(); }, [onReady]);
+  useEffect(() => {
+    let previousRevision = controller.getStatus().dataRevision;
+    let previousInstance = controller.getStatus().workspaceInstanceId;
+    const unsubscribe = controller.subscribe(() => {
+      const state = controller.getStatus();
+      const replaced = state.workspaceInstanceId !== previousInstance;
+      const changed = state.dataRevision !== previousRevision || replaced;
+      if (changed) {
+        revisionRef.current += 1; setDirty(true); setStatus("");
+        previousRevision = state.dataRevision; previousInstance = state.workspaceInstanceId;
+        window.clearTimeout(highlightTimer.current); setHighlighted(state.lastChanged);
+        highlightTimer.current = window.setTimeout(() => setHighlighted([]), 1600);
+      }
+      // Persist data before returning the application receipt. A subsequent
+      // navigation cannot outrun React's passive workspace-snapshot effect.
+      const snapshot = { ...currentWorkspace.current, invoice: controller.getInvoice(),
+        assistance: controller.getAssistance(), dirty: changed ? true : currentWorkspace.current.dirty };
+      if (replaced) delete snapshot.chatDraftKey;
+      currentWorkspace.current = snapshot;
+      workspaceWriter.current?.(snapshot);
+      refreshWorkspace(value => value + 1);
+    });
+    return () => { unsubscribe(); window.clearTimeout(highlightTimer.current); };
+  }, [controller]);
+  useEffect(() => {
+    controller.setActive(!locked);
+    if (locked || !workspaceBridge) return () => controller.setActive(false);
+    // The public bridge receives only approved projections and bounded commands.
+    const exposed = Object.fromEntries(['getContext', 'apply', 'connect', 'disconnect', 'undo', 'getStatus', 'subscribe'].map(name => [name, controller[name]]));
+    const unregister = workspaceBridge.register(exposed);
+    return () => { controller.setActive(false); unregister?.(); };
+  }, [controller, workspaceBridge, locked]);
+  useEffect(() => {
+    if (!workspaceBridge?.subscribe) return undefined;
+    const update = () => setBridgeStatus(workspaceBridge.getStatus());
+    update(); return workspaceBridge.subscribe(update);
+  }, [workspaceBridge]);
 
   useEffect(() => {
-    onWorkspaceChange?.({ invoice, dirty, savedOnDevice, view, ...(chatDraftKey ? { chatDraftKey } : {}) });
-  }, [invoice, dirty, savedOnDevice, view, chatDraftKey, onWorkspaceChange]);
+    onWorkspaceChange?.({ invoice, dirty, savedOnDevice, view, assistance: controller.getAssistance(), ...(chatDraftKey ? { chatDraftKey } : {}) });
+  }, [invoice, dirty, savedOnDevice, view, chatDraftKey, onWorkspaceChange, controller, assistant.bindingEpoch]);
 
   useEffect(() => {
     const html = document.documentElement;
@@ -200,21 +260,26 @@ export const InvoiceGeneratorContent = ({ initialWorkspace = null, onWorkspaceCh
     target?.scrollIntoView?.({ behavior: "auto", block: "start" });
   }, [focusRequest]);
 
-  const change = (key, value) => { revisionRef.current += 1; setInvoice((current) => ({ ...current, [key]: value })); setDirty(true); setStatus(""); };
+  const change = (key, value) => { controller.setField(key, value); setDirty(true); setStatus(""); };
   const changeItem = (index, key, value) => {
-    revisionRef.current += 1;
-    setInvoice((current) => ({ ...current, items: current.items.map((item, i) => i === index ? { ...item, [key]: value } : item) }));
+    controller.setItem(index, key, value);
     setDirty(true); setStatus("");
   };
   const replaceInvoice = (value) => {
     fileRequest.current += 1; revisionRef.current += 1;
-    setLogoPending(false); setChatDraftKey(null); setInvoice(value); setDirty(false); setSavedOnDevice(false);
+    setLogoPending(false); setChatDraftKey(null); controller.replace(value); setDirty(false); setSavedOnDevice(false);
     setShowErrors(false); setActionError(""); setView("editor");
   };
   const confirmReplace = () => !dirty || window.confirm("Replace the current invoice? Unsaved changes will be lost.");
+  const draftForStorage = () => {
+    if (assistant.guided && (!['CAD', 'USD'].includes(invoice.currency) || !invoice.items.length || invoice.items.some(item => typeof item.gst !== 'boolean' || typeof item.pst !== 'boolean'))) {
+      throw new Error('Choose a currency and tax options for at least one item before saving or exporting this draft. Your current work remains here.');
+    }
+    return normalizeInvoiceDraft(invoice);
+  };
   const saveDraft = () => {
     try {
-      const text = JSON.stringify(normalizeInvoiceDraft(invoice));
+      const text = JSON.stringify(draftForStorage());
       if (new Blob([text]).size > MAX_DRAFT_BYTES) throw new Error("This draft is too large to save.");
       localStorage.setItem(INVOICE_DRAFT_KEY, text);
       setDirty(false); setSavedOnDevice(true); setActionError(""); setStatus("Draft saved on this device. It is not encrypted or synced.");
@@ -230,7 +295,7 @@ export const InvoiceGeneratorContent = ({ initialWorkspace = null, onWorkspaceCh
   };
   const exportDraft = () => {
     try {
-      const text = JSON.stringify(normalizeInvoiceDraft(invoice), null, 2);
+      const text = JSON.stringify(draftForStorage(), null, 2);
       const url = URL.createObjectURL(new Blob([text], { type: "application/json" }));
       const link = document.createElement("a");
       link.href = url; link.download = `${invoice.invoiceNumber.replace(/[^a-z0-9_-]/gi, "_") || "Invoice"}.json`;
@@ -278,30 +343,60 @@ export const InvoiceGeneratorContent = ({ initialWorkspace = null, onWorkspaceCh
     } catch (error) { document.title = titleRef.current; setActionError(`Print could not open. ${error.message}`); }
   };
   const navigateView = (nextView) => { setView(nextView); setFocusRequest({ id: nextView }); };
-  const addItem = (item = createInvoiceItem(invoice.invoiceDate)) => {
+  const addItem = (item) => {
     if (invoice.items.length >= MAX_INVOICE_ITEMS) return;
     const index = invoice.items.length;
-    change("items", [...invoice.items, { ...item }]);
+    controller.addItem(item || (assistant.guided ? undefined : createInvoiceItem(invoice.invoiceDate))); setDirty(true);
     setView("editor"); setFocusRequest({ id: `item-description-${index}` });
     setStatus(`Item ${index + 1} added.`);
   };
   const closeDraftMenu = () => { if (menuRef.current) { menuRef.current.open = false; menuRef.current.querySelector("summary")?.focus(); } };
+  const connectInvoice = () => {
+    const conversationId = workspaceBridge?.getConversationId?.();
+    if (!controller.connect({ conversationId, includePrivateFields })) { setActionError("Open a chat before connecting this invoice."); return; }
+    setActionError(""); setStatus("Invoice connected. Approved details are shared only when you send a message.");
+  };
+  const startGuided = () => {
+    const conversationId = workspaceBridge?.getConversationId?.();
+    if (!conversationId || !window.confirm("Replace the current invoice with a new blank assisted invoice? Unsaved changes will be lost.")) return;
+    controller.replace(createGuidedInvoice(generateInvoiceNumber(invoiceDateToday())), { assisted: true, conversationId });
+    setChatDraftKey(null); setDirty(true); setSavedOnDevice(false); setActionError(""); setView("editor");
+    setStatus("New assisted invoice started. Tell Metabloom the invoice details.");
+  };
   const field = (key, id, label, props = {}) => <InvoiceField id={id} label={label} value={invoice[key]}
-    onChange={(value) => change(key, value)} {...props} />;
+    onChange={(value) => change(key, value)} data-assistant-changed={highlighted.includes(key) || undefined} {...props} />;
 
   return (
     <>
     <div ref={siteNavRef} className="invoice-site-navigation invoice-no-print"><NavMenu standalone /></div>
-    <main className="invoice-page" data-ready={ready ? "true" : "false"} data-view={view}>
+    <main className="invoice-page" data-ready={ready ? "true" : "false"} data-view={view} data-workspace-revision={assistant.dataRevision} data-assistant-section={assistant.focusSection || undefined}>
       <a className="invoice-skip-link invoice-no-print" href="#invoice-editor" onClick={(event) => { event.preventDefault(); navigateView("editor"); }}>Skip to invoice editor</a>
       <section className="invoice-intro invoice-no-print">
         <div><p className="invoice-eyebrow">Studio tools / 01</p><h1>Invoice generator<span>.</span></h1>
           <p className="invoice-lede">Make it clear. Make it yours.</p></div>
         <div className="invoice-environment">
           <InvoiceGeneratorBackground />
-          <p className="invoice-local-note">Private invoice workspace<span>Editor changes stay in this browser. Chat-imported details were processed in chat.</span></p>
+          <p className="invoice-local-note">Private invoice workspace<span>Editor changes stay in this browser unless you connect selected details to chat.</span></p>
         </div>
       </section>
+      {workspaceBridge && <section className="invoice-assistant-scope invoice-no-print" aria-label="Invoice assistant access">
+        <div><strong>{assistant.connected ? "Working on this invoice" : "Connect this invoice to Metabloom"}</strong>
+          <p>Selected invoice details go to your chosen model when you send a message. Logos and saved device drafts stay in this browser.</p></div>
+        <details><summary>Details shared with chat</summary>
+          <p>Invoice number, dates, currency, sender and client names, description, items, prices, quantities and tax choices.</p>
+          <label><input type="checkbox" checked={includePrivateFields} disabled={assistant.connected}
+            onChange={event => setIncludePrivateFields(event.target.checked)} />Include contact details and payment notes</label>
+          <p>Optional details include addresses, email, phone, website, business/tax numbers and payment notes. Disconnect before changing this scope.</p>
+        </details>
+        <div className="invoice-assistant-buttons">
+          {assistant.connected ? <button type="button" onClick={() => { controller.disconnect(); setStatus("Invoice disconnected. Previously sent chat content is unchanged."); }}>Disconnect invoice</button>
+            : <button type="button" onClick={connectInvoice} disabled={locked}>Use this invoice in chat</button>}
+          <button type="button" onClick={() => { const result = controller.undo(); result.status === 'applied' ? setStatus(result.message) : setActionError(result.message); }} disabled={!assistant.canUndo}>Undo assistant change</button>
+          <button type="button" onClick={startGuided} disabled={locked}>Start a new invoice with Metabloom</button>
+        </div>
+        {bridgeStatus?.replacementVersion != null && !assistant.connected && <p>The current invoice was kept. Choose whether to work on it or start a new one.</p>}
+        {assistant.guided && !completion.ready && <details className="invoice-assistant-missing" open><summary>Needs details</summary><ul>{completion.missing.map((missing, index) => <li key={index}>{missing}</li>)}</ul></details>}
+      </section>}
       <section ref={actionsRef} className="invoice-actions invoice-no-print" aria-label="Invoice actions">
         <div className="invoice-action-main">
           <div className="invoice-total-card"><span>Current invoice</span><strong>{calculation ? formatInvoiceMoney(calculation.total, invoice.currency) : "Totals pending"}</strong>
@@ -335,14 +430,14 @@ export const InvoiceGeneratorContent = ({ initialWorkspace = null, onWorkspaceCh
             <h2>Before you print</h2><ul>{errors.map((error, i) => <li key={i}>{error}</li>)}{logoPending && <li>Wait for the logo to finish processing.</li>}</ul>
           </section>}
           <form className="invoice-form" noValidate onSubmit={(event) => { event.preventDefault(); printInvoice(); }}>
-            <fieldset><legend><span>01</span> Invoice details</legend><div className="invoice-fields">
+            <fieldset data-invoice-section="details"><legend><span>01</span> Invoice details</legend><div className="invoice-fields">
               {field("invoiceNumber", "invoice-number", "Invoice number", { required: true, maxLength: 80 })}
-              <label className="invoice-field" htmlFor="invoice-currency"><span>Currency</span><select id="invoice-currency" value={invoice.currency} onChange={(event) => change("currency", event.target.value)}><option value="CAD">CAD · Canadian dollar</option><option value="USD">USD · US dollar</option></select></label>
+              <label className="invoice-field" htmlFor="invoice-currency"><span>Currency</span><select id="invoice-currency" value={invoice.currency} onChange={(event) => change("currency", event.target.value)}>{assistant.guided && <option value="">Choose currency</option>}<option value="CAD">CAD · Canadian dollar</option><option value="USD">USD · US dollar</option></select></label>
             </div><div className="invoice-fields invoice-date-fields">
               {field("invoiceDate", "invoice-date", "Invoice date", { type: "date", required: true })}
               {field("dueDate", "invoice-due-date", "Due date (optional)", { type: "date" })}
             </div>{field("description", "invoice-description", "Project / invoice description", { multiline: true, maxLength: 1000, placeholder: "A short summary of this engagement." })}</fieldset>
-            <details className="invoice-settings">
+            <details className="invoice-settings" data-invoice-section="company">
               <summary><span><strong>From your studio</strong><small>{invoice.companyName || "Company name required"} · Sender details &amp; logo</small></span><span className="invoice-disclosure-label" aria-hidden="true">Edit</span></summary>
               <fieldset><legend className="invoice-sr-only">Sender details</legend>
                 <div className="invoice-logo-row"><img id="logo-preview" src={invoice.logoDataUrl || logo} alt="Selected invoice logo"/>
@@ -359,22 +454,22 @@ export const InvoiceGeneratorContent = ({ initialWorkspace = null, onWorkspaceCh
                   {field("taxNumber", "tax-number", "Tax registration number (optional)", { maxLength: 80 })}</div>
               </fieldset>
             </details>
-            <fieldset><legend><span>02</span> Bill to</legend>{field("clientName", "client-name", "Client name", { required: true, maxLength: 120 })}
+            <fieldset data-invoice-section="client"><legend><span>02</span> Bill to</legend>{field("clientName", "client-name", "Client name", { required: true, maxLength: 120 })}
               {field("clientAddress", "client-address", "Client address", { multiline: true, maxLength: 400 })}</fieldset>
-            <details className="invoice-settings">
-              <summary><span><strong>Tax settings</strong><small>GST {invoice.gstRate || "0"}% · PST {invoice.pstRate || "0"}% · Choose taxes per item</small></span><span className="invoice-disclosure-label" aria-hidden="true">Edit</span></summary>
+            <details className="invoice-settings" data-invoice-section="taxes">
+              <summary><span><strong>Tax settings</strong><small>GST {invoice.gstRate || (assistant.guided ? "not selected" : "0")}% · PST {invoice.pstRate || (assistant.guided ? "not selected" : "0")}% · Choose taxes per item</small></span><span className="invoice-disclosure-label" aria-hidden="true">Edit</span></summary>
               <fieldset><legend className="invoice-sr-only">Tax rates and bulk selection</legend><div className="invoice-fields invoice-date-fields">
                 {field("gstRate", "gst-rate", "GST rate (%)", { inputMode: "decimal", maxLength: 24 })}
                 {field("pstRate", "pst-rate", "PST rate (%)", { inputMode: "decimal", maxLength: 24 })}
               </div><p className="invoice-help">Choose applicable taxes, not automatic tax advice. Each tax is calculated independently on the discounted amount.</p>
-                <div className="invoice-tax-all">{["gst", "pst"].map((tax) => <label key={tax}><input type="checkbox" checked={invoice.items.every((item) => item[tax])}
+                <div className="invoice-tax-all">{["gst", "pst"].map((tax) => <label key={tax}><input type="checkbox" checked={invoice.items.length > 0 && invoice.items.every((item) => item[tax] === true)}
                   ref={(element) => { if (element) element.indeterminate = invoice.items.some((item) => item[tax]) && !invoice.items.every((item) => item[tax]); }}
-                  onChange={(event) => change("items", invoice.items.map((item) => ({ ...item, [tax]: event.target.checked })))} />Apply {tax.toUpperCase()} to all current items</label>)}</div>
+                  onChange={(event) => { controller.setAllTax(tax, event.target.checked); setDirty(true); }} />Apply {tax.toUpperCase()} to all current items</label>)}</div>
               </fieldset>
             </details>
-            <fieldset className="invoice-lines-fieldset"><legend><span>03</span> Line items</legend>
+            <fieldset className="invoice-lines-fieldset" data-invoice-section="items"><legend><span>03</span> Line items</legend>
               <p className="invoice-help">Hours or units. Rates before tax. Add a discount only when needed.</p>
-              <div id="invoice-items-container">{invoice.items.map((item, index) => <div className="invoice-item" key={index}>
+              <div id="invoice-items-container">{invoice.items.map((item, index) => <div className="invoice-item" key={controller.getLineIds()[index]} data-assistant-changed={highlighted.some(field => field.startsWith(`item-${controller.getLineIds()[index]}`)) || undefined}>
                 <div className="invoice-item-heading"><h3>Item {String(index + 1).padStart(2, "0")}</h3><div className="invoice-item-actions">
                   <button type="button" disabled={invoice.items.length >= MAX_INVOICE_ITEMS} aria-label={`Duplicate item ${index + 1}`} onClick={() => addItem(item)}>Duplicate</button>
                   <button type="button" className="invoice-remove-item" disabled={invoice.items.length === 1}
@@ -385,22 +480,24 @@ export const InvoiceGeneratorContent = ({ initialWorkspace = null, onWorkspaceCh
                   <InvoiceField id={`item-qty-${index}`} label="Quantity" inputMode="decimal" maxLength={24} value={item.qty} required onChange={(value) => changeItem(index, "qty", value)}/>
                   <InvoiceField id={`item-cost-${index}`} label={`Rate (${invoice.currency})`} inputMode="decimal" maxLength={24} value={item.cost} required placeholder="0.00" onChange={(value) => changeItem(index, "cost", value)}/>
                   <InvoiceField id={`item-discount-${index}`} label="Discount (%)" inputMode="decimal" maxLength={24} value={item.discount} onChange={(value) => changeItem(index, "discount", value)}/>
-                </div><div className="invoice-item-footer"><div className="invoice-item-taxes">{["gst", "pst"].map((tax) => <label key={tax}><input type="checkbox" aria-label={`Apply ${tax.toUpperCase()} to item ${index + 1}`} checked={item[tax]} onChange={(event) => changeItem(index, tax, event.target.checked)} />{tax.toUpperCase()}</label>)}</div>
+                </div><div className="invoice-item-footer"><div className="invoice-item-taxes">{["gst", "pst"].map((tax) => <label key={tax}>{assistant.guided ? <><span>{tax.toUpperCase()}</span><select aria-label={`Apply ${tax.toUpperCase()} to item ${index + 1}`} value={item[tax] === null ? '' : String(item[tax])}
+                    onChange={event => changeItem(index, tax, event.target.value === '' ? null : event.target.value === 'true')}><option value="">Choose</option><option value="true">Yes</option><option value="false">No</option></select></>
+                    : <><input type="checkbox" aria-label={`Apply ${tax.toUpperCase()} to item ${index + 1}`} checked={item[tax]} onChange={(event) => changeItem(index, tax, event.target.checked)} />{tax.toUpperCase()}</>}</label>)}</div>
                   <span>Before tax <strong>{calculation ? formatInvoiceMoney(calculation.lines[index].net, invoice.currency) : "Pending"}</strong></span></div>
               </div>)}</div>
               <button id="add-item" type="button" className="invoice-add-item" disabled={invoice.items.length >= MAX_INVOICE_ITEMS} onClick={() => addItem()}>+ Add line item</button>
-              <p className="invoice-help">New items start untaxed. Duplicate keeps the original item’s rates and tax choices. {invoice.items.length}/{MAX_INVOICE_ITEMS} items.</p>
+              <p className="invoice-help">{assistant.guided ? "New assisted items need explicit price, quantity and tax choices." : "New items start untaxed."} Duplicate keeps the original item’s rates and tax choices. {invoice.items.length}/{MAX_INVOICE_ITEMS} items.</p>
             </fieldset>
-            <fieldset><legend><span>04</span> Payment &amp; notes</legend>{field("notes", "invoice-notes", "Payment instructions / notes (optional)", { multiline: true, maxLength: 1500, placeholder: "Payment terms, reference numbers, or a note of thanks." })}</fieldset>
+            <fieldset data-invoice-section="notes"><legend><span>04</span> Payment &amp; notes</legend>{field("notes", "invoice-notes", "Payment instructions / notes (optional)", { multiline: true, maxLength: 1500, placeholder: "Payment terms, reference numbers, or a note of thanks." })}</fieldset>
           </form>
           <details className="invoice-device-options"><summary>Privacy &amp; device storage</summary>
-            <p className="invoice-privacy">This workspace requires administrator sign-in. Authentication does not encrypt browser-local drafts. Invoice details stay in this browser. Saving is optional, unencrypted, and limited to one draft per browser. Shared-device users and other scripts on this site can access a saved draft. Export a draft for a portable backup.</p>
+            <p className="invoice-privacy">This workspace requires administrator sign-in. Authentication does not encrypt browser-local drafts. Invoice details stay in this browser unless you connect approved details to chat. Disconnect stops future sharing; it does not delete previously sent messages. Saving is optional, unencrypted, and limited to one draft per browser. Shared-device users and other scripts on this site can access a saved draft. Export a draft for a portable backup.</p>
             <button type="button" onClick={() => { if (window.confirm("Delete the saved device draft? The open invoice will not be changed.")) { try { localStorage.removeItem(INVOICE_DRAFT_KEY); setSavedOnDevice(false); setDirty(true); setStatus("Saved device draft deleted. The open invoice is unchanged."); } catch { setActionError("The browser did not allow deleting the saved draft."); } } }}>Delete saved draft</button>
           </details>
         </section>
         <section ref={previewRef} id="invoice-preview" className="invoice-preview" aria-label="Preview workspace" tabIndex="-1">
           <div className="invoice-preview-heading invoice-no-print"><span className="invoice-eyebrow">Live document</span><span className="invoice-readiness" data-complete={ready}>{ready ? "Ready to print" : "Draft preview"}</span></div>
-          <div className="invoice-preview-document" role="region" aria-label="Scrollable invoice document" tabIndex="0"><InvoiceDocument invoice={invoice} calculation={calculation} /></div>
+          <div className="invoice-preview-document" role="region" aria-label="Scrollable invoice document" tabIndex="0"><InvoiceDocument invoice={invoice} calculation={calculation} guided={assistant.guided} /></div>
           {showErrors && calculationError && <p className="invoice-help invoice-no-print">Totals pending: {calculationError}</p>}
           <p className="invoice-help invoice-no-print">Print / save PDF opens your browser’s print dialog. Choose Letter paper and disable browser headers and footers. The PDF uses a standard table and stays white in either theme.</p>
         </section>

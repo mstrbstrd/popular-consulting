@@ -4,6 +4,20 @@ on:
   pull_request:
     paths:
       - 'src/components/InvoiceGenerator*'
+      - 'src/invoice-entry*'
+      - 'src/invoice-chat-handoff.test.js'
+      - 'src/components/PrivateInvoicePage*'
+      - 'src/components/ApplicationShell*'
+      - 'src/components/MetabloomAssistantHost*'
+      - 'src/components/MetabloomSessionProvider*'
+      - 'src/components/MetabloomCompanion*'
+      - 'src/components/metabloomWorkspace*'
+      - 'src/utils/privateInvoiceLoader*'
+      - 'scripts/build-private-invoice.mjs'
+      - 'scripts/verify-private-invoice-boundary.mjs'
+      - 'scripts/private-invoice-boundary.test.mjs'
+      - 'package.json'
+      - 'package-lock.json'
       - 'src/components/NavMenu.js'
       - 'src/components/CreatorOSField*'
       - 'src/components/ImmersiveRouteNavigationBridge.js'
@@ -23,6 +37,20 @@ on:
     branches: [main]
     paths:
       - 'src/components/InvoiceGenerator*'
+      - 'src/invoice-entry*'
+      - 'src/invoice-chat-handoff.test.js'
+      - 'src/components/PrivateInvoicePage*'
+      - 'src/components/ApplicationShell*'
+      - 'src/components/MetabloomAssistantHost*'
+      - 'src/components/MetabloomSessionProvider*'
+      - 'src/components/MetabloomCompanion*'
+      - 'src/components/metabloomWorkspace*'
+      - 'src/utils/privateInvoiceLoader*'
+      - 'scripts/build-private-invoice.mjs'
+      - 'scripts/verify-private-invoice-boundary.mjs'
+      - 'scripts/private-invoice-boundary.test.mjs'
+      - 'package.json'
+      - 'package-lock.json'
       - 'src/components/NavMenu.js'
       - 'src/components/CreatorOSField*'
       - 'src/components/ImmersiveRouteNavigationBridge.js'
@@ -56,7 +84,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: npm run build

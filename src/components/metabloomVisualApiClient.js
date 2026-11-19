@@ -11,7 +11,8 @@ const visualFailure = (code, quotaValue) => {
 };
 // Demultiplex an explicitly negotiated side channel. A rejected visual offer must
 // not poison valid text. All text records still pass the unchanged strict decoder.
-function createMetabloomVisualStreamBridge(decoder) {
+function createMetabloomVisualStreamBridge(decoder, { maxRecordChars = 24000 } = {}) {
+  const recordLimit = Number.isInteger(maxRecordChars) ? Math.max(1, Math.min(maxRecordChars, 32768)) : 24000;
   let buffer = '', offer = null, seen = 0, visualInvalid = false, failed = false;
   const consume = line => {
     let value;
@@ -32,12 +33,12 @@ function createMetabloomVisualStreamBridge(decoder) {
       buffer += chunk;
       let index;
       while ((index = buffer.indexOf('\n')) >= 0) {
-        if (index > 24000) { failed = true; return false; }
+        if (index > recordLimit) { failed = true; return false; }
         const line = buffer.slice(0, index);
         buffer = buffer.slice(index + 1);
         if (!consume(line)) { failed = true; return false; }
       }
-      failed = buffer.length > 24000;
+      failed = buffer.length > recordLimit;
       return !failed;
     },
     finish() {

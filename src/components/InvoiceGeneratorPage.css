@@ -530,3 +530,24 @@ html[data-theme="dark"] .invoice-page {
   .invoice-view-toggle button[aria-pressed="true"] { border: 2px solid Highlight; }
   .invoice-page :is(a, button, input, textarea, select, summary, [tabindex]):focus-visible { outline: 2px solid Highlight; box-shadow: none; }
 }
+@media screen {
+  .invoice-assistant-scope {
+    margin: 0 0 2rem; padding: 1.8rem; border: 1px solid var(--aetheris-line);
+    border-radius: 1.6rem; background: var(--invoice-panel);
+    font-size: 1.4rem; line-height: 1.5;
+  }
+  .invoice-assistant-scope p { max-width: 80ch; margin: .6rem 0; }
+  .invoice-assistant-scope details { margin: 1rem 0; }
+  .invoice-assistant-scope summary { cursor: pointer; font-weight: 600; }
+  .invoice-assistant-scope label { display: flex; gap: .8rem; align-items: center; }
+  .invoice-assistant-buttons { display: flex; flex-wrap: wrap; gap: .8rem; margin-top: 1rem; }
+  .invoice-assistant-missing ul { margin-bottom: 0; max-height: 14rem; overflow: auto; }
+  .invoice-item[data-assistant-changed], .invoice-field [data-assistant-changed] { outline: 2px solid var(--aetheris-focus-line); outline-offset: 3px; }
+  .invoice-page[data-assistant-section='details'] [data-invoice-section='details'],
+  .invoice-page[data-assistant-section='company'] [data-invoice-section='company'],
+  .invoice-page[data-assistant-section='client'] [data-invoice-section='client'],
+  .invoice-page[data-assistant-section='taxes'] [data-invoice-section='taxes'],
+  .invoice-page[data-assistant-section='items'] [data-invoice-section='items'],
+  .invoice-page[data-assistant-section='notes'] [data-invoice-section='notes'] { outline: 2px solid var(--aetheris-focus-line); outline-offset: 3px; }
+  .invoice-item-taxes select { min-height: 48px; margin-inline-start: .5rem; color: inherit; background: var(--invoice-panel); }
+}

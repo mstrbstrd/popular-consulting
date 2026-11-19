@@ -18,6 +18,8 @@ const { MAX_METABLOOM_RESEARCH_BRIEF_BYTES, MAX_METABLOOM_RESEARCH_BRIEF_CHUNK_C
   parseMetabloomClientResearchBrief: parseMetabloomResearchBrief } = require("./metabloomResearchBriefProtocol");
 const { METABLOOM_STREAM_ERROR_CODES, parseMetabloomRequestError, getMetabloomApiErrorMessage } = require("./metabloomRequestErrors");
 const { createMetabloomAgentLifecycle } = require('./metabloomAgentTools');
+const { MAX_METABLOOM_WORKSPACE_EVENT_BYTES, parseMetabloomWorkspaceProposal } = require('./metabloomWorkspaceProtocol');
+const workspaceTools = { open_invoice_workspace: 'open', update_invoice_workspace: 'update', focus_invoice_section: 'focus' };
 
 const MAX_SERIALIZED_CHARS = 24000;
 // Allow bounded NDJSON framing even when all 4,800 text characters arrive singly.
@@ -110,6 +112,7 @@ const createMetabloomSegmentStreamDecoder = ({
   allowToolMedia = false,
   allowToolProgress = false,
   allowExpressions = false,
+  allowWorkspace = false,
   requestId,
   maxBufferChars = MAX_SERIALIZED_CHARS,
   onDone,
@@ -144,6 +147,8 @@ const createMetabloomSegmentStreamDecoder = ({
   let responseEmote = null;
   let expression = null;
   let expressionChosen = false;
+  let workspaceCommand = null;
+  let workspaceProposal = null;
   let textComplete = false;
   let partialResponse = null;
   let action = null;
@@ -177,7 +182,8 @@ const createMetabloomSegmentStreamDecoder = ({
     }
     return false;
   };
-  const envelope = () => ({ version: version || METABLOOM_PROTOCOL_VERSION, segments: segments.map(cloneChatSegment) });
+  const envelope = () => ({ version: version || METABLOOM_PROTOCOL_VERSION, segments: segments.map(cloneChatSegment),
+    ...(workspaceProposal && completed && !errorMessage ? { workspaceProposal: parseMetabloomWorkspaceProposal(workspaceProposal, requestId) } : {}) });
   const streamByteLimit = () => allowResearchDetails === true && researchState !== null
     ? MAX_METABLOOM_RESEARCH_STREAM_BYTES : MAX_METABLOOM_STREAM_BYTES;
   const consume = (line) => {
@@ -185,6 +191,7 @@ const createMetabloomSegmentStreamDecoder = ({
     if (completed) return fail("Metabloom stream continued after completion.");
     let event;
     try { event = JSON.parse(line); } catch { return fail("Malformed stream JSON."); }
+    if (line.length > limit && !(allowWorkspace && event?.type === 'invoice_workspace')) return fail("Stream record limit exceeded.");
     if (event?.type === "error") {
       const legacy = exactKeys(event, ["type", "code"]) && event.code === "stream_interrupted";
       if ((!legacy && !exactKeys(event, ["type", "code", "requestRef"]))
@@ -196,6 +203,7 @@ const createMetabloomSegmentStreamDecoder = ({
     if (['tool_activity', 'tool_progress', 'agent_status'].includes(event?.type)) {
       if (!allowTools || (event.type !== 'tool_activity' && !allowToolProgress) || version !== METABLOOM_CHAT_PROTOCOL_VERSION
         || (!allowExpressions && ['get_orb_state', 'express_orb'].includes(event.name))
+        || (!allowWorkspace && (Object.hasOwn(workspaceTools, event.name) || event.name === 'get_invoice_workspace'))
         || !['none', 'under-the-hood'].includes(action) || researchState !== null || sources !== null
         || segments.length || partialResponse !== null || textComplete) return fail('Invalid tool activity.');
       const accepted = toolLifecycle.accept(event);
@@ -203,6 +211,10 @@ const createMetabloomSegmentStreamDecoder = ({
       if (accepted.name === 'express_orb' && accepted.state === 'complete') {
         if (expressionChosen) return fail('More than one expression was chosen.');
         expressionChosen = true;
+      }
+      if (accepted.state === 'complete' && Object.hasOwn(workspaceTools, accepted.name)) {
+        if (workspaceCommand) return fail('More than one workspace operation was prepared.');
+        workspaceCommand = workspaceTools[accepted.name];
       }
       if (event.type === 'tool_activity') onToolActivity?.(accepted);
       else if (event.type === 'tool_progress') onToolProgress?.(accepted);
@@ -404,6 +416,14 @@ const createMetabloomSegmentStreamDecoder = ({
       onTextDelta?.(event.delta, event.index);
       return true;
     }
+    if (event?.type === 'invoice_workspace') {
+      const parsed = parseMetabloomWorkspaceProposal(event, requestId);
+      if (!allowWorkspace || !allowTools || typeof requestId !== 'string' || !parsed || workspaceProposal || responseEmote || !textComplete
+        || researchState !== null || version !== METABLOOM_CHAT_PROTOCOL_VERSION || !toolTextReady()
+        || workspaceCommand !== parsed.command) return fail('Invalid invoice workspace operation.');
+      workspaceProposal = parsed;
+      return true;
+    }
     if (event?.type === 'orb_expression') {
       const parsed = parseMetabloomExpressionEvent(event, requestId);
       if (!allowExpressions || !allowTools || !parsed || expression || responseEmote || !textComplete
@@ -444,6 +464,7 @@ const createMetabloomSegmentStreamDecoder = ({
         return fail("Jev stream ended without both reactions.");
       }
       if (expressionChosen && !expression) return fail('A chosen expression requires matching metadata.');
+      if (workspaceCommand && !workspaceProposal) return fail('A prepared workspace operation requires matching metadata.');
       if (researchState !== null && (researchState !== "synthesizing" || sources === null)) {
         return fail("Research stream ended before synthesis.");
       }
@@ -492,12 +513,12 @@ const createMetabloomSegmentStreamDecoder = ({
   const drain = () => {
     let newline;
     while ((newline = buffer.indexOf("\n")) >= 0) {
-      if (newline > limit) return fail("Stream record limit exceeded.");
+      if (newline > (allowWorkspace ? MAX_METABLOOM_WORKSPACE_EVENT_BYTES : limit)) return fail("Stream record limit exceeded.");
       const line = buffer.slice(0, newline);
       buffer = buffer.slice(newline + 1);
       if (!consumeRecord(line, 1)) return false;
     }
-    if (buffer.length > limit) return fail("Stream buffer limit exceeded.");
+    if (buffer.length > (allowWorkspace ? MAX_METABLOOM_WORKSPACE_EVENT_BYTES : limit)) return fail("Stream buffer limit exceeded.");
     return consumedStreamBytes + getMetabloomUtf8ByteLength(buffer) <= streamByteLimit() || fail("Stream size limit exceeded.");
   };
   return Object.freeze({

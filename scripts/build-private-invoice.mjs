@@ -1,10 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { build } from 'esbuild';
+import { verifyPrivateInvoiceBoundary } from './verify-private-invoice-boundary.mjs';
 
 const root = process.cwd();
 const documentPath = path.join(root, 'build/invoice-generator/index.html');
 if (!fs.existsSync(documentPath)) throw new Error('Generate route HTML before the private entrypoint.');
+await verifyPrivateInvoiceBoundary({ root });
 const result = await build({
   entryPoints: ['src/invoice-entry.js'], outdir: 'build/_private/invoice',
   entryNames: 'app-[hash]', assetNames: 'asset-[hash]', publicPath: '/_private/invoice',

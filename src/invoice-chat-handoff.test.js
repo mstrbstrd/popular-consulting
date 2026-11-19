@@ -53,3 +53,13 @@ test('a locally replaced invoice no longer matches its old chat card', () => {
   content().props.onWorkspaceChange({ invoice: { invoiceNumber: 'NEW-LOCAL-INVOICE' }, dirty: true, view: 'editor' });
   expect(stageChatInvoice(invoiceChatDraft(), account()).status).toBe('replacement_required');
 });
+
+test('a confirmed card replacement refreshes an already mounted private editor', () => {
+  const root = mount();
+  content().props.onWorkspaceChange({ invoice: { invoiceNumber: 'OPEN-LOCAL' }, dirty: true });
+  const offer = stageChatInvoice(invoiceChatDraft(), account());
+  expect(offer.status).toBe('replacement_required');
+  expect(stageChatInvoice(invoiceChatDraft(), account(), offer.version)).toEqual({ status: 'ready' });
+  expect(content().props.initialWorkspace.invoice.invoiceNumber).toBe('DEMO-001');
+  root.dispose();
+});

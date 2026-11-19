@@ -63,6 +63,9 @@ import { parseMetabloomResearchReferenceMetadata, parseMetabloomResearchAttachme
 import { renderMetabloomResearchText } from "./metabloomResearchText";
 import { streamMetabloomDemoResponse } from "./metabloomDemoStream";
 import "./OrbSection.css";
+import { metabloomWorkspaceBridge } from './metabloomWorkspaceBridge';
+import { isInvoiceWorkspaceStart, parseMetabloomWorkspaceReceipt } from './metabloomWorkspaceProtocol';
+import { INVOICE_FIELDS, INVOICE_LINE_FIELDS } from './metabloomInvoiceDraft';
 import "./OrbEmoteDemos.css";
 
 const DEFAULT_ACTION_RECORD = getDefaultMetabloomAction();
@@ -456,8 +459,11 @@ const OrbSection = ({
   threadSession = null,
   threadPanel = null,
   threadBusy = false,
+  companion = null,
 }) => {
   const { isDark } = useThemeMode();
+  const companionRef = React.useRef(companion);
+  companionRef.current = companion;
   const navigation = useAppNavigation();
   const workspace = React.useContext(MetabloomWorkspaceContext);
   const [councilEnabled, setCouncilEnabled] = React.useState(false);
@@ -513,6 +519,8 @@ const OrbSection = ({
   const [researchSource, setResearchSource] = React.useState(null);
   const [workProgress, setWorkProgress] = React.useState(null);
   const [workNotice, setWorkNotice] = React.useState(null);
+  // Ephemeral review only. Never put operation payloads in conversation snapshots.
+  const [workspaceReview, setWorkspaceReview] = React.useState(null);
   const workspaceReadingRef = React.useRef(null);
   const visibleTranscriptReadingRef = React.useRef({ scrollTop: 0, following: true });
   const [workspaceExpanded, setWorkspaceExpanded] = React.useState(false);
@@ -1034,6 +1042,8 @@ const OrbSection = ({
   }, [cancelRequestScene, setActivity, updateRequestScene, waitForRequestScenePaint]);
 
   const cancelResponse = React.useCallback((reason = "interrupted") => {
+    if (companionRef.current) metabloomWorkspaceBridge.cancel();
+    setWorkspaceReview(null);
     const retainedMessages = replyDisplayRef.current?.retainedMessages(reason);
     cancelRequestScene();
     setActivity("idle");
@@ -1460,6 +1470,7 @@ const OrbSection = ({
 
   const finishReplyPresentation = React.useCallback((session) => {
     if (replyRef.current !== session || !mountedRef.current) return;
+    if (companionRef.current && activeRequestRef.current) metabloomWorkspaceBridge.release(activeRequestRef.current.requestId);
     activeRequestRef.current = null;
     requestAbortRef.current = null;
     requestTokenRef.current += 1;
@@ -1970,6 +1981,7 @@ const OrbSection = ({
       };
       const onTextDelta = (delta, index) => {
         if (!current() || !agentLifecycle.canAnswer()) return false;
+        if (activeRequest.workspaceContext) return true;
         activeRequest.answerStarted = true;
         setWorkProgress(null);
         updateStateSnapshot({ workProgress: null });
@@ -1977,6 +1989,7 @@ const OrbSection = ({
       };
       const onSegment = (segment, index) => {
         if (!current() || !agentLifecycle.canAnswer()) return false;
+        if (activeRequest.workspaceContext) return true;
         activeRequest.answerStarted = true;
         setWorkProgress(null);
         updateStateSnapshot({ workProgress: null });
@@ -2017,6 +2030,7 @@ const OrbSection = ({
         activeRequest.actionReceived = true;
         activeRequest.action = action;
         if (action === "deep-research") activeRequest.skipScene = false;
+        if (companionRef.current && !companionRef.current.full) activeRequest.skipScene = true;
         if (stateRef.current?.paused) activeRequest.skipScene = true;
         return action === "none" || activeRequest.skipScene || beginRequestScene(action, session);
       };
@@ -2170,57 +2184,107 @@ const OrbSection = ({
         return true;
       }
       if (demo) { runDemo(); return true; }
-      const claimRequest = () => {
-        if (!current()) return false;
-        activeRequest.claimed = true;
+      const dispatchRequest = () => {
+        const claimRequest = () => {
+          if (!current()) return false;
+          activeRequest.claimed = true;
+          return true;
+        };
+        const respond = (payload) => agentLifecycle.canAnswer() && claimRequest() && receiveModelResponse(payload, { requestId, source: "external" });
+        const requestEvent = new CustomEvent(MODEL_REQUEST_EVENT, {
+          cancelable: true,
+          // Approved invoice context goes only to the authenticated API, never
+          // to document-wide legacy integration events.
+          detail: { ...Object.fromEntries(Object.entries(request).filter(([key]) => key !== 'workspaceContext')), claim: claimRequest, respond },
+        });
+        window.dispatchEvent(requestEvent);
+        // A request listener may downgrade this turn to the cached-client
+        // contract (no toolset), as integrations and the legacy-path browser
+        // suite do. It can never enable tools: that remains this component's
+        // decision. An unclaimed downgraded turn gets the ordinary response
+        // deadline; a listener that claimed the turn (the legacy visual tool)
+        // already set its own, longer tool-turn deadline, which must stand.
+        if (requestEvent.detail.toolset === false && activeRequest.toolset && current()) {
+          activeRequest.toolset = false;
+          request.toolset = false;
+          delete request.orbContext;
+          delete request.workspaceContext;
+          activeRequest.workspaceContext = null;
+          metabloomWorkspaceBridge.release(requestId);
+          if (!activeRequest.claimed && !requestEvent.defaultPrevented) {
+            window.clearTimeout(previewTimerRef.current);
+            previewTimerRef.current = window.setTimeout(() => failReply(session, { code: 'answer_timeout' }),
+              Math.max(0, activeRequest.startedAt + RESPONSE_TIMEOUT_MS - Date.now()));
+          }
+        }
+        if (requestEvent.defaultPrevented) claimRequest();
+        if (!current() || activeRequest.claimed) return true;
+        const externalAdapter = activeRequest.workspaceContext ? null : window.__metabloomRequest;
+        if (typeof externalAdapter !== "function" && typeof globalThis.fetch !== "function") {
+          if (researchContext) failReply(session, { code: 'network_error' });
+          else runDemo();
+          return true;
+        }
+        Promise.resolve().then(() => {
+          if (!current()) return null;
+          return typeof externalAdapter === "function" ? externalAdapter(request)
+            : requestMetabloomResponse({ ...request, optional: true });
+        }).then(async (payload) => {
+          if (!current()) return;
+          if (!agentLifecycle.canAnswer()) { failReply(session, { code: 'invalid_response' }); return; }
+          if (!payload && !session.snapshot().segments.length) {
+            if (researchContext || activeRequest.workspaceContext) failReply(session, { code: 'not_configured' });
+            else runDemo();
+            return;
+          }
+          const proposal = payload?.workspaceProposal;
+          const answer = proposal ? Object.fromEntries(Object.entries(payload).filter(([key]) => key !== 'workspaceProposal')) : payload;
+          const parsed = parseMetabloomChatEnvelope(answer, { allowMultiple });
+          if (proposal) {
+            if (!activeRequest.workspaceContext || !parsed.ok) { failReply(session, { code: 'invalid_response' }); return; }
+            setWorkProgress({ label: 'Updating your invoice', summary: 'Checking the current page before applying changes.', startedAt: activeRequest.startedAt, updatedAt: Date.now() });
+            const receipt = parseMetabloomWorkspaceReceipt(await metabloomWorkspaceBridge.apply(proposal, { conversationId: threadSession.id, requestId, signal: controller.signal }));
+            if (!receipt) { if (current()) failReply(session, { code: 'invalid_response' }); return; }
+            if (!current()) {
+              if (mountedRef.current && !activeRequestRef.current && ['applied', 'duplicate'].includes(receipt.status))
+                setWorkNotice('The invoice change was applied before stopping. Use Undo in the invoice page to reverse it.');
+              return;
+            }
+            setWorkProgress(null);
+            if (receipt.status === 'conflict' || (receipt.status === 'cancelled' && !controller.signal.aborted)) setWorkspaceReview(proposal);
+            finishReply(session, { version: '2.0.0', segments: [{ response: receipt.message }] });
+          } else if (parsed.ok) finishReply(session, answer);
+          else receiveModelResponse(answer, { requestId, source: "model" });
+        }).catch((error) => { if (current()) failReply(session, error); });
         return true;
       };
-      const respond = (payload) => agentLifecycle.canAnswer() && claimRequest() && receiveModelResponse(payload, { requestId, source: "external" });
-      const requestEvent = new CustomEvent(MODEL_REQUEST_EVENT, {
-        cancelable: true,
-        detail: { ...request, claim: claimRequest, respond },
-      });
-      window.dispatchEvent(requestEvent);
-      // A request listener may downgrade this turn to the cached-client
-      // contract (no toolset), as integrations and the legacy-path browser
-      // suite do. It can never enable tools: that remains this component's
-      // decision. An unclaimed downgraded turn gets the ordinary response
-      // deadline; a listener that claimed the turn (the legacy visual tool)
-      // already set its own, longer tool-turn deadline, which must stand.
-      if (requestEvent.detail.toolset === false && activeRequest.toolset && current()) {
-        activeRequest.toolset = false;
-        request.toolset = false;
-        delete request.orbContext;
-        if (!activeRequest.claimed && !requestEvent.defaultPrevented) {
-          window.clearTimeout(previewTimerRef.current);
-          previewTimerRef.current = window.setTimeout(() => failReply(session, { code: 'answer_timeout' }),
-            Math.max(0, activeRequest.startedAt + RESPONSE_TIMEOUT_MS - Date.now()));
-        }
-      }
-      if (requestEvent.defaultPrevented) claimRequest();
-      if (!current() || activeRequest.claimed) return true;
-      const externalAdapter = window.__metabloomRequest;
-      if (typeof externalAdapter !== "function" && typeof globalThis.fetch !== "function") {
-        if (researchContext) failReply(session, { code: 'network_error' });
-        else runDemo();
+      if (companionRef.current && activeRequest.toolset && threadSession?.id) {
+        Promise.resolve().then(async () => {
+          if (!current()) return;
+          const explicitInvoiceStart = isInvoiceWorkspaceStart(message);
+          if (explicitInvoiceStart) {
+            setWorkProgress({ label: 'Opening your invoice', summary: 'Preparing the real invoice workspace.', startedAt: activeRequest.startedAt, updatedAt: Date.now() });
+            const opened = await metabloomWorkspaceBridge.open({ conversationId: threadSession.id, signal: controller.signal });
+            if (!current()) return;
+            if (opened?.status === 'replacement_required') {
+              finishReply(session, { version: '2.0.0', segments: [{ response: 'An invoice is already open. Choose whether to use it or start a new invoice in the page. Your existing work has been kept.' }] });
+              return;
+            }
+            if (opened?.status !== 'ready') {
+              finishReply(session, { version: '2.0.0', segments: [{ response: opened?.message || 'The invoice workspace could not open. Your conversation is still here. Please try again.' }] });
+              return;
+            }
+          }
+          const available = explicitInvoiceStart || await metabloomWorkspaceBridge.probe({ conversationId: threadSession.id, signal: controller.signal });
+          if (!current()) return;
+          const context = available ? metabloomWorkspaceBridge.capture({ conversationId: threadSession.id, requestId }) : null;
+          if (!current()) return;
+          if (context) { request.workspaceContext = context; activeRequest.workspaceContext = context; }
+          dispatchRequest();
+        }).catch(error => { if (current()) failReply(session, error); });
         return true;
       }
-      Promise.resolve().then(() => {
-        if (!current()) return null;
-        return typeof externalAdapter === "function" ? externalAdapter(request)
-          : requestMetabloomResponse({ ...request, optional: true });
-      }).then((payload) => {
-        if (!current()) return;
-        if (!agentLifecycle.canAnswer()) { failReply(session, { code: 'invalid_response' }); return; }
-        if (!payload && !session.snapshot().segments.length) {
-          if (researchContext) failReply(session, { code: 'not_configured' });
-          else runDemo();
-          return;
-        }
-        if (parseMetabloomChatEnvelope(payload, { allowMultiple }).ok) finishReply(session, payload);
-        else receiveModelResponse(payload, { requestId, source: "model" });
-      }).catch((error) => { if (current()) failReply(session, error); });
-      return true;
+      return dispatchRequest();
     },
     [allowEmoteChanges, appendMessage, beginReply, beginRequestScene, cancelResponse, captureConversation, councilEnabled, deepResearch, failReply, finishReply, getOrbContext, isActive, messageLimit, modelAvailable, modelSelection, publishMessages, reactionPlayer, receiveModelResponse, recordExpression, rememberAnswerMedia, reportActivity, threadSession, updateArtifactAttachment, updateResearchAttachment, updateStateSnapshot, workspace],
   );
@@ -2708,6 +2772,13 @@ const OrbSection = ({
   const researchStatus = showResearchStatus ? <MetabloomResearchStatus phase={visibleResearchPhase} preview={visibleActivityPreview} progress={researchProgress} summary={researchSummary} source={researchSource} /> : null;
   const statusBeforeReply = visibleResearchPhase === "surfacing" && !visibleActivityPreview && messages[messages.length - 1]?.role === "assistant";
   const showHoodStatus = !showWorkStatus && sceneAction === "under-the-hood";
+  const companionReport = companion?.report;
+  const latestAnswer = [...messages].reverse().find(message => message.role === 'assistant' && message.status !== 'interrupted' && message.status !== 'error');
+  const companionBubble = errorMessage || workNotice || (latestAnswer ? messageHistoryContent(latestAnswer).slice(0, 500) : '');
+  React.useEffect(() => {
+    companionReport?.({ busy: pending, bubbleText: companionBubble, statusText, providerLabel: modelSelection?.provider || '', stop });
+  }, [companionReport, pending, companionBubble, statusText, modelSelection?.provider, stop]);
+  const companionCollapsed = companion && !companion.full && (!companion.open || companion.hidden);
   return (
     <section
       id="orb"
@@ -2741,8 +2812,8 @@ const OrbSection = ({
           councilSpeaker={getCouncilScene(councilEvents, councilPending && pending)}
           councilEmotes={allowModelExpressions}
           councilIntensity={expressiveness}
-          activityTheme={visibleTheme}
-          underHoodPhase={visibleUnderHoodPhase}
+          activityTheme={companion && !companion.full ? null : visibleTheme}
+          underHoodPhase={companion && !companion.full ? null : visibleUnderHoodPhase}
           action={activeAction.id}
           actionVersion={actionVersion}
           duration={actionDuration}
@@ -2752,7 +2823,7 @@ const OrbSection = ({
           onFieldStateChange={handleFieldStateChange}
           onReady={onReady}
           onPulse={pulse}
-          paused={paused}
+          paused={paused || Boolean(companion && !companion.full && companion.hidden)}
           pointerReactive={pointerReactive}
           pulseVersion={pulseVersion}
           resetVersion={resetVersion}
@@ -2762,7 +2833,7 @@ const OrbSection = ({
 
       <div className="metabloom-chat__scrim" aria-hidden="true" />
 
-      <div className="metabloom-chat__interface">
+      <div className="metabloom-chat__interface" inert={companionCollapsed ? '' : undefined} aria-hidden={companionCollapsed ? 'true' : undefined}>
         <div className="metabloom-chat__shell">
           {threadPanel}
           <div
@@ -3006,6 +3077,21 @@ const OrbSection = ({
                 <strong>{pending ? 'Responding' : 'Latest reply'}</strong>
                 <span>Metabloom: {[...messages].reverse().find(message => message.role === 'assistant')?.content.slice(0, 180) || 'Return to the conversation.'}</span>
               </button>}
+              {workspaceReview && <details className="metabloom-chat__invoice-review">
+                <summary>Review proposed invoice changes</summary>
+                <p>These changes were not applied. Review the current invoice and send a new message with the changes you still want.</p>
+                {workspaceReview.changes.length > 0 && <dl>{workspaceReview.changes.map(change => <React.Fragment key={change.field}>
+                  <dt>{INVOICE_FIELDS[change.field].label}</dt><dd>{change.value === null ? 'Not specified' : String(change.value)}</dd>
+                </React.Fragment>)}</dl>}
+                {workspaceReview.lineChanges.map((line, index) => <div key={`${line.id || 'new'}-${index}`}>
+                  <p>{line.op === 'add' ? 'Add an item' : line.op === 'remove' ? 'Remove an existing item' : 'Change an existing item'}</p>
+                  {line.changes.length > 0 && <dl>{line.changes.map(change => <React.Fragment key={change.field}>
+                    <dt>{INVOICE_LINE_FIELDS[change.field].label}</dt><dd>{change.value === null ? 'Not specified' : typeof change.value === 'boolean' ? (change.value ? 'Yes' : 'No') : change.value}</dd>
+                  </React.Fragment>)}</dl>}
+                  <p>From your message: <q>{line.sourceText}</q></p>
+                </div>)}
+                <button type="button" onClick={() => setWorkspaceReview(null)}>Dismiss proposed changes</button>
+              </details>}
               {errorMessage && (
                 <p className="metabloom-chat__error" role="alert">
                   {errorMessage}

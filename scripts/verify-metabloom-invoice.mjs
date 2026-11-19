@@ -19,6 +19,9 @@ const { invoiceChatMessage, invoiceChatUpdate, change } = require('../src/testHe
 const { invoiceDraftView } = require('../src/components/metabloomInvoiceDraft');
 process.env.METABLOOM_VISUALS_ENABLED = 'true';
 process.env.METABLOOM_INVOICE_ENABLED = 'true';
+// This suite deliberately retains the version-1 review-card handoff. The
+// companion fixture verifies the independently negotiated live page workflow.
+process.env.METABLOOM_WORKSPACE_ENABLED = 'false';
 process.env.OPENAI_API_KEY = 'fictional-browser-fixture';
 process.env.VERCEL_ENV = 'development';
 delete process.env.TYPESAFE_API_KEY;
@@ -68,6 +71,10 @@ const visualHandler = createMetabloomVisualHandler({ authenticate, store: visual
 const server = createBuildServer({ buildRoot: path.resolve('build') });
 const serve = server.listeners('request')[0]; server.removeAllListeners('request');
 server.on('request', async (request, response) => {
+  if (request.url.split('?')[0] === '/api/metabloom-workspace') {
+    response.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'private, no-store' });
+    response.end(JSON.stringify({ version: 1, enabled: false })); return;
+  }
   const handler = { '/api/metabloom': chatHandler, '/api/metabloom-visual': visualHandler }[request.url.split('?')[0]];
   if (!handler) return serve(request, response);
   try {

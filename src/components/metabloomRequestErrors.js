@@ -1,5 +1,6 @@
 // Only this vocabulary crosses the API boundary. Provider messages stay private.
 const METABLOOM_REQUEST_ERROR_MESSAGES = Object.freeze({
+  workspace_unavailable: "Invoice assistance is unavailable. Your invoice remains available for manual editing.",
   council_unavailable: "The council needs an available default model from all three providers. Check your saved model defaults and connections.",
   stream_interrupted: "The response stream was interrupted. Please try again.",
   research_timeout: "The research took too long to complete. Try a narrower question.",

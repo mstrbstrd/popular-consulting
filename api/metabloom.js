@@ -1,3 +1,5 @@
+const { isMetabloomWorkspaceEnabled } = require('../server/metabloomWorkspaceWorkflow');
+const { MAX_METABLOOM_WORKSPACE_BODY_BYTES, parseMetabloomWorkspaceContext, parseMetabloomWorkspaceProposal } = require('../src/components/metabloomWorkspaceProtocol');
 const { createHmac, randomBytes } = require("node:crypto");
 const { once } = require("node:events");
 const metabloomAuth = require("../server/metabloomAuth");
@@ -69,15 +71,23 @@ const requestOriginIsAllowed = (request) => {
   try { return new URL(origin).origin === origin && origin === `${protocol}://${host}`; } catch { return false; }
 };
 const parseBody = (request) => {
+  const workspaceNegotiated = request.headers?.['x-metabloom-workspace'] === '1';
+  const maximumBytes = workspaceNegotiated ? MAX_METABLOOM_WORKSPACE_BODY_BYTES : MAX_BODY_BYTES;
   const declared = request.headers?.["content-length"];
-  if (declared !== undefined && (!/^\d+$/.test(String(declared)) || Number(declared) > MAX_BODY_BYTES)) return null;
+  if (declared !== undefined && (!/^\d+$/.test(String(declared)) || Number(declared) > maximumBytes)) return null;
   try {
     const text = typeof request.body === "string" ? request.body : JSON.stringify(request.body);
-    if (typeof text !== "string" || Buffer.byteLength(text, "utf8") > MAX_BODY_BYTES) return null;
+    if (typeof text !== "string" || Buffer.byteLength(text, "utf8") > maximumBytes) return null;
     const value = JSON.parse(text);
-    if (!exactKeys(value, ["message"], ["requestId", "history", "allowMultiple", "streamText", "streamResearchProgress", "streamResearchDetails", "streamResearchBrief", "streamResearchMedia", "streamResearchReuse", "streamToolMedia", "timeZone", "actionMode", "artifactContext", "researchContext", "modelSelection", "orbContext", "conversationId"])) return null;
+    if (!exactKeys(value, ["message"], ["requestId", "history", "allowMultiple", "streamText", "streamResearchProgress", "streamResearchDetails", "streamResearchBrief", "streamResearchMedia", "streamResearchReuse", "streamToolMedia", "timeZone", "actionMode", "artifactContext", "researchContext", "modelSelection", "orbContext", "conversationId", "workspaceContext"])) return null;
     if (value.conversationId !== undefined && (!require('../src/components/metabloomThreadProtocol').isMetabloomThreadId(value.conversationId)
-      || (request.headers?.['x-metabloom-boom-request'] !== '1' && request.headers?.['x-metabloom-invoice'] !== '1'))) return null;
+      || (request.headers?.['x-metabloom-boom-request'] !== '1' && request.headers?.['x-metabloom-invoice'] !== '1' && !workspaceNegotiated))) return null;
+    if (value.workspaceContext !== undefined) {
+      value.workspaceContext = parseMetabloomWorkspaceContext(value.workspaceContext);
+      if (!workspaceNegotiated || request.headers?.['x-metabloom-toolset'] !== '2' || !value.workspaceContext
+        || !value.requestId || value.workspaceContext.conversationId !== value.conversationId
+        || value.artifactContext !== undefined || value.researchContext !== undefined || value.actionMode === 'deep-research') return null;
+    } else if (Buffer.byteLength(text, 'utf8') > MAX_BODY_BYTES) return null;
     if (value.orbContext !== undefined) {
       value.orbContext = parseMetabloomOrbContext(value.orbContext);
       if (!value.orbContext || request.headers?.['x-metabloom-expressions'] !== '1' || !value.requestId
@@ -426,6 +436,7 @@ const handler = async (request, response) => {
       && process.env.METABLOOM_UI_TOOLS_ENABLED !== 'false' && configured(request),
     streaming: "validated-text-and-reactions", research: "web-search-with-citations", toolset: 2, configured: configured(request),
     expressions: process.env.METABLOOM_EXPRESSIONS_ENABLED === 'false' ? 0 : 1,
+    workspace: accountIdentity && isMetabloomWorkspaceEnabled() ? 1 : 0,
     jevConfigured: Boolean(process.env.TYPESAFE_API_KEY), emotes: METABLOOM_EMOTE_IDS,
   });
   if (request.method !== "POST") {
@@ -436,6 +447,8 @@ const handler = async (request, response) => {
   if (!/^application\/json(?:\s*;|$)/i.test(request.headers?.["content-type"] || "")) return sendJson(response, 415, { code: "invalid_content_type" });
   const body = parseBody(request);
   if (!body) return sendJson(response, 400, { code: "invalid_request" });
+  if (body.workspaceContext && (!accountIdentity || !visualIdentity)) return sendJson(response, 401, { code: 'authentication_required' });
+  if (body.workspaceContext && !isMetabloomWorkspaceEnabled()) return sendJson(response, 503, { code: 'workspace_unavailable' });
   const visualIntent = classifyMetabloomVisualIntent(body.message, body.history);
   const message = visualIntent.resolvedMessage || body.message;
   const researchIntent = classifyMetabloomResearchIntent(body.message, body.history);
@@ -601,6 +614,7 @@ const handler = async (request, response) => {
         && process.env.METABLOOM_EXPRESSIONS_ENABLED !== 'false';
       const result = await runMetabloomAgent({ message: body.message, history: body.history,
         ...(expressions ? { orbContext: body.orbContext } : {}),
+        ...(body.workspaceContext ? { workspaceContext: body.workspaceContext, workspaceEnabled: isMetabloomWorkspaceEnabled() } : {}),
         modelSelection,
         allowMultiple: body.allowMultiple, presentationAction, timeZone: body.timeZone || 'UTC',
         submittedMessage: body.message,
@@ -626,6 +640,13 @@ const handler = async (request, response) => {
         visualStore: createMetabloomVisualStore(), onTool: sendStreamEvent,
         onToolProgress: streamToolProgress ? sendStreamEvent : undefined,
         onStatus: streamToolProgress ? sendStreamEvent : undefined });
+      // Prepared proposals cannot escape an invalid final answer or a disabled
+      // capability. The browser still performs its own live access/revision check.
+      if (!parseMetabloomChatEnvelope(result.reply, { allowMultiple: body.allowMultiple }).ok)
+        throw createMetabloomProviderError('answer_invalid', 'workspace_answer_invalid');
+      if (result.workspaceProposal && (!body.workspaceContext || !isMetabloomWorkspaceEnabled()
+        || !parseMetabloomWorkspaceProposal(result.workspaceProposal, body.requestId)))
+        throw createMetabloomProviderError('answer_invalid', 'workspace_proposal_invalid');
       if (result.sources.length) {
         await sendStreamEvent({ type: 'tool_sources', sources: result.sources });
         // Opt-in only: older clients reject unknown stream events.
@@ -643,6 +664,7 @@ const handler = async (request, response) => {
         await sendStreamEvent({ type: 'segment', index, ...segment });
       }
       await sendStreamEvent({ type: 'text_complete' });
+      if (result.workspaceProposal) await sendStreamEvent(result.workspaceProposal);
       const emote = result.expression?.emote || await decideMetabloomReaction({ phase: 'response',
         state: { latestUserMessage: body.message, assistantResponse: result.reply.segments.map(segment => segment.response).join('\n\n') },
         signal: controller.signal, timeoutMs: 1200 });
