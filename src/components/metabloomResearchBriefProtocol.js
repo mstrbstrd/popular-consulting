@@ -91,7 +91,7 @@ const parseMetabloomResearchBrief = (input, { sources, serverTemporalContext = f
   for (const item of value.items) {
     if (!exactKeys(item, ["headline", "summary", "sourceIds", "background", "whyItMatters", "uncertainty",
       "watchNext", "developmentDate", "scheduledDate", "dateEvidence", "evidenceStatus"])
-      || !boundedText(item.headline, 200) || !boundedText(item.summary, 1000) || !sourceIds(item.sourceIds)
+      || !boundedText(item.headline, 200) || !boundedText(item.summary, 1800) || !sourceIds(item.sourceIds)
       || !Array.isArray(item.background) || item.background.length > 5
       || !boundedText(item.whyItMatters, 1800) || !textList(item.uncertainty, 4, 600)
       || !textList(item.watchNext, 4, 600) || !optionalDate(item.developmentDate) || !optionalDate(item.scheduledDate)

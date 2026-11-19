@@ -386,7 +386,7 @@ test("catalog limits entries and input bytes while keeping stable IDs and a turn
   assert.deepEqual(buildMetabloomResearchDateEvidenceCatalog(evidence).find(row => row.id === first.id), first);
   const large = { sources: [1, 5, 9].map(source), notes: Array.from({ length: 28 }, (_, index) =>
     `On 2026-10-23, Agency ${index % 3 === 0 ? 1 : index % 3 === 1 ? 5 : 9} announced program ${index + 1} ${"with supporting detail ".repeat(22)}. [${index % 3 === 0 ? 1 : index % 3 === 1 ? 5 : 9}]`).join("\n\n") };
-  assert.ok(large.notes.length <= 16000);
+  assert.ok(large.notes.length <= 32000);
   const bounded = buildMetabloomResearchDateEvidenceCatalog(large);
   assert.ok(bounded.length > 0 && bounded.length < 28);
   assert.ok(Buffer.byteLength(JSON.stringify(bounded), "utf8") <= MAX_DATE_EVIDENCE_BYTES);
@@ -599,7 +599,7 @@ test("the replacement writer makes exactly one bounded provider request with no 
   assert.equal(calls[0].url, "https://api.openai.com/v1/responses");
   assert.equal(calls[0].options.redirect, "error");
   assert.equal(calls[0].body.model, "writer-fixture");
-  assert.equal(calls[0].body.max_output_tokens, 6000);
+  assert.equal(calls[0].body.max_output_tokens, 12000);
   assert.equal(calls[0].body.stream, false);
   assert.equal(calls[0].body.store, false);
   assert.equal(Object.hasOwn(calls[0].body, "tools"), false);
@@ -613,6 +613,11 @@ test("the replacement writer makes exactly one bounded provider request with no 
   assert.match(calls[0].body.instructions, /faithful cited paraphrase/);
   assert.match(calls[0].body.instructions, /missing publication date does not invalidate/i);
   assert.match(calls[0].body.instructions, /more than one publisher/);
+  // Short single-development headlines leave the photo visible; summaries carry the specifics.
+  assert.match(calls[0].body.instructions, /headline names one development in plain newspaper style, at most about 70 characters/);
+  assert.match(calls[0].body.instructions, /Never join two separate developments with a semicolon/);
+  assert.match(calls[0].body.instructions, /summary is the substantive account a reader came for, 4 to 7 sentences/);
+  assert.equal(calls[0].body.text.format.schema.properties.items.items.properties.summary.maxLength, 1800);
   assert.match(calls[0].body.instructions, /up to two additional items after the requested ones/);
   assert.match(calls[0].body.instructions, /title is a short editorial headline/);
   assert.match(calls[0].body.instructions, /imageSubjects lists up to three clearly photographable public subjects/);
@@ -716,7 +721,7 @@ test("omission telemetry records safe counts and distinguishes stale dates from 
 test("oversized evidence does not start a paid writer request and oversized provider output is bounded", async (t) => {
   t.mock.method(console, "info", () => {});
   let calls = 0;
-  await assert.rejects(() => generate({ report: { ...report(), notes: "x".repeat(16001) }, fetchImpl: async () => { calls++; } }),
+  await assert.rejects(() => generate({ report: { ...report(), notes: "x".repeat(32001) }, fetchImpl: async () => { calls++; } }),
     { code: "answer_invalid", reason: "brief_evidence_invalid" });
   assert.equal(calls, 0);
   await assert.rejects(() => generate({ fetchImpl: async () => { calls++; return jsonResponse({ padding: "x".repeat(262144) }); } }),
@@ -742,7 +747,7 @@ test("cancellation before the request spends nothing and cancellation during a b
   assert.equal(body.locked, false);
 });
 
-test("the research pass receives the same local date evidence instructions without changing its six-call budget", async (t) => {
+test("the research pass receives the same local date evidence instructions without changing its call budget", async (t) => {
   t.mock.method(console, "info", () => {});
   process.env.OPENAI_API_KEY = "fixture-not-a-real-key";
   const text = quote(1), canonical = source(1), calls = [];
@@ -756,8 +761,11 @@ test("the research pass receives the same local date evidence instructions witho
   const temporalContext = context("Top 5 news today", { now: "2026-10-24T02:30:00.000Z" });
   const actual = await conductMetabloomResearch({ message: "Top 5 news today", temporalContext, signal: new AbortController().signal });
   assert.equal(calls.length, 1);
-  assert.equal(calls[0].max_tool_calls, 6);
-  assert.equal(calls[0].max_output_tokens, 10000);
+  assert.equal(calls[0].max_tool_calls, 12);
+  assert.equal(calls[0].max_output_tokens, 16000);
+  // Each reported development is read in full and recorded with its specifics.
+  assert.match(calls[0].instructions, /open and read at least one full article or primary source/);
+  assert.match(calls[0].instructions, /concrete figures such as amounts, counts, votes, percentages or prices/);
   assert.equal(calls[0].store, false);
   assert.match(calls[0].instructions, /America\/Vancouver/);
   assert.match(calls[0].instructions, /2026-10-23/);

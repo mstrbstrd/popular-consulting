@@ -180,8 +180,8 @@ test("six completed tools and a seventh incomplete record return paid evidence w
   global.fetch = async (_url, options) => {
     calls++;
     const body = JSON.parse(options.body);
-    assert.equal(body.max_tool_calls, 6);
-    assert.equal(body.max_output_tokens, 10000);
+    assert.equal(body.max_tool_calls, 12);
+    assert.equal(body.max_output_tokens, 16000);
     return asResponse(value);
   };
   assert.deepEqual(await conduct({ requestRef: "b95b194d7c8b" }), { notes: "A verified fact. [1]", sources: [source] });
@@ -191,7 +191,7 @@ test("six completed tools and a seventh incomplete record return paid evidence w
   assert.equal(record.outcome, "completed");
   assert.equal(record.requestRef, "b95b194d7c8b");
   assert.equal(record.providerResponseStatus, "completed");
-  assert.equal(record.requestedToolCalls, 6);
+  assert.equal(record.requestedToolCalls, 12);
   assert.equal(record.toolRecords, 7);
   assert.deepEqual(record.toolStatusCounts, { completed: 6, failed: 0, incomplete: 1, in_progress: 0, searching: 0, unknown: 0 });
   assert.deepEqual([record.inputTokens, record.outputTokens, record.reasoningTokens], [31102, 4801, 2560]);
@@ -219,8 +219,8 @@ test("synthetic seven-record research with five completed searches and a residua
   global.fetch = async (_url, options) => {
     calls++;
     const body = JSON.parse(options.body);
-    assert.equal(body.max_tool_calls, 6);
-    assert.equal(body.max_output_tokens, 10000);
+    assert.equal(body.max_tool_calls, 12);
+    assert.equal(body.max_output_tokens, 16000);
     return asResponse(value);
   };
   assert.deepEqual(await conduct({ requestRef: "feeaa924ec38" }), { notes: "A verified fact. [1]", sources: [source] });
@@ -391,8 +391,8 @@ test("research request enforces web search, bounded spend, no storage and the se
   assert.deepEqual(body.tools, [{ type: "web_search", search_context_size: "medium" }]);
   assert.equal(body.tool_choice, "required");
   assert.equal(Object.hasOwn(body, "include"), false, "Unused search-result metadata must not inflate the completed response");
-  assert.equal(body.max_tool_calls, 6);
-  assert.equal(body.max_output_tokens, 10000);
+  assert.equal(body.max_tool_calls, 12);
+  assert.equal(body.max_output_tokens, 16000);
   assert.match(JSON.stringify(body.input), /We are studying an API/);
   assert.match(JSON.stringify(body.input), /Verify the current facts/);
 });
@@ -501,7 +501,7 @@ test("an already-cancelled research request cannot spend another provider call",
   await assert.rejects(conduct({ signal: controller.signal }));
 });
 
-test("the research deadline aborts pending work after 120 seconds", async (t) => {
+test("the research deadline aborts pending work after 170 seconds", async (t) => {
   configure();
   t.mock.timers.enable({ apis: ["setTimeout"] });
   let signal;
@@ -510,7 +510,7 @@ test("the research deadline aborts pending work after 120 seconds", async (t) =>
     return new Promise((_resolve, reject) => signal.addEventListener("abort", () => reject(new Error("cancelled")), { once: true }));
   };
   const pending = conduct();
-  t.mock.timers.tick(119999);
+  t.mock.timers.tick(169999);
   assert.equal(signal.aborted, false);
   t.mock.timers.tick(1);
   await assert.rejects(pending, { code: "research_timeout" });
@@ -588,7 +588,7 @@ test("size diagnostics identify the actual bound and retain known usage without 
   assert.equal(record.limitName, "report_bytes");
   assert.equal(record.limit, 1048576);
   assert.ok(Number.isSafeInteger(record.observed) && record.observed > record.limit);
-  assert.equal(record.requestedToolCalls, 6);
+  assert.equal(record.requestedToolCalls, 12);
   assert.equal(record.toolRecords, 1);
   assert.equal(record.inputTokens, 31411);
   assert.equal(record.outputTokens, 5928);

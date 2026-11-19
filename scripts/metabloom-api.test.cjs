@@ -663,8 +663,8 @@ test("explicit research searches with bounded tools before its schema-constraine
   assert.deepEqual(research.body.tools, [{ type: "web_search", search_context_size: "medium" }]);
   assert.equal(research.body.tool_choice, "required");
   assert.equal(research.body.include, undefined);
-  assert.equal(research.body.max_tool_calls, 6);
-  assert.equal(research.body.max_output_tokens, 10000);
+  assert.equal(research.body.max_tool_calls, 12);
+  assert.equal(research.body.max_output_tokens, 16000);
   releaseResearch(researchReply());
   await running;
   assert.equal(calls.length, 2);
@@ -782,8 +782,8 @@ test("completed cited research survives pending, unknown, missing and incomplete
       const body = JSON.parse(options.body);
       calls.push(body);
       if (body.tools) {
-        assert.equal(body.max_tool_calls, 6);
-        assert.equal(body.max_output_tokens, 10000);
+        assert.equal(body.max_tool_calls, 12);
+        assert.equal(body.max_output_tokens, 16000);
         return researchReply(value);
       }
       const alreadySent = res.body.trim().split("\n").map(JSON.parse);
@@ -884,7 +884,7 @@ test("research text stays private until both the writer's final envelope and cit
   assert.equal(records.at(-1).type, "done");
 });
 
-test("seven returned research tool records can yield a cited answer with the six-call request budget", async () => {
+test("seven returned research tool records can yield a cited answer with the bounded request budget", async () => {
   local();
   const value = researchDocument();
   value.output.unshift(...Array.from({ length: 6 }, (_, index) => ({
@@ -896,8 +896,8 @@ test("seven returned research tool records can yield a cited answer with the six
     const body = JSON.parse(options.body);
     calls.push(body);
     if (body.tools) {
-      assert.equal(body.max_tool_calls, 6);
-      assert.equal(body.max_output_tokens, 10000);
+      assert.equal(body.max_tool_calls, 12);
+      assert.equal(body.max_output_tokens, 16000);
       return researchReply(value);
     }
     return reply(textEnvelope("The completed sources support this finding. [1]"));
@@ -961,8 +961,8 @@ test("completed long research survives synthetic pending auxiliary metadata and 
     const body = JSON.parse(options.body);
     calls.push(body);
     if (body.tools) {
-      assert.equal(body.max_tool_calls, 6);
-      assert.equal(body.max_output_tokens, 10000);
+      assert.equal(body.max_tool_calls, 12);
+      assert.equal(body.max_output_tokens, 16000);
       return researchReply(value);
     }
     const alreadySent = res.body.trim().split("\n").map(JSON.parse);
@@ -991,7 +991,7 @@ test("completed long research survives synthetic pending auxiliary metadata and 
     return event.delta;
   }).join("");
   assert.equal(allSources.length, 65);
-  assert.ok(notes.length > 16000);
+  assert.ok(notes.length > 32000);
   assert.match(notes, /Finding 65:.*\[65\]/);
   assert.equal(res.body.includes("private-reasoning-fixture"), false);
   assert.ok(res.body.trim().split("\n").every((line) => line.length <= 24000));
@@ -1034,8 +1034,8 @@ test("a writer failure retains the full report despite pending auxiliary researc
     const body = JSON.parse(options.body);
     calls.push(body);
     if (body.tools) {
-      assert.equal(body.max_tool_calls, 6);
-      assert.equal(body.max_output_tokens, 10000);
+      assert.equal(body.max_tool_calls, 12);
+      assert.equal(body.max_output_tokens, 16000);
       return researchReply(largeResearchDocument());
     }
     const alreadySent = res.body.trim().split("\n").map(JSON.parse);
@@ -1064,7 +1064,7 @@ test("a completed report with no small cited passage can be delivered without a 
   let calls = 0;
   const value = researchDocument();
   const content = value.output[1].content[0];
-  content.text = "Long complete research finding. ".repeat(700);
+  content.text = "Long complete research finding. ".repeat(1400);
   content.annotations[0].start_index = 0;
   content.annotations[0].end_index = content.text.length;
   global.fetch = async (_url, options) => {

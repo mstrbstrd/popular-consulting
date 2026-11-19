@@ -40,6 +40,9 @@ const { METABLOOM_RESEARCH_BRIEF_VERSION, MAX_METABLOOM_RESEARCH_BRIEF_CHUNK_CHA
   parseMetabloomResearchBrief } = require("../src/components/metabloomResearchBriefProtocol");
 const MAX_BODY_BYTES = 24000;
 const MAX_RESEARCH_WRITER_NOTES_CHARS = 16000;
+// The briefing formatter receives more of the report than the short answer
+// writer, so each story can carry its specifics.
+const MAX_RESEARCH_BRIEF_NOTES_CHARS = 32000;
 const localBuckets = new Map();
 // Atomic quotas across serverless instances, including a project-wide cost ceiling.
 const QUOTA_SCRIPT = `
@@ -154,7 +157,7 @@ const selectResearchWriterEvidence = (report) => {
 // from any section. Keep whole passages and original source IDs, including IDs
 // above eight. The complete report is streamed independently of this selection.
 const selectResearchBriefEvidence = (report) => {
-  if (report.notes.length <= MAX_RESEARCH_WRITER_NOTES_CHARS
+  if (report.notes.length <= MAX_RESEARCH_BRIEF_NOTES_CHARS
     && report.sources.length <= MAX_METABLOOM_RESEARCH_BRIEF_SOURCES) return report;
   const knownIds = new Set(report.sources.map((source) => source.id));
   const sections = [];
@@ -185,7 +188,7 @@ const selectResearchBriefEvidence = (report) => {
       const text = !group.selected && group.heading ? `${group.heading}\n\n${passage.text}` : passage.text;
       const nextLength = length + text.length + (selected.length ? 2 : 0);
       const newIds = passage.ids.filter((id) => !usedIds.has(id));
-      if (nextLength > MAX_RESEARCH_WRITER_NOTES_CHARS || usedIds.size + newIds.length > MAX_METABLOOM_RESEARCH_BRIEF_SOURCES) continue;
+      if (nextLength > MAX_RESEARCH_BRIEF_NOTES_CHARS || usedIds.size + newIds.length > MAX_METABLOOM_RESEARCH_BRIEF_SOURCES) continue;
       selected.push({ text, index: passage.index });
       passage.ids.forEach((id) => usedIds.add(id));
       length = nextLength;

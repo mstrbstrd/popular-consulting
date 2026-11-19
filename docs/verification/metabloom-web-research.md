@@ -21,16 +21,20 @@ The UI retains that completed report under **Full research**, including when
 the later writer fails. It never exposes partially received report text,
 provider reasoning, or raw tool payloads.
 
-Provider request limits remain six web tool calls and 10,000 output tokens with
-medium reasoning. Returned output items and distinct cited sources are bounded
+Provider request limits are twelve web tool calls, 16,000 output tokens and a
+170-second deadline with medium reasoning (raised 2026-11-19 from six calls,
+10,000 tokens and 120 seconds so each reported development can be read in
+full and recorded with its specifics; `api/metabloom.js` may run 300 seconds). Returned output items and distinct cited sources are bounded
 by resource size instead of small presentation counts. Emergency limits are
 8 MiB for a completed provider object or individual SSE event, 32 MiB for the
 provider SSE stream, and 1 MiB for the normalized report as serialized UTF-8
 JSON. Report chunks preserve the existing 24,000-character record limit. Only
 confirmed, opted-in research uses the larger 2 MiB client stream limit.
 
-The writer receives at most 16,000 characters of whole passages using the first
-eight source IDs. A selective view is identified as such in its instructions.
+The short answer writer receives at most 16,000 characters of whole passages
+using the first eight source IDs. The briefing formatter receives up to 32,000
+characters of whole passages across up to 40 sources and may write 12,000
+output tokens. A selective view is identified as such in its instructions.
 All passages and sources remain in the full report. If no whole cited passage
 fits, the handler sends a truthful short report introduction without a writer
 call. Old cached clients receive only the existing event vocabulary. No extra

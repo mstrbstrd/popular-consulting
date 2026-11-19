@@ -234,3 +234,12 @@ test('a valid brief attaches privately and cannot be changed by a late adapter',
   session.interrupt();
   expect(session.attachResearchBrief(fixture())).toBe(false);
 });
+
+test('a story summary may carry up to 1800 characters of specifics', () => {
+  const value = fixture();
+  value.items[0].summary = 'A detailed, supported account of the development. '.repeat(36).trim();
+  expect(value.items[0].summary.length).toBeLessThanOrEqual(1800);
+  expect(parseMetabloomResearchBrief(value, { sources })?.items[0].summary).toBe(value.items[0].summary);
+  value.items[0].summary = 's'.repeat(1801);
+  expect(parseMetabloomResearchBrief(value, { sources })).toBeNull();
+});

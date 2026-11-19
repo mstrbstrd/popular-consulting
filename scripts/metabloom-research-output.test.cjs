@@ -130,7 +130,7 @@ test("the single formatter selects host evidence references, preserves the repor
       calls++; assert.equal(String(url), "https://api.openai.com/v1/responses");
       const body = JSON.parse(options.body);
       assert.equal(body.stream, false); assert.equal(body.store, false); assert.equal(body.tools, undefined);
-      assert.equal(body.max_output_tokens, 6000);
+      assert.equal(body.max_output_tokens, 12000);
       const itemSchema = body.text.format.schema.properties.items.items;
       assert.match(JSON.stringify(itemSchema.properties.dateEvidence), /evidenceId/);
       assert.doesNotMatch(JSON.stringify(itemSchema.properties.dateEvidence), /reportExcerpt|"quote"/);

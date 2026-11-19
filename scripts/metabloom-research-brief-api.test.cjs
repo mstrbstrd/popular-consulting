@@ -33,7 +33,7 @@ const candidate = (catalog, ids = [1, 5, 9]) => ({
 const researchDocument = (sources = sourceList) => {
   const paragraphs = sources.map((source) => `${dateQuote(source.id)} The published bulletin describes an initial local trial and its planned evaluation.`);
   // A retained full report can be larger than the formatter's evidence budget.
-  paragraphs.push("Supplementary fictional detail. ".repeat(650).trim());
+  paragraphs.push("Supplementary fictional detail. ".repeat(1300).trim());
   paragraphs.push("END OF THE COMPLETE FICTIONAL RESEARCH REPORT.");
   const text = paragraphs.join("\n\n");
   let offset = 0;
@@ -130,15 +130,15 @@ test("a negotiated brief uses one replacement writer, preserves the full report,
   assert.deepEqual(calls.map((call) => call.phase), ["research", "brief"]);
   const writer = calls[1].body;
   assert.equal(writer.stream, false); assert.equal(writer.store, false);
-  assert.equal(writer.tools, undefined); assert.equal(writer.max_output_tokens, 6000);
+  assert.equal(writer.tools, undefined); assert.equal(writer.max_output_tokens, 12000);
   assert.equal(writer.text.format.strict, true);
   const input = JSON.parse(writer.input.at(-1).content);
   assert.equal(input.request, question);
-  assert(input.report.notes.length <= 16000);
+  assert(input.report.notes.length <= 32000);
   assert(input.report.sources.some((source) => source.id === 9));
   const result = decode(res);
   assert.equal(result.briefs.length, 1); assert.equal(result.reports.length, 1);
-  assert(result.reports[0].notes.length > 16000);
+  assert(result.reports[0].notes.length > 32000);
   assert(result.reports[0].notes.endsWith("END OF THE COMPLETE FICTIONAL RESEARCH REPORT."));
   assert.deepEqual(result.reports[0].sources, sourceList);
   assert.equal(result.sourceLists[0].length, 8, "The legacy concise-answer source list keeps its existing bound.");
@@ -245,8 +245,8 @@ test("format failure preserves research with a deterministic answer and no repai
 });
 
 test("a cited passage that exceeds the summary budget opens the full-report fallback without another provider call", async () => {
-  const notes = `${dateQuote(1)} ${"The fictional bulletin records detailed program findings. ".repeat(320)}END OF THE COMPLETE OVERSIZED PASSAGE.`;
-  assert(notes.length > 16000);
+  const notes = `${dateQuote(1)} ${"The fictional bulletin records detailed program findings. ".repeat(640)}END OF THE COMPLETE OVERSIZED PASSAGE.`;
+  assert(notes.length > 32000);
   const research = () => new Response(`data: ${JSON.stringify({ type: "response.completed", response: {
     status: "completed", output: [
       { type: "web_search_call", status: "completed", action: { type: "search", query: question } },

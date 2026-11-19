@@ -54,6 +54,12 @@ The briefing's title, date and story text share one section: each story's photo 
 
 Each story opens with a full-width photo frame. The story's date line and headline (`h4`, still the article's label) are set on the lower part of the photo in white over a dark fade; every line of overlay text sits on at least 78% dark, so contrast holds over the brightest photo in either theme. The frame is a 16:9 minimum that grows for long headlines, so text is never clipped. Before a photo arrives the headline sits on the source plate in the theme's ink, and a story with no photo at all keeps a compact text card (publisher mark, date line, headline). `aria-busy` never covers the overlay. The caption under the frame names the publisher, source number and article link, and any related-photo credit. Forced-colors mode renders the overlay on system colours.
 
+## Depth and headline size
+
+Each story's headline names one development in plain newspaper style, about 70 characters at most, never two developments joined by a semicolon. The summary carries the specifics a reader came for: 4 to 7 sentences (up to 1,800 characters) with the people and organizations involved and their titles, place and time, concrete figures, each side's stated position, and immediate consequences, followed by 2 to 4 cited background facts. Research reads at least one full article or primary source per reported development and records those specifics in its own cited paragraph.
+
+The overlay headline is sized from the photo's width with container query units (`clamp(17px, 4.4cqi, 23px)`), not the window's, so a narrow side panel on a wide screen keeps most of the photo visible. On photos narrower than 420 pixels the briefing title line stays on one line.
+
 ## Titles and story counts
 
 The formatter writes a short editorial title (about 60 characters) naming the briefing's scope or through-line. The host keeps it even when coverage is partial, because coverage is shown beside the title; it falls back to the generic "News briefing" or "Research brief" only when the title states a number of stories (validation can deliver fewer), contains implementation terms, or no item survived. Titles never say "Partial".

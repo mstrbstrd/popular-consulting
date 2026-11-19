@@ -51,6 +51,9 @@
   border: 0; border-radius: 0; background: none;
 }
 .orb-page .metabloom-source-preview--hero .metabloom-source-preview__image-area {
+  /* Overlay type scales with the photo, not the window, so a narrow side panel
+     on a wide screen never gets wall-sized headlines. */
+  container-type: inline-size;
   display: grid; grid-template-columns: minmax(0, 1fr); aspect-ratio: auto; border-radius: var(--aetheris-radius-lg);
   box-shadow: 0 0 0 1px var(--aetheris-line), var(--aetheris-shadow, none);
 }
@@ -60,7 +63,7 @@
 .orb-page .metabloom-source-preview--hero .metabloom-source-preview__fallback { justify-content: flex-start; padding-top: 1.6rem; }
 .orb-page .metabloom-source-preview__overlay {
   position: relative; z-index: 1; grid-area: 1 / 1; align-self: end; display: flex; flex-direction: column; gap: 0.5rem;
-  min-width: 0; padding: 3.2rem clamp(1.4rem, 3vw, 2.2rem) clamp(1.4rem, 2.6vw, 2rem);
+  min-width: 0; padding: 3.2rem clamp(1.4rem, 4cqi, 2.2rem) clamp(1.2rem, 3.4cqi, 1.8rem);
   color: var(--aetheris-ink);
 }
 .orb-page .metabloom-source-preview--hero[data-hero-photo='shown'] .metabloom-source-preview__overlay {
@@ -80,12 +83,19 @@
   vertical-align: 0.05em; background: var(--aetheris-spectral);
 }
 .orb-page .metabloom-research-brief__brief-title { margin-inline-end: 0.7rem; }
+/* On a narrow photo the briefing line keeps to one line so the photo stays
+   visible; the full title is the briefing's structural heading. */
+@container (max-width: 420px) {
+  .orb-page .metabloom-research-brief p.metabloom-research-brief__brief-line {
+    overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  }
+}
 .orb-page .metabloom-research-brief__brief-date {
   display: inline-block; white-space: nowrap; opacity: 0.86;
   font: 500 max(1.05rem, 11px)/1.4 var(--aetheris-font-mono); letter-spacing: 0.04em; text-transform: uppercase;
 }
 .orb-page .metabloom-research-brief .metabloom-source-preview__overlay h4 {
-  margin: 0; color: inherit; font: 650 clamp(20px, 2.6vw, 30px)/1.18 var(--aetheris-font-sans); letter-spacing: -0.022em;
+  margin: 0; color: inherit; font: 650 clamp(17px, 4.4cqi, 23px)/1.2 var(--aetheris-font-sans); letter-spacing: -0.018em;
   text-wrap: balance; overflow-wrap: anywhere;
 }
 .orb-page .metabloom-research-brief .metabloom-source-preview__overlay .metabloom-research-brief__item-kicker {
