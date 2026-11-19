@@ -36,7 +36,7 @@ const toolDefinition = Object.freeze({
   parameters: {
     type: 'object', additionalProperties: false, required: ['kind', 'brief'],
     properties: {
-      kind: { type: 'string', enum: METABLOOM_VISUAL_KINDS.filter(kind => !['price-book', 'boom-request'].includes(kind)) },
+      kind: { type: 'string', enum: METABLOOM_VISUAL_KINDS.filter(kind => !['price-book', 'boom-request', 'invoice-draft'].includes(kind)) },
       brief: { type: 'string', minLength: 1, maxLength: 1200, description: 'A short task brief preserving all required inputs, units and constraints.' },
     },
   },
@@ -46,7 +46,7 @@ function getMetabloomVisualToolDefinition() { return toolDefinition; }
 async function requestVisualTool({ message, history, requiredKind, artifactContext, researchContext, priceBookEnabled = false, signal, fetchImpl, requestRef } = {}) {
   if (typeof message !== 'string' || !message.trim() || message.length > 1600 || !Array.isArray(history)
     || !METABLOOM_VISUAL_KINDS.includes(requiredKind)) throw visualError('visual_invalid');
-  if (['price-book', 'boom-request'].includes(requiredKind)) throw visualError('visual_disabled');
+  if (['price-book', 'boom-request', 'invoice-draft'].includes(requiredKind)) throw visualError('visual_disabled');
   let researchProvenance;
   if (researchContext) {
     const replay = prepareMetabloomResearchToolReplay({ message, history, researchContext });

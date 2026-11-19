@@ -21,7 +21,7 @@ import { getMetabloomSavedWorkStatus, getMetabloomVisualSaveSource } from './met
 import { parseMetabloomSavedWorkMetadata } from './metabloomSavedWorkProtocol';
 const safeReply = response => ({ version: METABLOOM_CHAT_PROTOCOL_VERSION, segments: [{ response }] });
 const visualKindLabels = { calculator: 'Calculator', table: 'Table', 'line-chart': 'Line chart',
-  'bar-chart': 'Bar chart', 'pie-chart': 'Pie chart', flowchart: 'Flowchart', 'price-book': 'Price book', 'boom-request': 'Boom quote request' };
+  'bar-chart': 'Bar chart', 'pie-chart': 'Pie chart', flowchart: 'Flowchart', 'price-book': 'Price book', 'boom-request': 'Boom quote request', 'invoice-draft': 'Invoice draft' };
 const toolFailure = error => {
   const code = METABLOOM_TOOL_ERROR_CODES.includes(error?.code) ? error.code : 'tool_unavailable';
   const requestRef = parseMetabloomRequestRef(error?.requestRef);

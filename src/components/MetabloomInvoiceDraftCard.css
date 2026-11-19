@@ -1,0 +1,13 @@
+.metabloom-invoice-draft { display: grid; gap: 1.4rem; min-width: 0; }
+.metabloom-invoice-draft p { margin: 0; line-height: 1.6; overflow-wrap: anywhere; }
+.metabloom-invoice-draft__status { display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; }
+.metabloom-invoice-draft__status strong { border: 1px solid currentColor; padding: .4rem 1rem; border-radius: 999px; }
+.metabloom-invoice-draft dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.2rem; margin: 0; }
+.metabloom-invoice-draft dt { font-weight: 600; }
+.metabloom-invoice-draft dd { margin: .3rem 0 0; overflow-wrap: anywhere; }
+.metabloom-invoice-draft ol { margin: 0; padding-left: 2.4rem; }
+.metabloom-invoice-draft li { padding: 1.2rem 0; border-bottom: 1px solid color-mix(in srgb, currentColor 20%, transparent); overflow-wrap: anywhere; }
+.metabloom-invoice-draft button { justify-self: start; padding: 1rem 1.4rem; min-height: 44px; background: transparent; color: inherit; font: inherit; border: 1px solid currentColor; border-radius: 14px; cursor: pointer; }
+.metabloom-invoice-draft button:disabled { opacity: .55; cursor: not-allowed; }
+.metabloom-invoice-draft button:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+@media (max-width: 600px) { .metabloom-invoice-draft dl { grid-template-columns: minmax(0, 1fr); } }

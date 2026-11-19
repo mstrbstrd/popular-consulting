@@ -6,8 +6,14 @@ configuration and release checks. It is not an accounting system.
 
 ## Boundaries
 
-- Never transmit entered invoice data, logos, or drafts. No invoice API, server
-  persistence, third-party PDF script, email sending, or payment collection.
+- Manually entered editor data, logos and local drafts stay in the browser.
+  Chat cannot read them. The optional chat invoice tool separately processes
+  user-supplied details through the selected model and saves them with chat,
+  with a seven-day TTL for structured intake state. Its explicit review-card
+  button imports a validated draft into the protected editor. Existing open
+  invoices require replacement approval. No third-party PDF script, email
+  sending, automatic issuance, or payment collection. See
+  [Chat invoice drafts](architecture/metabloom-invoice-drafts.md).
 - No automatic draft loading or saving. Save/Load operate on one versioned
   localStorage key. Export/Import move JSON files. Saved data is unencrypted,
   browser-specific, and accessible to other same-origin scripts and device users.
@@ -41,6 +47,13 @@ configuration and release checks. It is not an accounting system.
   their existing typography, backgrounds, navigation, and print behavior.
 
 ## Use
+
+In ordinary Metabloom chat, say **Start an invoice draft.** Supply the requested
+names, dates, currency, line details and tax choices, then select **Open in
+invoice generator** on the calculated review card. Chat supports 20 line items;
+the editor supports 100. Reopening the same revision preserves local edits.
+A separate invoice starts in a new chat. Do not put sensitive payment credentials
+in chat; add payment instructions privately in the editor if needed.
 
 Edit the invoice details, client, line items and payment notes. Expand From your
 studio for sender details and logo, or Tax settings for rates and bulk selection.

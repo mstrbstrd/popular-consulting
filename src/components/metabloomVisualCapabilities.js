@@ -11,15 +11,16 @@ const descriptions = {
   flowchart: { label: 'small flowcharts', description: 'A laid-out process diagram with numbered steps, labelled connections and step selection that traces where each step comes from and leads. No draggable nodes or editable diagram canvas.' },
   'price-book': { label: 'price books', description: 'Draft supported business pricing rules through the saved Price book setup workflow. Application code compiles the formulas, editable job inputs and exact calculated examples. Use the dedicated pricing tools, never create_visual, to author pricing rules. Only the user can publish a version with the Publish button. Drafts are not active price books. Estimates are not invoices, payments, tax advice or published MCP servers.' },
   'boom-request': { label: 'boom-system quote requests', description: 'A customer-reviewed DY quote-request demo collected by dedicated chat intake tools. Required contact/company, market, pump make/model/serial, pipe wall and back-end choice; optional pipe details. A complete card downloads a text request. No prices, compatibility approval, file attachments or external submission. Never author this with create_visual.' },
+  'invoice-draft': { label: 'invoice drafts', description: 'Dedicated invoice intake tools collect customer-supplied fields. The existing invoice engine validates and calculates a review card. A complete draft can open in the protected invoice generator after a user click; replacing an open invoice requires explicit review. No local invoice reads, sending, issuing, payment or automatic PDF download. Never author this through create_visual.' },
   calculator: { label: 'calculators', description: 'Up to six numeric fields and sliders, one numeric result from add/subtract/multiply/divide/min/max, reset and a copy-scenario control. No external actions or file export.' },
 };
 const METABLOOM_VISUAL_CAPABILITIES = Object.freeze(Object.fromEntries(METABLOOM_VISUAL_KINDS
   .filter(kind => Object.prototype.hasOwnProperty.call(descriptions, kind))
   .map(kind => [kind, Object.freeze({ ...descriptions[kind] })])));
-const availableCapabilities = (priceBookEnabled, boomRequestsEnabled = false) => Object.entries(METABLOOM_VISUAL_CAPABILITIES)
-  .filter(([kind]) => (kind !== 'price-book' || priceBookEnabled === true) && (kind !== 'boom-request' || boomRequestsEnabled === true));
-const formatNames = (priceBookEnabled, boomRequestsEnabled) => {
-  const labels = availableCapabilities(priceBookEnabled, boomRequestsEnabled).map(([, item]) => item.label);
+const availableCapabilities = (priceBookEnabled, boomRequestsEnabled = false, invoiceDraftsEnabled = false) => Object.entries(METABLOOM_VISUAL_CAPABILITIES)
+  .filter(([kind]) => (kind !== 'price-book' || priceBookEnabled === true) && (kind !== 'boom-request' || boomRequestsEnabled === true) && (kind !== 'invoice-draft' || invoiceDraftsEnabled === true));
+const formatNames = (priceBookEnabled, boomRequestsEnabled, invoiceDraftsEnabled) => {
+  const labels = availableCapabilities(priceBookEnabled, boomRequestsEnabled, invoiceDraftsEnabled).map(([, item]) => item.label);
   return `${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}`;
 };
 const unavailable = 'Interactive creation is unavailable for this request.';
@@ -33,14 +34,15 @@ const unsupported = Object.freeze({
   animation: 'Custom generated animations are not supported by this visual tool. The Orb has its own existing reactions and scenes.',
 });
 
-function getMetabloomVisualCapabilityResponse(intent, { enabled = false, researchBriefEnabled = false, priceBookEnabled = false, boomRequestsEnabled = false } = {}) {
+function getMetabloomVisualCapabilityResponse(intent, { enabled = false, researchBriefEnabled = false, priceBookEnabled = false, boomRequestsEnabled = false, invoiceDraftsEnabled = false } = {}) {
   if (!intent || typeof intent !== 'object' || Array.isArray(intent)) return null;
-  const formats = formatNames(priceBookEnabled, boomRequestsEnabled);
+  const formats = formatNames(priceBookEnabled, boomRequestsEnabled, invoiceDraftsEnabled);
   switch (intent.mode) {
     case 'capabilities':
       return (enabled === true
         ? `I can display ${formats}. You can inspect exact chart values, select pie categories, step through line chart observations, trace flowchart steps, sort and filter tables, and adjust calculator fields or sliders to update results locally. Maps, dashboards, arbitrary app UIs and file exports are not supported.`
         : `${unavailable} The implemented formats, when available, are ${formats}.`)
+        + (invoiceDraftsEnabled ? ' Dedicated invoice tools can prepare a reviewed draft for the private invoice generator. Printing or saving a PDF remains a user action in that editor.' : '')
         + (boomRequestsEnabled ? ' The dedicated boom-request demo additionally downloads completed intake as a text file, without submitting it.' : '')
         + (researchBriefEnabled === true ? ' Deep Research can also return an expandable research brief with cited findings, dates, analysis, uncertainty and coverage limits.' : '');
     case 'unsupported': {
@@ -59,13 +61,14 @@ function getMetabloomVisualCapabilityResponse(intent, { enabled = false, researc
   }
 }
 
-function buildMetabloomVisualCapabilityPrompt({ visualMode = 'disabled', visualToolResult = false, researchBriefEnabled = false, toolset = false, priceBookEnabled = false, boomRequestsEnabled = false } = {}) {
+function buildMetabloomVisualCapabilityPrompt({ visualMode = 'disabled', visualToolResult = false, researchBriefEnabled = false, toolset = false, priceBookEnabled = false, boomRequestsEnabled = false, invoiceDraftsEnabled = false } = {}) {
   const available = visualMode === 'optional' || visualMode === 'requested';
   return [
     'Authoritative native visual capability inventory. These are the only implemented visual formats and controls:',
-    ...availableCapabilities(priceBookEnabled, boomRequestsEnabled).map(([kind, value]) => `${kind}: ${value.description}`),
+    ...availableCapabilities(priceBookEnabled, boomRequestsEnabled, invoiceDraftsEnabled).map(([kind, value]) => `${kind}: ${value.description}`),
     ...(priceBookEnabled ? ['Use this standard explanation when asked about price books or their setup requirements. During intake, retain the confirmed answers and ask only for unresolved rules instead of repeating the checklist.\n' + METABLOOM_PRICE_BOOK_GUIDE] : []),
     'This inventory is a closed list. There are no maps, static or interactive, geocoding, neighborhood layers, satellite views, file exports, attachments, standalone dashboards, arbitrary app UIs, generated images or custom generated animations in this visual tool. Do not offer unimplemented formats or controls. The Orb\'s existing reactions and scenes are separate from generated components.',
+    ...(invoiceDraftsEnabled ? ['Separately, invoice intake tools can prepare a validated invoice draft and an explicit Open in invoice generator action. Monetary values come from the invoice engine, never illustrative assumptions. No PDF is created merely by drafting or opening it.'] : []),
     ...(boomRequestsEnabled ? ['Separately, the dedicated boom-request tools can prepare a validated intake card with a text-file download. The generic visual tool cannot author or export these requests. Never substitute an illustrative value for missing boom intake.'] : []),
     researchBriefEnabled
       ? 'Separately, the Deep Research route can return a native expandable research brief with findings, supporting citations, dates, analysis and coverage limitations. This is an implemented reading surface, not an arbitrary UI or a saved file. Describe its availability when relevant, but only a completed research result establishes what was produced. The host can route requests needing current evidence into Deep Research; only execution results establish that a search ran.'

@@ -1,9 +1,10 @@
 // Shared browser/server contract. Model output is data, never parent-document code.
 const { validateMetabloomPriceBook } = require('./metabloomPriceBook');
 const { parseMetabloomBoomDraft } = require('./metabloomBoomRequest');
+const { parseMetabloomInvoiceDraft } = require('./metabloomInvoiceDraft');
 const METABLOOM_VISUAL_VERSION = '1';
 const METABLOOM_VISUAL_DESIGN_VERSION = 'aetheris-1';
-const METABLOOM_VISUAL_KINDS = Object.freeze(['table', 'bar-chart', 'line-chart', 'pie-chart', 'flowchart', 'calculator', 'price-book', 'boom-request']);
+const METABLOOM_VISUAL_KINDS = Object.freeze(['table', 'bar-chart', 'line-chart', 'pie-chart', 'flowchart', 'calculator', 'price-book', 'boom-request', 'invoice-draft']);
 const MAX_METABLOOM_VISUAL_BYTES = 65536;
 const MAX_METABLOOM_VISUAL_CONTEXT_BYTES = 65536;
 // Server deadlines leave room for bounded persistence before the hosting limit.
@@ -137,6 +138,8 @@ const parseMetabloomVisual = (input, expected = {}) => {
       || !visualList(value.edges, 0, 32, edge => visualKeys(edge, ['from', 'to', 'label'])
         && value.nodes.some(node => node.id === edge.from) && value.nodes.some(node => node.id === edge.to)
         && visualText(edge.label, 100, true))) return invalid('flowchart_shape');
+  } else if (value.kind === 'invoice-draft') {
+    if (!visualKeys(value, [...common, 'invoiceDraft']) || !parseMetabloomInvoiceDraft(value.invoiceDraft)) return invalid('invoice_draft_shape');
   } else if (value.kind === 'boom-request') {
     if (!visualKeys(value, [...common, 'boomRequest']) || !parseMetabloomBoomDraft(value.boomRequest)) return invalid('boom_request_shape');
   } else if (value.kind === 'price-book') {

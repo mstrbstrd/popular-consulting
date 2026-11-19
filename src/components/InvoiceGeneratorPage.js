@@ -90,6 +90,7 @@ export const InvoiceDocument = ({ invoice, calculation }) => {
 export const InvoiceGeneratorContent = ({ initialWorkspace = null, onWorkspaceChange, onReady } = {}) => {
   const locked = useWorkspaceLocked();
   const [invoice, setInvoice] = useState(() => initialWorkspace?.invoice || createInvoice());
+  const [chatDraftKey, setChatDraftKey] = useState(initialWorkspace?.chatDraftKey || null);
   const [status, setStatus] = useState("");
   const [actionError, setActionError] = useState("");
   const [showErrors, setShowErrors] = useState(false);
@@ -117,8 +118,8 @@ export const InvoiceGeneratorContent = ({ initialWorkspace = null, onWorkspaceCh
   useEffect(() => { onReady?.(); }, [onReady]);
 
   useEffect(() => {
-    onWorkspaceChange?.({ invoice, dirty, savedOnDevice, view });
-  }, [invoice, dirty, savedOnDevice, view, onWorkspaceChange]);
+    onWorkspaceChange?.({ invoice, dirty, savedOnDevice, view, ...(chatDraftKey ? { chatDraftKey } : {}) });
+  }, [invoice, dirty, savedOnDevice, view, chatDraftKey, onWorkspaceChange]);
 
   useEffect(() => {
     const html = document.documentElement;
@@ -207,7 +208,7 @@ export const InvoiceGeneratorContent = ({ initialWorkspace = null, onWorkspaceCh
   };
   const replaceInvoice = (value) => {
     fileRequest.current += 1; revisionRef.current += 1;
-    setLogoPending(false); setInvoice(value); setDirty(false); setSavedOnDevice(false);
+    setLogoPending(false); setChatDraftKey(null); setInvoice(value); setDirty(false); setSavedOnDevice(false);
     setShowErrors(false); setActionError(""); setView("editor");
   };
   const confirmReplace = () => !dirty || window.confirm("Replace the current invoice? Unsaved changes will be lost.");
@@ -298,7 +299,7 @@ export const InvoiceGeneratorContent = ({ initialWorkspace = null, onWorkspaceCh
           <p className="invoice-lede">Make it clear. Make it yours.</p></div>
         <div className="invoice-environment">
           <InvoiceGeneratorBackground />
-          <p className="invoice-local-note">Local-only workspace<span>No account. No server uploads.</span></p>
+          <p className="invoice-local-note">Private invoice workspace<span>Editor changes stay in this browser. Chat-imported details were processed in chat.</span></p>
         </div>
       </section>
       <section ref={actionsRef} className="invoice-actions invoice-no-print" aria-label="Invoice actions">

@@ -82,6 +82,7 @@ export function summarizeMetabloomVisual(record) {
   if (description) return `${description.label.slice(description.label.indexOf(' · ') + 3)} · ${description.summary}`;
   if (spec.kind === 'calculator') return 'Inputs need attention';
   if (spec.kind === 'flowchart') return `${spec.nodes.length} steps · Select a step to inspect`;
+  if (spec.kind === 'invoice-draft') return `Invoice draft · Revision ${spec.invoiceDraft.revision} · Not sent`;
   if (spec.kind === 'boom-request') return `Demo quote request · Revision ${spec.boomRequest.revision} · Not submitted`;
   if (spec.kind === 'price-book') return `${spec.priceBook.lines.length} pricing rules · ${spec.priceBook.currency} · Review rules and examples`;
   return `${spec.labels?.length || spec.points.length} observations${spec.unit ? ` · ${spec.unit}` : ''}`;

@@ -74,7 +74,7 @@ const parseBody = (request) => {
     const value = JSON.parse(text);
     if (!exactKeys(value, ["message"], ["requestId", "history", "allowMultiple", "streamText", "streamResearchProgress", "streamResearchDetails", "streamResearchBrief", "streamResearchMedia", "streamResearchReuse", "streamToolMedia", "timeZone", "actionMode", "artifactContext", "researchContext", "modelSelection", "orbContext", "conversationId"])) return null;
     if (value.conversationId !== undefined && (!require('../src/components/metabloomThreadProtocol').isMetabloomThreadId(value.conversationId)
-      || request.headers?.['x-metabloom-boom-request'] !== '1')) return null;
+      || (request.headers?.['x-metabloom-boom-request'] !== '1' && request.headers?.['x-metabloom-invoice'] !== '1'))) return null;
     if (value.orbContext !== undefined) {
       value.orbContext = parseMetabloomOrbContext(value.orbContext);
       if (!value.orbContext || request.headers?.['x-metabloom-expressions'] !== '1' || !value.requestId
@@ -450,7 +450,7 @@ const handler = async (request, response) => {
   const priceBookEnabled = Boolean(accountIdentity) && isMetabloomPriceBookEnabled()
     && ['1', '2'].includes(request.headers?.['x-metabloom-pricebook']);
   const priceBookWorkflowEnabled = priceBookEnabled && request.headers?.['x-metabloom-pricebook'] === '2';
-  const availableVisualKinds = METABLOOM_VISUAL_KINDS.filter(kind => !['price-book', 'boom-request'].includes(kind));
+  const availableVisualKinds = METABLOOM_VISUAL_KINDS.filter(kind => !['price-book', 'boom-request', 'invoice-draft'].includes(kind));
   const priceBookGuidance = !body.artifactContext && !body.researchContext
     ? getMetabloomPriceBookGuidanceResponse(body.message, body.history, { enabled: priceBookEnabled
       && request.headers?.['x-metabloom-ui-tools'] === '1' && process.env.METABLOOM_UI_TOOLS_ENABLED !== 'false' }) : null;
@@ -601,6 +601,11 @@ const handler = async (request, response) => {
         modelSelection,
         allowMultiple: body.allowMultiple, presentationAction, timeZone: body.timeZone || 'UTC',
         submittedMessage: body.message,
+        invoiceDraftsEnabled: Boolean(accountIdentity && body.conversationId && body.requestId
+          && request.headers?.['x-metabloom-invoice'] === '1' && process.env.METABLOOM_INVOICE_ENABLED !== 'false'),
+        invoiceVisualsAvailable: Boolean(request.headers?.['x-metabloom-visuals'] === '1' && body.requestId && visualIdentity
+          && visualsEnabled() && request.headers?.['x-metabloom-ui-tools'] === '1'
+          && process.env.METABLOOM_UI_TOOLS_ENABLED !== 'false' && visualIntent.mode !== 'text_only'),
         boomRequestVisualsAvailable: Boolean(request.headers?.['x-metabloom-visuals'] === '1' && body.requestId && visualIdentity
           && visualsEnabled() && request.headers?.['x-metabloom-ui-tools'] === '1'
           && process.env.METABLOOM_UI_TOOLS_ENABLED !== 'false' && visualIntent.mode !== 'text_only'),

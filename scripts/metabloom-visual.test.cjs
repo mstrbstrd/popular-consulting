@@ -14,6 +14,7 @@ const identity = { owner: 'a'.repeat(64), subject: 'b'.repeat(64), scope: 'c'.re
 const offer = () => ({ version: '1', designVersion: 'aetheris-1', id: 'd'.repeat(48), kind: 'table', expiresAt: Date.now() + 600000 });
 const spec = (kind = 'table') => {
   const common = { version: '1', designVersion: 'aetheris-1', kind, title: 'A useful comparison', summary: 'Values supplied by the user.', provenance: { type: 'user', label: 'User-provided values, not live data.', sourceIds: [] } };
+  if (kind === 'invoice-draft') return { ...common, invoiceDraft: require('../src/testHelpers/invoiceChatFixtures').invoiceChatDraft() };
   if (kind === 'boom-request') return { ...common, boomRequest: require('./fixtures/metabloom-boom-request.cjs').draft() };
   if (kind === 'price-book') return { ...common, priceBook: { version: 1, currency: 'CAD',
     inputs: [{ id: 'hours', label: 'Hours', type: 'number', min: 1, max: 12, initial: 3 }],
@@ -59,7 +60,7 @@ test.after(() => { for (const [name, value] of Object.entries(originalEnv)) { if
 
 for (const kind of protocol.METABLOOM_VISUAL_KINDS) test(`accepts bounded ${kind} data with the Aetheris contract`, () => {
   assert.deepEqual(protocol.parseMetabloomVisual(spec(kind), { kind, sources: [] }), spec(kind));
-  if (!['price-book', 'boom-request'].includes(kind)) assert.equal(visualSchema(kind).properties.result.anyOf[0].additionalProperties, false);
+  if (!['price-book', 'boom-request', 'invoice-draft'].includes(kind)) assert.equal(visualSchema(kind).properties.result.anyOf[0].additionalProperties, false);
   else assert.throws(() => visualSchema(kind), { code: 'visual_invalid' });
 });
 test('rejects unknown versions, kinds, properties and model-authored styling/code', () => {

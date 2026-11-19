@@ -17,6 +17,7 @@ const specFor = (kind = 'table') => {
   const common = { version: '1', designVersion: 'aetheris-1', kind, title: 'Fictional orchard comparison',
     summary: 'The original recorded values and qualifications.',
     provenance: { type: 'sources', label: 'Recorded fictional evidence.', sourceIds: [9, 65] } };
+  if (kind === 'invoice-draft') return { ...common, invoiceDraft: require('../src/testHelpers/invoiceChatFixtures').invoiceChatDraft() };
   if (kind === 'boom-request') return { ...common, boomRequest: require('./fixtures/metabloom-boom-request.cjs').draft() };
   if (kind === 'price-book') return { ...common, priceBook: { version: 1, currency: 'CAD',
     inputs: [{ id: 'hours', label: 'Hours', type: 'number', min: 1, max: 80, initial: 2 }],

@@ -1,6 +1,7 @@
 import { TextEncoder } from 'util';
 import { createMetabloomSavedWorkBaseline, getMetabloomSavedWorkStatus, getMetabloomVisualSaveSource,
   parseMetabloomSavedWorkBaseline, prepareMetabloomSavedOpen } from './metabloomSavedWorkspace';
+import { invoiceChatDraft } from '../testHelpers/invoiceChatFixtures';
 import { emptyBoomFields } from './metabloomBoomRequest';
 import { METABLOOM_VISUAL_KINDS } from './metabloomVisualProtocol';
 
@@ -16,6 +17,7 @@ const visualSpec = (kind = 'calculator') => {
     controls: [{ id: 'hours', label: 'Hours', unit: 'h', min: 1, max: 80, step: 1, initial: 10 },
       { id: 'rate', label: 'Hourly rate', unit: 'CAD/h', min: 10, max: 200, step: 1, initial: 65 }],
     formula: ['hours', 'rate', 'multiply'], formulaDescription: 'Hours multiplied by hourly rate.' };
+  if (kind === 'invoice-draft') return { ...common, invoiceDraft: invoiceChatDraft() };
   if (kind === 'boom-request') return { ...common, boomRequest: { version: 1, revision: 1, updatedAt: 1, fields: { ...emptyBoomFields(), market: 'CA' } } };
   if (kind === 'price-book') return { ...common, priceBook: { version: 1, currency: 'CAD',
     inputs: [{ id: 'hours', label: 'Hours', type: 'number', min: 1, max: 80, initial: 2 }],

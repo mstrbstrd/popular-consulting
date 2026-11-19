@@ -33,7 +33,7 @@ jobs:
         env:
           METABLOOM_QUOTA_TEST_REDIS_PORT: 6379
       - name: Verify account model defaults and price books against real Redis
-        run: node --test scripts/metabloom-model-preferences-redis.test.cjs scripts/metabloom-price-book-redis.test.cjs scripts/metabloom-boom-request-redis.test.cjs
+        run: node --test scripts/metabloom-model-preferences-redis.test.cjs scripts/metabloom-price-book-redis.test.cjs scripts/metabloom-boom-request-redis.test.cjs scripts/metabloom-invoice-redis.test.cjs
         env:
           METABLOOM_SAVED_WORK_TEST_REDIS_URL: redis://127.0.0.1:6379
           METABLOOM_SAVED_WORK_TEST_ALLOW_DISPOSABLE: '1'
@@ -49,7 +49,7 @@ jobs:
       - name: Verify Metabloom API, research, and provider contracts
         run: >-
           node --test scripts/metabloom-api.test.cjs scripts/metabloom-agent.test.cjs scripts/metabloom-agent-api.test.cjs scripts/metabloom-research.test.cjs
-          scripts/metabloom-boom-request.test.cjs scripts/metabloom-boom-request-agent.test.cjs
+          scripts/metabloom-boom-request.test.cjs scripts/metabloom-boom-request-agent.test.cjs scripts/metabloom-invoice.test.cjs
           scripts/metabloom-price-book.test.cjs scripts/metabloom-price-book-store.test.cjs scripts/metabloom-price-book-workflow.test.cjs scripts/metabloom-price-book-agent.test.cjs
           scripts/metabloom-models.test.cjs scripts/metabloom-expression.test.cjs scripts/metabloom-answer-recovery.test.cjs scripts/metabloom-council.test.cjs
           scripts/metabloom-research-brief.test.cjs scripts/metabloom-research-brief-api.test.cjs
@@ -74,20 +74,23 @@ jobs:
         id: build
         env:
           CI: true
+      - name: Install browser fixture tooling
+        run: npm install --no-save --package-lock=false --ignore-scripts --no-audit --no-fund playwright@1.51.1
       - name: Verify authenticated local demos in a real browser
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: node scripts/verify-metabloom-browser.mjs
       - name: Verify boom quote request demo in desktop and mobile chat
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: node scripts/verify-metabloom-boom-request.mjs
+      - name: Verify chat invoice handoff in desktop and mobile
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: node scripts/verify-metabloom-invoice.mjs
       - name: Verify native UI interactions with local HTTP fixtures
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: node scripts/verify-metabloom-ui-browser.mjs
       - name: Verify the mobile current component through the built Orb
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
-        run: |
-          npm install --no-save --package-lock=false --ignore-scripts --no-audit --no-fund playwright@1.51.1
-          node scripts/verify-metabloom-mobile-workspace.mjs
+        run: node scripts/verify-metabloom-mobile-workspace.mjs
       - name: Verify research reuse through the built Orb and local API
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: node scripts/verify-metabloom-research-reuse.mjs

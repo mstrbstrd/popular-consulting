@@ -3,6 +3,7 @@ const MAX_METABLOOM_AGENT_CALLS = 4;
 const MAX_METABLOOM_TOOL_PROGRESS = 24;
 const METABLOOM_PROGRESS_WAIT_MS = 12000;
 const METABLOOM_AGENT_TOOL_LABELS = Object.freeze({
+  get_invoice_draft: 'Loading invoice draft', create_invoice_draft: 'Validating and calculating invoice draft',
   get_boom_quote_request: 'Loading boom quote request', update_boom_quote_request: 'Checking and saving boom request details',
   search_web: 'Searching the web', calculate: 'Calculating',
   get_current_time: 'Checking the time', create_visual: 'Preparing your visual',
@@ -80,6 +81,7 @@ const getMetabloomWorkPresentation = ({ phase, activeTool, lastTool, summary, se
   if (lastTool) return { label: lastTool.state === 'failed' ? 'Handling a tool problem' : 'Reviewing results',
     summary: lastTool.state === 'failed' ? `${METABLOOM_AGENT_TOOL_LABELS[lastTool.name]} did not finish successfully.`
       : ({ search_web: 'Search complete. Reviewing the sources.', calculate: 'Calculation complete.',
+        get_invoice_draft: 'Invoice draft checked.', create_invoice_draft: 'Invoice draft saved. Checking required fields.',
         get_boom_quote_request: 'Boom request checked.', update_boom_quote_request: 'Boom request details saved. Checking required fields.',
         get_current_time: 'Current time checked.', create_visual: 'Visual requested. Generation and display are still pending.',
         get_orb_state: 'Orb snapshot checked.', express_orb: 'Expression chosen. Playback is still pending.',

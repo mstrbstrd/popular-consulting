@@ -2,7 +2,9 @@ import React from "react";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { axe } from "jest-axe";
-import InvoiceGeneratorPage from "./InvoiceGeneratorPage";
+import InvoiceGeneratorPage, { InvoiceGeneratorContent } from "./InvoiceGeneratorPage";
+import { invoiceChatDraft } from "../testHelpers/invoiceChatFixtures";
+import { invoiceDraftView } from "./metabloomInvoiceDraft";
 import { INVOICE_DRAFT_KEY } from "../utils/invoice";
 
 jest.mock("./BlackHoleBackground", () => () => <div data-testid="unwanted-background" />);
@@ -86,4 +88,18 @@ test("restores root styles when leaving the page", () => {
   expect(document.documentElement).not.toHaveClass("invoice-route");
   expect(document.documentElement.style.overflow).toBe(oldOverflow);
   expect(document.documentElement.style.fontSize).toBe(oldFontSize);
+});
+
+// A wholesale local replacement is no longer the imported chat revision.
+// Subsequent clicks on the old card must ask before replacing this new invoice.
+test.each(["New invoice", "Load saved"])("clears chat identity after %s but preserves it for local edits", action => {
+  const invoice = invoiceDraftView(invoiceChatDraft()).invoice;
+  const onWorkspaceChange = jest.fn();
+  const chatDraftKey = `${invoiceChatDraft().id}:1`;
+  render(<InvoiceGeneratorContent initialWorkspace={{ invoice, chatDraftKey, dirty: true }} onWorkspaceChange={onWorkspaceChange} />);
+  fill("Client name", "Locally edited client");
+  expect(onWorkspaceChange.mock.calls.at(-1)[0].chatDraftKey).toBe(chatDraftKey);
+  localStorage.setItem(INVOICE_DRAFT_KEY, JSON.stringify(invoice));
+  fireEvent.click(screen.getByRole("button", { name: action, exact: true }));
+  expect(onWorkspaceChange.mock.calls.at(-1)[0]).not.toHaveProperty("chatDraftKey");
 });
