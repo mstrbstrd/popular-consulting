@@ -506,6 +506,9 @@
   .orb-page .metabloom-chat .metabloom-chat__composer button:disabled { opacity: 1; }
   .orb-page .metabloom-chat .metabloom-chat__composer button:disabled svg { opacity: 0.85; }
   .orb-page[data-active-component="true"][data-component-view="expanded"] .metabloom-chat__conversation-tools { display: none; }
+  /* Saved work stays one tap away in More; the bar gives its room to the
+     title or component picker. */
+  .orb-page .metabloom-component-workspace__toolbar > [data-workspace-saved] { display: none; }
   .orb-page[data-active-component="true"][data-component-view="expanded"] .metabloom-chat__component-reply {
     grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px; min-height: 40px; padding: 6px 12px;
   }

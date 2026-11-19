@@ -62,3 +62,15 @@ test("phones keep the header and conversation controls compact", () => {
   // The phone composer column and its button use the same pixel size.
   expect(readSource("./OrbPageFinalPolish.css")).toContain("grid-template-columns: minmax(0, 1fr) 44px;");
 });
+
+test("the workspace bar is one aligned row of pills", () => {
+  const visual = readSource("./MetabloomVisual.css");
+  // The picker is a pill with the soft spectral ring and its own chevron.
+  expect(visual).toMatch(/\.metabloom-component-workspace__picker \{\s*position: relative;[^}]*border-radius: 999px;[^}]*var\(--aetheris-spectral-border-soft\) border-box;/);
+  expect(visual).toMatch(/\.metabloom-component-workspace__picker select \{\s*-webkit-appearance: none; appearance: none;/);
+  expect(visual).toContain(".orb-page .metabloom-component-workspace__picker + .metabloom-component-workspace__save-status { padding-inline-start: 15px; }");
+  expect(visual).toMatch(/> \[data-workspace-saved\],\s*\.orb-page \.metabloom-component-workspace__toolbar > \[data-workspace-toggle\] \{ border-radius: 999px; \}/);
+  // Phones give Saved work's room to the title or picker; it stays in More.
+  const phone = readSource("./OrbWorkspaceLayout.css");
+  expect(phone.slice(phone.indexOf("@media (max-width: 560px)"))).toContain(".metabloom-component-workspace__toolbar > [data-workspace-saved] { display: none; }");
+});

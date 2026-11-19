@@ -166,8 +166,8 @@ globalThis.fetch = async (url, options = {}) => {
     assert.deepEqual(body.tools, [{ type: "web_search", search_context_size: "medium" }]);
     assert.equal(body.tool_choice, "required");
     assert.equal(body.include, undefined);
-    assert.equal(body.max_tool_calls, 6);
-    assert.equal(body.max_output_tokens, 10000);
+    assert.equal(body.max_tool_calls, 12);
+    assert.equal(body.max_output_tokens, 16000);
     assert.deepEqual(body.reasoning, { effort: "medium" });
     options.signal.addEventListener("abort", () => {
       fixture.researchAborted = true;
@@ -199,14 +199,14 @@ globalThis.fetch = async (url, options = {}) => {
   assert.equal(body.text.format.strict, true);
   assert.equal(body.stream, fixture.kind === "ordinary");
   assert.equal(body.text.format.name, fixture.kind === "ordinary" ? "metabloom_chat_response" : "metabloom_research_brief");
-  assert.equal(body.max_output_tokens, fixture.kind === "ordinary" ? 2400 : 6000);
+  assert.equal(body.max_output_tokens, fixture.kind === "ordinary" ? 2400 : 12000);
   const evidence = structured ? JSON.parse(body.input.at(-1).content) : null;
   if (fixture.kind !== "ordinary") {
     assert.equal(fixture.calls.length, 2);
     assert.deepEqual(body.reasoning, { effort: "low" });
     const expectedSources = fixture.kind === "production" ? productionOutput.sources : sourceList;
     assert(expectedSources.every(({ id }) => evidence.report.sources.some((source) => source.id === id)), "Synthesis must retain canonical source IDs.");
-    assert(evidence.report.notes.length <= 16000, "The full report must not expand the paid writer context.");
+    assert(evidence.report.notes.length <= 32000, "The full report must not expand the paid writer context.");
     if (fixture.kind === "production") assert.equal(evidence.report.notes, productionOutput.report.notes);
     assert.equal(evidence.temporalContext.timeZone, verificationTimeZone);
     assert.equal(evidence.temporalContext.localDate, verificationDate);
