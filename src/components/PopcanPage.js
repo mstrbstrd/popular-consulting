@@ -25,7 +25,7 @@ const PALETTES = [
   ['Dune', '#f4c89b', '#cc768d'], ['Graphite', '#eeeeef', '#76768e'],
 ];
 const PAPER_LABELS = { theme: 'Match theme', midnight: 'Midnight', warm: 'Warm paper', white: 'White', transparent: 'Transparent' };
-const SHORTCUTS = [['V', 'Select and drag an item'], ['Arrow keys', 'Move selection (Shift: 10 px)'], ['Page Up / Down', 'Select previous / next item'], ['Delete', 'Remove selected item'], ['B / E', 'Brush / eraser'], ['L / R / O', 'Line / rectangle / ellipse'], ['G / I / H', 'Fill / colour picker / hand'], ['T', 'Place text'], ['Scroll / pinch', 'Zoom at the pointer'], ['Space + drag', 'Move the canvas'], ['+ / − / 0', 'Zoom in / out / fit all'], ['[ / ]', 'Smaller / larger brush'], ['X', 'Swap colours'], ['Shift + drag', 'Square, circle or 45° line'], ['⌘ or Ctrl + Z', 'Undo'], ['⌘ or Ctrl + Shift + Z', 'Redo'], ['⌘ or Ctrl + S', 'Export PNG'], ['Escape', 'Cancel current stroke']];
+const SHORTCUTS = [['V', 'Select and drag an item'], ['Arrow keys', 'Move selection (Shift: 10 px)'], ['Page Up / Down', 'Select previous / next item'], ['Delete', 'Remove selected item'], ['B / E', 'Brush / eraser'], ['L / R / O', 'Line / rectangle / ellipse'], ['G / I / H', 'Fill / colour picker / hand'], ['T', 'Place text'], ['Scroll / pinch', 'Zoom at the pointer'], ['Space + drag', 'Move the canvas'], ['+ / − / 0', 'Zoom in / out / fit all'], ['[ / ]', 'Smaller / larger brush'], ['X', 'Swap colours'], ['\\', 'Show or hide brush settings'], ['Shift + drag', 'Square, circle or 45° line'], ['⌘ or Ctrl + Z', 'Undo'], ['⌘ or Ctrl + Shift + Z', 'Redo'], ['⌘ or Ctrl + S', 'Export PNG'], ['Escape', 'Cancel current stroke']];
 const INITIAL_DOCUMENT = { originX: 0, originY: 0, width: 1200, height: 800, paper: PAPERS.theme, hasInk: false, canUndo: false, canRedo: false };
 
 function ToolButton({ icon, label, children, className = '', ...props }) {
@@ -53,7 +53,15 @@ export function PopcanContent() {
   const [text, setText] = useState(''), [textPoint, setTextPoint] = useState(null), [textError, setTextError] = useState('');
   const [textStyle, setTextStyle] = useState({ font: 'sans', size: 48, bold: false, color: DEFAULT_INK.colorA });
   const [viewport, setViewport] = useState(() => ({ width: window.innerWidth, height: window.innerHeight }));
-  const [inspectorOpen, setInspectorOpen] = useState(() => window.innerWidth > 760), [modal, setModal] = useState(null);
+  // On wider screens the settings card remembers whether it was collapsed.
+  const [inspectorOpen, setInspectorOpen] = useState(() => window.innerWidth > 760 && readInspectorPreference() !== 'collapsed'), [modal, setModal] = useState(null);
+  const showInspector = useCallback((open) => {
+    setInspectorOpen((current) => {
+      const next = typeof open === 'function' ? open(current) : open;
+      if (window.innerWidth > 760) writeInspectorPreference(next ? 'open' : 'collapsed');
+      return next;
+    });
+  }, []);
   const [newFormat, setNewFormat] = useState('landscape'), [newPaper, setNewPaper] = useState('theme');
   const lastViewport = useRef(viewport);
   const scale = view.scale;
@@ -267,6 +275,7 @@ export function PopcanContent() {
       }
       const tool = TOOLS.find((item) => item[2].toLowerCase() === key);
       if (tool) { event.preventDefault(); cancelGesture(); setInk((current) => ({ ...current, tool: tool[0] })); }
+      if (key === '\\') { event.preventDefault(); showInspector((open) => !open); }
       if (key === 'x') { event.preventDefault(); setInk((current) => ({ ...current, colorA: current.colorB, colorB: current.colorA })); }
       if (key === '[' || key === ']') { event.preventDefault(); setInk((current) => ({ ...current, size: clamp(current.size + (key === ']' ? 4 : -4), 2, 160) })); }
       if (key === 'escape') { cancelGesture(); engineRef.current.select(null); setInspectorOpen(false); }
@@ -288,7 +297,7 @@ export function PopcanContent() {
     const onBlur = () => { releaseSpace(); cancelGesture(); };
     document.addEventListener('keydown', onKey); document.addEventListener('keyup', releaseSpace); window.addEventListener('blur', onBlur);
     return () => { document.removeEventListener('keydown', onKey); document.removeEventListener('keyup', releaseSpace); window.removeEventListener('blur', onBlur); };
-  }, [ready, busy, modal, ink.tool, exportPng, cancelGesture, changeZoom, resetView]);
+  }, [ready, busy, modal, ink.tool, exportPng, cancelGesture, changeZoom, resetView, showInspector]);
 
   const updateCursor = (event) => {
     const cursor = cursorRef.current;
@@ -490,7 +499,7 @@ export function PopcanContent() {
           <ToolButton icon="close" label="Deselect item" onClick={() => { cancelGesture(); engineRef.current.select(null); }} />
         </div>}
         <aside className={`pc-inspector ${inspectorOpen ? 'is-open' : ''}`} id="pc-inspector" aria-label="Brush and canvas settings">
-          <div className="pc-panel-heading"><span>The essentials</span><ToolButton className="pc-panel-close" icon="close" label="Close brush settings" onClick={() => setInspectorOpen(false)} /></div>
+          <div className="pc-panel-heading"><span>The essentials</span><ToolButton className="pc-panel-close" icon={viewport.width > 760 ? 'collapse' : 'close'} label={viewport.width > 760 ? 'Collapse brush settings (\\)' : 'Close brush settings'} aria-expanded="true" aria-controls="pc-inspector" onClick={() => showInspector(false)} /></div>
           <fieldset className="pc-group"><legend>01 / PIGMENT</legend>
             <div className="pc-pigment-preview" style={{ background: ink.gradient === 'solid' ? ink.colorA : `linear-gradient(115deg, ${ink.colorA}, ${ink.colorB})` }}><span>{ink.material === 'sand' ? 'SAND / ' : 'INK / '}{ink.gradient.toUpperCase()}</span></div>
             <div className="pc-colors"><label><input type="color" aria-label="Primary colour" value={ink.colorA} onChange={(event) => setOption('colorA', event.target.value)} /><span>{ink.colorA.toUpperCase()}</span></label><ToolButton icon="swap" label="Swap colours (X)" onClick={swapColors} /><label><input type="color" aria-label="Secondary colour" value={ink.colorB} onChange={(event) => setOption('colorB', event.target.value)} /><span>{ink.colorB.toUpperCase()}</span></label></div>
@@ -508,6 +517,12 @@ export function PopcanContent() {
           <fieldset className="pc-group pc-paper-group"><legend>03 / SURFACE</legend><div className="pc-papers">{Object.entries(PAPERS).map(([name, color]) => <button key={name} type="button" aria-label={`${PAPER_LABELS[name]} canvas`} aria-pressed={doc.paper === color} title={PAPER_LABELS[name]} className={name === 'transparent' ? 'is-transparent' : ''} style={{ background: name === 'theme' ? 'linear-gradient(135deg, #fff8f7 50%, #111116 50%)' : color }} disabled={!ready || busy} onClick={() => engineRef.current.setPaper(color)} />)}</div><p className="pc-hint">{Object.entries(PAPERS).find(([, value]) => value === doc.paper)?.[0] === 'transparent' ? 'Transparent PNG. Just your marks.' : doc.paper === PAPERS.theme ? 'Follows light and dark mode. Export includes the current surface.' : 'Your surface is included in the PNG.'}</p></fieldset>
           <a className="pc-origin" href="/dither-canvas">Born in Morphogen Divide <span aria-hidden="true">↗</span></a>
         </aside>
+        {/* Collapsed, the card leaves a small summary of the current brush in its place. */}
+        {!inspectorOpen && <button type="button" className="pc-inspector-tab" aria-label={`Show brush settings: ${ink.material === 'sand' ? 'sand' : 'ink'}, ${ink.size} pixels`} title="Show brush settings (\\)" aria-expanded="false" aria-controls="pc-inspector" onClick={() => showInspector(true)}>
+          <span className="pc-inspector-swatch" aria-hidden="true" style={{ background: ink.gradient === 'solid' ? ink.colorA : `linear-gradient(135deg, ${ink.colorA}, ${ink.colorB})` }} />
+          <span className="pc-inspector-summary" aria-hidden="true">{ink.material === 'sand' ? 'Sand' : 'Ink'} · {ink.size} px</span>
+          <Icon name="sliders" size={16} />
+        </button>}
       </div>
       <footer className="pc-statusbar">
         <div className="pc-status"><span className={`pc-status-dot ${dirtyRef.current ? 'is-pending' : ''}`} /><span role="status">{notice || saveStatus}</span></div>
@@ -520,7 +535,7 @@ export function PopcanContent() {
             <Icon name="scene" size={17} />
             <span className="pc-background-toggle-label">BG {backgroundEnabled ? 'On' : 'Off'}</span>
           </button>
-          <ToolButton className="pc-settings-toggle" icon="sliders" label="Brush settings" aria-expanded={inspectorOpen} aria-controls="pc-inspector" onClick={() => setInspectorOpen((open) => !open)} /><ToolButton icon="hand" label="Move canvas (H)" aria-pressed={ink.tool === 'hand'} onClick={() => setOption('tool', ink.tool === 'hand' ? 'brush' : 'hand')} /><ToolButton icon="minus" label="Zoom out" disabled={scale <= MIN_ZOOM} onClick={() => changeZoom(0.8)} /><button type="button" className="pc-zoom-value" title="Fit all artwork (0)" aria-label="Fit all artwork" onClick={resetView}>{Math.round(scale * 100)}%</button><ToolButton icon="plus" label="Zoom in" disabled={scale >= MAX_ZOOM} onClick={() => changeZoom(1.25)} /><ToolButton className="pc-fit" icon="fit" label="Reset canvas view" onClick={resetView} /></div>
+          <ToolButton className="pc-settings-toggle" icon="sliders" label="Brush settings" aria-expanded={inspectorOpen} aria-controls="pc-inspector" onClick={() => showInspector((open) => !open)} /><ToolButton icon="hand" label="Move canvas (H)" aria-pressed={ink.tool === 'hand'} onClick={() => setOption('tool', ink.tool === 'hand' ? 'brush' : 'hand')} /><ToolButton icon="minus" label="Zoom out" disabled={scale <= MIN_ZOOM} onClick={() => changeZoom(0.8)} /><button type="button" className="pc-zoom-value" title="Fit all artwork (0)" aria-label="Fit all artwork" onClick={resetView}>{Math.round(scale * 100)}%</button><ToolButton icon="plus" label="Zoom in" disabled={scale >= MAX_ZOOM} onClick={() => changeZoom(1.25)} /><ToolButton className="pc-fit" icon="fit" label="Reset canvas view" onClick={resetView} /></div>
       </footer>
     </main>
     {modal && <dialog ref={dialogRef} className="pc-dialog" aria-labelledby="pc-dialog-title" onCancel={() => setModal(null)} onClick={(event) => { if (event.target === event.currentTarget) setModal(null); }}>
@@ -540,6 +555,14 @@ export function PopcanContent() {
       </form> : modal === 'new' ? <form onSubmit={newCanvas}><p>Your current canvas stays in undo history. Export a PNG to keep a separate copy.</p><label className="pc-field">Canvas format<select aria-label="Canvas format" value={newFormat} onChange={(event) => setNewFormat(event.target.value)}>{Object.entries(FORMATS).map(([name, dimensions]) => <option key={name} value={name}>{name[0].toUpperCase() + name.slice(1)} · {dimensions.join(' × ')}</option>)}</select></label><label className="pc-field">Canvas surface<select aria-label="Canvas surface" value={newPaper} onChange={(event) => setNewPaper(event.target.value)}>{Object.keys(PAPERS).map((name) => <option key={name} value={name}>{PAPER_LABELS[name]}</option>)}</select></label><button className="pc-primary" type="submit">Create canvas <span aria-hidden="true">↗</span></button></form> : <><p>Morphogen-inspired pigment, without the drift. Draw with a mouse, touch or pressure-sensitive pen. Scroll or pinch to zoom in and out. Use Hand, hold Space, or drag with two fingers to move the page. New marks expand your canvas. Choose Select (V), click any stroke, shape, image or text, then drag to move just that item. Click empty space to deselect. Arrow keys nudge a selection; Page Up/Down cycles items. Choose Text, then click where your words belong. Export includes the whole document.</p><dl>{SHORTCUTS.map(([key, action]) => <div key={key}><dt><kbd>{key}</kbd></dt><dd>{action}</dd></div>)}</dl><p className="pc-hint">Canvas growth is limited to 4 megapixels to protect device memory. Fill operates inside the current document bounds. Recent items stay independently selectable. When the 20 MiB editable-pixel budget fills, Popcan visibly groups enough of the oldest items into one movable Earlier artwork layer so drawing can continue. Up to 512 live items are retained. One draft is saved in this browser when storage is available. Nothing is uploaded. Export your favourites before starting over.</p></>}
     </dialog>}
   </div>;
+}
+
+const INSPECTOR_PREFERENCE = 'popcan-inspector';
+function readInspectorPreference() {
+  try { return window.localStorage.getItem(INSPECTOR_PREFERENCE); } catch { return null; }
+}
+function writeInspectorPreference(value) {
+  try { window.localStorage.setItem(INSPECTOR_PREFERENCE, value); } catch { /* storage unavailable: the card still toggles */ }
 }
 
 function ThemeToggle() {

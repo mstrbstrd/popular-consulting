@@ -27,6 +27,7 @@
 }
 .popcan-page .pc-tools,
 .popcan-page .pc-inspector,
+.popcan-page .pc-inspector-tab,
 .popcan-page .pc-status,
 .popcan-page .pc-tool-status,
 .popcan-page .pc-view-controls,
@@ -44,6 +45,12 @@
 .popcan-page .pc-tool-status,
 .popcan-page .pc-view-controls,
 .popcan-page .pc-selection-actions { border-radius: 999px; }
+/* The collapsed settings card: a capsule summary of the current brush. */
+.popcan-page .pc-inspector-tab { cursor: pointer; animation: liquid-glass-in var(--aetheris-motion-medium, 220ms) var(--aetheris-ease-standard, ease) both; }
+.popcan-page .pc-inspector-swatch { box-shadow: var(--lg-lens-edge); }
+@media (hover: hover) { .popcan-page .pc-inspector-tab:hover { background: var(--lg-clear-fill-hover); } }
+.popcan-page .pc-inspector-tab:focus-visible { outline: 2px solid var(--aetheris-focus-line); outline-offset: 2px; box-shadow: var(--lg-specular), var(--aetheris-focus-halo); }
+@media (prefers-reduced-motion: reduce) { .popcan-page .pc-inspector-tab { animation: none; } }
 /* Dialogs hold reading text, like the nav menus: regular (frosted) glass. */
 .popcan-page .pc-dialog {
   border-color: transparent;
@@ -149,6 +156,7 @@
   .popcan-page .pc-topbar::before,
   .popcan-page .pc-tools,
   .popcan-page .pc-inspector,
+  .popcan-page .pc-inspector-tab,
   .popcan-page .pc-status,
   .popcan-page .pc-tool-status,
   .popcan-page .pc-view-controls,
@@ -160,6 +168,7 @@
   .popcan-page .pc-topbar::before,
   .popcan-page .pc-tools,
   .popcan-page .pc-inspector,
+  .popcan-page .pc-inspector-tab,
   .popcan-page .pc-status,
   .popcan-page .pc-tool-status,
   .popcan-page .pc-view-controls,
