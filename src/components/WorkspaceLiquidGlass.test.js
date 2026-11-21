@@ -28,7 +28,9 @@ describe('one liquid glass system across the signed-in workspace', () => {
   });
 
   test('artwork and the printable invoice paper are never glass', () => {
-    expect(strip(popcan)).not.toMatch(/\.pc-(stage|artboard|paint|preview|pigment-preview|papers)\b/);
+    expect(strip(popcan)).not.toMatch(/\.pc-(stage|artboard|paint|preview|papers)\b/);
+    // The pigment preview only opts out of the chrome's text halo.
+    strip(popcan).match(/[^{}]*\.pc-pigment-preview[^{]*\{[^}]*\}/g).forEach(rule => expect(rule).toMatch(/\{ text-shadow: none; \}$/));
     expect(strip(invoice)).not.toMatch(/invoice-paper|invoice-document/);
     expect(strip(invoice)).toMatch(/^@media screen \{/m);
     expect(strip(invoice)).not.toMatch(/@media print/);
@@ -40,9 +42,9 @@ describe('one liquid glass system across the signed-in workspace', () => {
     expect(panes).toContain('box-shadow: var(--lg-specular), var(--lg-shadow);');
     const bars = strip(invoice).match(/\.invoice-page \.invoice-actions,\s*\.invoice-page \.invoice-toolbar \{([^}]*)\}/)[1];
     expect(bars).toContain('backdrop-filter: var(--lg-regular-blur) var(--lg-post);');
-    const islands = strip(popcan).match(/\.popcan-page \.pc-topbar,[^{]*\{([^}]*)\}/)[1];
-    expect(islands).toContain('background: var(--lg-menu-fill);');
-    expect(islands).toContain('backdrop-filter: var(--lg-regular-blur) var(--lg-post);');
+    const islands = strip(popcan).match(/\.popcan-page \.pc-tools,[^{]*\{([^}]*)\}/)[1];
+    expect(islands).toContain('background: var(--lg-clear-fill);');
+    expect(islands).toContain('backdrop-filter: var(--lg-clear-fallback) var(--lg-post);');
   });
 
   test('content inside a glass panel is a lens, never a nested frosted layer or opaque card', () => {
@@ -56,6 +58,18 @@ describe('one liquid glass system across the signed-in workspace', () => {
     expect(shared).toMatch(/@media \(prefers-reduced-motion: reduce\) \{[^@]*--lg-menu-fill: rgba\(255, 252, 251, 0\.94\);[^@]*--lg-menu-fill: rgba\(18, 18, 26, 0\.94\);/);
     // Accessibility solids are declared after it, so reduced transparency still wins.
     expect(shared.indexOf('(prefers-reduced-motion: reduce) {\n  :is(')).toBeLessThan(shared.indexOf('(prefers-reduced-transparency: reduce), (prefers-contrast: more)'));
+  });
+
+  test('Canvas has one top menu, clear glass like the nav pill, with its glass on ::before', () => {
+    const page = read('PopcanPage.js');
+    expect(page).not.toMatch(/NavMenu/);
+    expect(page).toMatch(/<nav className="pc-site" aria-label="Site"><ThemeToggle \/><WorkspaceMenu \/><AuthNavControl \/><\/nav>\s*<\/header>/);
+    const bar = strip(popcan).match(/\.popcan-page \.pc-topbar \{([^}]*)\}/)[1];
+    expect(bar).toContain('backdrop-filter: none;');
+    const glass = strip(popcan).match(/\.popcan-page \.pc-topbar::before \{([^}]*)\}/)[1];
+    expect(glass).toContain('background: var(--lg-clear-fill);');
+    expect(glass).toContain('backdrop-filter: var(--lg-clear-fallback) var(--lg-post);');
+    expect(read('PopcanPage.css')).not.toMatch(/nav-header|pc-nav-height/);
   });
 
   test('forced colours collapse every new surface to system colours', () => {

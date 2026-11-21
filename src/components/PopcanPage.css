@@ -5,7 +5,7 @@ html.popcan-route { height: 100%; overflow: hidden; font-size: 62.5% !important;
   --pc-bg: #f4efed; --pc-panel: #fffcfa; --pc-work: #e8e4e3; --pc-ink: #292631;
   --pc-muted: #736c79; --pc-line: rgba(52, 38, 59, .12); --pc-hover: rgba(62, 43, 75, .055);
   --pc-dot: rgba(59, 43, 61, .13); --pc-ring: #7567aa; --pc-check-a: #e2dfe5; --pc-check-b: #f7f5f8;
-  --pc-glass: rgba(255,252,250,.94); --pc-theme-paper: #fff8f7; --pc-nav-height: 80px; --pc-chrome-bottom: 172px;
+  --pc-glass: rgba(255,252,250,.94); --pc-theme-paper: #fff8f7; --pc-chrome-bottom: 96px;
   --pc-spectral: linear-gradient(115deg, #40c9e7 2%, #b78bef 38%, #ed87c4 69%, #e5bc9e 100%);
   position: fixed; inset: 0; display: flex; flex-direction: column; min-height: 0; overflow: hidden;
   color: var(--pc-ink); background: var(--pc-bg); font-family: 'Hanken Grotesk', sans-serif;
@@ -23,19 +23,20 @@ html.popcan-route { height: 100%; overflow: hidden; font-size: 62.5% !important;
 .popcan-page button { -webkit-tap-highlight-color: transparent; }
 .popcan-page button:disabled { opacity: .32; cursor: not-allowed; }
 .popcan-page button:focus-visible, .popcan-page input:focus-visible, .popcan-page select:focus-visible, .popcan-page textarea:focus-visible, .popcan-page a:focus-visible { outline: 2px solid var(--pc-ring); outline-offset: 3px; }
-/* Canvas paper is independent of UI theme; navigation stays legible over both. */
-.popcan-page .nav-pill { --aetheris-glass-surface: var(--pc-panel); --aetheris-ink-2: var(--pc-muted); }
-.popcan-page .nav-header { position: absolute; inset: 0 0 auto; padding: max(14px,env(safe-area-inset-top)) 16px 12px; pointer-events: none; }
 .pc-studio { position: absolute; inset: 0; min-height: 0; pointer-events: none; }
 .pc-studio::before { content: none; }
-.pc-topbar { position: absolute; top: var(--pc-nav-height); left: max(22px,env(safe-area-inset-left)); right: max(22px,env(safe-area-inset-right)); z-index: 3; display: flex; align-items: center; gap: 30px; min-height: 80px; padding: 14px 20px; }
+.pc-topbar { position: absolute; top: max(14px,env(safe-area-inset-top)); left: max(22px,env(safe-area-inset-left)); right: max(22px,env(safe-area-inset-right)); z-index: 25; isolation: isolate; display: flex; align-items: center; gap: 22px; min-height: 64px; padding: 8px 10px 8px 14px; }
+/* The site's theme, experience and account controls close the single top menu. */
+.pc-site { display: flex; align-items: center; gap: 6px; flex-shrink: 0; padding-left: 12px; border-left: 1px solid var(--pc-line); }
+.pc-theme-toggle { display: grid; place-items: center; width: 40px; height: 40px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--pc-ink); }
+.pc-site .workspace-menu > summary, .pc-site .site-account-control { flex: 0 0 40px; width: 40px; height: 40px; min-height: 40px; }
 .pc-identity { display: flex; gap: 12px; align-items: center; flex-shrink: 0; }
-.pc-logo { display: grid; place-items: center; width: 52px; height: 52px; flex-shrink: 0; }
+.pc-logo { display: grid; place-items: center; width: 40px; height: 40px; flex-shrink: 0; }
 .pc-logo img { display: block; width: 100%; height: 100%; object-fit: contain; }
-.pc-identity h1 { font: 600 27px/1 'Hanken Grotesk', sans-serif; letter-spacing: -1.4px; margin: 0; }
+.pc-identity h1 { font: 600 23px/1 'Hanken Grotesk', sans-serif; letter-spacing: -1.1px; margin: 0; }
 .pc-identity h1 span { color: var(--pc-ring); }
-.pc-identity p { font: 400 8px/1.4 'JetBrains Mono', monospace; margin: 5px 0 0; letter-spacing: 1.9px; color: var(--pc-muted); }
-.pc-document { flex: 1; min-width: 80px; padding-left: 26px; border-left: 1px solid var(--pc-line); }
+.pc-identity p { font: 400 7px/1.4 'JetBrains Mono', monospace; margin: 4px 0 0; letter-spacing: 1.7px; color: var(--pc-muted); }
+.pc-document { flex: 1; min-width: 80px; padding-left: 20px; border-left: 1px solid var(--pc-line); }
 .pc-document input { display: block; width: 100%; max-width: 340px; padding: 2px 0; background: transparent; border: 0; outline-offset: 2px; font-size: 14px; font-weight: 500; text-overflow: ellipsis; }
 .pc-document > span { display: block; margin-top: 3px; font: 400 9px/1.5 'JetBrains Mono', monospace; color: var(--pc-muted); letter-spacing: .2px; }
 .pc-document-kind { opacity: .75; padding-left: 10px; }
@@ -146,17 +147,18 @@ html.popcan-route { height: 100%; overflow: hidden; font-size: 62.5% !important;
 .pc-stage:focus-visible { outline-offset: -3px; }
 @media (max-width: 1100px) {
   .pc-document-kind, .pc-tool-status { display: none; }
-  .pc-topbar { gap: 20px; }
+  .pc-topbar { gap: 14px; }
   .pc-inspector { padding: 18px 14px 14px; }
 }
 @media (max-width: 760px) {
-  .popcan-page .nav-header { padding: max(10px,env(safe-area-inset-top)) 12px 10px; }
-  .pc-topbar { left: max(8px,env(safe-area-inset-left)); right: max(8px,env(safe-area-inset-right)); padding: 10px 12px; gap: 8px 10px; min-height: 96px; display: grid; grid-template-columns: auto 1fr; }
+  .pc-topbar { top: max(10px,env(safe-area-inset-top)); left: max(8px,env(safe-area-inset-left)); right: max(8px,env(safe-area-inset-right)); padding: 8px 8px 8px 14px; gap: 6px 10px; min-height: 0; display: grid; grid-template-columns: minmax(0,1fr) auto; }
+  .pc-site { grid-row: 2; grid-column: 2; gap: 2px; padding-left: 8px; }
+  .pc-theme-toggle, .pc-site .workspace-menu > summary, .pc-site .site-account-control { flex: 0 0 36px; width: 36px; height: 36px; min-height: 36px; }
   .pc-identity { gap: 7px; }
   .pc-logo { display: none; }
   .pc-identity h1 { font-size: 25px; }
   .pc-identity p { font-size: 6px; letter-spacing: 1.2px; margin-top: 4px; }
-  .pc-document { grid-row: 2; grid-column: 1/-1; border: 0; padding: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .pc-document { grid-row: 2; grid-column: 1; min-width: 0; border: 0; padding: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .pc-document input { font-size: 11px; width: auto; flex: 1; min-width: 0; }
   .pc-document > span { font-size: 8px; flex-shrink: 0; margin: 0; }
   .pc-actions { grid-column: 2; grid-row: 1; justify-content: flex-end; gap: 1px; }
@@ -193,8 +195,7 @@ html.popcan-route { height: 100%; overflow: hidden; font-size: 62.5% !important;
   .pc-empty > small { font-size: 7px; }
 }
 @media (max-height: 600px) and (min-width: 761px) {
-  .popcan-page .nav-header { padding: 6px 12px; }
-  .pc-topbar { min-height: 62px; padding-top: 8px; padding-bottom: 8px; }
+  .pc-topbar { top: 8px; min-height: 56px; padding-top: 6px; padding-bottom: 6px; }
   .pc-tools { gap: 2px; padding-top: 8px; padding-bottom: 8px; }
   .pc-tools .pc-button { width: 34px; height: 34px; }
 }

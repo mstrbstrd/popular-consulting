@@ -1,41 +1,125 @@
 /* Liquid Glass for Canvas (Popcan). Loaded after PopcanPage.css and LiquidGlass.css.
-   The floating islands are regular glass over the artwork: frosted, with the
-   menu-strength tint so controls stay legible over any pigment. Controls
-   inside an island are lenses (the island is the backdrop root, so they never
-   add a nested backdrop filter). The canvas, papers, exports and pigment
-   previews are artwork and stay untouched. */
-.popcan-page .pc-topbar,
+   Every floating island uses the navigation pill's clear glass: near-transparent
+   fill, light blur, specular rim, depth and a text halo. The top bar is the one
+   menu for the page (Canvas actions plus the site's theme, experience and
+   account controls). Its glass lives on ::before, as on the nav pill, because
+   a backdrop-filtered element is the backdrop root for its descendants and
+   its experience/account menus must blur the page, not the bar. Controls
+   inside an island are lenses and never add a nested backdrop filter. The
+   canvas, papers, exports and pigment previews are artwork and stay untouched. */
+
+/* ---------- Clear glass islands ---------- */
+.popcan-page .pc-topbar {
+  border-color: transparent;
+  background: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow: var(--lg-specular), var(--lg-shadow);
+  text-shadow: var(--lg-text-halo);
+  border-radius: 999px;
+}
+.popcan-page .pc-topbar::before {
+  content: ""; position: absolute; inset: 0; z-index: -1; height: auto;
+  border-radius: inherit; pointer-events: none; opacity: 1;
+  background: var(--lg-clear-fill);
+  -webkit-backdrop-filter: var(--lg-clear-fallback) var(--lg-post);
+  backdrop-filter: var(--lg-clear-fallback) var(--lg-post);
+}
 .popcan-page .pc-tools,
 .popcan-page .pc-inspector,
 .popcan-page .pc-status,
 .popcan-page .pc-tool-status,
 .popcan-page .pc-view-controls,
-.popcan-page .pc-selection-actions,
+.popcan-page .pc-selection-actions {
+  border-color: transparent;
+  background: var(--lg-clear-fill);
+  -webkit-backdrop-filter: var(--lg-clear-fallback) var(--lg-post);
+  backdrop-filter: var(--lg-clear-fallback) var(--lg-post);
+  box-shadow: var(--lg-specular), var(--lg-shadow);
+  text-shadow: var(--lg-text-halo);
+}
+.popcan-page .pc-inspector { border-radius: var(--lg-radius-menu); }
+.popcan-page .pc-tools,
+.popcan-page .pc-status,
+.popcan-page .pc-tool-status,
+.popcan-page .pc-view-controls,
+.popcan-page .pc-selection-actions { border-radius: 999px; }
+/* Dialogs hold reading text, like the nav menus: regular (frosted) glass. */
 .popcan-page .pc-dialog {
   border-color: transparent;
+  border-radius: var(--lg-radius-menu);
   background: var(--lg-menu-fill);
   -webkit-backdrop-filter: var(--lg-regular-blur) var(--lg-post);
   backdrop-filter: var(--lg-regular-blur) var(--lg-post);
   box-shadow: var(--lg-specular), var(--lg-shadow);
 }
-.popcan-page :is(.pc-topbar, .pc-inspector, .pc-dialog) { border-radius: var(--lg-radius-menu); }
-.popcan-page :is(.pc-tools, .pc-status, .pc-tool-status, .pc-view-controls, .pc-selection-actions) { border-radius: 999px; }
-/* The painted spectral hairline gives way to the glass rim, as elsewhere. */
-.popcan-page .pc-topbar::before { opacity: 0; }
-.popcan-page :is(.pc-document, .pc-history) { border-color: color-mix(in srgb, var(--lg-rim) 70%, var(--pc-line)); }
-.popcan-page .pc-group { border-bottom-color: color-mix(in srgb, var(--lg-rim) 70%, var(--pc-line)); }
+/* Dividers inside glass take the glass rim's colour. */
+.popcan-page .pc-document,
+.popcan-page .pc-history,
+.popcan-page .pc-site,
+.popcan-page .pc-group,
+.popcan-page .pc-dialog dl > div { border-color: color-mix(in srgb, var(--lg-rim) 70%, var(--pc-line)); }
+/* Pigment previews and swatches are artwork, not chrome: no halo on their labels. */
+.popcan-page .pc-pigment-preview span { text-shadow: none; }
 
-/* Icon buttons are round lenses; the active tool is a lens with the selected spectral ring. */
+/* On phones the bar wraps to two rows, so it is a rounded panel, not a capsule. */
+@media (max-width: 760px) {
+  .popcan-page .pc-topbar { border-radius: var(--lg-radius-menu); }
+  .popcan-page .pc-site { align-self: center; justify-content: flex-end; height: 36px; }
+  .popcan-page .pc-site > * { margin: 0; }
+  /* Menus open as a sheet under the whole bar instead of hanging off an icon. */
+  .popcan-page .pc-site .workspace-menu,
+  .popcan-page .pc-site .site-account-menu { position: static; }
+  .popcan-page .pc-site .workspace-menu-panel,
+  .popcan-page .pc-site .site-account-panel { top: calc(100% + 8px); left: 0; right: 0; width: auto; max-width: none; }
+}
+
+/* ---------- Top bar controls: the nav pill's lens buttons ---------- */
+.popcan-page .pc-topbar .pc-button,
+.popcan-page .pc-topbar .pc-theme-toggle,
+.popcan-page .pc-site .workspace-menu > summary,
+.popcan-page .pc-site .site-account-control {
+  border: 0 !important;
+  border-radius: 999px !important;
+  color: var(--pc-ink) !important;
+  background: var(--lg-lens-hover) !important;
+  box-shadow: var(--lg-lens-edge) !important;
+  transform: none !important;
+  text-shadow: none;
+}
+@media (hover: hover) {
+  .popcan-page .pc-topbar .pc-button:hover:not(:disabled),
+  .popcan-page .pc-topbar .pc-theme-toggle:hover,
+  .popcan-page .pc-site .workspace-menu > summary:hover,
+  .popcan-page .pc-site .site-account-control:hover { background: var(--lg-lens) !important; }
+}
+.popcan-page .pc-topbar .pc-button:disabled { background: transparent !important; box-shadow: none !important; }
+/* Open menus are marked by the teal ring alone, never a darker fill. */
+.popcan-page .pc-site .workspace-menu[open] > summary,
+.popcan-page .pc-site .site-account-menu[open] > .site-account-control {
+  box-shadow: var(--lg-lens-edge), inset 0 0 0 1px color-mix(in srgb, var(--aetheris-teal) 40%, transparent) !important;
+}
+.popcan-page .pc-topbar :is(.pc-button, .pc-theme-toggle):focus-visible,
+.popcan-page .pc-site :is(.workspace-menu > summary, .site-account-control):focus-visible {
+  outline: 2px solid var(--aetheris-focus-line) !important;
+  outline-offset: 2px !important;
+  box-shadow: var(--lg-lens-edge), var(--aetheris-focus-halo) !important;
+}
+.popcan-page .pc-site .workspace-menu-panel,
+.popcan-page .pc-site .site-account-panel { text-shadow: none; }
+
+/* ---------- Buttons, rings and fields inside the islands ---------- */
 .popcan-page .pc-button { position: relative; isolation: isolate; border-radius: 999px; }
 @media (hover: hover) {
   .popcan-page .pc-button:hover:not(:disabled) { border-color: transparent; background: var(--lg-lens-hover); box-shadow: inset 0 1px 0.5px var(--lg-spec-top); }
 }
 .popcan-page .pc-tools .pc-button.is-active,
 .popcan-page .pc-view-controls [aria-pressed='true'],
-.popcan-page .pc-button.pc-export,
 .popcan-page .pc-primary {
   border-color: transparent; background: var(--lg-lens); box-shadow: var(--lg-lens-edge);
 }
+.popcan-page .pc-topbar .pc-button.pc-export { background: var(--lg-lens) !important; }
+@media (min-width: 761px) { .popcan-page .pc-topbar .pc-button.pc-export { width: auto; padding: 0 16px; } }
 .popcan-page .pc-primary { position: relative; isolation: isolate; border-radius: 999px; }
 .popcan-page .pc-tools .pc-button.is-active::before,
 .popcan-page .pc-button.pc-export::before,
@@ -47,30 +131,49 @@
 }
 .popcan-page .pc-tools .pc-button.is-active::before { padding: 2px; background: var(--aetheris-spectral); }
 @media (hover: hover) {
-  .popcan-page :is(.pc-button.pc-export, .pc-primary):hover:not(:disabled)::before { background: var(--aetheris-spectral); }
+  .popcan-page .pc-button.pc-export:hover:not(:disabled)::before,
+  .popcan-page .pc-primary:hover:not(:disabled)::before { background: var(--aetheris-spectral); }
 }
-
-/* Fields and segmented controls inside glass. */
 .popcan-page .pc-field select,
 .popcan-page .pc-dialog textarea,
 .popcan-page .pc-text-options input {
-  border-color: transparent; border-radius: 999px; background: var(--lg-lens-hover); box-shadow: var(--lg-lens-edge);
+  border-color: transparent; border-radius: 999px; background: var(--lg-input-fill); box-shadow: var(--lg-lens-edge); text-shadow: none;
 }
 .popcan-page .pc-dialog textarea { border-radius: 18px; }
 .popcan-page .pc-field select option { color: var(--pc-ink); background: var(--pc-panel); }
 .popcan-page .pc-segment { border-color: transparent; border-radius: 999px; background: var(--lg-lens); box-shadow: inset 0 0 0 0.5px var(--lg-rim); }
 .popcan-page .pc-segment button { border-radius: 999px; }
 .popcan-page .pc-segment button[aria-pressed='true'] { border-color: transparent; background: var(--lg-clear-fill-hover); box-shadow: var(--lg-lens-edge); }
-.popcan-page .pc-dialog dl > div { border-bottom-color: color-mix(in srgb, var(--lg-rim) 70%, var(--pc-line)); }
 
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .popcan-page :is(.pc-topbar, .pc-tools, .pc-inspector, .pc-status, .pc-tool-status, .pc-view-controls, .pc-selection-actions, .pc-dialog) { background: var(--pc-panel); }
+  .popcan-page .pc-topbar::before,
+  .popcan-page .pc-tools,
+  .popcan-page .pc-inspector,
+  .popcan-page .pc-status,
+  .popcan-page .pc-tool-status,
+  .popcan-page .pc-view-controls,
+  .popcan-page .pc-selection-actions,
+  .popcan-page .pc-dialog { background: var(--pc-panel); text-shadow: none; }
 }
 @media (forced-colors: active) {
-  .popcan-page :is(.pc-topbar, .pc-tools, .pc-inspector, .pc-status, .pc-tool-status, .pc-view-controls, .pc-selection-actions, .pc-dialog) {
+  .popcan-page .pc-topbar,
+  .popcan-page .pc-topbar::before,
+  .popcan-page .pc-tools,
+  .popcan-page .pc-inspector,
+  .popcan-page .pc-status,
+  .popcan-page .pc-tool-status,
+  .popcan-page .pc-view-controls,
+  .popcan-page .pc-selection-actions,
+  .popcan-page .pc-dialog {
     background: Canvas; color: CanvasText; border: 1px solid CanvasText; box-shadow: none;
     -webkit-backdrop-filter: none; backdrop-filter: none;
   }
-  .popcan-page :is(.pc-tools .pc-button.is-active, .pc-button.pc-export, .pc-primary)::before { display: none; }
+  .popcan-page .pc-topbar .pc-button,
+  .popcan-page .pc-topbar .pc-theme-toggle,
+  .popcan-page .pc-site .workspace-menu > summary,
+  .popcan-page .pc-site .site-account-control { background: ButtonFace !important; color: ButtonText !important; box-shadow: none !important; outline: 1px solid ButtonText; }
+  .popcan-page .pc-tools .pc-button.is-active::before,
+  .popcan-page .pc-button.pc-export::before,
+  .popcan-page .pc-primary::before { display: none; }
   .popcan-page .pc-tools .pc-button.is-active { outline: 2px solid Highlight; }
 }

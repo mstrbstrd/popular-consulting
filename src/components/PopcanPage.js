@@ -2,7 +2,8 @@ import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from
 import { ThemeProvider, useThemeMode } from '../contexts/ThemeContext';
 import { useAppNavigation } from '../contexts/AppNavigationContext';
 import routeMetadata from '../content/routeMetadata.json';
-import NavMenu from './NavMenu';
+import WorkspaceMenu from './WorkspaceMenu';
+import AuthNavControl from './AuthNavControl';
 import Icon from './popcan/PopcanIcon';
 import { PopcanEngine, DEFAULT_INK, FORMATS, PAPERS, clamp } from './popcan/popcanEngine';
 import { readDraft, writeDraft, loadImage, exportName } from './popcan/popcanStorage';
@@ -180,17 +181,16 @@ export function PopcanContent() {
 
   useLayoutEffect(() => {
     const stage = stageRef.current, page = pageRef.current;
-    const nav = page.querySelector('.nav-header'), topbar = topbarRef.current;
+    const topbar = topbarRef.current;
     const measure = () => {
-      // The navigation and floating controls never subtract from drawing space.
-      page.style.setProperty('--pc-nav-height', `${nav?.getBoundingClientRect().height || 0}px`);
+      // The single top menu and floating controls never subtract from drawing space.
       page.style.setProperty('--pc-chrome-bottom', `${topbar.getBoundingClientRect().bottom + 12}px`);
       const width = Math.max(1, stage.clientWidth), height = Math.max(1, stage.clientHeight);
       setViewport((current) => current.width === width && current.height === height ? current : { width, height });
     };
     measure();
     const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null;
-    [stage, nav, topbar].forEach((element) => { if (element) observer?.observe(element); });
+    [stage, topbar].forEach((element) => { if (element) observer?.observe(element); });
     window.addEventListener('resize', measure);
     return () => { observer?.disconnect(); window.removeEventListener('resize', measure); };
   }, []);
@@ -444,7 +444,6 @@ export function PopcanContent() {
 
   return <div className="popcan-page" ref={pageRef} data-background-enabled={backgroundEnabled ? 'true' : 'false'}>
     <a className="pc-skip" href="#popcan-canvas">Skip to canvas</a>
-    <NavMenu standalone />
     <main className="pc-studio" aria-label="Popular Canvas editor">
       <header className="pc-topbar" ref={topbarRef}>
         <div className="pc-identity"><span className="pc-logo" aria-hidden="true"><img src={popcanLogo} alt="" /></span><div><h1>popcan<span>.</span></h1><p>POPULAR CANVAS</p></div></div>
@@ -456,6 +455,9 @@ export function PopcanContent() {
           <ToolButton icon="download" label="Export PNG" className="pc-export" disabled={!ready || busy} onClick={exportPng}><span>Export PNG</span></ToolButton>
           <input ref={inputRef} className="pc-sr" tabIndex={-1} type="file" aria-label="Image to import" accept="image/png,image/jpeg,image/webp" onChange={importImage} />
         </div>
+        {/* One top menu: the site's theme, experience and account controls
+            live in Canvas's own bar instead of a second navigation pill. */}
+        <nav className="pc-site" aria-label="Site"><ThemeToggle /><WorkspaceMenu /><AuthNavControl /></nav>
       </header>
       <div className="pc-workspace">
         <div className="pc-tools" role="toolbar" aria-label="Drawing tools">
@@ -538,6 +540,14 @@ export function PopcanContent() {
       </form> : modal === 'new' ? <form onSubmit={newCanvas}><p>Your current canvas stays in undo history. Export a PNG to keep a separate copy.</p><label className="pc-field">Canvas format<select aria-label="Canvas format" value={newFormat} onChange={(event) => setNewFormat(event.target.value)}>{Object.entries(FORMATS).map(([name, dimensions]) => <option key={name} value={name}>{name[0].toUpperCase() + name.slice(1)} · {dimensions.join(' × ')}</option>)}</select></label><label className="pc-field">Canvas surface<select aria-label="Canvas surface" value={newPaper} onChange={(event) => setNewPaper(event.target.value)}>{Object.keys(PAPERS).map((name) => <option key={name} value={name}>{PAPER_LABELS[name]}</option>)}</select></label><button className="pc-primary" type="submit">Create canvas <span aria-hidden="true">↗</span></button></form> : <><p>Morphogen-inspired pigment, without the drift. Draw with a mouse, touch or pressure-sensitive pen. Scroll or pinch to zoom in and out. Use Hand, hold Space, or drag with two fingers to move the page. New marks expand your canvas. Choose Select (V), click any stroke, shape, image or text, then drag to move just that item. Click empty space to deselect. Arrow keys nudge a selection; Page Up/Down cycles items. Choose Text, then click where your words belong. Export includes the whole document.</p><dl>{SHORTCUTS.map(([key, action]) => <div key={key}><dt><kbd>{key}</kbd></dt><dd>{action}</dd></div>)}</dl><p className="pc-hint">Canvas growth is limited to 4 megapixels to protect device memory. Fill operates inside the current document bounds. Recent items stay independently selectable. When the 20 MiB editable-pixel budget fills, Popcan visibly groups enough of the oldest items into one movable Earlier artwork layer so drawing can continue. Up to 512 live items are retained. One draft is saved in this browser when storage is available. Nothing is uploaded. Export your favourites before starting over.</p></>}
     </dialog>}
   </div>;
+}
+
+function ThemeToggle() {
+  const { isDark, toggleTheme } = useThemeMode();
+  return <button type="button" className="pc-theme-toggle" onClick={toggleTheme} aria-label="Toggle dark mode" title={isDark ? 'Light mode' : 'Dark mode'}>
+    {isDark ? <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="1.8" /><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
+      : <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>}
+  </button>;
 }
 
 export default function PopcanPage() {
