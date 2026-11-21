@@ -9,6 +9,8 @@ import { readDraft, writeDraft, loadImage, exportName } from './popcan/popcanSto
 import { MIN_ZOOM, MAX_ZOOM, screenPoint, zoomView, panView, TEXT_FONTS, rasterFrame } from './popcan/popcanView';
 import popcanLogo from '../assets/img/popcan-logo.png';
 import './PopcanPage.css';
+import './LiquidGlass.css';
+import './PopcanLiquidGlass.css';
 
 const TOOLS = [
   ['select', 'Select & move', 'V'],

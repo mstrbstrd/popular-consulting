@@ -1,0 +1,118 @@
+/* Liquid Glass for the Invoice Generator. Loaded after the invoice stylesheets
+   and LiquidGlass.css. Screen only: print and the invoice paper are untouched,
+   because the paper is the document, not chrome.
+     regular glass  — the sticky action bar and the draft options menu
+     glass panes    — the assistant scope and the form sections: tinted fill,
+                      specular rim and depth with no backdrop filter, as on
+                      Home, so a long scrolling form never re-blurs the live
+                      field under every section on every frame
+     lenses         — fields, buttons and chips inside those surfaces
+     clear glass    — controls that sit directly on the field */
+@media screen {
+  .invoice-page .invoice-actions,
+  .invoice-page .invoice-toolbar {
+    border-color: transparent;
+    background: var(--lg-menu-fill);
+    -webkit-backdrop-filter: var(--lg-regular-blur) var(--lg-post);
+    backdrop-filter: var(--lg-regular-blur) var(--lg-post);
+    box-shadow: var(--lg-specular), var(--lg-shadow);
+  }
+  .invoice-page .invoice-actions { border-radius: var(--lg-radius-menu); }
+  .invoice-page .invoice-toolbar { border-radius: var(--lg-radius-menu); padding: 8px; }
+
+  .invoice-page .invoice-assistant-scope,
+  .invoice-page .invoice-form > fieldset,
+  .invoice-page .invoice-settings {
+    border-color: transparent;
+    border-radius: 26px;
+    background: var(--lg-menu-fill);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    box-shadow: var(--lg-specular), var(--lg-shadow);
+  }
+  .invoice-page .invoice-form .invoice-settings fieldset { background: transparent; box-shadow: none; }
+  /* Large glass surfaces keep only the glass rim; focus keeps a softened spectral rim. */
+  .invoice-page :is(.invoice-actions, .invoice-topbar)::after,
+  .invoice-page :is(.invoice-form > fieldset, .invoice-settings)::before { opacity: 0; }
+  .invoice-page :is(.invoice-form > fieldset, .invoice-settings):focus-within::before { opacity: 0.6; }
+
+  /* Fields are lenses: capsules for one line, a rounded well for longer text. */
+  .invoice-page .invoice-field :is(input, select),
+  .invoice-page .invoice-item-taxes select {
+    border-color: transparent; border-radius: 999px; background: var(--lg-input-fill); box-shadow: var(--lg-lens-edge);
+  }
+  .invoice-page .invoice-field textarea {
+    border-color: transparent; border-radius: 18px; background: var(--lg-input-fill); box-shadow: var(--lg-lens-edge);
+  }
+  .invoice-page .invoice-field select option { color: var(--aetheris-ink); background: var(--aetheris-panel); }
+
+  /* Buttons and chips: capsule lenses with the Aetheris spectral ring on the
+     primary and add actions, as on the Orb's composer controls. */
+  .invoice-page button,
+  .invoice-page .invoice-draft-menu > summary,
+  .invoice-page .invoice-logo-row input::file-selector-button {
+    border-color: transparent; border-radius: 999px; background: var(--lg-lens-hover); box-shadow: var(--lg-lens-edge);
+  }
+  .invoice-page .invoice-toolbar button,
+  .invoice-page .invoice-item-actions button,
+  .invoice-page .invoice-draft-menu > summary { background: transparent; box-shadow: none; }
+  @media (hover: hover) {
+    .invoice-page button:hover:not(:disabled),
+    .invoice-page .invoice-draft-menu > summary:hover { border-color: transparent; background: var(--lg-lens); box-shadow: var(--lg-lens-edge); }
+  }
+  .invoice-page :is(.invoice-primary, .invoice-add-item) {
+    position: relative; isolation: isolate; border: 1px solid transparent; background: var(--lg-lens); box-shadow: var(--lg-lens-edge);
+  }
+  .invoice-page .invoice-form .invoice-add-item { border-style: solid; }
+  .invoice-page :is(.invoice-primary, .invoice-add-item)::before {
+    content: ""; position: absolute; inset: 0; z-index: 2; padding: 1px; border-radius: inherit; pointer-events: none;
+    background: var(--aetheris-spectral-border-soft);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); mask-composite: exclude;
+  }
+  .invoice-page .invoice-primary::before { padding: 2px; background: var(--aetheris-spectral); }
+  @media (hover: hover) {
+    .invoice-page :is(.invoice-primary, .invoice-add-item):hover:not(:disabled) { background: var(--lg-lens); box-shadow: var(--lg-lens-edge), 0 0 20px var(--aetheris-spectral-glow); }
+    .invoice-page .invoice-add-item:hover:not(:disabled)::before { background: var(--aetheris-spectral); }
+  }
+  .invoice-page .invoice-view-toggle { border-color: transparent; border-radius: 999px; background: var(--lg-lens); box-shadow: inset 0 0 0 0.5px var(--lg-rim); }
+  .invoice-page .invoice-view-toggle button { background: transparent; box-shadow: none; }
+  .invoice-page .invoice-view-toggle button[aria-pressed="true"] { border-color: transparent; background: var(--lg-clear-fill-hover); box-shadow: var(--lg-lens-edge); }
+  .invoice-page .invoice-readiness,
+  .invoice-page .invoice-item-taxes label { border-color: transparent; border-radius: 999px; background: var(--lg-lens-hover); box-shadow: var(--lg-lens-edge); }
+  .invoice-page .invoice-readiness[data-complete="true"] { background: color-mix(in srgb, var(--aetheris-teal) 14%, var(--lg-lens-hover)); }
+  .invoice-page :is(.invoice-device-options, .invoice-item) { border-color: color-mix(in srgb, var(--lg-rim) 70%, var(--aetheris-line)); }
+
+  /* Controls that sit on the field itself are clear glass. */
+  .invoice-page .invoice-scene-options button,
+  .invoice-page .invoice-topbar {
+    border-color: transparent;
+    background: var(--lg-clear-fill);
+    -webkit-backdrop-filter: var(--lg-clear-fallback) var(--lg-post);
+    backdrop-filter: var(--lg-clear-fallback) var(--lg-post);
+    box-shadow: var(--lg-specular), var(--lg-shadow);
+  }
+}
+
+/* The Ask Metabloom launcher floats over the field and over the white invoice
+   paper alike, so it is regular (frosted) glass: legible over either. */
+.metabloom-assistant-launcher {
+  border-color: transparent;
+  background: var(--lg-menu-fill);
+  -webkit-backdrop-filter: var(--lg-regular-blur) var(--lg-post);
+  backdrop-filter: var(--lg-regular-blur) var(--lg-post);
+  box-shadow: var(--lg-specular), var(--lg-shadow);
+}
+@media (hover: hover) { .metabloom-assistant-launcher:hover { box-shadow: var(--lg-specular), var(--lg-shadow), inset 0 0 0 999px var(--lg-lens-hover); } }
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .invoice-page :is(.invoice-actions, .invoice-toolbar), .metabloom-assistant-launcher { background: var(--aetheris-panel); }
+}
+@media screen and (forced-colors: active) {
+  .invoice-page :is(.invoice-actions, .invoice-toolbar, .invoice-assistant-scope, .invoice-form > fieldset, .invoice-settings, .invoice-field input, .invoice-field select, .invoice-field textarea, button),
+  .metabloom-assistant-launcher {
+    background: Canvas; color: CanvasText; border: 1px solid CanvasText; box-shadow: none;
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+  }
+  .invoice-page :is(.invoice-primary, .invoice-add-item)::before { display: none; }
+}

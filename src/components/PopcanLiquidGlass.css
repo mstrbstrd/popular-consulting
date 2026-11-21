@@ -1,0 +1,76 @@
+/* Liquid Glass for Canvas (Popcan). Loaded after PopcanPage.css and LiquidGlass.css.
+   The floating islands are regular glass over the artwork: frosted, with the
+   menu-strength tint so controls stay legible over any pigment. Controls
+   inside an island are lenses (the island is the backdrop root, so they never
+   add a nested backdrop filter). The canvas, papers, exports and pigment
+   previews are artwork and stay untouched. */
+.popcan-page .pc-topbar,
+.popcan-page .pc-tools,
+.popcan-page .pc-inspector,
+.popcan-page .pc-status,
+.popcan-page .pc-tool-status,
+.popcan-page .pc-view-controls,
+.popcan-page .pc-selection-actions,
+.popcan-page .pc-dialog {
+  border-color: transparent;
+  background: var(--lg-menu-fill);
+  -webkit-backdrop-filter: var(--lg-regular-blur) var(--lg-post);
+  backdrop-filter: var(--lg-regular-blur) var(--lg-post);
+  box-shadow: var(--lg-specular), var(--lg-shadow);
+}
+.popcan-page :is(.pc-topbar, .pc-inspector, .pc-dialog) { border-radius: var(--lg-radius-menu); }
+.popcan-page :is(.pc-tools, .pc-status, .pc-tool-status, .pc-view-controls, .pc-selection-actions) { border-radius: 999px; }
+/* The painted spectral hairline gives way to the glass rim, as elsewhere. */
+.popcan-page .pc-topbar::before { opacity: 0; }
+.popcan-page :is(.pc-document, .pc-history) { border-color: color-mix(in srgb, var(--lg-rim) 70%, var(--pc-line)); }
+.popcan-page .pc-group { border-bottom-color: color-mix(in srgb, var(--lg-rim) 70%, var(--pc-line)); }
+
+/* Icon buttons are round lenses; the active tool is a lens with the selected spectral ring. */
+.popcan-page .pc-button { position: relative; isolation: isolate; border-radius: 999px; }
+@media (hover: hover) {
+  .popcan-page .pc-button:hover:not(:disabled) { border-color: transparent; background: var(--lg-lens-hover); box-shadow: inset 0 1px 0.5px var(--lg-spec-top); }
+}
+.popcan-page .pc-tools .pc-button.is-active,
+.popcan-page .pc-view-controls [aria-pressed='true'],
+.popcan-page .pc-button.pc-export,
+.popcan-page .pc-primary {
+  border-color: transparent; background: var(--lg-lens); box-shadow: var(--lg-lens-edge);
+}
+.popcan-page .pc-primary { position: relative; isolation: isolate; border-radius: 999px; }
+.popcan-page .pc-tools .pc-button.is-active::before,
+.popcan-page .pc-button.pc-export::before,
+.popcan-page .pc-primary::before {
+  content: ""; position: absolute; inset: 0; z-index: 2; padding: 1px; border-radius: inherit; pointer-events: none;
+  background: var(--aetheris-spectral-border-soft);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); mask-composite: exclude;
+}
+.popcan-page .pc-tools .pc-button.is-active::before { padding: 2px; background: var(--aetheris-spectral); }
+@media (hover: hover) {
+  .popcan-page :is(.pc-button.pc-export, .pc-primary):hover:not(:disabled)::before { background: var(--aetheris-spectral); }
+}
+
+/* Fields and segmented controls inside glass. */
+.popcan-page .pc-field select,
+.popcan-page .pc-dialog textarea,
+.popcan-page .pc-text-options input {
+  border-color: transparent; border-radius: 999px; background: var(--lg-lens-hover); box-shadow: var(--lg-lens-edge);
+}
+.popcan-page .pc-dialog textarea { border-radius: 18px; }
+.popcan-page .pc-field select option { color: var(--pc-ink); background: var(--pc-panel); }
+.popcan-page .pc-segment { border-color: transparent; border-radius: 999px; background: var(--lg-lens); box-shadow: inset 0 0 0 0.5px var(--lg-rim); }
+.popcan-page .pc-segment button { border-radius: 999px; }
+.popcan-page .pc-segment button[aria-pressed='true'] { border-color: transparent; background: var(--lg-clear-fill-hover); box-shadow: var(--lg-lens-edge); }
+.popcan-page .pc-dialog dl > div { border-bottom-color: color-mix(in srgb, var(--lg-rim) 70%, var(--pc-line)); }
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .popcan-page :is(.pc-topbar, .pc-tools, .pc-inspector, .pc-status, .pc-tool-status, .pc-view-controls, .pc-selection-actions, .pc-dialog) { background: var(--pc-panel); }
+}
+@media (forced-colors: active) {
+  .popcan-page :is(.pc-topbar, .pc-tools, .pc-inspector, .pc-status, .pc-tool-status, .pc-view-controls, .pc-selection-actions, .pc-dialog) {
+    background: Canvas; color: CanvasText; border: 1px solid CanvasText; box-shadow: none;
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+  }
+  .popcan-page :is(.pc-tools .pc-button.is-active, .pc-button.pc-export, .pc-primary)::before { display: none; }
+  .popcan-page .pc-tools .pc-button.is-active { outline: 2px solid Highlight; }
+}

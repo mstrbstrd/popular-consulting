@@ -12,6 +12,8 @@ import { createGuidedInvoice, createInvoiceWorkspaceController } from "../utils/
 import { generateInvoiceNumber, invoiceDateToday } from "../utils/invoice";
 import "./InvoiceGeneratorPage.css";
 import "./InvoiceGeneratorScene.css";
+import "./LiquidGlass.css";
+import "./InvoiceLiquidGlass.css";
 
 const InvoiceField = ({ id, label, value, onChange, multiline = false, ...props }) => {
   const Tag = multiline ? "textarea" : "input";

@@ -28,7 +28,7 @@ describe('Orb liquid glass layer', () => {
   test('clear and regular glass, with light and dark tokens', () => {
     ['--lg-clear-fill', '--lg-input-fill', '--lg-panel-fill', '--lg-menu-fill', '--lg-specular', '--lg-lens', '--lg-regular-blur']
       .forEach(token => expect(shared).toContain(`${token}:`));
-    expect(shared).toMatch(/:where\(\[data-theme='dark'\]\) :is\(\.orb-page, \.home-page\) \{[^}]*--lg-menu-fill:/);
+    expect(shared).toMatch(/:where\(\[data-theme='dark'\]\) :is\(\.orb-page, \.home-page, \.popcan-page, \.invoice-page, \.invoice-site-navigation, \.metabloom-assistant-launcher\) \{[^}]*--lg-menu-fill:/);
   });
 
   test('accessibility preferences collapse glass to solid panels', () => {

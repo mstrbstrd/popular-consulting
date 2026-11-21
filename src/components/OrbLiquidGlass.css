@@ -341,3 +341,161 @@
   .orb-page .metabloom-chat__research-toggle[data-enabled='true'],
   .orb-page .metabloom-reactions__toolbar > button[aria-expanded='true'] { outline: 2px solid Highlight; outline-offset: -2px; }
 }
+
+/* ---------- Cohesion: every surface on the glass system ----------
+   Content inside a glass panel or dialog is a lens, never a second opaque
+   card, and never a nested backdrop filter (the panel is already the backdrop
+   root). Remapping the Aetheris surface tokens inside those containers moves
+   every card, chip and field that uses them onto the same material. */
+.orb-page .metabloom-chat__workspace,
+.orb-page .metabloom-saved-work,
+.orb-page .metabloom-reactions__panel,
+.orb-page .metabloom-model-picker__dialog,
+.orb-page .orb-appearance__dialog {
+  --aetheris-glass-surface: var(--lg-lens-hover);
+  --aetheris-glass-panel-raised: var(--lg-lens);
+  --aetheris-card-panel: var(--lg-lens-hover);
+  --aetheris-card-panel-raised: var(--lg-lens);
+  --aetheris-glass-specular: var(--lg-lens-edge);
+  --metabloom-chat-control: var(--lg-lens-hover);
+}
+.orb-page .metabloom-chat__workspace .metabloom-visual,
+.orb-page .metabloom-chat__workspace .metabloom-research-brief,
+.orb-page .metabloom-chat__workspace .metabloom-source-preview {
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+/* The workspace panel's own glass shows through its bar and body. It is a
+   reading surface over a bright living field, so it takes the menu-strength
+   tint (the opaque slot inside it used to supply that contrast). */
+.orb-page[data-active-component='true'] .metabloom-chat__workspace { background: var(--lg-menu-fill); }
+.orb-page .metabloom-component-workspace__toolbar {
+  background: transparent; border-bottom-color: color-mix(in srgb, var(--lg-rim) 70%, transparent);
+}
+.orb-page .metabloom-component-workspace__body > .metabloom-research-slot { background: transparent; }
+.orb-page .metabloom-chat__workspace .metabloom-visual { background: var(--lg-lens-hover); box-shadow: var(--lg-lens-edge); }
+
+/* Story pager, publisher marks and chips are capsule lenses. */
+.orb-page .metabloom-research-brief__navigation {
+  border-radius: 999px; background: var(--lg-lens-hover); box-shadow: var(--lg-lens-edge);
+}
+.orb-page .metabloom-research-brief__navigation button,
+.orb-page .metabloom-research-brief__navigation select { border-radius: 999px; }
+.orb-page .metabloom-source-icon { border-radius: 999px; background: var(--lg-lens-hover); box-shadow: var(--lg-lens-edge); }
+.orb-page .metabloom-research-brief__coverage-status { border-color: transparent; background: var(--lg-lens); box-shadow: var(--lg-lens-edge); }
+.orb-page .metabloom-research-status__detail { border-radius: 999px; background: var(--lg-lens-hover); box-shadow: var(--lg-lens-edge); }
+
+/* Transcript: replies are regular glass panes, the visitor's own messages are
+   tinted glass. Both keep their shapes and the reply's spectral rail. */
+.orb-page .metabloom-chat__message--assistant .metabloom-chat__bubble {
+  border-color: transparent;
+  background: linear-gradient(90deg, var(--lg-menu-fill), var(--lg-panel-fill));
+  -webkit-backdrop-filter: var(--lg-regular-blur) var(--lg-post);
+  backdrop-filter: var(--lg-regular-blur) var(--lg-post);
+  box-shadow: var(--lg-specular), var(--lg-shadow);
+}
+.orb-page .metabloom-chat__message--user .metabloom-chat__bubble {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--metabloom-chat-user) 84%, transparent);
+  -webkit-backdrop-filter: var(--lg-regular-blur) var(--lg-post);
+  backdrop-filter: var(--lg-regular-blur) var(--lg-post);
+  box-shadow:
+    inset 1.5px 1.5px 0.5px -1px rgba(255, 255, 255, 0.42),
+    inset -1.5px -1.5px 0.5px -1px rgba(255, 255, 255, 0.2),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.16),
+    var(--lg-shadow);
+}
+/* Cards in the conversation (visual answers, research and visual launchers,
+   source previews, suggestions, errors) use the same pane material. */
+.orb-page .metabloom-chat__messages .metabloom-visual,
+.orb-page .metabloom-research-launcher > button,
+.orb-page .metabloom-visual-launcher > button,
+.orb-page .metabloom-chat__messages .metabloom-source-preview,
+.orb-page .metabloom-chat__suggestions button,
+.orb-page .metabloom-chat__error {
+  border-color: transparent;
+  background: var(--lg-panel-fill);
+  -webkit-backdrop-filter: var(--lg-clear-fallback) var(--lg-post);
+  backdrop-filter: var(--lg-clear-fallback) var(--lg-post);
+  box-shadow: var(--lg-specular), var(--lg-shadow);
+}
+.orb-page .metabloom-chat__bubble .metabloom-research-launcher > button,
+.orb-page .metabloom-chat__bubble .metabloom-visual-launcher > button,
+.orb-page .metabloom-chat__bubble .metabloom-source-preview {
+  /* Inside a reply pane these are lenses, not a second frosted layer. */
+  background: var(--lg-lens-hover); box-shadow: var(--lg-lens-edge);
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+.orb-page .metabloom-chat__error { box-shadow: var(--lg-specular), var(--lg-shadow), inset 0 0 0 1px color-mix(in srgb, #d22c50 44%, transparent); }
+@media (hover: hover) {
+  .orb-page .metabloom-research-launcher > button:hover,
+  .orb-page .metabloom-visual-launcher > button:hover,
+  .orb-page .metabloom-chat__suggestions button:hover { background: var(--lg-menu-fill); border-color: transparent; }
+  .orb-page .metabloom-chat__bubble .metabloom-research-launcher > button:hover,
+  .orb-page .metabloom-chat__bubble .metabloom-visual-launcher > button:hover { background: var(--lg-lens); }
+}
+
+/* Desktop send button: a lens inside the composer's glass. */
+.orb-page .metabloom-chat__composer button { background: var(--lg-lens-hover); box-shadow: var(--lg-lens-edge); }
+
+/* More: the replay action and recipe divider follow the menu's capsule rows. */
+.orb-page .metabloom-reactions__panel .metabloom-reactions__replay-selected {
+  border-color: transparent; border-radius: 999px; background: var(--lg-lens-hover); box-shadow: var(--lg-lens-edge);
+}
+.orb-page .metabloom-reactions__panel .metabloom-reactions__recipes,
+.orb-page .metabloom-reactions__panel .metabloom-reactions__score {
+  border-top-color: color-mix(in srgb, var(--lg-rim) 70%, transparent);
+}
+
+/* Saved work is a regular glass dialog, like the experience and account menus. */
+.orb-page .metabloom-saved-work {
+  border-color: transparent;
+  border-radius: var(--lg-radius-menu);
+  background: var(--lg-menu-fill);
+  -webkit-backdrop-filter: var(--lg-regular-blur) var(--lg-post);
+  backdrop-filter: var(--lg-regular-blur) var(--lg-post);
+  box-shadow: var(--lg-specular), var(--lg-shadow);
+}
+.orb-page .metabloom-saved-work::before { opacity: 0; }
+.orb-page .metabloom-saved-work button,
+.orb-page .metabloom-saved-work input,
+.orb-page .metabloom-saved-work select {
+  border-color: transparent; border-radius: 999px; background: var(--lg-lens-hover); box-shadow: var(--lg-lens-edge);
+}
+.orb-page .metabloom-saved-work__current,
+.orb-page .metabloom-saved-work__item {
+  border-color: transparent; border-radius: 18px; background: var(--lg-lens-hover); box-shadow: var(--lg-lens-edge);
+}
+.orb-page .metabloom-saved-work button.metabloom-saved-work__primary { position: relative; isolation: isolate; background: var(--lg-lens); box-shadow: var(--lg-lens-edge); }
+.orb-page .metabloom-saved-work button.metabloom-saved-work__primary::before {
+  content: ""; position: absolute; inset: 0; z-index: 2; padding: 1px; border-radius: inherit; pointer-events: none;
+  background: var(--aetheris-spectral);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); mask-composite: exclude;
+}
+.orb-page .metabloom-saved-work .metabloom-saved-work__header,
+.orb-page .metabloom-saved-work .metabloom-saved-work__feedback {
+  border-color: color-mix(in srgb, var(--lg-rim) 70%, transparent);
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .orb-page .metabloom-saved-work,
+  .orb-page .metabloom-chat__bubble { background: var(--aetheris-panel-raised); }
+}
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .orb-page .metabloom-chat__message--user .metabloom-chat__bubble { background: var(--metabloom-chat-user); }
+}
+@media (forced-colors: active) {
+  .orb-page .metabloom-saved-work,
+  .orb-page .metabloom-saved-work__current,
+  .orb-page .metabloom-saved-work__item,
+  .orb-page .metabloom-research-brief__navigation,
+  .orb-page .metabloom-chat__messages .metabloom-visual,
+  .orb-page .metabloom-research-launcher > button,
+  .orb-page .metabloom-visual-launcher > button,
+  .orb-page .metabloom-chat__suggestions button {
+    background: Canvas; color: CanvasText; border: 1px solid CanvasText; box-shadow: none;
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+  }
+  .orb-page .metabloom-chat__message--user .metabloom-chat__bubble { background: CanvasText; color: Canvas; box-shadow: none; }
+  .orb-page .metabloom-saved-work button.metabloom-saved-work__primary::before { display: none; }
+}
