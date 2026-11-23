@@ -74,6 +74,7 @@ describe('CalendarPage', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    calendarApi.getCalendarExportUrl.mockReturnValue('/api/metabloom-calendar?format=ics');
     delete process.env.REACT_APP_METABLOOM_CALENDAR_ENABLED;
     useAuth.mockReturnValue({
       status: 'authenticated',

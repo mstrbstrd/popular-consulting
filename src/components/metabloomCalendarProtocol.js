@@ -50,8 +50,14 @@ const safeEventId = value => typeof value === 'string' && /^[a-zA-Z0-9_-]{8,80}$
 const safeRevision = value => Number.isSafeInteger(value) && value >= 0 && value < Number.MAX_SAFE_INTEGER;
 const safePositiveInt = value => Number.isSafeInteger(value) && value >= 1 && value < Number.MAX_SAFE_INTEGER;
 
+const utf8ByteLength = json => {
+  if (typeof TextEncoder !== 'undefined') return new TextEncoder().encode(json).byteLength;
+  if (typeof Buffer !== 'undefined') return Buffer.byteLength(json, 'utf8');
+  return json.length * 4;
+};
+
 const withinBytes = (value, max) => {
-  try { return new TextEncoder().encode(JSON.stringify(value)).byteLength <= max; }
+  try { return utf8ByteLength(JSON.stringify(value)) <= max; }
   catch { return false; }
 };
 
