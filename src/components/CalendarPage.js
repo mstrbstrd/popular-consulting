@@ -11,6 +11,8 @@ import {
   deleteCalendarEvent,
   undoCalendarOperation,
   getCalendarExportUrl,
+  getGoogleCalendarConnectUrl,
+  disconnectGoogleCalendar,
 } from './metabloomCalendarApiClient';
 import {
   CALENDAR_COLORS,
@@ -40,6 +42,52 @@ const COLOR_LABELS = Object.freeze({
 });
 
 const pad2 = value => String(value).padStart(2, '0');
+
+function readGoogleCallbackNotice() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const status = params.get('google');
+    if (status === 'connected') {
+      return {
+        type: 'success',
+        message: 'Google Calendar connected.',
+      };
+    }
+    if (status === 'error') {
+      return {
+        type: 'error',
+        message: 'Could not connect Google Calendar. Please try signing in again.',
+      };
+    }
+  } catch { /* Ignore malformed location search. */ }
+  return null;
+}
+
+function normalizeGoogleStatus(rawGoogle, fallbackConnected) {
+  if (!rawGoogle || typeof rawGoogle !== 'object') {
+    if (typeof fallbackConnected === 'boolean') {
+      return {
+        configured: true,
+        connected: fallbackConnected,
+        email: null,
+        calendarId: 'primary',
+      };
+    }
+    return null;
+  }
+  const cleanEmail = typeof rawGoogle.email === 'string'
+    ? sanitizeUntrustedCalendarText(rawGoogle.email, 200)
+    : '';
+  const cleanCalendarId = typeof rawGoogle.calendarId === 'string'
+    ? sanitizeUntrustedCalendarText(rawGoogle.calendarId, 200)
+    : '';
+  return {
+    configured: Boolean(rawGoogle.configured),
+    connected: Boolean(rawGoogle.connected),
+    email: cleanEmail || null,
+    calendarId: cleanCalendarId || 'primary',
+  };
+}
 
 function resolveDefaultTimeZone() {
   try {
@@ -607,8 +655,9 @@ function CalendarContent({ onReady }) {
   const { status, user, logoutRevision, refresh } = auth;
   const navigation = useAppNavigation();
   const clientEnabled = process.env.REACT_APP_METABLOOM_CALENDAR_ENABLED !== '0';
-  const signedIn = status === 'authenticated' && user?.role === 'admin' && typeof user?.id === 'string';
-  const accountKey = `${user?.id || ''}:${logoutRevision || 0}`;
+  const userId = typeof user?.id === 'string' ? user.id : null;
+  const signedIn = status === 'authenticated' && user?.role === 'admin' && Boolean(userId);
+  const accountKey = `${userId || ''}:${logoutRevision || 0}`;
 
   const [timeZone] = useState(resolveDefaultTimeZone);
   const todayIso = useMemo(() => formatDateInTimeZone(new Date(), timeZone), [timeZone]);
@@ -616,7 +665,16 @@ function CalendarContent({ onReady }) {
   const [anchorDate, setAnchorDate] = useState(todayIso);
   const [selectedEventId, setSelectedEventId] = useState(null);
 
-  const [serverStatus, setServerStatus] = useState({ checked: false, enabled: true, provider: 'redis' });
+  const [serverStatus, setServerStatus] = useState({
+    checked: false,
+    enabled: true,
+    provider: 'redis',
+    google: null,
+  });
+  const [statusRefreshTick, setStatusRefreshTick] = useState(0);
+  const [googleNotice, setGoogleNotice] = useState(readGoogleCallbackNotice);
+  const [disconnectingGoogle, setDisconnectingGoogle] = useState(false);
+
   const [events, setEvents] = useState([]);
   const [calendarVersion, setCalendarVersion] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -636,9 +694,17 @@ function CalendarContent({ onReady }) {
   const statusAbortRef = useRef(null);
   const eventsAbortRef = useRef(null);
   const mutationAbortRef = useRef(null);
+  const authOwnerRef = useRef({ owner: user?.id || null, logoutRevision: logoutRevision || 0 });
 
   const windowRange = useMemo(() => computeVisibleWindow(anchorDate, view), [anchorDate, view]);
   const sortedEvents = useMemo(() => sortEvents(events), [events]);
+
+  const isGoogleProvider = serverStatus.provider === 'google';
+  const isGoogleConfigured = isGoogleProvider && Boolean(serverStatus.google?.configured);
+  const isGoogleConnected = isGoogleProvider && Boolean(serverStatus.google?.connected);
+  const isGoogleConnectPrompt = isGoogleProvider && isGoogleConfigured && !isGoogleConnected;
+  const isGoogleUnconfigured = isGoogleProvider && serverStatus.checked && !isGoogleConfigured;
+  const isGoogleAwaitingConnection = isGoogleProvider && !isGoogleConnected;
 
   const contextSnapshotRef = useRef({
     visibleStart: windowRange.visibleStart,
@@ -669,6 +735,27 @@ function CalendarContent({ onReady }) {
       onReady?.();
     }
   }, [status, onReady]);
+
+  // Strip transient Google OAuth callback query param without reloading.
+  useEffect(() => {
+    try {
+      const url = new URL(window.location.href);
+      if (!url.searchParams.has('google')) return;
+      url.searchParams.delete('google');
+      const cleaned = `${url.pathname}${url.search}${url.hash}`;
+      window.history.replaceState(window.history.state, '', cleaned);
+    } catch { /* Ignore history API restrictions. */ }
+  }, []);
+
+  // Clear callback notice on logout or switching accounts.
+  useEffect(() => {
+    const previous = authOwnerRef.current;
+    const currentLogout = logoutRevision || 0;
+    if (currentLogout !== previous.logoutRevision || (userId && previous.owner && previous.owner !== userId)) {
+      setGoogleNotice(null);
+    }
+    authOwnerRef.current = { owner: userId || previous.owner, logoutRevision: currentLogout };
+  }, [userId, logoutRevision]);
 
   useEffect(() => {
     const html = document.documentElement;
@@ -701,7 +788,8 @@ function CalendarContent({ onReady }) {
     setModalError('');
     setUndoState(null);
     setErrorMessage('');
-    setServerStatus({ checked: false, enabled: true, provider: 'redis' });
+    setDisconnectingGoogle(false);
+    setServerStatus({ checked: false, enabled: true, provider: 'redis', google: null });
   }, [accountKey, signedIn]);
 
   // Keep bridge configured even if CalendarPage is rendered standalone.
@@ -764,26 +852,33 @@ function CalendarContent({ onReady }) {
           checked: true,
           enabled: result?.enabled !== false,
           provider: result?.provider || 'redis',
+          google: normalizeGoogleStatus(result?.google),
         });
       })
       .catch(error => {
         if (!active || controller.signal.aborted || error?.name === 'AbortError' || error?.code === 'cancelled') return;
         if (error?.code === 'calendar_disabled') {
-          setServerStatus({ checked: true, enabled: false, provider: 'redis' });
+          setServerStatus({ checked: true, enabled: false, provider: 'redis', google: null });
           return;
         }
-        setServerStatus({ checked: true, enabled: true, provider: 'redis' });
+        setServerStatus({ checked: true, enabled: true, provider: 'redis', google: null });
         setErrorMessage('Could not check calendar status. Try refreshing.');
       });
     return () => {
       active = false;
       controller.abort();
     };
-  }, [signedIn, clientEnabled, accountKey]);
+  }, [signedIn, clientEnabled, accountKey, statusRefreshTick]);
 
   // Load events for the active visible window.
   useEffect(() => {
     if (!signedIn || !clientEnabled || !serverStatus.checked || !serverStatus.enabled) return undefined;
+    if (isGoogleAwaitingConnection) {
+      eventsAbortRef.current?.abort();
+      setEvents([]);
+      setLoading(false);
+      return undefined;
+    }
     eventsAbortRef.current?.abort();
     const controller = new AbortController();
     eventsAbortRef.current = controller;
@@ -800,13 +895,36 @@ function CalendarContent({ onReady }) {
       .then(result => {
         if (!active || controller.signal.aborted) return;
         if (result?.enabled === false) {
-          setServerStatus(previous => ({ ...previous, enabled: false, provider: result.provider || previous.provider }));
+          setServerStatus(previous => ({
+            ...previous,
+            enabled: false,
+            provider: result.provider || previous.provider,
+            google: result.google !== undefined ? normalizeGoogleStatus(result.google) : previous.google,
+          }));
           setEvents([]);
           setLoading(false);
           return;
         }
-        if (result?.provider) {
-          setServerStatus(previous => ({ ...previous, provider: result.provider }));
+        if (result?.provider || result?.google !== undefined || typeof result?.connected === 'boolean') {
+          setServerStatus(previous => {
+            const nextProvider = result.provider || previous.provider;
+            let nextGoogle = previous.google;
+            if (result.google !== undefined) {
+              nextGoogle = normalizeGoogleStatus(result.google, result.connected);
+            } else if (typeof result.connected === 'boolean' && nextProvider === 'google') {
+              nextGoogle = {
+                configured: previous.google?.configured ?? true,
+                connected: result.connected,
+                email: result.connected ? (previous.google?.email || null) : null,
+                calendarId: previous.google?.calendarId || 'primary',
+              };
+            }
+            return {
+              ...previous,
+              provider: nextProvider,
+              google: nextGoogle,
+            };
+          });
         }
         setEvents(Array.isArray(result?.events) ? result.events : []);
         if (Number.isSafeInteger(result?.version)) setCalendarVersion(result.version);
@@ -815,13 +933,39 @@ function CalendarContent({ onReady }) {
       .catch(error => {
         if (!active || controller.signal.aborted || error?.name === 'AbortError' || error?.code === 'cancelled') return;
         setLoading(false);
+        if (
+          error?.code === 'google_not_connected'
+          || error?.code === 'calendar_google_not_connected'
+          || error?.code === 'google_auth_expired'
+        ) {
+          setEvents([]);
+          setServerStatus(previous => ({
+            ...previous,
+            google: {
+              configured: previous.google?.configured ?? true,
+              connected: false,
+              email: null,
+              calendarId: previous.google?.calendarId || 'primary',
+            },
+          }));
+        }
         setErrorMessage(error?.message || 'Unable to load calendar events.');
       });
     return () => {
       active = false;
       controller.abort();
     };
-  }, [signedIn, clientEnabled, serverStatus.checked, serverStatus.enabled, windowRange.queryStart, windowRange.queryEnd, timeZone, refreshTick]);
+  }, [
+    signedIn,
+    clientEnabled,
+    serverStatus.checked,
+    serverStatus.enabled,
+    isGoogleAwaitingConnection,
+    windowRange.queryStart,
+    windowRange.queryEnd,
+    timeZone,
+    refreshTick,
+  ]);
 
   useEffect(() => () => {
     window.clearTimeout(focusRestoreTimerRef.current);
@@ -844,14 +988,57 @@ function CalendarContent({ onReady }) {
   }, [todayIso]);
 
   const triggerRefresh = useCallback(() => {
+    if (isGoogleAwaitingConnection) {
+      setStatusRefreshTick(tick => tick + 1);
+      return;
+    }
     setRefreshTick(tick => tick + 1);
-  }, []);
+  }, [isGoogleAwaitingConnection]);
+
+  const handleDisconnectGoogle = useCallback(async () => {
+    if (disconnectingGoogle) return;
+    mutationAbortRef.current?.abort();
+    const controller = new AbortController();
+    mutationAbortRef.current = controller;
+    setDisconnectingGoogle(true);
+    setErrorMessage('');
+    setGoogleNotice(null);
+    try {
+      await disconnectGoogleCalendar({ signal: controller.signal });
+      if (controller.signal.aborted) return;
+      setEvents([]);
+      setCalendarVersion(0);
+      setSelectedEventId(null);
+      setUndoState(null);
+      setModal(null);
+      setServerStatus(previous => ({
+        ...previous,
+        google: {
+          configured: previous.google?.configured ?? true,
+          connected: false,
+          email: null,
+          calendarId: previous.google?.calendarId || 'primary',
+        },
+      }));
+      setDisconnectingGoogle(false);
+      setGoogleNotice({
+        type: 'success',
+        message: 'Google Calendar disconnected.',
+      });
+      setStatusRefreshTick(tick => tick + 1);
+    } catch (error) {
+      if (controller.signal.aborted || error?.name === 'AbortError' || error?.code === 'cancelled') return;
+      setDisconnectingGoogle(false);
+      setErrorMessage(error?.message || 'Could not disconnect Google Calendar. Please try again.');
+    }
+  }, [disconnectingGoogle]);
 
   const openCreateModal = useCallback(defaultDate => {
+    if (isGoogleAwaitingConnection) return;
     lastTriggerRef.current = document.activeElement;
     setModalError('');
     setModal({ mode: 'create', defaultDate: isIsoDate(defaultDate) ? defaultDate : anchorDate });
-  }, [anchorDate]);
+  }, [anchorDate, isGoogleAwaitingConnection]);
 
   const openEditModal = useCallback(event => {
     lastTriggerRef.current = document.activeElement;
@@ -986,6 +1173,7 @@ function CalendarContent({ onReady }) {
     () => getCalendarExportUrl({ start: windowRange.queryStart, end: windowRange.queryEnd }),
     [windowRange.queryStart, windowRange.queryEnd],
   );
+  const googleConnectUrl = useMemo(() => getGoogleCalendarConnectUrl(), []);
 
   const rangeHeading = useMemo(
     () => formatRangeHeading(anchorDate, view, windowRange.visibleStart, windowRange.visibleEnd),
@@ -1000,7 +1188,11 @@ function CalendarContent({ onReady }) {
     return map;
   }, [windowRange.days, sortedEvents, timeZone]);
 
-  const providerLabel = serverStatus.provider === 'mcp' ? 'MCP connected' : 'Personal calendar';
+  const providerLabel = serverStatus.provider === 'mcp'
+    ? 'MCP connected'
+    : serverStatus.provider === 'google'
+      ? 'Google Calendar'
+      : 'Personal calendar';
   const activeMonthPrefix = anchorDate.slice(0, 7);
 
   const renderMonthView = () => (
@@ -1307,7 +1499,33 @@ function CalendarContent({ onReady }) {
                 <h1 id="calendar-title">Calendar</h1>
               </div>
               <div className="calendar-header-badges">
-                <span className="calendar-badge calendar-badge--provider">{providerLabel}</span>
+                {isGoogleProvider ? (
+                  <>
+                    <span className="calendar-badge calendar-badge--provider calendar-badge--google">
+                      <span>{providerLabel}</span>
+                      {isGoogleConnected && serverStatus.google?.email && (
+                        <span className="calendar-badge-detail">{serverStatus.google.email}</span>
+                      )}
+                      {!isGoogleConnected && (
+                        <span className="calendar-badge-detail">
+                          {isGoogleConfigured ? 'Not connected' : 'Setup required'}
+                        </span>
+                      )}
+                    </span>
+                    {isGoogleConnected && (
+                      <button
+                        type="button"
+                        className="calendar-btn calendar-btn--ghost calendar-btn--subtle"
+                        disabled={disconnectingGoogle}
+                        onClick={handleDisconnectGoogle}
+                      >
+                        {disconnectingGoogle ? 'Disconnecting…' : 'Disconnect'}
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  <span className="calendar-badge calendar-badge--provider">{providerLabel}</span>
+                )}
                 <span className="calendar-badge calendar-badge--tz">{timeZone}</span>
               </div>
             </header>
@@ -1345,6 +1563,7 @@ function CalendarContent({ onReady }) {
                   <button
                     type="button"
                     className="calendar-btn calendar-btn--primary"
+                    disabled={isGoogleAwaitingConnection}
                     onClick={() => openCreateModal(anchorDate)}
                   >
                     New Event
@@ -1357,16 +1576,43 @@ function CalendarContent({ onReady }) {
                   >
                     {loading ? 'Refreshing…' : 'Refresh'}
                   </button>
-                  <a
-                    className="calendar-btn calendar-btn--ghost"
-                    href={exportUrl}
-                    download="calendar.ics"
-                  >
-                    Export .ics
-                  </a>
+                  {isGoogleAwaitingConnection ? (
+                    <button
+                      type="button"
+                      className="calendar-btn calendar-btn--ghost"
+                      disabled
+                    >
+                      Export .ics
+                    </button>
+                  ) : (
+                    <a
+                      className="calendar-btn calendar-btn--ghost"
+                      href={exportUrl}
+                      download="calendar.ics"
+                    >
+                      Export .ics
+                    </a>
+                  )}
                 </div>
               </div>
             </section>
+
+            {googleNotice && (
+              <div
+                className={`calendar-glass-panel ${googleNotice.type === 'error' ? 'calendar-error-banner' : 'calendar-status-banner'}`}
+                role={googleNotice.type === 'error' ? 'alert' : 'status'}
+                aria-live={googleNotice.type === 'error' ? undefined : 'polite'}
+              >
+                <span>{googleNotice.message}</span>
+                <button
+                  type="button"
+                  className="calendar-btn calendar-btn--ghost"
+                  onClick={() => setGoogleNotice(null)}
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
 
             {undoState && (
               <div className="calendar-glass-panel calendar-undo-banner" role="status" aria-live="polite">
@@ -1401,12 +1647,49 @@ function CalendarContent({ onReady }) {
               </div>
             )}
 
-            <section className="calendar-glass-panel calendar-surface" aria-busy={loading}>
-              {view === 'month' && renderMonthView()}
-              {view === 'week' && renderWeekView()}
-              {view === 'day' && renderDayView()}
-              {view === 'agenda' && renderAgendaView()}
-            </section>
+            {isGoogleConnectPrompt ? (
+              <section
+                className="calendar-glass-panel calendar-connect-panel"
+                aria-labelledby="calendar-google-connect-title"
+              >
+                <p className="calendar-eyebrow">Google Calendar</p>
+                <h2 id="calendar-google-connect-title" className="calendar-connect-title">
+                  Connect your Google Calendar
+                </h2>
+                <p className="calendar-connect-copy">
+                  Sign in with Google to view, schedule, update, and export events from your Google Calendar in this workspace.
+                </p>
+                <div className="calendar-connect-actions">
+                  <a
+                    className="calendar-btn calendar-btn--primary"
+                    href={googleConnectUrl}
+                    data-document-navigation="true"
+                  >
+                    Sign in with Google
+                  </a>
+                </div>
+              </section>
+            ) : isGoogleUnconfigured ? (
+              <section
+                className="calendar-glass-panel calendar-connect-panel"
+                aria-labelledby="calendar-google-setup-title"
+              >
+                <p className="calendar-eyebrow">Google Calendar</p>
+                <h2 id="calendar-google-setup-title" className="calendar-connect-title">
+                  Google Calendar setup required
+                </h2>
+                <p className="calendar-connect-copy">
+                  Google Calendar OAuth credentials are not configured on this server yet. Add your Google Cloud OAuth client settings to enable sign-in.
+                </p>
+              </section>
+            ) : (
+              <section className="calendar-glass-panel calendar-surface" aria-busy={loading}>
+                {view === 'month' && renderMonthView()}
+                {view === 'week' && renderWeekView()}
+                {view === 'day' && renderDayView()}
+                {view === 'agenda' && renderAgendaView()}
+              </section>
+            )}
           </div>
         )}
 

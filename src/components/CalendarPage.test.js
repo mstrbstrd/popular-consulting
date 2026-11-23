@@ -27,7 +27,10 @@ jest.mock('./metabloomCalendarApiClient', () => ({
   updateCalendarEvent: jest.fn(),
   deleteCalendarEvent: jest.fn(),
   undoCalendarOperation: jest.fn(),
-  getCalendarExportUrl: jest.fn(() => '/api/metabloom-calendar?format=ics'),
+  getCalendarExportUrl: jest.fn(),
+  getGoogleCalendarConnectUrl: jest.fn(),
+  fetchGoogleCalendarStatus: jest.fn(),
+  disconnectGoogleCalendar: jest.fn(),
 }));
 
 function makeEvent(overrides = {}) {
@@ -74,7 +77,16 @@ describe('CalendarPage', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    window.history.replaceState({}, '', '/calendar');
     calendarApi.getCalendarExportUrl.mockReturnValue('/api/metabloom-calendar?format=ics');
+    calendarApi.getGoogleCalendarConnectUrl.mockReturnValue('/api/metabloom-calendar-google?action=connect');
+    calendarApi.fetchGoogleCalendarStatus.mockResolvedValue({
+      configured: false,
+      connected: false,
+      email: null,
+      calendarId: 'primary',
+    });
+    calendarApi.disconnectGoogleCalendar.mockResolvedValue({ disconnected: true });
     delete process.env.REACT_APP_METABLOOM_CALENDAR_ENABLED;
     useAuth.mockReturnValue({
       status: 'authenticated',
@@ -289,6 +301,141 @@ describe('CalendarPage', () => {
     calendarApi.fetchCalendarStatus.mockResolvedValueOnce({ enabled: false, provider: 'redis' });
     rerender(<CalendarPage />);
     expect(await screen.findByText('Calendar is currently disabled for this workspace.')).toBeInTheDocument();
+  });
+
+  test('renders Google Calendar connect prompt with document navigation link and zero axe violations when unconnected', async () => {
+    calendarApi.fetchCalendarStatus.mockResolvedValueOnce({
+      enabled: true,
+      provider: 'google',
+      google: {
+        configured: true,
+        connected: false,
+        email: null,
+        calendarId: 'primary',
+      },
+    });
+
+    const { container } = render(<CalendarPage />);
+
+    expect(await screen.findByRole('heading', { name: 'Connect your Google Calendar' })).toBeInTheDocument();
+    const connectLink = screen.getByRole('link', { name: 'Sign in with Google' });
+    expect(connectLink).toHaveAttribute('href', '/api/metabloom-calendar-google?action=connect');
+    expect(connectLink).toHaveAttribute('data-document-navigation', 'true');
+    expect(screen.getByRole('button', { name: 'New Event' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Export .ics' })).toBeDisabled();
+    expect(calendarApi.listCalendarEvents).not.toHaveBeenCalled();
+
+    const results = await axe(container);
+    expect(results).toHaveNoViolations();
+  });
+
+  test('displays connected Google Calendar email badge and supports disconnecting', async () => {
+    calendarApi.fetchCalendarStatus
+      .mockResolvedValueOnce({
+        enabled: true,
+        provider: 'google',
+        google: {
+          configured: true,
+          connected: true,
+          email: 'shae@popularconsulting.ca',
+          calendarId: 'primary',
+        },
+      })
+      .mockResolvedValueOnce({
+        enabled: true,
+        provider: 'google',
+        google: {
+          configured: true,
+          connected: false,
+          email: null,
+          calendarId: 'primary',
+        },
+      });
+    calendarApi.listCalendarEvents.mockResolvedValueOnce({
+      enabled: true,
+      provider: 'google',
+      connected: true,
+      google: {
+        configured: true,
+        connected: true,
+        email: 'shae@popularconsulting.ca',
+        calendarId: 'primary',
+      },
+      version: 3,
+      updatedAt: 1795450000000,
+      events: [makeEvent()],
+    });
+
+    render(<CalendarPage />);
+
+    expect(await screen.findByText('Quarterly Planning')).toBeInTheDocument();
+    expect(screen.getByText('Google Calendar')).toBeInTheDocument();
+    expect(screen.getByText('shae@popularconsulting.ca')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Disconnect' }));
+
+    await waitFor(() => {
+      expect(calendarApi.disconnectGoogleCalendar).toHaveBeenCalledTimes(1);
+    });
+    expect(await screen.findByRole('link', { name: 'Sign in with Google' })).toBeInTheDocument();
+    expect(screen.getByText('Google Calendar disconnected.')).toBeInTheDocument();
+  });
+
+  test('renders and cleans up ?google=connected and ?google=error callback query banners', async () => {
+    window.history.replaceState({}, '', '/calendar?google=connected');
+    calendarApi.fetchCalendarStatus.mockResolvedValueOnce({
+      enabled: true,
+      provider: 'google',
+      google: {
+        configured: true,
+        connected: true,
+        email: 'shae@popularconsulting.ca',
+        calendarId: 'primary',
+      },
+    });
+    calendarApi.listCalendarEvents.mockResolvedValueOnce({
+      enabled: true,
+      provider: 'google',
+      connected: true,
+      google: {
+        configured: true,
+        connected: true,
+        email: 'shae@popularconsulting.ca',
+        calendarId: 'primary',
+      },
+      version: 3,
+      updatedAt: 1795450000000,
+      events: [makeEvent()],
+    });
+
+    const first = render(<CalendarPage />);
+    expect(await screen.findByText('Quarterly Planning')).toBeInTheDocument();
+    expect(screen.getByText('Google Calendar connected.')).toBeInTheDocument();
+    expect(window.location.search).toBe('');
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+    expect(screen.queryByText('Google Calendar connected.')).not.toBeInTheDocument();
+    first.unmount();
+
+    window.history.replaceState({}, '', '/calendar?google=error');
+    calendarApi.fetchCalendarStatus.mockResolvedValueOnce({
+      enabled: true,
+      provider: 'google',
+      google: {
+        configured: true,
+        connected: false,
+        email: null,
+        calendarId: 'primary',
+      },
+    });
+
+    const { container } = render(<CalendarPage />);
+    expect(await screen.findByRole('heading', { name: 'Connect your Google Calendar' })).toBeInTheDocument();
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveTextContent('Could not connect Google Calendar. Please try signing in again.');
+    expect(window.location.search).toBe('');
+
+    const results = await axe(container);
+    expect(results).toHaveNoViolations();
   });
 
   test('has zero jest-axe accessibility violations in workspace and event modal', async () => {

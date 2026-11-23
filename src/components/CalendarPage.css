@@ -15,6 +15,8 @@
   --cal-surface-hover: rgba(255, 255, 255, 0.72);
   --cal-accent: #1d4ed8;
   --cal-accent-ink: #ffffff;
+  --cal-success: #047857;
+  --cal-success-bg: rgba(4, 120, 87, 0.1);
   --cal-danger: #be123c;
   --cal-danger-bg: rgba(190, 18, 60, 0.1);
   --cal-focus-line: var(--aetheris-focus-line, #0e7490);
@@ -58,6 +60,8 @@
   --cal-surface-hover: rgba(38, 38, 56, 0.78);
   --cal-accent: #38bdf8;
   --cal-accent-ink: #08131f;
+  --cal-success: #34d399;
+  --cal-success-bg: rgba(52, 211, 153, 0.16);
   --cal-danger: #fb7185;
   --cal-danger-bg: rgba(251, 113, 133, 0.16);
   --cal-focus-line: var(--aetheris-focus-line, #38bdf8);
@@ -153,6 +157,7 @@ body[data-metabloom-companion='calendar'] .calendar-main {
 .calendar-badge {
   display: inline-flex;
   align-items: center;
+  gap: 0.7rem;
   padding: 0.6rem 1.2rem;
   border-radius: 999px;
   font-size: 1.25rem;
@@ -164,6 +169,13 @@ body[data-metabloom-companion='calendar'] .calendar-main {
 
 .calendar-badge--provider {
   border-color: color-mix(in srgb, var(--cal-accent) 45%, var(--cal-border));
+}
+
+.calendar-badge-detail {
+  padding-left: 0.7rem;
+  border-left: 1px solid var(--cal-border-strong);
+  font-weight: 500;
+  color: var(--cal-ink-muted);
 }
 
 .calendar-toolbar {
@@ -278,6 +290,11 @@ body[data-metabloom-companion='calendar'] .calendar-main {
   background: var(--lg-clear-fill);
 }
 
+.calendar-btn--subtle {
+  padding: 0.55rem 1.2rem;
+  font-size: 1.25rem;
+}
+
 .calendar-btn--danger {
   background: var(--cal-danger);
   border-color: var(--cal-danger);
@@ -300,6 +317,7 @@ body[data-metabloom-companion='calendar'] .calendar-main {
 }
 
 .calendar-undo-banner,
+.calendar-status-banner,
 .calendar-error-banner {
   display: flex;
   flex-wrap: wrap;
@@ -308,6 +326,12 @@ body[data-metabloom-companion='calendar'] .calendar-main {
   gap: 1.2rem;
   padding: 1.2rem 1.8rem;
   font-size: 1.45rem;
+}
+
+.calendar-status-banner {
+  border-color: color-mix(in srgb, var(--cal-success) 50%, var(--cal-border));
+  background: var(--cal-success-bg);
+  color: var(--cal-ink);
 }
 
 .calendar-error-banner {
@@ -320,6 +344,38 @@ body[data-metabloom-companion='calendar'] .calendar-main {
   display: flex;
   align-items: center;
   gap: 0.8rem;
+}
+
+.calendar-connect-panel {
+  padding: 4.4rem 3rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 1.2rem;
+}
+
+.calendar-connect-title {
+  margin: 0;
+  font-size: clamp(2.2rem, 2.8vw, 2.8rem);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.2;
+}
+
+.calendar-connect-copy {
+  margin: 0;
+  max-width: 52rem;
+  font-size: 1.55rem;
+  color: var(--cal-ink-muted);
+}
+
+.calendar-connect-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 0.8rem;
 }
 
 .calendar-surface {
@@ -866,6 +922,9 @@ body[data-metabloom-companion='calendar'] .calendar-main {
   .calendar-range-title {
     margin-left: 0;
     width: 100%;
+  }
+  .calendar-connect-panel {
+    padding: 3.2rem 1.8rem;
   }
 }
 

@@ -10,7 +10,7 @@ const MAX_CALENDAR_PROPOSAL_BYTES = 32768;
 
 const CALENDAR_VIEWS = Object.freeze(['month', 'week', 'day', 'agenda']);
 const CALENDAR_COLORS = Object.freeze(['default', 'cobalt', 'emerald', 'amber', 'rose', 'violet']);
-const CALENDAR_SOURCES = Object.freeze(['manual', 'agent', 'mcp']);
+const CALENDAR_SOURCES = Object.freeze(['manual', 'agent', 'mcp', 'google']);
 const CALENDAR_COMMANDS = Object.freeze(['open', 'focus', 'create', 'update', 'delete']);
 const CALENDAR_RECEIPT_STATUSES = Object.freeze([
   'applied',
@@ -46,7 +46,7 @@ const safeText = (value, max, empty = false) => typeof value === 'string'
   && !hasDisallowedControl(value);
 
 const safeIdentifier = value => typeof value === 'string' && /^[a-zA-Z0-9_-]{1,160}$/.test(value);
-const safeEventId = value => typeof value === 'string' && /^[a-zA-Z0-9_-]{8,80}$/.test(value);
+const safeEventId = value => typeof value === 'string' && /^[a-zA-Z0-9_-]{5,160}$/.test(value);
 const safeRevision = value => Number.isSafeInteger(value) && value >= 0 && value < Number.MAX_SAFE_INTEGER;
 const safePositiveInt = value => Number.isSafeInteger(value) && value >= 1 && value < Number.MAX_SAFE_INTEGER;
 

@@ -37,8 +37,10 @@ const ERROR_STATUS_BY_CODE = Object.freeze({
   calendar_conflict: 409,
   calendar_operation_conflict: 409,
   calendar_undo_unavailable: 409,
+  calendar_google_not_connected: 409,
   calendar_limit: 422,
   calendar_mcp_timeout: 504,
+  calendar_google_timeout: 504,
 });
 
 function isPlainObject(value) {
@@ -60,7 +62,7 @@ function isSafePositiveInt(value) {
 }
 
 function isSafeEventId(value) {
-  return typeof value === 'string' && /^[a-zA-Z0-9_-]{8,80}$/.test(value);
+  return typeof value === 'string' && /^[a-zA-Z0-9_-]{5,160}$/.test(value);
 }
 
 function isSafeOperationId(value) {
@@ -253,13 +255,6 @@ function createCalendarHandler({
       return sendJson(404, { enabled: false, code: 'calendar_disabled' });
     }
 
-    if (method === 'GET' && query.mode === 'status') {
-      return sendJson(200, {
-        enabled: true,
-        provider: getProviderKind(),
-      });
-    }
-
     let body = null;
     if (method !== 'GET') {
       body = await readJsonBody(request);
@@ -279,6 +274,18 @@ function createCalendarHandler({
       const options = { signal: controller.signal, requestRef };
       const provider = createProvider();
 
+      if (method === 'GET' && query.mode === 'status') {
+        const status = typeof provider.getStatus === 'function'
+          ? await provider.getStatus(identity, options)
+          : { provider: provider.kind || getProviderKind(), google: null };
+        const includeGoogle = status.provider === 'google' || Boolean(status.google?.configured);
+        return sendJson(200, {
+          enabled: true,
+          provider: status.provider,
+          ...(includeGoogle && status.google ? { google: status.google } : {}),
+        });
+      }
+
       if (method === 'GET') {
         const parsedQuery = parseListQuery(query);
         if (!parsedQuery.ok) return sendJson(400, { code: 'calendar_invalid' });
@@ -297,13 +304,52 @@ function createCalendarHandler({
           return sendJson(400, { code: 'calendar_invalid' });
         }
 
-        const listed = await provider.listEvents(identity, parsedQuery.range, options);
+        let listed;
+        try {
+          listed = await provider.listEvents(identity, parsedQuery.range, options);
+        } catch (error) {
+          if (error?.code === 'calendar_google_not_connected') {
+            const status = typeof provider.getStatus === 'function'
+              ? await provider.getStatus(identity, options)
+              : null;
+            return sendJson(200, {
+              enabled: true,
+              provider: provider.kind,
+              connected: false,
+              google: status?.google || {
+                configured: true,
+                connected: false,
+                email: null,
+                calendarId: 'primary',
+              },
+              version: 0,
+              updatedAt: 0,
+              events: [],
+            });
+          }
+          throw error;
+        }
+
         const events = parsedQuery.range === null && parsedQuery.limit !== undefined
           ? listed.events.slice(0, parsedQuery.limit)
           : listed.events;
+        let googleExtra = {};
+        if (provider.kind === 'google' && typeof provider.getStatus === 'function') {
+          const status = await provider.getStatus(identity, options);
+          googleExtra = {
+            connected: Boolean(status?.google?.connected ?? true),
+            google: status?.google || {
+              configured: true,
+              connected: true,
+              email: null,
+              calendarId: 'primary',
+            },
+          };
+        }
         return sendJson(200, {
           enabled: true,
           provider: provider.kind,
+          ...googleExtra,
           version: listed.version,
           updatedAt: listed.updatedAt,
           events,
@@ -341,6 +387,7 @@ function createCalendarHandler({
             expectedVersion,
             operationId,
             payloadHash: hashResult.payloadHash,
+            confirmed: true,
           }, options);
           return sendJson(created.status === 'duplicate' ? 200 : 201, {
             status: created.status,
@@ -397,6 +444,7 @@ function createCalendarHandler({
               expectedVersion: proposal.expectedVersion,
               operationId: proposal.operationId,
               payloadHash: proposal.payloadHash,
+              confirmed: true,
             }, options);
           } else if (proposal.command === 'update') {
             result = await provider.updateEvent(identity, {
@@ -407,6 +455,7 @@ function createCalendarHandler({
               source: 'agent',
               operationId: proposal.operationId,
               payloadHash: proposal.payloadHash,
+              confirmed: true,
             }, options);
           } else {
             result = await provider.deleteEvent(identity, {
@@ -415,6 +464,7 @@ function createCalendarHandler({
               expectedVersion: proposal.expectedVersion,
               operationId: proposal.operationId,
               payloadHash: proposal.payloadHash,
+              confirmed: true,
             }, options);
           }
           return sendJson(200, {
@@ -465,6 +515,7 @@ function createCalendarHandler({
           source: 'manual',
           operationId,
           payloadHash: hashResult.payloadHash,
+          confirmed: true,
         }, options);
         return sendJson(200, {
           status: updated.status,
@@ -507,6 +558,7 @@ function createCalendarHandler({
           expectedVersion,
           operationId,
           payloadHash: hashResult.payloadHash,
+          confirmed: true,
         }, options);
         return sendJson(200, {
           status: deleted.status,

@@ -1,4 +1,5 @@
 const CALENDAR_API_PATH = '/api/metabloom-calendar';
+const CALENDAR_GOOGLE_API_PATH = '/api/metabloom-calendar-google';
 const CALENDAR_REQUEST_TIMEOUT_MS = 15000;
 const MAX_CALENDAR_RESPONSE_BYTES = 512 * 1024;
 
@@ -16,6 +17,12 @@ const CALENDAR_ERROR_MESSAGES = Object.freeze({
   calendar_limit: 'Your calendar has reached its storage limit.',
   calendar_mcp_timeout: 'The connected calendar timed out. Try again.',
   calendar_unavailable: 'Calendar service is temporarily unavailable.',
+  google_not_configured: 'Google Calendar is not configured on this server.',
+  google_not_connected: 'Connect your Google Calendar account to continue.',
+  google_auth_expired: 'Your Google Calendar connection expired. Sign in with Google again.',
+  google_oauth_failed: 'Google Calendar sign-in could not be completed. Try again.',
+  calendar_google_not_connected: 'Connect your Google Calendar account to continue.',
+  calendar_google_unavailable: 'Google Calendar is temporarily unavailable. Try again.',
   method_not_allowed: 'Unsupported calendar request.',
   cancelled: 'Calendar request was cancelled.',
   network_error: 'Could not reach the calendar service. Check your connection.',
@@ -298,4 +305,25 @@ export function getCalendarExportUrl({ start, end } = {}) {
     params.set('end', String(end));
   }
   return `${CALENDAR_API_PATH}?${params.toString()}`;
+}
+
+export function getGoogleCalendarConnectUrl() {
+  return `${CALENDAR_GOOGLE_API_PATH}?action=connect`;
+}
+
+export function fetchGoogleCalendarStatus({ signal, fetchImpl } = {}) {
+  return requestCalendarJson(`${CALENDAR_GOOGLE_API_PATH}?action=status`, {
+    method: 'GET',
+    signal,
+    fetchImpl,
+  });
+}
+
+export function disconnectGoogleCalendar({ signal, fetchImpl } = {}) {
+  return requestCalendarJson(CALENDAR_GOOGLE_API_PATH, {
+    method: 'POST',
+    body: { action: 'disconnect' },
+    signal,
+    fetchImpl,
+  });
 }

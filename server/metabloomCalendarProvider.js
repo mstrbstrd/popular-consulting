@@ -5,14 +5,18 @@ const {
 } = require('../src/components/metabloomCalendarProtocol');
 const { createMetabloomCalendarStore } = require('./metabloomCalendarStore');
 const { createMetabloomCalendarMcpClient } = require('./metabloomCalendarMcpClient');
+const { isGoogleCalendarConfigured } = require('./metabloomCalendarGoogleAuth');
+const { createMetabloomCalendarGoogleClient } = require('./metabloomCalendarGoogleClient');
 
 function isMetabloomCalendarEnabled(env = process.env) {
   return ['1', 'true'].includes(String(env.METABLOOM_CALENDAR_ENABLED || '').trim().toLowerCase());
 }
 
 function getMetabloomCalendarProviderKind(env = process.env) {
-  const configured = String(env.CALENDAR_PROVIDER || 'redis').trim().toLowerCase();
+  const configured = String(env.CALENDAR_PROVIDER || '').trim().toLowerCase();
+  if (configured === 'google') return 'google';
   if (configured === 'mcp' && env.CALENDAR_MCP_URL) return 'mcp';
+  if (!configured && isGoogleCalendarConfigured(env)) return 'google';
   return 'redis';
 }
 
@@ -32,18 +36,27 @@ function createMetabloomCalendarProvider({
   env = process.env,
   database = undefined,
   fetchImpl = undefined,
+  tokenStore = undefined,
   now = Date.now,
   logger = logCalendarOperation,
 } = {}) {
   const kind = getMetabloomCalendarProviderKind(env);
-  const backend = kind === 'mcp'
-    ? createMetabloomCalendarMcpClient({
-      endpointUrl: env.CALENDAR_MCP_URL,
-      authToken: env.CALENDAR_MCP_AUTH_TOKEN || null,
+  const backend = kind === 'google'
+    ? createMetabloomCalendarGoogleClient({
+      env,
+      database,
       fetchImpl: fetchImpl || globalThis.fetch,
       now,
+      tokenStore,
     })
-    : createMetabloomCalendarStore(database, { now });
+    : kind === 'mcp'
+      ? createMetabloomCalendarMcpClient({
+        endpointUrl: env.CALENDAR_MCP_URL,
+        authToken: env.CALENDAR_MCP_AUTH_TOKEN || null,
+        fetchImpl: fetchImpl || globalThis.fetch,
+        now,
+      })
+      : createMetabloomCalendarStore(database, { now });
 
   const traced = async (operation, { requestRef = null, operationId = null }, fn) => {
     const startedAt = now();
@@ -73,6 +86,27 @@ function createMetabloomCalendarProvider({
 
   return {
     kind,
+
+    async getStatus(identity, options = {}) {
+      return traced('get_status', options, async () => {
+        if (kind === 'google' && typeof backend.getConnectionStatus === 'function') {
+          const google = await backend.getConnectionStatus(identity, options);
+          return { provider: kind, google };
+        }
+        const calendarId = typeof env.GOOGLE_CALENDAR_ID === 'string' && env.GOOGLE_CALENDAR_ID.trim()
+          ? env.GOOGLE_CALENDAR_ID.trim()
+          : 'primary';
+        return {
+          provider: kind,
+          google: {
+            configured: isGoogleCalendarConfigured(env),
+            connected: false,
+            email: null,
+            calendarId,
+          },
+        };
+      });
+    },
 
     listEvents(identity, range = null, options = {}) {
       return traced('list_events', options, () => backend.listEvents(identity, range, options));
