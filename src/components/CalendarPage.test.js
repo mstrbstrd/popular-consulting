@@ -165,7 +165,7 @@ describe('CalendarPage', () => {
     render(<CalendarPage />);
     await screen.findByText('Quarterly Planning');
 
-    fireEvent.click(screen.getByRole('button', { name: 'New Event' }));
+    fireEvent.click(screen.getByRole('button', { name: 'New event' }));
     const dialog = screen.getByRole('dialog', { name: 'New event' });
     expect(dialog).toHaveAttribute('aria-modal', 'true');
 
@@ -321,7 +321,7 @@ describe('CalendarPage', () => {
     const connectLink = screen.getByRole('link', { name: 'Sign in with Google' });
     expect(connectLink).toHaveAttribute('href', '/api/metabloom-calendar-google?action=connect');
     expect(connectLink).toHaveAttribute('data-document-navigation', 'true');
-    expect(screen.getByRole('button', { name: 'New Event' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'New event' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Export .ics' })).toBeDisabled();
     expect(calendarApi.listCalendarEvents).not.toHaveBeenCalled();
 
@@ -445,7 +445,7 @@ describe('CalendarPage', () => {
     const workspaceResults = await axe(container);
     expect(workspaceResults).toHaveNoViolations();
 
-    fireEvent.click(screen.getByRole('button', { name: 'New Event' }));
+    fireEvent.click(screen.getByRole('button', { name: 'New event' }));
     expect(screen.getByRole('dialog', { name: 'New event' })).toBeInTheDocument();
     const modalResults = await axe(container);
     expect(modalResults).toHaveNoViolations();

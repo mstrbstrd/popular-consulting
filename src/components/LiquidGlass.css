@@ -1,8 +1,9 @@
 /* Shared iOS-style Liquid Glass for the signed-in workspace: Home, Orb, Canvas
-   (Popcan) and the Invoice Generator. Each tool's surfaces live in its own
-   *LiquidGlass.css file; the invoice paper and Canvas artwork are never glass.
+   (Popcan), the Invoice Generator and Calendar. Each tool's surfaces live in its
+   own stylesheet; the invoice paper and Canvas artwork are never glass.
    Tokens, accessibility fallbacks and the shared navigation chrome live here;
-   page surfaces live in Orb-, Home-, Popcan- and InvoiceLiquidGlass.css.
+   page surfaces live in Orb-, Home-, Popcan- and InvoiceLiquidGlass.css and
+   CalendarPage.css.
      clear    — floating controls: near-transparent, lensed rim, specular highlights
      regular  — panels and menus with text: frosted, same rim and lens
    Rim refraction is added in Chromium by liquidGlassRefraction.js through
@@ -15,7 +16,7 @@
    murky and dark, most visibly as a menu opened. Lenses never inherit. */
 @property --lg-refraction { syntax: "*"; inherits: false; }
 
-:is(.orb-page, .home-page, .popcan-page, .invoice-page, .invoice-site-navigation, .metabloom-assistant-launcher) {
+:is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation, .metabloom-assistant-launcher) {
   --lg-clear-fill: rgba(255, 255, 255, 0.12);
   --lg-clear-fill-hover: rgba(255, 255, 255, 0.24);
   --lg-input-fill: rgba(255, 255, 255, 0.16);
@@ -39,7 +40,7 @@
   --lg-lens-edge: inset 1px 1px 0.5px -0.5px rgba(255, 255, 255, 0.9), inset 0 0 0 0.5px rgba(255, 255, 255, 0.45), 0 1px 4px rgba(36, 18, 52, 0.08);
   --lg-radius-menu: 24px;
 }
-:where([data-theme='dark']) :is(.orb-page, .home-page, .popcan-page, .invoice-page, .invoice-site-navigation, .metabloom-assistant-launcher) {
+:where([data-theme='dark']) :is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation, .metabloom-assistant-launcher) {
   --lg-clear-fill: rgba(18, 18, 26, 0.16);
   --lg-clear-fill-hover: rgba(255, 255, 255, 0.08);
   --lg-input-fill: rgba(18, 18, 26, 0.24);
@@ -63,13 +64,13 @@
 /* Reduced motion removes every backdrop filter site-wide (index.css), so glass
    that carries text compensates with a denser tint instead of losing contrast. */
 @media (prefers-reduced-motion: reduce) {
-  :is(.orb-page, .home-page, .popcan-page, .invoice-page, .invoice-site-navigation, .metabloom-assistant-launcher) {
+  :is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation, .metabloom-assistant-launcher) {
     --lg-clear-fill: rgba(255, 252, 251, 0.62);
     --lg-input-fill: rgba(255, 252, 251, 0.7);
     --lg-panel-fill: rgba(255, 252, 251, 0.84);
     --lg-menu-fill: rgba(255, 252, 251, 0.94);
   }
-  :where([data-theme='dark']) :is(.orb-page, .home-page, .popcan-page, .invoice-page, .invoice-site-navigation, .metabloom-assistant-launcher) {
+  :where([data-theme='dark']) :is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation, .metabloom-assistant-launcher) {
     --lg-clear-fill: rgba(18, 18, 26, 0.62);
     --lg-input-fill: rgba(18, 18, 26, 0.7);
     --lg-panel-fill: rgba(20, 20, 28, 0.84);
@@ -79,7 +80,7 @@
 
 /* Accessibility preferences replace glass with solid Aetheris panels. */
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
-  :is(.orb-page, .home-page, .popcan-page, .invoice-page, .invoice-site-navigation), :where([data-theme='dark']) :is(.orb-page, .home-page, .popcan-page, .invoice-page, .invoice-site-navigation) {
+  :is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation), :where([data-theme='dark']) :is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation) {
     --lg-clear-fill: var(--aetheris-panel);
     --lg-clear-fill-hover: var(--aetheris-panel-raised);
     --lg-input-fill: var(--aetheris-panel);
@@ -100,7 +101,7 @@
    backdrop filter becomes the backdrop root for its descendants, so if the pill
    itself were glass, its experience/account menus could only sample the pill
    and the page would show through them unblurred. */
-html body :is(.orb-page, .home-page, .popcan-page, .invoice-page, .invoice-site-navigation) .nav-pill {
+html body :is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation) .nav-pill {
   border-color: transparent !important;
   background: transparent !important;
   -webkit-backdrop-filter: none !important;
@@ -108,7 +109,7 @@ html body :is(.orb-page, .home-page, .popcan-page, .invoice-page, .invoice-site-
   box-shadow: var(--lg-specular), var(--lg-shadow) !important;
   text-shadow: var(--lg-text-halo);
 }
-html body :is(.orb-page, .home-page, .popcan-page, .invoice-page, .invoice-site-navigation) .nav-pill::before {
+html body :is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation) .nav-pill::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -123,15 +124,15 @@ html body :is(.orb-page, .home-page, .popcan-page, .invoice-page, .invoice-site-
 }
 /* Entry motion: no backdrop filter while surfaces move (Chrome clip desync). */
 html body .home-page[data-entry='revealing'] .nav-pill::before { -webkit-backdrop-filter: none; backdrop-filter: none; }
-html body :is(.orb-page, .home-page, .popcan-page, .invoice-page, .invoice-site-navigation) .nav-pill::after { opacity: 0 !important; }
+html body :is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation) .nav-pill::after { opacity: 0 !important; }
 
 /* Nav icons: theme, experience switcher, account and mobile menu share one
    glass button. No painted spectral ring, no flat outline and no lift on
    hover (a transform inside a backdrop-filtered pill can desync Chrome's clip). */
-html body :is(.orb-page, .home-page, .popcan-page, .invoice-page, .invoice-site-navigation) .nav-pill .nav-theme-toggle,
-html body :is(.orb-page, .home-page, .popcan-page, .invoice-page, .invoice-site-navigation) .nav-pill .nav-burger,
-:is(.orb-page, .home-page, .popcan-page, .invoice-page, .invoice-site-navigation) .nav-pill .workspace-menu > summary,
-:is(.orb-page, .home-page, .popcan-page, .invoice-page, .invoice-site-navigation) .nav-pill .site-account-control {
+html body :is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation) .nav-pill .nav-theme-toggle,
+html body :is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation) .nav-pill .nav-burger,
+:is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation) .nav-pill .workspace-menu > summary,
+:is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation) .nav-pill .site-account-control {
   border: 0 !important;
   border-radius: 999px !important;
   color: var(--aetheris-ink) !important;
@@ -141,33 +142,33 @@ html body :is(.orb-page, .home-page, .popcan-page, .invoice-page, .invoice-site-
   text-shadow: none;
 }
 @media (hover: hover) {
-  html body :is(.orb-page, .home-page, .popcan-page, .invoice-page, .invoice-site-navigation) .nav-pill .nav-theme-toggle:hover,
-  html body :is(.orb-page, .home-page, .popcan-page, .invoice-page, .invoice-site-navigation) .nav-pill .nav-burger:hover,
-  :is(.orb-page, .home-page, .popcan-page, .invoice-page, .invoice-site-navigation) .nav-pill .workspace-menu > summary:hover,
-  :is(.orb-page, .home-page, .popcan-page, .invoice-page, .invoice-site-navigation) .nav-pill .site-account-control:hover {
+  html body :is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation) .nav-pill .nav-theme-toggle:hover,
+  html body :is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation) .nav-pill .nav-burger:hover,
+  :is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation) .nav-pill .workspace-menu > summary:hover,
+  :is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation) .nav-pill .site-account-control:hover {
     background: var(--lg-lens) !important;
     box-shadow: var(--lg-lens-edge) !important;
     transform: none !important;
   }
 }
-html body :is(.orb-page, .home-page, .popcan-page, .invoice-page, .invoice-site-navigation) .nav-pill .nav-burger--open,
-:is(.orb-page, .home-page, .popcan-page, .invoice-page, .invoice-site-navigation) .nav-pill .workspace-menu[open] > summary,
-:is(.orb-page, .home-page, .popcan-page, .invoice-page, .invoice-site-navigation) .nav-pill .site-account-menu[open] > .site-account-control {
+html body :is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation) .nav-pill .nav-burger--open,
+:is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation) .nav-pill .workspace-menu[open] > summary,
+:is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation) .nav-pill .site-account-menu[open] > .site-account-control {
   /* Open is marked by the teal ring alone: opening a menu never darkens it. */
   background: var(--lg-lens-hover) !important;
   box-shadow: var(--lg-lens-edge), inset 0 0 0 1px color-mix(in srgb, var(--aetheris-teal) 40%, transparent) !important;
 }
 /* Focus stays unmistakable on glass: the Aetheris focus halo. */
-html body :is(.orb-page, .home-page, .popcan-page, .invoice-page, .invoice-site-navigation) .nav-pill :is(.nav-theme-toggle, .nav-burger):focus-visible,
-:is(.orb-page, .home-page, .popcan-page, .invoice-page, .invoice-site-navigation) .nav-pill :is(.workspace-menu > summary, .site-account-control):focus-visible {
+html body :is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation) .nav-pill :is(.nav-theme-toggle, .nav-burger):focus-visible,
+:is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation) .nav-pill :is(.workspace-menu > summary, .site-account-control):focus-visible {
   outline: 2px solid var(--aetheris-focus-line) !important;
   outline-offset: 2px !important;
   box-shadow: var(--lg-lens-edge), var(--aetheris-focus-halo) !important;
 }
 
 /* ---------- Experience switcher and account menus (regular glass) ---------- */
-:is(.orb-page, .home-page, .popcan-page, .invoice-page, .invoice-site-navigation) .workspace-menu-panel,
-:is(.orb-page, .home-page, .popcan-page, .invoice-page, .invoice-site-navigation) .site-account-panel {
+:is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation) .workspace-menu-panel,
+:is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation) .site-account-panel {
   border: 1px solid transparent !important;
   border-radius: var(--lg-radius-menu) !important;
   background: var(--lg-menu-fill) !important;
@@ -177,35 +178,35 @@ html body :is(.orb-page, .home-page, .popcan-page, .invoice-page, .invoice-site-
   color: var(--aetheris-ink) !important;
   animation: liquid-glass-in var(--aetheris-motion-medium, 220ms) var(--aetheris-ease-standard, ease) both;
 }
-:is(.orb-page, .home-page, .popcan-page, .invoice-page, .invoice-site-navigation) .workspace-menu-panel { padding: 8px; }
-:is(.orb-page, .home-page, .popcan-page, .invoice-page, .invoice-site-navigation) .workspace-menu-panel a,
-:is(.orb-page, .home-page, .popcan-page, .invoice-page, .invoice-site-navigation) .site-account-panel a { border-radius: 999px; padding-inline: 14px; }
-:is(.orb-page, .home-page, .popcan-page, .invoice-page, .invoice-site-navigation) .workspace-menu-panel a:hover,
-:is(.orb-page, .home-page, .popcan-page, .invoice-page, .invoice-site-navigation) .site-account-panel a:hover { background: var(--lg-lens-hover); }
-:is(.orb-page, .home-page, .popcan-page, .invoice-page, .invoice-site-navigation) .workspace-menu-panel a[aria-current='page'] { background: var(--lg-lens); box-shadow: var(--lg-lens-edge); }
-:is(.orb-page, .home-page, .popcan-page, .invoice-page, .invoice-site-navigation) .workspace-menu-panel > span,
-:is(.orb-page, .home-page, .popcan-page, .invoice-page, .invoice-site-navigation) .site-account-panel > span { padding-inline: 14px; }
-:is(.orb-page, .home-page, .popcan-page, .invoice-page, .invoice-site-navigation) .site-account-panel { padding: 8px; width: 220px; font-family: var(--aetheris-font-sans); font-size: 14px; }
+:is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation) .workspace-menu-panel { padding: 8px; }
+:is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation) .workspace-menu-panel a,
+:is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation) .site-account-panel a { border-radius: 999px; padding-inline: 14px; }
+:is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation) .workspace-menu-panel a:hover,
+:is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation) .site-account-panel a:hover { background: var(--lg-lens-hover); }
+:is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation) .workspace-menu-panel a[aria-current='page'] { background: var(--lg-lens); box-shadow: var(--lg-lens-edge); }
+:is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation) .workspace-menu-panel > span,
+:is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation) .site-account-panel > span { padding-inline: 14px; }
+:is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation) .site-account-panel { padding: 8px; width: 220px; font-family: var(--aetheris-font-sans); font-size: 14px; }
 /* Opacity only: transforms on backdrop-filtered surfaces can desync Chrome's clip. */
 @keyframes liquid-glass-in { from { opacity: 0; } to { opacity: 1; } }
 
 @media (prefers-reduced-motion: reduce) {
-  :is(.orb-page, .home-page, .popcan-page, .invoice-page, .invoice-site-navigation) .workspace-menu-panel, :is(.orb-page, .home-page, .popcan-page, .invoice-page, .invoice-site-navigation) .site-account-panel { animation: none; }
+  :is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation) .workspace-menu-panel, :is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation) .site-account-panel { animation: none; }
 }
 @media (forced-colors: active) {
-  html body :is(.orb-page, .home-page, .popcan-page, .invoice-page, .invoice-site-navigation) .nav-pill,
-  html body :is(.orb-page, .home-page, .popcan-page, .invoice-page, .invoice-site-navigation) .nav-pill::before,
-  :is(.orb-page, .home-page, .popcan-page, .invoice-page, .invoice-site-navigation) .workspace-menu-panel,
-  :is(.orb-page, .home-page, .popcan-page, .invoice-page, .invoice-site-navigation) .site-account-panel,
-  html body :is(.orb-page, .home-page, .popcan-page, .invoice-page, .invoice-site-navigation) .nav-pill .nav-theme-toggle,
-  html body :is(.orb-page, .home-page, .popcan-page, .invoice-page, .invoice-site-navigation) .nav-pill .nav-burger,
-  :is(.orb-page, .home-page, .popcan-page, .invoice-page, .invoice-site-navigation) .nav-pill .workspace-menu > summary,
-  :is(.orb-page, .home-page, .popcan-page, .invoice-page, .invoice-site-navigation) .nav-pill .site-account-control {
+  html body :is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation) .nav-pill,
+  html body :is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation) .nav-pill::before,
+  :is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation) .workspace-menu-panel,
+  :is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation) .site-account-panel,
+  html body :is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation) .nav-pill .nav-theme-toggle,
+  html body :is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation) .nav-pill .nav-burger,
+  :is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation) .nav-pill .workspace-menu > summary,
+  :is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation) .nav-pill .site-account-control {
     background: Canvas !important; color: CanvasText !important;
     border: 1px solid CanvasText !important; box-shadow: none !important;
     -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
   }
-  :is(.orb-page, .home-page, .popcan-page, .invoice-page, .invoice-site-navigation) .workspace-menu-panel a[aria-current='page'] { background: Highlight; color: HighlightText; }
-  html body :is(.orb-page, .home-page, .popcan-page, .invoice-page, .invoice-site-navigation) .nav-pill :is(.nav-theme-toggle, .nav-burger):focus-visible,
-  :is(.orb-page, .home-page, .popcan-page, .invoice-page, .invoice-site-navigation) .nav-pill :is(.workspace-menu > summary, .site-account-control):focus-visible { outline-color: Highlight !important; }
+  :is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation) .workspace-menu-panel a[aria-current='page'] { background: Highlight; color: HighlightText; }
+  html body :is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation) .nav-pill :is(.nav-theme-toggle, .nav-burger):focus-visible,
+  :is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation) .nav-pill :is(.workspace-menu > summary, .site-account-control):focus-visible { outline-color: Highlight !important; }
 }
