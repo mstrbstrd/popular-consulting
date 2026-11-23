@@ -3,7 +3,8 @@ import { METABLOOM_ACTION_MODES } from "./metabloomDecisionMapping";
 import { METABLOOM_REQUEST_ERROR_MESSAGES, parseMetabloomRequestError, parseMetabloomRequestRef, getMetabloomApiErrorMessage } from "./metabloomRequestErrors";
 import { METABLOOM_VISUAL_OFFER_EVENT, createMetabloomVisualStreamBridge } from "./metabloomVisualApiClient";
 import { parseMetabloomResearchContext, isMetabloomFreshResearchRequest } from "./metabloomResearchReference";
-import { METABLOOM_AGENT_TIMEOUT_MS } from './metabloomAgentTools';
+import { METABLOOM_AGENT_TIMEOUT_MS, createMetabloomCalendarStreamBridge } from './metabloomAgentTools';
+import { MAX_CALENDAR_PROPOSAL_BYTES } from './metabloomCalendarProtocol';
 import { parseMetabloomModelSelection } from './metabloomModelProtocol';
 import { parseMetabloomOrbContext } from './metabloomExpressionProtocol';
 import { MAX_METABLOOM_WORKSPACE_BODY_BYTES, MAX_METABLOOM_WORKSPACE_EVENT_BYTES,
@@ -41,7 +42,10 @@ export const requestMetabloomResponse = async ({
   modelSelection,
   orbContext,
   workspaceContext,
+  calendarContext,
   onWorkspaceProposal,
+  onCalendarProposal,
+  onCalendarReceipt,
   message,
   onSegment,
   onTextDelta,
@@ -96,6 +100,8 @@ export const requestMetabloomResponse = async ({
       || typeof requestId !== 'string' || !/^[a-zA-Z0-9-]{1,160}$/.test(requestId))
       throw new MetabloomApiError('Invalid invoice workspace context.', { code: 'invalid_request' });
   }
+  const hasCalendarContext = Boolean(calendarContext && typeof calendarContext === 'object');
+  const useCalendar = Boolean(useTools && (hasCalendarContext || process.env.REACT_APP_METABLOOM_CALENDAR_ENABLED === '1'));
   const controller = new AbortController();
   const abort = () => controller.abort();
   if (signal?.aborted) abort();
@@ -113,6 +119,7 @@ export const requestMetabloomResponse = async ({
       ...(useTools ? { streamToolMedia: true, ...(conversationId ? { conversationId } : {}) } : {}),
       ...(modelSelection ? { modelSelection } : {}), ...(useExpressions ? { orbContext } : {}),
       ...(useWorkspace ? { workspaceContext } : {}),
+      ...(useCalendar && hasCalendarContext ? { calendarContext } : {}),
       ...(artifactContext ? { artifactContext } : {}), ...(researchContext ? { researchContext } : {}) });
     if (useWorkspace && new TextEncoder().encode(requestBody).byteLength > MAX_METABLOOM_WORKSPACE_BODY_BYTES)
       throw new MetabloomApiError("The selected invoice context is too large. Narrow the request or edit it manually.", { code: "invalid_request" });
@@ -122,7 +129,8 @@ export const requestMetabloomResponse = async ({
       headers: { "Content-Type": "application/json", Accept: "application/x-ndjson", "X-Metabloom-Visuals": "1", "X-Metabloom-Ui-Tools": "1", "X-Metabloom-Pricebook": "2",
         ...(useTools ? { 'X-Metabloom-Toolset': '2', 'X-Metabloom-Boom-Request': '1', 'X-Metabloom-Invoice': '1' } : {}),
         ...(useExpressions ? { 'X-Metabloom-Expressions': '1' } : {}),
-        ...(useWorkspace ? { 'X-Metabloom-Workspace': '1' } : {}) },
+        ...(useWorkspace ? { 'X-Metabloom-Workspace': '1' } : {}),
+        ...(useCalendar ? { 'X-Metabloom-Calendar': '1' } : {}) },
       body: requestBody,
       signal: controller.signal,
     });
@@ -131,98 +139,105 @@ export const requestMetabloomResponse = async ({
     responseRequestRef = parseMetabloomRequestRef(response.headers?.get?.("X-Metabloom-Request-Ref"));
     const isStream = contentType.includes("application/x-ndjson");
     let streamError = null;
-    const decoder = createMetabloomVisualStreamBridge(createMetabloomSegmentStreamDecoder({
-      allowMultiple,
-      allowResearchDetails: true,
-      allowResearchBrief: true,
-      allowResearchReuse: true,
-      allowTools: useTools,
-      allowToolMedia: useTools,
-      allowToolProgress: useTools,
-      allowExpressions: useExpressions,
-      allowWorkspace: useWorkspace,
-      requestId,
-      onToolProgress: (progress) => {
-        if (controller.signal.aborted) throw new MetabloomApiError('Cancelled.', { code: 'cancelled' });
-        onToolProgress?.(progress);
+    const decoder = createMetabloomCalendarStreamBridge(
+      createMetabloomVisualStreamBridge(createMetabloomSegmentStreamDecoder({
+        allowMultiple,
+        allowResearchDetails: true,
+        allowResearchBrief: true,
+        allowResearchReuse: true,
+        allowTools: useTools,
+        allowToolMedia: useTools,
+        allowToolProgress: useTools,
+        allowExpressions: useExpressions,
+        allowWorkspace: useWorkspace,
+        requestId,
+        onToolProgress: (progress) => {
+          if (controller.signal.aborted) throw new MetabloomApiError('Cancelled.', { code: 'cancelled' });
+          onToolProgress?.(progress);
+        },
+        onAgentStatus: (status) => {
+          if (controller.signal.aborted) throw new MetabloomApiError('Cancelled.', { code: 'cancelled' });
+          onAgentStatus?.(status);
+        },
+        onToolActivity: (activity) => {
+          if (controller.signal.aborted) throw new MetabloomApiError('Cancelled.', { code: 'cancelled' });
+          if (!toolsStarted) {
+            toolsStarted = true;
+            clearTimeout(timeout);
+            timeout = setTimeout(abort, Math.max(0, startedAt + METABLOOM_AGENT_TIMEOUT_MS - Date.now()));
+          }
+          onToolActivity?.(activity);
+        },
+        onError: (error) => {
+          const code = error.code || "invalid_response";
+          streamError = new MetabloomApiError(getMetabloomApiErrorMessage(code), {
+            code, status: responseStatus, requestRef: error.requestRef || responseRequestRef,
+          });
+        },
+        onAction: (action) => {
+          if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
+          onAction?.(action);
+        },
+        onResearch: (research) => {
+          if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
+          if (research.state === "searching" && !researchStarted) {
+            researchStarted = true;
+            clearTimeout(timeout);
+            timeout = setTimeout(abort, Math.max(0, startedAt + METABLOOM_RESEARCH_TIMEOUT_MS - Date.now()));
+          } else if (research.state === "reusing" && !researchStarted) {
+            researchStarted = true;
+            clearTimeout(timeout);
+            timeout = setTimeout(abort, Math.max(0, startedAt + METABLOOM_RESEARCH_REUSE_TIMEOUT_MS - Date.now()));
+          }
+          onResearch?.(research);
+        },
+        onResearchProgress: (progress) => {
+          if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
+          onResearchProgress?.(progress);
+        },
+        onResearchDetails: (report) => {
+          if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
+          onResearchDetails?.(report);
+        },
+        onResearchBrief: (brief) => {
+          if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
+          onResearchBrief?.(brief);
+        },
+        onResearchReference: (metadata) => {
+          if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
+          onResearchReference?.(metadata);
+        },
+        onSources: (sources) => {
+          if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
+          onSources?.(sources);
+        },
+        onSourceMedia: (media) => {
+          if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
+          onSourceMedia?.(media);
+        },
+        onToolImages: (images) => {
+          if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
+          onToolImages?.(images);
+        },
+        onTextDelta: (delta, index) => {
+          if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
+          onTextDelta?.(delta, index);
+        },
+        onReaction: (reaction) => {
+          if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
+          onReaction?.(reaction);
+        },
+        onSegment: (segment, index) => {
+          if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
+          onSegment?.(segment, index);
+        },
+      }), { maxRecordChars: useWorkspace ? MAX_METABLOOM_WORKSPACE_EVENT_BYTES : 24000 }),
+      {
+        allowCalendar: useCalendar,
+        requestId,
+        maxRecordChars: Math.max(24000, MAX_CALENDAR_PROPOSAL_BYTES),
       },
-      onAgentStatus: (status) => {
-        if (controller.signal.aborted) throw new MetabloomApiError('Cancelled.', { code: 'cancelled' });
-        onAgentStatus?.(status);
-      },
-      onToolActivity: (activity) => {
-        if (controller.signal.aborted) throw new MetabloomApiError('Cancelled.', { code: 'cancelled' });
-        if (!toolsStarted) {
-          toolsStarted = true;
-          clearTimeout(timeout);
-          timeout = setTimeout(abort, Math.max(0, startedAt + METABLOOM_AGENT_TIMEOUT_MS - Date.now()));
-        }
-        onToolActivity?.(activity);
-      },
-      onError: (error) => {
-        const code = error.code || "invalid_response";
-        streamError = new MetabloomApiError(getMetabloomApiErrorMessage(code), {
-          code, status: responseStatus, requestRef: error.requestRef || responseRequestRef,
-        });
-      },
-      onAction: (action) => {
-        if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
-        onAction?.(action);
-      },
-      onResearch: (research) => {
-        if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
-        if (research.state === "searching" && !researchStarted) {
-          researchStarted = true;
-          clearTimeout(timeout);
-          timeout = setTimeout(abort, Math.max(0, startedAt + METABLOOM_RESEARCH_TIMEOUT_MS - Date.now()));
-        } else if (research.state === "reusing" && !researchStarted) {
-          researchStarted = true;
-          clearTimeout(timeout);
-          timeout = setTimeout(abort, Math.max(0, startedAt + METABLOOM_RESEARCH_REUSE_TIMEOUT_MS - Date.now()));
-        }
-        onResearch?.(research);
-      },
-      onResearchProgress: (progress) => {
-        if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
-        onResearchProgress?.(progress);
-      },
-      onResearchDetails: (report) => {
-        if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
-        onResearchDetails?.(report);
-      },
-      onResearchBrief: (brief) => {
-        if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
-        onResearchBrief?.(brief);
-      },
-      onResearchReference: (metadata) => {
-        if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
-        onResearchReference?.(metadata);
-      },
-      onSources: (sources) => {
-        if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
-        onSources?.(sources);
-      },
-      onSourceMedia: (media) => {
-        if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
-        onSourceMedia?.(media);
-      },
-      onToolImages: (images) => {
-        if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
-        onToolImages?.(images);
-      },
-      onTextDelta: (delta, index) => {
-        if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
-        onTextDelta?.(delta, index);
-      },
-      onReaction: (reaction) => {
-        if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
-        onReaction?.(reaction);
-      },
-      onSegment: (segment, index) => {
-        if (controller.signal.aborted) throw new MetabloomApiError("Cancelled.", { code: "cancelled" });
-        onSegment?.(segment, index);
-      },
-    }), { maxRecordChars: useWorkspace ? MAX_METABLOOM_WORKSPACE_EVENT_BYTES : 24000 });
+    );
     let text = "";
     let bytes = 0;
     if (response.ok && !isStream && !contentType.includes("application/json")) {
@@ -292,6 +307,12 @@ export const requestMetabloomResponse = async ({
     }
     if (result.value.workspaceProposal && !signal?.aborted) {
       try { onWorkspaceProposal?.(result.value.workspaceProposal); } catch { /* Caller may instead consume the returned metadata. */ }
+    }
+    if (result.value.calendarProposal && !signal?.aborted) {
+      try { onCalendarProposal?.(result.value.calendarProposal); } catch { /* Caller may instead consume the returned metadata. */ }
+    }
+    if (result.value.calendarReceipt && !signal?.aborted) {
+      try { onCalendarReceipt?.(result.value.calendarReceipt); } catch { /* Caller may instead consume the returned metadata. */ }
     }
     return result.value;
   } catch (error) {

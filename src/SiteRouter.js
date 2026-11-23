@@ -14,7 +14,8 @@ const routeLoaders = {
   original: () => import('./App'), engineering: () => import('./App'), login: () => import('./App'),
   popcan: () => import('./components/PopcanPage'), work: () => import('./components/WorkPage'),
   orb: () => import('./components/AuthenticatedOrbPage'), home: () => import('./components/HomePage'),
-  'invoice-generator': () => import('./components/PrivateInvoicePage'), logout: () => import('./components/AuthPage'),
+  'invoice-generator': () => import('./components/PrivateInvoicePage'), calendar: () => import('./components/CalendarPage'),
+  logout: () => import('./components/AuthPage'),
   game: () => import('./components/StandaloneExperiencePage'), 'dither-canvas': () => import('./components/DitherCanvasPage'),
 };
 export function preloadSiteRoute(pathname) {
@@ -30,6 +31,7 @@ const OrbPage = React.lazy(() => import("./components/AuthenticatedOrbPage"));
 const AuthPage = React.lazy(() => import("./components/AuthPage"));
 const HomePage = React.lazy(() => import("./components/HomePage"));
 const PrivateInvoicePage = React.lazy(() => import('./components/PrivateInvoicePage'));
+const CalendarPage = React.lazy(() => import('./components/CalendarPage'));
 const DitherCanvasPage = React.lazy(() =>
   import("./components/DitherCanvasPage"),
 );
@@ -51,6 +53,7 @@ export const SITE_VIEWS = Object.freeze({
   GAME: "game",
   DITHER_CANVAS: "dither-canvas",
   INVOICE_GENERATOR: "invoice-generator",
+  CALENDAR: "calendar",
   HOME: "home",
   LOGIN: "login",
   LOGOUT: "logout",
@@ -70,6 +73,7 @@ export const resolveSiteView = (pathname = "/") => {
   if (normalized === "/game") return SITE_VIEWS.GAME;
   if (normalized === "/dither-canvas") return SITE_VIEWS.DITHER_CANVAS;
   if (normalized === "/invoice-generator" || normalized === "/invoice-generator/index.html") return SITE_VIEWS.INVOICE_GENERATOR;
+  if (normalized === "/calendar" || normalized === "/calendar/index.html") return SITE_VIEWS.CALENDAR;
   return SITE_VIEWS.ORIGINAL;
 };
 
@@ -116,6 +120,8 @@ const SiteRouter = ({ pathname = window.location.pathname, onReady }) => {
   } else if (view === SITE_VIEWS.INVOICE_GENERATOR) {
     // The actual editor exists only in the middleware-protected private build.
     page = <PrivateInvoicePage onReady={onReady} />;
+  } else if (view === SITE_VIEWS.CALENDAR) {
+    page = <CalendarPage onReady={onReady} />;
   } else if (view === SITE_VIEWS.LOGIN) {
     // Keep callback errors and the /login URL, but use the real immersive shell.
     page = <App initialSection={LOGIN_SECTION_INDEX} />;
@@ -147,7 +153,7 @@ const SiteRouter = ({ pathname = window.location.pathname, onReady }) => {
 
   return (
     <>
-      <React.Suspense fallback={routeFallback}><RouteReady key={`route:${pathname}`} onReady={[SITE_VIEWS.INVOICE_GENERATOR, SITE_VIEWS.ORB].includes(view) ? undefined : onReady}>{page}</RouteReady>
+      <React.Suspense fallback={routeFallback}><RouteReady key={`route:${pathname}`} onReady={[SITE_VIEWS.INVOICE_GENERATOR, SITE_VIEWS.ORB, SITE_VIEWS.CALENDAR].includes(view) ? undefined : onReady}>{page}</RouteReady>
         <SectionDeepLinkBridge key={`sections:${pathname}`} enabled={enableSectionDeepLinks} />
       </React.Suspense>
     </>

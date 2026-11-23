@@ -66,6 +66,9 @@ import "./OrbSection.css";
 import { metabloomWorkspaceBridge } from './metabloomWorkspaceBridge';
 import { isInvoiceWorkspaceStart, parseMetabloomWorkspaceReceipt } from './metabloomWorkspaceProtocol';
 import { INVOICE_FIELDS, INVOICE_LINE_FIELDS } from './metabloomInvoiceDraft';
+import MetabloomCalendarCard from './MetabloomCalendarCard';
+import { metabloomCalendarBridge } from './metabloomCalendarBridge';
+import { parseCalendarProposal, parseCalendarReceipt } from './metabloomCalendarProtocol';
 import "./OrbEmoteDemos.css";
 
 const DEFAULT_ACTION_RECORD = getDefaultMetabloomAction();
@@ -384,7 +387,7 @@ const cloneActionChain = (actionChain = []) =>
     talking,
   }));
 
-const cloneMessage = ({ id, role, content, actionChain = [], source, emote, segments = [], status, sources, researchDetails, researchBrief, researchReference, researchReused, savedArtifact, savedWorkBaseline }) => {
+const cloneMessage = ({ id, role, content, actionChain = [], source, emote, segments = [], status, sources, researchDetails, researchBrief, researchReference, researchReused, savedArtifact, savedWorkBaseline, calendarProposal, calendarReceipt }) => {
   const researchReport = role === "assistant" ? parseMetabloomResearchReport(researchDetails) : null;
   const researchSources = researchReport ? parseMetabloomResearchAnswerSources(sources, { report: researchReport })
     : parseMetabloomResearchSources(sources);
@@ -392,6 +395,8 @@ const cloneMessage = ({ id, role, content, actionChain = [], source, emote, segm
   const reference = researchReport ? parseMetabloomResearchReferenceMetadata(researchReference) : null;
   const artifact = role === 'assistant' ? parseMetabloomSavedWorkMetadata(savedArtifact) : null;
   const baseline = artifact ? parseMetabloomSavedWorkBaseline(savedWorkBaseline, artifact) : null;
+  const calProposal = role === 'assistant' && calendarProposal ? parseCalendarProposal(calendarProposal) : null;
+  const calReceipt = role === 'assistant' && calendarReceipt ? parseCalendarReceipt(calendarReceipt) : null;
   return {
     id,
     emote,
@@ -403,6 +408,8 @@ const cloneMessage = ({ id, role, content, actionChain = [], source, emote, segm
     source,
     ...(artifact ? { savedArtifact: artifact } : {}),
     ...(baseline ? { savedWorkBaseline: baseline } : {}),
+    ...(calProposal ? { calendarProposal: calProposal } : {}),
+    ...(calReceipt ? { calendarReceipt: calReceipt } : {}),
     ...(researchSources ? { sources: researchSources } : {}),
     ...(researchReport ? { researchDetails: researchReport } : {}),
     ...(brief ? { researchBrief: brief } : {}),
@@ -1042,7 +1049,10 @@ const OrbSection = ({
   }, [cancelRequestScene, setActivity, updateRequestScene, waitForRequestScenePaint]);
 
   const cancelResponse = React.useCallback((reason = "interrupted") => {
-    if (companionRef.current) metabloomWorkspaceBridge.cancel();
+    if (companionRef.current) {
+      metabloomWorkspaceBridge.cancel();
+      metabloomCalendarBridge.cancel?.();
+    }
     setWorkspaceReview(null);
     const retainedMessages = replyDisplayRef.current?.retainedMessages(reason);
     cancelRequestScene();
@@ -2148,10 +2158,25 @@ const OrbSection = ({
           phase === 'start' ? remaining : Math.min(RESPONSE_TIMEOUT_MS, remaining));
         return true;
       };
+      const capturedCalendarContext = activeRequest.toolset
+        ? (metabloomCalendarBridge.capture?.(threadSession?.id ? { conversationId: threadSession.id } : {}) || null)
+        : null;
+      const onCalendarProposal = (proposal) => {
+        if (!current()) return;
+        const valid = parseCalendarProposal(proposal, requestId);
+        if (valid) activeRequest.calendarProposal = valid;
+      };
+      const onCalendarReceipt = (receipt) => {
+        if (!current()) return;
+        const valid = parseCalendarReceipt(receipt);
+        if (valid && valid.requestId === requestId) activeRequest.calendarReceipt = valid;
+      };
       const request = {
         ...(modelSelection ? { modelSelection: { ...modelSelection } } : {}),
         toolset: activeRequest.toolset,
         ...(activeRequest.toolset ? { orbContext: getOrbContext() } : {}),
+        ...(capturedCalendarContext ? { calendarContext: capturedCalendarContext } : {}),
+        onCalendarProposal, onCalendarReceipt,
         onToolProgress: onAgentEvent, onAgentStatus: onAgentEvent,
         requestId, ...(threadSession?.id ? { conversationId: threadSession.id } : {}), message, history, ...(artifactContext ? { artifactContext } : {}), ...(researchContext ? { researchContext } : {}), allowMultiple, actionMode: activeRequest.actionMode, onToolActivity,
         signal: controller.signal, onTextDelta, onSegment, onReaction, onAction, onResearch, onResearchProgress, onResearchDetails, onResearchBrief, onResearchReference, onSources, onSourceMedia, onToolImages,
@@ -2193,9 +2218,9 @@ const OrbSection = ({
         const respond = (payload) => agentLifecycle.canAnswer() && claimRequest() && receiveModelResponse(payload, { requestId, source: "external" });
         const requestEvent = new CustomEvent(MODEL_REQUEST_EVENT, {
           cancelable: true,
-          // Approved invoice context goes only to the authenticated API, never
+          // Approved invoice/calendar context goes only to the authenticated API, never
           // to document-wide legacy integration events.
-          detail: { ...Object.fromEntries(Object.entries(request).filter(([key]) => key !== 'workspaceContext')), claim: claimRequest, respond },
+          detail: { ...Object.fromEntries(Object.entries(request).filter(([key]) => key !== 'workspaceContext' && key !== 'calendarContext')), claim: claimRequest, respond },
         });
         window.dispatchEvent(requestEvent);
         // A request listener may downgrade this turn to the cached-client
@@ -2209,6 +2234,7 @@ const OrbSection = ({
           request.toolset = false;
           delete request.orbContext;
           delete request.workspaceContext;
+          delete request.calendarContext;
           activeRequest.workspaceContext = null;
           metabloomWorkspaceBridge.release(requestId);
           if (!activeRequest.claimed && !requestEvent.defaultPrevented) {
@@ -2238,7 +2264,13 @@ const OrbSection = ({
             return;
           }
           const proposal = payload?.workspaceProposal;
-          const answer = proposal ? Object.fromEntries(Object.entries(payload).filter(([key]) => key !== 'workspaceProposal')) : payload;
+          const calProposal = (payload?.calendarProposal ? parseCalendarProposal(payload.calendarProposal, requestId) : null)
+            || activeRequest.calendarProposal || null;
+          const calReceipt = (payload?.calendarReceipt ? parseCalendarReceipt(payload.calendarReceipt) : null)
+            || activeRequest.calendarReceipt || null;
+          const answer = (proposal || payload?.calendarProposal || payload?.calendarReceipt)
+            ? Object.fromEntries(Object.entries(payload).filter(([key]) => !['workspaceProposal', 'calendarProposal', 'calendarReceipt'].includes(key)))
+            : payload;
           const parsed = parseMetabloomChatEnvelope(answer, { allowMultiple });
           if (proposal) {
             if (!activeRequest.workspaceContext || !parsed.ok) { failReply(session, { code: 'invalid_response' }); return; }
@@ -2253,8 +2285,41 @@ const OrbSection = ({
             setWorkProgress(null);
             if (receipt.status === 'conflict' || (receipt.status === 'cancelled' && !controller.signal.aborted)) setWorkspaceReview(proposal);
             finishReply(session, { version: '2.0.0', segments: [{ response: receipt.message }] });
-          } else if (parsed.ok) finishReply(session, answer);
-          else receiveModelResponse(answer, { requestId, source: "model" });
+          } else if (parsed.ok) {
+            finishReply(session, answer);
+            if (calProposal || calReceipt) {
+              publishMessages(messagesRef.current.map(item => item.id === session.messageId ? {
+                ...item,
+                ...(calProposal ? { calendarProposal: calProposal } : {}),
+                ...(calReceipt ? { calendarReceipt: calReceipt } : {}),
+              } : item));
+              const shouldApplyBridgeProposal = Boolean(
+                calProposal
+                && (
+                  calProposal.command === 'open'
+                  || (calProposal.command === 'focus' && (!calReceipt?.event || metabloomCalendarBridge.getStatus?.().connected))
+                ),
+              );
+              if (shouldApplyBridgeProposal) {
+                Promise.resolve(metabloomCalendarBridge.apply?.(calProposal, {
+                  requestId,
+                  ...(threadSession?.id ? { conversationId: threadSession.id } : {}),
+                  signal: controller.signal,
+                })).catch(() => {});
+              }
+              if (calReceipt && ['applied', 'duplicate'].includes(calReceipt.status)) {
+                const focus = calProposal?.focus || {};
+                const eventDate = typeof calReceipt.event?.start === 'string' && calReceipt.event.start.length >= 10
+                  ? calReceipt.event.start.slice(0, 10)
+                  : null;
+                metabloomCalendarBridge.notifyRefresh?.({
+                  date: focus.date || eventDate || null,
+                  view: focus.view || null,
+                  eventId: calReceipt.eventId || focus.eventId || null,
+                });
+              }
+            }
+          } else receiveModelResponse(answer, { requestId, source: "model" });
         }).catch((error) => { if (current()) failReply(session, error); });
         return true;
       };
@@ -2946,6 +3011,17 @@ const OrbSection = ({
                         </span>
                       )}
                     </div>
+                    {message.role === "assistant" && (message.calendarProposal || message.calendarReceipt) && (
+                      <MetabloomCalendarCard
+                        proposal={message.calendarProposal || null}
+                        receipt={message.calendarReceipt || null}
+                        disabled={pending || !isActive}
+                        onOpenCalendar={(focus) => {
+                          if (focus) metabloomCalendarBridge.notifyRefresh?.(focus);
+                          navigation?.navigate('/calendar');
+                        }}
+                      />
+                    )}
                     {/* Source photos load after the answer; appending them below the
                         bubble never moves text or source links the reader may be using. */}
                     {sources && !researchBrief && message.status === "complete" && (() => {

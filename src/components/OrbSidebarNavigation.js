@@ -33,9 +33,11 @@ export function OrbSidebarLinks({ onNavigate, initialOpen = false }) {
   React.useLayoutEffect(() => { if (initialOpen) root.current?.querySelector('summary')?.focus(); }, [initialOpen]);
   const follow = event => navigateFromSidebar(event, navigation, onNavigate);
   const links = getSiteCopy(SITE_AUDIENCES.BUSINESS).navigation.links.filter(link => !workspaceHrefs.has(link.href));
+  const calendarEnabled = process.env.REACT_APP_METABLOOM_CALENDAR_ENABLED === '1';
   return <details ref={root} className="orb-sidebar-links" open={initialOpen || undefined} onKeyDown={dismissDisclosure}>
     <summary><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="2" stroke="currentColor" strokeWidth="1.5"/><rect x="14" y="3" width="7" height="7" rx="2" stroke="currentColor" strokeWidth="1.5"/><rect x="3" y="14" width="7" height="7" rx="2" stroke="currentColor" strokeWidth="1.5"/><rect x="14" y="14" width="7" height="7" rx="2" stroke="currentColor" strokeWidth="1.5"/></svg><span>Explore</span></summary>
     <WorkspaceMenu inline linkClassName="orb-sidebar-link" onNavigate={follow} />
+    {calendarEnabled && <a className="orb-sidebar-link" href="/calendar" onClick={follow}>Calendar</a>}
     <nav aria-label="Popular Consulting">
       <span className="workspace-menu-heading">Company</span>
       {links.map(link => <a className="orb-sidebar-link" key={link.label} href={link.href || getImmersiveRouteDestination(link.section)} onClick={follow}>{link.label}</a>)}

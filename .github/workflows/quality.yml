@@ -49,6 +49,9 @@ jobs:
       - name: Test SMS consent security and storage
         run: npm run test:sms-consent
 
+      - name: Test Metabloom calendar security, storage, API, and agent
+        run: npm run test:calendar
+
       - name: Run tests
         run: npm test -- --watchAll=false --runInBand
         env:
@@ -79,6 +82,9 @@ jobs:
 
       - name: Test SMS consent security and storage
         run: npm run test:sms-consent
+
+      - name: Test Metabloom calendar security, storage, API, and agent
+        run: npm run test:calendar
 
       - name: Run complete test suite
         run: npm test -- --watchAll=false --runInBand

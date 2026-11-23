@@ -262,7 +262,7 @@ export default function ApplicationShell() {
     getToolState, saveToolState, setRouteScrollRestoration,
   }), [location, navigate, getToolState, saveToolState, setRouteScrollRestoration, orbBackgroundEnabled, popcanBackgroundEnabled]);
   const busy = phase !== 'idle';
-  const routeEpoch = ['/home', '/orb', '/popcan', '/dither-canvas', '/invoice-generator'].includes(routeMetadataFor(navigation.pathname)?.path) ? stateRevision : 0;
+  const routeEpoch = ['/home', '/orb', '/popcan', '/dither-canvas', '/invoice-generator', '/calendar'].includes(routeMetadataFor(navigation.pathname)?.path) ? stateRevision : 0;
   return <AppNavigationContext.Provider value={navigation}>
     <MetabloomSessionProvider navigation={navigation} onReady={ready}>
     {/* Index, Home, opted-in Orb and Popcan share one scene. Each tool can

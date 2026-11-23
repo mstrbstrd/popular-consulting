@@ -1,5 +1,8 @@
 const { isMetabloomWorkspaceEnabled } = require('../server/metabloomWorkspaceWorkflow');
 const { MAX_METABLOOM_WORKSPACE_BODY_BYTES, parseMetabloomWorkspaceContext, parseMetabloomWorkspaceProposal } = require('../src/components/metabloomWorkspaceProtocol');
+const { isMetabloomCalendarEnabled } = require('../server/metabloomCalendarProvider');
+const { parseMetabloomCalendarContext } = require('../server/metabloomCalendarWorkflow');
+const { parseCalendarProposal, parseCalendarReceipt } = require('../src/components/metabloomCalendarProtocol');
 const { createHmac, randomBytes } = require("node:crypto");
 const { once } = require("node:events");
 const metabloomAuth = require("../server/metabloomAuth");
@@ -72,6 +75,7 @@ const requestOriginIsAllowed = (request) => {
 };
 const parseBody = (request) => {
   const workspaceNegotiated = request.headers?.['x-metabloom-workspace'] === '1';
+  const calendarNegotiated = request.headers?.['x-metabloom-calendar'] === '1';
   const maximumBytes = workspaceNegotiated ? MAX_METABLOOM_WORKSPACE_BODY_BYTES : MAX_BODY_BYTES;
   const declared = request.headers?.["content-length"];
   if (declared !== undefined && (!/^\d+$/.test(String(declared)) || Number(declared) > maximumBytes)) return null;
@@ -79,15 +83,21 @@ const parseBody = (request) => {
     const text = typeof request.body === "string" ? request.body : JSON.stringify(request.body);
     if (typeof text !== "string" || Buffer.byteLength(text, "utf8") > maximumBytes) return null;
     const value = JSON.parse(text);
-    if (!exactKeys(value, ["message"], ["requestId", "history", "allowMultiple", "streamText", "streamResearchProgress", "streamResearchDetails", "streamResearchBrief", "streamResearchMedia", "streamResearchReuse", "streamToolMedia", "timeZone", "actionMode", "artifactContext", "researchContext", "modelSelection", "orbContext", "conversationId", "workspaceContext"])) return null;
+    if (!exactKeys(value, ["message"], ["requestId", "history", "allowMultiple", "streamText", "streamResearchProgress", "streamResearchDetails", "streamResearchBrief", "streamResearchMedia", "streamResearchReuse", "streamToolMedia", "timeZone", "actionMode", "artifactContext", "researchContext", "modelSelection", "orbContext", "conversationId", "workspaceContext", "calendarContext"])) return null;
     if (value.conversationId !== undefined && (!require('../src/components/metabloomThreadProtocol').isMetabloomThreadId(value.conversationId)
-      || (request.headers?.['x-metabloom-boom-request'] !== '1' && request.headers?.['x-metabloom-invoice'] !== '1' && !workspaceNegotiated))) return null;
+      || (request.headers?.['x-metabloom-boom-request'] !== '1' && request.headers?.['x-metabloom-invoice'] !== '1' && !workspaceNegotiated && !calendarNegotiated))) return null;
     if (value.workspaceContext !== undefined) {
       value.workspaceContext = parseMetabloomWorkspaceContext(value.workspaceContext);
       if (!workspaceNegotiated || request.headers?.['x-metabloom-toolset'] !== '2' || !value.workspaceContext
         || !value.requestId || value.workspaceContext.conversationId !== value.conversationId
         || value.artifactContext !== undefined || value.researchContext !== undefined || value.actionMode === 'deep-research') return null;
     } else if (Buffer.byteLength(text, 'utf8') > MAX_BODY_BYTES) return null;
+    if (value.calendarContext !== undefined) {
+      value.calendarContext = parseMetabloomCalendarContext(value.calendarContext);
+      if (!calendarNegotiated || !value.calendarContext) return null;
+      if (value.calendarContext.conversationId && value.conversationId
+        && value.calendarContext.conversationId !== value.conversationId) return null;
+    }
     if (value.orbContext !== undefined) {
       value.orbContext = parseMetabloomOrbContext(value.orbContext);
       if (!value.orbContext || request.headers?.['x-metabloom-expressions'] !== '1' || !value.requestId
@@ -612,9 +622,15 @@ const handler = async (request, response) => {
       await initialReactionPromise;
       const expressions = request.headers?.['x-metabloom-expressions'] === '1' && body.orbContext
         && process.env.METABLOOM_EXPRESSIONS_ENABLED !== 'false';
+      const calendarEnabled = Boolean(
+        accountIdentity
+        && isMetabloomCalendarEnabled()
+        && request.headers?.['x-metabloom-calendar'] === '1'
+      );
       const result = await runMetabloomAgent({ message: body.message, history: body.history,
         ...(expressions ? { orbContext: body.orbContext } : {}),
         ...(body.workspaceContext ? { workspaceContext: body.workspaceContext, workspaceEnabled: isMetabloomWorkspaceEnabled() } : {}),
+        ...(calendarEnabled ? { calendarEnabled: true, ...(body.calendarContext ? { calendarContext: body.calendarContext } : {}) } : {}),
         modelSelection,
         allowMultiple: body.allowMultiple, presentationAction, timeZone: body.timeZone || 'UTC',
         submittedMessage: body.message,
@@ -647,6 +663,11 @@ const handler = async (request, response) => {
       if (result.workspaceProposal && (!body.workspaceContext || !isMetabloomWorkspaceEnabled()
         || !parseMetabloomWorkspaceProposal(result.workspaceProposal, body.requestId)))
         throw createMetabloomProviderError('answer_invalid', 'workspace_proposal_invalid');
+      if (result.calendarProposal && (!calendarEnabled || !parseCalendarProposal(result.calendarProposal, body.requestId)))
+        throw createMetabloomProviderError('answer_invalid', 'calendar_proposal_invalid');
+      if (result.calendarReceipt && (!calendarEnabled || !parseCalendarReceipt(result.calendarReceipt)
+        || (body.requestId && result.calendarReceipt.requestId !== body.requestId)))
+        throw createMetabloomProviderError('answer_invalid', 'calendar_receipt_invalid');
       if (result.sources.length) {
         await sendStreamEvent({ type: 'tool_sources', sources: result.sources });
         // Opt-in only: older clients reject unknown stream events.
@@ -672,6 +693,8 @@ const handler = async (request, response) => {
         emote, source: result.expression ? 'model' : 'automatic' });
       await sendStreamEvent({ type: 'emote', phase: 'response', emote });
       if (result.offer) await sendStreamEvent({ type: 'visual_offer', offer: result.offer });
+      if (result.calendarProposal) await sendStreamEvent({ type: 'calendar_proposal', proposal: result.calendarProposal });
+      if (result.calendarReceipt) await sendStreamEvent({ type: 'calendar_receipt', receipt: result.calendarReceipt });
       return response.end(JSON.stringify({ type: 'done', version: METABLOOM_CHAT_PROTOCOL_VERSION }) + '\n');
     }
     let research, researchReport, researchBrief, temporalContext, researchReference;

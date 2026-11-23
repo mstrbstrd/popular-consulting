@@ -24,6 +24,15 @@ const TOOLS = [
     description: 'Bring the details together. Preview, polish, and print your invoice.', action: 'Create an invoice' },
 ];
 
+const CALENDAR_TOOL = {
+  id: 'calendar',
+  title: 'Calendar',
+  category: 'Schedule & planning',
+  href: '/calendar',
+  description: 'Review your schedule, plan upcoming work, and coordinate events alongside Metabloom.',
+  action: 'Open calendar',
+};
+
 // One spectral palette for every feature illustration, matching the site's
 // structural gradient (cyan, violet, magenta, amber).
 const SPECTRUM = [['#00d9ef', 0], ['#8b6cff', 0.38], ['#ff65c9', 0.7], ['#ffc94a', 1]];
@@ -93,6 +102,16 @@ function ToolArtwork({ kind }) {
     <defs><Spectrum id={id} x2="1" y2=".55" /></defs>
     <g fill={`url(#${id})`}>{DITHER_DOTS.map(([x, y, r]) => <circle key={`${x}-${y}`} cx={x} cy={y} r={r} />)}</g>
   </svg>;
+  if (kind === 'calendar') return <svg className="home-art home-art--calendar" viewBox="0 0 260 200" focusable="false">
+    <defs><Spectrum id={id} x2="1" y2="0.4" /></defs>
+    <rect className="home-art-sheet" x="56" y="34" width="148" height="132" rx="16" />
+    <rect x="56" y="34" width="148" height="32" rx="16" fill={`url(#${id})`} />
+    <rect className="home-art-line" x="76" y="84" width="24" height="18" rx="5" />
+    <rect className="home-art-line" x="118" y="84" width="24" height="18" rx="5" />
+    <rect x="160" y="84" width="24" height="18" rx="5" fill={`url(#${id})`} />
+    <rect className="home-art-line" x="76" y="118" width="24" height="18" rx="5" />
+    <rect className="home-art-line" x="118" y="118" width="66" height="18" rx="5" />
+  </svg>;
   return <svg className="home-art home-art--invoice" viewBox="0 0 260 200" focusable="false">
     <defs><Spectrum id={id} x2="1" y2="0" /></defs>
     <rect className="home-art-sheet home-art-sheet--back" x="78" y="22" width="112" height="146" rx="10" transform="rotate(-9 134 95)" />
@@ -119,6 +138,9 @@ function HomeContent() {
   const { status, refresh } = useAuth();
   const { isDark } = useThemeMode();
   const signedIn = status === 'authenticated';
+  const tools = process.env.REACT_APP_METABLOOM_CALENDAR_ENABLED === '1'
+    ? [...TOOLS, CALENDAR_TOOL]
+    : TOOLS;
   const [returning] = useState(() => Boolean(navigation?.hasEnteredWorkspace()));
   const [handoff] = useState(() => returning || hasHomeEntryIntent());
   const [entryRequested, setEntryRequested] = useState(handoff);
@@ -210,7 +232,7 @@ function HomeContent() {
           <p>A little space to create, explore, and get things done.</p>
         </header>
         <section className="home-bento" aria-label="Your tools">
-          {TOOLS.map(tool => <a key={tool.id} className={`aetheris-card home-tool home-tool--${tool.id}`} href={tool.href}
+          {tools.map(tool => <a key={tool.id} className={`aetheris-card home-tool home-tool--${tool.id}`} href={tool.href}
             aria-labelledby={`home-${tool.id}-title`} aria-describedby={`home-${tool.id}-description`}>
             <div className="home-tool-top"><span>{tool.category}</span></div>
             <div className="home-tool-art" aria-hidden="true">{tool.id === 'orb'

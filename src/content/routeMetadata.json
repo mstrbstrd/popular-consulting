@@ -69,6 +69,16 @@
     "robots": "noindex,nofollow,noarchive",
     "noscript": "The invoice generator requires JavaScript. It is a browser-only tool; no invoice data is stored on the server."
   },
+  "calendar": {
+    "path": "/calendar",
+    "title": "Calendar | Popular Consulting",
+    "description": "A private Popular Consulting calendar workspace with schedule views, .ics export, and Metabloom assistant scheduling.",
+    "canonical": "https://popular-consulting.com/calendar",
+    "socialTitle": "Calendar | Popular Consulting",
+    "socialDescription": "Your private Popular Consulting calendar workspace.",
+    "robots": "noindex,nofollow,noarchive",
+    "noscript": "JavaScript is required to open your calendar workspace. Return to the public Popular Consulting site."
+  },
   "home": {
     "path": "/home",
     "title": "Home | Popular Consulting",
