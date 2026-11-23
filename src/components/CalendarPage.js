@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { ThemeProvider } from '../contexts/ThemeContext';
+import { ThemeProvider, useThemeMode } from '../contexts/ThemeContext';
 import { useAppNavigation } from '../contexts/AppNavigationContext';
 import NavMenu from './NavMenu';
+import CalendarBackground, { useCalendarScene } from './CalendarBackground';
 import {
   fetchCalendarStatus,
   listCalendarEvents,
@@ -88,6 +89,27 @@ function normalizeGoogleStatus(rawGoogle, fallbackConnected) {
     calendarId: cleanCalendarId || 'primary',
   };
 }
+
+const ICON_PATHS = Object.freeze({
+  previous: 'M15 6l-6 6 6 6',
+  pause: 'M9 6v12M15 6v12',
+  play: 'M8 5.5v13l10-6.5z',
+  next: 'M9 6l6 6-6 6',
+  plus: 'M12 5v14M5 12h14',
+  close: 'M6 6l12 12M18 6L6 18',
+  refresh: 'M20 11a8 8 0 1 0-2.34 5.66M20 5v6h-6',
+  download: 'M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 19h14',
+});
+
+function CalendarIcon({ name }) {
+  return (
+    <svg className="calendar-icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">
+      <path d={ICON_PATHS[name]} fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+const colorClass = color => `calendar-color--${CALENDAR_COLORS.includes(color) ? color : 'default'}`;
 
 function resolveDefaultTimeZone() {
   try {
@@ -255,7 +277,7 @@ function formatRangeHeading(anchorDate, view, visibleStart, visibleEnd) {
   }
   const startLabel = formatDayHeading(visibleStart, { month: 'short', day: 'numeric' });
   const endLabel = formatDayHeading(visibleEnd, { month: 'short', day: 'numeric', year: 'numeric' });
-  return `Agenda · ${startLabel} – ${endLabel}`;
+  return `${startLabel} – ${endLabel}`;
 }
 
 function formatEventTime(event, timeZone) {
@@ -410,6 +432,11 @@ function EventModal({
   }, [modal]);
 
   useEffect(() => {
+    document.body.setAttribute('data-calendar-dialog', 'open');
+    return () => document.body.removeAttribute('data-calendar-dialog');
+  }, []);
+
+  useEffect(() => {
     const onKeyDown = event => {
       if (event.key === 'Escape') {
         event.preventDefault();
@@ -458,11 +485,11 @@ function EventModal({
           </h2>
           <button
             type="button"
-            className="calendar-btn calendar-btn--ghost"
+            className="calendar-icon-btn"
             onClick={onClose}
             aria-label="Close dialog"
           >
-            Close
+            <CalendarIcon name="close" />
           </button>
         </div>
 
@@ -538,31 +565,36 @@ function EventModal({
             )}
           </div>
 
-          <div className="calendar-field-grid">
-            <div className="calendar-field">
-              <label htmlFor="calendar-event-location">Location</label>
-              <input
-                id="calendar-event-location"
-                type="text"
-                maxLength={300}
-                value={form.location}
-                onChange={event => updateField('location', event.target.value)}
-                placeholder="Office, video link, or address"
-              />
-            </div>
-            <div className="calendar-field">
-              <label htmlFor="calendar-event-color">Color tag</label>
-              <select
-                id="calendar-event-color"
-                value={form.color}
-                onChange={event => updateField('color', event.target.value)}
-              >
-                {CALENDAR_COLORS.map(color => (
-                  <option key={color} value={color}>{COLOR_LABELS[color]}</option>
-                ))}
-              </select>
-            </div>
+          <div className="calendar-field">
+            <label htmlFor="calendar-event-location">Location</label>
+            <input
+              id="calendar-event-location"
+              type="text"
+              maxLength={300}
+              value={form.location}
+              onChange={event => updateField('location', event.target.value)}
+              placeholder="Office, video link, or address"
+            />
           </div>
+
+          <fieldset className="calendar-field calendar-swatches">
+            <legend>Color tag</legend>
+            <div className="calendar-swatch-row">
+              {CALENDAR_COLORS.map(color => (
+                <label key={color} className={`calendar-swatch ${colorClass(color)}`}>
+                  <input
+                    type="radio"
+                    name="calendar-event-color"
+                    value={color}
+                    checked={form.color === color}
+                    onChange={() => updateField('color', color)}
+                  />
+                  <span className="calendar-dot" aria-hidden="true" />
+                  <span>{COLOR_LABELS[color]}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
 
           <div className="calendar-field">
             <label htmlFor="calendar-event-attendees">Attendees (comma-separated)</label>
@@ -605,7 +637,7 @@ function EventModal({
                 </button>
                 <button
                   type="button"
-                  className="calendar-btn calendar-btn--ghost"
+                  className="calendar-btn calendar-btn--quiet"
                   disabled={submitting}
                   onClick={() => setConfirmingDelete(false)}
                 >
@@ -629,7 +661,7 @@ function EventModal({
             <div className="calendar-modal-actions-end">
               <button
                 type="button"
-                className="calendar-btn calendar-btn--ghost"
+                className="calendar-btn calendar-btn--quiet"
                 disabled={submitting}
                 onClick={onClose}
               >
@@ -653,6 +685,8 @@ function EventModal({
 function CalendarContent({ onReady }) {
   const auth = useAuth();
   const { status, user, logoutRevision, refresh } = auth;
+  const { isDark } = useThemeMode();
+  const scene = useCalendarScene();
   const navigation = useAppNavigation();
   const clientEnabled = process.env.REACT_APP_METABLOOM_CALENDAR_ENABLED !== '0';
   const userId = typeof user?.id === 'string' ? user.id : null;
@@ -1195,6 +1229,29 @@ function CalendarContent({ onReady }) {
       : 'Personal calendar';
   const activeMonthPrefix = anchorDate.slice(0, 7);
 
+  const eventClass = (base, item) => `${base} ${colorClass(item.color)}${selectedEventId === item.id ? ' is-selected' : ''}`;
+
+  const renderEventDetail = (item, { showDescription = false } = {}) => (
+    <button
+      type="button"
+      className={eventClass('calendar-event-detail', item)}
+      onClick={() => openEditModal(item)}
+    >
+      <span className="calendar-event-detail-time">{formatEventTime(item, timeZone)}</span>
+      <span className="calendar-dot" aria-hidden="true" />
+      <span className="calendar-event-detail-body">
+        <span className="calendar-event-detail-title">{item.title}</span>
+        {item.location && <span className="calendar-event-detail-meta">{item.location}</span>}
+        {showDescription && item.description && <span className="calendar-event-detail-desc">{item.description}</span>}
+        {Array.isArray(item.attendees) && item.attendees.length > 0 && (
+          <span className="calendar-event-detail-meta">
+            {item.attendees.length} {item.attendees.length === 1 ? 'attendee' : 'attendees'}
+          </span>
+        )}
+      </span>
+    </button>
+  );
+
   const renderMonthView = () => (
     <div className="calendar-month" role="region" aria-label="Month schedule">
       <div className="calendar-weekday-row" aria-hidden="true">
@@ -1234,7 +1291,7 @@ function CalendarContent({ onReady }) {
                   aria-label={`Add event on ${fullLabel}`}
                   onClick={() => openCreateModal(dayIso)}
                 >
-                  +
+                  <CalendarIcon name="plus" />
                 </button>
               </div>
               <div className="calendar-day-events">
@@ -1242,9 +1299,10 @@ function CalendarContent({ onReady }) {
                   <button
                     key={item.id}
                     type="button"
-                    className={`calendar-event-chip calendar-color--${item.color || 'default'}${selectedEventId === item.id ? ' is-selected' : ''}`}
+                    className={eventClass('calendar-event-chip', item)}
                     onClick={() => openEditModal(item)}
                   >
+                    <span className="calendar-dot" aria-hidden="true" />
                     <span className="calendar-event-chip-time">{formatShortStartTime(item, timeZone)}</span>
                     <span className="calendar-event-chip-title">{item.title}</span>
                   </button>
@@ -1258,7 +1316,7 @@ function CalendarContent({ onReady }) {
                       setView('day');
                     }}
                   >
-                    +{overflowCount} more
+                    {overflowCount} more
                   </button>
                 )}
               </div>
@@ -1276,7 +1334,7 @@ function CalendarContent({ onReady }) {
           const dayEvents = eventsByDay.get(dayIso) || [];
           const isToday = dayIso === todayIso;
           const weekdayLabel = formatDayHeading(dayIso, { weekday: 'short' });
-          const dateLabel = formatDayHeading(dayIso, { month: 'short', day: 'numeric' });
+          const dayNum = Number(dayIso.slice(8, 10));
           const fullLabel = formatDayHeading(dayIso, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
           return (
             <section
@@ -1285,31 +1343,34 @@ function CalendarContent({ onReady }) {
               aria-label={fullLabel}
             >
               <header className="calendar-week-col-header">
-                <div>
+                <h3 className="calendar-week-date">
                   <span className="calendar-week-weekday">{weekdayLabel}</span>
-                  <h3 className="calendar-week-date">{dateLabel}</h3>
-                </div>
+                  <span className="calendar-week-daynum">{dayNum}</span>
+                </h3>
                 <button
                   type="button"
                   className="calendar-day-add"
                   aria-label={`Add event on ${fullLabel}`}
                   onClick={() => openCreateModal(dayIso)}
                 >
-                  +
+                  <CalendarIcon name="plus" />
                 </button>
               </header>
               <div className="calendar-week-col-body">
                 {dayEvents.length === 0 ? (
-                  <p className="calendar-empty-slot">No events</p>
+                  <p className="calendar-empty-slot">Free</p>
                 ) : (
                   dayEvents.map(item => (
                     <button
                       key={item.id}
                       type="button"
-                      className={`calendar-event-card calendar-color--${item.color || 'default'}${selectedEventId === item.id ? ' is-selected' : ''}`}
+                      className={eventClass('calendar-event-card', item)}
                       onClick={() => openEditModal(item)}
                     >
-                      <span className="calendar-event-card-time">{formatEventTime(item, timeZone)}</span>
+                      <span className="calendar-event-card-time">
+                        <span className="calendar-dot" aria-hidden="true" />
+                        {formatEventTime(item, timeZone)}
+                      </span>
                       <span className="calendar-event-card-title">{item.title}</span>
                       {item.location && <span className="calendar-event-card-meta">{item.location}</span>}
                     </button>
@@ -1337,10 +1398,13 @@ function CalendarContent({ onReady }) {
                 <button
                   key={item.id}
                   type="button"
-                  className={`calendar-event-card calendar-color--${item.color || 'default'}${selectedEventId === item.id ? ' is-selected' : ''}`}
+                  className={eventClass('calendar-event-card', item)}
                   onClick={() => openEditModal(item)}
                 >
-                  <span className="calendar-event-card-title">{item.title}</span>
+                  <span className="calendar-event-card-title">
+                    <span className="calendar-dot" aria-hidden="true" />
+                    {item.title}
+                  </span>
                   {item.location && <span className="calendar-event-card-meta">{item.location}</span>}
                 </button>
               ))}
@@ -1356,7 +1420,8 @@ function CalendarContent({ onReady }) {
                 className="calendar-btn calendar-btn--primary"
                 onClick={() => openCreateModal(anchorDate)}
               >
-                Schedule an event
+                <CalendarIcon name="plus" />
+                New event
               </button>
             </div>
           ) : timedItems.length === 0 ? (
@@ -1365,23 +1430,7 @@ function CalendarContent({ onReady }) {
             <ul className="calendar-agenda-list">
               {timedItems.map(item => (
                 <li key={item.id} className="calendar-agenda-row">
-                  <button
-                    type="button"
-                    className={`calendar-event-detail calendar-color--${item.color || 'default'}${selectedEventId === item.id ? ' is-selected' : ''}`}
-                    onClick={() => openEditModal(item)}
-                  >
-                    <span className="calendar-event-detail-time">{formatEventTime(item, timeZone)}</span>
-                    <span className="calendar-event-detail-body">
-                      <span className="calendar-event-detail-title">{item.title}</span>
-                      {item.location && <span className="calendar-event-detail-meta">{item.location}</span>}
-                      {item.description && <span className="calendar-event-detail-desc">{item.description}</span>}
-                      {Array.isArray(item.attendees) && item.attendees.length > 0 && (
-                        <span className="calendar-event-detail-meta">
-                          {item.attendees.length} {item.attendees.length === 1 ? 'attendee' : 'attendees'}
-                        </span>
-                      )}
-                    </span>
-                  </button>
+                  {renderEventDetail(item, { showDescription: true })}
                 </li>
               ))}
             </ul>
@@ -1399,13 +1448,14 @@ function CalendarContent({ onReady }) {
     if (grouped.length === 0) {
       return (
         <div className="calendar-empty-panel" role="region" aria-label="Agenda schedule">
-          <p>No upcoming events in the next 30 days.</p>
+          <p>Nothing scheduled in the next 30 days.</p>
           <button
             type="button"
             className="calendar-btn calendar-btn--primary"
             onClick={() => openCreateModal(anchorDate)}
           >
-            New Event
+            <CalendarIcon name="plus" />
+            New event
           </button>
         </div>
       );
@@ -1414,29 +1464,14 @@ function CalendarContent({ onReady }) {
     return (
       <div className="calendar-agenda" role="region" aria-label="Agenda schedule">
         {grouped.map(group => (
-          <section key={group.dayIso} className="calendar-agenda-group">
+          <section key={group.dayIso} className={`calendar-agenda-group${group.dayIso === todayIso ? ' is-today' : ''}`}>
             <h3 className="calendar-agenda-date">
-              {formatDayHeading(group.dayIso, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+              {formatDayHeading(group.dayIso, { weekday: 'long', month: 'long', day: 'numeric' })}
             </h3>
             <ul className="calendar-agenda-list">
               {group.items.map(item => (
                 <li key={`${group.dayIso}-${item.id}`} className="calendar-agenda-row">
-                  <button
-                    type="button"
-                    className={`calendar-event-detail calendar-color--${item.color || 'default'}${selectedEventId === item.id ? ' is-selected' : ''}`}
-                    onClick={() => openEditModal(item)}
-                  >
-                    <span className="calendar-event-detail-time">{formatEventTime(item, timeZone)}</span>
-                    <span className="calendar-event-detail-body">
-                      <span className="calendar-event-detail-title">{item.title}</span>
-                      {item.location && <span className="calendar-event-detail-meta">{item.location}</span>}
-                      {Array.isArray(item.attendees) && item.attendees.length > 0 && (
-                        <span className="calendar-event-detail-meta">
-                          {item.attendees.length} {item.attendees.length === 1 ? 'attendee' : 'attendees'}
-                        </span>
-                      )}
-                    </span>
-                  </button>
+                  {renderEventDetail(item)}
                 </li>
               ))}
             </ul>
@@ -1447,13 +1482,18 @@ function CalendarContent({ onReady }) {
   };
 
   return (
-    <div className="calendar-page">
+    <div className="calendar-page" data-scene={scene.live ? 'quasicrystal-chorus' : 'static'}>
+      <div className="calendar-page__atmosphere" aria-hidden="true">
+        <div className="calendar-page__ambient" />
+        <div className="calendar-page__grid" />
+        <CalendarBackground live={scene.live} paused={scene.paused} isDark={isDark} onFailure={scene.onFailure} />
+        <div className="calendar-page__vignette" />
+      </div>
       <a className="calendar-skip" href="#calendar-main">Skip to calendar</a>
       <NavMenu standalone />
       <main id="calendar-main" className="calendar-main" tabIndex={-1} aria-labelledby="calendar-title">
         {!signedIn ? (
-          <section className="calendar-glass-panel calendar-session" aria-busy={status === 'loading'}>
-            <p className="calendar-eyebrow">Popular Consulting / Calendar</p>
+          <section className="calendar-pane calendar-session" aria-busy={status === 'loading'}>
             <h1 id="calendar-title">
               {status === 'loading'
                 ? 'Opening your calendar.'
@@ -1478,30 +1518,29 @@ function CalendarContent({ onReady }) {
                 <a className="calendar-btn calendar-btn--primary" href="/login">Sign in</a>
               )}
               {status !== 'loading' && (
-                <a className="calendar-btn calendar-btn--ghost" href="/home">Back to workspace</a>
+                <a className="calendar-btn" href="/home">Back to workspace</a>
               )}
             </div>
           </section>
         ) : !clientEnabled || (serverStatus.checked && !serverStatus.enabled) ? (
-          <section className="calendar-glass-panel calendar-session">
-            <p className="calendar-eyebrow">Popular Consulting / Calendar</p>
+          <section className="calendar-pane calendar-session">
             <h1 id="calendar-title">Calendar</h1>
             <p role="status">Calendar is currently disabled for this workspace.</p>
             <div className="calendar-session-actions">
-              <a className="calendar-btn calendar-btn--ghost" href="/home">Return to workspace</a>
+              <a className="calendar-btn" href="/home">Return to workspace</a>
             </div>
           </section>
         ) : (
           <div className="calendar-workspace">
             <header className="calendar-header">
-              <div className="calendar-header-copy">
-                <p className="calendar-eyebrow">Popular Consulting / Workspace</p>
-                <h1 id="calendar-title">Calendar</h1>
-              </div>
+              <h1 id="calendar-title" className="calendar-range-title">
+                <span className="calendar-visually-hidden">Calendar, </span>
+                {rangeHeading}
+              </h1>
               <div className="calendar-header-badges">
                 {isGoogleProvider ? (
                   <>
-                    <span className="calendar-badge calendar-badge--provider calendar-badge--google">
+                    <span className={`calendar-badge calendar-badge--provider calendar-badge--google${isGoogleConnected ? '' : ' is-offline'}`}>
                       <span>{providerLabel}</span>
                       {isGoogleConnected && serverStatus.google?.email && (
                         <span className="calendar-badge-detail">{serverStatus.google.email}</span>
@@ -1515,7 +1554,7 @@ function CalendarContent({ onReady }) {
                     {isGoogleConnected && (
                       <button
                         type="button"
-                        className="calendar-btn calendar-btn--ghost calendar-btn--subtle"
+                        className="calendar-badge calendar-badge--control"
                         disabled={disconnectingGoogle}
                         onClick={handleDisconnectGoogle}
                       >
@@ -1526,31 +1565,40 @@ function CalendarContent({ onReady }) {
                 ) : (
                   <span className="calendar-badge calendar-badge--provider">{providerLabel}</span>
                 )}
-                <span className="calendar-badge calendar-badge--tz">{timeZone}</span>
+                <span className="calendar-badge">{timeZone}</span>
+                {scene.canPause && (
+                  <button
+                    type="button"
+                    className="calendar-badge calendar-badge--control"
+                    onClick={scene.togglePaused}
+                  >
+                    <CalendarIcon name={scene.userPaused ? 'play' : 'pause'} />
+                    {scene.userPaused ? 'Resume background' : 'Pause background'}
+                  </button>
+                )}
               </div>
             </header>
 
-            <section className="calendar-glass-panel calendar-toolbar" aria-label="Calendar controls">
+            <section className="calendar-toolbar" aria-label="Calendar controls">
               <div className="calendar-nav-group">
-                <button type="button" className="calendar-btn calendar-btn--ghost" onClick={() => stepRange(-1)}>
-                  Prev
-                </button>
-                <button type="button" className="calendar-btn calendar-btn--ghost" onClick={jumpToday}>
-                  Today
-                </button>
-                <button type="button" className="calendar-btn calendar-btn--ghost" onClick={() => stepRange(1)}>
-                  Next
-                </button>
-                <h2 className="calendar-range-title">{rangeHeading}</h2>
-              </div>
+                <div className="calendar-segment calendar-date-stepper">
+                  <button type="button" className="calendar-icon-btn" aria-label="Previous" onClick={() => stepRange(-1)}>
+                    <CalendarIcon name="previous" />
+                  </button>
+                  <button type="button" className="calendar-segment-btn" onClick={jumpToday}>
+                    Today
+                  </button>
+                  <button type="button" className="calendar-icon-btn" aria-label="Next" onClick={() => stepRange(1)}>
+                    <CalendarIcon name="next" />
+                  </button>
+                </div>
 
-              <div className="calendar-controls-right">
-                <div className="calendar-view-switcher" role="group" aria-label="Calendar view">
+                <div className="calendar-segment calendar-view-switcher" role="group" aria-label="Calendar view">
                   {CALENDAR_VIEWS.map(option => (
                     <button
                       key={option}
                       type="button"
-                      className={`calendar-view-btn${view === option ? ' is-active' : ''}`}
+                      className="calendar-segment-btn"
                       aria-pressed={view === option}
                       onClick={() => setView(option)}
                     >
@@ -1558,55 +1606,59 @@ function CalendarContent({ onReady }) {
                     </button>
                   ))}
                 </div>
+              </div>
 
-                <div className="calendar-action-group">
+              <div className="calendar-action-group">
+                <button
+                  type="button"
+                  className="calendar-btn calendar-btn--quiet calendar-btn--refresh"
+                  onClick={triggerRefresh}
+                  disabled={loading}
+                >
+                  <CalendarIcon name="refresh" />
+                  <span className="calendar-btn-label">{loading ? 'Refreshing…' : 'Refresh'}</span>
+                </button>
+                {isGoogleAwaitingConnection ? (
                   <button
                     type="button"
-                    className="calendar-btn calendar-btn--primary"
-                    disabled={isGoogleAwaitingConnection}
-                    onClick={() => openCreateModal(anchorDate)}
+                    className="calendar-btn calendar-btn--quiet calendar-btn--export"
+                    disabled
                   >
-                    New Event
+                    <CalendarIcon name="download" />
+                    <span className="calendar-btn-label">Export .ics</span>
                   </button>
-                  <button
-                    type="button"
-                    className="calendar-btn calendar-btn--ghost"
-                    onClick={triggerRefresh}
-                    disabled={loading}
+                ) : (
+                  <a
+                    className="calendar-btn calendar-btn--quiet calendar-btn--export"
+                    href={exportUrl}
+                    download="calendar.ics"
                   >
-                    {loading ? 'Refreshing…' : 'Refresh'}
-                  </button>
-                  {isGoogleAwaitingConnection ? (
-                    <button
-                      type="button"
-                      className="calendar-btn calendar-btn--ghost"
-                      disabled
-                    >
-                      Export .ics
-                    </button>
-                  ) : (
-                    <a
-                      className="calendar-btn calendar-btn--ghost"
-                      href={exportUrl}
-                      download="calendar.ics"
-                    >
-                      Export .ics
-                    </a>
-                  )}
-                </div>
+                    <CalendarIcon name="download" />
+                    <span className="calendar-btn-label">Export .ics</span>
+                  </a>
+                )}
+                <button
+                  type="button"
+                  className="calendar-btn calendar-btn--primary calendar-btn--new"
+                  disabled={isGoogleAwaitingConnection}
+                  onClick={() => openCreateModal(anchorDate)}
+                >
+                  <CalendarIcon name="plus" />
+                  New event
+                </button>
               </div>
             </section>
 
             {googleNotice && (
               <div
-                className={`calendar-glass-panel ${googleNotice.type === 'error' ? 'calendar-error-banner' : 'calendar-status-banner'}`}
+                className={`calendar-pane ${googleNotice.type === 'error' ? 'calendar-error-banner' : 'calendar-status-banner'}`}
                 role={googleNotice.type === 'error' ? 'alert' : 'status'}
                 aria-live={googleNotice.type === 'error' ? undefined : 'polite'}
               >
                 <span>{googleNotice.message}</span>
                 <button
                   type="button"
-                  className="calendar-btn calendar-btn--ghost"
+                  className="calendar-btn calendar-btn--quiet"
                   onClick={() => setGoogleNotice(null)}
                 >
                   Dismiss
@@ -1615,7 +1667,7 @@ function CalendarContent({ onReady }) {
             )}
 
             {undoState && (
-              <div className="calendar-glass-panel calendar-undo-banner" role="status" aria-live="polite">
+              <div className="calendar-pane calendar-undo-banner" role="status" aria-live="polite">
                 <span>{undoState.label}</span>
                 <div className="calendar-undo-actions">
                   <button
@@ -1628,7 +1680,7 @@ function CalendarContent({ onReady }) {
                   </button>
                   <button
                     type="button"
-                    className="calendar-btn calendar-btn--ghost"
+                    className="calendar-btn calendar-btn--quiet"
                     disabled={undoing}
                     onClick={() => setUndoState(null)}
                   >
@@ -1639,9 +1691,9 @@ function CalendarContent({ onReady }) {
             )}
 
             {errorMessage && (
-              <div className="calendar-glass-panel calendar-error-banner" role="alert">
+              <div className="calendar-pane calendar-error-banner" role="alert">
                 <span>{errorMessage}</span>
-                <button type="button" className="calendar-btn calendar-btn--ghost" onClick={triggerRefresh}>
+                <button type="button" className="calendar-btn" onClick={triggerRefresh}>
                   Retry
                 </button>
               </div>
@@ -1649,10 +1701,9 @@ function CalendarContent({ onReady }) {
 
             {isGoogleConnectPrompt ? (
               <section
-                className="calendar-glass-panel calendar-connect-panel"
+                className="calendar-pane calendar-connect-panel"
                 aria-labelledby="calendar-google-connect-title"
               >
-                <p className="calendar-eyebrow">Google Calendar</p>
                 <h2 id="calendar-google-connect-title" className="calendar-connect-title">
                   Connect your Google Calendar
                 </h2>
@@ -1671,10 +1722,9 @@ function CalendarContent({ onReady }) {
               </section>
             ) : isGoogleUnconfigured ? (
               <section
-                className="calendar-glass-panel calendar-connect-panel"
+                className="calendar-pane calendar-connect-panel"
                 aria-labelledby="calendar-google-setup-title"
               >
-                <p className="calendar-eyebrow">Google Calendar</p>
                 <h2 id="calendar-google-setup-title" className="calendar-connect-title">
                   Google Calendar setup required
                 </h2>
@@ -1683,7 +1733,7 @@ function CalendarContent({ onReady }) {
                 </p>
               </section>
             ) : (
-              <section className="calendar-glass-panel calendar-surface" aria-busy={loading}>
+              <section className={`calendar-pane calendar-surface calendar-surface--${view}`} aria-busy={loading}>
                 {view === 'month' && renderMonthView()}
                 {view === 'week' && renderWeekView()}
                 {view === 'day' && renderDayView()}

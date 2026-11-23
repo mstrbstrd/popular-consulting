@@ -10,6 +10,7 @@ const shared = read('LiquidGlass.css');
 const popcan = read('PopcanLiquidGlass.css');
 const invoice = read('InvoiceLiquidGlass.css');
 const orb = read('OrbLiquidGlass.css');
+const calendar = read('CalendarPage.css');
 
 describe('one liquid glass system across the signed-in workspace', () => {
   test('Canvas and the Invoice Generator load the shared tokens before their own glass layer', () => {
@@ -19,7 +20,7 @@ describe('one liquid glass system across the signed-in workspace', () => {
     const invoicePage = read('InvoiceGeneratorPage.js');
     expect(invoicePage.indexOf('import "./InvoiceGeneratorScene.css";')).toBeLessThan(invoicePage.indexOf('import "./LiquidGlass.css";'));
     expect(invoicePage.indexOf('import "./LiquidGlass.css";')).toBeLessThan(invoicePage.indexOf('import "./InvoiceLiquidGlass.css";'));
-    expect(shared).toMatch(/:is\(\.orb-page, \.home-page, \.popcan-page, \.invoice-page, \.invoice-site-navigation, \.metabloom-assistant-launcher\) \{\s*--lg-clear-fill:/);
+    expect(shared).toMatch(/:is\(\.orb-page, \.home-page, \.popcan-page, \.invoice-page, \.calendar-page, \.invoice-site-navigation, \.metabloom-assistant-launcher\) \{\s*--lg-clear-fill:/);
   });
 
   test('every Canvas and invoice selector stays inside its own tool', () => {
@@ -73,6 +74,24 @@ describe('one liquid glass system across the signed-in workspace', () => {
   });
 
   test('forced colours collapse every new surface to system colours', () => {
-    [popcan, invoice, orb].forEach(css => expect(css).toMatch(/@media (screen and )?\(forced-colors: active\) \{[\s\S]*background: Canvas;[\s\S]*backdrop-filter: none;/));
+    [popcan, invoice, orb, calendar].forEach(css => expect(css).toMatch(/@media (screen and )?\(forced-colors: active\) \{[\s\S]*background: Canvas;[\s\S]*backdrop-filter: none;/));
+  });
+
+  test('Calendar is on the shared system: shared tokens, Aetheris colours, panes and a frosted bar', () => {
+    const page = read('CalendarPage.js');
+    expect(page.indexOf("import './LiquidGlass.css';")).toBeLessThan(page.indexOf("import './CalendarPage.css';"));
+    expect(shared).toMatch(/html body :is\([^)]*\.calendar-page[^)]*\) \.nav-pill::before \{/);
+    // No private copy of the glass tokens and no off-system accent.
+    expect(strip(calendar)).not.toMatch(/--lg-[a-z-]+:/);
+    expect(strip(calendar)).not.toMatch(/#1d4ed8|#38bdf8|Poppins/);
+    const pane = strip(calendar).match(/\.calendar-pane \{([^}]*)\}/)[1];
+    expect(pane).toContain('backdrop-filter: none;');
+    expect(pane).toContain('box-shadow: var(--lg-specular), var(--lg-shadow);');
+    const bar = strip(calendar).match(/\.calendar-toolbar \{([^}]*)\}/)[1];
+    expect(bar).toContain('backdrop-filter: var(--lg-regular-blur) var(--lg-post);');
+    // index.css's bare-element styles (padded purple buttons, italic h2) stay out.
+    expect(strip(calendar)).toMatch(/\.calendar-main :where\(button, a, h1, h2, h3, p, li, label, input, select, textarea, legend\) \{[^}]*padding: 0;[^}]*font-style: normal;/);
+    // Large glass surfaces never animate with transforms (Chrome clip desync).
+    expect(strip(calendar)).not.toMatch(/transform:(?!\s*translateX\(-50%\))/);
   });
 });

@@ -14,7 +14,7 @@ const selectors = css => strip(css).replace(/@[^{]+\{/g, '').match(/[^{}]+(?=\{)
 
 describe('shared liquid glass and nav chrome', () => {
   test('applies only inside the signed-in workspace: Home, Orb, Canvas and the Invoice Generator', () => {
-    const scope = /:is\(\.orb-page, \.home-page, \.popcan-page, \.invoice-page, \.invoice-site-navigation(, \.metabloom-assistant-launcher)?\)|\.home-page/;
+    const scope = /:is\(\.orb-page, \.home-page, \.popcan-page, \.invoice-page, \.calendar-page, \.invoice-site-navigation(, \.metabloom-assistant-launcher)?\)|\.home-page/;
     selectors(shared).forEach(selector => expect(selector).toMatch(scope));
     selectors(home).forEach(selector => expect(selector).toMatch(/\.home-page/));
   });
@@ -30,7 +30,7 @@ describe('shared liquid glass and nav chrome', () => {
   });
 
   test('the nav pill is not a backdrop root, so its menus blur the page', () => {
-    const pill = strip(shared).match(/html body :is\(\.orb-page, \.home-page, \.popcan-page, \.invoice-page, \.invoice-site-navigation\) \.nav-pill \{([^}]*)\}/)[1];
+    const pill = strip(shared).match(/html body :is\(\.orb-page, \.home-page, \.popcan-page, \.invoice-page, \.calendar-page, \.invoice-site-navigation\) \.nav-pill \{([^}]*)\}/)[1];
     expect(pill).toContain('backdrop-filter: none !important;');
     const glass = strip(shared).match(/\.nav-pill::before \{([^}]*)\}/)[1];
     expect(glass).toContain('backdrop-filter: var(--lg-refraction, var(--lg-clear-fallback)) var(--lg-post);');
