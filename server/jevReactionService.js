@@ -8,6 +8,7 @@ const {
 } = require("../src/components/metabloomDecisionMapping");
 const { createMetabloomVisualizationQuestion } = require("../src/components/metabloomVisualDesign");
 const { METABLOOM_VISUAL_KINDS } = require("../src/components/metabloomVisualProtocol");
+const { createMetabloomNavigationQuestion, resolveMetabloomNavigationDecision } = require("../src/components/metabloomNavigation");
 
 const JEV_ENDPOINT = "https://api.typesafe.ai/v1/systemone";
 const MAX_RESPONSE_BYTES = 16384;
@@ -57,7 +58,7 @@ const isChoiceAnswer = (answer) => answer?.type === "choice" && typeof answer.ch
   && Object.prototype.hasOwnProperty.call(answer.probabilities, answer.choice)
   && Number.isFinite(answer.probabilities[answer.choice]);
 
-const decideMetabloomChoices = async ({ phase, state, actionMode, ordinaryWebTools = false, visualKinds, visualIntent = "optional", preferredKinds = [], requiredKind = null, signal, timeoutMs = 1000, fetchImpl = globalThis.fetch } = {}) => {
+const decideMetabloomChoices = async ({ phase, state, actionMode, ordinaryWebTools = false, navigationCandidates, visualKinds, visualIntent = "optional", preferredKinds = [], requiredKind = null, signal, timeoutMs = 1000, fetchImpl = globalThis.fetch } = {}) => {
   // Capability/status replies and unsupported requests never create an offer,
   // even if a caller accidentally includes a visual inventory.
   const allowedVisuals = phase === "response" && ["optional", "requested"].includes(visualIntent) && Array.isArray(visualKinds)
@@ -66,9 +67,17 @@ const decideMetabloomChoices = async ({ phase, state, actionMode, ordinaryWebToo
   const requested = visualIntent === "requested";
   const locked = requested && allowedVisuals.includes(requiredKind) ? requiredKind : null;
   let visualization = locked || (requested ? (preferred[0] || "none") : "none");
-  const withVisual = (value) => allowedVisuals.length ? { ...value, visualization } : value;
   const explicitAction = phase === "input" && METABLOOM_ACTION_IDS.includes(actionMode) ? actionMode : "none";
+  // Navigation is asked only at input, only about pages the message names
+  // (the host has already checked access). Any failure resolves to none.
+  const pages = phase === "input" && Array.isArray(navigationCandidates) ? navigationCandidates : [];
+  let navigation = "none";
+  const withVisual = (value) => {
+    const result = allowedVisuals.length ? { ...value, visualization } : value;
+    return pages.length ? { ...result, navigation } : result;
+  };
   const fallback = () => { visualization = signal?.aborted ? "none" : requested ? (preferred[0] || "none") : "none";
+    navigation = "none";
     return withVisual({ emote: "neutral", action: signal?.aborted ? "none" : explicitAction }); };
   if (!Object.prototype.hasOwnProperty.call(QUESTIONS, phase)) return fallback();
   const apiKey = process.env.TYPESAFE_API_KEY?.trim();
@@ -79,6 +88,7 @@ const decideMetabloomChoices = async ({ phase, state, actionMode, ordinaryWebToo
   if (classifyAction) questions.action = ordinaryWebTools ? { ...METABLOOM_ACTION_QUESTION,
     instructions: METABLOOM_ACTION_QUESTION.instructions + ' Ordinary chat has its own live web search tools. For this turn, choose deep-research only for an extended investigation or deep-dive report, not a routine lookup, current fact or quick news question. Choose none for ordinary searches so the conversation model can use those tools directly.' } : METABLOOM_ACTION_QUESTION;
   if (allowedVisuals.length) questions.visualization = createMetabloomVisualizationQuestion(allowedVisuals, visualIntent);
+  if (pages.length) questions.navigation = createMetabloomNavigationQuestion(pages);
   const startedAt = Date.now();
   const controller = new AbortController();
   const abort = () => controller.abort();
@@ -108,6 +118,9 @@ const decideMetabloomChoices = async ({ phase, state, actionMode, ordinaryWebToo
       // A valid non-none choice takes priority. A requested visual cannot silently disappear.
       if (!requested || visualAnswer.choice !== "none") visualization = visualAnswer.choice;
     }
+    const navigationAnswer = payload?.answers?.navigation;
+    if (pages.length && isChoiceAnswer(navigationAnswer))
+      navigation = resolveMetabloomNavigationDecision({ choice: navigationAnswer.choice, confidence: navigationAnswer.confidence }, pages);
     const answer = payload?.answers?.reaction;
     const actionAnswer = payload?.answers?.action;
     const action = classifyAction && isChoiceAnswer(actionAnswer)

@@ -55,7 +55,7 @@ jobs:
           scripts/metabloom-models.test.cjs scripts/metabloom-expression.test.cjs scripts/metabloom-answer-recovery.test.cjs scripts/metabloom-council.test.cjs
           scripts/metabloom-research-brief.test.cjs scripts/metabloom-research-brief-api.test.cjs
           scripts/metabloom-research-output.test.cjs scripts/metabloom-stream.test.cjs
-          scripts/jev-reaction.test.cjs scripts/metabloom-visual.test.cjs scripts/metabloom-ui-tools.test.cjs
+          scripts/jev-reaction.test.cjs scripts/metabloom-navigation.test.cjs scripts/metabloom-visual.test.cjs scripts/metabloom-ui-tools.test.cjs
           scripts/metabloom-source-media.test.cjs scripts/metabloom-visual-quota.test.cjs
           scripts/metabloom-visual-store-diagnostics.test.cjs scripts/metabloom-artifact-reference.test.cjs
           scripts/metabloom-research-reuse.test.cjs scripts/metabloom-research-reuse-api.test.cjs

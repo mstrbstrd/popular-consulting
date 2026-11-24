@@ -7,6 +7,9 @@ import React from "react";
 import { createPortal, flushSync } from 'react-dom';
 import { useThemeMode } from "../contexts/ThemeContext";
 import { useAppNavigation } from '../contexts/AppNavigationContext';
+import { useAuth } from '../contexts/AuthContext';
+import { describeMetabloomNavigationReceipt, getMetabloomDestination, getMetabloomDestinationForPath,
+  getMetabloomNavigationDestinations } from './metabloomNavigation';
 import { METABLOOM_HOOD_SEQUENCE } from "./metabloomUnderHood";
 import MetabloomAvatar from "./MetabloomAvatar";
 import MetabloomReactionPanel from "./MetabloomReactionPanel";
@@ -472,6 +475,12 @@ const OrbSection = ({
   const companionRef = React.useRef(companion);
   companionRef.current = companion;
   const navigation = useAppNavigation();
+  const auth = useAuth();
+  // Read at the moment a reply asks to move, never captured by an older callback.
+  const navigationRef = React.useRef(navigation);
+  navigationRef.current = navigation;
+  const authRef = React.useRef(auth);
+  authRef.current = auth;
   const workspace = React.useContext(MetabloomWorkspaceContext);
   const [councilEnabled, setCouncilEnabled] = React.useState(false);
   const [councilEvents, setCouncilEvents] = React.useState([]);
@@ -576,6 +585,31 @@ const OrbSection = ({
     while (next.size > 24) next.delete(next.keys().next().value);
     return next;
   }), []);
+  // Page moves a reply asked for: presentation only, like answer media. Each
+  // entry is bound to its conversation so a reused message id cannot inherit it.
+  const [navigationReceipts, setNavigationReceipts] = React.useState(() => new Map());
+  const rememberNavigation = React.useCallback((messageId, value) => setNavigationReceipts(previous => {
+    const next = new Map(previous);
+    next.delete(messageId);
+    next.set(messageId, value);
+    while (next.size > 24) next.delete(next.keys().next().value);
+    return next;
+  }), []);
+  const pathname = navigation?.pathname;
+  React.useEffect(() => {
+    // The shell moves asynchronously; a receipt says Opened only once it arrives.
+    const here = getMetabloomDestinationForPath(pathname)?.id ?? null;
+    setNavigationReceipts(previous => {
+      let changed = false;
+      const next = new Map(previous);
+      next.forEach((entry, id) => {
+        if (entry.status !== 'opening') return;
+        if (here === entry.destination) { next.set(id, { ...entry, status: 'opened' }); changed = true; }
+        else if (here !== entry.from) { next.set(id, { ...entry, status: 'interrupted' }); changed = true; }
+      });
+      return changed ? next : previous;
+    });
+  }, [pathname]);
   const messagesRef = React.useRef(messages);
   const [draft, setDraft] = React.useState(savedConversation?.draft || '');
   const [artifactAttachment, setArtifactAttachment] = React.useState(() =>
@@ -2171,9 +2205,26 @@ const OrbSection = ({
         const valid = parseCalendarReceipt(receipt);
         if (valid && valid.requestId === requestId) activeRequest.calendarReceipt = valid;
       };
+      const reachableDestinations = () => getMetabloomNavigationDestinations({ auth: authRef.current,
+        calendarEnabled: process.env.REACT_APP_METABLOOM_CALENDAR_ENABLED !== '0' });
+      const navigationContext = activeRequest.toolset && typeof navigationRef.current?.navigate === 'function' ? {
+        version: 1, current: getMetabloomDestinationForPath(navigationRef.current.pathname)?.id ?? null,
+        destinations: reachableDestinations() } : null;
+      // The host chose a page for this message. The browser re-checks access and
+      // moves through the shell, exactly as following a link would.
+      const onNavigation = (destinationId) => {
+        if (!current()) return;
+        const item = getMetabloomDestination(destinationId);
+        const shell = navigationRef.current;
+        const allowed = Boolean(item && typeof shell?.navigate === 'function' && reachableDestinations().includes(item.id));
+        rememberNavigation(session.messageId, { destination: destinationId, status: allowed ? 'opening' : 'unavailable',
+          from: getMetabloomDestinationForPath(shell?.pathname)?.id ?? null, conversation: threadSession?.id || null });
+        if (allowed) shell.navigate(item.path);
+      };
       const request = {
         ...(modelSelection ? { modelSelection: { ...modelSelection } } : {}),
         toolset: activeRequest.toolset,
+        ...(navigationContext ? { navigationContext, onNavigation } : {}),
         ...(activeRequest.toolset ? { orbContext: getOrbContext() } : {}),
         ...(capturedCalendarContext ? { calendarContext: capturedCalendarContext } : {}),
         onCalendarProposal, onCalendarReceipt,
@@ -2235,6 +2286,8 @@ const OrbSection = ({
           delete request.orbContext;
           delete request.workspaceContext;
           delete request.calendarContext;
+          delete request.navigationContext;
+          delete request.onNavigation;
           activeRequest.workspaceContext = null;
           metabloomWorkspaceBridge.release(requestId);
           if (!activeRequest.claimed && !requestEvent.defaultPrevented) {
@@ -2351,7 +2404,7 @@ const OrbSection = ({
       }
       return dispatchRequest();
     },
-    [allowEmoteChanges, appendMessage, beginReply, beginRequestScene, cancelResponse, captureConversation, councilEnabled, deepResearch, failReply, finishReply, getOrbContext, isActive, messageLimit, modelAvailable, modelSelection, publishMessages, reactionPlayer, receiveModelResponse, recordExpression, rememberAnswerMedia, reportActivity, threadSession, updateArtifactAttachment, updateResearchAttachment, updateStateSnapshot, workspace],
+    [allowEmoteChanges, appendMessage, beginReply, beginRequestScene, cancelResponse, captureConversation, councilEnabled, deepResearch, failReply, finishReply, getOrbContext, isActive, messageLimit, modelAvailable, modelSelection, publishMessages, reactionPlayer, receiveModelResponse, recordExpression, rememberAnswerMedia, rememberNavigation, reportActivity, threadSession, updateArtifactAttachment, updateResearchAttachment, updateStateSnapshot, workspace],
   );
 
   const handleSubmit = React.useCallback(
@@ -3022,6 +3075,13 @@ const OrbSection = ({
                         }}
                       />
                     )}
+                    {(() => {
+                      const receipt = navigationReceipts.get(message.id);
+                      return message.role === 'assistant' && receipt && receipt.conversation === (threadSession?.id || null)
+                        ? <p className="metabloom-chat__navigation" data-status={receipt.status} role="status">
+                          {describeMetabloomNavigationReceipt({ destination: receipt.destination, status: receipt.status })}
+                        </p> : null;
+                    })()}
                     {/* Source photos load after the answer; appending them below the
                         bubble never moves text or source links the reader may be using. */}
                     {sources && !researchBrief && message.status === "complete" && (() => {

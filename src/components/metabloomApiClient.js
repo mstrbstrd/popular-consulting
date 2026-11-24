@@ -9,6 +9,7 @@ import { parseMetabloomModelSelection } from './metabloomModelProtocol';
 import { parseMetabloomOrbContext } from './metabloomExpressionProtocol';
 import { MAX_METABLOOM_WORKSPACE_BODY_BYTES, MAX_METABLOOM_WORKSPACE_EVENT_BYTES,
   parseMetabloomWorkspaceContext } from './metabloomWorkspaceProtocol';
+import { createMetabloomNavigationStreamBridge, parseMetabloomNavigationContext } from './metabloomNavigation';
 
 export { getMetabloomApiErrorMessage } from "./metabloomRequestErrors";
 
@@ -43,6 +44,8 @@ export const requestMetabloomResponse = async ({
   orbContext,
   workspaceContext,
   calendarContext,
+  navigationContext,
+  onNavigation,
   onWorkspaceProposal,
   onCalendarProposal,
   onCalendarReceipt,
@@ -100,6 +103,11 @@ export const requestMetabloomResponse = async ({
       || typeof requestId !== 'string' || !/^[a-zA-Z0-9-]{1,160}$/.test(requestId))
       throw new MetabloomApiError('Invalid invoice workspace context.', { code: 'invalid_request' });
   }
+  // Page navigation is an opt-in of the tool-enabled chat: the browser lists
+  // the pages it can open and performs any move the host chooses.
+  const navigation = useTools && navigationContext !== undefined ? parseMetabloomNavigationContext(navigationContext) : null;
+  if (useTools && navigationContext !== undefined && !navigation)
+    throw new MetabloomApiError('Invalid navigation context.', { code: 'invalid_request' });
   const hasCalendarContext = Boolean(calendarContext && typeof calendarContext === 'object');
   const useCalendar = Boolean(useTools && (hasCalendarContext || process.env.REACT_APP_METABLOOM_CALENDAR_ENABLED === '1'));
   const controller = new AbortController();
@@ -120,6 +128,7 @@ export const requestMetabloomResponse = async ({
       ...(modelSelection ? { modelSelection } : {}), ...(useExpressions ? { orbContext } : {}),
       ...(useWorkspace ? { workspaceContext } : {}),
       ...(useCalendar && hasCalendarContext ? { calendarContext } : {}),
+      ...(navigation ? { navigation } : {}),
       ...(artifactContext ? { artifactContext } : {}), ...(researchContext ? { researchContext } : {}) });
     if (useWorkspace && new TextEncoder().encode(requestBody).byteLength > MAX_METABLOOM_WORKSPACE_BODY_BYTES)
       throw new MetabloomApiError("The selected invoice context is too large. Narrow the request or edit it manually.", { code: "invalid_request" });
@@ -130,7 +139,8 @@ export const requestMetabloomResponse = async ({
         ...(useTools ? { 'X-Metabloom-Toolset': '2', 'X-Metabloom-Boom-Request': '1', 'X-Metabloom-Invoice': '1' } : {}),
         ...(useExpressions ? { 'X-Metabloom-Expressions': '1' } : {}),
         ...(useWorkspace ? { 'X-Metabloom-Workspace': '1' } : {}),
-        ...(useCalendar ? { 'X-Metabloom-Calendar': '1' } : {}) },
+        ...(useCalendar ? { 'X-Metabloom-Calendar': '1' } : {}),
+        ...(navigation ? { 'X-Metabloom-Navigation': '1' } : {}) },
       body: requestBody,
       signal: controller.signal,
     });
@@ -139,7 +149,7 @@ export const requestMetabloomResponse = async ({
     responseRequestRef = parseMetabloomRequestRef(response.headers?.get?.("X-Metabloom-Request-Ref"));
     const isStream = contentType.includes("application/x-ndjson");
     let streamError = null;
-    const decoder = createMetabloomCalendarStreamBridge(
+    const decoder = createMetabloomNavigationStreamBridge(createMetabloomCalendarStreamBridge(
       createMetabloomVisualStreamBridge(createMetabloomSegmentStreamDecoder({
         allowMultiple,
         allowResearchDetails: true,
@@ -237,7 +247,14 @@ export const requestMetabloomResponse = async ({
         requestId,
         maxRecordChars: Math.max(24000, MAX_CALENDAR_PROPOSAL_BYTES),
       },
-    );
+    ), {
+      allowNavigation: Boolean(navigation),
+      destinations: navigation?.destinations || [],
+      onNavigation: (destination) => {
+        if (controller.signal.aborted) throw new MetabloomApiError('Cancelled.', { code: 'cancelled' });
+        onNavigation?.(destination);
+      },
+    });
     let text = "";
     let bytes = 0;
     if (response.ok && !isStream && !contentType.includes("application/json")) {

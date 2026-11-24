@@ -41,6 +41,7 @@ const { METABLOOM_STREAM_ERROR_CODES } = require("../src/components/metabloomReq
 const { MAX_METABLOOM_RESEARCH_SOURCES } = require("../src/components/metabloomResearchSources");
 const { MAX_METABLOOM_RESEARCH_REPORT_CHUNK_CHARS } = require("../src/components/metabloomResearchReport");
 const { MAX_METABLOOM_SOURCE_MEDIA_ENTRIES, MAX_METABLOOM_TOOL_MEDIA_ENTRIES } = require("../src/components/metabloomSourceMediaProtocol");
+const { parseMetabloomNavigationContext, filterServerDestinations, classifyMetabloomNavigation } = require("../src/components/metabloomNavigation");
 const { METABLOOM_RESEARCH_BRIEF_VERSION, MAX_METABLOOM_RESEARCH_BRIEF_CHUNK_CHARS, MAX_METABLOOM_RESEARCH_BRIEF_SOURCES,
   parseMetabloomResearchBrief } = require("../src/components/metabloomResearchBriefProtocol");
 const MAX_BODY_BYTES = 24000;
@@ -76,6 +77,7 @@ const requestOriginIsAllowed = (request) => {
 const parseBody = (request) => {
   const workspaceNegotiated = request.headers?.['x-metabloom-workspace'] === '1';
   const calendarNegotiated = request.headers?.['x-metabloom-calendar'] === '1';
+  const navigationNegotiated = request.headers?.['x-metabloom-navigation'] === '1';
   const maximumBytes = workspaceNegotiated ? MAX_METABLOOM_WORKSPACE_BODY_BYTES : MAX_BODY_BYTES;
   const declared = request.headers?.["content-length"];
   if (declared !== undefined && (!/^\d+$/.test(String(declared)) || Number(declared) > maximumBytes)) return null;
@@ -83,7 +85,11 @@ const parseBody = (request) => {
     const text = typeof request.body === "string" ? request.body : JSON.stringify(request.body);
     if (typeof text !== "string" || Buffer.byteLength(text, "utf8") > maximumBytes) return null;
     const value = JSON.parse(text);
-    if (!exactKeys(value, ["message"], ["requestId", "history", "allowMultiple", "streamText", "streamResearchProgress", "streamResearchDetails", "streamResearchBrief", "streamResearchMedia", "streamResearchReuse", "streamToolMedia", "timeZone", "actionMode", "artifactContext", "researchContext", "modelSelection", "orbContext", "conversationId", "workspaceContext", "calendarContext"])) return null;
+    if (!exactKeys(value, ["message"], ["requestId", "history", "allowMultiple", "streamText", "streamResearchProgress", "streamResearchDetails", "streamResearchBrief", "streamResearchMedia", "streamResearchReuse", "streamToolMedia", "timeZone", "actionMode", "artifactContext", "researchContext", "modelSelection", "orbContext", "conversationId", "workspaceContext", "calendarContext", "navigation"])) return null;
+    if (value.navigation !== undefined) {
+      value.navigation = parseMetabloomNavigationContext(value.navigation);
+      if (!navigationNegotiated || request.headers?.['x-metabloom-toolset'] !== '2' || !value.navigation) return null;
+    }
     if (value.conversationId !== undefined && (!require('../src/components/metabloomThreadProtocol').isMetabloomThreadId(value.conversationId)
       || (request.headers?.['x-metabloom-boom-request'] !== '1' && request.headers?.['x-metabloom-invoice'] !== '1' && !workspaceNegotiated && !calendarNegotiated))) return null;
     if (value.workspaceContext !== undefined) {
@@ -593,6 +599,15 @@ const handler = async (request, response) => {
         outcome: "answered", requestRef }));
       return response.end(JSON.stringify({ type: "done", version: METABLOOM_CHAT_PROTOCOL_VERSION }) + "\n");
     }
+    // Page navigation: host rules settle explicit commands (and keep working
+    // without Jev); a navigation cue that names reachable pages asks Jev to
+    // choose among only those pages. The browser performs and reports the move.
+    const navigationCurrent = body.navigation?.current ?? null;
+    const navigationRule = useAgent && body.navigation && !reuseResearch && actionMode !== 'deep-research'
+      ? classifyMetabloomNavigation(body.message, { current: navigationCurrent,
+        destinations: filterServerDestinations(body.navigation.destinations, { signedIn: Boolean(accountIdentity) }) })
+      : { kind: 'none' };
+    let navigationDecision = null;
     // The same bounded Jev call supplies the input reaction and optional action.
     // Auto waits for its actual scene choice; explicit and legacy modes already
     // know their presentation and can start the chat provider in parallel.
@@ -601,13 +616,22 @@ const handler = async (request, response) => {
       state: { latestUserMessage: message, recentConversation: body.history.slice(-4) },
       ordinaryWebTools: useAgent,
       signal: controller.signal, timeoutMs: 950,
+      ...(navigationRule.kind === 'candidates' ? { navigationCandidates: navigationRule.candidates } : {}),
     };
     const inputDecisionPromise = actionMode === undefined
       ? decideMetabloomReaction(inputDecision).then((emote) => ({ emote }))
       : decideMetabloomInput({ ...inputDecision, actionMode });
-    initialReactionPromise = inputDecisionPromise.then(async ({ emote, action }) => {
+    initialReactionPromise = inputDecisionPromise.then(async ({ emote, action, navigation }) => {
       await sendStreamEvent({ type: "emote", phase: "input", emote });
       if (actionMode !== undefined) await sendStreamEvent({ type: "action", action });
+      const presentation = actionMode === "auto" ? action : actionMode || "none";
+      const destination = presentation === 'deep-research' ? null : navigationRule.kind === 'explicit' ? navigationRule.destination
+        : navigationRule.kind === 'candidates' && navigationRule.candidates.includes(navigation) ? navigation : null;
+      if (!destination) return;
+      navigationDecision = { destination, state: destination === navigationCurrent ? 'current' : 'requested' };
+      console.info('metabloom_navigation', JSON.stringify({ requestRef, destination, state: navigationDecision.state,
+        source: navigationRule.kind === 'explicit' ? 'host' : 'jev' }));
+      if (navigationDecision.state === 'requested') await sendStreamEvent({ type: 'navigation', destination });
     });
     const presentationAction = actionMode === "auto"
       ? (await inputDecisionPromise).action : actionMode || "none";
@@ -631,7 +655,7 @@ const handler = async (request, response) => {
         ...(expressions ? { orbContext: body.orbContext } : {}),
         ...(body.workspaceContext ? { workspaceContext: body.workspaceContext, workspaceEnabled: isMetabloomWorkspaceEnabled() } : {}),
         ...(calendarEnabled ? { calendarEnabled: true, ...(body.calendarContext ? { calendarContext: body.calendarContext } : {}) } : {}),
-        modelSelection,
+        modelSelection, ...(navigationDecision ? { navigation: navigationDecision } : {}),
         allowMultiple: body.allowMultiple, presentationAction, timeZone: body.timeZone || 'UTC',
         submittedMessage: body.message,
         invoiceDraftsEnabled: Boolean(accountIdentity && body.conversationId && body.requestId

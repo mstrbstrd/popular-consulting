@@ -217,3 +217,45 @@
   .orb-page .metabloom-chat__composer button:disabled { opacity: 1; color: GrayText; }
   .orb-page .metabloom-chat__research-toggle[data-enabled="true"] { border-color: Highlight; }
 }
+
+/* --- Page navigation receipt ------------------------------------------- */
+
+/* A page move the reply asked for, reported by the browser: a quiet clear-glass
+   capsule under the reply. It floats over the creature like the replies do. */
+.orb-page .metabloom-chat__navigation {
+  display: flex; align-items: center; gap: 8px;
+  width: fit-content; max-width: 100%;
+  margin: 8px 0 0; padding: 5px 12px 5px 10px;
+  border-radius: 999px;
+  background: var(--lg-clear-fill, var(--aetheris-glass-panel));
+  -webkit-backdrop-filter: var(--lg-clear-fallback, blur(7px)) var(--lg-post, saturate(1.4));
+  backdrop-filter: var(--lg-clear-fallback, blur(7px)) var(--lg-post, saturate(1.4));
+  box-shadow: var(--lg-specular, none);
+  color: var(--aetheris-ink-2);
+  font: 500 13px/1.4 var(--aetheris-font-sans, inherit);
+  text-shadow: var(--lg-text-halo, none);
+}
+.orb-page .metabloom-chat__navigation::before {
+  content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--aetheris-teal);
+}
+.orb-page .metabloom-chat__navigation[data-status="opening"]::before {
+  background: transparent; box-shadow: inset 0 0 0 1.5px var(--aetheris-teal);
+}
+.orb-page .metabloom-chat__navigation:is([data-status="interrupted"], [data-status="unavailable"])::before {
+  background: var(--aetheris-ink-2);
+}
+
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .orb-page .metabloom-chat__navigation {
+    background: var(--aetheris-panel-raised, var(--aetheris-panel));
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+  }
+}
+@media (forced-colors: active) {
+  .orb-page .metabloom-chat__navigation {
+    background: Canvas; color: CanvasText; border: 1px solid CanvasText; box-shadow: none; text-shadow: none;
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+  }
+  .orb-page .metabloom-chat__navigation::before { background: CanvasText; box-shadow: none; }
+}
