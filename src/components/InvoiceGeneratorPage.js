@@ -108,6 +108,9 @@ export const InvoiceGeneratorContent = ({ initialWorkspace = null, onWorkspaceCh
   const assistant = controller.getStatus();
   const completion = controller.getCompletion();
   const [includePrivateFields, setIncludePrivateFields] = useState(assistant.includePrivateFields);
+  // On narrow screens the assistant strip folds to one row so the editor stays
+  // in the first screen. It stays open whenever it is reporting something.
+  const [scopeOpen, setScopeOpen] = useState(false);
   const [highlighted, setHighlighted] = useState([]);
   const highlightTimer = useRef(null);
   const [bridgeStatus, setBridgeStatus] = useState(() => workspaceBridge?.getStatus?.() || null);
@@ -211,11 +214,18 @@ export const InvoiceGeneratorContent = ({ initialWorkspace = null, onWorkspaceCh
     // including wrapped status text, zoom, font loading and viewport changes.
     const bar = actionsRef.current;
     const header = siteNavRef.current?.querySelector(".nav-header");
+    // The browser keeps scrolled-to and focused fields clear of whatever is
+    // stuck to the top (WCAG 2.4.11): the nav while it is fixed or sticky, and
+    // the action bar while it is sticky. Short screens make both static.
+    const previousScrollPadding = html.style.scrollPaddingTop;
     const measureActions = () => {
       const height = Math.ceil(bar?.getBoundingClientRect().height || 0);
       if (height) bar.closest(".invoice-page")?.style.setProperty("--invoice-actions-height", `${height}px`);
       const navHeight = Math.ceil(header?.getBoundingClientRect().height || 0);
       if (navHeight) bar?.closest(".invoice-page")?.style.setProperty("--invoice-nav-height", `${navHeight}px`);
+      const stuck = element => element && ["fixed", "sticky"].includes(getComputedStyle(element).position);
+      const covered = (stuck(header) ? navHeight : 0) + (stuck(bar) ? height : 0);
+      html.style.scrollPaddingTop = covered ? `${covered + 16}px` : previousScrollPadding;
     };
     measureActions();
     const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measureActions) : null;
@@ -233,6 +243,7 @@ export const InvoiceGeneratorContent = ({ initialWorkspace = null, onWorkspaceCh
       html.style.fontSize = previous.fontSize;
       html.style.overflow = previous.overflow;
       html.style.height = previous.height;
+      html.style.scrollPaddingTop = previousScrollPadding;
       body.style.overflow = previous.bodyOverflow;
       body.style.height = previous.bodyHeight;
       document.title = previous.title;
@@ -381,21 +392,29 @@ export const InvoiceGeneratorContent = ({ initialWorkspace = null, onWorkspaceCh
           <p className="invoice-local-note">Private invoice workspace<span>Editor changes stay in this browser unless you connect selected details to chat.</span></p>
         </div>
       </section>
-      {workspaceBridge && <section className="invoice-assistant-scope invoice-no-print" aria-label="Invoice assistant access">
-        <div><strong>{assistant.connected ? "Working on this invoice" : "Connect this invoice to Metabloom"}</strong>
-          <p>Selected invoice details go to your chosen model when you send a message. Logos and saved device drafts stay in this browser.</p></div>
+      {workspaceBridge && <section className="invoice-assistant-scope invoice-no-print" aria-label="Invoice assistant access"
+        data-expanded={scopeOpen || assistant.connected || assistant.guided || bridgeStatus?.replacementVersion != null ? "true" : "false"}>
+        {/* Shown only on narrow screens (CSS), where it replaces the title. */}
+        <button type="button" className="invoice-assistant-toggle" onClick={() => setScopeOpen(value => !value)}
+          aria-expanded={scopeOpen || assistant.connected || assistant.guided || bridgeStatus?.replacementVersion != null}>
+          {assistant.connected ? "Working on this invoice" : "Connect this invoice to Metabloom"}</button>
+        {/* A compact strip: what connecting does on the left, its actions on the
+            right, the full scope in the disclosure. It sits above the form, so it
+            must not push the editor out of the first screen. */}
+        <div className="invoice-assistant-copy"><strong>{assistant.connected ? "Working on this invoice" : "Connect this invoice to Metabloom"}</strong>
+          <p>Selected invoice details go to your chosen model when you send a message.</p></div>
+        <div className="invoice-assistant-buttons">
+          {assistant.connected ? <button type="button" onClick={() => { controller.disconnect(); setStatus("Invoice disconnected. Previously sent chat content is unchanged."); }}>Disconnect invoice</button>
+            : <button type="button" onClick={connectInvoice} disabled={locked}>Use this invoice in chat</button>}
+          {assistant.canUndo && <button type="button" onClick={() => { const result = controller.undo(); result.status === 'applied' ? setStatus(result.message) : setActionError(result.message); }}>Undo assistant change</button>}
+          <button type="button" onClick={startGuided} disabled={locked}>Start a new invoice with Metabloom</button>
+        </div>
         <details><summary>Details shared with chat</summary>
-          <p>Invoice number, dates, currency, sender and client names, description, items, prices, quantities and tax choices.</p>
+          <p>Invoice number, dates, currency, sender and client names, description, items, prices, quantities and tax choices. Logos and saved device drafts stay in this browser.</p>
           <label><input type="checkbox" checked={includePrivateFields} disabled={assistant.connected}
             onChange={event => setIncludePrivateFields(event.target.checked)} />Include contact details and payment notes</label>
           <p>Optional details include addresses, email, phone, website, business/tax numbers and payment notes. Disconnect before changing this scope.</p>
         </details>
-        <div className="invoice-assistant-buttons">
-          {assistant.connected ? <button type="button" onClick={() => { controller.disconnect(); setStatus("Invoice disconnected. Previously sent chat content is unchanged."); }}>Disconnect invoice</button>
-            : <button type="button" onClick={connectInvoice} disabled={locked}>Use this invoice in chat</button>}
-          <button type="button" onClick={() => { const result = controller.undo(); result.status === 'applied' ? setStatus(result.message) : setActionError(result.message); }} disabled={!assistant.canUndo}>Undo assistant change</button>
-          <button type="button" onClick={startGuided} disabled={locked}>Start a new invoice with Metabloom</button>
-        </div>
         {bridgeStatus?.replacementVersion != null && !assistant.connected && <p>The current invoice was kept. Choose whether to work on it or start a new one.</p>}
         {assistant.guided && !completion.ready && <details className="invoice-assistant-missing" open><summary>Needs details</summary><ul>{completion.missing.map((missing, index) => <li key={index}>{missing}</li>)}</ul></details>}
       </section>}

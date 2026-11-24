@@ -95,3 +95,20 @@ test('connected users can deliberately start a fresh guided invoice without loca
   expect(workspaceBridge.controller.getStatus().workspaceInstanceId).not.toBe(first);
   expect(workspaceBridge.controller.getStatus().connected).toBe(true);
 });
+
+test('the assistant strip is compact: Undo appears only when there is a change, and it folds open while in use', () => {
+  const workspaceBridge = bridge(); render(<InvoiceGeneratorContent workspaceBridge={workspaceBridge} />);
+  const strip = screen.getByRole('region', { name: 'Invoice assistant access' });
+  const fold = screen.getByRole('button', { name: 'Connect this invoice to Metabloom' });
+  expect(screen.queryByRole('button', { name: 'Undo assistant change' })).toBeNull();
+  expect(fold).toHaveAttribute('aria-expanded', 'false'); expect(strip).toHaveAttribute('data-expanded', 'false');
+  fireEvent.click(fold);
+  expect(fold).toHaveAttribute('aria-expanded', 'true'); expect(strip).toHaveAttribute('data-expanded', 'true');
+  fireEvent.click(fold);
+  fireEvent.click(screen.getByRole('button', { name: 'Use this invoice in chat' }));
+  // Connected, it stays open so the status and Disconnect are always reachable.
+  expect(screen.getByRole('button', { name: 'Working on this invoice' })).toHaveAttribute('aria-expanded', 'true');
+  const proposal = change(workspaceBridge.controller, [literal('clientName', 'Assistant client')]);
+  act(() => { workspaceBridge.controller.apply(proposal, { conversationId }); });
+  expect(screen.getByRole('button', { name: 'Undo assistant change' })).toBeEnabled();
+});

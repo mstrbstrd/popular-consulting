@@ -531,16 +531,25 @@ html[data-theme="dark"] .invoice-page {
   .invoice-page :is(a, button, input, textarea, select, summary, [tabindex]):focus-visible { outline: 2px solid Highlight; box-shadow: none; }
 }
 @media screen {
+  /* One compact strip above the form: copy left, actions right, the full
+     scope in a disclosure underneath. index.css sets every <p> to 2rem, so the
+     strip states its own text sizes. */
   .invoice-assistant-scope {
-    margin: 0 0 2rem; padding: 1.8rem; border: 1px solid var(--aetheris-line);
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center;
+    column-gap: 2.4rem; row-gap: .6rem;
+    margin: 0 0 2rem; padding: 1.4rem 1.8rem; border: 1px solid var(--aetheris-line);
     border-radius: 1.6rem; background: var(--invoice-panel);
     font-size: 1.4rem; line-height: 1.5;
   }
-  .invoice-assistant-scope p { max-width: 80ch; margin: .6rem 0; }
-  .invoice-assistant-scope details { margin: 1rem 0; }
-  .invoice-assistant-scope summary { cursor: pointer; font-weight: 600; }
-  .invoice-assistant-scope label { display: flex; gap: .8rem; align-items: center; }
-  .invoice-assistant-buttons { display: flex; flex-wrap: wrap; gap: .8rem; margin-top: 1rem; }
+  .invoice-assistant-scope > :not(.invoice-assistant-copy, .invoice-assistant-buttons) { grid-column: 1 / -1; }
+  .invoice-assistant-scope strong { display: block; font-size: 1.5rem; }
+  .invoice-assistant-scope p { max-width: 72ch; margin: .2rem 0 0; font-size: 1.35rem; line-height: 1.45; color: var(--invoice-muted); }
+  .invoice-assistant-scope details { margin: 0; font-size: 1.3rem; }
+  .invoice-assistant-scope details p { margin: .6rem 0; }
+  .invoice-assistant-scope summary { width: fit-content; cursor: pointer; font-weight: 600; color: var(--invoice-muted); }
+  .invoice-assistant-scope label { display: flex; gap: .8rem; align-items: center; font-size: 1.35rem; }
+  .invoice-assistant-buttons { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .8rem; }
+  .invoice-page .invoice-assistant-scope .invoice-assistant-toggle { display: none; }
   .invoice-assistant-missing ul { margin-bottom: 0; max-height: 14rem; overflow: auto; }
   .invoice-item[data-assistant-changed], .invoice-field [data-assistant-changed] { outline: 2px solid var(--aetheris-focus-line); outline-offset: 3px; }
   .invoice-page[data-assistant-section='details'] [data-invoice-section='details'],
@@ -550,4 +559,26 @@ html[data-theme="dark"] .invoice-page {
   .invoice-page[data-assistant-section='items'] [data-invoice-section='items'],
   .invoice-page[data-assistant-section='notes'] [data-invoice-section='notes'] { outline: 2px solid var(--aetheris-focus-line); outline-offset: 3px; }
   .invoice-item-taxes select { min-height: 48px; margin-inline-start: .5rem; color: inherit; background: var(--invoice-panel); }
+}
+@media screen and (max-width: 900px) {
+  .invoice-assistant-scope { grid-template-columns: minmax(0, 1fr); padding: .6rem; row-gap: .4rem; }
+  .invoice-assistant-scope[data-expanded="true"] { padding-bottom: 1.4rem; }
+  .invoice-assistant-scope > :not(.invoice-assistant-toggle) { margin-inline: 1rem; }
+  .invoice-assistant-buttons { justify-content: flex-start; }
+  /* One row: the title becomes the disclosure; the consent line and actions
+     are inside it, so they are read before connecting. */
+  .invoice-page .invoice-assistant-scope .invoice-assistant-toggle {
+    display: flex; align-items: center; justify-content: space-between; gap: 1rem; width: 100%; min-height: 44px;
+    padding: 0 1rem; border: 0; border-radius: 1.2rem; background: transparent; box-shadow: none;
+    color: var(--invoice-ink); font-family: var(--invoice-sans, inherit); font-size: 1.5rem; font-weight: 600; line-height: 1.3;
+    letter-spacing: 0; text-align: start; text-transform: none;
+  }
+  .invoice-page .invoice-assistant-toggle::after {
+    content: ""; flex: none; width: .8rem; height: .8rem; margin-inline-end: .4rem;
+    border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor;
+    transform: translateY(-25%) rotate(45deg); transition: transform 150ms ease;
+  }
+  .invoice-page .invoice-assistant-scope[data-expanded="true"] .invoice-assistant-toggle::after { transform: translateY(25%) rotate(-135deg); }
+  .invoice-assistant-copy strong { display: none; }
+  .invoice-assistant-scope[data-expanded="false"] > :not(.invoice-assistant-toggle) { display: none; }
 }

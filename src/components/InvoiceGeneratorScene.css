@@ -25,10 +25,10 @@
   .invoice-actions { top: var(--invoice-nav-height, 104px); }
   .invoice-preview { top: calc(var(--invoice-nav-height, 104px) + var(--invoice-actions-height, 120px) + 16px); }
   .invoice-preview-document { max-height: max(160px, calc(100dvh - var(--invoice-nav-height, 104px) - var(--invoice-actions-height, 120px) - 120px)); }
+  /* The page sets the root's scroll-padding-top to the sticky nav and action
+     bar it measures, so fields need only a little breathing room of their own. */
   .invoice-editor, .invoice-preview, .invoice-editor .invoice-error,
-  .invoice-field, .invoice-field :is(input, textarea, select) {
-    scroll-margin-top: calc(var(--invoice-nav-height, 104px) + var(--invoice-actions-height, 170px) + 24px);
-  }
+  .invoice-field, .invoice-field :is(input, textarea, select) { scroll-margin-top: 8px; }
   /* The field is visible in the negative space; reading surfaces stay calm. */
   .invoice-form > fieldset, .invoice-settings {
     background: color-mix(in srgb, var(--invoice-panel) 95%, transparent);
@@ -52,7 +52,7 @@
   .invoice-actions, .invoice-preview { position: static; }
   .invoice-editor, .invoice-preview, .invoice-editor .invoice-error,
   .invoice-field, .invoice-field :is(input, textarea, select) {
-    scroll-margin-top: calc(var(--invoice-nav-height, 104px) + 24px);
+    scroll-margin-top: 8px;
   }
 }
 @media screen and (max-height: 600px) {
