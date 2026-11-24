@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import './MetabloomCompanionPanel.css';
 
 export function compactCompanionBubble(value) {
@@ -43,6 +43,23 @@ export default function MetabloomCompanionPanel({
   const toggle = useRef(null);
   const launcher = useRef(null);
   const focusIntent = useRef(null);
+  // Whether the person last used a pointer or the keyboard here. Focus that the
+  // dock moves after a pointer action is marked quiet so it draws no ring.
+  const lastInput = useRef('keyboard');
+  const moveFocus = useCallback((element) => {
+    if (!element) return;
+    if (lastInput.current === 'pointer') {
+      element.dataset.focusQuiet = 'true';
+      const clear = () => {
+        delete element.dataset.focusQuiet;
+        element.removeEventListener('blur', clear);
+        element.removeEventListener('keydown', clear);
+      };
+      element.addEventListener('blur', clear);
+      element.addEventListener('keydown', clear);
+    }
+    element.focus({ preventScroll: true });
+  }, []);
   const previousBubble = useRef(bubbleText);
   const [dismissedBubble, setDismissedBubble] = useState(null);
   const [unread, setUnread] = useState(false);
@@ -61,13 +78,13 @@ export default function MetabloomCompanionPanel({
   useEffect(() => {
     if (!docked) { focusIntent.current = null; return; }
     const intent = focusIntent.current;
-    if (intent === 'open' && expanded) heading.current?.focus({ preventScroll: true });
-    else if (intent === 'collapse' && !expanded && !hidden) toggle.current?.focus({ preventScroll: true });
-    else if (intent === 'hide' && hidden) launcher.current?.focus({ preventScroll: true });
-    else if (intent === 'show' && !hidden) (expanded ? heading : toggle).current?.focus({ preventScroll: true });
+    if (intent === 'open' && expanded) moveFocus(heading.current);
+    else if (intent === 'collapse' && !expanded && !hidden) moveFocus(toggle.current);
+    else if (intent === 'hide' && hidden) moveFocus(launcher.current);
+    else if (intent === 'show' && !hidden) moveFocus((expanded ? heading : toggle).current);
     else return;
     focusIntent.current = null;
-  }, [docked, expanded, hidden]);
+  }, [docked, expanded, hidden, moveFocus]);
 
   useEffect(() => {
     if (!docked || !window.visualViewport) return undefined;
@@ -118,7 +135,8 @@ export default function MetabloomCompanionPanel({
 
   return <div ref={root} className="metabloom-companion" data-docked={docked ? 'true' : 'false'}
     data-open={expanded ? 'true' : 'false'} data-hidden={hidden ? 'true' : 'false'} data-busy={busy ? 'true' : 'false'}
-    onKeyDown={onKeyDown} style={{ '--metabloom-companion-keyboard-offset': `${docked ? viewport.offset : 0}px`,
+    onKeyDown={onKeyDown} onKeyDownCapture={() => { lastInput.current = 'keyboard'; }}
+    onPointerDownCapture={() => { lastInput.current = 'pointer'; }} style={{ '--metabloom-companion-keyboard-offset': `${docked ? viewport.offset : 0}px`,
       ...(viewport.height ? { '--metabloom-companion-visible-height': `${viewport.height}px` } : {}) }}>
     <div id={`${id}-panel`} className="metabloom-companion__panel"
       role={expanded ? 'region' : undefined} aria-labelledby={expanded ? `${id}-heading` : undefined}>
@@ -142,9 +160,11 @@ export default function MetabloomCompanionPanel({
       <div className="metabloom-companion__body">{children}</div>
     </div>
     <div className="metabloom-companion__bubble" hidden={!showBubble}>
-      <p>{excerpt}</p>
+      {/* The preview's text exists only while it is shown, so a hidden copy of
+          the latest answer never sits in the page beside the transcript. */}
+      {showBubble && <p>{excerpt}</p>}
       <button type="button" className="metabloom-companion__icon-button" onClick={() => {
-        setDismissedBubble(bubbleText); toggle.current?.focus({ preventScroll: true });
+        setDismissedBubble(bubbleText); moveFocus(toggle.current);
       }}
         aria-label="Dismiss reply preview" title="Dismiss reply preview"><Icon name="close" /></button>
       <button type="button" className="metabloom-companion__read" onClick={requestToggle}>Read conversation</button>

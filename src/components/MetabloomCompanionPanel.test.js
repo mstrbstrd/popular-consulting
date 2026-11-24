@@ -232,4 +232,35 @@ describe('docked overlay refinement', () => {
     // The Orb's canvas never takes input; the dock's target sits over it instead.
     expect(host).toMatch(/\.metabloom-chat__field \{[^}]*pointer-events: none;/);
   });
+
+  test('hover never paints the toggle; the icon and the Orb answer it, without a ring around the creature', () => {
+    const panel = read('MetabloomCompanionPanel.css');
+    const host = read('MetabloomAssistantHost.css');
+    // index.css gives every hovered button a solid purple fill; the toggle spans the icon and the Orb.
+    expect(read('../index.css')).toMatch(/button:hover \{\s*background: #b989dd;/);
+    expect(panel).toMatch(/\.metabloom-companion \.metabloom-companion__toggle,\s*\.metabloom-companion \.metabloom-companion__toggle:is\(:hover, :active, :focus\) \{\s*background: transparent;/);
+    expect(panel).toMatch(/\.metabloom-companion__toggle:hover \.metabloom-companion__pill--icon::before \{ opacity: 1; background: var\(--aetheris-spectral-border\); \}/);
+    expect(panel).not.toMatch(/__toggle:hover \.metabloom-companion__orb-target/);
+    expect(host).toMatch(/:has\(\.metabloom-companion__toggle:not\(\.metabloom-companion__toggle--show\):hover\) \.metabloom-chat__field \{\s*transform: scale\(1\.07\);/);
+    expect(host).toMatch(/@media \(hover: hover\) and \(prefers-reduced-motion: no-preference\)/);
+  });
+
+  test('focus returned after a pointer action is quiet until the next key press', () => {
+    render(<StatefulPanel><textarea aria-label="Message Metabloom" /></StatefulPanel>);
+    const root = document.querySelector('.metabloom-companion');
+    fireEvent.pointerDown(root);
+    fireEvent.click(screen.getByRole('button', { name: 'Open chat' }));
+    expect(screen.getByRole('heading', { name: 'Metabloom' })).toHaveAttribute('data-focus-quiet', 'true');
+    fireEvent.pointerDown(root);
+    fireEvent.click(screen.getByRole('button', { name: 'Close chat' }));
+    const toggle = screen.getByRole('button', { name: 'Open chat' });
+    expect(toggle).toHaveFocus();
+    expect(toggle).toHaveAttribute('data-focus-quiet', 'true');
+    fireEvent.keyDown(toggle, { key: 'Tab' });
+    expect(toggle).not.toHaveAttribute('data-focus-quiet');
+    // A keyboard round trip keeps the visible ring.
+    fireEvent.keyDown(root, { key: 'Enter' });
+    fireEvent.click(toggle);
+    expect(screen.getByRole('heading', { name: 'Metabloom' })).not.toHaveAttribute('data-focus-quiet');
+  });
 });

@@ -113,6 +113,13 @@
   display: inline-flex; align-items: center; gap: 8px;
   padding: 0; border: 0; background: none; outline: none;
 }
+/* index.css paints every hovered <button> a solid #b989dd; the toggle spans the
+   chat icon and the Orb, so that became one purple square over the creature.
+   Its own surfaces (the pill, the Orb) carry every state instead. */
+.metabloom-companion .metabloom-companion__toggle,
+.metabloom-companion .metabloom-companion__toggle:is(:hover, :active, :focus) {
+  background: transparent; color: var(--metabloom-companion-ink);
+}
 .metabloom-companion__pill,
 .metabloom-companion__stop {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
@@ -128,7 +135,17 @@
 .metabloom-companion__pill svg,
 .metabloom-companion__stop svg { width: 17px; height: 17px; flex-shrink: 0; }
 /* Closed, the chat toggle is just its icon: a clear-glass circle by the Orb. */
-.metabloom-companion__pill--icon { position: relative; width: 44px; height: 44px; padding: 0; }
+.metabloom-companion__pill--icon { position: relative; width: 44px; height: 44px; padding: 0;
+  transition: background-color 150ms ease, transform 150ms ease; }
+/* Like the Orb's composer controls: a soft spectral ring at rest, the full
+   spectrum on hover and keyboard focus. */
+.metabloom-companion__pill--icon::before {
+  content: ""; position: absolute; inset: 0; padding: 1px; border-radius: inherit; pointer-events: none;
+  background: var(--aetheris-spectral-border-soft); opacity: 0.55; transition: opacity 150ms ease;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); mask-composite: exclude;
+}
+.metabloom-companion__toggle:active .metabloom-companion__pill--icon { transform: scale(0.94); }
 .metabloom-companion__pill--icon svg { width: 19px; height: 19px; }
 .metabloom-companion__pill--icon .metabloom-companion__unread { position: absolute; top: 6px; right: 6px; }
 .metabloom-companion__stop { padding-inline: 12px 14px; }
@@ -146,6 +163,19 @@
 .metabloom-companion__toggle:focus-visible .metabloom-companion__orb-target {
   box-shadow: 0 0 0 2px var(--aetheris-focus-line, var(--aetheris-teal, #007b83));
 }
+.metabloom-companion__toggle:focus-visible .metabloom-companion__pill--icon::before { opacity: 1; background: var(--aetheris-spectral-border); }
+/* One clean ring on the icon (its spectral rim plus the focus line), no halo. */
+.metabloom-companion .metabloom-companion__toggle:focus-visible .metabloom-companion__pill--icon {
+  outline-offset: 2px; box-shadow: var(--lg-specular, inset 0 1px 0 rgba(255,255,255,.8)), var(--lg-shadow, 0 8px 24px -12px rgba(36,18,52,.3));
+}
+/* Focus returned to the dock after a pointer action (closing the panel,
+   dismissing the preview) stays quiet; the next key press shows it again. */
+.metabloom-companion [data-focus-quiet]:focus-visible,
+.metabloom-companion [data-focus-quiet]:focus-visible .metabloom-companion__orb-target { outline: none; box-shadow: none; }
+.metabloom-companion [data-focus-quiet]:focus-visible .metabloom-companion__pill {
+  outline: none; box-shadow: var(--lg-specular, inset 0 1px 0 rgba(255,255,255,.8)), var(--lg-shadow, 0 8px 24px -12px rgba(36,18,52,.3));
+}
+.metabloom-companion [data-focus-quiet]:focus-visible .metabloom-companion__pill--icon::before { opacity: 0.55; background: var(--aetheris-spectral-border-soft); }
 /* While the conversation is open the Orb rides in the panel header and the
    header's Minimize closes it, so the dock steps aside. The toggle returns, and
    takes focus back, as soon as the panel closes. */
@@ -200,10 +230,10 @@
   .metabloom-companion__header .metabloom-companion__icon-button:hover { background: var(--lg-clear-fill-hover, rgba(255, 255, 255, 0.7)); }
   .metabloom-companion__icon-button--stop:hover { color: var(--aetheris-red, #c0392b) !important; }
   .metabloom-companion__toggle:hover .metabloom-companion__pill,
-  .metabloom-companion__stop:hover { background: var(--lg-clear-fill-hover, rgba(255, 255, 255, 0.7)); }
-  .metabloom-companion__toggle:hover .metabloom-companion__orb-target {
-    box-shadow: 0 0 0 1px var(--lg-rim, rgba(255,255,255,.55)), 0 0 24px var(--aetheris-spectral-glow, rgba(186, 0, 186, .18));
-  }
+  .metabloom-companion .metabloom-companion__stop:hover { background: var(--lg-clear-fill-hover, rgba(255, 255, 255, 0.7)); }
+  .metabloom-companion__toggle:hover .metabloom-companion__pill--icon::before { opacity: 1; background: var(--aetheris-spectral-border); }
+  /* The Orb answers hover itself (host CSS lifts the field); no ring is drawn
+     around the creature, which has no edge of its own. */
   .metabloom-companion__read:hover { background: var(--lg-lens, rgba(64, 40, 88, .09)); }
 }
 

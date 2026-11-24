@@ -24,6 +24,16 @@
   -webkit-mask-image: radial-gradient(closest-side, #000 74%, transparent 100%);
   mask-image: radial-gradient(closest-side, #000 74%, transparent 100%);
 }
+/* Hovering the dock's toggle (chat icon or Orb) lifts the creature a little:
+   a one-off transition on the same canvas, never a per-frame transform. */
+.metabloom-assistant-host[data-assistant-presentation="docked"]:not([data-assistant-open="true"]) .metabloom-chat__field {
+  transition: transform 220ms cubic-bezier(.2, .8, .2, 1), filter 220ms ease;
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .metabloom-assistant-host[data-assistant-presentation="docked"]:not([data-assistant-open="true"]):has(.metabloom-companion__toggle:not(.metabloom-companion__toggle--show):hover) .metabloom-chat__field {
+    transform: scale(1.07); filter: saturate(1.15) brightness(1.04);
+  }
+}
 /* Open: as on /orb, the creature lives behind the conversation. The same field
    moves, by geometry alone, to a large square centred in the transcript area,
    between the panel's glass (::before, z -1) and the chat interface (z 1), so
