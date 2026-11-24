@@ -45,6 +45,9 @@ const send = (res, status, body) => {
 server.on('request', async (req, res) => {
   const pathname = new URL(req.url, 'http://127.0.0.1').pathname;
   if (['/api/metabloom-threads', '/api/metabloom-models'].includes(pathname) || !pathname.startsWith('/api/metabloom')) return serve(req, res);
+  // The persistent companion asks whether the invoice workspace is on (GET);
+  // this suite runs with it off.
+  if (pathname === '/api/metabloom-workspace') return send(res, 200, { version: 1, enabled: false });
   try {
     assert.equal(req.method, 'POST');
     let raw = '';
@@ -218,8 +221,14 @@ function assertLayout(layout, { short = false, view = 'compact', resultVisible =
   assert.equal(layout.viewport.scrollY, 0, 'Component and transcript scrolling must not move the document');
   assert(layout.returnActionReceivesPointer && layout.toggleReceivesPointer && layout.sendActionReceivesPointer,
     'Visible workspace and composer controls must receive pointer events');
-  assert.deepEqual(layout.workspaceActions.map(action => action.label), ['Saved work', layout.toggleLabel]);
-  for (const action of layout.workspaceActions) {
+  // Phones (560px and below) give Saved work's place in the bar to the title or
+  // component picker; it stays one tap away in More (OrbWorkspaceLayout.css).
+  const phone = layout.viewport.width <= 560;
+  const savedInBar = layout.workspaceActions.find(action => action.label === 'Saved work');
+  if (phone) assert(savedInBar && !savedInBar.visible, 'Phones keep Saved work in More, not in the workspace bar');
+  const barActions = layout.workspaceActions.filter(action => !(phone && action.label === 'Saved work'));
+  assert.deepEqual(barActions.map(action => action.label), phone ? [layout.toggleLabel] : ['Saved work', layout.toggleLabel]);
+  for (const action of barActions) {
     const target = action.bounds;
     assert(action.visible && action.enabled && action.receivesPointer, `${action.label} remains actionable in both workspace views`);
     assert(target.width >= 43.9 && target.height >= 43.9, `${action.label} retains its 44px touch target`);

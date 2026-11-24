@@ -120,15 +120,21 @@ try {
       const composer = page.getByRole('textbox', { name: 'Message Metabloom', exact: true });
       const send = async message => { await composer.fill(message); await page.getByRole('button', { name: 'Send message', exact: true }).click(); };
       const showCard = async () => {
-        const card = page.locator('.metabloom-invoice-draft'); await card.waitFor({ state: 'attached' });
+        // The current revision is the workspace's component; earlier revisions stay
+        // inline in the retained transcript.
+        const card = page.locator('.metabloom-chat__workspace .metabloom-invoice-draft'); await card.waitFor({ state: 'attached' });
         if (width <= 900 && !(await card.isVisible())) await page.getByRole('button', { name: 'Open', exact: true }).click();
         await card.waitFor(); return card;
       };
       const openEditor = async card => {
         await card.getByRole('button', { name: 'Open in invoice generator' }).click();
-        await page.waitForURL(origin + '/invoice-generator'); await page.locator('.invoice-page[data-ready="true"]').waitFor();
+        // In-app navigation keeps the renderer policy (?graphics=css), so match the route.
+        await page.waitForURL(url => url.origin === origin && url.pathname === '/invoice-generator'); await page.locator('.invoice-page[data-ready="true"]').waitFor();
         assert.match(await page.locator('.invoice-grand-total').last().textContent(), /CAD\s*819\.00/);
-        await page.getByRole('button', { name: 'Edit invoice', exact: true }).click();
+        // The Edit/Preview switch exists only at 1200px and below; wider screens
+        // always show the editor beside the preview.
+        const edit = page.getByRole('button', { name: 'Edit invoice', exact: true });
+        if (await edit.count()) await edit.click();
       };
       await send('Start an invoice draft.'); await page.getByText(/Please provide Sender company name/).waitFor();
       await send(invoiceChatMessage); let card = await showCard();

@@ -47,6 +47,9 @@ server.on('request', async (request, response) => {
   const pathname = new URL(request.url, 'http://127.0.0.1').pathname;
   // Let the shared authenticated fixture own thread parsing and persistence.
   if (['/api/metabloom-threads', '/api/metabloom-models'].includes(pathname) || !pathname.startsWith('/api/metabloom')) return serve(request, response);
+  // The persistent companion asks whether the invoice workspace is on (GET);
+  // this suite runs with it off, as the invoice suite does.
+  if (pathname === '/api/metabloom-workspace') return send(response, 200, { version: 1, enabled: false });
   try {
     assert.equal(request.method, 'POST');
     let raw = '';

@@ -2409,7 +2409,11 @@ const OrbSection = ({
       if (companionRef.current && activeRequest.toolset && threadSession?.id) {
         Promise.resolve().then(async () => {
           if (!current()) return;
-          const explicitInvoiceStart = isInvoiceWorkspaceStart(message);
+          // "Start an invoice" opens the real workspace only when it is switched
+          // on; otherwise the message goes to the chat's own invoice intake.
+          const explicitInvoiceStart = isInvoiceWorkspaceStart(message)
+            && await metabloomWorkspaceBridge.probe({ conversationId: threadSession.id, signal: controller.signal });
+          if (!current()) return;
           if (explicitInvoiceStart) {
             setWorkProgress({ label: 'Opening your invoice', summary: 'Preparing the real invoice workspace.', startedAt: activeRequest.startedAt, updatedAt: Date.now() });
             const opened = await metabloomWorkspaceBridge.open({ conversationId: threadSession.id, signal: controller.signal });

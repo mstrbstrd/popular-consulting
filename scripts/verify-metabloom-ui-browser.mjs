@@ -81,6 +81,9 @@ server.on('request', async (req, res) => {
   const pathname = new URL(req.url, 'http://127.0.0.1').pathname;
   if (pathname === '/api/auth/session') fixture.authSessionCalls++;
   if (['/api/metabloom-threads', '/api/metabloom-models'].includes(pathname) || !pathname.startsWith('/api/metabloom')) return serveStatic(req, res);
+  // The persistent companion asks whether the invoice workspace is on (GET);
+  // this suite runs with it off.
+  if (pathname === '/api/metabloom-workspace') return send(res, 200, { version: 1, enabled: false });
   try {
     assert.equal(req.method, 'POST');
     let raw = '';
@@ -365,15 +368,28 @@ try {
     })()`;
     const navigate = async pathname => {
       await until("document.querySelector('.app-route-curtain')?.dataset.phase === 'idle'");
-      const opener = '.workspace-menu > summary';
-      // Home's entry reveal can outlast the route curtain. Programmatic clicks
-      // need the same actionability checks as a real user before opening its menu.
-      await until(actionable(opener));
-      await evaluate(`document.querySelector(${JSON.stringify(opener)}).click()`);
-      await until("document.querySelector('.workspace-menu[open] nav[aria-label=\"Experiences\"]')");
-      const selector = `.workspace-menu[open] nav[aria-label="Experiences"] a[href="${pathname}"]`;
-      await until(actionable(selector));
-      await evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
+      const click = selector => evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
+      if (await evaluate("Boolean(document.querySelector('.orb-page[data-sidebar-navigation=\"true\"]'))")) {
+        // Orb folds site navigation into its sidebar (Explore), as a person uses it:
+        // expand the sidebar if it is collapsed, open Explore, follow the link.
+        const explore = '.orb-sidebar-links > summary';
+        if (!await evaluate(actionable(explore))) { await until(actionable('.metabloom-threads__trigger')); await click('.metabloom-threads__trigger'); }
+        await until(actionable(explore));
+        if (!await evaluate("document.querySelector('.orb-sidebar-links')?.open")) await click(explore);
+        const selector = `.orb-sidebar-links[open] a.orb-sidebar-link[href="${pathname}"]`;
+        await until(actionable(selector));
+        await click(selector);
+      } else {
+        const opener = '.workspace-menu > summary';
+        // Home's entry reveal can outlast the route curtain. Programmatic clicks
+        // need the same actionability checks as a real user before opening its menu.
+        await until(actionable(opener));
+        await click(opener);
+        await until("document.querySelector('.workspace-menu[open] nav[aria-label=\"Experiences\"]')");
+        const selector = `.workspace-menu[open] nav[aria-label="Experiences"] a[href="${pathname}"]`;
+        await until(actionable(selector));
+        await click(selector);
+      }
       await until(`location.pathname === ${JSON.stringify(pathname)} && document.querySelector('.app-route-curtain')?.dataset.phase === 'idle'`);
     };
     for (let count = 1; count <= 2; count++) {
@@ -405,12 +421,15 @@ try {
     await evaluate("void (window.__roundtripVisualNodes = Array.from(document.querySelectorAll('.metabloom-visual')))");
     await navigate('/home');
     assert.equal(await evaluate('window.__visualRoundtripDocument'), documentId, 'Leaving Orb must not replace the document');
-    assert.equal(await evaluate("document.querySelector('.orb-page') === null && window.__roundtripVisualNodes.every(node => !node.isConnected)"), true, 'Leaving Orb must unmount its visual nodes');
+    // The persistent companion (docs/architecture/metabloom-companion.md) keeps the
+    // actual Orb page and its visual results mounted outside the route outlet:
+    // leaving /orb docks it rather than unmounting it.
+    assert.equal(await evaluate("document.querySelector('.metabloom-assistant-host[data-assistant-presentation=\"docked\"] .orb-page') !== null && window.__roundtripVisualNodes.every(node => node.isConnected)"), true, 'Leaving Orb docks the same Orb and keeps its visual nodes');
     assert.deepEqual(requestCounts(), beforeNavigation, 'Leaving Orb must not repeat native UI requests');
     await navigate('/orb');
     assert.equal(await evaluate('window.__visualRoundtripDocument'), documentId, 'Returning to Orb must not replace the document');
     await until("document.querySelectorAll('.metabloom-visual[data-visual-state=\"ready\"]').length === 2 && !window.__orbState().pending");
-    assert.equal(await evaluate('window.__roundtripVisualNodes.every(node => !node.isConnected)'), true, 'Restored visuals must use the newly mounted Orb surface');
+    assert.equal(await evaluate("document.querySelector('.metabloom-assistant-host[data-assistant-presentation=\"full\"] .orb-page') !== null && window.__roundtripVisualNodes.every(node => node.isConnected)"), true, 'Returning to Orb shows the same surface and visual nodes, never a remount');
     assert.deepEqual(await readVisuals(), savedVisuals, 'Navigation must preserve visual IDs, assistant ownership, inputs and results');
     assert.deepEqual(await evaluate('window.__metabloomVisualSnapshot()'), selectedInputs, 'Navigation must preserve the selected older calculator');
     await until("document.querySelector('[data-artifact-reference]')");
