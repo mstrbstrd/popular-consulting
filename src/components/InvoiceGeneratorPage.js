@@ -91,6 +91,18 @@ export const InvoiceDocument = ({ invoice, calculation, guided = false }) => {
   );
 };
 
+// The browser keeps scrolled-to and focused fields clear of whatever is stuck
+// to the top (WCAG 2.4.11): the nav while it is fixed or sticky, and the action
+// bar while it is sticky. Short screens make both static. Callers that scroll
+// in the same commit refresh it first, as they do the bar's height.
+const STICKY_SCROLL_GAP = 16;
+function applyStickyScrollPadding(header, bar, fallback = "") {
+  const stuck = element => element && ["fixed", "sticky"].includes(getComputedStyle(element).position);
+  const covered = (stuck(header) ? Math.ceil(header.getBoundingClientRect().height) : 0)
+    + (stuck(bar) ? Math.ceil(bar.getBoundingClientRect().height) : 0);
+  document.documentElement.style.scrollPaddingTop = covered ? `${covered + STICKY_SCROLL_GAP}px` : fallback;
+}
+
 export const InvoiceGeneratorContent = ({ initialWorkspace = null, onWorkspaceChange, onReady, workspaceBridge, isWorkspaceAuthorized = () => true } = {}) => {
   const locked = useWorkspaceLocked();
   const authorization = useRef(isWorkspaceAuthorized);
@@ -214,18 +226,13 @@ export const InvoiceGeneratorContent = ({ initialWorkspace = null, onWorkspaceCh
     // including wrapped status text, zoom, font loading and viewport changes.
     const bar = actionsRef.current;
     const header = siteNavRef.current?.querySelector(".nav-header");
-    // The browser keeps scrolled-to and focused fields clear of whatever is
-    // stuck to the top (WCAG 2.4.11): the nav while it is fixed or sticky, and
-    // the action bar while it is sticky. Short screens make both static.
     const previousScrollPadding = html.style.scrollPaddingTop;
     const measureActions = () => {
       const height = Math.ceil(bar?.getBoundingClientRect().height || 0);
       if (height) bar.closest(".invoice-page")?.style.setProperty("--invoice-actions-height", `${height}px`);
       const navHeight = Math.ceil(header?.getBoundingClientRect().height || 0);
       if (navHeight) bar?.closest(".invoice-page")?.style.setProperty("--invoice-nav-height", `${navHeight}px`);
-      const stuck = element => element && ["fixed", "sticky"].includes(getComputedStyle(element).position);
-      const covered = (stuck(header) ? navHeight : 0) + (stuck(bar) ? height : 0);
-      html.style.scrollPaddingTop = covered ? `${covered + 16}px` : previousScrollPadding;
+      applyStickyScrollPadding(header, bar, previousScrollPadding);
     };
     measureActions();
     const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measureActions) : null;
@@ -266,6 +273,7 @@ export const InvoiceGeneratorContent = ({ initialWorkspace = null, onWorkspaceCh
     const header = siteNavRef.current?.querySelector(".nav-header");
     if (bar) page?.style.setProperty("--invoice-actions-height", `${Math.ceil(bar.getBoundingClientRect().height)}px`);
     if (header) page?.style.setProperty("--invoice-nav-height", `${Math.ceil(header.getBoundingClientRect().height)}px`);
+    applyStickyScrollPadding(header, bar, document.documentElement.style.scrollPaddingTop);
     const target = focusRequest.id === "preview" ? previewRef.current
       : focusRequest.id === "editor" ? editorRef.current
         : focusRequest.id === "errors" ? errorRef.current : document.getElementById(focusRequest.id);
