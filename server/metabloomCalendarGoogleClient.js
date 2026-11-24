@@ -24,6 +24,9 @@ const {
 } = require('./metabloomCalendarGoogleAuth');
 
 const GOOGLE_CALENDAR_API_BASE = 'https://www.googleapis.com/calendar/v3/calendars';
+const GOOGLE_LIST_FIELDS = 'timeZone,items(id,etag,status,summary,description,location,start,end,attendees(email,displayName),colorId,created,updated)';
+const MAX_GOOGLE_CALENDAR_API_BYTES = 2 * 1024 * 1024;
+const MAX_GOOGLE_ERROR_BODY_BYTES = 4096;
 const ACCESS_TOKEN_REFRESH_SKEW_MS = 60 * 1000;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const DEFAULT_LOOKBACK_DAYS = 30;
@@ -387,7 +390,28 @@ function createMetabloomCalendarGoogleClient({
       throw googleClientError('calendar_invalid');
     }
     if (!response.ok) {
-      await response.body?.cancel?.().catch(() => {});
+      let reason = null;
+      try {
+        const errText = await readBoundedResponseText(response, MAX_GOOGLE_ERROR_BODY_BYTES);
+        const errJson = errText ? JSON.parse(errText) : null;
+        const firstReason = errJson?.error?.errors?.[0]?.reason
+          || errJson?.error?.details?.find(detail => typeof detail?.reason === 'string')?.reason
+          || errJson?.error?.status
+          || null;
+        if (typeof firstReason === 'string' && /^[a-zA-Z0-9_.-]{1,64}$/.test(firstReason)) {
+          reason = firstReason;
+        }
+      } catch { /* Ignore unreadable or oversized error payload. */ }
+      console.info('metabloom_calendar_google_http', JSON.stringify({ status: response.status, reason }));
+      if (response.status === 403 && ['accessNotConfigured', 'SERVICE_DISABLED'].includes(reason)) {
+        throw googleClientError('calendar_google_api_disabled');
+      }
+      if (response.status === 403 && ['insufficientPermissions', 'ACCESS_TOKEN_SCOPE_INSUFFICIENT', 'forbidden'].includes(reason)) {
+        throw googleClientError('calendar_google_permission_denied');
+      }
+      if (response.status === 429 || ['rateLimitExceeded', 'userRateLimitExceeded'].includes(reason)) {
+        throw googleClientError('calendar_google_rate_limited');
+      }
       throw googleClientError('calendar_google_unavailable');
     }
 
@@ -396,7 +420,7 @@ function createMetabloomCalendarGoogleClient({
       return { data: null, record: state.record, config: state.config };
     }
 
-    const text = await readBoundedResponseText(response, MAX_GOOGLE_RESPONSE_BYTES);
+    const text = await readBoundedResponseText(response, Math.max(MAX_GOOGLE_RESPONSE_BYTES, MAX_GOOGLE_CALENDAR_API_BYTES));
     if (!text) {
       return { data: null, record: state.record, config: state.config };
     }
@@ -494,6 +518,7 @@ function createMetabloomCalendarGoogleClient({
           timeMin,
           timeMax,
           maxResults,
+          fields: GOOGLE_LIST_FIELDS,
           ...(parsedRange?.timeZone ? { timeZone: parsedRange.timeZone } : {}),
         },
       }, options);

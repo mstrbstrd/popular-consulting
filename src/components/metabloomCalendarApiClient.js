@@ -1,7 +1,7 @@
 const CALENDAR_API_PATH = '/api/metabloom-calendar';
 const CALENDAR_GOOGLE_API_PATH = '/api/metabloom-calendar-google';
 const CALENDAR_REQUEST_TIMEOUT_MS = 15000;
-const MAX_CALENDAR_RESPONSE_BYTES = 512 * 1024;
+const MAX_CALENDAR_RESPONSE_BYTES = 1024 * 1024;
 
 const CALENDAR_ERROR_MESSAGES = Object.freeze({
   authentication_required: 'Sign in again to access your calendar.',
@@ -22,6 +22,11 @@ const CALENDAR_ERROR_MESSAGES = Object.freeze({
   google_auth_expired: 'Your Google Calendar connection expired. Sign in with Google again.',
   google_oauth_failed: 'Google Calendar sign-in could not be completed. Try again.',
   calendar_google_not_connected: 'Connect your Google Calendar account to continue.',
+  calendar_google_api_disabled: 'Google Calendar API is not enabled on your Google Cloud project. Enable Google Calendar API in Google Cloud Console and retry.',
+  calendar_google_permission_denied: 'Google Calendar access was not granted. Click Disconnect, then Sign in with Google again and allow calendar access.',
+  calendar_google_rate_limited: 'Google Calendar rate limit reached. Wait a moment and try again.',
+  calendar_google_response_too_large: 'This date range returned too much calendar data. Try Week or Day view.',
+  calendar_google_timeout: 'Google Calendar timed out. Try again.',
   calendar_google_unavailable: 'Google Calendar is temporarily unavailable. Try again.',
   method_not_allowed: 'Unsupported calendar request.',
   cancelled: 'Calendar request was cancelled.',

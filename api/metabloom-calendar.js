@@ -33,12 +33,17 @@ const BASE_SECURITY_HEADERS = Object.freeze({
 const ERROR_STATUS_BY_CODE = Object.freeze({
   calendar_invalid: 400,
   calendar_proposal_tampered: 400,
+  calendar_google_permission_denied: 403,
   calendar_not_found: 404,
   calendar_conflict: 409,
   calendar_operation_conflict: 409,
   calendar_undo_unavailable: 409,
   calendar_google_not_connected: 409,
   calendar_limit: 422,
+  calendar_google_rate_limited: 429,
+  calendar_google_response_too_large: 502,
+  calendar_google_api_disabled: 503,
+  calendar_google_unavailable: 503,
   calendar_mcp_timeout: 504,
   calendar_google_timeout: 504,
 });
