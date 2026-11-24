@@ -94,16 +94,8 @@
   }
 }
 
-/* The Ask Metabloom launcher floats over the field and over the white invoice
-   paper alike, so it is regular (frosted) glass: legible over either. */
-.metabloom-assistant-launcher {
-  border-color: transparent;
-  background: var(--lg-menu-fill);
-  -webkit-backdrop-filter: var(--lg-regular-blur) var(--lg-post);
-  backdrop-filter: var(--lg-regular-blur) var(--lg-post);
-  box-shadow: var(--lg-specular), var(--lg-shadow);
-}
-@media (hover: hover) { .metabloom-assistant-launcher:hover { box-shadow: var(--lg-specular), var(--lg-shadow), inset 0 0 0 999px var(--lg-lens-hover); } }
+/* The Ask Metabloom launcher's regular glass lives in ApplicationShell.css so
+   it matches on every docked workspace. */
 
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .invoice-page :is(.invoice-actions, .invoice-toolbar), .metabloom-assistant-launcher { background: var(--aetheris-panel); }

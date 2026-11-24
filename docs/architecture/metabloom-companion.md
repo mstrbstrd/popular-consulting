@@ -1,6 +1,6 @@
 # Persistent Metabloom invoice companion
 
-Metabloom retains one conversation and one Orb while the application changes routes. On `/orb` it uses the full conversation surface. After entering another workspace it docks beside the page with a short bubble and an expandable conversation. The invoice integration edits the actual protected `/invoice-generator` workspace; it does not maintain a second editable invoice in chat.
+Metabloom retains one conversation and one Orb while the application changes routes. On `/orb` it uses the full conversation surface. After entering another workspace it docks beside the page with a short bubble and an expandable conversation. While closed, the dock is a single row ending in the Orb: a chat icon and the Orb itself (a transparent target over the canvas, which never takes input) open the conversation, and Stop plus the observed status appear only while work runs. Opening moves the same Orb behind the conversation, as on `/orb`, by geometry alone; the canvas is never remounted. The invoice integration edits the actual protected `/invoice-generator` workspace; it does not maintain a second editable invoice in chat.
 
 ## Ownership
 

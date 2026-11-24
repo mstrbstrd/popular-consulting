@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { CALENDAR_REFRACTION_TARGETS, CALENDAR_REFRACTION_PANELS, NAV_REFRACTION_MENUS } from './liquidGlassRefraction';
 
 const read = name => fs.readFileSync(path.join(__dirname, name), 'utf8');
 const strip = css => css.replace(/\/\*[\s\S]*?\*\//g, '');
@@ -20,7 +21,7 @@ describe('one liquid glass system across the signed-in workspace', () => {
     const invoicePage = read('InvoiceGeneratorPage.js');
     expect(invoicePage.indexOf('import "./InvoiceGeneratorScene.css";')).toBeLessThan(invoicePage.indexOf('import "./LiquidGlass.css";'));
     expect(invoicePage.indexOf('import "./LiquidGlass.css";')).toBeLessThan(invoicePage.indexOf('import "./InvoiceLiquidGlass.css";'));
-    expect(shared).toMatch(/:is\(\.orb-page, \.home-page, \.popcan-page, \.invoice-page, \.calendar-page, \.invoice-site-navigation, \.metabloom-assistant-launcher\) \{\s*--lg-clear-fill:/);
+    expect(shared).toMatch(/:is\(\.orb-page, \.home-page, \.popcan-page, \.invoice-page, \.calendar-page, \.invoice-site-navigation, \.metabloom-assistant-launcher, \.metabloom-companion\) \{\s*--lg-clear-fill:/);
   });
 
   test('every Canvas and invoice selector stays inside its own tool', () => {
@@ -77,21 +78,42 @@ describe('one liquid glass system across the signed-in workspace', () => {
     [popcan, invoice, orb, calendar].forEach(css => expect(css).toMatch(/@media (screen and )?\(forced-colors: active\) \{[\s\S]*background: Canvas;[\s\S]*backdrop-filter: none;/));
   });
 
-  test('Calendar is on the shared system: shared tokens, Aetheris colours, panes and a frosted bar', () => {
+  test('Calendar is on the shared system: shared tokens, Aetheris colours, the Orb\'s two materials', () => {
     const page = read('CalendarPage.js');
+    const css = strip(calendar);
     expect(page.indexOf("import './LiquidGlass.css';")).toBeLessThan(page.indexOf("import './CalendarPage.css';"));
     expect(shared).toMatch(/html body :is\([^)]*\.calendar-page[^)]*\) \.nav-pill::before \{/);
     // No private copy of the glass tokens and no off-system accent.
-    expect(strip(calendar)).not.toMatch(/--lg-[a-z-]+:/);
-    expect(strip(calendar)).not.toMatch(/#1d4ed8|#38bdf8|Poppins/);
-    const pane = strip(calendar).match(/\.calendar-pane \{([^}]*)\}/)[1];
-    expect(pane).toContain('backdrop-filter: none;');
+    expect(css).not.toMatch(/--lg-[a-z-]+:/);
+    expect(css).not.toMatch(/#1d4ed8|#38bdf8|Poppins/);
+    // Clear glass: the toolbar and header capsules float over the field like the
+    // Orb's composer controls, lensed in Chromium, with no bar behind them.
+    const clear = css.match(/\.calendar-main \.calendar-toolbar :is\(\.calendar-segment, \.calendar-btn\),\s*\.calendar-main \.calendar-header \.calendar-badge \{([^}]*)\}/)[1];
+    expect(clear).toContain('background: var(--lg-clear-fill);');
+    expect(clear).toMatch(/-webkit-backdrop-filter: var\(--lg-clear-fallback\) var\(--lg-post\);\s*backdrop-filter: var\(--lg-refraction, var\(--lg-clear-fallback\)\) var\(--lg-post\);/);
+    expect(clear).toContain('box-shadow: var(--lg-specular), var(--lg-shadow);');
+    expect(clear).toContain('text-shadow: var(--lg-text-halo);');
+    const bar = css.match(/\.calendar-toolbar \{([^}]*)\}/)[1];
+    expect(bar).not.toMatch(/backdrop-filter|background/);
+    // Regular glass: frosted panes like the Orb's workspace panel.
+    const pane = css.match(/\.calendar-pane \{([^}]*)\}/)[1];
+    expect(pane).toContain('background: var(--lg-panel-fill);');
+    expect(pane).toContain('backdrop-filter: var(--lg-regular-blur) var(--lg-post);');
     expect(pane).toContain('box-shadow: var(--lg-specular), var(--lg-shadow);');
-    const bar = strip(calendar).match(/\.calendar-toolbar \{([^}]*)\}/)[1];
-    expect(bar).toContain('backdrop-filter: var(--lg-regular-blur) var(--lg-post);');
+    expect(css).toMatch(/\.calendar-modal \{[^}]*backdrop-filter: var\(--lg-refraction, var\(--lg-regular-blur\)\) var\(--lg-post\);/);
     // index.css's bare-element styles (padded purple buttons, italic h2) stay out.
-    expect(strip(calendar)).toMatch(/\.calendar-main :where\(button, a, h1, h2, h3, p, li, label, input, select, textarea, legend\) \{[^}]*padding: 0;[^}]*font-style: normal;/);
+    expect(css).toMatch(/\.calendar-main :where\(button, a, h1, h2, h3, p, li, label, input, select, textarea, legend\) \{[^}]*padding: 0;[^}]*font-style: normal;/);
     // Large glass surfaces never animate with transforms (Chrome clip desync).
-    expect(strip(calendar)).not.toMatch(/transform:(?!\s*translateX\(-50%\))/);
+    expect(css).not.toMatch(/transform:(?!\s*translateX\(-50%\))/);
+  });
+
+  test('Calendar lenses only control-sized capsules and its transient dialog', () => {
+    expect(read('CalendarPage.js')).toContain('useCalendarLiquidGlass(pageRef)');
+    expect(CALENDAR_REFRACTION_TARGETS).toContain('.nav-pill');
+    expect(CALENDAR_REFRACTION_PANELS).toEqual([...NAV_REFRACTION_MENUS, '.calendar-modal']);
+    // The schedule, session and connect panes are far over the persistent budget,
+    // and the field canvas is never a lens target.
+    [...CALENDAR_REFRACTION_TARGETS, ...CALENDAR_REFRACTION_PANELS].forEach(selector =>
+      expect(selector).not.toMatch(/calendar-(pane|surface|session|connect|page__scene)|canvas/));
   });
 });

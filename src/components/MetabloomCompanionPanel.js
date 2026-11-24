@@ -25,6 +25,7 @@ const Icon = ({ name }) => <svg aria-hidden="true" focusable="false" viewBox="0 
   {name === 'close' && <path d="m6 6 12 12M18 6 6 18" />}
   {name === 'collapse' && <path d="m6 9 6 6 6-6" />}
   {name === 'expand' && <path d="M14 3h7v7m0-7-9 9M10 21H3v-7m0 7 9-9" />}
+  {name === 'hide' && <path d="M3 3l18 18M10.6 5.1A10.9 10.9 0 0 1 12 5c5 0 8.5 4.2 9.6 7a13 13 0 0 1-3 4.3M6.2 6.2A13 13 0 0 0 2.4 12c1.1 2.8 4.6 7 9.6 7 1.6 0 3-.4 4.3-1.1M9.9 9.9a3 3 0 0 0 4.2 4.2" />}
   {name === 'stop' && <rect x="6" y="6" width="12" height="12" rx="2" />}
 </svg>;
 
@@ -33,7 +34,7 @@ const Icon = ({ name }) => <svg aria-hidden="true" focusable="false" viewBox="0 
 // The session host separately controls only the chat interface's visibility.
 export default function MetabloomCompanionPanel({
   docked = true, open = false, hidden = false, busy = false,
-  bubbleText = '', statusText = '', providerLabel = '', children,
+  bubbleText = '', statusText = '', children,
   onToggle, onHide, onShow, onStop, onExpand,
 }) {
   const id = useId();
@@ -121,20 +122,21 @@ export default function MetabloomCompanionPanel({
       ...(viewport.height ? { '--metabloom-companion-visible-height': `${viewport.height}px` } : {}) }}>
     <div id={`${id}-panel`} className="metabloom-companion__panel"
       role={expanded ? 'region' : undefined} aria-labelledby={expanded ? `${id}-heading` : undefined}>
+      {/* One title and three distinct actions. Close chat (rightmost, a minimize
+          chevron) returns the conversation to the dock; Hide also puts the Orb
+          away until shown again. While open, this is the only Close chat: the
+          dock's toggle leaves the tree until the panel closes. */}
       <div className="metabloom-companion__header" hidden={!expanded}>
-        <div className="metabloom-companion__identity">
-          <h2 ref={heading} tabIndex={-1} id={`${id}-heading`}>Metabloom</h2>
-          <p className="metabloom-companion__provider">{providerLabel || 'Here with you'}</p>
-        </div>
+        <h2 ref={heading} tabIndex={-1} id={`${id}-heading`}>Metabloom</h2>
         <div className="metabloom-companion__header-actions">
-          {busy && <button type="button" className="metabloom-companion__icon-button" onClick={onStop}
+          {busy && <button type="button" className="metabloom-companion__icon-button metabloom-companion__icon-button--stop" onClick={onStop}
             aria-label="Stop response" title="Stop response"><Icon name="stop" /></button>}
+          <button type="button" className="metabloom-companion__icon-button" onClick={requestHide}
+            aria-label="Hide assistant" title="Hide assistant"><Icon name="hide" /></button>
           <button type="button" className="metabloom-companion__icon-button" onClick={onExpand}
             aria-label="Open full chat" title="Open full chat"><Icon name="expand" /></button>
           <button type="button" className="metabloom-companion__icon-button" onClick={requestToggle}
-            aria-label="Collapse chat" title="Collapse chat"><Icon name="collapse" /></button>
-          <button type="button" className="metabloom-companion__icon-button" onClick={requestHide}
-            aria-label="Hide assistant" title="Hide assistant"><Icon name="close" /></button>
+            aria-label="Close chat" title="Close chat"><Icon name="collapse" /></button>
         </div>
       </div>
       <div className="metabloom-companion__body">{children}</div>
@@ -147,24 +149,33 @@ export default function MetabloomCompanionPanel({
         aria-label="Dismiss reply preview" title="Dismiss reply preview"><Icon name="close" /></button>
       <button type="button" className="metabloom-companion__read" onClick={requestToggle}>Read conversation</button>
     </div>
+    {/* The dock, while the chat is closed: a chat icon and the Orb, one toggle.
+        Its target covers the Orb itself (the canvas never takes input). Opening
+        moves the same Orb into the panel header, so the dock steps aside.
+        Status is shown while work runs and announced always. */}
     <div className="metabloom-companion__controls" hidden={!docked}>
-      <button ref={toggle} type="button" className="metabloom-companion__toggle" hidden={hidden}
-        aria-label={expanded ? 'Close chat' : 'Open chat'} aria-expanded={expanded} aria-controls={`${id}-panel`} onClick={requestToggle}>
-        <Icon name="chat" /><span>{expanded ? 'Close chat' : 'Chat'}</span>
-        {unread && !expanded && <span className="metabloom-companion__unread" aria-label="New reply" />}
-      </button>
-      <button ref={launcher} type="button" className="metabloom-companion__toggle" hidden={!hidden}
-        aria-label="Show Metabloom" onClick={requestShow}>
-        <Icon name="chat" /><span>Show Metabloom</span>
-        {unread && hidden && <span className="metabloom-companion__unread" aria-label="New reply" />}
-      </button>
+      <p className="metabloom-companion__status" role="status" aria-live="polite" aria-atomic="true" hidden={!docked || (hidden && !busy)}>
+        {busy && <span className="metabloom-companion__activity" aria-hidden="true" />}
+        {busy ? observedStatus || 'Working' : unread && !expanded ? 'New reply available' : observedStatus}
+      </p>
       {busy && !expanded && <button type="button" className="metabloom-companion__stop" onClick={onStop}>
         <Icon name="stop" /><span>Stop</span>
       </button>}
+      <button ref={toggle} type="button" className="metabloom-companion__toggle" hidden={hidden || expanded}
+        aria-label={expanded ? 'Close chat' : 'Open chat'} aria-expanded={expanded} aria-controls={`${id}-panel`} onClick={requestToggle}>
+        <span className="metabloom-companion__pill metabloom-companion__pill--icon">
+          <Icon name="chat" />
+          {unread && !expanded && <span className="metabloom-companion__unread" aria-label="New reply" />}
+        </span>
+        <span className="metabloom-companion__orb-target" aria-hidden="true" />
+      </button>
+      <button ref={launcher} type="button" className="metabloom-companion__toggle metabloom-companion__toggle--show" hidden={!hidden}
+        aria-label="Show Metabloom" onClick={requestShow}>
+        <span className="metabloom-companion__pill">
+          <Icon name="chat" /><span>Show Metabloom</span>
+          {unread && hidden && <span className="metabloom-companion__unread" aria-label="New reply" />}
+        </span>
+      </button>
     </div>
-    <p className="metabloom-companion__status" role="status" aria-live="polite" aria-atomic="true" hidden={!docked || (hidden && !busy)}>
-      {busy && <span className="metabloom-companion__activity" aria-hidden="true" />}
-      {busy ? observedStatus || 'Working' : unread && !expanded ? 'New reply available' : observedStatus}
-    </p>
   </div>;
 }

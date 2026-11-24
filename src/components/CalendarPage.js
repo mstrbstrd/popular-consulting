@@ -4,6 +4,7 @@ import { ThemeProvider, useThemeMode } from '../contexts/ThemeContext';
 import { useAppNavigation } from '../contexts/AppNavigationContext';
 import NavMenu from './NavMenu';
 import CalendarBackground, { useCalendarScene } from './CalendarBackground';
+import { useCalendarLiquidGlass } from './liquidGlassRefraction';
 import {
   fetchCalendarStatus,
   listCalendarEvents,
@@ -687,6 +688,8 @@ function CalendarContent({ onReady }) {
   const { status, user, logoutRevision, refresh } = auth;
   const { isDark } = useThemeMode();
   const scene = useCalendarScene();
+  const pageRef = useRef(null);
+  useCalendarLiquidGlass(pageRef);
   const navigation = useAppNavigation();
   const clientEnabled = process.env.REACT_APP_METABLOOM_CALENDAR_ENABLED !== '0';
   const userId = typeof user?.id === 'string' ? user.id : null;
@@ -1482,7 +1485,7 @@ function CalendarContent({ onReady }) {
   };
 
   return (
-    <div className="calendar-page" data-scene={scene.live ? 'quasicrystal-chorus' : 'static'}>
+    <div ref={pageRef} className="calendar-page" data-scene={scene.live ? 'quasicrystal-chorus' : 'static'}>
       <div className="calendar-page__atmosphere" aria-hidden="true">
         <div className="calendar-page__ambient" />
         <div className="calendar-page__grid" />

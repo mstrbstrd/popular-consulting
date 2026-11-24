@@ -1,11 +1,15 @@
 /* Calendar workspace on the shared Liquid Glass system (LiquidGlass.css owns the
    --lg-* tokens, the nav pill and the accessibility fallbacks; .calendar-page is
-   in its scope). Same materials as the Orb and the Invoice Generator:
-     static atmosphere — the Orb's ambient wash, faint grid and vignette
-     frosted bar      — the sticky toolbar (regular glass, like the invoice actions)
-     glass panes      — the schedule and session panels: tint, rim and depth with
-                        no backdrop filter, so scrolling never re-blurs the page
-     lenses           — every control, field and event inside those surfaces
+   in its scope). The same two materials as the Orb, over Quasicrystal Chorus:
+     clear glass   — the toolbar and header capsules float over the field like the
+                     Orb's composer controls: a near-transparent fill, rim
+                     refraction in Chromium (useCalendarLiquidGlass), curved
+                     specular highlights and a text halo. No bar behind them.
+     regular glass — the schedule, session and connect panes, banners and the
+                     event dialog: frosted, like the Orb's workspace panel, so the
+                     field glows through while text stays calm. Too large for a
+                     persistent lens; the dialog lenses while open.
+     lenses        — every control, field and event inside those surfaces
    Spectral rings follow the Orb's control language: soft at rest, full on hover
    and focus, a 2px full ring for the primary action, today and the selection.
    1rem = 10px (62.5%). Keep -webkit-backdrop-filter before backdrop-filter. */
@@ -113,17 +117,18 @@
 
 /* Quasicrystal Chorus (CalendarBackground.js) replaces the ambient wash and grid
    when it runs; the vignette stays above it so the edges settle into the panel.
-   The field is dimmed like the invoice's Contour Drift: visible in the negative
-   space, calm under the reading surfaces. It never takes pointer input. */
+   Glass only reads as glass with a vivid subject behind it, so the field stays
+   near full strength; the frosted panes keep it calm under text. It never takes
+   pointer input. */
 .calendar-page__scene {
   position: fixed;
   inset: 0;
-  opacity: 0.4;
+  opacity: 0.62;
   pointer-events: none;
 }
 
 :where([data-theme='dark']) .calendar-page__scene {
-  opacity: 0.44;
+  opacity: 0.72;
 }
 
 .calendar-page__scene :is(.creatoros-field-shell, .creatoros-field-canvas) {
@@ -136,19 +141,6 @@
   display: none;
 }
 
-/* Over a live field, the schedule is a reading surface: a second panel-tinted
-   layer under the glass tint keeps dates and event text calm in both themes. */
-.calendar-page[data-scene='quasicrystal-chorus'] .calendar-surface {
-  background:
-    linear-gradient(var(--lg-menu-fill), var(--lg-menu-fill)),
-    color-mix(in srgb, var(--aetheris-panel) 40%, transparent);
-}
-
-:where([data-theme='dark']) .calendar-page[data-scene='quasicrystal-chorus'] .calendar-surface {
-  background:
-    linear-gradient(var(--lg-menu-fill), var(--lg-menu-fill)),
-    color-mix(in srgb, var(--aetheris-panel) 62%, transparent);
-}
 
 /* ---------- Page frame ---------- */
 .calendar-skip {
@@ -200,6 +192,7 @@ body[data-metabloom-companion='calendar'] .calendar-main {
 }
 
 .calendar-main .calendar-range-title {
+  text-shadow: var(--lg-text-halo);
   font-size: clamp(3.4rem, 4.6vw, 5.6rem);
   font-weight: 500;
   letter-spacing: -0.035em;
@@ -217,7 +210,7 @@ body[data-metabloom-companion='calendar'] .calendar-main {
   display: inline-flex;
   align-items: center;
   gap: 0.7rem;
-  height: 3rem;
+  height: 3.4rem;
   padding: 0 1.2rem;
   border-radius: 999px;
   background: var(--lg-lens-hover);
@@ -271,7 +264,7 @@ body[data-metabloom-companion='calendar'] .calendar-main {
   cursor: not-allowed;
 }
 
-/* ---------- Toolbar: frosted bar, like the invoice action bar ---------- */
+/* ---------- Toolbar: floating clear-glass capsules, no bar behind them ---------- */
 .calendar-toolbar {
   position: sticky;
   top: 9.6rem;
@@ -281,12 +274,45 @@ body[data-metabloom-companion='calendar'] .calendar-main {
   align-items: center;
   justify-content: space-between;
   gap: 0.8rem 1.2rem;
-  padding: 0.8rem;
-  border-radius: var(--lg-radius-menu);
-  background: var(--lg-menu-fill);
-  -webkit-backdrop-filter: var(--lg-regular-blur) var(--lg-post);
-  backdrop-filter: var(--lg-regular-blur) var(--lg-post);
+  padding: 0;
+}
+
+/* Clear glass, as on the Orb's composer controls. The lens (when Chromium can
+   bend the backdrop) replaces the light fallback blur; specular rims and a text
+   halo carry the edge and the legibility. Each capsule is its own backdrop root,
+   and nothing inside one is glass. */
+.calendar-main .calendar-toolbar :is(.calendar-segment, .calendar-btn),
+.calendar-main .calendar-header .calendar-badge {
+  background: var(--lg-clear-fill);
+  -webkit-backdrop-filter: var(--lg-clear-fallback) var(--lg-post);
+  backdrop-filter: var(--lg-refraction, var(--lg-clear-fallback)) var(--lg-post);
   box-shadow: var(--lg-specular), var(--lg-shadow);
+  text-shadow: var(--lg-text-halo);
+}
+
+.calendar-main .calendar-toolbar .calendar-btn {
+  height: 4rem;
+  color: var(--aetheris-ink);
+}
+
+.calendar-main .calendar-toolbar .calendar-btn--quiet::before {
+  opacity: 0;
+}
+
+@media (hover: hover) {
+  .calendar-main .calendar-toolbar .calendar-btn:hover:not(:disabled),
+  .calendar-main .calendar-header .calendar-badge--control:hover:not(:disabled) {
+    background: var(--lg-clear-fill-hover);
+    box-shadow: var(--lg-specular), var(--lg-shadow);
+  }
+  .calendar-main .calendar-toolbar .calendar-btn--primary:hover:not(:disabled) {
+    box-shadow: var(--lg-specular), var(--lg-shadow), 0 0 20px var(--aetheris-spectral-glow);
+  }
+}
+
+.calendar-main .calendar-toolbar .calendar-btn:active:not(:disabled),
+.calendar-main .calendar-header .calendar-badge--control:active:not(:disabled) {
+  background: var(--lg-lens);
 }
 
 .calendar-nav-group,
@@ -304,8 +330,6 @@ body[data-metabloom-companion='calendar'] .calendar-main {
   gap: 0.2rem;
   padding: 0.3rem;
   border-radius: 999px;
-  background: var(--lg-lens);
-  box-shadow: inset 0 0 0 0.5px var(--lg-rim);
 }
 
 .calendar-main .calendar-segment-btn {
@@ -448,11 +472,13 @@ body[data-metabloom-companion='calendar'] .calendar-main {
 }
 
 /* ---------- Panes ---------- */
+/* Regular glass, like the Orb's workspace panel: the field glows through the
+   frost. No persistent lens (far over the budget) and nothing glass inside. */
 .calendar-pane {
   border-radius: var(--aetheris-radius-glass);
-  background: var(--lg-menu-fill);
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
+  background: var(--lg-panel-fill);
+  -webkit-backdrop-filter: var(--lg-regular-blur) var(--lg-post);
+  backdrop-filter: var(--lg-regular-blur) var(--lg-post);
   box-shadow: var(--lg-specular), var(--lg-shadow);
 }
 
@@ -997,8 +1023,13 @@ body[data-metabloom-companion='calendar'] .calendar-main {
 /* ---------- Event dialog: regular glass, like the Orb's saved-work dialog ---------- */
 /* The route outlet is its own stacking context, so the dialog cannot rise above
    the shell's assistant launcher; hide the launcher while the modal is open. */
-body[data-calendar-dialog='open'] .metabloom-assistant-launcher {
-  visibility: hidden;
+body[data-calendar-dialog='open'] .metabloom-assistant-launcher,
+body[data-calendar-dialog='open'] :is(.metabloom-companion__controls, .metabloom-companion__bubble, .metabloom-companion__header),
+body[data-calendar-dialog='open'] .metabloom-companion__panel::before,
+body[data-calendar-dialog='open'] .metabloom-assistant-host .metabloom-chat__interface {
+  /* Chrome only: the Orb's canvas and the chat tree stay mounted. */
+  visibility: hidden !important;
+  pointer-events: none !important;
 }
 
 .calendar-modal-layer {
@@ -1032,7 +1063,7 @@ body[data-calendar-dialog='open'] .metabloom-assistant-launcher {
   border-radius: var(--aetheris-radius-glass);
   background: var(--lg-menu-fill);
   -webkit-backdrop-filter: var(--lg-regular-blur) var(--lg-post);
-  backdrop-filter: var(--lg-regular-blur) var(--lg-post);
+  backdrop-filter: var(--lg-refraction, var(--lg-regular-blur)) var(--lg-post);
   box-shadow: var(--lg-specular), var(--lg-shadow);
   color: var(--aetheris-ink);
   animation: liquid-glass-in var(--aetheris-motion-medium, 220ms) var(--aetheris-ease-standard, ease) both;
@@ -1087,7 +1118,9 @@ body[data-calendar-dialog='open'] .metabloom-assistant-launcher {
   transition: background-color var(--aetheris-motion-fast) ease;
 }
 
-.calendar-main .calendar-field textarea {
+/* Same specificity as the shared field rule above (its :is() carries an
+   attribute selector), so the multi-line well's own padding wins by order. */
+.calendar-main .calendar-modal .calendar-field textarea {
   height: auto;
   min-height: 9.6rem;
   padding: 1.3rem 2rem;
@@ -1278,7 +1311,7 @@ body[data-calendar-dialog='open'] .metabloom-assistant-launcher {
     padding: 0 0.6rem;
   }
   .calendar-main :is(.calendar-btn--refresh, .calendar-btn--export) {
-    width: 3.8rem;
+    width: 4rem;
     padding: 0;
   }
   .calendar-main :is(.calendar-btn--refresh, .calendar-btn--export) .calendar-btn-label {
@@ -1372,8 +1405,10 @@ body[data-calendar-dialog='open'] .metabloom-assistant-launcher {
 }
 
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .calendar-toolbar,
-  .calendar-modal {
+  .calendar-pane,
+  .calendar-modal,
+  .calendar-main .calendar-toolbar :is(.calendar-segment, .calendar-btn),
+  .calendar-main .calendar-header .calendar-badge {
     background: var(--aetheris-panel-raised);
   }
 }
@@ -1385,6 +1420,8 @@ body[data-calendar-dialog='open'] .metabloom-assistant-launcher {
   .calendar-pane,
   .calendar-toolbar,
   .calendar-modal,
+  .calendar-main .calendar-toolbar :is(.calendar-segment, .calendar-btn),
+  .calendar-main .calendar-header .calendar-badge,
   .calendar-main .calendar-btn,
   .calendar-main .calendar-segment,
   .calendar-main .calendar-badge,
@@ -1395,6 +1432,7 @@ body[data-calendar-dialog='open'] .metabloom-assistant-launcher {
     color: CanvasText;
     border: 1px solid CanvasText;
     box-shadow: none;
+    text-shadow: none;
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }

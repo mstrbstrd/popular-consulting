@@ -64,7 +64,7 @@ export default function MetabloomAssistantHost({ onReady }) {
     data-assistant-editing={editing ? 'true' : 'false'}
     data-assistant-hidden={session.hidden ? 'true' : 'false'}>
     <MetabloomCompanionPanel docked={!full} open={open} hidden={session.hidden}
-      busy={session.busy} bubbleText={session.bubbleText} statusText={session.statusText} providerLabel={session.providerLabel}
+      busy={session.busy} bubbleText={session.bubbleText} statusText={session.statusText}
       onToggle={session.toggle} onHide={session.hide} onShow={session.show} onStop={session.stop} onExpand={session.expand}>
       <OrbPage hosted onReady={onReady} />
     </MetabloomCompanionPanel>

@@ -237,5 +237,19 @@ export const HOME_REFRACTION_PANELS = [...NAV_REFRACTION_MENUS];
 const HOME_LISTS = Object.freeze({ controls: HOME_REFRACTION_TARGETS, panels: HOME_REFRACTION_PANELS });
 export function useHomeLiquidGlass(rootRef) { useLiquidGlassRefraction(rootRef, HOME_LISTS); }
 
+// Calendar: the toolbar and header capsules float over Quasicrystal Chorus like
+// the Orb's composer controls. The schedule pane is frosted regular glass and far
+// over the persistent budget, so it is never a target; the event dialog is a
+// transient panel and takes the frosted-interior lens while open.
+export const CALENDAR_REFRACTION_TARGETS = [
+  '.nav-pill',
+  '.calendar-toolbar .calendar-segment',
+  '.calendar-toolbar .calendar-btn',
+  '.calendar-header .calendar-badge',
+];
+export const CALENDAR_REFRACTION_PANELS = [...NAV_REFRACTION_MENUS, '.calendar-modal'];
+const CALENDAR_LISTS = Object.freeze({ controls: CALENDAR_REFRACTION_TARGETS, panels: CALENDAR_REFRACTION_PANELS });
+export function useCalendarLiquidGlass(rootRef) { useLiquidGlassRefraction(rootRef, CALENDAR_LISTS); }
+
 const ORB_LISTS = Object.freeze({ controls: ORB_REFRACTION_TARGETS, panels: ORB_REFRACTION_MENUS });
 export default function useOrbLiquidGlass(rootRef) { useLiquidGlassRefraction(rootRef, ORB_LISTS); }

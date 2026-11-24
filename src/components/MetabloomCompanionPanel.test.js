@@ -162,3 +162,74 @@ test('mobile keyboard position follows the visual viewport and listeners are rem
     raf.mockRestore(); cancel.mockRestore();
   }
 });
+
+describe('docked overlay refinement', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const read = name => fs.readFileSync(path.join(__dirname, name), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+
+  test('the header carries one title and three distinct actions, Minimize last', () => {
+    render(<MetabloomCompanionPanel docked open busy={false} {...callbacks()}><p>Actual chat</p></MetabloomCompanionPanel>);
+    const region = screen.getByRole('region', { name: 'Metabloom' });
+    const actions = [...region.querySelectorAll('.metabloom-companion__header-actions button')].map(button => button.getAttribute('aria-label'));
+    expect(actions).toEqual(['Hide assistant', 'Open full chat', 'Close chat']);
+    // One Close chat while open: the dock's toggle leaves the tree until closed.
+    expect(screen.getAllByRole('button', { name: 'Close chat' })).toHaveLength(1);
+    expect(region.querySelector('.metabloom-companion__provider')).toBeNull();
+    expect(region).not.toHaveTextContent(/Here with you|openai/i);
+  });
+
+  test('the dock is one row ending in the Orb, which is the toggle target', () => {
+    const view = render(<MetabloomCompanionPanel docked busy statusText="Checking the answer" {...callbacks()}><p>Actual chat</p></MetabloomCompanionPanel>);
+    const dock = view.container.querySelector('.metabloom-companion__controls');
+    const toggle = screen.getByRole('button', { name: 'Open chat' });
+    expect(dock).toContainElement(toggle);
+    expect(dock).toContainElement(screen.getByRole('status'));
+    expect(dock).toContainElement(screen.getByRole('button', { name: 'Stop' }));
+    expect(toggle.lastElementChild).toHaveClass('metabloom-companion__orb-target');
+    // Closed, the chat toggle is its icon alone; the name comes from aria-label.
+    expect(toggle.querySelector('.metabloom-companion__pill--icon')).not.toBeNull();
+    expect(toggle.textContent.trim()).toBe('');
+    expect(screen.getByRole('status')).toHaveTextContent('Checking the answer');
+  });
+
+  test('opening moves the Orb behind the transcript by geometry, and feathers its canvas edge', () => {
+    const host = read('MetabloomAssistantHost.css');
+    const panel = read('MetabloomCompanionPanel.css');
+    expect(host).toMatch(/\[data-assistant-presentation="docked"\] \.metabloom-chat__field \{[^}]*mask-image: radial-gradient\(closest-side, #000 74%, transparent 100%\);/);
+    const open = host.match(/\[data-assistant-presentation="docked"\]\[data-assistant-open="true"\] \.metabloom-chat__field \{([^}]*)\}/)[1];
+    // Between the panel's glass (::before, z -1) and the chat interface (z 1).
+    expect(open).toContain('z-index: 0;');
+    expect(host).toMatch(/\[data-assistant-presentation="docked"\] \.metabloom-chat__interface \{[^}]*z-index: 1;/);
+    expect(open).toContain('width: var(--metabloom-companion-stage)');
+    expect(open).not.toMatch(/display|visibility|transform|position/);
+    expect(panel).toMatch(/\[data-open='true'\] \.metabloom-companion__toggle:not\(\.metabloom-companion__toggle--show\) \{ display: none; \}/);
+  });
+
+  test('the companion shares the glass tokens; every chat surface is liquid glass', () => {
+    const shared = read('LiquidGlass.css');
+    const host = read('MetabloomAssistantHost.css');
+    const panel = read('MetabloomCompanionPanel.css');
+    const docked = '\\.metabloom-assistant-host\\[data-assistant-presentation="docked"\\] \\.orb-page';
+    const rule = (selector) => new RegExp(`(?:^|\\n)${docked} ${selector} \\{([^}]*)\\}`).exec(host)?.[1] || '';
+    expect(shared).toMatch(/:is\([^)]*\.metabloom-companion\) \{\s*--lg-clear-fill:/);
+    expect(shared).toMatch(/@media \(prefers-reduced-transparency: reduce\), \(prefers-contrast: more\) \{\s*:is\([^)]*\.metabloom-companion\)/);
+    expect(panel).toMatch(/\.metabloom-companion__panel::before \{[^}]*backdrop-filter: var\(--lg-regular-blur/);
+    // Replies are translucent regular glass over the creature, with the specular rim.
+    const reply = rule('\\.metabloom-chat__message--assistant \\.metabloom-chat__bubble');
+    expect(reply).toMatch(/color-mix\(in srgb, var\(--lg-menu-fill\) \d+%, transparent\)/);
+    expect(reply).toMatch(/-webkit-backdrop-filter: var\(--lg-regular-blur\) var\(--lg-post\);\s*backdrop-filter: var\(--lg-regular-blur\) var\(--lg-post\);/);
+    expect(reply).toMatch(/box-shadow: var\(--lg-specular\), var\(--lg-shadow\);/);
+    // The visitor's own messages are tinted glass, not an opaque fill.
+    const mine = rule('\\.metabloom-chat__message--user \\.metabloom-chat__bubble');
+    expect(mine).toMatch(/background: color-mix\(in srgb, var\(--metabloom-chat-user\) \d+%, transparent\);/);
+    expect(mine).toMatch(/backdrop-filter: blur\(\d+px\)/);
+    // The composer and chips keep the Orb's clear glass and lens: no docked override strips them.
+    expect(host).not.toMatch(/docked"\] \.orb-page \.metabloom-chat__composer \{[^}]*backdrop-filter: none/);
+    expect(rule('\\.metabloom-model-picker__trigger')).toMatch(/background: var\(--lg-clear-fill\);/);
+    // Without blur or transparency the tints densify or turn solid.
+    expect(host).toMatch(/@media \(prefers-reduced-transparency: reduce\), \(prefers-contrast: more\) \{[^@]*message--assistant \.metabloom-chat__bubble \{ background: var\(--aetheris-panel-raised/);
+    // The Orb's canvas never takes input; the dock's target sits over it instead.
+    expect(host).toMatch(/\.metabloom-chat__field \{[^}]*pointer-events: none;/);
+  });
+});

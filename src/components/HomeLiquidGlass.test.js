@@ -14,7 +14,7 @@ const selectors = css => strip(css).replace(/@[^{]+\{/g, '').match(/[^{}]+(?=\{)
 
 describe('shared liquid glass and nav chrome', () => {
   test('applies only inside the signed-in workspace: Home, Orb, Canvas and the Invoice Generator', () => {
-    const scope = /:is\(\.orb-page, \.home-page, \.popcan-page, \.invoice-page, \.calendar-page, \.invoice-site-navigation(, \.metabloom-assistant-launcher)?\)|\.home-page/;
+    const scope = /:is\(\.orb-page, \.home-page, \.popcan-page, \.invoice-page, \.calendar-page, \.invoice-site-navigation(, \.metabloom-assistant-launcher, \.metabloom-companion)?\)|\.home-page/;
     selectors(shared).forEach(selector => expect(selector).toMatch(scope));
     selectors(home).forEach(selector => expect(selector).toMatch(/\.home-page/));
   });

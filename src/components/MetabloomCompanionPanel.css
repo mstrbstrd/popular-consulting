@@ -1,16 +1,29 @@
 /* Stable chrome around the real conversation and Orb. Never hide, filter or
    transform the body: it contains the persistent canvas. The session host
-   independently controls the chat interface and the Orb's fixed geometry. */
+   independently controls the chat interface and the Orb's fixed geometry.
+
+   Materials come from LiquidGlass.css (.metabloom-companion is in its token
+   scope, including the reduced-motion, reduced-transparency and dark sets):
+     dock     — one row ending in the Orb: clear-glass pill and Stop capsules,
+                like the Orb's composer controls; the Orb itself is the target
+     panel    — regular (frosted) glass; everything inside it is a lens
+     preview  — regular glass reply bubble with a real action */
 .metabloom-companion {
   --metabloom-companion-orb-size: 88px;
   --metabloom-companion-inset: max(16px, env(safe-area-inset-right, 0px));
   --metabloom-companion-bottom-inset: max(16px, env(safe-area-inset-bottom, 0px));
-  --metabloom-companion-panel-width: min(380px, calc(100vw - 2 * var(--metabloom-companion-inset)));
-  --metabloom-companion-panel-bottom: calc(var(--metabloom-companion-bottom-inset) + var(--metabloom-companion-keyboard-offset, 0px) + var(--metabloom-companion-orb-size) + 12px);
-  --metabloom-companion-panel-height: min(65dvh, calc(var(--metabloom-companion-visible-height, 100dvh) - var(--metabloom-companion-orb-size) - 44px));
-  --metabloom-companion-header-height: 72px;
+  --metabloom-companion-panel-width: min(392px, calc(100vw - 2 * var(--metabloom-companion-inset)));
+  /* The reply preview, shown while the chat is closed, sits just above the Orb. */
+  --metabloom-companion-panel-bottom: calc(var(--metabloom-companion-bottom-inset) + var(--metabloom-companion-keyboard-offset, 0px) + var(--metabloom-companion-orb-size) + 10px);
+  --metabloom-companion-header-height: 60px;
+  /* Open, the panel is a sheet down to the bottom inset and the Orb moves behind
+     its transcript, as on /orb; the dock steps aside. Host CSS places the field
+     from these values (the composer's room keeps the creature above it). */
+  --metabloom-companion-composer-room: 112px;
+  --metabloom-companion-sheet-bottom: calc(var(--metabloom-companion-bottom-inset) + var(--metabloom-companion-keyboard-offset, 0px));
+  --metabloom-companion-sheet-height: min(76dvh, 700px, calc(var(--metabloom-companion-visible-height, 100dvh) - var(--metabloom-companion-bottom-inset) - 24px));
   --metabloom-companion-ink: var(--aetheris-ink, #241e2d);
-  --metabloom-companion-panel: var(--lg-menu-fill, rgba(255, 248, 247, 0.9));
+  --metabloom-companion-ink-2: var(--aetheris-ink-2, #62576a);
   display: contents;
   color: var(--metabloom-companion-ink);
   font: 400 14px/1.5 var(--aetheris-font-sans, system-ui, sans-serif);
@@ -19,157 +32,225 @@
 .metabloom-companion__body { display: contents; }
 .metabloom-companion[data-docked='false'] { color: inherit; font: inherit; }
 .metabloom-companion [hidden] { display: none !important; }
+
+/* ---------- Panel: regular glass ---------- */
 .metabloom-companion[data-docked='true'] > .metabloom-companion__panel {
   position: fixed; display: block; z-index: 80;
   inset-inline-end: var(--metabloom-companion-inset);
-  bottom: var(--metabloom-companion-panel-bottom);
+  bottom: var(--metabloom-companion-sheet-bottom);
   width: var(--metabloom-companion-panel-width);
-  height: var(--metabloom-companion-panel-height);
+  height: var(--metabloom-companion-sheet-height);
   pointer-events: none;
 }
+/* The glass is a pseudo-element behind the content, so the chat inside never
+   sits in a nested backdrop root and the panel can fade without touching it. */
 .metabloom-companion__panel::before {
   content: ''; position: absolute; inset: 0; z-index: -1; opacity: 0;
-  border: 1px solid transparent; border-radius: 24px;
-  background: var(--metabloom-companion-panel);
-  -webkit-backdrop-filter: blur(22px) saturate(1.45);
-  backdrop-filter: blur(22px) saturate(1.45);
+  border-radius: 28px;
+  /* Between the menu and panel tints: the page reads through the frost. */
+  background: color-mix(in srgb, var(--lg-menu-fill, rgba(255, 248, 247, 0.9)) 50%, var(--lg-panel-fill, rgba(255, 248, 247, 0.7)));
+  -webkit-backdrop-filter: var(--lg-regular-blur, blur(22px)) var(--lg-post, saturate(1.45));
+  backdrop-filter: var(--lg-regular-blur, blur(22px)) var(--lg-post, saturate(1.45));
   box-shadow: var(--lg-specular, inset 0 1px 0 rgba(255,255,255,.8)), var(--lg-shadow, 0 12px 32px -12px rgba(36,18,52,.28));
   transition: opacity 180ms ease;
   pointer-events: none;
 }
 .metabloom-companion[data-docked='false'] > .metabloom-companion__panel::before { display: none; }
 .metabloom-companion[data-open='true'] > .metabloom-companion__panel::before { opacity: 1; }
+
+/* No divider: the transcript fades under the header instead. */
 .metabloom-companion__header {
   box-sizing: border-box; position: relative; z-index: 1;
   min-height: var(--metabloom-companion-header-height);
   display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  padding: 12px 12px 10px 18px; pointer-events: auto;
-  border-bottom: 1px solid var(--aetheris-line, rgba(36,18,52,.12));
+  padding: 8px 10px 2px 20px; pointer-events: auto;
 }
-.metabloom-companion__identity { min-width: 0; }
 .metabloom-companion__header h2 {
-  margin: 0; color: inherit; font: 650 16px/1.3 var(--aetheris-font-sans, system-ui, sans-serif);
-  letter-spacing: -.02em; outline-offset: 4px;
+  margin: 0; color: inherit; font: 600 16px/1.3 var(--aetheris-font-sans, system-ui, sans-serif);
+  letter-spacing: -.015em; outline-offset: 4px;
 }
-.metabloom-companion__provider {
-  margin: 3px 0 0; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  color: var(--aetheris-ink-2, #62576a); font: 400 11px/1.4 var(--aetheris-font-mono, monospace);
-}
-.metabloom-companion__header-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; max-width: 100%; gap: 2px; flex-shrink: 0; }
+.metabloom-companion__header-actions { display: flex; justify-content: flex-end; gap: 2px; flex-shrink: 0; }
 .metabloom-companion :is(.metabloom-companion__header, .metabloom-companion__bubble, .metabloom-companion__controls) button {
   -webkit-tap-highlight-color: transparent; touch-action: manipulation;
-  color: inherit; cursor: pointer; font: inherit;
+  color: inherit; cursor: pointer; font: inherit; margin: 0;
 }
 .metabloom-companion__icon-button {
   display: inline-flex; align-items: center; justify-content: center;
-  flex-shrink: 0; width: 36px; height: 40px; padding: 8px;
-  border: 1px solid transparent; border-radius: 999px; background: transparent;
+  flex-shrink: 0; width: 36px; height: 36px; padding: 0;
+  border: 0; border-radius: 999px; background: transparent;
+  color: var(--metabloom-companion-ink-2) !important;
+  transition: background-color 150ms ease, color 150ms ease;
 }
-.metabloom-companion :is(.metabloom-companion__header, .metabloom-companion__bubble, .metabloom-companion__controls) button svg { width: 18px; height: 18px; flex-shrink: 0; }
-.metabloom-companion :is(.metabloom-companion__header, .metabloom-companion__bubble, .metabloom-companion__controls) button:focus-visible,
+/* Header actions are clear-glass circles, like the Orb's controls. */
+.metabloom-companion__header .metabloom-companion__icon-button {
+  background: var(--lg-clear-fill, rgba(255, 255, 255, 0.4));
+  -webkit-backdrop-filter: var(--lg-clear-fallback, blur(7px)) var(--lg-post, saturate(1.4));
+  backdrop-filter: var(--lg-clear-fallback, blur(7px)) var(--lg-post, saturate(1.4));
+  box-shadow: var(--lg-specular, inset 0 1px 0 rgba(255,255,255,.8)), var(--lg-shadow, 0 6px 16px -10px rgba(36,18,52,.3));
+}
+.metabloom-companion__header .metabloom-companion__header-actions { gap: 6px; }
+.metabloom-companion__icon-button--stop { color: var(--aetheris-red, #c0392b) !important; }
+.metabloom-companion :is(.metabloom-companion__header, .metabloom-companion__bubble) button svg { width: 18px; height: 18px; flex-shrink: 0; }
+.metabloom-companion :is(.metabloom-companion__header, .metabloom-companion__bubble) button:focus-visible,
+.metabloom-companion__stop:focus-visible,
+.metabloom-companion__toggle:focus-visible .metabloom-companion__pill,
 .metabloom-companion__header h2:focus-visible {
-  outline: 2px solid var(--aetheris-teal, #007b83); outline-offset: 3px;
+  outline: 2px solid var(--aetheris-focus-line, var(--aetheris-teal, #007b83)); outline-offset: 3px;
   box-shadow: var(--aetheris-focus-halo, 0 0 0 5px rgba(0,123,131,.14));
 }
+
+/* ---------- Dock: [status] [Stop] [Chat pill][Orb] ---------- */
 .metabloom-companion__controls {
-  position: fixed; z-index: 82; display: flex; align-items: center; gap: 8px;
-  inset-inline-end: calc(var(--metabloom-companion-inset) + var(--metabloom-companion-orb-size) + 8px);
-  bottom: calc(var(--metabloom-companion-bottom-inset) + var(--metabloom-companion-keyboard-offset, 0px) + var(--metabloom-companion-orb-size) / 2 - 22px);
-  pointer-events: auto;
+  position: fixed; z-index: 82; display: flex; align-items: center; justify-content: flex-end; gap: 8px;
+  inset-inline-end: var(--metabloom-companion-inset);
+  bottom: calc(var(--metabloom-companion-bottom-inset) + var(--metabloom-companion-keyboard-offset, 0px));
+  min-height: var(--metabloom-companion-orb-size);
+  max-width: calc(100vw - 2 * var(--metabloom-companion-inset));
+  pointer-events: none;
 }
-.metabloom-companion__toggle,
+.metabloom-companion__controls > * { pointer-events: auto; }
+.metabloom-companion__toggle {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 0; border: 0; background: none; outline: none;
+}
+.metabloom-companion__pill,
 .metabloom-companion__stop {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  min-height: 44px; padding: 9px 14px; border: 1px solid transparent; border-radius: 999px;
-  background: var(--metabloom-companion-panel);
-  -webkit-backdrop-filter: blur(16px) saturate(1.4);
-  backdrop-filter: blur(16px) saturate(1.4);
+  height: 40px; padding: 0 16px 0 14px; border: 0; border-radius: 999px;
+  background: var(--lg-clear-fill, rgba(255, 255, 255, 0.5));
+  -webkit-backdrop-filter: var(--lg-clear-fallback, blur(7px)) var(--lg-post, saturate(1.4));
+  backdrop-filter: var(--lg-clear-fallback, blur(7px)) var(--lg-post, saturate(1.4));
   box-shadow: var(--lg-specular, inset 0 1px 0 rgba(255,255,255,.8)), var(--lg-shadow, 0 8px 24px -12px rgba(36,18,52,.3));
-  white-space: nowrap; font-size: 13px !important;
+  text-shadow: var(--lg-text-halo, none);
+  white-space: nowrap; font-size: 13.5px !important; font-weight: 550;
+  transition: background-color 150ms ease;
 }
-.metabloom-companion__stop { padding-inline: 12px; }
+.metabloom-companion__pill svg,
+.metabloom-companion__stop svg { width: 17px; height: 17px; flex-shrink: 0; }
+/* Closed, the chat toggle is just its icon: a clear-glass circle by the Orb. */
+.metabloom-companion__pill--icon { position: relative; width: 44px; height: 44px; padding: 0; }
+.metabloom-companion__pill--icon svg { width: 19px; height: 19px; }
+.metabloom-companion__pill--icon .metabloom-companion__unread { position: absolute; top: 6px; right: 6px; }
+.metabloom-companion__stop { padding-inline: 12px 14px; }
+.metabloom-companion__stop svg { color: var(--aetheris-red, #c0392b); }
+/* The Orb is the target: an invisible circle over the canvas, which keeps
+   pointer-events: none. Hover and focus draw a soft ring around the creature. */
+.metabloom-companion__orb-target {
+  display: block; flex-shrink: 0;
+  width: var(--metabloom-companion-orb-size); height: var(--metabloom-companion-orb-size);
+  border-radius: 50%; transition: box-shadow 180ms ease;
+}
+/* The toggle spans the pill and the Orb; the site-wide focus outline would
+   draw one rectangle around both, so focus rings the pill and the Orb instead. */
+.metabloom-companion .metabloom-companion__toggle:focus-visible { outline: none; box-shadow: none; }
+.metabloom-companion__toggle:focus-visible .metabloom-companion__orb-target {
+  box-shadow: 0 0 0 2px var(--aetheris-focus-line, var(--aetheris-teal, #007b83));
+}
+/* While the conversation is open the Orb rides in the panel header and the
+   header's Minimize closes it, so the dock steps aside. The toggle returns, and
+   takes focus back, as soon as the panel closes. */
+.metabloom-companion[data-open='true'] .metabloom-companion__toggle:not(.metabloom-companion__toggle--show) { display: none; }
 .metabloom-companion__unread {
   width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
   background: var(--aetheris-teal, #007b83);
+  box-shadow: 0 0 0 3px var(--aetheris-teal-soft, rgba(0,123,131,.16));
 }
+/* Status is visible only while work runs; otherwise it stays announced. */
+.metabloom-companion__status {
+  display: flex; align-items: center; gap: 7px; margin: 0;
+  max-width: min(240px, calc(100vw - var(--metabloom-companion-orb-size) - 160px));
+  color: var(--metabloom-companion-ink-2); font-size: 12px; line-height: 1.3; font-weight: 500;
+  text-shadow: var(--lg-text-halo, none);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; pointer-events: none !important;
+}
+.metabloom-companion:not([data-busy='true']) .metabloom-companion__status,
+.metabloom-companion[data-open='true'] .metabloom-companion__status {
+  position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%);
+}
+.metabloom-companion__activity {
+  width: 7px; height: 7px; flex-shrink: 0; border-radius: 50%;
+  background: var(--aetheris-teal, #007b83);
+  animation: metabloom-companion-pulse 1.4s ease-in-out infinite;
+}
+@keyframes metabloom-companion-pulse { 50% { opacity: .35; } }
+
+/* ---------- Reply preview: regular glass ---------- */
 .metabloom-companion__bubble {
   box-sizing: border-box; position: fixed; z-index: 81;
   inset-inline-end: var(--metabloom-companion-inset); bottom: var(--metabloom-companion-panel-bottom);
-  width: min(280px, calc(100vw - 2 * var(--metabloom-companion-inset)));
-  padding: 16px 40px 12px 16px; border: 1px solid transparent; border-radius: 22px 22px 8px 22px;
-  background: var(--metabloom-companion-panel);
-  -webkit-backdrop-filter: blur(22px) saturate(1.4);
-  backdrop-filter: blur(22px) saturate(1.4);
+  width: min(300px, calc(100vw - 2 * var(--metabloom-companion-inset)));
+  padding: 14px 42px 12px 16px; border-radius: 22px 22px 8px 22px;
+  background: var(--lg-menu-fill, rgba(255, 248, 247, 0.92));
+  -webkit-backdrop-filter: var(--lg-regular-blur, blur(22px)) var(--lg-post, saturate(1.4));
+  backdrop-filter: var(--lg-regular-blur, blur(22px)) var(--lg-post, saturate(1.4));
   box-shadow: var(--lg-specular, inset 0 1px 0 rgba(255,255,255,.8)), var(--lg-shadow, 0 12px 32px -12px rgba(36,18,52,.28));
   pointer-events: auto;
 }
-.metabloom-companion__bubble p { margin: 0; font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
-.metabloom-companion__bubble > .metabloom-companion__icon-button { position: absolute; top: 3px; right: 3px; }
+.metabloom-companion__bubble p { margin: 0; font-size: 13.5px; line-height: 1.5; overflow-wrap: anywhere; }
+.metabloom-companion__bubble > .metabloom-companion__icon-button { position: absolute; top: 6px; right: 6px; width: 32px; height: 32px; }
 .metabloom-companion__read {
-  margin: 7px 0 -4px; min-height: 32px; padding: 4px 0;
-  border: 0; background: none; font-size: 11px !important; text-decoration: underline; text-underline-offset: 3px;
+  display: inline-flex; align-items: center; margin: 10px 0 0; height: 30px; padding: 0 12px;
+  border: 0; border-radius: 999px;
+  background: var(--lg-lens-hover, rgba(64, 40, 88, .05)); box-shadow: var(--lg-lens-edge, none);
+  color: var(--metabloom-companion-ink) !important; font-size: 12.5px !important; font-weight: 600;
 }
-.metabloom-companion__status {
-  position: fixed; z-index: 82; max-width: min(280px, calc(100vw - 32px));
-  inset-inline-end: calc(var(--metabloom-companion-inset) + var(--metabloom-companion-orb-size) + 8px);
-  bottom: calc(var(--metabloom-companion-bottom-inset) + var(--metabloom-companion-keyboard-offset, 0px) - 3px);
-  display: flex; align-items: center; gap: 6px; margin: 0; padding: 3px 8px;
-  border-radius: 8px; background: var(--metabloom-companion-panel);
-  color: var(--metabloom-companion-ink); font-size: 11px; line-height: 1.3;
-  overflow-wrap: anywhere; pointer-events: none;
-}
-.metabloom-companion__status:empty { padding: 0; background: transparent; }
-.metabloom-companion__activity { width: 6px; height: 6px; flex-shrink: 0; border-radius: 50%; background: currentColor; }
-:where([data-theme='dark']) .metabloom-companion {
-  --metabloom-companion-ink: var(--aetheris-ink, #f5eff8);
-  --metabloom-companion-panel: var(--lg-menu-fill, rgba(22,19,29,.92));
-}
+
 @media (hover: hover) {
-  .metabloom-companion__icon-button:hover,
-  .metabloom-companion__toggle:hover,
-  .metabloom-companion__stop:hover { background: var(--aetheris-state-layer, rgba(127,100,140,.14)); }
+  .metabloom-companion__icon-button:hover { background: var(--lg-lens-hover, rgba(127,100,140,.1)); color: var(--metabloom-companion-ink) !important; }
+  .metabloom-companion__header .metabloom-companion__icon-button:hover { background: var(--lg-clear-fill-hover, rgba(255, 255, 255, 0.7)); }
+  .metabloom-companion__icon-button--stop:hover { color: var(--aetheris-red, #c0392b) !important; }
+  .metabloom-companion__toggle:hover .metabloom-companion__pill,
+  .metabloom-companion__stop:hover { background: var(--lg-clear-fill-hover, rgba(255, 255, 255, 0.7)); }
+  .metabloom-companion__toggle:hover .metabloom-companion__orb-target {
+    box-shadow: 0 0 0 1px var(--lg-rim, rgba(255,255,255,.55)), 0 0 24px var(--aetheris-spectral-glow, rgba(186, 0, 186, .18));
+  }
+  .metabloom-companion__read:hover { background: var(--lg-lens, rgba(64, 40, 88, .09)); }
 }
+
 @media (max-width: 600px) {
   .metabloom-companion {
     --metabloom-companion-orb-size: 72px;
     --metabloom-companion-inset: max(12px, env(safe-area-inset-right, 0px));
     --metabloom-companion-bottom-inset: max(12px, env(safe-area-inset-bottom, 0px));
     --metabloom-companion-panel-width: calc(100vw - 2 * var(--metabloom-companion-inset));
-    --metabloom-companion-panel-height: min(65dvh, calc(var(--metabloom-companion-visible-height, 100dvh) - var(--metabloom-companion-orb-size) - 36px));
   }
-  .metabloom-companion__icon-button { min-width: 40px; min-height: 44px; }
-  .metabloom-companion__header { padding-inline: 14px 8px; }
-  .metabloom-companion__provider { max-width: 120px; }
-  .metabloom-companion__status { max-width: calc(100vw - var(--metabloom-companion-orb-size) - 40px); }
-  .metabloom-companion__controls { gap: 5px; }
-  .metabloom-companion__toggle, .metabloom-companion__stop { padding-inline: 11px; }
+  .metabloom-companion__icon-button { width: 40px; height: 44px; }
+  .metabloom-companion { --metabloom-companion-sheet-height: min(84dvh, calc(var(--metabloom-companion-visible-height, 100dvh) - var(--metabloom-companion-bottom-inset) - 16px)); }
+  .metabloom-companion__header { padding-inline: 18px 6px; }
+  .metabloom-companion__pill, .metabloom-companion__stop { height: 44px; }
+  .metabloom-companion__controls { gap: 6px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .metabloom-companion__panel::before { transition: none; }
+  .metabloom-companion__panel::before,
+  .metabloom-companion__orb-target,
+  .metabloom-companion__pill,
+  .metabloom-companion__icon-button { transition: none; }
+  .metabloom-companion__activity { animation: none; }
 }
-@media (max-width: 360px) {
-  .metabloom-companion { --metabloom-companion-header-height: 112px; }
-  .metabloom-companion__header { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; }
-  .metabloom-companion__identity { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
-  .metabloom-companion__provider { margin: 0; min-width: 0; }
+@media (max-width: 300px) {
+  .metabloom-companion { --metabloom-companion-header-height: 100px; }
+  .metabloom-companion__header { flex-wrap: wrap; }
 }
-@media (max-width: 240px) {
-  .metabloom-companion { --metabloom-companion-header-height: 156px; }
-  .metabloom-companion__identity { display: block; }
-}
-@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
-  .metabloom-companion { --metabloom-companion-panel: var(--aetheris-panel, #fff8f7); }
-  :where([data-theme='dark']) .metabloom-companion { --metabloom-companion-panel: var(--aetheris-panel, #16131d); }
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .metabloom-companion__panel::before, .metabloom-companion__bubble,
-  .metabloom-companion__toggle, .metabloom-companion__stop { -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .metabloom-companion__pill, .metabloom-companion__stop { background: var(--aetheris-panel, #fff8f7); }
 }
 @media (forced-colors: active) {
-  .metabloom-companion { --metabloom-companion-panel: Canvas; --metabloom-companion-ink: CanvasText; }
+  .metabloom-companion { --metabloom-companion-ink: CanvasText; --metabloom-companion-ink-2: CanvasText; }
   .metabloom-companion__panel::before, .metabloom-companion__bubble,
-  .metabloom-companion__toggle, .metabloom-companion__stop { border-color: CanvasText; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
-  .metabloom-companion__provider { color: CanvasText; }
-  .metabloom-companion__unread { background: Highlight; }
-  .metabloom-companion :is(.metabloom-companion__header, .metabloom-companion__bubble, .metabloom-companion__controls) button:focus-visible { outline-color: Highlight; box-shadow: none; }
+  .metabloom-companion__pill, .metabloom-companion__stop, .metabloom-companion__read,
+  .metabloom-companion__header .metabloom-companion__icon-button {
+    background: Canvas; color: CanvasText; border: 1px solid CanvasText; box-shadow: none; text-shadow: none;
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+  }
+  .metabloom-companion__orb-target { box-shadow: none !important; }
+  /* The toggle spans the pill and the Orb; the site-wide focus outline would
+   draw one rectangle around both, so focus rings the pill and the Orb instead. */
+.metabloom-companion .metabloom-companion__toggle:focus-visible { outline: none; box-shadow: none; }
+.metabloom-companion__toggle:focus-visible .metabloom-companion__orb-target { outline: 2px solid Highlight; }
+  .metabloom-companion__unread, .metabloom-companion__activity { background: Highlight; box-shadow: none; }
+  .metabloom-companion :is(.metabloom-companion__header, .metabloom-companion__bubble) button:focus-visible,
+  .metabloom-companion__toggle:focus-visible .metabloom-companion__pill { outline-color: Highlight; box-shadow: none; }
 }
 @media print {
   .metabloom-companion,

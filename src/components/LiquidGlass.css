@@ -16,7 +16,7 @@
    murky and dark, most visibly as a menu opened. Lenses never inherit. */
 @property --lg-refraction { syntax: "*"; inherits: false; }
 
-:is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation, .metabloom-assistant-launcher) {
+:is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation, .metabloom-assistant-launcher, .metabloom-companion) {
   --lg-clear-fill: rgba(255, 255, 255, 0.12);
   --lg-clear-fill-hover: rgba(255, 255, 255, 0.24);
   --lg-input-fill: rgba(255, 255, 255, 0.16);
@@ -40,7 +40,7 @@
   --lg-lens-edge: inset 1px 1px 0.5px -0.5px rgba(255, 255, 255, 0.9), inset 0 0 0 0.5px rgba(255, 255, 255, 0.45), 0 1px 4px rgba(36, 18, 52, 0.08);
   --lg-radius-menu: 24px;
 }
-:where([data-theme='dark']) :is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation, .metabloom-assistant-launcher) {
+:where([data-theme='dark']) :is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation, .metabloom-assistant-launcher, .metabloom-companion) {
   --lg-clear-fill: rgba(18, 18, 26, 0.16);
   --lg-clear-fill-hover: rgba(255, 255, 255, 0.08);
   --lg-input-fill: rgba(18, 18, 26, 0.24);
@@ -64,13 +64,13 @@
 /* Reduced motion removes every backdrop filter site-wide (index.css), so glass
    that carries text compensates with a denser tint instead of losing contrast. */
 @media (prefers-reduced-motion: reduce) {
-  :is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation, .metabloom-assistant-launcher) {
+  :is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation, .metabloom-assistant-launcher, .metabloom-companion) {
     --lg-clear-fill: rgba(255, 252, 251, 0.62);
     --lg-input-fill: rgba(255, 252, 251, 0.7);
     --lg-panel-fill: rgba(255, 252, 251, 0.84);
     --lg-menu-fill: rgba(255, 252, 251, 0.94);
   }
-  :where([data-theme='dark']) :is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation, .metabloom-assistant-launcher) {
+  :where([data-theme='dark']) :is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation, .metabloom-assistant-launcher, .metabloom-companion) {
     --lg-clear-fill: rgba(18, 18, 26, 0.62);
     --lg-input-fill: rgba(18, 18, 26, 0.7);
     --lg-panel-fill: rgba(20, 20, 28, 0.84);
@@ -80,7 +80,7 @@
 
 /* Accessibility preferences replace glass with solid Aetheris panels. */
 @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
-  :is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation), :where([data-theme='dark']) :is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation) {
+  :is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation, .metabloom-assistant-launcher, .metabloom-companion), :where([data-theme='dark']) :is(.orb-page, .home-page, .popcan-page, .invoice-page, .calendar-page, .invoice-site-navigation, .metabloom-assistant-launcher, .metabloom-companion) {
     --lg-clear-fill: var(--aetheris-panel);
     --lg-clear-fill-hover: var(--aetheris-panel-raised);
     --lg-input-fill: var(--aetheris-panel);

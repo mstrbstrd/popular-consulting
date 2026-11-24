@@ -17,11 +17,30 @@
   bottom: calc(var(--metabloom-companion-bottom-inset) + var(--metabloom-companion-keyboard-offset, 0px));
   width: var(--metabloom-companion-orb-size); height: var(--metabloom-companion-orb-size);
   z-index: 51; overflow: visible; pointer-events: none;
+  /* The creature is sized by, and roams within, its canvas; its dither halo
+     reached the square edge and was cut flat. Feather it radially (as Home's
+     Orb card does) so the halo dissolves before the edge. CSS only: the field,
+     its context and its shader are unchanged. */
+  -webkit-mask-image: radial-gradient(closest-side, #000 74%, transparent 100%);
+  mask-image: radial-gradient(closest-side, #000 74%, transparent 100%);
+}
+/* Open: as on /orb, the creature lives behind the conversation. The same field
+   moves, by geometry alone, to a large square centred in the transcript area,
+   between the panel's glass (::before, z -1) and the chat interface (z 1), so
+   replies float over it. The canvas is never remounted or re-parented. */
+.metabloom-assistant-host[data-assistant-presentation="docked"][data-assistant-open="true"] .metabloom-chat__field {
+  --metabloom-companion-stage: min(calc(var(--metabloom-companion-panel-width) - 24px), 360px,
+    calc(var(--metabloom-companion-sheet-height) - var(--metabloom-companion-header-height) - var(--metabloom-companion-composer-room)));
+  z-index: 0;
+  width: var(--metabloom-companion-stage); height: var(--metabloom-companion-stage);
+  right: calc(var(--metabloom-companion-inset) + (var(--metabloom-companion-panel-width) - var(--metabloom-companion-stage)) / 2);
+  bottom: calc(var(--metabloom-companion-sheet-bottom) + var(--metabloom-companion-composer-room)
+    + (var(--metabloom-companion-sheet-height) - var(--metabloom-companion-header-height) - var(--metabloom-companion-composer-room) - var(--metabloom-companion-stage)) / 2);
 }
 .metabloom-assistant-host[data-assistant-presentation="docked"] .metabloom-chat__interface {
   position: fixed; inset: auto; right: var(--metabloom-companion-inset); z-index: 1;
-  bottom: var(--metabloom-companion-panel-bottom); width: var(--metabloom-companion-panel-width);
-  height: calc(var(--metabloom-companion-panel-height) - var(--metabloom-companion-header-height)); pointer-events: auto;
+  bottom: var(--metabloom-companion-sheet-bottom); width: var(--metabloom-companion-panel-width);
+  height: calc(var(--metabloom-companion-sheet-height) - var(--metabloom-companion-header-height)); pointer-events: auto;
 }
 .metabloom-assistant-host[data-assistant-presentation="docked"][data-assistant-open="false"] .metabloom-chat__interface,
 .metabloom-assistant-host[data-assistant-presentation="docked"][data-assistant-hidden="true"] .metabloom-chat__field { visibility: hidden; pointer-events: none; }
@@ -56,7 +75,7 @@
 .metabloom-assistant-host[data-assistant-presentation="docked"] .metabloom-chat__composer textarea { font-size: 14px; min-height: 42px; }
 .metabloom-assistant-host[data-assistant-presentation="docked"] .metabloom-chat__composer-help,
 .metabloom-assistant-host[data-assistant-presentation="docked"] .metabloom-council__notice { font-size: 10px; line-height: 1.4; }
-.metabloom-assistant-host[data-assistant-presentation="docked"] .metabloom-chat__research-toggle { font-size: 11px; min-height: 36px; padding: 6px 8px; }
+.metabloom-assistant-host[data-assistant-presentation="docked"] .metabloom-chat__research-toggle { font-size: 11.5px; min-height: 36px; padding: 6px 10px; }
 .metabloom-assistant-host[data-assistant-presentation="docked"] .metabloom-chat__research-toggle input { width: 14px; height: 14px; }
 .metabloom-assistant-host[data-assistant-presentation="docked"][data-assistant-hidden="true"] .metabloom-chat__interface { visibility: hidden; pointer-events: none; }
 /* These bounded geometry rules intentionally override expanded-result layouts. */
@@ -67,14 +86,15 @@
 .metabloom-assistant-host[data-assistant-presentation="docked"] .orb-page .metabloom-chat__messages {
   display: block !important; position: relative !important; inset: auto !important; grid-column: 1 !important; grid-row: 1 !important;
   width: 100% !important; height: auto !important; max-height: none !important; visibility: inherit !important;
-  opacity: 1 !important; transform: none !important; mask-image: none !important; -webkit-mask-image: none !important;
+  opacity: 1 !important; transform: none !important;
+  /* The transcript fades under the header instead of meeting a divider. */
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 18px) !important;
+  mask-image: linear-gradient(to bottom, transparent 0, #000 18px) !important;
 }
 .metabloom-assistant-host[data-assistant-presentation="docked"] .orb-page .metabloom-chat__composer-area {
   display: grid !important; position: relative !important; inset: auto !important; grid-column: 1 !important; grid-row: 2 !important;
   width: 100% !important; height: auto !important; margin: 0 !important; transform: none !important;
 }
-.metabloom-assistant-host[data-assistant-presentation="docked"] .metabloom-model-picker__trigger { min-height: 36px; max-width: 140px; padding: 6px 8px; font-size: 11px; }
-.metabloom-assistant-host[data-assistant-presentation="docked"] .metabloom-model-picker__trigger span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .metabloom-assistant-host[data-assistant-presentation="docked"] .metabloom-chat__latest--placeholder { display: none; }
 
 .metabloom-assistant-host[data-assistant-editing="true"] .metabloom-companion__bubble { visibility: hidden; pointer-events: none; }
@@ -83,3 +103,122 @@
 .metabloom-chat__invoice-review summary { cursor: pointer; }
 .metabloom-chat__invoice-review dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; }
 .metabloom-chat__invoice-review dd { margin: 0; overflow-wrap: anywhere; }
+
+/* ---------- Docked panel interior: real Liquid Glass ----------
+   The panel's glass is a ::before, never an ancestor of the transcript, so each
+   bubble's backdrop is the creature and the page: every component here is glass
+   in its own right, not a lens.
+     replies   — regular glass: a translucent white-to-clear sheet, frosted and
+                 saturated by the creature behind, curved specular rims, a tail
+                 toward Metabloom's side and an inset spectral rail. (On /orb a
+                 later conversation-started rule paints these opaque; here the
+                 glass recipe wins by specificity.)
+     your own  — tinted glass: the user ink at 58%, frosted, with light rims.
+     composer  — the Orb's clear glass and rim lens (useOrbLiquidGlass targets it).
+     chips     — the Orb's clear-glass capsules and spectral rings.
+   The transcript itself is never a lens target. */
+.metabloom-assistant-host[data-assistant-presentation="docked"] .orb-page .metabloom-chat__message--assistant .metabloom-chat__bubble {
+  padding: 13px 16px 12px 22px;
+  border: 0; border-radius: 22px 22px 22px 8px;
+  background: linear-gradient(160deg,
+    color-mix(in srgb, var(--lg-menu-fill) 62%, transparent),
+    color-mix(in srgb, var(--lg-panel-fill) 62%, transparent));
+  -webkit-backdrop-filter: var(--lg-regular-blur) var(--lg-post);
+  backdrop-filter: var(--lg-regular-blur) var(--lg-post);
+  box-shadow: var(--lg-specular), var(--lg-shadow);
+}
+.metabloom-assistant-host[data-assistant-presentation="docked"] .orb-page .metabloom-chat__message--assistant .metabloom-chat__bubble::before {
+  top: 16px; bottom: 16px; left: 9px; width: 3px; border-radius: 999px; opacity: 0.9;
+}
+.metabloom-assistant-host[data-assistant-presentation="docked"] .orb-page .metabloom-chat__message--user .metabloom-chat__bubble {
+  border: 0; border-radius: 22px 22px 8px 22px;
+  background: color-mix(in srgb, var(--metabloom-chat-user) 58%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(1.8);
+  backdrop-filter: blur(18px) saturate(1.8);
+  box-shadow:
+    inset 1.5px 1.5px 0.5px -1px rgba(255, 255, 255, 0.5),
+    inset -1px -1px 0.5px -0.5px rgba(255, 255, 255, 0.22),
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.2),
+    var(--lg-shadow);
+  text-shadow: 0 1px 2px color-mix(in srgb, var(--metabloom-chat-user) 45%, transparent);
+}
+.metabloom-assistant-host[data-assistant-presentation="docked"] .metabloom-chat__message-list:empty::before { text-shadow: var(--lg-text-halo); }
+/* Every reply here is Metabloom's: the speaker line stays for screen readers. */
+.metabloom-assistant-host[data-assistant-presentation="docked"] .metabloom-chat__speaker {
+  position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+
+/* A new conversation opens on a hint for the page it sits beside, not a void. */
+.metabloom-assistant-host[data-assistant-presentation="docked"] .orb-page .metabloom-chat__messages:has(> .metabloom-chat__message-list:empty) {
+  display: flex !important; flex-direction: column; justify-content: flex-end; align-self: stretch !important; height: 100% !important;
+}
+.metabloom-assistant-host[data-assistant-presentation="docked"] .orb-page .metabloom-chat__message-list:empty {
+  display: flex; flex-direction: column; justify-content: flex-end; width: 100%; max-width: none; margin: 0;
+}
+.metabloom-assistant-host[data-assistant-presentation="docked"] .metabloom-chat__message-list:empty::before {
+  content: "Ask me anything."; display: block; max-width: 30ch; padding: 0 6px 6px;
+  color: var(--aetheris-ink-2); font-size: 15px; line-height: 1.5;
+}
+body[data-metabloom-companion='calendar'] .metabloom-assistant-host[data-assistant-presentation="docked"] .metabloom-chat__message-list:empty::before {
+  content: "Ask about your schedule, find a free hour, or plan something new.";
+}
+body[data-metabloom-companion='invoice'] .metabloom-assistant-host[data-assistant-presentation="docked"] .metabloom-chat__message-list:empty::before {
+  content: "Ask me to start an invoice, fill in details, or check the totals.";
+}
+
+/* Composer: one row of compact chips (the phone layout), lenses inside the
+   panel. Every control keeps its full accessible name. */
+.metabloom-assistant-host[data-assistant-presentation="docked"] .orb-page .metabloom-chat__conversation-tools {
+  /* The Orb's landing layout floats the chips over an empty page; the docked
+     panel keeps them in flow so they never cover the transcript or its hint. */
+  position: static !important;
+  display: flex; flex-wrap: nowrap; align-items: center; justify-content: flex-start; gap: 6px; width: 100%;
+}
+.metabloom-assistant-host[data-assistant-presentation="docked"] .orb-page .metabloom-chat__conversation-tools .metabloom-chat__research-toggle { margin: 0; }
+.metabloom-assistant-host[data-assistant-presentation="docked"] .orb-page .metabloom-chat__conversation-tools .metabloom-reactions { margin-left: auto; }
+.metabloom-assistant-host[data-assistant-presentation="docked"] .orb-page .metabloom-chat__conversation-tools :is(.metabloom-chat__label-qualifier, .metabloom-reactions__toggle-label),
+.metabloom-assistant-host[data-assistant-presentation="docked"] .metabloom-model-picker__trigger > span,
+.metabloom-assistant-host[data-assistant-presentation="docked"] .metabloom-model-picker__warning,
+.metabloom-assistant-host[data-assistant-presentation="docked"] .metabloom-chat__composer-help {
+  position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+}
+.metabloom-assistant-host[data-assistant-presentation="docked"] .metabloom-model-picker { position: relative; flex: 0 0 auto; }
+.metabloom-assistant-host[data-assistant-presentation="docked"] .metabloom-model-picker__glyph { display: block; width: 18px; height: 18px; }
+.metabloom-assistant-host[data-assistant-presentation="docked"] .metabloom-model-picker[data-warning='true']::after {
+  content: ""; position: absolute; top: 1px; right: 1px; width: 9px; height: 9px; border-radius: 50%;
+  background: var(--aetheris-red, #c0392b); pointer-events: none;
+}
+.metabloom-assistant-host[data-assistant-presentation="docked"] .orb-page :is(.metabloom-model-picker__trigger, .metabloom-reactions__toolbar > button) {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; min-width: 36px; max-width: none; min-height: 36px; height: 36px; padding: 0; font-size: 17px; line-height: 1;
+}
+.metabloom-assistant-host[data-assistant-presentation="docked"] .orb-page .metabloom-reactions__toolbar > button > span { margin: 0; }
+/* The model trigger is not an Orb lens target; give it the chips' clear glass. */
+.metabloom-assistant-host[data-assistant-presentation="docked"] .orb-page .metabloom-model-picker__trigger {
+  background: var(--lg-clear-fill);
+  -webkit-backdrop-filter: var(--lg-clear-fallback) var(--lg-post);
+  backdrop-filter: var(--lg-clear-fallback) var(--lg-post);
+  box-shadow: var(--lg-specular), var(--lg-shadow);
+}
+
+/* Without blur (reduced motion) or transparency, the tints densify; forced
+   colours collapse to system colours, as the Orb's own rules do. */
+@media (prefers-reduced-motion: reduce) {
+  .metabloom-assistant-host[data-assistant-presentation="docked"] .orb-page .metabloom-chat__message--user .metabloom-chat__bubble {
+    background: color-mix(in srgb, var(--metabloom-chat-user) 88%, transparent);
+  }
+  .metabloom-assistant-host[data-assistant-presentation="docked"] .orb-page .metabloom-chat__message--assistant .metabloom-chat__bubble {
+    background: var(--lg-menu-fill);
+  }
+}
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more) {
+  .metabloom-assistant-host[data-assistant-presentation="docked"] .orb-page .metabloom-chat__message--user .metabloom-chat__bubble { background: var(--metabloom-chat-user); }
+  .metabloom-assistant-host[data-assistant-presentation="docked"] .orb-page .metabloom-chat__message--assistant .metabloom-chat__bubble { background: var(--aetheris-panel-raised, var(--aetheris-panel)); }
+}
+@media (forced-colors: active) {
+  .metabloom-assistant-host[data-assistant-presentation="docked"] .orb-page :is(.metabloom-chat__message--assistant, .metabloom-chat__message--user) .metabloom-chat__bubble,
+  .metabloom-assistant-host[data-assistant-presentation="docked"] .orb-page .metabloom-model-picker__trigger {
+    background: Canvas; color: CanvasText; border: 1px solid CanvasText; box-shadow: none; text-shadow: none;
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+  }
+}

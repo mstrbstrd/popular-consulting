@@ -86,15 +86,34 @@
   .immersive-background { display: none !important; }
 }
 
-/* This lightweight entry does not load the assistant until it is selected. */
+/* This lightweight entry does not load the assistant until it is selected.
+   It is the dock's own clear-glass pill (MetabloomCompanionPanel.css), sitting
+   where the Orb will appear, with a spectral mark standing in for the Orb until
+   the real one loads. Glass tokens come from LiquidGlass.css when the page has
+   them; the fallbacks keep it a plain legible pill everywhere else. */
 .metabloom-assistant-launcher {
   position: fixed; z-index: 50; right: max(16px, env(safe-area-inset-right));
-  bottom: max(16px, env(safe-area-inset-bottom)); min-height: 44px;
-  padding: 10px 18px; border: 1px solid var(--aetheris-line, #b7aebc);
-  border-radius: 999px; background: var(--aetheris-panel, #fff8f7);
-  color: var(--aetheris-ink, #241e2d); font: 500 14px/1.4 system-ui, sans-serif; cursor: pointer;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  display: inline-flex; align-items: center; gap: 10px; height: 44px;
+  padding: 0 18px 0 14px; border: 0; border-radius: 999px;
+  background: var(--lg-menu-fill, var(--aetheris-panel, #fff8f7));
+  -webkit-backdrop-filter: var(--lg-regular-blur, blur(16px)) var(--lg-post, saturate(1.4));
+  backdrop-filter: var(--lg-regular-blur, blur(16px)) var(--lg-post, saturate(1.4));
+  box-shadow: var(--lg-specular, inset 0 0 0 1px var(--aetheris-line, #b7aebc)), var(--lg-shadow, 0 8px 24px -12px rgba(36, 18, 52, 0.3));
+  color: var(--aetheris-ink, #241e2d); font: 550 14px/1 var(--aetheris-font-sans, system-ui, sans-serif); cursor: pointer;
+  transition: background-color 150ms ease;
 }
-.metabloom-assistant-launcher:focus-visible { outline: 2px solid var(--aetheris-teal, #007b83); outline-offset: 3px; }
+.metabloom-assistant-launcher::before {
+  content: ""; width: 14px; height: 14px; flex-shrink: 0; border-radius: 50%;
+  background: var(--aetheris-spectral, conic-gradient(from 200deg, #00c2d1, #6f00b5, #ba00ba, #ff9a3c, #00c2d1));
+  box-shadow: 0 0 10px var(--aetheris-spectral-glow, rgba(186, 0, 186, 0.28));
+}
+@media (hover: hover) { .metabloom-assistant-launcher:hover { background: var(--lg-panel-fill, var(--aetheris-panel-raised, #fff)); } }
+.metabloom-assistant-launcher:focus-visible { outline: 2px solid var(--aetheris-focus-line, var(--aetheris-teal, #007b83)); outline-offset: 3px; }
+@media (forced-colors: active) {
+  .metabloom-assistant-launcher { border: 1px solid CanvasText; background: Canvas; color: CanvasText; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .metabloom-assistant-launcher::before { forced-color-adjust: none; }
+}
 @media print { .metabloom-assistant-launcher { display: none !important; } }
 
 body[data-metabloom-companion="invoice"] .private-invoice-host { padding-bottom: 140px; }
