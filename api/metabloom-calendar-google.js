@@ -11,6 +11,8 @@ const {
   exchangeGoogleAuthCode,
   fetchGoogleUserEmail,
   revokeGoogleToken,
+  hasGmailReadScope,
+  hasGmailSendScope,
 } = require('../server/metabloomCalendarGoogleAuth');
 
 const ALLOWED_METHODS = Object.freeze(['GET', 'POST']);
@@ -177,6 +179,8 @@ function createGoogleCalendarAuthHandler({
             return sendJson(200, {
               configured: false,
               connected: false,
+              gmailConnected: false,
+              gmailSendConnected: false,
               email: null,
               calendarId: 'primary',
             });
@@ -198,6 +202,8 @@ function createGoogleCalendarAuthHandler({
           return sendJson(200, {
             configured: true,
             connected: Boolean(record),
+            gmailConnected: Boolean(record && hasGmailReadScope(record)),
+            gmailSendConnected: Boolean(record && hasGmailSendScope(record)),
             email: record?.email || null,
             calendarId: record?.calendarId || config.calendarId,
           });
@@ -290,6 +296,7 @@ function createGoogleCalendarAuthHandler({
               updatedAt: timestamp,
               undoHistory: existing?.undoHistory || [],
               recentOperations: existing?.recentOperations || [],
+              ...(existing?.recentGmailOperations ? { recentGmailOperations: existing.recentGmailOperations } : {}),
             }, { signal });
             logger({ requestRef, action: 'callback', status: 'connected', durationMs: Math.max(0, now() - startedAt) });
             return sendRedirect(303, '/calendar?google=connected', clearCookie);

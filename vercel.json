@@ -191,6 +191,7 @@
     "api/metabloom-price-book.js": { "maxDuration": 30 },
     "api/metabloom-calendar.js": { "maxDuration": 30 },
     "api/metabloom-calendar-google.js": { "maxDuration": 30 },
+    "api/metabloom-gmail.js": { "maxDuration": 30 },
     "api/auth/[action].js": { "maxDuration": 30 }
   }
 }

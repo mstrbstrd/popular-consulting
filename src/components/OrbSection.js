@@ -50,7 +50,7 @@ import { createMetabloomResearchDisplayGate } from "./metabloomResearchDisplayGa
 import { METABLOOM_RESEARCH_TIMEOUT_MS, METABLOOM_RESEARCH_REUSE_TIMEOUT_MS, getMetabloomApiErrorMessage, requestMetabloomResponse } from "./metabloomApiClient";
 import { METABLOOM_REQUEST_ERROR_MESSAGES, parseMetabloomRequestRef } from "./metabloomRequestErrors";
 import { METABLOOM_TOOL_TURN_TIMEOUT_MS } from "./metabloomVisualProtocol";
-import { METABLOOM_AGENT_TIMEOUT_MS, createMetabloomAgentLifecycle, getMetabloomWorkPresentation } from './metabloomAgentTools';
+import { METABLOOM_AGENT_TIMEOUT_MS, MAX_METABLOOM_AGENT_CALLS, MAX_METABLOOM_GMAIL_AGENT_CALLS, createMetabloomAgentLifecycle, getMetabloomWorkPresentation } from './metabloomAgentTools';
 import { parseMetabloomOrbContext, parseMetabloomExpressionReceipt, parseMetabloomExpressionEvent,
   getMetabloomExpressionBlock, describeMetabloomExpression } from './metabloomExpressionProtocol';
 import { METABLOOM_TRANSCRIPT_READY_EVENT, METABLOOM_RESET_EVENT,
@@ -72,6 +72,8 @@ import { INVOICE_FIELDS, INVOICE_LINE_FIELDS } from './metabloomInvoiceDraft';
 import MetabloomCalendarCard from './MetabloomCalendarCard';
 import { metabloomCalendarBridge } from './metabloomCalendarBridge';
 import { parseCalendarProposal, parseCalendarReceipt } from './metabloomCalendarProtocol';
+import MetabloomGmailCard from './MetabloomGmailCard';
+import { parseGmailProposal, parseGmailReceipt } from './metabloomGmailProtocol';
 import "./OrbEmoteDemos.css";
 
 const DEFAULT_ACTION_RECORD = getDefaultMetabloomAction();
@@ -390,7 +392,7 @@ const cloneActionChain = (actionChain = []) =>
     talking,
   }));
 
-const cloneMessage = ({ id, role, content, actionChain = [], source, emote, segments = [], status, sources, researchDetails, researchBrief, researchReference, researchReused, savedArtifact, savedWorkBaseline, calendarProposal, calendarReceipt }) => {
+const cloneMessage = ({ id, role, content, actionChain = [], source, emote, segments = [], status, sources, researchDetails, researchBrief, researchReference, researchReused, savedArtifact, savedWorkBaseline, calendarProposal, calendarReceipt, gmailProposal, gmailReceipt }) => {
   const researchReport = role === "assistant" ? parseMetabloomResearchReport(researchDetails) : null;
   const researchSources = researchReport ? parseMetabloomResearchAnswerSources(sources, { report: researchReport })
     : parseMetabloomResearchSources(sources);
@@ -400,6 +402,8 @@ const cloneMessage = ({ id, role, content, actionChain = [], source, emote, segm
   const baseline = artifact ? parseMetabloomSavedWorkBaseline(savedWorkBaseline, artifact) : null;
   const calProposal = role === 'assistant' && calendarProposal ? parseCalendarProposal(calendarProposal) : null;
   const calReceipt = role === 'assistant' && calendarReceipt ? parseCalendarReceipt(calendarReceipt) : null;
+  const mailProposal = role === 'assistant' && gmailProposal ? parseGmailProposal(gmailProposal) : null;
+  const mailReceipt = role === 'assistant' && gmailReceipt ? parseGmailReceipt(gmailReceipt) : null;
   return {
     id,
     emote,
@@ -413,6 +417,8 @@ const cloneMessage = ({ id, role, content, actionChain = [], source, emote, segm
     ...(baseline ? { savedWorkBaseline: baseline } : {}),
     ...(calProposal ? { calendarProposal: calProposal } : {}),
     ...(calReceipt ? { calendarReceipt: calReceipt } : {}),
+    ...(mailProposal ? { gmailProposal: mailProposal } : {}),
+    ...(mailReceipt ? { gmailReceipt: mailReceipt } : {}),
     ...(researchSources ? { sources: researchSources } : {}),
     ...(researchReport ? { researchDetails: researchReport } : {}),
     ...(brief ? { researchBrief: brief } : {}),
@@ -2011,7 +2017,12 @@ const OrbSection = ({
       setTalking(false);
       const current = () => mountedRef.current && requestTokenRef.current === requestToken
         && activeRequestRef.current === activeRequest && !session.closed;
-      const agentLifecycle = createMetabloomAgentLifecycle();
+      const gmailActive = activeRequest.toolset
+        && process.env.REACT_APP_METABLOOM_GMAIL_ENABLED !== '0'
+        && process.env.REACT_APP_METABLOOM_CALENDAR_ENABLED === '1';
+      const agentLifecycle = createMetabloomAgentLifecycle({
+        maxCalls: gmailActive ? MAX_METABLOOM_GMAIL_AGENT_CALLS : MAX_METABLOOM_AGENT_CALLS,
+      });
       const onAgentEvent = event => {
         if (!current() || !activeRequest.toolset || activeRequest.answerStarted || session.snapshot().segments.length) return false;
         if (!agentLifecycle.accept(event)) return false;
@@ -2205,6 +2216,16 @@ const OrbSection = ({
         const valid = parseCalendarReceipt(receipt);
         if (valid && valid.requestId === requestId) activeRequest.calendarReceipt = valid;
       };
+      const onGmailProposal = (proposal) => {
+        if (!current()) return;
+        const valid = parseGmailProposal(proposal, requestId);
+        if (valid) activeRequest.gmailProposal = valid;
+      };
+      const onGmailReceipt = (receipt) => {
+        if (!current()) return;
+        const valid = parseGmailReceipt(receipt);
+        if (valid && valid.requestId === requestId) activeRequest.gmailReceipt = valid;
+      };
       const reachableDestinations = () => getMetabloomNavigationDestinations({ auth: authRef.current,
         calendarEnabled: process.env.REACT_APP_METABLOOM_CALENDAR_ENABLED !== '0' });
       const navigationContext = activeRequest.toolset && typeof navigationRef.current?.navigate === 'function' ? {
@@ -2228,6 +2249,7 @@ const OrbSection = ({
         ...(activeRequest.toolset ? { orbContext: getOrbContext() } : {}),
         ...(capturedCalendarContext ? { calendarContext: capturedCalendarContext } : {}),
         onCalendarProposal, onCalendarReceipt,
+        onGmailProposal, onGmailReceipt,
         onToolProgress: onAgentEvent, onAgentStatus: onAgentEvent,
         requestId, ...(threadSession?.id ? { conversationId: threadSession.id } : {}), message, history, ...(artifactContext ? { artifactContext } : {}), ...(researchContext ? { researchContext } : {}), allowMultiple, actionMode: activeRequest.actionMode, onToolActivity,
         signal: controller.signal, onTextDelta, onSegment, onReaction, onAction, onResearch, onResearchProgress, onResearchDetails, onResearchBrief, onResearchReference, onSources, onSourceMedia, onToolImages,
@@ -2321,8 +2343,12 @@ const OrbSection = ({
             || activeRequest.calendarProposal || null;
           const calReceipt = (payload?.calendarReceipt ? parseCalendarReceipt(payload.calendarReceipt) : null)
             || activeRequest.calendarReceipt || null;
-          const answer = (proposal || payload?.calendarProposal || payload?.calendarReceipt)
-            ? Object.fromEntries(Object.entries(payload).filter(([key]) => !['workspaceProposal', 'calendarProposal', 'calendarReceipt'].includes(key)))
+          const mailProposal = (payload?.gmailProposal ? parseGmailProposal(payload.gmailProposal, requestId) : null)
+            || activeRequest.gmailProposal || null;
+          const mailReceipt = (payload?.gmailReceipt ? parseGmailReceipt(payload.gmailReceipt) : null)
+            || activeRequest.gmailReceipt || null;
+          const answer = (proposal || payload?.calendarProposal || payload?.calendarReceipt || payload?.gmailProposal || payload?.gmailReceipt)
+            ? Object.fromEntries(Object.entries(payload).filter(([key]) => !['workspaceProposal', 'calendarProposal', 'calendarReceipt', 'gmailProposal', 'gmailReceipt'].includes(key)))
             : payload;
           const parsed = parseMetabloomChatEnvelope(answer, { allowMultiple });
           if (proposal) {
@@ -2340,12 +2366,16 @@ const OrbSection = ({
             finishReply(session, { version: '2.0.0', segments: [{ response: receipt.message }] });
           } else if (parsed.ok) {
             finishReply(session, answer);
-            if (calProposal || calReceipt) {
+            if (calProposal || calReceipt || mailProposal || mailReceipt) {
               publishMessages(messagesRef.current.map(item => item.id === session.messageId ? {
                 ...item,
                 ...(calProposal ? { calendarProposal: calProposal } : {}),
                 ...(calReceipt ? { calendarReceipt: calReceipt } : {}),
+                ...(mailProposal ? { gmailProposal: mailProposal } : {}),
+                ...(mailReceipt ? { gmailReceipt: mailReceipt } : {}),
               } : item));
+            }
+            if (calProposal || calReceipt) {
               const shouldApplyBridgeProposal = Boolean(
                 calProposal
                 && (
@@ -3075,6 +3105,13 @@ const OrbSection = ({
                         }}
                       />
                     )}
+                    {message.role === "assistant" && (message.gmailProposal || message.gmailReceipt) && (
+                      <MetabloomGmailCard
+                        proposal={message.gmailProposal || null}
+                        receipt={message.gmailReceipt || null}
+                        disabled={pending || !isActive}
+                      />
+                    )}
                     {(() => {
                       const receipt = navigationReceipts.get(message.id);
                       return message.role === 'assistant' && receipt && receipt.conversation === (threadSession?.id || null)
@@ -3344,13 +3381,13 @@ const OrbSection = ({
       </div>
 
       {priceBookSetupOpen && sectionRef.current?.closest('.orb-page') && createPortal(<MetabloomPriceBookSetup
-        onClose={() => setPriceBookSetupOpen(false)} />, sectionRef.current.closest('.orb-page'))}
+        onClose={() => setPriceBookSetupOpen(false)} />, sectionRef.current?.closest('.orb-page'))}
       {savedWork && sectionRef.current?.closest('.orb-page') && createPortal(<MetabloomSavedWorkPanel
         source={savedWork.source} saveContext={savedWork.saveContext} activeArtifact={savedWork.artifact} onSaved={acceptSavedWork}
         onRevisionSaved={updateSavedAssociation} onRenamed={updateSavedAssociation} onDeleted={detachSavedAssociation}
         onInvalidated={invalidateSavedAssociation}
         onOpen={openSavedResult} onClose={closeSavedWork} />,
-      sectionRef.current.closest('.orb-page'))}
+      sectionRef.current?.closest('.orb-page'))}
     </section>
   );
 };

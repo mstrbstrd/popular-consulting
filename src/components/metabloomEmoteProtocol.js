@@ -132,6 +132,7 @@ const createMetabloomSegmentStreamDecoder = ({
   onToolActivity,
   onToolProgress,
   onAgentStatus,
+  maxToolCalls,
 } = {}) => {
   const limit = Number.isInteger(maxBufferChars) && maxBufferChars > 0
     ? Math.min(maxBufferChars, MAX_SERIALIZED_CHARS) : MAX_SERIALIZED_CHARS;
@@ -169,7 +170,7 @@ const createMetabloomSegmentStreamDecoder = ({
   let sources = null;
   let sourceMedia = null;
   let toolImages = null;
-  const toolLifecycle = createMetabloomAgentLifecycle({ requireStatus: allowToolProgress });
+  const toolLifecycle = createMetabloomAgentLifecycle({ requireStatus: allowToolProgress, ...(maxToolCalls !== undefined ? { maxCalls: maxToolCalls } : {}) });
   const toolTextReady = () => toolLifecycle.canAnswer() && (!toolLifecycle.getState().searchComplete || sources !== null);
   const segments = [];
   const fail = (message, details = null) => {

@@ -1,0 +1,312 @@
+.metabloom-gmail-card {
+  margin-top: 1.2rem;
+  padding: 1.4rem 1.6rem;
+  border-radius: 1.6rem;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(18, 22, 34, 0.62);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  backdrop-filter: blur(18px) saturate(140%);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.24);
+  color: rgba(244, 247, 255, 0.94);
+  font-size: 1.4rem;
+  line-height: 1.45;
+}
+
+.metabloom-gmail-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1.2rem;
+}
+
+.metabloom-gmail-card__heading {
+  min-width: 0;
+}
+
+.metabloom-gmail-card__eyebrow {
+  display: block;
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(186, 206, 255, 0.78);
+  margin-bottom: 0.2rem;
+}
+
+.metabloom-gmail-card__title {
+  margin: 0;
+  font-size: 1.6rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: inherit;
+  overflow-wrap: anywhere;
+}
+
+.metabloom-gmail-card__pill {
+  flex-shrink: 0;
+  padding: 0.35rem 0.9rem;
+  border-radius: 999px;
+  font-size: 1.2rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  border: 1px solid transparent;
+}
+
+.metabloom-gmail-card__pill--pending {
+  background: rgba(245, 158, 11, 0.18);
+  border-color: rgba(245, 158, 11, 0.42);
+  color: #fde68a;
+}
+
+.metabloom-gmail-card__pill--applied {
+  background: rgba(16, 185, 129, 0.18);
+  border-color: rgba(16, 185, 129, 0.42);
+  color: #a7f3d0;
+}
+
+.metabloom-gmail-card__pill--neutral {
+  background: rgba(148, 163, 184, 0.18);
+  border-color: rgba(148, 163, 184, 0.36);
+  color: #e2e8f0;
+}
+
+.metabloom-gmail-card__pill--error {
+  background: rgba(244, 63, 94, 0.18);
+  border-color: rgba(244, 63, 94, 0.44);
+  color: #fecdd3;
+}
+
+.metabloom-gmail-card__details {
+  margin: 1rem 0 0;
+  padding: 0.9rem 1.1rem;
+  border-radius: 1.1rem;
+  background: rgba(255, 255, 255, 0.05);
+  display: grid;
+  gap: 0.55rem;
+}
+
+.metabloom-gmail-card__detail-row {
+  display: grid;
+  grid-template-columns: 8.4rem minmax(0, 1fr);
+  gap: 0.8rem;
+  align-items: baseline;
+}
+
+.metabloom-gmail-card__detail-row dt {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: rgba(196, 208, 232, 0.74);
+}
+
+.metabloom-gmail-card__detail-row dd {
+  margin: 0;
+  font-size: 1.35rem;
+  color: inherit;
+  overflow-wrap: anywhere;
+}
+
+.metabloom-gmail-card__body-wrap {
+  margin-top: 1rem;
+  padding: 1rem 1.15rem;
+  border-radius: 1.1rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.metabloom-gmail-card__body-label {
+  display: block;
+  margin-bottom: 0.45rem;
+  font-size: 1.15rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(196, 208, 232, 0.72);
+}
+
+.metabloom-gmail-card__body {
+  font-size: 1.35rem;
+  line-height: 1.5;
+  color: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 28rem;
+  overflow-y: auto;
+}
+
+.metabloom-gmail-card__snippet {
+  margin: 0;
+  font-size: 1.35rem;
+  line-height: 1.48;
+  color: rgba(226, 234, 248, 0.88);
+  overflow-wrap: anywhere;
+}
+
+.metabloom-gmail-card__summary {
+  margin: 1rem 0 0;
+  font-size: 1.35rem;
+  color: rgba(226, 234, 248, 0.86);
+}
+
+.metabloom-gmail-card__error {
+  margin: 0.9rem 0 0;
+  padding: 0.8rem 1rem;
+  border-radius: 0.9rem;
+  background: rgba(244, 63, 94, 0.16);
+  border: 1px solid rgba(244, 63, 94, 0.36);
+  color: #fecdd3;
+  font-size: 1.3rem;
+}
+
+.metabloom-gmail-card__actions {
+  margin-top: 1.2rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+}
+
+.metabloom-gmail-card__btn {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.09);
+  color: inherit;
+  border-radius: 999px;
+  padding: 0.65rem 1.3rem;
+  font-size: 1.3rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 140ms ease, border-color 140ms ease;
+}
+
+.metabloom-gmail-card__btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.32);
+}
+
+.metabloom-gmail-card__btn:focus-visible {
+  outline: 2px solid #93c5fd;
+  outline-offset: 2px;
+}
+
+.metabloom-gmail-card__btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.metabloom-gmail-card__btn--primary {
+  background: rgba(59, 130, 246, 0.82);
+  border-color: rgba(147, 197, 253, 0.65);
+  color: #ffffff;
+}
+
+.metabloom-gmail-card__btn--primary:hover:not(:disabled) {
+  background: rgba(37, 99, 235, 0.92);
+}
+
+.metabloom-gmail-card__btn--danger {
+  background: rgba(225, 29, 72, 0.82);
+  border-color: rgba(253, 164, 175, 0.58);
+  color: #ffffff;
+}
+
+.metabloom-gmail-card__btn--danger:hover:not(:disabled) {
+  background: rgba(190, 18, 60, 0.92);
+}
+
+[data-theme="light"] .metabloom-gmail-card,
+.light-theme .metabloom-gmail-card {
+  background: rgba(255, 255, 255, 0.78);
+  border-color: rgba(15, 23, 42, 0.14);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.1);
+  color: #0f172a;
+}
+
+[data-theme="light"] .metabloom-gmail-card__eyebrow,
+.light-theme .metabloom-gmail-card__eyebrow {
+  color: #334155;
+}
+
+[data-theme="light"] .metabloom-gmail-card__details,
+.light-theme .metabloom-gmail-card__details {
+  background: rgba(15, 23, 42, 0.04);
+}
+
+[data-theme="light"] .metabloom-gmail-card__detail-row dt,
+.light-theme .metabloom-gmail-card__detail-row dt {
+  color: #475569;
+}
+
+[data-theme="light"] .metabloom-gmail-card__body-wrap,
+.light-theme .metabloom-gmail-card__body-wrap {
+  background: rgba(15, 23, 42, 0.03);
+  border-color: rgba(15, 23, 42, 0.1);
+}
+
+[data-theme="light"] .metabloom-gmail-card__body-label,
+.light-theme .metabloom-gmail-card__body-label {
+  color: #475569;
+}
+
+[data-theme="light"] .metabloom-gmail-card__snippet,
+.light-theme .metabloom-gmail-card__snippet,
+[data-theme="light"] .metabloom-gmail-card__summary,
+.light-theme .metabloom-gmail-card__summary {
+  color: #334155;
+}
+
+[data-theme="light"] .metabloom-gmail-card__pill--pending,
+.light-theme .metabloom-gmail-card__pill--pending {
+  background: rgba(245, 158, 11, 0.16);
+  color: #92400e;
+}
+
+[data-theme="light"] .metabloom-gmail-card__pill--applied,
+.light-theme .metabloom-gmail-card__pill--applied {
+  background: rgba(16, 185, 129, 0.16);
+  color: #065f46;
+}
+
+[data-theme="light"] .metabloom-gmail-card__pill--neutral,
+.light-theme .metabloom-gmail-card__pill--neutral {
+  background: rgba(100, 116, 139, 0.14);
+  color: #334155;
+}
+
+[data-theme="light"] .metabloom-gmail-card__pill--error,
+.light-theme .metabloom-gmail-card__pill--error {
+  background: rgba(225, 29, 72, 0.12);
+  color: #9f1239;
+}
+
+[data-theme="light"] .metabloom-gmail-card__error,
+.light-theme .metabloom-gmail-card__error {
+  color: #9f1239;
+}
+
+[data-theme="light"] .metabloom-gmail-card__btn,
+.light-theme .metabloom-gmail-card__btn {
+  border-color: rgba(15, 23, 42, 0.18);
+  background: rgba(15, 23, 42, 0.05);
+  color: #0f172a;
+}
+
+[data-theme="light"] .metabloom-gmail-card__btn--primary,
+.light-theme .metabloom-gmail-card__btn--primary {
+  background: #2563eb;
+  border-color: #1d4ed8;
+  color: #ffffff;
+}
+
+[data-theme="light"] .metabloom-gmail-card__btn--danger,
+.light-theme .metabloom-gmail-card__btn--danger {
+  background: #be123c;
+  border-color: #9f1239;
+  color: #ffffff;
+}
+
+@media (max-width: 600px) {
+  .metabloom-gmail-card__detail-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.2rem;
+  }
+}

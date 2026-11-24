@@ -36,7 +36,7 @@
     "test:metabloom-improvement": "node --test scripts/metabloom-improvement.test.cjs",
     "test:metabloom-expression": "node --test scripts/metabloom-expression.test.cjs",
     "test:sms-consent": "node --test scripts/sms-consent.test.cjs",
-    "test:calendar": "node --test scripts/metabloom-calendar-store.test.cjs scripts/metabloom-calendar-mcp.test.cjs scripts/metabloom-calendar-api.test.cjs scripts/metabloom-calendar-agent.test.cjs scripts/metabloom-calendar-google.test.cjs"
+    "test:calendar": "node --test scripts/metabloom-calendar-store.test.cjs scripts/metabloom-calendar-mcp.test.cjs scripts/metabloom-calendar-api.test.cjs scripts/metabloom-calendar-agent.test.cjs scripts/metabloom-calendar-google.test.cjs scripts/metabloom-gmail.test.cjs"
   },
   "eslintConfig": {
     "extends": [

@@ -3,9 +3,15 @@ const {
   parseCalendarProposal,
   parseCalendarReceipt,
 } = require('./metabloomCalendarProtocol');
+const {
+  MAX_GMAIL_PROPOSAL_BYTES = 32768,
+  parseGmailProposal,
+  parseGmailReceipt,
+} = require('./metabloomGmailProtocol');
 
 const METABLOOM_AGENT_TIMEOUT_MS = 90000;
 const MAX_METABLOOM_AGENT_CALLS = 4;
+const MAX_METABLOOM_GMAIL_AGENT_CALLS = 6;
 const MAX_METABLOOM_TOOL_PROGRESS = 24;
 const METABLOOM_PROGRESS_WAIT_MS = 12000;
 const METABLOOM_AGENT_TOOL_LABELS = Object.freeze({
@@ -17,6 +23,9 @@ const METABLOOM_AGENT_TOOL_LABELS = Object.freeze({
   open_calendar_workspace: 'Opening your calendar', focus_calendar_view: 'Focusing your calendar',
   create_calendar_event: 'Creating calendar event', update_calendar_event: 'Updating calendar event',
   delete_calendar_event: 'Preparing event deletion',
+  list_recent_emails: 'Checking your inbox', read_email: 'Reading email',
+  create_email_draft: 'Saving email draft', propose_send_email: 'Preparing email for review',
+  organize_email: 'Updating email status', propose_trash_email: 'Preparing email removal',
   search_web: 'Searching the web', calculate: 'Calculating',
   get_current_time: 'Checking the time', create_visual: 'Preparing your visual',
   get_orb_state: 'Checking the Orb', express_orb: 'Choosing an expression',
@@ -179,9 +188,150 @@ const createMetabloomCalendarStreamBridge = (baseDecoder, {
   };
 };
 
+const parseMetabloomGmailStreamEvent = (value, expectedRequestId) => {
+  if (exactKeys(value, ['type', 'proposal']) && value.type === 'gmail_proposal') {
+    const proposal = parseGmailProposal(value.proposal, expectedRequestId);
+    return proposal ? { type: 'gmail_proposal', proposal } : null;
+  }
+  if (exactKeys(value, ['type', 'receipt']) && value.type === 'gmail_receipt') {
+    const receipt = parseGmailReceipt(value.receipt);
+    if (!receipt) return null;
+    if (expectedRequestId !== undefined && receipt.requestId !== expectedRequestId) return null;
+    return { type: 'gmail_receipt', receipt };
+  }
+  return null;
+};
+
+// Intercepts additive gmail_proposal / gmail_receipt NDJSON events after
+// text_complete and before done without altering existing stream ordering.
+const createMetabloomGmailStreamBridge = (baseDecoder, {
+  allowGmail = false,
+  requestId,
+  onGmailProposal,
+  onGmailReceipt,
+  maxRecordChars = Math.max(24000, MAX_GMAIL_PROPOSAL_BYTES),
+} = {}) => {
+  let buffer = '';
+  let failed = false;
+  let sawTextComplete = false;
+  let sawDone = false;
+  let gmailProposal = null;
+  let gmailReceipt = null;
+
+  const processLine = (line, terminated) => {
+    if (failed) return false;
+    const trimmed = line.trim();
+    if (!trimmed) return baseDecoder.push(terminated ? `${line}\n` : line);
+
+    let parsed = null;
+    if (trimmed.startsWith('{') && (
+      trimmed.includes('"gmail_proposal"')
+      || trimmed.includes('"gmail_receipt"')
+      || trimmed.includes('"text_complete"')
+      || trimmed.includes('"done"')
+    )) {
+      try { parsed = JSON.parse(trimmed); } catch { parsed = null; }
+    }
+
+    if (parsed && (parsed.type === 'gmail_proposal' || parsed.type === 'gmail_receipt')) {
+      if (!allowGmail || !sawTextComplete || sawDone || line.length > maxRecordChars) {
+        failed = true;
+        return false;
+      }
+      const event = parseMetabloomGmailStreamEvent(parsed, requestId);
+      if (!event) {
+        failed = true;
+        return false;
+      }
+      if (event.type === 'gmail_proposal') {
+        if (gmailProposal) {
+          failed = true;
+          return false;
+        }
+        gmailProposal = event.proposal;
+      } else {
+        if (gmailReceipt) {
+          failed = true;
+          return false;
+        }
+        gmailReceipt = event.receipt;
+      }
+      return true;
+    }
+
+    if (parsed?.type === 'text_complete') sawTextComplete = true;
+    if (parsed?.type === 'done') sawDone = true;
+
+    const ok = baseDecoder.push(terminated ? `${line}\n` : line);
+    if (!ok) failed = true;
+    return ok;
+  };
+
+  return {
+    get offer() {
+      return baseDecoder.offer;
+    },
+    get calendarProposal() {
+      return baseDecoder.calendarProposal;
+    },
+    get calendarReceipt() {
+      return baseDecoder.calendarReceipt;
+    },
+    get gmailProposal() {
+      return gmailProposal;
+    },
+    get gmailReceipt() {
+      return gmailReceipt;
+    },
+    push(chunk) {
+      if (failed) return false;
+      if (typeof chunk !== 'string') {
+        failed = true;
+        return false;
+      }
+      if (!chunk) return true;
+      buffer += chunk;
+      let newlineIndex = buffer.indexOf('\n');
+      while (newlineIndex !== -1) {
+        const line = buffer.slice(0, newlineIndex);
+        buffer = buffer.slice(newlineIndex + 1);
+        if (!processLine(line, true)) return false;
+        newlineIndex = buffer.indexOf('\n');
+      }
+      return true;
+    },
+    finish() {
+      if (!failed && buffer.length > 0) {
+        const tail = buffer;
+        buffer = '';
+        processLine(tail, false);
+      }
+      if (failed) return { ok: false, error: 'Invalid stream.' };
+      const result = baseDecoder.finish();
+      if (!result?.ok) return result;
+      if (gmailProposal) {
+        try { onGmailProposal?.(gmailProposal); } catch { /* Callback cannot break validated reply. */ }
+      }
+      if (gmailReceipt) {
+        try { onGmailReceipt?.(gmailReceipt); } catch { /* Callback cannot break validated reply. */ }
+      }
+      if (!gmailProposal && !gmailReceipt) return result;
+      return {
+        ...result,
+        value: {
+          ...result.value,
+          ...(gmailProposal ? { gmailProposal } : {}),
+          ...(gmailReceipt ? { gmailReceipt } : {}),
+        },
+      };
+    },
+  };
+};
+
 // The host and browser share this state machine. Progress is part of execution,
 // not model-authored prose or a timer that pretends a milestone happened.
-const createMetabloomAgentLifecycle = ({ requireStatus = false } = {}) => {
+const createMetabloomAgentLifecycle = ({ requireStatus = false, maxCalls = MAX_METABLOOM_AGENT_CALLS } = {}) => {
+  const callLimit = Number.isInteger(maxCalls) && maxCalls >= 1 ? maxCalls : MAX_METABLOOM_AGENT_CALLS;
   const calls = new Set();
   let phase = null, activeTool = null, lastTool = null, sequence = 0, summary = null, searchComplete = false, imageComplete = false;
   return {
@@ -203,7 +353,7 @@ const createMetabloomAgentLifecycle = ({ requireStatus = false } = {}) => {
       const activity = parseMetabloomAgentActivity(event);
       if (!activity) return null;
       if (activity.state === 'running') {
-        if (activeTool || calls.has(activity.callId) || calls.size >= MAX_METABLOOM_AGENT_CALLS || phase === 'validating'
+        if (activeTool || calls.has(activity.callId) || calls.size >= callLimit || phase === 'validating'
           || (requireStatus && !['working', 'reviewing'].includes(phase))) return null;
         calls.add(activity.callId); activeTool = activity; phase = 'tool'; sequence = 0; summary = null;
       } else {
@@ -237,6 +387,12 @@ const getMetabloomWorkPresentation = ({ phase, activeTool, lastTool, summary, se
         create_calendar_event: 'Calendar event processed.',
         update_calendar_event: 'Calendar update processed.',
         delete_calendar_event: 'Deletion prepared for confirmation.',
+        list_recent_emails: 'Inbox checked.',
+        read_email: 'Email read.',
+        create_email_draft: 'Email draft saved.',
+        propose_send_email: 'Email ready for your confirmation.',
+        organize_email: 'Email status updated.',
+        propose_trash_email: 'Trash action prepared for confirmation.',
         search_web: 'Search complete. Reviewing the sources.', calculate: 'Calculation complete.',
         get_invoice_draft: 'Invoice draft checked.', create_invoice_draft: 'Invoice draft saved. Checking required fields.',
         get_boom_quote_request: 'Boom request checked.', update_boom_quote_request: 'Boom request details saved. Checking required fields.',
@@ -247,7 +403,8 @@ const getMetabloomWorkPresentation = ({ phase, activeTool, lastTool, summary, se
   return { label: 'Working on your request', summary: null };
 };
 module.exports = { METABLOOM_AGENT_TIMEOUT_MS, MAX_METABLOOM_AGENT_CALLS,
-  MAX_METABLOOM_TOOL_PROGRESS, METABLOOM_PROGRESS_WAIT_MS, METABLOOM_AGENT_TOOL_LABELS,
-  parseMetabloomAgentActivity, parseMetabloomToolProgress, parseMetabloomAgentStatus,
-  parseMetabloomCalendarStreamEvent, createMetabloomCalendarStreamBridge,
+  MAX_METABLOOM_GMAIL_AGENT_CALLS, MAX_METABLOOM_TOOL_PROGRESS, METABLOOM_PROGRESS_WAIT_MS,
+  METABLOOM_AGENT_TOOL_LABELS, parseMetabloomAgentActivity, parseMetabloomToolProgress,
+  parseMetabloomAgentStatus, parseMetabloomCalendarStreamEvent, createMetabloomCalendarStreamBridge,
+  parseMetabloomGmailStreamEvent, createMetabloomGmailStreamBridge,
   createMetabloomAgentLifecycle, getMetabloomWorkPresentation };

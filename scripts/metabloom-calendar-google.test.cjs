@@ -329,6 +329,8 @@ test('api/metabloom-calendar-google handles connect, callback, status, cross-acc
   assert.deepEqual(unconfStatus.json, {
     configured: false,
     connected: false,
+    gmailConnected: false,
+    gmailSendConnected: false,
     email: null,
     calendarId: 'primary',
   });
@@ -341,6 +343,8 @@ test('api/metabloom-calendar-google handles connect, callback, status, cross-acc
   assert.deepEqual(initialStatus.json, {
     configured: true,
     connected: false,
+    gmailConnected: false,
+    gmailSendConnected: false,
     email: null,
     calendarId: 'primary',
   });
@@ -394,6 +398,8 @@ test('api/metabloom-calendar-google handles connect, callback, status, cross-acc
   assert.deepEqual(connectedStatus.json, {
     configured: true,
     connected: true,
+    gmailConnected: false,
+    gmailSendConnected: false,
     email: 'shaedan@example.test',
     calendarId: 'primary',
   });

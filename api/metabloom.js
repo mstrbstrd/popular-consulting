@@ -3,6 +3,8 @@ const { MAX_METABLOOM_WORKSPACE_BODY_BYTES, parseMetabloomWorkspaceContext, pars
 const { isMetabloomCalendarEnabled } = require('../server/metabloomCalendarProvider');
 const { parseMetabloomCalendarContext } = require('../server/metabloomCalendarWorkflow');
 const { parseCalendarProposal, parseCalendarReceipt } = require('../src/components/metabloomCalendarProtocol');
+const { isMetabloomGmailEnabled } = require('../server/metabloomGmailWorkflow');
+const { parseGmailProposal, parseGmailReceipt } = require('../src/components/metabloomGmailProtocol');
 const { createHmac, randomBytes } = require("node:crypto");
 const { once } = require("node:events");
 const metabloomAuth = require("../server/metabloomAuth");
@@ -77,6 +79,7 @@ const requestOriginIsAllowed = (request) => {
 const parseBody = (request) => {
   const workspaceNegotiated = request.headers?.['x-metabloom-workspace'] === '1';
   const calendarNegotiated = request.headers?.['x-metabloom-calendar'] === '1';
+  const gmailNegotiated = request.headers?.['x-metabloom-gmail'] === '1';
   const navigationNegotiated = request.headers?.['x-metabloom-navigation'] === '1';
   const maximumBytes = workspaceNegotiated ? MAX_METABLOOM_WORKSPACE_BODY_BYTES : MAX_BODY_BYTES;
   const declared = request.headers?.["content-length"];
@@ -91,7 +94,7 @@ const parseBody = (request) => {
       if (!navigationNegotiated || request.headers?.['x-metabloom-toolset'] !== '2' || !value.navigation) return null;
     }
     if (value.conversationId !== undefined && (!require('../src/components/metabloomThreadProtocol').isMetabloomThreadId(value.conversationId)
-      || (request.headers?.['x-metabloom-boom-request'] !== '1' && request.headers?.['x-metabloom-invoice'] !== '1' && !workspaceNegotiated && !calendarNegotiated))) return null;
+      || (request.headers?.['x-metabloom-boom-request'] !== '1' && request.headers?.['x-metabloom-invoice'] !== '1' && !workspaceNegotiated && !calendarNegotiated && !gmailNegotiated))) return null;
     if (value.workspaceContext !== undefined) {
       value.workspaceContext = parseMetabloomWorkspaceContext(value.workspaceContext);
       if (!workspaceNegotiated || request.headers?.['x-metabloom-toolset'] !== '2' || !value.workspaceContext
@@ -651,10 +654,16 @@ const handler = async (request, response) => {
         && isMetabloomCalendarEnabled()
         && request.headers?.['x-metabloom-calendar'] === '1'
       );
+      const gmailEnabled = Boolean(
+        accountIdentity
+        && isMetabloomGmailEnabled()
+        && request.headers?.['x-metabloom-gmail'] === '1'
+      );
       const result = await runMetabloomAgent({ message: body.message, history: body.history,
         ...(expressions ? { orbContext: body.orbContext } : {}),
         ...(body.workspaceContext ? { workspaceContext: body.workspaceContext, workspaceEnabled: isMetabloomWorkspaceEnabled() } : {}),
         ...(calendarEnabled ? { calendarEnabled: true, ...(body.calendarContext ? { calendarContext: body.calendarContext } : {}) } : {}),
+        ...(gmailEnabled ? { gmailEnabled: true } : {}),
         modelSelection, ...(navigationDecision ? { navigation: navigationDecision } : {}),
         allowMultiple: body.allowMultiple, presentationAction, timeZone: body.timeZone || 'UTC',
         submittedMessage: body.message,
@@ -692,6 +701,11 @@ const handler = async (request, response) => {
       if (result.calendarReceipt && (!calendarEnabled || !parseCalendarReceipt(result.calendarReceipt)
         || (body.requestId && result.calendarReceipt.requestId !== body.requestId)))
         throw createMetabloomProviderError('answer_invalid', 'calendar_receipt_invalid');
+      if (result.gmailProposal && (!gmailEnabled || !parseGmailProposal(result.gmailProposal, body.requestId)))
+        throw createMetabloomProviderError('answer_invalid', 'gmail_proposal_invalid');
+      if (result.gmailReceipt && (!gmailEnabled || !parseGmailReceipt(result.gmailReceipt)
+        || (body.requestId && result.gmailReceipt.requestId !== body.requestId)))
+        throw createMetabloomProviderError('answer_invalid', 'gmail_receipt_invalid');
       if (result.sources.length) {
         await sendStreamEvent({ type: 'tool_sources', sources: result.sources });
         // Opt-in only: older clients reject unknown stream events.
@@ -719,6 +733,8 @@ const handler = async (request, response) => {
       if (result.offer) await sendStreamEvent({ type: 'visual_offer', offer: result.offer });
       if (result.calendarProposal) await sendStreamEvent({ type: 'calendar_proposal', proposal: result.calendarProposal });
       if (result.calendarReceipt) await sendStreamEvent({ type: 'calendar_receipt', receipt: result.calendarReceipt });
+      if (result.gmailProposal) await sendStreamEvent({ type: 'gmail_proposal', proposal: result.gmailProposal });
+      if (result.gmailReceipt) await sendStreamEvent({ type: 'gmail_receipt', receipt: result.gmailReceipt });
       return response.end(JSON.stringify({ type: 'done', version: METABLOOM_CHAT_PROTOCOL_VERSION }) + '\n');
     }
     let research, researchReport, researchBrief, temporalContext, researchReference;

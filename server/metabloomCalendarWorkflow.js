@@ -98,7 +98,7 @@ const METABLOOM_CALENDAR_TOOLS = Object.freeze([
   ),
   define(
     'create_calendar_event',
-    'Create a calendar event grounded in the current user message. Solo events commit immediately with 1-click Undo; events with attendees require explicit user confirmation and are never committed until confirmed.',
+    'Create a calendar event grounded in the current user message. Solo events commit immediately with 1-click Undo; events with attendees or extracted from email require explicit user confirmation and are never committed until confirmed.',
     {
       title: { type: 'string', minLength: 1, maxLength: 200 },
       start: { type: 'string', minLength: 10, maxLength: 40 },
@@ -313,6 +313,7 @@ async function executeMetabloomCalendarTool({
   conversationId,
   calendarContext = null,
   timeZone = 'UTC',
+  gmailReadInTurn = false,
   signal,
   requestRef = null,
 }) {
@@ -510,7 +511,11 @@ async function executeMetabloomCalendarTool({
     });
     if (!eventInput) throw fail('calendar_invalid');
 
-    const needsConfirm = requiresCalendarConfirmation('create', eventInput);
+    // Invariant G5: When Gmail read tools ran in the same turn, NEVER auto-commit
+    // calendar events from untrusted email content — always require 1-click confirmation.
+    const forcedEmailConfirm = Boolean(gmailReadInTurn);
+    const baseNeedsConfirm = requiresCalendarConfirmation('create', eventInput);
+    const needsConfirm = forcedEmailConfirm || baseNeedsConfirm;
     const focusDate = focusDateFromStart(eventInput.start);
     const focus = focusDate ? { date: focusDate, view: null, eventId: null } : null;
     const operationId = makeOperationId(effectiveRequestId, 'create', JSON.stringify(eventInput));
@@ -532,7 +537,9 @@ async function executeMetabloomCalendarTool({
         operationId,
         status: 'pending_confirmation',
         requiresConfirmation: true,
-        message: 'Confirmation required before creating an event with attendees.',
+        message: forcedEmailConfirm && !baseNeedsConfirm
+          ? 'Confirmation required before adding a calendar event from email.'
+          : 'Confirmation required before creating an event with attendees.',
       });
       return {
         output: {
@@ -540,6 +547,7 @@ async function executeMetabloomCalendarTool({
           command: 'create',
           operationId,
           requiresConfirmation: true,
+          ...(forcedEmailConfirm ? { confirmationReason: 'untrusted_email_source' } : {}),
           title: sanitizeUntrustedCalendarText(eventInput.title, 200),
           attendeeCount: eventInput.attendees.length,
         },
@@ -679,7 +687,9 @@ async function executeMetabloomCalendarTool({
     });
     if (!mergedInput) throw fail('calendar_invalid');
 
-    const needsConfirm = requiresCalendarConfirmation('update', patch, existing);
+    const forcedEmailConfirm = Boolean(gmailReadInTurn);
+    const baseNeedsConfirm = requiresCalendarConfirmation('update', patch, existing);
+    const needsConfirm = forcedEmailConfirm || baseNeedsConfirm;
     const focusDate = focusDateFromStart(mergedInput.start);
     const focus = { date: focusDate, view: null, eventId: existing.id };
     const operationId = makeOperationId(
@@ -710,7 +720,9 @@ async function executeMetabloomCalendarTool({
         eventId: existing.id,
         eventRevision: existing.revision,
         requiresConfirmation: true,
-        message: 'Confirmation required before updating an event with attendees.',
+        message: forcedEmailConfirm && !baseNeedsConfirm
+          ? 'Confirmation required before updating a calendar event from email.'
+          : 'Confirmation required before updating an event with attendees.',
         event: existing,
       });
       return {

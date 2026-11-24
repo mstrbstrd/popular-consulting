@@ -16,7 +16,9 @@ const {
 const GOOGLE_OAUTH_COOKIE = '__Host-popcon-gcal-oauth';
 const GOOGLE_OAUTH_COOKIE_MAX_AGE_SECONDS = 600;
 const GOOGLE_OAUTH_CLOCK_SKEW_MS = 30 * 1000;
-const GOOGLE_OAUTH_SCOPES = 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/userinfo.email';
+const GMAIL_MODIFY_SCOPE = 'https://www.googleapis.com/auth/gmail.modify';
+const GMAIL_COMPOSE_SCOPE = 'https://www.googleapis.com/auth/gmail.compose';
+const GOOGLE_OAUTH_SCOPES = `https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/userinfo.email ${GMAIL_MODIFY_SCOPE} ${GMAIL_COMPOSE_SCOPE}`;
 const GOOGLE_AUTHORIZE_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const GOOGLE_REVOKE_URL = 'https://oauth2.googleapis.com/revoke';
@@ -24,6 +26,7 @@ const GOOGLE_USERINFO_URL = 'https://www.googleapis.com/oauth2/v2/userinfo';
 const GOOGLE_HTTP_TIMEOUT_MS = 8000;
 const MAX_GOOGLE_RESPONSE_BYTES = 256 * 1024;
 const MAX_TOKEN_RECORD_BYTES = 128 * 1024;
+const MAX_GMAIL_RECEIPT_CACHE = 40;
 
 const READ_TOKEN_SCRIPT = "return redis.call('GET', KEYS[1])";
 const WRITE_TOKEN_SCRIPT = "return redis.call('SET', KEYS[1], ARGV[1])";
@@ -46,6 +49,28 @@ function isHex64(value) {
 function isPlainObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
     && [Object.prototype, null].includes(Object.getPrototypeOf(value));
+}
+
+function extractScopeSet(record) {
+  const raw = typeof record === 'string'
+    ? record
+    : (record && typeof record === 'object' && typeof record.scope === 'string' ? record.scope : '');
+  if (!raw.trim()) return new Set();
+  return new Set(raw.trim().split(/\s+/).filter(Boolean));
+}
+
+function hasGmailReadScope(record) {
+  const scopes = extractScopeSet(record);
+  return scopes.has(GMAIL_MODIFY_SCOPE)
+    || scopes.has('https://www.googleapis.com/auth/gmail.readonly')
+    || scopes.has('https://mail.google.com/');
+}
+
+function hasGmailSendScope(record) {
+  const scopes = extractScopeSet(record);
+  return scopes.has(GMAIL_COMPOSE_SCOPE)
+    || scopes.has('https://www.googleapis.com/auth/gmail.send')
+    || scopes.has('https://mail.google.com/');
 }
 
 function parseHttpsOrigin(raw) {
@@ -555,6 +580,7 @@ async function refreshGoogleAccessToken({
   refreshToken,
   clientId,
   clientSecret,
+  fallbackScope = GOOGLE_OAUTH_SCOPES,
   fetchImpl = globalThis.fetch,
   signal,
 } = {}) {
@@ -616,7 +642,7 @@ async function refreshGoogleAccessToken({
     accessToken: data.access_token,
     refreshToken: typeof data.refresh_token === 'string' && data.refresh_token ? data.refresh_token : refreshToken,
     expiresIn,
-    scope: typeof data.scope === 'string' && data.scope ? data.scope : GOOGLE_OAUTH_SCOPES,
+    scope: typeof data.scope === 'string' && data.scope ? data.scope : fallbackScope,
     tokenType: typeof data.token_type === 'string' && data.token_type ? data.token_type : 'Bearer',
   };
 }
@@ -695,6 +721,32 @@ function normalizeRecentOperation(entry) {
   };
 }
 
+function normalizeRecentGmailOperation(entry) {
+  if (!isPlainObject(entry)) return null;
+  if (typeof entry.operationId !== 'string' || !/^[a-zA-Z0-9_-]{1,160}$/.test(entry.operationId)) return null;
+  if (typeof entry.payloadHash !== 'string' || !/^[a-f0-9]{64}$/.test(entry.payloadHash)) return null;
+  if (!['send', 'draft', 'trash'].includes(entry.command)) return null;
+  const messageId = entry.messageId === null || entry.messageId === undefined
+    ? null
+    : (typeof entry.messageId === 'string' && /^[a-zA-Z0-9_-]{1,160}$/.test(entry.messageId) ? entry.messageId : null);
+  const draftId = entry.draftId === null || entry.draftId === undefined
+    ? null
+    : (typeof entry.draftId === 'string' && /^[a-zA-Z0-9_-]{1,160}$/.test(entry.draftId) ? entry.draftId : null);
+  const threadId = entry.threadId === null || entry.threadId === undefined
+    ? null
+    : (typeof entry.threadId === 'string' && /^[a-zA-Z0-9_-]{1,160}$/.test(entry.threadId) ? entry.threadId : null);
+  if (!Number.isSafeInteger(entry.at) || entry.at < 1) return null;
+  return {
+    operationId: entry.operationId,
+    payloadHash: entry.payloadHash,
+    command: entry.command,
+    messageId,
+    draftId,
+    threadId,
+    at: entry.at,
+  };
+}
+
 function normalizeTokenRecord(raw, { defaultCalendarId = 'primary', nowMs = Date.now() } = {}) {
   if (!isPlainObject(raw)) throw googleAuthError('calendar_google_token_corrupt');
   if (typeof raw.accessToken !== 'string' || !raw.accessToken) {
@@ -715,6 +767,9 @@ function normalizeTokenRecord(raw, { defaultCalendarId = 'primary', nowMs = Date
   const recentOperations = Array.isArray(raw.recentOperations)
     ? raw.recentOperations.map(normalizeRecentOperation).filter(Boolean).slice(-MAX_CALENDAR_RECEIPT_CACHE)
     : [];
+  const recentGmailOperations = Array.isArray(raw.recentGmailOperations)
+    ? raw.recentGmailOperations.map(normalizeRecentGmailOperation).filter(Boolean).slice(-MAX_GMAIL_RECEIPT_CACHE)
+    : [];
 
   return {
     v: 1,
@@ -728,6 +783,7 @@ function normalizeTokenRecord(raw, { defaultCalendarId = 'primary', nowMs = Date
     updatedAt,
     undoHistory,
     recentOperations,
+    ...(recentGmailOperations.length ? { recentGmailOperations } : {}),
   };
 }
 
@@ -807,9 +863,14 @@ function createGoogleTokenStore(database, {
 module.exports = {
   GOOGLE_OAUTH_COOKIE,
   GOOGLE_OAUTH_COOKIE_MAX_AGE_SECONDS,
+  GMAIL_MODIFY_SCOPE,
+  GMAIL_COMPOSE_SCOPE,
   GOOGLE_OAUTH_SCOPES,
   GOOGLE_HTTP_TIMEOUT_MS,
   MAX_GOOGLE_RESPONSE_BYTES,
+  MAX_GMAIL_RECEIPT_CACHE,
+  hasGmailReadScope,
+  hasGmailSendScope,
   isGoogleCalendarConfigured,
   readGoogleCalendarConfig,
   encryptTokenPayload,
