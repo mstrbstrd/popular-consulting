@@ -100,11 +100,22 @@ try {
   const reports = [];
   for (const width of [390, 1440]) for (const mode of ["light", "dark"]) {
     const name = `invoice-${width}-${mode}`;
-    const dom = await runBrowserCapture({ browserPath,
+    // A one-shot headless Chrome occasionally exits on CI without writing its
+    // screenshot (seen at different viewports on otherwise passing runs). Retry
+    // that one infrastructure outcome once; any other error, and every check
+    // inside the page, still fails the run.
+    const capture = () => runBrowserCapture({ browserPath,
       url: `http://127.0.0.1:${server.address().port}/invoice-generator?smoke-theme=${mode}`,
       screenshotPath: path.join(output, `${name}.png`), profilePrefix: "invoice-smoke-",
       viewport: { width, height: 1000 }, allowSoftware: false,
       virtualTimeBudgetMs: 30000, commandTimeoutMs: 90000 });
+    let dom;
+    try { dom = await capture(); }
+    catch (error) {
+      if (!/^Browser did not create /.test(error.message)) throw error;
+      console.log(`Retrying ${name}: ${error.message}`);
+      dom = await capture();
+    }
     const match = dom.match(/<pre id="invoice-smoke-report"[^>]*>([^<]+)<\/pre>/);
     assert(match, "Invoice browser checks did not finish.");
     const report = JSON.parse(match[1].replaceAll("&quot;", '"').replaceAll("&amp;", "&"));
