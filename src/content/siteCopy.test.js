@@ -80,3 +80,10 @@ describe("dual-audience public copy", () => {
     });
   });
 });
+
+test("visitors' consulting navigation leaves out the hiring and studio pages, the owner keeps them", () => {
+  const { links, signedInLinks } = getSiteCopy(SITE_AUDIENCES.BUSINESS).navigation;
+  expect(links.map((link) => link.label)).toEqual(["About", "Services", "Work", "Contact"]);
+  expect(links.some((link) => ["/engineering", "/popcan"].includes(link.href))).toBe(false);
+  expect(signedInLinks.map((link) => link.href).filter(Boolean)).toEqual(["/work", "/popcan", "/engineering"]);
+});

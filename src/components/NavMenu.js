@@ -15,7 +15,7 @@ const NavMenu = ({ audience = SITE_AUDIENCES.BUSINESS, standalone = false, initi
   const { status } = useAuth();
   const appNavigation = useAppNavigation();
   const navigation = getSiteCopy(audience).navigation;
-  const navLinks = navigation.links;
+  const navLinks = status === 'authenticated' && navigation.signedInLinks ? navigation.signedInLinks : navigation.links;
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [isVisible, setIsVisible] = useState(standalone || initialSection !== 0);

@@ -12,7 +12,15 @@ const BUSINESS_COPY = Object.freeze({
   navigation: Object.freeze({
     brandLabel: "Popular Consulting",
     brandAriaLabel: "Popular Consulting - return to home",
+    // Visitors stay in the consulting journey: no engineering-hiring or
+    // studio-toy links. The signed-in owner keeps every destination.
     links: Object.freeze([
+      Object.freeze({ label: "About", section: 1 }),
+      Object.freeze({ label: "Services", section: 2 }),
+      Object.freeze({ label: "Work", href: "/work" }),
+      Object.freeze({ label: "Contact", section: 3 }),
+    ]),
+    signedInLinks: Object.freeze([
       Object.freeze({ label: "About", section: 1 }),
       Object.freeze({ label: "Services", section: 2 }),
       Object.freeze({ label: "Work", href: "/work" }),

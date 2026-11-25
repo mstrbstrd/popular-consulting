@@ -36,6 +36,7 @@ describe('Home layout and feature art', () => {
     expect(read('WorkspaceMenu.js')).toContain("{ label: 'Canvas', href: '/popcan' }");
     const copy = fs.readFileSync(path.join(__dirname, '../content/siteCopy.js'), 'utf8');
     expect(copy).not.toMatch(/label: "Popcan"/);
+    // The signed-in site menu and the engineering menu link Canvas; visitors' consulting menu does not.
     expect(copy.match(/label: "Canvas", href: "\/popcan"/g)).toHaveLength(2);
   });
 

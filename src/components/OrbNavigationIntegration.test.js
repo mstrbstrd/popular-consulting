@@ -69,9 +69,8 @@ describe("Orb shared navigation integration", () => {
       "href",
       "/work",
     );
-    expect(screen.getByRole("link", { name: "Engineering" })).toHaveAttribute(
-      "href",
-      "/engineering",
-    );
+    // The consulting navigation keeps buyers out of the hiring and toy pages.
+    expect(screen.queryByRole("link", { name: "Engineering" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Canvas" })).toBeNull();
   });
 });
