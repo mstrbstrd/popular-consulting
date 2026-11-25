@@ -71,6 +71,9 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
           node-version: 24
+          cache: npm
+      # The field shader is evaluated from its module with esbuild.
+      - run: npm ci --no-audit --no-fund
       - name: Compile field and verify spatial reflection
         env:
           VISUAL_CAPTURE_BROWSER: /usr/bin/google-chrome

@@ -95,7 +95,7 @@ try {
           const originalContext=HTMLCanvasElement.prototype.getContext;
           HTMLCanvasElement.prototype.getContext=function(...args){
             const context=originalContext.apply(this,args);
-            if(context&&this.classList.contains('creatoros-field-canvas')&&!contexts.has(context)){
+            if(context&&this.classList.contains('creatoros-field-canvas')&&this.closest('.invoice-scene')&&!contexts.has(context)){
               contexts.add(context);window.__invoiceFieldContexts++;
               const originalDraw=context.drawArrays.bind(context);
               context.drawArrays=(...draw)=>{window.__invoiceFieldDraws++;return originalDraw(...draw)};
@@ -200,7 +200,8 @@ try {
         }
         if (fieldReview) {
           await evaluate('new Promise(resolve=>setTimeout(resolve,1800))');
-          check(await evaluate(`document.querySelector('.creatoros-field-shell').dataset.fieldSpecialization==='sceneContourDrift' && !document.querySelector('.creatoros-field-shell.is-fallback') && window.__invoiceFieldDraws>0`),'Actual Contour Drift shader did not render');
+          // Only the invoice background counts: the Metabloom companion has its own field.
+          check(await evaluate(`document.querySelector('.invoice-scene .creatoros-field-shell').dataset.fieldSpecialization==='sceneContourDrift' && !document.querySelector('.invoice-scene .creatoros-field-shell.is-fallback') && window.__invoiceFieldDraws>0`),'Actual Contour Drift shader did not render');
           await capture('field');
           await click('.invoice-scene-options button');
           await evaluate('new Promise(resolve=>setTimeout(resolve,250))');
