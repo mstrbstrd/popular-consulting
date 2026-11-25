@@ -11,10 +11,9 @@ test.each(['/popcan', '/popcan/', '/popcan/index.html'])('resolves direct editor
 });
 test('exposes Popcan from both shared navigation audiences and Morphogen paint', () => {
   const morphogen = source('src/components/DitherCanvasPage.js');
-  [SITE_AUDIENCES.BUSINESS, SITE_AUDIENCES.ENGINEERING].forEach((audience) => {
-    const { links, signedInLinks } = getSiteCopy(audience).navigation;
-    expect((signedInLinks || links).some((link) => link.href === '/popcan')).toBe(true);
-  });
+  // Canvas is a workspace tool for the consulting site, and a nav link for the engineering audience.
+  expect(source('src/components/WorkspaceMenu.js')).toContain("{ label: 'Canvas', href: '/popcan' }");
+  expect(getSiteCopy(SITE_AUDIENCES.ENGINEERING).navigation.links.some((link) => link.href === '/popcan')).toBe(true);
   expect(morphogen).toContain('href="/popcan"');
   expect(morphogen).toContain('aria-label="Open Popular Canvas"');
   expect(morphogen).toContain('import popcanLogo from "../assets/img/popcan-logo.png"');

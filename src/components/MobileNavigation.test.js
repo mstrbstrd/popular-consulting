@@ -27,10 +27,11 @@ describe('one mobile navigation menu', () => {
     expect(container.querySelector('.nav-header .site-account-menu')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Open navigation menu' }));
     const menu = within(screen.getByRole('dialog', { name: 'Navigation menu' }));
-    ['Home', 'Canvas', 'Dither Canvas', 'Orb', 'Invoice Generator', 'Selected work', 'Popular Consulting', 'Sign out'].forEach(name => {
+    ['Home', 'Orb', 'Canvas', 'Dither Canvas', 'Invoice Generator', 'Work', 'Engineering', 'Sign out'].forEach(name => {
       expect(menu.getAllByRole('link', { name, exact: true })).toHaveLength(1);
     });
-    expect(menu.queryByRole('link', { name: 'Work', exact: true })).not.toBeInTheDocument();
+    // Site pages come from the site links; the workspace menu lists tools only.
+    ['Selected work', 'Popular Consulting'].forEach(name => expect(menu.queryByRole('link', { name, exact: true })).not.toBeInTheDocument());
     expect(menu.getByRole('link', { name: 'Home', exact: true })).toHaveAttribute('aria-current', 'page');
     const orb = menu.getByRole('link', { name: 'Orb', exact: true });
     // The shell delegates real links from the document. Overlay clicks must

@@ -227,9 +227,7 @@ function HomeContent() {
     <main ref={mainRef} id="workspace" className="home-main" tabIndex={-1} aria-labelledby="home-title">
       {signedIn ? <div className="auth-protected-content">
         <header className="home-welcome">
-          <p className="home-eyebrow">Popular Consulting <span aria-hidden="true">/</span> Your workspace</p>
           <h1 id="home-title">Welcome back.</h1>
-          <p>A little space to create, explore, and get things done.</p>
         </header>
         <section className="home-bento" aria-label="Your tools">
           {tools.map(tool => <a key={tool.id} className={`aetheris-card home-tool home-tool--${tool.id}`} href={tool.href}

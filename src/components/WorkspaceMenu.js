@@ -3,17 +3,22 @@ import { useAuth } from '../contexts/AuthContext';
 import { useAppNavigation } from '../contexts/AppNavigationContext';
 import './WorkspaceMenu.css';
 
+// The workspace menu holds tools only. Site pages belong to the page's own
+// navigation; a page without one (Canvas) asks for them with siteLinks.
 const tools = [
   { label: 'Home', href: '/home', private: true },
+  { label: 'Orb', href: '/orb', private: true },
   { label: 'Canvas', href: '/popcan' },
   { label: 'Dither Canvas', href: '/dither-canvas' },
-  { label: 'Orb', href: '/orb', private: true },
   { label: 'Invoice Generator', href: '/invoice-generator', private: true },
-  { label: 'Selected work', href: '/work' },
-  { label: 'Popular Consulting', href: '/#section-1' },
+  ...(process.env.REACT_APP_METABLOOM_CALENDAR_ENABLED === '1' ? [{ label: 'Calendar', href: '/calendar', private: true }] : []),
+];
+const site = [
+  { label: 'Work', href: '/work' },
+  { label: 'Popular Consulting', href: '/' },
 ];
 export const workspaceHrefs = new Set(tools.map(tool => tool.href));
-export default function WorkspaceMenu({ inline = false, onNavigate, menuRole, mobileControls, linkClassName }) {
+export default function WorkspaceMenu({ inline = false, onNavigate, menuRole, mobileControls, linkClassName, siteLinks = false }) {
   const navigation = useAppNavigation();
   const { status } = useAuth();
   const ref = useRef(null);
@@ -29,7 +34,7 @@ export default function WorkspaceMenu({ inline = false, onNavigate, menuRole, mo
     return () => { document.removeEventListener('keydown', close); document.removeEventListener('pointerdown', close); document.removeEventListener('focusin', close); };
   }, []);
   if (!navigation) return null;
-  const links = tools.filter(tool => !tool.private || status === 'authenticated').map(tool =>
+  const links = [...tools, ...(siteLinks ? site : [])].filter(tool => !tool.private || status === 'authenticated').map(tool =>
     <a key={tool.href} href={tool.href} role={menuRole}
       className={linkClassName || (inline ? 'nav-overlay-link' : undefined)}
       aria-current={navigation.pathname === tool.href ? 'page' : undefined}

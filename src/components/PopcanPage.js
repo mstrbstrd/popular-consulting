@@ -466,7 +466,7 @@ export function PopcanContent() {
         </div>
         {/* One top menu: the site's theme, experience and account controls
             live in Canvas's own bar instead of a second navigation pill. */}
-        <nav className="pc-site" aria-label="Site"><ThemeToggle /><WorkspaceMenu /><AuthNavControl /></nav>
+        <nav className="pc-site" aria-label="Site"><ThemeToggle /><WorkspaceMenu siteLinks /><AuthNavControl /></nav>
       </header>
       <div className="pc-workspace">
         <div className="pc-tools" role="toolbar" aria-label="Drawing tools">

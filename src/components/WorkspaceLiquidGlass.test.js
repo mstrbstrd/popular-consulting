@@ -65,7 +65,7 @@ describe('one liquid glass system across the signed-in workspace', () => {
   test('Canvas has one top menu, clear glass like the nav pill, with its glass on ::before', () => {
     const page = read('PopcanPage.js');
     expect(page).not.toMatch(/NavMenu/);
-    expect(page).toMatch(/<nav className="pc-site" aria-label="Site"><ThemeToggle \/><WorkspaceMenu \/><AuthNavControl \/><\/nav>\s*<\/header>/);
+    expect(page).toMatch(/<nav className="pc-site" aria-label="Site"><ThemeToggle \/><WorkspaceMenu siteLinks \/><AuthNavControl \/><\/nav>\s*<\/header>/);
     const bar = strip(popcan).match(/\.popcan-page \.pc-topbar \{([^}]*)\}/)[1];
     expect(bar).toContain('backdrop-filter: none;');
     const glass = strip(popcan).match(/\.popcan-page \.pc-topbar::before \{([^}]*)\}/)[1];

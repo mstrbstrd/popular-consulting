@@ -1,10 +1,14 @@
 import React, { useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useAppNavigation } from '../contexts/AppNavigationContext';
 import './AuthPage.css';
 import { LOGIN_SECTION_INDEX } from '../utils/loginScene';
 
 export default function AuthNavControl({ mobile = false, onNavigate = () => {}, menuRole, showWorkspaceLinks = true, linkClassName }) {
   const { status } = useAuth();
+  // The workspace menu lists Home and the tools wherever app navigation runs;
+  // the account menu repeats them only where it does not.
+  const appNavigation = useAppNavigation();
   const menu = useRef(null);
   useEffect(() => {
     const close = event => {
@@ -34,6 +38,6 @@ export default function AuthNavControl({ mobile = false, onNavigate = () => {}, 
   if (!signedIn) return <a className="site-account-control" href="/login" onClick={navigateToAccount} aria-label="Sign in" title="Sign in">{icon}</a>;
   return <details className="site-account-menu" ref={menu}>
     <summary className="site-account-control" aria-label="Account menu" title="Account menu">{icon}</summary>
-    <div className="site-account-panel"><span>Administrator</span><a href="/home">Home</a><a href="/invoice-generator">Invoice generator</a><a href="/logout">Sign out</a></div>
+    <div className="site-account-panel"><span>Administrator</span>{!appNavigation && <><a href="/home">Home</a><a href="/invoice-generator">Invoice generator</a></>}<a href="/logout">Sign out</a></div>
   </details>;
 }
