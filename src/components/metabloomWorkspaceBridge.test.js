@@ -200,6 +200,41 @@ test('ordinary capability probing has a two-second budget without extending chat
   } finally { jest.useRealTimers(); }
 });
 
+test('a session reuses its availability answer for sends, but never across identities or for timeouts', async () => {
+  const f = fixture();
+  expect(await f.bridge.probe({ conversationId })).toBe(true);
+  expect(await f.bridge.probe({ conversationId, signal: new AbortController().signal })).toBe(true);
+  expect(f.fetchImpl).toHaveBeenCalledTimes(1);
+  // An early warm-up and a send share one network check.
+  const shared = fixture(); const gate = deferred();
+  shared.fetchImpl.mockImplementation(async () => { await gate.promise; return response(true); });
+  const warm = shared.bridge.probe({ conversationId }), send = shared.bridge.probe({ conversationId });
+  gate.resolve(); expect(await Promise.all([warm, send])).toEqual([true, true]);
+  expect(shared.fetchImpl).toHaveBeenCalledTimes(1);
+  // Another account asks again.
+  f.bridge.configure({ auth: { ...auth, user: { id: 'other-user', role: 'admin' } } });
+  expect(await f.bridge.probe({ conversationId })).toBe(true);
+  expect(f.fetchImpl).toHaveBeenCalledTimes(2);
+  // A denial is remembered briefly; a failed or cancelled check is not.
+  const deniedFetch = jest.fn(async () => response(false));
+  const denied = fixture({ options: { fetchImpl: deniedFetch } });
+  expect(await denied.bridge.probe({ conversationId })).toBe(false);
+  expect(await denied.bridge.probe({ conversationId })).toBe(false);
+  expect(deniedFetch).toHaveBeenCalledTimes(1);
+  const failing = jest.fn().mockRejectedValueOnce(new Error('offline')).mockImplementation(async () => response(true));
+  const offline = fixture({ options: { fetchImpl: failing } });
+  expect(await offline.bridge.probe({ conversationId })).toBe(false);
+  expect(await offline.bridge.probe({ conversationId })).toBe(true);
+  expect(failing).toHaveBeenCalledTimes(2);
+});
+
+test('opening and applying still check availability themselves', async () => {
+  const f = fixture({ pathname: '/orb', register: false });
+  expect(await f.bridge.probe({ conversationId })).toBe(true);
+  expect((await f.bridge.open({ conversationId })).status).toBe('ready');
+  expect(f.fetchImpl).toHaveBeenCalledTimes(2);
+});
+
 
 test('opening survives a private editor StrictMode registration cycle but old update authority is revoked', async () => {
   const f = fixture({ pathname: '/orb', register: false });

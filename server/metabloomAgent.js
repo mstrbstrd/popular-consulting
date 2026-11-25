@@ -202,35 +202,36 @@ async function runMetabloomAgent({ message, submittedMessage = message, history,
   const imageAvailable = imagesAvailable === true && !webDeclined;
   const visualTool = getMetabloomVisualToolDefinition();
   const workflowAvailable = priceBookEnabled && priceBookWorkflowEnabled && Boolean(accountIdentity);
-  let draftState = null;
-  if (workflowAvailable) {
-    priceBookWorkflowStore = priceBookWorkflowStore || createMetabloomPriceBookWorkflowStore();
-    try { draftState = priceBookDraftView(await traceTime('store_read', () => priceBookWorkflowStore.read(accountIdentity, { signal }), { store: 'price_book_workflow' })); }
-    catch { signal?.throwIfAborted(); draftState = { status: 'unavailable' }; }
-  }
   const boomAvailable = boomRequestsEnabled && Boolean(accountIdentity) && isMetabloomThreadId(conversationId);
-  let boomState = null;
-  if (boomAvailable) {
-    try {
-      boomRequestStore = boomRequestStore || createMetabloomBoomRequestStore();
-      boomState = boomRequestView(await traceTime('store_read', () => boomRequestStore.read(accountIdentity, conversationId, { signal }), { store: 'boom_request' }));
-    } catch { signal?.throwIfAborted(); boomState = { status: 'unavailable' }; }
-  }
   const invoiceAvailable = !workspaceAvailable && invoiceDraftsEnabled && Boolean(accountIdentity) && isMetabloomThreadId(conversationId) && Boolean(requestId);
-  let invoiceState = null;
-  if (invoiceAvailable) {
-    try { invoiceStore = invoiceStore || createMetabloomInvoiceStore();
-      const view = invoiceDraftView(await traceTime('store_read', () => invoiceStore.read(accountIdentity, conversationId, { signal }), { store: 'invoice_draft' }));
-      invoiceState = { revision: view.revision, fields: view.fields, items: view.items, missing: view.missing };
-    } catch { signal?.throwIfAborted(); invoiceState = { status: 'unavailable' }; }
-  }
-  let activePriceBook = null;
-  if (priceBookEnabled && (visualsAvailable || workflowAvailable) && accountIdentity) {
-    try {
+  // The saved states are independent reads, so they run concurrently instead of
+  // adding one Redis round trip each before the first model call.
+  const readState = async (enabled, store, read, unavailable) => {
+    if (!enabled) return null;
+    try { return await traceTime('store_read', read, { store }); }
+    catch { signal?.throwIfAborted(); return unavailable; }
+  };
+  if (workflowAvailable) priceBookWorkflowStore = priceBookWorkflowStore || createMetabloomPriceBookWorkflowStore();
+  // Store construction stays inside each read, so a misconfigured store only
+  // marks that state unavailable, as before.
+  const priceBookReadable = priceBookEnabled && (visualsAvailable || workflowAvailable) && Boolean(accountIdentity);
+  const [draftState, boomState, invoiceState, activePriceBook] = await Promise.all([
+    readState(workflowAvailable, 'price_book_workflow',
+      async () => priceBookDraftView(await priceBookWorkflowStore.read(accountIdentity, { signal })), { status: 'unavailable' }),
+    readState(boomAvailable, 'boom_request',
+      async () => { boomRequestStore = boomRequestStore || createMetabloomBoomRequestStore();
+        return boomRequestView(await boomRequestStore.read(accountIdentity, conversationId, { signal })); }, { status: 'unavailable' }),
+    readState(invoiceAvailable, 'invoice_draft', async () => {
+      invoiceStore = invoiceStore || createMetabloomInvoiceStore();
+      const view = invoiceDraftView(await invoiceStore.read(accountIdentity, conversationId, { signal }));
+      return { revision: view.revision, fields: view.fields, items: view.items, missing: view.missing };
+    }, { status: 'unavailable' }),
+    readState(priceBookReadable, 'price_book', () => {
       priceBookStore = priceBookStore || createMetabloomPriceBookStore();
-      activePriceBook = await traceTime('store_read', () => priceBookStore.read(accountIdentity, { signal }), { store: 'price_book' });
-    } catch { signal?.throwIfAborted(); }
-  }
+      return priceBookStore.read(accountIdentity, { signal });
+    }, null),
+  ]);
+  signal?.throwIfAborted();
   const quoteTool = activePriceBook && priceBookVisualsAvailable ? { type: 'function', name: 'get_quote', strict: true,
     description: `Compute an estimate from the account's published price book version ${activePriceBook.version}. Supply only job facts. Do not invent missing inputs. Prices and taxes are computed by the host.`,
     parameters: deriveMetabloomPriceBookToolSchema(activePriceBook.book) } : null;

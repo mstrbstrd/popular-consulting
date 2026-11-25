@@ -41,6 +41,7 @@ function normalizeModels(provider, items) {
 }
 
 // Bounded process cache coalesces catalog reads without persisting credentials.
+const CATALOG_FRESH_MS = 5 * 60 * 1000, CATALOG_STALE_MS = 30 * 60 * 1000;
 function createMetabloomModelCatalog({ fetchImpl = (...args) => globalThis.fetch(...args), now = Date.now } = {}) {
   const cache = new Map();
   async function getProvider(provider, { signal } = {}) {
@@ -48,39 +49,54 @@ function createMetabloomModelCatalog({ fetchImpl = (...args) => globalThis.fetch
     const empty = { id: provider, status: 'not_configured', models: [], defaultModel: null, latestModel: null };
     if (!Object.hasOwn(PROVIDER_CONFIG, provider) || !providerConfigured(provider)) return empty;
     const cached = cache.get(provider);
-    if (cached && cached.expires > now()) return cached.value;
-    if (cached?.pending) return cached.pending;
-    const pending = (async () => {
-      const timeout = AbortSignal.timeout(8000);
-      try {
-        const items = []; let after;
-        for (let page = 0; page < 3; page++) {
-          const url = PROVIDER_CONFIG[provider].origin + '/models' + (provider === 'anthropic'
-            ? '?limit=1000' + (after ? '&after_id=' + encodeURIComponent(after) : '') : '');
-          const response = await fetchImpl(url, { headers: providerHeaders(provider), redirect: 'error', signal: timeout });
-          if (!response.ok) throw await readMetabloomProviderError(response, timeout);
-          const result = await readMetabloomProviderJson(response, timeout, 1048576);
-          if (!Array.isArray(result?.data) || result.data.length > 1000) throw unavailable('catalog_invalid');
-          items.push(...result.data);
-          if (!result.has_more) break;
-          if (provider !== 'anthropic' || page === 2 || !modelId(result.last_id) || after === result.last_id) throw unavailable('catalog_pagination');
-          after = result.last_id;
+    if (cached?.value && cached.expires > now()) return cached.value;
+    const refresh = () => {
+      const previous = cache.get(provider);
+      const pending = (async () => {
+        const timeout = AbortSignal.timeout(8000);
+        try {
+          const items = []; let after;
+          for (let page = 0; page < 3; page++) {
+            const url = PROVIDER_CONFIG[provider].origin + '/models' + (provider === 'anthropic'
+              ? '?limit=1000' + (after ? '&after_id=' + encodeURIComponent(after) : '') : '');
+            const response = await fetchImpl(url, { headers: providerHeaders(provider), redirect: 'error', signal: timeout });
+            if (!response.ok) throw await readMetabloomProviderError(response, timeout);
+            const result = await readMetabloomProviderJson(response, timeout, 1048576);
+            if (!Array.isArray(result?.data) || result.data.length > 1000) throw unavailable('catalog_invalid');
+            items.push(...result.data);
+            if (!result.has_more) break;
+            if (provider !== 'anthropic' || page === 2 || !modelId(result.last_id) || after === result.last_id) throw unavailable('catalog_pagination');
+            after = result.last_id;
+          }
+          const normalized = normalizeModels(provider, items);
+          if (!normalized.models.length) throw unavailable('catalog_empty');
+          const selected = configuredModel(provider);
+          const value = { ...empty, ...normalized, status: 'ready',
+            defaultModel: selected ? (normalized.models.some(model => model.id === selected) ? selected : null) : normalized.models[0].id };
+          cache.set(provider, { value, expires: now() + CATALOG_FRESH_MS, staleUntil: now() + CATALOG_STALE_MS });
+          return value;
+        } catch {
+          // A failed background refresh keeps serving the last ready catalog
+          // until it is too old, and is retried after the short failure window.
+          if (previous?.value?.status === 'ready' && previous.staleUntil > now()) {
+            cache.set(provider, { value: previous.value, expires: now() + 30000, staleUntil: previous.staleUntil });
+            return previous.value;
+          }
+          const value = { ...empty, status: 'unavailable' };
+          cache.set(provider, { value, expires: now() + 30000, staleUntil: 0 });
+          return value;
         }
-        const normalized = normalizeModels(provider, items);
-        if (!normalized.models.length) throw unavailable('catalog_empty');
-        const selected = configuredModel(provider);
-        const value = { ...empty, ...normalized, status: 'ready',
-          defaultModel: selected ? (normalized.models.some(model => model.id === selected) ? selected : null) : normalized.models[0].id };
-        cache.set(provider, { value, expires: now() + 300000 });
-        return value;
-      } catch {
-        const value = { ...empty, status: 'unavailable' };
-        cache.set(provider, { value, expires: now() + 30000 });
-        return value;
-      }
-    })();
-    cache.set(provider, { pending });
-    const value = await pending;
+      })();
+      cache.set(provider, { ...(previous?.value ? { value: previous.value, expires: previous.expires, staleUntil: previous.staleUntil } : {}), pending });
+      return pending;
+    };
+    // A recently validated catalog answers at once while it refreshes, so a
+    // request does not wait on the provider's model list every five minutes.
+    if (cached?.value?.status === 'ready' && cached.staleUntil > now()) {
+      if (!cached.pending) refresh().catch(() => {});
+      return cached.value;
+    }
+    const value = await (cached?.pending || refresh());
     signal?.throwIfAborted();
     return value;
   }

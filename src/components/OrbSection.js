@@ -481,6 +481,14 @@ const OrbSection = ({
   const { isDark } = useThemeMode();
   const companionRef = React.useRef(companion);
   companionRef.current = companion;
+  // Check invoice-workspace access ahead of the first message, so sending
+  // does not wait on that network round trip (the bridge keeps the answer).
+  const warmThreadId = companion ? threadSession?.id : null;
+  React.useEffect(() => {
+    if (!warmThreadId) return undefined;
+    const timer = setTimeout(() => { metabloomWorkspaceBridge.probe({ conversationId: warmThreadId }).catch(() => {}); }, 400);
+    return () => clearTimeout(timer);
+  }, [warmThreadId]);
   const navigation = useAppNavigation();
   const auth = useAuth();
   // Read at the moment a reply asks to move, never captured by an older callback.

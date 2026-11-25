@@ -562,13 +562,22 @@ const handleMetabloomChat = async (request, response) => {
           selectedFinding: selectedResearch.finding?.headline || null, previousAsOf: selectedResearch.research.asOf }) }
         : researchContextMessage(selectedResearch)] : body.history;
     stage = "quota";
+    // The catalog lookup needs no quota and is usually cached, so it overlaps
+    // the rate-limit round trip. Its outcome is used only after quota passes.
+    const catalogLookup = !priceBookGuidance && body.modelSelection
+      ? traceTime('model_catalog', () => modelCatalog.resolve(body.modelSelection, { signal: controller.signal }))
+        .then(value => ({ value }), error => ({ error })) : null;
     if (!(await traceTime('rate_limit', () => consumeRateLimit(request, controller.signal)))) {
       response.setHeader("Retry-After", "60");
       return sendJson(response, 429, { code: "rate_limited" });
     }
     if (priceBookGuidance) response.setHeader('X-Metabloom-Answer-Source', 'host');
     else {
-      if (body.modelSelection) modelSelection = await traceTime('model_catalog', () => modelCatalog.resolve(body.modelSelection, { signal: controller.signal }));
+      if (catalogLookup) {
+        const resolved = await catalogLookup;
+        if (resolved.error) throw resolved.error;
+        modelSelection = resolved.value;
+      }
       response.setHeader('X-Metabloom-Provider', modelSelection?.provider || 'openai');
       response.setHeader('X-Metabloom-Model', modelSelection?.model || process.env.METABLOOM_OPENAI_MODEL || 'gpt-5-mini');
     }

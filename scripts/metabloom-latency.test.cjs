@@ -139,6 +139,25 @@ test('a failed request logs its outcome and the open provider span', async () =>
   assert.equal(span.detail.outcome, 'error');
 });
 
+test('the agent reads its saved states concurrently', async () => {
+  const { runMetabloomAgent } = require('../server/metabloomAgent');
+  let active = 0, peak = 0;
+  const slow = value => async () => { active++; peak = Math.max(peak, active);
+    await new Promise(resolve => setTimeout(resolve, 20)); active--; return value; };
+  const store = { read: slow(null) };
+  global.fetch = async () => Response.json({ status: 'completed', output: [answer('Ready.')] });
+  const trace = createMetabloomTrace();
+  const result = await runWithMetabloomTrace(trace, () => runMetabloomAgent({ message: 'hello', history: [],
+    identity: { owner: 'a'.repeat(64), subject: 'b'.repeat(64) }, accountIdentity: { accountKey: 'a'.repeat(64) },
+    requestId: 'turn-1', conversationId: '12345678-1234-4123-8123-123456789abc', visualsAvailable: true,
+    priceBookEnabled: true, priceBookWorkflowEnabled: true, priceBookStore: { read: slow(null) },
+    priceBookWorkflowStore: { read: slow(null) }, boomRequestsEnabled: true, boomRequestStore: store,
+    invoiceDraftsEnabled: true, invoiceStore: { read: slow(null) }, onStatus: async () => {} }));
+  assert.equal(result.reply.segments[0].response, 'Ready.');
+  assert.equal(peak, 4);
+  assert.equal(trace.snapshot().spans.filter(span => span.name === 'store_read').length, 4);
+});
+
 test('the browser validator rejects anything outside the trace shape', () => {
   const good = { version: 1, totalMs: 10, marks: { stream_open: 1 }, spans: [{ name: 'model', start: 1, end: 9, detail: { round: 0 } }] };
   assert.ok(parseMetabloomTraceEvent({ type: 'trace', trace: good }));

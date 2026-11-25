@@ -73,3 +73,17 @@ Traces carry names, durations, counts and provider/model ids. Detail values are 
 - Record a baseline with a fixed prompt set before changing anything, then record again with the same prompts.
 - Compare p50 and p95 of `toFirstText` and `toDone`, not single turns.
 - New server work that can take noticeable time gets a span. Add new detail keys to the allowlist in the protocol and its tests.
+
+## Measurements
+
+Production, gpt-5-mini, six prompts (greeting, clock, arithmetic, two short answers, second greeting).
+
+| Date | Change | toFirstText p50 / max | Notes |
+|---|---|---|---|
+| 2026-11-25 | Baseline | 3.9 s / 8.4 s | Model calls 3.1 s p50; answers are not streamed, so first text arrives with the whole answer. Workspace probe 0.31 s p50; three sequential Redis reads 0.21 s; cold model catalog 1.2 s; an `express_orb` call costs a second model round. |
+
+Changes since the baseline:
+
+- The browser checks invoice-workspace access before the first message and reuses the answer for five minutes per session (denials for one minute; timeouts are never reused). Opening and applying still check for themselves.
+- The agent reads its saved states concurrently.
+- The model catalog lookup overlaps the rate-limit check, and a catalog validated in the last 30 minutes answers at once while it refreshes in the background.

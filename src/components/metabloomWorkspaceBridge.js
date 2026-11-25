@@ -9,6 +9,11 @@ const authKey = auth => JSON.stringify([auth?.status, auth?.user?.id, auth?.user
 const failure = (status, message) => Object.assign(new Error(message), { status });
 const aborted = () => failure('cancelled', 'The invoice update was stopped.');
 const noAccess = () => failure('unavailable', 'Invoice assistance is unavailable. Your invoice is unchanged.');
+// A server answer (not a timeout or cancellation) about this session's access.
+const deniedAccess = () => Object.assign(noAccess(), { definitive: true });
+// The availability check costs a network round trip before a message is sent.
+// A session's answer is reused briefly; the chat request is re-authorized anyway.
+const AVAILABLE_TTL_MS = 5 * 60 * 1000, UNAVAILABLE_TTL_MS = 60 * 1000;
 
 // The public application holds only this narrow reference. The editor/controller
 // are supplied by the protected module and never imported into this bundle.
@@ -23,6 +28,7 @@ export function createMetabloomWorkspaceBridge({ loadInvoice = loadPrivateInvoic
   let configuredAuthKey = null, configuredThread = null, configuredPath = null;
   let state = 'idle', message = '', replacementVersion = null;
   const listeners = new Set(), operations = new Set(), registrations = new Set(), requests = new Map(), receipts = new Map();
+  let availabilityCache = null, availabilityCheck = null;
   const conversation = () => {
     try { return configuration.getConversationId?.() || null; } catch { return null; }
   };
@@ -82,7 +88,7 @@ export function createMetabloomWorkspaceBridge({ loadInvoice = loadPrivateInvoic
     const response = await bounded(fetchImpl('/api/metabloom-workspace', { method: 'GET', credentials: 'same-origin',
       cache: 'no-store', redirect: 'error', signal: operation.controller.signal, headers: { Accept: 'application/json' } }), operation);
     check(operation);
-    if (!response.ok || !response.headers?.get?.('content-type')?.includes('application/json')) throw noAccess();
+    if (!response.ok || !response.headers?.get?.('content-type')?.includes('application/json')) throw deniedAccess();
     let text = '';
     if (response.body?.getReader) {
       const reader = response.body.getReader(), decoder = new TextDecoder('utf-8', { fatal: true });
@@ -103,7 +109,7 @@ export function createMetabloomWorkspaceBridge({ loadInvoice = loadPrivateInvoic
     }
     check(operation);
     let value; try { value = JSON.parse(text); } catch { throw noAccess(); }
-    if (!value || Object.keys(value).sort().join(',') !== 'enabled,version' || value.version !== 1 || value.enabled !== true) throw noAccess();
+    if (!value || Object.keys(value).sort().join(',') !== 'enabled,version' || value.version !== 1 || value.enabled !== true) throw deniedAccess();
   };
   const waitForController = operation => bounded(new Promise((resolve, reject) => {
     const wake = () => {
@@ -162,6 +168,7 @@ export function createMetabloomWorkspaceBridge({ loadInvoice = loadPrivateInvoic
       const departed = oldPath !== null && oldPath !== configuredPath && configuredPath !== INVOICE_PATH;
       if (identityChanged || departed) invalidate();
       if (identityChanged) {
+        availabilityCache = null; availabilityCheck = null;
         controller?.disconnect?.(); status('idle');
       }
       registrations.forEach(wake => wake());
@@ -200,12 +207,30 @@ export function createMetabloomWorkspaceBridge({ loadInvoice = loadPrivateInvoic
       return value;
     },
     async probe({ conversationId, signal } = {}) {
-      let operation;
-      try {
-        operation = begin({ conversationId, signal }, 'probe', 2000);
-        await availability(operation); check(operation); return true;
-      } catch { return false; }
-      finally { operation?.close(); }
+      const key = authKey(configuration.auth);
+      if (authority(configuration.auth) && conversationId && conversationId === conversation()
+        && availabilityCache?.key === key && availabilityCache.expiresAt > Date.now()) return availabilityCache.value;
+      // Concurrent callers (an early warm-up and a send) share one check.
+      if (availabilityCheck?.key === key && availabilityCheck.conversationId === conversationId) return availabilityCheck.promise;
+      const promise = (async () => {
+        let operation;
+        try {
+          operation = begin({ conversationId, signal }, 'probe', 2000);
+          await availability(operation); check(operation);
+          availabilityCache = { key, value: true, expiresAt: Date.now() + AVAILABLE_TTL_MS };
+          return true;
+        } catch (error) {
+          if (error?.definitive && authKey(configuration.auth) === key)
+            availabilityCache = { key, value: false, expiresAt: Date.now() + UNAVAILABLE_TTL_MS };
+          return false;
+        } finally {
+          operation?.close();
+          if (availabilityCheck?.promise === promise) availabilityCheck = null;
+        }
+      })();
+      // A caller's own signal can cancel its check; a shared warm-up has none.
+      if (!signal) availabilityCheck = { key, conversationId, promise };
+      return promise;
     },
     async open({ conversationId, signal, expectedWorkspaceVersion = null } = {}) {
       let operation;

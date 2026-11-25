@@ -42,6 +42,30 @@ test('catalog discovers provider models, filters unsupported outputs, resolves l
   await assert.rejects(catalog.resolve({ provider: 'openai', model: 'gpt-image-2' }), { code: 'model_configuration_error' });
   time += 300001; await catalog.getProvider('openai'); assert.equal(count, 2);
 });
+test('a recent catalog answers at once while it refreshes, and survives a failed refresh until it is too old', async () => {
+  let time = 10, calls = 0, fail = false; let release;
+  const catalog = createMetabloomModelCatalog({ now: () => time, fetchImpl: async () => {
+    calls++;
+    if (calls === 2) await new Promise(resolve => { release = resolve; });
+    if (fail) return new Response('private provider error', { status: 500 });
+    return Response.json({ data: [model('gpt-5-mini', 1), ...(calls > 1 ? [model('gpt-6-astra', 3)] : [])] });
+  } });
+  assert.equal((await catalog.getProvider('openai')).models.length, 1);
+  time += 300001;
+  // Stale but recent: no wait on the provider, one background refresh.
+  const stale = await catalog.getProvider('openai');
+  assert.equal(stale.models.length, 1); assert.equal(calls, 2);
+  assert.equal((await catalog.getProvider('openai')).models.length, 1); assert.equal(calls, 2);
+  release(); await new Promise(resolve => setImmediate(resolve));
+  assert.equal((await catalog.getProvider('openai')).latestModel, 'gpt-6-astra');
+  // A failed refresh keeps the last ready catalog inside the stale window.
+  fail = true; time += 300001;
+  await catalog.getProvider('openai'); await new Promise(resolve => setImmediate(resolve));
+  assert.equal((await catalog.getProvider('openai')).status, 'ready');
+  // Past the stale window the provider must answer again.
+  time += 30 * 60 * 1000 + 1;
+  assert.equal((await catalog.getProvider('openai')).status, 'unavailable');
+});
 test('release ordering uses provider metadata, with no fabricated latest when it is absent', () => {
   assert.equal(normalizeModels('deepseek', [{ id: 'deepseek-flash', name: 'DeepSeek-V4.1-Flash' },
     { id: 'deepseek-v4-pro', name: 'DeepSeek-V4-Pro' }]).latestModel, 'deepseek-flash');
