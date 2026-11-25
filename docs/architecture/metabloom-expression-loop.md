@@ -57,6 +57,30 @@ values and calculator scenarios. Whole-page DOM access, arbitrary component
 editing and persistent project memory require their own ownership/version
 contracts; they are not implicitly authorized by this expression channel.
 
+## Expression protocol 2: the choice travels with the answer
+
+An `express_orb` call always cost one more model round, because the model must
+answer after the tool returns `queued`. That broke the "no extra model
+continuation" invariant above in practice (about 2 seconds on a greeting).
+
+Browsers that send `X-Metabloom-Expressions: 2` get the same choice as a field
+of the final answer instead:
+
+- The agent's answer schema gains a required `expression` field: `none` or one
+  catalogue id. `express_orb` is not offered; `get_orb_state` still is. When the
+  user has disabled model-chosen expressions, there is no field and no tool.
+- The host strips the field before validating the chat envelope, rejects an
+  unknown value, and treats `none` as no choice (Jev chooses as usual).
+- The browser receives `orb_expression` with `source: "model"` after
+  `text_complete`, without a preceding tool event. Only decoders created with
+  `answerExpressions` accept that order; version 1 decoders still reject it.
+- Everything else holds: one choice per turn, queued until the answer
+  validates, the user's controls decide playback, and the next turn reports the
+  receipt.
+
+Version 1 clients (`X-Metabloom-Expressions: 1`, tabs still running an older
+bundle) keep the `express_orb` tool unchanged.
+
 ## Rollout and verification
 
 Server setting `METABLOOM_EXPRESSIONS_ENABLED=false` disables the new tools and

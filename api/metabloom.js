@@ -110,7 +110,7 @@ const parseBody = (request) => {
     }
     if (value.orbContext !== undefined) {
       value.orbContext = parseMetabloomOrbContext(value.orbContext);
-      if (!value.orbContext || request.headers?.['x-metabloom-expressions'] !== '1' || !value.requestId
+      if (!value.orbContext || !['1', '2'].includes(request.headers?.['x-metabloom-expressions']) || !value.requestId
         || value.orbContext.lastExpression?.requestId === value.requestId) return null;
     }
     if (value.modelSelection !== undefined) {
@@ -674,7 +674,9 @@ const handleMetabloomChat = async (request, response) => {
       stage = "agent";
       // Time the agent spends blocked on the input decision (Jev + action).
       await traceTime('wait_input_decision', () => initialReactionPromise);
-      const expressions = request.headers?.['x-metabloom-expressions'] === '1' && body.orbContext
+      // Version 2 clients take the model's choice from the answer itself.
+      const expressionMode = request.headers?.['x-metabloom-expressions'] === '2' ? 'answer' : 'tool';
+      const expressions = ['1', '2'].includes(request.headers?.['x-metabloom-expressions']) && body.orbContext
         && process.env.METABLOOM_EXPRESSIONS_ENABLED !== 'false';
       const calendarEnabled = Boolean(
         accountIdentity
@@ -687,7 +689,7 @@ const handleMetabloomChat = async (request, response) => {
         && request.headers?.['x-metabloom-gmail'] === '1'
       );
       const result = await traceTime('agent', () => runMetabloomAgent({ message: body.message, history: body.history,
-        ...(expressions ? { orbContext: body.orbContext } : {}),
+        ...(expressions ? { orbContext: body.orbContext, expressionMode } : {}),
         ...(body.workspaceContext ? { workspaceContext: body.workspaceContext, workspaceEnabled: isMetabloomWorkspaceEnabled() } : {}),
         ...(calendarEnabled ? { calendarEnabled: true, ...(body.calendarContext ? { calendarContext: body.calendarContext } : {}) } : {}),
         ...(gmailEnabled ? { gmailEnabled: true } : {}),
@@ -715,11 +717,20 @@ const handleMetabloomChat = async (request, response) => {
           && process.env.METABLOOM_IMAGE_SEARCH_ENABLED !== 'false',
         visualStore: createMetabloomVisualStore(), onTool: sendStreamEvent,
         onToolProgress: streamToolProgress ? sendStreamEvent : undefined,
-        onStatus: streamToolProgress ? sendStreamEvent : undefined }));
+        onStatus: streamToolProgress ? sendStreamEvent : undefined,
+        // Browsers that render text deltas get the answer as it is written.
+        // The agent decides per round whether a round can stream.
+        ...(body.streamText === true && streamToolProgress ? { onAnswer: async event => {
+          if (event.type === 'delta') await sendStreamEvent({ type: 'text_delta', index: event.index, delta: event.delta });
+          else await sendStreamEvent({ type: 'segment', index: event.index, ...event.segment });
+        } } : {}) }));
       // Prepared proposals cannot escape an invalid final answer or a disabled
       // capability. The browser still performs its own live access/revision check.
       if (!parseMetabloomChatEnvelope(result.reply, { allowMultiple: body.allowMultiple }).ok)
         throw createMetabloomProviderError('answer_invalid', 'workspace_answer_invalid');
+      // A streamed answer has already been shown, so nothing may precede it.
+      if (result.streamed && (result.sources.length || result.images?.length))
+        throw createMetabloomProviderError('answer_invalid', 'streamed_answer_order');
       if (result.workspaceProposal && (!body.workspaceContext || !isMetabloomWorkspaceEnabled()
         || !parseMetabloomWorkspaceProposal(result.workspaceProposal, body.requestId)))
         throw createMetabloomProviderError('answer_invalid', 'workspace_proposal_invalid');
@@ -745,7 +756,7 @@ const handleMetabloomChat = async (request, response) => {
         const images = await traceTime('tool_images', () => attachToolImages(result.images, visualIdentity));
         if (images.length) await sendStreamEvent({ type: 'tool_images', images });
       }
-      for (const [index, segment] of result.reply.segments.entries()) {
+      if (!result.streamed) for (const [index, segment] of result.reply.segments.entries()) {
         if (body.streamText === true) await sendStreamEvent({ type: 'text_delta', index, delta: segment.response });
         await sendStreamEvent({ type: 'segment', index, ...segment });
       }

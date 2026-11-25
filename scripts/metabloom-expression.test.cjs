@@ -241,3 +241,46 @@ test('the decoder rejects invented, mismatched, duplicate, premature and unnegot
   const cached = createMetabloomSegmentStreamDecoder({ allowTools: true, allowToolProgress: true });
   assert.equal(cached.push(lines([...start, choice, ...end])), false);
 });
+
+// Expression protocol 2: the choice travels in the answer, not a tool round.
+const answerWith = (expression, text = 'Here is a curious look.') => ({ type: 'message', role: 'assistant', status: 'completed',
+  content: [{ type: 'output_text', text: JSON.stringify({ version: '2.0.0', segments: [{ response: text }], expression }) }] });
+test('answer-mode expressions need no extra model round and drop the express_orb tool', async () => {
+  const seen = [];
+  const result = await run({ expressionMode: 'answer', fetchImpl: provider([[answerWith('curious')]], seen) });
+  assert.equal(seen.length, 1);
+  assert.deepEqual(result.expression, { emote: 'curious' });
+  assert.equal(result.reply.segments[0].response, 'Here is a curious look.');
+  assert.equal(seen[0].tools.some(tool => tool.name === 'express_orb'), false);
+  assert(seen[0].tools.some(tool => tool.name === 'get_orb_state'));
+  const schema = seen[0].text.format.schema;
+  assert.deepEqual(schema.required, ['version', 'segments', 'expression']);
+  assert.deepEqual(schema.properties.expression.enum, ['none', ...METABLOOM_EMOTE_IDS]);
+  assert.match(seen[0].instructions, /expression field/);
+  assert.doesNotMatch(seen[0].instructions, /Use express_orb/);
+  const none = await run({ expressionMode: 'answer', fetchImpl: provider([[answerWith('none')]]) });
+  assert.equal(none.expression, null);
+});
+test('answer-mode expressions reject unknown choices and missing fields, and disabled expressions offer no field', async () => {
+  await assert.rejects(run({ expressionMode: 'answer', fetchImpl: provider([[answerWith('fly')]]) }), { code: 'answer_invalid' });
+  await assert.rejects(run({ expressionMode: 'answer', fetchImpl: provider([[answer()]]) }), { code: 'answer_invalid' });
+  const seen = [];
+  const result = await run({ expressionMode: 'answer', orbContext: snapshot({ enabled: false }), fetchImpl: provider([[answer()]], seen) });
+  assert.equal(result.expression, null);
+  assert.equal(seen[0].text.format.schema.properties.expression, undefined);
+  assert.equal(seen[0].tools.some(tool => tool.name === 'express_orb'), false);
+});
+test('a version 2 browser receives the answer-mode choice as model metadata without a tool event', async () => {
+  global.fetch = provider([[answerWith('curious')]]);
+  const request = req(); request.headers['x-metabloom-expressions'] = '2';
+  const response = res(); await handler(request, response);
+  const sent = events(response);
+  assert.equal(sent.some(event => event.type === 'tool_activity'), false);
+  assert.deepEqual(sent.find(event => event.type === 'orb_expression'), choice);
+  assert.equal(sent.find(event => event.type === 'emote' && event.phase === 'response').emote, 'curious');
+  const accepts = options => { const decoder = createMetabloomSegmentStreamDecoder({ allowTools: true, allowToolProgress: true,
+    allowExpressions: true, requestId: 'turn-1', ...options }); decoder.push(response.body); return decoder.finish().ok; };
+  assert.equal(accepts({ answerExpressions: true }), true);
+  // A version 1 browser never receives this order, and would reject it.
+  assert.equal(accepts({}), false);
+});

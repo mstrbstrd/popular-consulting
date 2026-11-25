@@ -57,6 +57,28 @@ Every request writes one `metabloom_latency` JSON line to the server log (`reque
 - `jevInput`, `waitInputDecision`, `agent`, `storeReads`, `modelCalls`, `modelTotal`, `modelFirstHeaders`, `tools`, `outputTokens`, `reasoningTokens`
 - `textCompleteToDone` and `jevResponse`: the tail after the answer is written
 
+## Answer streaming
+
+On OpenAI, the agent streams every model round (`stream: true` on the Responses
+API). When a round begins its answer, the agent reports `validating` and the
+host forwards `text_delta` events as the model writes, then commits each
+`segment` when its JSON object closes. The browser protocol is unchanged.
+
+- The answer passes through the same incremental grammar as plain chat
+  (`createEnvelopeReader`). The completed message must equal exactly what was
+  shown, and the whole envelope is validated before `text_complete`.
+- A round that must show sources or photos before its text is not streamed, so
+  citations are still checked against the sources before display. A streamed
+  answer containing a citation fails.
+- A round that writes text and then calls a tool fails the turn: shown text
+  cannot be followed by more work.
+- DeepSeek keeps whole answers because of its format retry. Claude is not
+  streamed because it can write text and call a tool in the same response.
+- Clients that do not send `streamText` keep whole answers. A provider that
+  returns a whole JSON body is read as an ordinary response.
+- Model spans record `stream` and, when streamed, `firstByteMs`: the time to the
+  first answer text.
+
 ## Protocol
 
 - The browser sends `X-Metabloom-Trace: 1` only while recording.
@@ -87,3 +109,5 @@ Changes since the baseline:
 - The browser checks invoice-workspace access before the first message and reuses the answer for five minutes per session (denials for one minute; timeouts are never reused). Opening and applying still check for themselves.
 - The agent reads its saved states concurrently.
 - The model catalog lookup overlaps the rate-limit check, and a catalog validated in the last 30 minutes answers at once while it refreshes in the background.
+- Answers stream on OpenAI (see Answer streaming).
+- The model's expression choice is a field of the answer (expression protocol 2), so it no longer costs an extra model round.

@@ -146,7 +146,7 @@ export const requestMetabloomResponse = async ({
       credentials: "same-origin",
       headers: { "Content-Type": "application/json", Accept: "application/x-ndjson", "X-Metabloom-Visuals": "1", "X-Metabloom-Ui-Tools": "1", "X-Metabloom-Pricebook": "2",
         ...(useTools ? { 'X-Metabloom-Toolset': '2', 'X-Metabloom-Boom-Request': '1', 'X-Metabloom-Invoice': '1' } : {}),
-        ...(useExpressions ? { 'X-Metabloom-Expressions': '1' } : {}),
+        ...(useExpressions ? { 'X-Metabloom-Expressions': '2' } : {}),
         ...(useWorkspace ? { 'X-Metabloom-Workspace': '1' } : {}),
         ...(useCalendar ? { 'X-Metabloom-Calendar': '1' } : {}),
         ...(useGmail ? { 'X-Metabloom-Gmail': '1' } : {}),
@@ -174,7 +174,7 @@ export const requestMetabloomResponse = async ({
           allowToolMedia: useTools,
           allowToolProgress: useTools,
           ...(useGmail ? { maxToolCalls: MAX_METABLOOM_GMAIL_AGENT_CALLS } : {}),
-          allowExpressions: useExpressions,
+          allowExpressions: useExpressions, answerExpressions: useExpressions,
           allowWorkspace: useWorkspace,
           requestId,
           onToolProgress: (progress) => {

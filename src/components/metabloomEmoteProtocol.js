@@ -112,6 +112,9 @@ const createMetabloomSegmentStreamDecoder = ({
   allowToolMedia = false,
   allowToolProgress = false,
   allowExpressions = false,
+  // Expression protocol 2: a model choice arrives with the answer rather than
+  // through an express_orb tool call.
+  answerExpressions = false,
   allowWorkspace = false,
   requestId,
   maxBufferChars = MAX_SERIALIZED_CHARS,
@@ -429,7 +432,8 @@ const createMetabloomSegmentStreamDecoder = ({
       const parsed = parseMetabloomExpressionEvent(event, requestId);
       if (!allowExpressions || !allowTools || !parsed || expression || responseEmote || !textComplete
         || version !== METABLOOM_CHAT_PROTOCOL_VERSION || !toolTextReady()
-        || (parsed.source === 'model') !== expressionChosen) return fail('Invalid expression receipt metadata.');
+        || (expressionChosen && parsed.source !== 'model')
+        || (!expressionChosen && parsed.source === 'model' && !answerExpressions)) return fail('Invalid expression receipt metadata.');
       expression = parsed;
       return true;
     }

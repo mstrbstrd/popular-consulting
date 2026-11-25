@@ -15,7 +15,10 @@ const CHAT_PREFIX = /^[ \t\r\n]*\{[ \t\r\n]*"version"[ \t\r\n]*:[ \t\r\n]*"2\.0\
 const JSON_WHITESPACE = /[ \t\r\n]/;
 const JSON_ESCAPES = Object.freeze({ '"': '"', "\\": "\\", "/": "/", b: "\b", f: "\f", n: "\n", r: "\r", t: "\t" });
 
-const createEnvelopeReader = ({ allowMultiple = false, onSegment, onTextDelta, textOnly = false }) => {
+// trailingFields: the agent's answer may carry fields after "segments" (its
+// expression choice). They are never shown, so the reader keeps them private
+// and the caller's parseFinal validates the completed object.
+const createEnvelopeReader = ({ allowMultiple = false, onSegment, onTextDelta, textOnly = false, trailingFields = false, parseFinal }) => {
   const expectedVersion = textOnly ? METABLOOM_CHAT_PROTOCOL_VERSION : METABLOOM_PROTOCOL_VERSION;
   const segmentGrammar = textOnly ? TEXT_SEGMENT : SEGMENT;
   const prefixGrammar = textOnly ? CHAT_PREFIX : PREFIX;
@@ -145,8 +148,10 @@ const createEnvelopeReader = ({ allowMultiple = false, onSegment, onTextDelta, t
           cursor++;
           if (JSON_WHITESPACE.test(char)) continue;
           if (char === ",") state = "segment";
-          else if (char === "]") state = "suffix";
+          else if (char === "]") state = trailingFields ? "trailing" : "suffix";
           else throw new Error("Invalid segment separator");
+        } else if (state === "trailing") {
+          cursor = text.length;
         } else if (state === "suffix") {
           cursor++;
           if (JSON_WHITESPACE.test(char)) continue;
@@ -160,8 +165,8 @@ const createEnvelopeReader = ({ allowMultiple = false, onSegment, onTextDelta, t
       await flushPreview();
     },
     finish(finalText) {
-      if (state !== "end" || (finalText !== undefined && finalText !== text)) throw new Error("Incomplete or inconsistent output");
-      const parsed = validate(text, { allowMultiple });
+      if (state !== (trailingFields ? "trailing" : "end") || (finalText !== undefined && finalText !== text)) throw new Error("Incomplete or inconsistent output");
+      const parsed = trailingFields ? parseFinal(text) : validate(text, { allowMultiple });
       if (!parsed.ok || JSON.stringify(parsed.value.segments) !== JSON.stringify(segments)) throw new Error("Invalid completed envelope");
       return parsed.value;
     },

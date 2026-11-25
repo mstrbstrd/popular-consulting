@@ -44,7 +44,7 @@ The visual formats remain table, bar chart, line chart, pie chart, flowchart and
 
 The current client negotiates `X-Metabloom-Toolset: 2` for ordinary turns without an attached artifact or saved research reference. GET metadata advertises `toolset: 2`. Version 1 remains supported without the new progress records. Jev chooses the input gesture and optional Under the Hood scene, plus the final gesture when the model has not explicitly chosen one. It does not select or execute ordinary-chat tools.
 
-The additive `X-Metabloom-Expressions: 1` header and validated `orbContext` enable the [expression loop](metabloom-expression-loop.md). Its metadata is sent after `text_complete`, before the final emote and `done`. The decoder releases the expression only after validating `done`. Clients without this capability keep their existing event vocabulary. `METABLOOM_EXPRESSIONS_ENABLED=false` disables the tools and metadata. The user's preference can remove `express_orb` while keeping the snapshot tool available.
+The additive `X-Metabloom-Expressions: 1` header and validated `orbContext` enable the [expression loop](metabloom-expression-loop.md). Its metadata is sent after `text_complete`, before the final emote and `done`. The decoder releases the expression only after validating `done`. Clients without this capability keep their existing event vocabulary. `METABLOOM_EXPRESSIONS_ENABLED=false` disables the tools and metadata. The user's preference can remove `express_orb` while keeping the snapshot tool available. Version 2 (`X-Metabloom-Expressions: 2`) moves the choice into the answer's `expression` field and stops offering `express_orb`, so choosing a gesture costs no extra model round.
 
 New bounded NDJSON records precede the first answer segment:
 

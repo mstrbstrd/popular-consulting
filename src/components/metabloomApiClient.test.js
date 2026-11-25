@@ -26,7 +26,7 @@ test('expression negotiation sends the bounded snapshot and delivers correlated 
     text: async () => events.map(JSON.stringify).join('\n') + '\n' }));
   const onReaction = jest.fn();
   await requestMetabloomResponse({ message: 'Show me', requestId: 'turn-1', orbContext, fetchImpl, onReaction });
-  expect(fetchImpl.mock.calls[0][1].headers['X-Metabloom-Expressions']).toBe('1');
+  expect(fetchImpl.mock.calls[0][1].headers['X-Metabloom-Expressions']).toBe('2');
   expect(JSON.parse(fetchImpl.mock.calls[0][1].body).orbContext).toEqual(orbContext);
   expect(onReaction).toHaveBeenLastCalledWith({ phase: 'response', emote: 'curious', expression });
   await expect(requestMetabloomResponse({ message: 'Show me', requestId: 'turn-1',
