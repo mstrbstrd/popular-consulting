@@ -88,7 +88,11 @@ export function createMetabloomWorkspaceBridge({ loadInvoice = loadPrivateInvoic
     const response = await bounded(fetchImpl('/api/metabloom-workspace', { method: 'GET', credentials: 'same-origin',
       cache: 'no-store', redirect: 'error', signal: operation.controller.signal, headers: { Accept: 'application/json' } }), operation);
     check(operation);
-    if (!response.ok || !response.headers?.get?.('content-type')?.includes('application/json')) throw deniedAccess();
+    if (!response.ok || !response.headers?.get?.('content-type')?.includes('application/json')) {
+      // Release a rejected body so the request does not stay open.
+      try { response.body?.cancel?.().catch?.(() => {}); } catch { /* Already released. */ }
+      throw deniedAccess();
+    }
     let text = '';
     if (response.body?.getReader) {
       const reader = response.body.getReader(), decoder = new TextDecoder('utf-8', { fatal: true });

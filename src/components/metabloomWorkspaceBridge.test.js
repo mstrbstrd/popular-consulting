@@ -228,6 +228,13 @@ test('a session reuses its availability answer for sends, but never across ident
   expect(failing).toHaveBeenCalledTimes(2);
 });
 
+test('a rejected availability answer releases its body', async () => {
+  const cancel = jest.fn(async () => {});
+  const f = fixture({ options: { fetchImpl: async () => ({ ok: true, headers: { get: () => 'text/html' }, body: { cancel } }) } });
+  expect(await f.bridge.probe({ conversationId })).toBe(false);
+  expect(cancel).toHaveBeenCalledTimes(1);
+});
+
 test('opening and applying still check availability themselves', async () => {
   const f = fixture({ pathname: '/orb', register: false });
   expect(await f.bridge.probe({ conversationId })).toBe(true);

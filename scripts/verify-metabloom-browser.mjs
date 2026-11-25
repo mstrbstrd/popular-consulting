@@ -148,7 +148,9 @@ try {
     const originalFetch = window.fetch.bind(window);
     window.fetch = (...args) => {
       const pathname = new URL(args[0]?.url || args[0], location.href).pathname;
-      if (pathname.startsWith('/api/metabloom') && !['/api/metabloom-threads', '/api/metabloom-models'].includes(pathname)) {
+      // The workspace access check (warmed before the first message) is a session
+      // check, not a model request.
+      if (pathname.startsWith('/api/metabloom') && !['/api/metabloom-threads', '/api/metabloom-models', '/api/metabloom-workspace'].includes(pathname)) {
         window.__demoNetworkCalls++;
         return Promise.reject(new Error('A hardwired demo attempted a model request'));
       }
