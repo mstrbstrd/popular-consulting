@@ -478,3 +478,27 @@ test.each(["moving", "paused", "reduced-motion"])("%s council resize retains the
     unmount();
   } finally { global.ResizeObserver = OriginalObserver; }
 });
+
+test("the buffer follows the layout box, not a presentation transform", () => {
+  // The companion animates the field between /orb and the dock with a FLIP
+  // transform. A resize record arrives while the transform still shows the old
+  // size; the buffer must take the new layout size and aspect anyway.
+  const OriginalObserver = global.ResizeObserver;
+  let resize;
+  global.ResizeObserver = class { constructor(callback) { resize = callback; } observe() {} disconnect() {} };
+  const rect = jest.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({ left: 0, top: 0, width: 96, height: 96 });
+  const width = jest.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(640);
+  const height = jest.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(480);
+  try {
+    render(<MetabloomAvatar />);
+    frame();
+    getDitherCanvasSize.mockClear();
+    act(resize);
+    frame();
+    expect(getDitherCanvasSize).toHaveBeenCalledWith(640, 480, expect.any(Number));
+    expect(getDitherCanvasSize).not.toHaveBeenCalledWith(96, 96, expect.any(Number));
+  } finally {
+    rect.mockRestore(); width.mockRestore(); height.mockRestore();
+    global.ResizeObserver = OriginalObserver;
+  }
+});

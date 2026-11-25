@@ -264,7 +264,8 @@ export default function ApplicationShell() {
   const busy = phase !== 'idle';
   const routeEpoch = ['/home', '/orb', '/popcan', '/dither-canvas', '/invoice-generator', '/calendar'].includes(routeMetadataFor(navigation.pathname)?.path) ? stateRevision : 0;
   return <AppNavigationContext.Provider value={navigation}>
-    <MetabloomSessionProvider navigation={navigation} onReady={ready}>
+    <MetabloomSessionProvider navigation={navigation} onReady={ready}
+      welcome={['/', '/engineering', '/home'].includes(routeMetadataFor(navigation.pathname)?.path) && immersiveSection === 0}>
     {/* Index, Home, opted-in Orb and Popcan share one scene. Each tool can
         release it independently without remounting its foreground content. */}
     <div className="app-route-backdrop" data-route={routeMetadataFor(navigation.pathname)?.path} aria-hidden="true" />

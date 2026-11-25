@@ -19,10 +19,10 @@ jest.mock('./metabloomApiClient', () => ({ requestMetabloomResponse: jest.fn(asy
 const getToolState = () => null;
 const saveToolState = jest.fn();
 const navigate = jest.fn();
-function View({ pathname }) {
+function View({ pathname, welcome = false }) {
   const navigation = { pathname, getToolState, saveToolState, navigate };
   return <AppNavigationContext.Provider value={navigation}>
-    <MetabloomSessionProvider navigation={navigation}>
+    <MetabloomSessionProvider navigation={navigation} welcome={welcome}>
       {pathname === '/orb' ? <OrbPage /> : <main>Invoice workspace</main>}
     </MetabloomSessionProvider>
   </AppNavigationContext.Provider>;
@@ -59,25 +59,50 @@ test('keeps the actual canvas, draft and live request while navigating out and b
   } finally { window.removeEventListener('metabloom:user-message', claim); }
 });
 
-test('does not mount an untouched assistant and revokes it when authentication is lost', async () => {
+test('revokes the assistant when authentication is lost and starts a fresh one for the next account', async () => {
   const { rerender } = render(<View pathname="/invoice-generator" />);
-  expect(screen.queryByTestId('actual-orb-canvas')).toBeNull();
-  rerender(<View pathname="/orb" />);
-  await screen.findByTestId('actual-orb-canvas');
+  const first = await screen.findByTestId('actual-orb-canvas');
   mockAuth = { status: 'anonymous', user: null, logoutRevision: 1 };
   rerender(<View pathname="/invoice-generator" />);
   await waitFor(() => expect(screen.queryByTestId('actual-orb-canvas')).toBeNull());
   mockAuth = { status: 'authenticated', user: { id: 'b'.repeat(64), role: 'admin' }, logoutRevision: 1 };
   rerender(<View pathname="/invoice-generator" />);
+  expect(await screen.findByTestId('actual-orb-canvas')).not.toBe(first);
+});
+
+test('the assistant waits out a Welcome screen and is then hidden, never unmounted, while one returns', async () => {
+  const { rerender } = render(<View pathname="/home" welcome />);
+  expect(screen.queryByTestId('actual-orb-canvas')).toBeNull();
+  rerender(<View pathname="/home" />);
+  const canvas = await screen.findByTestId('actual-orb-canvas');
+  const host = document.querySelector('.metabloom-assistant-host');
+  expect(host).toHaveAttribute('data-assistant-away', 'false');
+  rerender(<View pathname="/" welcome />);
+  expect(screen.getByTestId('actual-orb-canvas')).toBe(canvas);
+  expect(host).toHaveAttribute('data-assistant-away', 'true');
+  expect(host).toHaveAttribute('inert');
+  rerender(<View pathname="/work" />);
+  expect(host).toHaveAttribute('data-assistant-away', 'false');
+  expect(host).not.toHaveAttribute('inert');
+});
+
+test('signed-out visitors and non-admin accounts get no assistant', () => {
+  mockAuth = { status: 'anonymous', user: null, logoutRevision: 0 };
+  const { rerender } = render(<View pathname="/work" />);
+  expect(screen.queryByTestId('actual-orb-canvas')).toBeNull();
+  mockAuth = { status: 'authenticated', user: { id: 'c'.repeat(64), role: 'user' }, logoutRevision: 0 };
+  rerender(<View pathname="/work" />);
   expect(screen.queryByTestId('actual-orb-canvas')).toBeNull();
 });
 
 
-test('a direct invoice visit starts its single assistant only after an explicit launcher click', async () => {
+test('a direct invoice visit has its single assistant ready without a launcher', async () => {
   render(<View pathname="/invoice-generator" />);
-  expect(screen.queryByTestId('actual-orb-canvas')).toBeNull();
-  fireEvent.click(screen.getByRole('button', { name: 'Ask Metabloom' }));
+  expect(screen.queryByRole('button', { name: 'Ask Metabloom' })).toBeNull();
   await screen.findByTestId('actual-orb-canvas');
+  // The dock starts closed, as on every page; its toggle opens the chat.
+  expect(screen.queryByRole('textbox', { name: 'Message Metabloom' })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Open chat' }));
   expect(screen.getAllByTestId('actual-orb-canvas')).toHaveLength(1);
   expect(screen.getByRole('textbox', { name: 'Message Metabloom' })).toBeInTheDocument();
   expect(document.body).toHaveAttribute('data-metabloom-companion', 'invoice');

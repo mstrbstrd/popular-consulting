@@ -9,9 +9,11 @@ const isInvoiceRoute = pathname => /^\/invoice-generator(?:\/index\.html)?\/?$/.
 const isCalendarRoute = pathname => /^\/calendar(?:\/index\.html)?\/?$/.test(pathname || '');
 
 // Route changes change presentation, not the identity of the actual chat tree.
-// The heavy assistant is loaded only after the user enters Orb. Authentication
-// remains the boundary: losing it removes the tree and aborts its live work.
-export default function MetabloomSessionProvider({ navigation, onReady, children }) {
+// Signed in, the assistant is available on every page: it mounts once the
+// first non-Welcome screen shows and is only hidden (never unmounted) while a
+// Welcome screen is up. Authentication remains the boundary: losing it removes
+// the tree and aborts its live work.
+export default function MetabloomSessionProvider({ navigation, onReady, children, welcome = false }) {
   const auth = useAuth();
   const enabled = process.env.REACT_APP_METABLOOM_COMPANION_ENABLED !== '0';
   const calendarEnabled = process.env.REACT_APP_METABLOOM_CALENDAR_ENABLED !== '0';
@@ -27,7 +29,11 @@ export default function MetabloomSessionProvider({ navigation, onReady, children
   const [hidden, setHidden] = React.useState(false);
   const [session, setSession] = React.useState({ busy: false, bubbleText: '', statusText: '', providerLabel: '' });
   const controls = React.useRef(null);
-  React.useEffect(() => { if (full && auth.status === 'authenticated') setStartedFor(identity); }, [full, identity, auth.status]);
+  const autoStart = enabled && auth.status === 'authenticated' && auth.user?.role === 'admin' && !welcome;
+  React.useEffect(() => { if ((full || autoStart) && auth.status === 'authenticated') setStartedFor(identity); }, [full, autoStart, identity, auth.status]);
+  const started = startedFor === identity || autoStart;
+  // The Welcome screen keeps the page to itself; the live chat waits, unchanged.
+  const away = welcome && !full;
   React.useEffect(() => {
     metabloomCalendarBridge.configure({ auth, pathname, navigate });
   }, [auth, pathname, navigate]);
@@ -42,10 +48,10 @@ export default function MetabloomSessionProvider({ navigation, onReady, children
   const show = React.useCallback(() => { setHidden(false); setOpen(true); }, []);
   const stop = React.useCallback(() => controls.current?.stop?.(), []);
   const expand = React.useCallback(() => navigation?.navigate('/orb'), [navigation]);
-  const value = React.useMemo(() => enabled ? { persistent: true, full, open, hidden,
+  const value = React.useMemo(() => enabled ? { persistent: true, full, open, hidden, away,
     ...(session.identity === identity ? session : { busy: false, bubbleText: '', statusText: '', providerLabel: '' }),
     report, toggle, collapse, hide, show, stop, expand } : null,
-  [enabled, identity, full, open, hidden, session, report, toggle, collapse, hide, show, stop, expand]);
+  [enabled, identity, full, open, hidden, away, session, report, toggle, collapse, hide, show, stop, expand]);
   React.useEffect(() => {
     if (!enabled || !dockedWorkspace) return undefined;
     document.body.dataset.metabloomCompanion = invoice ? 'invoice' : 'calendar';
@@ -58,11 +64,7 @@ export default function MetabloomSessionProvider({ navigation, onReady, children
   }, [enabled, dockedWorkspace, invoice]);
   return <MetabloomSessionContext.Provider value={value}>
     {children}
-    {enabled && dockedWorkspace && startedFor !== identity && auth.status === 'authenticated' && auth.user?.role === 'admin' &&
-      <button type="button" className="metabloom-assistant-launcher" onClick={() => {
-        setStartedFor(identity); setOpen(true); setHidden(false);
-      }}>Ask Metabloom</button>}
-    {enabled && (startedFor === identity || full) && auth.status === 'authenticated' &&
+    {enabled && (started || full) && auth.status === 'authenticated' &&
       <React.Suspense fallback={null}>
         <MetabloomAssistantHost key={`${auth.user?.id}:${auth.logoutRevision}`} onReady={full ? onReady : undefined} />
       </React.Suspense>}

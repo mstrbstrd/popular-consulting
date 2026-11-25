@@ -1164,9 +1164,15 @@ const CreatorOSFieldCanvas = ({
 
     const updateSize = () => {
       const bounds = root.getBoundingClientRect();
+      // Size the buffer from the layout box. A presentation transform (the
+      // companion's FLIP between /orb and the dock) changes the visual rect but
+      // fires no resize when it ends, so measuring it would keep the old size
+      // and aspect: a soft field when growing, a squashed one when shrinking.
+      const width = root.clientWidth || bounds.width;
+      const height = root.clientHeight || bounds.height;
       const target = getDitherCanvasSize(
-        bounds.width,
-        bounds.height,
+        width,
+        height,
         RENDER_SCALE,
       );
       navierFluid?.setAspect(target.width / Math.max(target.height, 1));

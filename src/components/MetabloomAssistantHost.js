@@ -62,7 +62,8 @@ export default function MetabloomAssistantHost({ onReady }) {
     data-assistant-presentation={full ? 'full' : 'docked'}
     data-assistant-open={open ? 'true' : 'false'}
     data-assistant-editing={editing ? 'true' : 'false'}
-    data-assistant-hidden={session.hidden ? 'true' : 'false'}>
+    data-assistant-hidden={session.hidden ? 'true' : 'false'}
+    data-assistant-away={session.away ? 'true' : 'false'} inert={session.away ? '' : undefined}>
     <MetabloomCompanionPanel docked={!full} open={open} hidden={session.hidden}
       busy={session.busy} bubbleText={session.bubbleText} statusText={session.statusText}
       onToggle={session.toggle} onHide={session.hide} onShow={session.show} onStop={session.stop} onExpand={session.expand}>

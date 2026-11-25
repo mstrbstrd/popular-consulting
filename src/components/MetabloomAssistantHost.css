@@ -61,6 +61,8 @@
   min-height: 0; overflow: auto; overscroll-behavior: contain;
 }
 @media print { .metabloom-assistant-host { display: none !important; } }
+/* Hidden, not unmounted, while a Welcome screen is up: the chat and its field keep their state. */
+.metabloom-assistant-host[data-assistant-away="true"] { visibility: hidden; pointer-events: none; }
 
 /* Invoice mode has its own bounded reading surface. Existing scene/results
    remain mounted and can be inspected through Open full chat. */
