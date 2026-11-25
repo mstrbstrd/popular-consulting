@@ -281,10 +281,14 @@ async function runMetabloomAgent({ message, submittedMessage = message, history,
   const readAnswer = text => {
     if (!answerExpression) return { parsed: parseMetabloomChatEnvelope(text, { allowMultiple }), choice: null };
     let value; try { value = JSON.parse(text); } catch { return { parsed: { ok: false, error: 'Invalid answer JSON.' }, choice: null }; }
+    // A provider that only sees the schema in its prompt may omit the field;
+    // that is no choice. Any other extra field is rejected.
     if (!value || typeof value !== 'object' || Array.isArray(value)
-      || Object.keys(value).sort().join(',') !== 'expression,segments,version') return { parsed: { ok: false, error: 'Unexpected answer fields.' }, choice: null };
-    const choice = value.expression === 'none' ? null : parseMetabloomExpressionChoice({ emote: value.expression });
-    if (value.expression !== 'none' && !choice) return { parsed: { ok: false, error: 'Unknown answer expression.' }, choice: null };
+      || !['expression,segments,version', 'segments,version'].includes(Object.keys(value).sort().join(',')))
+      return { parsed: { ok: false, error: 'Unexpected answer fields.' }, choice: null };
+    const picked = Object.hasOwn(value, 'expression') ? value.expression : 'none';
+    const choice = picked === 'none' ? null : parseMetabloomExpressionChoice({ emote: picked });
+    if (picked !== 'none' && !choice) return { parsed: { ok: false, error: 'Unknown answer expression.' }, choice: null };
     return { parsed: parseMetabloomChatEnvelope({ version: value.version, segments: value.segments }, { allowMultiple }), choice };
   };
   const instructions = buildMetabloomChatSystemPrompt({ allowMultiple, presentationAction, toolset: true, expressionTools: Boolean(orbSnapshot), expressionField: answerExpression,

@@ -261,9 +261,12 @@ test('answer-mode expressions need no extra model round and drop the express_orb
   const none = await run({ expressionMode: 'answer', fetchImpl: provider([[answerWith('none')]]) });
   assert.equal(none.expression, null);
 });
-test('answer-mode expressions reject unknown choices and missing fields, and disabled expressions offer no field', async () => {
+test('answer-mode expressions reject unknown choices and fields, treat a missing field as none, and disabled expressions offer no field', async () => {
   await assert.rejects(run({ expressionMode: 'answer', fetchImpl: provider([[answerWith('fly')]]) }), { code: 'answer_invalid' });
-  await assert.rejects(run({ expressionMode: 'answer', fetchImpl: provider([[answer()]]) }), { code: 'answer_invalid' });
+  const extra = { type: 'message', role: 'assistant', status: 'completed', content: [{ type: 'output_text',
+    text: JSON.stringify({ version: '2.0.0', segments: [{ response: 'Hi.' }], expression: 'none', intensity: 1 }) }] };
+  await assert.rejects(run({ expressionMode: 'answer', fetchImpl: provider([[extra]]) }), { code: 'answer_invalid' });
+  assert.equal((await run({ expressionMode: 'answer', fetchImpl: provider([[answer()]]) })).expression, null);
   const seen = [];
   const result = await run({ expressionMode: 'answer', orbContext: snapshot({ enabled: false }), fetchImpl: provider([[answer()]], seen) });
   assert.equal(result.expression, null);

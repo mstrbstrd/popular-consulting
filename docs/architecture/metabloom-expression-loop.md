@@ -70,7 +70,9 @@ of the final answer instead:
   catalogue id. `express_orb` is not offered; `get_orb_state` still is. When the
   user has disabled model-chosen expressions, there is no field and no tool.
 - The host strips the field before validating the chat envelope, rejects an
-  unknown value, and treats `none` as no choice (Jev chooses as usual).
+  unknown value or any other extra field, and treats `none` (or a missing field,
+  from a provider that only sees the schema in its prompt) as no choice, so Jev
+  chooses as usual.
 - The browser receives `orb_expression` with `source: "model"` after
   `text_complete`, without a preceding tool event. Only decoders created with
   `answerExpressions` accept that order; version 1 decoders still reject it.
