@@ -103,6 +103,7 @@ Production, gpt-5-mini, six prompts (greeting, clock, arithmetic, two short answ
 | Date | Change | toFirstText p50 / max | Notes |
 |---|---|---|---|
 | 2026-11-25 | Baseline | 3.9 s / 8.4 s | Model calls 3.1 s p50; answers are not streamed, so first text arrives with the whole answer. Workspace probe 0.31 s p50; three sequential Redis reads 0.21 s; cold model catalog 1.2 s; an `express_orb` call costs a second model round. |
+| 2026-11-25 | Setup fixes, streaming, answer expressions | 2.8 s / 4.0 s | toDone 3.2 s p50 (was 4.0 s). Workspace probe 0 ms; submit to fetch 5 ms (was 311 ms). "Hi!" makes one model call (was two). Model time to first text 0.85–1.9 s is now most of the wait. |
 
 Changes since the baseline:
 
