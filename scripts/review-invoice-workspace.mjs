@@ -172,9 +172,11 @@ try {
           check(report.focus.focused&&report.focus.visible&&report.focus.boxShadow!=='none','Input focus halo missing');
           await settle();
         }
+        // Signed in: tools live in the workspace menu (phones list it first) and
+        // site pages in the site links, each destination once.
         const expectedLinks = width <= 768
-          ? ['/popcan', '/dither-canvas', '/orb', '/work', '/#section-1', '/#section-1', '/#section-2', '/engineering', '/#section-3']
-          : ['/#section-1', '/#section-2', '/work', '/popcan', '/engineering', '/#section-3'];
+          ? ['/orb', '/popcan', '/dither-canvas', '/#section-1', '/#section-2', '/work', '/engineering', '/#section-3']
+          : ['/#section-1', '/#section-2', '/work', '/engineering', '/#section-3'];
         check(await evaluate(`JSON.stringify([...document.querySelectorAll('.invoice-site-navigation .nav-links a,.invoice-site-navigation .nav-overlay-links a')].map(a=>a.getAttribute('href')).filter(href=>!['/login','/logout','/home','/invoice-generator'].includes(href)))===${JSON.stringify(JSON.stringify(expectedLinks))}`),'Shared menu destinations differ from the main site');
         // The workspace can truthfully mark Invoice as current; site sections
         // must remain inactive on this standalone editor.

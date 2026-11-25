@@ -3,21 +3,12 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { findBrowser, runBrowserCapture } from './dark-evidence-browser.mjs';
+import { loadCreatorOSFieldShaders } from './creatoros-field-shader-source.mjs';
 
 // Compile and draw the actual production GLSL. Software GPU validation is not
 // a physical-device performance benchmark. No app policy changes are shipped.
-const literal = (file, name) => {
-  const source = fs.readFileSync(path.resolve(file), 'utf8');
-  const match = source.match(new RegExp(`export const ${name} = \x60([\\s\\S]*?)\x60;`));
-  assert(match, `Missing shader ${name}`);
-  return match[1];
-};
-const vertex = literal('src/components/CreatorOSFieldShader.js', 'CREATOROS_FIELD_VERTEX_SHADER');
-let fragment = literal('src/components/CreatorOSFieldShader.js', 'CREATOROS_FIELD_FRAGMENT_SHADER');
-for (const [name, file] of [['METABLOOM_NOVA_SHADER', 'MetabloomNovaShader.js'],
-  ['CHIRAL_WEAVE_SHADER', 'ChiralWeaveShader.js'], ['NAVIER_STOKES_SHADER', 'NavierStokesShader.js'], ['NAVIER_CORE_SHADER', 'navierStokesField.js']]) {
-  fragment = fragment.replace(`\${${name}}`, literal(`src/components/${file}`, name));
-}
+const { vertex, fragment: fieldFragment } = await loadCreatorOSFieldShaders();
+let fragment = fieldFragment;
 assert(!fragment.includes('${'));
 const start = fragment.indexOf('vec4 sampleScene(int mode, vec2 uv, float time) {');
 const end = fragment.indexOf('\n\nvoid main() {', start);

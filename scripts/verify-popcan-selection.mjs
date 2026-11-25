@@ -57,7 +57,10 @@ try {
     await screenshot('failure');
     throw new Error(`Assertion timed out: ${expression}`);
   };
-  const click = async (label) => { await evaluate(`document.querySelector('button[aria-label=${JSON.stringify(label)}]').click()`); await sleep(40); };
+  // The settings card's close control is labelled by width ("Close brush
+  // settings" on phones, "Collapse brush settings (\\)" on wider screens).
+  const click = async (label) => { const selector = label === 'Close brush settings' ? '.pc-panel-close' : `button[aria-label=${JSON.stringify(label)}]`;
+    await evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`); await sleep(40); };
   const navigationContrast = () => evaluate(`(() => {
   const bg=getComputedStyle(document.querySelector('.nav-pill')).backgroundColor.match(/[0-9.]+/g).map(Number);
   const fg=getComputedStyle(document.querySelector('.nav-link')).color.match(/[0-9.]+/g).map(Number);

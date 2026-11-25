@@ -117,6 +117,17 @@ try {
       await press(page.locator('.workspace-menu > summary:visible'));
       return page.locator('.workspace-menu[open]');
     };
+    // Site pages live in the site links (the header, or the overlay on phones),
+    // not in the workspace menu.
+    const goSite = async (label, pathname) => {
+      const toggle = page.getByRole('button', { name: 'Open navigation menu', exact: true });
+      if (mobile && await toggle.isVisible()) {
+        await press(toggle);
+        await press(page.locator('.nav-overlay--open').getByRole('link', { name: label, exact: true }));
+      } else await press(page.locator('.nav-links').getByRole('link', { name: label, exact: true }));
+      await page.waitForURL(url => url.pathname === pathname);
+      await idle();
+    };
     const go = async (label, pathname, duringLoad) => {
       const menu = await openNavigation();
       const experiences = menu.getByRole('navigation', { name: 'Experiences', exact: true });
@@ -250,7 +261,7 @@ try {
     await go('Home', '/home');
     await go('Canvas', '/popcan');
     await waitForCheck(page, () => document.querySelector('#pc-title')?.value === 'Fictional canvas');
-    await go('Selected work', '/work');
+    await go('Work', '/work'); // Canvas has no site links of its own, so its workspace menu carries them.
     assert.equal(await page.locator('link[href*="work-typography"]').count(), 1);
     await go('Home', '/home');
     assert.equal(await page.locator('link[href*="work-typography"]').count(), 0);
@@ -331,7 +342,7 @@ try {
     }
     // The dark scene also remains the same canvas across Home/index/Home.
     await page.evaluate(() => { window.__darkScene = document.querySelector('.immersive-background'); window.__darkCanvas = window.__darkScene?.querySelector('canvas'); });
-    await go('Popular Consulting', '/');
+    await goSite('About', '/');
     await go('Home', '/home');
     assert.equal(await page.evaluate(() => window.__darkScene === document.querySelector('.immersive-background')), true, 'Dark scene was replaced');
     assert.equal(await page.evaluate(() => window.__darkCanvas === document.querySelector('.immersive-background canvas')), true, 'Dark canvas was restarted');
