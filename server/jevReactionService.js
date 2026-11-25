@@ -9,6 +9,7 @@ const {
 const { createMetabloomVisualizationQuestion } = require("../src/components/metabloomVisualDesign");
 const { METABLOOM_VISUAL_KINDS } = require("../src/components/metabloomVisualProtocol");
 const { createMetabloomNavigationQuestion, resolveMetabloomNavigationDecision } = require("../src/components/metabloomNavigation");
+const { traceSpan } = require("./metabloomTrace");
 
 const JEV_ENDPOINT = "https://api.typesafe.ai/v1/systemone";
 const MAX_RESPONSE_BYTES = 16384;
@@ -90,6 +91,10 @@ const decideMetabloomChoices = async ({ phase, state, actionMode, ordinaryWebToo
   if (allowedVisuals.length) questions.visualization = createMetabloomVisualizationQuestion(allowedVisuals, visualIntent);
   if (pages.length) questions.navigation = createMetabloomNavigationQuestion(pages);
   const startedAt = Date.now();
+  // The latency trace's jev span closes with the same outcome as the log line;
+  // a call that settles without one (aborted) closes as "skipped".
+  const endJev = traceSpan("jev", { phase });
+  const settle = (outcome, confidence) => { endJev({ outcome }); report(phase, outcome, startedAt, confidence); };
   const controller = new AbortController();
   const abort = () => controller.abort();
   if (signal?.aborted) abort();
@@ -103,11 +108,11 @@ const decideMetabloomChoices = async ({ phase, state, actionMode, ordinaryWebToo
       body: JSON.stringify({ model, state, questions }),
     });
     if (!response.ok || !response.headers?.get?.("content-type")?.includes("application/json")) {
-      report(phase, "upstream_unavailable", startedAt);
+      settle("upstream_unavailable");
       return fallback();
     }
     const payload = await readBoundedJson(response);
-    if (controller.signal.aborted) return fallback();
+    if (controller.signal.aborted) { endJev({ outcome: "timeout" }); return fallback(); }
     const visualAnswer = payload?.answers?.visualization;
     const visualChoices = ["none", ...allowedVisuals];
     if (!locked && allowedVisuals.length && isChoiceAnswer(visualAnswer) && visualChoices.includes(visualAnswer.choice)
@@ -129,14 +134,15 @@ const decideMetabloomChoices = async ({ phase, state, actionMode, ordinaryWebToo
     // Each question has its own validation and fallback. A bad action cannot
     // discard an emote, and an invalid emote cannot erase a valid action.
     if (!isChoiceAnswer(answer)) {
-      report(phase, "invalid_answer", startedAt);
+      settle("invalid_answer");
       return withVisual({ emote: "neutral", action });
     }
     const emote = resolveMetabloomDecision({ choice: answer.choice, confidence: answer.confidence });
-    report(phase, emote === "neutral" ? "neutral" : "selected", startedAt, answer.confidence);
+    settle(emote === "neutral" ? "neutral" : "selected", answer.confidence);
     return withVisual({ emote, action });
   } catch {
-    if (!signal?.aborted) report(phase, controller.signal.aborted ? "timeout" : "unavailable", startedAt);
+    if (!signal?.aborted) settle(controller.signal.aborted ? "timeout" : "unavailable");
+    else endJev({ outcome: "skipped" });
     return fallback();
   } finally {
     clearTimeout(timer);

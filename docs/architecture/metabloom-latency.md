@@ -1,0 +1,75 @@
+# Metabloom answer latency
+
+How long a Metabloom answer takes, split into named phases, so latency work is measured before and after every change.
+
+## Recording a session
+
+1. Open `/orb?metabloom-trace=1` (or run `__metabloomLatency.enable()` in the console). The flag is remembered in `localStorage` under `metabloom-trace`; `?metabloom-trace=0` or `__metabloomLatency.disable()` turns it off.
+2. Send messages as usual. Each turn logs one `metabloom_latency` line at `console.debug` level.
+3. Read the results in the console:
+
+| Call | Returns |
+|---|---|
+| `__metabloomLatency.table()` | One row per turn with the derived phases (also printed with `console.table`) |
+| `__metabloomLatency.summary()` | n, p50, p95, max and mean per phase across completed turns |
+| `__metabloomLatency.last()` | The derived phases of the newest turn |
+| `__metabloomLatency.turns()` | Copies of the raw turns: browser marks plus the server trace |
+| `__metabloomLatency.export()` | JSON of every turn (raw and derived) for saving or comparing |
+| `__metabloomLatency.clear()` | Forget the recorded turns |
+
+The recorder keeps the last 50 turns in memory only.
+
+## What is recorded
+
+### Browser marks (ms from submit)
+
+`submit`, `probe_start`/`probe_end` (workspace availability probe), `dispatch`, `fetch_start`, `headers`, `first_chunk`, `event:<kind>` (first of each stream event kind, emotes split into `emote_input`/`emote_response`), `first_text`, `painted_text` (the first animation frame after text reached the transcript), `text_complete`, `done`, `finished`.
+
+### Server trace (ms from the handler entering)
+
+`server/metabloomTrace.js` creates one trace per `/api/metabloom` request and carries it through `AsyncLocalStorage`, so the agent, providers, Jev and stores add spans without new parameters. Spans:
+
+| Span | Covers |
+|---|---|
+| `session`, `rate_limit`, `model_catalog` | Request setup |
+| `artifact_context`, `research_context` | Saved-work and research context loading |
+| `jev` (`phase: input|response`) | Each Jev reaction call, with its outcome |
+| `wait_input_decision` | Time the agent waited for the input Jev before starting |
+| `agent` | The whole `runMetabloomAgent` call |
+| `store_read` (`store`) | Each Redis read during agent setup |
+| `model` / `model_retry` (`round`) | Each provider call: `headersMs`, token counts, outcome |
+| `search_model` | Web-search model calls |
+| `tool` (`tool`, `round`) | Each tool execution with its status |
+| `tool_media`, `tool_images`, `research`, `research_brief` | Other answer paths |
+
+Marks: `stream_open` (first byte flushed) and `sent:<type>` (first of each event type sent).
+
+Every request writes one `metabloom_latency` JSON line to the server log (`requestRef`, outcome, status and the trace), traced or not, so the Vercel logs can be aggregated without a browser.
+
+### Derived phases
+
+`describeMetabloomTurn` turns marks and spans into the numbers to optimise. The headline is `toFirstText` (submit to first answer text). It is broken down into:
+
+- `clientPrep`: submit to fetch (includes `workspaceProbe`)
+- `requestToHeaders`: fetch to response headers
+- `serverBeforeStream`: server time before the first byte
+- `networkAndPlatform`: browser wait not explained by server time
+- `jevInput`, `waitInputDecision`, `agent`, `storeReads`, `modelCalls`, `modelTotal`, `modelFirstHeaders`, `tools`, `outputTokens`, `reasoningTokens`
+- `textCompleteToDone` and `jevResponse`: the tail after the answer is written
+
+## Protocol
+
+- The browser sends `X-Metabloom-Trace: 1` only while recording.
+- The server then sends exactly one `{ "type": "trace", "trace": { version, totalMs, marks, spans, dropped? } }` event immediately before `done`.
+- `metabloomLatencyProtocol.js` validates it strictly: version 1, bounded span and mark counts (96 and 48), lowercase names, `end >= start`, and detail keys from a fixed allowlist.
+- A trace the browser did not ask for, an invalid trace or a second trace fails the stream like any other protocol violation. Untraced requests are unchanged.
+
+## Privacy
+
+Traces carry names, durations, counts and provider/model ids. Detail values are filtered through the allowlist (phase, outcome, provider, tool, store, status, model, round, attempt, token counts, bytes, events, firstByteMs, headersMs, stream). Messages, answers, tool arguments and results are never recorded, on either side.
+
+## Rules for latency changes
+
+- Record a baseline with a fixed prompt set before changing anything, then record again with the same prompts.
+- Compare p50 and p95 of `toFirstText` and `toDone`, not single turns.
+- New server work that can take noticeable time gets a span. Add new detail keys to the allowlist in the protocol and its tests.

@@ -10,6 +10,7 @@ import { parseMetabloomOrbContext } from './metabloomExpressionProtocol';
 import { MAX_METABLOOM_WORKSPACE_BODY_BYTES, MAX_METABLOOM_WORKSPACE_EVENT_BYTES,
   parseMetabloomWorkspaceContext } from './metabloomWorkspaceProtocol';
 import { createMetabloomNavigationStreamBridge, parseMetabloomNavigationContext } from './metabloomNavigation';
+import { createMetabloomTraceStreamBridge } from './metabloomLatency';
 
 export { getMetabloomApiErrorMessage } from "./metabloomRequestErrors";
 
@@ -47,6 +48,7 @@ export const requestMetabloomResponse = async ({
   gmailEnabled,
   navigationContext,
   onNavigation,
+  latency = null,
   onWorkspaceProposal,
   onCalendarProposal,
   onCalendarReceipt,
@@ -138,6 +140,7 @@ export const requestMetabloomResponse = async ({
       ...(artifactContext ? { artifactContext } : {}), ...(researchContext ? { researchContext } : {}) });
     if (useWorkspace && new TextEncoder().encode(requestBody).byteLength > MAX_METABLOOM_WORKSPACE_BODY_BYTES)
       throw new MetabloomApiError("The selected invoice context is too large. Narrow the request or edit it manually.", { code: "invalid_request" });
+    latency?.mark('fetch_start');
     const response = await fetchImpl("/api/metabloom", {
       method: "POST",
       credentials: "same-origin",
@@ -147,16 +150,20 @@ export const requestMetabloomResponse = async ({
         ...(useWorkspace ? { 'X-Metabloom-Workspace': '1' } : {}),
         ...(useCalendar ? { 'X-Metabloom-Calendar': '1' } : {}),
         ...(useGmail ? { 'X-Metabloom-Gmail': '1' } : {}),
-        ...(navigation ? { 'X-Metabloom-Navigation': '1' } : {}) },
+        ...(navigation ? { 'X-Metabloom-Navigation': '1' } : {}),
+        ...(latency ? { 'X-Metabloom-Trace': '1' } : {}) },
       body: requestBody,
       signal: controller.signal,
     });
     const contentType = response.headers?.get?.("content-type") || "";
     responseStatus = response.status;
     responseRequestRef = parseMetabloomRequestRef(response.headers?.get?.("X-Metabloom-Request-Ref"));
+    latency?.mark('headers');
+    latency?.note({ requestRef: responseRequestRef || undefined, provider: response.headers?.get?.('X-Metabloom-Provider') || undefined,
+      model: response.headers?.get?.('X-Metabloom-Model') || undefined });
     const isStream = contentType.includes("application/x-ndjson");
     let streamError = null;
-    const decoder = createMetabloomNavigationStreamBridge(createMetabloomGmailStreamBridge(
+    const decoder = createMetabloomTraceStreamBridge(createMetabloomNavigationStreamBridge(createMetabloomGmailStreamBridge(
       createMetabloomCalendarStreamBridge(
         createMetabloomVisualStreamBridge(createMetabloomSegmentStreamDecoder({
           allowMultiple,
@@ -268,7 +275,7 @@ export const requestMetabloomResponse = async ({
         if (controller.signal.aborted) throw new MetabloomApiError('Cancelled.', { code: 'cancelled' });
         onNavigation?.(destination);
       },
-    });
+    }), { allowTrace: Boolean(latency), recorder: latency });
     let text = "";
     let bytes = 0;
     if (response.ok && !isStream && !contentType.includes("application/json")) {
@@ -351,8 +358,10 @@ export const requestMetabloomResponse = async ({
     if (result.value.gmailReceipt && !signal?.aborted) {
       try { onGmailReceipt?.(result.value.gmailReceipt); } catch { /* Caller may instead consume the returned metadata. */ }
     }
+    latency?.finish('done');
     return result.value;
   } catch (error) {
+    latency?.finish(controller.signal.aborted ? 'cancelled' : typeof error?.code === 'string' && /^[a-z_]{1,40}$/.test(error.code) ? error.code : 'error');
     if (controller.signal.aborted) throw new MetabloomApiError(getMetabloomApiErrorMessage("cancelled"), {
       code: "cancelled", status: responseStatus, requestRef: responseRequestRef,
     });

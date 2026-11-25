@@ -44,6 +44,7 @@ const { MAX_METABLOOM_RESEARCH_SOURCES } = require("../src/components/metabloomR
 const { MAX_METABLOOM_RESEARCH_REPORT_CHUNK_CHARS } = require("../src/components/metabloomResearchReport");
 const { MAX_METABLOOM_SOURCE_MEDIA_ENTRIES, MAX_METABLOOM_TOOL_MEDIA_ENTRIES } = require("../src/components/metabloomSourceMediaProtocol");
 const { parseMetabloomNavigationContext, filterServerDestinations, classifyMetabloomNavigation } = require("../src/components/metabloomNavigation");
+const { createMetabloomTrace, runWithMetabloomTrace, currentMetabloomTrace, traceTime, logMetabloomTrace } = require("../server/metabloomTrace");
 const { METABLOOM_RESEARCH_BRIEF_VERSION, MAX_METABLOOM_RESEARCH_BRIEF_CHUNK_CHARS, MAX_METABLOOM_RESEARCH_BRIEF_SOURCES,
   parseMetabloomResearchBrief } = require("../src/components/metabloomResearchBriefProtocol");
 const MAX_BODY_BYTES = 24000;
@@ -433,7 +434,8 @@ const attachToolImages = async (images, identity) => {
   }))).filter(Boolean);
 };
 
-const handler = async (request, response) => {
+const handleMetabloomChat = async (request, response) => {
+  const trace = currentMetabloomTrace();
   response.setHeader("Cache-Control", "private, no-store, no-transform");
   response.setHeader("CDN-Cache-Control", "no-store");
   response.setHeader("Vercel-CDN-Cache-Control", "no-store");
@@ -443,10 +445,10 @@ const handler = async (request, response) => {
   response.setHeader("X-Metabloom-Protocol", METABLOOM_CHAT_PROTOCOL_VERSION);
   // No metadata, quota consumption, OpenAI request, or Jev decision without a live session.
   let visualIdentity, accountIdentity;
-  const denial = await metabloomAuth.requireMetabloomSession(request, {
+  const denial = await traceTime('session', () => metabloomAuth.requireMetabloomSession(request, {
     onIdentity: (identity) => { visualIdentity = identity; },
     onAccountIdentity: (identity) => { accountIdentity = identity; },
-  });
+  }));
   if (denial) return sendJson(response, denial.status, { code: denial.code });
   if (response.destroyed || request.aborted) return;
   if (request.method === "GET") return sendJson(response, 200, {
@@ -504,6 +506,9 @@ const handler = async (request, response) => {
   }
   const requestRef = randomBytes(6).toString("hex");
   response.setHeader("X-Metabloom-Request-Ref", requestRef);
+  if (trace) trace.requestRef = requestRef;
+  // Opt-in: a negotiated browser receives the request's trace before done.
+  const traceRequested = request.headers?.["x-metabloom-trace"] === "1";
   // Fixed capability replies require the same quota boundary, but no model key.
   if (!providerConfigured && ((useAgent && !priceBookGuidance) || !capabilityResponse
     || !(isLocal(request) || (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN)))) {
@@ -533,15 +538,15 @@ const handler = async (request, response) => {
     let selectedArtifact = null;
     if (body.artifactContext?.version) {
       stage = "artifact_reference";
-      selectedArtifact = await resolveMetabloomArtifactReference({ store: createMetabloomVisualStore(),
-        identity: visualIdentity, reference: body.artifactContext, signal: controller.signal });
+      selectedArtifact = await traceTime('artifact_context', () => resolveMetabloomArtifactReference({ store: createMetabloomVisualStore(),
+        identity: visualIdentity, reference: body.artifactContext, signal: controller.signal }));
     }
     let selectedResearch = null;
     const researchStore = createMetabloomResearchStore();
     if (body.researchContext) {
       stage = "research_reference";
-      selectedResearch = await resolveMetabloomResearchContext({ store: researchStore, identity: visualIdentity,
-        reference: body.researchContext, message: body.message, signal: controller.signal });
+      selectedResearch = await traceTime('research_context', () => resolveMetabloomResearchContext({ store: researchStore, identity: visualIdentity,
+        reference: body.researchContext, message: body.message, signal: controller.signal }));
     }
     const reuseResearch = Boolean(selectedResearch && !refreshResearch);
     const actionMode = reuseResearch ? "none" : refreshResearch ? "deep-research"
@@ -557,13 +562,13 @@ const handler = async (request, response) => {
           selectedFinding: selectedResearch.finding?.headline || null, previousAsOf: selectedResearch.research.asOf }) }
         : researchContextMessage(selectedResearch)] : body.history;
     stage = "quota";
-    if (!(await consumeRateLimit(request, controller.signal))) {
+    if (!(await traceTime('rate_limit', () => consumeRateLimit(request, controller.signal)))) {
       response.setHeader("Retry-After", "60");
       return sendJson(response, 429, { code: "rate_limited" });
     }
     if (priceBookGuidance) response.setHeader('X-Metabloom-Answer-Source', 'host');
     else {
-      if (body.modelSelection) modelSelection = await modelCatalog.resolve(body.modelSelection, { signal: controller.signal });
+      if (body.modelSelection) modelSelection = await traceTime('model_catalog', () => modelCatalog.resolve(body.modelSelection, { signal: controller.signal }));
       response.setHeader('X-Metabloom-Provider', modelSelection?.provider || 'openai');
       response.setHeader('X-Metabloom-Model', modelSelection?.model || process.env.METABLOOM_OPENAI_MODEL || 'gpt-5-mini');
     }
@@ -576,10 +581,21 @@ const handler = async (request, response) => {
         response.setHeader("Content-Type", "application/x-ndjson; charset=utf-8");
         response.flushHeaders?.();
         streaming = true;
+        trace?.mark("stream_open");
       }
+      // First write of each event kind: sent:emote_input, sent:segment, ...
+      trace?.mark(`sent:${event.type === "emote" ? `emote_${event.phase}` : event.type}`);
       if (response.write(JSON.stringify(event) + "\n") === false) {
         await once(response, "drain", { signal: controller.signal });
       }
+    };
+    // The trace event is the last before done, so it covers every phase the
+    // browser waited on. Only negotiated streams carry it.
+    const sendTrace = async () => {
+      if (trace) trace.outcome = "done";
+      if (!traceRequested || !trace || !streaming) return;
+      trace.mark("sent:trace");
+      await sendStreamEvent({ type: "trace", trace: trace.snapshot() });
     };
     const sendReport = async report => {
       for (let offset = 0; offset < report.sources.length; offset += MAX_METABLOOM_RESEARCH_SOURCES)
@@ -600,6 +616,7 @@ const handler = async (request, response) => {
       await sendStreamEvent({ type: "emote", phase: "response", emote: "neutral" });
       console.info("metabloom_capability", JSON.stringify({ mode: priceBookGuidance ? 'price_book' : researchIntent === 'capability' ? 'research' : visualIntent.mode,
         outcome: "answered", requestRef }));
+      await sendTrace();
       return response.end(JSON.stringify({ type: "done", version: METABLOOM_CHAT_PROTOCOL_VERSION }) + "\n");
     }
     // Page navigation: host rules settle explicit commands (and keep working
@@ -646,7 +663,8 @@ const handler = async (request, response) => {
       // One absolute deadline includes every model step, tool, and reaction.
       armDeadline(startedAt + 75000);
       stage = "agent";
-      await initialReactionPromise;
+      // Time the agent spends blocked on the input decision (Jev + action).
+      await traceTime('wait_input_decision', () => initialReactionPromise);
       const expressions = request.headers?.['x-metabloom-expressions'] === '1' && body.orbContext
         && process.env.METABLOOM_EXPRESSIONS_ENABLED !== 'false';
       const calendarEnabled = Boolean(
@@ -659,7 +677,7 @@ const handler = async (request, response) => {
         && isMetabloomGmailEnabled()
         && request.headers?.['x-metabloom-gmail'] === '1'
       );
-      const result = await runMetabloomAgent({ message: body.message, history: body.history,
+      const result = await traceTime('agent', () => runMetabloomAgent({ message: body.message, history: body.history,
         ...(expressions ? { orbContext: body.orbContext } : {}),
         ...(body.workspaceContext ? { workspaceContext: body.workspaceContext, workspaceEnabled: isMetabloomWorkspaceEnabled() } : {}),
         ...(calendarEnabled ? { calendarEnabled: true, ...(body.calendarContext ? { calendarContext: body.calendarContext } : {}) } : {}),
@@ -688,7 +706,7 @@ const handler = async (request, response) => {
           && process.env.METABLOOM_IMAGE_SEARCH_ENABLED !== 'false',
         visualStore: createMetabloomVisualStore(), onTool: sendStreamEvent,
         onToolProgress: streamToolProgress ? sendStreamEvent : undefined,
-        onStatus: streamToolProgress ? sendStreamEvent : undefined });
+        onStatus: streamToolProgress ? sendStreamEvent : undefined }));
       // Prepared proposals cannot escape an invalid final answer or a disabled
       // capability. The browser still performs its own live access/revision check.
       if (!parseMetabloomChatEnvelope(result.reply, { allowMultiple: body.allowMultiple }).ok)
@@ -710,12 +728,12 @@ const handler = async (request, response) => {
         await sendStreamEvent({ type: 'tool_sources', sources: result.sources });
         // Opt-in only: older clients reject unknown stream events.
         if (body.streamToolMedia === true) {
-          const media = await attachToolMedia(result.reply, result.sources, visualIdentity);
+          const media = await traceTime('tool_media', () => attachToolMedia(result.reply, result.sources, visualIdentity));
           if (media.length) await sendStreamEvent({ type: 'tool_media', media });
         }
       }
       if (body.streamToolMedia === true && result.images?.length) {
-        const images = await attachToolImages(result.images, visualIdentity);
+        const images = await traceTime('tool_images', () => attachToolImages(result.images, visualIdentity));
         if (images.length) await sendStreamEvent({ type: 'tool_images', images });
       }
       for (const [index, segment] of result.reply.segments.entries()) {
@@ -735,6 +753,7 @@ const handler = async (request, response) => {
       if (result.calendarReceipt) await sendStreamEvent({ type: 'calendar_receipt', receipt: result.calendarReceipt });
       if (result.gmailProposal) await sendStreamEvent({ type: 'gmail_proposal', proposal: result.gmailProposal });
       if (result.gmailReceipt) await sendStreamEvent({ type: 'gmail_receipt', receipt: result.gmailReceipt });
+      await sendTrace();
       return response.end(JSON.stringify({ type: 'done', version: METABLOOM_CHAT_PROTOCOL_VERSION }) + '\n');
     }
     let research, researchReport, researchBrief, temporalContext, researchReference;
@@ -760,7 +779,7 @@ const handler = async (request, response) => {
       await sendStreamEvent({ type: "research", state: "searching" });
       stage = "research";
       temporalContext = buildMetabloomResearchTemporalContext({ message, timeZone: body.timeZone || "UTC", now: startedAt });
-      researchReport = await conductMetabloomResearch({
+      researchReport = await traceTime('research', () => conductMetabloomResearch({
         message, history: contextHistory, signal: controller.signal, requestRef, temporalContext,
         includeSourceUrls: body.streamResearchMedia === true,
         onProgress: body.streamResearchProgress === true
@@ -774,7 +793,7 @@ const handler = async (request, response) => {
             }
             await sendStreamEvent(progress);
           } : undefined,
-      });
+      }));
       if (controller.signal.aborted || response.destroyed || request.aborted) throw new Error("Cancelled");
       if (body.streamResearchDetails === true) await sendReport(researchReport);
       if (body.streamResearchReuse === true && visualIdentity) {
@@ -813,10 +832,10 @@ const handler = async (request, response) => {
       if (evidence) {
         stage = "research_brief";
         try {
-          researchBrief = await generateMetabloomResearchBrief({ message, history: contextHistory, report: evidence,
+          researchBrief = await traceTime('research_brief', () => generateMetabloomResearchBrief({ message, history: contextHistory, report: evidence,
             modelSelection, onImageSubjects: subjects => { briefImageSubjects = subjects; },
             evidenceLimited: evidence !== researchReport,
-            temporalContext, signal: controller.signal, requestRef });
+            temporalContext, signal: controller.signal, requestRef }));
         } catch (error) {
           if (controller.signal.aborted || response.destroyed || request.aborted) throw error;
           console.info(JSON.stringify({ event: "metabloom_research_brief_fallback", requestRef,
@@ -1003,6 +1022,7 @@ const handler = async (request, response) => {
         console.info("metabloom_visual_offer", JSON.stringify({ outcome: "unavailable", requestRef }));
       }
     }
+    await sendTrace();
     response.end(JSON.stringify({ type: "done", version: METABLOOM_CHAT_PROTOCOL_VERSION }) + "\n");
   } catch (error) {
     const disconnected = !deadlineExpired && (response.destroyed || request.aborted || controller.signal.aborted);
@@ -1013,6 +1033,7 @@ const handler = async (request, response) => {
         stage === "quota" ? "quota_unavailable" : stage === "answer" ? "answer_invalid" : "provider_unavailable",
         stage === "answer" ? "answer_envelope_invalid" : "request_failed",
       );
+    if (trace) trace.outcome = disconnected ? "cancelled" : `failed:${failure.code}`;
     const log = disconnected ? console.info : console.error;
     log(JSON.stringify({ event: disconnected ? "metabloom_request_cancelled" : "metabloom_request_failed", requestRef, stage,
       code: failure.code, reason: failure.reason, durationMs: Date.now() - startedAt,
@@ -1034,6 +1055,19 @@ const handler = async (request, response) => {
     clearTimeout(timeout);
     response.off?.("close", onClose);
   }
+};
+// Every request carries a latency trace; one metabloom_latency log line is
+// written when it settles (docs/architecture/metabloom-latency.md).
+const handler = (request, response) => {
+  const trace = createMetabloomTrace();
+  return runWithMetabloomTrace(trace, async () => {
+    try { return await handleMetabloomChat(request, response); }
+    finally {
+      // Only requests that reach the chat pipeline are logged (they carry a requestRef).
+      if (trace.requestRef) logMetabloomTrace(trace, { requestRef: trace.requestRef, status: response.statusCode,
+        outcome: trace.outcome || (response.statusCode >= 400 ? "rejected" : response.destroyed ? "disconnected" : "ended") });
+    }
+  });
 };
 module.exports = handler;
 module.exports._internals = { parseBody, requestOriginIsAllowed, consumeRateLimit, configured, localBuckets,

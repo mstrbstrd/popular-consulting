@@ -1,6 +1,14 @@
 const { PROVIDER_CONFIG, providerHeaders, providerConfigured } = require('./metabloomModels');
 const { readMetabloomProviderJson } = require('./metabloomProviderJson');
 const { createMetabloomProviderError, readMetabloomProviderError } = require('./metabloomProviderErrors');
+const { traceSpan } = require('./metabloomTrace');
+
+// Token counts for the latency trace, across the OpenAI and Claude shapes.
+const traceUsage = (usage) => ({
+  inputTokens: usage?.input_tokens, outputTokens: usage?.output_tokens,
+  reasoningTokens: usage?.output_tokens_details?.reasoning_tokens,
+  cachedTokens: usage?.input_tokens_details?.cached_tokens ?? usage?.cache_read_input_tokens,
+});
 const invalid = reason => createMetabloomProviderError('answer_invalid', reason);
 
 // Anthropic's constrained decoder supports a smaller JSON Schema subset.
@@ -50,7 +58,7 @@ function normalizeClaude(response) {
   return { status: 'completed', output, usage: response.usage };
 }
 
-async function requestMetabloomModel(payload, { selection, signal, fetchImpl = globalThis.fetch, requestRef } = {}) {
+async function requestMetabloomModel(payload, { selection, signal, fetchImpl = globalThis.fetch, requestRef, round, purpose = 'model' } = {}) {
   const provider = selection?.provider || 'openai', model = selection?.model || payload.model;
   if (!Object.hasOwn(PROVIDER_CONFIG, provider) || !providerConfigured(provider))
     throw createMetabloomProviderError('model_configuration_error', 'provider_not_configured');
@@ -83,12 +91,21 @@ async function requestMetabloomModel(payload, { selection, signal, fetchImpl = g
   } else if (!/^(?:gpt-[5-9]|o[34])/.test(model)) delete body.reasoning;
   else if (/(?:^|-)pro(?:-|$)/.test(model) && body.reasoning) body.reasoning = { effort: 'medium' };
   signal?.throwIfAborted();
-  const response = await fetchImpl(PROVIDER_CONFIG[provider].origin + path, {
-    method: 'POST', headers: providerHeaders(provider), redirect: 'error', signal, body: JSON.stringify(body),
-  });
-  if (!response.ok) throw await readMetabloomProviderError(response, signal);
-  const raw = await readMetabloomProviderJson(response, signal);
-  const result = provider === 'anthropic' ? normalizeClaude(raw) : raw;
+  // One span per provider request: headersMs is time to the response headers;
+  // the span ends when the whole (non-streamed) body has been read.
+  const startedAt = Date.now();
+  const end = traceSpan(purpose, { provider, model, ...(Number.isSafeInteger(round) ? { round } : {}), stream: false });
+  let result;
+  try {
+    const response = await fetchImpl(PROVIDER_CONFIG[provider].origin + path, {
+      method: 'POST', headers: providerHeaders(provider), redirect: 'error', signal, body: JSON.stringify(body),
+    });
+    const headersMs = Date.now() - startedAt;
+    if (!response.ok) { end({ outcome: 'error', headersMs }); throw await readMetabloomProviderError(response, signal); }
+    const raw = await readMetabloomProviderJson(response, signal);
+    result = provider === 'anthropic' ? normalizeClaude(raw) : raw;
+    end({ outcome: 'ok', headersMs, ...traceUsage(result?.usage) });
+  } catch (error) { end({ outcome: signal?.aborted ? 'aborted' : 'error' }); throw error; }
   if (result?.status !== 'completed' || result.error || !Array.isArray(result.output))
     throw createMetabloomProviderError('answer_incomplete', 'agent_response_incomplete');
   console.info('metabloom_agent_provider', JSON.stringify({ requestRef, provider, model, outcome: 'complete',
@@ -96,4 +113,4 @@ async function requestMetabloomModel(payload, { selection, signal, fetchImpl = g
     ...(Number.isSafeInteger(result.usage?.output_tokens) ? { outputTokens: result.usage.output_tokens } : {}) }));
   return result;
 }
-module.exports = { requestMetabloomModel, claudeSchema, claudeMessages, normalizeClaude };
+module.exports = { requestMetabloomModel, claudeSchema, claudeMessages, normalizeClaude, traceUsage };

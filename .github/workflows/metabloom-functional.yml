@@ -58,7 +58,7 @@ jobs:
           scripts/jev-reaction.test.cjs scripts/metabloom-navigation.test.cjs scripts/metabloom-visual.test.cjs scripts/metabloom-ui-tools.test.cjs
           scripts/metabloom-source-media.test.cjs scripts/metabloom-visual-quota.test.cjs
           scripts/metabloom-visual-store-diagnostics.test.cjs scripts/metabloom-artifact-reference.test.cjs
-          scripts/metabloom-research-reuse.test.cjs scripts/metabloom-research-reuse-api.test.cjs
+          scripts/metabloom-research-reuse.test.cjs scripts/metabloom-research-reuse-api.test.cjs scripts/metabloom-latency.test.cjs
       - run: npm ci --no-audit --no-fund
       - name: Verify private invoice dependency isolation
         run: node --test scripts/private-invoice-boundary.test.mjs

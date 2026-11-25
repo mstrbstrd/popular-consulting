@@ -8,6 +8,7 @@ import { createPortal, flushSync } from 'react-dom';
 import { useThemeMode } from "../contexts/ThemeContext";
 import { useAppNavigation } from '../contexts/AppNavigationContext';
 import { useAuth } from '../contexts/AuthContext';
+import { startMetabloomTurn } from './metabloomLatency';
 import { describeMetabloomNavigationReceipt, getMetabloomDestination, getMetabloomDestinationForPath,
   getMetabloomNavigationDestinations } from './metabloomNavigation';
 import { METABLOOM_HOOD_SEQUENCE } from "./metabloomUnderHood";
@@ -2006,6 +2007,9 @@ const OrbSection = ({
         actionMode: requestedActionMode, skipScene: document.hidden, session, startedAt: Date.now(),
         ...(selectedResearch ? { submittedResearch: selectedResearch, submittedMessage: message } : {}) };
       activeRequestRef.current = activeRequest;
+      // Latency trace (off unless ?metabloom-trace=1): marks from this submit.
+      const latency = startMetabloomTurn({ requestId, provider: modelSelection?.provider || null, model: modelSelection?.model || null,
+        mode: useCouncil ? 'council' : requestedActionMode === 'deep-research' ? 'research' : activeRequest.toolset ? 'agent' : 'chat' });
       if (activeRequest.toolset) {
         window.clearTimeout(previewTimerRef.current);
         previewTimerRef.current = window.setTimeout(() => failReply(session, { code: 'answer_timeout' }), METABLOOM_AGENT_TIMEOUT_MS);
@@ -2034,9 +2038,16 @@ const OrbSection = ({
         updateStateSnapshot({ workProgress: progress });
         return true;
       };
+      // The first frame that paints answer text, for the latency trace.
+      const markPainted = () => {
+        if (!latency || activeRequest.paintMarked) return;
+        activeRequest.paintMarked = true;
+        requestAnimationFrame(() => latency.mark('painted_text'));
+      };
       const onTextDelta = (delta, index) => {
         if (!current() || !agentLifecycle.canAnswer()) return false;
         if (activeRequest.workspaceContext) return true;
+        markPainted();
         activeRequest.answerStarted = true;
         setWorkProgress(null);
         updateStateSnapshot({ workProgress: null });
@@ -2045,6 +2056,7 @@ const OrbSection = ({
       const onSegment = (segment, index) => {
         if (!current() || !agentLifecycle.canAnswer()) return false;
         if (activeRequest.workspaceContext) return true;
+        markPainted();
         activeRequest.answerStarted = true;
         setWorkProgress(null);
         updateStateSnapshot({ workProgress: null });
@@ -2246,6 +2258,7 @@ const OrbSection = ({
         ...(modelSelection ? { modelSelection: { ...modelSelection } } : {}),
         toolset: activeRequest.toolset,
         ...(navigationContext ? { navigationContext, onNavigation } : {}),
+        ...(latency ? { latency } : {}),
         ...(activeRequest.toolset ? { orbContext: getOrbContext() } : {}),
         ...(capturedCalendarContext ? { calendarContext: capturedCalendarContext } : {}),
         onCalendarProposal, onCalendarReceipt,
@@ -2283,6 +2296,7 @@ const OrbSection = ({
       }
       if (demo) { runDemo(); return true; }
       const dispatchRequest = () => {
+        latency?.mark('dispatch');
         const claimRequest = () => {
           if (!current()) return false;
           activeRequest.claimed = true;
@@ -2427,7 +2441,9 @@ const OrbSection = ({
               return;
             }
           }
+          latency?.mark('probe_start');
           const available = explicitInvoiceStart || await metabloomWorkspaceBridge.probe({ conversationId: threadSession.id, signal: controller.signal });
+          latency?.mark('probe_end');
           if (!current()) return;
           const context = available ? metabloomWorkspaceBridge.capture({ conversationId: threadSession.id, requestId }) : null;
           if (!current()) return;

@@ -4,6 +4,7 @@ const { METABLOOM_CALENDAR_TOOLS, METABLOOM_CALENDAR_PROMPT, executeMetabloomCal
 const { METABLOOM_GMAIL_TOOLS, METABLOOM_GMAIL_PROMPT, executeMetabloomGmailTool } = require('./metabloomGmailWorkflow');
 const { createMetabloomGmailClient } = require('./metabloomGmailClient');
 const { buildMetabloomNavigationPrompt } = require('../src/components/metabloomNavigation');
+const { traceSpan, traceTime } = require('./metabloomTrace');
 const { createMetabloomCalendarProvider } = require('./metabloomCalendarProvider');
 const { createMetabloomInvoiceStore, METABLOOM_INVOICE_TOOLS, METABLOOM_INVOICE_PROMPT } = require('./metabloomInvoiceWorkflow');
 const { INVOICE_FIELDS, INVOICE_LINE_FIELDS, INVOICE_CHAT_NOTICE, invoiceDraftView, buildInvoiceDraftVisual } = require('../src/components/metabloomInvoiceDraft');
@@ -27,7 +28,7 @@ const { createMetabloomPriceBookStore } = require('./metabloomPriceBookStore');
 const { deriveMetabloomPriceBookToolSchema, quoteMetabloomPriceBook } = require('../src/components/metabloomPriceBook');
 const { buildMetabloomPriceBookQuoteVisual } = require('./metabloomPriceBookQuote');
 const { createMetabloomProviderError, readMetabloomProviderError } = require('./metabloomProviderErrors');
-const { requestMetabloomModel } = require('./metabloomModelProvider');
+const { requestMetabloomModel, traceUsage } = require('./metabloomModelProvider');
 const { findMetabloomImage } = require('./metabloomImageSearch');
 const { METABLOOM_EXPRESSION_TOOLS, parseMetabloomOrbContext,
   parseMetabloomExpressionChoice } = require('../src/components/metabloomExpressionProtocol');
@@ -74,7 +75,7 @@ const MAX_METABLOOM_AGENT_IMAGES = 2;
 const clockTool = define('get_current_time', 'Read the server clock in the user timezone for date and time questions. No arguments.', {});
 
 async function requestAgentResponse(payload, { signal, fetchImpl, requestRef, onProgress }) {
-  const completed = result => {
+  let completed = result => {
     if (result.status !== 'completed' || result.error || !Array.isArray(result.output))
       throw createMetabloomProviderError('answer_incomplete', 'agent_response_incomplete');
     console.info('metabloom_agent_provider', JSON.stringify({ requestRef, outcome: 'complete',
@@ -83,12 +84,20 @@ async function requestAgentResponse(payload, { signal, fetchImpl, requestRef, on
     return result;
   };
   signal?.throwIfAborted();
-  const response = await fetchImpl('https://api.openai.com/v1/responses', {
-    method: 'POST', redirect: 'error', signal,
-    headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-  if (!response.ok) throw await readMetabloomProviderError(response, signal);
+  const startedAt = Date.now();
+  const end = traceSpan('search_model', { provider: 'openai', model: payload.model, stream: Boolean(payload.stream) });
+  let response;
+  try {
+    response = await fetchImpl('https://api.openai.com/v1/responses', {
+      method: 'POST', redirect: 'error', signal,
+      headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+  } catch (error) { end({ outcome: 'error' }); throw error; }
+  const headersMs = Date.now() - startedAt;
+  const finished = completed;
+  completed = result => { const value = finished(result); end({ outcome: 'ok', headersMs, ...traceUsage(result?.usage) }); return value; };
+  if (!response.ok) { end({ outcome: 'error', headersMs }); throw await readMetabloomProviderError(response, signal); }
   if (payload.stream) return completed(await readResearchResponse(response, signal || new AbortController().signal, onProgress, false,
     { maxEventBytes: 131072, maxStreamBytes: 524288 }));
   if (!response.headers.get('content-type')?.includes('application/json') || !response.body?.getReader) {
@@ -196,7 +205,7 @@ async function runMetabloomAgent({ message, submittedMessage = message, history,
   let draftState = null;
   if (workflowAvailable) {
     priceBookWorkflowStore = priceBookWorkflowStore || createMetabloomPriceBookWorkflowStore();
-    try { draftState = priceBookDraftView(await priceBookWorkflowStore.read(accountIdentity, { signal })); }
+    try { draftState = priceBookDraftView(await traceTime('store_read', () => priceBookWorkflowStore.read(accountIdentity, { signal }), { store: 'price_book_workflow' })); }
     catch { signal?.throwIfAborted(); draftState = { status: 'unavailable' }; }
   }
   const boomAvailable = boomRequestsEnabled && Boolean(accountIdentity) && isMetabloomThreadId(conversationId);
@@ -204,14 +213,14 @@ async function runMetabloomAgent({ message, submittedMessage = message, history,
   if (boomAvailable) {
     try {
       boomRequestStore = boomRequestStore || createMetabloomBoomRequestStore();
-      boomState = boomRequestView(await boomRequestStore.read(accountIdentity, conversationId, { signal }));
+      boomState = boomRequestView(await traceTime('store_read', () => boomRequestStore.read(accountIdentity, conversationId, { signal }), { store: 'boom_request' }));
     } catch { signal?.throwIfAborted(); boomState = { status: 'unavailable' }; }
   }
   const invoiceAvailable = !workspaceAvailable && invoiceDraftsEnabled && Boolean(accountIdentity) && isMetabloomThreadId(conversationId) && Boolean(requestId);
   let invoiceState = null;
   if (invoiceAvailable) {
     try { invoiceStore = invoiceStore || createMetabloomInvoiceStore();
-      const view = invoiceDraftView(await invoiceStore.read(accountIdentity, conversationId, { signal }));
+      const view = invoiceDraftView(await traceTime('store_read', () => invoiceStore.read(accountIdentity, conversationId, { signal }), { store: 'invoice_draft' }));
       invoiceState = { revision: view.revision, fields: view.fields, items: view.items, missing: view.missing };
     } catch { signal?.throwIfAborted(); invoiceState = { status: 'unavailable' }; }
   }
@@ -219,7 +228,7 @@ async function runMetabloomAgent({ message, submittedMessage = message, history,
   if (priceBookEnabled && (visualsAvailable || workflowAvailable) && accountIdentity) {
     try {
       priceBookStore = priceBookStore || createMetabloomPriceBookStore();
-      activePriceBook = await priceBookStore.read(accountIdentity, { signal });
+      activePriceBook = await traceTime('store_read', () => priceBookStore.read(accountIdentity, { signal }), { store: 'price_book' });
     } catch { signal?.throwIfAborted(); }
   }
   const quoteTool = activePriceBook && priceBookVisualsAvailable ? { type: 'function', name: 'get_quote', strict: true,
@@ -296,7 +305,7 @@ async function runMetabloomAgent({ message, submittedMessage = message, history,
     let result = startWorkspace ? { output: [{ type: 'function_call',
       name: workspaceSnapshot.status === 'connected' ? 'get_invoice_workspace' : 'open_invoice_workspace',
       call_id: 'invoice_workspace_start', arguments: JSON.stringify(workspaceSnapshot.status === 'connected' ? {} : { sourceText: submittedMessage }) }] } : startInvoice ? { output: [{ type: 'function_call', name: 'get_invoice_draft', call_id: 'invoice_intake_start', arguments: '{}' }] } : startBoomRequest ? { output: [{ type: 'function_call', name: 'get_boom_quote_request', call_id: 'boom_intake_start', arguments: '{}' }] }
-      : await requestMetabloomModel(payload, { signal, fetchImpl, requestRef, selection: modelSelection });
+      : await requestMetabloomModel(payload, { signal, fetchImpl, requestRef, selection: modelSelection, round: step });
     if (result.output.some(item => !item || !['reasoning', 'function_call', 'message'].includes(item.type))) throw invalid('agent_output');
     const proposedCalls = result.output.filter(item => item.type === 'function_call');
     // A boom intake turn owns one typed operation and one corresponding card.
@@ -342,7 +351,7 @@ async function runMetabloomAgent({ message, submittedMessage = message, history,
             + 'All tools are disabled for this final answer. Use only the conversation and actual tool results already provided. '
             + 'Do not repeat or request any tool action. Queued expressions and visuals are still unconfirmed, not displayed. '
             + 'Return nonempty JSON, with no Markdown fences or surrounding prose.',
-        }, { signal, fetchImpl, requestRef, selection: modelSelection });
+        }, { signal, fetchImpl, requestRef, selection: modelSelection, round: step, purpose: 'model_retry' });
       }
       if (sources.length) validateMetabloomResearchCitations(parsed.value, sources);
       else if (parsed.value.segments.some(segment => /\[\d+\]/.test(segment.response))) throw invalid('agent_unsourced_citation');
@@ -377,6 +386,7 @@ async function runMetabloomAgent({ message, submittedMessage = message, history,
       seen.add(call.call_id);
       let args; try { args = JSON.parse(call.arguments); } catch { throw invalid('agent_tool_arguments'); }
       const activity = { type: 'tool_activity', name: call.name, callId: call.call_id };
+      const endTool = traceSpan('tool', { tool: call.name, round: step });
       await emit({ ...activity, state: 'running' });
       let output;
       try {
@@ -632,6 +642,7 @@ async function runMetabloomAgent({ message, submittedMessage = message, history,
               : 'The pricing request could not be confirmed. Open Price book setup to reload the saved draft before retrying. No publication was requested.';
         }
       }
+      endTool({ status: typeof output?.status === 'string' ? output.status : 'unknown' });
       await emit({ ...activity, state: output.status === 'failed' ? 'failed' : 'complete' });
       await emit({ type: 'agent_status', state: 'reviewing' });
       console.info('metabloom_agent_tool', JSON.stringify({ requestRef, name: call.name, status: output.status }));
