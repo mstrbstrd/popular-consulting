@@ -12,11 +12,18 @@ const result = await build({
   entryNames: 'app-[hash]', assetNames: 'asset-[hash]', publicPath: '/_private/invoice',
   bundle: true, format: 'esm', platform: 'browser', target: ['es2020'],
   minify: true, sourcemap: false, metafile: true, legalComments: 'none',
-  define: { 'process.env.NODE_ENV': '"production"' },
+  // Shared components read these build flags; give the private editor the same
+  // values the public bundle inlines (an undefined process would throw on load).
+  define: { 'process.env.NODE_ENV': '"production"',
+    'process.env.REACT_APP_METABLOOM_CALENDAR_ENABLED': JSON.stringify(process.env.REACT_APP_METABLOOM_CALENDAR_ENABLED || '') },
   loader: { '.js': 'jsx', '.png': 'file', '.webp': 'file', '.jpg': 'file', '.jpeg': 'file', '.svg': 'file' },
 });
 const [entryPath, entry] = Object.entries(result.metafile.outputs).find(([, value]) => value.entryPoint === 'src/invoice-entry.js') || [];
 if (!entryPath || !entry.cssBundle) throw new Error('Missing private invoice JS/CSS.');
+// The browser has no process object: any environment read esbuild did not
+// replace would throw when the editor loads (it once broke the guided invoice).
+if (/\bprocess\.env\b/.test(fs.readFileSync(entryPath, 'utf8')))
+  throw new Error('The private invoice bundle reads process.env; add the flag to define.');
 const href = file => `/${path.relative('build', file).split(path.sep).join('/')}`;
 // Direct invoice URLs use the same navigation shell. The public shell knows
 // only this protected manifest URL; the editor remains a separate private build.
