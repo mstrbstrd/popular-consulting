@@ -94,7 +94,7 @@ test('real OIDC exchange verifies PKCE, nonce, signature and admin passkey proof
   assert.equal(login.url.searchParams.has('acr_values'), false);
   assert.match(cookieValue(login.response, LOGIN_COOKIE), /^__Host-popcon-login=[0-9a-f]{64}$/);
   const callback = await f.finish(login);
-  assert.equal(callback.status, 303); assert.equal(callback.headers.get('location'), `${config.origin}/home`);
+  assert.equal(callback.status, 303); assert.equal(callback.headers.get('location'), `${config.origin}/home?signed-in=1`);
   const sessionCookie = cookieValue(callback, SESSION_COOKIE);
   assert.ok(sessionCookie);
   const fullCookie = callback.headers.getSetCookie().find(value => value.startsWith(SESSION_COOKIE));

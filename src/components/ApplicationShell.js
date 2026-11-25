@@ -4,7 +4,6 @@ import { AppNavigationContext } from '../contexts/AppNavigationContext';
 import { useAuth } from '../contexts/AuthContext';
 import { appDestination, clickedAppDestination, routeMetadataFor, sharesImmersiveBackground } from '../utils/appRoutes';
 import { syncPrivateInvoiceSession } from '../utils/privateInvoiceLoader';
-import { markHomeEntryIntent } from '../utils/homeEntry';
 import ImmersiveBackground from './ImmersiveBackground';
 import './ApplicationShell.css';
 import MetabloomSessionProvider from './MetabloomSessionProvider';
@@ -118,7 +117,6 @@ export default function ApplicationShell() {
       if (!pop) setHistoryEntry(replace ? 'replaceState' : 'pushState', next, nextEntryKey);
       else setHistoryEntry('replaceState', next, nextEntryKey);
       entryKey.current = nextEntryKey;
-      if (!pop && routeMetadataFor(url.pathname)?.path === '/home') markHomeEntryIntent();
       locationRef.current = next;
       setPhase('loading'); setLocation(next);
     }, reducedMotion() ? 0 : 720);

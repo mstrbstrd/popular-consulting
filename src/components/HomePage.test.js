@@ -32,6 +32,8 @@ const enterHome = async () => {
 
 beforeEach(() => {
   localStorage.clear(); sessionStorage.clear();
+  // Most cases cover the Welcome, which shows on the sign-in landing only.
+  window.history.replaceState({}, '', '/home?signed-in=1');
   window.matchMedia = jest.fn(query => ({ matches: query === '(prefers-reduced-motion: reduce)', addEventListener: jest.fn(), removeEventListener: jest.fn() }));
   mockDeviceTier.hasHardwareWebGL = false;
   mockDeviceTier.isMobileTier = false;
@@ -256,12 +258,21 @@ test('finishes the animated reveal once and releases its scroll and interaction 
   } finally { jest.useRealTimers(); }
 });
 
-test('consumes the main-site entry intent once under StrictMode and still verifies the session', async () => {
-  sessionStorage.setItem('popcon-home-entry', String(Date.now()));
+test('the sign-in landing shows the Welcome once under StrictMode and forgets its marker', async () => {
+  window.history.replaceState({ key: 'kept' }, '', '/home?signed-in=1#workspace');
+  render(<React.StrictMode><AuthProvider><HomePage /></AuthProvider></React.StrictMode>);
+  expect(screen.getByRole('region', { name: 'Welcome' })).toBeInTheDocument();
+  expect(`${window.location.pathname}${window.location.search}${window.location.hash}`).toBe('/home#workspace');
+  expect(window.history.state).toEqual({ key: 'kept' });
+});
+
+test('every other visit opens the workspace without the Welcome, after verifying the session', async () => {
+  window.history.replaceState({}, '', '/home');
   let resolveSession;
   global.fetch.mockImplementation(() => new Promise(resolve => { resolveSession = resolve; }));
   render(<React.StrictMode><AuthProvider><HomePage /></AuthProvider></React.StrictMode>);
-  expect(sessionStorage.getItem('popcon-home-entry')).toBeNull();
+  expect(screen.queryByRole('region', { name: 'Welcome' })).not.toBeInTheDocument();
+  expect(document.documentElement).not.toHaveClass('home-intro-active');
   expect(screen.queryByRole('region', { name: 'Your tools' })).not.toBeInTheDocument();
   await act(async () => resolveSession({ ok: true, json: async () => identity() }));
   expect(screen.getByRole('region', { name: 'Your tools' })).toBeInTheDocument();
@@ -272,16 +283,6 @@ test('a failed initial check exposes recovery without requiring entry', async ()
   renderHome();
   expect(await screen.findByRole('button', { name: 'Try again' })).toBeInTheDocument();
   expect(screen.queryByRole('region', { name: 'Welcome' })).not.toBeInTheDocument();
-  expect(document.documentElement).not.toHaveClass('home-intro-active');
-});
-
-test('an expired entry intent cannot skip a fresh opening', async () => {
-  sessionStorage.setItem('popcon-home-entry', String(Date.now() - 31000));
-  const { unmount } = renderHome();
-  await screen.findByText('Interact to enter your workspace.');
-  expect(screen.queryByRole('region', { name: 'Your tools' })).not.toBeInTheDocument();
-  expect(sessionStorage.getItem('popcon-home-entry')).toBeNull();
-  unmount();
   expect(document.documentElement).not.toHaveClass('home-intro-active');
 });
 

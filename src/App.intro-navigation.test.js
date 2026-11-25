@@ -46,7 +46,8 @@ test.each(['click', 'wheel', 'keyboard', 'touch', 'dot'])('verified sessions lea
   }
   if (method === 'dot') fireEvent.click(screen.getByRole('button', { name: 'Navigate to Services' }));
   expect(window.location.replace).toHaveBeenCalledWith('/home');
-  expect(Number(sessionStorage.getItem('popcon-home-entry'))).toBe(Date.now());
+  // Home opens straight into the workspace; it needs no hand-off marker.
+  expect(window.location.replace).not.toHaveBeenCalledWith(expect.stringContaining('signed-in'));
   expect(document.querySelector('.section-dot.active')).toHaveAttribute('aria-label', 'Navigate to Hero');
 });
 

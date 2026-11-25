@@ -6,7 +6,6 @@ import NavMenu from './NavMenu';
 import HomeBackground from './HomeBackground';
 import HeroLogo from './HeroLogo';
 import HomeOrbField from './HomeOrbField';
-import { consumeHomeEntryIntent, hasHomeEntryIntent } from '../utils/homeEntry';
 import logo from '../assets/icons/logo2026_128.png';
 import { useHomeLiquidGlass } from './liquidGlassRefraction';
 import './HomePage.css';
@@ -141,10 +140,12 @@ function HomeContent() {
   const tools = process.env.REACT_APP_METABLOOM_CALENDAR_ENABLED === '1'
     ? [...TOOLS, CALENDAR_TOOL]
     : TOOLS;
-  const [returning] = useState(() => Boolean(navigation?.hasEnteredWorkspace()));
-  const [handoff] = useState(() => returning || hasHomeEntryIntent());
-  const [entryRequested, setEntryRequested] = useState(handoff);
-  const [entry, setEntry] = useState(returning ? 'open' : 'intro');
+  // Home's Welcome is the screen right after signing in, and only then: the
+  // sign-in callback lands on /home?signed-in=1. Every other visit opens the
+  // workspace directly.
+  const [welcome] = useState(() => !navigation?.hasEnteredWorkspace() && justSignedIn());
+  const [entryRequested, setEntryRequested] = useState(false);
+  const [entry, setEntry] = useState(welcome ? 'intro' : 'open');
   const mainRef = useRef(null);
   const pageRef = useRef(null);
   useHomeLiquidGlass(pageRef);
@@ -153,9 +154,9 @@ function HomeContent() {
   const setImmersiveSection = navigation?.setImmersiveSection;
   React.useLayoutEffect(() => { setImmersiveSection?.(entry === 'intro' ? 0 : 1); }, [entry, setImmersiveSection]);
 
-  // Read without consuming in the initializer so StrictMode's repeated render
-  // preserves the gesture. The marker never establishes an authenticated session.
-  useEffect(() => { consumeHomeEntryIntent(); }, []);
+  // Read in the initializer, removed after mount (StrictMode renders twice). The
+  // marker is presentation only and never establishes a session.
+  useEffect(() => { forgetSignInMarker(); }, []);
   useEffect(() => { if (signedIn && entry === 'open') navigation?.enterWorkspace(); }, [signedIn, entry, navigation]);
 
   useEffect(() => {
@@ -217,7 +218,7 @@ function HomeContent() {
         // a synthesized click could otherwise land on a newly revealed card.
         event.preventDefault(); requestEntry();
       }} onClick={requestEntry}>
-      <HeroLogo active={entry === 'intro'} onEnter={requestEntry} immediate={handoff}
+      <HeroLogo active={entry === 'intro'} onEnter={requestEntry} immediate={false}
         label="Popular Consulting, enter your workspace" />
       <p className="home-intro-status" role="status">{status === 'loading' || entryRequested ? 'Opening your workspace.' : 'Interact to enter your workspace.'}</p>
     </section>}
@@ -261,6 +262,19 @@ function HomeContent() {
     </div>
   </div>;
 }
+
+const SIGNED_IN_MARKER = 'signed-in';
+const justSignedIn = () => {
+  try { return new URLSearchParams(window.location.search).get(SIGNED_IN_MARKER) === '1'; } catch { return false; }
+};
+const forgetSignInMarker = () => {
+  try {
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has(SIGNED_IN_MARKER)) return;
+    url.searchParams.delete(SIGNED_IN_MARKER);
+    window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+  } catch { /* The marker only selects the intro. */ }
+};
 
 export default function HomePage() {
   return <ThemeProvider enableBackground={false}><HomeContent /></ThemeProvider>;
