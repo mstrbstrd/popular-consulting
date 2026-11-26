@@ -295,14 +295,27 @@ const completeSentences = (value) => {
 // Markdown and source bindings in a second generated quotation. Every choice is
 // a complete cited passage or sentence; a date elsewhere in the report is never
 // attached to an item implicitly. This is report consistency, not web verification.
-function buildMetabloomResearchDateEvidenceCatalog(report) {
+// One date names one development. A single sentence may also carry an ongoing
+// story's earlier date beside today's update ("reopened on 2026-11-26 after
+// closing on 2026-11-24"); only when nothing stricter qualifies, and only for a
+// news window, does a sentence with exactly one eligible date support that date.
+// Any other combination stays ambiguous and offers nothing.
+function evidenceDate(dates, temporalContext, { window = false } = {}) {
+  const distinct = [...new Set(dates)];
+  if (distinct.length === 1) return distinct[0];
+  if (!window) return null;
+  const { kind, windowStart, windowEnd, localDate } = temporalContext || {};
+  if (kind !== "news" || !dateOnly(windowStart) || !dateOnly(windowEnd)) return null;
+  const inWindow = distinct.filter((date) => date >= windowStart && date <= windowEnd && (!dateOnly(localDate) || date <= localDate));
+  return inWindow.length === 1 ? inWindow[0] : null;
+}
+function buildMetabloomResearchDateEvidenceCatalog(report, temporalContext) {
   const knownIds = validateEvidence(report), groups = new Map(), seen = new Set();
   const stripTrailingLinks = (value) => value.replace(/(?:\s*\(?\[[^\]\r\n]{1,200}\]\(https?:\/\/[^\s()<>]{1,2048}\)\)?[.,;]?)+\s*$/gi, "").trim();
-  const eligible = (excerpt) => {
+  const eligible = (excerpt, options) => {
     if (!safeText(excerpt, 600) || excerpt.length < 20 || hasUrl(excerpt) || wrapperDateExcerpt(excerpt)
       || publicationDateExcerpt(excerpt) || scheduledOnlyExcerpt(excerpt)) return null;
-    const dates = explicitDates(excerpt);
-    return dates.length === 1 ? dates[0] : null;
+    return evidenceDate(explicitDates(excerpt), temporalContext, options);
   };
   for (const passage of citedParagraphs(report)) {
     const complete = stripTrailingLinks(passage.text);
@@ -313,7 +326,7 @@ function buildMetabloomResearchDateEvidenceCatalog(report) {
         const line = stripTrailingLinks(whitespace(originalLine)), lineDate = eligible(line);
         if (lineDate) snippets.push({ excerpt: line, date: lineDate });
         else for (const sentence of completeSentences(line)) {
-          const excerpt = stripTrailingLinks(sentence), date = eligible(excerpt);
+          const excerpt = stripTrailingLinks(sentence), date = eligible(excerpt) || eligible(excerpt, { window: true });
           if (date) snippets.push({ excerpt, date });
         }
       }
@@ -380,7 +393,7 @@ function extractMetabloomResearchBrief(candidate, { report, temporalContext, evi
     || !Array.isArray(candidate.sourceDetails) || candidate.sourceDetails.length > MAX_METABLOOM_RESEARCH_BRIEF_SOURCES
     || hasUrl([candidate.title, candidate.scope, candidate.limitations])) throw briefError("brief_shape_invalid");
   const paragraphs = citedParagraphs(report), items = [], subjects = [], headlines = new Set(), eventEvidence = new Set();
-  const dateEvidenceCatalog = new Map(buildMetabloomResearchDateEvidenceCatalog(report).map((entry) => [entry.id, entry]));
+  const dateEvidenceCatalog = new Map(buildMetabloomResearchDateEvidenceCatalog(report, temporalContext).map((entry) => [entry.id, entry]));
   const diagnostics = { candidateCount: candidate.items.length, dateEvidenceChoices: dateEvidenceCatalog.size,
     omittedMissingDate: 0, omittedDateBasis: 0, omittedDateEvidence: 0,
     omittedOutsideWindow: 0, omittedFutureDevelopment: 0, omittedScheduledDate: 0, clearedScheduledDate: 0, omittedDuplicate: 0 };
@@ -519,7 +532,7 @@ async function readBriefResponse(response, signal) {
 
 async function generateMetabloomResearchBrief({ message, history = [], report, temporalContext, evidenceLimited = false, signal, requestRef, modelSelection, onImageSubjects, fetchImpl = globalThis.fetch }) {
   validateEvidence(report);
-  const dateEvidenceCatalog = buildMetabloomResearchDateEvidenceCatalog(report);
+  const dateEvidenceCatalog = buildMetabloomResearchDateEvidenceCatalog(report, temporalContext);
   signal?.throwIfAborted();
   const startedAt = Date.now();
   let response, envelope, outcome = "failed", failure, result, diagnostics = {};

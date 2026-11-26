@@ -771,6 +771,9 @@ test("the research pass receives the same local date evidence instructions witho
   assert.match(calls[0].instructions, /2026-10-23/);
   assert.match(calls[0].instructions, /wrapper/);
   assert.match(calls[0].instructions, /YYYY-MM-DD/);
+  // One date per development's evidence sentence; earlier dates sit apart.
+  assert.match(calls[0].instructions, /states only this development's own date/);
+  assert.match(calls[0].instructions, /earlier original-event date, a publication date or a future milestone in a separate sentence, never in the date-evidence sentence/);
   assert.match(calls[0].instructions, /return fewer/i);
   assert.match(calls[0].instructions, /at least two different publishers/);
   assert.match(actual.notes, /\[1\]/);
@@ -798,3 +801,36 @@ test("image subjects are ordered lookup candidates aligned with the delivered it
     onImageSubjects: (list) => { legacy = list; } });
   assert.deepEqual(legacy, [[], [], []]);
 });
+
+test("an update sentence that also names the original event's earlier date supports today's update", () => {
+  // Research often writes today's update beside the earlier event ("reopened on
+  // ... after closing on ..."). Exactly one of those dates is inside the window.
+  const evidence = report(), today = context();
+  const update = "On 2026-10-23, Agency 1 reopened the bridge that had closed on 2026-10-20.";
+  evidence.notes = evidence.notes.replace(`${quote(1)} [1]`, `${update} [1]`);
+  assert.equal(buildMetabloomResearchDateEvidenceCatalog(evidence).some((row) => row.sourceId === 1), false);
+  const catalog = buildMetabloomResearchDateEvidenceCatalog(evidence, today);
+  const choice = catalog.find((row) => row.sourceId === 1);
+  assert.deepEqual([choice.date, choice.excerpt], ["2026-10-23", update]);
+  const value = referenceCandidate(candidate(), evidence);
+  value.items[0].dateEvidence = { evidenceId: choice.id };
+  const actual = extractMetabloomResearchBrief(value, { report: evidence, temporalContext: today });
+  assert.deepEqual(actual.items.map((entry) => [entry.sourceIds[0], entry.developmentDate]), [[1, "2026-10-23"], [5, "2026-10-23"], [9, "2026-10-23"]]);
+  assert.equal(actual.items[0].dateEvidence.quote, update);
+});
+
+test("a sentence with two dates stays ambiguous when both or neither fall inside the window", () => {
+  const evidence = report();
+  evidence.notes = evidence.notes.replace(`${quote(1)} [1]`, "On 2026-10-23, Agency 1 reopened the bridge that had closed on 2026-10-20. [1]")
+    .replace(`${quote(5)} [5]`, "On 2026-10-12, Agency 5 restored a service it had suspended on 2026-10-09. [5]");
+  // This week (2026-10-19 to 2026-10-23) holds both of the first sentence's dates.
+  const week = buildMetabloomResearchDateEvidenceCatalog(evidence, context("Top 5 news events this week"));
+  assert.equal(week.some((row) => row.sourceId === 1 || row.sourceId === 5), false);
+  // Today holds neither of the second sentence's dates.
+  const today = buildMetabloomResearchDateEvidenceCatalog(evidence, context());
+  assert.equal(today.some((row) => row.sourceId === 5), false);
+  // Outside a news window, two dates are never resolved.
+  const general = buildMetabloomResearchDateEvidenceCatalog(evidence, context("Explain how bridges are inspected"));
+  assert.equal(general.some((row) => row.sourceId === 1 || row.sourceId === 5), false);
+});
+
