@@ -495,3 +495,34 @@ test("Stop during formatting aborts its request without a fallback or stale brie
   assert.equal(signal.aborted, true); assert.deepEqual(calls.map((call) => call.phase), ["research", "brief"]);
   assert(!records(res).some((event) => ["research_brief_complete", "segment", "done"].includes(event.type)));
 });
+
+test("a summary that outruns its budget falls back to the full report instead of failing the turn", async () => {
+  // Production once failed a finished five-story brief 0.1 s after a 45-second
+  // budget ended, discarding the completed research (answer_timeout).
+  mock.timers.enable({ apis: ["setTimeout"] });
+  try {
+    let started, signal; const ready = new Promise((resolve) => { started = resolve; });
+    const calls = installProvider({ formatter: (_body, options) => {
+      signal = options.signal; started();
+      return new Promise((_resolve, reject) => signal.addEventListener("abort", () => reject(new Error("fixture-slow-writer")), { once: true }));
+    } });
+    const res = response(); const running = handler(request(), res);
+    await ready;
+    // The summary may use up to 90 seconds; the request itself has longer.
+    mock.timers.tick(89000); await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(signal.aborted, false);
+    mock.timers.tick(1001);
+    await running;
+    assert.equal(signal.aborted, true);
+    assert.deepEqual(calls.map((call) => call.phase), ["research", "brief"]);
+    const events = records(res);
+    assert.equal(events.some((event) => event.type === "error"), false);
+    assert(events.some((event) => event.type === "research_brief_complete"));
+    assert.equal(events.at(-1).type, "done");
+    const result = decode(res);
+    assert.equal(result.briefs[0].coverage.status, "unavailable");
+    assert.match(result.briefs[0].coverage.limitations[0], /full research report/i);
+    assert(result.reports[0].notes.endsWith("END OF THE COMPLETE FICTIONAL RESEARCH REPORT."));
+    assert(console.info.mock.calls.some(({ arguments: [line] }) => String(line).includes('"event":"metabloom_research_brief_fallback"') && String(line).includes('"code":"answer_timeout"')));
+  } finally { mock.timers.reset(); }
+});

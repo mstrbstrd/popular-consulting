@@ -15,7 +15,9 @@ import { createMetabloomTraceStreamBridge } from './metabloomLatency';
 export { getMetabloomApiErrorMessage } from "./metabloomRequestErrors";
 
 const MAX_RESPONSE_BYTES = 96000;
-export const METABLOOM_RESEARCH_TIMEOUT_MS = 210000;
+// Outlasts the server's 255-second deep-research deadline, so the server's own
+// answer (or its fallback to the full report) always arrives first.
+export const METABLOOM_RESEARCH_TIMEOUT_MS = 270000;
 export const METABLOOM_RESEARCH_REUSE_TIMEOUT_MS = 90000;
 export class MetabloomApiError extends Error {
   constructor(message, { code = "request_failed", status = 0, requestRef = null } = {}) {

@@ -52,6 +52,14 @@ const MAX_RESEARCH_WRITER_NOTES_CHARS = 16000;
 // The briefing formatter receives more of the report than the short answer
 // writer, so each story can carry its specifics.
 const MAX_RESEARCH_BRIEF_NOTES_CHARS = 32000;
+// Deep research timing. Search has its own 170-second ceiling; the whole
+// request ends by DEEP_RESEARCH_DEADLINE_MS (inside the function's 300 s and
+// the browser's 270 s). The short answer has its own budget inside that, and
+// always leaves RESEARCH_FINISH_RESERVE_MS to fall back and finish, so a slow
+// summary never discards the completed research.
+const DEEP_RESEARCH_DEADLINE_MS = 255000;
+const RESEARCH_ANSWER_BUDGET_MS = 90000;
+const RESEARCH_FINISH_RESERVE_MS = 15000;
 const localBuckets = new Map();
 // Atomic quotas across serverless instances, including a project-wide cost ceiling.
 const QUOTA_SCRIPT = `
@@ -793,8 +801,8 @@ const handleMetabloomChat = async (request, response) => {
       await sendStreamEvent({ type: "research", state: "synthesizing" });
     } else if (presentationAction === "deep-research") {
       // One absolute deadline covers quota, search, synthesis and final reaction.
-      // Progress does not reset it. Search also has its own two-minute ceiling.
-      armDeadline(startedAt + 175000);
+      // Progress does not reset it. Search also has its own ceiling.
+      armDeadline(startedAt + DEEP_RESEARCH_DEADLINE_MS);
       await initialReactionPromise;
       await sendStreamEvent({ type: "research", state: "searching" });
       stage = "research";
@@ -841,7 +849,7 @@ const handleMetabloomChat = async (request, response) => {
           ? "Preparing the completed research report."
           : `Writing an answer from ${research.sources.length} cited ${research.sources.length === 1 ? "source" : "sources"}.` });
       }
-      armDeadline(Math.min(startedAt + 175000, Date.now() + 45000));
+      armDeadline(Math.min(startedAt + DEEP_RESEARCH_DEADLINE_MS, Date.now() + RESEARCH_ANSWER_BUDGET_MS + RESEARCH_FINISH_RESERVE_MS));
     }
     let finalReply;
     if (useStructuredResearch) {
@@ -851,16 +859,21 @@ const handleMetabloomChat = async (request, response) => {
       let fallbackReason = null, briefImageSubjects = null;
       if (evidence) {
         stage = "research_brief";
+        // The summary's own budget ends before the request's, so running out
+        // falls back to the full report instead of failing the turn.
+        const briefBudget = new AbortController();
+        const briefTimer = setTimeout(() => briefBudget.abort(), Math.max(1000, requestDeadline - Date.now() - RESEARCH_FINISH_RESERVE_MS));
+        const briefSignal = AbortSignal.any([controller.signal, briefBudget.signal]);
         try {
           researchBrief = await traceTime('research_brief', () => generateMetabloomResearchBrief({ message, history: contextHistory, report: evidence,
             modelSelection, onImageSubjects: subjects => { briefImageSubjects = subjects; },
             evidenceLimited: evidence !== researchReport,
-            temporalContext, signal: controller.signal, requestRef }));
+            temporalContext, signal: briefSignal, requestRef }));
         } catch (error) {
           if (controller.signal.aborted || response.destroyed || request.aborted) throw error;
           console.info(JSON.stringify({ event: "metabloom_research_brief_fallback", requestRef,
-            code: METABLOOM_STREAM_ERROR_CODES.includes(error?.code) ? error.code : "answer_invalid" }));
-        }
+            code: briefBudget.signal.aborted ? "answer_timeout" : METABLOOM_STREAM_ERROR_CODES.includes(error?.code) ? error.code : "answer_invalid" }));
+        } finally { clearTimeout(briefTimer); }
       }
       if (controller.signal.aborted || response.destroyed || request.aborted) throw new Error("Cancelled");
       if (!researchBrief) {
