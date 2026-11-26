@@ -104,6 +104,7 @@ npm run lint    # eslint --max-warnings 0 (CI-gated)
 
 ### /dither-canvas (CreatorOS field lab)
 - `DitherCanvasPage.js` owns the fourteen-study selector and guarantees that only one visible renderer family is mounted at a time.
+- Like Canvas, `/dither-canvas` keeps one top bar: the field controls sit beside the site's theme toggle, experience menu (`WorkspaceMenu siteLinks`, so Work and Popular Consulting are listed) and account control. The brand opens `/home` when signed in and `/` otherwise.
 - `GraphicsFallbackPage.js` is the intentional policy-disabled route. It explains safe mode and provides explicit enhanced-graphics opt-in without making WebGL mandatory.
 - `CreatorOSLavaLampCanvas.js` is the direct port of `mstrbstrd/CreatorOS/apps/web/components/fluid-background.tsx`. Preserve its half-resolution WebGL1 canvas, 30fps cap, Bayer-8 quantization, exact spectral palette, transparent premultiplied output, viscous wax deformation, velocity stretch/pinch, and 3.2 second warm-up.
 - `CreatorOSFieldCanvas.js` is the shared WebGL2 renderer for Metabloom, Tidal Weave, Moiré Halo, Contour Drift, Morphogen Divide, Quasicrystal Chorus, Hyperbolic Garden, Forward Pass, Chiral Weave, and Finite Infinity. It carries the same CreatorOS rendering contract while preserving each study's independent scene mathematics.

@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import logo from "../assets/icons/logo2026_128.png";
 import WorkspaceMenu from './WorkspaceMenu';
+import AuthNavControl from './AuthNavControl';
+import { useAuth } from '../contexts/AuthContext';
 import { useAppNavigation } from '../contexts/AppNavigationContext';
 import popcanLogo from "../assets/img/popcan-logo.png";
 import { ThemeProvider, useThemeMode } from "../contexts/ThemeContext";
@@ -358,6 +360,7 @@ const ThemeIcon = ({ isDark }) =>
 
 const DitherFieldLab = () => {
   const navigation = useAppNavigation();
+  const signedIn = useAuth().status === 'authenticated';
   const [savedStudy] = useState(() => navigation?.getToolState('dither'));
   const initialStudy = savedStudy?.index || 0;
   const { isDark, toggleTheme } = useThemeMode();
@@ -940,8 +943,8 @@ const DitherFieldLab = () => {
           <nav className="rupture-nav" aria-label="Dither field controls">
             <a
               className="rupture-brand"
-              href="/"
-              aria-label="Return to Popular Consulting"
+              href={signedIn ? "/home" : "/"}
+              aria-label={signedIn ? "Go to Home" : "Return to Popular Consulting"}
             >
               <img src={logo} alt="" aria-hidden="true" />
               <span className="rupture-brand-desktop">Popular Consulting</span>
@@ -961,7 +964,10 @@ const DitherFieldLab = () => {
                 <ThemeIcon isDark={isDark} />
               </button>
               <div className="rupture-field-controls">{fieldControls}</div>
-              <WorkspaceMenu mobileControls={fieldControls} />
+              {/* Like Canvas, one bar: the site's experience menu (with its
+                  site pages) and account control live beside the field controls. */}
+              <WorkspaceMenu siteLinks mobileControls={fieldControls} />
+              <AuthNavControl />
             </div>
           </nav>
         </header>

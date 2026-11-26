@@ -255,6 +255,26 @@
 
 .rupture-field-controls { display: flex; gap: 0.55rem; }
 .rupture-nav-actions > .workspace-menu { order: -1; }
+/* The account control matches the bar's round icon buttons. */
+.rupture-nav-actions .site-account-menu { margin-left: 0; }
+.rupture-nav-actions .site-account-control {
+  flex: 0 0 4.6rem;
+  width: 4.6rem;
+  min-height: 4.6rem;
+  height: 4.6rem;
+  border: 1px solid var(--rupture-border);
+  background: var(--rupture-control);
+  color: var(--rupture-text);
+  transition: background 0.22s ease, transform 0.22s ease;
+}
+.rupture-nav-actions .site-account-control:hover {
+  background: var(--rupture-control-hover);
+  transform: translateY(-1px);
+}
+.rupture-nav-actions .site-account-control:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 0.3rem;
+}
 .rupture-brand .rupture-brand-mobile { display: none; }
 
 .rupture-nav button {
@@ -998,8 +1018,11 @@
     gap: 0.4rem;
   }
 
-  .rupture-icon-button {
+  .rupture-icon-button,
+  .rupture-nav-actions .site-account-control {
+    flex-basis: 4.2rem;
     width: 4.2rem;
+    min-height: 4.2rem;
     height: 4.2rem;
   }
 
@@ -1141,6 +1164,7 @@
 @media (prefers-reduced-motion: reduce) {
   .rupture-brand,
   .rupture-nav button,
+  .rupture-nav-actions .site-account-control,
   .tidal-palette-option,
   .rupture-header,
   .rupture-copy,

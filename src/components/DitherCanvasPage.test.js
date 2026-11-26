@@ -10,6 +10,7 @@ import {
 import "@testing-library/jest-dom";
 import DitherCanvasPage from "./DitherCanvasPage";
 import { AppNavigationContext } from "../contexts/AppNavigationContext";
+import { AuthContext } from "../contexts/AuthContext";
 
 jest.mock("./RuptureCanvas", () => {
   const ReactModule = require("react");
@@ -176,6 +177,25 @@ describe("DitherCanvasPage", () => {
     jest.useRealTimers();
     window.localStorage.clear();
     document.documentElement.removeAttribute("data-theme");
+  });
+
+  test("its one bar carries the site's experience menu, site pages and account control", () => {
+    const navigation = { pathname: "/dither-canvas", getToolState: () => null, saveToolState: () => {}, setRouteScrollRestoration: () => () => {} };
+    const page = (status) => <AuthContext.Provider value={{ status, user: null, csrfToken: null, expiresAt: 0, logoutRevision: 0, refresh: async () => {}, logout: async () => {} }}>
+      <AppNavigationContext.Provider value={navigation}><DitherCanvasPage /></AppNavigationContext.Provider></AuthContext.Provider>;
+    const { rerender } = render(page("anonymous"));
+    const bar = screen.getByRole("navigation", { name: "Dither field controls" });
+    expect(within(bar).getByRole("link", { name: "Return to Popular Consulting" })).toHaveAttribute("href", "/");
+    expect(within(bar).getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/login");
+    const experiences = within(bar).getByRole("navigation", { name: "Experiences" });
+    expect(within(experiences).getByRole("link", { name: /Work/ })).toHaveAttribute("href", "/work");
+    expect(within(experiences).getByRole("link", { name: /Popular Consulting/ })).toHaveAttribute("href", "/");
+    expect(within(experiences).getByRole("link", { name: /Dither Canvas/ })).toHaveAttribute("aria-current", "page");
+    expect(within(experiences).queryByRole("link", { name: /Orb/ })).toBeNull();
+    rerender(page("authenticated"));
+    expect(within(bar).getByRole("link", { name: "Go to Home" })).toHaveAttribute("href", "/home");
+    expect(within(bar).getByLabelText("Account menu")).toBeInTheDocument();
+    expect(within(experiences).getByRole("link", { name: /Orb/ })).toHaveAttribute("href", "/orb");
   });
 
   test("restores a retained study's scroll position before measurement and shell reveal", () => {
